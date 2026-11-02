@@ -123,6 +123,14 @@
   color: var(--color-text-muted);
 }
 
+/* A draft's marker: accent text, before In use. */
+.unsaved {
+  flex: none;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-accent-text);
+}
+
 .chevron {
   display: inline-flex;
   flex: none;
@@ -207,6 +215,59 @@
 
 .danger {
   color: var(--color-danger-text);
+}
+
+/* Revert · Save — the list filter line's pair (ListFilterRow.module.css). */
+.draftButtons {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 6px;
+}
+
+.draftRule {
+  flex: none;
+  width: 1px;
+  height: 14px;
+  margin: 0 2px;
+  background: var(--color-border);
+}
+
+.draftButton {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.revertButton {
+  padding: 0 7px 0 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.revertButton:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.saveButton {
+  padding: 0 8px 0 6px;
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-weight: var(--font-weight-bold);
+}
+
+.saveButton:hover {
+  filter: brightness(1.08);
 }
 
 .newLens {

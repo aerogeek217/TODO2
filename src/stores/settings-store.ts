@@ -199,8 +199,12 @@ interface SettingsState {
   addLens: (name: string, predicate?: TodoPredicate) => Promise<string | null>
   /** Renames a lens; a blank name or an unknown id changes nothing (false). */
   renameLens: (id: string, name: string) => Promise<boolean>
-  /** What a lens keeps; an unknown id or the same filter changes nothing. */
-  setLensPredicate: (id: string, predicate: TodoPredicate) => Promise<void>
+  /**
+   * What a lens keeps, as one undo step (`Changed lens “<name>”`); resolves
+   * whether it is saved (the same filter: true, nothing written; an unknown
+   * id: false).
+   */
+  setLensPredicate: (id: string, predicate: TodoPredicate) => Promise<boolean>
   /** Copies a lens right after it (`<name> 2`); resolves the copy's id, or null. */
   duplicateLens: (id: string) => Promise<string | null>
   /**
@@ -756,8 +760,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setLensPredicate(id: string, predicate: TodoPredicate) {
     const lens = findLens(get().lenses, id)
-    if (!lens) return
-    await get().setLenses(
+    if (!lens) return false
+    return get().setLenses(
       get().lenses.map((l) => (l.id === id ? { ...l, predicate } : l)),
       `Changed lens “${lens.name}”`,
     )

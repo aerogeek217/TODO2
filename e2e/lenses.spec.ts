@@ -131,6 +131,41 @@ test('a chip on top narrows further and turns the tray red; Clear all leaves the
   await expect(tray(page)).not.toHaveAttribute('data-filtered')
 })
 
+test('a lens’s filter edit is unsaved until Save: the top bar keeps the saved lens; closing Settings asks, Keep editing stays, Save applies it', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await pickLens(page, 'Plans')
+  await expect.poll(() => mainTitles(page)).toEqual(['Ann plan'])
+  await expect(counter(page)).toHaveAccessibleName('1 of 3 open tasks shown. Show them')
+
+  const settings = await openSettings(page, 'Tasks')
+  const lenses = settings.getByTestId('lens-list')
+  await lenses.getByRole('button', { name: /^Plans/ }).click()
+  await settings.getByTestId('lens-filter').getByRole('button', { name: 'Remove filter', exact: true }).click()
+  await expect(lenses.getByRole('button', { name: /^Plans/ })).toContainText('Unsaved')
+  await expect(settings.getByTestId('lens-keeps')).toContainText('Keeps 3 of 3 open tasks')
+  // The top bar (and the list under the modal) keep the saved lens.
+  await expect(counter(page)).toHaveAccessibleName('1 of 3 open tasks shown. Show them')
+  await expect.poll(() => mainTitles(page)).toEqual(['Ann plan'])
+
+  // Esc asks; Esc again is Keep editing — Settings stays on the lens.
+  await page.keyboard.press('Escape')
+  const prompt = page.getByRole('dialog', { name: 'Save changes to lens “Plans”?' })
+  await expect(prompt).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(prompt).toHaveCount(0)
+  await expect(settings).toBeVisible()
+  await expect(lenses.getByRole('button', { name: /^Plans/ })).toHaveAttribute('aria-expanded', 'true')
+  await expect(lenses.getByRole('button', { name: /^Plans/ })).toContainText('Unsaved')
+
+  await settings.getByRole('button', { name: 'Close settings' }).click()
+  await prompt.getByRole('button', { name: 'Save lens' }).click()
+  await expect(settings).toHaveCount(0)
+  await expect(counter(page)).toHaveAccessibleName('3 of 3 open tasks shown. Show them')
+  await expect.poll(() => mainTitles(page)).toEqual(ALL)
+  await reload(page)
+  await expect(counter(page)).toHaveAccessibleName('3 of 3 open tasks shown. Show them')
+})
+
 test('deleting the picked lens in Settings puts the top bar on No lens, without asking; Undo brings both back', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await pickLens(page, 'Has a person')

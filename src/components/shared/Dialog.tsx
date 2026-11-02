@@ -334,6 +334,13 @@ export interface ConfirmDialogProps {
   danger?: boolean
   onConfirm: () => void
   onCancel: () => void
+  /**
+   * A third answer (Save / Discard / Keep editing): its label, on a quiet
+   * danger button at the start of the row, Esc named on cancel. Shown with
+   * `onDiscard`.
+   */
+  discardLabel?: string
+  onDiscard?: () => void
   /** Sits over another dialog. See `Dialog`'s `nested` prop. */
   nested?: boolean
   /** The button focused on open (so Enter picks it). Default: confirm. */
@@ -349,9 +356,12 @@ export function ConfirmDialog({
   danger = false,
   onConfirm,
   onCancel,
+  discardLabel,
+  onDiscard,
   nested = false,
   initialFocus = 'confirm',
 }: ConfirmDialogProps) {
+  const threeWay = discardLabel != null && onDiscard != null
   const confirmRef = useRef<HTMLButtonElement>(null)
   const cancelRef = useRef<HTMLButtonElement>(null)
   return (
@@ -364,8 +374,14 @@ export function ConfirmDialog({
     >
       <DialogBody>{message}</DialogBody>
       <DialogActions>
+        {threeWay && (
+          <button type="button" className={styles.discardButton} onClick={onDiscard}>
+            {discardLabel}
+          </button>
+        )}
         <button ref={cancelRef} type="button" className={styles.cancelButton} onClick={onCancel}>
           {cancelLabel}
+          {threeWay && <kbd className={styles.kbd} aria-hidden="true">Esc</kbd>}
         </button>
         <button
           ref={confirmRef}

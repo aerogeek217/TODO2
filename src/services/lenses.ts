@@ -3,6 +3,7 @@ import { predicateToCriteria } from '../utils/filter-criteria'
 import { matchesFilterWithLookups } from '../utils/filter-match'
 import type { TodoNameLookups } from '../utils/filter'
 import type { ScreenCountEnv } from './task-dialog'
+import { useLensDraftStore } from '../stores/lens-draft-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
@@ -75,7 +76,8 @@ async function mustPick(id: string | null): Promise<void> {
 
 /**
  * Deletes lens `id`; when it is the top bar's pick, the top bar goes to No
- * lens. One undo step with the snackbar: Undo brings the lens back with the
+ * lens. Its unsaved filter edits (`lens-draft-store`) go with it, unasked.
+ * One undo step with the snackbar: Undo brings the saved lens back with the
  * pick. Resolves whether it was deleted.
  */
 export async function deleteLens(id: string): Promise<boolean> {
@@ -86,6 +88,8 @@ export async function deleteLens(id: string): Promise<boolean> {
     const settings = useSettingsStore.getState()
     const picked = settings.activeLensId === id
     if (!(await settings.setLenses(settings.lenses.filter((l) => l.id !== id), description))) return false
+    const drafts = useLensDraftStore.getState()
+    if (drafts.draft?.lensId === id) drafts.discard()
     // A pick that fails to clear (said by the snackbar) names a lens no more: No lens all the same.
     if (picked && await useSettingsStore.getState().setActiveLens(null)) {
       undoable(description, () => mustPick(null), () => mustPick(id))

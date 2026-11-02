@@ -5,6 +5,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useNoteStore } from '../stores/note-store'
 import { useListDraftStore } from '../stores/list-draft-store'
+import { useLensDraftStore } from '../stores/lens-draft-store'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListOrderStore } from '../stores/list-order-store'
@@ -35,6 +36,8 @@ export async function refreshAllStores() {
   // against the loaded data when it opens).
   if (useWorkspaceStore.getState().hydrated) clearUnsavedDrafts()
   useListDraftStore.setState({ drafts: {} })
+  // A lens's unsaved filter edits name a lens the replaced data may not have.
+  useLensDraftStore.getState().discard()
   useListWidgetStore.setState({ picks: {}, collapsed: {} })
   // The replaced history (a table clear doesn't fire the event hooks).
   useTrendEventsStore.getState().invalidate()

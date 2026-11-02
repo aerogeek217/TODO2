@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react'
+import { render, screen, fireEvent, cleanup, waitFor, within, act } from '@testing-library/react'
+import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
 import { LensesSection } from '../../../components/settings/sections/LensesSection'
 import { SettingsLayerContext } from '../../../components/settings/sections/settings-layer'
 import { emptyFilterClauses, emptyPredicate } from '../../../models/filter-predicate'
+import { useLensDraftStore } from '../../../stores/lens-draft-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useUndoStore } from '../../../stores/undo-store'
 import { makeTodo, resetDb } from '../../helpers'
 
 beforeEach(async () => {
@@ -50,10 +53,13 @@ describe('Settings › Tasks › Lenses', () => {
     expect(screen.getByTestId('lens-keeps')).toHaveTextContent(/^Keeps 1 of 2 open tasks right now$/)
     const chips = screen.getByTestId('lens-filter')
     expect(within(chips).getByTestId('list-filter-chip')).toHaveTextContent('Statusnot Waiting')
-    // × removes the clause: every open task again.
+    // × removes the clause — a draft: the editor shows every open task, the lens is unchanged until Save.
     fireEvent.click(within(chips).getByRole('button', { name: 'Remove filter' }))
-    await waitFor(() => expect(useSettingsStore.getState().lenses[0]!.predicate.statusIds).toBeNull())
     expect(screen.getByTestId('lens-keeps')).toHaveTextContent('Keeps 2 of 2 open tasks')
+    expect(useSettingsStore.getState().lenses[0]!.predicate.statusIds).toEqual([3])
+    fireEvent.click(screen.getByRole('button', { name: 'Save lens Not waiting' }))
+    await waitFor(() => expect(useSettingsStore.getState().lenses[0]!.predicate.statusIds).toBeNull())
+    expect(screen.queryByTestId('save-lens')).toBeNull()
   })
 
   it('a lens whose only filter is a group reads the group in words and keeps what any of its filters keeps', () => {
@@ -138,5 +144,108 @@ describe('Settings › Tasks › Lenses', () => {
     fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
     await waitFor(() => expect(layers).toBe(0))
     expect(useSettingsStore.getState().lenses.map((l) => l.name)).toEqual(['Alpha', 'Beta'])
+  })
+})
+
+describe('Settings › Tasks › Lenses — filter edits are saved or reverted', () => {
+  const twoLenses = () => useSettingsStore.setState({
+    lensPresetsSeeded: true,
+    lenses: [
+      { id: 'lens-w', name: 'Not waiting', predicate: { ...emptyPredicate(), statusIds: [3], negate: { statusIds: true } } },
+      { id: 'lens-x', name: 'Every task', predicate: emptyPredicate() },
+    ],
+    activeLensId: 'lens-w',
+  })
+  const saved = () => useSettingsStore.getState().lenses.find((l) => l.id === 'lens-w')!.predicate
+  // The head button (the grips are `Move <name>`).
+  const head = (name: RegExp) => within(screen.getByTestId('lens-list')).getByRole('button', { name })
+  const promptDialog = () => screen.getByRole('dialog', { name: 'Save changes to lens “Not waiting”?' })
+
+  /** Opens Not waiting and removes its filter: a draft. */
+  function draftIt() {
+    render(<><LensesSection /><ConfirmPromptHost /></>)
+    fireEvent.click(head(/^Not waiting/))
+    fireEvent.click(within(screen.getByTestId('lens-filter')).getByRole('button', { name: 'Remove filter' }))
+  }
+
+  beforeEach(twoLenses)
+
+  it('while drafting the row, chips and Keeps show the draft, marked Unsaved; the saved lens (the top bar’s) is unchanged', () => {
+    draftIt()
+    const row = head(/^Not waiting/)
+    expect(row).toHaveTextContent('Unsaved')
+    expect(row).not.toHaveTextContent('Status not Waiting')
+    expect(screen.getByText('No filter — every task')).toBeInTheDocument()
+    expect(screen.getByTestId('lens-keeps')).toHaveTextContent('Keeps 2 of 2 open tasks')
+    expect(saved().statusIds).toEqual([3])
+    expect(useSettingsStore.getState().activeLensId).toBe('lens-w')
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    expect(screen.getByRole('button', { name: 'Revert lens changes' })).toBeInTheDocument()
+  })
+
+  it('Revert puts the saved filter back; Undo in the snackbar brings the draft back', async () => {
+    draftIt()
+    fireEvent.click(screen.getByRole('button', { name: 'Revert lens changes' }))
+    expect(head(/^Not waiting/)).not.toHaveTextContent('Unsaved')
+    expect(screen.getByTestId('lens-keeps')).toHaveTextContent('Keeps 1 of 2 open tasks')
+    await act(() => useUndoStore.getState().undo())
+    expect(head(/^Not waiting/)).toHaveTextContent('Unsaved')
+    expect(saved().statusIds).toEqual([3])
+  })
+
+  it('collapsing it asks: Keep editing stays open with the draft; Discard collapses it unsaved', async () => {
+    draftIt()
+    fireEvent.click(head(/^Not waiting/))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Keep editing/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(head(/^Not waiting/)).toHaveAttribute('aria-expanded', 'true')
+    expect(head(/^Not waiting/)).toHaveTextContent('Unsaved')
+
+    fireEvent.click(head(/^Not waiting/))
+    fireEvent.click(within(promptDialog()).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(head(/^Not waiting/)).toHaveAttribute('aria-expanded', 'false'))
+    expect(head(/^Not waiting/)).not.toHaveTextContent('Unsaved')
+    expect(saved().statusIds).toEqual([3])
+  })
+
+  it('opening another lens asks; Save lens saves (one undo step) and opens it', async () => {
+    draftIt()
+    fireEvent.click(head(/^Every task/))
+    expect(head(/^Every task/)).toHaveAttribute('aria-expanded', 'false')
+    fireEvent.click(within(promptDialog()).getByRole('button', { name: 'Save lens' }))
+    await waitFor(() => expect(head(/^Every task/)).toHaveAttribute('aria-expanded', 'true'))
+    expect(saved().statusIds).toBeNull()
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Changed lens “Not waiting”'])
+  })
+
+  it('+ New lens and Duplicate ask first; Keep editing does neither', async () => {
+    draftIt()
+    fireEvent.click(screen.getByRole('button', { name: /New lens/ }))
+    fireEvent.click(within(promptDialog()).getByRole('button', { name: /Keep editing/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }))
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Keep editing/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(useSettingsStore.getState().lenses.map((l) => l.name)).toEqual(['Not waiting', 'Every task'])
+
+    fireEvent.click(screen.getByRole('button', { name: 'Duplicate' }))
+    fireEvent.click(within(promptDialog()).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(useSettingsStore.getState().lenses.map((l) => l.name)).toEqual(['Not waiting', 'Not waiting 2', 'Every task']))
+    // The copy is of the saved lens.
+    expect(useSettingsStore.getState().lenses[1]!.predicate.statusIds).toEqual([3])
+  })
+
+  it('Rename keeps the draft; Delete drops it without asking', async () => {
+    draftIt()
+    fireEvent.click(screen.getByRole('button', { name: 'Rename' }))
+    const field = screen.getByRole('textbox', { name: 'Lens name' })
+    fireEvent.change(field, { target: { value: 'Quiet' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    await waitFor(() => expect(head(/^Quiet/)).toHaveTextContent('Unsaved'))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    await waitFor(() => expect(useSettingsStore.getState().lenses.map((l) => l.name)).toEqual(['Every task']))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    await waitFor(() => expect(useLensDraftStore.getState().draft).toBeNull())
   })
 })

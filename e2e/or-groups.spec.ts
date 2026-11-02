@@ -97,6 +97,10 @@ test.describe('desktop', () => {
     await expect(editor.getByTestId('or-group')).toHaveText(/Priority\s*Focus\s*or\s*People\s*Ann/)
     await expect(settings.getByTestId('lens-keeps')).toContainText('Keeps 2 of 4 open tasks')
     await expect(lenses.getByRole('button', { name: /^Triage/ })).toContainText('Priority Focus or People Ann')
+    // Unsaved until Save: the top bar keeps the saved lens.
+    await expect(counter).toHaveAccessibleName('1 of 4 open tasks shown. Show them')
+    await settings.getByRole('button', { name: 'Save lens Triage' }).click()
+    await expect(settings.getByTestId('save-lens')).toHaveCount(0)
     await settings.getByRole('button', { name: 'Close settings' }).click()
 
     await expect.poll(() => titles(page)).toEqual(['Hot one', 'Ann task'])
