@@ -14,12 +14,14 @@ export interface SortableRowProps {
 /**
  * Bundles dnd-kit's `useSortable` with the `transform` + `transition` style
  * computation every sortable row in this app needs. Used by
- * `StatusEditor` and Customize dashboard — reorderable editors that each
- * previously inlined the same five-line glue.
+ * `StatusEditor`, Customize dashboard and Settings › Lenses — reorderable
+ * editors that each previously inlined the same five-line glue. The rows
+ * only move (`CSS.Translate`): dnd-kit's scale would squash a tall row (an
+ * open lens) held over a short one's place.
  */
 export function useSortableRow(id: number | string): SortableRowProps {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
-  const style: CSSProperties = { transform: CSS.Transform.toString(transform), transition }
+  const style: CSSProperties = { transform: CSS.Translate.toString(transform), transition }
   return { setNodeRef, attributes, listeners, style, isDragging }
 }
 
