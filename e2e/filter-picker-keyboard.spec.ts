@@ -5,7 +5,7 @@ import { rowTitles } from './fixtures/seed'
 /**
  * The filter pickers by keyboard alone: the top bar's People picker opens on
  * Enter with the focus in its search, ↓ goes into the rows, Space ticks one,
- * Esc closes it; Tab / Enter in its search pick the first row shown, and in a
+ * Esc closes it; Tab / Enter in its search pick the highlighted row, and in a
  * list's prompt field the highlighted match — the focus staying in the field.
  * Real-browser because focus handoffs are.
  */
@@ -52,7 +52,7 @@ test('tick a person in the top bar’s People picker with the keyboard only', as
   await expect.poll(() => titles(page)).toEqual(['Ann task'])
 })
 
-test('Tab in the People picker’s search ticks the first row shown and keeps the focus there', async ({ page }) => {
+test('Tab in the People picker’s search ticks the highlighted row and keeps the focus there', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect.poll(() => titles(page)).toEqual(['Ann task', 'Bob task'])
 
@@ -64,6 +64,10 @@ test('Tab in the People picker’s search ticks the first row shown and keeps th
 
   const list = page.getByRole('listbox', { name: 'People' })
   await page.keyboard.type('bo')
+  // The row Tab will pick is highlighted and is the search's active descendant.
+  const bob = list.getByRole('option', { name: '@Bob' })
+  await expect(bob).toHaveAttribute('data-search-pick', '')
+  await expect(search).toHaveAttribute('aria-activedescendant', (await bob.getAttribute('id')) ?? 'missing')
   await page.keyboard.press('Tab')
   await expect(list.getByRole('option', { name: '@Bob' })).toHaveAttribute('aria-selected', 'true')
   await expect(search).toHaveValue('')

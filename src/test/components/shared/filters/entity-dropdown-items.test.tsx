@@ -158,15 +158,12 @@ describe('EntityDropdownItems — the keyboard', () => {
     expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveAttribute('aria-selected', 'false')
   })
 
-  it('with text typed, Tab ticks the first row shown and never unticks it; the search clears and keeps the focus', () => {
+  it('with text typed, Tab ticks the highlighted row and never unticks it; the search clears and keeps the focus', () => {
     usePersonStore.setState({ people })
     const onToggle = vi.fn()
     render(<KeyboardPicker onToggle={onToggle} initial={[1]} />)
     const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
     search.focus()
-    fireEvent.change(search, { target: { value: 'o' } })
-    // `o` shows None (first), then Ben Ortiz — the first row shown is None.
-    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None', '@Ben Ortiz'])
     fireEvent.change(search, { target: { value: 'ort' } })
     expect(fireEvent.keyDown(search, { key: 'Tab' })).toBe(false)
     expect(onToggle).toHaveBeenLastCalledWith(2)
@@ -179,6 +176,51 @@ describe('EntityDropdownItems — the keyboard', () => {
     expect(onToggle).not.toHaveBeenCalled()
     expect(search.value).toBe('')
     expect(screen.getByRole('option', { name: '@Alice Chen' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('while text is typed the row Tab / Enter pick is highlighted and is the search’s active descendant', () => {
+    usePersonStore.setState({ people })
+    render(<KeyboardPicker onToggle={vi.fn()} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    const highlighted = () => screen.queryAllByRole('option').filter((o) => o.hasAttribute('data-search-pick'))
+    // No text: nothing highlighted.
+    expect(highlighted()).toEqual([])
+    expect(search).not.toHaveAttribute('aria-activedescendant')
+
+    fireEvent.change(search, { target: { value: 'ben' } })
+    const ben = screen.getByRole('option', { name: '@Ben Ortiz' })
+    expect(highlighted()).toEqual([ben])
+    expect(ben.className).toMatch(/dropdownItemSearchPick/)
+    expect(search).toHaveAttribute('aria-activedescendant', ben.id)
+
+    fireEvent.change(search, { target: { value: '' } })
+    expect(highlighted()).toEqual([])
+    expect(search).not.toHaveAttribute('aria-activedescendant')
+  })
+
+  it('the None row wins only when it is the only row shown or the text starts its label', () => {
+    usePersonStore.setState({ people })
+    const onToggle = vi.fn()
+    render(<KeyboardPicker onToggle={onToggle} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    const highlighted = () => screen.queryAllByRole('option').filter((o) => o.hasAttribute('data-search-pick')).map((o) => o.textContent)
+    // `o`: None (first on screen, its label holds an o) and Ben Ortiz — Ben is picked.
+    fireEvent.change(search, { target: { value: 'o' } })
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None', '@Ben Ortiz'])
+    expect(highlighted()).toEqual(['@Ben Ortiz'])
+    fireEvent.keyDown(search, { key: 'Tab' })
+    expect(onToggle).toHaveBeenLastCalledWith(2)
+    // `no` starts None's label: None is picked.
+    fireEvent.change(search, { target: { value: 'no' } })
+    expect(highlighted()).toEqual(['None'])
+    fireEvent.keyDown(search, { key: 'Enter' })
+    expect(onToggle).toHaveBeenLastCalledWith(0)
+    // `ne`: only None shows — it is picked.
+    fireEvent.change(search, { target: { value: 'ne' } })
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None'])
+    expect(highlighted()).toEqual(['None'])
   })
 
   it('Tab / Enter with no text, Shift+Tab, or no row shown pick nothing (Tab moves on)', () => {

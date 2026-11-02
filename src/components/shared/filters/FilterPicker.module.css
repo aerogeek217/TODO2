@@ -127,7 +127,8 @@
 }
 
 /* A menu's hover tint: shows on either level's surface. */
-.dropdownItem:hover {
+.dropdownItem:hover,
+.dropdownItemSearchPick {
   background: var(--color-tint-8);
 }
 
