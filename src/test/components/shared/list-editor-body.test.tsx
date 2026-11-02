@@ -228,6 +228,17 @@ describe('<ListEditorBody>', () => {
     expect(last(onChange)).toMatchObject({ sort: 'name', sortDirection: 'desc' })
   })
 
+  it('phone sheet: re-picking the checked sort changes nothing (its direction is kept)', () => {
+    const onChange = vi.fn()
+    // Completed starts newest first when picked; this list was turned to oldest first.
+    render(<ListEditorBody draft={makeDraft({ sort: 'completed' })} onChange={onChange} variant="sheet" />)
+    fireEvent.click(screen.getByRole('button', { name: /^Sort by: Completed/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /^Completed/ }))
+    expect(onChange).not.toHaveBeenCalled()
+    // Back on the form.
+    expect(screen.getByRole('button', { name: /^Sort by: Completed/ })).toBeInTheDocument()
+  })
+
   it('phone sheet: choices are rows that open a list of radios; Show completed is a switch', () => {
     const onChange = vi.fn()
     render(<ListEditorBody draft={makeDraft({ grouping: 'status' })} saved={makeDraft()} onChange={onChange} variant="sheet" />)
