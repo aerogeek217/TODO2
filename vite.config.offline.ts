@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { viteSingleFile } from 'vite-plugin-singlefile'
-import { scriptHash, splitHtml } from './scripts/offline-file.ts'
+import { checkOfflineFile, scriptHash, splitHtml, unusedInertTexts } from './scripts/offline-file.ts'
 
 if (existsSync(resolve(import.meta.dirname, 'public/node_modules'))) {
   throw new Error(
@@ -128,6 +128,30 @@ function offlineScriptHash(): Plugin {
   }
 }
 
+// The egress check (`scripts/offline-file.checkOfflineFile`) on the finished
+// file, after the hash: fails the build when the file could reach the
+// network — something that loads, a looser CSP, a network API or a URL
+// that isn't on the inert list. An inert entry the file no longer holds
+// only warns (a dependency dropped its text; remove the entry).
+function offlineEgressCheck(): Plugin {
+  return {
+    name: 'offline-egress-check',
+    enforce: 'post',
+    generateBundle: { order: 'post', handler(_, bundle) {
+      for (const file of Object.values(bundle)) {
+        if (file.type !== 'asset' || !file.fileName.endsWith('.html')) continue
+        const html = String(file.source)
+        const problems = checkOfflineFile(html)
+        if (problems.length > 0) {
+          this.error(`${file.fileName} could reach the network (scripts/offline-file.ts):\n${problems.map((p) => `  - ${p}`).join('\n')}`)
+        }
+        const unused = unusedInertTexts(html)
+        if (unused.length > 0) this.warn(`${file.fileName} no longer holds these inert texts; remove them from scripts/offline-file.ts: ${unused.join(', ')}`)
+      }
+    } },
+  }
+}
+
 // The single file is opened from disk (often as an app window from a
 // desktop shortcut), where `./favicon.svg` and the other files next to
 // index.html aren't there: its icons go in as data: URLs (the CSP's
@@ -178,7 +202,7 @@ function renameToTodo2(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), viteSingleFile(), offlineCsp(), offlineIcons(), fileProtocolCompat(), renameToTodo2(), offlineScriptHash()],
+  plugins: [react(), viteSingleFile(), offlineCsp(), offlineIcons(), fileProtocolCompat(), renameToTodo2(), offlineScriptHash(), offlineEgressCheck()],
   base: './',
   build: {
     emptyOutDir: false,
