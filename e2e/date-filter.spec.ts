@@ -83,7 +83,8 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   const panel = dialog(page)
   await expect(panel.getByRole('tab', { name: 'Due' })).toBeFocused()
   await expect(panel.getByText('Not filtering')).toBeVisible()
-  await panel.getByLabel('To (relative)').selectOption('end-of-next-week')
+  await panel.getByLabel('To (relative)').selectOption({ label: 'In 2 weeks' })
+  await expect(panel.getByLabel('To (days offset)')).toHaveValue('14')
   await expect(rows(page, 't1')).toHaveCount(2)
   await expect(panel.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('data-filtering', '')
 
@@ -95,21 +96,21 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await expect(panel.getByLabel('To', { exact: true })).toHaveValue('')
   await expect(panel.getByLabel('To (relative)')).toHaveValue('__none__')
   await expect(rows(page, 't1')).toHaveCount(2)
-  await panel.getByLabel('To (relative)').selectOption('yesterday')
+  await panel.getByLabel('To (relative)').selectOption({ label: '1 week ago' })
   await expect(rows(page, 't1')).toHaveCount(1)
   await expect(rows(page, 't1')).toHaveText([/Due soon, old/])
   await page.keyboard.press('Escape')
   await expect(panel).toBeHidden()
 
   // The button reads both names; its tooltip lists each type; every list shows a screen chip per type.
-  const button = page.getByRole('button', { name: /^Dates filter: Due by end of next week; Modified before today$/ })
+  const button = page.getByRole('button', { name: /^Dates filter: Due up to 14 days ahead; Modified up to 7 days ago$/ })
   await expect(button).toHaveText('Due + Modified')
   await button.hover()
   const tip = page.getByRole('tooltip')
-  await expect(tip).toContainText('Due: by end of next week')
-  await expect(tip).toContainText('Modified: before today')
+  await expect(tip).toContainText('Due: up to 14 days ahead')
+  await expect(tip).toContainText('Modified: up to 7 days ago')
   await expect(tip).toContainText('Tasks must match both · × clears both')
-  await expect(wsListWidget(page, 't1').getByTestId('screen-filter-chip')).toHaveText(['Due by end of next week', 'Modified before today'])
+  await expect(wsListWidget(page, 't1').getByTestId('screen-filter-chip')).toHaveText(['Due up to 14 days ahead', 'Modified up to 7 days ago'])
 
   // The × clears every date type.
   await page.getByRole('button', { name: 'Clear date filters' }).click()

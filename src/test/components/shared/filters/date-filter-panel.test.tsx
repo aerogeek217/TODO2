@@ -81,13 +81,33 @@ describe('DateFilterPanel', () => {
     fireEvent.click(tab('Created'))
     expect(log).toHaveLength(1)
     expect(screen.getByLabelText('From (relative)')).toHaveValue('__none__')
-    fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'start-of-month' } })
+    fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'start-of-week' } })
     expect(log.at(-1)).toEqual({
       deadline: { match: 'range', start: today, end: null },
-      created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null },
+      created: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: null },
     })
     expect(tab('Due, filtering')).toHaveAttribute('aria-selected', 'false')
     expect(tab('Created, filtering')).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('From and To offer short lists (Start of week / End of week); a preset fills the editable days field', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} />)
+    const labels = (name: string) => Array.from((screen.getByLabelText(name) as HTMLSelectElement).options).map((o) => o.textContent)
+    const offsets = ['1 week ago', '2 weeks ago', '1 month ago', 'In 1 week', 'In 2 weeks', 'In 1 month']
+    expect(labels('From (relative)')).toEqual(['None', 'Today', 'Start of week', ...offsets, 'Custom offset…'])
+    expect(labels('To (relative)')).toEqual(['None', 'Today', 'End of week', ...offsets, 'Custom offset…'])
+
+    const to = screen.getByLabelText('To (relative)') as HTMLSelectElement
+    const inTwoWeeks = Array.from(to.options).find((o) => o.textContent === 'In 2 weeks')
+    fireEvent.change(to, { target: { value: inTwoWeeks?.value } })
+    expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 14 } } })
+    expect(screen.getByLabelText('To (days offset)')).toHaveValue('14')
+    expect(within(screen.getByRole('tabpanel')).getByText('up to 14 days ahead')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('To (days offset)'), { target: { value: '10' } })
+    expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 10 } } })
+    expect(to.options[to.selectedIndex]?.textContent).toBe('Custom offset…')
   })
 
   it('Created / Modified have no Show control and no “also tasks with no …”', () => {
@@ -100,9 +120,9 @@ describe('DateFilterPanel', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} initialField="lastFollowup" />)
     expect(within(screen.getByRole('tabpanel')).getByText('Last followed up')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('To (relative)'), { target: { value: 'yesterday' } })
+    fireEvent.change(screen.getByLabelText('To (relative)'), { target: { value: 'today' } })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Also tasks never followed up' }))
-    expect(log.at(-1)).toEqual({ lastFollowup: { match: 'range', start: null, end: { kind: 'relative', token: 'yesterday' }, includeNoDate: true } })
+    expect(log.at(-1)).toEqual({ lastFollowup: { match: 'range', start: null, end: { kind: 'relative', token: 'today' }, includeNoDate: true } })
     expect(tab('Last follow-up, filtering')).toHaveAttribute('data-filtering')
     const group = screen.getByRole('radiogroup', { name: 'Which tasks' })
     fireEvent.click(within(group).getByRole('radio', { name: 'Has a date' }))

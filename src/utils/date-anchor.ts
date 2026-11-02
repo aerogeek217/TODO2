@@ -44,3 +44,38 @@ export const RELATIVE_TOKEN_LABELS: Record<RelativeDateToken, string> = {
   'end-of-next-month': 'End of next month',
   'end-of-month-plus-3': 'End of (month + 3)',
 }
+
+/** Which end of a date range a date input authors. */
+export type DateAnchorSide = 'from' | 'to'
+
+/**
+ * The named days each end's list offers, in order (labels from
+ * `RELATIVE_TOKEN_LABELS`): a range starts at the start of a week and ends at
+ * its end. Any other token a stored filter holds is still shown, as an extra
+ * option, while it is the value.
+ */
+export const SIDE_RELATIVE_TOKENS: Record<DateAnchorSide, readonly RelativeDateToken[]> = {
+  from: ['today', 'start-of-week'],
+  to: ['today', 'end-of-week'],
+}
+
+/** A day offset the date inputs offer by name; picking one fills the days field. */
+export interface OffsetPreset {
+  days: number
+  label: string
+}
+
+/** The day offsets both ends offer, past then future (a month is 30 days). */
+export const OFFSET_PRESETS: readonly OffsetPreset[] = [
+  { days: -7, label: '1 week ago' },
+  { days: -14, label: '2 weeks ago' },
+  { days: -30, label: '1 month ago' },
+  { days: 7, label: 'In 1 week' },
+  { days: 14, label: 'In 2 weeks' },
+  { days: 30, label: 'In 1 month' },
+]
+
+/** The named offset for a number of days, if the lists offer one. */
+export function offsetPresetFor(days: number): OffsetPreset | undefined {
+  return OFFSET_PRESETS.find((p) => p.days === days)
+}

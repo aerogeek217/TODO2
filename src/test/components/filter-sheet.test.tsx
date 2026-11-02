@@ -139,12 +139,12 @@ describe('FilterSheet', () => {
     it('sets a relative-token anchor from the token dropdown', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Dates'))
-      fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'end-of-week' } })
+      fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'start-of-week' } })
 
       const due = useFilterStore.getState().filters.dates.deadline
       const dateRangeStart = due?.match === 'range' ? due.start : null
       if (!dateRangeStart || dateRangeStart.kind !== 'relative') throw new Error('expected relative anchor')
-      expect(dateRangeStart.token).toBe('end-of-week')
+      expect(dateRangeStart.token).toBe('start-of-week')
     })
 
     it('Show: Has a date / No date / In range on the due date', () => {

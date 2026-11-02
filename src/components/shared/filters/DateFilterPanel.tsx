@@ -261,11 +261,11 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
           <>
             <div className={styles.rangeRow}>
               <span className={styles.label}>From</span>
-              <DateAnchorInput className={styles.anchor} value={start} onChange={(v) => setRange(v, end)} aria-label="From" />
+              <DateAnchorInput className={styles.anchor} side="from" value={start} onChange={(v) => setRange(v, end)} aria-label="From" />
             </div>
             <div className={styles.rangeRow}>
               <span className={styles.label}>To</span>
-              <DateAnchorInput className={styles.anchor} value={end} onChange={(v) => setRange(start, v)} aria-label="To" />
+              <DateAnchorInput className={styles.anchor} side="to" value={end} onChange={(v) => setRange(start, v)} aria-label="To" />
             </div>
             {noDateLabel && (sheet ? (
               <div className={`${styles.noDate} ${hasEnd ? '' : styles.disabled}`}>
