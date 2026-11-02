@@ -11,6 +11,8 @@ export interface EditorModalProps {
   initialFocus?: DialogInitialFocus
   /** Default `dialog`; `nested` over any other dialog (opened from a picker in one). */
   layer?: DialogLayer
+  /** True while Esc belongs to something inside (a row held by the keyboard drag): the modal stays open (`DialogFrame`). */
+  escapeBelongsElsewhere?: () => boolean
 }
 
 /**
@@ -20,12 +22,13 @@ export interface EditorModalProps {
  * focus in / Tab wrap / focus back to the opener, a backdrop press, no app
  * shortcuts inside.
  */
-export function EditorModal({ title, onClose, children, className, initialFocus, layer }: EditorModalProps) {
+export function EditorModal({ title, onClose, children, className, initialFocus, layer, escapeBelongsElsewhere }: EditorModalProps) {
   const titleId = useId()
   return (
     <DialogFrame
       onClose={onClose}
       layer={layer}
+      escapeBelongsElsewhere={escapeBelongsElsewhere}
       aria-labelledby={titleId}
       className={`${styles.modal} ${className ?? ''}`}
       initialFocus={initialFocus}

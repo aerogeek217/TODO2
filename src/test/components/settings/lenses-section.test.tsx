@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, waitFor, within, act } from '@testing-library/react'
 import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
+import { SettingsModal } from '../../../components/settings/SettingsModal'
 import { LensesSection } from '../../../components/settings/sections/LensesSection'
 import { SettingsLayerContext } from '../../../components/settings/sections/settings-layer'
 import { emptyFilterClauses, emptyPredicate } from '../../../models/filter-predicate'
@@ -142,9 +143,35 @@ describe('Settings › Tasks › Lenses', () => {
     await waitFor(() => expect(layers).toBe(1))
     // The sensor listens on the document from the next tick.
     await new Promise((r) => setTimeout(r, 0))
-    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
+    fireEvent.keyDown(grip, { key: 'Escape', code: 'Escape' })
     await waitFor(() => expect(layers).toBe(0))
     expect(useSettingsStore.getState().lenses.map((l) => l.name)).toEqual(['Alpha', 'Beta'])
+  })
+
+  it('in the Settings modal, Esc from the held grip (inside the panel) cancels the drag and Settings stays; then Esc closes it', async () => {
+    useSettingsStore.setState({
+      lensPresetsSeeded: true,
+      lenses: [
+        { id: 'lens-a', name: 'Alpha', predicate: emptyPredicate() },
+        { id: 'lens-b', name: 'Beta', predicate: emptyPredicate() },
+      ],
+    })
+    render(<SettingsModal />)
+    act(() => useUIStore.getState().openSettings('lenses'))
+    const panel = screen.getByRole('dialog', { name: 'Settings' })
+    const grip = within(panel).getByRole('button', { name: 'Move Alpha' })
+    grip.focus()
+    fireEvent.keyDown(grip, { key: ' ', code: 'Space' })
+    await new Promise((r) => setTimeout(r, 0))
+    await waitFor(() => expect(grip).toHaveAttribute('aria-pressed', 'true'))
+
+    fireEvent.keyDown(grip, { key: 'Escape', code: 'Escape' })
+    await waitFor(() => expect(grip).not.toHaveAttribute('aria-pressed', 'true'))
+    expect(useUIStore.getState().settingsOpen).toBe(true)
+    expect(useSettingsStore.getState().lenses.map((l) => l.name)).toEqual(['Alpha', 'Beta'])
+
+    fireEvent.keyDown(grip, { key: 'Escape', code: 'Escape' })
+    expect(useUIStore.getState().settingsOpen).toBe(false)
   })
 })
 
