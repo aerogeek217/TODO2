@@ -16,7 +16,7 @@ import styles from './DateFilterPanel.module.css'
 import sheetStyles from './FilterChipBarMobile.module.css'
 import { shortcutScope } from '../../../utils/dom-contract'
 
-/** Which tasks a Due / Follow-up clause keeps. */
+/** Which tasks a clause on an optional date (Due, Next / Last follow-up) keeps. */
 type ShowMode = 'range' | 'set' | 'unset'
 
 const SHOW_CHOICES: readonly { mode: ShowMode; label: string }[] = [
@@ -26,10 +26,19 @@ const SHOW_CHOICES: readonly { mode: ShowMode; label: string }[] = [
 ]
 
 /** "Also tasks with no …" and the Has a date / No date lines, per type that offers them. */
-const NO_DATE_NAME: Partial<Record<DateField, string>> = {
-  deadline: 'due date',
-  followup: 'follow-up',
+const NO_DATE_WORDS: Partial<Record<DateField, { also: string; has: string; none: string }>> = {
+  deadline: { also: 'Also tasks with no due date', has: 'Only tasks that have a due date.', none: 'Only tasks with no due date.' },
+  followup: { also: 'Also tasks with no follow-up', has: 'Only tasks that have a follow-up.', none: 'Only tasks with no follow-up.' },
+  lastFollowup: { also: 'Also tasks never followed up', has: 'Only tasks that have been followed up.', none: 'Only tasks never followed up.' },
 }
+
+/** The line under a type's range, for a type whose range does more than narrow (Completed lets completed tasks through). */
+const RANGE_NOTE: Partial<Record<DateField, string>> = {
+  completed: 'Shows tasks completed in this range, even where completed tasks are hidden.',
+}
+
+/** The tabs' columns (D22 board B: Due · Next follow-up · Last follow-up / Completed · Created · Modified). */
+const TAB_COLUMNS = 3
 
 interface HiddenRange {
   start: DateAnchor | null
@@ -50,13 +59,16 @@ export interface DateFilterPanelProps {
 }
 
 /**
- * The date filters: four type tabs (Due · Follow-up · Created · Modified) —
- * the selected tab is the one being edited, every type that filters is lit;
- * selecting a tab writes nothing — then the selected type's clause: Show
- * (In range · Has a date · No date, Due and Follow-up only), From / To and
- * "Also tasks with no …", and a footer with Clear <Type> and Clear all.
- * The same component in the top bar, a list's + Filter / date chip, Edit
- * list and the phone Filters sheet.
+ * The date filters: six type tabs in two rows of three (D22 board B: Due ·
+ * Next follow-up · Last follow-up / Completed · Created · Modified) — the
+ * selected tab is the one being edited, every type that filters is lit;
+ * selecting a tab writes nothing; ←/→ walk all six in reading order, ↑/↓
+ * move between the rows — then the selected type's clause: Show (In range ·
+ * Has a date · No date, the optional types only), From / To and "Also tasks
+ * with no …" (Completed: a range only, with a line saying it shows completed
+ * tasks), and a footer with Clear <Type> and Clear all. The same component
+ * in the top bar, a list's + Filter / date chip, Edit list, Lenses, the
+ * Eisenhower panes, the check-in filter and the phone Filters sheet.
  */
 export function DateFilterPanel({ dates, initialField, onChange, variant = 'popover', autoFocus = false }: DateFilterPanelProps) {
   const [field, setField] = useState<DateField>(() => initialField ?? activeDateFields(dates)[0] ?? 'deadline')
@@ -78,7 +90,8 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const show: ShowMode = optional && clause && clause.match !== 'range' ? clause.match : 'range'
   const { start, end, includeNoDate } = dateRangeOf(clause)
   const hasEnd = start !== null || end !== null
-  const noDateName = optional ? NO_DATE_NAME[field] : undefined
+  const noDateWords = optional ? NO_DATE_WORDS[field] : undefined
+  const rangeNote = RANGE_NOTE[field]
   const shortName = DATE_FIELD_LABELS_SHORT[field]
 
   const forgetHidden = (f: DateField) => setHidden((h) => {
@@ -120,11 +133,14 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const onTabKeyDown = (e: KeyboardEvent<HTMLButtonElement>) => {
     const i = DATE_FIELD_VALUES.indexOf(field)
     const n = DATE_FIELD_VALUES.length
+    // Up / Down: the other row, same column (two rows: either key moves to it).
     const to = e.key === 'ArrowRight' ? (i + 1) % n
       : e.key === 'ArrowLeft' ? (i - 1 + n) % n
-        : e.key === 'Home' ? 0
-          : e.key === 'End' ? n - 1
-            : null
+        : e.key === 'ArrowDown' ? (i + TAB_COLUMNS) % n
+          : e.key === 'ArrowUp' ? (i - TAB_COLUMNS + n) % n
+            : e.key === 'Home' ? 0
+              : e.key === 'End' ? n - 1
+                : null
     if (to === null) return
     e.preventDefault()
     const f = DATE_FIELD_VALUES[to]
@@ -146,7 +162,7 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
 
   const tabId = (f: DateField) => `${id}-tab-${f}`
   const panelId = `${id}-panel`
-  const noDateLabel = noDateName ? `Also tasks with no ${noDateName}` : undefined
+  const noDateLabel = noDateWords?.also
 
   return (
     <div ref={rootRef} className={`${styles.panel} ${sheet ? styles.sheet : ''}`} {...shortcutScope('none')}>
@@ -170,7 +186,7 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
               onClick={() => selectTab(f, false)}
               onKeyDown={onTabKeyDown}
             >
-              {DATE_FIELD_LABELS_SHORT[f]}
+              <span className={styles.tabLabel}>{DATE_FIELD_LABELS_SHORT[f]}</span>
             </button>
           )
         })}
@@ -242,10 +258,11 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
                 {noDateLabel}
               </label>
             ))}
+            {rangeNote && <p className={styles.explain}>{rangeNote}</p>}
           </>
         ) : (
           <p className={styles.explain}>
-            {show === 'set' ? `Only tasks that have a ${noDateName ?? ''}.` : `Only tasks with no ${noDateName ?? ''}.`}
+            {show === 'set' ? noDateWords?.has : noDateWords?.none}
           </p>
         )}
       </div>

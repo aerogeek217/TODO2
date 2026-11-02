@@ -124,6 +124,8 @@ export interface WorkspaceSeed {
     modifiedInDays?: number
     /** Completed this many days from now (negative = ago), at the current time of day; implies `isCompleted`. */
     completedInDays?: number
+    /** Last followed up this many days from now (negative = ago), at the current time of day. */
+    lastFollowupInDays?: number
     /** Marker flags. */
     urgent?: boolean
     important?: boolean
@@ -234,6 +236,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<vo
         ...(task.dueInDays != null ? { dueDate: new Date(day(task.dueInDays).setHours(task.dueHour ?? 0)) } : {}),
         ...(task.recurrence ? { recurrenceRule: { type: task.recurrence } } : {}),
         ...(task.followupInDays != null ? { nextFollowupAt: day(task.followupInDays) } : {}),
+        ...(task.lastFollowupInDays != null ? { lastFollowupAt: atDay(task.lastFollowupInDays) } : {}),
         ...(task.status != null ? { statusId: statusIds.get(task.status) } : {}),
         ...(task.urgent ? { urgent: true } : {}),
         ...(task.important ? { important: true } : {}),

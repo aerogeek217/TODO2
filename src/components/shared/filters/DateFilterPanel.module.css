@@ -39,8 +39,9 @@
   background: var(--color-seg-track);
 }
 
+/* Six types in two rows of three (D22 board B): every label fits at 336px. */
 .tabs {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   margin: 8px 8px 0;
 }
 
@@ -65,9 +66,19 @@
   color: var(--color-text-primary);
 }
 
+/* Tight side padding and dot gap: "Next follow-up" with its dot fits a third of 336px. */
 .tab {
   height: 28px;
+  gap: 4px;
+  padding: 0 2px;
   border-radius: 6px;
+}
+
+/* A label never clips at the panel's widths; should one not fit, it ends in an ellipsis rather than spill. */
+.tabLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .selected,
@@ -231,6 +242,7 @@
 .explain {
   margin: 0;
   font-size: 12px;
+  line-height: 1.45;
   color: var(--color-text-secondary);
 }
 
@@ -278,10 +290,11 @@
   border-radius: 10px;
 }
 
+/* 13px, not the sheet's 14: "Next follow-up" with its dot fits a third of a 375px phone. */
 .sheet .tab {
   height: 38px;
   border-radius: 8px;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .sheet .body {

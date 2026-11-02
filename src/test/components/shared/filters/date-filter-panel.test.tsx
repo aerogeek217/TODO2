@@ -6,9 +6,10 @@ import type { DateFilters } from '../../../../models'
 import { DateFilterPanel } from '../../../../components/shared/filters/DateFilterPanel'
 
 /**
- * The date panel: four type tabs (selected = being edited, lit = filtering),
- * a range per type, Show (In range · Has a date · No date) on Due /
- * Follow-up, Clear <Type> and Clear all. Selecting a tab never writes.
+ * The date panel: six type tabs in two rows of three (selected = being
+ * edited, lit = filtering), a range per type, Show (In range · Has a date ·
+ * No date) on Due / Next follow-up / Last follow-up, Completed a range only,
+ * Clear <Type> and Clear all. Selecting a tab never writes.
  */
 
 function Harness({ initial = {}, initialField, variant, log }: {
@@ -93,6 +94,36 @@ describe('DateFilterPanel', () => {
     expect(screen.queryByText(/Also tasks with no/)).toBeNull()
   })
 
+  it('Last follow-up: Show, “Also tasks never followed up”, its own words; Clear Last follow-up', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} initialField="lastFollowup" />)
+    expect(within(screen.getByRole('tabpanel')).getByText('Last followed up')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('To (relative)'), { target: { value: 'yesterday' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Also tasks never followed up' }))
+    expect(log.at(-1)).toEqual({ lastFollowup: { match: 'range', start: null, end: { kind: 'relative', token: 'yesterday' }, includeNoDate: true } })
+    expect(tab('Last follow-up, filtering')).toHaveAttribute('data-filtering')
+    const group = screen.getByRole('radiogroup', { name: 'Which tasks' })
+    fireEvent.click(within(group).getByRole('radio', { name: 'Has a date' }))
+    expect(screen.getByText('Only tasks that have been followed up.')).toBeInTheDocument()
+    fireEvent.click(within(group).getByRole('radio', { name: 'No date' }))
+    expect(log.at(-1)).toEqual({ lastFollowup: { match: 'unset' } })
+    expect(screen.getByText('Only tasks never followed up.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Last follow-up' }))
+    expect(log.at(-1)).toEqual({})
+  })
+
+  it('Completed is a range only, with a line saying it shows completed tasks', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} initialField="completed" />)
+    expect(screen.queryByRole('radiogroup')).toBeNull()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.getByText('Shows tasks completed in this range, even where completed tasks are hidden.')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'start-of-week' } })
+    expect(log.at(-1)).toEqual({ completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: null } })
+    expect(tab('Completed, filtering')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Clear Completed' })).toBeEnabled()
+  })
+
   it('“Also tasks with no follow-up” is disabled until an end is set, then adds no-date tasks', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} initialField="followup" />)
@@ -167,6 +198,25 @@ describe('DateFilterPanel', () => {
     expect(document.activeElement).toBe(tab('Modified'))
     fireEvent.keyDown(tab('Modified'), { key: 'Home' })
     expect(document.activeElement).toBe(tab('Due'))
+    expect(log).toEqual([])
+  })
+
+  it('Up / Down move between the two rows in the same column', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} initialField="followup" />)
+    fireEvent.keyDown(tab('Next follow-up'), { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(tab('Created'))
+    expect(tab('Created')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Created'), { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(tab('Next follow-up'))
+    fireEvent.keyDown(tab('Next follow-up'), { key: 'ArrowRight' })
+    fireEvent.keyDown(tab('Last follow-up'), { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(tab('Modified'))
+    fireEvent.keyDown(tab('Modified'), { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(tab('Last follow-up'))
+    // Right from the end of the first row goes on to the second, in reading order.
+    fireEvent.keyDown(tab('Last follow-up'), { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(tab('Completed'))
     expect(log).toEqual([])
   })
 
