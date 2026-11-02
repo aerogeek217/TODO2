@@ -310,9 +310,23 @@ describe('resolvePaneDrop on custom panes', () => {
     const panes = resolvePanes({ schedule: { filter: { ...defaultPaneFilter('schedule'), dates: { deadline: { match: 'set' } } } } })
     const task = t({})
     const res = resolvePaneDrop([task], 'schedule', panes, ctx)
-    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: 'deadline' } }] })
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: { date: 'deadline' } } }] })
     if (res.kind !== 'blocked') return
     expect(blockedPaneLines(panes[1]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Due filter (has a date).')
+  })
+
+  it('a Completed date clause is named in the refusal (not Show completed, not an earlier pane)', () => {
+    const completed = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-week' as const }, end: null }
+    const panes = resolvePanes({ do: { name: 'Done lately', filter: { ...defaultPaneFilter('do'), dates: { completed } } } })
+    // Open: the drop writes Important, yet the open task fails the Completed range (no pane takes it —
+    // before, the refusal blamed Priority, or an earlier pane when one took it).
+    const task = t({ urgent: true })
+    const res = resolvePaneDrop([task], 'do', panes, ctx)
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: { date: 'completed' } } }] })
+    if (res.kind !== 'blocked') return
+    expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Completed filter (from start of week).')
+    // A task completed in the range lands (the pane ignores Show completed).
+    expect(resolvePaneDrop([t({ urgent: true, important: true, isCompleted: true, completedAt: TODAY })], 'do', panes, ctx)).toEqual({ kind: 'none' })
   })
 
   it('a renamed pane wanting Urgent No keeps the due-date refusal, under its own name', () => {
@@ -388,7 +402,7 @@ describe('resolvePaneDrop on custom panes', () => {
   it('a clause outside the or groups that fails is named before the group', () => {
     const panes = resolvePanes({ do: { filter: { ...emptyPredicate(), dates: { deadline: { match: 'set' } }, orGroups: [{ ...emptyFilterClauses(), statusIds: [4] }] } } })
     const task = t({})
-    expect(resolvePaneDrop([task], 'do', panes, ctx)).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: 'deadline' } }] })
+    expect(resolvePaneDrop([task], 'do', panes, ctx)).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: { date: 'deadline' } } }] })
   })
 
   it('a pane’s "+" hint: what a new task gets — its Yes markers, status, person, tag; a No or a deleted status gives nothing', () => {
