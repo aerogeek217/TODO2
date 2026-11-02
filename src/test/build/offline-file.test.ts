@@ -161,6 +161,17 @@ describe('checkOfflineFile', () => {
     expect(problems[0]).toMatch(new RegExp(`^holds a URL not in INERT_URLS: ${url.replace(/[.()/[\]]/g, '\\$&')} \\(…`))
   })
 
+  it.each([
+    ['a comment opener', 'var c="<!--";'],
+    ['a comment opener before a <script>', 'var c=`<!--<script>`;x();'],
+  ])('fails %s in the script text (the parser could run past the first </script)', (_, code) => {
+    const script = `${APP}${code}`
+    const csp = `default-src 'none'; script-src ${scriptHash(script)}; base-uri 'none'; form-action 'none'`
+    expect(checkOfflineFile(offlineFile({ script, csp }))).toEqual([
+      expect.stringMatching(/^a <script>'s text holds "<!--": the browser may not end the script where this check does \(…/),
+    ])
+  })
+
   it('reads a regex with escaped slashes as no URL', () => {
     const script = `${APP}if(/^(https?:\\/\\/|mailto:)/.test(r)||/\\/\\/x/.test(r))r=r.replace(/\\//g,"%2F");`
     const csp = `default-src 'none'; script-src ${scriptHash(script)}; base-uri 'none'; form-action 'none'`

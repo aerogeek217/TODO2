@@ -32,7 +32,10 @@ const RAW_TEXT = ['script', 'style'] as const
  * style's) text runs to the first `</script` (`</style`) after its start
  * tag — the parser ends it there, so the text can't hold one — and a
  * `<script>` written inside that text (the bundle holds a few, as strings)
- * is not an element. A comment runs to the first `-->`.
+ * is not an element. A comment runs to the first `-->`. That is the
+ * parser's reading while a script's text holds no `<!--` (with one, a
+ * `<script` after it can carry the script past its first `</script`):
+ * `checkOfflineFile` refuses a `<!--` there.
  */
 export function splitHtml(html: string): HtmlParts {
   const lower = html.toLowerCase()
@@ -202,6 +205,16 @@ export function checkOfflineFile(html: string): string[] {
   const [script, ...more] = scripts
   if (!script || more.length > 0) problems.push(`holds ${scripts.length} <script> elements, not one`)
   for (const s of scripts) if (/\ssrc\s*=/i.test(s.tag)) problems.push(`loads a script: ${s.tag}`)
+  // `splitHtml` ends a script at its first `</script`, as the parser does in
+  // script text — unless the text holds `<!--`: a `<script` after it puts
+  // the parser in its double-escaped state, where `</script` doesn't end the
+  // element, so the browser would read on past where this check stops. A
+  // `<script` with no `<!--` before it is only text (React DOM's
+  // `<script><\/script>` innerHTML trick), so `<!--` is what's refused.
+  for (const s of scripts) {
+    const at = s.text.indexOf('<!--')
+    if (at >= 0) problems.push(`a <script>'s text holds "<!--": the browser may not end the script where this check does (…${around(s.text, at)}…)`)
+  }
 
   problems.push(...checkCsp(markup, script))
   if (!/<meta name="referrer" content="no-referrer"\s*\/?>/.test(markup)) problems.push('has no <meta name="referrer" content="no-referrer">')
