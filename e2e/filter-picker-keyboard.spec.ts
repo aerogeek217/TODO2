@@ -5,7 +5,8 @@ import { rowTitles } from './fixtures/seed'
 /**
  * The filter pickers by keyboard alone: the top bar's People picker opens on
  * Enter with the focus in its search, ↓ goes into the rows, Space ticks one,
- * Esc closes it. Real-browser because focus handoffs are.
+ * Esc closes it; Tab / Enter in its search pick the first row shown, the
+ * focus staying in the search. Real-browser because focus handoffs are.
  */
 
 const SEED: WorkspaceSeed = {
@@ -48,4 +49,34 @@ test('tick a person in the top bar’s People picker with the keyboard only', as
   await expect(list).toHaveCount(0)
   await expect(button).toBeFocused()
   await expect.poll(() => titles(page)).toEqual(['Ann task'])
+})
+
+test('Tab in the People picker’s search ticks the first row shown and keeps the focus there', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await expect.poll(() => titles(page)).toEqual(['Ann task', 'Bob task'])
+
+  const button = page.getByRole('button', { name: /^People filter/ })
+  await button.focus()
+  await page.keyboard.press('Enter')
+  const search = page.getByPlaceholder('Search...')
+  await expect(search).toBeFocused()
+
+  const list = page.getByRole('listbox', { name: 'People' })
+  await page.keyboard.type('bo')
+  await page.keyboard.press('Tab')
+  await expect(list.getByRole('option', { name: '@Bob' })).toHaveAttribute('aria-selected', 'true')
+  await expect(search).toHaveValue('')
+  await expect(search).toBeFocused()
+  await expect.poll(() => titles(page)).toEqual(['Bob task'])
+
+  // Tab again on a ticked row leaves it ticked; Enter toggles.
+  await page.keyboard.type('bo')
+  await page.keyboard.press('Tab')
+  await expect(search).toBeFocused()
+  await expect(list.getByRole('option', { name: '@Bob' })).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.type('ann')
+  await page.keyboard.press('Enter')
+  await expect(search).toBeFocused()
+  await expect.poll(() => titles(page)).toEqual(['Ann task', 'Bob task'])
+  await expect(list.getByRole('option', { name: '@Ann' })).toHaveAttribute('aria-selected', 'true')
 })

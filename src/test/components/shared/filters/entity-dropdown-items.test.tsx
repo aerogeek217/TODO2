@@ -139,6 +139,65 @@ describe('EntityDropdownItems — the keyboard', () => {
     expect(screen.getByPlaceholderText('Search...')).toHaveFocus()
   })
 
+  it('with text typed, Enter in the search toggles the first row shown; the search clears and keeps the focus', () => {
+    usePersonStore.setState({ people })
+    const onToggle = vi.fn()
+    render(<KeyboardPicker onToggle={onToggle} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    fireEvent.change(search, { target: { value: 'ben' } })
+    expect(fireEvent.keyDown(search, { key: 'Enter' })).toBe(false)
+    expect(onToggle).toHaveBeenLastCalledWith(2)
+    expect(search.value).toBe('')
+    expect(search).toHaveFocus()
+    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveAttribute('aria-selected', 'true')
+    // Enter on a ticked row unticks it.
+    fireEvent.change(search, { target: { value: 'ben' } })
+    fireEvent.keyDown(search, { key: 'Enter' })
+    expect(onToggle).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('with text typed, Tab ticks the first row shown and never unticks it; the search clears and keeps the focus', () => {
+    usePersonStore.setState({ people })
+    const onToggle = vi.fn()
+    render(<KeyboardPicker onToggle={onToggle} initial={[1]} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    fireEvent.change(search, { target: { value: 'o' } })
+    // `o` shows None (first), then Ben Ortiz — the first row shown is None.
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None', '@Ben Ortiz'])
+    fireEvent.change(search, { target: { value: 'ort' } })
+    expect(fireEvent.keyDown(search, { key: 'Tab' })).toBe(false)
+    expect(onToggle).toHaveBeenLastCalledWith(2)
+    expect(search.value).toBe('')
+    expect(search).toHaveFocus()
+    // Alice is ticked already: Tab leaves her ticked, the search still clears.
+    onToggle.mockClear()
+    fireEvent.change(search, { target: { value: 'alice' } })
+    expect(fireEvent.keyDown(search, { key: 'Tab' })).toBe(false)
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(search.value).toBe('')
+    expect(screen.getByRole('option', { name: '@Alice Chen' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('Tab / Enter with no text, Shift+Tab, or no row shown pick nothing (Tab moves on)', () => {
+    usePersonStore.setState({ people })
+    const onToggle = vi.fn()
+    render(<KeyboardPicker onToggle={onToggle} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    expect(fireEvent.keyDown(search, { key: 'Tab' })).toBe(true)
+    fireEvent.keyDown(search, { key: 'Enter' })
+    fireEvent.change(search, { target: { value: 'ben' } })
+    expect(fireEvent.keyDown(search, { key: 'Tab', shiftKey: true })).toBe(true)
+    fireEvent.change(search, { target: { value: 'zz' } })
+    expect(fireEvent.keyDown(search, { key: 'Tab' })).toBe(true)
+    fireEvent.keyDown(search, { key: 'Enter' })
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(search.value).toBe('zz')
+  })
+
   it('the context-menu key on a focused person opens their menu under the row', () => {
     usePersonStore.setState({ people })
     render(<KeyboardPicker onToggle={vi.fn()} />)

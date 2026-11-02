@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { createContext, useContext, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { MARKER_KEYS, type MarkerKey, type MarkersFilter } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
 import { ClearableField } from '../ClearableField'
@@ -174,6 +174,16 @@ function focusRowsBelow(search: HTMLElement): boolean {
   return false
 }
 
+/**
+ * The search box's pick: the first row the rows below show, through their own
+ * pick — ticked (`tickOnly`, never unticked) or toggled; the search clears.
+ * False when no row shows.
+ */
+type PickFirstRow = (tickOnly: boolean) => boolean
+
+/** Where `EntityDropdownItems` registers its `PickFirstRow` for the `SelectionPanelBody` search above it. */
+const PickFirstRowContext = createContext<RefObject<PickFirstRow | null> | null>(null)
+
 interface SelectionPanelBodyProps {
   /** The Is / Is not toggle above the actions (People / Status / Tags). */
   mode?: FilterModeProps
@@ -192,10 +202,16 @@ interface SelectionPanelBodyProps {
   children: ReactNode
 }
 
-/** An optional Is / Is not toggle, Select all / Deselect all, an optional search box (× clears it), then the items. */
+/**
+ * An optional Is / Is not toggle, Select all / Deselect all, an optional search
+ * box (× clears it), then the items. With text typed in the search, Tab ticks
+ * the first row shown (never unticks it) and Enter toggles it; the search
+ * clears and the focus stays in it (as the people / tag pickers' Tab).
+ */
 export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAll, onDeselectAll, search, searchInputRef, children }: SelectionPanelBodyProps) {
   const ownSearchRef = useRef<HTMLInputElement>(null)
   const searchRef = searchInputRef ?? ownSearchRef
+  const pickFirstRef = useRef<PickFirstRow | null>(null)
   return (
     <>
       {mode && <FilterModeToggle {...mode} />}
@@ -238,6 +254,14 @@ export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAl
                   if (focusRowsBelow(e.currentTarget)) e.preventDefault()
                   return
                 }
+                if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                  // With no text typed, Tab moves on as usual (never a Tab trap).
+                  if (search.text.trim() && pickFirstRef.current?.(e.key === 'Tab')) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }
+                  return
+                }
                 if (e.key !== 'Escape') return
                 // Esc empties the search first (the popover leaves it to the
                 // field while it has text); the next one closes the picker.
@@ -253,7 +277,9 @@ export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAl
           </ClearableField>
         </div>
       )}
-      <div className={search ? picker.dropdownItemsScrollable : undefined}>{children}</div>
+      <div className={search ? picker.dropdownItemsScrollable : undefined}>
+        <PickFirstRowContext value={pickFirstRef}>{children}</PickFirstRowContext>
+      </div>
     </>
   )
 }
@@ -323,6 +349,7 @@ export function EntityDropdownItems({
   const listRef = useRef<HTMLDivElement>(null)
   /** A row picked from the keyboard while the search cleared: it keeps the focus at its new place. */
   const refocusRef = useRef<number | null>(null)
+  const pickFirstRowRef = useContext(PickFirstRowContext)
   const allIds = [...(withNone ? [0] : []), ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
   const order = usePickerOrder(searchText, allIds, isChecked)
   const q = searchText.trim().toLowerCase()
@@ -347,18 +374,33 @@ export function EntityDropdownItems({
     if (row && document.activeElement !== row) row.focus()
   })
 
-  /** Ticks / unticks row `id`; with search text the search clears and the order is fixed again. */
-  const pick = (id: number) => {
+  /**
+   * Ticks / unticks row `id` (`tickOnly`: ticks it, never unticks); with
+   * search text the search clears and the order is fixed again.
+   */
+  const pick = (id: number, tickOnly = false) => {
     const was = isChecked(id)
     setActiveId(id)
-    onToggle(id)
+    if (!(tickOnly && was)) onToggle(id)
     if (!searchText || !onSearchClear) return
-    order.notePick(id, !was)
+    order.notePick(id, tickOnly || !was)
     if (document.activeElement instanceof HTMLElement && document.activeElement.dataset.entityId === String(id)) {
       refocusRef.current = id
     }
     onSearchClear()
   }
+
+  // The search box above picks the first row shown through `pick` (Tab / Enter there).
+  useLayoutEffect(() => {
+    if (!pickFirstRowRef) return
+    pickFirstRowRef.current = (tickOnly) => {
+      const id = rowIds[0]
+      if (id == null) return false
+      pick(id, tickOnly)
+      return true
+    }
+    return () => { pickFirstRowRef.current = null }
+  })
 
   const onRowContextMenu = (id: number | undefined) => (e: MouseEvent) => {
     e.preventDefault()
