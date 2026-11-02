@@ -140,6 +140,9 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await expect(panel.getByRole('tab', { name: 'Next follow-up' })).toBeFocused()
   await page.keyboard.press('End')
   await expect(panel.getByRole('tab', { name: 'Modified' })).toBeFocused()
+  // Tab: the range's Is / Is not (its checked Is), then From.
+  await page.keyboard.press('Tab')
+  await expect(panel.getByRole('radiogroup', { name: 'Modified: is or is not' }).getByRole('radio', { name: 'Is', exact: true })).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(panel.getByLabel('From', { exact: true })).toBeFocused()
   await expect(page.getByRole('button', { name: 'Dates filter', exact: true })).toBeVisible()
