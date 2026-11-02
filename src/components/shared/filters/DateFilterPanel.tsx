@@ -1,17 +1,19 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
-import { DATE_FIELD_VALUES, type DateAnchor, type DateFilters } from '../../../models'
+import { DATE_FIELD_VALUES, type DateAnchor, type DateFilters, type DateRangeMatch } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import {
   activeDateFields,
   dateRangeOf,
   hasDateFilters,
   isDateMatchOn,
+  isNegatableDateField,
   isOptionalDateField,
   withDateMatch,
 } from '../../../utils/date-filters'
 import { describeDateMatch } from '../../../utils/filter-chips'
 import { DATE_FIELD_LABELS, DATE_FIELD_LABELS_SHORT } from '../../../utils/filter-labels'
 import { DateAnchorInput } from '../DateAnchorInput'
+import { FilterModeToggle } from './FilterPanels'
 import styles from './DateFilterPanel.module.css'
 import sheetStyles from './FilterChipBarMobile.module.css'
 import { shortcutScope } from '../../../utils/dom-contract'
@@ -25,11 +27,14 @@ const SHOW_CHOICES: readonly { mode: ShowMode; label: string }[] = [
   { mode: 'unset', label: 'No date' },
 ]
 
-/** "Also tasks with no …" and the Has a date / No date lines, per type that offers them. */
-const NO_DATE_WORDS: Partial<Record<DateField, { also: string; has: string; none: string }>> = {
-  deadline: { also: 'Also tasks with no due date', has: 'Only tasks that have a due date.', none: 'Only tasks with no due date.' },
-  followup: { also: 'Also tasks with no next follow-up', has: 'Only tasks that have a next follow-up.', none: 'Only tasks with no next follow-up.' },
-  lastFollowup: { also: 'Also tasks never followed up', has: 'Only tasks that have been followed up.', none: 'Only tasks never followed up.' },
+/**
+ * "Also tasks with no …", the line in its place under an "is not" range,
+ * and the Has a date / No date lines, per type that offers them.
+ */
+const NO_DATE_WORDS: Partial<Record<DateField, { also: string; kept: string; has: string; none: string }>> = {
+  deadline: { also: 'Also tasks with no due date', kept: 'Tasks with no due date are kept.', has: 'Only tasks that have a due date.', none: 'Only tasks with no due date.' },
+  followup: { also: 'Also tasks with no next follow-up', kept: 'Tasks with no next follow-up are kept.', has: 'Only tasks that have a next follow-up.', none: 'Only tasks with no next follow-up.' },
+  lastFollowup: { also: 'Also tasks never followed up', kept: 'Tasks never followed up are kept.', has: 'Only tasks that have been followed up.', none: 'Only tasks never followed up.' },
 }
 
 /** The line under a Completed range, by what the range does where the panel is (`DateFilterHost.completedNote`). */
@@ -68,6 +73,12 @@ interface HiddenRange {
   start: DateAnchor | null
   end: DateAnchor | null
   includeNoDate: boolean
+  not: boolean
+}
+
+/** A range clause as stored: `not` or `includeNoDate` only when true, never both (`normalizeDateMatch` drops the rest). */
+function rangeMatch({ start, end, includeNoDate, not }: HiddenRange): DateRangeMatch {
+  return { match: 'range', start, end, ...(not ? { not: true } : includeNoDate ? { includeNoDate: true } : {}) }
 }
 
 export interface DateFilterPanelProps {
@@ -90,9 +101,11 @@ export interface DateFilterPanelProps {
  * selected tab is the one being edited, every type that filters is lit;
  * selecting a tab writes nothing; ←/→ walk all six in reading order, ↑/↓
  * move between the rows — then the selected type's clause: Show (In range ·
- * Has a date · No date, the optional types only), From / To and "Also tasks
- * with no …" (Completed: a range only, with a line saying it shows completed
- * tasks), and a footer with Clear <Type> and Clear all. The same component
+ * Has a date · No date, the optional types only), the range's Is / Is not
+ * (the id pickers' toggle; every type but Completed), From / To and "Also
+ * tasks with no …" — under Is not, a line saying those are kept —
+ * (Completed: a range only, with a line saying it shows completed tasks),
+ * and a footer with Clear <Type> and Clear all. The same component
  * in the top bar, a list's + Filter / date chip, Edit list, Lenses, the
  * Eisenhower panes (`host` narrow: its Completed line says the range only
  * keeps), the check-in filter (`host` omits Completed) and the phone Filters
@@ -104,6 +117,8 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
     ?? activeDateFields(dates).find((f) => types.includes(f)) ?? types[0] ?? 'deadline')
   // A range kept while Show is Has a date / No date, so In range brings it back (never stored).
   const [hidden, setHidden] = useState<Partial<Record<DateField, HiddenRange>>>({})
+  // Is not picked before the range has an end (no clause to hold it yet; never stored).
+  const [pendingNot, setPendingNot] = useState<Partial<Record<DateField, true>>>({})
   const tabRefs = useRef(new Map<DateField, HTMLButtonElement>())
   const showRefs = useRef(new Map<ShowMode, HTMLButtonElement>())
   const id = useId()
@@ -118,8 +133,11 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const on = isDateMatchOn(clause)
   const optional = isOptionalDateField(field)
   const show: ShowMode = optional && clause && clause.match !== 'range' ? clause.match : 'range'
-  const { start, end, includeNoDate } = dateRangeOf(clause)
+  const range = dateRangeOf(clause)
+  const { start, end, includeNoDate } = range
   const hasEnd = start !== null || end !== null
+  const negatable = isNegatableDateField(field)
+  const not = negatable && (hasEnd ? range.not : pendingNot[field] === true)
   const noDateWords = optional ? NO_DATE_WORDS[field] : undefined
   const rangeNote = field === 'completed' ? COMPLETED_NOTE[host?.completedNote ?? 'gate'] : undefined
   const shortName = DATE_FIELD_LABELS_SHORT[field]
@@ -131,8 +149,24 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
     return next
   })
 
-  const setRange = (s: DateAnchor | null, e: DateAnchor | null, include = includeNoDate) => {
-    onChange(withDateMatch(dates, field, { match: 'range', start: s, end: e, includeNoDate: include }))
+  const keepPendingNot = (f: DateField, on: boolean) => setPendingNot((p) => {
+    if ((p[f] === true) === on) return p
+    const next = { ...p }
+    if (on) next[f] = true
+    else delete next[f]
+    return next
+  })
+
+  const setRange = (s: DateAnchor | null, e: DateAnchor | null, include = includeNoDate, negate = not) => {
+    // With no end there's no clause to hold Is not: keep it here until an end is picked.
+    keepPendingNot(field, negate && s === null && e === null)
+    onChange(withDateMatch(dates, field, rangeMatch({ start: s, end: e, includeNoDate: include, not: negate })))
+  }
+
+  // Is / Is not: with an end it rewrites the range; without one it is only kept until an end is picked.
+  const setNot = (on: boolean) => {
+    if (hasEnd) setRange(start, end, includeNoDate, on)
+    else keepPendingNot(field, on)
   }
 
   const setShow = (mode: ShowMode) => {
@@ -140,19 +174,21 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
     if (mode === 'range') {
       const kept = hidden[field]
       forgetHidden(field)
-      onChange(withDateMatch(dates, field, kept ? { match: 'range', ...kept } : null))
+      onChange(withDateMatch(dates, field, kept ? rangeMatch(kept) : null))
       return
     }
-    if (show === 'range' && hasEnd) setHidden((h) => ({ ...h, [field]: { start, end, includeNoDate } }))
+    if (show === 'range' && hasEnd) setHidden((h) => ({ ...h, [field]: { start, end, includeNoDate, not } }))
     onChange(withDateMatch(dates, field, { match: mode }))
   }
 
   const clearType = () => {
     forgetHidden(field)
+    keepPendingNot(field, false)
     onChange(withDateMatch(dates, field, null))
   }
   const clearAll = () => {
     setHidden({})
+    setPendingNot({})
     onChange({})
   }
 
@@ -259,6 +295,14 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
         )}
         {show === 'range' ? (
           <>
+            {negatable && (
+              <div className={styles.rangeRow}>
+                <span className={styles.label}>Range</span>
+                <div className={styles.mode}>
+                  <FilterModeToggle field={shortName} negated={not} onChange={setNot} touch={sheet} />
+                </div>
+              </div>
+            )}
             <div className={styles.rangeRow}>
               <span className={styles.label}>From</span>
               <DateAnchorInput className={styles.anchor} side="from" value={start} onChange={(v) => setRange(v, end)} aria-label="From" />
@@ -267,7 +311,8 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
               <span className={styles.label}>To</span>
               <DateAnchorInput className={styles.anchor} side="to" value={end} onChange={(v) => setRange(start, v)} aria-label="To" />
             </div>
-            {noDateLabel && (sheet ? (
+            {noDateLabel && not && <p className={styles.explain}>{noDateWords?.kept}</p>}
+            {noDateLabel && !not && (sheet ? (
               <div className={`${styles.noDate} ${hasEnd ? '' : styles.disabled}`}>
                 <span>{noDateLabel}</span>
                 <button
