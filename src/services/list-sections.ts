@@ -83,6 +83,9 @@ export interface ListSortContext {
  *   first, then unranked oldest first), else `sortOrder` (then id).
  * - `name` — alphabetical title, ties by `sortOrder`.
  * - `deadline` / `followup` — ascending date, undated last, ties by `sortOrder`.
+ * - `lastFollowup` / `completed` — ascending moment (oldest first; Completed
+ *   is picked descending, newest first), never followed up / open last,
+ *   ties by `sortOrder`.
  * - `created` — oldest first by `createdAt`, ties by `sortOrder`.
  * - `modified` — longest untouched first by `modifiedAt` (any edit moves it,
  *   a reorder or a bulk edit too), ties by `sortOrder`.
@@ -114,6 +117,8 @@ export function listSortComparator(
       return (a, b) => (sign * a.title.localeCompare(b.title)) || bySortOrder(a, b)
     case 'deadline':
     case 'followup':
+    case 'lastFollowup':
+    case 'completed':
       return compareTodosByDate(sortBy, sign < 0)
     case 'created':
       return (a, b) => (sign * (a.createdAt.getTime() - b.createdAt.getTime())) || bySortOrder(a, b)

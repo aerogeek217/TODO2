@@ -186,7 +186,7 @@ describe('TaskDefaultsSection — new lists', () => {
     render(<TaskDefaultsSection />)
     const sort = screen.getByRole('combobox', { name: 'New lists sort by' })
     expect(sort).toHaveValue('manual')
-    expect(within(sort).getAllByRole('option').map((o) => o.textContent)).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'People', 'Status', 'Created', 'Modified'])
+    expect(within(sort).getAllByRole('option').map((o) => o.textContent)).toEqual(['Manual', 'Priority', 'Due date', 'Next follow-up', 'Last followed up', 'Completed', 'Name', 'People', 'Status', 'Created', 'Modified'])
     expect(screen.queryByRole('combobox', { name: 'New lists sort order' })).toBeNull()
 
     fireEvent.change(sort, { target: { value: 'deadline' } })
@@ -204,6 +204,19 @@ describe('TaskDefaultsSection — new lists', () => {
     fireEvent.change(sort, { target: { value: 'manual' } })
     await waitFor(() => expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'manual', newListSortDirection: 'asc' }))
     expect(screen.queryByRole('combobox', { name: 'New lists sort order' })).toBeNull()
+  })
+
+  it('Completed starts newest first and Last followed up oldest first, whatever the order before', async () => {
+    render(<TaskDefaultsSection />)
+    const sort = screen.getByRole('combobox', { name: 'New lists sort by' })
+    fireEvent.change(sort, { target: { value: 'completed' } })
+    await waitFor(() => expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'completed', newListSortDirection: 'desc' }))
+    expect(screen.getByRole('combobox', { name: 'New lists sort order' })).toHaveValue('desc')
+    expect(screen.getByRole('option', { name: 'Newest first' })).toBeInTheDocument()
+    fireEvent.change(sort, { target: { value: 'lastFollowup' } })
+    await waitFor(() => expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'lastFollowup', newListSortDirection: 'asc' }))
+    expect(within(screen.getByRole('combobox', { name: 'New lists sort order' })).getAllByRole('option').map((o) => o.textContent))
+      .toEqual(['Oldest first', 'Most recent first'])
   })
 
   it('New lists group by: No grouping by default; a pick is saved', async () => {

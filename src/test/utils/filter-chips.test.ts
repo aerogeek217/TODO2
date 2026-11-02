@@ -25,6 +25,7 @@ import {
   type FilterChipNames,
 } from '../../utils/filter-chips'
 import { choicesWith, groupSortSummary, sortOrderWords, withListSort, withSortDirection } from '../../utils/list-options'
+import { isTodoSortBy, sortDirectionOnPick, sortHasDirection } from '../../models/todo-sort-group'
 
 const people: Person[] = [{ id: 1, name: 'Alice', initials: 'A' }, { id: 2, name: 'Bob', initials: 'B' }, { id: 3, name: 'Cy', initials: 'C' }]
 const tags: Tag[] = [{ id: 1, name: 'q4', color: '#36c' }, { id: 2, name: 'home', color: '#c84' }]
@@ -323,6 +324,25 @@ describe('list choice helpers', () => {
     expect(sortOrderWords('created', 'desc')).toBe('Newest first')
     expect(sortOrderWords('priority', 'desc')).toBe('Lowest priority first')
     expect(sortOrderWords('manual', 'desc')).toBeNull()
+    expect(sortOrderWords('lastFollowup', 'asc')).toBe('Oldest first')
+    expect(sortOrderWords('lastFollowup', 'desc')).toBe('Most recent first')
+    expect(sortOrderWords('completed', 'desc')).toBe('Newest first')
+  })
+
+  it('Last followed up and Completed: labels, direction, and the direction each starts in when picked', () => {
+    expect(sortHasDirection('lastFollowup')).toBe(true)
+    expect(sortHasDirection('completed')).toBe(true)
+    expect(isTodoSortBy('lastFollowup') && isTodoSortBy('completed')).toBe(true)
+    expect(groupSortSummary('none', 'followup')).toBe('Next follow-up')
+    expect(groupSortSummary('people', 'lastFollowup')).toBe('People · Last followed up')
+    expect(groupSortSummary('none', 'completed', 'desc')).toBe('Completed ↓')
+    // Completed starts newest first, Last followed up oldest first, whatever the direction before.
+    expect(withListSort({ sort: 'name' }, 'completed')).toEqual({ sort: 'completed', sortDirection: 'desc' })
+    expect(withListSort({ sort: 'deadline', sortDirection: 'desc' }, 'lastFollowup')).toEqual({ sort: 'lastFollowup' })
+    // Leaving them, the direction carries over as for any sort.
+    expect(withListSort({ sort: 'completed', sortDirection: 'desc' }, 'created')).toEqual({ sort: 'created', sortDirection: 'desc' })
+    expect(sortDirectionOnPick('completed', 'asc')).toBe('desc')
+    expect(sortDirectionOnPick('name', 'desc')).toBe('desc')
   })
 
   it('a direction carries over to another sort with one and is dropped for Manual; asc is stored as no field', () => {

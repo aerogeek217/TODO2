@@ -14,9 +14,10 @@ const v69List = (): DataRow => ({
   membership: { kind: 'custom', predicate: { ...emptyPredicate(), dates: { followup: { match: 'set' } } } },
 })
 
-/** A list using both new date types, as this build writes it. */
+/** A list using both new date types and a new sort, as this build writes it. */
 const newDatesList = (): DataRow => ({
   ...v69List(),
+  sort: 'completed', sortDirection: 'desc',
   membership: {
     kind: 'custom',
     predicate: {
@@ -59,7 +60,7 @@ describe('v70 files', () => {
     expect(prepared.data.listDefinitions[0]!.sort).toBe('followup')
   })
 
-  it('an export holding the new date clauses is stamped v70 or later, so a v69 build refuses it as too new', async () => {
+  it('an export holding the new date clauses and sort is stamped v70 or later, so a v69 build refuses it as too new', async () => {
     await db.listDefinitions.add(newDatesList() as never)
     const exported = await buildExportData()
     expect(exported[SCHEMA_VERSION_KEY]).toBe(CURRENT_DB_VERSION)
@@ -68,5 +69,6 @@ describe('v70 files', () => {
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.warnings).toEqual([])
     expect(prepared.data.listDefinitions[0]!.membership).toEqual(newDatesList().membership)
+    expect(prepared.data.listDefinitions[0]!.sort).toBe('completed')
   })
 })

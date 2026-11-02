@@ -791,11 +791,11 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     list(L.eisenhower, 'Eisenhower', filter(), 'manual', 'none', { eisenhower: true }),
     // A Completed range brings in the tasks completed in it without Show completed.
     list(L.doneThisWeek, 'Done this week', filter({ dates: { completed: range(rel('start-of-week'), { kind: 'relative', token: 'today' }) } }),
-      'manual', 'none', plan),
+      'completed', 'none', plan, { sortDirection: 'desc' }),
     list(L.notFollowedUp, 'Not followed up lately', filter({
       personIds: [0], negate: { personIds: true },
       dates: { lastFollowup: range(null, { kind: 'offset', days: -14 }, true) },
-    }), 'manual', 'people', plan),
+    }), 'lastFollowup', 'people', plan),
   ]
 
   // ── Layouts ──

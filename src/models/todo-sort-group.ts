@@ -13,7 +13,9 @@ export type TodoSortBy =
   | 'priority'    // Focus, Urgent + Important, Urgent, Important, none; then due date
   | 'name'        // alphabetical title
   | 'deadline'    // dueDate (UI label "Due")
-  | 'followup'    // nextFollowupAt
+  | 'followup'    // nextFollowupAt (UI label "Next follow-up")
+  | 'lastFollowup' // lastFollowupAt (oldest first: the longest unchased on top)
+  | 'completed'   // completedAt (picked newest first: `SORT_DIRECTION_ON_PICK`)
   | 'created'     // createdAt
   | 'modified'    // modifiedAt (oldest first: the untouched tasks on top)
   | 'people'      // the first assigned person's name, unassigned last
@@ -29,7 +31,7 @@ export type TodoGroupBy =
   | 'priority'    // many-to-many: Hot, Focus, Urgent, Important, No priority
 
 export const TODO_SORT_BY_VALUES: readonly TodoSortBy[] = [
-  'manual', 'priority', 'name', 'deadline', 'followup', 'created', 'modified',
+  'manual', 'priority', 'name', 'deadline', 'followup', 'lastFollowup', 'completed', 'created', 'modified',
   'people', 'status',
 ] as const
 
@@ -66,6 +68,21 @@ export function isTodoSortDirection(v: unknown): v is TodoSortDirection {
  */
 export function sortHasDirection(sortBy: TodoSortBy): boolean {
   return sortBy !== 'manual' && sortBy !== 'people' && sortBy !== 'status' && isTodoSortBy(sortBy)
+}
+
+/**
+ * The direction a sort starts in when picked, for the sorts that have one of
+ * their own: Completed newest first, Last followed up oldest first (D22).
+ * Any other sort keeps the direction it is picked with (`Due ↓` → `Name ↓`).
+ */
+export const SORT_DIRECTION_ON_PICK: Partial<Record<TodoSortBy, TodoSortDirection>> = {
+  lastFollowup: 'asc',
+  completed: 'desc',
+}
+
+/** The direction `sortBy` runs in once picked while `current` was set: its own (`SORT_DIRECTION_ON_PICK`), else `current`. */
+export function sortDirectionOnPick(sortBy: TodoSortBy, current: TodoSortDirection): TodoSortDirection {
+  return SORT_DIRECTION_ON_PICK[sortBy] ?? current
 }
 
 /** The direction a sort runs in: `desc` only when asked for and the sort has a direction. */
