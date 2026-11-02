@@ -66,21 +66,17 @@ test('the user\'s lens: hides only the tasks followed up lately with a next foll
   await expect(chip).toHaveText(/Last follow-up\s*not 7 days ago – today/)
   await expect(chip).toHaveAttribute('data-negated', '')
 
-  // A group is made from a chip's Another filter (OR), which offers the
-  // fields the chip isn't (not Dates): Priority › Hot first, then the
-  // group's date chip adds Next follow-up is not Today – In 2 weeks (its
-  // panel has every type's tab), then Hot goes.
+  // The group is made from the chip's Another filter (OR), which offers
+  // Dates while a date type is free (cr25 P4b): it opens on the first free
+  // type (Due — never the chip's own), and the Next follow-up tab takes the
+  // second range. The chip and the new range become the group at once.
   await chip.click()
   await datePanel(page).getByRole('button', { name: /Another filter \(OR\)/ }).click()
-  await page.getByTestId('or-group-panel').getByRole('button', { name: 'Priority' }).click()
-  await datePanel(page).getByRole('checkbox', { name: 'Hot' }).click()
-  await page.keyboard.press('Escape')
-  const group = editor.getByTestId('or-group')
-  await expect(group).toHaveText(/Priority\s*Hot\s*or\s*Last follow-up\s*not 7 days ago – today/)
-  await group.getByTestId('list-filter-chip').filter({ hasText: 'Last follow-up' }).click()
+  await page.getByTestId('or-group-panel').getByRole('button', { name: 'Dates' }).click()
+  await expect(datePanel(page).getByRole('tab', { name: 'Due', exact: true })).toHaveAttribute('aria-selected', 'true')
   await setNotRange(page, 'Next follow-up', 'Today', 'In 2 weeks')
   await page.keyboard.press('Escape')
-  await group.getByTestId('list-filter-chip').filter({ hasText: 'Priority' }).getByRole('button', { name: 'Remove filter' }).click()
+  const group = editor.getByTestId('or-group')
   await expect(group.getByTestId('list-filter-chip')).toHaveCount(2)
   await expect(group).toHaveText(/Next follow-up\s*not within 14 days\s*or\s*Last follow-up\s*not 7 days ago – today/)
   await expect(settings.getByTestId('lens-keeps')).toContainText('Keeps 3 of 4 open tasks')
