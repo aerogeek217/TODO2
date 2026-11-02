@@ -8,6 +8,7 @@ import { useLensDraftStore } from '../../../stores/lens-draft-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { makeTodo, resetDb } from '../../helpers'
 
@@ -184,6 +185,8 @@ describe('Settings › Tasks › Lenses — filter edits are saved or reverted',
   })
 
   it('Revert puts the saved filter back; Undo in the snackbar brings the draft back', async () => {
+    // Undo brings it back only where Settings shows it (Tasks).
+    useUIStore.setState({ settingsOpen: true, settingsSection: 'tasks' })
     draftIt()
     fireEvent.click(screen.getByRole('button', { name: 'Revert lens changes' }))
     expect(head(/^Not waiting/)).not.toHaveTextContent('Unsaved')

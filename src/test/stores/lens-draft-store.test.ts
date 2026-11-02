@@ -55,6 +55,7 @@ describe('lens-draft-store', () => {
   })
 
   it('Revert drops it; Undo brings it back — refused while another lens has one', async () => {
+    ui().openSettings('lenses')
     drafts().edit('lens-a', waiting)
     drafts().revert()
     expect(drafts().draft).toBeNull()
@@ -68,6 +69,29 @@ describe('lens-draft-store', () => {
     await useUndoStore.getState().undo()
     expect(drafts().draft?.lensId).toBe('lens-b')
     expect(useUndoStore.getState().snackbar?.description).toBe('Save or revert the changes to “Beta” first.')
+  })
+
+  it('Revert’s Undo is refused unless Settings is open on Tasks (where the editor shows the draft)', async () => {
+    ui().openSettings('lenses')
+    drafts().edit('lens-a', waiting)
+    drafts().revert()
+    const refused = 'Open Settings › Tasks › Lenses to bring back the changes to “Alpha”.'
+
+    ui().hideSettings()
+    await useUndoStore.getState().undo()
+    expect(drafts().draft).toBeNull()
+    expect(useUndoStore.getState().snackbar?.description).toBe(refused)
+    // Refused, it stays on the stack to try again.
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Lens changes reverted'])
+
+    ui().openSettings('database')
+    await useUndoStore.getState().undo()
+    expect(drafts().draft).toBeNull()
+    expect(useUndoStore.getState().snackbar?.description).toBe(refused)
+
+    ui().setSettingsSection('tasks')
+    await useUndoStore.getState().undo()
+    expect(drafts().draft).toEqual({ lensId: 'lens-a', predicate: waiting })
   })
 
   it('deleting the drafted lens drops the draft; deleting another keeps it; a data replace drops it', async () => {

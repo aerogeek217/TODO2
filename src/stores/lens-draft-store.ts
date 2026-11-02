@@ -26,7 +26,11 @@ interface LensDraftState {
   edit: (lensId: string, predicate: TodoPredicate) => void
   /** Drops the draft, no undo step (Discard, a deleted lens). */
   discard: () => void
-  /** Revert: drops the draft; Undo in the snackbar brings it back (refused while another lens has one). */
+  /**
+   * Revert: drops the draft; Undo in the snackbar brings it back — refused
+   * while another lens has one, its lens is gone, or Settings isn't open on
+   * Tasks (where the editor shows it).
+   */
   revert: () => void
   /**
    * Saves the draft as the lens's filter — one undo step, `setLensPredicate`
@@ -82,7 +86,14 @@ export const useLensDraftStore = create<LensDraftState>((set, get) => ({
       () => {
         const other = liveLensDraft()
         if (other && other.lens.id !== draft.lensId) throw new UndoRefused(`Save or revert the changes to “${other.lens.name}” first.`)
-        if (!findLens(useSettingsStore.getState().lenses, draft.lensId)) throw new UndoRefused('That lens is gone.')
+        const lens = findLens(useSettingsStore.getState().lenses, draft.lensId)
+        if (!lens) throw new UndoRefused('That lens is gone.')
+        // Only where the editor shows it: a draft brought back with Settings
+        // closed (or on another section) would be unsaved work out of sight.
+        const ui = useUIStore.getState()
+        if (!ui.settingsOpen || ui.settingsSection !== SETTINGS_PART_SECTION.lenses) {
+          throw new UndoRefused(`Open Settings › Tasks › Lenses to bring back the changes to “${lens.name}”.`)
+        }
         get().edit(draft.lensId, draft.predicate)
       },
       true,
