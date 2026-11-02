@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { useState } from 'react'
 import type { DateField } from '../../../../models/app-view'
 import type { DateFilters } from '../../../../models'
-import { DateFilterPanel } from '../../../../components/shared/filters/DateFilterPanel'
+import { DateFilterPanel, type DateFilterHost } from '../../../../components/shared/filters/DateFilterPanel'
 
 /**
  * The date panel: six type tabs in two rows of three (selected = being
@@ -12,10 +12,11 @@ import { DateFilterPanel } from '../../../../components/shared/filters/DateFilte
  * Clear <Type> and Clear all. Selecting a tab never writes.
  */
 
-function Harness({ initial = {}, initialField, variant, log }: {
+function Harness({ initial = {}, initialField, variant, host, log }: {
   initial?: DateFilters
   initialField?: DateField
   variant?: 'popover' | 'sheet'
+  host?: DateFilterHost
   log: DateFilters[]
 }) {
   const [dates, setDates] = useState<DateFilters>(initial)
@@ -24,6 +25,7 @@ function Harness({ initial = {}, initialField, variant, log }: {
       dates={dates}
       initialField={initialField}
       variant={variant}
+      host={host}
       onChange={(next) => { log.push(next); setDates(next) }}
     />
   )
@@ -110,6 +112,33 @@ describe('DateFilterPanel', () => {
     expect(screen.getByText('Only tasks never followed up.')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Clear Last follow-up' }))
     expect(log.at(-1)).toEqual({})
+  })
+
+  it('a host can leave Completed out (the check-in): five tabs, ↑/↓ to the shorter row’s last tab', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} initialField="completed" host={{ omit: ['completed'] }} />)
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Next follow-up', 'Last follow-up', 'Created', 'Modified'])
+    // An omitted initial type opens on the first offered one.
+    expect(tab('Due')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Due'), { key: 'End' })
+    expect(tab('Modified')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Modified'), { key: 'ArrowRight' })
+    expect(tab('Due')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Due'), { key: 'ArrowLeft' })
+    fireEvent.keyDown(tab('Modified'), { key: 'ArrowLeft' })
+    fireEvent.keyDown(tab('Created'), { key: 'ArrowLeft' })
+    expect(tab('Last follow-up')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Last follow-up'), { key: 'ArrowDown' })
+    expect(tab('Modified')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Modified'), { key: 'ArrowUp' })
+    expect(tab('Next follow-up')).toHaveAttribute('aria-selected', 'true')
+    expect(log).toEqual([])
+  })
+
+  it('an Eisenhower pane’s Completed range only keeps: its line says so', () => {
+    render(<Harness log={[]} initialField="completed" host={{ completedNote: 'narrow' }} />)
+    expect(screen.getByText('Keeps tasks completed in this range, of the tasks the Eisenhower’s list shows.')).toBeInTheDocument()
+    expect(screen.queryByText(/even where completed tasks are hidden/)).toBeNull()
   })
 
   it('Completed is a range only, with a line saying it shows completed tasks', () => {

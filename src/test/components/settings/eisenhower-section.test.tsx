@@ -170,6 +170,14 @@ describe('Settings › Tasks › Eisenhower', () => {
     expect(useUndoStore.getState().snackbar).toEqual({ description: 'Changed pane “Delegate”' })
   })
 
+  it('a pane’s Completed range says it only keeps (a pane narrows the Eisenhower’s list)', () => {
+    const { part } = open()
+    fireEvent.click(within(card(part, 'do')).getByRole('button', { name: 'Another filter (AND)' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Completed' }))
+    expect(screen.getByText('Keeps tasks completed in this range, of the tasks the Eisenhower’s list shows.')).toBeInTheDocument()
+  })
+
   it('says the screen filter narrows the counts only while one is on', () => {
     const { part } = open()
     expect(within(part).queryByTestId('eisenhower-settings-filter-note')).toBeNull()

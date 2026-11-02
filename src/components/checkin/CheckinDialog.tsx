@@ -27,6 +27,7 @@ import type { ListFilterField } from '../../stores/list-widget-store'
 import { PeopleEditor } from '../settings/PeopleEditor'
 import { Dialog, DialogFrame } from '../shared/Dialog'
 import { PredicateChips } from '../shared/filters/PredicateChips'
+import type { DateFilterHost } from '../shared/filters/DateFilterPanel'
 import styles from './CheckinDialog.module.css'
 
 type SentAs = 'opened' | 'downloaded'
@@ -41,6 +42,8 @@ interface Toast {
 const tasksLabel = (n: number) => `${n} ${n === 1 ? 'task' : 'tasks'}`
 /** The check-in is per person: its filter has no People field. */
 const CHECKIN_OMIT_FIELDS: readonly ListFilterField[] = ['people']
+/** A check-in takes open tasks only, so its date panel leaves Completed out. */
+const CHECKIN_DATE_HOST: DateFilterHost = { omit: ['completed'] }
 /** Whether the person has an email a check-in can go to (one valid address). */
 const hasEmail = (p: PersistedPerson) => isValidEmail(p.email ?? '')
 /** A row's address line: the address, or what happens without one. */
@@ -277,6 +280,7 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
               addLabel="Add a filter to the check-in"
               layout="stack"
               omitFields={CHECKIN_OMIT_FIELDS}
+              dateHost={CHECKIN_DATE_HOST}
               inDialog
               before={filtered ? undefined : <span className={styles.noFilter}>All open tasks</span>}
             />
