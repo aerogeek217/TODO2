@@ -487,7 +487,7 @@ function ChangeRow({ change, repeats, checked, onToggle }: {
         )}
         {change.field === 'progress' && (
           <div className={styles.redline} data-checkin-progress-redline="">
-            <Redline parts={wordDiff(collapseWhitespace(change.from), change.to)} />
+            <ProgressRedline from={change.from} to={change.to} />
           </div>
         )}
         {change.field === 'notes' && (
@@ -499,6 +499,12 @@ function ChangeRow({ change, repeats, checked, onToggle }: {
       </div>
     </div>
   )
+}
+
+/** The progress now redlined to the reply's (the word diff kept across re-renders). */
+function ProgressRedline({ from, to }: { from: string; to: string }) {
+  const parts = useMemo(() => wordDiff(collapseWhitespace(from), to), [from, to])
+  return <Redline parts={parts} />
 }
 
 /** Leading whitespace, the rest, trailing whitespace. */
