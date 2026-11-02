@@ -215,6 +215,17 @@ describe('describeAnchor / describeRange', () => {
     expect(describeRange(null, { kind: 'offset', days: -14 })).toBe('up to 14 days ago')
     expect(describeRange(null, { kind: 'offset', days: -1 })).toBe('up to 1 day ago')
     expect(describeRange(null, { kind: 'offset', days: 0 })).toBe('by today')
+  })
+
+  it('words a future day offset alone as up to / from N days ahead (not "by in …", "from in …")', () => {
+    expect(describeRange(null, { kind: 'offset', days: 14 })).toBe('up to 14 days ahead')
+    expect(describeRange(null, { kind: 'offset', days: 1 })).toBe('up to 1 day ahead')
+    expect(describeRange({ kind: 'offset', days: 3 }, null)).toBe('from 3 days ahead')
+    expect(describeRange({ kind: 'offset', days: -30 }, null)).toBe('from 30 days ago')
+    expect(describeRange({ kind: 'offset', days: 2 }, { kind: 'offset', days: 9 })).toBe('in 2 days – in 9 days')
+    expect(describeRange(null, { kind: 'relative', token: 'end-of-week' })).toBe('by end of week')
+    expect(describeRange(null, { kind: 'fixed', iso: new Date(2026, 9, 30).toISOString() })).toBe('by Oct 30')
+    expect(describeDateMatch({ match: 'range', start: null, end: { kind: 'offset', days: 30 }, includeNoDate: true })).toBe('up to 30 days ahead, or none')
     expect(describeDateMatch({ match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true })).toBe('up to 14 days ago, or none')
   })
 })
