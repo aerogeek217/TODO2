@@ -764,6 +764,17 @@ describe('ListWidget People group headers: email check-in', () => {
     expect(screen.getByRole('menu', { name: 'Alice group' })).toBeInTheDocument()
   })
 
+  it('keys and right-clicks in the envelope’s (portaled) menu never open the group menu', () => {
+    setup(def({ grouping: 'people' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Email check-in options for Alice' }))
+    const item = screen.getByRole('menuitem', { name: 'Send check-in to Alice' })
+    fireEvent.keyDown(item, { key: 'F10', shiftKey: true })
+    fireEvent.keyDown(item, { key: 'ContextMenu' })
+    fireEvent.contextMenu(item)
+    expect(screen.queryByRole('menu', { name: 'Alice group' })).toBeNull()
+    expect(screen.getByRole('menu', { name: 'Check-in for Alice' })).toBeInTheDocument()
+  })
+
   it('the envelope’s Paste reply — and the header menu’s Paste check-in reply… — open the check-in reply import', () => {
     setup(def({ grouping: 'people' }))
     useUIStore.setState({ checkinImportOpen: false })

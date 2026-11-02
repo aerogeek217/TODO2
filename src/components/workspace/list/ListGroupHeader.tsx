@@ -25,11 +25,15 @@ export function ListGroupHeader({ person, showAction, onOpenMenu, children }: {
     <div
       className={styles.groupHeaderRow}
       data-person-group={person?.id}
+      // The check-in menu is portaled out of the header but its events bubble
+      // here through React: only the header's own DOM opens the group menu.
       onContextMenu={(e) => {
+        if (!(e.target instanceof Node && e.currentTarget.contains(e.target))) return
         e.preventDefault()
         onOpenMenu({ x: e.clientX, y: e.clientY })
       }}
       onKeyDown={(e) => {
+        if (!(e.target instanceof Node && e.currentTarget.contains(e.target))) return
         if (e.key !== 'ContextMenu' && !(e.key === 'F10' && e.shiftKey)) return
         e.preventDefault()
         e.stopPropagation()
