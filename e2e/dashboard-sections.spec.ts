@@ -96,6 +96,9 @@ test('the four sections render their counts and rows; the top-bar filter makes t
 test('their numbers open the task dialog with the tasks they count', async ({ page }) => {
   await seedWorkspace(page, seedWith())
 
+  // The tag assignments load after the tasks: until they do, every task is
+  // untagged and No tag is the first row.
+  await expect(section(page, 'tags').locator('[data-tag-row]').first()).toContainText('#q4')
   await section(page, 'tags').locator('[data-tag-row]').first().click()
   await expect(dialog(page).getByRole('heading')).toHaveText('#q4')
   await expect(dialog(page)).toContainText('Open tasks tagged #q4.')
