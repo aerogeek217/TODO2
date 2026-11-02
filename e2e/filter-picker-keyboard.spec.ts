@@ -86,6 +86,40 @@ test('Tab in the People picker’s search ticks the highlighted row and keeps th
   await expect(list.getByRole('option', { name: '@Ann' })).toHaveAttribute('aria-selected', 'true')
 })
 
+test('a named row wins the search’s pick; ↓ goes to it, and the focused row is then the only current one', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await expect.poll(() => titles(page)).toEqual(['Ann task', 'Bob task'])
+
+  await page.getByRole('button', { name: /^People filter/ }).focus()
+  await page.keyboard.press('Enter')
+  // The search is a combobox over the rows' listbox.
+  const search = page.getByRole('combobox', { name: 'Search...' })
+  await expect(search).toBeFocused()
+  const list = page.getByRole('listbox', { name: 'People' })
+  await expect(search).toHaveAttribute('aria-controls', (await list.getAttribute('id')) ?? 'missing')
+  await expect(search).toHaveAttribute('aria-expanded', 'true')
+
+  // `n`: None and Ann show — Ann (a named row) is the pick, not None.
+  await page.keyboard.type('n')
+  const none = list.getByRole('option', { name: 'None' })
+  const ann = list.getByRole('option', { name: '@Ann' })
+  await expect(list.getByRole('option')).toHaveCount(2)
+  await expect(ann).toHaveAttribute('data-search-pick', '')
+  const background = (row: typeof ann) => row.evaluate((el) => getComputedStyle(el).backgroundColor)
+  await expect.poll(() => background(ann)).not.toBe('rgba(0, 0, 0, 0)')
+
+  // ↓ goes to the pick; ↑ to None — Ann's tint is gone while the focus is in the rows.
+  await page.keyboard.press('ArrowDown')
+  await expect(ann).toBeFocused()
+  await page.keyboard.press('ArrowUp')
+  await expect(none).toBeFocused()
+  await expect.poll(() => background(ann)).toBe('rgba(0, 0, 0, 0)')
+  // ↑ on the first row: back in the search, the pick tinted again.
+  await page.keyboard.press('ArrowUp')
+  await expect(search).toBeFocused()
+  await expect.poll(() => background(ann)).not.toBe('rgba(0, 0, 0, 0)')
+})
+
 test('Tab in a list’s prompt field adds the highlighted person and keeps the focus in the field', async ({ page }) => {
   await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', runtimeFilter: { field: 'person' } }] })
   const widget = wsListWidget(page, 't1')

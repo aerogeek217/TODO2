@@ -165,10 +165,14 @@ function focusSearchAbove(list: HTMLElement) {
   }
 }
 
-/** The first row's tab stop of the listbox after `search` in its picker. */
+/**
+ * Into the listbox after `search` in its picker: the row the search
+ * highlights (`data-search-pick`) when there is one, else the rows' tab stop.
+ */
 function focusRowsBelow(search: HTMLElement): boolean {
   for (let el: HTMLElement | null = search.parentElement; el; el = el.parentElement) {
-    const row = el.querySelector<HTMLElement>('[role="listbox"] [role="option"][tabindex="0"]')
+    const row = el.querySelector<HTMLElement>('[role="listbox"] [role="option"][data-search-pick]')
+      ?? el.querySelector<HTMLElement>('[role="listbox"] [role="option"][tabindex="0"]')
     if (row) { row.focus(); return true }
   }
   return false
@@ -187,22 +191,23 @@ interface SearchPickLink {
   registerPick: (pick: SearchPick | null) => void
   /** The highlighted row's element id, for the search's `aria-activedescendant`. */
   setActiveDescendant: (id: string | undefined) => void
+  /** The rows' listbox id: the search (a combobox) controls it. */
+  listboxId: string
+  /** Whether the listbox is shown (no rows: it isn't — the search is collapsed). */
+  setListboxShown: (shown: boolean) => void
 }
 
 const SearchPickContext = createContext<SearchPickLink | null>(null)
 
 /**
  * The row Tab / Enter in the search picks (and the rows highlight), with text
- * `q` typed (trimmed, lower case): the first named row shown; the None row
- * only when it is the only one shown, or when `q` starts its label (`no`,
- * `un`) — never just for a letter its label contains. `rowIds` in their order
- * on screen, None as 0.
+ * `q` typed (trimmed, lower case): a named row (a person / tag / status)
+ * always wins — the first one shown; the None row only when no named row is
+ * shown (`none` typed, say). `rowIds` in their order on screen, None as 0.
  */
-function searchPickId(q: string, rowIds: readonly number[], noneLabel: string): number | undefined {
+function searchPickId(q: string, rowIds: readonly number[]): number | undefined {
   if (!q) return undefined
-  const noneShown = rowIds.includes(0)
-  if (noneShown && ('none'.startsWith(q) || noneLabel.toLowerCase().startsWith(q))) return 0
-  return rowIds.find((id) => id !== 0) ?? (noneShown ? 0 : undefined)
+  return rowIds.find((id) => id !== 0) ?? (rowIds.includes(0) ? 0 : undefined)
 }
 
 interface SelectionPanelBodyProps {
@@ -229,16 +234,22 @@ interface SelectionPanelBodyProps {
  * highlight the one Tab / Enter pick (`searchPickId`; the search's
  * `aria-activedescendant`): Tab ticks it (never unticks it), Enter toggles it;
  * the search clears and the focus stays in it (as the people / tag pickers' Tab).
+ * ↓ goes into the rows — to that row while there is one. The search is a
+ * combobox controlling the rows' listbox.
  */
 export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAll, onDeselectAll, search, searchInputRef, children }: SelectionPanelBodyProps) {
   const ownSearchRef = useRef<HTMLInputElement>(null)
   const searchRef = searchInputRef ?? ownSearchRef
   const pickRef = useRef<SearchPick | null>(null)
   const [activeDescendant, setActiveDescendant] = useState<string | undefined>(undefined)
+  const [listboxShown, setListboxShown] = useState(false)
+  const listboxId = useId()
   const link = useMemo<SearchPickLink>(() => ({
     registerPick: (pick) => { pickRef.current = pick },
     setActiveDescendant,
-  }), [])
+    listboxId,
+    setListboxShown,
+  }), [listboxId])
   return (
     <>
       {mode && <FilterModeToggle {...mode} />}
@@ -276,6 +287,10 @@ export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAl
               value={search.text}
               onChange={(e) => search.setText(e.target.value)}
               {...{ [ESCAPE_CLEARS_ATTR]: '', [PICKER_SEARCH_ATTR]: '' }}
+              role="combobox"
+              aria-expanded={listboxShown}
+              aria-controls={listboxShown ? listboxId : undefined}
+              aria-autocomplete="list"
               aria-activedescendant={search.text.trim() ? activeDescendant : undefined}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowDown') {
@@ -283,6 +298,8 @@ export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAl
                   return
                 }
                 if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                  // An IME's Enter / Tab ends the composition; it picks nothing.
+                  if (e.nativeEvent.isComposing) return
                   // With no text typed, Tab moves on as usual (never a Tab trap).
                   if (search.text.trim() && pickRef.current?.(e.key === 'Tab')) {
                     e.preventDefault()
@@ -394,7 +411,7 @@ export function EntityDropdownItems({
   const firstRest = topIds.length > 0 ? restIds[0] : undefined
   const tabStop = activeId != null && rowIds.includes(activeId) ? activeId : rowIds[0]
   /** The row Tab / Enter in the search pick, highlighted while text is typed. */
-  const searchPick = searchPickId(q, rowIds, noneLabel)
+  const searchPick = searchPickId(q, rowIds)
   const rowElementId = (id: number) => `${rowDomId}-row-${id}`
   const searchPickElementId = searchPick == null ? undefined : rowElementId(searchPick)
   const byId = new Map(matching.map((e) => [e.id, e]))
@@ -440,6 +457,13 @@ export function EntityDropdownItems({
     setActiveDescendant(searchPickElementId)
     return () => setActiveDescendant(undefined)
   }, [setActiveDescendant, searchPickElementId])
+  const setListboxShown = searchLink?.setListboxShown
+  const listboxShown = rowIds.length > 0
+  useLayoutEffect(() => {
+    if (!setListboxShown) return
+    setListboxShown(listboxShown)
+    return () => setListboxShown(false)
+  }, [setListboxShown, listboxShown])
 
   const onRowContextMenu = (id: number | undefined) => (e: MouseEvent) => {
     e.preventDefault()
@@ -492,7 +516,7 @@ export function EntityDropdownItems({
   return (
     <>
       {rowIds.length > 0 && (
-        <div ref={listRef} role="listbox" aria-multiselectable="true" aria-label={label} onKeyDown={onListKeyDown} {...shortcutScope('none')}>
+        <div ref={listRef} id={searchLink?.listboxId} role="listbox" aria-multiselectable="true" aria-label={label} onKeyDown={onListKeyDown} {...shortcutScope('none')}>
           {rowIds.map((id) => {
             if (id === 0) return row(0, <span className={picker.noneLabel}>{noneLabel}</span>, !!entityMenu)
             const entity = byId.get(id)
