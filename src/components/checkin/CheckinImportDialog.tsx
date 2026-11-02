@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from 'react'
+import { Fragment, useId, useMemo, useRef, useState } from 'react'
 import type { PersistedPerson } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import {
@@ -10,10 +10,12 @@ import {
 } from '../../services/checkin-reply/apply'
 import {
   diffCheckinReply,
+  notesPreviewLines,
   type CheckinChange,
   type CheckinReplyDiff,
   type CheckinTaskDiff,
   type NotesDiffLine,
+  type NotesPreviewLine,
 } from '../../services/checkin-reply/diff'
 import { parseCheckinReply, type CheckinReplyInput } from '../../services/checkin-reply/parse'
 import { advanceRecurring } from '../../utils/recurrence'
@@ -27,6 +29,7 @@ import { DialogFrame } from '../shared/Dialog'
 import styles from './CheckinImportDialog.module.css'
 import { collapseWhitespace } from '../../utils/text'
 import { byName } from '../../utils/sort-order'
+import { wordDiff, type WordDiffPart } from '../../utils/word-diff'
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 /** `, sent Oct 12` for the footer's send date (`YYYY-MM-DD`); empty without one. Information only. */
@@ -104,6 +107,11 @@ function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: st
  * person who replied, and emptied notes) and applies the ticked ones as one
  * undoable step — optionally recording a follow-up on every task that
  * changed.
+ *
+ * Each change previews what applying does to the task now: Mark complete,
+ * the progress redlined from its current value, the notes line diff with
+ * each edited line redlined (removed words struck, added words underlined —
+ * `<del>` / `<ins>` with a visually hidden "removed" / "added").
  *
  * The paste is read from the `paste` event's `text/html` and `text/plain`
  * flavours (no clipboard permission needed). Nothing pasted is rendered as
@@ -473,17 +481,13 @@ function ChangeRow({ change, repeats, checked, onToggle }: {
       <div className={`${styles.changeBody} ${checked ? '' : styles.changeOff}`}>
         {change.field === 'completed' && (
           <div className={styles.fromTo}>
-            <span className={styles.from}><span className={`${styles.dot} ${styles.dotOpen}`} />Open</span>
-            <span className={styles.arrow} aria-hidden="true">→</span>
-            <span className={styles.to}><span className={`${styles.dot} ${styles.dotDone}`} />Completed</span>
+            <span className={styles.to}><span className={`${styles.dot} ${styles.dotDone}`} />Mark complete</span>
             {repeats && <span className={styles.note}>Repeats, so it moves to its next due date.</span>}
           </div>
         )}
         {change.field === 'progress' && (
-          <div className={styles.fromTo}>
-            <span className={styles.from}>{change.from.trim() === '' ? '—' : change.from}</span>
-            <span className={styles.arrow} aria-hidden="true">→</span>
-            <span className={styles.to}>{change.to}</span>
+          <div className={styles.redline} data-checkin-progress-redline="">
+            <Redline parts={wordDiff(collapseWhitespace(change.from), change.to)} />
           </div>
         )}
         {change.field === 'notes' && (
@@ -497,23 +501,46 @@ function ChangeRow({ change, repeats, checked, onToggle }: {
   )
 }
 
-const SIGN: Record<NotesDiffLine['op'], string> = { '=': ' ', '-': '−', '+': '+' }
-const SIGN_LABEL: Record<NotesDiffLine['op'], string | undefined> = { '=': undefined, '-': 'Removed: ', '+': 'Added: ' }
+/** Leading whitespace, the rest, trailing whitespace. */
+const EDGE_SPACE = /^(\s*)([^]*?)(\s*)$/
 
-/** The notes line diff, as text: unchanged lines muted, removed struck, added accented. */
+/**
+ * A word diff as one line of text: kept words plain, removed words struck
+ * (`<del>`), added words underlined (`<ins>`), each with a visually hidden
+ * "removed" / "added" for screen readers. The spaces at a change's edges stay
+ * outside its mark; a change of spaces alone shows as the new spacing.
+ */
+function Redline({ parts }: { parts: readonly WordDiffPart[] }) {
+  return parts.map((part, i) => {
+    if (part.op === '=') return <Fragment key={i}>{part.text}</Fragment>
+    const [, lead = '', core = '', trail = ''] = EDGE_SPACE.exec(part.text) ?? []
+    if (core === '') return <Fragment key={i}>{part.op === '+' ? part.text : ''}</Fragment>
+    const mark = part.op === '-'
+      ? <del className={styles.del}><span className={styles.srOnly}>removed </span>{core}</del>
+      : <ins className={styles.ins}><span className={styles.srOnly}>added </span>{core}</ins>
+    return <Fragment key={i}>{lead}{mark}{trail}</Fragment>
+  })
+}
+
+const SIGN: Record<NotesPreviewLine['op'], string> = { '=': ' ', '-': '−', '+': '+', '~': '±' }
+const SIGN_LABEL: Record<NotesPreviewLine['op'], string | undefined> = { '=': undefined, '-': 'Removed: ', '+': 'Added: ', '~': 'Edited: ' }
+const LINE_CLASS: Record<NotesPreviewLine['op'], string> = { '=': '', '-': styles.lineRemoved ?? '', '+': styles.lineAdded ?? '', '~': styles.lineEdited ?? '' }
+
+/**
+ * The notes line diff, as text: unchanged lines muted, removed struck, added
+ * accented, each edited line (a removed line and its replacement) one
+ * redlined line.
+ */
 function NotesDiff({ lines }: { lines: readonly NotesDiffLine[] }) {
+  const shown = useMemo(() => notesPreviewLines(lines), [lines])
   return (
     <div className={styles.diff} data-checkin-notes-diff="">
-      {lines.map((line, i) => (
-        <div
-          key={i}
-          className={`${styles.line} ${line.op === '-' ? styles.lineRemoved : line.op === '+' ? styles.lineAdded : ''}`}
-          data-op={line.op}
-        >
+      {shown.map((line, i) => (
+        <div key={i} className={`${styles.line} ${LINE_CLASS[line.op]}`} data-op={line.op}>
           <span className={styles.sign} aria-hidden="true">{SIGN[line.op]}</span>
           <span className={styles.lineText}>
             {SIGN_LABEL[line.op] && <span className={styles.srOnly}>{SIGN_LABEL[line.op]}</span>}
-            {line.text}
+            {line.op === '~' ? <Redline parts={line.parts} /> : line.text}
           </span>
         </div>
       ))}

@@ -5,6 +5,8 @@ import {
   diffCheckinReply,
   diffNotes,
   notesLineKey,
+  notesPreviewLines,
+  type NotesDiffLine,
   type CheckinChange,
   type CheckinReplyDiff,
 } from '../../../services/checkin-reply/diff'
@@ -171,6 +173,35 @@ describe('Notes', () => {
     const old = Array.from({ length: 3000 }, (_, i) => `old line ${i}`).join('\n')
     const next = Array.from({ length: 3000 }, (_, i) => `new line ${i}`)
     expectWithin(5000, () => expect(diffNotes(old, next)?.lines).toHaveLength(6000))
+  })
+})
+
+describe('notesPreviewLines (the dialog’s redline pairing)', () => {
+  const l = (op: NotesDiffLine['op'], text: string): NotesDiffLine => ({ op, text })
+
+  it('a removed line followed by its replacement: one edited line, word-diffed', () => {
+    expect(notesPreviewLines([l('=', 'Keep'), l('-', 'Dry run on staging'), l('+', 'Dry run on staging by Friday'), l('=', 'End')])).toEqual([
+      l('=', 'Keep'),
+      { op: '~', parts: [{ op: '=', text: 'Dry run on staging' }, { op: '+', text: ' by Friday' }] },
+      l('=', 'End'),
+    ])
+  })
+
+  it('a run of removes then adds pairs in order; extra lines stay whole', () => {
+    const shown = notesPreviewLines([l('-', 'one a'), l('-', 'two b'), l('-', 'three c'), l('+', 'one A'), l('+', 'two B')])
+    expect(shown.map((x) => x.op)).toEqual(['~', '~', '-'])
+    expect(shown[2]).toEqual(l('-', 'three c'))
+    const more = notesPreviewLines([l('-', 'one a'), l('+', 'one A'), l('+', 'brand new')])
+    expect(more.map((x) => x.op)).toEqual(['~', '+'])
+  })
+
+  it('lone adds and removes, and adds before removes, stay whole lines', () => {
+    expect(notesPreviewLines([l('+', 'new'), l('=', 'k'), l('-', 'old')])).toEqual([l('+', 'new'), l('=', 'k'), l('-', 'old')])
+    expect(notesPreviewLines([l('+', 'x y'), l('-', 'x z')])).toEqual([l('+', 'x y'), l('-', 'x z')])
+  })
+
+  it('a pair that shares no word stays a whole removed and a whole added line', () => {
+    expect(notesPreviewLines([l('-', 'Call the vendor.'), l('+', 'Signed off!')])).toEqual([l('-', 'Call the vendor.'), l('+', 'Signed off!')])
   })
 })
 

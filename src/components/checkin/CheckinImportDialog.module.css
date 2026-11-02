@@ -317,6 +317,48 @@
   color: var(--color-accent-text);
 }
 
+/* The redline (progress, an edited notes line): the current text with the
+ * removed words struck in the danger tone and the added words underlined in
+ * the accent, each on a tint — a mark, not only a colour. */
+
+.redline {
+  min-width: 0;
+  color: var(--color-text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.lineEdited {
+  color: var(--color-text-primary);
+}
+
+.del,
+.ins {
+  padding: 0 2px;
+  border-radius: 3px;
+  box-decoration-break: clone;
+  text-decoration-thickness: 1px;
+}
+
+.del {
+  color: var(--color-danger-text);
+  background: var(--color-danger-bg);
+  text-decoration-line: line-through;
+}
+
+.ins {
+  color: var(--color-accent-text);
+  /* The lighter tint: the accent text keeps AA (4.5:1) on it in the light theme. */
+  background: var(--color-accent-bg-light);
+  text-decoration-line: underline;
+  text-underline-offset: 2px;
+}
+
+/* A replacement reads struck, then added: a gap between them. */
+.del + .ins {
+  margin-inline-start: 3px;
+}
+
 .followup {
   display: flex;
   align-items: flex-start;

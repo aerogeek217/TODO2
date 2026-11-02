@@ -90,15 +90,19 @@ describe('CheckinImportDialog — reading a paste', () => {
 
     const progress = card('Answer Northwind’s security questionnaire')
     expect(within(progress).getByRole('checkbox', { name: 'Progress' })).toHaveProperty('checked', true)
-    expect(progress.textContent).toContain('half done→section 4 done')
+    expect(progress.querySelector('[data-checkin-progress-redline]')?.textContent).toBe('removed halfadded section 4 done')
     const done = card('Review the staging load-test results')
     expect(within(done).getByRole('checkbox', { name: 'Completed' })).toHaveProperty('checked', true)
-    expect(done.textContent).toContain('Open→Completed')
+    expect(done.textContent).toContain('Mark complete')
     const notes = card('Draft the migration runbook')
     const lines = Array.from(notes.querySelectorAll('[data-op]')).map((l) => `${l.getAttribute('data-op')} ${l.lastElementChild?.textContent}`)
-    expect(lines).toContain('+ Added: Nina confirmed Saturday 06:00–08:00 for the cutover.')
-    expect(lines).toContain('- Removed: - Ask Nina about the [rollback window](https://example.com/runbook)')
-    expect(lines).toContain('= Cover the cutover sequence, rollback steps and who is on call.')
+    expect(lines).toEqual([
+      '= Cover the cutover sequence, rollback steps and who is on call.',
+      '+ Added: Nina confirmed Saturday 06:00–08:00 for the cutover.',
+      '= - Link the existing **DB checklist**',
+      '~ Edited: - removed Ask Nina aboutadded Agreed the [rollback window](https://example.com/runbook) added with Nina',
+      '= - [ ] Dry run on staging',
+    ])
 
     // Task 4 came back unchanged: no card, one line.
     expect(within(dialog()).queryByRole('region', { name: /Contoso/ })).toBeNull()
@@ -215,6 +219,49 @@ describe('CheckinImportDialog — reading a paste', () => {
     fireEvent.click(within(dialog()).getByRole('button', { name: 'Paste again' }))
     expect(within(dialog()).getByRole('textbox', { name: 'Paste the reply here' })).toBeTruthy()
     expect(applyButton()).toHaveProperty('disabled', true)
+  })
+})
+
+describe('CheckinImportDialog — the redline', () => {
+  /** A mark's visible text (its visually hidden label left out). */
+  const visible = (el: Element) => Array.from(el.childNodes).filter((n) => !(n instanceof HTMLElement && n.className.includes('srOnly'))).map((n) => n.textContent).join('')
+
+  it('progress: one line from the current value — removed words in <del>, added in <ins>, kept words plain', () => {
+    open()
+    paste({ html: fixture('.html'), plain: fixture('.txt') })
+    const line = card('Answer Northwind’s security questionnaire').querySelector('[data-checkin-progress-redline]')
+    if (!line) throw new Error('no progress redline')
+    expect(Array.from(line.querySelectorAll('del')).map(visible)).toEqual(['half'])
+    expect(Array.from(line.querySelectorAll('ins')).map(visible)).toEqual(['section 4'])
+    // Kept words are plain text, outside any mark.
+    expect(line.lastChild?.nodeType).toBe(Node.TEXT_NODE)
+    expect(line.lastChild?.textContent).toBe(' done')
+    // Read aloud: what goes, what comes.
+    expect(line.querySelector('del')?.textContent).toBe('removed half')
+    expect(line.querySelector('ins')?.textContent).toBe('added section 4')
+  })
+
+  it('progress where there was none: all added', () => {
+    const email = sampleEmail()
+    open()
+    paste({ plain: editPlain(email.plain, '3f9a1c42', 'Progress:', ['Progress: drafted, in review']) })
+    const line = card('Draft the migration runbook').querySelector('[data-checkin-progress-redline]')
+    expect(line?.querySelectorAll('del')).toHaveLength(0)
+    expect(Array.from(line?.querySelectorAll('ins') ?? []).map(visible)).toEqual(['drafted, in review'])
+  })
+
+  it('notes: an edited line is one redlined line; whole adds and removes keep their look', () => {
+    open()
+    paste({ html: fixture('.html'), plain: fixture('.txt') })
+    const notes = card('Draft the migration runbook')
+    const edited = notes.querySelector('[data-op="~"]')
+    if (!edited) throw new Error('no edited line')
+    expect(Array.from(edited.querySelectorAll('del')).map(visible)).toEqual(['Ask Nina about'])
+    expect(Array.from(edited.querySelectorAll('ins')).map(visible)).toEqual(['Agreed', 'with Nina'])
+    // The pair replaced its − and + lines.
+    expect(notes.querySelector('[data-op="-"]')).toBeNull()
+    expect(notes.querySelectorAll('[data-op="+"]')).toHaveLength(1)
+    expect(notes.querySelector('[data-op="+"] ins, [data-op="+"] del')).toBeNull()
   })
 })
 

@@ -28,7 +28,7 @@ import { resolveTaskRef } from '../checkin-email/ref'
 import { htmlToMarkdown, mdToHtml } from '../notes-export'
 import type { CheckinReplyBlock, ParsedCheckinReply } from './parse'
 import { collapseWhitespace } from '../../utils/text'
-import { diffSequences } from '../../utils/word-diff'
+import { diffSequences, wordDiff, type WordDiffPart } from '../../utils/word-diff'
 
 /** Progress is one line of at most this many characters (as in the task editor). */
 export const CHECKIN_PROGRESS_MAX = 500
@@ -42,6 +42,13 @@ export interface NotesDiffLine {
   /** The line as it reads in the old (`=` / `-`) or new (`+`) notes. */
   text: string
 }
+
+/**
+ * A notes diff line as the import dialog shows it: a kept / removed / added
+ * line, or (`~`) an edited line — a removed line and the added line that
+ * replaces it — as one word diff.
+ */
+export type NotesPreviewLine = NotesDiffLine | { op: '~'; parts: WordDiffPart[] }
 
 export type CheckinChange =
   | {
@@ -226,6 +233,47 @@ export function diffNotes(current: string, reply: readonly string[] | null): Ext
     emptied,
     defaultSelected: !emptied,
   }
+}
+
+/** Whether a word diff keeps a word (not just spaces or punctuation) of the old line. */
+const keepsAWord = (parts: readonly WordDiffPart[]) => parts.some((p) => p.op === '=' && /[\p{L}\p{N}]/u.test(p.text))
+
+/**
+ * The notes line diff for display. In each run of removed lines followed by
+ * added lines, the lines pair up in order and each pair is one edited line
+ * (`~`, word-diffed) — unless the two share no word, when they stay a whole
+ * removed and a whole added line. Lines left over stay whole removes / adds.
+ */
+export function notesPreviewLines(lines: readonly NotesDiffLine[]): NotesPreviewLine[] {
+  const out: NotesPreviewLine[] = []
+  let removed: NotesDiffLine[] = []
+  let added: NotesDiffLine[] = []
+  const flush = () => {
+    const paired = Math.min(removed.length, added.length)
+    removed.slice(0, paired).forEach((from, k) => {
+      const to = added[k]
+      const parts = to ? wordDiff(from.text, to.text) : []
+      if (to && keepsAWord(parts)) out.push({ op: '~', parts })
+      else out.push(from, ...(to ? [to] : []))
+    })
+    out.push(...removed.slice(paired), ...added.slice(paired))
+    removed = []
+    added = []
+  }
+  for (const line of lines) {
+    if (line.op === '-') {
+      // A removed line after added ones starts a new run.
+      if (added.length > 0) flush()
+      removed.push(line)
+    } else if (line.op === '+') {
+      added.push(line)
+    } else {
+      flush()
+      out.push(line)
+    }
+  }
+  flush()
+  return out
 }
 
 // ── Task diff ───────────────────────────────────────────────────────────

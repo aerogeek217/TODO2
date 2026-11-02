@@ -95,6 +95,13 @@ test('paste a reply, untick one change, apply; Undo restores the old notes', asy
   }))
   expect(new Set(boxes)).toEqual(new Set(['18x18']))
 
+  // The progress redline: struck and underlined marks, not only colour; the kept word plain.
+  const redline = dialog.locator('[data-checkin-progress-redline]')
+  await expect(redline).toHaveText('removed halfadded section 4 done')
+  expect(await redline.locator('del').evaluate((el) => getComputedStyle(el).textDecorationLine)).toBe('line-through')
+  expect(await redline.locator('ins').evaluate((el) => getComputedStyle(el).textDecorationLine)).toBe('underline')
+  await expect(dialog.locator('[data-checkin-notes-diff] [data-op="~"]')).toHaveCount(1)
+
   // Keep the old progress on the questionnaire.
   await dialog.getByRole('region', { name: 'Answer Northwind’s security questionnaire' }).getByRole('checkbox', { name: 'Progress' }).uncheck()
   await expect(apply).toHaveText('Apply 2 changes')
