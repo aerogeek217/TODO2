@@ -117,6 +117,9 @@ test('the offline single file runs from disk under its CSP', async ({ page }) =>
   expect(csp).toMatch(/^default-src 'none'; /)
   // On file:// 'self' would admit any file: URL, a UNC share's among them.
   expect(csp).not.toContain("'self'")
+  // Its one inline script by hash: the page starting below is the proof the hash matches.
+  expect(csp).toMatch(/script-src 'sha256-[A-Za-z0-9+/]{43}=';/)
+  expect(csp).not.toMatch(/script-src[^;]*'unsafe-inline'/)
   expect(csp).toContain("connect-src 'none'")
   expect(csp).toContain('font-src data:;')
   expect(csp).toContain("base-uri 'none'")

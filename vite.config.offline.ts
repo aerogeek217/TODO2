@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { viteSingleFile } from 'vite-plugin-singlefile'
+import { scriptHash, splitHtml } from './scripts/offline-file.ts'
 
 if (existsSync(resolve(import.meta.dirname, 'public/node_modules'))) {
   throw new Error(
@@ -52,10 +53,12 @@ function fileProtocolCompat(): Plugin {
 // 'self' and each allows only what the file itself carries. The sync file,
 // imports and exports go through the File System Access API, file inputs and
 // downloads, which no fetch directive governs.
+const SCRIPT_HASH_SLOT = '__OFFLINE_SCRIPT_HASH__'
+
 const OFFLINE_CSP = [
   "default-src 'none'",
-  // The one inline script (the whole app).
-  "script-src 'unsafe-inline'",
+  // The one inline script (the whole app), by its hash (`offlineScriptHash`).
+  `script-src ${SCRIPT_HASH_SLOT}`,
   // The built CSS is one inline <style>; React and CodeMirror set styles at run time.
   "style-src 'unsafe-inline'",
   // The embedded icons and the data: images in styles (the notes text cursor, CodeMirror's tab arrow).
@@ -91,6 +94,37 @@ function offlineCsp(): Plugin {
         '<meta http-equiv="x-dns-prefetch-control" content="off" />',
       ].join('\n    '))
     },
+  }
+}
+
+// Fills the CSP's script-src with the sha256 of the file's one inline script.
+// The last step (`post`, listed last): `viteSingleFile` has inlined the
+// bundle and `fileProtocolCompat` has moved things by now, so the hash
+// covers the script's final text. Fails the build when the file holds more
+// than one script, loads one, or the hash in the finished file doesn't match.
+function offlineScriptHash(): Plugin {
+  return {
+    name: 'offline-script-hash',
+    enforce: 'post',
+    generateBundle: { order: 'post', handler(_, bundle) {
+      for (const file of Object.values(bundle)) {
+        if (file.type !== 'asset' || !file.fileName.endsWith('.html')) continue
+        const html = String(file.source)
+        const [script, ...more] = splitHtml(html).scripts
+        if (!script || more.length > 0) this.error(`${file.fileName} should hold one <script>, found ${more.length + (script ? 1 : 0)}`)
+        if (/\ssrc\s*=/i.test(script.tag)) this.error(`${file.fileName} loads a script (${script.tag}); the offline file carries its only one inline`)
+        if (html.split(SCRIPT_HASH_SLOT).length !== 2) this.error(`${file.fileName} should hold ${SCRIPT_HASH_SLOT} once, in its CSP`)
+        const hash = scriptHash(script.text)
+        const hashed = html.replace(SCRIPT_HASH_SLOT, () => hash)
+        const final = splitHtml(hashed)
+        const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(final.markup)?.[1] ?? ''
+        const [finalScript] = final.scripts
+        if (!finalScript || !csp.includes(`script-src ${scriptHash(finalScript.text)};`)) {
+          this.error(`${file.fileName}: the CSP's script-src doesn't hold the hash of the inline script`)
+        }
+        file.source = hashed
+      }
+    } },
   }
 }
 
@@ -144,18 +178,19 @@ function renameToTodo2(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), viteSingleFile(), offlineCsp(), offlineIcons(), fileProtocolCompat(), renameToTodo2()],
+  plugins: [react(), viteSingleFile(), offlineCsp(), offlineIcons(), fileProtocolCompat(), renameToTodo2(), offlineScriptHash()],
   base: './',
   build: {
     emptyOutDir: false,
     cssCodeSplit: false,
     modulePreload: false,
     rolldownOptions: {
-      // viteSingleFile checks every CSP <meta> in the finished HTML, and
-      // the inlined script holds one as text (the check-in preview frame's
-      // `default-src 'none'`), so it warns that inline scripts are blocked.
-      // They aren't: `offlineCsp` keeps 'unsafe-inline' in the page's CSP,
-      // and `e2e/built-csp.spec.ts` runs this build with no CSP violation.
+      // viteSingleFile checks every CSP <meta> in the finished HTML for
+      // 'unsafe-inline' — the page's (which allows its one script by hash,
+      // filled in after this check by `offlineScriptHash`) and the one the
+      // inlined script holds as text (the check-in preview frame's
+      // `default-src 'none'`) —, so it warns that inline scripts are blocked.
+      // They aren't: `e2e/built-csp.spec.ts` runs this build with no CSP violation.
       onLog(level, log, handler) {
         if (log.plugin === 'vite:singlefile' && log.message.includes('does not allow inline <script> code')) return
         handler(level, log)
