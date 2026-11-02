@@ -5,8 +5,9 @@ import { rowTitles } from './fixtures/seed'
 /**
  * The filter pickers by keyboard alone: the top bar's People picker opens on
  * Enter with the focus in its search, ↓ goes into the rows, Space ticks one,
- * Esc closes it; Tab / Enter in its search pick the first row shown, the
- * focus staying in the search. Real-browser because focus handoffs are.
+ * Esc closes it; Tab / Enter in its search pick the first row shown, and in a
+ * list's prompt field the highlighted match — the focus staying in the field.
+ * Real-browser because focus handoffs are.
  */
 
 const SEED: WorkspaceSeed = {
@@ -79,4 +80,34 @@ test('Tab in the People picker’s search ticks the first row shown and keeps th
   await expect(search).toBeFocused()
   await expect.poll(() => titles(page)).toEqual(['Ann task', 'Bob task'])
   await expect(list.getByRole('option', { name: '@Ann' })).toHaveAttribute('aria-selected', 'true')
+})
+
+test('Tab in a list’s prompt field adds the highlighted person and keeps the focus in the field', async ({ page }) => {
+  await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', runtimeFilter: { field: 'person' } }] })
+  const widget = wsListWidget(page, 't1')
+  const input = widget.getByRole('combobox', { name: 'Filter tasks by person' })
+  await input.focus()
+  await page.keyboard.type('bo')
+  // The first match is highlighted.
+  const bob = page.getByRole('option', { name: 'Bob', exact: true })
+  await expect(bob).toBeVisible()
+  await expect(input).toHaveAttribute('aria-activedescendant', (await bob.getAttribute('id')) ?? 'missing')
+  await page.keyboard.press('Tab')
+  await expect(widget.getByRole('button', { name: 'Remove Bob' })).toBeVisible()
+  await expect(input).toHaveValue('')
+  await expect(input).toBeFocused()
+  await expect.poll(() => titles(page)).toEqual(['Bob task'])
+
+  // Enter toggles the highlighted match.
+  await page.keyboard.type('a')
+  await page.keyboard.press('Enter')
+  await expect(widget.getByRole('button', { name: 'Remove Ann' })).toBeVisible()
+  await expect(input).toBeFocused()
+  await expect.poll(() => titles(page)).toEqual(['Ann task', 'Bob task'])
+
+  // No query: Tab moves on.
+  await page.keyboard.press('Escape')
+  await input.focus()
+  await page.keyboard.press('Tab')
+  await expect(input).not.toBeFocused()
 })

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { render, cleanup, fireEvent } from '@testing-library/react'
+import { act, render, cleanup, fireEvent } from '@testing-library/react'
+import { useState } from 'react'
 import { RuntimeFilterPicker } from '../../../components/workspace/list/RuntimeFilterPicker'
 import { usePersonStore } from '../../../stores/person-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -127,15 +128,15 @@ describe('RuntimeFilterPicker', () => {
     const input = getByLabelText(/Filter tasks by person/i) as HTMLInputElement
     input.focus()
     fireEvent.change(input, { target: { value: 'bo' } })
-    expect(queryByRole('button', { name: 'Alice' })).toBeNull()
-    const bob = getByRole('button', { name: 'Bob' })
+    expect(queryByRole('option', { name: 'Alice' })).toBeNull()
+    const bob = getByRole('option', { name: 'Bob' })
     // The press keeps the focus in the field.
     expect(fireEvent.mouseDown(bob)).toBe(false)
     fireEvent.click(bob)
     expect(onChange).toHaveBeenLastCalledWith([2])
     expect(input.value).toBe('')
     expect(input).toHaveFocus()
-    expect(getByRole('button', { name: 'Alice' })).toBeTruthy()
+    expect(getByRole('option', { name: 'Alice' })).toBeTruthy()
   })
 
   it('removes an id when the chip × is clicked', () => {
@@ -244,6 +245,113 @@ describe('RuntimeFilterPicker', () => {
     fireEvent.focus(input)
     fireEvent.keyDown(input, { key: 'Backspace' })
     expect(onChange).toHaveBeenLastCalledWith([1])
+  })
+
+  describe('the keyboard', () => {
+    const people = () => {
+      usePersonStore.setState({
+        people: [
+          makePerson({ id: 1, name: 'Alice' }),
+          makePerson({ id: 2, name: 'Alan' }),
+          makePerson({ id: 3, name: 'Bob' }),
+        ],
+        assignedPeopleMap: new Map(),
+      })
+    }
+    /** The picker with its value held, as the list widget holds it. */
+    function Held({ initial = [], onChange }: { initial?: number[]; onChange: (ids: number[]) => void }) {
+      const [ids, setIds] = useState<number[]>(initial)
+      return <RuntimeFilterPicker spec={{ field: 'person' }} value={ids} onChange={(next) => { onChange(next); setIds(next) }} />
+    }
+    const setup = (initial?: number[]) => {
+      people()
+      const onChange = vi.fn()
+      const utils = render(<Held initial={initial} onChange={onChange} />)
+      const input = utils.getByRole('combobox', { name: /Filter tasks by person/i }) as HTMLInputElement
+      act(() => input.focus())
+      // The highlighted option's name (its avatar's initials left out).
+      const highlighted = () => {
+        const id = input.getAttribute('aria-activedescendant')
+        return id ? document.getElementById(id)?.lastElementChild?.textContent : null
+      }
+      return { ...utils, input, onChange, highlighted }
+    }
+
+    it('is a combobox over a multi-select listbox; nothing is highlighted until a query or an arrow', () => {
+      const { input, getByRole, highlighted } = setup([3])
+      expect(input).toHaveAttribute('aria-expanded', 'true')
+      const list = getByRole('listbox', { name: 'Person' })
+      expect(list).toHaveAttribute('aria-multiselectable', 'true')
+      expect(input.getAttribute('aria-controls')).toBe(list.id)
+      expect(getByRole('option', { name: 'Bob' })).toHaveAttribute('aria-selected', 'true')
+      expect(getByRole('option', { name: 'Alice' })).toHaveAttribute('aria-selected', 'false')
+      expect(highlighted()).toBeNull()
+    })
+
+    it('a query highlights the first match; ↓ / ↑ move the highlight, wrapping', () => {
+      const { input, getByRole, highlighted } = setup()
+      fireEvent.change(input, { target: { value: 'al' } })
+      // Sorted by name: Alan, Alice.
+      expect(highlighted()).toBe('Alan')
+      expect(getByRole('option', { name: 'Alan' }).className).toMatch(/active/)
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      expect(highlighted()).toBe('Alice')
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      expect(highlighted()).toBe('Alan')
+      fireEvent.keyDown(input, { key: 'ArrowUp' })
+      expect(highlighted()).toBe('Alice')
+    })
+
+    it('with no query, ↓ starts at the first option and ↑ at the last', () => {
+      const { input, highlighted } = setup()
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      expect(highlighted()).toBe('Alan')
+      fireEvent.keyDown(input, { key: 'Escape' })
+      act(() => input.focus())
+      fireEvent.keyDown(input, { key: 'ArrowUp' })
+      expect(highlighted()).toBe('Bob')
+    })
+
+    it('Enter toggles the highlighted option; the query clears and the option stays highlighted', () => {
+      const { input, onChange, highlighted } = setup()
+      fireEvent.change(input, { target: { value: 'bo' } })
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(onChange).toHaveBeenLastCalledWith([3])
+      expect(input.value).toBe('')
+      expect(input).toHaveFocus()
+      expect(highlighted()).toBe('Bob')
+      // Enter again unpicks it.
+      fireEvent.keyDown(input, { key: 'Enter' })
+      expect(onChange).toHaveBeenLastCalledWith([])
+    })
+
+    it('Tab with a query adds the highlighted option, never removes it; the query clears and the focus stays', () => {
+      const { input, onChange } = setup([3])
+      fireEvent.change(input, { target: { value: 'ali' } })
+      const tab = fireEvent.keyDown(input, { key: 'Tab' })
+      expect(tab).toBe(false)
+      expect(onChange).toHaveBeenLastCalledWith([3, 1])
+      expect(input.value).toBe('')
+      expect(input).toHaveFocus()
+      // Bob is picked already: Tab keeps him picked (no change), the query clears.
+      onChange.mockClear()
+      fireEvent.change(input, { target: { value: 'bob' } })
+      expect(fireEvent.keyDown(input, { key: 'Tab' })).toBe(false)
+      expect(onChange).not.toHaveBeenCalled()
+      expect(input.value).toBe('')
+    })
+
+    it('Tab / Shift+Tab with no query, Shift+Tab with one, or Tab with no match move on as usual', () => {
+      const { input, onChange } = setup()
+      expect(fireEvent.keyDown(input, { key: 'Tab' })).toBe(true)
+      fireEvent.keyDown(input, { key: 'ArrowDown' })
+      expect(fireEvent.keyDown(input, { key: 'Tab' })).toBe(true)
+      fireEvent.change(input, { target: { value: 'al' } })
+      expect(fireEvent.keyDown(input, { key: 'Tab', shiftKey: true })).toBe(true)
+      fireEvent.change(input, { target: { value: 'zz' } })
+      expect(fireEvent.keyDown(input, { key: 'Tab' })).toBe(true)
+      expect(onChange).not.toHaveBeenCalled()
+    })
   })
 
   // Contract: the picker reads exclusively from cached Zustand stores;

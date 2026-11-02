@@ -240,7 +240,7 @@ test('prompt picks are temporary: empty again after a reload', async ({ page }) 
   await expect(widget).toContainText('Pick a person to show this list')
   await expect(wsTab(page, 't1')).toContainText('—')
   await widget.getByLabel('Filter tasks by person').click()
-  await page.getByRole('button', { name: 'Bob', exact: true }).click()
+  await page.getByRole('option', { name: 'Bob', exact: true }).click()
   await page.keyboard.press('Escape')
   await expect(rows(page, 't1')).toHaveCount(1)
   // Picking is not a list edit.

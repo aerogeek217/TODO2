@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import type { RuntimeFilterSpec } from '../../../models/list-definition'
 import { usePersonStore } from '../../../stores/person-store'
@@ -57,6 +57,12 @@ function defaultLabel(spec: RuntimeFilterSpec): string {
  * passes the predicate through unchanged). A pick while the field has search
  * text clears the text (the focus stays in the field). While anything is picked, a × at
  * the field's end clears every pick at once (the focus stays in the field).
+ *
+ * Keyboard (as `ChipSelector`): one option is highlighted — the first match
+ * while a query is typed, else the last one moved to or picked (none until
+ * then); ↑ / ↓ move it (wrapping), Enter toggles it, Tab with a query typed
+ * adds it (never removes) and keeps the focus in the field. Tab / Shift+Tab
+ * with no query move on as usual.
  */
 const NO_IDS: readonly number[] = []
 
@@ -113,14 +119,30 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
   const label = defaultLabel(spec)
   const lowerLabel = label.toLowerCase()
 
-  const filtered = useMemo(() => {
-    const q = searchText.trim().toLowerCase()
-    return q ? options.filter((o) => o.name.toLowerCase().includes(q)) : options
-  }, [options, searchText])
+  const query = searchText.trim().toLowerCase()
+  const filtered = useMemo(
+    () => (query ? options.filter((o) => o.name.toLowerCase().includes(query)) : options),
+    [options, query],
+  )
+
+  // The highlighted option, by id (it survives the query narrowing): the one
+  // moved to or picked, else the first match while a query is typed.
+  const [activeId, setActiveId] = useState<number | null>(null)
+  const chosen = activeId === null ? -1 : filtered.findIndex((o) => o.id === activeId)
+  const active = chosen >= 0 ? chosen : query && filtered.length > 0 ? 0 : -1
+  const listId = useId()
+  const optionId = (index: number) => `${listId}-opt-${index}`
+  const listRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (active < 0) return
+    listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`)?.scrollIntoView?.({ block: 'nearest' })
+  }, [active])
 
   const handleClose = () => {
     setOpen(false)
     setSearchText('')
+    setActiveId(null)
   }
 
   // Element-anchored: the panel tracks the field rect on scroll/resize
@@ -141,9 +163,12 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
 
   // A pick with search text clears it: the whole list shows again (the
   // picks stay chips above, in pick order; the list keeps its order).
-  const toggleOption = (id: number) => {
-    if (idSet.has(id)) onChange(ids.filter((x) => x !== id))
+  // The picked option stays highlighted, wherever it shows once the text clears.
+  // `add`: a pick that only ever adds (Tab), leaving a picked option picked.
+  const toggleOption = (id: number, add = false) => {
+    if (idSet.has(id)) { if (!add) onChange(ids.filter((x) => x !== id)) }
     else onChange([...ids, id])
+    setActiveId(id)
     if (searchText) setSearchText('')
   }
 
@@ -154,9 +179,33 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
       e.preventDefault()
-      setOpen(false)
-      setSearchText('')
+      handleClose()
       inputRef.current?.blur()
+      return
+    }
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      e.preventDefault()
+      setOpen(true)
+      if (filtered.length === 0) return
+      const step = e.key === 'ArrowDown' ? 1 : -1
+      // From no highlight, ↓ goes to the first option and ↑ to the last.
+      const from = active < 0 ? (step > 0 ? -1 : filtered.length) : active
+      const next = filtered[(from + step + filtered.length) % filtered.length]
+      if (next) setActiveId(next.id)
+      return
+    }
+    const highlighted = open ? filtered[active] : undefined
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      if (highlighted) toggleOption(highlighted.id)
+      return
+    }
+    if (e.key === 'Tab' && !e.shiftKey && query && highlighted) {
+      // Tab accepts the highlighted option, as the people / tag pickers do:
+      // adds it (never removes one already picked); the query clears and the
+      // focus stays. With no query typed, Tab moves on (never a Tab trap).
+      e.preventDefault()
+      toggleOption(highlighted.id, true)
       return
     }
     if (e.key === 'Backspace' && searchText === '' && ids.length > 0) {
@@ -195,11 +244,16 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
           type="text"
           className={styles.input}
           value={searchText}
-          onChange={(e) => { setSearchText(e.target.value); setOpen(true) }}
+          onChange={(e) => { setSearchText(e.target.value); setActiveId(null); setOpen(true) }}
           onFocus={() => setOpen(true)}
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           aria-label={`Filter tasks by ${lowerLabel}`}
+          role="combobox"
+          aria-expanded={open}
+          aria-controls={open ? listId : undefined}
+          aria-autocomplete="list"
+          aria-activedescendant={open && active >= 0 ? optionId(active) : undefined}
         />
         {selected.length > 0 && (
           <button
@@ -230,17 +284,23 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
           {filtered.length === 0 ? (
             <div className={styles.empty}>{searchText ? 'No matches' : `No ${lowerLabel}s yet`}</div>
           ) : (
-            <div className={styles.optionList}>
-              {filtered.map((opt) => {
+            <div ref={listRef} id={listId} className={styles.optionList} role="listbox" aria-multiselectable="true" aria-label={label}>
+              {filtered.map((opt, index) => {
                 const checked = idSet.has(opt.id)
+                const isActive = index === active
                 return (
                   <button
                     type="button"
                     key={opt.id}
-                    className={styles.option}
+                    id={optionId(index)}
+                    data-index={index}
+                    role="option"
+                    aria-selected={checked}
+                    className={`${styles.option} ${isActive ? styles.active : ''}`}
                     // Prevent input blur so the click commits the toggle
                     // instead of dismissing the panel mid-gesture.
                     onMouseDown={(e) => e.preventDefault()}
+                    onMouseMove={() => { if (!isActive) setActiveId(opt.id) }}
                     onClick={() => toggleOption(opt.id)}
                   >
                     <span className={`${styles.check} ${checked ? styles.checked : ''}`} />
