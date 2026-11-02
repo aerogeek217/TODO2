@@ -28,6 +28,7 @@ import { resolveTaskRef } from '../checkin-email/ref'
 import { htmlToMarkdown, mdToHtml } from '../notes-export'
 import type { CheckinReplyBlock, ParsedCheckinReply } from './parse'
 import { collapseWhitespace } from '../../utils/text'
+import { diffSequences } from '../../utils/word-diff'
 
 /** Progress is one line of at most this many characters (as in the task editor). */
 export const CHECKIN_PROGRESS_MAX = 500
@@ -192,56 +193,6 @@ export function replyNotesLines(block: Pick<CheckinReplyBlock, 'notesHtml' | 'no
     .filter((l) => l !== '')
 }
 
-type Op = { op: '='; a: number; b: number } | { op: '-'; a: number } | { op: '+'; b: number }
-
-/** Line diff of keys `a` → `b`: common prefix / suffix, then an LCS of the middle (or replace-all when huge). */
-function diffKeys(a: readonly string[], b: readonly string[]): Op[] {
-  let start = 0
-  while (start < a.length && start < b.length && a[start] === b[start]) start++
-  let endA = a.length
-  let endB = b.length
-  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
-    endA--
-    endB--
-  }
-  const ops: Op[] = []
-  for (let i = 0; i < start; i++) ops.push({ op: '=', a: i, b: i })
-  const n = endA - start
-  const m = endB - start
-  if (n * m > LCS_MAX_CELLS) {
-    for (let i = start; i < endA; i++) ops.push({ op: '-', a: i })
-    for (let j = start; j < endB; j++) ops.push({ op: '+', b: j })
-  } else {
-    // lcs[i][j] = LCS length of a[start+i..endA) and b[start+j..endB).
-    const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0))
-    for (let i = n - 1; i >= 0; i--) {
-      const row = lcs[i] ?? []
-      const below = lcs[i + 1] ?? []
-      for (let j = m - 1; j >= 0; j--) {
-        row[j] = a[start + i] === b[start + j] ? (below[j + 1] ?? 0) + 1 : Math.max(below[j] ?? 0, row[j + 1] ?? 0)
-      }
-    }
-    let i = 0
-    let j = 0
-    while (i < n || j < m) {
-      if (i < n && j < m && a[start + i] === b[start + j]) {
-        ops.push({ op: '=', a: start + i, b: start + j })
-        i++
-        j++
-      } else if (i < n && (j >= m || (lcs[i + 1]?.[j] ?? 0) >= (lcs[i]?.[j + 1] ?? 0))) {
-        // Removed lines before added ones (an edited line reads `-` then `+`).
-        ops.push({ op: '-', a: start + i })
-        i++
-      } else {
-        ops.push({ op: '+', b: start + j })
-        j++
-      }
-    }
-  }
-  for (let k = 0; k < a.length - endA; k++) ops.push({ op: '=', a: endA + k, b: endB + k })
-  return ops
-}
-
 /**
  * The notes change for a reply, or null when the reply's notes read the same
  * as the current ones (or the reply has no Notes row).
@@ -250,7 +201,7 @@ export function diffNotes(current: string, reply: readonly string[] | null): Ext
   if (reply === null) return null
   const old = currentLines(current)
   const replyKeys = reply.map(notesLineKey)
-  const ops = diffKeys(old.map((l) => l.key), replyKeys)
+  const ops = diffSequences(old.map((l) => l.key), replyKeys, LCS_MAX_CELLS)
   if (ops.every((o) => o.op === '=')) return null
 
   const lines: NotesDiffLine[] = []
