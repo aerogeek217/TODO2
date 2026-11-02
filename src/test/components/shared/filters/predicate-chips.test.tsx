@@ -56,7 +56,7 @@ describe('PredicateChips — date chips', () => {
     unmount()
     render(<Harness initial={emptyPredicate()} log={[]} />)
     fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
-    expect(screen.queryByRole('menuitem', { name: /Due date|Follow-up date/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /Due date|follow-up date/i })).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
     expect(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('tab', { name: 'Due' }))
       .toHaveAttribute('aria-selected', 'true')

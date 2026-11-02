@@ -15,7 +15,7 @@ export const LIST_PROMPT_CHOICES: readonly (RuntimeFilterField | 'none')[] = ['n
 export const GROUP_LABEL: Record<TodoGroupBy, string> = {
   none: 'No grouping',
   deadline: 'Due date',
-  followup: 'Follow-up date',
+  followup: 'Next follow-up date',
   people: 'People',
   status: 'Status',
   tag: 'Tag',

@@ -317,7 +317,7 @@ test.describe('phone', () => {
     const noDate = page.getByRole('radio', { name: 'No date' })
     expect((await box(noDate)).height).toBeGreaterThanOrEqual(36)
     await noDate.click()
-    await expect(page.getByText('Only tasks with no follow-up.')).toBeVisible()
+    await expect(page.getByText('Only tasks with no next follow-up.')).toBeVisible()
     await expect(allRows).toHaveCount(2)
     await expect(datesRow.locator('..')).toContainText('Next follow-up no date')
 

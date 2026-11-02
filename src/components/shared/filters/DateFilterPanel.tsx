@@ -28,7 +28,7 @@ const SHOW_CHOICES: readonly { mode: ShowMode; label: string }[] = [
 /** "Also tasks with no …" and the Has a date / No date lines, per type that offers them. */
 const NO_DATE_WORDS: Partial<Record<DateField, { also: string; has: string; none: string }>> = {
   deadline: { also: 'Also tasks with no due date', has: 'Only tasks that have a due date.', none: 'Only tasks with no due date.' },
-  followup: { also: 'Also tasks with no follow-up', has: 'Only tasks that have a follow-up.', none: 'Only tasks with no follow-up.' },
+  followup: { also: 'Also tasks with no next follow-up', has: 'Only tasks that have a next follow-up.', none: 'Only tasks with no next follow-up.' },
   lastFollowup: { also: 'Also tasks never followed up', has: 'Only tasks that have been followed up.', none: 'Only tasks never followed up.' },
 }
 

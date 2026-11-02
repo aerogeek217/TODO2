@@ -153,10 +153,10 @@ describe('DateFilterPanel', () => {
     expect(screen.getByRole('button', { name: 'Clear Completed' })).toBeEnabled()
   })
 
-  it('“Also tasks with no follow-up” is disabled until an end is set, then adds no-date tasks', () => {
+  it('“Also tasks with no next follow-up” is disabled until an end is set, then adds no-date tasks', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} initialField="followup" />)
-    const box = screen.getByRole('checkbox', { name: 'Also tasks with no follow-up' })
+    const box = screen.getByRole('checkbox', { name: 'Also tasks with no next follow-up' })
     expect(box).toBeDisabled()
     fireEvent.click(box)
     expect(log).toEqual([])
