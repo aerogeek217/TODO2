@@ -21,7 +21,7 @@ export interface FilterChip {
   label: string
   /** Value text, e.g. `within 14 days`, `Alice or Ben`, `#q4`, `not Waiting`, `Urgent, not Important`. */
   value: string
-  /** An "is not" People / Status / Tags chip: its value starts `not `. */
+  /** An "is not" People / Status / Tags chip or date range: its value starts `not ` (or reads `has a tag`). */
   negated?: true
   /**
    * Spelled out for a tooltip — an "is not" chip or a Priority No (what it
@@ -160,19 +160,44 @@ export function describeRange(start: DateAnchor | null, end: DateAnchor | null):
   return ''
 }
 
-/** One date clause in words: `within 14 days`, `by Oct 31, or none`, `has a date`, `no date`. */
+/**
+ * One date clause in words: `within 14 days`, `by Oct 31, or none`, `has a
+ * date`, `no date`; an "is not" range with `not` (`not within 14 days`,
+ * `not 7 days ago – today`).
+ */
 export function describeDateMatch(m: DateMatch): string {
   if (m.match === 'set') return 'has a date'
   if (m.match === 'unset') return 'no date'
   const range = describeRange(m.start, m.end)
+  if (m.not === true) return `not ${range}`
   return m.includeNoDate === true ? `${range}, or none` : range
 }
 
-/** One chip per date type that filters, in tab order: `Due` `within 14 days`, `Created` `from start of month`. */
+/** What an "is not" range hides, by date type (Completed has none), and the undated tasks it keeps. */
+const NOT_RANGE_HIDES: Record<DateField, string> = {
+  deadline: 'Hides tasks due in that range; tasks with no due date stay',
+  followup: 'Hides tasks with a next follow-up in that range; tasks with none stay',
+  lastFollowup: 'Hides tasks last followed up in that range; tasks never followed up stay',
+  completed: 'Hides tasks completed in that range',
+  created: 'Hides tasks created in that range',
+  modified: 'Hides tasks modified in that range',
+}
+
+/**
+ * One chip per date type that filters, in tab order: `Due` `within 14 days`,
+ * `Created` `from start of month`; an "is not" range is marked as an "is
+ * not" id chip is — `not …`, `negated`, a tooltip saying what it hides.
+ */
 function dateChips(dates: DateFilters): FilterChip[] {
   return activeDateFields(dates).flatMap((f) => {
     const m = dates[f]
-    return m ? [{ field: 'dates' as const, dateField: f, label: DATE_FIELD_LABELS_SHORT[f], value: describeDateMatch(m) }] : []
+    if (!m) return []
+    const label = DATE_FIELD_LABELS_SHORT[f]
+    const value = describeDateMatch(m)
+    if (m.match === 'range' && m.not === true) {
+      return [{ field: 'dates' as const, dateField: f, label, value, negated: true as const, tooltip: `${label}: ${value}\n${NOT_RANGE_HIDES[f]}` }]
+    }
+    return [{ field: 'dates' as const, dateField: f, label, value }]
   })
 }
 
