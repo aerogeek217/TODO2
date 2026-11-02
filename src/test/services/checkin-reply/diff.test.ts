@@ -169,10 +169,16 @@ describe('Notes', () => {
     expect(notesLineKey('## Heading')).toBe('Heading')
   })
 
-  it('stays fast on huge notes', () => {
+  it('stays fast on huge notes (no LCS: not exact, so the preview pairs nothing)', () => {
     const old = Array.from({ length: 3000 }, (_, i) => `old line ${i}`).join('\n')
     const next = Array.from({ length: 3000 }, (_, i) => `new line ${i}`)
-    expectWithin(5000, () => expect(diffNotes(old, next)?.lines).toHaveLength(6000))
+    expectWithin(5000, () => {
+      const change = diffNotes(old, next)
+      expect(change?.lines).toHaveLength(6000)
+      expect(change?.exact).toBe(false)
+      expect(notesPreviewLines(change?.lines ?? [], change?.exact)).toHaveLength(6000)
+    })
+    expect(diffNotes('a\nb', ['a', 'c'])?.exact).toBe(true)
   })
 })
 
@@ -202,6 +208,51 @@ describe('notesPreviewLines (the dialog’s redline pairing)', () => {
 
   it('a pair that shares no word stays a whole removed and a whole added line', () => {
     expect(notesPreviewLines([l('-', 'Call the vendor.'), l('+', 'Signed off!')])).toEqual([l('-', 'Call the vendor.'), l('+', 'Signed off!')])
+  })
+
+  it('a pair keeping fewer than half the shorter line’s words stays whole (one shared `the` is not an edit)', () => {
+    expect(notesPreviewLines([l('-', 'Ordered the parts on Monday'), l('+', 'Call the vendor about pricing')]))
+      .toEqual([l('-', 'Ordered the parts on Monday'), l('+', 'Call the vendor about pricing')])
+    // Half exactly is enough: 2 of 4.
+    expect(notesPreviewLines([l('-', 'ship the beta build'), l('+', 'ship the final release')]).map((x) => x.op)).toEqual(['~'])
+  })
+
+  it('a deleted line before an edited one: the edit pairs with its own line, the deleted line shows whole', () => {
+    // Current: L1 `Ordered the parts on Monday`, L2 `Call the vendor about the quote`;
+    // the reply deletes L1 and edits L2.
+    const lines = diffNotes('Ordered the parts on Monday\nCall the vendor about the quote', ['Call the vendor about pricing'])?.lines ?? []
+    expect(lines).toEqual([
+      l('-', 'Ordered the parts on Monday'),
+      l('-', 'Call the vendor about the quote'),
+      l('+', 'Call the vendor about pricing'),
+    ])
+    expect(notesPreviewLines(lines)).toEqual([
+      l('-', 'Ordered the parts on Monday'),
+      {
+        op: '~',
+        parts: [{ op: '=', text: 'Call the vendor about ' }, { op: '-', text: 'the quote' }, { op: '+', text: 'pricing' }],
+      },
+    ])
+  })
+
+  it('pairs by best overlap in order: an added line before the edit stays whole', () => {
+    const shown = notesPreviewLines([l('-', 'Book the venue for May'), l('+', 'Brand new idea'), l('+', 'Book the venue for June')])
+    expect(shown).toEqual([
+      l('+', 'Brand new idea'),
+      { op: '~', parts: [{ op: '=', text: 'Book the venue for ' }, { op: '-', text: 'May' }, { op: '+', text: 'June' }] },
+    ])
+  })
+
+  it('pairs never cross: the order of the notes is kept', () => {
+    const shown = notesPreviewLines([l('-', 'alpha one'), l('-', 'beta two'), l('+', 'beta two X'), l('+', 'alpha one X')])
+    // One of the two crossing pairs is kept; the other two lines stay whole.
+    expect(shown.filter((x) => x.op === '~')).toHaveLength(1)
+    expect(shown).toHaveLength(3)
+  })
+
+  it('pairs nothing when the line diff was too long for an LCS', () => {
+    const lines = [l('-', 'one a'), l('+', 'one A')]
+    expect(notesPreviewLines(lines, false)).toEqual(lines)
   })
 })
 

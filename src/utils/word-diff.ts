@@ -7,13 +7,8 @@
 /** One step of a sequence diff: `=` kept (both indexes), `-` removed (from `a`), `+` added (from `b`). */
 export type SequenceOp = { op: '='; a: number; b: number } | { op: '-'; a: number } | { op: '+'; b: number }
 
-/**
- * The diff of `a` → `b` in order: the common prefix and suffix, then an LCS
- * of the middle — or, when the middle is over `maxCells` (its length × the
- * other's), everything in it removed then added (keeps huge inputs fast).
- * Within a change, removals come before additions.
- */
-export function diffSequences(a: readonly string[], b: readonly string[], maxCells: number): SequenceOp[] {
+/** The middle of `a` and `b` past their common prefix and suffix: `[start, endA)` / `[start, endB)`. */
+function middle(a: readonly string[], b: readonly string[]) {
   let start = 0
   while (start < a.length && start < b.length && a[start] === b[start]) start++
   let endA = a.length
@@ -22,6 +17,26 @@ export function diffSequences(a: readonly string[], b: readonly string[], maxCel
     endA--
     endB--
   }
+  return { start, endA, endB }
+}
+
+/**
+ * The cells `diffSequences` would run its LCS over (the middle's length × the
+ * other's): over its `maxCells`, the diff is everything removed then added.
+ */
+export function lcsCells(a: readonly string[], b: readonly string[]): number {
+  const { start, endA, endB } = middle(a, b)
+  return (endA - start) * (endB - start)
+}
+
+/**
+ * The diff of `a` → `b` in order: the common prefix and suffix, then an LCS
+ * of the middle — or, when the middle is over `maxCells` (its length × the
+ * other's, `lcsCells`), everything in it removed then added (keeps huge
+ * inputs fast). Within a change, removals come before additions.
+ */
+export function diffSequences(a: readonly string[], b: readonly string[], maxCells: number): SequenceOp[] {
+  const { start, endA, endB } = middle(a, b)
   const ops: SequenceOp[] = []
   for (let i = 0; i < start; i++) ops.push({ op: '=', a: i, b: i })
   const n = endA - start

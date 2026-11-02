@@ -493,7 +493,7 @@ function ChangeRow({ change, repeats, checked, onToggle }: {
         {change.field === 'notes' && (
           <>
             {change.emptied && <div className={styles.warn}>The reply’s Notes are empty: applying removes the task’s notes.</div>}
-            <NotesDiff lines={change.lines} />
+            <NotesDiff lines={change.lines} exact={change.exact} />
           </>
         )}
       </div>
@@ -531,8 +531,8 @@ const LINE_CLASS: Record<NotesPreviewLine['op'], string> = { '=': '', '-': style
  * accented, each edited line (a removed line and its replacement) one
  * redlined line.
  */
-function NotesDiff({ lines }: { lines: readonly NotesDiffLine[] }) {
-  const shown = useMemo(() => notesPreviewLines(lines), [lines])
+function NotesDiff({ lines, exact }: { lines: readonly NotesDiffLine[]; exact: boolean }) {
+  const shown = useMemo(() => notesPreviewLines(lines, exact), [lines, exact])
   return (
     <div className={styles.diff} data-checkin-notes-diff="">
       {shown.map((line, i) => (

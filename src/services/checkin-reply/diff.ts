@@ -28,7 +28,7 @@ import { resolveTaskRef } from '../checkin-email/ref'
 import { htmlToMarkdown, mdToHtml } from '../notes-export'
 import type { CheckinReplyBlock, ParsedCheckinReply } from './parse'
 import { collapseWhitespace } from '../../utils/text'
-import { diffSequences, wordDiff, type WordDiffPart } from '../../utils/word-diff'
+import { diffSequences, lcsCells, wordDiff, wordTokens, type WordDiffPart } from '../../utils/word-diff'
 
 /** Progress is one line of at most this many characters (as in the task editor). */
 export const CHECKIN_PROGRESS_MAX = 500
@@ -69,6 +69,12 @@ export type CheckinChange =
     to: string
     /** The line diff, in order. */
     lines: NotesDiffLine[]
+    /**
+     * The line diff is an LCS (false: the notes were too long for one, so
+     * every line between the common start and end reads removed, then added
+     * — the preview pairs none of them).
+     */
+    exact: boolean
     /** The reply's Notes cell was emptied (the task had notes). */
     emptied: boolean
     defaultSelected: boolean
@@ -204,7 +210,8 @@ export function diffNotes(current: string, reply: readonly string[] | null): Ext
   if (reply === null) return null
   const old = currentLines(current)
   const replyKeys = reply.map(notesLineKey)
-  const ops = diffSequences(old.map((l) => l.key), replyKeys, LCS_MAX_CELLS)
+  const oldKeys = old.map((l) => l.key)
+  const ops = diffSequences(oldKeys, replyKeys, LCS_MAX_CELLS)
   if (ops.every((o) => o.op === '=')) return null
 
   const lines: NotesDiffLine[] = []
@@ -230,33 +237,91 @@ export function diffNotes(current: string, reply: readonly string[] | null): Ext
     from: current,
     to: out.join('\n'),
     lines,
+    exact: lcsCells(oldKeys, replyKeys) <= LCS_MAX_CELLS,
     emptied,
     defaultSelected: !emptied,
   }
 }
 
-/** Whether a word diff keeps a word (not just spaces or punctuation) of the old line. */
-const keepsAWord = (parts: readonly WordDiffPart[]) => parts.some((p) => p.op === '=' && /[\p{L}\p{N}]/u.test(p.text))
+/** Letter / digit words in `text` (spaces and punctuation left out). */
+const countWords = (text: string) => wordTokens(text).filter((t) => /[\p{L}\p{N}]/u.test(t)).length
+
+/** Above this many removed × added lines in one run, the preview pairs none of them. */
+const PAIR_MAX_CELLS = 2_500
+
+/**
+ * A removed line and an added line as one edited line: their word diff, and
+ * how many words it keeps — null when it keeps fewer than half the shorter
+ * line's words (or none): two unrelated lines, shown whole.
+ */
+function editOf(from: string, to: string): { parts: WordDiffPart[]; kept: number } | null {
+  const parts = wordDiff(from, to)
+  const kept = parts.reduce((n, p) => (p.op === '=' ? n + countWords(p.text) : n), 0)
+  const shorter = Math.min(countWords(from), countWords(to))
+  return kept > 0 && kept * 2 >= shorter ? { parts, kept } : null
+}
+
+/**
+ * One run of removed lines followed by added lines, for display: the pairs
+ * that keep the most words in all (in order — a pair never crosses another),
+ * each an edited line (`~`); the lines left stay whole, removed before added
+ * where they meet.
+ */
+function pairRun(removed: readonly NotesDiffLine[], added: readonly NotesDiffLine[]): NotesPreviewLine[] {
+  const n = removed.length
+  const m = added.length
+  if (n === 0 || m === 0 || n * m > PAIR_MAX_CELLS) return [...removed, ...added]
+  const edits = removed.map((r) => added.map((a) => editOf(r.text, a.text)))
+  // best[i][j]: the most kept words pairing removed[i..] with added[j..].
+  const best = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0))
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      const edit = edits[i]?.[j]
+      const row = best[i] ?? []
+      row[j] = Math.max(
+        best[i + 1]?.[j] ?? 0,
+        row[j + 1] ?? 0,
+        edit ? edit.kept + (best[i + 1]?.[j + 1] ?? 0) : 0,
+      )
+    }
+  }
+  const out: NotesPreviewLine[] = []
+  let i = 0
+  let j = 0
+  while (i < n && j < m) {
+    const edit = edits[i]?.[j]
+    const here = best[i]?.[j] ?? 0
+    if (edit && here === edit.kept + (best[i + 1]?.[j + 1] ?? 0)) {
+      out.push({ op: '~', parts: edit.parts })
+      i++
+      j++
+    } else if (here === (best[i + 1]?.[j] ?? 0)) {
+      out.push(...removed.slice(i, i + 1))
+      i++
+    } else {
+      out.push(...added.slice(j, j + 1))
+      j++
+    }
+  }
+  out.push(...removed.slice(i), ...added.slice(j))
+  return out
+}
 
 /**
  * The notes line diff for display. In each run of removed lines followed by
- * added lines, the lines pair up in order and each pair is one edited line
- * (`~`, word-diffed) — unless the two share no word, when they stay a whole
- * removed and a whole added line. Lines left over stay whole removes / adds.
+ * added lines, a removed line and an added line that keep at least half the
+ * shorter one's words pair up as one edited line (`~`, word-diffed) — the
+ * pairs keeping the most words, in order; every other line stays a whole
+ * remove / add. `exact` false (the line diff was too long for an LCS): no
+ * pairs at all.
  */
-export function notesPreviewLines(lines: readonly NotesDiffLine[]): NotesPreviewLine[] {
+export function notesPreviewLines(lines: readonly NotesDiffLine[], exact = true): NotesPreviewLine[] {
+  if (!exact) return [...lines]
   const out: NotesPreviewLine[] = []
   let removed: NotesDiffLine[] = []
   let added: NotesDiffLine[] = []
   const flush = () => {
-    const paired = Math.min(removed.length, added.length)
-    removed.slice(0, paired).forEach((from, k) => {
-      const to = added[k]
-      const parts = to ? wordDiff(from.text, to.text) : []
-      if (to && keepsAWord(parts)) out.push({ op: '~', parts })
-      else out.push(from, ...(to ? [to] : []))
-    })
-    out.push(...removed.slice(paired), ...added.slice(paired))
+    out.push(...pairRun(removed, added))
     removed = []
     added = []
   }
