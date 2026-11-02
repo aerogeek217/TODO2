@@ -238,26 +238,14 @@
   gap: 4px 8px;
 }
 
-.from,
 .to {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   min-width: 0;
   overflow-wrap: anywhere;
-}
-
-.from {
-  color: var(--color-text-muted);
-}
-
-.to {
   color: var(--color-text-primary);
   font-weight: var(--font-weight-semibold);
-}
-
-.arrow {
-  color: var(--color-text-muted);
 }
 
 .dot {
@@ -265,10 +253,6 @@
   width: 8px;
   height: 8px;
   border-radius: var(--radius-pill);
-}
-
-.dotOpen {
-  background: var(--color-text-muted);
 }
 
 .dotDone {
