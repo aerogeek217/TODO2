@@ -128,15 +128,30 @@ describe('CheckinImportDialog — reading a paste', () => {
     expect(applyButton()).toHaveProperty('disabled', true)
   })
 
-  it('a task changed since the email: the warning line, its rows unticked, counted in the summary', () => {
+  it('a task changed in the app since the email: no warning, its rows ticked, no stale count (no timestamps)', () => {
     useTodoStore.setState({ todos: tasks.map((t) => (t.id === 1 ? { ...t, modifiedAt: new Date(2026, 9, 13, 8) } : t)) })
     open()
     paste({ html: fixture('.html'), plain: fixture('.txt') })
-    const stale = card('Answer Northwind’s security questionnaire')
-    expect(stale.textContent).toContain('Changed in the app since this email was sent. Check before applying.')
-    expect(within(stale).getByRole('checkbox', { name: 'Progress' })).toHaveProperty('checked', false)
-    expect(within(dialog()).getByText(/1 task changed since the email was sent/)).toBeTruthy()
-    expect(applyButton().textContent).toBe('Apply 2 changes')
+    const changed = card('Answer Northwind’s security questionnaire')
+    expect(changed.textContent).not.toMatch(/since this email|Check before applying/)
+    expect(within(changed).getByRole('checkbox', { name: 'Progress' })).toHaveProperty('checked', true)
+    expect(within(dialog()).getByText('4 of 4 tasks matched by Ref · 3 changes found')).toBeTruthy()
+    expect(applyButton().textContent).toBe('Apply 3 changes')
+  })
+
+  it('the footer’s send date shows as information', () => {
+    open()
+    paste({ html: fixture('.html'), plain: fixture('.txt') })
+    expect(within(dialog()).getByText('The person comes from the email’s “Check-in for …” footer, sent Oct 12.')).toBeTruthy()
+  })
+
+  it('a task already completed in the app: listed, nothing to apply', () => {
+    useTodoStore.setState({ todos: tasks.map((t) => (t.id === 4 ? { ...t, isCompleted: true, completedAt: new Date(2026, 9, 12, 15) } : t)) })
+    open()
+    paste({ html: fixture('.html'), plain: fixture('.txt') })
+    const c = card('Renew the Contoso support contract — confirm pricing tier & seats (<50 users?)')
+    expect(c.textContent).toContain('Already completed in the app. Nothing to apply.')
+    expect(within(c).queryByRole('checkbox')).toBeNull()
   })
 
   it('a task not assigned to the person who replied (a forwarded email): a note, its rows unticked', () => {
@@ -211,11 +226,11 @@ describe('CheckinImportDialog — who replied', () => {
       .split('\n').filter((l) => !l.startsWith('Check-in for')).join('\n')
   }
 
-  it('no footer: Apply waits for a person; the missing send date is flagged', () => {
+  it('no footer: Apply waits for a person; no send-date note', () => {
     open()
     paste({ plain: noFooter() })
     expect(within(dialog()).getByText('No “Check-in for …” footer was found. Choose who replied.')).toBeTruthy()
-    expect(within(dialog()).getByText(/Without the footer’s send date/)).toBeTruthy()
+    expect(dialog().textContent).not.toMatch(/send date|since the email/)
     expect(applyButton().textContent).toBe('Apply 1 change')
     expect(applyButton()).toHaveProperty('disabled', true)
     expect(applyButton().title).toBe('Choose who replied first')

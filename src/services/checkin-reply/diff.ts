@@ -16,13 +16,13 @@
  *   line and use the reply's text only for added / edited lines; the line
  *   diff (`=` / `-` / `+`) is returned for display. Emptied notes are a
  *   change that starts unticked (an accidental delete is likelier).
- * - A task modified in the app on a later day than the email's send date is
- *   `stale`: all its changes start unticked. A task completed since the email
- *   is listed with no changes. Refs that match no task (or several) are
- *   returned as `unmatched` — a deleted task is one of those.
+ * - Every other change starts ticked: the dialog's preview shows what each
+ *   does to the task as it is now, and the user decides (no timestamps are
+ *   compared). A task already completed in the app is listed with no
+ *   changes. Refs that match no task (or several) are returned as
+ *   `unmatched` — a deleted task is one of those.
  */
 import type { PersistedTodoItem } from '../../models'
-import { toDateInputValue } from '../../utils/date'
 import { replaceMarkdownLinks } from '../../utils/markdown-links'
 import { resolveTaskRef } from '../checkin-email/ref'
 import { htmlToMarkdown, mdToHtml } from '../notes-export'
@@ -71,10 +71,8 @@ export interface CheckinTaskDiff {
   /** The ref as written in the reply. */
   ref: string
   todo: PersistedTodoItem
-  /** Completed in the app since the email: listed, with no changes. */
-  completedSinceSent: boolean
-  /** Modified in the app on a later day than the email was sent: its changes start unticked. */
-  stale: boolean
+  /** Already completed in the app: listed, with no changes. */
+  alreadyCompleted: boolean
   changes: CheckinChange[]
 }
 
@@ -89,7 +87,7 @@ export interface CheckinUnmatchedRef {
 export interface CheckinReplyDiff {
   /** The footer's person name. */
   personName?: string
-  /** The footer's send date, `YYYY-MM-DD`. */
+  /** The footer's send date, `YYYY-MM-DD` (information only). */
   sentDate?: string
   /** One entry per matched task, in reply order. */
   tasks: CheckinTaskDiff[]
@@ -98,8 +96,6 @@ export interface CheckinReplyDiff {
   blockCount: number
   /** Changes over all tasks (ticked or not). */
   changeCount: number
-  /** Tasks flagged `stale`. */
-  staleCount: number
 }
 
 export interface CheckinDiffContext {
@@ -239,23 +235,16 @@ export function replyProgress(value: string): string {
   return collapseWhitespace(value).slice(0, CHECKIN_PROGRESS_MAX).trim()
 }
 
-/** Whether the task was modified on a later (local) day than `sentDate`. */
-export function isChangedSince(todo: Pick<PersistedTodoItem, 'modifiedAt'>, sentDate: string | undefined): boolean {
-  if (!sentDate) return false
-  return toDateInputValue(todo.modifiedAt) > sentDate
-}
-
-function blockChanges(todo: PersistedTodoItem, block: CheckinReplyBlock, stale: boolean): CheckinChange[] {
+function blockChanges(todo: PersistedTodoItem, block: CheckinReplyBlock): CheckinChange[] {
   const changes: CheckinChange[] = []
-  const ticked = !stale
-  if (block.completed === true) changes.push({ field: 'completed', defaultSelected: ticked })
+  if (block.completed === true) changes.push({ field: 'completed', defaultSelected: true })
   if (block.progress !== undefined) {
     const to = replyProgress(block.progress)
     const from = todo.progress ?? ''
-    if (to !== '' && to !== collapseWhitespace(from)) changes.push({ field: 'progress', from, to, defaultSelected: ticked })
+    if (to !== '' && to !== collapseWhitespace(from)) changes.push({ field: 'progress', from, to, defaultSelected: true })
   }
   const notes = diffNotes(todo.notes ?? '', replyNotesLines(block))
-  if (notes) changes.push({ ...notes, defaultSelected: notes.defaultSelected && ticked })
+  if (notes) changes.push(notes)
   return changes
 }
 
@@ -277,12 +266,11 @@ export function diffCheckinReply(parsed: ParsedCheckinReply, ctx: CheckinDiffCon
     const todo = found.todo
     if (seen.has(todo.id)) continue
     seen.add(todo.id)
-    const stale = isChangedSince(todo, parsed.sentDate)
     if (todo.isCompleted) {
-      tasks.push({ ref: block.ref, todo, completedSinceSent: true, stale, changes: [] })
+      tasks.push({ ref: block.ref, todo, alreadyCompleted: true, changes: [] })
       continue
     }
-    tasks.push({ ref: block.ref, todo, completedSinceSent: false, stale, changes: blockChanges(todo, block, stale) })
+    tasks.push({ ref: block.ref, todo, alreadyCompleted: false, changes: blockChanges(todo, block) })
   }
   return {
     ...(parsed.personName ? { personName: parsed.personName } : {}),
@@ -291,6 +279,5 @@ export function diffCheckinReply(parsed: ParsedCheckinReply, ctx: CheckinDiffCon
     unmatched,
     blockCount: parsed.blocks.length,
     changeCount: tasks.reduce((n, t) => n + t.changes.length, 0),
-    staleCount: tasks.filter((t) => t.stale && !t.completedSinceSent).length,
   }
 }

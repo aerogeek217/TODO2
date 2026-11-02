@@ -21,6 +21,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { autoFollowupInterval, useSettingsStore } from '../../stores/settings-store'
 import { describeFollowupInterval } from '../../utils/followup'
+import { formatDateShort } from '../../utils/date'
 import { useUIStore } from '../../stores/ui-store'
 import { DialogFrame } from '../shared/Dialog'
 import styles from './CheckinImportDialog.module.css'
@@ -28,6 +29,12 @@ import { collapseWhitespace } from '../../utils/text'
 import { byName } from '../../utils/sort-order'
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+/** `, sent Oct 12` for the footer's send date (`YYYY-MM-DD`); empty without one. Information only. */
+function sentOn(sentDate: string | undefined): string {
+  const [y, m, d] = (sentDate ?? '').split('-').map(Number)
+  if (!y || !m || !d) return ''
+  return `, sent ${formatDateShort(new Date(y, m - 1, d))}`
+}
 const sameName = (a: string, b: string) => collapseWhitespace(a).toLocaleLowerCase() === collapseWhitespace(b).toLocaleLowerCase()
 
 const FIELD_LABEL: Record<CheckinChange['field'], string> = {
@@ -92,11 +99,11 @@ function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: st
 
 /**
  * The check-in reply import dialog (`ui-store.checkinImportOpen`): the user
- * pastes a reply to a check-in email, reviews each proposed change (all
- * ticked except on tasks changed in the app since the email or not assigned
- * to the person who replied, and emptied notes) and applies the ticked ones
- * as one undoable step — optionally
- * recording a follow-up on every task that changed.
+ * pastes a reply to a check-in email, reviews each proposed change against
+ * the task as it is now (all ticked except on tasks not assigned to the
+ * person who replied, and emptied notes) and applies the ticked ones as one
+ * undoable step — optionally recording a follow-up on every task that
+ * changed.
  *
  * The paste is read from the `paste` event's `text/html` and `text/plain`
  * flavours (no clipboard permission needed). Nothing pasted is rendered as
@@ -303,7 +310,6 @@ function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, onP
   const counts = [
     `${diff.tasks.length} of ${plural(diff.blockCount, 'task')} matched by Ref`,
     `${plural(diff.changeCount, 'change')} found`,
-    ...(diff.staleCount > 0 ? [`${plural(diff.staleCount, 'task')} changed since the email was sent`] : []),
   ].join(' · ')
   const sortedPeople = useMemo(() => [...people].sort(byName), [people])
 
@@ -340,15 +346,10 @@ function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, onP
         <button type="button" className={styles.againBtn} onClick={onPasteAgain}>Paste again</button>
       </div>
       {footerPerson
-        ? <div className={styles.note}>The person and send date come from the email’s “Check-in for …” footer.</div>
+        ? <div className={styles.note}>The person comes from the email’s “Check-in for …” footer{sentOn(diff.sentDate)}.</div>
         : diff.personName
           ? <div className={styles.warn}>The footer names “{diff.personName}”, who isn’t one of your people. Choose who replied.</div>
           : <div className={styles.warn}>No “Check-in for …” footer was found. Choose who replied.</div>}
-      {!diff.sentDate && (
-        <div className={styles.warn}>
-          Without the footer’s send date, tasks changed in the app since the email can’t be flagged. Check each change before applying.
-        </div>
-      )}
     </div>
   )
 }
@@ -369,8 +370,8 @@ function ReplyChanges({ reply, notAssigned, selected, onToggle, recordFollowup, 
   const followupHint = autoInterval
     ? `Last follow-up → today; Next follow-up → today + ${describeFollowupInterval(autoInterval)}`
     : 'Last follow-up → today; Next follow-up cleared'
-  const shown = diff.tasks.filter((t) => t.changes.length > 0 || t.completedSinceSent)
-  const unchanged = diff.tasks.filter((t) => t.changes.length === 0 && !t.completedSinceSent)
+  const shown = diff.tasks.filter((t) => t.changes.length > 0 || t.alreadyCompleted)
+  const unchanged = diff.tasks.filter((t) => t.changes.length === 0 && !t.alreadyCompleted)
 
   return (
     <>
@@ -438,10 +439,8 @@ function TaskCard({ task, notAssignedTo, selected, onToggle }: {
         <span className={styles.cardTitle}>{todo.title}</span>
         <span className={styles.ref}>{task.ref}</span>
       </div>
-      {task.completedSinceSent
-        ? <div className={styles.note}>Completed in the app since this email was sent. Nothing to apply.</div>
-        : task.stale && <div className={styles.warn}>Changed in the app since this email was sent. Check before applying.</div>}
-      {!task.completedSinceSent && notAssignedTo != null && (
+      {task.alreadyCompleted && <div className={styles.note}>Already completed in the app. Nothing to apply.</div>}
+      {!task.alreadyCompleted && notAssignedTo != null && (
         <div className={styles.warn}>Not assigned to {notAssignedTo}. Check before applying.</div>
       )}
       {task.changes.map((change) => {

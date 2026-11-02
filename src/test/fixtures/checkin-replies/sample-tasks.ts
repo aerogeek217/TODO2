@@ -4,7 +4,7 @@ import type { PersistedTodoItem } from '../../../models'
  * The four tasks of the sample check-in email to "Marcus Chen" (sent
  * 2026-10-12) that every reply fixture here answers. Their uids give the refs
  * `0c4d8e17`, `b71e05d9`, `3f9a1c42` and `9e8d7c6b`. Last modified before the
- * send date, so nothing is stale.
+ * send date.
  */
 export function checkinSampleTasks(): PersistedTodoItem[] {
   const base = {

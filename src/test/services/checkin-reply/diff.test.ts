@@ -4,7 +4,6 @@ import {
   CHECKIN_PROGRESS_MAX,
   diffCheckinReply,
   diffNotes,
-  isChangedSince,
   notesLineKey,
   type CheckinChange,
   type CheckinReplyDiff,
@@ -38,7 +37,6 @@ describe('diffCheckinReply — an unedited reply', () => {
     expect(diff.tasks).toHaveLength(4)
     expect(diff.changeCount).toBe(0)
     expect(diff.unmatched).toEqual([])
-    expect(diff.staleCount).toBe(0)
     expect(diff).toMatchObject({ personName: 'Marcus Chen', sentDate: '2026-10-12', blockCount: 4 })
   })
 
@@ -60,13 +58,13 @@ describe('Completed', () => {
     expect(changesOf(diff, '0c4d8e17')).toEqual([])
   })
 
-  it('never reopens: a task completed since the email is listed with no changes', () => {
+  it('never reopens: a task already completed in the app is listed with no changes', () => {
     const todos = checkinSampleTasks().map((t) => (t.id === 2 ? { ...t, isCompleted: true, completedAt: new Date(2026, 9, 12, 15) } : t))
     let plain = editPlain(sampleEmail().plain, 'b71e05d9', 'Completed:', ['Completed: [ ]'])
     plain = editPlain(plain, 'b71e05d9', 'Progress:', ['Progress: 90%'])
     const diff = diffCheckinReply(parse({ plain }), { todos })
     const task = diff.tasks.find((t) => t.ref === 'b71e05d9')
-    expect(task).toMatchObject({ completedSinceSent: true, changes: [] })
+    expect(task).toMatchObject({ alreadyCompleted: true, changes: [] })
   })
 })
 
@@ -176,7 +174,7 @@ describe('Notes', () => {
   })
 })
 
-describe('stale tasks (changed in the app since the email)', () => {
+describe('ticking (no timestamps)', () => {
   const edited = () => {
     let plain = editPlain(sampleEmail().plain, '0c4d8e17', 'Completed:', ['Completed: [x]'])
     plain = editPlain(plain, '0c4d8e17', 'Progress:', ['Progress: section 4 done'])
@@ -186,25 +184,23 @@ describe('stale tasks (changed in the app since the email)', () => {
   const withModified = (modifiedAt: Date): PersistedTodoItem[] =>
     checkinSampleTasks().map((t) => (t.id === 1 ? { ...t, modifiedAt } : t))
 
-  it('modified on a later day: flagged, every change unticked', () => {
-    const diff = diffCheckinReply(edited(), { todos: withModified(new Date(2026, 9, 13, 0, 5)) })
+  it.each([
+    ['before the send date', new Date(2026, 9, 10)],
+    ['on the send date', new Date(2026, 9, 12, 23, 50)],
+    ['after the send date', new Date(2026, 9, 13, 0, 5)],
+    ['long after', new Date(2030, 0, 1)],
+  ])('a task modified %s: every change starts ticked, nothing flagged', (_, modifiedAt) => {
+    const diff = diffCheckinReply(edited(), { todos: withModified(modifiedAt) })
     const task = diff.tasks.find((t) => t.ref === '0c4d8e17')
-    expect(task?.stale).toBe(true)
-    expect(task?.changes.map((c) => [c.field, c.defaultSelected])).toEqual([['completed', false], ['progress', false], ['notes', false]])
-    expect(diff.staleCount).toBe(1)
+    expect(task?.changes.map((c) => [c.field, c.defaultSelected])).toEqual([['completed', true], ['progress', true], ['notes', true]])
+    expect(Object.keys(task ?? {}).sort()).toEqual(['alreadyCompleted', 'changes', 'ref', 'todo'])
+    expect(Object.keys(diff)).not.toContain('staleCount')
   })
 
-  it('modified on the send day (sending records a follow-up): not flagged', () => {
-    const diff = diffCheckinReply(edited(), { todos: withModified(new Date(2026, 9, 12, 23, 50)) })
-    const task = diff.tasks.find((t) => t.ref === '0c4d8e17')
-    expect(task?.stale).toBe(false)
-    expect(task?.changes.every((c) => c.defaultSelected)).toBe(true)
-  })
-
-  it('without a footer date nothing is flagged', () => {
-    expect(isChangedSince({ modifiedAt: new Date(2030, 0, 1) }, undefined)).toBe(false)
-    expect(isChangedSince({ modifiedAt: new Date(2026, 9, 13) }, '2026-10-12')).toBe(true)
-    expect(isChangedSince({ modifiedAt: new Date(2026, 9, 12, 23, 59) }, '2026-10-12')).toBe(false)
+  it('without a footer date: the same ticks', () => {
+    const diff = diffCheckinReply({ ...edited(), sentDate: undefined }, { todos: withModified(new Date(2030, 0, 1)) })
+    expect(diff.sentDate).toBeUndefined()
+    expect(diff.tasks.find((t) => t.ref === '0c4d8e17')?.changes.every((c) => c.defaultSelected)).toBe(true)
   })
 })
 
