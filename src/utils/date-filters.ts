@@ -1,5 +1,6 @@
 import { DATE_FIELD_VALUES, type DateField } from '../models/app-view'
 import {
+  NEGATABLE_DATE_FIELDS,
   OPTIONAL_DATE_FIELDS,
   type DateAnchor,
   type DateFilters,
@@ -12,8 +13,10 @@ import { readDateAnchor } from './date-anchor'
  * pass every clause. These helpers keep the map in its stored form — only
  * clauses that filter, `includeNoDate` only when true and only on the
  * optional types (`OPTIONAL_DATE_FIELDS`: the due date, the next and the
- * last follow-up), `set` / `unset` only on those — so two maps that filter
- * the same compare equal.
+ * last follow-up), `set` / `unset` only on those, a range's "is not" (`not`)
+ * only when true and never on Completed (`NEGATABLE_DATE_FIELDS`), with no
+ * `includeNoDate` beside it (a negated range keeps undated tasks anyway) —
+ * so two maps that filter the same compare equal.
  */
 
 /** Whether a clause filters: Has a date / No date always, a range only with an end. */
@@ -26,6 +29,11 @@ export function isDateMatchOn(m: DateMatch | null | undefined): m is DateMatch {
 /** Whether `field` offers Has a date / No date and "also tasks with no date" (due date, next / last follow-up). */
 export function isOptionalDateField(field: DateField): boolean {
   return OPTIONAL_DATE_FIELDS.includes(field)
+}
+
+/** Whether `field`'s range offers "is not" (every type but Completed). */
+export function isNegatableDateField(field: DateField): boolean {
+  return NEGATABLE_DATE_FIELDS.includes(field)
 }
 
 /** The date types that filter, in `DATE_FIELD_VALUES` order (Due · Next follow-up · Last follow-up · Completed · Created · Modified). */
@@ -47,11 +55,12 @@ export function normalizeDateMatch(field: DateField, m: DateMatch | null | undef
   if (!isDateMatchOn(m)) return null
   const optional = isOptionalDateField(field)
   if (m.match !== 'range') return optional ? { match: m.match } : null
+  const not = m.not === true && isNegatableDateField(field)
   return {
     match: 'range',
     start: m.start,
     end: m.end,
-    ...(optional && m.includeNoDate === true ? { includeNoDate: true } : {}),
+    ...(not ? { not: true } : optional && m.includeNoDate === true ? { includeNoDate: true } : {}),
   }
 }
 
@@ -71,10 +80,10 @@ export function withDateMatch(dates: DateFilters, field: DateField, m: DateMatch
   return normalizeDateFilters({ ...dates, [field]: m ?? undefined })
 }
 
-/** A clause's range (open ends when it isn't a range). */
-export function dateRangeOf(m: DateMatch | null | undefined): { start: DateAnchor | null; end: DateAnchor | null; includeNoDate: boolean } {
-  if (m?.match !== 'range') return { start: null, end: null, includeNoDate: false }
-  return { start: m.start, end: m.end, includeNoDate: m.includeNoDate === true }
+/** A clause's range (open ends, "is", when it isn't a range). */
+export function dateRangeOf(m: DateMatch | null | undefined): { start: DateAnchor | null; end: DateAnchor | null; includeNoDate: boolean; not: boolean } {
+  if (m?.match !== 'range') return { start: null, end: null, includeNoDate: false, not: false }
+  return { start: m.start, end: m.end, includeNoDate: m.includeNoDate === true, not: m.not === true }
 }
 
 function anchorsEqual(a: DateAnchor | null, b: DateAnchor | null): boolean {
@@ -95,7 +104,8 @@ export function dateFiltersEqual(a: DateFilters | null | undefined, b: DateFilte
     if (!p || !q) return p === q
     if (p.match !== q.match) return false
     if (p.match !== 'range' || q.match !== 'range') return true
-    return anchorsEqual(p.start, q.start) && anchorsEqual(p.end, q.end) && (p.includeNoDate === true) === (q.includeNoDate === true)
+    return anchorsEqual(p.start, q.start) && anchorsEqual(p.end, q.end)
+      && (p.includeNoDate === true) === (q.includeNoDate === true) && (p.not === true) === (q.not === true)
   })
 }
 

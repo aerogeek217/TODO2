@@ -57,8 +57,8 @@ describe('date filters', () => {
   })
 
   it('reads a clause’s range', () => {
-    expect(dateRangeOf({ match: 'range', start: TODAY, end: null, includeNoDate: true })).toEqual({ start: TODAY, end: null, includeNoDate: true })
-    expect(dateRangeOf({ match: 'set' })).toEqual({ start: null, end: null, includeNoDate: false })
+    expect(dateRangeOf({ match: 'range', start: TODAY, end: null, includeNoDate: true })).toEqual({ start: TODAY, end: null, includeNoDate: true, not: false })
+    expect(dateRangeOf({ match: 'set' })).toEqual({ start: null, end: null, includeNoDate: false, not: false })
   })
 
   it('compares maps by what they filter', () => {

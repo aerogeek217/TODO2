@@ -27,6 +27,7 @@ export {
   type DateMatch,
   type DateRangeMatch,
   OPTIONAL_DATE_FIELDS,
+  NEGATABLE_DATE_FIELDS,
   type RelativeDateToken,
   RELATIVE_DATE_TOKENS,
   type MarkerKey,

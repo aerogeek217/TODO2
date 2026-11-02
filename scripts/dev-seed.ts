@@ -42,7 +42,7 @@ import type { TodoEvent } from '../src/models/todo-event'
 import type { ListOrder } from '../src/models/list-order'
 import type { RecurrenceType } from '../src/models/recurrence'
 import type { ListDefinition } from '../src/models/list-definition'
-import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-predicate'
+import type { DateAnchor, DateMatch, FilterClauses, TodoPredicate } from '../src/models/filter-predicate'
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { DashboardTabConfig } from '../src/models/dashboard-config'
 import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
@@ -50,7 +50,7 @@ import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, WorkspaceLayout }
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 70
+export const DEV_SEED_SCHEMA_VERSION = 71
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -501,7 +501,7 @@ export const DEV_SEED_IDS = {
     thisWeek: 1, nextWeek: 2, restOfMonth: 3, later: 4, someday: 5,
     dueSoon: 6, followupsThisWeek: 7, northwind: 8, tasksFor: 9, byPerson: 10,
     focus: 11, hot: 12, recentlyAdded: 13, eisenhower: 14,
-    doneThisWeek: 15, notFollowedUp: 16,
+    doneThisWeek: 15, notFollowedUp: 16, followupsToChase: 17,
   },
   layouts: { default: 1, planning: 2 },
 }
@@ -752,6 +752,10 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     tags: null,
     ...over,
   })
+  // An or group's clauses (the script runs under type stripping: no runtime imports from src/).
+  const clauses = (over: Partial<FilterClauses>): FilterClauses => ({
+    personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null, ...over,
+  })
   const rel = (token: 'start-of-week' | 'end-of-week' | 'start-of-next-week' | 'end-of-next-week' | 'tomorrow'
     | 'end-of-month' | 'start-of-next-month' | 'end-of-month-plus-3') => ({ kind: 'relative', token }) as const
   const range = (start: DateAnchor | null, end: DateAnchor | null, includeNoDate = false): DateMatch =>
@@ -796,6 +800,16 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       personIds: [0], negate: { personIds: true },
       dates: { lastFollowup: range(null, { kind: 'offset', days: -14 }, true) },
     }), 'lastFollowup', 'people', plan),
+    // "Is not" ranges as one or group's alternatives: hides the tasks followed
+    // up this past week that also have a next follow-up in the coming two weeks.
+    list(L.followupsToChase, 'Follow-ups to chase', filter({
+      orGroups: [clauses({
+        dates: {
+          lastFollowup: { match: 'range', start: { kind: 'offset', days: -7 }, end: { kind: 'relative', token: 'today' }, not: true },
+          followup: { match: 'range', start: { kind: 'relative', token: 'today' }, end: { kind: 'offset', days: 14 }, not: true },
+        },
+      })],
+    }), 'followup', 'people', plan),
   ]
 
   // ── Layouts ──
@@ -846,7 +860,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           cell('cell-someday', [lens('tab-someday', L.someday)]),
         ]),
         column('col-people', [
-          cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp)], { weight: 2 }),
+          cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)], { weight: 2 }),
           cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
         ]),
         column('col-matrix', [

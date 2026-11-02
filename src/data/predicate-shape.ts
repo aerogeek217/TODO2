@@ -2,6 +2,7 @@ import { DATE_FIELD_VALUES, type DateField } from '../models'
 import {
   HOT_MARKERS,
   MARKER_KEYS,
+  NEGATABLE_DATE_FIELDS,
   NEGATABLE_FIELDS,
   OPTIONAL_DATE_FIELDS,
   PREDICATE_SEARCH_TEXT_MAX,
@@ -97,11 +98,15 @@ const DATE_FILTER_WORDS: Record<DateField, string> = {
 /**
  * One stored date clause for `field`, rebuilt from its known keys; `null`
  * for a range with neither end (no filter, not stored), `undefined` when
- * malformed — an unknown `match`, a bad range end or `includeNoDate`, or
- * Has a date / No date on a type that is a range only (completed, created,
- * modified). `includeNoDate` is kept only when true, on the optional types
- * (`OPTIONAL_DATE_FIELDS`); on Completed's range it is dropped with a fix
- * (the range stays: it keeps completed tasks only).
+ * malformed — an unknown `match`, a bad range end, `includeNoDate` or
+ * `not` (not a boolean), Has a date / No date on a type that is a range only
+ * (completed, created, modified), or an "is not" on Completed's range (not
+ * defined there; dropping only the switch would turn the filter round, so
+ * the clause goes). `includeNoDate` is kept only when true, on the optional
+ * types (`OPTIONAL_DATE_FIELDS`), and not beside `not` (a negated range
+ * keeps undated tasks anyway; dropped silently); on Completed's range it is
+ * dropped with a fix (the range stays: it keeps completed tasks only).
+ * `not` is kept only when true.
  */
 function readDateMatch(field: DateField, v: unknown, fixes: PredicateFix[]): DateMatch | null | undefined {
   if (!isRecord(v)) return undefined
@@ -112,8 +117,12 @@ function readDateMatch(field: DateField, v: unknown, fixes: PredicateFix[]): Dat
   const end = readRangeEnd(v.end)
   if (start === undefined || end === undefined) return undefined
   if (v.includeNoDate !== undefined && typeof v.includeNoDate !== 'boolean') return undefined
+  if (v.not !== undefined && typeof v.not !== 'boolean') return undefined
   if (start === null && end === null) return null
+  const not = v.not === true
+  if (not && !NEGATABLE_DATE_FIELDS.includes(field)) return undefined
   if (field === 'completed' && v.includeNoDate === true) fixes.push(`${DATE_FILTER_WORDS[field]} filter's "or none" dropped`)
+  if (not) return { match: 'range', start, end, not: true }
   return { match: 'range', start, end, ...(optional && v.includeNoDate === true ? { includeNoDate: true } : {}) }
 }
 

@@ -21,7 +21,7 @@ export interface SettingRow {
  * `db.verno === CURRENT_DB_VERSION` after open, so a `this.version(N+1)`
  * without raising this constant fails the suite.
  */
-export const CURRENT_DB_VERSION = 70
+export const CURRENT_DB_VERSION = 71
 
 /**
  * Lowest database version this build reads. A browser database whose
@@ -190,6 +190,12 @@ export class Todo2Database extends Dexie {
     // stored filter's Last followed up / Completed clause or a list's sort by
     // them, which an older build would drop silently, so older builds refuse it.
     this.version(70).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 70))
+
+    // v71: a version marker. No index or data change
+    // (`upgrades/v71-date-not.ts` returns its input); v71 data may hold a
+    // stored filter's "is not" date range, which an older build would read
+    // as "is" (keeping the opposite tasks), so older builds refuse it.
+    this.version(71).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 71))
 
     // The next schema step N goes here, after the last one:
     //

@@ -52,7 +52,9 @@ export type DateAnchor =
  * - `range` — the task's date, as a day, is within [start, end] (either end
  *   open; a range with neither end is no filter and isn't stored). With
  *   `includeNoDate` (due date / follow-up only, stored only when true) a
- *   task without that date passes too.
+ *   task without that date passes too. With `not` ("is not", schema v71;
+ *   every type but Completed) the date, as a day, is outside [start, end],
+ *   and a task without the date passes.
  * - `set` / `unset` — the date is set / empty (due date / follow-up only:
  *   every task has a created and a modified date).
  */
@@ -67,8 +69,15 @@ export interface DateRangeMatch {
   start: DateAnchor | null
   /** Upper bound (the whole day), resolved at evaluation time; null = open. */
   end: DateAnchor | null
-  /** Also keep tasks without the date (due date / follow-up only). */
+  /** Also keep tasks without the date (due date / follow-up only; not stored with `not`, which keeps them anyway). */
   includeNoDate?: boolean
+  /**
+   * "Is not" (schema v71): the task's date, as a day, is outside [start,
+   * end]; a task without the date passes (as "Tags is not X" keeps
+   * untagged tasks). Stored only when true, never on Completed
+   * (`NEGATABLE_DATE_FIELDS`).
+   */
+  not?: true
 }
 
 /**
@@ -84,6 +93,13 @@ export type DateFilters = Partial<Record<DateField, DateMatch>>
  * its range lets completed tasks through (`utils/filter-criteria.admitsCompleted`).
  */
 export const OPTIONAL_DATE_FIELDS: readonly DateField[] = ['deadline', 'followup', 'lastFollowup']
+
+/**
+ * The date types whose range has an "is not" (`DateRangeMatch.not`): all but
+ * Completed — its range lets completed tasks through
+ * (`utils/filter-criteria.admitsCompleted`), and a negated one isn't defined.
+ */
+export const NEGATABLE_DATE_FIELDS: readonly DateField[] = ['deadline', 'followup', 'lastFollowup', 'created', 'modified']
 
 /** Longest text filter a stored list keeps (its "Text contains" input has the same limit). */
 export const PREDICATE_SEARCH_TEXT_MAX = 500
