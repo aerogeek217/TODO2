@@ -12,6 +12,7 @@ import {
   datesValue,
   describeAnchor,
   describeFilters,
+  describeDateMatch,
   describeRange,
   chipClauses,
   filterChips,
@@ -82,12 +83,16 @@ describe('filterChips', () => {
     expect(filterChips(c, names, true).map((x) => x.field)).toEqual(['tags', 'completed'])
   })
 
-  it('one chip per date type that filters, in tab order (Due · Follow-up · Created · Modified)', () => {
+  it('one chip per date type that filters, in tab order (Due · Next follow-up · Last follow-up · Completed · Created · Modified)', () => {
     expect(filterChips({ ...emptyPredicate(), dates: { followup: { match: 'unset' } } }, names)).toEqual([
-      { field: 'dates', dateField: 'followup', label: 'Follow-up', value: 'no date' },
+      { field: 'dates', dateField: 'followup', label: 'Next follow-up', value: 'no date' },
     ])
     expect(filterChips({ ...emptyPredicate(), dates: { deadline: { match: 'set' } } }, names)).toEqual([
       { field: 'dates', dateField: 'deadline', label: 'Due', value: 'has a date' },
+    ])
+    expect(filterChips({ ...emptyPredicate(), dates: { completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: null }, lastFollowup: { match: 'set' } } }, names)).toEqual([
+      { field: 'dates', dateField: 'lastFollowup', label: 'Last follow-up', value: 'has a date' },
+      { field: 'dates', dateField: 'completed', label: 'Completed', value: 'from start of week' },
     ])
     const week = { kind: 'offset' as const, days: 7 }
     const today = { kind: 'offset' as const, days: 0 }
@@ -150,7 +155,7 @@ describe('filterChips', () => {
 
   it('describeFilters joins chips in words', () => {
     const p = { ...emptyPredicate(), statusIds: [1], dates: { followup: { match: 'range' as const, start: null, end: { kind: 'relative' as const, token: 'end-of-week' as const } } } }
-    expect(describeFilters(filterChips(p, names))).toBe('Follow-up by end of week · Status Waiting')
+    expect(describeFilters(filterChips(p, names))).toBe('Next follow-up by end of week · Status Waiting')
     const two = { ...emptyPredicate(), dates: { deadline: { match: 'set' as const }, created: { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null } } }
     expect(describeFilters(filterChips(two, names))).toBe('Due has a date · Created from start of month')
   })
@@ -204,6 +209,13 @@ describe('describeAnchor / describeRange', () => {
     expect(describeRange(null, { kind: 'relative', token: 'yesterday' })).toBe('before today')
     expect(describeRange({ kind: 'offset', days: -7 }, { kind: 'relative', token: 'yesterday' })).toBe('7 days ago – yesterday')
   })
+
+  it('words up to a day in the past as up to N days ago; up to today or later stays by …', () => {
+    expect(describeRange(null, { kind: 'offset', days: -14 })).toBe('up to 14 days ago')
+    expect(describeRange(null, { kind: 'offset', days: -1 })).toBe('up to 1 day ago')
+    expect(describeRange(null, { kind: 'offset', days: 0 })).toBe('by today')
+    expect(describeDateMatch({ match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true })).toBe('up to 14 days ago, or none')
+  })
 })
 
 describe('clearChipField', () => {
@@ -252,11 +264,17 @@ describe('the Dates value (top-bar button, Filters menu, phone sheet)', () => {
 
   it('one type → its clause in words', () => {
     expect(datesValue({ deadline: due })).toBe('Due today – end of next week')
-    expect(datesValue({ followup: { match: 'unset' } })).toBe('Follow-up no date')
+    expect(datesValue({ followup: { match: 'unset' } })).toBe('Next follow-up no date')
+    expect(datesValue({ lastFollowup: { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true } }))
+      .toBe('Last follow-up up to 14 days ago, or none')
+    expect(datesValue({ completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'today' } } }))
+      .toBe('Completed start of week – today')
   })
 
   it('two types → their short names joined, in tab order', () => {
     expect(datesValue({ created, deadline: due })).toBe('Due + Created')
+    expect(datesValue({ created, lastFollowup: { match: 'unset' } })).toBe('Last follow-up + Created')
+    expect(datesValue({ completed: created, followup: { match: 'set' } })).toBe('Next follow-up + Completed')
   })
 
   it('three or four → the first + N', () => {
@@ -268,7 +286,7 @@ describe('the Dates value (top-bar button, Filters menu, phone sheet)', () => {
     expect(datesTooltip({ deadline: due })).toBeNull()
     expect(datesTooltip({ deadline: due, created })).toBe('Due: today – end of next week\nCreated: from start of month\nTasks must match both · × clears both')
     expect(datesTooltip({ deadline: due, created, followup: { match: 'set' } }))
-      .toBe('Due: today – end of next week\nFollow-up: has a date\nCreated: from start of month\nTasks must match all · × clears all')
+      .toBe('Due: today – end of next week\nNext follow-up: has a date\nCreated: from start of month\nTasks must match all · × clears all')
   })
 
   it('the spoken value lists every type', () => {

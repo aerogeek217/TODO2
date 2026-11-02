@@ -51,7 +51,7 @@ describe('PredicateChips — date chips', () => {
     const { unmount } = render(<Harness initial={{ ...emptyPredicate(), dates: { followup: { match: 'set' } } }} log={[]} />)
     fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
-    expect(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('tab', { name: 'Follow-up, filtering' }))
+    expect(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('tab', { name: 'Next follow-up, filtering' }))
       .toHaveAttribute('aria-selected', 'true')
     unmount()
     render(<Harness initial={emptyPredicate()} log={[]} />)

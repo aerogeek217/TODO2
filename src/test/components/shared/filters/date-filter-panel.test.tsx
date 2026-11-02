@@ -38,7 +38,7 @@ describe('DateFilterPanel', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
     expect(screen.getByRole('tablist', { name: 'Date type' })).toBeInTheDocument()
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified'])
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified'])
     expect(tab('Due')).toHaveAttribute('aria-selected', 'true')
     for (const t of screen.getAllByRole('tab')) expect(t).not.toHaveAttribute('data-filtering')
     const panel = screen.getByRole('tabpanel')
@@ -54,13 +54,13 @@ describe('DateFilterPanel', () => {
     expect(tab(/^Created/)).toHaveAttribute('aria-selected', 'true')
     unmount()
     render(<Harness log={[]} initial={{ created: { match: 'range', start: today, end: null } }} initialField="followup" />)
-    expect(tab('Follow-up')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('Next follow-up')).toHaveAttribute('aria-selected', 'true')
   })
 
   it('selecting a tab writes nothing and lights nothing (no invented dates)', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
-    for (const name of ['Follow-up', 'Created', 'Modified', 'Due']) fireEvent.click(tab(name))
+    for (const name of ['Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified', 'Due']) fireEvent.click(tab(name))
     expect(log).toEqual([])
     for (const t of screen.getAllByRole('tab')) expect(t).not.toHaveAttribute('data-filtering')
     expect(screen.getByLabelText('From')).toHaveValue('')
@@ -157,9 +157,9 @@ describe('DateFilterPanel', () => {
     expect(due).toHaveAttribute('tabindex', '0')
     expect(tab('Created')).toHaveAttribute('tabindex', '-1')
     fireEvent.keyDown(due, { key: 'ArrowRight' })
-    expect(tab('Follow-up')).toHaveAttribute('aria-selected', 'true')
-    expect(document.activeElement).toBe(tab('Follow-up'))
-    fireEvent.keyDown(tab('Follow-up'), { key: 'End' })
+    expect(tab('Next follow-up')).toHaveAttribute('aria-selected', 'true')
+    expect(document.activeElement).toBe(tab('Next follow-up'))
+    fireEvent.keyDown(tab('Next follow-up'), { key: 'End' })
     expect(document.activeElement).toBe(tab('Modified'))
     fireEvent.keyDown(tab('Modified'), { key: 'ArrowRight' })
     expect(document.activeElement).toBe(tab('Due'))
