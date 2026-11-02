@@ -5,7 +5,7 @@ import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { describeFollowupInterval } from '../../utils/followup'
+import { describeFollowupInterval, nextAfterFollowup } from '../../utils/followup'
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
 import { StatusIcon } from '../shared/StatusIcon'
@@ -386,8 +386,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
     const now = new Date()
     setDraftLastFollowup(now)
-    // The rule Mark followed up always applies (none while it is off).
-    setDraftNextFollowup(autoNextFollowup(now) ?? undefined)
+    // Mark followed up's rule: a next follow-up after today stays, else the
+    // automatic one (none while it is off).
+    setDraftNextFollowup(nextAfterFollowup(draftNextFollowup, now, autoNextFollowup(now)) ?? undefined)
     setNextFollowupIsDefault(false)
   }
 

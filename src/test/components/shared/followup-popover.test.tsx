@@ -21,13 +21,18 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     vi.useRealTimers()
   })
 
+  // Tue 27 Oct is after today; Sat 10 Oct is today; Mon 5 Oct is overdue.
+  const FUTURE = new Date(2026, 9, 27)
+  const TODAY_DAY = new Date(2026, 9, 10)
+  const OVERDUE = new Date(2026, 9, 5)
+
   function renderPopover(props: Partial<React.ComponentProps<typeof FollowupPopover>> = {}) {
     const onSetNext = vi.fn()
     const onFollowedUp = vi.fn()
     const onClose = vi.fn()
     render(
       <FollowupPopover
-        todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 9, 27) })}
+        todo={makeTodo({ id: 1, nextFollowupAt: FUTURE })}
         anchor={anchor}
         onClose={onClose}
         onSetNext={onSetNext}
@@ -40,25 +45,57 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     return { onSetNext, onFollowedUp, onClose, field, button }
   }
 
-  it('opens with the field on what Mark followed up sets (today + the interval), the task’s value as Now:, focus on the button', () => {
+  function tooltipOf(button: HTMLElement): string {
+    fireEvent.pointerEnter(button)
+    act(() => { vi.advanceTimersByTime(400) })
+    return screen.getByRole('tooltip').textContent ?? ''
+  }
+
+  it('a next follow-up after today: the field shows it, no Was line, no Now: text; focus on the button', () => {
     const { field, button } = renderPopover()
-    expect(field.value).toBe('Tue 10 Nov')
-    expect(screen.getByText('Now: Tue 10/27')).toBeInTheDocument()
+    expect(field.value).toBe('Tue 27 Oct')
+    expect(screen.queryByText(/^Now:/)).toBeNull()
+    expect(screen.queryByText(/^Was /)).toBeNull()
     expect(button).toHaveFocus()
     // The button no longer names the date.
     expect(button).toHaveAccessibleName('Mark followed up')
   })
 
+  it('start values: future kept · today / overdue / none → the rule (on: today + the interval, off: empty), with Was …', () => {
+    const cases: Array<{ next?: Date; auto: boolean; value: string; was: string | null }> = [
+      { next: FUTURE, auto: false, value: 'Tue 27 Oct', was: null },
+      { next: TODAY_DAY, auto: true, value: 'Tue 10 Nov', was: 'Was today' },
+      { next: TODAY_DAY, auto: false, value: '', was: 'Was today' },
+      { next: OVERDUE, auto: true, value: 'Tue 10 Nov', was: 'Was Mon 10/05 · overdue' },
+      { next: OVERDUE, auto: false, value: '', was: 'Was Mon 10/05 · overdue' },
+      { auto: true, value: 'Tue 10 Nov', was: null },
+      { auto: false, value: '', was: null },
+    ]
+    for (const c of cases) {
+      useSettingsStore.setState({ autoFollowup: c.auto })
+      const { field } = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: c.next }) })
+      expect(field.value, JSON.stringify(c)).toBe(c.value)
+      if (c.was) {
+        expect(screen.getByText(c.was)).toBeInTheDocument()
+        // The help line is the field's description (the old Now: id is gone).
+        expect(field).toHaveAccessibleDescription(c.was)
+      } else {
+        expect(screen.queryByText(/^Was /)).toBeNull()
+      }
+      cleanup()
+    }
+  })
+
   it('follows the Settings interval', () => {
     useSettingsStore.setState({ followupDefaultInterval: { count: 2, unit: 'w' } })
-    const { field } = renderPopover()
+    const { field } = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: OVERDUE }) })
     expect(field.value).toBe('Sat 24 Oct')
   })
 
-  it('opened on the field (Pick a date or interval…): the proposal is selected', () => {
+  it('opened on the field (Pick a date or interval…): its text is selected', () => {
     const { field } = renderPopover({ initialFocus: 'next' })
     expect(field).toHaveFocus()
-    expect(field.value).toBe('Tue 10 Nov')
+    expect(field.value).toBe('Tue 27 Oct')
     expect([field.selectionStart, field.selectionEnd]).toEqual([0, field.value.length])
   })
 
@@ -85,24 +122,37 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     expect(fireEvent.mouseUp(field)).toBe(true)
   })
 
-  it('with the automatic next follow-up off: the field opens empty, Now: none for a task without one; Mark followed up clears', () => {
+  it('Mark followed up untouched passes no date (the store keeps a later one) and closes — future, overdue or none', () => {
+    for (const next of [FUTURE, OVERDUE, undefined]) {
+      const { button, onFollowedUp, onSetNext, onClose } = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: next }) })
+      fireEvent.click(button)
+      expect(onFollowedUp).toHaveBeenCalledTimes(1)
+      expect(onFollowedUp.mock.calls[0]).toEqual([undefined])
+      expect(onSetNext).not.toHaveBeenCalled()
+      expect(onClose).toHaveBeenCalledTimes(1)
+      cleanup()
+    }
+  })
+
+  it('its tooltip says what will happen: keep / set / clear / none', () => {
+    expect(tooltipOf(renderPopover().button)).toBe('Record a follow-up today and keep the next follow-up')
+    cleanup()
+    expect(tooltipOf(renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: OVERDUE }) }).button))
+      .toBe('Record a follow-up today and set the next follow-up to the date above')
+    cleanup()
     useSettingsStore.setState({ autoFollowup: false })
-    const { field, button, onFollowedUp } = renderPopover({ todo: makeTodo({ id: 1 }) })
-    expect(field.value).toBe('')
-    expect(screen.getByText('Now: none')).toBeInTheDocument()
-    fireEvent.click(button)
-    expect(onFollowedUp).toHaveBeenCalledWith(null)
+    expect(tooltipOf(renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: OVERDUE }) }).button))
+      .toBe('Record a follow-up today and clear the next follow-up')
+    cleanup()
+    expect(tooltipOf(renderPopover({ todo: makeTodo({ id: 1 }) }).button)).toBe('Record a follow-up today (no next follow-up)')
+    cleanup()
+    // Edited, a kept date's field says "set".
+    const r = renderPopover()
+    fireEvent.change(r.field, { target: { value: '2w' } })
+    expect(tooltipOf(r.button)).toBe('Record a follow-up today and set the next follow-up to the date above')
   })
 
-  it('Mark followed up untouched sets the proposal; closes', () => {
-    const { button, onFollowedUp, onSetNext, onClose } = renderPopover()
-    fireEvent.click(button)
-    expect(onFollowedUp).toHaveBeenCalledWith(new Date(2026, 10, 10))
-    expect(onSetNext).not.toHaveBeenCalled()
-    expect(onClose).toHaveBeenCalledTimes(1)
-  })
-
-  it('an edited field: Mark followed up uses it', () => {
+  it('an edited field: Mark followed up uses it (over a later date too)', () => {
     const { field, button, onFollowedUp } = renderPopover()
     fireEvent.change(field, { target: { value: '2w' } })
     fireEvent.click(button)
@@ -117,18 +167,9 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     expect(field).toHaveFocus()
     expect(onSetNext).not.toHaveBeenCalled()
     expect(onClose).not.toHaveBeenCalled()
-    fireEvent.pointerEnter(button)
-    act(() => { vi.advanceTimersByTime(400) })
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Record a follow-up today and clear the next follow-up')
+    expect(tooltipOf(button)).toBe('Record a follow-up today and clear the next follow-up')
     fireEvent.click(button)
     expect(onFollowedUp).toHaveBeenCalledWith(null)
-  })
-
-  it('its tooltip says what it does with a date in the field', () => {
-    const { button } = renderPopover()
-    fireEvent.pointerEnter(button)
-    act(() => { vi.advanceTimersByTime(400) })
-    expect(screen.getByRole('tooltip')).toHaveTextContent('Record a follow-up today and set the next follow-up to the date above')
   })
 
   it('text that isn’t a date disables Mark followed up, with the field’s error', () => {
@@ -142,8 +183,8 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     expect(button).toBeEnabled()
   })
 
-  it('⏎ in the field sets the next follow-up only: the untouched proposal, an edited date, or none', () => {
-    let r = renderPopover()
+  it('⏎ in the field sets the next follow-up only: the untouched replacement, an edited date, or none', () => {
+    let r = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: OVERDUE }) })
     fireEvent.keyDown(r.field, { key: 'Enter' })
     expect(r.onSetNext).toHaveBeenCalledWith(new Date(2026, 10, 10))
     expect(r.onFollowedUp).not.toHaveBeenCalled()
@@ -171,8 +212,14 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
   })
 
   it('⏎ on a field that says what the task has now just closes', () => {
-    const r = renderPopover()
-    fireEvent.change(r.field, { target: { value: '27 Oct' } })
+    // Untouched on a later date: it is the task's own.
+    let r = renderPopover()
+    fireEvent.keyDown(r.field, { key: 'Enter' })
+    expect(r.onSetNext).not.toHaveBeenCalled()
+    expect(r.onClose).toHaveBeenCalledTimes(1)
+    cleanup()
+    r = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: OVERDUE }) })
+    fireEvent.change(r.field, { target: { value: '10/05/2026' } })
     fireEvent.keyDown(r.field, { key: 'Enter' })
     expect(r.onSetNext).not.toHaveBeenCalled()
     expect(r.onClose).toHaveBeenCalledTimes(1)
@@ -185,22 +232,60 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     expect(off.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('a quick button sets the next follow-up only', () => {
-    const { onSetNext, onFollowedUp } = renderPopover()
+  it('a quick button fills the field with its date — nothing applied, the popover stays, focus to the field', () => {
+    const { field, onSetNext, onFollowedUp, onClose } = renderPopover()
     fireEvent.click(screen.getByRole('button', { name: 'Follow up in 1 week' }))
+    expect(field.value).toBe('Sat 17 Oct')
+    expect(field).toHaveFocus()
+    expect(screen.getByText('Sat 17 Oct', { selector: 'strong' })).toBeInTheDocument()
+    expect(onSetNext).not.toHaveBeenCalled()
+    expect(onFollowedUp).not.toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    // ⏎ then sets that date only.
+    fireEvent.keyDown(field, { key: 'Enter' })
     expect(onSetNext).toHaveBeenCalledWith(new Date(2026, 9, 17))
     expect(onFollowedUp).not.toHaveBeenCalled()
   })
 
-  it('the bulk bar’s selection: Now: mixed, or the shared value; ⏎ with mixed always sets', () => {
-    const r = renderPopover({ current: 'mixed' })
-    expect(screen.getByText('Now: mixed')).toBeInTheDocument()
+  it('a quick button, then Mark followed up: records with that date', () => {
+    const { button, onFollowedUp } = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: OVERDUE }) })
+    fireEvent.click(screen.getByRole('button', { name: 'Follow up in 2 weeks' }))
+    fireEvent.click(button)
+    expect(onFollowedUp).toHaveBeenCalledWith(new Date(2026, 9, 24))
+  })
+
+  it('the bulk bar’s mixed selection: an empty field (Each task’s own) and a help line; untouched, Mark followed up passes no date and ⏎ just closes', () => {
+    let r = renderPopover({ current: 'mixed' })
+    expect(r.field.value).toBe('')
+    expect(r.field).toHaveAttribute('placeholder', 'Each task’s own')
+    expect(screen.getByText(/^Future dates kept · the rest →/)).toHaveTextContent('Future dates kept · the rest → Tue 10 Nov')
+    expect(tooltipOf(r.button)).toBe('Record a follow-up today; future next follow-ups are kept, the rest set to Tue 10 Nov')
+    fireEvent.keyDown(r.field, { key: 'Enter' })
+    expect(r.onSetNext).not.toHaveBeenCalled()
+    expect(r.onClose).toHaveBeenCalledTimes(1)
+    fireEvent.click(r.button)
+    expect(r.onFollowedUp.mock.calls[0]).toEqual([undefined])
+    cleanup()
+
+    // Edited: that date for all (⏎ sets it).
+    r = renderPopover({ current: 'mixed' })
     fireEvent.change(r.field, { target: { value: '27 Oct' } })
+    expect(r.field).toHaveAttribute('placeholder', '2w, 1m, fri or a date')
     fireEvent.keyDown(r.field, { key: 'Enter' })
     expect(r.onSetNext).toHaveBeenCalledWith(new Date(2026, 9, 27))
     cleanup()
-    renderPopover({ current: null })
-    expect(screen.getByText('Now: none')).toBeInTheDocument()
+
+    useSettingsStore.setState({ autoFollowup: false })
+    renderPopover({ current: 'mixed' })
+    expect(screen.getByText('Future dates kept · the rest cleared')).toBeInTheDocument()
+  })
+
+  it('the bulk bar’s shared value: a later one in the field, none → the rule', () => {
+    let r = renderPopover({ current: new Date(2026, 10, 3) })
+    expect(r.field.value).toBe('Tue 3 Nov')
+    cleanup()
+    r = renderPopover({ current: null })
+    expect(r.field.value).toBe('Tue 10 Nov')
   })
 })
 
@@ -236,8 +321,8 @@ describe('<FollowupPopover> date picker', () => {
     expect(button.tabIndex).toBe(0)
     expect(picker).toHaveAttribute('type', 'date')
     expect(picker.tabIndex).toBe(-1)
-    // The proposal (today + 1 month), not the stored Tue 13 Oct.
-    expect(picker.value).toBe('2026-11-10')
+    // The field's day: the stored Tue 13 Oct, after today, is kept.
+    expect(picker.value).toBe('2026-10-13')
     fireEvent.click(button)
     expect(showPicker).toHaveBeenCalledTimes(1)
   })

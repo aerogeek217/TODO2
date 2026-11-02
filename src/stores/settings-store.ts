@@ -89,7 +89,9 @@ interface SettingsState {
   /**
    * "Set a next follow-up automatically": new tasks and "Mark followed up"
    * set it to today + `followupDefaultInterval`; off, new tasks get none and
-   * Mark followed up clears it ({@link autoNextFollowup}). Stored under
+   * Mark followed up clears it ({@link autoNextFollowup}) — Mark followed up
+   * only on a task whose next follow-up isn't after today (one after today is
+   * kept, `utils/followup.nextAfterFollowup`). Stored under
    * `SETTING_KEYS.newTaskFollowup`.
    */
   autoFollowup: boolean
@@ -1131,7 +1133,9 @@ export function autoFollowupInterval(s: AutoFollowupSettings): FollowupInterval 
  * popover's proposal, the editor, a check-in sent or its reply applied) and
  * for a new task that names none: the day `now` falls on + the Settings
  * interval while "Set a next follow-up automatically" is on, else none
- * (`null` — Mark followed up then clears the next follow-up). `s` defaults
+ * (`null` — Mark followed up then clears the next follow-up). Mark followed
+ * up applies it only where the task's next follow-up isn't after today
+ * (`utils/followup.nextAfterFollowup`). `s` defaults
  * to the store's current settings; a component passes the ones it subscribes to.
  */
 export function autoNextFollowup(now: Date, s: AutoFollowupSettings = useSettingsStore.getState()): Date | null {

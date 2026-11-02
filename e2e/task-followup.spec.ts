@@ -93,7 +93,7 @@ test.describe('Task follow-up', () => {
     await expect(pop.getByRole('button', { name: /^Mark followed up/ })).toBeFocused()
     // Opens on what Mark followed up sets (today + 1 month); the task has none now.
     await expect(input).toHaveValue('Tue 10 Nov')
-    await expect(pop.getByText('Now: none')).toBeVisible()
+    await expect(pop.getByText(/^Was /)).toHaveCount(0)
     await input.click()
     await page.keyboard.press('Control+A')
     await page.keyboard.type('2w')
@@ -107,7 +107,7 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: null, last: null })
   })
 
-  test('pill: the field shows the proposal, Now: the value; invalid text shows help and disables Mark followed up; Esc and outside click close without change', async ({ page }) => {
+  test('pill: the field shows the task’s later next follow-up; invalid text shows help and disables Mark followed up; Esc and outside click close without change', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 13)
     const row = taskRowByTitle(page, 'alpha')
     const pill = row.getByRole('button', { name: 'Follow-up: Tue 13', exact: true })
@@ -115,8 +115,8 @@ test.describe('Task follow-up', () => {
     const pop = popover(page)
     const input = pop.getByRole('textbox', { name: 'Next follow-up' })
     await expect(pop.getByRole('button', { name: /^Mark followed up/ })).toBeFocused()
-    await expect(input).toHaveValue('Tue 10 Nov')
-    await expect(pop.getByText('Now: Tue 10/13')).toBeVisible()
+    await expect(input).toHaveValue('Tue 13 Oct')
+    await expect(pop.getByText(/^Now:/)).toHaveCount(0)
     await input.fill('whenever')
     await expect(input).toHaveValue('whenever')
     await expect(pop.getByText('Try 2w, 10d, 1m, fri, 24 Oct or 10/24')).toBeVisible()
@@ -136,27 +136,34 @@ test.describe('Task follow-up', () => {
     await expect(pill).toBeVisible()
   })
 
-  test('quick interval, then "Mark followed up" with the undo snackbar', async ({ page }) => {
+  test('a quick interval fills the field (⏎ sets it); Mark followed up keeps that later date, with the undo snackbar', async ({ page }) => {
     const row = taskRowByTitle(page, 'alpha')
     await row.hover()
     await row.getByRole('button', { name: 'Set follow-up', exact: true }).click()
+    const input = popover(page).getByRole('textbox', { name: 'Next follow-up' })
     await popover(page).getByRole('button', { name: 'Follow up in 1 week' }).click()
+    // Filled, nothing applied: the popover stays, focus in the field.
+    await expect(popover(page)).toBeVisible()
+    await expect(input).toHaveValue('Sat 17 Oct')
+    await expect(input).toBeFocused()
+    await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: null, last: null })
+    await page.keyboard.press('Enter')
     await expect(popover(page)).toBeHidden()
     const pill = row.getByRole('button', { name: 'Follow-up: Sat 17', exact: true })
     await expect(pill).toBeVisible()
+    await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-17 00:00', last: null })
 
     await pill.click()
     const followedUp = popover(page).getByRole('button', { name: /^Mark followed up/ })
     await expect(followedUp).toHaveAccessibleName('Mark followed up')
-    await expect(popover(page).getByRole('textbox', { name: 'Next follow-up' })).toHaveValue('Tue 10 Nov')
+    await expect(input).toHaveValue('Sat 17 Oct')
     await followedUp.click()
     await expect(popover(page)).toBeHidden()
-    await expect(row.getByRole('button', { name: 'Follow-up: Tue 10 Nov', exact: true })).toBeVisible()
-    await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-11-10 00:00', last: '2026-10-10 15:30' })
+    await expect(pill).toBeVisible()
+    await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-17 00:00', last: '2026-10-10 15:30' })
 
-    await expect(page.getByText('Followed up · next follow-up Tue 10 Nov')).toBeVisible()
+    await expect(page.getByText('Followed up · next follow-up kept')).toBeVisible()
     await page.getByRole('button', { name: 'Undo', exact: true }).click()
-    await expect(row.getByRole('button', { name: 'Follow-up: Sat 17', exact: true })).toBeVisible()
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-17 00:00', last: null })
   })
 
@@ -188,9 +195,9 @@ test.describe('Task follow-up', () => {
     const calendar = pop.getByRole('button', { name: 'Pick next follow-up date' })
     await expect(calendar).toBeFocused()
     // The browser's own picker can't be driven: set the date input it edits.
-    // It opens on the field's day (the proposal, today + 1 month).
+    // It opens on the field's day (the task's Tue 13 Oct, after today: kept).
     const dateInput = pop.locator('input[type="date"]')
-    await expect(dateInput).toHaveValue('2026-11-10')
+    await expect(dateInput).toHaveValue('2026-10-13')
     await dateInput.fill('2026-11-20', { force: true })
     await expect(pop).toBeHidden()
     await expect(row.getByRole('button', { name: 'Follow-up: Fri 20 Nov', exact: true })).toBeVisible()

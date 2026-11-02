@@ -150,7 +150,7 @@ describe('TaskEditPopup — follow-up group', () => {
   it('create mode with the automatic next follow-up off: Mark followed up stamps last = now and leaves no next', async () => {
     useSettingsStore.setState({ autoFollowup: false })
     const { onCreate } = renderCreate()
-    fireEvent.change(nextInput(), { target: { value: '2w' } })
+    fireEvent.change(nextInput(), { target: { value: 'today' } })
     fireEvent.blur(nextInput())
     fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
     expect(nextInput().value).toBe('')
@@ -161,6 +161,20 @@ describe('TaskEditPopup — follow-up group', () => {
     // Key present: none, not "the default".
     expect('nextFollowupAt' in partial).toBe(true)
     expect(partial.nextFollowupAt).toBeUndefined()
+  })
+
+  it('create mode: Mark followed up keeps a next follow-up after today (the setting off or on)', async () => {
+    useSettingsStore.setState({ autoFollowup: false })
+    const { onCreate } = renderCreate()
+    fireEvent.change(nextInput(), { target: { value: '2w' } })
+    fireEvent.blur(nextInput())
+    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
+    expect(nextInput().value).toBe('Sat 24 Oct')
+    fireEvent.click(screen.getByText('Create task'))
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    const partial = onCreate.mock.calls[0]![0]
+    expect(partial.lastFollowupAt).toEqual(NOW)
+    expect(partial.nextFollowupAt).toEqual(day(2026, 10, 24))
   })
 
   it('edit mode: Next edits apply immediately; invalid input keeps the old value; Esc reverts', () => {
@@ -231,7 +245,7 @@ describe('TaskEditPopup — follow-up group', () => {
     expect(onFollowedUp).toHaveBeenCalledTimes(1)
   })
 
-  it('edit mode: Mark followed up from the editor shows its result in Next and Last at once (on: today + 1 month; off: cleared)', async () => {
+  it('edit mode: Mark followed up from the editor shows its result in Next and Last at once (later kept; else on: today + 1 month, off: cleared)', async () => {
     const id = await useTodoStore.getState().add('Edited')
     await useTodoStore.getState().update(id, { nextFollowupAt: day(2026, 10, 13) })
     const Editor = () => {
@@ -240,10 +254,19 @@ describe('TaskEditPopup — follow-up group', () => {
     }
     render(<Editor />)
     expect(nextInput().value).toBe('Tue 13 Oct')
+    // After today: kept.
+    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
+    await waitFor(() => expect(lastInput().value).toBe('Sat 10 Oct'))
+    expect(nextInput().value).toBe('Tue 13 Oct')
+
+    // Overdue: today + the interval.
+    await act(() => useTodoStore.getState().update(id, { nextFollowupAt: day(2026, 10, 5), lastFollowupAt: undefined }))
     fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
     await waitFor(() => expect(nextInput().value).toBe('Tue 10 Nov'))
     expect(lastInput().value).toBe('Sat 10 Oct')
 
+    // Today, the setting off: cleared.
+    await act(() => useTodoStore.getState().update(id, { nextFollowupAt: day(2026, 10, 10) }))
     useSettingsStore.setState({ autoFollowup: false })
     fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
     await waitFor(() => expect(nextInput().value).toBe(''))

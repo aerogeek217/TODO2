@@ -267,6 +267,16 @@ export function isFutureDay(d: Date, today: Date): boolean {
 }
 
 /**
+ * The next follow-up "Mark followed up" leaves on a task when no date is given:
+ * one after today's day is kept (the same instance); one today, in the past or
+ * none becomes `auto` — Settings' automatic next follow-up (today + the
+ * interval), `null` while that is off. An explicit date never comes here.
+ */
+export function nextAfterFollowup(current: Date | null | undefined, today: Date, auto: Date | null): Date | null {
+  return current && isFutureDay(current, today) ? current : auto
+}
+
+/**
  * True when the task was already followed up today — "Mark followed up" then only
  * moves the next follow-up, so its controls render dimmed.
  */
