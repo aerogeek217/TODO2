@@ -112,11 +112,16 @@ test('the online build runs with a CSP that allows no inline script', async ({ p
 
 test('the offline single file runs from disk under its CSP', async ({ page }) => {
   const file = join(outDir, 'offline', 'todo2.html')
-  const csp = cspOf(readFileSync(file, 'utf8'))
-  expect(csp).toContain("script-src 'self' 'unsafe-inline'")
-  expect(csp).toContain("font-src 'self' data:")
+  const html = readFileSync(file, 'utf8')
+  const csp = cspOf(html)
+  expect(csp).toMatch(/^default-src 'none'; /)
+  // On file:// 'self' would admit any file: URL, a UNC share's among them.
+  expect(csp).not.toContain("'self'")
+  expect(csp).toContain("connect-src 'none'")
+  expect(csp).toContain('font-src data:;')
   expect(csp).toContain("base-uri 'none'")
   expect(csp).toContain("form-action 'none'")
+  expect(html).toContain('<meta name="referrer" content="no-referrer" />')
 
   const violations = await watchCsp(page)
   await page.goto(pathToFileURL(file).href)

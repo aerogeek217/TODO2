@@ -46,16 +46,50 @@ function fileProtocolCompat(): Plugin {
   }
 }
 
-// The single file embeds its fonts as data: URLs; without this the CSP's
-// `font-src 'self'` blocks them and the page falls back to a system font.
-// (Its one inline script is why `script-src` keeps 'unsafe-inline'.)
+// The offline file's Content-Security-Policy: deny by default. The file is
+// opened from disk, where 'self' would admit every file: URL — a UNC path
+// (`file://host/share/…`, an SMB request) among them — so no directive names
+// 'self' and each allows only what the file itself carries. The sync file,
+// imports and exports go through the File System Access API, file inputs and
+// downloads, which no fetch directive governs.
+const OFFLINE_CSP = [
+  "default-src 'none'",
+  // The one inline script (the whole app).
+  "script-src 'unsafe-inline'",
+  // The built CSS is one inline <style>; React and CodeMirror set styles at run time.
+  "style-src 'unsafe-inline'",
+  // The embedded icons and the data: images in styles (the notes text cursor, CodeMirror's tab arrow).
+  'img-src data:',
+  // The embedded fonts.
+  'font-src data:',
+  "connect-src 'none'",
+  // The check-in preview is a sandboxed srcdoc frame, which fetches nothing.
+  "frame-src 'none'",
+  "object-src 'none'",
+  "worker-src 'none'",
+  "media-src 'none'",
+  "manifest-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ')
+
+const CSP_META = /<meta http-equiv="Content-Security-Policy" content="[^"]*" \/>/g
+
+// Puts the offline policy in place of index.html's (which dev and the online
+// build use), and adds the file's other request guards beside it: no
+// Referer on anything (a link the user follows, the mail app's mailto:), no
+// DNS prefetch of link hosts (the CSP doesn't cover it).
 function offlineCsp(): Plugin {
   return {
     name: 'offline-csp',
     transformIndexHtml(html) {
-      const from = "font-src 'self'"
-      if (!html.includes(from)) throw new Error(`offline build: index.html no longer contains ${JSON.stringify(from)}`)
-      return html.replace(from, "font-src 'self' data:")
+      const metas = html.match(CSP_META) ?? []
+      if (metas.length !== 1) throw new Error(`offline build: index.html should hold one CSP <meta>, found ${metas.length}`)
+      return html.replace(CSP_META, [
+        `<meta http-equiv="Content-Security-Policy" content="${OFFLINE_CSP}" />`,
+        '<meta name="referrer" content="no-referrer" />',
+        '<meta http-equiv="x-dns-prefetch-control" content="off" />',
+      ].join('\n    '))
     },
   }
 }
