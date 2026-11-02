@@ -12,8 +12,10 @@ import styles from './sections/sections.module.css'
  * Settings → Task defaults: "Set a next follow-up automatically" and the
  * follow-up interval (`1m`, `2w`, `10d`, `1y`). While the switch is on, new
  * tasks and "Mark followed up" set the next follow-up to today + the
- * interval; off, new tasks get none and Mark followed up clears it. The
- * interval commits on Enter / blur; invalid text reverts.
+ * interval; off, new tasks get none and Mark followed up clears it. Either
+ * way Mark followed up keeps a next follow-up after today
+ * (`utils/followup.nextAfterFollowup`). The interval commits on Enter /
+ * blur; invalid text reverts.
  */
 export function FollowupIntervalSetting() {
   const autoFollowup = useSettingsStore((s) => s.autoFollowup)
@@ -44,7 +46,7 @@ export function FollowupIntervalSetting() {
     <>
       <SettingRow
         label="Set a next follow-up automatically"
-        help="New tasks and Mark followed up set it to today + the interval. Off: new tasks get none, and Mark followed up clears it."
+        help="New tasks and Mark followed up set it to today + the interval. Off: new tasks get none, and Mark followed up clears it. Either way, Mark followed up keeps a next follow-up that’s after today."
       >
         <button
           type="button"

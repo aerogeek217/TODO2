@@ -266,7 +266,8 @@ function AppShell() {
       ui.setFilterSheetOpen(false)
       if (ui.taskDialog?.source.kind === 'screen') ui.hideTaskDialog()
     } else {
-      ui.closeSettings()
+      // Not shown on a phone: closed at once, a lens draft kept for the next open.
+      ui.hideSettings()
       ui.closeFilterPanel()
     }
   }, [isMobile])

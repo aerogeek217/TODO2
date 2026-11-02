@@ -83,7 +83,8 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   const panel = dialog(page)
   await expect(panel.getByRole('tab', { name: 'Due' })).toBeFocused()
   await expect(panel.getByText('Not filtering')).toBeVisible()
-  await panel.getByLabel('To (relative)').selectOption('end-of-next-week')
+  await panel.getByLabel('To (relative)').selectOption({ label: 'In 2 weeks' })
+  await expect(panel.getByLabel('To (days offset)')).toHaveValue('14')
   await expect(rows(page, 't1')).toHaveCount(2)
   await expect(panel.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('data-filtering', '')
 
@@ -95,21 +96,21 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await expect(panel.getByLabel('To', { exact: true })).toHaveValue('')
   await expect(panel.getByLabel('To (relative)')).toHaveValue('__none__')
   await expect(rows(page, 't1')).toHaveCount(2)
-  await panel.getByLabel('To (relative)').selectOption('yesterday')
+  await panel.getByLabel('To (relative)').selectOption({ label: '1 week ago' })
   await expect(rows(page, 't1')).toHaveCount(1)
   await expect(rows(page, 't1')).toHaveText([/Due soon, old/])
   await page.keyboard.press('Escape')
   await expect(panel).toBeHidden()
 
   // The button reads both names; its tooltip lists each type; every list shows a screen chip per type.
-  const button = page.getByRole('button', { name: /^Dates filter: Due by end of next week; Modified before today$/ })
+  const button = page.getByRole('button', { name: /^Dates filter: Due up to 14 days ahead; Modified up to 7 days ago$/ })
   await expect(button).toHaveText('Due + Modified')
   await button.hover()
   const tip = page.getByRole('tooltip')
-  await expect(tip).toContainText('Due: by end of next week')
-  await expect(tip).toContainText('Modified: before today')
+  await expect(tip).toContainText('Due: up to 14 days ahead')
+  await expect(tip).toContainText('Modified: up to 7 days ago')
   await expect(tip).toContainText('Tasks must match both · × clears both')
-  await expect(wsListWidget(page, 't1').getByTestId('screen-filter-chip')).toHaveText(['Due by end of next week', 'Modified before today'])
+  await expect(wsListWidget(page, 't1').getByTestId('screen-filter-chip')).toHaveText(['Due up to 14 days ahead', 'Modified up to 7 days ago'])
 
   // The × clears every date type.
   await page.getByRole('button', { name: 'Clear date filters' }).click()
@@ -139,6 +140,9 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await expect(panel.getByRole('tab', { name: 'Next follow-up' })).toBeFocused()
   await page.keyboard.press('End')
   await expect(panel.getByRole('tab', { name: 'Modified' })).toBeFocused()
+  // Tab: the range's Is / Is not (its checked Is), then From.
+  await page.keyboard.press('Tab')
+  await expect(panel.getByRole('radiogroup', { name: 'Modified: is or is not' }).getByRole('radio', { name: 'Is', exact: true })).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(panel.getByLabel('From', { exact: true })).toBeFocused()
   await expect(page.getByRole('button', { name: 'Dates filter', exact: true })).toBeVisible()
@@ -192,11 +196,15 @@ test('list chips: one per date type; a chip opens the panel under it on its type
   await expect(rows(page, 't2')).toHaveText([/Due only/, /Neither/])
   await expect(wsCell(page, 'k2').getByTestId('save-list')).toBeVisible()
 
-  // + Filter › Dates: the panel opens on the first type that filters, focused there.
+  // + Filter › Dates: the panel opens on the first type that doesn't filter
+  // yet (cr25 P4b) — Due, before Next follow-up —, focused there, so it adds a chip.
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
-  await expect(panel.getByRole('tab', { name: 'Next follow-up, filtering' })).toBeFocused()
-  await expect(panel.getByRole('tab', { name: 'Next follow-up, filtering' })).toHaveAttribute('aria-selected', 'true')
+  await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toBeFocused()
+  await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await panel.getByRole('radio', { name: 'No date' }).click()
+  // A new chip goes last (the rows keep the order they were added in).
+  await expect(chips).toHaveText([/Next follow-up\s*no date/, /Due\s*no date/])
 })
 
 test('the six types sit in two rows of three at 336px; no label clips, every type lit', async ({ page }) => {

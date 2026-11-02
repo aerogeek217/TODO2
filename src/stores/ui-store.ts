@@ -44,6 +44,11 @@ export function eisenhowerPaneFocus(q: EisenhowerQuadrant): string {
   return `eisenhower-pane-${q}`
 }
 
+/** The `data-settings-focus` of lens `lensId`'s row (its head button) in Settings › Tasks › Lenses. */
+export function lensFocus(lensId: string): string {
+  return `lens-${lensId}`
+}
+
 /** Where Settings can open: a section, or a part of one (shown scrolled to it). */
 export type SettingsTarget = SettingsSectionId | SettingsPartId
 
@@ -80,26 +85,61 @@ export interface BulkConfirmation {
   onConfirm?: () => void  // custom confirm handler (used with action: 'custom')
 }
 
-/** A yes / no question some code is waiting on (`askConfirmation`). */
+/** A yes / no question some code is waiting on (`askConfirmation`), or a three-way one (`askChoice`). */
 export interface ConfirmPrompt {
   title: string
   message: string
   confirmLabel: string
+  /** The cancel button's label (default Cancel). */
+  cancelLabel?: string
+  /**
+   * A third answer, `discard` (Save / Discard / Keep editing): its label, on
+   * a quiet danger button at the start of the row. Only with `askChoice`.
+   */
+  discardLabel?: string
   /** Renders the confirm button with danger styling. */
   danger?: boolean
   /** Focus (so Enter) starts on Cancel instead of the confirm button. */
   cancelIsDefault?: boolean
 }
 
+/** A prompt's answer: its confirm button, its discard button (`discardLabel`), or cancel / Esc / backdrop. */
+export type PromptAnswer = 'confirm' | 'discard' | 'cancel'
+
 interface PendingConfirmPrompt extends ConfirmPrompt {
   /** Unique per question asked (the host keys its dialog by it). */
   id: number
-  resolve: (confirmed: boolean) => void
+  resolve: (answer: PromptAnswer) => void
 }
 
 /** The last question's `id`. */
 let lastPromptId = 0
 registerModuleReset(() => { lastPromptId = 0 })
+
+/**
+ * Unsaved work in a Settings section that Settings must settle before it
+ * closes or shows another section — a lens's filter edits
+ * (`lens-draft-store` registers it when it loads; nothing else can hold
+ * such work before then).
+ */
+export interface SettingsLeaveGuard {
+  /** The part the work is in (its section: `SETTINGS_PART_SECTION`); Settings opens there while the work is pending. */
+  part: SettingsPartId
+  /** The control there to focus when Settings opens on the work (its `data-settings-focus`), if any. */
+  focus?: () => string | null
+  /** There is unsaved work now. */
+  pending: () => boolean
+  /** Asks about it (Save / Discard / Keep editing); resolves whether to go on. */
+  settle: () => Promise<boolean>
+}
+
+/** Wiring, not state: registered once by its module, never reset. */
+let leaveGuard: SettingsLeaveGuard | null = null
+
+/** Registers the guard `closeSettings`, `setSettingsSection` and `openSettings` ask first. */
+export function registerSettingsLeaveGuard(guard: SettingsLeaveGuard): void {
+  leaveGuard = guard
+}
 
 interface UIState {
   selectedTodoId: number | null
@@ -231,8 +271,10 @@ interface UIState {
   clearBulkConfirmation: () => void
   /** Asks `prompt`; resolves true on confirm, false on cancel / Esc / backdrop. */
   askConfirmation: (prompt: ConfirmPrompt) => Promise<boolean>
-  /** Answers the prompt on screen (the first in `confirmPrompts`). */
-  answerConfirmation: (confirmed: boolean) => void
+  /** Asks `prompt` with its third answer (`discardLabel`); resolves which was picked. */
+  askChoice: (prompt: ConfirmPrompt) => Promise<PromptAnswer>
+  /** Answers the prompt on screen (the first in `confirmPrompts`): true = confirm, false = cancel. */
+  answerConfirmation: (answer: boolean | PromptAnswer) => void
   openEditPopup: (todoId: number) => void
   openCreatePopup: () => void
   closeEditPopup: () => void
@@ -265,9 +307,27 @@ interface UIState {
   /**
    * Opens Settings, on `target` (a section, or a part of one) when given;
    * `focus` names a control there to focus (its `data-settings-focus`).
+   * Already open with unsaved work (`SettingsLeaveGuard`) in its section, a
+   * target in another section asks first. With unsaved work it doesn't show
+   * (a lens draft kept by `hideSettings`) it opens on that work instead —
+   * Tasks › Lenses, the drafted lens focused — whatever the target.
    */
   openSettings: (target?: SettingsTarget, focus?: string) => void
+  /**
+   * Closes Settings — every close (Esc, ×, the backdrop) comes here. With
+   * unsaved work (a lens draft, `SettingsLeaveGuard`) it asks first and
+   * closes after Save / Discard; Keep editing leaves Settings as it was.
+   */
   closeSettings: () => void
+  /**
+   * Closes Settings at once, keeping a lens draft for its next open — the
+   * phone width, where the modal isn't shown (nothing is lost, nothing asked).
+   */
+  hideSettings: () => void
+  /**
+   * Shows another section (or part). Leaving a section with unsaved work in
+   * it (a lens draft, `SettingsLeaveGuard`) asks first, as `closeSettings` does.
+   */
   setSettingsSection: (target: SettingsTarget) => void
   /** The part scroll was shown: forget it. */
   clearSettingsPart: () => void
@@ -282,6 +342,34 @@ interface UIState {
   closeCheckinImport: () => void
   openEntityAction: (action: EntityAction) => void
   closeEntityAction: () => void
+}
+
+/**
+ * Showing `section` would leave unsaved work: Settings is open on the
+ * guard's section with work pending, and `section` is another.
+ */
+function leavesUnsavedWork(ui: Pick<UIState, 'settingsOpen' | 'settingsSection'>, section: SettingsSectionId): boolean {
+  if (!leaveGuard) return false
+  const own = SETTINGS_PART_SECTION[leaveGuard.part]
+  return ui.settingsOpen && ui.settingsSection === own && section !== own && leaveGuard.pending()
+}
+
+/**
+ * Where Settings must open to show unsaved work it doesn't show now — a
+ * lens draft kept while it was closed (`hideSettings`, the phone width) —
+ * or null: no such work, or Settings already open on its section.
+ */
+function unsavedWorkOutOfSight(ui: Pick<UIState, 'settingsOpen' | 'settingsSection'>): Pick<UIState, 'settingsSection' | 'settingsPart' | 'settingsFocus'> | null {
+  if (!leaveGuard || !leaveGuard.pending()) return null
+  const section = SETTINGS_PART_SECTION[leaveGuard.part]
+  if (ui.settingsOpen && ui.settingsSection === section) return null
+  return { settingsSection: section, settingsPart: leaveGuard.part, settingsFocus: leaveGuard.focus?.() ?? null }
+}
+
+/** Runs `go` once the guard lets Settings go on: at once without unsaved work (`needed` false), else after its answer. */
+function afterSettled(needed: boolean, go: () => void): void {
+  if (!needed || !leaveGuard) go()
+  else void leaveGuard.settle().then((ok) => { if (ok) go() })
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
@@ -371,16 +459,23 @@ export const useUIStore = create<UIState>((set, get) => ({
   },
 
   askConfirmation(prompt) {
-    return new Promise<boolean>((resolve) => {
+    // Two buttons: a discard label would offer an answer it can't give.
+    const yesNo: ConfirmPrompt = { ...prompt }
+    delete yesNo.discardLabel
+    return get().askChoice(yesNo).then((answer) => answer === 'confirm')
+  },
+
+  askChoice(prompt) {
+    return new Promise<PromptAnswer>((resolve) => {
       set({ confirmPrompts: [...get().confirmPrompts, { ...prompt, id: ++lastPromptId, resolve }] })
     })
   },
 
-  answerConfirmation(confirmed) {
+  answerConfirmation(answer) {
     const [first, ...rest] = get().confirmPrompts
     if (!first) return
     set({ confirmPrompts: rest })
-    first.resolve(confirmed)
+    first.resolve(answer === true ? 'confirm' : answer === false ? 'cancel' : answer)
   },
 
   openEditPopup(todoId: number) {
@@ -484,22 +579,35 @@ export const useUIStore = create<UIState>((set, get) => ({
     // Edit list belongs to the workspace under the modal: it closes (an
     // unsaved list keeps its draft).
     get().closeListEditor()
+    // Unsaved work Settings doesn't show (a lens draft kept at phone width):
+    // it opens on that, whatever was asked — never with the work out of sight.
+    const work = unsavedWorkOutOfSight(get())
+    if (work) {
+      set({ settingsOpen: true, ...work })
+      return
+    }
     if (!target) {
       set({ settingsOpen: true })
       return
     }
     const { section, part } = resolveSettingsTarget(target)
     // A control is focused only on the way to a part (the modal clears both once there).
-    set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null })
+    const go = () => set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null })
+    afterSettled(leavesUnsavedWork(get(), section), go)
   },
 
   closeSettings() {
+    const close = () => set({ settingsOpen: false, settingsPart: null, settingsFocus: null })
+    afterSettled(get().settingsOpen && (leaveGuard?.pending() ?? false), close)
+  },
+
+  hideSettings() {
     set({ settingsOpen: false, settingsPart: null, settingsFocus: null })
   },
 
   setSettingsSection(target) {
     const { section, part } = resolveSettingsTarget(target)
-    set({ settingsSection: section, settingsPart: part, settingsFocus: null })
+    afterSettled(leavesUnsavedWork(get(), section), () => set({ settingsSection: section, settingsPart: part, settingsFocus: null }))
   },
 
   clearSettingsPart() {

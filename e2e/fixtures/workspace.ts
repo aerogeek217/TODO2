@@ -149,10 +149,11 @@ export function emptyPredicate(): Record<string, unknown> {
 /**
  * Seeds layouts and list definitions (replacing the app's own), people, tags and
  * tasks straight into IndexedDB, then reloads on the workspace. The app must
- * have booted once (Dexie upgraded) — this opens the workspace (`/#/`) first.
+ * have booted once (Dexie upgraded) — this opens the workspace (`/#/`, or
+ * `url`: a built file's) first.
  */
-export async function seedWorkspace(page: Page, seed: WorkspaceSeed): Promise<void> {
-  await page.goto('/#/')
+export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#/' }: { url?: string } = {}): Promise<void> {
+  await page.goto(url)
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   // Every kind's new tab, as the app makes it: the seeded tabs start from these.
   const newTabs = Object.fromEntries(WIDGET_KINDS.map((kind) => [kind, createTab(kind, '')])) as Record<WidgetKind, LayoutTab>
@@ -353,19 +354,20 @@ type ListDefinitionSeed = NonNullable<WorkspaceSeed['listDefinitions']>[number]
  * Seeds people / tags / statuses / tasks and opens one layout with a single
  * list widget (tab `TASK_LIST_TAB`) over a list named "Tasks" that shows
  * every open task in manual order — a host for task-row specs. `list`
- * overrides the list definition (grouping, predicate, runtime filter, …).
- * Returns the list widget.
+ * overrides the list definition (grouping, predicate, runtime filter, …);
+ * `url` is `seedWorkspace`'s. Returns the list widget.
  */
 export async function seedTaskList(
   page: Page,
   seed: Omit<WorkspaceSeed, 'layouts' | 'listDefinitions'> & { list?: Partial<ListDefinitionSeed> },
+  options: { url?: string } = {},
 ): Promise<Locator> {
   const { list, ...rest } = seed
   await seedWorkspace(page, {
     ...rest,
     listDefinitions: [{ name: 'Tasks', ...list }],
     layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] }] }] }],
-  })
+  }, options)
   const widget = wsListWidget(page, TASK_LIST_TAB)
   await widget.waitFor({ state: 'visible' })
   return widget

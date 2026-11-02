@@ -66,8 +66,8 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
   const today = useToday()
   const sharedPeople = useMemo(() => sharedIds(assignedPeopleMap, ids), [assignedPeopleMap, ids])
   const sharedTags = useMemo(() => sharedIds(assignedTagsMap, ids), [assignedTagsMap, ids])
-  // The follow-up popover edits "the selection": its `Now:` is the tasks'
-  // shared next follow-up (none when none has one), or mixed.
+  // The follow-up popover edits "the selection": what it starts from is the
+  // tasks' shared next follow-up (none when none has one), or mixed.
   const followupNow = useMemo<Date | null | 'mixed'>(() => {
     const days = new Set(selectedTodos.map((t) => (t.nextFollowupAt ? startOfDay(t.nextFollowupAt).getTime() : null)))
     if (days.size > 1) return 'mixed'
@@ -193,7 +193,7 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
           anchor={{ kind: 'ref', ref: followupRef }}
           onClose={close}
           onSetNext={(d) => { void useTodoStore.getState().bulkSetFollowup(list, d) }}
-          onFollowedUp={(next) => { void useTodoStore.getState().markFollowedUp(list, { next }) }}
+          onFollowedUp={(next) => { void useTodoStore.getState().markFollowedUp(list, next === undefined ? undefined : { next }) }}
           current={followupNow}
           followedUpToday={selectedTodos.length > 0 && selectedTodos.every((t) => isFollowedUpToday(t, today))}
         />

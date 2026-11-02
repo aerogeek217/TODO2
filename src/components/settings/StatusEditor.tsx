@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import {
   DndContext,
@@ -21,6 +21,7 @@ import { ColorPicker } from '../shared/ColorPicker'
 import { ConfirmDialog } from '../shared/Dialog'
 import { DragHandle } from '../shared/DragHandle'
 import { StatusIcon, STATUS_ICON_KEYS } from '../shared/StatusIcon'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useSortableRow, useSortableReorderHandler } from '../../hooks/use-sortable-row'
 import { bySortOrder } from '../../utils/sort-order'
@@ -206,10 +207,14 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
   )
 
   const handleDragEnd = useSortableReorderHandler(sorted, (s) => s.id, reorder)
+  // While a row is held, Esc cancels the drag (dnd-kit's), not the editor.
+  const [dragging, setDragging] = useState(false)
+  const draggingRef = useLatestRef(dragging)
+  const escapeBelongsElsewhere = useCallback(() => draggingRef.current, [draggingRef])
 
   return (
     <>
-      <EditorModal title="Statuses" onClose={onClose}>
+      <EditorModal title="Statuses" onClose={onClose} escapeBelongsElsewhere={escapeBelongsElsewhere}>
         <input
           type="text"
           className={styles.searchInput}
@@ -225,7 +230,16 @@ export function StatusEditor({ onClose }: StatusEditorProps) {
           {sorted.length > 0 && visible.length === 0 && (
             <div className={styles.empty}>No matching statuses</div>
           )}
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={() => setDragging(true)}
+            onDragCancel={() => setDragging(false)}
+            onDragEnd={(e) => {
+              setDragging(false)
+              handleDragEnd(e)
+            }}
+          >
             <SortableContext items={visibleIds} strategy={verticalListSortingStrategy}>
               {visible.map((s) => {
                 if (editing && editing.id === s.id) {

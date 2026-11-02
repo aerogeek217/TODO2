@@ -487,6 +487,16 @@ describe('useFilterStore: chips the search box made', () => {
     expect(s().unwindSearchToken()).toBeNull()
   })
 
+  it('a date token replaces an "is not" range, and unwinding it puts the "is not" range back (cr25 P4)', () => {
+    const notSoon = { match: 'range' as const, start: { kind: 'relative' as const, token: 'today' as const }, end: { kind: 'offset' as const, days: 14 }, not: true as const }
+    s().setAllFilters({ ...f(), dates: { followup: notSoon } })
+    s().applySearchTokens([{ raw: 'followup today', clause: { field: 'followup', match: { match: 'range', start: { kind: 'relative', token: 'today' }, end: { kind: 'relative', token: 'today' } } } }])
+    // The token's range is an "is" range: no `not` carried over.
+    expect(f().dates.followup).toEqual({ match: 'range', start: { kind: 'relative', token: 'today' }, end: { kind: 'relative', token: 'today' } })
+    expect(s().unwindSearchToken()).toBe('followup today')
+    expect(f().dates.followup).toEqual(notSoon)
+  })
+
   it('a picker editing a field drops that field\'s box chips only', () => {
     s().applySearchTokens([
       { raw: '@ann', clause: { field: 'personIds', id: 1 } },

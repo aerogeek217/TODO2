@@ -304,6 +304,9 @@ test('Customize dashboard: contract; Esc during a keyboard reorder cancels the m
   await grip.focus()
   await page.keyboard.press('Space')
   await expect(grip).toHaveAttribute('aria-pressed', 'true')
+  // dnd-kit's keyboard sensor adds its keydown listener in a setTimeout after
+  // the pick-up: let that task run, or under load the Esc beats it.
+  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)))
   await page.keyboard.press('Escape')
   await expect(grip).not.toHaveAttribute('aria-pressed', 'true')
   await expect(dialog).toBeVisible()

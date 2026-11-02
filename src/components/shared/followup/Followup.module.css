@@ -21,25 +21,12 @@
   font-size: var(--font-size-task);
 }
 
-/* "Next follow-up" and, at the right, what the task has now (`Now: Tue 10/27`). */
-.fieldLabelRow {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: -4px;
-}
-
+/* "Next follow-up", over the field (what the task has is in the field, or the help line's `Was …`). */
 .fieldLabel {
+  margin-bottom: -4px;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-secondary);
-}
-
-.fieldNow {
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-  white-space: nowrap;
 }
 
 /* ═══ Input (shared by popover + editor) ═══ */

@@ -92,6 +92,19 @@ describe('the keyboard actions', () => {
     expect(useWorkspaceStore.getState().isDirty).toBe(false)
   })
 
+  it('Cycle lens follows a reorder in Settings', async () => {
+    // lens-a (picked) moved last: the next one is lens-b, then lens-c, then lens-a.
+    expect(await settings().moveLens(0, 2)).toBe(true)
+    cycleLens()
+    await vi.waitFor(() => expect(settings().activeLensId).toBeNull())
+    cycleLens()
+    await vi.waitFor(() => expect(settings().activeLensId).toBe('lens-b'))
+    cycleLens()
+    await vi.waitFor(() => expect(settings().activeLensId).toBe('lens-c'))
+    cycleLens()
+    await vi.waitFor(() => expect(settings().activeLensId).toBe('lens-a'))
+  })
+
   it('Cycle lens without any lens says where to make one', () => {
     useSettingsStore.setState({ lenses: [] })
     cycleLens()

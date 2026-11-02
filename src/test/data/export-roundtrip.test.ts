@@ -46,7 +46,7 @@ const FULL_PREDICATE: TodoPredicate = {
     lastFollowup: { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true },
     completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'today' } },
     created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null },
-    modified: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } },
+    modified: { match: 'range', start: { kind: 'offset', days: -7 }, end: { kind: 'relative', token: 'today' }, not: true },
   },
   markers: { urgent: true, important: false },
   tags: [1],
@@ -283,6 +283,7 @@ describe('export → JSON → import round-trip', () => {
     expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(DATE_FIELD_VALUES))
     expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset']))
     expect(clauses.some(([, m]) => m.match === 'range' && m.includeNoDate === true)).toBe(true)
+    expect(clauses.some(([, m]) => m.match === 'range' && m.not === true)).toBe(true)
     const cells = seed.layouts.flatMap((l) => l.columns.flatMap((c) => c.cells))
     const tabs = cells.flatMap((c) => c.tabs)
     expect(cells.some((c) => c.activeTabId !== undefined)).toBe(true)

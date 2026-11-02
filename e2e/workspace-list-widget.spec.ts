@@ -134,12 +134,12 @@ test('a list’s date filters: a due-date range and Follow-up Has a date both na
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
 
-  // + Filter › Dates opens on Due again (it filters); the Next follow-up tab writes nothing until Has a date.
+  // + Filter › Dates opens on the first date type not filtering yet (Due filters): Next follow-up,
+  // which writes nothing until Has a date.
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
-  await expect(picker.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('aria-selected', 'true')
-  await picker.getByRole('tab', { name: 'Next follow-up' }).click()
   await expect(picker.getByRole('tab', { name: 'Next follow-up' })).toHaveAttribute('aria-selected', 'true')
+  await expect(picker.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('aria-selected', 'false')
   await expect(picker.getByLabel('To', { exact: true })).toHaveValue('')
   await expect(rows(page, 't1')).toHaveCount(2)
   await picker.getByRole('radio', { name: 'Has a date' }).click()

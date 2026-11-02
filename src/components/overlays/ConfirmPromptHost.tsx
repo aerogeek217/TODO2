@@ -9,8 +9,9 @@ function focusedElement(): HTMLElement | null {
 }
 
 /**
- * Shows the oldest question in `ui-store.confirmPrompts` (`askConfirmation`)
- * as the shared confirm dialog, above any other dialog. Mounted outside the
+ * Shows the oldest question in `ui-store.confirmPrompts` (`askConfirmation`,
+ * or `askChoice` with its Discard) as the shared confirm dialog, above any
+ * other dialog. Mounted outside the
  * app shell, so a question asked during startup (e.g. while the sync file
  * loads) still shows. Questions asked one after another are one run: once
  * the last is answered, the focus goes back to what had it before the first
@@ -42,6 +43,8 @@ export function ConfirmPromptHost() {
       title={prompt.title}
       message={prompt.message}
       confirmLabel={prompt.confirmLabel}
+      {...(prompt.cancelLabel ? { cancelLabel: prompt.cancelLabel } : {})}
+      {...(prompt.discardLabel ? { discardLabel: prompt.discardLabel, onDiscard: () => answer('discard') } : {})}
       danger={prompt.danger ?? false}
       initialFocus={prompt.cancelIsDefault ? 'cancel' : 'confirm'}
       onConfirm={() => answer(true)}

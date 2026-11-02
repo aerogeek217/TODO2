@@ -1,5 +1,6 @@
-import { DATE_FIELD_VALUES, type DateField, type DateMatch, type TodoItem, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../models'
+import { DATE_FIELD_VALUES, type DateAnchor, type DateField, type DateMatch, type TodoItem, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../models'
 import { startOfDay } from './date'
+import { isNegatableDateField } from './date-filters'
 import { resolveDateAnchor, type WeekStart } from './effective-date'
 import { matchTodoText, textMatchContextFor, type TextMatchContext, type TodoNameLookups } from './filter'
 import { admitsCompleted, composeScreenFilter, predicateToCriteria, type CriteriaClauses, type FilterCriteria } from './filter-criteria'
@@ -106,7 +107,9 @@ function passesOrGroup(group: CriteriaClauses, t: ClauseTask): boolean {
  * groups or as an or group's only alternative, its own or its lens's), the
  * lens, every clause and every or group (at least one clause of each). A People / Status / Tags clause with its "is not"
  * switch passes the tasks the clause without it would fail
- * (`FilterNegation`) — inside an or group as outside.
+ * (`FilterNegation`), and an "is not" date range the dated tasks outside
+ * it and every task without the date (`matchesDateMatch`) — inside an or
+ * group as outside.
  */
 export function matchesFilter(
   filters: FilterCriteria,
@@ -149,20 +152,27 @@ function todoDate(todo: TodoItem, field: DateField): Date | null {
  * Whether a task passes one date clause: Has a date / No date by whether the
  * date is set; a range by the date as a day (anchors resolved against
  * `today`; either end open), a task without the date passing only with
- * `includeNoDate`. A range with neither end passes every task.
+ * `includeNoDate`. An "is not" range (`not`; ignored on Completed, which
+ * has none) passes the dated tasks the range without it fails, and every
+ * task without the date. A range with neither end passes every task.
  */
 export function matchesDateMatch(todo: TodoItem, field: DateField, clause: DateMatch, today: Date, weekStartsOn: WeekStart): boolean {
   const raw = todoDate(todo, field)
   if (clause.match === 'set') return raw != null
   if (clause.match === 'unset') return raw == null
   if (clause.start == null && clause.end == null) return true
-  if (!raw) return clause.includeNoDate === true
-  const d = startOfDay(new Date(raw))
-  if (clause.start != null && d < startOfDay(resolveDateAnchor(clause.start, today, weekStartsOn))) return false
-  if (clause.end != null) {
-    const end = new Date(resolveDateAnchor(clause.end, today, weekStartsOn))
-    end.setHours(23, 59, 59, 999)
-    if (d > end) return false
+  const not = clause.not === true && isNegatableDateField(field)
+  if (!raw) return not || clause.includeNoDate === true
+  return dayInRange(startOfDay(new Date(raw)), clause.start, clause.end, today, weekStartsOn) !== not
+}
+
+/** Whether day `d` is within [start, end] (the end's whole day; either end open). */
+function dayInRange(d: Date, start: DateAnchor | null, end: DateAnchor | null, today: Date, weekStartsOn: WeekStart): boolean {
+  if (start != null && d < startOfDay(resolveDateAnchor(start, today, weekStartsOn))) return false
+  if (end != null) {
+    const last = new Date(resolveDateAnchor(end, today, weekStartsOn))
+    last.setHours(23, 59, 59, 999)
+    if (d > last) return false
   }
   return true
 }

@@ -23,7 +23,7 @@ describe('TaskDefaultsSection — follow-up', () => {
     expect(sw).toHaveAttribute('aria-checked', 'true')
     const interval = screen.getByRole('textbox', { name: 'Follow-up interval' })
     expect(sw.compareDocumentPosition(interval) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(screen.getByText('New tasks and Mark followed up set it to today + the interval. Off: new tasks get none, and Mark followed up clears it.')).toBeInTheDocument()
+    expect(screen.getByText('New tasks and Mark followed up set it to today + the interval. Off: new tasks get none, and Mark followed up clears it. Either way, Mark followed up keeps a next follow-up that’s after today.')).toBeInTheDocument()
     expect(screen.getByText(/^How far ahead new tasks and “Mark followed up” set the next follow-up\./)).toBeInTheDocument()
     fireEvent.click(sw)
     await waitFor(() => expect(useSettingsStore.getState().autoFollowup).toBe(false))

@@ -1,7 +1,7 @@
 import { emptyFilterClauses, OR_GROUPS_MAX, type DateAnchor, type DateFilters, type DateMatch, type FilterClauses, type FilterNegation, type MarkersFilter, type NegatableField, type Person, type Status, type Tag, type TodoPredicate } from '../models'
-import type { DateField } from '../models/app-view'
+import { DATE_FIELD_VALUES, type DateField } from '../models/app-view'
 import { RELATIVE_TOKEN_LABELS } from './date-anchor'
-import { activeDateFields, hasDateFilters, withDateMatch } from './date-filters'
+import { activeDateFields, freeDateField, hasDateFilters, withDateMatch } from './date-filters'
 import { isNegated, withIdFilter, type IdList } from './filter-negation'
 import { DATE_FIELD_LABELS_SHORT, NO_STATUS_LABEL, NO_TAGS_LABEL, UNASSIGNED_LABEL } from './filter-labels'
 import { hasMarkers, MARKERS_LABEL, markersTooltip, markersValue } from './markers'
@@ -21,7 +21,7 @@ export interface FilterChip {
   label: string
   /** Value text, e.g. `within 14 days`, `Alice or Ben`, `#q4`, `not Waiting`, `Urgent, not Important`. */
   value: string
-  /** An "is not" People / Status / Tags chip: its value starts `not `. */
+  /** An "is not" People / Status / Tags chip or date range: its value starts `not ` (or reads `has a tag`). */
   negated?: true
   /**
    * Spelled out for a tooltip — an "is not" chip or a Priority No (what it
@@ -160,19 +160,44 @@ export function describeRange(start: DateAnchor | null, end: DateAnchor | null):
   return ''
 }
 
-/** One date clause in words: `within 14 days`, `by Oct 31, or none`, `has a date`, `no date`. */
+/**
+ * One date clause in words: `within 14 days`, `by Oct 31, or none`, `has a
+ * date`, `no date`; an "is not" range with `not` (`not within 14 days`,
+ * `not 7 days ago – today`).
+ */
 export function describeDateMatch(m: DateMatch): string {
   if (m.match === 'set') return 'has a date'
   if (m.match === 'unset') return 'no date'
   const range = describeRange(m.start, m.end)
+  if (m.not === true) return `not ${range}`
   return m.includeNoDate === true ? `${range}, or none` : range
 }
 
-/** One chip per date type that filters, in tab order: `Due` `within 14 days`, `Created` `from start of month`. */
+/** What an "is not" range hides, by date type (Completed has none), and the undated tasks it keeps. */
+const NOT_RANGE_HIDES: Record<DateField, string> = {
+  deadline: 'Hides tasks due in that range; tasks with no due date stay',
+  followup: 'Hides tasks with a next follow-up in that range; tasks with none stay',
+  lastFollowup: 'Hides tasks last followed up in that range; tasks never followed up stay',
+  completed: 'Hides tasks completed in that range',
+  created: 'Hides tasks created in that range',
+  modified: 'Hides tasks modified in that range',
+}
+
+/**
+ * One chip per date type that filters, in tab order: `Due` `within 14 days`,
+ * `Created` `from start of month`; an "is not" range is marked as an "is
+ * not" id chip is — `not …`, `negated`, a tooltip saying what it hides.
+ */
 function dateChips(dates: DateFilters): FilterChip[] {
   return activeDateFields(dates).flatMap((f) => {
     const m = dates[f]
-    return m ? [{ field: 'dates' as const, dateField: f, label: DATE_FIELD_LABELS_SHORT[f], value: describeDateMatch(m) }] : []
+    if (!m) return []
+    const label = DATE_FIELD_LABELS_SHORT[f]
+    const value = describeDateMatch(m)
+    if (m.match === 'range' && m.not === true) {
+      return [{ field: 'dates' as const, dateField: f, label, value, negated: true as const, tooltip: `${label}: ${value}\n${NOT_RANGE_HIDES[f]}` }]
+    }
+    return [{ field: 'dates' as const, dateField: f, label, value }]
   })
 }
 
@@ -355,13 +380,18 @@ export function removeChip(p: TodoPredicate, chip: Pick<FilterChip, 'field' | 'd
   return withOrGroupClauses(p, orGroup, (c) => clearChipField(c, chip.field, chip.dateField))
 }
 
-/** The fields whose clauses filter in `c` (`dates` when any date type does). */
-export function heldFields(c: FilterClauses): Set<FilterChipField> {
+/**
+ * The fields `c` can't take again: those whose clauses filter there — and
+ * `dates` only when every date type of `dateTypes` (the types the host's
+ * date panel offers) filters, since each date type is its own chip (one
+ * clause per type): while a type is free, Dates adds a chip for it.
+ */
+export function heldFields(c: FilterClauses, dateTypes: readonly DateField[] = DATE_FIELD_VALUES): Set<FilterChipField> {
   const held = new Set<FilterChipField>()
   if (hasMarkers(c.markers)) held.add('markers')
   if (c.tags != null) held.add('tags')
   if (c.personIds != null) held.add('people')
-  if (hasDateFilters(c.dates)) held.add('dates')
+  if (freeDateField(c.dates, dateTypes) == null) held.add('dates')
   if (c.statusIds != null) held.add('status')
   if ((c.searchText ?? '').trim() !== '') held.add('text')
   return held

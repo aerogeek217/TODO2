@@ -3,9 +3,10 @@ import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * Recording a follow-up from a row means "I followed up today": every way
- * to record one stamps the last follow-up now and moves the next one to
- * today + the default interval (1 month — Settings' automatic next follow-up
- * is on; `followup-default.spec` covers it off) — never the planned date. Covers
+ * to record one stamps the last follow-up now; a planned next follow-up after
+ * today is kept, a late one (or none) moves to today + the default interval
+ * (1 month — Settings' automatic next follow-up is on; `followup-default.spec`
+ * covers it off). Covers
  * the row's follow-up pill (planned and late), the empty-slot flag, the
  * task menu, the bulk bar's ⋯ More and its follow-up popover, a dashboard
  * Needs follow-up row and the phone row. (There is no keyboard shortcut for
@@ -19,6 +20,8 @@ import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 
 const NOW = new Date(2026, 9, 10, 15, 30)
 const RECORDED = { last: '2026-10-10 15:30', next: '2026-11-10 00:00' }
+/** Recorded today, the planned next follow-up (after today) kept. */
+const kept = (next: string) => ({ last: RECORDED.last, next: `${next} 00:00` })
 
 interface TodoRow { title: string; nextFollowupAt?: Date; lastFollowupAt?: Date }
 interface TodoStoreModule { useTodoStore: { getState(): { todos: TodoRow[] } } }
@@ -78,7 +81,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
     // The pill of a planned follow-up → the popover's Mark followed up.
     await rowIn(list, 'Planned pill').getByRole('button', { name: 'Follow-up: Tue 13', exact: true }).click()
     await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
-    await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(RECORDED)
+    await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(kept('2026-10-13'))
 
     // A late follow-up's pill.
     await rowIn(list, 'Late pill').getByRole('button', { name: /^Follow-up: Thu 8/ }).click()
@@ -95,7 +98,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
     // The task menu (right-click).
     await titleIn(list, 'From the menu').click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Mark followed up' }).click()
-    await expect.poll(() => followupOf(page, 'From the menu')).toEqual(RECORDED)
+    await expect.poll(() => followupOf(page, 'From the menu')).toEqual(kept('2026-10-15'))
   })
 
   test('the bulk bar: ⋯ More › Mark followed up, and its follow-up popover', async ({ page }) => {
@@ -106,15 +109,15 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await titleIn(list, 'Bulk two').click({ modifiers: ['Control'] })
     await bulkBar.getByRole('button', { name: 'More', exact: true }).click()
     await page.getByRole('menuitem', { name: /^Mark followed up/ }).click()
-    await expect.poll(() => followupOf(page, 'Bulk one')).toEqual(RECORDED)
-    await expect.poll(() => followupOf(page, 'Bulk two')).toEqual(RECORDED)
+    await expect.poll(() => followupOf(page, 'Bulk one')).toEqual(kept('2026-10-20'))
+    await expect.poll(() => followupOf(page, 'Bulk two')).toEqual(kept('2026-10-22'))
 
     await titleIn(list, 'Bulk pop one').click()
     await titleIn(list, 'Bulk pop two').click({ modifiers: ['Control'] })
     await bulkBar.getByRole('button', { name: 'Set follow-up', exact: true }).click()
     await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
-    await expect.poll(() => followupOf(page, 'Bulk pop one')).toEqual(RECORDED)
-    await expect.poll(() => followupOf(page, 'Bulk pop two')).toEqual(RECORDED)
+    await expect.poll(() => followupOf(page, 'Bulk pop one')).toEqual(kept('2026-10-30'))
+    await expect.poll(() => followupOf(page, 'Bulk pop two')).toEqual(kept('2026-10-31'))
   })
 
   test('the popover opens on Mark followed up: ⏎ records today and focus goes back to the pill', async ({ page }) => {
@@ -124,8 +127,8 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await expect(followedUp).toBeFocused()
     await page.keyboard.press('Enter')
     await expect(popover(page)).toBeHidden()
-    await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(RECORDED)
-    await expect(rowIn(list, 'Planned pill').getByRole('button', { name: 'Follow-up: Tue 10 Nov', exact: true })).toBeFocused()
+    await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(kept('2026-10-13'))
+    await expect(rowIn(list, 'Planned pill').getByRole('button', { name: 'Follow-up: Tue 13', exact: true })).toBeFocused()
   })
 
   test('the empty-slot flag opens on Mark followed up too; Esc closes with nothing changed and gives the flag its focus back', async ({ page }) => {
@@ -159,8 +162,8 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await page.getByTestId('list-bulk-bar').getByRole('button', { name: 'Set follow-up', exact: true }).click()
     await expect(popover(page).getByRole('button', { name: /^Mark followed up/ })).toBeFocused()
     await page.keyboard.press('Enter')
-    await expect.poll(() => followupOf(page, 'Bulk pop one')).toEqual(RECORDED)
-    await expect.poll(() => followupOf(page, 'Bulk pop two')).toEqual(RECORDED)
+    await expect.poll(() => followupOf(page, 'Bulk pop one')).toEqual(kept('2026-10-30'))
+    await expect.poll(() => followupOf(page, 'Bulk pop two')).toEqual(kept('2026-10-31'))
   })
 
   test('a dashboard Needs follow-up row', async ({ page }) => {
@@ -183,6 +186,6 @@ test.describe('the phone row', () => {
     const followedUp = popover(page).getByRole('button', { name: /^Mark followed up/ })
     await expect(followedUp).toBeFocused()
     await followedUp.click()
-    await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(RECORDED)
+    await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(kept('2026-10-13'))
   })
 })

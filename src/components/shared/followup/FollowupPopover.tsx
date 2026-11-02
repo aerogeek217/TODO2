@@ -12,6 +12,8 @@ import {
   formatFollowupDate,
   formatWeekdayNumeric,
   isFollowedUpToday,
+  isFollowupOverdue,
+  nextAfterFollowup,
   relativeDayPhrase,
   QUICK_FOLLOWUP_INTERVALS,
 } from '../../../utils/followup'
@@ -28,17 +30,22 @@ interface FollowupPopoverProps {
   onClose: () => void
   /** Set (or with `null`, clear) the next follow-up — nothing else. */
   onSetNext: (date: Date | null) => void
-  /** "Mark followed up": last = now, next = `next` — the Next field's date (`null` = none). */
-  onFollowedUp: (next: Date | null) => void
+  /**
+   * "Mark followed up": last = now and next = `next`, the edited field's date
+   * (`null` = none); `undefined` while the field is untouched — the store's
+   * rule then decides per task (a next follow-up after today is kept).
+   */
+  onFollowedUp: (next?: Date | null) => void
   /**
    * Already followed up today (dims "Mark followed up"). Defaults to `todo`'s own
    * last follow-up; the bulk bar passes "every selected task".
    */
   followedUpToday?: boolean
   /**
-   * The next follow-up there is now — the `Now:` hint, and what ⏎ compares
-   * the field with. Defaults to `todo`'s own; the bulk bar passes the
-   * selection's (`'mixed'` when the tasks differ).
+   * The next follow-up there is now — what the field starts from (kept when
+   * after today), the help line's `Was …`, and what ⏎ compares the field
+   * with. Defaults to `todo`'s own; the bulk bar passes the selection's
+   * (`'mixed'` when the tasks differ: the field starts empty, `Each task’s own`).
    */
   current?: Date | null | 'mixed'
   /**
@@ -49,6 +56,33 @@ interface FollowupPopoverProps {
   initialFocus?: 'followedUp' | 'next'
 }
 
+/** The field's placeholder while a mixed selection's field is untouched. */
+const EACH_TASKS_OWN = 'Each task’s own'
+
+/** What Mark followed up will do, for its tooltip: keep / set / clear. */
+function followedUpTooltip({ untouched, mixed, kept, fieldDate, current, proposal, today }: {
+  untouched: boolean
+  mixed: boolean
+  kept: boolean
+  fieldDate: Date | null | 'invalid'
+  current: Date | null | 'mixed'
+  proposal: Date | null
+  today: Date
+}): string {
+  if (untouched && mixed) {
+    return proposal
+      ? `Record a follow-up today; future next follow-ups are kept, the rest set to ${formatFollowupDate(proposal, today)}`
+      : 'Record a follow-up today; future next follow-ups are kept, the rest cleared'
+  }
+  if (untouched && kept) return 'Record a follow-up today and keep the next follow-up'
+  if (fieldDate === null) {
+    return current === null
+      ? 'Record a follow-up today (no next follow-up)'
+      : 'Record a follow-up today and clear the next follow-up'
+  }
+  return 'Record a follow-up today and set the next follow-up to the date above'
+}
+
 /** Same day, or both none. */
 function sameDay(a: Date | null, b: Date | null): boolean {
   return (a ? startOfDay(a).getTime() : null) === (b ? startOfDay(b).getTime() : null)
@@ -57,18 +91,23 @@ function sameDay(a: Date | null, b: Date | null): boolean {
 /**
  * Small popover for a task's follow-up, opened from the row's follow-up pill,
  * its empty-slot flag, the row menu or the bulk bar. The Next follow-up field
- * opens on what "Mark followed up" will set (Settings' automatic next
- * follow-up: today + the interval, or empty while that is off); the label's
- * `Now:` says what the task has. Mark followed up (focused on open, so ⏎
- * records; or the field, `initialFocus: 'next'`) stamps today and sets the
- * field's date — empty clears it, text that isn't a date disables it. The
+ * opens on what "Mark followed up" will leave (`nextAfterFollowup`): the
+ * task's own next follow-up when it is after today, else Settings' automatic
+ * one (today + the interval, or empty while that is off) — the help line then
+ * says what it was (`Was today` / `Was Mon 11/02 · overdue`). A bulk
+ * selection with mixed dates opens empty (`Each task’s own`). Mark followed up
+ * (focused on open, so ⏎ records; or the field, `initialFocus: 'next'`) stamps
+ * today: with the field untouched it passes no date, so the store's rule
+ * decides per task (a later date kept); edited, the field's date — empty
+ * clears it, text that isn't a date disables it. Its tooltip says which. The
  * field takes an interval or a date, or a day from the browser's date picker
- * (its calendar button); quick buttons set common intervals. Focusing the
- * field (click, Tab) selects its text, so typing replaces the proposal. ⏎ in the field
- * (when it differs from now), a picked day or a quick button sets the next
- * follow-up only and closes; the field's × empties it; Esc / outside click
- * closes without change. On close, focus goes back to what had it before
- * (the trigger) unless something else took it.
+ * (its calendar button); a quick button fills the field with its interval's
+ * date (nothing applied; focus to the field). Focusing the field (click,
+ * Tab) selects its text, so typing replaces it. ⏎ in the field (when it
+ * differs from now) or a picked day sets the next follow-up only and closes;
+ * the field's × empties it; Esc / outside click closes without change. On
+ * close, focus goes back to what had it before (the trigger) unless
+ * something else took it.
  */
 export function FollowupPopover({
   todo, anchor, onClose, onSetNext, onFollowedUp, followedUpToday, current: currentProp, initialFocus = 'followedUp',
@@ -76,13 +115,22 @@ export function FollowupPopover({
   const today = useToday()
   const autoFollowup = useSettingsStore((s) => s.autoFollowup)
   const followupDefaultInterval = useSettingsStore((s) => s.followupDefaultInterval)
-  // What Mark followed up sets unless the field is edited: the field starts on it.
+  // The automatic next follow-up (none while that setting is off).
   const proposal = autoNextFollowup(today, { autoFollowup, followupDefaultInterval })
+  const current = currentProp !== undefined ? currentProp : (todo.nextFollowupAt ?? null)
+  const mixed = current === 'mixed'
+  // What Mark followed up leaves unless the field is edited — the store's
+  // rule: a date after today kept, else the proposal. The field starts on it
+  // (a mixed selection: nothing — each task's own).
+  const ruled = mixed ? null : nextAfterFollowup(current, today, proposal)
+  const kept = !mixed && current !== null && ruled === current
+  // A date today or past that Mark followed up replaces: said under the field.
+  const was = !mixed && current !== null && !kept ? current : null
   const inputRef = useRef<HTMLInputElement>(null)
   const followedUpRef = useRef<HTMLButtonElement>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
-  const input = useFollowupInput(proposal ?? undefined, 'next', today)
+  const input = useFollowupInput(ruled ?? undefined, 'next', today)
   // The field holds a proposal the user usually replaces: focus selects it.
   const selectOnFocus = useSelectAllOnFocus()
   const { panelRef, style, caret } = usePopoverAnchor({ anchor, open: true, onClose, caret: true })
@@ -123,28 +171,26 @@ export function FollowupPopover({
   }, [onSetNext, onClose])
 
   const s = input.state
-  // The field's date: the proposal while untouched, null when empty.
+  const untouched = s.kind === 'unchanged'
+  // The field's date: what it shows while untouched (`ruled`), null when empty.
   const fieldDate: Date | null | 'invalid' =
-    s.kind === 'unchanged' ? proposal : s.kind === 'empty' ? null : s.kind === 'valid' ? s.date : 'invalid'
-  const current = currentProp !== undefined ? currentProp : (todo.nextFollowupAt ?? null)
+    untouched ? ruled : s.kind === 'empty' ? null : s.kind === 'valid' ? s.date : 'invalid'
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter') return
     e.preventDefault()
     if (fieldDate === 'invalid') return
-    // Sets the next follow-up only; a field that says what there is now just closes.
-    if (current === 'mixed' || !sameDay(fieldDate, current)) apply(fieldDate)
+    // Sets the next follow-up only; a field that says what there is now (or,
+    // mixed, nothing typed: each task's own) just closes.
+    if (mixed ? !untouched : !sameDay(fieldDate, current)) apply(fieldDate)
     else onClose()
   }
 
   const { triggerProps: followedUpTipProps, tooltip: followedUpTip } = useTooltip(
-    fieldDate === null
-      ? 'Record a follow-up today and clear the next follow-up'
-      : 'Record a follow-up today and set the next follow-up to the date above',
+    followedUpTooltip({ untouched, mixed, kept, fieldDate, current, proposal, today }),
   )
   // Only highlight "Mark followed up" when it would record something new.
   const doneToday = followedUpToday ?? isFollowedUpToday(todo, today)
-  const nowText = current === 'mixed' ? 'mixed' : current ? formatWeekdayNumeric(current) : 'none'
 
   return createPortal(
     <PopoverRoot
@@ -163,26 +209,23 @@ export function FollowupPopover({
       onKeyDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.stopPropagation()}
     >
-      <div className={styles.fieldLabelRow}>
-        <label className={styles.fieldLabel} htmlFor={`followup-next-${todo.id}`}>Next follow-up</label>
-        <span className={styles.fieldNow} id={`followup-now-${todo.id}`} data-followup-now="">Now: {nowText}</span>
-      </div>
+      <label className={styles.fieldLabel} htmlFor={`followup-next-${todo.id}`}>Next follow-up</label>
       <div className={`${styles.inputWrap} ${s.kind === 'invalid' ? styles.inputWrapError : ''}`}>
         <input
           id={`followup-next-${todo.id}`}
           ref={inputRef}
           className={styles.input}
           value={input.text}
-          placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
+          placeholder={mixed && untouched ? EACH_TASKS_OWN : NEXT_FOLLOWUP_PLACEHOLDER}
           onChange={(e) => input.change(e.target.value)}
           onKeyDown={handleKeyDown}
           {...selectOnFocus}
           aria-invalid={s.kind === 'invalid'}
-          aria-describedby={`followup-now-${todo.id} followup-next-help-${todo.id}`}
+          aria-describedby={`followup-next-help-${todo.id}`}
           autoComplete="off"
           spellCheck={false}
         />
-        {s.kind === 'unchanged' && input.storedHint && (
+        {untouched && input.storedHint && (
           <span className={styles.inputHint}>{input.storedHint}</span>
         )}
         {input.text !== '' && (
@@ -213,11 +256,21 @@ export function FollowupPopover({
           </>
         )}
         {s.kind === 'invalid' && <span className={styles.helpError}>{s.message}</span>}
+        {untouched && was && (isFollowupOverdue({ nextFollowupAt: was, isCompleted: false }, today)
+          ? `Was ${formatWeekdayNumeric(was)} · overdue`
+          : 'Was today')}
+        {untouched && mixed && (proposal
+          ? <>Future dates kept · the rest → <strong className={styles.helpDate}>{formatFollowupDate(proposal, today)}</strong></>
+          : 'Future dates kept · the rest cleared')}
       </div>
       <FollowupQuickButtons
         intervals={QUICK_FOLLOWUP_INTERVALS}
         labelStyle="long"
-        onPick={(i) => apply(addFollowupInterval(today, i))}
+        onPick={(i) => {
+          // Fills the field (nothing applied): ⏎ then sets it, Mark followed up records with it.
+          input.change(formatFollowupDate(addFollowupInterval(today, i), today))
+          inputRef.current?.focus()
+        }}
       />
       <div className={styles.separator} />
       <div className={styles.lastLine}>
@@ -236,7 +289,8 @@ export function FollowupPopover({
         {...followedUpTipProps}
         onClick={() => {
           if (fieldDate === 'invalid') return
-          onFollowedUp(fieldDate)
+          // Untouched: no date — the store keeps a later one per task.
+          onFollowedUp(untouched ? undefined : fieldDate)
           onClose()
         }}
         data-done-today={doneToday ? 'true' : undefined}

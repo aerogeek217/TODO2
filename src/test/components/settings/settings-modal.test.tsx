@@ -1,6 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, act, within, waitFor } from '@testing-library/react'
+import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
 import { SettingsModal } from '../../../components/settings/SettingsModal'
+import { emptyPredicate } from '../../../models/filter-predicate'
+import { useLensDraftStore } from '../../../stores/lens-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -130,5 +133,84 @@ describe('SettingsModal', () => {
     fireEvent.click(screen.getByRole('radio', { name: 'Light' }))
     await waitFor(() => expect(useSettingsStore.getState().themeMode).toBe('light'))
     expect(screen.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')
+  })
+})
+
+describe('SettingsModal with a lens’s unsaved filter edits', () => {
+  beforeEach(() => {
+    useSettingsStore.setState({
+      lensPresetsSeeded: true,
+      lenses: [{ id: 'lens-p', name: 'Plans', predicate: { ...emptyPredicate(), searchText: 'plan' } }],
+    })
+  })
+
+  /** Settings on Tasks › Lenses, Plans open, its text filter removed (a draft). */
+  function drafted() {
+    render(<><SettingsModal /><ConfirmPromptHost /></>)
+    open('lenses')
+    fireEvent.click(within(screen.getByTestId('lens-list')).getByRole('button', { name: /^Plans/ }))
+    fireEvent.click(within(screen.getByTestId('lens-filter')).getByRole('button', { name: 'Remove filter' }))
+    expect(useLensDraftStore.getState().draft?.lensId).toBe('lens-p')
+  }
+  const prompt = () => screen.getByRole('dialog', { name: 'Save changes to lens “Plans”?' })
+  const stillEditing = () => {
+    expect(useUIStore.getState()).toMatchObject({ settingsOpen: true, settingsSection: 'tasks' })
+    expect(within(screen.getByTestId('lens-list')).getByRole('button', { name: /^Plans/ })).toHaveAttribute('aria-expanded', 'true')
+    expect(useLensDraftStore.getState().draft?.lensId).toBe('lens-p')
+  }
+
+  it('× asks; Esc on the prompt is Keep editing — Settings stays on the lens with the draft', async () => {
+    drafted()
+    fireEvent.click(screen.getByRole('button', { name: 'Close settings' }))
+    const save = within(prompt()).getByRole('button', { name: 'Save lens' })
+    expect(save).toHaveFocus()
+    expect(within(prompt()).getByRole('button', { name: /Keep editing/ })).toHaveTextContent('Esc')
+    fireEvent.keyDown(save, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Save changes/ })).toBeNull())
+    stillEditing()
+  })
+
+  it('Esc and a backdrop click ask too; Discard closes, the lens unchanged', async () => {
+    drafted()
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    fireEvent.click(within(prompt()).getByRole('button', { name: /Keep editing/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /Save changes/ })).toBeNull())
+    stillEditing()
+
+    const backdrop = document.querySelector('[data-dialog-backdrop]')!
+    fireEvent.mouseDown(backdrop)
+    fireEvent.click(backdrop)
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(useUIStore.getState().settingsOpen).toBe(false))
+    expect(useSettingsStore.getState().lenses[0]!.predicate.searchText).toBe('plan')
+    expect(useLensDraftStore.getState().draft).toBeNull()
+  })
+
+  it('another section asks; Save saves, then shows it', async () => {
+    drafted()
+    fireEvent.click(screen.getByRole('button', { name: 'Database' }))
+    expect(sectionHeading()).toBe('Tasks')
+    fireEvent.click(within(prompt()).getByRole('button', { name: 'Save lens' }))
+    await waitFor(() => expect(sectionHeading()).toBe('Database'))
+    expect(useSettingsStore.getState().lenses[0]!.predicate.searchText).toBe('')
+  })
+
+  it('reopened after a phone-width close (kept, not asked), the drafted lens is open and Unsaved', () => {
+    drafted()
+    act(() => useUIStore.getState().hideSettings())
+    open()
+    stillEditing()
+    expect(within(screen.getByTestId('lens-list')).getByRole('button', { name: /^Plans/ })).toHaveTextContent('Unsaved')
+  })
+
+  it('reopened after a phone-width close on another section’s link, it shows Tasks › Lenses with the drafted lens focused', () => {
+    drafted()
+    act(() => useUIStore.getState().hideSettings())
+    act(() => useUIStore.getState().setSettingsSection('database'))
+    open('file-storage')
+    expect(sectionHeading()).toBe('Tasks')
+    stillEditing()
+    expect(within(screen.getByTestId('lens-list')).getByRole('button', { name: /^Plans/ })).toHaveFocus()
+    expect(useUIStore.getState()).toMatchObject({ settingsPart: null, settingsFocus: null })
   })
 })

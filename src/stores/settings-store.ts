@@ -89,7 +89,9 @@ interface SettingsState {
   /**
    * "Set a next follow-up automatically": new tasks and "Mark followed up"
    * set it to today + `followupDefaultInterval`; off, new tasks get none and
-   * Mark followed up clears it ({@link autoNextFollowup}). Stored under
+   * Mark followed up clears it ({@link autoNextFollowup}) — Mark followed up
+   * only on a task whose next follow-up isn't after today (one after today is
+   * kept, `utils/followup.nextAfterFollowup`). Stored under
    * `SETTING_KEYS.newTaskFollowup`.
    */
   autoFollowup: boolean
@@ -199,10 +201,21 @@ interface SettingsState {
   addLens: (name: string, predicate?: TodoPredicate) => Promise<string | null>
   /** Renames a lens; a blank name or an unknown id changes nothing (false). */
   renameLens: (id: string, name: string) => Promise<boolean>
-  /** What a lens keeps; an unknown id or the same filter changes nothing. */
-  setLensPredicate: (id: string, predicate: TodoPredicate) => Promise<void>
+  /**
+   * What a lens keeps, as one undo step (`Changed lens “<name>”`); resolves
+   * whether it is saved (the same filter: true, nothing written; an unknown
+   * id: false).
+   */
+  setLensPredicate: (id: string, predicate: TodoPredicate) => Promise<boolean>
   /** Copies a lens right after it (`<name> 2`); resolves the copy's id, or null. */
   duplicateLens: (id: string) => Promise<string | null>
+  /**
+   * Moves the lens at `fromIndex` to `toIndex` (Settings' order — the top
+   * bar picker's, the phone sheet's and Cycle lens's) as one undo step
+   * (`Moved lens “<name>”`), saved at once. An index out of range changes
+   * nothing (false); the same place again: true.
+   */
+  moveLens: (fromIndex: number, toIndex: number) => Promise<boolean>
   /**
    * Seeds the preset lenses once (`utils/lens.presetLenses`; Not waiting
    * only with `waitingId`) after any lenses there are, and records that it
@@ -749,8 +762,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setLensPredicate(id: string, predicate: TodoPredicate) {
     const lens = findLens(get().lenses, id)
-    if (!lens) return
-    await get().setLenses(
+    if (!lens) return false
+    return get().setLenses(
       get().lenses.map((l) => (l.id === id ? { ...l, predicate } : l)),
       `Changed lens “${lens.name}”`,
     )
@@ -764,6 +777,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const copy: Lens = { id: newLensId(lenses), name: uniqueLensName(lenses, lens.name), predicate: lens.predicate }
     const next = [...lenses.slice(0, at + 1), copy, ...lenses.slice(at + 1)]
     return (await get().setLenses(next, `Duplicated lens “${lens.name}”`)) ? copy.id : null
+  },
+
+  async moveLens(fromIndex: number, toIndex: number) {
+    const lenses = [...get().lenses]
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || toIndex < 0 || toIndex >= lenses.length) return false
+    const [lens] = fromIndex >= 0 ? lenses.splice(fromIndex, 1) : []
+    if (!lens) return false
+    if (fromIndex === toIndex) return true
+    lenses.splice(toIndex, 0, lens)
+    return get().setLenses(lenses, `Moved lens “${lens.name}”`)
   },
 
   seedLensPresets(waitingId: number | null) {
@@ -1110,7 +1133,9 @@ export function autoFollowupInterval(s: AutoFollowupSettings): FollowupInterval 
  * popover's proposal, the editor, a check-in sent or its reply applied) and
  * for a new task that names none: the day `now` falls on + the Settings
  * interval while "Set a next follow-up automatically" is on, else none
- * (`null` — Mark followed up then clears the next follow-up). `s` defaults
+ * (`null` — Mark followed up then clears the next follow-up). Mark followed
+ * up applies it only where the task's next follow-up isn't after today
+ * (`utils/followup.nextAfterFollowup`). `s` defaults
  * to the store's current settings; a component passes the ones it subscribes to.
  */
 export function autoNextFollowup(now: Date, s: AutoFollowupSettings = useSettingsStore.getState()): Date | null {

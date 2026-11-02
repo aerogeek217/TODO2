@@ -230,6 +230,40 @@ describe('describeAnchor / describeRange', () => {
   })
 })
 
+describe('an "is not" date range in words (cr25 P4)', () => {
+  const notLastWeek = { match: 'range' as const, start: { kind: 'offset' as const, days: -7 }, end: { kind: 'relative' as const, token: 'today' as const }, not: true as const }
+  const notNext2Weeks = { match: 'range' as const, start: { kind: 'relative' as const, token: 'today' as const }, end: { kind: 'offset' as const, days: 14 }, not: true as const }
+
+  it('reads the range words with `not` (never `, or none`)', () => {
+    expect(describeDateMatch(notLastWeek)).toBe('not 7 days ago – today')
+    expect(describeDateMatch(notNext2Weeks)).toBe('not within 14 days')
+    expect(describeDateMatch({ ...notNext2Weeks, includeNoDate: true })).toBe('not within 14 days')
+    expect(describeDateMatch({ match: 'range', start: null, end: { kind: 'relative', token: 'yesterday' }, not: true })).toBe('not before today')
+  })
+
+  it('a chip marks it as an "is not" id chip does: `not …`, negated, a tooltip saying what it hides and keeps', () => {
+    const p: TodoPredicate = { ...emptyPredicate(), dates: { followup: notNext2Weeks, created: notLastWeek, deadline: { match: 'range', start: null, end: { kind: 'offset', days: 7 } } } }
+    expect(filterChips(p, names)).toEqual([
+      { field: 'dates', dateField: 'deadline', label: 'Due', value: 'up to 7 days ahead' },
+      {
+        field: 'dates', dateField: 'followup', label: 'Next follow-up', value: 'not within 14 days', negated: true,
+        tooltip: 'Next follow-up: not within 14 days\nHides tasks with a next follow-up in that range; tasks with none stay',
+      },
+      { field: 'dates', dateField: 'created', label: 'Created', value: 'not 7 days ago – today', negated: true, tooltip: 'Created: not 7 days ago – today\nHides tasks created in that range' },
+    ])
+  })
+
+  it('every summary built from the chips says it: the line, the hint, the Dates button', () => {
+    const p: TodoPredicate = { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), dates: { lastFollowup: notLastWeek, followup: notNext2Weeks } }] }
+    expect(describeFilters(predicateLineItems(p, names))).toBe('Next follow-up not within 14 days or Last follow-up not 7 days ago – today')
+    expect(datesValue({ followup: notNext2Weeks })).toBe('Next follow-up not within 14 days')
+    expect(datesTooltip({ lastFollowup: notLastWeek, followup: notNext2Weeks })).toBe(
+      'Next follow-up: not within 14 days\nLast follow-up: not 7 days ago – today\nTasks must match both · × clears both',
+    )
+    expect(datesSpokenValue({ followup: notNext2Weeks })).toBe('Next follow-up not within 14 days')
+  })
+})
+
 describe('clearChipField', () => {
   it('clears exactly the chip’s clauses', () => {
     const p = {
@@ -440,7 +474,19 @@ describe('a filter line with or groups', () => {
   })
 
   it('the fields a group holds', () => {
-    expect([...heldFields({ ...hot, personIds: [1], dates: { followup: { match: 'unset' } } })]).toEqual(['markers', 'people', 'dates'])
+    expect([...heldFields({ ...hot, personIds: [1], statusIds: [1] })]).toEqual(['markers', 'people', 'status'])
     expect(heldFields(emptyFilterClauses()).size).toBe(0)
+  })
+
+  it('Dates is held only once every offered date type filters there — each type is its own chip (cr25 P4b)', () => {
+    const set = { match: 'set' as const }
+    const one = { ...emptyFilterClauses(), dates: { lastFollowup: { match: 'range' as const, start: { kind: 'offset' as const, days: -7 }, end: null, not: true as const } } }
+    expect(heldFields(one).has('dates')).toBe(false)
+    const allButCompleted = { ...emptyFilterClauses(), dates: { deadline: set, followup: set, lastFollowup: set, created: { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } }, modified: { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } } } }
+    expect(heldFields(allButCompleted).has('dates')).toBe(false)
+    // A host that leaves Completed out (the check-in): every type it offers filters.
+    expect(heldFields(allButCompleted, ['deadline', 'followup', 'lastFollowup', 'created', 'modified']).has('dates')).toBe(true)
+    const all = { ...allButCompleted, dates: { ...allButCompleted.dates, completed: { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } } } }
+    expect(heldFields(all).has('dates')).toBe(true)
   })
 })

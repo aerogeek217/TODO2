@@ -81,28 +81,50 @@ describe('DateFilterPanel', () => {
     fireEvent.click(tab('Created'))
     expect(log).toHaveLength(1)
     expect(screen.getByLabelText('From (relative)')).toHaveValue('__none__')
-    fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'start-of-month' } })
+    fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'start-of-week' } })
     expect(log.at(-1)).toEqual({
       deadline: { match: 'range', start: today, end: null },
-      created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null },
+      created: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: null },
     })
     expect(tab('Due, filtering')).toHaveAttribute('aria-selected', 'false')
     expect(tab('Created, filtering')).toHaveAttribute('aria-selected', 'true')
   })
 
+  it('From and To offer short lists (Start of week / End of week); a preset fills the editable days field', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} />)
+    const labels = (name: string) => Array.from((screen.getByLabelText(name) as HTMLSelectElement).options).map((o) => o.textContent)
+    const offsets = ['1 week ago', '2 weeks ago', '1 month ago', 'In 1 week', 'In 2 weeks', 'In 1 month']
+    expect(labels('From (relative)')).toEqual(['None', 'Today', 'Start of week', ...offsets, 'Custom offset…'])
+    expect(labels('To (relative)')).toEqual(['None', 'Today', 'End of week', ...offsets, 'Custom offset…'])
+
+    const to = screen.getByLabelText('To (relative)') as HTMLSelectElement
+    const inTwoWeeks = Array.from(to.options).find((o) => o.textContent === 'In 2 weeks')
+    fireEvent.change(to, { target: { value: inTwoWeeks?.value } })
+    expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 14 } } })
+    expect(screen.getByLabelText('To (days offset)')).toHaveValue('14')
+    expect(within(screen.getByRole('tabpanel')).getByText('up to 14 days ahead')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('To (days offset)'), { target: { value: '10' } })
+    expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 10 } } })
+    expect(to.options[to.selectedIndex]?.textContent).toBe('Custom offset…')
+  })
+
   it('Created / Modified have no Show control and no “also tasks with no …”', () => {
     render(<Harness log={[]} initialField="created" />)
-    expect(screen.queryByRole('radiogroup')).toBeNull()
+    expect(screen.queryByRole('radiogroup', { name: 'Which tasks' })).toBeNull()
     expect(screen.queryByText(/Also tasks with no/)).toBeNull()
+    // Its range has Is / Is not, as every type but Completed.
+    expect(screen.getByRole('radiogroup', { name: 'Created: is or is not' })).toBeInTheDocument()
   })
 
   it('Last follow-up: Show, “Also tasks never followed up”, its own words; Clear Last follow-up', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} initialField="lastFollowup" />)
     expect(within(screen.getByRole('tabpanel')).getByText('Last followed up')).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('To (relative)'), { target: { value: 'yesterday' } })
+    fireEvent.change(screen.getByLabelText('To (relative)'), { target: { value: 'today' } })
     fireEvent.click(screen.getByRole('checkbox', { name: 'Also tasks never followed up' }))
-    expect(log.at(-1)).toEqual({ lastFollowup: { match: 'range', start: null, end: { kind: 'relative', token: 'yesterday' }, includeNoDate: true } })
+    expect(log.at(-1)).toEqual({ lastFollowup: { match: 'range', start: null, end: { kind: 'relative', token: 'today' }, includeNoDate: true } })
     expect(tab('Last follow-up, filtering')).toHaveAttribute('data-filtering')
     const group = screen.getByRole('radiogroup', { name: 'Which tasks' })
     fireEvent.click(within(group).getByRole('radio', { name: 'Has a date' }))
@@ -255,6 +277,85 @@ describe('DateFilterPanel', () => {
     fireEvent.keyDown(screen.getByRole('radio', { name: 'In range' }), { key: 'ArrowRight' })
     expect(log.at(-1)).toEqual({ deadline: { match: 'set' } })
     expect(document.activeElement).toBe(screen.getByRole('radio', { name: 'Has a date' }))
+  })
+
+  describe('Is / Is not on the range (cr25 P4)', () => {
+    const isNot = (name: string) => within(screen.getByRole('radiogroup', { name: `${name}: is or is not` })).getByRole('radio', { name: 'Is not' })
+    const is = (name: string) => within(screen.getByRole('radiogroup', { name: `${name}: is or is not` })).getByRole('radio', { name: 'Is' })
+
+    it('Is not before an end writes nothing, then the end writes a negated range; the no-date box gives way to a line', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initialField="followup" />)
+      expect(is('Next follow-up')).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(isNot('Next follow-up'))
+      expect(log).toEqual([])
+      expect(isNot('Next follow-up')).toHaveAttribute('aria-checked', 'true')
+      expect(screen.queryByRole('checkbox')).toBeNull()
+      expect(screen.getByText('Tasks with no next follow-up are kept.')).toBeInTheDocument()
+      fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'today' } })
+      fireEvent.change(screen.getByLabelText('To (relative)'), { target: { value: '__offset:14' } })
+      expect(log.at(-1)).toEqual({ followup: { match: 'range', start: today, end: { kind: 'offset', days: 14 }, not: true } })
+      expect(within(screen.getByRole('tabpanel')).getByText('not within 14 days')).toBeInTheDocument()
+      // Back to Is: the same range, the box back (unticked).
+      fireEvent.click(is('Next follow-up'))
+      expect(log.at(-1)).toEqual({ followup: { match: 'range', start: today, end: { kind: 'offset', days: 14 } } })
+      expect(screen.getByRole('checkbox', { name: 'Also tasks with no next follow-up' })).not.toBeChecked()
+    })
+
+    it('Is not drops “also tasks with no …” (it keeps them anyway)', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initial={{ deadline: { match: 'range', start: null, end: today, includeNoDate: true } }} />)
+      fireEvent.click(isNot('Due'))
+      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: today, not: true } })
+      expect(screen.getByText('Tasks with no due date are kept.')).toBeInTheDocument()
+    })
+
+    it('Has a date and back to In range keeps the Is not', () => {
+      const log: DateFilters[] = []
+      const range = { match: 'range' as const, start: { kind: 'offset' as const, days: -7 }, end: today, not: true as const }
+      render(<Harness log={log} initialField="lastFollowup" initial={{ lastFollowup: range }} />)
+      expect(screen.getByText('Tasks never followed up are kept.')).toBeInTheDocument()
+      fireEvent.click(screen.getByRole('radio', { name: 'Has a date' }))
+      expect(screen.queryByRole('radiogroup', { name: 'Last follow-up: is or is not' })).toBeNull()
+      fireEvent.click(screen.getByRole('radio', { name: 'In range' }))
+      expect(log.at(-1)).toEqual({ lastFollowup: range })
+    })
+
+    it('Created: Is not with no line (every task has the date); Completed has none', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initialField="created" initial={{ created: { match: 'range', start: { kind: 'offset', days: -7 }, end: null } }} />)
+      fireEvent.click(isNot('Created'))
+      expect(log.at(-1)).toEqual({ created: { match: 'range', start: { kind: 'offset', days: -7 }, end: null, not: true } })
+      expect(screen.queryByText(/are kept/)).toBeNull()
+      fireEvent.click(tab('Completed'))
+      expect(screen.queryByRole('radiogroup', { name: 'Completed: is or is not' })).toBeNull()
+    })
+
+    it('a pending Is not is per type: another tab and Clear <Type> leave it; clearing a range keeps its Is not pending', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initialField="deadline" initial={{ created: { match: 'range', start: null, end: today } }} />)
+      fireEvent.click(isNot('Due'))
+      fireEvent.click(tab('Created, filtering'))
+      expect(is('Created')).toHaveAttribute('aria-checked', 'true')
+      fireEvent.click(screen.getByRole('button', { name: 'Clear Created' }))
+      fireEvent.click(tab('Due'))
+      expect(isNot('Due')).toHaveAttribute('aria-checked', 'true')
+      fireEvent.change(screen.getByLabelText('To (relative)'), { target: { value: 'today' } })
+      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: today, not: true } })
+      // To back to None: no clause, the switch stays Is not for the next end.
+      fireEvent.change(screen.getByLabelText('To (relative)'), { target: { value: '__none__' } })
+      expect(log.at(-1)).toEqual({})
+      expect(isNot('Due')).toHaveAttribute('aria-checked', 'true')
+    })
+
+    it('the phone sheet: the touch toggle', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} variant="sheet" initial={{ deadline: { match: 'range', start: today, end: null } }} />)
+      fireEvent.click(isNot('Due'))
+      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: today, end: null, not: true } })
+      expect(screen.queryByRole('switch')).toBeNull()
+      expect(screen.getByText('Tasks with no due date are kept.')).toBeInTheDocument()
+    })
   })
 
   it('the phone sheet variant: a switch for no-date tasks and “Clear all dates”', () => {

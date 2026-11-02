@@ -12,7 +12,9 @@ import styles from './SettingsModal.module.css'
  * headings, and a deep link to a part opens the section scrolled to it. Opening or closing it never changes
  * the route, so it never triggers the unsaved-layout prompt. Esc, × or a
  * backdrop click closes it — unless an editor or dialog a section opened is
- * on top (that layer owns Esc).
+ * on top (that layer owns Esc). With a lens's unsaved filter edits, closing
+ * or another section asks Save / Discard / Keep editing first (`ui-store`'s
+ * `closeSettings` / `setSettingsSection`; the prompt owns Esc while up).
  */
 export function SettingsModal() {
   const open = useUIStore((s) => s.settingsOpen)

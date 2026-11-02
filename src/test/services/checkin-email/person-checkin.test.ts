@@ -131,14 +131,31 @@ describe('sendPersonCheckin', () => {
     const nextOf = (id: number) => useTodoStore.getState().todos.find((t) => t.id === id)?.nextFollowupAt
     expect(nextOf(1)).toEqual(autoNextFollowup(NOW))
     expect(nextOf(1)).not.toBeNull()
+    // The undo entry lands after the write.
+    await vi.waitFor(() => expect(useUndoStore.getState().undoStack).toHaveLength(1))
     await useUndoStore.getState().undo()
+    expect(nextOf(1)).toBeUndefined()
 
     useSettingsStore.setState({ autoFollowup: false })
     await sendPersonCheckin(1)
     await vi.waitFor(() => expect(followedUp()).toEqual([1, 2]))
     expect(nextOf(1)).toBeUndefined()
     expect(nextOf(2)).toBeUndefined()
+    await vi.waitFor(async () => expect((await db.todos.get(1))?.lastFollowupAt).toBeInstanceOf(Date))
     expect((await db.todos.get(1))?.nextFollowupAt).toBeUndefined()
+  })
+
+  it('a send keeps a next follow-up after today (the setting off), and replaces an overdue one', async () => {
+    useSettingsStore.setState({ autoFollowup: false })
+    await db.todos.update(1, { nextFollowupAt: day(5) })
+    await db.todos.update(2, { nextFollowupAt: day(-1) })
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (
+      t.id === 1 ? { ...t, nextFollowupAt: day(5) } : t.id === 2 ? { ...t, nextFollowupAt: day(-1) } : t
+    )) })
+    await sendPersonCheckin(1)
+    await vi.waitFor(async () => expect((await db.todos.get(2))?.lastFollowupAt).toBeInstanceOf(Date))
+    expect((await db.todos.get(1))?.nextFollowupAt).toEqual(day(5))
+    expect((await db.todos.get(2))?.nextFollowupAt).toBeUndefined()
   })
 
   it('starts the clipboard write synchronously, inside the click', () => {

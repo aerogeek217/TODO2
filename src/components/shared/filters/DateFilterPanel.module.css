@@ -164,6 +164,16 @@
   min-width: 0;
 }
 
+/* The range's Is / Is not (`FilterModeToggle`) in the value column, its own margins off. */
+.mode {
+  flex: 1;
+  min-width: 0;
+}
+
+.mode > [role='radiogroup'] {
+  margin: 0;
+}
+
 .showTrack {
   flex: 1;
   grid-template-columns: repeat(3, minmax(0, 1fr));

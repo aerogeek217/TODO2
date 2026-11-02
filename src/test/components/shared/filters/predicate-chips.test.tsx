@@ -47,18 +47,32 @@ describe('PredicateChips — date chips', () => {
     expect(created).toHaveAttribute('aria-expanded', 'true')
   })
 
-  it('+ Filter › Dates opens the panel on the first type that filters, else Due', () => {
-    const { unmount } = render(<Harness initial={{ ...emptyPredicate(), dates: { followup: { match: 'set' } } }} log={[]} />)
+  it('+ Filter › Dates opens the panel on the first type that doesn’t filter yet, so it adds a chip (cr25 P4b)', () => {
+    const log: TodoPredicate[] = []
+    const { unmount } = render(<Harness initial={{ ...emptyPredicate(), dates: { deadline: { match: 'set' } } }} log={log} />)
     fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
-    expect(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('tab', { name: 'Next follow-up, filtering' }))
-      .toHaveAttribute('aria-selected', 'true')
+    const dialog = screen.getByRole('dialog', { name: 'Date filters' })
+    expect(within(dialog).getByRole('tab', { name: 'Next follow-up' })).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Has a date' }))
+    expect(log.at(-1)?.dates).toEqual({ deadline: { match: 'set' }, followup: { match: 'set' } })
+    expect(screen.getAllByTestId('list-filter-chip').map((c) => c.getAttribute('data-date-field'))).toEqual(['deadline', 'followup'])
     unmount()
     render(<Harness initial={emptyPredicate()} log={[]} />)
     fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
     expect(screen.queryByRole('menuitem', { name: /Due date|follow-up date/i })).toBeNull()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
     expect(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('tab', { name: 'Due' }))
+      .toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('+ Filter › Dates with every type filtering opens on the first that filters (the panel’s default)', () => {
+    const set = { match: 'set' as const }
+    const end = { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } }
+    render(<Harness initial={{ ...emptyPredicate(), dates: { deadline: set, followup: set, lastFollowup: set, completed: end, created: end, modified: end } }} log={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
+    expect(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('tab', { name: 'Due, filtering' }))
       .toHaveAttribute('aria-selected', 'true')
   })
 })

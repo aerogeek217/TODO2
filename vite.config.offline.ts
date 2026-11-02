@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { viteSingleFile } from 'vite-plugin-singlefile'
+import { checkOfflineFile, scriptHash, splitHtml, unusedInertTexts } from './scripts/offline-file.ts'
 
 if (existsSync(resolve(import.meta.dirname, 'public/node_modules'))) {
   throw new Error(
@@ -46,17 +47,108 @@ function fileProtocolCompat(): Plugin {
   }
 }
 
-// The single file embeds its fonts as data: URLs; without this the CSP's
-// `font-src 'self'` blocks them and the page falls back to a system font.
-// (Its one inline script is why `script-src` keeps 'unsafe-inline'.)
+// The offline file's Content-Security-Policy: deny by default. The file is
+// opened from disk, where 'self' would admit every file: URL — a UNC path
+// (`file://host/share/…`, an SMB request) among them — so no directive names
+// 'self' and each allows only what the file itself carries. The sync file,
+// imports and exports go through the File System Access API, file inputs and
+// downloads, which no fetch directive governs.
+const SCRIPT_HASH_SLOT = '__OFFLINE_SCRIPT_HASH__'
+
+const OFFLINE_CSP = [
+  "default-src 'none'",
+  // The one inline script (the whole app), by its hash (`offlineScriptHash`).
+  `script-src ${SCRIPT_HASH_SLOT}`,
+  // The built CSS is one inline <style>; React and CodeMirror set styles at run time.
+  "style-src 'unsafe-inline'",
+  // The embedded icons and the data: images in styles (the notes text cursor, CodeMirror's tab arrow).
+  'img-src data:',
+  // The embedded fonts.
+  'font-src data:',
+  "connect-src 'none'",
+  // The check-in preview is a sandboxed srcdoc frame, which fetches nothing.
+  "frame-src 'none'",
+  "object-src 'none'",
+  "worker-src 'none'",
+  "media-src 'none'",
+  "manifest-src 'none'",
+  "base-uri 'none'",
+  "form-action 'none'",
+].join('; ')
+
+const CSP_META = /<meta http-equiv="Content-Security-Policy" content="[^"]*" \/>/g
+
+// Puts the offline policy in place of index.html's (which dev and the online
+// build use), and adds the file's other request guards beside it: no
+// Referer on anything (a link the user follows, the mail app's mailto:), no
+// DNS prefetch of link hosts (the CSP doesn't cover it).
 function offlineCsp(): Plugin {
   return {
     name: 'offline-csp',
     transformIndexHtml(html) {
-      const from = "font-src 'self'"
-      if (!html.includes(from)) throw new Error(`offline build: index.html no longer contains ${JSON.stringify(from)}`)
-      return html.replace(from, "font-src 'self' data:")
+      const metas = html.match(CSP_META) ?? []
+      if (metas.length !== 1) throw new Error(`offline build: index.html should hold one CSP <meta>, found ${metas.length}`)
+      return html.replace(CSP_META, [
+        `<meta http-equiv="Content-Security-Policy" content="${OFFLINE_CSP}" />`,
+        '<meta name="referrer" content="no-referrer" />',
+        '<meta http-equiv="x-dns-prefetch-control" content="off" />',
+      ].join('\n    '))
     },
+  }
+}
+
+// Fills the CSP's script-src with the sha256 of the file's one inline script.
+// The last step (`post`, listed last): `viteSingleFile` has inlined the
+// bundle and `fileProtocolCompat` has moved things by now, so the hash
+// covers the script's final text. Fails the build when the file holds more
+// than one script, loads one, or the hash in the finished file doesn't match.
+function offlineScriptHash(): Plugin {
+  return {
+    name: 'offline-script-hash',
+    enforce: 'post',
+    generateBundle: { order: 'post', handler(_, bundle) {
+      for (const file of Object.values(bundle)) {
+        if (file.type !== 'asset' || !file.fileName.endsWith('.html')) continue
+        const html = String(file.source)
+        const [script, ...more] = splitHtml(html).scripts
+        if (!script || more.length > 0) this.error(`${file.fileName} should hold one <script>, found ${more.length + (script ? 1 : 0)}`)
+        if (/\ssrc\s*=/i.test(script.tag)) this.error(`${file.fileName} loads a script (${script.tag}); the offline file carries its only one inline`)
+        if (html.split(SCRIPT_HASH_SLOT).length !== 2) this.error(`${file.fileName} should hold ${SCRIPT_HASH_SLOT} once, in its CSP`)
+        const hash = scriptHash(script.text)
+        const hashed = html.replace(SCRIPT_HASH_SLOT, () => hash)
+        const final = splitHtml(hashed)
+        const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]*)"/.exec(final.markup)?.[1] ?? ''
+        const [finalScript] = final.scripts
+        if (!finalScript || !csp.includes(`script-src ${scriptHash(finalScript.text)};`)) {
+          this.error(`${file.fileName}: the CSP's script-src doesn't hold the hash of the inline script`)
+        }
+        file.source = hashed
+      }
+    } },
+  }
+}
+
+// The egress check (`scripts/offline-file.checkOfflineFile`) on the finished
+// file, after the hash: fails the build when the file could reach the
+// network — something that loads, a looser CSP, a network API or a URL
+// that isn't on the inert list. An inert entry the file no longer holds
+// only warns (a dependency dropped its text; remove the entry).
+function offlineEgressCheck(): Plugin {
+  return {
+    name: 'offline-egress-check',
+    enforce: 'post',
+    generateBundle: { order: 'post', handler(_, bundle) {
+      for (const file of Object.values(bundle)) {
+        if (file.type !== 'asset' || !file.fileName.endsWith('.html')) continue
+        const html = String(file.source)
+        const problems = checkOfflineFile(html)
+        if (problems.length > 0) {
+          this.error(`${file.fileName} could reach the network (scripts/offline-file.ts):\n${problems.map((p) => `  - ${p}`).join('\n')}`)
+        }
+        const unused = unusedInertTexts(html)
+        if (unused.length > 0) this.warn(`${file.fileName} no longer holds these inert texts; remove them from scripts/offline-file.ts: ${unused.join(', ')}`)
+      }
+    } },
   }
 }
 
@@ -110,18 +202,19 @@ function renameToTodo2(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [react(), viteSingleFile(), offlineCsp(), offlineIcons(), fileProtocolCompat(), renameToTodo2()],
+  plugins: [react(), viteSingleFile(), offlineCsp(), offlineIcons(), fileProtocolCompat(), renameToTodo2(), offlineScriptHash(), offlineEgressCheck()],
   base: './',
   build: {
     emptyOutDir: false,
     cssCodeSplit: false,
     modulePreload: false,
     rolldownOptions: {
-      // viteSingleFile checks every CSP <meta> in the finished HTML, and
-      // the inlined script holds one as text (the check-in preview frame's
-      // `default-src 'none'`), so it warns that inline scripts are blocked.
-      // They aren't: `offlineCsp` keeps 'unsafe-inline' in the page's CSP,
-      // and `e2e/built-csp.spec.ts` runs this build with no CSP violation.
+      // viteSingleFile checks every CSP <meta> in the finished HTML for
+      // 'unsafe-inline' — the page's (which allows its one script by hash,
+      // filled in after this check by `offlineScriptHash`) and the one the
+      // inlined script holds as text (the check-in preview frame's
+      // `default-src 'none'`) —, so it warns that inline scripts are blocked.
+      // They aren't: `e2e/built-csp.spec.ts` runs this build with no CSP violation.
       onLog(level, log, handler) {
         if (log.plugin === 'vite:singlefile' && log.message.includes('does not allow inline <script> code')) return
         handler(level, log)
