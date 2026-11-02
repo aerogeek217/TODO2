@@ -74,17 +74,20 @@ type Rgba = [number, number, number, number]
  * a canvas pixel (whatever the computed form: `rgb()`, `color(srgb …)`, …).
  */
 async function resolve<K extends string>(page: Page, colours: Record<K, string>): Promise<Record<K, Rgba>> {
-  return page.evaluate((cs) => {
+  // Plain entries cross into the page (a generic record reads as `Unboxed<…>` there).
+  const entries: [string, string][] = Object.entries(colours)
+  const resolved = await page.evaluate((cs) => {
     const ctx = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
-    const px = (c: string): [number, number, number, number] => {
+    const px = (c: string): Rgba => {
       ctx.clearRect(0, 0, 1, 1)
       ctx.fillStyle = c
       ctx.fillRect(0, 0, 1, 1)
       const [r, g, b, a] = ctx.getImageData(0, 0, 1, 1).data
       return [r!, g!, b!, a! / 255]
     }
-    return Object.fromEntries(Object.entries(cs).map(([k, v]) => [k, px(v as string)]))
-  }, colours) as Promise<Record<K, Rgba>>
+    return cs.map(([k, v]): [string, Rgba] => [k, px(v)])
+  }, entries)
+  return Object.fromEntries(resolved) as Record<K, Rgba>
 }
 
 /** The theme's tokens, as computed now. */
