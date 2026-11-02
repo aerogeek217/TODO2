@@ -34,7 +34,7 @@ test.describe('Runtime filter × grouping (list widget)', () => {
     const personInput = widget.getByLabel('Filter tasks by person')
     await expect(personInput).toBeVisible()
     await personInput.click()
-    await page.getByRole('button', { name: 'Alice', exact: true }).click()
+    await page.getByRole('option', { name: 'Alice', exact: true }).click()
     await expect(widget.getByRole('button', { name: 'Remove Alice' })).toBeVisible()
 
     const row = (title: string) => widget.locator('[data-todo-id]').filter({ hasText: title })
@@ -50,7 +50,7 @@ test.describe('Runtime filter × grouping (list widget)', () => {
     await widget.getByRole('button', { name: 'Remove Alice' }).click()
     await expect(widget.getByRole('button', { name: 'Remove Alice' })).toHaveCount(0)
     await personInput.click()
-    await page.getByRole('button', { name: 'Bob', exact: true }).click()
+    await page.getByRole('option', { name: 'Bob', exact: true }).click()
     await expect(widget.getByRole('button', { name: 'Remove Bob' })).toBeVisible()
 
     await expect(row('T2 Bob and Charlie'), 'T2 emits under Bob (direct)').toHaveCount(1)

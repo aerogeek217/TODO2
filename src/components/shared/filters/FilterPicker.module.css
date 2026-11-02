@@ -127,8 +127,15 @@
 }
 
 /* A menu's hover tint: shows on either level's surface. */
-.dropdownItem:hover {
+.dropdownItem:hover,
+.dropdownItemSearchPick {
   background: var(--color-tint-8);
+}
+
+/* The search's pick loses its tint while the focus is in the rows: the
+   focused row is the current one then (never two). */
+[role='listbox']:focus-within > .dropdownItemSearchPick:not(:hover) {
+  background: transparent;
 }
 
 .dropdownItem:focus-visible {

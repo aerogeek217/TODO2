@@ -405,7 +405,7 @@ describe('FilterChipBar — primitive', () => {
 
     describe('People picker: Email check-in', () => {
       beforeEach(() => {
-        useUIStore.setState({ checkinDialog: null })
+        useUIStore.setState({ checkinDialog: null, checkinImportOpen: false })
         usePersonStore.setState({
           people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' }), makePerson({ id: 3, name: 'Cara' })],
         })
@@ -427,8 +427,20 @@ describe('FilterChipBar — primitive', () => {
         expect(screen.queryByPlaceholderText('Search...')).toBeNull()
       })
 
-      it('narrowed to several: Email check-in to N people…, ticking exactly those (None ignored)', () => {
+      it('narrowed to one person: Paste reply from <name>… under the send opens the reply import and closes the picker', () => {
+        openPeople([2])
+        const footer = screen.getAllByRole('button', { name: /^(Email check-in|Paste reply)/ }).map((b) => b.textContent)
+        expect(footer).toEqual(['Email check-in to Bob', 'Paste reply from Bob…'])
+        fireEvent.click(screen.getByRole('button', { name: 'Paste reply from Bob…' }))
+        expect(useUIStore.getState().checkinImportOpen).toBe(true)
+        expect(useUIStore.getState().checkinImportPersonId).toBe(2)
+        expect(useUIStore.getState().checkinDialog).toBeNull()
+        expect(screen.queryByPlaceholderText('Search...')).toBeNull()
+      })
+
+      it('narrowed to several: Email check-in to N people…, ticking exactly those (None ignored); no Paste reply', () => {
         openPeople([3, 0, 1])
+        expect(screen.queryByRole('button', { name: /^Paste reply/ })).toBeNull()
         fireEvent.click(screen.getByRole('button', { name: 'Email check-in to 2 people…' }))
         expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1, 3] })
       })
@@ -441,7 +453,7 @@ describe('FilterChipBar — primitive', () => {
       ])('%s: a hint instead of the action', (_label, personIds) => {
         openPeople(personIds)
         expect(screen.getByText('Narrow to some people to email them.')).toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: /^Email check-in/ })).toBeNull()
+        expect(screen.queryByRole('button', { name: /^(Email check-in|Paste reply)/ })).toBeNull()
       })
 
       it('folded: the action closes the Filters menu too', () => {

@@ -212,6 +212,11 @@ interface UIState {
   checkinDialog: { personIds: number[]; notice?: string } | null
   /** The check-in reply import dialog (`CheckinImportDialog`) is open. */
   checkinImportOpen: boolean
+  /**
+   * The person the import was opened for (a person's `Paste reply from …`):
+   * who replied when the reply's footer names nobody of yours. `null`: none.
+   */
+  checkinImportPersonId: number | null
   /** A person's / tag's Edit… or Delete… from its menu (`EntityActionHost`); `null` = none. */
   entityAction: EntityAction | null
 
@@ -269,8 +274,11 @@ interface UIState {
   /** Opens the email check-in dialog with `personIds` ticked (none by default) and an optional `notice`. */
   openCheckinDialog: (personIds?: readonly number[], notice?: string) => void
   closeCheckinDialog: () => void
-  /** Opens the check-in reply import dialog (closing the check-in dialog). */
-  openCheckinImport: () => void
+  /**
+   * Opens the check-in reply import dialog (closing the check-in dialog);
+   * `personId`: the person it is opened for (`checkinImportPersonId`).
+   */
+  openCheckinImport: (opts?: { personId?: number }) => void
   closeCheckinImport: () => void
   openEntityAction: (action: EntityAction) => void
   closeEntityAction: () => void
@@ -304,6 +312,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   settingsFocus: null,
   checkinDialog: null,
   checkinImportOpen: false,
+  checkinImportPersonId: null,
   entityAction: null,
 
   selectOneTodo(id: number) {
@@ -505,12 +514,12 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ checkinDialog: null })
   },
 
-  openCheckinImport() {
-    set({ checkinImportOpen: true, checkinDialog: null })
+  openCheckinImport(opts) {
+    set({ checkinImportOpen: true, checkinImportPersonId: opts?.personId ?? null, checkinDialog: null })
   },
 
   closeCheckinImport() {
-    set({ checkinImportOpen: false })
+    set({ checkinImportOpen: false, checkinImportPersonId: null })
   },
 
   openEntityAction(action) {

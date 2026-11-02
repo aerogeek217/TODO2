@@ -16,18 +16,19 @@
  *   line and use the reply's text only for added / edited lines; the line
  *   diff (`=` / `-` / `+`) is returned for display. Emptied notes are a
  *   change that starts unticked (an accidental delete is likelier).
- * - A task modified in the app on a later day than the email's send date is
- *   `stale`: all its changes start unticked. A task completed since the email
- *   is listed with no changes. Refs that match no task (or several) are
- *   returned as `unmatched` — a deleted task is one of those.
+ * - Every other change starts ticked: the dialog's preview shows what each
+ *   does to the task as it is now, and the user decides (no timestamps are
+ *   compared). A task already completed in the app is listed with no
+ *   changes. Refs that match no task (or several) are returned as
+ *   `unmatched` — a deleted task is one of those.
  */
 import type { PersistedTodoItem } from '../../models'
-import { toDateInputValue } from '../../utils/date'
 import { replaceMarkdownLinks } from '../../utils/markdown-links'
 import { resolveTaskRef } from '../checkin-email/ref'
 import { htmlToMarkdown, mdToHtml } from '../notes-export'
 import type { CheckinReplyBlock, ParsedCheckinReply } from './parse'
 import { collapseWhitespace } from '../../utils/text'
+import { diffSequences, lcsCells, wordDiff, wordTokens, type WordDiffPart } from '../../utils/word-diff'
 
 /** Progress is one line of at most this many characters (as in the task editor). */
 export const CHECKIN_PROGRESS_MAX = 500
@@ -41,6 +42,13 @@ export interface NotesDiffLine {
   /** The line as it reads in the old (`=` / `-`) or new (`+`) notes. */
   text: string
 }
+
+/**
+ * A notes diff line as the import dialog shows it: a kept / removed / added
+ * line, or (`~`) an edited line — a removed line and the added line that
+ * replaces it — as one word diff.
+ */
+export type NotesPreviewLine = NotesDiffLine | { op: '~'; parts: WordDiffPart[] }
 
 export type CheckinChange =
   | {
@@ -61,6 +69,12 @@ export type CheckinChange =
     to: string
     /** The line diff, in order. */
     lines: NotesDiffLine[]
+    /**
+     * The line diff is an LCS (false: the notes were too long for one, so
+     * every line between the common start and end reads removed, then added
+     * — the preview pairs none of them).
+     */
+    exact: boolean
     /** The reply's Notes cell was emptied (the task had notes). */
     emptied: boolean
     defaultSelected: boolean
@@ -70,10 +84,8 @@ export interface CheckinTaskDiff {
   /** The ref as written in the reply. */
   ref: string
   todo: PersistedTodoItem
-  /** Completed in the app since the email: listed, with no changes. */
-  completedSinceSent: boolean
-  /** Modified in the app on a later day than the email was sent: its changes start unticked. */
-  stale: boolean
+  /** Already completed in the app: listed, with no changes. */
+  alreadyCompleted: boolean
   changes: CheckinChange[]
 }
 
@@ -88,7 +100,7 @@ export interface CheckinUnmatchedRef {
 export interface CheckinReplyDiff {
   /** The footer's person name. */
   personName?: string
-  /** The footer's send date, `YYYY-MM-DD`. */
+  /** The footer's send date, `YYYY-MM-DD` (information only). */
   sentDate?: string
   /** One entry per matched task, in reply order. */
   tasks: CheckinTaskDiff[]
@@ -97,8 +109,6 @@ export interface CheckinReplyDiff {
   blockCount: number
   /** Changes over all tasks (ticked or not). */
   changeCount: number
-  /** Tasks flagged `stale`. */
-  staleCount: number
 }
 
 export interface CheckinDiffContext {
@@ -192,56 +202,6 @@ export function replyNotesLines(block: Pick<CheckinReplyBlock, 'notesHtml' | 'no
     .filter((l) => l !== '')
 }
 
-type Op = { op: '='; a: number; b: number } | { op: '-'; a: number } | { op: '+'; b: number }
-
-/** Line diff of keys `a` → `b`: common prefix / suffix, then an LCS of the middle (or replace-all when huge). */
-function diffKeys(a: readonly string[], b: readonly string[]): Op[] {
-  let start = 0
-  while (start < a.length && start < b.length && a[start] === b[start]) start++
-  let endA = a.length
-  let endB = b.length
-  while (endA > start && endB > start && a[endA - 1] === b[endB - 1]) {
-    endA--
-    endB--
-  }
-  const ops: Op[] = []
-  for (let i = 0; i < start; i++) ops.push({ op: '=', a: i, b: i })
-  const n = endA - start
-  const m = endB - start
-  if (n * m > LCS_MAX_CELLS) {
-    for (let i = start; i < endA; i++) ops.push({ op: '-', a: i })
-    for (let j = start; j < endB; j++) ops.push({ op: '+', b: j })
-  } else {
-    // lcs[i][j] = LCS length of a[start+i..endA) and b[start+j..endB).
-    const lcs: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0))
-    for (let i = n - 1; i >= 0; i--) {
-      const row = lcs[i] ?? []
-      const below = lcs[i + 1] ?? []
-      for (let j = m - 1; j >= 0; j--) {
-        row[j] = a[start + i] === b[start + j] ? (below[j + 1] ?? 0) + 1 : Math.max(below[j] ?? 0, row[j + 1] ?? 0)
-      }
-    }
-    let i = 0
-    let j = 0
-    while (i < n || j < m) {
-      if (i < n && j < m && a[start + i] === b[start + j]) {
-        ops.push({ op: '=', a: start + i, b: start + j })
-        i++
-        j++
-      } else if (i < n && (j >= m || (lcs[i + 1]?.[j] ?? 0) >= (lcs[i]?.[j + 1] ?? 0))) {
-        // Removed lines before added ones (an edited line reads `-` then `+`).
-        ops.push({ op: '-', a: start + i })
-        i++
-      } else {
-        ops.push({ op: '+', b: start + j })
-        j++
-      }
-    }
-  }
-  for (let k = 0; k < a.length - endA; k++) ops.push({ op: '=', a: endA + k, b: endB + k })
-  return ops
-}
-
 /**
  * The notes change for a reply, or null when the reply's notes read the same
  * as the current ones (or the reply has no Notes row).
@@ -250,7 +210,8 @@ export function diffNotes(current: string, reply: readonly string[] | null): Ext
   if (reply === null) return null
   const old = currentLines(current)
   const replyKeys = reply.map(notesLineKey)
-  const ops = diffKeys(old.map((l) => l.key), replyKeys)
+  const oldKeys = old.map((l) => l.key)
+  const ops = diffSequences(oldKeys, replyKeys, LCS_MAX_CELLS)
   if (ops.every((o) => o.op === '=')) return null
 
   const lines: NotesDiffLine[] = []
@@ -276,9 +237,108 @@ export function diffNotes(current: string, reply: readonly string[] | null): Ext
     from: current,
     to: out.join('\n'),
     lines,
+    exact: lcsCells(oldKeys, replyKeys) <= LCS_MAX_CELLS,
     emptied,
     defaultSelected: !emptied,
   }
+}
+
+/** Letter / digit words in `text` (spaces and punctuation left out). */
+const countWords = (text: string) => wordTokens(text).filter((t) => /[\p{L}\p{N}]/u.test(t)).length
+
+/** Above this many removed × added lines in one run, the preview pairs none of them. */
+const PAIR_MAX_CELLS = 2_500
+
+/**
+ * A removed line and an added line as one edited line: their word diff, and
+ * how many words it keeps — null when it keeps fewer than half the shorter
+ * line's words (or none): two unrelated lines, shown whole.
+ */
+function editOf(from: string, to: string): { parts: WordDiffPart[]; kept: number } | null {
+  const parts = wordDiff(from, to)
+  const kept = parts.reduce((n, p) => (p.op === '=' ? n + countWords(p.text) : n), 0)
+  const shorter = Math.min(countWords(from), countWords(to))
+  return kept > 0 && kept * 2 >= shorter ? { parts, kept } : null
+}
+
+/**
+ * One run of removed lines followed by added lines, for display: the pairs
+ * that keep the most words in all (in order — a pair never crosses another),
+ * each an edited line (`~`); the lines left stay whole, removed before added
+ * where they meet.
+ */
+function pairRun(removed: readonly NotesDiffLine[], added: readonly NotesDiffLine[]): NotesPreviewLine[] {
+  const n = removed.length
+  const m = added.length
+  if (n === 0 || m === 0 || n * m > PAIR_MAX_CELLS) return [...removed, ...added]
+  const edits = removed.map((r) => added.map((a) => editOf(r.text, a.text)))
+  // best[i][j]: the most kept words pairing removed[i..] with added[j..].
+  const best = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0))
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      const edit = edits[i]?.[j]
+      const row = best[i] ?? []
+      row[j] = Math.max(
+        best[i + 1]?.[j] ?? 0,
+        row[j + 1] ?? 0,
+        edit ? edit.kept + (best[i + 1]?.[j + 1] ?? 0) : 0,
+      )
+    }
+  }
+  const out: NotesPreviewLine[] = []
+  let i = 0
+  let j = 0
+  while (i < n && j < m) {
+    const edit = edits[i]?.[j]
+    const here = best[i]?.[j] ?? 0
+    if (edit && here === edit.kept + (best[i + 1]?.[j + 1] ?? 0)) {
+      out.push({ op: '~', parts: edit.parts })
+      i++
+      j++
+    } else if (here === (best[i + 1]?.[j] ?? 0)) {
+      out.push(...removed.slice(i, i + 1))
+      i++
+    } else {
+      out.push(...added.slice(j, j + 1))
+      j++
+    }
+  }
+  out.push(...removed.slice(i), ...added.slice(j))
+  return out
+}
+
+/**
+ * The notes line diff for display. In each run of removed lines followed by
+ * added lines, a removed line and an added line that keep at least half the
+ * shorter one's words pair up as one edited line (`~`, word-diffed) — the
+ * pairs keeping the most words, in order; every other line stays a whole
+ * remove / add. `exact` false (the line diff was too long for an LCS): no
+ * pairs at all.
+ */
+export function notesPreviewLines(lines: readonly NotesDiffLine[], exact = true): NotesPreviewLine[] {
+  if (!exact) return [...lines]
+  const out: NotesPreviewLine[] = []
+  let removed: NotesDiffLine[] = []
+  let added: NotesDiffLine[] = []
+  const flush = () => {
+    out.push(...pairRun(removed, added))
+    removed = []
+    added = []
+  }
+  for (const line of lines) {
+    if (line.op === '-') {
+      // A removed line after added ones starts a new run.
+      if (added.length > 0) flush()
+      removed.push(line)
+    } else if (line.op === '+') {
+      added.push(line)
+    } else {
+      flush()
+      out.push(line)
+    }
+  }
+  flush()
+  return out
 }
 
 // ── Task diff ───────────────────────────────────────────────────────────
@@ -288,23 +348,16 @@ export function replyProgress(value: string): string {
   return collapseWhitespace(value).slice(0, CHECKIN_PROGRESS_MAX).trim()
 }
 
-/** Whether the task was modified on a later (local) day than `sentDate`. */
-export function isChangedSince(todo: Pick<PersistedTodoItem, 'modifiedAt'>, sentDate: string | undefined): boolean {
-  if (!sentDate) return false
-  return toDateInputValue(todo.modifiedAt) > sentDate
-}
-
-function blockChanges(todo: PersistedTodoItem, block: CheckinReplyBlock, stale: boolean): CheckinChange[] {
+function blockChanges(todo: PersistedTodoItem, block: CheckinReplyBlock): CheckinChange[] {
   const changes: CheckinChange[] = []
-  const ticked = !stale
-  if (block.completed === true) changes.push({ field: 'completed', defaultSelected: ticked })
+  if (block.completed === true) changes.push({ field: 'completed', defaultSelected: true })
   if (block.progress !== undefined) {
     const to = replyProgress(block.progress)
     const from = todo.progress ?? ''
-    if (to !== '' && to !== collapseWhitespace(from)) changes.push({ field: 'progress', from, to, defaultSelected: ticked })
+    if (to !== '' && to !== collapseWhitespace(from)) changes.push({ field: 'progress', from, to, defaultSelected: true })
   }
   const notes = diffNotes(todo.notes ?? '', replyNotesLines(block))
-  if (notes) changes.push({ ...notes, defaultSelected: notes.defaultSelected && ticked })
+  if (notes) changes.push(notes)
   return changes
 }
 
@@ -326,12 +379,11 @@ export function diffCheckinReply(parsed: ParsedCheckinReply, ctx: CheckinDiffCon
     const todo = found.todo
     if (seen.has(todo.id)) continue
     seen.add(todo.id)
-    const stale = isChangedSince(todo, parsed.sentDate)
     if (todo.isCompleted) {
-      tasks.push({ ref: block.ref, todo, completedSinceSent: true, stale, changes: [] })
+      tasks.push({ ref: block.ref, todo, alreadyCompleted: true, changes: [] })
       continue
     }
-    tasks.push({ ref: block.ref, todo, completedSinceSent: false, stale, changes: blockChanges(todo, block, stale) })
+    tasks.push({ ref: block.ref, todo, alreadyCompleted: false, changes: blockChanges(todo, block) })
   }
   return {
     ...(parsed.personName ? { personName: parsed.personName } : {}),
@@ -340,6 +392,5 @@ export function diffCheckinReply(parsed: ParsedCheckinReply, ctx: CheckinDiffCon
     unmatched,
     blockCount: parsed.blocks.length,
     changeCount: tasks.reduce((n, t) => n + t.changes.length, 0),
-    staleCount: tasks.filter((t) => t.stale && !t.completedSinceSent).length,
   }
 }

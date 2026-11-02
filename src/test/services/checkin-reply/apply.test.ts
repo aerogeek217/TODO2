@@ -67,11 +67,10 @@ describe('selection', () => {
     ])
   })
 
-  it('a task changed in the app after the send date starts with nothing ticked', () => {
+  it('a task changed in the app after the send date still starts ticked (no timestamps)', () => {
     useTodoStore.setState({ todos: tasks.map((t) => (t.id === 1 ? { ...t, modifiedAt: new Date(2026, 9, 13, 8) } : t)) })
     const diff = fixtureDiff()
-    expect(diff.tasks.find((t) => t.todo.id === 1)?.stale).toBe(true)
-    expect(defaultCheckinSelection(diff).has(checkinChangeKey(1, 'progress'))).toBe(false)
+    expect(defaultCheckinSelection(diff).has(checkinChangeKey(1, 'progress'))).toBe(true)
     expect(defaultCheckinSelection(diff).has(checkinChangeKey(2, 'completed'))).toBe(true)
   })
 

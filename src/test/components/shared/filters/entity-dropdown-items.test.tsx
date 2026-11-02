@@ -69,7 +69,14 @@ describe('EntityDropdownItems — a person’s / tag’s menu on its rows', () =
 })
 
 describe('EntityDropdownItems — the keyboard', () => {
-  function KeyboardPicker({ onToggle, initial = [] }: { onToggle: (id: number) => void; initial?: number[] }) {
+  function KeyboardPicker({ onToggle, initial = [], entities = people, namePrefix = '@', noneLabel, label = 'People' }: {
+    onToggle: (id: number) => void
+    initial?: number[]
+    entities?: readonly { id?: number; name: string }[]
+    namePrefix?: string
+    noneLabel?: string
+    label?: string
+  }) {
     const [checked, setChecked] = useState<Set<number>>(() => new Set(initial))
     const [text, setText] = useState('')
     return (
@@ -82,14 +89,15 @@ describe('EntityDropdownItems — the keyboard', () => {
       >
         <EntityDropdownItems
           searchText={text}
-          entities={people}
-          label="People"
+          entities={entities}
+          label={label}
+          noneLabel={noneLabel}
           isChecked={(id) => checked.has(id)}
           onToggle={(id) => {
             onToggle(id)
             setChecked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
           }}
-          namePrefix="@"
+          namePrefix={namePrefix}
           entityMenu="person"
           onSearchClear={() => setText('')}
         />
@@ -137,6 +145,156 @@ describe('EntityDropdownItems — the keyboard', () => {
     // ↑ on the first row: back to the search box.
     fireEvent.keyDown(document.activeElement!, { key: 'ArrowUp' })
     expect(screen.getByPlaceholderText('Search...')).toHaveFocus()
+  })
+
+  it('with text typed, Enter in the search toggles the first row shown; the search clears and keeps the focus', () => {
+    usePersonStore.setState({ people })
+    const onToggle = vi.fn()
+    render(<KeyboardPicker onToggle={onToggle} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    fireEvent.change(search, { target: { value: 'ben' } })
+    expect(fireEvent.keyDown(search, { key: 'Enter' })).toBe(false)
+    expect(onToggle).toHaveBeenLastCalledWith(2)
+    expect(search.value).toBe('')
+    expect(search).toHaveFocus()
+    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveAttribute('aria-selected', 'true')
+    // Enter on a ticked row unticks it.
+    fireEvent.change(search, { target: { value: 'ben' } })
+    fireEvent.keyDown(search, { key: 'Enter' })
+    expect(onToggle).toHaveBeenCalledTimes(2)
+    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveAttribute('aria-selected', 'false')
+  })
+
+  it('with text typed, Tab ticks the highlighted row and never unticks it; the search clears and keeps the focus', () => {
+    usePersonStore.setState({ people })
+    const onToggle = vi.fn()
+    render(<KeyboardPicker onToggle={onToggle} initial={[1]} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    fireEvent.change(search, { target: { value: 'ort' } })
+    expect(fireEvent.keyDown(search, { key: 'Tab' })).toBe(false)
+    expect(onToggle).toHaveBeenLastCalledWith(2)
+    expect(search.value).toBe('')
+    expect(search).toHaveFocus()
+    // Alice is ticked already: Tab leaves her ticked, the search still clears.
+    onToggle.mockClear()
+    fireEvent.change(search, { target: { value: 'alice' } })
+    expect(fireEvent.keyDown(search, { key: 'Tab' })).toBe(false)
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(search.value).toBe('')
+    expect(screen.getByRole('option', { name: '@Alice Chen' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('while text is typed the row Tab / Enter pick is highlighted and is the search’s active descendant', () => {
+    usePersonStore.setState({ people })
+    render(<KeyboardPicker onToggle={vi.fn()} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    const highlighted = () => screen.queryAllByRole('option').filter((o) => o.hasAttribute('data-search-pick'))
+    // No text: nothing highlighted.
+    expect(highlighted()).toEqual([])
+    expect(search).not.toHaveAttribute('aria-activedescendant')
+
+    fireEvent.change(search, { target: { value: 'ben' } })
+    const ben = screen.getByRole('option', { name: '@Ben Ortiz' })
+    expect(highlighted()).toEqual([ben])
+    expect(ben.className).toMatch(/dropdownItemSearchPick/)
+    expect(search).toHaveAttribute('aria-activedescendant', ben.id)
+
+    fireEvent.change(search, { target: { value: '' } })
+    expect(highlighted()).toEqual([])
+    expect(search).not.toHaveAttribute('aria-activedescendant')
+  })
+
+  it('a named row always wins; the None row only when no named row is shown', () => {
+    const nPeople = [{ id: 1, name: 'Ada Wu', initials: 'AW' }, { id: 2, name: 'Nate Price', initials: 'NP' }]
+    usePersonStore.setState({ people: nPeople })
+    const onToggle = vi.fn()
+    render(<KeyboardPicker onToggle={onToggle} entities={nPeople} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    const highlighted = () => screen.queryAllByRole('option').filter((o) => o.hasAttribute('data-search-pick')).map((o) => o.textContent)
+    // `n`: None (first on screen, its label starts with n) and Nate — Nate is picked.
+    fireEvent.change(search, { target: { value: 'n' } })
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None', '@Nate Price'])
+    expect(highlighted()).toEqual(['@Nate Price'])
+    fireEvent.keyDown(search, { key: 'Tab' })
+    expect(onToggle).toHaveBeenLastCalledWith(2)
+    // `none`: only None shows — it is picked.
+    fireEvent.change(search, { target: { value: 'none' } })
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None'])
+    expect(highlighted()).toEqual(['None'])
+    fireEvent.keyDown(search, { key: 'Enter' })
+    expect(onToggle).toHaveBeenLastCalledWith(0)
+  })
+
+  it('tags: `no` picks #notes over No tags', () => {
+    const tags = [{ id: 7, name: 'notes' }, { id: 8, name: 'work' }]
+    const onToggle = vi.fn()
+    render(<KeyboardPicker onToggle={onToggle} entities={tags} namePrefix="#" noneLabel="No tags" label="Tags" />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    fireEvent.change(search, { target: { value: 'no' } })
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['No tags', '#notes'])
+    expect(screen.getAllByRole('option').filter((o) => o.hasAttribute('data-search-pick')).map((o) => o.textContent)).toEqual(['#notes'])
+    fireEvent.keyDown(search, { key: 'Enter' })
+    expect(onToggle).toHaveBeenLastCalledWith(7)
+  })
+
+  it('the search is a combobox controlling the rows’ listbox; collapsed when no row shows', () => {
+    usePersonStore.setState({ people })
+    render(<KeyboardPicker onToggle={vi.fn()} />)
+    const search = screen.getByRole('combobox')
+    expect(search).toBe(screen.getByPlaceholderText('Search...'))
+    expect(search).toHaveAttribute('aria-autocomplete', 'list')
+    expect(search).toHaveAttribute('aria-expanded', 'true')
+    expect(search).toHaveAttribute('aria-controls', screen.getByRole('listbox', { name: 'People' }).id)
+    fireEvent.change(search, { target: { value: 'zz' } })
+    expect(screen.queryByRole('listbox')).toBeNull()
+    expect(search).toHaveAttribute('aria-expanded', 'false')
+    expect(search).not.toHaveAttribute('aria-controls')
+  })
+
+  it('↓ from the search goes to the highlighted row while text is typed', () => {
+    usePersonStore.setState({ people })
+    render(<KeyboardPicker onToggle={vi.fn()} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    fireEvent.change(search, { target: { value: 'o' } })
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None', '@Ben Ortiz'])
+    fireEvent.keyDown(search, { key: 'ArrowDown' })
+    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveFocus()
+  })
+
+  it('an IME composition’s Enter / Tab picks nothing', () => {
+    usePersonStore.setState({ people })
+    const onToggle = vi.fn()
+    render(<KeyboardPicker onToggle={onToggle} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    fireEvent.change(search, { target: { value: 'ben' } })
+    expect(fireEvent.keyDown(search, { key: 'Enter', isComposing: true })).toBe(true)
+    expect(fireEvent.keyDown(search, { key: 'Tab', isComposing: true })).toBe(true)
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(search.value).toBe('ben')
+  })
+
+  it('Tab / Enter with no text, Shift+Tab, or no row shown pick nothing (Tab moves on)', () => {
+    usePersonStore.setState({ people })
+    const onToggle = vi.fn()
+    render(<KeyboardPicker onToggle={onToggle} />)
+    const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
+    search.focus()
+    expect(fireEvent.keyDown(search, { key: 'Tab' })).toBe(true)
+    fireEvent.keyDown(search, { key: 'Enter' })
+    fireEvent.change(search, { target: { value: 'ben' } })
+    expect(fireEvent.keyDown(search, { key: 'Tab', shiftKey: true })).toBe(true)
+    fireEvent.change(search, { target: { value: 'zz' } })
+    expect(fireEvent.keyDown(search, { key: 'Tab' })).toBe(true)
+    fireEvent.keyDown(search, { key: 'Enter' })
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(search.value).toBe('zz')
   })
 
   it('the context-menu key on a focused person opens their menu under the row', () => {

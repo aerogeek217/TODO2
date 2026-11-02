@@ -369,6 +369,16 @@ export function EnvelopeIcon({ size = 14 }: { size?: number }) {
   )
 }
 
+/** A reply arrow: a check-in reply pasted back. */
+export function ReplyIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <path d="M6.5 4 3 7.5 6.5 11" />
+      <path d="M3 7.5h6a4 4 0 0 1 4 4V13" />
+    </Svg>
+  )
+}
+
 /** A short bar: the mixed state of a checkbox item. */
 export function DashIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size} strokeWidth={2}><path d="M4.5 8h7" /></Svg>

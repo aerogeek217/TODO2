@@ -60,7 +60,7 @@ test('panel portals to body and flips above the field when the widget sits at th
   const input = wsListWidget(page, 'listTab').getByLabel('Filter tasks by person')
   await expect(input).toBeVisible()
   await input.click()
-  await expect(page.getByRole('button', { name: 'Ada', exact: true })).toBeVisible()
+  await expect(page.getByRole('option', { name: 'Ada', exact: true })).toBeVisible()
 
   const panel = await findPanelRect(page, 'Ada')
   expect(panel).not.toBeNull()
@@ -97,7 +97,7 @@ test('removing the last picked chip returns the widget to its prompt', async ({ 
 
   const input = widget.getByLabel('Filter tasks by person')
   await input.click()
-  await page.getByRole('button', { name: 'Ada', exact: true }).click()
+  await page.getByRole('option', { name: 'Ada', exact: true }).click()
   await page.keyboard.press('Escape')
   const removeChip = widget.getByRole('button', { name: 'Remove Ada' })
   await expect(removeChip).toBeVisible()

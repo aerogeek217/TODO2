@@ -1,4 +1,4 @@
-import { useId, useMemo, useRef, useState } from 'react'
+import { Fragment, useId, useMemo, useRef, useState } from 'react'
 import type { PersistedPerson } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import {
@@ -10,10 +10,12 @@ import {
 } from '../../services/checkin-reply/apply'
 import {
   diffCheckinReply,
+  notesPreviewLines,
   type CheckinChange,
   type CheckinReplyDiff,
   type CheckinTaskDiff,
   type NotesDiffLine,
+  type NotesPreviewLine,
 } from '../../services/checkin-reply/diff'
 import { parseCheckinReply, type CheckinReplyInput } from '../../services/checkin-reply/parse'
 import { advanceRecurring } from '../../utils/recurrence'
@@ -21,13 +23,21 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { autoFollowupInterval, useSettingsStore } from '../../stores/settings-store'
 import { describeFollowupInterval } from '../../utils/followup'
+import { formatDateShort } from '../../utils/date'
 import { useUIStore } from '../../stores/ui-store'
 import { DialogFrame } from '../shared/Dialog'
 import styles from './CheckinImportDialog.module.css'
 import { collapseWhitespace } from '../../utils/text'
 import { byName } from '../../utils/sort-order'
+import { wordDiff, type WordDiffPart } from '../../utils/word-diff'
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+/** `, sent Oct 12` for the footer's send date (`YYYY-MM-DD`); empty without one. Information only. */
+function sentOn(sentDate: string | undefined): string {
+  const [y, m, d] = (sentDate ?? '').split('-').map(Number)
+  if (!y || !m || !d) return ''
+  return `, sent ${formatDateShort(new Date(y, m - 1, d))}`
+}
 const sameName = (a: string, b: string) => collapseWhitespace(a).toLocaleLowerCase() === collapseWhitespace(b).toLocaleLowerCase()
 
 const FIELD_LABEL: Record<CheckinChange['field'], string> = {
@@ -92,11 +102,21 @@ function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: st
 
 /**
  * The check-in reply import dialog (`ui-store.checkinImportOpen`): the user
- * pastes a reply to a check-in email, reviews each proposed change (all
- * ticked except on tasks changed in the app since the email or not assigned
- * to the person who replied, and emptied notes) and applies the ticked ones
- * as one undoable step — optionally
- * recording a follow-up on every task that changed.
+ * pastes a reply to a check-in email, reviews each proposed change against
+ * the task as it is now (all ticked except on tasks not assigned to the
+ * person who replied, and emptied notes) and applies the ticked ones as one
+ * undoable step — optionally recording a follow-up on every task that
+ * changed.
+ *
+ * Each change previews what applying does to the task now: Mark complete,
+ * the progress redlined from its current value, the notes line diff with
+ * each edited line redlined (removed words struck, added words underlined —
+ * `<del>` / `<ins>` with a visually hidden "removed" / "added").
+ *
+ * Who replied comes from the reply's "Check-in for …" footer; when it names
+ * none of your people, the person the dialog was opened for (a person's
+ * `Paste reply from …`, `ui-store.checkinImportPersonId`) is chosen to start
+ * with, else the user chooses.
  *
  * The paste is read from the `paste` event's `text/html` and `text/plain`
  * flavours (no clipboard permission needed). Nothing pasted is rendered as
@@ -112,11 +132,14 @@ export function CheckinImportDialog() {
 
 function CheckinImportPanel() {
   const close = useUIStore((s) => s.closeCheckinImport)
+  const openedForId = useUIStore((s) => s.checkinImportPersonId)
   const allPeople = usePersonStore((s) => s.people)
   const people = useMemo(
     () => allPeople.flatMap((p): PersistedPerson[] => (p.id != null ? [{ ...p, id: p.id }] : [])),
     [allPeople],
   )
+  /** The person the dialog was opened for, while they are one of your people: who replied when the footer names nobody. */
+  const defaultPersonId = openedForId != null && people.some((p) => p.id === openedForId) ? openedForId : null
 
   const [reply, setReply] = useState<ReadReply | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -153,9 +176,9 @@ function CheckinImportPanel() {
     setReply(result.reply)
     const name = result.reply.diff.personName
     const from = name ? people.find((p) => sameName(p.name, name)) : undefined
-    setSelected(selectionFor(result.reply.diff, from?.id ?? null, new Set(), new Set()))
+    setSelected(selectionFor(result.reply.diff, from?.id ?? defaultPersonId, new Set(), new Set()))
     setTouched(new Set())
-    setPickedPersonId(null)
+    setPickedPersonId(from ? null : defaultPersonId)
     requestAnimationFrame(() => panelRef.current?.focus())
   }
 
@@ -224,6 +247,7 @@ function CheckinImportPanel() {
           footerPerson={footerPerson}
           people={people}
           pickedPersonId={pickedPersonId}
+          defaultPersonId={defaultPersonId}
           onPick={(id) => {
             setPickedPersonId(id)
             // The ticks follow who replied: the tasks not theirs unticked, the
@@ -289,12 +313,14 @@ function CheckinImportPanel() {
   )
 }
 
-function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, onPick, onPasteAgain }: {
+function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, defaultPersonId, onPick, onPasteAgain }: {
   reply: ReadReply
   person: PersistedPerson | null
   footerPerson: PersistedPerson | null
   people: PersistedPerson[]
   pickedPersonId: number | null
+  /** The person the dialog was opened for (chosen to start with when the footer names nobody). */
+  defaultPersonId: number | null
   onPick: (id: number | null) => void
   onPasteAgain: () => void
 }) {
@@ -303,9 +329,12 @@ function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, onP
   const counts = [
     `${diff.tasks.length} of ${plural(diff.blockCount, 'task')} matched by Ref`,
     `${plural(diff.changeCount, 'change')} found`,
-    ...(diff.staleCount > 0 ? [`${plural(diff.staleCount, 'task')} changed since the email was sent`] : []),
   ].join(' · ')
   const sortedPeople = useMemo(() => [...people].sort(byName), [people])
+  // Taken as from the person the dialog was opened for (still theirs).
+  const takenAs = !footerPerson && person != null && pickedPersonId != null && pickedPersonId === defaultPersonId
+    ? ` It’s taken as ${person.name}’s reply — change it if someone else replied.`
+    : null
 
   return (
     <div className={styles.summary} data-checkin-summary="">
@@ -340,15 +369,10 @@ function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, onP
         <button type="button" className={styles.againBtn} onClick={onPasteAgain}>Paste again</button>
       </div>
       {footerPerson
-        ? <div className={styles.note}>The person and send date come from the email’s “Check-in for …” footer.</div>
+        ? <div className={styles.note}>The person comes from the email’s “Check-in for …” footer{sentOn(diff.sentDate)}.</div>
         : diff.personName
-          ? <div className={styles.warn}>The footer names “{diff.personName}”, who isn’t one of your people. Choose who replied.</div>
-          : <div className={styles.warn}>No “Check-in for …” footer was found. Choose who replied.</div>}
-      {!diff.sentDate && (
-        <div className={styles.warn}>
-          Without the footer’s send date, tasks changed in the app since the email can’t be flagged. Check each change before applying.
-        </div>
-      )}
+          ? <div className={styles.warn}>The footer names “{diff.personName}”, who isn’t one of your people.{takenAs ?? ' Choose who replied.'}</div>
+          : <div className={styles.warn}>No “Check-in for …” footer was found.{takenAs ?? ' Choose who replied.'}</div>}
     </div>
   )
 }
@@ -369,8 +393,8 @@ function ReplyChanges({ reply, notAssigned, selected, onToggle, recordFollowup, 
   const followupHint = autoInterval
     ? `Last follow-up → today; Next follow-up → today + ${describeFollowupInterval(autoInterval)}`
     : 'Last follow-up → today; Next follow-up cleared'
-  const shown = diff.tasks.filter((t) => t.changes.length > 0 || t.completedSinceSent)
-  const unchanged = diff.tasks.filter((t) => t.changes.length === 0 && !t.completedSinceSent)
+  const shown = diff.tasks.filter((t) => t.changes.length > 0 || t.alreadyCompleted)
+  const unchanged = diff.tasks.filter((t) => t.changes.length === 0 && !t.alreadyCompleted)
 
   return (
     <>
@@ -438,10 +462,8 @@ function TaskCard({ task, notAssignedTo, selected, onToggle }: {
         <span className={styles.cardTitle}>{todo.title}</span>
         <span className={styles.ref}>{task.ref}</span>
       </div>
-      {task.completedSinceSent
-        ? <div className={styles.note}>Completed in the app since this email was sent. Nothing to apply.</div>
-        : task.stale && <div className={styles.warn}>Changed in the app since this email was sent. Check before applying.</div>}
-      {!task.completedSinceSent && notAssignedTo != null && (
+      {task.alreadyCompleted && <div className={styles.note}>Already completed in the app. Nothing to apply.</div>}
+      {!task.alreadyCompleted && notAssignedTo != null && (
         <div className={styles.warn}>Not assigned to {notAssignedTo}. Check before applying.</div>
       )}
       {task.changes.map((change) => {
@@ -474,23 +496,19 @@ function ChangeRow({ change, repeats, checked, onToggle }: {
       <div className={`${styles.changeBody} ${checked ? '' : styles.changeOff}`}>
         {change.field === 'completed' && (
           <div className={styles.fromTo}>
-            <span className={styles.from}><span className={`${styles.dot} ${styles.dotOpen}`} />Open</span>
-            <span className={styles.arrow} aria-hidden="true">→</span>
-            <span className={styles.to}><span className={`${styles.dot} ${styles.dotDone}`} />Completed</span>
+            <span className={styles.to}><span className={`${styles.dot} ${styles.dotDone}`} />Mark complete</span>
             {repeats && <span className={styles.note}>Repeats, so it moves to its next due date.</span>}
           </div>
         )}
         {change.field === 'progress' && (
-          <div className={styles.fromTo}>
-            <span className={styles.from}>{change.from.trim() === '' ? '—' : change.from}</span>
-            <span className={styles.arrow} aria-hidden="true">→</span>
-            <span className={styles.to}>{change.to}</span>
+          <div className={styles.redline} data-checkin-progress-redline="">
+            <ProgressRedline from={change.from} to={change.to} />
           </div>
         )}
         {change.field === 'notes' && (
           <>
             {change.emptied && <div className={styles.warn}>The reply’s Notes are empty: applying removes the task’s notes.</div>}
-            <NotesDiff lines={change.lines} />
+            <NotesDiff lines={change.lines} exact={change.exact} />
           </>
         )}
       </div>
@@ -498,23 +516,52 @@ function ChangeRow({ change, repeats, checked, onToggle }: {
   )
 }
 
-const SIGN: Record<NotesDiffLine['op'], string> = { '=': ' ', '-': '−', '+': '+' }
-const SIGN_LABEL: Record<NotesDiffLine['op'], string | undefined> = { '=': undefined, '-': 'Removed: ', '+': 'Added: ' }
+/** The progress now redlined to the reply's (the word diff kept across re-renders). */
+function ProgressRedline({ from, to }: { from: string; to: string }) {
+  const parts = useMemo(() => wordDiff(collapseWhitespace(from), to), [from, to])
+  return <Redline parts={parts} />
+}
 
-/** The notes line diff, as text: unchanged lines muted, removed struck, added accented. */
-function NotesDiff({ lines }: { lines: readonly NotesDiffLine[] }) {
+/** Leading whitespace, the rest, trailing whitespace. */
+const EDGE_SPACE = /^(\s*)([^]*?)(\s*)$/
+
+/**
+ * A word diff as one line of text: kept words plain, removed words struck
+ * (`<del>`), added words underlined (`<ins>`), each with a visually hidden
+ * "removed" / "added" for screen readers. The spaces at a change's edges stay
+ * outside its mark; a change of spaces alone shows as the new spacing.
+ */
+function Redline({ parts }: { parts: readonly WordDiffPart[] }) {
+  return parts.map((part, i) => {
+    if (part.op === '=') return <Fragment key={i}>{part.text}</Fragment>
+    const [, lead = '', core = '', trail = ''] = EDGE_SPACE.exec(part.text) ?? []
+    if (core === '') return <Fragment key={i}>{part.op === '+' ? part.text : ''}</Fragment>
+    const mark = part.op === '-'
+      ? <del className={styles.del}><span className={styles.srOnly}>removed </span>{core}</del>
+      : <ins className={styles.ins}><span className={styles.srOnly}>added </span>{core}</ins>
+    return <Fragment key={i}>{lead}{mark}{trail}</Fragment>
+  })
+}
+
+const SIGN: Record<NotesPreviewLine['op'], string> = { '=': ' ', '-': '−', '+': '+', '~': '±' }
+const SIGN_LABEL: Record<NotesPreviewLine['op'], string | undefined> = { '=': undefined, '-': 'Removed: ', '+': 'Added: ', '~': 'Edited: ' }
+const LINE_CLASS: Record<NotesPreviewLine['op'], string> = { '=': '', '-': styles.lineRemoved ?? '', '+': styles.lineAdded ?? '', '~': styles.lineEdited ?? '' }
+
+/**
+ * The notes line diff, as text: unchanged lines muted, removed struck, added
+ * accented, each edited line (a removed line and its replacement) one
+ * redlined line.
+ */
+function NotesDiff({ lines, exact }: { lines: readonly NotesDiffLine[]; exact: boolean }) {
+  const shown = useMemo(() => notesPreviewLines(lines, exact), [lines, exact])
   return (
     <div className={styles.diff} data-checkin-notes-diff="">
-      {lines.map((line, i) => (
-        <div
-          key={i}
-          className={`${styles.line} ${line.op === '-' ? styles.lineRemoved : line.op === '+' ? styles.lineAdded : ''}`}
-          data-op={line.op}
-        >
+      {shown.map((line, i) => (
+        <div key={i} className={`${styles.line} ${LINE_CLASS[line.op]}`} data-op={line.op}>
           <span className={styles.sign} aria-hidden="true">{SIGN[line.op]}</span>
           <span className={styles.lineText}>
             {SIGN_LABEL[line.op] && <span className={styles.srOnly}>{SIGN_LABEL[line.op]}</span>}
-            {line.text}
+            {line.op === '~' ? <Redline parts={line.parts} /> : line.text}
           </span>
         </div>
       ))}

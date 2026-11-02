@@ -4,8 +4,9 @@ import {
   CHECKIN_PROGRESS_MAX,
   diffCheckinReply,
   diffNotes,
-  isChangedSince,
   notesLineKey,
+  notesPreviewLines,
+  type NotesDiffLine,
   type CheckinChange,
   type CheckinReplyDiff,
 } from '../../../services/checkin-reply/diff'
@@ -38,7 +39,6 @@ describe('diffCheckinReply — an unedited reply', () => {
     expect(diff.tasks).toHaveLength(4)
     expect(diff.changeCount).toBe(0)
     expect(diff.unmatched).toEqual([])
-    expect(diff.staleCount).toBe(0)
     expect(diff).toMatchObject({ personName: 'Marcus Chen', sentDate: '2026-10-12', blockCount: 4 })
   })
 
@@ -60,13 +60,13 @@ describe('Completed', () => {
     expect(changesOf(diff, '0c4d8e17')).toEqual([])
   })
 
-  it('never reopens: a task completed since the email is listed with no changes', () => {
+  it('never reopens: a task already completed in the app is listed with no changes', () => {
     const todos = checkinSampleTasks().map((t) => (t.id === 2 ? { ...t, isCompleted: true, completedAt: new Date(2026, 9, 12, 15) } : t))
     let plain = editPlain(sampleEmail().plain, 'b71e05d9', 'Completed:', ['Completed: [ ]'])
     plain = editPlain(plain, 'b71e05d9', 'Progress:', ['Progress: 90%'])
     const diff = diffCheckinReply(parse({ plain }), { todos })
     const task = diff.tasks.find((t) => t.ref === 'b71e05d9')
-    expect(task).toMatchObject({ completedSinceSent: true, changes: [] })
+    expect(task).toMatchObject({ alreadyCompleted: true, changes: [] })
   })
 })
 
@@ -169,14 +169,94 @@ describe('Notes', () => {
     expect(notesLineKey('## Heading')).toBe('Heading')
   })
 
-  it('stays fast on huge notes', () => {
+  it('stays fast on huge notes (no LCS: not exact, so the preview pairs nothing)', () => {
     const old = Array.from({ length: 3000 }, (_, i) => `old line ${i}`).join('\n')
     const next = Array.from({ length: 3000 }, (_, i) => `new line ${i}`)
-    expectWithin(5000, () => expect(diffNotes(old, next)?.lines).toHaveLength(6000))
+    expectWithin(5000, () => {
+      const change = diffNotes(old, next)
+      expect(change?.lines).toHaveLength(6000)
+      expect(change?.exact).toBe(false)
+      expect(notesPreviewLines(change?.lines ?? [], change?.exact)).toHaveLength(6000)
+    })
+    expect(diffNotes('a\nb', ['a', 'c'])?.exact).toBe(true)
   })
 })
 
-describe('stale tasks (changed in the app since the email)', () => {
+describe('notesPreviewLines (the dialog’s redline pairing)', () => {
+  const l = (op: NotesDiffLine['op'], text: string): NotesDiffLine => ({ op, text })
+
+  it('a removed line followed by its replacement: one edited line, word-diffed', () => {
+    expect(notesPreviewLines([l('=', 'Keep'), l('-', 'Dry run on staging'), l('+', 'Dry run on staging by Friday'), l('=', 'End')])).toEqual([
+      l('=', 'Keep'),
+      { op: '~', parts: [{ op: '=', text: 'Dry run on staging' }, { op: '+', text: ' by Friday' }] },
+      l('=', 'End'),
+    ])
+  })
+
+  it('a run of removes then adds pairs in order; extra lines stay whole', () => {
+    const shown = notesPreviewLines([l('-', 'one a'), l('-', 'two b'), l('-', 'three c'), l('+', 'one A'), l('+', 'two B')])
+    expect(shown.map((x) => x.op)).toEqual(['~', '~', '-'])
+    expect(shown[2]).toEqual(l('-', 'three c'))
+    const more = notesPreviewLines([l('-', 'one a'), l('+', 'one A'), l('+', 'brand new')])
+    expect(more.map((x) => x.op)).toEqual(['~', '+'])
+  })
+
+  it('lone adds and removes, and adds before removes, stay whole lines', () => {
+    expect(notesPreviewLines([l('+', 'new'), l('=', 'k'), l('-', 'old')])).toEqual([l('+', 'new'), l('=', 'k'), l('-', 'old')])
+    expect(notesPreviewLines([l('+', 'x y'), l('-', 'x z')])).toEqual([l('+', 'x y'), l('-', 'x z')])
+  })
+
+  it('a pair that shares no word stays a whole removed and a whole added line', () => {
+    expect(notesPreviewLines([l('-', 'Call the vendor.'), l('+', 'Signed off!')])).toEqual([l('-', 'Call the vendor.'), l('+', 'Signed off!')])
+  })
+
+  it('a pair keeping fewer than half the shorter line’s words stays whole (one shared `the` is not an edit)', () => {
+    expect(notesPreviewLines([l('-', 'Ordered the parts on Monday'), l('+', 'Call the vendor about pricing')]))
+      .toEqual([l('-', 'Ordered the parts on Monday'), l('+', 'Call the vendor about pricing')])
+    // Half exactly is enough: 2 of 4.
+    expect(notesPreviewLines([l('-', 'ship the beta build'), l('+', 'ship the final release')]).map((x) => x.op)).toEqual(['~'])
+  })
+
+  it('a deleted line before an edited one: the edit pairs with its own line, the deleted line shows whole', () => {
+    // Current: L1 `Ordered the parts on Monday`, L2 `Call the vendor about the quote`;
+    // the reply deletes L1 and edits L2.
+    const lines = diffNotes('Ordered the parts on Monday\nCall the vendor about the quote', ['Call the vendor about pricing'])?.lines ?? []
+    expect(lines).toEqual([
+      l('-', 'Ordered the parts on Monday'),
+      l('-', 'Call the vendor about the quote'),
+      l('+', 'Call the vendor about pricing'),
+    ])
+    expect(notesPreviewLines(lines)).toEqual([
+      l('-', 'Ordered the parts on Monday'),
+      {
+        op: '~',
+        parts: [{ op: '=', text: 'Call the vendor about ' }, { op: '-', text: 'the quote' }, { op: '+', text: 'pricing' }],
+      },
+    ])
+  })
+
+  it('pairs by best overlap in order: an added line before the edit stays whole', () => {
+    const shown = notesPreviewLines([l('-', 'Book the venue for May'), l('+', 'Brand new idea'), l('+', 'Book the venue for June')])
+    expect(shown).toEqual([
+      l('+', 'Brand new idea'),
+      { op: '~', parts: [{ op: '=', text: 'Book the venue for ' }, { op: '-', text: 'May' }, { op: '+', text: 'June' }] },
+    ])
+  })
+
+  it('pairs never cross: the order of the notes is kept', () => {
+    const shown = notesPreviewLines([l('-', 'alpha one'), l('-', 'beta two'), l('+', 'beta two X'), l('+', 'alpha one X')])
+    // One of the two crossing pairs is kept; the other two lines stay whole.
+    expect(shown.filter((x) => x.op === '~')).toHaveLength(1)
+    expect(shown).toHaveLength(3)
+  })
+
+  it('pairs nothing when the line diff was too long for an LCS', () => {
+    const lines = [l('-', 'one a'), l('+', 'one A')]
+    expect(notesPreviewLines(lines, false)).toEqual(lines)
+  })
+})
+
+describe('ticking (no timestamps)', () => {
   const edited = () => {
     let plain = editPlain(sampleEmail().plain, '0c4d8e17', 'Completed:', ['Completed: [x]'])
     plain = editPlain(plain, '0c4d8e17', 'Progress:', ['Progress: section 4 done'])
@@ -186,25 +266,23 @@ describe('stale tasks (changed in the app since the email)', () => {
   const withModified = (modifiedAt: Date): PersistedTodoItem[] =>
     checkinSampleTasks().map((t) => (t.id === 1 ? { ...t, modifiedAt } : t))
 
-  it('modified on a later day: flagged, every change unticked', () => {
-    const diff = diffCheckinReply(edited(), { todos: withModified(new Date(2026, 9, 13, 0, 5)) })
+  it.each([
+    ['before the send date', new Date(2026, 9, 10)],
+    ['on the send date', new Date(2026, 9, 12, 23, 50)],
+    ['after the send date', new Date(2026, 9, 13, 0, 5)],
+    ['long after', new Date(2030, 0, 1)],
+  ])('a task modified %s: every change starts ticked, nothing flagged', (_, modifiedAt) => {
+    const diff = diffCheckinReply(edited(), { todos: withModified(modifiedAt) })
     const task = diff.tasks.find((t) => t.ref === '0c4d8e17')
-    expect(task?.stale).toBe(true)
-    expect(task?.changes.map((c) => [c.field, c.defaultSelected])).toEqual([['completed', false], ['progress', false], ['notes', false]])
-    expect(diff.staleCount).toBe(1)
+    expect(task?.changes.map((c) => [c.field, c.defaultSelected])).toEqual([['completed', true], ['progress', true], ['notes', true]])
+    expect(Object.keys(task ?? {}).sort()).toEqual(['alreadyCompleted', 'changes', 'ref', 'todo'])
+    expect(Object.keys(diff)).not.toContain('staleCount')
   })
 
-  it('modified on the send day (sending records a follow-up): not flagged', () => {
-    const diff = diffCheckinReply(edited(), { todos: withModified(new Date(2026, 9, 12, 23, 50)) })
-    const task = diff.tasks.find((t) => t.ref === '0c4d8e17')
-    expect(task?.stale).toBe(false)
-    expect(task?.changes.every((c) => c.defaultSelected)).toBe(true)
-  })
-
-  it('without a footer date nothing is flagged', () => {
-    expect(isChangedSince({ modifiedAt: new Date(2030, 0, 1) }, undefined)).toBe(false)
-    expect(isChangedSince({ modifiedAt: new Date(2026, 9, 13) }, '2026-10-12')).toBe(true)
-    expect(isChangedSince({ modifiedAt: new Date(2026, 9, 12, 23, 59) }, '2026-10-12')).toBe(false)
+  it('without a footer date: the same ticks', () => {
+    const diff = diffCheckinReply({ ...edited(), sentDate: undefined }, { todos: withModified(new Date(2030, 0, 1)) })
+    expect(diff.sentDate).toBeUndefined()
+    expect(diff.tasks.find((t) => t.ref === '0c4d8e17')?.changes.every((c) => c.defaultSelected)).toBe(true)
   })
 })
 

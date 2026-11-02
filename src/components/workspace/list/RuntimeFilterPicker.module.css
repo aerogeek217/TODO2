@@ -141,7 +141,8 @@
   user-select: none;
 }
 
-.option:hover {
+.option:hover,
+.option.active {
   background: var(--color-tint-8);
 }
 

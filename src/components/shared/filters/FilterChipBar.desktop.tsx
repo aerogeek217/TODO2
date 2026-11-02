@@ -18,6 +18,7 @@ import {
   CloseIcon,
   EnvelopeIcon,
   HashIcon,
+  ReplyIcon,
   StatusRingIcon,
   WidgetKindIcon,
 } from '../icons'
@@ -125,8 +126,10 @@ function FieldPanelBody({ field, onDone, onCloseAll = onDone }: { field: FieldDe
 /**
  * The People picker's footer while the filter is narrowed to some (not all,
  * not none) people: `Email check-in to <name>` emails that one person at
- * once (`sendPersonCheckin`); `Email check-in to N people…` opens the
- * check-in dialog with exactly those people ticked. Else a hint.
+ * once (`sendPersonCheckin`), and `Paste reply from <name>…` under it opens
+ * the check-in reply import (which reads the person from the reply);
+ * `Email check-in to N people…` opens the check-in dialog with exactly those
+ * people ticked (it has its own Paste a reply…). Else a hint.
  */
 function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number; name: string }[]; onDone: () => void }) {
   const only = people.length === 1 ? people[0] : undefined
@@ -136,19 +139,34 @@ function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number
       {people.length === 0 ? (
         <div className={styles.checkinHint}>Narrow to some people to email them.</div>
       ) : (
-        <button
-          type="button"
-          className={styles.checkinAction}
-          onClick={() => {
-            // The one-person send first, inside the click: its clipboard write needs the gesture.
-            if (only) void sendPersonCheckin(only.id)
-            else useUIStore.getState().openCheckinDialog(people.map((p) => p.id))
-            onDone()
-          }}
-        >
-          <EnvelopeIcon />
-          {only ? `Email check-in to ${only.name}` : `Email check-in to ${people.length} people…`}
-        </button>
+        <>
+          <button
+            type="button"
+            className={styles.checkinAction}
+            onClick={() => {
+              // The one-person send first, inside the click: its clipboard write needs the gesture.
+              if (only) void sendPersonCheckin(only.id)
+              else useUIStore.getState().openCheckinDialog(people.map((p) => p.id))
+              onDone()
+            }}
+          >
+            <EnvelopeIcon />
+            {only ? `Email check-in to ${only.name}` : `Email check-in to ${people.length} people…`}
+          </button>
+          {only && (
+            <button
+              type="button"
+              className={styles.checkinAction}
+              onClick={() => {
+                useUIStore.getState().openCheckinImport({ personId: only.id })
+                onDone()
+              }}
+            >
+              <ReplyIcon />
+              {`Paste reply from ${only.name}…`}
+            </button>
+          )}
+        </>
       )}
     </>
   )

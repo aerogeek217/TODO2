@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { createContext, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { MARKER_KEYS, type MarkerKey, type MarkersFilter } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
 import { ClearableField } from '../ClearableField'
@@ -165,13 +165,49 @@ function focusSearchAbove(list: HTMLElement) {
   }
 }
 
-/** The first row's tab stop of the listbox after `search` in its picker. */
+/**
+ * Into the listbox after `search` in its picker: the row the search
+ * highlights (`data-search-pick`) when there is one, else the rows' tab stop.
+ */
 function focusRowsBelow(search: HTMLElement): boolean {
   for (let el: HTMLElement | null = search.parentElement; el; el = el.parentElement) {
-    const row = el.querySelector<HTMLElement>('[role="listbox"] [role="option"][tabindex="0"]')
+    const row = el.querySelector<HTMLElement>('[role="listbox"] [role="option"][data-search-pick]')
+      ?? el.querySelector<HTMLElement>('[role="listbox"] [role="option"][tabindex="0"]')
     if (row) { row.focus(); return true }
   }
   return false
+}
+
+/**
+ * The search box's pick: the row the rows below highlight for the search
+ * (`searchPickId`), through their own pick — ticked (`tickOnly`, never
+ * unticked) or toggled; the search clears. False when no row is highlighted.
+ */
+type SearchPick = (tickOnly: boolean) => boolean
+
+/** How `SelectionPanelBody`'s search reaches the `EntityDropdownItems` below it. */
+interface SearchPickLink {
+  /** The rows register their `SearchPick` (`null` on unmount). */
+  registerPick: (pick: SearchPick | null) => void
+  /** The highlighted row's element id, for the search's `aria-activedescendant`. */
+  setActiveDescendant: (id: string | undefined) => void
+  /** The rows' listbox id: the search (a combobox) controls it. */
+  listboxId: string
+  /** Whether the listbox is shown (no rows: it isn't — the search is collapsed). */
+  setListboxShown: (shown: boolean) => void
+}
+
+const SearchPickContext = createContext<SearchPickLink | null>(null)
+
+/**
+ * The row Tab / Enter in the search picks (and the rows highlight), with text
+ * `q` typed (trimmed, lower case): a named row (a person / tag / status)
+ * always wins — the first one shown; the None row only when no named row is
+ * shown (`none` typed, say). `rowIds` in their order on screen, None as 0.
+ */
+function searchPickId(q: string, rowIds: readonly number[]): number | undefined {
+  if (!q) return undefined
+  return rowIds.find((id) => id !== 0) ?? (rowIds.includes(0) ? 0 : undefined)
 }
 
 interface SelectionPanelBodyProps {
@@ -192,10 +228,28 @@ interface SelectionPanelBodyProps {
   children: ReactNode
 }
 
-/** An optional Is / Is not toggle, Select all / Deselect all, an optional search box (× clears it), then the items. */
+/**
+ * An optional Is / Is not toggle, Select all / Deselect all, an optional search
+ * box (× clears it), then the items. With text typed in the search, the rows
+ * highlight the one Tab / Enter pick (`searchPickId`; the search's
+ * `aria-activedescendant`): Tab ticks it (never unticks it), Enter toggles it;
+ * the search clears and the focus stays in it (as the people / tag pickers' Tab).
+ * ↓ goes into the rows — to that row while there is one. The search is a
+ * combobox controlling the rows' listbox.
+ */
 export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAll, onDeselectAll, search, searchInputRef, children }: SelectionPanelBodyProps) {
   const ownSearchRef = useRef<HTMLInputElement>(null)
   const searchRef = searchInputRef ?? ownSearchRef
+  const pickRef = useRef<SearchPick | null>(null)
+  const [activeDescendant, setActiveDescendant] = useState<string | undefined>(undefined)
+  const [listboxShown, setListboxShown] = useState(false)
+  const listboxId = useId()
+  const link = useMemo<SearchPickLink>(() => ({
+    registerPick: (pick) => { pickRef.current = pick },
+    setActiveDescendant,
+    listboxId,
+    setListboxShown,
+  }), [listboxId])
   return (
     <>
       {mode && <FilterModeToggle {...mode} />}
@@ -233,9 +287,24 @@ export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAl
               value={search.text}
               onChange={(e) => search.setText(e.target.value)}
               {...{ [ESCAPE_CLEARS_ATTR]: '', [PICKER_SEARCH_ATTR]: '' }}
+              role="combobox"
+              aria-expanded={listboxShown}
+              aria-controls={listboxShown ? listboxId : undefined}
+              aria-autocomplete="list"
+              aria-activedescendant={search.text.trim() ? activeDescendant : undefined}
               onKeyDown={(e) => {
                 if (e.key === 'ArrowDown') {
                   if (focusRowsBelow(e.currentTarget)) e.preventDefault()
+                  return
+                }
+                if (e.key === 'Enter' || (e.key === 'Tab' && !e.shiftKey)) {
+                  // An IME's Enter / Tab ends the composition; it picks nothing.
+                  if (e.nativeEvent.isComposing) return
+                  // With no text typed, Tab moves on as usual (never a Tab trap).
+                  if (search.text.trim() && pickRef.current?.(e.key === 'Tab')) {
+                    e.preventDefault()
+                    e.stopPropagation()
+                  }
                   return
                 }
                 if (e.key !== 'Escape') return
@@ -253,7 +322,9 @@ export function SelectionPanelBody({ mode, allSelected, noneSelected, onSelectAl
           </ClearableField>
         </div>
       )}
-      <div className={search ? picker.dropdownItemsScrollable : undefined}>{children}</div>
+      <div className={search ? picker.dropdownItemsScrollable : undefined}>
+        <SearchPickContext value={link}>{children}</SearchPickContext>
+      </div>
     </>
   )
 }
@@ -323,6 +394,8 @@ export function EntityDropdownItems({
   const listRef = useRef<HTMLDivElement>(null)
   /** A row picked from the keyboard while the search cleared: it keeps the focus at its new place. */
   const refocusRef = useRef<number | null>(null)
+  const searchLink = useContext(SearchPickContext)
+  const rowDomId = useId()
   const allIds = [...(withNone ? [0] : []), ...entities.flatMap((e) => (e.id == null ? [] : [e.id]))]
   const order = usePickerOrder(searchText, allIds, isChecked)
   const q = searchText.trim().toLowerCase()
@@ -337,6 +410,10 @@ export function EntityDropdownItems({
   const rowIds = [...topIds, ...restIds]
   const firstRest = topIds.length > 0 ? restIds[0] : undefined
   const tabStop = activeId != null && rowIds.includes(activeId) ? activeId : rowIds[0]
+  /** The row Tab / Enter in the search pick, highlighted while text is typed. */
+  const searchPick = searchPickId(q, rowIds)
+  const rowElementId = (id: number) => `${rowDomId}-row-${id}`
+  const searchPickElementId = searchPick == null ? undefined : rowElementId(searchPick)
   const byId = new Map(matching.map((e) => [e.id, e]))
 
   useLayoutEffect(() => {
@@ -347,18 +424,46 @@ export function EntityDropdownItems({
     if (row && document.activeElement !== row) row.focus()
   })
 
-  /** Ticks / unticks row `id`; with search text the search clears and the order is fixed again. */
-  const pick = (id: number) => {
+  /**
+   * Ticks / unticks row `id` (`tickOnly`: ticks it, never unticks); with
+   * search text the search clears and the order is fixed again.
+   */
+  const pick = (id: number, tickOnly = false) => {
     const was = isChecked(id)
     setActiveId(id)
-    onToggle(id)
+    if (!(tickOnly && was)) onToggle(id)
     if (!searchText || !onSearchClear) return
-    order.notePick(id, !was)
+    order.notePick(id, tickOnly || !was)
     if (document.activeElement instanceof HTMLElement && document.activeElement.dataset.entityId === String(id)) {
       refocusRef.current = id
     }
     onSearchClear()
   }
+
+  // The search box above picks the highlighted row through `pick` (Tab / Enter there).
+  const registerPick = searchLink?.registerPick
+  useLayoutEffect(() => {
+    if (!registerPick) return
+    registerPick((tickOnly) => {
+      if (searchPick == null) return false
+      pick(searchPick, tickOnly)
+      return true
+    })
+    return () => registerPick(null)
+  })
+  const setActiveDescendant = searchLink?.setActiveDescendant
+  useLayoutEffect(() => {
+    if (!setActiveDescendant) return
+    setActiveDescendant(searchPickElementId)
+    return () => setActiveDescendant(undefined)
+  }, [setActiveDescendant, searchPickElementId])
+  const setListboxShown = searchLink?.setListboxShown
+  const listboxShown = rowIds.length > 0
+  useLayoutEffect(() => {
+    if (!setListboxShown) return
+    setListboxShown(listboxShown)
+    return () => setListboxShown(false)
+  }, [setListboxShown, listboxShown])
 
   const onRowContextMenu = (id: number | undefined) => (e: MouseEvent) => {
     e.preventDefault()
@@ -396,7 +501,9 @@ export function EntityDropdownItems({
       aria-selected={isChecked(id)}
       tabIndex={id === tabStop ? 0 : -1}
       data-entity-id={id}
-      className={`${picker.dropdownItem} ${id === firstRest ? picker.dropdownItemSeparated : ''}`}
+      id={rowElementId(id)}
+      data-search-pick={id === searchPick ? '' : undefined}
+      className={`${picker.dropdownItem} ${id === firstRest ? picker.dropdownItemSeparated : ''} ${id === searchPick ? picker.dropdownItemSearchPick : ''}`}
       onClick={() => pick(id)}
       onMouseDown={keepFocus}
       onFocus={() => setActiveId(id)}
@@ -409,7 +516,7 @@ export function EntityDropdownItems({
   return (
     <>
       {rowIds.length > 0 && (
-        <div ref={listRef} role="listbox" aria-multiselectable="true" aria-label={label} onKeyDown={onListKeyDown} {...shortcutScope('none')}>
+        <div ref={listRef} id={searchLink?.listboxId} role="listbox" aria-multiselectable="true" aria-label={label} onKeyDown={onListKeyDown} {...shortcutScope('none')}>
           {rowIds.map((id) => {
             if (id === 0) return row(0, <span className={picker.noneLabel}>{noneLabel}</span>, !!entityMenu)
             const entity = byId.get(id)

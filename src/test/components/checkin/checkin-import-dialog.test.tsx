@@ -90,15 +90,19 @@ describe('CheckinImportDialog — reading a paste', () => {
 
     const progress = card('Answer Northwind’s security questionnaire')
     expect(within(progress).getByRole('checkbox', { name: 'Progress' })).toHaveProperty('checked', true)
-    expect(progress.textContent).toContain('half done→section 4 done')
+    expect(progress.querySelector('[data-checkin-progress-redline]')?.textContent).toBe('removed halfadded section 4 done')
     const done = card('Review the staging load-test results')
     expect(within(done).getByRole('checkbox', { name: 'Completed' })).toHaveProperty('checked', true)
-    expect(done.textContent).toContain('Open→Completed')
+    expect(done.textContent).toContain('Mark complete')
     const notes = card('Draft the migration runbook')
     const lines = Array.from(notes.querySelectorAll('[data-op]')).map((l) => `${l.getAttribute('data-op')} ${l.lastElementChild?.textContent}`)
-    expect(lines).toContain('+ Added: Nina confirmed Saturday 06:00–08:00 for the cutover.')
-    expect(lines).toContain('- Removed: - Ask Nina about the [rollback window](https://example.com/runbook)')
-    expect(lines).toContain('= Cover the cutover sequence, rollback steps and who is on call.')
+    expect(lines).toEqual([
+      '= Cover the cutover sequence, rollback steps and who is on call.',
+      '+ Added: Nina confirmed Saturday 06:00–08:00 for the cutover.',
+      '= - Link the existing **DB checklist**',
+      '~ Edited: - removed Ask Nina aboutadded Agreed the [rollback window](https://example.com/runbook) added with Nina',
+      '= - [ ] Dry run on staging',
+    ])
 
     // Task 4 came back unchanged: no card, one line.
     expect(within(dialog()).queryByRole('region', { name: /Contoso/ })).toBeNull()
@@ -128,15 +132,30 @@ describe('CheckinImportDialog — reading a paste', () => {
     expect(applyButton()).toHaveProperty('disabled', true)
   })
 
-  it('a task changed since the email: the warning line, its rows unticked, counted in the summary', () => {
+  it('a task changed in the app since the email: no warning, its rows ticked, no stale count (no timestamps)', () => {
     useTodoStore.setState({ todos: tasks.map((t) => (t.id === 1 ? { ...t, modifiedAt: new Date(2026, 9, 13, 8) } : t)) })
     open()
     paste({ html: fixture('.html'), plain: fixture('.txt') })
-    const stale = card('Answer Northwind’s security questionnaire')
-    expect(stale.textContent).toContain('Changed in the app since this email was sent. Check before applying.')
-    expect(within(stale).getByRole('checkbox', { name: 'Progress' })).toHaveProperty('checked', false)
-    expect(within(dialog()).getByText(/1 task changed since the email was sent/)).toBeTruthy()
-    expect(applyButton().textContent).toBe('Apply 2 changes')
+    const changed = card('Answer Northwind’s security questionnaire')
+    expect(changed.textContent).not.toMatch(/since this email|Check before applying/)
+    expect(within(changed).getByRole('checkbox', { name: 'Progress' })).toHaveProperty('checked', true)
+    expect(within(dialog()).getByText('4 of 4 tasks matched by Ref · 3 changes found')).toBeTruthy()
+    expect(applyButton().textContent).toBe('Apply 3 changes')
+  })
+
+  it('the footer’s send date shows as information', () => {
+    open()
+    paste({ html: fixture('.html'), plain: fixture('.txt') })
+    expect(within(dialog()).getByText('The person comes from the email’s “Check-in for …” footer, sent Oct 12.')).toBeTruthy()
+  })
+
+  it('a task already completed in the app: listed, nothing to apply', () => {
+    useTodoStore.setState({ todos: tasks.map((t) => (t.id === 4 ? { ...t, isCompleted: true, completedAt: new Date(2026, 9, 12, 15) } : t)) })
+    open()
+    paste({ html: fixture('.html'), plain: fixture('.txt') })
+    const c = card('Renew the Contoso support contract — confirm pricing tier & seats (<50 users?)')
+    expect(c.textContent).toContain('Already completed in the app. Nothing to apply.')
+    expect(within(c).queryByRole('checkbox')).toBeNull()
   })
 
   it('a task not assigned to the person who replied (a forwarded email): a note, its rows unticked', () => {
@@ -203,6 +222,49 @@ describe('CheckinImportDialog — reading a paste', () => {
   })
 })
 
+describe('CheckinImportDialog — the redline', () => {
+  /** A mark's visible text (its visually hidden label left out). */
+  const visible = (el: Element) => Array.from(el.childNodes).filter((n) => !(n instanceof HTMLElement && n.className.includes('srOnly'))).map((n) => n.textContent).join('')
+
+  it('progress: one line from the current value — removed words in <del>, added in <ins>, kept words plain', () => {
+    open()
+    paste({ html: fixture('.html'), plain: fixture('.txt') })
+    const line = card('Answer Northwind’s security questionnaire').querySelector('[data-checkin-progress-redline]')
+    if (!line) throw new Error('no progress redline')
+    expect(Array.from(line.querySelectorAll('del')).map(visible)).toEqual(['half'])
+    expect(Array.from(line.querySelectorAll('ins')).map(visible)).toEqual(['section 4'])
+    // Kept words are plain text, outside any mark.
+    expect(line.lastChild?.nodeType).toBe(Node.TEXT_NODE)
+    expect(line.lastChild?.textContent).toBe(' done')
+    // Read aloud: what goes, what comes.
+    expect(line.querySelector('del')?.textContent).toBe('removed half')
+    expect(line.querySelector('ins')?.textContent).toBe('added section 4')
+  })
+
+  it('progress where there was none: all added', () => {
+    const email = sampleEmail()
+    open()
+    paste({ plain: editPlain(email.plain, '3f9a1c42', 'Progress:', ['Progress: drafted, in review']) })
+    const line = card('Draft the migration runbook').querySelector('[data-checkin-progress-redline]')
+    expect(line?.querySelectorAll('del')).toHaveLength(0)
+    expect(Array.from(line?.querySelectorAll('ins') ?? []).map(visible)).toEqual(['drafted, in review'])
+  })
+
+  it('notes: an edited line is one redlined line; whole adds and removes keep their look', () => {
+    open()
+    paste({ html: fixture('.html'), plain: fixture('.txt') })
+    const notes = card('Draft the migration runbook')
+    const edited = notes.querySelector('[data-op="~"]')
+    if (!edited) throw new Error('no edited line')
+    expect(Array.from(edited.querySelectorAll('del')).map(visible)).toEqual(['Ask Nina about'])
+    expect(Array.from(edited.querySelectorAll('ins')).map(visible)).toEqual(['Agreed', 'with Nina'])
+    // The pair replaced its − and + lines.
+    expect(notes.querySelector('[data-op="-"]')).toBeNull()
+    expect(notes.querySelectorAll('[data-op="+"]')).toHaveLength(1)
+    expect(notes.querySelector('[data-op="+"] ins, [data-op="+"] del')).toBeNull()
+  })
+})
+
 describe('CheckinImportDialog — who replied', () => {
   /** The sample email as plain text with task 2 marked done, footer removed. */
   function noFooter(): string {
@@ -211,11 +273,11 @@ describe('CheckinImportDialog — who replied', () => {
       .split('\n').filter((l) => !l.startsWith('Check-in for')).join('\n')
   }
 
-  it('no footer: Apply waits for a person; the missing send date is flagged', () => {
+  it('no footer: Apply waits for a person; no send-date note', () => {
     open()
     paste({ plain: noFooter() })
     expect(within(dialog()).getByText('No “Check-in for …” footer was found. Choose who replied.')).toBeTruthy()
-    expect(within(dialog()).getByText(/Without the footer’s send date/)).toBeTruthy()
+    expect(dialog().textContent).not.toMatch(/send date|since the email/)
     expect(applyButton().textContent).toBe('Apply 1 change')
     expect(applyButton()).toHaveProperty('disabled', true)
     expect(applyButton().title).toBe('Choose who replied first')
@@ -270,6 +332,37 @@ describe('CheckinImportDialog — who replied', () => {
     paste({ plain: email.plain.replace('Check-in for Marcus Chen', 'Check-in for Marcus Chan') })
     expect(within(dialog()).getByText('The footer names “Marcus Chan”, who isn’t one of your people. Choose who replied.')).toBeTruthy()
     expect(within(dialog()).getByRole('combobox', { name: 'Reply from' })).toBeTruthy()
+  })
+
+  it('opened for a person (Paste reply from …): with no footer they are who replied, changeable', () => {
+    render(<CheckinImportDialog />)
+    act(() => useUIStore.getState().openCheckinImport({ personId: marcus.id }))
+    paste({ plain: noFooter() })
+    const select = within(dialog()).getByRole('combobox', { name: 'Reply from' }) as HTMLSelectElement
+    expect(select.value).toBe(String(marcus.id))
+    expect(within(dialog()).getByText('No “Check-in for …” footer was found. It’s taken as Marcus Chen’s reply — change it if someone else replied.')).toBeTruthy()
+    expect(applyButton()).toHaveProperty('disabled', false)
+    // The ticks follow Marcus (the task is his): ticked.
+    expect(within(card('Review the staging load-test results')).getByRole('checkbox', { name: 'Completed' })).toHaveProperty('checked', true)
+    fireEvent.change(select, { target: { value: String(ada.id) } })
+    expect(within(dialog()).getByText('No “Check-in for …” footer was found. Choose who replied.')).toBeTruthy()
+    expect(card('Review the staging load-test results').textContent).toContain('Not assigned to Ada Lovelace.')
+  })
+
+  it('opened for a person: the footer still wins when it names one of your people', () => {
+    render(<CheckinImportDialog />)
+    act(() => useUIStore.getState().openCheckinImport({ personId: ada.id }))
+    paste({ plain: sampleEmail().plain })
+    expect(within(dialog()).getByText('Reply from Marcus Chen')).toBeTruthy()
+    expect(within(dialog()).queryByRole('combobox', { name: 'Reply from' })).toBeNull()
+  })
+
+  it('opened for a person no longer in your people: nobody chosen', () => {
+    render(<CheckinImportDialog />)
+    act(() => useUIStore.getState().openCheckinImport({ personId: 999 }))
+    paste({ plain: noFooter() })
+    expect((within(dialog()).getByRole('combobox', { name: 'Reply from' }) as HTMLSelectElement).value).toBe('')
+    expect(applyButton().title).toBe('Choose who replied first')
   })
 
   it('the footer name matches a person regardless of case and spacing', () => {

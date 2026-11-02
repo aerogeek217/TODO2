@@ -63,7 +63,7 @@ test('a selection: the menu’s Copy N tasks and Ctrl+C copy it in display order
 test('a group header’s menu copies its group under the group’s name (People and Unassigned alike)', async ({ page }) => {
   await groupHeader(page, 'Ann').click({ button: 'right' })
   const menu = page.getByRole('menu', { name: 'Ann group' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Email check-in: Ann', 'Show all of Ann’s tasks', 'Copy 1 task'])
+  await expect(menu.getByRole('menuitem')).toHaveText(['Email check-in: Ann', 'Paste check-in reply…', 'Show all of Ann’s tasks', 'Copy 1 task'])
   await menu.getByRole('menuitem', { name: 'Copy 1 task' }).click()
   await expect.poll(() => clipboardText(page)).toBe('== Ann ==\n[ ] two @Ann')
 

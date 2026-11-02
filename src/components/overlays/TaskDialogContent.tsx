@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useIsMobile } from '../../hooks/use-is-mobile'
-import { sendPersonCheckin } from '../../services/checkin-email/person-checkin'
 import { copyTasksRich } from '../../services/task-copy'
 import {
   currentTaskDialogEnv,
@@ -28,7 +27,8 @@ import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
 import { TaskRowGrid } from '../task/TaskRowGrid'
 import { DashGlyph } from '../shared/DashGlyph'
-import { EnvelopeIcon } from '../shared/icons'
+import { ChevronDownIcon, EnvelopeIcon } from '../shared/icons'
+import { PersonCheckinMenu } from '../shared/PersonCheckinMenu'
 import styles from './TaskDialog.module.css'
 
 interface Resolved {
@@ -70,9 +70,9 @@ export interface TaskDialogContentProps {
  * completed here stays, struck through, until it closes, while the counts
  * behind update. The screen filter's tasks resolve again on every change of
  * that filter — fixed between changes — and their description follows it.
- * Footer: Copy tasks, Email check-in (a person's tasks: opens the check-in
- * dialog over this one with that person ticked), Open as tab (a list's
- * dialog opened from a widget), Close.
+ * Footer: Copy tasks, Email check-in (a person's tasks: a menu to send the
+ * person's check-in or paste their reply — `PersonCheckinMenu`), Open as tab
+ * (a list's dialog opened from a widget), Close.
  */
 export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterBar }: TaskDialogContentProps) {
   const [resolved, setResolved] = useState<Resolved>(() => resolve(payload))
@@ -190,17 +190,7 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
           <CopyIcon />
           {copied ? 'Copied' : 'Copy tasks'}
         </button>
-        {personId != null && (
-          <button
-            type="button"
-            className={styles.ghostBtn}
-            data-task-dialog-checkin=""
-            onClick={() => { void sendPersonCheckin(personId) }}
-          >
-            <EnvelopeIcon size={12} />
-            Email check-in
-          </button>
-        )}
+        {personId != null && <CheckinButton personId={personId} fallbackName={payload.title} />}
         <span className={styles.spacer} />
         {tabTarget && (
           <button type="button" className={styles.ghostBtn} onClick={openAsTab}>Open as tab</button>
@@ -209,6 +199,32 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
           Close<kbd className={styles.kbd}>Esc</kbd>
         </button>
       </div>
+    </>
+  )
+}
+
+/** A person's Email check-in: opens the menu to send their check-in or paste their reply. */
+function CheckinButton({ personId, fallbackName }: { personId: number; fallbackName: string }) {
+  const name = usePersonStore((s) => s.people.find((p) => p.id === personId)?.name) ?? fallbackName
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLButtonElement>(null)
+  return (
+    <>
+      <button
+        ref={ref}
+        type="button"
+        className={styles.ghostBtn}
+        data-task-dialog-checkin=""
+        aria-label={`Email check-in options for ${name}`}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+      >
+        <EnvelopeIcon size={12} />
+        Email check-in
+        <ChevronDownIcon size={12} />
+      </button>
+      {open && <PersonCheckinMenu person={{ id: personId, name }} anchorRef={ref} onClose={() => setOpen(false)} />}
     </>
   )
 }
