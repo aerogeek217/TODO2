@@ -510,6 +510,24 @@ describe('listSortComparator', () => {
     expect([a, b].sort(listSortComparator('created')).map((t) => t.id)).toEqual([2, 1])
   })
 
+  it('sorts last followed up oldest first by the moment, never followed up last in either direction', () => {
+    const a = makeTodo({ id: 1, lastFollowupAt: new Date(2026, 0, 20, 9), sortOrder: 1 })
+    const b = makeTodo({ id: 2, lastFollowupAt: new Date(2026, 0, 5), sortOrder: 4 })
+    const c = makeTodo({ id: 3, sortOrder: 0 })
+    const d = makeTodo({ id: 4, lastFollowupAt: new Date(2026, 0, 20, 8), sortOrder: 3 })
+    expect([a, b, c, d].sort(listSortComparator('lastFollowup')).map((t) => t.id)).toEqual([2, 4, 1, 3])
+    expect([a, b, c, d].sort(listSortComparator('lastFollowup', { direction: 'desc' })).map((t) => t.id)).toEqual([1, 4, 2, 3])
+  })
+
+  it('sorts completed by the moment, newest first descending; open tasks (a stale completedAt too) last either way', () => {
+    const a = makeTodo({ id: 1, isCompleted: true, completedAt: new Date(2026, 0, 20, 9), sortOrder: 1 })
+    const b = makeTodo({ id: 2, isCompleted: true, completedAt: new Date(2026, 0, 5), sortOrder: 4 })
+    const c = makeTodo({ id: 3, sortOrder: 0 })
+    const d = makeTodo({ id: 4, completedAt: new Date(2026, 0, 30), sortOrder: 2 })
+    expect([a, b, c, d].sort(listSortComparator('completed', { direction: 'desc' })).map((t) => t.id)).toEqual([1, 2, 3, 4])
+    expect([a, b, c, d].sort(listSortComparator('completed')).map((t) => t.id)).toEqual([2, 1, 3, 4])
+  })
+
   it('sorts deadline ascending, nulls last', () => {
     const a = makeTodo({ id: 1, dueDate: new Date(2026, 0, 20), sortOrder: 10 })
     const b = makeTodo({ id: 2, dueDate: new Date(2026, 0, 18), sortOrder: 1 })

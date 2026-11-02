@@ -19,7 +19,7 @@ import {
   choicesWith,
   sortOrderWords,
 } from '../../../utils/list-options'
-import { TODO_SORT_DIRECTIONS, isTodoGroupBy, isTodoSortBy, sortHasDirection } from '../../../models/todo-sort-group'
+import { TODO_SORT_DIRECTIONS, isTodoGroupBy, isTodoSortBy, sortDirectionOnPick, sortHasDirection } from '../../../models/todo-sort-group'
 import { STALE_AFTER_MAX_DAYS, isStaleAfterDays } from '../../../utils/stale'
 import { SettingRow } from './SettingRow'
 import styles from './sections.module.css'
@@ -188,8 +188,8 @@ function NewListDefaults() {
           className={styles.select}
           aria-label="New lists sort by"
           value={sort}
-          // A direction carries over to another sort with one (as in Edit list).
-          onChange={(e) => { if (isTodoSortBy(e.target.value)) void setSort(e.target.value, direction) }}
+          // A direction carries over to another sort with one, or the sort starts in its own (as in Edit list).
+          onChange={(e) => { if (isTodoSortBy(e.target.value)) void setSort(e.target.value, sortDirectionOnPick(e.target.value, direction)) }}
         >
           {choicesWith(LIST_SORT_CHOICES, sort).map((choice) => (
             <option key={choice} value={choice}>{SORT_LABEL[choice]}</option>

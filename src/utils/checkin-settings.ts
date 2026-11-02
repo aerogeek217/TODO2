@@ -42,14 +42,31 @@ function withoutPeople<T extends FilterClauses>(c: T): T {
   return out
 }
 
+/** Clauses without a Completed date range (nor its type's key). */
+function withoutCompletedDate<T extends FilterClauses>(c: T): T {
+  if (!('completed' in c.dates)) return c
+  const { completed: _completed, ...dates } = c.dates
+  void _completed
+  return { ...c, dates }
+}
+
+/** Clauses as a check-in keeps them: no people filter, no Completed range. */
+const checkinClauses = <T extends FilterClauses>(c: T): T => withoutCompletedDate(withoutPeople(c))
+
+/** Whether `predicate` (or one of its or groups) has a Completed date clause, which a check-in drops. */
+export function hasCompletedDateClause(predicate: TodoPredicate): boolean {
+  return [predicate, ...(predicate.orGroups ?? [])].some((c) => c.dates.completed !== undefined)
+}
+
 /**
  * The check-in filter as it is kept: no people filter (nor its "is not"
- * switch) — in an or group either, an or group left with no clause dropped —,
- * completed tasks off.
+ * switch) and no Completed date range (a check-in only takes open tasks, so
+ * it would match none) — in an or group either, an or group left with no
+ * clause dropped —, completed tasks off.
  */
 export function checkinFilterOf(predicate: TodoPredicate): CheckinTaskFilter {
-  const out: TodoPredicate = { ...withoutPeople(predicate), showCompleted: false }
-  return out.orGroups ? withNormalizedOrGroups({ ...out, orGroups: out.orGroups.map(withoutPeople) }) : out
+  const out: TodoPredicate = { ...checkinClauses(predicate), showCompleted: false }
+  return out.orGroups ? withNormalizedOrGroups({ ...out, orGroups: out.orGroups.map(checkinClauses) }) : out
 }
 
 /** Whether the check-in filter narrows nothing (all open tasks). */

@@ -47,6 +47,22 @@ describe('the check-in filter', () => {
     expect(readCheckinFilterSetting(clean).fixes).toEqual([])
   })
 
+  it('drops a Completed date range (a check-in takes open tasks only), in an or group too; reading the stored filter says so', () => {
+    const range = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-week' as const }, end: null }
+    const due = { match: 'set' as const }
+    expect(checkinFilterOf({ ...emptyPredicate(), dates: { deadline: due, completed: range } }))
+      .toEqual({ ...emptyPredicate(), dates: { deadline: due } })
+    expect(checkinFilterOf({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), dates: { completed: range } }, { ...emptyFilterClauses(), markers: 'hot' }] }))
+      .toEqual({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: 'hot' }] })
+    expect(isNoCheckinFilter({ ...emptyPredicate(), dates: { completed: range } })).toBe(true)
+    const stored = JSON.stringify({ ...emptyPredicate(), dates: { deadline: due, completed: range } })
+    expect(readCheckinFilterSetting(stored)).toEqual({
+      filter: { ...emptyPredicate(), dates: { deadline: due } },
+      fixes: ['completed date filter dropped'],
+    })
+    expect(JSON.parse(formatCheckinFilterSetting({ ...emptyPredicate(), dates: { completed: range } }))).toEqual(emptyPredicate())
+  })
+
   it('no filter: nothing narrows (people and completed tasks don’t count)', () => {
     expect(isNoCheckinFilter(emptyPredicate())).toBe(true)
     expect(isNoCheckinFilter({ ...emptyPredicate(), personIds: [3], showCompleted: true })).toBe(true)

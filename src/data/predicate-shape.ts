@@ -88,6 +88,8 @@ function isDateField(v: unknown): v is DateField {
 const DATE_FILTER_WORDS: Record<DateField, string> = {
   deadline: 'due date',
   followup: 'follow-up date',
+  lastFollowup: 'last follow-up date',
+  completed: 'completed date',
   created: 'created date',
   modified: 'modified date',
 }
@@ -96,10 +98,12 @@ const DATE_FILTER_WORDS: Record<DateField, string> = {
  * One stored date clause for `field`, rebuilt from its known keys; `null`
  * for a range with neither end (no filter, not stored), `undefined` when
  * malformed — an unknown `match`, a bad range end or `includeNoDate`, or
- * Has a date / No date on a date every task has (created / modified).
- * `includeNoDate` is kept only when true, on the due date / follow-up.
+ * Has a date / No date on a type that is a range only (completed, created,
+ * modified). `includeNoDate` is kept only when true, on the optional types
+ * (`OPTIONAL_DATE_FIELDS`); on Completed's range it is dropped with a fix
+ * (the range stays: it keeps completed tasks only).
  */
-function readDateMatch(field: DateField, v: unknown): DateMatch | null | undefined {
+function readDateMatch(field: DateField, v: unknown, fixes: PredicateFix[]): DateMatch | null | undefined {
   if (!isRecord(v)) return undefined
   const optional = OPTIONAL_DATE_FIELDS.includes(field)
   if (v.match === 'set' || v.match === 'unset') return optional ? { match: v.match } : undefined
@@ -109,6 +113,7 @@ function readDateMatch(field: DateField, v: unknown): DateMatch | null | undefin
   if (start === undefined || end === undefined) return undefined
   if (v.includeNoDate !== undefined && typeof v.includeNoDate !== 'boolean') return undefined
   if (start === null && end === null) return null
+  if (field === 'completed' && v.includeNoDate === true) fixes.push(`${DATE_FILTER_WORDS[field]} filter's "or none" dropped`)
   return { match: 'range', start, end, ...(optional && v.includeNoDate === true ? { includeNoDate: true } : {}) }
 }
 
@@ -123,7 +128,7 @@ function readDateFilters(v: Obj, fixes: PredicateFix[]): DateFilters {
       fixes.push('unknown date filter dropped')
       continue
     }
-    const m = readDateMatch(key, clause)
+    const m = readDateMatch(key, clause, fixes)
     if (m === undefined) fixes.push(`${DATE_FILTER_WORDS[key]} filter dropped`)
     else if (m) out[key] = m
   }

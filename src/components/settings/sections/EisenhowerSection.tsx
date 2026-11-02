@@ -20,6 +20,7 @@ import {
 } from '../../../utils/eisenhower-panes'
 import { predicateLineItems, type FilterChipNames } from '../../../utils/filter-chips'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
+import type { DateFilterHost } from '../../shared/filters/DateFilterPanel'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { ConfirmDialog } from '../../shared/Dialog'
 import { ListFilterRow } from '../../workspace/list/ListFilterRow'
@@ -27,6 +28,12 @@ import { SettingRow } from './SettingRow'
 import { useStackedLayer } from './settings-layer'
 import sectionStyles from './sections.module.css'
 import styles from './EisenhowerSection.module.css'
+
+/**
+ * A pane only narrows the Eisenhower's list (it ignores Show completed), so a
+ * Completed range there keeps completed tasks rather than bringing them in.
+ */
+const PANE_DATE_HOST: DateFilterHost = { completedNote: 'narrow' }
 
 /** Saves pane `q`'s settings patched (`null` = reset), from the panes as they are now (two quick edits mustn't drop one another). */
 function patchPane(q: EisenhowerQuadrant, patch: Parameters<typeof withPaneConfig>[2], description: string, mergeKey?: string): void {
@@ -190,6 +197,7 @@ function PaneCard({ pane, names, count, onRename, onFilter, onReset }: PaneCardP
           onChange={onFilter}
           addLabel="Add a filter to this pane"
           layout="stack"
+          dateHost={PANE_DATE_HOST}
           inDialog
           before={hasChips ? undefined : <span className={styles.noFilter}>No filter — every task</span>}
         />

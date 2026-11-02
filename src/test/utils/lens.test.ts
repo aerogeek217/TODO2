@@ -3,6 +3,7 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import {
   cleanLensName, findLens, lensPredicate, newLensId, presetLenses, uniqueLensName, waitingStatusId, type Lens,
 } from '../../utils/lens'
+import { describeFilters, filterChips } from '../../utils/filter-chips'
 
 const lens = (id: string, name: string): Lens => ({ id, name, predicate: emptyPredicate() })
 
@@ -55,6 +56,12 @@ describe('presetLenses', () => {
     expect(presets[2]!.predicate).toMatchObject({ personIds: [0], negate: { personIds: true } })
     expect(presets[3]!.predicate.dates).toEqual({ modified: { match: 'range', start: { kind: 'offset', days: -30 }, end: null } })
     for (const p of presets) expect(p.predicate.showCompleted).toBe(false)
+  })
+
+  it('the presets read naturally in words', () => {
+    const words = presetLenses(7, ids).map((p) => describeFilters(filterChips(p.predicate, { people: [], statuses: [{ id: 7, name: 'Waiting', color: '#aa0', sortOrder: 0 }], tags: [] })))
+    expect(words[0]).toBe('Due up to 30 days ahead, or none · Next follow-up up to 14 days ahead, or none')
+    expect(words[3]).toBe('Modified from 30 days ago')
   })
 
   it('no Not waiting without a Waiting status', () => {

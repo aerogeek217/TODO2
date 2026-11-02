@@ -197,6 +197,13 @@ describe('CheckinDialog — Which tasks', () => {
       .toEqual(['Priority', 'Tags', 'Dates', 'Status', 'Text contains…'])
   })
 
+  it('its date panel leaves Completed out (a check-in takes open tasks only)', () => {
+    open([1])
+    fireEvent.click(within(filterLine()).getByRole('button', { name: 'Filter' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Next follow-up', 'Last follow-up', 'Created', 'Modified'])
+  })
+
   it('a filter added from + Filter is saved at once; the counts follow it', async () => {
     open([1, 2])
     expect([count(1), count(2)]).toEqual(['3 tasks', '2 tasks'])

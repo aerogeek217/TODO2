@@ -18,7 +18,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
-import { countActiveFilters } from '../../../utils/filter-criteria'
+import { admitsCompleted, countActiveFilters } from '../../../utils/filter-criteria'
 import { applyFilter } from '../../../utils/filter-match'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useToday } from '../../../hooks/use-today'
@@ -672,14 +672,15 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   }, [entriesByDay])
 
   // Tasks in view that only the screen filter hides (completed ones count
-  // only when "Show completed" is on).
+  // only when it lets them through: Show completed, or a Completed range).
+  const withCompleted = admitsCompleted(screen)
   const hiddenCount = useMemo(() => {
     if (entryCount > 0 || !screenActive) return 0
-    const base = todos.filter((t) => screen.showCompleted || !t.isCompleted)
+    const base = todos.filter((t) => withCompleted || !t.isCompleted)
     const ids = new Set<number>()
     for (const list of buildEntries(base, range.days, { dateTypes }).values()) for (const e of list) ids.add(e.todo.id)
     return ids.size
-  }, [entryCount, screenActive, todos, screen.showCompleted, range.days, dateTypes])
+  }, [entryCount, screenActive, todos, withCompleted, range.days, dateTypes])
 
   const ctx = useMemo<DayContext>(() => ({
     tabId: tab.id,

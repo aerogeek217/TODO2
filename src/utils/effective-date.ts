@@ -136,18 +136,26 @@ export function dueTooltip(t: Pick<TodoItem, 'dueDate' | 'recurrenceRule'>, toda
 /** The per-task date fields lists can sort and group by. */
 export type TodoDateField = 'deadline' | 'followup'
 
+/** The date fields lists sort by: the ones they also group by, the last follow-up and the completion. */
+export type TodoSortDateField = TodoDateField | 'lastFollowup' | 'completed'
+
 /**
  * Which date a todo contributes to a given comparator field: `'deadline'`
  * snaps the `dueDate` to its midnight; `'followup'` snaps `nextFollowupAt`
- * likewise. Returns `null` for missing values — caller sorts those last.
+ * likewise (both are calendar days); `'lastFollowup'` and `'completed'` are
+ * moments (Mark followed up and completing stamp the time) and keep it — a
+ * completion date only on a completed task. Returns `null` for missing
+ * values — caller sorts those last.
  */
 export function pickTodoDate(
   t: PersistedTodoItem,
-  field: TodoDateField,
+  field: TodoSortDateField,
 ): Date | null {
   switch (field) {
     case 'deadline': return t.dueDate ? startOfDay(new Date(t.dueDate)) : null
     case 'followup': return t.nextFollowupAt ? startOfDay(new Date(t.nextFollowupAt)) : null
+    case 'lastFollowup': return t.lastFollowupAt ? new Date(t.lastFollowupAt) : null
+    case 'completed': return t.isCompleted && t.completedAt ? new Date(t.completedAt) : null
   }
 }
 
@@ -158,7 +166,7 @@ export function pickTodoDate(
  * (`services/list-sections`), which every list surface sorts with.
  */
 export function compareTodosByDate(
-  field: TodoDateField,
+  field: TodoSortDateField,
   descending = false,
 ): (a: PersistedTodoItem, b: PersistedTodoItem) => number {
   const sign = descending ? -1 : 1

@@ -1,12 +1,12 @@
 import type { TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models/todo-sort-group'
-import { effectiveSortDirection, sortHasDirection } from '../models/todo-sort-group'
+import { effectiveSortDirection, sortDirectionOnPick, sortHasDirection } from '../models/todo-sort-group'
 import type { ListDefinition, RuntimeFilterField } from '../models/list-definition'
 
 /** Groupings a list definition offers, in menu order. */
 export const LIST_GROUP_CHOICES: readonly TodoGroupBy[] = ['none', 'priority', 'deadline', 'followup', 'people', 'status', 'tag']
 
 /** Sorts a list definition offers, in menu order. */
-export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'followup', 'name', 'people', 'status', 'created', 'modified']
+export const LIST_SORT_CHOICES: readonly TodoSortBy[] = ['manual', 'priority', 'deadline', 'followup', 'lastFollowup', 'completed', 'name', 'people', 'status', 'created', 'modified']
 
 /** Prompt fields a list definition offers, in menu order (`none` = no prompt). */
 export const LIST_PROMPT_CHOICES: readonly (RuntimeFilterField | 'none')[] = ['none', 'person', 'status', 'tag']
@@ -15,7 +15,7 @@ export const LIST_PROMPT_CHOICES: readonly (RuntimeFilterField | 'none')[] = ['n
 export const GROUP_LABEL: Record<TodoGroupBy, string> = {
   none: 'No grouping',
   deadline: 'Due date',
-  followup: 'Follow-up date',
+  followup: 'Next follow-up date',
   people: 'People',
   status: 'Status',
   tag: 'Tag',
@@ -26,7 +26,9 @@ export const SORT_LABEL: Record<TodoSortBy, string> = {
   manual: 'Manual',
   priority: 'Priority',
   deadline: 'Due date',
-  followup: 'Follow-up date',
+  followup: 'Next follow-up',
+  lastFollowup: 'Last followed up',
+  completed: 'Completed',
   name: 'Name',
   created: 'Created',
   modified: 'Modified',
@@ -60,6 +62,8 @@ export const SORT_NOTE: Partial<Record<TodoSortBy, string>> = {
   manual: 'Your drag order (per list)',
   priority: 'Focus first, then Urgent + Important, Urgent, Important, the rest · ties by due date',
   modified: 'Longest untouched first · any edit counts, a reorder too',
+  lastFollowup: 'Longest since a follow-up first · never followed up last',
+  completed: 'Newest first · open tasks last',
   people: 'By name of the first person, A → Z · unassigned last',
   status: 'In the statuses’ order (Settings) · no status last',
 }
@@ -69,6 +73,8 @@ const SORT_ORDER_WORDS: Partial<Record<TodoSortBy, Record<TodoSortDirection, str
   priority: { asc: 'Highest priority first', desc: 'Lowest priority first' },
   deadline: { asc: 'Soonest first', desc: 'Latest first' },
   followup: { asc: 'Soonest first', desc: 'Latest first' },
+  lastFollowup: { asc: 'Oldest first', desc: 'Most recent first' },
+  completed: { asc: 'Oldest first', desc: 'Newest first' },
   name: { asc: 'A → Z', desc: 'Z → A' },
   created: { asc: 'Oldest first', desc: 'Newest first' },
   modified: { asc: 'Longest untouched first', desc: 'Recently changed first' },
@@ -101,12 +107,17 @@ export function groupSortSummary(grouping: TodoGroupBy, sort: TodoSortBy, direct
 
 /**
  * `def` sorted by `sort`. The direction carries over to another sort with a
- * direction (Due ↓ → Name ↓) and is dropped for one without (Manual).
+ * direction (Due ↓ → Name ↓) and is dropped for one without (Manual); a sort
+ * with a direction of its own starts in it (Completed newest first, Last
+ * followed up oldest first — `sortDirectionOnPick`).
  */
 export function withListSort<T extends Pick<ListDefinition, 'sort' | 'sortDirection'>>(def: T, sort: TodoSortBy): T {
   const next = { ...def, sort }
-  if (!sortHasDirection(sort)) delete next.sortDirection
-  return next
+  if (!sortHasDirection(sort)) {
+    delete next.sortDirection
+    return next
+  }
+  return withSortDirection(next, sortDirectionOnPick(sort, def.sortDirection ?? 'asc'))
 }
 
 /** `def` in `direction`: `desc` is stored, the natural order (`asc`) as no field. */

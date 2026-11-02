@@ -283,7 +283,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
                 role="radio"
                 aria-checked={c.value === spec.value}
                 className={styles.choiceRow}
-                onClick={() => { pick[choiceList](c.value); setChoiceList(null) }}
+                onClick={() => { if (c.value !== spec.value) pick[choiceList](c.value); setChoiceList(null) }}
               >
                 <span className={styles.choiceRadio} aria-hidden="true" />
                 <span className={styles.choiceText}>

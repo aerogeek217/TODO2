@@ -82,12 +82,12 @@ afterEach(async () => {
 })
 
 describe('the floor’s store layout', () => {
-  it('the floor is v68, the current version v69', () => {
+  it('the floor is v68, the current version v70', () => {
     expect(OLDEST_SUPPORTED_DB_VERSION).toBe(68)
-    expect(CURRENT_DB_VERSION).toBe(69)
+    expect(CURRENT_DB_VERSION).toBe(70)
   })
 
-  it('a v68 database as the full version chain left it opens at v69 with its stores, indexes and rows unchanged: no patch', async () => {
+  it('a v68 database as the full version chain left it opens at v70 with its stores, indexes and rows unchanged: no patch', async () => {
     db.close()
     await db.delete()
     await createRawDb(680, V68_LAYOUT)
@@ -96,16 +96,16 @@ describe('the floor’s store layout', () => {
     expect(await db.todos.toArray()).toEqual([task])
     db.close()
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('SchemaDiff'))
-    expect(await readRawDb()).toEqual({ version: 690, layout: V68_LAYOUT, todos: [task] })
+    expect(await readRawDb()).toEqual({ version: 700, layout: V68_LAYOUT, todos: [task] })
   })
 
-  it('a new database gets exactly the v68 layout, at v69 (which changed no store)', async () => {
+  it('a new database gets exactly the v68 layout, at v70 (v69 and v70 changed no store)', async () => {
     db.close()
     await db.delete()
     await db.open()
     db.close()
     const raw = await readRawDb()
-    expect(raw.version).toBe(690)
+    expect(raw.version).toBe(700)
     expect(raw.layout).toEqual(V68_LAYOUT)
   })
 })

@@ -62,11 +62,11 @@ describe('<ListEditorBody>', () => {
   it('offers the list choices, People and Status among the sorts', () => {
     render(<ListEditorBody draft={makeDraft({ sort: 'status', grouping: 'tag' })} onChange={vi.fn()} />)
     openChoices('Sort by')
-    expect(choiceLabels()).toEqual(['Manual', 'Priority', 'Due date', 'Follow-up date', 'Name', 'People', 'Status', 'Created', 'Modified'])
+    expect(choiceLabels()).toEqual(['Manual', 'Priority', 'Due date', 'Next follow-up', 'Last followed up', 'Completed', 'Name', 'People', 'Status', 'Created', 'Modified'])
     expect(screen.getByRole('menuitemradio', { name: /^Status/ })).toHaveAttribute('aria-checked', 'true')
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
     openChoices('Group by')
-    expect(choiceLabels()).toEqual(['No grouping', 'Priority', 'Due date', 'Follow-up date', 'People', 'Status', 'Tag'])
+    expect(choiceLabels()).toEqual(['No grouping', 'Priority', 'Due date', 'Next follow-up date', 'People', 'Status', 'Tag'])
   })
 
   it.each(['Group by', 'Sort by'])('a second press on %s closes its menu; a third opens it again', (row) => {
@@ -226,6 +226,17 @@ describe('<ListEditorBody>', () => {
     expect(row.parentElement).toBe(toggle.parentElement)
     fireEvent.click(toggle)
     expect(last(onChange)).toMatchObject({ sort: 'name', sortDirection: 'desc' })
+  })
+
+  it('phone sheet: re-picking the checked sort changes nothing (its direction is kept)', () => {
+    const onChange = vi.fn()
+    // Completed starts newest first when picked; this list was turned to oldest first.
+    render(<ListEditorBody draft={makeDraft({ sort: 'completed' })} onChange={onChange} variant="sheet" />)
+    fireEvent.click(screen.getByRole('button', { name: /^Sort by: Completed/ }))
+    fireEvent.click(screen.getByRole('radio', { name: /^Completed/ }))
+    expect(onChange).not.toHaveBeenCalled()
+    // Back on the form.
+    expect(screen.getByRole('button', { name: /^Sort by: Completed/ })).toBeInTheDocument()
   })
 
   it('phone sheet: choices are rows that open a list of radios; Show completed is a switch', () => {

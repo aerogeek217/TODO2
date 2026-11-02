@@ -164,7 +164,7 @@ describe('composeScreenFilter', () => {
     expect(ids(twoTypes, none())).toEqual([2])
     expect(ids(none(), twoTypes)).toEqual([2])
     expect(evaluatorIds(none(), twoTypes)).toEqual([2])
-    // "Also tasks with no follow-up" lets undated tasks through that type only.
+    // "Also tasks with no next follow-up" lets undated tasks through that type only.
     const orNone = crit({ dates: { deadline: due, followup: { match: 'range', start: null, end: fixed(day(10, 20)), includeNoDate: true } } })
     expect(ids(orNone, none())).toEqual([1, 2, 3])
   })

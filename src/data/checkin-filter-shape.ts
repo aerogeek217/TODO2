@@ -1,5 +1,5 @@
 import { emptyPredicate } from '../models/filter-predicate'
-import { checkinFilterOf, type CheckinTaskFilter } from '../utils/checkin-settings'
+import { checkinFilterOf, hasCompletedDateClause, type CheckinTaskFilter } from '../utils/checkin-settings'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 
 /**
@@ -7,8 +7,9 @@ import { checkPredicateShape, pickPredicate } from './predicate-shape'
  * and written the one way import validation (and so the audit), the
  * settings store's read and its writes use. Read leniently, as a list's
  * filter is: a malformed clause is dropped (`pickPredicate`), the people
- * filter goes — in an or group too — (a check-in is per person) and
- * completed tasks stay off, each
+ * filter goes — in an or group too — (a check-in is per person), so does a
+ * Completed date range (a check-in takes open tasks only) and completed
+ * tasks stay off, each
  * named in `fixes`; text that isn't JSON, isn't a predicate or is over
  * `CHECKIN_FILTER_SETTING_MAX_LEN` reads as no filter.
  */
@@ -44,11 +45,12 @@ export function readCheckinFilterSetting(value: string): ReadCheckinFilter {
   const { predicate, fixes } = pickPredicate(parsed)
   const out = [...fixes]
   if (predicate.personIds != null || (predicate.orGroups ?? []).some((group) => group.personIds != null)) out.push('people filter dropped')
+  if (hasCompletedDateClause(predicate)) out.push('completed date filter dropped')
   if (predicate.showCompleted) out.push('show completed dropped')
   return { filter: checkinFilterOf(predicate), fixes: out }
 }
 
-/** The stored text of `filter`: its known parts, without people, completed tasks off. */
+/** The stored text of `filter`: its known parts, without people or a Completed range, completed tasks off. */
 export function formatCheckinFilterSetting(filter: CheckinTaskFilter): string {
   return JSON.stringify(checkinFilterOf(pickPredicate(filter).predicate))
 }

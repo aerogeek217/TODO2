@@ -1,7 +1,7 @@
 import { DATE_FIELD_VALUES, type DateField, type PersistedTodoItem, type Person, type Status, type Tag, type TodoItem } from '../models'
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
 import type { TodoNameLookups } from './filter'
-import { describeFilters, filterChips, type FilterChipField, type FilterChipNames } from './filter-chips'
+import { describeFilters, filterChips, type FilterChip, type FilterChipField, type FilterChipNames } from './filter-chips'
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 import { matchesFilterWithLookups, type FilterSettings } from './filter-match'
@@ -86,33 +86,38 @@ interface PaneMatcher {
    * or groups it fails (`orGroup`: its index among the groups that filter);
    * `null` when it matches.
    */
-  failing: (pane: EisenhowerPane, view: TaskView) => FilterChipField | DateField | { orGroup: number } | null
+  failing: (pane: EisenhowerPane, view: TaskView) => PaneClauseKey | { orGroup: number } | null
 }
+
+/**
+ * One clause of a pane's filter, as a refusal names it: a chip field's, or
+ * one date type's — tagged, since the date type `completed` (the Completed
+ * range) is not the chip field `completed` (Show completed, which a pane
+ * ignores).
+ */
+export type PaneClauseKey = Exclude<FilterChipField, 'dates' | 'completed'> | { date: DateField }
 
 /** Criteria that filter nothing. */
 const NO_FILTER: FilterCriteria = { showCompleted: true, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
 
-/** The criteria with one field's clause only (the others no filter; no or group). */
-function onlyField(c: FilterCriteria, field: FilterChipField | DateField): FilterCriteria {
+/** The criteria with one clause only (the others no filter; no or group). */
+function onlyField(c: FilterCriteria, field: PaneClauseKey): FilterCriteria {
   const base = NO_FILTER
+  if (typeof field === 'object') {
+    const clause = c.dates[field.date]
+    return { ...base, dates: clause ? { [field.date]: clause } : {} }
+  }
   switch (field) {
     case 'markers': return { ...base, markers: c.markers }
     case 'status': return { ...base, statusIds: c.statusIds, ...(c.negate?.statusIds ? { negate: { statusIds: true } } : {}) }
     case 'people': return { ...base, personIds: c.personIds, ...(c.negate?.personIds ? { negate: { personIds: true } } : {}) }
     case 'tags': return { ...base, tags: c.tags, ...(c.negate?.tags ? { negate: { tags: true } } : {}) }
     case 'text': return { ...base, searchText: c.searchText }
-    case 'dates':
-    case 'completed':
-      return base
-    default: {
-      const clause = c.dates[field]
-      return { ...base, dates: clause ? { [field]: clause } : {} }
-    }
   }
 }
 
 /** The clause fields in the order a refusal names the first one failing. */
-const CLAUSE_ORDER: readonly (FilterChipField | DateField)[] = ['markers', 'status', 'people', 'tags', ...DATE_FIELD_VALUES, 'text']
+const CLAUSE_ORDER: readonly PaneClauseKey[] = ['markers', 'status', 'people', 'tags', ...DATE_FIELD_VALUES.map((date) => ({ date })), 'text']
 
 /** `rows` with row `id` of `all` added (when it isn't there yet). */
 function withRow<T extends { id?: number }>(rows: readonly T[], all: readonly T[], id: number | undefined): readonly T[] {
@@ -209,7 +214,7 @@ export type PaneMiss =
   /** It would match an earlier pane first. */
   | { kind: 'earlier'; pane: EisenhowerQuadrant }
   /** It fails the pane's clause on `field`, which the drop can't change. */
-  | { kind: 'clause'; field: FilterChipField | DateField }
+  | { kind: 'clause'; field: PaneClauseKey }
   /** It fails every clause of the pane's or group `index` (among those that filter); a drop writes none of them. */
   | { kind: 'orGroup'; index: number }
   /** The status / person / tag the pane's clause on `field` names no longer exists (nothing is written). */
@@ -306,7 +311,7 @@ function missOf(
 ): PaneMiss {
   const field = m.failing(pane, after)
   if (field == null) return landed ? { kind: 'earlier', pane: landed } : { kind: 'clause', field: 'markers' }
-  if (typeof field === 'object') return { kind: 'orGroup', index: field.orGroup }
+  if (typeof field === 'object' && 'orGroup' in field) return { kind: 'orGroup', index: field.orGroup }
   const gone = deleted.find((f) => f === field)
   if (gone) return { kind: 'deleted', field: gone }
   const markers = pane.filter.markers
@@ -418,19 +423,21 @@ function dueDateLines(
   return [title, why, `Change ${n === 1 ? 'its due date' : 'their due dates'} or the due-soon range first.`]
 }
 
-/** A clause's name in a refusal (`Priority`, `People`, `Due`, …). */
-function clauseName(field: FilterChipField | DateField): string {
+/** A clause's name in a refusal (`Priority`, `People`, `Due`, `Completed`, …). */
+function clauseName(field: PaneClauseKey): string {
+  if (typeof field === 'object') return DATE_FIELD_LABELS_SHORT[field.date]
   switch (field) {
     case 'markers': return 'Priority'
     case 'status': return 'Status'
     case 'people': return 'People'
     case 'tags': return 'Tags'
     case 'text': return 'Text'
-    case 'dates':
-    case 'completed':
-      return 'date'
-    default: return DATE_FIELD_LABELS_SHORT[field]
   }
+}
+
+/** Whether `chip` shows the clause `field` names. */
+function chipOfClause(chip: FilterChip, field: PaneClauseKey): boolean {
+  return typeof field === 'object' ? chip.field === 'dates' && chip.dateField === field.date : chip.field === field
 }
 
 /** Why a pane's drop is refused when what its clause names was deleted. */
@@ -465,7 +472,7 @@ function missSentence(
     return status ? `${task.title} is still ${status}.` : `${task.title} has no status.`
   }
   const field = miss.kind === 'clause' ? miss.field : 'markers'
-  const chip = filterChips(pane.filter, names).find((c) => c.field === field || c.dateField === field)
+  const chip = filterChips(pane.filter, names).find((c) => chipOfClause(c, field))
   const value = chip ? ` (${chip.value})` : ''
   return `${task.title} doesn’t match its ${clauseName(field)} filter${value}.`
 }

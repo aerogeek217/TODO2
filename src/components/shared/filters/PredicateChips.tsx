@@ -13,6 +13,7 @@ import { MenuPopover, type MenuEntry } from '../MenuPopover'
 import { ChevronDownIcon, ChevronRightIcon, CloseIcon, PlusIcon } from '../icons'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
 import { PredicateFieldPicker, PredicateFieldPickerBody } from './PredicateFieldPicker'
+import type { DateFilterHost } from './DateFilterPanel'
 import { pickerLabel } from './picker-label'
 import { DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { pointBelow } from './popover-point'
@@ -84,6 +85,11 @@ interface PredicateChipsProps {
   /** Fields + Filter doesn't offer (e.g. People in the check-in filter, which is per person). */
   omitFields?: readonly ListFilterField[]
   /**
+   * The date panel's host options: date types left out (the check-in's
+   * Completed) and the Completed range's note (an Eisenhower pane's `narrow`).
+   */
+  dateHost?: DateFilterHost
+  /**
    * `line` (default): one row — the list's filter line. `stack`: the
    * editors' Filters block — a column, one chip or group per row, "and" on
    * its own row. In both a chip's picker and a group's panel open as
@@ -106,7 +112,7 @@ const FIELD_ITEMS = new Map(ADD_FILTER_ITEMS.map((item) => [item.field, item]))
  * place of the chip it was made from.
  */
 export function PredicateChips({
-  predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false, omitFields, layout = 'line',
+  predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false, omitFields, dateHost, layout = 'line',
 }: PredicateChipsProps) {
   const stack = layout === 'stack'
   const names = useChipNames()
@@ -342,6 +348,7 @@ export function PredicateChips({
         onChange={commit}
         adding={o.adding}
         dateField={o.dateField}
+        dateHost={dateHost}
         onClose={close}
       />
     ) : (
@@ -351,6 +358,7 @@ export function PredicateChips({
         onChange={(c) => commit(withOrGroupClauses(shown, scope, () => c), { index: scope, clauses: c })}
         adding={o.adding}
         dateField={o.dateField}
+        dateHost={dateHost}
         onClose={close}
       />
     )
@@ -508,6 +516,7 @@ export function PredicateChips({
           onChange={write}
           at={addPicker.at}
           adding
+          dateHost={dateHost}
           consumeEscape={inDialog}
           onClose={() => setAddPicker(null)}
         />

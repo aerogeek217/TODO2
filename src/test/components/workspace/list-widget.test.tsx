@@ -125,6 +125,24 @@ describe('ListWidget', () => {
     expect(titles()).toContain('Done task')
   })
 
+  it('a screen Completed range on an open-tasks list: the total counts the completed tasks it lets in', () => {
+    useTodoStore.setState({
+      todos: [
+        ...useTodoStore.getState().todos,
+        makeTodo({ id: 5, title: 'Done today', sortOrder: 5, isCompleted: true, completedAt: new Date() }),
+      ],
+    })
+    const { result } = setup(def())
+    const filters = useFilterStore.getState().filters
+    act(() => useFilterStore.getState().setAllFilters({
+      ...filters,
+      dates: { completed: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null } },
+    }))
+    expect(titles()).toEqual(['Done today'])
+    // Of the list's 3 open tasks and its 2 completed ones (the range opens its gate too): 1 shown.
+    expect(result()?.countLabel).toBe('1 of 5')
+  })
+
   it('screen filters hiding everything: says so and offers to clear them', () => {
     setup(def())
     act(() => useFilterStore.getState().setSearchText('nothing matches this'))

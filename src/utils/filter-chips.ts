@@ -143,11 +143,16 @@ function isToday(a: DateAnchor | null): boolean {
 /**
  * A date range in words: `within 14 days`, `by end of week`, `from today`,
  * `Oct 1 – Oct 15`; one day alone (`today`, `Oct 30`); up to yesterday as
- * `before today`.
+ * `before today`, up to a day offset as `up to 14 days ago` / `up to 14
+ * days ahead`, from a future day offset as `from 3 days ahead` (not `by in
+ * 14 days`, `from in 3 days`).
  */
 export function describeRange(start: DateAnchor | null, end: DateAnchor | null): string {
   if (isToday(start) && end?.kind === 'offset' && end.days > 0) return `within ${dayLabel(end.days)}`
   if (!start && end?.kind === 'relative' && end.token === 'yesterday') return 'before today'
+  if (!start && end?.kind === 'offset' && end.days < 0) return `up to ${describeAnchor(end)}`
+  if (!start && end?.kind === 'offset' && end.days > 0) return `up to ${dayLabel(end.days)} ahead`
+  if (!end && start?.kind === 'offset' && start.days > 0) return `from ${dayLabel(start.days)} ahead`
   if (start && end && JSON.stringify(start) === JSON.stringify(end)) return describeAnchor(start)
   if (start && end) return `${describeAnchor(start)} – ${describeAnchor(end)}`
   if (end) return `by ${describeAnchor(end)}`

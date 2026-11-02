@@ -3,18 +3,20 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { useState } from 'react'
 import type { DateField } from '../../../../models/app-view'
 import type { DateFilters } from '../../../../models'
-import { DateFilterPanel } from '../../../../components/shared/filters/DateFilterPanel'
+import { DateFilterPanel, type DateFilterHost } from '../../../../components/shared/filters/DateFilterPanel'
 
 /**
- * The date panel: four type tabs (selected = being edited, lit = filtering),
- * a range per type, Show (In range · Has a date · No date) on Due /
- * Follow-up, Clear <Type> and Clear all. Selecting a tab never writes.
+ * The date panel: six type tabs in two rows of three (selected = being
+ * edited, lit = filtering), a range per type, Show (In range · Has a date ·
+ * No date) on Due / Next follow-up / Last follow-up, Completed a range only,
+ * Clear <Type> and Clear all. Selecting a tab never writes.
  */
 
-function Harness({ initial = {}, initialField, variant, log }: {
+function Harness({ initial = {}, initialField, variant, host, log }: {
   initial?: DateFilters
   initialField?: DateField
   variant?: 'popover' | 'sheet'
+  host?: DateFilterHost
   log: DateFilters[]
 }) {
   const [dates, setDates] = useState<DateFilters>(initial)
@@ -23,6 +25,7 @@ function Harness({ initial = {}, initialField, variant, log }: {
       dates={dates}
       initialField={initialField}
       variant={variant}
+      host={host}
       onChange={(next) => { log.push(next); setDates(next) }}
     />
   )
@@ -38,7 +41,7 @@ describe('DateFilterPanel', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
     expect(screen.getByRole('tablist', { name: 'Date type' })).toBeInTheDocument()
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Follow-up', 'Created', 'Modified'])
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified'])
     expect(tab('Due')).toHaveAttribute('aria-selected', 'true')
     for (const t of screen.getAllByRole('tab')) expect(t).not.toHaveAttribute('data-filtering')
     const panel = screen.getByRole('tabpanel')
@@ -54,13 +57,13 @@ describe('DateFilterPanel', () => {
     expect(tab(/^Created/)).toHaveAttribute('aria-selected', 'true')
     unmount()
     render(<Harness log={[]} initial={{ created: { match: 'range', start: today, end: null } }} initialField="followup" />)
-    expect(tab('Follow-up')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('Next follow-up')).toHaveAttribute('aria-selected', 'true')
   })
 
   it('selecting a tab writes nothing and lights nothing (no invented dates)', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
-    for (const name of ['Follow-up', 'Created', 'Modified', 'Due']) fireEvent.click(tab(name))
+    for (const name of ['Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified', 'Due']) fireEvent.click(tab(name))
     expect(log).toEqual([])
     for (const t of screen.getAllByRole('tab')) expect(t).not.toHaveAttribute('data-filtering')
     expect(screen.getByLabelText('From')).toHaveValue('')
@@ -93,10 +96,67 @@ describe('DateFilterPanel', () => {
     expect(screen.queryByText(/Also tasks with no/)).toBeNull()
   })
 
-  it('“Also tasks with no follow-up” is disabled until an end is set, then adds no-date tasks', () => {
+  it('Last follow-up: Show, “Also tasks never followed up”, its own words; Clear Last follow-up', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} initialField="lastFollowup" />)
+    expect(within(screen.getByRole('tabpanel')).getByText('Last followed up')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('To (relative)'), { target: { value: 'yesterday' } })
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Also tasks never followed up' }))
+    expect(log.at(-1)).toEqual({ lastFollowup: { match: 'range', start: null, end: { kind: 'relative', token: 'yesterday' }, includeNoDate: true } })
+    expect(tab('Last follow-up, filtering')).toHaveAttribute('data-filtering')
+    const group = screen.getByRole('radiogroup', { name: 'Which tasks' })
+    fireEvent.click(within(group).getByRole('radio', { name: 'Has a date' }))
+    expect(screen.getByText('Only tasks that have been followed up.')).toBeInTheDocument()
+    fireEvent.click(within(group).getByRole('radio', { name: 'No date' }))
+    expect(log.at(-1)).toEqual({ lastFollowup: { match: 'unset' } })
+    expect(screen.getByText('Only tasks never followed up.')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Clear Last follow-up' }))
+    expect(log.at(-1)).toEqual({})
+  })
+
+  it('a host can leave Completed out (the check-in): five tabs, ↑/↓ to the shorter row’s last tab', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} initialField="completed" host={{ omit: ['completed'] }} />)
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Next follow-up', 'Last follow-up', 'Created', 'Modified'])
+    // An omitted initial type opens on the first offered one.
+    expect(tab('Due')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Due'), { key: 'End' })
+    expect(tab('Modified')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Modified'), { key: 'ArrowRight' })
+    expect(tab('Due')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Due'), { key: 'ArrowLeft' })
+    fireEvent.keyDown(tab('Modified'), { key: 'ArrowLeft' })
+    fireEvent.keyDown(tab('Created'), { key: 'ArrowLeft' })
+    expect(tab('Last follow-up')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Last follow-up'), { key: 'ArrowDown' })
+    expect(tab('Modified')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Modified'), { key: 'ArrowUp' })
+    expect(tab('Next follow-up')).toHaveAttribute('aria-selected', 'true')
+    expect(log).toEqual([])
+  })
+
+  it('an Eisenhower pane’s Completed range only keeps: its line says so', () => {
+    render(<Harness log={[]} initialField="completed" host={{ completedNote: 'narrow' }} />)
+    expect(screen.getByText('Keeps tasks completed in this range, of the tasks the Eisenhower’s list shows.')).toBeInTheDocument()
+    expect(screen.queryByText(/even where completed tasks are hidden/)).toBeNull()
+  })
+
+  it('Completed is a range only, with a line saying it shows completed tasks', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} initialField="completed" />)
+    expect(screen.queryByRole('radiogroup')).toBeNull()
+    expect(screen.queryByRole('checkbox')).toBeNull()
+    expect(screen.getByText('Shows tasks completed in this range, even where completed tasks are hidden.')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'start-of-week' } })
+    expect(log.at(-1)).toEqual({ completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: null } })
+    expect(tab('Completed, filtering')).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('button', { name: 'Clear Completed' })).toBeEnabled()
+  })
+
+  it('“Also tasks with no next follow-up” is disabled until an end is set, then adds no-date tasks', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} initialField="followup" />)
-    const box = screen.getByRole('checkbox', { name: 'Also tasks with no follow-up' })
+    const box = screen.getByRole('checkbox', { name: 'Also tasks with no next follow-up' })
     expect(box).toBeDisabled()
     fireEvent.click(box)
     expect(log).toEqual([])
@@ -157,9 +217,9 @@ describe('DateFilterPanel', () => {
     expect(due).toHaveAttribute('tabindex', '0')
     expect(tab('Created')).toHaveAttribute('tabindex', '-1')
     fireEvent.keyDown(due, { key: 'ArrowRight' })
-    expect(tab('Follow-up')).toHaveAttribute('aria-selected', 'true')
-    expect(document.activeElement).toBe(tab('Follow-up'))
-    fireEvent.keyDown(tab('Follow-up'), { key: 'End' })
+    expect(tab('Next follow-up')).toHaveAttribute('aria-selected', 'true')
+    expect(document.activeElement).toBe(tab('Next follow-up'))
+    fireEvent.keyDown(tab('Next follow-up'), { key: 'End' })
     expect(document.activeElement).toBe(tab('Modified'))
     fireEvent.keyDown(tab('Modified'), { key: 'ArrowRight' })
     expect(document.activeElement).toBe(tab('Due'))
@@ -167,6 +227,25 @@ describe('DateFilterPanel', () => {
     expect(document.activeElement).toBe(tab('Modified'))
     fireEvent.keyDown(tab('Modified'), { key: 'Home' })
     expect(document.activeElement).toBe(tab('Due'))
+    expect(log).toEqual([])
+  })
+
+  it('Up / Down move between the two rows in the same column', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} initialField="followup" />)
+    fireEvent.keyDown(tab('Next follow-up'), { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(tab('Created'))
+    expect(tab('Created')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.keyDown(tab('Created'), { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(tab('Next follow-up'))
+    fireEvent.keyDown(tab('Next follow-up'), { key: 'ArrowRight' })
+    fireEvent.keyDown(tab('Last follow-up'), { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(tab('Modified'))
+    fireEvent.keyDown(tab('Modified'), { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(tab('Last follow-up'))
+    // Right from the end of the first row goes on to the second, in reading order.
+    fireEvent.keyDown(tab('Last follow-up'), { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(tab('Completed'))
     expect(log).toEqual([])
   })
 
