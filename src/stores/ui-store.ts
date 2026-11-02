@@ -44,6 +44,11 @@ export function eisenhowerPaneFocus(q: EisenhowerQuadrant): string {
   return `eisenhower-pane-${q}`
 }
 
+/** The `data-settings-focus` of lens `lensId`'s row (its head button) in Settings › Tasks › Lenses. */
+export function lensFocus(lensId: string): string {
+  return `lens-${lensId}`
+}
+
 /** Where Settings can open: a section, or a part of one (shown scrolled to it). */
 export type SettingsTarget = SettingsSectionId | SettingsPartId
 
@@ -118,8 +123,10 @@ registerModuleReset(() => { lastPromptId = 0 })
  * such work before then).
  */
 export interface SettingsLeaveGuard {
-  /** The section the work is in. */
-  section: SettingsSectionId
+  /** The part the work is in (its section: `SETTINGS_PART_SECTION`); Settings opens there while the work is pending. */
+  part: SettingsPartId
+  /** The control there to focus when Settings opens on the work (its `data-settings-focus`), if any. */
+  focus?: () => string | null
   /** There is unsaved work now. */
   pending: () => boolean
   /** Asks about it (Save / Discard / Keep editing); resolves whether to go on. */
@@ -301,7 +308,9 @@ interface UIState {
    * Opens Settings, on `target` (a section, or a part of one) when given;
    * `focus` names a control there to focus (its `data-settings-focus`).
    * Already open with unsaved work (`SettingsLeaveGuard`) in its section, a
-   * target in another section asks first.
+   * target in another section asks first. With unsaved work it doesn't show
+   * (a lens draft kept by `hideSettings`) it opens on that work instead —
+   * Tasks › Lenses, the drafted lens focused — whatever the target.
    */
   openSettings: (target?: SettingsTarget, focus?: string) => void
   /**
@@ -340,8 +349,21 @@ interface UIState {
  * guard's section with work pending, and `section` is another.
  */
 function leavesUnsavedWork(ui: Pick<UIState, 'settingsOpen' | 'settingsSection'>, section: SettingsSectionId): boolean {
-  return leaveGuard != null && ui.settingsOpen && ui.settingsSection === leaveGuard.section
-    && section !== leaveGuard.section && leaveGuard.pending()
+  if (!leaveGuard) return false
+  const own = SETTINGS_PART_SECTION[leaveGuard.part]
+  return ui.settingsOpen && ui.settingsSection === own && section !== own && leaveGuard.pending()
+}
+
+/**
+ * Where Settings must open to show unsaved work it doesn't show now — a
+ * lens draft kept while it was closed (`hideSettings`, the phone width) —
+ * or null: no such work, or Settings already open on its section.
+ */
+function unsavedWorkOutOfSight(ui: Pick<UIState, 'settingsOpen' | 'settingsSection'>): Pick<UIState, 'settingsSection' | 'settingsPart' | 'settingsFocus'> | null {
+  if (!leaveGuard || !leaveGuard.pending()) return null
+  const section = SETTINGS_PART_SECTION[leaveGuard.part]
+  if (ui.settingsOpen && ui.settingsSection === section) return null
+  return { settingsSection: section, settingsPart: leaveGuard.part, settingsFocus: leaveGuard.focus?.() ?? null }
 }
 
 /** Runs `go` once the guard lets Settings go on: at once without unsaved work (`needed` false), else after its answer. */
@@ -557,6 +579,13 @@ export const useUIStore = create<UIState>((set, get) => ({
     // Edit list belongs to the workspace under the modal: it closes (an
     // unsaved list keeps its draft).
     get().closeListEditor()
+    // Unsaved work Settings doesn't show (a lens draft kept at phone width):
+    // it opens on that, whatever was asked — never with the work out of sight.
+    const work = unsavedWorkOutOfSight(get())
+    if (work) {
+      set({ settingsOpen: true, ...work })
+      return
+    }
     if (!target) {
       set({ settingsOpen: true })
       return

@@ -202,4 +202,15 @@ describe('SettingsModal with a lens’s unsaved filter edits', () => {
     stillEditing()
     expect(within(screen.getByTestId('lens-list')).getByRole('button', { name: /^Plans/ })).toHaveTextContent('Unsaved')
   })
+
+  it('reopened after a phone-width close on another section’s link, it shows Tasks › Lenses with the drafted lens focused', () => {
+    drafted()
+    act(() => useUIStore.getState().hideSettings())
+    act(() => useUIStore.getState().setSettingsSection('database'))
+    open('file-storage')
+    expect(sectionHeading()).toBe('Tasks')
+    stillEditing()
+    expect(within(screen.getByTestId('lens-list')).getByRole('button', { name: /^Plans/ })).toHaveFocus()
+    expect(useUIStore.getState()).toMatchObject({ settingsPart: null, settingsFocus: null })
+  })
 })

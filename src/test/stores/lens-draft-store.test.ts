@@ -211,6 +211,31 @@ describe('ui-store: Settings asks before it leaves a lens draft', () => {
     expect(ui().confirmPrompts).toHaveLength(0)
   })
 
+  it.each([
+    ['no target (the gear, G S, #/settings)', undefined],
+    ['another section (the storage pill)', 'file-storage'],
+    ['another part of Tasks', 'eisenhower'],
+    ['a section', 'about'],
+  ] as const)('a draft kept by hideSettings: opening with %s opens Tasks › Lenses on the drafted lens', (_, target) => {
+    ui().hideSettings()
+    // Closed, a section change asks nothing (and Settings would open there).
+    ui().setSettingsSection('database')
+    ui().openSettings(target, 'eisenhower-pane-do')
+    expect(ui()).toMatchObject({ settingsOpen: true, settingsSection: 'tasks', settingsPart: 'lenses', settingsFocus: 'lens-lens-a' })
+    expect(ui().confirmPrompts).toHaveLength(0)
+    expect(drafts().draft?.lensId).toBe('lens-a')
+  })
+
+  it('without a draft, or open on Tasks with one, opening goes where it is asked', () => {
+    ui().openSettings('eisenhower', 'eisenhower-pane-do')
+    expect(ui()).toMatchObject({ settingsSection: 'tasks', settingsPart: 'eisenhower', settingsFocus: 'eisenhower-pane-do' })
+
+    ui().hideSettings()
+    drafts().discard()
+    ui().openSettings('backups')
+    expect(ui()).toMatchObject({ settingsOpen: true, settingsSection: 'database', settingsPart: 'backups' })
+  })
+
   it('askConfirmation stays yes / no: a discard label is dropped', async () => {
     const asked = ui().askConfirmation({ title: 'T', message: 'M', confirmLabel: 'OK', discardLabel: 'Nope' })
     expect(prompt()?.discardLabel).toBeUndefined()

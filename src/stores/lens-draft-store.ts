@@ -4,7 +4,7 @@ import { findLens, lensPredicate, type Lens } from '../utils/lens'
 import { predicatesEqual } from '../utils/list-def-equal'
 import { registerModuleReset } from '../utils/module-reset'
 import { useSettingsStore } from './settings-store'
-import { SETTINGS_PART_SECTION, registerSettingsLeaveGuard, useUIStore } from './ui-store'
+import { SETTINGS_PART_SECTION, lensFocus, registerSettingsLeaveGuard, useUIStore } from './ui-store'
 import { UndoRefused } from './undo-store'
 import { undoable } from './undoable'
 
@@ -152,7 +152,12 @@ export function settleLensDraft(): Promise<boolean> {
 }
 
 registerSettingsLeaveGuard({
-  section: SETTINGS_PART_SECTION.lenses,
+  part: 'lenses',
+  // LensesSection opens the drafted lens; its row takes the focus.
+  focus: () => {
+    const live = liveLensDraft()
+    return live ? lensFocus(live.lens.id) : null
+  },
   pending: () => liveLensDraft() != null,
   settle: settleLensDraft,
 })

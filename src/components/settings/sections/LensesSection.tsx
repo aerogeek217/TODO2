@@ -17,6 +17,7 @@ import { deleteLens } from '../../../services/lenses'
 import { lensDraftPredicate, settleLensDraft, useLensDraftStore } from '../../../stores/lens-draft-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
+import { lensFocus } from '../../../stores/ui-store'
 import { predicateLineItems, type FilterChipNames } from '../../../utils/filter-chips'
 import { LENS_NAME_MAX, waitingStatusId, type Lens } from '../../../utils/lens'
 import { DragHandle } from '../../shared/DragHandle'
@@ -208,6 +209,7 @@ function LensRow({ lens, unsaved, names, inUse, keeps, open, expanded, renaming,
           <button
             type="button"
             className={styles.headButton}
+            data-settings-focus={lensFocus(lens.id)}
             aria-expanded={expanded}
             aria-controls={expanded ? editorId : undefined}
             onClick={onToggle}
