@@ -1,7 +1,7 @@
 import { useEffect, useMemo } from 'react'
 import type { PersistedTodoItem, TodoPredicate } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
-import type { FilterCriteria } from '../utils/filter-criteria'
+import { admitsCompleted, type FilterCriteria } from '../utils/filter-criteria'
 import { createPredicateEvaluator, createScreenComposedEvaluator } from '../utils/filter-match'
 import { useStatusStore } from '../stores/status-store'
 import { useTodoStore } from '../stores/todo-store'
@@ -20,8 +20,11 @@ export interface BuiltList {
   list: ListContents | null
   /**
    * Members by the list's own filter (and prompt picks) alone, before the
-   * screen filter — the "total" a screen filter hides tasks from. Equals
-   * `list.todos.length` without a screen filter.
+   * screen filter — the "total" a screen filter hides tasks from. Completed
+   * tasks count as the composed filter lets them through (`composeScreenFilter`:
+   * the screen's Show completed or Completed range opens the list's gate
+   * too), so what is shown is always among them. Equals `list.todos.length`
+   * without a screen filter.
    */
   baseCount: number
   /** The list has a prompt and nothing is picked yet. */
@@ -147,8 +150,12 @@ export function useBuiltList(
         kept = dropped
       }
     }
-    const baseCount = screenFilter && mergedPredicate
-      ? countMatching(todos, (t) => listOnly(mergedPredicate, t))
+    // The list's own clauses under the composed completion gate (as `composeScreenFilter`).
+    const basePredicate = screenFilter && mergedPredicate && admitsCompleted(screenFilter) && !mergedPredicate.showCompleted
+      ? { ...mergedPredicate, showCompleted: true }
+      : mergedPredicate
+    const baseCount = screenFilter && basePredicate
+      ? countMatching(todos, (t) => listOnly(basePredicate, t))
       : list.todos.length
     const ownPredicate = definition.membership.predicate
     const orderCandidates = () => {
