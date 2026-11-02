@@ -349,6 +349,46 @@ describe('useSettingsStore', () => {
     expect(await db.settings.get('lenses')).toBeUndefined()
   })
 
+  it('moveLens: one undo step, saved at once and read back on load; out of range or in place changes nothing; a failed save puts the order back', async () => {
+    await useSettingsStore.getState().load()
+    const s = () => useSettingsStore.getState()
+    const a = await s().addLens('A')
+    await s().addLens('B')
+    await s().addLens('C')
+    useUndoStore.getState().clear()
+    const names = () => s().lenses.map((l) => l.name)
+
+    expect(await s().moveLens(0, 2)).toBe(true)
+    expect(names()).toEqual(['B', 'C', 'A'])
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Moved lens “A”'])
+    useSettingsStore.setState({ lenses: [] })
+    await s().load()
+    expect(names()).toEqual(['B', 'C', 'A'])
+    expect(s().lenses[2]!.id).toBe(a)
+
+    expect(await s().moveLens(2, 0)).toBe(true)
+    expect(names()).toEqual(['A', 'B', 'C'])
+    await useUndoStore.getState().undo()
+    expect(names()).toEqual(['B', 'C', 'A'])
+    useSettingsStore.setState({ lenses: [] })
+    await s().load()
+    expect(names()).toEqual(['B', 'C', 'A'])
+
+    useUndoStore.getState().clear()
+    expect(await s().moveLens(1, 1)).toBe(true)
+    for (const [from, to] of [[-1, 0], [3, 0], [0, 3], [0, -1], [0.5, 1]] as const) expect(await s().moveLens(from, to)).toBe(false)
+    expect(names()).toEqual(['B', 'C', 'A'])
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('quota'))
+    expect(await s().moveLens(0, 1)).toBe(false)
+    expect(names()).toEqual(['B', 'C', 'A'])
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save the lenses.', notice: true })
+    vi.restoreAllMocks()
+  })
+
   it('the preset lenses are seeded once, after the lenses there are, without an undo step', async () => {
     await useSettingsStore.getState().load()
     useUndoStore.getState().clear()

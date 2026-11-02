@@ -1,5 +1,6 @@
-/* Settings › Tasks › Lenses (D15 board E): a row per lens that opens into
- * its editor (the list filter chips), then + New lens. */
+/* Settings › Tasks › Lenses (D15 board E): a row per lens — its grip, then
+ * the head that opens into its editor (the list filter chips) — then
+ * + New lens. */
 
 .intro,
 .empty {
@@ -16,6 +17,7 @@
 }
 
 .lens {
+  position: relative;
   border-radius: 8px;
   background: var(--color-tint-6);
 }
@@ -25,10 +27,49 @@
   box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
+.lensDragging {
+  z-index: 1;
+  background: var(--color-surface-high);
+  box-shadow: var(--shadow-drag-overlay);
+}
+
 .head {
   display: flex;
   align-items: center;
   min-height: 40px;
+  padding-left: 4px;
+}
+
+/* The grip (Customize dashboard's): dim at rest, chip tint on hover, accent while held. */
+.grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 20px;
+  height: 28px;
+  border-radius: 4px;
+  color: var(--color-text-muted);
+  opacity: 0.55;
+  cursor: grab;
+  touch-action: none;
+}
+
+.lens:hover .grip,
+.grip:focus-visible {
+  opacity: 1;
+}
+
+.grip:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.lensDragging .grip {
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent-text);
+  opacity: 1;
+  cursor: grabbing;
 }
 
 .headButton {
@@ -37,7 +78,7 @@
   gap: 10px;
   width: 100%;
   min-height: 40px;
-  padding: 0 10px 0 12px;
+  padding: 0 10px 0 6px;
   border: none;
   border-radius: 8px;
   background: transparent;
@@ -97,7 +138,7 @@
   flex: 1 1 auto;
   min-width: 0;
   height: 28px;
-  margin: 6px 10px 6px 8px;
+  margin: 6px 10px 6px 4px;
   padding: 0 8px;
   border: 1px solid var(--color-border);
   border-radius: 6px;

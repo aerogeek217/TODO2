@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react'
 import { LensesSection } from '../../../components/settings/sections/LensesSection'
+import { SettingsLayerContext } from '../../../components/settings/sections/settings-layer'
 import { emptyFilterClauses, emptyPredicate } from '../../../models/filter-predicate'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -87,5 +88,55 @@ describe('Settings › Tasks › Lenses', () => {
     expect(name).toHaveValue('New lens')
     fireEvent.keyDown(name, { key: 'Escape' })
     expect(useSettingsStore.getState().lenses.map((l) => l.name)).toEqual(['Recent', 'Recent 2', 'New lens'])
+  })
+
+  it('each row has a grip named for its lens; a move reorders the rows and an open lens stays open', async () => {
+    useSettingsStore.setState({
+      lensPresetsSeeded: true,
+      lenses: [
+        { id: 'lens-a', name: 'Alpha', predicate: emptyPredicate() },
+        { id: 'lens-b', name: 'Beta', predicate: emptyPredicate() },
+        { id: 'lens-c', name: 'Gamma', predicate: emptyPredicate() },
+      ],
+    })
+    render(<LensesSection />)
+    const list = screen.getByTestId('lens-list')
+    const grips = () => within(list).getAllByRole('button', { name: /^Move / }).map((g) => g.getAttribute('aria-label'))
+    expect(grips()).toEqual(['Move Alpha', 'Move Beta', 'Move Gamma'])
+    // The grip isn't the head: pressing it doesn't open the lens.
+    fireEvent.click(within(list).getByRole('button', { name: 'Move Alpha' }))
+    expect(screen.queryByTestId('lens-filter')).toBeNull()
+
+    fireEvent.click(within(list).getByRole('button', { name: /^Alpha/, expanded: false }))
+    expect(screen.getByTestId('lens-filter')).toBeInTheDocument()
+    await useSettingsStore.getState().moveLens(0, 2)
+    await waitFor(() => expect(grips()).toEqual(['Move Beta', 'Move Gamma', 'Move Alpha']))
+    expect(within(list).getByRole('button', { name: /^Alpha/, expanded: true })).toBeInTheDocument()
+    expect(screen.getByTestId('lens-filter').closest('[data-lens-id]')).toHaveAttribute('data-lens-id', 'lens-a')
+  })
+
+  it('while a lens is held it is a Settings layer (Esc cancels the drag, not Settings)', async () => {
+    useSettingsStore.setState({
+      lensPresetsSeeded: true,
+      lenses: [
+        { id: 'lens-a', name: 'Alpha', predicate: emptyPredicate() },
+        { id: 'lens-b', name: 'Beta', predicate: emptyPredicate() },
+      ],
+    })
+    let layers = 0
+    render(
+      <SettingsLayerContext.Provider value={(delta) => { layers += delta }}>
+        <LensesSection />
+      </SettingsLayerContext.Provider>,
+    )
+    const grip = screen.getByRole('button', { name: 'Move Alpha' })
+    grip.focus()
+    fireEvent.keyDown(grip, { key: ' ', code: 'Space' })
+    await waitFor(() => expect(layers).toBe(1))
+    // The sensor listens on the document from the next tick.
+    await new Promise((r) => setTimeout(r, 0))
+    fireEvent.keyDown(document, { key: 'Escape', code: 'Escape' })
+    await waitFor(() => expect(layers).toBe(0))
+    expect(useSettingsStore.getState().lenses.map((l) => l.name)).toEqual(['Alpha', 'Beta'])
   })
 })

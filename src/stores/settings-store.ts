@@ -204,6 +204,13 @@ interface SettingsState {
   /** Copies a lens right after it (`<name> 2`); resolves the copy's id, or null. */
   duplicateLens: (id: string) => Promise<string | null>
   /**
+   * Moves the lens at `fromIndex` to `toIndex` (Settings' order — the top
+   * bar picker's, the phone sheet's and Cycle lens's) as one undo step
+   * (`Moved lens “<name>”`), saved at once. An index out of range changes
+   * nothing (false); the same place again: true.
+   */
+  moveLens: (fromIndex: number, toIndex: number) => Promise<boolean>
+  /**
    * Seeds the preset lenses once (`utils/lens.presetLenses`; Not waiting
    * only with `waitingId`) after any lenses there are, and records that it
    * did — no undo step. Does nothing once seeded.
@@ -764,6 +771,16 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     const copy: Lens = { id: newLensId(lenses), name: uniqueLensName(lenses, lens.name), predicate: lens.predicate }
     const next = [...lenses.slice(0, at + 1), copy, ...lenses.slice(at + 1)]
     return (await get().setLenses(next, `Duplicated lens “${lens.name}”`)) ? copy.id : null
+  },
+
+  async moveLens(fromIndex: number, toIndex: number) {
+    const lenses = [...get().lenses]
+    if (!Number.isInteger(fromIndex) || !Number.isInteger(toIndex) || toIndex < 0 || toIndex >= lenses.length) return false
+    const [lens] = fromIndex >= 0 ? lenses.splice(fromIndex, 1) : []
+    if (!lens) return false
+    if (fromIndex === toIndex) return true
+    lenses.splice(toIndex, 0, lens)
+    return get().setLenses(lenses, `Moved lens “${lens.name}”`)
   },
 
   seedLensPresets(waitingId: number | null) {
