@@ -4,9 +4,11 @@ import {
   activeDateFields,
   dateFiltersEqual,
   dateRangeOf,
+  freeDateField,
   hasDateFilters,
   isDateMatchOn,
   normalizeDateFilters,
+  offeredDateFields,
   readDateFilters,
   withDateMatch,
 } from '../../utils/date-filters'
@@ -74,5 +76,32 @@ describe('date filters', () => {
       deadline: { match: 'range', start: '2026-10-01' as never, end: { kind: 'bogus' } as never },
       followup: { match: 'range', start: { kind: 'nope' } as never, end: null },
     })).toEqual({ deadline: { match: 'range', start: { kind: 'fixed', iso: '2026-10-01' }, end: null } })
+  })
+})
+
+describe('the date types a scope can still take (cr25 P4b)', () => {
+  it('a panel offers every type in tab order, or all but its host’s left-out ones', () => {
+    expect(offeredDateFields()).toEqual(['deadline', 'followup', 'lastFollowup', 'completed', 'created', 'modified'])
+    expect(offeredDateFields([])).toEqual(offeredDateFields())
+    expect(offeredDateFields(['completed'])).toEqual(['deadline', 'followup', 'lastFollowup', 'created', 'modified'])
+  })
+
+  it('the first offered type that does not filter yet, in tab order; none when every one does', () => {
+    expect(freeDateField({})).toBe('deadline')
+    expect(freeDateField(undefined)).toBe('deadline')
+    expect(freeDateField({ lastFollowup: { match: 'range', start: { kind: 'offset', days: -7 }, end: TODAY, not: true } })).toBe('deadline')
+    expect(freeDateField({ deadline: { match: 'set' }, followup: { match: 'unset' } })).toBe('lastFollowup')
+    // A range without an end doesn't filter: its type is still free.
+    expect(freeDateField({ deadline: { match: 'range', start: null, end: null } })).toBe('deadline')
+    const all: DateFilters = {
+      deadline: { match: 'set' },
+      followup: { match: 'set' },
+      lastFollowup: { match: 'set' },
+      created: { match: 'range', start: null, end: WEEK },
+      modified: { match: 'range', start: null, end: WEEK },
+    }
+    expect(freeDateField(all)).toBe('completed')
+    expect(freeDateField(all, offeredDateFields(['completed']))).toBeUndefined()
+    expect(freeDateField({ ...all, completed: { match: 'range', start: null, end: TODAY } })).toBeUndefined()
   })
 })

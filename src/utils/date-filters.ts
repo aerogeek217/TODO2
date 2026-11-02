@@ -48,6 +48,23 @@ export function hasDateFilters(dates: DateFilters | null | undefined): boolean {
 }
 
 /**
+ * The date types a date panel offers, in its tabs' reading order: every
+ * type but those its host leaves out (the check-in: Completed).
+ */
+export function offeredDateFields(omit?: readonly DateField[]): readonly DateField[] {
+  return omit && omit.length > 0 ? DATE_FIELD_VALUES.filter((f) => !omit.includes(f)) : DATE_FIELD_VALUES
+}
+
+/**
+ * The first of `offered` (the panel's tab order) that doesn't filter in
+ * `dates` — where adding Dates to a scope opens, so it makes a new chip —
+ * or `undefined` when every offered type filters there already.
+ */
+export function freeDateField(dates: DateFilters | null | undefined, offered: readonly DateField[] = DATE_FIELD_VALUES): DateField | undefined {
+  return offered.find((f) => !isDateMatchOn(dates?.[f]))
+}
+
+/**
  * A clause as stored for `field`, or `null` when it doesn't filter or
  * doesn't apply there (Has a date / No date on Completed / Created / Modified).
  */

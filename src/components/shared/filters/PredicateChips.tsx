@@ -8,6 +8,7 @@ import {
   chipClauses, chipKey, heldFields, predicateLineItems, removeChip, wrapChipInOrGroup,
   type FilterChip, type LineItem,
 } from '../../../utils/filter-chips'
+import { freeDateField, offeredDateFields } from '../../../utils/date-filters'
 import { hasFilterClause, withOrGroupClauses, withoutOrGroup } from '../../../utils/or-groups'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
 import { ChevronDownIcon, ChevronRightIcon, CloseIcon, PlusIcon } from '../icons'
@@ -67,9 +68,14 @@ function withoutGroupKey(order: readonly string[], index: number): string[] {
   })
 }
 
-/** A + Filter pick: that field's picker as a popover, adding to the predicate's own clauses. */
+/**
+ * A + Filter pick: that field's picker as a popover, adding to the
+ * predicate's own clauses (Dates: on the first date type they don't filter
+ * yet, so it adds a chip; every type filtering, the panel's default).
+ */
 interface AddPicker {
   field: ListFilterField
+  dateField?: DateField
   at: PopoverPoint
 }
 
@@ -173,11 +179,19 @@ export function PredicateChips({
   const wrapWritten = (from: string, to: string) => setOrder((o) => o.map((k) => (k === from ? to : k)))
 
   const offered = (field: ListFilterField) => !omitFields?.includes(field)
-  /** The fields a group (or a new one starting with `clauses`) can still take. */
+  /** The date types this host's date panel offers, in its tabs' order. */
+  const dateTypes = offeredDateFields(dateHost?.omit)
+  /**
+   * The fields a group (or a new one starting with `clauses`) can still
+   * take — Dates while one of the offered date types is free there.
+   */
   const addable = (clauses: FilterClauses) => {
-    const held = heldFields(clauses)
+    const held = heldFields(clauses, dateTypes)
     return ADD_FILTER_ITEMS.filter((item) => offered(item.field) && !held.has(item.field))
   }
+  /** Where adding `field` to `clauses` opens: Dates on the first type they don't filter yet (a new chip). */
+  const addingDateField = (field: ListFilterField, clauses: FilterClauses) =>
+    (field === 'dates' ? freeDateField(clauses.dates, dateTypes) : undefined)
   const clausesOf = (scope: Scope): FilterClauses => (scope == null ? shown : groups[scope] ?? emptyFilterClauses())
 
   /**
@@ -299,7 +313,9 @@ export function PredicateChips({
   }
 
   const addToGroup = (o: Extract<Open, { kind: 'group' }>, field: ListFilterField) => {
-    setOpen({ kind: 'field', scope: o.index, field, adding: true, ...(o.wrap ? { wrap: o.wrap } : {}), at: o.at })
+    // A wrap not written yet is in `shown`: the group's clauses hold the wrapped chip, so Dates opens on another type.
+    const dateField = addingDateField(field, clausesOf(o.index))
+    setOpen({ kind: 'field', scope: o.index, field, ...(dateField ? { dateField } : {}), adding: true, ...(o.wrap ? { wrap: o.wrap } : {}), at: o.at })
   }
 
   const orAnotherRow = (o: Extract<Open, { kind: 'field' }>) => (offersOrAnother(o) ? (
@@ -452,7 +468,8 @@ export function PredicateChips({
       onSelect: () => {
         if (!menuAt) return
         setOpen(null)
-        setAddPicker({ field: item.field, at: menuAt })
+        const dateField = addingDateField(item.field, predicate)
+        setAddPicker({ field: item.field, ...(dateField ? { dateField } : {}), at: menuAt })
       },
     })),
   ]
@@ -510,8 +527,9 @@ export function PredicateChips({
       )}
       {addPicker && (
         <PredicateFieldPicker
-          key={`add-${addPicker.field}-${addPicker.at.x}-${addPicker.at.y}`}
+          key={`add-${addPicker.field}-${addPicker.dateField ?? ''}-${addPicker.at.x}-${addPicker.at.y}`}
           field={addPicker.field}
+          dateField={addPicker.dateField}
           predicate={predicate}
           onChange={write}
           at={addPicker.at}

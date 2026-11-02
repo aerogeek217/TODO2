@@ -1,8 +1,9 @@
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
-import { DATE_FIELD_VALUES, type DateAnchor, type DateFilters, type DateRangeMatch } from '../../../models'
+import type { DateAnchor, DateFilters, DateRangeMatch } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import {
   activeDateFields,
+  offeredDateFields,
   dateRangeOf,
   hasDateFilters,
   isDateMatchOn,
@@ -60,10 +61,9 @@ export interface DateFilterHost {
   completedNote?: 'gate' | 'narrow'
 }
 
-/** The date types `host` offers, in reading order. */
+/** The date types `host` offers, in reading order (the tabs' order). */
 function dateFieldsOffered(host: DateFilterHost | undefined): readonly DateField[] {
-  const omit = host?.omit
-  return omit && omit.length > 0 ? DATE_FIELD_VALUES.filter((f) => !omit.includes(f)) : DATE_FIELD_VALUES
+  return offeredDateFields(host?.omit)
 }
 
 /** The tabs' columns (D22 board B: Due · Next follow-up · Last follow-up / Completed · Created · Modified). */

@@ -474,7 +474,19 @@ describe('a filter line with or groups', () => {
   })
 
   it('the fields a group holds', () => {
-    expect([...heldFields({ ...hot, personIds: [1], dates: { followup: { match: 'unset' } } })]).toEqual(['markers', 'people', 'dates'])
+    expect([...heldFields({ ...hot, personIds: [1], statusIds: [1] })]).toEqual(['markers', 'people', 'status'])
     expect(heldFields(emptyFilterClauses()).size).toBe(0)
+  })
+
+  it('Dates is held only once every offered date type filters there — each type is its own chip (cr25 P4b)', () => {
+    const set = { match: 'set' as const }
+    const one = { ...emptyFilterClauses(), dates: { lastFollowup: { match: 'range' as const, start: { kind: 'offset' as const, days: -7 }, end: null, not: true as const } } }
+    expect(heldFields(one).has('dates')).toBe(false)
+    const allButCompleted = { ...emptyFilterClauses(), dates: { deadline: set, followup: set, lastFollowup: set, created: { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } }, modified: { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } } } }
+    expect(heldFields(allButCompleted).has('dates')).toBe(false)
+    // A host that leaves Completed out (the check-in): every type it offers filters.
+    expect(heldFields(allButCompleted, ['deadline', 'followup', 'lastFollowup', 'created', 'modified']).has('dates')).toBe(true)
+    const all = { ...allButCompleted, dates: { ...allButCompleted.dates, completed: { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } } } }
+    expect(heldFields(all).has('dates')).toBe(true)
   })
 })

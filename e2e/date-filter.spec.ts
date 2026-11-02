@@ -196,11 +196,15 @@ test('list chips: one per date type; a chip opens the panel under it on its type
   await expect(rows(page, 't2')).toHaveText([/Due only/, /Neither/])
   await expect(wsCell(page, 'k2').getByTestId('save-list')).toBeVisible()
 
-  // + Filter › Dates: the panel opens on the first type that filters, focused there.
+  // + Filter › Dates: the panel opens on the first type that doesn't filter
+  // yet (cr25 P4b) — Due, before Next follow-up —, focused there, so it adds a chip.
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
-  await expect(panel.getByRole('tab', { name: 'Next follow-up, filtering' })).toBeFocused()
-  await expect(panel.getByRole('tab', { name: 'Next follow-up, filtering' })).toHaveAttribute('aria-selected', 'true')
+  await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toBeFocused()
+  await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toHaveAttribute('aria-selected', 'true')
+  await panel.getByRole('radio', { name: 'No date' }).click()
+  // A new chip goes last (the rows keep the order they were added in).
+  await expect(chips).toHaveText([/Next follow-up\s*no date/, /Due\s*no date/])
 })
 
 test('the six types sit in two rows of three at 336px; no label clips, every type lit', async ({ page }) => {

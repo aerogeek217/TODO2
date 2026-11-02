@@ -1,7 +1,7 @@
 import { emptyFilterClauses, OR_GROUPS_MAX, type DateAnchor, type DateFilters, type DateMatch, type FilterClauses, type FilterNegation, type MarkersFilter, type NegatableField, type Person, type Status, type Tag, type TodoPredicate } from '../models'
-import type { DateField } from '../models/app-view'
+import { DATE_FIELD_VALUES, type DateField } from '../models/app-view'
 import { RELATIVE_TOKEN_LABELS } from './date-anchor'
-import { activeDateFields, hasDateFilters, withDateMatch } from './date-filters'
+import { activeDateFields, freeDateField, hasDateFilters, withDateMatch } from './date-filters'
 import { isNegated, withIdFilter, type IdList } from './filter-negation'
 import { DATE_FIELD_LABELS_SHORT, NO_STATUS_LABEL, NO_TAGS_LABEL, UNASSIGNED_LABEL } from './filter-labels'
 import { hasMarkers, MARKERS_LABEL, markersTooltip, markersValue } from './markers'
@@ -380,13 +380,18 @@ export function removeChip(p: TodoPredicate, chip: Pick<FilterChip, 'field' | 'd
   return withOrGroupClauses(p, orGroup, (c) => clearChipField(c, chip.field, chip.dateField))
 }
 
-/** The fields whose clauses filter in `c` (`dates` when any date type does). */
-export function heldFields(c: FilterClauses): Set<FilterChipField> {
+/**
+ * The fields `c` can't take again: those whose clauses filter there — and
+ * `dates` only when every date type of `dateTypes` (the types the host's
+ * date panel offers) filters, since each date type is its own chip (one
+ * clause per type): while a type is free, Dates adds a chip for it.
+ */
+export function heldFields(c: FilterClauses, dateTypes: readonly DateField[] = DATE_FIELD_VALUES): Set<FilterChipField> {
   const held = new Set<FilterChipField>()
   if (hasMarkers(c.markers)) held.add('markers')
   if (c.tags != null) held.add('tags')
   if (c.personIds != null) held.add('people')
-  if (hasDateFilters(c.dates)) held.add('dates')
+  if (freeDateField(c.dates, dateTypes) == null) held.add('dates')
   if (c.statusIds != null) held.add('status')
   if ((c.searchText ?? '').trim() !== '') held.add('text')
   return held

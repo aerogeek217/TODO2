@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { PredicateChips } from '../../../../components/shared/filters/PredicateChips'
+import type { DateFilterHost } from '../../../../components/shared/filters/DateFilterPanel'
 import { emptyFilterClauses, emptyPredicate, OR_GROUPS_MAX, type FilterClauses, type TodoPredicate } from '../../../../models'
 import { usePersonStore } from '../../../../stores/person-store'
 import { useStatusStore } from '../../../../stores/status-store'
@@ -30,9 +31,9 @@ beforeEach(() => {
 })
 afterEach(cleanup)
 
-function Harness({ initial, log, layout }: { initial: TodoPredicate; log: TodoPredicate[]; layout?: 'line' | 'stack' }) {
+function Harness({ initial, log, layout, dateHost }: { initial: TodoPredicate; log: TodoPredicate[]; layout?: 'line' | 'stack'; dateHost?: DateFilterHost }) {
   const [p, setP] = useState(initial)
-  return <PredicateChips predicate={p} layout={layout} onChange={(next) => { log.push(next); setP(next) }} />
+  return <PredicateChips predicate={p} layout={layout} dateHost={dateHost} onChange={(next) => { log.push(next); setP(next) }} />
 }
 
 const clauses = (patch: Partial<FilterClauses>): FilterClauses => ({ ...emptyFilterClauses(), ...patch })
@@ -382,5 +383,67 @@ describe('PredicateChips — the rows keep the order they were added in', () => 
     // × on the next group's last chip takes that group too.
     fireEvent.click(within(chip(/People/)).getByRole('button', { name: 'Remove filter' }))
     expect(rowTexts()).toEqual(['StatusWaiting', 'Tags#work'])
+  })
+})
+
+describe('PredicateChips — Dates again while a date type is free (cr25 P4b)', () => {
+  const lastNot: FilterClauses['dates'] = {
+    lastFollowup: { match: 'range', start: { kind: 'offset', days: -7 }, end: { kind: 'relative', token: 'today' }, not: true },
+  }
+  const set = { match: 'set' as const }
+  const end = { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } }
+  const allButCompleted: FilterClauses['dates'] = { deadline: set, followup: set, lastFollowup: set, created: end, modified: end }
+  const dialogTab = (name: string) => within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('tab', { name })
+  const panelFields = () => within(screen.getByTestId('or-group-panel')).getAllByRole('button').map((b) => b.textContent)
+
+  for (const layout of ['line', 'stack'] as const) {
+    it(`(${layout}) a date chip's Another filter (OR) offers Dates, which opens on another type: the group of two date ranges`, () => {
+      const log: TodoPredicate[] = []
+      render(<Harness initial={{ ...emptyPredicate(), dates: lastNot }} log={log} layout={layout} />)
+      fireEvent.click(chip(/Last follow-up/))
+      fireEvent.click(screen.getByRole('button', { name: /Another filter \(OR\)/ }))
+      expect(panelFields()).toContain('Dates')
+      fireEvent.click(within(screen.getByTestId('or-group-panel')).getByRole('button', { name: 'Dates' }))
+      // The first free type in the tabs' order — never the wrapped chip's own.
+      expect(dialogTab('Due')).toHaveAttribute('aria-selected', 'true')
+      fireEvent.click(dialogTab('Next follow-up'))
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('radio', { name: 'Has a date' }))
+      expect(log).toHaveLength(1)
+      expect(log[0]!.dates).toEqual({})
+      expect(log[0]!.orGroups).toEqual([clauses({ dates: { ...lastNot, followup: set } })])
+      expect(within(screen.getByTestId('or-group')).getAllByTestId('list-filter-chip').map((c) => c.getAttribute('data-date-field')))
+        .toEqual(['followup', 'lastFollowup'])
+    })
+  }
+
+  it('the wrap opens on a type other than the wrapped chip’s, even when that chip is Due', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={{ ...emptyPredicate(), dates: { deadline: set } }} log={log} />)
+    fireEvent.click(chip(/Due/))
+    fireEvent.click(screen.getByRole('button', { name: /Another filter \(OR\)/ }))
+    fireEvent.click(within(screen.getByTestId('or-group-panel')).getByRole('button', { name: 'Dates' }))
+    expect(dialogTab('Next follow-up')).toHaveAttribute('aria-selected', 'true')
+    expect(log).toEqual([])
+  })
+
+  it('a group’s panel offers Dates while a type is free there, on the first free type', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={{ ...waiting, orGroups: [clauses({ markers: 'hot', dates: { deadline: set, followup: set } })] }} log={log} />)
+    fireEvent.click(within(screen.getByTestId('or-group')).getAllByRole('button', { name: 'Group' })[0]!)
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Group' })).getByRole('button', { name: 'Dates' }))
+    expect(dialogTab('Last follow-up')).toHaveAttribute('aria-selected', 'true')
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('radio', { name: 'Has a date' }))
+    expect(log.at(-1)?.orGroups).toEqual([clauses({ markers: 'hot', dates: { deadline: set, followup: set, lastFollowup: set } })])
+    expect(log.at(-1)?.dates).toEqual({})
+  })
+
+  it('a group with every offered type filtering doesn’t offer Dates — the host’s left-out types not counted', () => {
+    const { unmount } = render(<Harness initial={{ ...waiting, orGroups: [clauses({ markers: 'hot', dates: allButCompleted })] }} log={[]} />)
+    fireEvent.click(within(screen.getByTestId('or-group')).getAllByRole('button', { name: 'Group' })[0]!)
+    expect(panelFields()).toContain('Dates')
+    unmount()
+    render(<Harness initial={{ ...waiting, orGroups: [clauses({ markers: 'hot', dates: allButCompleted })] }} log={[]} dateHost={{ omit: ['completed'] }} />)
+    fireEvent.click(within(screen.getByTestId('or-group')).getAllByRole('button', { name: 'Group' })[0]!)
+    expect(panelFields()).not.toContain('Dates')
   })
 })
