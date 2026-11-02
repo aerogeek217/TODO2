@@ -199,13 +199,12 @@ function ShownOfTotalPill() {
 }
 
 function ShownOfTotalCount({ chipsOn }: { chipsOn: boolean }) {
-  const { shown, total } = useScreenTaskCounts()
-  const showCompleted = useFilterStore((s) => s.filters.showCompleted)
+  const { shown, total, withCompleted } = useScreenTaskCounts()
   return (
     <button
       type="button"
       className={`${styles.shownPill} ${chipsOn ? styles.shownPillFiltered : ''}`}
-      aria-label={`${shownOfTotalText(shown, total, showCompleted)}. Show them`}
+      aria-label={`${shownOfTotalText(shown, total, withCompleted)}. Show them`}
       data-testid="shown-of-total"
       onClick={() => useUIStore.getState().showTaskDialog(screenTaskDialog())}
     >

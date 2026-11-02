@@ -8,6 +8,7 @@ import { prepareImportText } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../data/export-data'
 import { NEGATABLE_FIELDS, type FilterClauses, type TodoPredicate } from '../../models/filter-predicate'
+import { DATE_FIELD_VALUES } from '../../models/app-view'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import { formatLensesSetting } from '../../data/lens-shape'
@@ -42,6 +43,8 @@ const FULL_PREDICATE: TodoPredicate = {
   dates: {
     deadline: { match: 'range', start: { kind: 'fixed', iso: '2026-10-01T00:00:00.000Z' }, end: { kind: 'offset', days: 30 }, includeNoDate: true },
     followup: { match: 'unset' },
+    lastFollowup: { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true },
+    completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'today' } },
     created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null },
     modified: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } },
   },
@@ -277,7 +280,7 @@ describe('export → JSON → import round-trip', () => {
     }
     // Every date type and every kind of date clause.
     const clauses = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.entries(d.membership.predicate.dates) : [])
-    expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(['deadline', 'followup', 'created', 'modified']))
+    expect(new Set(clauses.map(([field]) => field))).toEqual(new Set(DATE_FIELD_VALUES))
     expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset']))
     expect(clauses.some(([, m]) => m.match === 'range' && m.includeNoDate === true)).toBe(true)
     const cells = seed.layouts.flatMap((l) => l.columns.flatMap((c) => c.cells))

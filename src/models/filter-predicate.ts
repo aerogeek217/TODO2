@@ -77,8 +77,13 @@ export interface DateRangeMatch {
  */
 export type DateFilters = Partial<Record<DateField, DateMatch>>
 
-/** The date types a task may lack: they offer Has a date / No date and "also tasks with no date". */
-export const OPTIONAL_DATE_FIELDS: readonly DateField[] = ['deadline', 'followup']
+/**
+ * The date types a task may lack that offer Has a date / No date and "also
+ * tasks with no date": the due date, the next follow-up, the last follow-up.
+ * Completed is a range only (Show completed already says has / has not), and
+ * its range lets completed tasks through (`utils/filter-criteria.admitsCompleted`).
+ */
+export const OPTIONAL_DATE_FIELDS: readonly DateField[] = ['deadline', 'followup', 'lastFollowup']
 
 /** Longest text filter a stored list keeps (its "Text contains" input has the same limit). */
 export const PREDICATE_SEARCH_TEXT_MAX = 500
@@ -142,6 +147,11 @@ export type FilterNegation = { [K in NegatableField]?: true }
  * converted to the runtime `FilterCriteria` shape at evaluation time.
  */
 export interface TodoPredicate {
+  /**
+   * Completed tasks pass too. A Completed date range among the clauses
+   * (outside the or groups) lets them through as well — the ones it keeps
+   * (`utils/filter-criteria.admitsCompleted`).
+   */
   showCompleted: boolean
   /**
    * null = no filter (all shown); array = only tasks with one of those people
@@ -179,7 +189,8 @@ export interface TodoPredicate {
    * The or groups: a task must pass every or group as well as the clauses
    * above, and passes an or group when it passes at least one of its
    * clauses (each read exactly as the same clause outside an or group, its "is
-   * not" included). Completion is decided by `showCompleted` alone. Absent
+   * not" included; a Completed range in one is a plain date clause, it never
+   * lets completed tasks through). Absent
    * or empty = no or group; one with no clause filters nothing and isn't
    * stored; at most `OR_GROUPS_MAX`. Optional on read: older predicates have none.
    */

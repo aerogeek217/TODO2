@@ -1,5 +1,5 @@
 import type { DateAnchor, DateFilters, FilterClauses, FilterNegation, MarkersFilter, TodoPredicate } from '../models'
-import { hasDateFilters, normalizeDateFilters, readDateFilters } from './date-filters'
+import { hasDateFilters, isDateMatchOn, normalizeDateFilters, readDateFilters } from './date-filters'
 import { normalizeOrGroups } from './or-groups'
 import { withNormalizedNegation } from './filter-negation'
 import { hasMarkers, normalizeMarkersFilter } from './markers'
@@ -13,6 +13,7 @@ import { hasMarkers, normalizeMarkersFilter } from './markers'
  * between this and `TodoPredicate` at storage / evaluation boundaries.
  */
 export interface FilterCriteria {
+  /** Completed tasks pass too (a Completed range lets the ones it keeps through as well: `admitsCompleted`). */
   showCompleted: boolean
   /**
    * null = no filter (all shown); Set = only tasks assigned to one of these
@@ -25,10 +26,12 @@ export interface FilterCriteria {
   searchText: string
   /**
    * The date filters, one clause per date type, all of which must pass:
-   *   'deadline'  → todo.dueDate
-   *   'followup'  → todo.nextFollowupAt
-   *   'created'   → todo.createdAt
-   *   'modified'  → todo.modifiedAt
+   *   'deadline'     → todo.dueDate
+   *   'followup'     → todo.nextFollowupAt
+   *   'lastFollowup' → todo.lastFollowupAt
+   *   'completed'    → todo.completedAt (completed tasks only)
+   *   'created'      → todo.createdAt
+   *   'modified'     → todo.modifiedAt
    * `{}` = no date filter (see `DateFilters`).
    */
   dates: DateFilters
@@ -58,14 +61,28 @@ export interface FilterCriteria {
   /**
    * The screen filter only: the top bar's lens (`utils/lens.withLens`),
    * a stage a task must pass as well — its own clauses and "is not"
-   * switches, ANDed under these. It never decides completion (its
-   * `showCompleted` is ignored: these do). Absent = no lens, or lifted.
+   * switches, ANDed under these. Its `showCompleted` is ignored (these
+   * decide completion), but a Completed range among its clauses lets
+   * completed tasks through as one of these would (`admitsCompleted`).
+   * Absent = no lens, or lifted.
    */
   lens?: FilterCriteria
 }
 
 /** The narrowing clauses of the runtime filter (the runtime `FilterClauses`): the shape of the root's and of each or group. */
 export type CriteriaClauses = Pick<FilterCriteria, 'personIds' | 'statusIds' | 'tags' | 'searchText' | 'dates' | 'markers' | 'negate'>
+
+/**
+ * Whether completed tasks get past the completion gate: Show completed is
+ * on, or a Completed date range is among the clauses outside the or groups
+ * — its own or its lens's. The range then keeps only the tasks completed in
+ * it (an open task never has the date), so "Done this week" needs no Show
+ * completed. A Completed clause inside an or group is a plain date clause:
+ * it never opens the gate.
+ */
+export function admitsCompleted(f: Pick<FilterCriteria, 'showCompleted' | 'dates' | 'lens'>): boolean {
+  return f.showCompleted || isDateMatchOn(f.dates.completed) || (f.lens != null && admitsCompleted({ ...f.lens, showCompleted: false }))
+}
 
 /** Wraps a Date as a fixed-ISO `DateAnchor`. */
 export function fixedAnchor(d: Date): DateAnchor {
@@ -103,13 +120,16 @@ export function countActiveFilters(f: FilterCriteria): number {
  *   keeps only hot tasks that are urgent. Each side keeps its own "is not"
  *   switches: screen Status is not Waiting + list Status is Waiting, Done
  *   keeps only Done.
- * - `showCompleted` ORs: completed tasks show when either side shows them.
+ * - Completion ORs: completed tasks show when either side lets them through
+ *   (`admitsCompleted`: its Show completed, or a Completed range in its
+ *   clauses or its lens) — the Completed range then narrowing them, on
+ *   whichever side it is.
  */
 export function composeScreenFilter(
   screen: FilterCriteria,
   list: FilterCriteria,
 ): readonly [FilterCriteria, FilterCriteria] {
-  const showCompleted = screen.showCompleted || list.showCompleted
+  const showCompleted = admitsCompleted(screen) || admitsCompleted(list)
   return [{ ...screen, showCompleted }, { ...list, showCompleted }]
 }
 

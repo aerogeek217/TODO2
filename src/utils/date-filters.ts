@@ -10,9 +10,10 @@ import { readDateAnchor } from './date-anchor'
 /**
  * The date filters (`DateFilters`): one clause per date type, a task must
  * pass every clause. These helpers keep the map in its stored form — only
- * clauses that filter, `includeNoDate` only when true and only on the due
- * date / follow-up, `set` / `unset` only on those two — so two maps that
- * filter the same compare equal.
+ * clauses that filter, `includeNoDate` only when true and only on the
+ * optional types (`OPTIONAL_DATE_FIELDS`: the due date, the next and the
+ * last follow-up), `set` / `unset` only on those — so two maps that filter
+ * the same compare equal.
  */
 
 /** Whether a clause filters: Has a date / No date always, a range only with an end. */
@@ -22,12 +23,12 @@ export function isDateMatchOn(m: DateMatch | null | undefined): m is DateMatch {
   return m.start != null || m.end != null
 }
 
-/** Whether `field` offers Has a date / No date and "also tasks with no date" (due date, follow-up). */
+/** Whether `field` offers Has a date / No date and "also tasks with no date" (due date, next / last follow-up). */
 export function isOptionalDateField(field: DateField): boolean {
   return OPTIONAL_DATE_FIELDS.includes(field)
 }
 
-/** The date types that filter, in `DATE_FIELD_VALUES` order (Due · Follow-up · Created · Modified). */
+/** The date types that filter, in `DATE_FIELD_VALUES` order (Due · Next follow-up · Last follow-up · Completed · Created · Modified). */
 export function activeDateFields(dates: DateFilters | null | undefined): DateField[] {
   if (!dates) return []
   return DATE_FIELD_VALUES.filter((f) => isDateMatchOn(dates[f]))
@@ -40,7 +41,7 @@ export function hasDateFilters(dates: DateFilters | null | undefined): boolean {
 
 /**
  * A clause as stored for `field`, or `null` when it doesn't filter or
- * doesn't apply there (Has a date / No date on Created / Modified).
+ * doesn't apply there (Has a date / No date on Completed / Created / Modified).
  */
 export function normalizeDateMatch(field: DateField, m: DateMatch | null | undefined): DateMatch | null {
   if (!isDateMatchOn(m)) return null

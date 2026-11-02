@@ -1,5 +1,6 @@
 import type { Transaction } from 'dexie'
 import { upgradeV69 } from './upgrades/v69-or-groups'
+import { upgradeV70 } from './upgrades/v70-date-types'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -73,11 +74,13 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * with no entry is an identity step (index-only bumps, empty-table additions).
  *
  * Only versions above the floor (`OLDEST_SUPPORTED_DB_VERSION`) have entries:
- * v69, a version marker (`upgrades/v69-or-groups.ts`). Each transform lives
- * in `data/upgrades/v<N>-*.ts`.
+ * v69 and v70, version markers (`upgrades/v69-or-groups.ts`,
+ * `upgrades/v70-date-types.ts`). Each transform lives in
+ * `data/upgrades/v<N>-*.ts`.
  */
 export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([
   [69, upgradeV69],
+  [70, upgradeV70],
 ])
 
 /**

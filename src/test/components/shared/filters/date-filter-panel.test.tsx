@@ -38,7 +38,7 @@ describe('DateFilterPanel', () => {
     const log: DateFilters[] = []
     render(<Harness log={log} />)
     expect(screen.getByRole('tablist', { name: 'Date type' })).toBeInTheDocument()
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Follow-up', 'Created', 'Modified'])
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified'])
     expect(tab('Due')).toHaveAttribute('aria-selected', 'true')
     for (const t of screen.getAllByRole('tab')) expect(t).not.toHaveAttribute('data-filtering')
     const panel = screen.getByRole('tabpanel')

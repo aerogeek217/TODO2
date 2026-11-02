@@ -9,8 +9,9 @@ import { registerModuleReset } from './module-reset'
  * Lenses, one settings row — `data/lens-shape`) and picked in the top bar
  * for every layout (the `activeLensId` settings row, saved at once). The
  * picked lens composes under the top bar's chips wherever the screen
- * filter applies (`withLens`). A lens only hides: completed tasks are the
- * chips' Show completed, never a lens's.
+ * filter applies (`withLens`). A lens has no Show completed (the chips'
+ * decides), but a Completed range among its clauses lets the completed
+ * tasks it keeps through (`filter-criteria.admitsCompleted`).
  *
  * Not to be confused with the list widget's stored kind id `lens` (its old
  * name, `models/workspace-layout`).

@@ -2,7 +2,7 @@ import { DATE_FIELD_VALUES, type DateField, type DateMatch, type TodoItem, type 
 import { startOfDay } from './date'
 import { resolveDateAnchor, type WeekStart } from './effective-date'
 import { matchTodoText, textMatchContextFor, type TextMatchContext, type TodoNameLookups } from './filter'
-import { composeScreenFilter, predicateToCriteria, type CriteriaClauses, type FilterCriteria } from './filter-criteria'
+import { admitsCompleted, composeScreenFilter, predicateToCriteria, type CriteriaClauses, type FilterCriteria } from './filter-criteria'
 import { matchesMarkers, type MarkerSettings } from './markers'
 
 /**
@@ -102,7 +102,8 @@ function passesOrGroup(group: CriteriaClauses, t: ClauseTask): boolean {
 /**
  * Canonical evaluator. Takes runtime filter state (`FilterCriteria`) and a
  * single todo; returns whether the todo passes the filter: its completion
- * (`showCompleted`), the lens, every clause and every or group (at least
+ * (`admitsCompleted`: Show completed, or a Completed range outside the or
+ * groups, its own or its lens's), the lens, every clause and every or group (at least
  * one clause of each). A People / Status / Tags clause with its "is not"
  * switch passes the tasks the clause without it would fail
  * (`FilterNegation`) — inside an or group as outside.
@@ -116,7 +117,7 @@ export function matchesFilter(
   assignedTagIds: number[] | undefined,
   settings: FilterSettings,
 ): boolean {
-  if (todo.isCompleted && !filters.showCompleted) return false
+  if (todo.isCompleted && !admitsCompleted(filters)) return false
   // The lens: its own clauses under these; completion is decided above.
   if (filters.lens && !matchesFilter({ ...filters.lens, showCompleted: true }, todo, assignedPersonIds, today, searchCtx, assignedTagIds, settings)) {
     return false
@@ -136,6 +137,9 @@ function todoDate(todo: TodoItem, field: DateField): Date | null {
   switch (field) {
     case 'deadline': return todo.dueDate ? new Date(todo.dueDate) : null
     case 'followup': return todo.nextFollowupAt ? new Date(todo.nextFollowupAt) : null
+    case 'lastFollowup': return todo.lastFollowupAt ? new Date(todo.lastFollowupAt) : null
+    // Only a completed task has a completion date (reopening clears it).
+    case 'completed': return todo.isCompleted && todo.completedAt ? new Date(todo.completedAt) : null
     case 'created': return todo.createdAt
     case 'modified': return todo.modifiedAt
   }

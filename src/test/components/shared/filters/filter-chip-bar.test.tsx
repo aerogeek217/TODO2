@@ -262,7 +262,7 @@ describe('FilterChipBar — primitive', () => {
       const button = screen.getByRole('button', { name: 'Dates filter' })
       fireEvent.click(button)
       const dialog = screen.getByRole('dialog', { name: 'Date filters' })
-      expect(within(dialog).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Follow-up', 'Created', 'Modified'])
+      expect(within(dialog).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified'])
       expect(within(dialog).getByRole('tab', { name: 'Due' })).toHaveAttribute('aria-selected', 'true')
       expect(within(dialog).getByRole('tab', { name: 'Due' })).toHaveFocus()
       for (const t of within(dialog).getAllByRole('tab')) fireEvent.click(t)

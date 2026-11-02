@@ -50,7 +50,7 @@ import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, WorkspaceLayout }
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 69
+export const DEV_SEED_SCHEMA_VERSION = 70
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -501,6 +501,7 @@ export const DEV_SEED_IDS = {
     thisWeek: 1, nextWeek: 2, restOfMonth: 3, later: 4, someday: 5,
     dueSoon: 6, followupsThisWeek: 7, northwind: 8, tasksFor: 9, byPerson: 10,
     focus: 11, hot: 12, recentlyAdded: 13, eisenhower: 14,
+    doneThisWeek: 15, notFollowedUp: 16,
   },
   layouts: { default: 1, planning: 2 },
 }
@@ -788,6 +789,13 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       dates: { created: range({ kind: 'offset', days: -14 }, null) },
     }), 'created', 'status', plan, { sortDirection: 'desc', showFilterLine: false }),
     list(L.eisenhower, 'Eisenhower', filter(), 'manual', 'none', { eisenhower: true }),
+    // A Completed range brings in the tasks completed in it without Show completed.
+    list(L.doneThisWeek, 'Done this week', filter({ dates: { completed: range(rel('start-of-week'), { kind: 'relative', token: 'today' }) } }),
+      'manual', 'none', plan),
+    list(L.notFollowedUp, 'Not followed up lately', filter({
+      personIds: [0], negate: { personIds: true },
+      dates: { lastFollowup: range(null, { kind: 'offset', days: -14 }, true) },
+    }), 'manual', 'people', plan),
   ]
 
   // ── Layouts ──
@@ -838,7 +846,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           cell('cell-someday', [lens('tab-someday', L.someday)]),
         ]),
         column('col-people', [
-          cell('cell-followups', [lens('tab-followups', L.followupsThisWeek)], { weight: 2 }),
+          cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp)], { weight: 2 }),
           cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
         ]),
         column('col-matrix', [
@@ -851,6 +859,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
             }),
             lens('tab-hot', L.hot),
             lens('tab-recent', L.recentlyAdded),
+            lens('tab-done', L.doneThisWeek),
           ]),
         ], 1.2),
       ],

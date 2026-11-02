@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyPredicate, type PersistedTodoItem } from '../../models'
+import { emptyPredicate, type DateMatch, type PersistedTodoItem } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import {
   eisenhowerQuadrantDialog,
@@ -172,9 +172,9 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
   it('the counter’s numbers: shown (chips and lens), the open total, what the lens alone keeps', () => {
     const lens = { ...emptyFilterCriteria, personIds: new Set([PRIYA]) }
     const priyaOpen = 4
-    expect(screenTaskCounts(env())).toEqual({ shown: SAMPLE_OPEN_COUNT, total: SAMPLE_OPEN_COUNT, lensKeeps: SAMPLE_OPEN_COUNT })
+    expect(screenTaskCounts(env())).toEqual({ shown: SAMPLE_OPEN_COUNT, total: SAMPLE_OPEN_COUNT, lensKeeps: SAMPLE_OPEN_COUNT, withCompleted: false })
     expect(screenTaskCounts(env({ screen: { ...emptyFilterCriteria, lens } })))
-      .toEqual({ shown: priyaOpen, total: SAMPLE_OPEN_COUNT, lensKeeps: priyaOpen })
+      .toEqual({ shown: priyaOpen, total: SAMPLE_OPEN_COUNT, lensKeeps: priyaOpen, withCompleted: false })
     // Chips on top: shown narrows further; the lens's own count stays.
     const hot = { ...emptyFilterCriteria, markers: 'hot' as const, lens }
     const counts = screenTaskCounts(env({ screen: hot }))
@@ -185,8 +185,19 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
     expect(screenTaskCounts(env({ screen: { ...emptyFilterCriteria, showCompleted: true } })).total).toBe(SAMPLE_TASKS.length)
   })
 
+  it('a Completed range — in the chips or the lens — counts completed tasks too, and lists the ones it keeps', () => {
+    const ever: DateMatch = { match: 'range', start: { kind: 'offset', days: -3650 }, end: { kind: 'offset', days: 0 } }
+    const doneCount = SAMPLE_TASKS.length - SAMPLE_OPEN_COUNT
+    const chips = { ...emptyFilterCriteria, dates: { completed: ever } }
+    expect(screenTaskCounts(env({ screen: chips }))).toEqual({ shown: doneCount, total: SAMPLE_TASKS.length, lensKeeps: SAMPLE_TASKS.length, withCompleted: true })
+    expect(screenTaskCount(env({ screen: chips }))).toBe(taskDialogCount(resolveTaskDialog(SCREEN, env({ screen: chips }))))
+    const lensed = { ...emptyFilterCriteria, lens: chips }
+    expect(screenTaskCounts(env({ screen: lensed }))).toEqual({ shown: doneCount, total: SAMPLE_TASKS.length, lensKeeps: doneCount, withCompleted: true })
+    expect(screenTaskDialogDescription(chips)).toBe('Tasks matching the screen filter, completed ones included. A change here applies to every widget.')
+  })
+
   it('the description names the lens and what it hides; with chips too, the filter under it', () => {
-    const counts = { shown: 61, total: 109, lensKeeps: 61 }
+    const counts = { shown: 61, total: 109, lensKeeps: 61, withCompleted: false }
     expect(screenTaskDialogDescription(emptyFilterCriteria, { name: 'This month', counts }))
       .toBe('61 of 109 open tasks shown: the lens “This month” hides 48. A filter set here applies to every widget, on top of the lens.')
     expect(screenTaskDialogDescription(priya, { name: 'This month', counts: { ...counts, shown: 6 } }))
