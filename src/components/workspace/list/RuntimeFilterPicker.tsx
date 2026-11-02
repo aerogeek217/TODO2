@@ -195,6 +195,8 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
       return
     }
     const highlighted = open ? filtered[active] : undefined
+    // An IME's Enter / Tab ends the composition; it picks nothing.
+    if ((e.key === 'Enter' || e.key === 'Tab') && e.nativeEvent.isComposing) return
     if (e.key === 'Enter') {
       e.preventDefault()
       if (highlighted) toggleOption(highlighted.id)
@@ -251,7 +253,8 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
           aria-label={`Filter tasks by ${lowerLabel}`}
           role="combobox"
           aria-expanded={open}
-          aria-controls={open ? listId : undefined}
+          // Only while the listbox is there (the panel may show No matches instead).
+          aria-controls={open && filtered.length > 0 ? listId : undefined}
           aria-autocomplete="list"
           aria-activedescendant={open && active >= 0 ? optionId(active) : undefined}
         />

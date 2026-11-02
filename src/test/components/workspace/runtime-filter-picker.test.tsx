@@ -352,6 +352,24 @@ describe('RuntimeFilterPicker', () => {
       expect(fireEvent.keyDown(input, { key: 'Tab' })).toBe(true)
       expect(onChange).not.toHaveBeenCalled()
     })
+
+    it('an IME composition’s Enter / Tab picks nothing', () => {
+      const { input, onChange } = setup()
+      fireEvent.change(input, { target: { value: 'bo' } })
+      fireEvent.keyDown(input, { key: 'Enter', isComposing: true })
+      expect(fireEvent.keyDown(input, { key: 'Tab', isComposing: true })).toBe(true)
+      expect(onChange).not.toHaveBeenCalled()
+      expect(input.value).toBe('bo')
+    })
+
+    it('controls the listbox only while it is shown (No matches has none)', () => {
+      const { input, queryByRole } = setup()
+      fireEvent.change(input, { target: { value: 'zz' } })
+      expect(queryByRole('listbox')).toBeNull()
+      expect(input).not.toHaveAttribute('aria-controls')
+      fireEvent.change(input, { target: { value: 'al' } })
+      expect(input.getAttribute('aria-controls')).toBe(queryByRole('listbox')?.id)
+    })
   })
 
   // Contract: the picker reads exclusively from cached Zustand stores;
