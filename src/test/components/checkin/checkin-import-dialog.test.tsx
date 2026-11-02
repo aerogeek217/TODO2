@@ -334,6 +334,37 @@ describe('CheckinImportDialog — who replied', () => {
     expect(within(dialog()).getByRole('combobox', { name: 'Reply from' })).toBeTruthy()
   })
 
+  it('opened for a person (Paste reply from …): with no footer they are who replied, changeable', () => {
+    render(<CheckinImportDialog />)
+    act(() => useUIStore.getState().openCheckinImport({ personId: marcus.id }))
+    paste({ plain: noFooter() })
+    const select = within(dialog()).getByRole('combobox', { name: 'Reply from' }) as HTMLSelectElement
+    expect(select.value).toBe(String(marcus.id))
+    expect(within(dialog()).getByText('No “Check-in for …” footer was found. It’s taken as Marcus Chen’s reply — change it if someone else replied.')).toBeTruthy()
+    expect(applyButton()).toHaveProperty('disabled', false)
+    // The ticks follow Marcus (the task is his): ticked.
+    expect(within(card('Review the staging load-test results')).getByRole('checkbox', { name: 'Completed' })).toHaveProperty('checked', true)
+    fireEvent.change(select, { target: { value: String(ada.id) } })
+    expect(within(dialog()).getByText('No “Check-in for …” footer was found. Choose who replied.')).toBeTruthy()
+    expect(card('Review the staging load-test results').textContent).toContain('Not assigned to Ada Lovelace.')
+  })
+
+  it('opened for a person: the footer still wins when it names one of your people', () => {
+    render(<CheckinImportDialog />)
+    act(() => useUIStore.getState().openCheckinImport({ personId: ada.id }))
+    paste({ plain: sampleEmail().plain })
+    expect(within(dialog()).getByText('Reply from Marcus Chen')).toBeTruthy()
+    expect(within(dialog()).queryByRole('combobox', { name: 'Reply from' })).toBeNull()
+  })
+
+  it('opened for a person no longer in your people: nobody chosen', () => {
+    render(<CheckinImportDialog />)
+    act(() => useUIStore.getState().openCheckinImport({ personId: 999 }))
+    paste({ plain: noFooter() })
+    expect((within(dialog()).getByRole('combobox', { name: 'Reply from' }) as HTMLSelectElement).value).toBe('')
+    expect(applyButton().title).toBe('Choose who replied first')
+  })
+
   it('the footer name matches a person regardless of case and spacing', () => {
     const email = sampleEmail()
     open()

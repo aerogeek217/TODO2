@@ -158,7 +158,7 @@ function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number
               type="button"
               className={styles.checkinAction}
               onClick={() => {
-                useUIStore.getState().openCheckinImport()
+                useUIStore.getState().openCheckinImport({ personId: only.id })
                 onDone()
               }}
             >

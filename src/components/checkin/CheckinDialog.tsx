@@ -327,7 +327,7 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
 
         <div className={styles.footer}>
         <span className={styles.hint}>One message per person, opened one at a time.</span>
-        <button type="button" className={styles.linkBtn} onClick={openImport}>Paste a reply…</button>
+        <button type="button" className={styles.linkBtn} onClick={() => openImport()}>Paste a reply…</button>
         <button type="button" className={styles.footerBtn} disabled={checkedPeople.length === 0} onClick={() => setPreviewOpen(true)}>
           Preview email
         </button>

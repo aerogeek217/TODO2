@@ -781,6 +781,7 @@ describe('ListWidget People group headers: email check-in', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Email check-in options for Alice' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Paste reply from Alice…' }))
     expect(useUIStore.getState().checkinImportOpen).toBe(true)
+    expect(useUIStore.getState().checkinImportPersonId).toBe(1)
     expect(useUIStore.getState().checkinDialog).toBeNull()
 
     useUIStore.setState({ checkinImportOpen: false })
@@ -788,6 +789,7 @@ describe('ListWidget People group headers: email check-in', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Paste check-in reply…' }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(useUIStore.getState().checkinImportOpen).toBe(true)
+    expect(useUIStore.getState().checkinImportPersonId).toBe(2)
     expect(useUIStore.getState().checkinDialog).toBeNull()
   })
 

@@ -11,7 +11,8 @@ import type { PopoverPlacement } from '../../hooks/use-popover-anchor'
  * (`sendPersonCheckin`), run inside the item's click / Enter so the
  * clipboard write keeps the gesture — or `Paste reply from <name>…`, the
  * check-in reply import (`ui-store.openCheckinImport`; it reads the person
- * from the reply). Anchored to the envelope, with the caret.
+ * from the reply's footer, else takes this person). Anchored to the
+ * envelope, with the caret.
  *
  * Each item hands the focus back to the envelope before it acts, so a
  * dialog it opens (the import, or the check-in dialog when the send can't
@@ -40,7 +41,7 @@ export function PersonCheckinMenu({ person, anchorRef, placement, onClose }: {
       icon: <ReplyIcon />,
       onSelect: () => {
         backToEnvelope()
-        useUIStore.getState().openCheckinImport()
+        useUIStore.getState().openCheckinImport({ personId: person.id })
       },
     },
   ]

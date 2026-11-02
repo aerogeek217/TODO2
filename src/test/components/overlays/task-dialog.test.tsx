@@ -214,6 +214,7 @@ describe('TaskDialog', () => {
     fireEvent.click(within(dialog()!).getByRole('button', { name: 'Email check-in options for Priya Nair' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Paste reply from Priya Nair…' }))
     expect(useUIStore.getState().checkinImportOpen).toBe(true)
+    expect(useUIStore.getState().checkinImportPersonId).toBe(priya.id)
     expect(screen.queryByRole('menu')).toBeNull()
     expect(dialog()).not.toBeNull()
   })

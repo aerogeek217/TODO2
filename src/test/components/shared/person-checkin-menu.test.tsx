@@ -105,6 +105,7 @@ describe('PersonCheckinMenu', () => {
     openMenu()
     fireEvent.click(screen.getByRole('menuitem', { name: 'Paste reply from Ada Lovelace…' }))
     expect(useUIStore.getState().checkinImportOpen).toBe(true)
+    expect(useUIStore.getState().checkinImportPersonId).toBe(1)
     expect(screen.queryByRole('menu')).toBeNull()
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Envelope' }))
     expect(write).not.toHaveBeenCalled()

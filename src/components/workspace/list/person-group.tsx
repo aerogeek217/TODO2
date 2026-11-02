@@ -29,13 +29,13 @@ export function emailPersonCheckin(person: GroupPerson): void {
 
 /**
  * A People group header's menu: email the person a check-in, paste a
- * check-in reply (the import dialog, which reads the person from the reply),
- * or show all their tasks.
+ * check-in reply (the import dialog, which reads the person from the reply's
+ * footer, else takes this person), or show all their tasks.
  */
 export function personGroupMenu(person: GroupPerson): MenuEntry[] {
   return [
     { kind: 'item', label: `Email check-in: ${person.name}`, icon: <EnvelopeIcon />, onSelect: () => emailPersonCheckin(person) },
-    { kind: 'item', label: 'Paste check-in reply…', icon: <ReplyIcon />, onSelect: () => useUIStore.getState().openCheckinImport() },
+    { kind: 'item', label: 'Paste check-in reply…', icon: <ReplyIcon />, onSelect: () => useUIStore.getState().openCheckinImport({ personId: person.id }) },
     {
       kind: 'item',
       label: `Show all of ${person.name}’s tasks`,

@@ -433,6 +433,7 @@ describe('FilterChipBar — primitive', () => {
         expect(footer).toEqual(['Email check-in to Bob', 'Paste reply from Bob…'])
         fireEvent.click(screen.getByRole('button', { name: 'Paste reply from Bob…' }))
         expect(useUIStore.getState().checkinImportOpen).toBe(true)
+        expect(useUIStore.getState().checkinImportPersonId).toBe(2)
         expect(useUIStore.getState().checkinDialog).toBeNull()
         expect(screen.queryByPlaceholderText('Search...')).toBeNull()
       })

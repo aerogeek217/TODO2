@@ -113,6 +113,11 @@ function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: st
  * each edited line redlined (removed words struck, added words underlined —
  * `<del>` / `<ins>` with a visually hidden "removed" / "added").
  *
+ * Who replied comes from the reply's "Check-in for …" footer; when it names
+ * none of your people, the person the dialog was opened for (a person's
+ * `Paste reply from …`, `ui-store.checkinImportPersonId`) is chosen to start
+ * with, else the user chooses.
+ *
  * The paste is read from the `paste` event's `text/html` and `text/plain`
  * flavours (no clipboard permission needed). Nothing pasted is rendered as
  * HTML: titles, values and the notes diff are plain text.
@@ -127,11 +132,14 @@ export function CheckinImportDialog() {
 
 function CheckinImportPanel() {
   const close = useUIStore((s) => s.closeCheckinImport)
+  const openedForId = useUIStore((s) => s.checkinImportPersonId)
   const allPeople = usePersonStore((s) => s.people)
   const people = useMemo(
     () => allPeople.flatMap((p): PersistedPerson[] => (p.id != null ? [{ ...p, id: p.id }] : [])),
     [allPeople],
   )
+  /** The person the dialog was opened for, while they are one of your people: who replied when the footer names nobody. */
+  const defaultPersonId = openedForId != null && people.some((p) => p.id === openedForId) ? openedForId : null
 
   const [reply, setReply] = useState<ReadReply | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -168,9 +176,9 @@ function CheckinImportPanel() {
     setReply(result.reply)
     const name = result.reply.diff.personName
     const from = name ? people.find((p) => sameName(p.name, name)) : undefined
-    setSelected(selectionFor(result.reply.diff, from?.id ?? null, new Set(), new Set()))
+    setSelected(selectionFor(result.reply.diff, from?.id ?? defaultPersonId, new Set(), new Set()))
     setTouched(new Set())
-    setPickedPersonId(null)
+    setPickedPersonId(from ? null : defaultPersonId)
     requestAnimationFrame(() => panelRef.current?.focus())
   }
 
@@ -239,6 +247,7 @@ function CheckinImportPanel() {
           footerPerson={footerPerson}
           people={people}
           pickedPersonId={pickedPersonId}
+          defaultPersonId={defaultPersonId}
           onPick={(id) => {
             setPickedPersonId(id)
             // The ticks follow who replied: the tasks not theirs unticked, the
@@ -304,12 +313,14 @@ function CheckinImportPanel() {
   )
 }
 
-function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, onPick, onPasteAgain }: {
+function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, defaultPersonId, onPick, onPasteAgain }: {
   reply: ReadReply
   person: PersistedPerson | null
   footerPerson: PersistedPerson | null
   people: PersistedPerson[]
   pickedPersonId: number | null
+  /** The person the dialog was opened for (chosen to start with when the footer names nobody). */
+  defaultPersonId: number | null
   onPick: (id: number | null) => void
   onPasteAgain: () => void
 }) {
@@ -320,6 +331,10 @@ function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, onP
     `${plural(diff.changeCount, 'change')} found`,
   ].join(' · ')
   const sortedPeople = useMemo(() => [...people].sort(byName), [people])
+  // Taken as from the person the dialog was opened for (still theirs).
+  const takenAs = !footerPerson && person != null && pickedPersonId != null && pickedPersonId === defaultPersonId
+    ? ` It’s taken as ${person.name}’s reply — change it if someone else replied.`
+    : null
 
   return (
     <div className={styles.summary} data-checkin-summary="">
@@ -356,8 +371,8 @@ function ReplySummary({ reply, person, footerPerson, people, pickedPersonId, onP
       {footerPerson
         ? <div className={styles.note}>The person comes from the email’s “Check-in for …” footer{sentOn(diff.sentDate)}.</div>
         : diff.personName
-          ? <div className={styles.warn}>The footer names “{diff.personName}”, who isn’t one of your people. Choose who replied.</div>
-          : <div className={styles.warn}>No “Check-in for …” footer was found. Choose who replied.</div>}
+          ? <div className={styles.warn}>The footer names “{diff.personName}”, who isn’t one of your people.{takenAs ?? ' Choose who replied.'}</div>
+          : <div className={styles.warn}>No “Check-in for …” footer was found.{takenAs ?? ' Choose who replied.'}</div>}
     </div>
   )
 }
