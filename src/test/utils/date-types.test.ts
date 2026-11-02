@@ -97,16 +97,25 @@ describe('Completed', () => {
     expect(ids(crit({ dates: { completed: open } }))).toEqual([1, 2, 3, 7])
   })
 
-  it('inside an or group it is a plain date clause: it never opens the gate', () => {
+  it('an or group whose only alternative is a Completed range opens the gate (it keeps completed tasks only)', () => {
     const grouped = crit({ orGroups: [{ ...none(), dates: { completed: thisWeek } }] })
-    expect(admitsCompleted(grouped)).toBe(false)
-    // Every open task fails the group's only clause; the completed ones are stopped at the gate.
-    expect(ids(grouped)).toEqual([])
+    expect(admitsCompleted(grouped)).toBe(true)
+    expect(ids(grouped)).toEqual([4, 6])
+    // Next to another or group: both must hold, so still completed tasks only.
+    const two = crit({ orGroups: [{ ...none(), dates: { lastFollowup: { match: 'set' } } }, { ...none(), dates: { completed: thisWeek } }] })
+    expect(admitsCompleted(two)).toBe(true)
+    expect(ids(two)).toEqual([6])
+  })
+
+  it('in a mixed or group it is a plain date clause: it doesn’t open the gate', () => {
     // One or group "Completed this week or never followed up": open tasks by the second clause only.
     const either = crit({ orGroups: [{ ...none(), dates: { completed: thisWeek, lastFollowup: { match: 'unset' } } }] })
+    expect(admitsCompleted(either)).toBe(false)
     expect(ids(either)).toEqual([3, 7])
-    // Show completed opens the gate; the group then keeps the ones completed this week.
-    expect(ids({ ...grouped, showCompleted: true })).toEqual([4, 6])
+    const withMarkers = crit({ orGroups: [{ ...none(), markers: 'hot', dates: { completed: thisWeek } }] })
+    expect(admitsCompleted(withMarkers)).toBe(false)
+    // Show completed opens the gate; the group then keeps the completed ones too.
+    expect(ids({ ...either, showCompleted: true })).toEqual([3, 4, 5, 6, 7])
   })
 
   describe('the gate wherever the screen filter applies', () => {
@@ -132,8 +141,9 @@ describe('Completed', () => {
       expect(admitsCompleted(lensed)).toBe(true)
       expect(ids(lensed)).toEqual([4, 6])
       expect(composedIds(lensed, crit({ dates: { lastFollowup: { match: 'set' } } }))).toEqual([6])
-      // A lens's or group never opens it.
-      expect(admitsCompleted(crit({ lens: crit({ orGroups: [{ ...none(), dates: { completed: thisWeek } }] }) }))).toBe(false)
+      // A lens's or group opens it only when its every alternative is a Completed range.
+      expect(admitsCompleted(crit({ lens: crit({ orGroups: [{ ...none(), dates: { completed: thisWeek } }] }) }))).toBe(true)
+      expect(admitsCompleted(crit({ lens: crit({ orGroups: [{ ...none(), statusIds: new Set([1]), dates: { completed: thisWeek } }] }) }))).toBe(false)
     })
 
     it('without a Completed range anywhere, completed tasks stay hidden', () => {

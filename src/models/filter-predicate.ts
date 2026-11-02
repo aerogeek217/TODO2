@@ -149,8 +149,8 @@ export type FilterNegation = { [K in NegatableField]?: true }
 export interface TodoPredicate {
   /**
    * Completed tasks pass too. A Completed date range among the clauses
-   * (outside the or groups) lets them through as well — the ones it keeps
-   * (`utils/filter-criteria.admitsCompleted`).
+   * outside the or groups, or an or group's only alternative, lets them
+   * through as well — the ones it keeps (`utils/filter-criteria.admitsCompleted`).
    */
   showCompleted: boolean
   /**

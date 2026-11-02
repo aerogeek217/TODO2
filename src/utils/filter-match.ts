@@ -103,8 +103,8 @@ function passesOrGroup(group: CriteriaClauses, t: ClauseTask): boolean {
  * Canonical evaluator. Takes runtime filter state (`FilterCriteria`) and a
  * single todo; returns whether the todo passes the filter: its completion
  * (`admitsCompleted`: Show completed, or a Completed range outside the or
- * groups, its own or its lens's), the lens, every clause and every or group (at least
- * one clause of each). A People / Status / Tags clause with its "is not"
+ * groups or as an or group's only alternative, its own or its lens's), the
+ * lens, every clause and every or group (at least one clause of each). A People / Status / Tags clause with its "is not"
  * switch passes the tasks the clause without it would fail
  * (`FilterNegation`) — inside an or group as outside.
  */

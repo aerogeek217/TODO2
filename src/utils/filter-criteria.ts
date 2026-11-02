@@ -1,5 +1,5 @@
 import type { DateAnchor, DateFilters, FilterClauses, FilterNegation, MarkersFilter, TodoPredicate } from '../models'
-import { hasDateFilters, isDateMatchOn, normalizeDateFilters, readDateFilters } from './date-filters'
+import { activeDateFields, hasDateFilters, isDateMatchOn, normalizeDateFilters, readDateFilters } from './date-filters'
 import { normalizeOrGroups } from './or-groups'
 import { withNormalizedNegation } from './filter-negation'
 import { hasMarkers, normalizeMarkersFilter } from './markers'
@@ -73,15 +73,30 @@ export interface FilterCriteria {
 export type CriteriaClauses = Pick<FilterCriteria, 'personIds' | 'statusIds' | 'tags' | 'searchText' | 'dates' | 'markers' | 'negate'>
 
 /**
- * Whether completed tasks get past the completion gate: Show completed is
- * on, or a Completed date range is among the clauses outside the or groups
- * — its own or its lens's. The range then keeps only the tasks completed in
- * it (an open task never has the date), so "Done this week" needs no Show
- * completed. A Completed clause inside an or group is a plain date clause:
- * it never opens the gate.
+ * Whether or group `g`'s only alternative is a Completed range: every task
+ * it keeps is completed (an open task never has the date).
  */
-export function admitsCompleted(f: Pick<FilterCriteria, 'showCompleted' | 'dates' | 'lens'>): boolean {
-  return f.showCompleted || isDateMatchOn(f.dates.completed) || (f.lens != null && admitsCompleted({ ...f.lens, showCompleted: false }))
+function isCompletedOnlyGroup(g: CriteriaClauses): boolean {
+  const dates = activeDateFields(g.dates)
+  return dates.length === 1 && dates[0] === 'completed'
+    && g.personIds == null && g.statusIds == null && g.tags == null
+    && g.searchText.trim() === '' && !hasMarkers(g.markers)
+}
+
+/**
+ * Whether completed tasks get past the completion gate: Show completed is
+ * on, or a Completed date range is among the clauses outside the or groups,
+ * or an or group's every alternative is one — its own or its lens's. The
+ * range then keeps only the tasks completed in it (an open task never has
+ * the date), so "Done this week" needs no Show completed. A Completed
+ * clause in an or group with other alternatives is a plain date clause: it
+ * doesn't open the gate (the group would keep open tasks by the others).
+ */
+export function admitsCompleted(f: Pick<FilterCriteria, 'showCompleted' | 'dates' | 'orGroups' | 'lens'>): boolean {
+  return f.showCompleted
+    || isDateMatchOn(f.dates.completed)
+    || (f.orGroups ?? []).some(isCompletedOnlyGroup)
+    || (f.lens != null && admitsCompleted({ ...f.lens, showCompleted: false }))
 }
 
 /** Wraps a Date as a fixed-ISO `DateAnchor`. */
