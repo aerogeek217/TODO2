@@ -105,6 +105,67 @@ export function StatusIcon({ icon, filled }: { icon?: string; filled?: boolean }
           <path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" />
         </Svg>
       )
+    case 'sparkle':
+      return (
+        <Svg filled={filled} strokeOnly>
+          <path d="M8 1.5C8.6 5.2 10.8 7.4 14.5 8C10.8 8.6 8.6 10.8 8 14.5C7.4 10.8 5.2 8.6 1.5 8C5.2 7.4 7.4 5.2 8 1.5Z" fill={filled ? 'currentColor' : 'none'} />
+        </Svg>
+      )
+    case 'lightbulb':
+      return (
+        <Svg filled={filled} strokeOnly>
+          <path d="M5.6 11C5.6 9.4 3.5 8.5 3.5 6A4.5 4.5 0 0 1 12.5 6C12.5 8.5 10.4 9.4 10.4 11Z" fill={filled ? 'currentColor' : 'none'} />
+          <path d="M6.2 13.6H9.8" />
+        </Svg>
+      )
+    case 'person-arrow':
+      return (
+        <Svg filled={filled} strokeOnly>
+          {filled
+            ? <path d="M3.2 5a2.3 2.3 0 1 0 4.6 0a2.3 2.3 0 1 0 -4.6 0Z M1.5 13.5A4 4 0 0 1 9.5 13.5Z" fill="currentColor" />
+            : <>
+                <circle cx="5.5" cy="5" r="2.3" />
+                <path d="M1.5 13.5A4 4 0 0 1 9.5 13.5" />
+              </>}
+          <path d="M11 8.5H14.5M12.8 6.6L14.6 8.5L12.8 10.4" />
+        </Svg>
+      )
+    case 'pause-circle':
+      // Filled: a disc as wide as the outline's ring, the bars cut out of it.
+      return filled
+        ? (
+          <svg {...svgBase} fill="currentColor" fillRule="evenodd">
+            <path d="M1.1 8a6.9 6.9 0 1 0 13.8 0a6.9 6.9 0 1 0 -13.8 0Z M5.6 5H7.2V11H5.6Z M8.8 5H10.4V11H8.8Z" />
+          </svg>
+        )
+        : (
+          <Svg strokeOnly>
+            <circle cx="8" cy="8" r="6.2" />
+            <path d="M6.4 5.5V10.5M9.6 5.5V10.5" />
+          </Svg>
+        )
+    case 'person-circle':
+      // Filled: a disc with the head and shoulders cut out of it.
+      return filled
+        ? (
+          <svg {...svgBase} fill="currentColor" fillRule="evenodd">
+            <path d="M0.8 8a7.2 7.2 0 1 0 14.4 0a7.2 7.2 0 1 0 -14.4 0Z M5.8 6.3a2.2 2.2 0 1 0 4.4 0a2.2 2.2 0 1 0 -4.4 0Z M4.1 12.9C5.1 10.9 6.4 10 8 10C9.6 10 10.9 10.9 11.9 12.9C10.9 13.9 9.5 14.3 8 14.3C6.5 14.3 5.1 13.9 4.1 12.9Z" />
+          </svg>
+        )
+        : (
+          <Svg strokeOnly>
+            <circle cx="8" cy="8" r="6.5" />
+            <circle cx="8" cy="6.3" r="2.2" />
+            <path d="M4.4 12.9C5.3 11.1 6.5 10.3 8 10.3C9.5 10.3 10.7 11.1 11.6 12.9" />
+          </Svg>
+        )
+    case 'pushpin':
+      return (
+        <Svg filled={filled} strokeOnly>
+          <path d="M6.5 1.8H9.5V6L12 9.2H4L6.5 6Z" fill={filled ? 'currentColor' : 'none'} />
+          <path d="M5 1.8H11M8 9.2V14.6" />
+        </Svg>
+      )
     default:
       return null
   }
