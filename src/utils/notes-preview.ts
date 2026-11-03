@@ -1,9 +1,11 @@
+import type { StatusUpdate } from '../models'
+import { formatDateNumeric } from './date'
 import { replaceMarkdownLinks } from './markdown-links'
 import { collapseWhitespace } from './text'
 
 /** At most this many note lines in a preview; more end in `…`. */
 export const NOTES_PREVIEW_MAX_LINES = 6
-/** A preview line (and the progress text) is cut to this many characters, ending in `…`. */
+/** A preview line (and the status update's) is cut to this many characters, ending in `…`. */
 export const NOTES_PREVIEW_MAX_CHARS = 80
 
 function clip(s: string, max: number): string {
@@ -60,19 +62,23 @@ export function notesPreviewLines(notes: string | undefined): string[] {
   return shown
 }
 
-/** Whether a task has progress text worth showing (not just spaces). */
-export function hasProgressText(progress: string | undefined): boolean {
-  return !!progress && progress.trim() !== ''
+/** A task's newest status update as the preview's first line: `MM/DD text`, cut like a note line. */
+export function statusUpdateLine(update: Pick<StatusUpdate, 'date' | 'text'>): string {
+  return clip(`${formatDateNumeric(update.date)} ${collapseWhitespace(update.text.slice(0, RAW_LINE_LIMIT))}`, NOTES_PREVIEW_MAX_CHARS)
 }
 
 /**
- * The task row notes cell's hover preview: `Progress: <text>` and / or a
- * `Notes` heading over the notes' first lines — as tooltip text, the
- * headings being its label lines. `null` when there is nothing to show.
+ * The task row notes cell's hover preview: the task's newest status update
+ * (`MM/DD text`) and / or a `Notes` heading over the notes' first lines — as
+ * tooltip text, those being its label lines. `null` when there is nothing to
+ * show.
  */
-export function progressNotesPreview(progress: string | undefined, notes: string | undefined): { text: string; labelLines: number } | null {
+export function statusNotesPreview(
+  update: Pick<StatusUpdate, 'date' | 'text'> | undefined,
+  notes: string | undefined,
+): { text: string; labelLines: number } | null {
   const labels: string[] = []
-  if (hasProgressText(progress)) labels.push(`Progress: ${clip(collapseWhitespace((progress ?? '').trimStart().slice(0, RAW_LINE_LIMIT)), NOTES_PREVIEW_MAX_CHARS)}`)
+  if (update && update.text.trim() !== '') labels.push(statusUpdateLine(update))
   const lines = notesPreviewLines(notes)
   if (lines.length > 0) labels.push('Notes')
   if (labels.length === 0) return null

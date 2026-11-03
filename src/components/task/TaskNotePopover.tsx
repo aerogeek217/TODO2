@@ -3,7 +3,11 @@ import { useClickOutside } from '../../hooks/use-click-outside'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useFlashMessage } from '../../hooks/use-flash-message'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import { useTodoStore } from '../../stores/todo-store'
+import { STATUS_UPDATE_TEXT_MAX } from '../../models'
+import { useStatusUpdateStore, useStatusUpdates } from '../../stores/status-update-store'
+import { useUIStore } from '../../stores/ui-store'
+import { formatDateNumeric } from '../../utils/date'
+import { statusUpdateText } from '../../utils/status-updates'
 import { NotesBody } from './notes/NotesBody'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
 import { isNotesConvertOpen } from './notes/NotesConvert'
@@ -18,10 +22,6 @@ import { PopoverRoot } from '../shared/PopoverRoot'
 const isNotesLayer = (panel: Element | null, target: Element) =>
   target.closest('[data-nlp-popup]') !== null || isNotesConvertOpen() || (panel !== null && isInLayerAbove(panel, target))
 
-/** The task editor's limit on the Progress text. */
-const PROGRESS_MAX_LENGTH = 500
-const PROGRESS_PLACEHOLDER = 'e.g. 50% done, Waiting on review...'
-
 interface TaskNotePopoverProps {
   todoId: number
   anchorRef: React.RefObject<HTMLElement | null>
@@ -29,56 +29,52 @@ interface TaskNotePopoverProps {
 }
 
 /**
- * The task row's notes popover: the task's **Progress** (one line, as the
- * editor has it) above its **Notes** (`NotesBody` on the todo's `notes`).
- * Anchored to the row's notes cell by `usePopoverAnchor`: it flips above the
- * cell / to its right edge when it would leave the viewport, and follows it
- * on scroll and resize.
+ * The task row's notes popover: the task's **Status** (its newest status
+ * update, `History (N) →` opening the task's editor with them all, and a
+ * line that adds one dated today) above its **Notes** (`NotesBody` on the
+ * todo's `notes`). Anchored to the row's notes cell by `usePopoverAnchor`:
+ * it flips above the cell / to its right edge when it would leave the
+ * viewport, and follows it on scroll and resize.
  *
- * Opens with the focus in Progress. Notes are one edit session at a time
- * (`useTaskNotesSource`: written a moment after typing stops, and at blur,
- * close, Copy and Convert); Progress saves on blur, Enter and close — each as
- * `todo-store.update` with just that field, and only when it changed. A
- * change made elsewhere shows in either field until the user types in it. Esc, Enter in Progress and an outside click
- * close it, keeping what was typed; a click on the cell is left to the cell's
- * toggle. On close the focus goes back to the cell, unless something else
- * took it.
+ * Opens with the focus in the Status line. Notes are one edit session at a
+ * time (`useTaskNotesSource`: written a moment after typing stops, and at
+ * blur, close, Copy and Convert); ⏎ in the Status line adds the update (its
+ * own undo step, after the notes typed so far) and clears the line. Esc and
+ * an outside click close it, keeping what was typed — a Status line with
+ * text is added then; a click on the cell is left to the cell's toggle. On
+ * close the focus goes back to the cell, unless something else took it.
  */
 export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverProps) {
   const containerRef = useRef<HTMLDivElement | null>(null)
-  const progressRef = useRef<HTMLInputElement>(null)
+  const updateRef = useRef<HTMLInputElement>(null)
   const returnFocusRef = useRef<HTMLElement | null>(null)
-  const progressId = useId()
+  const updateId = useId()
   const [toast, flashToast] = useFlashMessage<string | null>(null)
 
   const notes = useTaskNotesSource({ todoId })
   const flushNotes = notes.flush
 
-  // Progress: the stored value shows until the user types in the field;
-  // `dirtyRef` = typed since the last save (a ref, so blur, Enter and the
-  // close in one turn save once).
-  const storedProgress = useTodoStore((s) => s.todos.find((t) => t.id === todoId)?.progress ?? '')
-  const [typedProgress, setTypedProgress] = useState<string | null>(null)
-  const progress = typedProgress ?? storedProgress
-  const progressTextRef = useLatestRef(progress)
-  const dirtyRef = useRef(false)
-  const saveProgress = useCallback(() => {
-    if (!dirtyRef.current) return
+  // Status: the newest update, and the line that adds one dated today.
+  const updates = useStatusUpdates(todoId)
+  const newest = updates.at(0)
+  const [update, setUpdate] = useState('')
+  // A ref too, so a close in the same turn as the last keystroke reads it.
+  const updateTextRef = useRef('')
+  const addUpdate = () => {
+    const text = statusUpdateText(updateTextRef.current)
+    if (text === '') return
     // The notes typed so far are their own edit, written first.
     void flushNotes()
-    dirtyRef.current = false
-    const text = progressTextRef.current
-    setTypedProgress(null)
-    const stored = useTodoStore.getState().todos.find((t) => t.id === todoId)?.progress ?? ''
-    if (text === stored) return
-    void useTodoStore.getState().update(todoId, { progress: text ? text : undefined })
-  }, [progressTextRef, todoId, flushNotes])
+    updateTextRef.current = ''
+    setUpdate('')
+    void useStatusUpdateStore.getState().add(todoId, { date: new Date(), text })
+  }
 
-  // Whatever closes it (Esc, Enter, an outside click, the cell's toggle) keeps what was typed.
-  const saveProgressRef = useLatestRef(saveProgress)
-  useEffect(() => () => saveProgressRef.current(), [saveProgressRef])
+  // Whatever closes it (Esc, an outside click, the cell's toggle) keeps what was typed.
+  const addUpdateRef = useLatestRef(addUpdate)
+  useEffect(() => () => addUpdateRef.current(), [addUpdateRef])
 
-  // Remember what had focus (the notes cell), then focus Progress.
+  // Remember what had focus (the notes cell), then focus the Status line.
   useLayoutEffect(() => {
     const previous = document.activeElement
     if (previous instanceof HTMLElement && previous !== document.body && !containerRef.current?.contains(previous)) {
@@ -86,7 +82,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
     } else if (anchorRef.current) {
       returnFocusRef.current = anchorRef.current
     }
-    progressRef.current?.focus({ preventScroll: true })
+    updateRef.current?.focus({ preventScroll: true })
   }, [anchorRef])
   // On close hand the focus back, unless something else took it.
   useLayoutEffect(() => {
@@ -145,11 +141,16 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
 
   const handleToast = useCallback((message: string) => flashToast(message, TOAST_VISIBLE_MS), [flashToast])
 
-  const onProgressKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onUpdateKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
     e.preventDefault()
-    saveProgress()
+    addUpdate()
+  }
+
+  // The task's editor, with every update: this popover closes first.
+  const openHistory = () => {
     onClose()
+    useUIStore.getState().openEditPopup(todoId)
   }
 
   return (
@@ -168,22 +169,36 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
       onDoubleClick={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.stopPropagation()}
       role="dialog"
-      aria-label="Progress and notes"
+      aria-label="Status and notes"
     >
-      <div className={styles.progress}>
-        <label className={styles.label} htmlFor={progressId}>Progress</label>
-        <input
-          id={progressId}
-          ref={progressRef}
-          className={styles.progressInput}
-          value={progress}
-          maxLength={PROGRESS_MAX_LENGTH}
-          placeholder={PROGRESS_PLACEHOLDER}
-          autoComplete="off"
-          onChange={(e) => { dirtyRef.current = true; setTypedProgress(e.target.value) }}
-          onBlur={saveProgress}
-          onKeyDown={onProgressKeyDown}
-        />
+      <div className={styles.status}>
+        <div className={styles.statusHead}>
+          <label className={styles.label} htmlFor={updateId}>Status</label>
+          {updates.length > 0 && (
+            <button type="button" className={styles.history} onClick={openHistory}>
+              History ({updates.length}) →
+            </button>
+          )}
+        </div>
+        {newest && (
+          <div className={styles.newest} data-newest-update="">
+            <span className={styles.newestDate}>{formatDateNumeric(newest.date)}</span> {newest.text}
+          </div>
+        )}
+        <div className={styles.addWrap}>
+          <input
+            id={updateId}
+            ref={updateRef}
+            className={styles.updateInput}
+            value={update}
+            maxLength={STATUS_UPDATE_TEXT_MAX}
+            placeholder="Add an update…"
+            autoComplete="off"
+            onChange={(e) => { updateTextRef.current = e.target.value; setUpdate(e.target.value) }}
+            onKeyDown={onUpdateKeyDown}
+          />
+          <span className={styles.addHint} aria-hidden="true">Today · ⏎</span>
+        </div>
       </div>
       <div className={`${styles.label} ${styles.notesLabel}`}>Notes</div>
       <NotesBody

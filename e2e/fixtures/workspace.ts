@@ -114,8 +114,8 @@ export interface WorkspaceSeed {
     status?: string
     /** Task notes (Markdown). */
     notes?: string
-    /** Progress text. */
-    progress?: string
+    /** Status updates, newest first: each a text and its day (days from today, ≤ 0; default today). */
+    statusUpdates?: Array<{ text: string; inDays?: number }>
     /** A fixed uid (default: a random UUID). */
     uid?: string
     /** Last modified (default: now), as a local date-time string, e.g. `2026-10-10T15:30`. */
@@ -169,7 +169,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       r.onsuccess = () => resolve(r.result as number)
       r.onerror = () => reject(r.error)
     })
-    const tx = idb.transaction(['layouts', 'settings', 'listDefinitions', 'people', 'tags', 'statuses', 'todos', 'todoPeople', 'todoTags'], 'readwrite')
+    const tx = idb.transaction(['layouts', 'settings', 'listDefinitions', 'people', 'tags', 'statuses', 'todos', 'todoPeople', 'todoTags', 'statusUpdates'], 'readwrite')
     const get = (store: IDBObjectStore, key: number) => new Promise<Record<string, unknown>>((resolve, reject) => {
       const r = store.get(key)
       r.onsuccess = () => resolve(r.result as Record<string, unknown>)
@@ -243,7 +243,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         ...(task.important ? { important: true } : {}),
         ...(task.focus ? { focus: true } : {}),
         ...(task.notes ? { notes: task.notes } : {}),
-        ...(task.progress ? { progress: task.progress } : {}),
         // A task changed days ago was created no later than that.
         createdAt: task.modifiedInDays != null && modifiedAt < now ? modifiedAt : now,
         modifiedAt,
@@ -251,6 +250,10 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       })
       for (const p of task.people ?? []) await add(tx.objectStore('todoPeople'), { todoId, personId: personIds.get(p) })
       for (const t of task.tags ?? []) await add(tx.objectStore('todoTags'), { todoId, tagId: tagIds.get(t) })
+      // Written newest first, each a moment older than the one before (same-day order).
+      for (const [i, u] of (task.statusUpdates ?? []).entries()) {
+        await add(tx.objectStore('statusUpdates'), { todoId, date: day(u.inDays ?? 0), text: u.text, createdAt: new Date(now.getTime() - i * 1000) })
+      }
     }
     tx.objectStore('layouts').clear()
     let firstId: number | null = null

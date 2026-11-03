@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { hasProgressText, notesPreviewLines, progressNotesPreview } from '../../utils/notes-preview'
+import { NOTES_PREVIEW_MAX_CHARS, notesPreviewLines, statusNotesPreview } from '../../utils/notes-preview'
 
 describe('notesPreviewLines', () => {
   it('no notes → no lines', () => {
@@ -46,32 +46,29 @@ describe('notesPreviewLines', () => {
   })
 })
 
-describe('hasProgressText', () => {
-  it('spaces only is no progress', () => {
-    expect(hasProgressText(undefined)).toBe(false)
-    expect(hasProgressText('   ')).toBe(false)
-    expect(hasProgressText('50%')).toBe(true)
-  })
-})
+describe('statusNotesPreview', () => {
+  const update = (text: string) => ({ date: new Date(2026, 9, 28), text })
 
-describe('progressNotesPreview', () => {
   it('nothing to show → null', () => {
-    expect(progressNotesPreview(undefined, undefined)).toBeNull()
-    expect(progressNotesPreview(' ', '\n')).toBeNull()
+    expect(statusNotesPreview(undefined, undefined)).toBeNull()
+    expect(statusNotesPreview(update(' '), '\n')).toBeNull()
   })
 
-  it('progress only: one label line', () => {
-    expect(progressNotesPreview('50% done', undefined)).toEqual({ text: 'Progress: 50% done', labelLines: 1 })
+  it('an update only: one label line, `MM/DD text`', () => {
+    expect(statusNotesPreview(update('50% done'), undefined)).toEqual({ text: '10/28 50% done', labelLines: 1 })
   })
 
   it('notes only: a Notes heading over the lines', () => {
-    expect(progressNotesPreview(undefined, 'a\nb')).toEqual({ text: 'Notes\na\nb', labelLines: 1 })
+    expect(statusNotesPreview(undefined, 'a\nb')).toEqual({ text: 'Notes\na\nb', labelLines: 1 })
   })
 
-  it('both: progress, then the Notes heading, then the lines; progress on one line', () => {
-    expect(progressNotesPreview('waiting\non review', '- call Sam')).toEqual({
-      text: 'Progress: waiting on review\nNotes\n• call Sam',
+  it('both: the update, then the Notes heading, then the lines; the update on one line, cut like a note line', () => {
+    expect(statusNotesPreview(update('waiting\non review'), '- call Sam')).toEqual({
+      text: '10/28 waiting on review\nNotes\n• call Sam',
       labelLines: 2,
     })
+    const long = statusNotesPreview(update('x'.repeat(200)), undefined)?.text ?? ''
+    expect(long).toHaveLength(NOTES_PREVIEW_MAX_CHARS)
+    expect(long.endsWith('…')).toBe(true)
   })
 })

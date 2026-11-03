@@ -10,7 +10,8 @@ import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { NotesIcon } from '../shared/icons'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { startOfToday, toDateInputValue } from '../../utils/date'
+import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
+import { formatDateNumeric, startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { MarkerDots } from '../shared/MarkerDots'
 import { markerSummary } from '../../utils/markers'
@@ -48,6 +49,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const primaryRowRef = useRef<HTMLDivElement>(null)
+  // The status chip: the task's newest status update.
+  const newestUpdate = useStatusUpdateStore((s) => newestStatusUpdate(todo.id, s.byTodo))
 
   const {
     handleToggleComplete, assignedTags, tagSelectorProps, togglePeople, peopleRef, followupOpen, toggleFollowup,
@@ -98,7 +101,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     !!todo.dueDate || !!todo.nextFollowupAt ||
     hasPeople ||
     assignedTags.length > 0 ||
-    !!todo.notes || !!todo.progress
+    !!todo.notes || !!newestUpdate
 
   // Touch has no hover, so an empty follow-up slot always shows its flag.
   const emptyFollowupFlag = (
@@ -216,11 +219,12 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
           {!todo.nextFollowupAt && emptyFollowupFlag}
 
-          {todo.progress && (
-            <span className={styles.progressChip}>
-              {todo.progress}
+          {newestUpdate && (
+            <span className={styles.progressChip} data-status-chip="">
+              {formatDateNumeric(newestUpdate.date)} {newestUpdate.text}
               {(() => {
-                const m = todo.progress.match(/(\d+)\s*%/)
+                // A percentage in the update's text (`60% done`) draws its bar.
+                const m = newestUpdate.text.match(/(\d+)\s*%/)
                 if (!m || m[1] == null) return null
                 const pct = Math.min(100, Math.max(0, parseInt(m[1])))
                 return (
@@ -232,13 +236,13 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             </span>
           )}
 
-          {todo.notes && (
+          {(todo.notes || newestUpdate) && (
             <button
               ref={notesIconRef}
               type="button"
               className={styles.notesIcon}
               onClick={toggleNotes}
-              aria-label="Edit progress and notes"
+              aria-label="Edit status and notes"
             >
               <NotesIcon size={12} />
             </button>

@@ -1,5 +1,5 @@
 import { useMemo, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
-import { type PersistedTodoItem, type Person, type Status, type Tag, DEFAULT_STATUS_ICON } from '../../models'
+import { type PersistedTodoItem, type Person, type Status, type StatusUpdate, type Tag, DEFAULT_STATUS_ICON } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useSettingsStore } from '../../stores/settings-store'
 import { formatDateNumeric, startOfDay, toDateInputValue } from '../../utils/date'
@@ -7,7 +7,7 @@ import { dueTooltip, isDeadlinePast } from '../../utils/effective-date'
 import { isUrgentByDate } from '../../utils/urgency'
 import { followupPillLabel, followupTooltip, formatFollowupDate, isFollowupOverdue } from '../../utils/followup'
 import { markerSummary } from '../../utils/markers'
-import { progressNotesPreview } from '../../utils/notes-preview'
+import { statusNotesPreview } from '../../utils/notes-preview'
 import { datesParts, peopleFit, tagsFit, type PeopleFit } from '../../utils/task-row-columns'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { NotesIcon, RepeatIcon } from '../shared/icons'
@@ -96,19 +96,19 @@ export function MarkerGutterStatic({ todo, today }: { todo: PersistedTodoItem; t
 // ── Notes ───────────────────────────────────────────────────────────────────
 
 /**
- * The notes cell: the task's Progress text and its Notes. The glyph when the
- * task has either, else the placeholder; hover / keyboard focus previews both
- * (read-only, the tooltip); a click (or Enter / Space) opens the popover that
- * edits them.
+ * The notes cell: the task's newest status update and its Notes. The glyph
+ * when the task has either, else the placeholder; hover / keyboard focus
+ * previews both (read-only, the tooltip); a click (or Enter / Space) opens
+ * the popover that adds updates and edits the notes.
  */
-export function NotesCell({ progress, notes, anchorRef, open, onToggle }: {
-  progress: string | undefined
+export function NotesCell({ update, notes, anchorRef, open, onToggle }: {
+  update: Pick<StatusUpdate, 'date' | 'text'> | undefined
   notes: string | undefined
   anchorRef: RefObject<HTMLButtonElement | null>
   open: boolean
   onToggle: (e: MouseEvent) => void
 }) {
-  const preview = useMemo(() => progressNotesPreview(progress, notes), [progress, notes])
+  const preview = useMemo(() => statusNotesPreview(update, notes), [update, notes])
   const filled = preview !== null
   // No preview over the open popover.
   const { triggerProps, tooltip } = useTooltip(open ? null : preview?.text, { labelLines: preview?.labelLines })
@@ -117,7 +117,7 @@ export function NotesCell({ progress, notes, anchorRef, open, onToggle }: {
       ref={anchorRef}
       type="button"
       className={`${styles.cell} ${styles.cellCenter} ${open ? styles.cellOpen : ''}`}
-      aria-label={filled ? 'Edit progress and notes' : 'Add progress or notes'}
+      aria-label={filled ? 'Edit status and notes' : 'Add status or notes'}
       aria-haspopup="dialog"
       aria-expanded={open}
       data-row-cell="notes"
