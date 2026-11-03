@@ -103,6 +103,17 @@ describe('dev seed generator', () => {
     }
   })
 
+  it('gives tasks a few status updates in place of Progress, never after today', () => {
+    const seed = seedFor()
+    expect(seed.todos.some((t) => 'progress' in t)).toBe(false)
+    const perTask = new Map<number, number>()
+    for (const u of seed.statusUpdates) perTask.set(u.todoId, (perTask.get(u.todoId) ?? 0) + 1)
+    expect(perTask.size).toBeGreaterThanOrEqual(3)
+    expect([...perTask.values()].every((n) => n >= 2)).toBe(true)
+    expect(seed.statusUpdates.every((u) => Date.parse(u.date) <= TODAY.getTime())).toBe(true)
+    expect(seed.statusUpdates.some((u) => u.followedUp === true)).toBe(true)
+  })
+
   it('gives every list an owner: a layout that shows it, or the Eisenhower', () => {
     const seed = seedFor()
     const shown = new Map(seed.layouts.map((l) => [l.id, new Set(

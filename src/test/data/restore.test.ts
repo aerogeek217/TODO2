@@ -20,6 +20,7 @@ function makeImportData(overrides: Partial<ImportData> = {}): ImportData {
     tags: [],
     todoTags: [],
     todoEvents: [],
+    statusUpdates: [],
     layouts: [],
     listOrders: [],
     ...overrides,
@@ -79,6 +80,7 @@ describe('restoreFromImportData', () => {
       await db.tags.add({ id: 1, name: 'old', color: '#abcdef' })
       await db.todoTags.add({ todoId: 1, tagId: 1 })
       await db.todoEvents.add({ todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: now.toISOString() })
+      await db.statusUpdates.add({ todoId: 1, date: startOfToday(), text: 'old update', createdAt: now })
       await db.layouts.add({ sortOrder: 0, name: 'Old Layout', columns: [], createdAt: now, modifiedAt: now })
       await db.listOrders.add({ listDefinitionId: 1, todoId: 1, rank: 1 })
       for (const table of ALL_DATA_TABLES) expect(await table.count(), `${table.name} seeded`).toBeGreaterThan(0)

@@ -19,7 +19,7 @@
  * day); Focus / Urgent / Important flags; completed tasks old and recent
  * with `completed` events, one with no event, one reopened (with the 30-day
  * retention setting the old ones trigger the purge prompt); notes and
- * progress; the global note; two layouts — Default (columns plus a
+ * status updates (a few per task, one added with a follow-up); the global note; two layouts — Default (columns plus a
  * dashboard band) and Planning (a calendar band, lists, the Eisenhower, a
  * dashboard) — each owning its lists, with list prompts, an "is not"
  * filter, a descending sort, Hot / Focus markers and manual orders; the
@@ -39,6 +39,7 @@ import type { Note } from '../src/models/note'
 import type { TodoPerson } from '../src/models/todo-person'
 import type { TodoTag } from '../src/models/todo-tag'
 import type { TodoEvent } from '../src/models/todo-event'
+import type { StatusUpdate } from '../src/models/status-update'
 import type { ListOrder } from '../src/models/list-order'
 import type { RecurrenceType } from '../src/models/recurrence'
 import type { ListDefinition } from '../src/models/list-definition'
@@ -50,7 +51,7 @@ import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, WorkspaceLayout }
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 71
+export const DEV_SEED_SCHEMA_VERSION = 72
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -69,6 +70,8 @@ function mulberry32(seed: number): () => number {
 const PRNG_SEED = 0x7d02_5eed
 /** A separate stream for task uids, so they don't shift the other choices. */
 const UID_SEED = 0x0de7_5eed
+/** A separate stream for the earlier status updates, likewise. */
+const UPDATE_SEED = 0x57a7_5eed
 
 interface Rng {
   next: () => number
@@ -115,6 +118,7 @@ type Json<T> = T extends Date
       : T
 
 type TodoRow = Json<TodoItem>
+type StatusUpdateRow = Json<StatusUpdate>
 type LayoutRow = Json<WorkspaceLayout>
 type TabRow = Json<LayoutTab>
 type CellRow = Json<LayoutCell>
@@ -212,6 +216,7 @@ interface TaskOpts {
   urgent?: boolean
   important?: boolean
   notes?: string
+  /** The newest status update's text (a few earlier ones are made up). */
   progress?: string
   /** Completed on this day (≤ 0), with a `completed` event. */
   done?: number
@@ -245,6 +250,16 @@ const NOTES_POOL = [
 
 const PROGRESS_POOL = ['first draft done', 'waiting on numbers', 'half way', 'outline agreed', '2 of 5 done']
 
+/** Earlier status updates, before the newest (`progress`). */
+const EARLIER_UPDATES_POOL = [
+  'Kicked off; owner agreed',
+  'Asked for the inputs on Slack',
+  'Pinged again — no answer yet',
+  'Met to go through the open questions',
+  'Scope trimmed to the must-haves',
+  '10% — just started',
+]
+
 const PROJECTS: ProjectDef[] = [
   {
     name: 'Platform Migration',
@@ -276,7 +291,7 @@ const PROJECTS: ProjectDef[] = [
       ['Send weekly migration status update', { recur: 'weekly', due: 4, tags: ['docs'] }],
       'Check TLS certificate expiry on the old cluster',
       ['Archive the old wiki pages', { done: -90, tags: ['docs'] }],
-      ['Ask Bluefield for the revised SOW', { followup: 3, followedUp: -1, orgs: ['bluefield'], status: 'followup' }],
+      ['Ask Bluefield for the revised SOW', { followup: 3, followedUp: -1, orgs: ['bluefield'], status: 'followup', progress: 'Revised SOW promised for Friday' }],
       'Verify backups restore cleanly in staging',
       'Document the new deploy pipeline',
       'Clean up unused IAM roles',
@@ -479,6 +494,7 @@ export interface DevSeed {
   tags: Tag[]
   todoTags: TodoTag[]
   todoEvents: TodoEvent[]
+  statusUpdates: StatusUpdateRow[]
   layouts: LayoutRow[]
   listOrders: ListOrder[]
   exportedAt: string
@@ -523,6 +539,7 @@ interface Spec {
 export function generateDevSeed(today: Date = new Date()): DevSeed {
   const rng = makeRng(PRNG_SEED)
   const uidRng = makeRng(UID_SEED)
+  const updateRng = makeRng(UPDATE_SEED)
   const y = today.getFullYear()
   const m = today.getMonth()
   const d = today.getDate()
@@ -615,6 +632,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   const todoPeople: Omit<TodoPerson, 'id'>[] = []
   const todoTags: Omit<TodoTag, 'id'>[] = []
   const events: Omit<TodoEvent, 'id'>[] = []
+  const statusUpdates: Omit<StatusUpdateRow, 'id'>[] = []
 
   specs.forEach((spec, index) => {
     const id = index + 1
@@ -682,7 +700,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       sortOrder: index,
     }
     if (o.notes) todo.notes = o.notes
-    if (o.progress) todo.progress = o.progress
     if (completedMs !== null) todo.completedAt = iso(endMs)
     if (due) todo.dueDate = iso(due)
     if (lastFollowupMs !== null) todo.lastFollowupAt = iso(lastFollowupMs)
@@ -697,7 +714,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     if (o.important) todo.important = true
     if (o.status) todo.statusId = IDS.statuses[o.status]
     // Field order of the model (cosmetic — keeps diffs against real exports readable).
-    todos.push(reorder(todo, ['id', 'uid', 'title', 'notes', 'progress', 'isCompleted', 'completedAt', 'dueDate',
+    todos.push(reorder(todo, ['id', 'uid', 'title', 'notes', 'isCompleted', 'completedAt', 'dueDate',
       'lastFollowupAt', 'nextFollowupAt', 'recurrenceRule', 'focus', 'urgent', 'important', 'createdAt', 'modifiedAt',
       'statusId', 'sortOrder']))
 
@@ -707,6 +724,26 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     const projectTag = spec.project !== undefined ? IDS.projectTags[spec.project] : undefined
     if (projectTag !== undefined) tagIds.add(projectTag)
     for (const tagId of tagIds) todoTags.push({ todoId: id, tagId })
+
+    // Status updates: a few made-up earlier ones, then `progress` the newest
+    // — added with the last follow-up when the task was followed up.
+    if (o.progress) {
+      const texts = [...updateRng.pickN(EARLIER_UPDATES_POOL, updateRng.int(1, 3)), o.progress]
+      const newestMs = lastFollowupMs ?? between(texts.length / (texts.length + 1))
+      texts.forEach((text, k) => {
+        const newest = k === texts.length - 1
+        // The earlier ones spread from creation to the newest, in whole minutes.
+        const ms = newest ? newestMs : created + Math.floor(((newestMs - created) * (k + 1)) / texts.length / 60_000) * 60_000
+        const written = new Date(ms)
+        statusUpdates.push({
+          todoId: id,
+          date: iso(new Date(written.getFullYear(), written.getMonth(), written.getDate())),
+          text,
+          createdAt: iso(ms),
+          ...(newest && lastFollowupMs !== null ? { followedUp: true as const } : {}),
+        })
+      })
+    }
   })
 
   const idOf = (title: string): number => {
@@ -926,6 +963,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     tags,
     todoTags: withIds(todoTags),
     todoEvents: withIds(events),
+    statusUpdates: withIds(statusUpdates),
     layouts,
     listOrders,
     exportedAt: iso(exportedAt),

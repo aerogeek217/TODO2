@@ -170,7 +170,7 @@ export async function auditData(): Promise<AuditReport> {
   }
 
   const tables = await readDataTables()
-  const { todos, people, statuses, tags, todoPeople, todoTags, todoEvents, listDefinitions, listOrders, layouts } = tables
+  const { todos, people, statuses, tags, todoPeople, todoTags, todoEvents, statusUpdates, listDefinitions, listOrders, layouts } = tables
   const settingsRows = tables.settings
 
   // --- Unknown rows in known tables ---
@@ -396,6 +396,9 @@ export async function auditData(): Promise<AuditReport> {
     { field: 'listDefinitionId', ids: new Set(listDefinitions.map((d) => d.id!)) },
   ])
   orphanJoinRows('todoEvents', 'Event-log entries referencing deleted todos', todoEvents, [
+    { field: 'todoId', ids: todoIds },
+  ])
+  orphanJoinRows('statusUpdates', 'Status updates referencing deleted todos', statusUpdates, [
     { field: 'todoId', ids: todoIds },
   ])
 

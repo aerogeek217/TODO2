@@ -138,6 +138,7 @@ describe('export → restore round-trip', () => {
     await db.todoEvents.add({
       todoId, type: 'created', fromValue: null, toValue: null, timestamp: now.toISOString(),
     } as any)
+    await db.statusUpdates.add({ todoId, date: new Date(2026, 9, 1), text: 'Asked for the numbers', createdAt: now })
     await db.layouts.add({
       sortOrder: 0, name: 'Default', createdAt: now, modifiedAt: now,
       columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] }],

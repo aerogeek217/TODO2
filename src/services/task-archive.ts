@@ -2,7 +2,7 @@ import { CURRENT_DB_VERSION, db } from '../data/database'
 import { prepareImportText, TASK_ARCHIVE_KIND } from '../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../data/file-version'
 import type {
-  TodoItem, TodoPerson, TodoTag, TodoEvent, Person, Tag, Status,
+  TodoItem, TodoPerson, TodoTag, TodoEvent, StatusUpdate, Person, Tag, Status,
 } from '../models'
 
 /**
@@ -11,8 +11,8 @@ import type {
  * `exportedAt`) plus `kind: 'task-archive'`, carrying only the archived
  * tasks and what is needed to re-attach them on an append import:
  *
- * - `todos` and their `todoPeople` / `todoTags` join rows and
- *   `todoEvents` history;
+ * - `todos` and their `todoPeople` / `todoTags` join rows,
+ *   `todoEvents` history and `statusUpdates`;
  * - the referenced `people` / `tags` / `statuses` rows, so the append
  *   import can match them **by name** in another database.
  *
@@ -31,6 +31,7 @@ export interface TaskArchive {
   todoPeople: TodoPerson[]
   todoTags: TodoTag[]
   todoEvents: TodoEvent[]
+  statusUpdates: StatusUpdate[]
   people: Person[]
   tags: Tag[]
   statuses: Status[]
@@ -51,14 +52,15 @@ export async function buildTaskArchive(todoIds: readonly number[], now: Date = n
   const ids = [...new Set(todoIds)]
   return db.transaction(
     'r',
-    [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.people, db.tags, db.statuses],
+    [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.statusUpdates, db.people, db.tags, db.statuses],
     async () => {
       const todos = (await db.todos.bulkGet(ids)).filter((t): t is TodoItem => t != null)
       const presentIds = todos.map((t) => t.id).filter((id): id is number => id != null)
-      const [todoPeople, todoTags, todoEvents] = await Promise.all([
+      const [todoPeople, todoTags, todoEvents, statusUpdates] = await Promise.all([
         db.todoPeople.where('todoId').anyOf(presentIds).toArray(),
         db.todoTags.where('todoId').anyOf(presentIds).toArray(),
         db.todoEvents.where('todoId').anyOf(presentIds).toArray(),
+        db.statusUpdates.where('todoId').anyOf(presentIds).toArray(),
       ])
       const [people, tags, statuses] = await Promise.all([
         db.people.bulkGet(definedIds(todoPeople.map((r) => r.personId))),
@@ -73,6 +75,7 @@ export async function buildTaskArchive(todoIds: readonly number[], now: Date = n
         todoPeople,
         todoTags,
         todoEvents,
+        statusUpdates,
         people: people.filter((r): r is Person => r != null),
         tags: tags.filter((r): r is Tag => r != null),
         statuses: statuses.filter((r): r is Status => r != null),

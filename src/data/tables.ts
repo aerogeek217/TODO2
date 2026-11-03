@@ -1,4 +1,4 @@
-import type { TodoItem, Person, TodoPerson, Status, Note, Tag, TodoTag, TodoEvent, ListOrder } from '../models'
+import type { TodoItem, Person, TodoPerson, Status, Note, Tag, TodoTag, TodoEvent, StatusUpdate, ListOrder } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import type { SettingRow } from './database'
@@ -31,6 +31,7 @@ export interface DataTableRows {
   tags: Tag
   todoTags: TodoTag
   todoEvents: TodoEvent
+  statusUpdates: StatusUpdate
   layouts: WorkspaceLayout
   listOrders: ListOrder
 }
@@ -55,6 +56,7 @@ const DATA_TABLE_ORDER: Record<DataTableName, true> = {
   tags: true,
   todoTags: true,
   todoEvents: true,
+  statusUpdates: true,
   layouts: true,
   listOrders: true,
 }

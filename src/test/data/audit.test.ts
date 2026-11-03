@@ -88,6 +88,20 @@ describe('auditData', () => {
     expect(issue.fix).toBe('delete')
   })
 
+  it('detects orphaned statusUpdates (deleted todo)', async () => {
+    const { todoId } = await seedBase()
+    await db.statusUpdates.bulkAdd([
+      { todoId, date: new Date(2026, 9, 5), text: 'kept', createdAt: new Date() },
+      { todoId: 999, date: new Date(2026, 9, 5), text: 'orphan', createdAt: new Date() },
+    ])
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'statusUpdates')!
+    expect(issue.count).toBe(1)
+    expect(issue.fix).toBe('delete')
+    expect(issue.samples?.[0]?.badFields).toEqual(['todoId'])
+  })
+
   // --- Dangling foreign keys ---
 
   it('detects todos with deleted statusId', async () => {
