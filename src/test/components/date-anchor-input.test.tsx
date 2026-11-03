@@ -146,22 +146,35 @@ describe('DateAnchorInput: Relative', () => {
     expect(screen.getByRole('button', { name: 'To: day ahead' })).toBeInTheDocument()
   })
 
-  it('the number takes digits only, at most three; a cleared box holds until blur', () => {
+  it('the number takes digits only, at most 999; a cleared box holds until blur', () => {
     const log: (DateAnchor | null)[] = []
     render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: 14 }} log={log} />)
     const box = screen.getByLabelText('To: number of days')
     expect(box).toHaveAttribute('inputmode', 'numeric')
-    expect(box).toHaveAttribute('maxlength', '3')
     fireEvent.change(box, { target: { value: '21' } })
     expect(log.at(-1)).toEqual({ kind: 'offset', days: 21 })
-    for (const bad of ['-2', '2a', '1.5', '1000']) fireEvent.change(box, { target: { value: bad } })
-    expect(log).toHaveLength(1)
-    expect(box).toHaveValue('21')
-    fireEvent.change(box, { target: { value: '' } })
+    // Anything else typed or pasted keeps its digits (a pasted `-7` is 7 of the count shown) — P7–P8 review.
+    const typed: [string, number, string][] = [['-7', 7, '7'], ['2a', 2, '2'], ['1.5', 15, '15'], ['007', 7, '7'], ['1000', 999, '999'], ['-123', 123, '123']]
+    for (const [raw, days, shown] of typed) {
+      fireEvent.change(box, { target: { value: raw } })
+      expect(log.at(-1), raw).toEqual({ kind: 'offset', days })
+      expect(box, raw).toHaveValue(shown)
+    }
+    const writes = log.length
+    fireEvent.change(box, { target: { value: 'abc' } })
     expect(box).toHaveValue('')
-    expect(log).toHaveLength(1)
+    fireEvent.change(box, { target: { value: '' } })
+    expect(log).toHaveLength(writes)
     fireEvent.blur(box)
-    expect(box).toHaveValue('21')
+    expect(box).toHaveValue('123')
+  })
+
+  it('a pasted negative under days ago stays days ago', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="relative" side="from" initial={{ kind: 'offset', days: -3 }} log={log} />)
+    fireEvent.change(screen.getByLabelText('From: number of days'), { target: { value: '-7' } })
+    expect(log.at(-1)).toEqual({ kind: 'offset', days: -7 })
+    expect(screen.getByRole('button', { name: 'From: days ago' })).toBeInTheDocument()
   })
 
   it('the dropdown: Count, Fill in (with the number each fills), Rolling day for the end, then No end', () => {

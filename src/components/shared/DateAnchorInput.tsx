@@ -23,8 +23,6 @@ import { ChevronDownIcon } from './icons'
 import { MenuPopover, type MenuEntry } from './MenuPopover'
 import styles from './DateAnchorInput.module.css'
 
-/** Digits only, at most three (0–999): what the Relative number box takes. */
-const COUNT_DRAFT_PATTERN = /^\d{0,3}$/
 const COUNT_WORDS: Record<DayCount, { one: string; many: string }> = {
   ago: { one: 'day ago', many: 'days ago' },
   ahead: { one: 'day ahead', many: 'days ahead' },
@@ -197,15 +195,18 @@ function RelativeEnd({ side, value, onChange, label, day, zeroCount, onZeroCount
           type="text"
           inputMode="numeric"
           pattern="[0-9]*"
-          maxLength={3}
           className={`${styles.field} ${styles.number}`}
           value={draft ?? String(end.days)}
           onChange={(e) => {
-            const raw = e.target.value
-            if (!COUNT_DRAFT_PATTERN.test(raw)) return
-            setDraft(raw)
-            if (raw === '') return
-            writeCount(parseInt(raw, 10), end.count)
+            // Its digits only, 0–999: a pasted `-7` is 7 of the count the dropdown shows.
+            const digits = e.target.value.replace(/\D/g, '')
+            if (digits === '') {
+              setDraft('')
+              return
+            }
+            const days = Math.min(MAX_DAY_COUNT, parseInt(digits, 10))
+            setDraft(String(days))
+            writeCount(days, end.count)
           }}
           onBlur={() => setDraft(null)}
           aria-label={`${label}: number of days`}
