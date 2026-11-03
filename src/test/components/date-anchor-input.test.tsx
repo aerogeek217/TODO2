@@ -244,6 +244,15 @@ describe('DateAnchorInput: Relative', () => {
     expect(onZero).toHaveBeenLastCalledWith('ago')
   })
 
+  it('a count from a date more than 999 days away starts at 999 (P7–P8 review)', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="relative" side="from" initial={{ kind: 'fixed', iso: fixedIso(2023, 1, 1) }} log={log} />)
+    fireEvent.click(screen.getByRole('button', { name: 'From: on Jan 1' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'days ago' }))
+    expect(log.at(-1)).toEqual({ kind: 'offset', days: -999 })
+    expect(screen.getByLabelText('From: number of days')).toHaveValue('999')
+  })
+
   it('a rolling day hides the number; No end clears', () => {
     const log: (DateAnchor | null)[] = []
     render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: -7 }} log={log} />)

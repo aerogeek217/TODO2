@@ -5,6 +5,7 @@ import {
   DAY_PRESETS,
   ROLLING_DAYS,
   convertAnchor,
+  MAX_DAY_COUNT,
   countAnchor,
   dateAnchorsEqual,
   entryModeOf,
@@ -96,6 +97,16 @@ describe('switching modes', () => {
     expect(convertAnchor(fixed(2026, 11, 2), 'relative', TODAY, MON)).toEqual(token('today'))
     expect(convertAnchor(token('end-of-week'), 'relative', TODAY, MON)).toEqual(token('end-of-week'))
     expect(convertAnchor(null, 'relative', TODAY, MON)).toBeNull()
+  })
+
+  it('to Relative: a date more than 999 days away stays a date (the number box holds 3 digits) — P7–P8 review', () => {
+    // Jan 1 2023 is 1401 days back; Feb 7 2024 is 999 back, Jul 28 2029 999 ahead.
+    expect(convertAnchor(fixed(2023, 1, 1), 'relative', TODAY, MON)).toEqual(fixed(2023, 1, 1))
+    expect(convertAnchor(fixed(2024, 2, 6), 'relative', TODAY, MON)).toEqual(fixed(2024, 2, 6))
+    expect(convertAnchor(fixed(2024, 2, 7), 'relative', TODAY, MON)).toEqual(offset(-999))
+    expect(convertAnchor(fixed(2029, 7, 28), 'relative', TODAY, MON)).toEqual(offset(999))
+    expect(convertAnchor(fixed(2029, 7, 29), 'relative', TODAY, MON)).toEqual(fixed(2029, 7, 29))
+    expect(MAX_DAY_COUNT).toBe(999)
   })
 
   it('switching back restores the exact end while it is unchanged; edited, it converts again', () => {

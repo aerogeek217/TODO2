@@ -3,6 +3,7 @@ import type { DateAnchor } from '../../models'
 import {
   CALENDAR_PRESETS,
   DAY_PRESETS,
+  MAX_DAY_COUNT,
   ROLLING_DAYS,
   countAnchor,
   fixedAnchorOn,
@@ -153,9 +154,10 @@ function RelativeEnd({ side, value, onChange, label, day, zeroCount, onZeroCount
   }, [focusNumber])
 
   const pickCount = (count: DayCount) => {
-    // A count keeps the number; from anything else, the end's day if it lies that way from today, else 0.
+    // A count keeps the number; from anything else, the end's day if it lies that way from today (at most
+    // what the box holds), else 0.
     const distance = end.kind === 'count' || value == null ? null : daysUntil(resolveDateAnchor(value, day.today, day.weekStartsOn), day.today)
-    const days = end.kind === 'count' ? end.days : Math.max(0, (distance ?? 0) * (count === 'ago' ? -1 : 1))
+    const days = end.kind === 'count' ? end.days : Math.min(MAX_DAY_COUNT, Math.max(0, (distance ?? 0) * (count === 'ago' ? -1 : 1)))
     setDraft(null)
     writeCount(days, count)
     setFocusNumber((n) => n + 1)

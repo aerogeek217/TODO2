@@ -179,6 +179,18 @@ describe('DateFilterPanel', () => {
     expect(log.at(-1)).toEqual({ followup: { ...range, end: { kind: 'offset', days: 7 } } })
   })
 
+  it('to Relative, a date more than 999 days away stays a date: its own choice, as in a saved mix (P7–P8 review)', () => {
+    const log: DateFilters[] = []
+    const jan1 = { kind: 'fixed' as const, iso: fixedIso(2023, 1, 1) }
+    render(<Harness log={log} initialField="created" initial={{ created: { match: 'range', start: jan1, end: null } }} />)
+    expect(show('Calendar')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(show('Relative'))
+    expect(log.at(-1)).toEqual({ created: { match: 'range', start: jan1, end: null } })
+    expect(show('Relative')).toHaveAttribute('aria-checked', 'true')
+    expect(relative('From')).toHaveAccessibleName('From: on Jan 1')
+    expect(screen.queryByLabelText('From: number of days')).toBeNull()
+  })
+
   it('a saved mix (a date and today) opens in Relative with the date as its own choice', () => {
     render(<Harness log={[]} initial={{ deadline: { match: 'range', start: { kind: 'fixed', iso: fixedIso(2026, 10, 1) }, end: today } }} />)
     expect(show('Relative')).toHaveAttribute('aria-checked', 'true')

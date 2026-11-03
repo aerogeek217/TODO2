@@ -127,12 +127,21 @@ export function fitsCalendar(start: DateAnchor | null, end: DateAnchor | null): 
   return [start, end].every((a) => a == null || a.kind === 'fixed')
 }
 
-/** An end in `mode`: to Calendar, its day today as a date; to Relative, a date as days from today (today itself: the `today` rolling day). */
+/** The most days a Relative end's number holds (its box takes three digits). */
+export const MAX_DAY_COUNT = 999
+
+/**
+ * An end in `mode`: to Calendar, its day today as a date; to Relative, a
+ * date as days from today (today itself: the `today` rolling day) — a date
+ * more than `MAX_DAY_COUNT` days away stays a date (shown as its own choice,
+ * as a saved mix's is).
+ */
 export function convertAnchor(a: DateAnchor | null, mode: DateEntryMode, today: Date, weekStartsOn: WeekStart): DateAnchor | null {
   if (a == null) return null
   if (mode === 'calendar') return a.kind === 'fixed' ? a : fixedAnchorOn(resolveDateAnchor(a, today, weekStartsOn))
   if (a.kind !== 'fixed') return a
   const days = daysUntil(new Date(a.iso), today) ?? 0
+  if (Math.abs(days) > MAX_DAY_COUNT) return a
   return days === 0 ? { kind: 'relative', token: 'today' } : { kind: 'offset', days }
 }
 
