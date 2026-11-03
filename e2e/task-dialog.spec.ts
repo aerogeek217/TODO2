@@ -79,7 +79,7 @@ test('a row opens the editor on top; Esc in the editor closes only the editor', 
   await dialogRow(page, 'Plan the offsite').locator('span[data-task-title="Plan the offsite"]').click()
   await expect(editor(page)).toBeVisible()
   // The editor is on top: its fields take clicks over the dialog.
-  const update = page.getByRole('textbox', { name: 'New status update' })
+  const update = page.getByRole('textbox', { name: 'New status update', exact: true })
   await update.click()
   await update.fill('Room booked')
   // Esc leaves the field, then closes the editor — never the dialog.
