@@ -107,7 +107,7 @@ describe('the top bar’s People picker: Email check-in for an "is not" filter',
 
   it('is not everyone: nobody to email, a hint', () => {
     openPeople({ ...emptyPredicate(), personIds: [1, 2, 3], negate: { personIds: true } })
-    expect(ticked()).toEqual(['@Alice', '@Bob', '@Cara'])
+    expect(ticked()).toEqual(['Alice', 'Bob', 'Cara'])
     expect(screen.getByText('Narrow to some people to email them.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Email check-in/ })).toBeNull()
   })
@@ -125,7 +125,7 @@ describe('a list’s People picker', () => {
     const updates: TodoPredicate[] = []
     render(<ListPicker field="people" initial={emptyPredicate()} updates={updates} adding />)
     expect(ticked()).toEqual([])
-    fireEvent.click(screen.getByText('@Bob'))
+    fireEvent.click(screen.getByText('Bob'))
     expect(updates.at(-1)?.personIds).toEqual([2])
   })
 
@@ -134,12 +134,12 @@ describe('a list’s People picker', () => {
     render(<ListPicker field="people" initial={emptyPredicate()} updates={updates} adding />)
     choose('People', 'Is not')
     expect(updates).toEqual([])
-    fireEvent.click(screen.getByText('@Alice'))
+    fireEvent.click(screen.getByText('Alice'))
     expect(updates.at(-1)).toMatchObject({ personIds: [1], negate: { personIds: true } })
-    fireEvent.click(screen.getByText('@Cara'))
+    fireEvent.click(screen.getByText('Cara'))
     expect(updates.at(-1)).toMatchObject({ personIds: [1, 3], negate: { personIds: true } })
-    fireEvent.click(screen.getByText('@Alice'))
-    fireEvent.click(screen.getByText('@Cara'))
+    fireEvent.click(screen.getByText('Alice'))
+    fireEvent.click(screen.getByText('Cara'))
     expect(updates.at(-1)?.personIds).toBeNull()
     expect(updates.at(-1)).not.toHaveProperty('negate')
     expect(within(mode('People')).getByRole('radio', { name: 'Is not' })).toHaveAttribute('aria-checked', 'true')

@@ -37,7 +37,7 @@ test.describe('desktop', () => {
 
   test('remove an unused person and tag, then Undo brings them back on their task', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    expect(await pickerNames(page, 'People')).toEqual(['@Ann', '@Bob', '@Cal'])
+    expect(await pickerNames(page, 'People')).toEqual(['Ann', 'Bob', 'Cal'])
 
     const settings = await openSettings(page, 'People, statuses & tags')
     const find = settings.getByRole('button', { name: 'Find unused…' })
@@ -78,14 +78,14 @@ test.describe('desktop', () => {
     await expect(find).toBeFocused()
     await page.getByRole('button', { name: 'Close settings' }).click()
     await expect(settings).toHaveCount(0)
-    expect(await pickerNames(page, 'People')).toEqual(['@Bob', '@Cal'])
-    expect(await pickerNames(page, 'Tags')).toEqual(['#keep'])
+    expect(await pickerNames(page, 'People')).toEqual(['Bob', 'Cal'])
+    expect(await pickerNames(page, 'Tags')).toEqual(['keep'])
 
     await page.keyboard.press('Control+z')
     await expect.poll(() => assignedNames(page, 'Done task')).toEqual(['Ann'])
     await expect.poll(() => assignedNames(page, 'Done task', 'tags')).toEqual(['old'])
-    expect(await pickerNames(page, 'People')).toEqual(['@Ann', '@Bob', '@Cal'])
-    expect(await pickerNames(page, 'Tags')).toEqual(['#keep', '#old'])
+    expect(await pickerNames(page, 'People')).toEqual(['Ann', 'Bob', 'Cal'])
+    expect(await pickerNames(page, 'Tags')).toEqual(['keep', 'old'])
   })
 })
 

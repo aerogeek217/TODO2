@@ -541,7 +541,6 @@ export function FilterChipBarDesktop({
             isChecked={h.isChecked}
             onToggle={h.onToggle}
             onSearchClear={clearSearch}
-            namePrefix="@"
             showDot={false}
             entityMenu="person"
             onShowTasks={closeAll}
@@ -584,7 +583,6 @@ export function FilterChipBarDesktop({
             isChecked={h.isChecked}
             onToggle={h.onToggle}
             onSearchClear={clearSearch}
-            namePrefix="#"
             noneLabel={NO_TAGS_LABEL}
             entityMenu="tag"
             onShowTasks={closeAll}

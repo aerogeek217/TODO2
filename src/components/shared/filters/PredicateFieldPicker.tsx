@@ -167,7 +167,6 @@ function EntityPicker<T extends FilterClauses>({ field, predicate, adding, repla
           label={PICKER_TITLE[field]}
           isChecked={sel.isChecked}
           onToggle={toggle}
-          namePrefix={field === 'people' ? '@' : field === 'tags' ? '#' : undefined}
           showDot={field !== 'people'}
           noneLabel={field === 'tags' ? NO_TAGS_LABEL : undefined}
           entityMenu={field === 'people' ? 'person' : field === 'tags' ? 'tag' : undefined}

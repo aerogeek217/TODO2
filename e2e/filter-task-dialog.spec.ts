@@ -87,7 +87,7 @@ async function pickFilter(page: Page, field: 'People' | 'Tags', option: string) 
 
 /** The People filter on Ann. */
 async function filterToAnn(page: Page) {
-  await pickFilter(page, 'People', '@Ann')
+  await pickFilter(page, 'People', 'Ann')
   await expect.poll(() => workspaceTitles(page)).toEqual(['Ann plan', 'Ann call'])
 }
 
@@ -199,8 +199,8 @@ test.describe('desktop', () => {
 
     await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expectEveryFilterButton(page)
-    await pickFilter(page, 'People', '@Bob')
-    await pickFilter(page, 'Tags', '#q4')
+    await pickFilter(page, 'People', 'Bob')
+    await pickFilter(page, 'Tags', 'q4')
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Bob task'])
     await page.keyboard.press('Escape')
     await expect(panel(page)).toHaveCount(0)
@@ -209,9 +209,9 @@ test.describe('desktop', () => {
     // The same filter set without the panel, from a fresh load.
     await page.reload()
     await expect.poll(() => workspaceTitles(page)).toEqual(ALL)
-    await pickFilter(page, 'People', '@Ann')
-    await pickFilter(page, 'People', '@Bob')
-    await pickFilter(page, 'Tags', '#q4')
+    await pickFilter(page, 'People', 'Ann')
+    await pickFilter(page, 'People', 'Bob')
+    await pickFilter(page, 'Tags', 'q4')
     await expect.poll(() => workspaceTitles(page)).toEqual(['Ann plan', 'Bob task'])
     await expect.poll(() => bar(page)).toEqual(after)
 
@@ -244,7 +244,7 @@ test.describe('desktop', () => {
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Ann call'])
 
     await tray(page).getByRole('button', { name: 'Tags filter' }).click()
-    const q4 = page.getByRole('option', { name: '#q4' })
+    const q4 = page.getByRole('option', { name: 'q4' })
     await expect(q4).toBeVisible()
     expect(await onTop(q4)).toBe(true)
     await q4.click()

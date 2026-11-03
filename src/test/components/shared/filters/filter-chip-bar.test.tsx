@@ -251,7 +251,7 @@ describe('FilterChipBar — primitive', () => {
       // Desktop chip enters "preview-empty" mode on open (all-selected hidden,
       // first click commits only the clicked entity). Matches the legacy
       // TopBar / ListFilterEditor semantics.
-      fireEvent.click(screen.getByText('#urgent'))
+      fireEvent.click(screen.getByText('urgent'))
       expect(captured).not.toBeNull()
       expect(captured!.tags).toEqual([10])
     })
@@ -498,7 +498,7 @@ describe('FilterChipBar — primitive', () => {
         />,
       )
       fireEvent.click(screen.getByText('Tags'))
-      fireEvent.click(screen.getByText('#urgent'))
+      fireEvent.click(screen.getByText('urgent'))
       expect(captured).not.toBeNull()
       expect(captured!.tags).not.toContain(10)
     })
