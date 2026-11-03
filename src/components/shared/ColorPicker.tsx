@@ -14,8 +14,9 @@ interface ColorPickerProps {
 
 /**
  * The app's one colour picker: the six preset hues as swatches (one radio
- * group; the one whose colour `value` is reads checked), then `ColorInput`
- * (the native picker's swatch and the hex) for any other colour. Used by
+ * group; the one whose colour `value` is reads checked), a divider, then
+ * `ColorInput` (the native picker's swatch in a colour-wheel ring — the
+ * wheel alone while a preset is picked — and the hex) for any other colour. Used by
  * the people, status and tag editors and by the layout dialog (which maps a
  * preset back to its theme-aware hue name). `data-custom` marks a colour
  * that is no preset.
@@ -42,7 +43,8 @@ export function ColorPicker({ value, onChange, before }: ColorPickerProps) {
           />
         ))}
       </div>
-      <ColorInput value={value} onChange={onChange} />
+      <span className={styles.divider} aria-hidden="true" />
+      <ColorInput value={value} onChange={onChange} wheel={preset !== null} />
     </div>
   )
 }

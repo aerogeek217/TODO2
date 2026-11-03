@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, fireEvent, cleanup, within } from '@testing-library/react'
 import { ColorPicker } from '../../../components/shared/ColorPicker'
+import inputStyles from '../../../components/shared/ColorInput.module.css'
 import { HUE_PRESET_HEX } from '../../../utils/layout-hue'
 
 afterEach(cleanup)
@@ -26,6 +27,16 @@ describe('ColorPicker — the six preset hues, then the colour input', () => {
     // A preset's colour typed in its own case is still that preset.
     rerender(<ColorPicker value={HUE_PRESET_HEX.blue.toUpperCase()} onChange={onChange} />)
     expect(getByRole('radio', { name: 'Blue' })).toBeChecked()
+  })
+
+  it('the custom swatch is named, after a divider, and shows the colour wheel alone while a preset is picked', () => {
+    const { getByRole, getByLabelText, rerender } = render(<ColorPicker value={HUE_PRESET_HEX.rose} onChange={() => {}} />)
+    const ring = getByLabelText('Custom colour').parentElement!
+    expect(ring).toHaveAttribute('title', 'Custom colour')
+    expect(ring).toHaveClass(inputStyles.wheel!)
+    expect(getByRole('radiogroup', { name: 'Preset colours' }).nextElementSibling).toHaveAttribute('aria-hidden', 'true')
+    rerender(<ColorPicker value="#123456" onChange={() => {}} />)
+    expect(getByLabelText('Custom colour').parentElement).not.toHaveClass(inputStyles.wheel!)
   })
 
   it('the hex field still takes any colour', () => {

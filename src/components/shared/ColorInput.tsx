@@ -13,9 +13,17 @@ function expandHex(hex: string): string {
 interface ColorInputProps {
   value: string
   onChange: (color: string) => void
+  /** Show the colour wheel, not `value`: the picker's value is one of its presets, so no custom colour is set. */
+  wheel?: boolean
+  /** The swatch's name (default "Custom colour"). */
+  label?: string
 }
 
-export function ColorInput({ value, onChange }: ColorInputProps) {
+/**
+ * The custom colour: the native colour input as a swatch in a colour-wheel
+ * ring (the wheel alone while `wheel`), then the hex to type.
+ */
+export function ColorInput({ value, onChange, wheel = false, label = 'Custom colour' }: ColorInputProps) {
   const [hexText, setHexText] = useState(value)
   // A new `value` from the parent replaces the text (adjusted during render,
   // not in an effect: no render with the stale text).
@@ -42,12 +50,15 @@ export function ColorInput({ value, onChange }: ColorInputProps) {
 
   return (
     <div className={styles.wrapper}>
-      <input
-        type="color"
-        className={styles.swatch}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-      />
+      <span className={`${styles.ring} ${wheel ? styles.wheel : ''}`} title={label}>
+        <input
+          type="color"
+          className={styles.swatch}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          aria-label={label}
+        />
+      </span>
       <input
         type="text"
         className={styles.hex}

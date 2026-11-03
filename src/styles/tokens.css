@@ -110,6 +110,9 @@
   --font-weight-regular: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
+  /* The colour wheel a colour picker's custom swatch shows (any colour, not a
+     preset) — the same in both themes. */
+  --gradient-any-color: conic-gradient(#ef5350, #f5c242, #66bb6a, #4fc3f7, #5c6bc0, #ba68c8, #ef5350);
 }
 
 /*
