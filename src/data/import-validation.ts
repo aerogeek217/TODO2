@@ -194,8 +194,14 @@ function checkListDefinition(v: unknown): CheckResult {
   ])
 }
 
+/** Any string passes: a key this build doesn't draw (a newer build's icon)
+ *  is dropped by `pickStatus`, with a warning, instead of failing the file. */
 function isOptStatusIcon(v: unknown): boolean {
-  return v === undefined || v === null || (typeof v === 'string' && (STATUS_ICON_KEYS as readonly string[]).includes(v))
+  return v === undefined || v === null || typeof v === 'string'
+}
+
+function isKnownStatusIcon(v: unknown): v is StatusIconKey {
+  return typeof v === 'string' && (STATUS_ICON_KEYS as readonly string[]).includes(v)
 }
 
 function checkStatus(v: unknown): CheckResult {
@@ -490,11 +496,9 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
 }
 
 function pickStatus(v: Raw): AllFields<Status> {
-  // `icon` already validated by `checkStatus` -> `isOptStatusIcon`; the cast
-  // narrows the validated string to the StatusIconKey union.
   return {
     id: optNum(v.id), name: v.name as string, color: v.color as string, sortOrder: v.sortOrder as number,
-    icon: v.icon != null ? v.icon as StatusIconKey : undefined,
+    icon: isKnownStatusIcon(v.icon) ? v.icon : undefined,
   } satisfies AllFields<Status>
 }
 
@@ -784,7 +788,14 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
     fixer: { fixes: settingFixes, lead: () => 'Fixed settings', label: settingLabel },
   },
   todoPeople: { check: checkTodoPerson, pick: pickTodoPerson },
-  statuses: { check: checkStatus, pick: pickStatus },
+  statuses: {
+    check: checkStatus,
+    pick: pickStatus,
+    fixer: {
+      fixes: (row) => (row.icon != null && !isKnownStatusIcon(row.icon) ? ['unknown icon dropped'] : []),
+      lead: (n) => `Fixed ${plural(n, 'status', 'statuses')}`,
+    },
+  },
   listDefinitions: {
     check: checkListDefinition,
     pick: pickListDefinition,

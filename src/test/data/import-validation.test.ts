@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { emptyPredicate } from '../../models/filter-predicate'
+import { STATUS_ICON_KEYS } from '../../models/status'
 import { validateImportData, isKnownSettingKey } from '../../data/import-validation'
 import { isValidCssColor } from '../../utils/css'
 
@@ -745,6 +746,35 @@ describe('validateImportData', () => {
       ],
     }))
     expect(result.ok).toBe(true)
+  })
+
+  it('keeps every icon this build draws, the new ones among them', () => {
+    const result = validateImportData(validData({
+      statuses: STATUS_ICON_KEYS.map((icon, i) => ({ id: i + 1, name: icon, color: '#00ff00', sortOrder: i, icon })),
+    }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.statuses.map((s) => s.icon)).toEqual([...STATUS_ICON_KEYS])
+    expect(result.warnings).toEqual([])
+  })
+
+  it('drops an icon this build does not draw, keeping the status, with a warning', () => {
+    const result = validateImportData(validData({
+      statuses: [
+        { id: 1, name: 'Later', color: '#00ff00', sortOrder: 0, icon: 'rocket' },
+        { id: 2, name: 'Mine', color: '#ff0000', sortOrder: 1, icon: 'pushpin' },
+      ],
+    }))
+    if (!result.ok) throw new Error(result.error)
+    expect(result.data.statuses.map((s) => s.icon)).toEqual([undefined, 'pushpin'])
+    expect('icon' in result.data.statuses[0]!).toBe(false)
+    expect(result.warnings).toEqual(['Fixed 1 status: "Later" (unknown icon dropped)'])
+  })
+
+  it('still rejects an icon that is not a string', () => {
+    const result = validateImportData(validData({
+      statuses: [{ id: 1, name: 'Open', color: '#00ff00', sortOrder: 0, icon: 7 }],
+    }))
+    expect(result.ok).toBe(false)
   })
 
   it('a listDefinition sorted by priority passes validation', () => {

@@ -1,7 +1,8 @@
 export const STATUS_ICON_KEYS = [
   'person', 'message-bubble', 'circle', 'star', 'stop-sign', 'exclamation',
   'clock', 'check', 'question', 'flag', 'eye', 'bookmark', 'snooze', 'arrow',
-  'calendar',
+  'calendar', 'sparkle', 'lightbulb', 'person-arrow', 'pause-circle',
+  'person-circle', 'pushpin',
 ] as const
 export type StatusIconKey = (typeof STATUS_ICON_KEYS)[number]
 
