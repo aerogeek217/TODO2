@@ -187,6 +187,58 @@ describe('DateFilterPanel', () => {
     expect(screen.getByText('Thu 1 Oct')).toBeInTheDocument()
   })
 
+  describe('the mode shown stays for the panel’s life (P7–P8 review)', () => {
+    const oct31 = { kind: 'fixed' as const, iso: fixedIso(2026, 10, 31) }
+
+    it('a saved Calendar range keeps Calendar when its only date is emptied: the date input stays', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initial={{ deadline: { match: 'range', start: null, end: oct31 } }} />)
+      expect(show('Calendar')).toHaveAttribute('aria-checked', 'true')
+      const input = screen.getByLabelText('To')
+      fireEvent.change(input, { target: { value: '' } })
+      expect(log.at(-1)).toEqual({})
+      expect(show('Calendar')).toHaveAttribute('aria-checked', 'true')
+      // The same element: never unmounted under the user's typing.
+      expect(screen.getByLabelText('To')).toBe(input)
+      fireEvent.change(input, { target: { value: '2026-11-05' } })
+      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'fixed', iso: fixedIso(2026, 11, 5) } } })
+    })
+
+    it('…and when Set to… › Clear the date clears it, or both dates are cleared', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initial={{ deadline: { match: 'range', start: { kind: 'fixed', iso: fixedIso(2026, 10, 1) }, end: oct31 } }} />)
+      fireEvent.click(screen.getByRole('button', { name: 'To: Set to…' }))
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Clear the date' }))
+      expect(show('Calendar')).toHaveAttribute('aria-checked', 'true')
+      fireEvent.change(screen.getByLabelText('From'), { target: { value: '' } })
+      expect(log.at(-1)).toEqual({})
+      expect(show('Calendar')).toHaveAttribute('aria-checked', 'true')
+      expect(screen.getByLabelText('From')).toHaveAttribute('type', 'date')
+    })
+
+    it('a saved mix opened in Relative stays Relative when No end leaves only its date', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initial={{ deadline: { match: 'range', start: { kind: 'fixed', iso: fixedIso(2026, 10, 1) }, end: today } }} />)
+      expect(show('Relative')).toHaveAttribute('aria-checked', 'true')
+      pickRelative('To', 'No end')
+      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: { kind: 'fixed', iso: fixedIso(2026, 10, 1) }, end: null } })
+      expect(show('Relative')).toHaveAttribute('aria-checked', 'true')
+      expect(relative('From')).toHaveAccessibleName('From: on Oct 1')
+    })
+
+    it('another tab and back keeps it; Clear <Type> puts it back to Relative (a new range)', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} initial={{ deadline: { match: 'range', start: null, end: oct31 } }} />)
+      fireEvent.change(screen.getByLabelText('To'), { target: { value: '' } })
+      fireEvent.click(tab('Created'))
+      fireEvent.click(tab('Due'))
+      expect(show('Calendar')).toHaveAttribute('aria-checked', 'true')
+      fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-11-05' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Clear Due' }))
+      expect(show('Relative')).toHaveAttribute('aria-checked', 'true')
+    })
+  })
+
   it('Created / Modified: Show is Calendar · Relative only, and no “also tasks with no …”', () => {
     render(<Harness log={[]} initialField="created" />)
     const group = screen.getByRole('radiogroup', { name: 'Which tasks' })

@@ -202,6 +202,43 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await expect(panel).toBeHidden()
 })
 
+test('a saved Calendar date emptied from the keyboard keeps Calendar and the focus in its date input', async ({ page }) => {
+  await seedWorkspace(page, {
+    listDefinitions: [{ name: 'All' }],
+    tasks: [{ title: 'One' }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  })
+  // A saved Due on or before a date a week ahead (its local midnight, as a typed date stores it).
+  const month = await page.evaluate(async () => {
+    const mod = (await import(/* @vite-ignore */ '/src/stores/filter-store.ts' as string)) as {
+      useFilterStore: { getState: () => { filters: Record<string, unknown>; setAllFilters: (f: Record<string, unknown>) => void } }
+    }
+    const d = new Date()
+    d.setHours(0, 0, 0, 0)
+    d.setDate(d.getDate() + 7)
+    const st = mod.useFilterStore.getState()
+    st.setAllFilters({ ...st.filters, dates: { deadline: { match: 'range', start: null, end: { kind: 'fixed', iso: d.toISOString() } } } })
+    return d.getMonth() + 1
+  })
+  await page.getByRole('button', { name: /^Dates filter: Due on or before / }).click()
+  const panel = dialog(page)
+  const calendar = panel.getByRole('radiogroup', { name: 'Which tasks' }).getByRole('radio', { name: 'Calendar' })
+  await expect(calendar).toHaveAttribute('aria-checked', 'true')
+  const to = panel.getByLabel('To', { exact: true })
+  const saved = await to.inputValue()
+  // Backspace empties the focused part (the month): no date, so no clause — but the input stays, focused.
+  await to.focus()
+  await page.keyboard.press('Backspace')
+  await expect(panel.getByText('Not filtering')).toBeVisible()
+  await expect(calendar).toHaveAttribute('aria-checked', 'true')
+  await expect(to).toBeFocused()
+  // Typing the month back completes the date again.
+  await page.keyboard.type(String(month).padStart(2, '0'))
+  await expect(to).toHaveValue(saved)
+  await expect(panel.getByRole('tabpanel')).toContainText('on or before')
+  await expect(to).toBeFocused()
+})
+
 test('list chips: one per date type; a chip opens the panel under it on its type; its × clears only that type', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await seedWorkspace(page, {

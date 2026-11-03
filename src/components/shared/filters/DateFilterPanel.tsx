@@ -148,7 +148,8 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const [hidden, setHidden] = useState<Partial<Record<DateField, HiddenRange>>>({})
   // Is not picked before the range has an end (no clause to hold it yet; never stored).
   const [pendingNot, setPendingNot] = useState<Partial<Record<DateField, true>>>({})
-  // Calendar / Relative picked per type (else read from the ends), and what a switch converted (never stored).
+  // Calendar / Relative per type — picked, or pinned by the first edit to the mode shown (else read
+  // from the ends) — and what a switch converted (never stored). Clear forgets both: a new range again.
   const [modes, setModes] = useState<Partial<Record<DateField, DateEntryMode>>>({})
   const [memos, setMemos] = useState<Partial<Record<DateField, SwitchMemos>>>({})
   const day = useChipDay()
@@ -168,7 +169,7 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   const range = dateRangeOf(clause)
   const { start, end, includeNoDate } = range
   const hasEnd = start !== null || end !== null
-  // The mode picked for the type, else the one its ends read as (a new range: Relative); ends only Relative can show, Relative.
+  // The mode picked or pinned for the type, else the one its ends read as (a new range: Relative); ends only Relative can show, Relative.
   const entryMode: DateEntryMode = fitsCalendar(start, end) ? modes[field] ?? entryModeOf(start, end) : 'relative'
   const show: ShowMode = optional && clause && clause.match !== 'range' ? clause.match : entryMode
   const inRange = show === 'calendar' || show === 'relative'
@@ -195,6 +196,9 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   })
 
   const setRange = (s: DateAnchor | null, e: DateAnchor | null, include = includeNoDate, negate = not) => {
+    // The mode shown stays while the panel is open: an edit never re-reads it from the new ends
+    // (emptying a Calendar range's date would flip it to Relative under the user's typing).
+    if (!(field in modes)) setModes((m) => (field in m ? m : { ...m, [field]: entryMode }))
     // With no end there's no clause to hold Is not: keep it here until an end is picked.
     keepPendingNot(field, negate && s === null && e === null)
     onChange(withDateMatch(dates, field, rangeMatch({ start: s, end: e, includeNoDate: include, not: negate })))
