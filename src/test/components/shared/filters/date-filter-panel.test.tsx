@@ -76,7 +76,7 @@ describe('DateFilterPanel', () => {
     fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'today' } })
     expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: today, end: null } })
     expect(tab('Due, filtering')).toHaveAttribute('data-filtering')
-    expect(within(screen.getByRole('tabpanel')).getByText('from today')).toBeInTheDocument()
+    expect(within(screen.getByRole('tabpanel')).getByText('today or later')).toBeInTheDocument()
 
     fireEvent.click(tab('Created'))
     expect(log).toHaveLength(1)
@@ -103,7 +103,7 @@ describe('DateFilterPanel', () => {
     fireEvent.change(to, { target: { value: inTwoWeeks?.value } })
     expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 14 } } })
     expect(screen.getByLabelText('To (days offset)')).toHaveValue('14')
-    expect(within(screen.getByRole('tabpanel')).getByText('up to 14 days ahead')).toBeInTheDocument()
+    expect(within(screen.getByRole('tabpanel')).getByText('in 14 days or earlier')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('To (days offset)'), { target: { value: '10' } })
     expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 10 } } })
@@ -186,7 +186,7 @@ describe('DateFilterPanel', () => {
     expect(box).toBeEnabled()
     fireEvent.click(box)
     expect(log.at(-1)).toEqual({ followup: { match: 'range', start: null, end: { kind: 'relative', token: 'end-of-week' }, includeNoDate: true } })
-    expect(within(screen.getByRole('tabpanel')).getByText('by end of week, or none')).toBeInTheDocument()
+    expect(within(screen.getByRole('tabpanel')).getByText('on or before end of week, or none')).toBeInTheDocument()
   })
 
   it('Show: Has a date / No date replace the range, hide From / To, and say what they keep', () => {
@@ -295,7 +295,7 @@ describe('DateFilterPanel', () => {
       fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'today' } })
       fireEvent.change(screen.getByLabelText('To (relative)'), { target: { value: '__offset:14' } })
       expect(log.at(-1)).toEqual({ followup: { match: 'range', start: today, end: { kind: 'offset', days: 14 }, not: true } })
-      expect(within(screen.getByRole('tabpanel')).getByText('not within 14 days')).toBeInTheDocument()
+      expect(within(screen.getByRole('tabpanel')).getByText('not within the next 14 days')).toBeInTheDocument()
       // Back to Is: the same range, the box back (unticked).
       fireEvent.click(is('Next follow-up'))
       expect(log.at(-1)).toEqual({ followup: { match: 'range', start: today, end: { kind: 'offset', days: 14 } } })

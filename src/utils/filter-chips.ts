@@ -1,9 +1,12 @@
 import { emptyFilterClauses, OR_GROUPS_MAX, type DateAnchor, type DateFilters, type DateMatch, type FilterClauses, type FilterNegation, type MarkersFilter, type NegatableField, type Person, type Status, type Tag, type TodoPredicate } from '../models'
 import { DATE_FIELD_VALUES, type DateField } from '../models/app-view'
+import { startOfDay } from './date'
 import { RELATIVE_TOKEN_LABELS } from './date-anchor'
 import { activeDateFields, freeDateField, hasDateFilters, withDateMatch } from './date-filters'
+import { resolveDateAnchor, type WeekStart } from './effective-date'
 import { isNegated, withIdFilter, type IdList } from './filter-negation'
 import { DATE_FIELD_LABELS_SHORT, NO_STATUS_LABEL, NO_TAGS_LABEL, UNASSIGNED_LABEL } from './filter-labels'
+import { formatFollowupDate } from './followup'
 import { hasMarkers, MARKERS_LABEL, markersTooltip, markersValue } from './markers'
 import { hasOrGroups, withOrGroupClauses } from './or-groups'
 
@@ -19,23 +22,29 @@ export interface FilterChip {
   dateField?: DateField
   /** Field name, e.g. `Due`, `Status` (list chips show it muted before the value). */
   label: string
-  /** Value text, e.g. `within 14 days`, `Alice or Ben`, `#q4`, `not Waiting`, `Urgent, not Important`. */
+  /** Value text, e.g. `within the next 14 days`, `Alice or Ben`, `#q4`, `not Waiting`, `Urgent, not Important`. */
   value: string
   /** An "is not" People / Status / Tags chip or date range: its value starts `not ` (or reads `has a tag`). */
   negated?: true
   /**
    * Spelled out for a tooltip — an "is not" chip or a Priority No (what it
    * hides), a multi-value "is" chip (every value, and that any of them
-   * will do); absent when the chip says it all.
+   * will do), a date range (its exact days, given `FilterChipNames.day`);
+   * absent when the chip says it all.
    */
   tooltip?: string
 }
 
-/** Entity registries the chip text resolves ids against. */
+/**
+ * Entity registries the chip text resolves ids against, and the day a date
+ * range chip's tooltip resolves its days against (absent: words only — the
+ * summaries need no tooltip).
+ */
 export interface FilterChipNames {
   people: readonly Person[]
   tags: readonly Tag[]
   statuses: readonly Status[]
+  day?: ChipDay
 }
 
 /**
@@ -136,34 +145,66 @@ export function describeAnchor(anchor: DateAnchor): string {
   }
 }
 
-function isToday(a: DateAnchor | null): boolean {
-  return a != null && ((a.kind === 'relative' && a.token === 'today') || (a.kind === 'offset' && a.days === 0))
+/**
+ * An anchor that names a day by its distance from today — a day offset, or
+ * `yesterday` / `today` / `tomorrow` — as that distance; `null` for a fixed
+ * date, a week or month token, or no anchor.
+ */
+function dayOffset(a: DateAnchor | null): number | null {
+  if (a == null || a.kind === 'fixed') return null
+  if (a.kind === 'offset') return a.days
+  switch (a.token) {
+    case 'yesterday': return -1
+    case 'today': return 0
+    case 'tomorrow': return 1
+    default: return null
+  }
 }
 
 /**
- * A date range in words: `within 14 days`, `by end of week`, `from today`,
- * `Oct 1 – Oct 15`; one day alone (`today`, `Oct 30`); up to yesterday as
- * `before today`, up to a day offset as `up to 14 days ago` / `up to 14
- * days ahead`, from a future day offset as `from 3 days ahead` (not `by in
- * 14 days`, `from in 3 days`).
+ * A date range in words that can't be misread (both ends are inclusive of
+ * their whole day; an open end takes everything beyond):
+ * - one day alone: `today`, `Oct 30`, `end of week`;
+ * - today and a day offset: `within the next 14 days`, `within the last 7
+ *   days` (`today or tomorrow`, `yesterday or today` for one day);
+ * - a To alone: N or more days ago as `7+ days ago`, yesterday as `before
+ *   today`, another day as `today or earlier` / `in 14 days or earlier`, a
+ *   date or week / month token as `on or before Oct 26` / `on or before end
+ *   of week`;
+ * - a From alone: N or more days ahead as `7+ days ahead`, tomorrow as
+ *   `after today`, another day as `today or later` / `30 days ago or later`,
+ *   a date or token as `on or after Oct 26` / `on or after start of month`;
+ * - two other ends: `Oct 1 – Oct 15`, `7 days ago – yesterday`.
+ * Never `up to`, `by` or a bare `from`.
  */
 export function describeRange(start: DateAnchor | null, end: DateAnchor | null): string {
-  if (isToday(start) && end?.kind === 'offset' && end.days > 0) return `within ${dayLabel(end.days)}`
-  if (!start && end?.kind === 'relative' && end.token === 'yesterday') return 'before today'
-  if (!start && end?.kind === 'offset' && end.days < 0) return `up to ${describeAnchor(end)}`
-  if (!start && end?.kind === 'offset' && end.days > 0) return `up to ${dayLabel(end.days)} ahead`
-  if (!end && start?.kind === 'offset' && start.days > 0) return `from ${dayLabel(start.days)} ahead`
-  if (start && end && JSON.stringify(start) === JSON.stringify(end)) return describeAnchor(start)
-  if (start && end) return `${describeAnchor(start)} – ${describeAnchor(end)}`
-  if (end) return `by ${describeAnchor(end)}`
-  if (start) return `from ${describeAnchor(start)}`
+  const s = dayOffset(start)
+  const e = dayOffset(end)
+  if (start && end) {
+    if (JSON.stringify(start) === JSON.stringify(end) || (s != null && s === e)) return describeAnchor(start)
+    if (s === 0 && e != null && e > 0) return e === 1 ? 'today or tomorrow' : `within the next ${dayLabel(e)}`
+    if (e === 0 && s != null && s < 0) return s === -1 ? 'yesterday or today' : `within the last ${dayLabel(-s)}`
+    return `${describeAnchor(start)} – ${describeAnchor(end)}`
+  }
+  if (end) {
+    if (e == null) return `on or before ${describeAnchor(end)}`
+    if (e === -1) return 'before today'
+    if (e < -1) return `${-e}+ days ago`
+    return `${e === 1 ? 'tomorrow' : describeAnchor(end)} or earlier`
+  }
+  if (start) {
+    if (s == null) return `on or after ${describeAnchor(start)}`
+    if (s === 1) return 'after today'
+    if (s > 1) return `${s}+ days ahead`
+    return `${s === -1 ? 'yesterday' : describeAnchor(start)} or later`
+  }
   return ''
 }
 
 /**
- * One date clause in words: `within 14 days`, `by Oct 31, or none`, `has a
- * date`, `no date`; an "is not" range with `not` (`not within 14 days`,
- * `not 7 days ago – today`).
+ * One date clause in words: `within the next 14 days`, `on or before Oct
+ * 31, or none`, `has a date`, `no date`; an "is not" range with `not` (`not
+ * within the next 14 days`, `not within the last 7 days`).
  */
 export function describeDateMatch(m: DateMatch): string {
   if (m.match === 'set') return 'has a date'
@@ -173,31 +214,81 @@ export function describeDateMatch(m: DateMatch): string {
   return m.includeNoDate === true ? `${range}, or none` : range
 }
 
-/** What an "is not" range hides, by date type (Completed has none), and the undated tasks it keeps. */
-const NOT_RANGE_HIDES: Record<DateField, string> = {
-  deadline: 'Hides tasks due in that range; tasks with no due date stay',
-  followup: 'Hides tasks with a next follow-up in that range; tasks with none stay',
-  lastFollowup: 'Hides tasks last followed up in that range; tasks never followed up stay',
-  completed: 'Hides tasks completed in that range',
-  created: 'Hides tasks created in that range',
-  modified: 'Hides tasks modified in that range',
+/** Today and the week start a date chip's tooltip resolves its range's days against. */
+export interface ChipDay {
+  today: Date
+  weekStartsOn: WeekStart
 }
 
 /**
- * One chip per date type that filters, in tab order: `Due` `within 14 days`,
- * `Created` `from start of month`; an "is not" range is marked as an "is
- * not" id chip is — `not …`, `negated`, a tooltip saying what it hides.
+ * How a date type's tooltip names its tasks: the range's subject (`Last
+ * followed up on or before …`), the tasks an "is not" range hides, and —
+ * on the optional types — the tasks without the date (`, or never`; `tasks
+ * never followed up stay`).
  */
-function dateChips(dates: DateFilters): FilterChip[] {
+const RANGE_WORDS: Record<DateField, { subject: string; tasks: string; orNone?: string; noneStay?: string }> = {
+  deadline: { subject: 'Due', tasks: 'tasks due', orNone: 'or no due date', noneStay: 'tasks with no due date stay' },
+  followup: { subject: 'Next follow-up', tasks: 'tasks with a next follow-up', orNone: 'or no next follow-up', noneStay: 'tasks with none stay' },
+  lastFollowup: { subject: 'Last followed up', tasks: 'tasks last followed up', orNone: 'or never', noneStay: 'tasks never followed up stay' },
+  completed: { subject: 'Completed', tasks: 'tasks completed' },
+  created: { subject: 'Created', tasks: 'tasks created' },
+  modified: { subject: 'Modified', tasks: 'tasks modified' },
+}
+
+/**
+ * The days a range covers, resolved against `day`: `on Mon 2 Nov`, `on or
+ * before Mon 26 Oct`, `on or after Sun 1 Nov`, `from Mon 2 Nov through Mon
+ * 16 Nov` (both ends included).
+ */
+function rangeDaysWords(start: DateAnchor | null, end: DateAnchor | null, day: ChipDay): string {
+  const resolve = (a: DateAnchor) => startOfDay(resolveDateAnchor(a, day.today, day.weekStartsOn))
+  // No-break spaces: a tooltip wraps between the words, never inside a date.
+  const words = (d: Date) => formatFollowupDate(d, day.today).replaceAll(' ', '\u00a0')
+  const first = start ? resolve(start) : null
+  const last = end ? resolve(end) : null
+  if (first && last) {
+    if (first.getTime() === last.getTime()) return `on ${words(first)}`
+    const through = `from ${words(first)} through ${words(last)}`
+    return first > last ? `${through} (no day: it starts after it ends)` : through
+  }
+  if (last) return `on or before ${words(last)}`
+  return first ? `on or after ${words(first)}` : ''
+}
+
+/**
+ * A date range chip's tooltip: its words, then the exact days — `Last
+ * follow-up: 7+ days ago, or none` / `Last followed up on or before Mon 26
+ * Oct, or never`; an "is not" range says what it hides (`Hides tasks with a
+ * next follow-up from Mon 2 Nov through Mon 16 Nov; tasks with none stay`).
+ * Without `day` only an "is not" range has one (`… in that range …`).
+ */
+function dateRangeTooltip(f: DateField, m: DateMatch, day: ChipDay | undefined): string | undefined {
+  if (m.match !== 'range' || (m.start == null && m.end == null)) return undefined
+  const head = `${DATE_FIELD_LABELS_SHORT[f]}: ${describeDateMatch(m)}`
+  const w = RANGE_WORDS[f]
+  const days = day ? rangeDaysWords(m.start, m.end, day) : null
+  if (m.not === true) {
+    return `${head}\nHides ${w.tasks} ${days ?? 'in that range'}${w.noneStay ? `; ${w.noneStay}` : ''}`
+  }
+  if (days == null) return undefined
+  return `${head}\n${w.subject} ${days}${m.includeNoDate === true && w.orNone ? `, ${w.orNone}` : ''}`
+}
+
+/**
+ * One chip per date type that filters, in tab order: `Due` `within the next
+ * 14 days`, `Created` `on or after start of month`, a range's tooltip
+ * spelling its days when `day` is given; an "is not" range is marked as an
+ * "is not" id chip is — `not …`, `negated`, a tooltip saying what it hides.
+ */
+function dateChips(dates: DateFilters, day: ChipDay | undefined): FilterChip[] {
   return activeDateFields(dates).flatMap((f) => {
     const m = dates[f]
     if (!m) return []
     const label = DATE_FIELD_LABELS_SHORT[f]
     const value = describeDateMatch(m)
-    if (m.match === 'range' && m.not === true) {
-      return [{ field: 'dates' as const, dateField: f, label, value, negated: true as const, tooltip: `${label}: ${value}\n${NOT_RANGE_HIDES[f]}` }]
-    }
-    return [{ field: 'dates' as const, dateField: f, label, value }]
+    const tooltip = dateRangeTooltip(f, m, day)
+    const chip: FilterChip = { field: 'dates', dateField: f, label, value, ...(m.match === 'range' && m.not === true ? { negated: true as const } : {}) }
+    return [tooltip ? { ...chip, tooltip } : chip]
   })
 }
 
@@ -206,18 +297,18 @@ export function chipKey(chip: FilterChip): string {
   return chip.dateField ? `${chip.field}:${chip.dateField}` : chip.field
 }
 
-/** Each date type that filters as `<Type> <clause>`: `Due within 14 days`. */
-function dateClauses(dates: DateFilters): { field: DateField; text: string; words: string }[] {
+/** Each date type that filters as `<Type> <clause>`: `Due within the next 14 days`. */
+function dateClauses(dates: DateFilters): { field: DateField; match: DateMatch; text: string; words: string }[] {
   return activeDateFields(dates).flatMap((f) => {
     const m = dates[f]
-    return m ? [{ field: f, text: `${DATE_FIELD_LABELS_SHORT[f]} ${describeDateMatch(m)}`, words: describeDateMatch(m) }] : []
+    return m ? [{ field: f, match: m, text: `${DATE_FIELD_LABELS_SHORT[f]} ${describeDateMatch(m)}`, words: describeDateMatch(m) }] : []
   })
 }
 
 /**
  * The date filters as one value (the top bar's Dates button, the Filters
  * menu's and the phone sheet's Dates row): one type → its clause
- * (`Due within 14 days`); two → their short names (`Due + Created`); three
+ * (`Due within the next 14 days`); two → their short names (`Due + Created`); three
  * or four → the first + N (`Due + 2`). `null` when no date type filters.
  */
 export function datesValue(dates: DateFilters): string | null {
@@ -231,20 +322,29 @@ export function datesValue(dates: DateFilters): string | null {
 }
 
 /**
- * The Dates button's tooltip from two date types on: a line per type
- * (`Due: within 14 days`), then how they combine. `null` below two.
+ * The Dates button's tooltip. One date type: given `day`, its range's chip
+ * tooltip (its words, then its exact days); else `null`. From two on: a line
+ * per type (`Due: within the next 14 days`; given `day`, a range's days
+ * after a `·` — `· from Mon 2 Nov through Mon 16 Nov`, `· not from …`),
+ * then how they combine.
  */
-export function datesTooltip(dates: DateFilters): string | null {
+export function datesTooltip(dates: DateFilters, day?: ChipDay): string | null {
   const clauses = dateClauses(dates)
-  if (clauses.length < 2) return null
+  const [first, second] = clauses
+  if (!first) return null
+  if (!second) return day ? dateRangeTooltip(first.field, first.match, day) ?? null : null
   const both = clauses.length === 2 ? 'both' : 'all'
+  const days = (m: DateMatch) => {
+    if (!day || m.match !== 'range') return ''
+    return ` · ${m.not === true ? 'not ' : ''}${rangeDaysWords(m.start, m.end, day)}`
+  }
   return [
-    ...clauses.map((c) => `${DATE_FIELD_LABELS_SHORT[c.field]}: ${c.words}`),
+    ...clauses.map((c) => `${DATE_FIELD_LABELS_SHORT[c.field]}: ${c.words}${days(c.match)}`),
     `Tasks must match ${both} · × clears ${both}`,
   ].join('\n')
 }
 
-/** Every date type's clause for a screen reader: `Due within 14 days; Created from start of month`. */
+/** Every date type's clause for a screen reader: `Due within the next 14 days; Created on or after start of month`. */
 export function datesSpokenValue(dates: DateFilters): string | null {
   const clauses = dateClauses(dates)
   return clauses.length > 0 ? clauses.map((c) => c.text).join('; ') : null
@@ -276,7 +376,7 @@ export function filterChips(c: ChipClauses, names: FilterChipNames, includeCompl
   }
   if (c.tags != null) chips.push(idChip('tags', 'tags', 'Tags', c.tags, namesById(names.tags), NO_TAGS_LABEL, '#'))
   if (c.personIds != null) chips.push(idChip('people', 'personIds', 'People', c.personIds, namesById(names.people), UNASSIGNED_LABEL))
-  chips.push(...dateChips(c.dates))
+  chips.push(...dateChips(c.dates, names.day))
   if (c.statusIds != null) chips.push(idChip('status', 'statusIds', 'Status', c.statusIds, namesById(names.statuses), NO_STATUS_LABEL))
   const text = (c.searchText ?? '').trim()
   if (text !== '') chips.push({ field: 'text', label: 'Text', value: `“${text}”` })
@@ -322,7 +422,7 @@ function chipWords(c: FilterChip): string {
 }
 
 /**
- * The filters in words, e.g. `Status Waiting · Due within 14 days`; an or
+ * The filters in words, e.g. `Status Waiting · Due within the next 14 days`; an or
  * group as its chips joined with "or" (`Priority Hot or People Aisha`).
  */
 export function describeFilters(items: readonly (FilterChip | LineItem)[]): string {

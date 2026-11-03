@@ -145,7 +145,7 @@ export function withPaneConfig(
   return Object.keys(out).length > 0 ? out : undefined
 }
 
-/** A filter's clauses as short values: `Urgent`, `not Important`, `not Delegated`, `Due within 7 days`. */
+/** A filter's clauses as short values: `Urgent`, `not Important`, `not Delegated`, `Due within the next 7 days`. */
 function chipWords(chip: FilterChip): string[] {
   switch (chip.field) {
     case 'markers': return chip.value.split(', ')

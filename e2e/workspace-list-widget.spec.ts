@@ -145,7 +145,7 @@ test('a list’s date filters: a due-date range and Follow-up Has a date both na
   await picker.getByRole('radio', { name: 'Has a date' }).click()
   await expect(rows(page, 't1')).toHaveCount(1)
   await page.keyboard.press('Escape')
-  await expect(widget.getByTestId('list-filter-chip')).toHaveText([/Due\s*by .+/, /Next follow-up\s*has a date/])
+  await expect(widget.getByTestId('list-filter-chip')).toHaveText([/Due\s*on or before .+/, /Next follow-up\s*has a date/])
 
   await wsCell(page, 'k1').getByTestId('save-list').click()
   await page.reload()

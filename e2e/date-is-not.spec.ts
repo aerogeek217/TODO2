@@ -58,12 +58,12 @@ test('the user\'s lens: hides only the tasks followed up lately with a next foll
   await editor.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Dates' }).click()
   await setNotRange(page, 'Last follow-up', '1 week ago', 'Today')
-  await expect(datePanel(page).getByRole('tabpanel')).toContainText('not 7 days ago – today')
+  await expect(datePanel(page).getByRole('tabpanel')).toContainText('not within the last 7 days')
   await expect(datePanel(page).getByText('Tasks never followed up are kept.')).toBeVisible()
   await expect(datePanel(page).getByRole('checkbox')).toHaveCount(0)
   await page.keyboard.press('Escape')
   const chip = editor.getByTestId('list-filter-chip')
-  await expect(chip).toHaveText(/Last follow-up\s*not 7 days ago – today/)
+  await expect(chip).toHaveText(/Last follow-up\s*not within the last 7 days/)
   await expect(chip).toHaveAttribute('data-negated', '')
 
   // The group is made from the chip's Another filter (OR), which offers
@@ -78,9 +78,9 @@ test('the user\'s lens: hides only the tasks followed up lately with a next foll
   await page.keyboard.press('Escape')
   const group = editor.getByTestId('or-group')
   await expect(group.getByTestId('list-filter-chip')).toHaveCount(2)
-  await expect(group).toHaveText(/Next follow-up\s*not within 14 days\s*or\s*Last follow-up\s*not 7 days ago – today/)
+  await expect(group).toHaveText(/Next follow-up\s*not within the next 14 days\s*or\s*Last follow-up\s*not within the last 7 days/)
   await expect(settings.getByTestId('lens-keeps')).toContainText('Keeps 3 of 4 open tasks')
-  await expect(lenses.getByRole('button', { name: /^Chase/ })).toContainText('Next follow-up not within 14 days or Last follow-up not 7 days ago – today')
+  await expect(lenses.getByRole('button', { name: /^Chase/ })).toContainText('Next follow-up not within the next 14 days or Last follow-up not within the last 7 days')
 
   // Unsaved: the top bar keeps the saved lens (every task).
   await expect.poll(() => titles(page)).toEqual(ALL)

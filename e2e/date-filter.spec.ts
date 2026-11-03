@@ -20,6 +20,14 @@ function localDateTime(days: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+/** The day `days` from today as a range's tooltip spells it: `Mon 26 Oct` (`… 2027` in another year). */
+function dayWords(days: number): string {
+  const d = new Date()
+  d.setDate(d.getDate() + days)
+  const base = `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${d.getDate()} ${d.toLocaleDateString('en-US', { month: 'short' })}`
+  return d.getFullYear() === new Date().getFullYear() ? base : `${base} ${d.getFullYear()}`
+}
+
 function rows(page: Page, tabId: string) {
   return wsListWidget(page, tabId).locator('[data-todo-id]')
 }
@@ -103,14 +111,15 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await expect(panel).toBeHidden()
 
   // The button reads both names; its tooltip lists each type; every list shows a screen chip per type.
-  const button = page.getByRole('button', { name: /^Dates filter: Due up to 14 days ahead; Modified up to 7 days ago$/ })
+  const button = page.getByRole('button', { name: /^Dates filter: Due in 14 days or earlier; Modified 7\+ days ago$/ })
   await expect(button).toHaveText('Due + Modified')
   await button.hover()
   const tip = page.getByRole('tooltip')
-  await expect(tip).toContainText('Due: up to 14 days ahead')
-  await expect(tip).toContainText('Modified: up to 7 days ago')
+  // Each range's words, then its exact days (cr25 P7).
+  await expect(tip).toContainText(`Due: in 14 days or earlier · on or before ${dayWords(14)}`)
+  await expect(tip).toContainText(`Modified: 7+ days ago · on or before ${dayWords(-7)}`)
   await expect(tip).toContainText('Tasks must match both · × clears both')
-  await expect(wsListWidget(page, 't1').getByTestId('screen-filter-chip')).toHaveText(['Due up to 14 days ahead', 'Modified up to 7 days ago'])
+  await expect(wsListWidget(page, 't1').getByTestId('screen-filter-chip')).toHaveText(['Due in 14 days or earlier', 'Modified 7+ days ago'])
 
   // The × clears every date type.
   await page.getByRole('button', { name: 'Clear date filters' }).click()
@@ -267,7 +276,7 @@ test('a list with Completed this week shows the tasks completed this week, witho
   await expect(page.getByRole('button', { name: /^1 of 3 tasks shown/ })).toBeVisible()
 })
 
-test('Last follow-up "up to 14 days ago, or none": in a list, and as a lens in the top bar', async ({ page }) => {
+test('Last follow-up "14+ days ago, or none": in a list, and as a lens in the top bar', async ({ page }) => {
   const stale = { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true }
   await seedWorkspace(page, {
     listDefinitions: [
@@ -292,7 +301,12 @@ test('Last follow-up "up to 14 days ago, or none": in a list, and as a lens in t
   await expect(rows(page, 't1')).toHaveCount(4)
   // Oldest first, never followed up last.
   await expect(rows(page, 't2')).toHaveText([/Chased a month ago/, /Chased 20 days ago/, /Never chased/])
-  await expect(wsListWidget(page, 't2').getByTestId('list-filter-chip')).toHaveText([/Last follow-up\s*up to 14 days ago, or none/])
+  const chip = wsListWidget(page, 't2').getByTestId('list-filter-chip')
+  await expect(chip).toHaveText([/Last follow-up\s*14\+ days ago, or none/])
+  // Its tooltip spells the exact last day, and the never-followed-up tasks it keeps (cr25 P7).
+  await chip.hover()
+  await expect(page.getByRole('tooltip')).toHaveText(`Last follow-up: 14+ days ago, or noneLast followed up on or before ${dayWords(-14)}, or never`)
+  await page.mouse.move(0, 0)
 
   await page.getByRole('button', { name: /^Lens:/ }).click()
   await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Stale follow-ups/ }).click()
