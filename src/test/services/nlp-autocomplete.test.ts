@@ -90,7 +90,7 @@ describe('command list', () => {
   it('lists every command, in order, with the footer', () => {
     const view = at('Call legal /')
     expect(view?.header).toBe('Commands')
-    expect(labels(view)).toEqual(['/focus', '/urgent', '/important', '/due', '/followup', '/repeat', '/status'])
+    expect(labels(view)).toEqual(['/focus', '/urgent', '/important', '/due', '/followup', '/repeat'])
     expect(view?.footer).toBe(true)
     expect(view?.anchor).toBe(11)
   })
@@ -207,26 +207,64 @@ describe('/followup argument', () => {
   })
 })
 
-describe('/status argument', () => {
-  it('lists every status in Settings order', () => {
-    const view = at('Vendor contract /status ')
-    expect(view?.header).toBe('Status')
+describe('! statuses', () => {
+  it('lists every status in Settings order, no Create row', () => {
+    const view = at('Vendor contract !')
+    expect(view).toMatchObject({ trigger: '!', mode: 'entity', header: 'Statuses', anchor: 16, from: 16 })
     expect(labels(view)).toEqual(['To do', 'In progress', 'Waiting', 'Blocked'])
+    expect(view?.rows.every((r) => r.kind === 'entity' && r.item.kind === 'status')).toBe(true)
   })
 
-  it('filters by prefix; a multi-word name is inserted quoted', () => {
-    expect(labels(at('x /status in'))).toEqual(['In progress'])
-    expect(pick('x /status in')?.value).toBe('x /status "In progress" ')
-    expect(pick('x /status w')?.value).toBe('x /status Waiting ')
+  it('filters by prefix (any case); every row resolves', () => {
+    expect(labels(at('x !in'))).toEqual(['In progress'])
+    expect(labels(at('x !W'))).toEqual(['Waiting'])
+    const view = at('x !b')
+    expect(view?.rows).toEqual([expect.objectContaining({ kind: 'entity', resolves: true, match: { at: 0, length: 1 } })])
   })
 
-  it('follows a quoted name across its space', () => {
-    expect(labels(at('x /status "In pro'))).toEqual(['In progress'])
-    expect(at('x /status "In progress" ')).toBeNull()
+  it('the exact name comes first, as the resolver reads it', () => {
+    const src = { ...sources, statuses: [
+      { id: 7, name: 'Done soon', kind: 'status' as const },
+      { id: 8, name: 'Done', kind: 'status' as const },
+    ] }
+    expect(labels(at('x !done', src))).toEqual(['Done', 'Done soon'])
+    expect(labels(at('x !do', src))).toEqual(['Done soon', 'Done'])
   })
 
-  it('closes when no status matches', () => {
-    expect(at('x /status zz')).toBeNull()
+  it('inserts !Name, or a quoted name with a space, plus a space', () => {
+    expect(pick('x !w')?.value).toBe('x !Waiting ')
+    expect(pick('x !in')?.value).toBe('x !"In progress" ')
+    expect(pick('x !in', (rows) => rows[0])?.cursor).toBe('x !"In progress" '.length)
+  })
+
+  it('a leading quote is ignored for matching; past its space the popup closes, as `@"` does', () => {
+    expect(labels(at('x !"In'))).toEqual(['In progress'])
+    expect(pick('x !"In')?.value).toBe('x !"In progress" ')
+    expect(isVisible(at('x !"In pro'))).toBe(false)
+  })
+
+  it('shows nothing when no status matches (no Create row)', () => {
+    expect(isVisible(at('x !zz'))).toBe(false)
+    expect(isVisible(at('x !zz', { ...sources, statuses: [] }))).toBe(false)
+  })
+
+  it('no popup inside a word, or where commands are off (the editor in edit mode)', () => {
+    expect(isVisible(at('Hi!'))).toBe(false)
+    expect(isVisible(at('a!b'))).toBe(false)
+    expect(isVisible(at('wow !!'))).toBe(false)
+    expect(at('x !w', { ...sources, commands: false })).toBeNull()
+  })
+
+  it('typing a space past a half-typed name completes it to the highlighted status', () => {
+    const view = at('x !wa')
+    if (!view) throw new Error('no popup')
+    const next = at('x !wa ')
+    expect(implicitAccept({ value: 'x !wa', view, index: 0 }, 'x !wa ', 6, next)).toEqual({ value: 'x !Waiting ', cursor: 11 })
+  })
+
+  it('/status is no command any more: / lists no status, and `/status ` opens nothing', () => {
+    expect(labels(at('x /st'))).toEqual([])
+    expect(at('x /status ')).toBeNull()
   })
 })
 
@@ -368,7 +406,8 @@ describe('bestMatchCompletion', () => {
     expect(complete('Fix /ur')).toBe('Fix /urgent ')
     expect(complete('Renew /due tom')).toBe('Renew /due tomorrow ')
     expect(complete('Ping /followup 2')).toBe('Ping /followup 2w ')
-    expect(complete('Ship /status in')).toBe('Ship /status "In progress" ')
+    expect(complete('Ship !in')).toBe('Ship !"In progress" ')
+    expect(complete('Ship !wa')).toBe('Ship !Waiting ')
     expect(complete('Pay /repeat mon')).toBe('Pay /repeat monthly ')
   })
 
@@ -381,6 +420,7 @@ describe('bestMatchCompletion', () => {
     expect(complete('Renew /due 24')).toBe('Renew /due 24')
     // Nothing typed after the trigger or the command: nothing to match.
     expect(complete('Call @')).toBe('Call @')
+    expect(complete('Fix !')).toBe('Fix !')
     expect(complete('Fix /')).toBe('Fix /')
     expect(complete('Renew /due ')).toBe('Renew /due ')
     // An argument command isn't completed without its argument.
@@ -407,16 +447,18 @@ describe('tokenTints', () => {
   }
 
   it('tints each recognised token in its colour', () => {
-    expect(tintsOf('Call #contracts @Priya @Marco /due fri /urgent /important /focus /followup 2w /repeat weekly /status waiting'))
+    expect(tintsOf('Call #contracts @Priya @Marco /due fri /urgent /important /focus /followup 2w /repeat weekly !waiting'))
       .toEqual([
         '#contracts:chip', '@Priya:chip', '@Marco:new', '/due fri:due', '/urgent:urgent', '/important:followup',
-        '/focus:accent', '/followup 2w:followup', '/repeat weekly:accent', '/status waiting:chip',
+        '/focus:accent', '/followup 2w:followup', '/repeat weekly:accent', '!waiting:chip',
       ])
   })
 
   it('rings problems; unknown commands stay plain', () => {
-    expect(tintsOf('Call plumber /urgnt /due frday /repeat weekly /status nope'))
-      .toEqual(['/due frday:error', '/repeat weekly:ignored', '/status nope:error'])
+    expect(tintsOf('Call plumber /urgnt /due frday /repeat weekly !nope'))
+      .toEqual(['/due frday:error', '/repeat weekly:ignored', '!nope:error'])
+    // A repeated status is ignored, as a repeated command.
+    expect(tintsOf('x !waiting !"On Hold"')).toEqual(['!waiting:chip', '!"On Hold":ignored'])
   })
 
   it('a token being typed is a chip unless it already reads as a command or shows an error', () => {

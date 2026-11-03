@@ -4,11 +4,11 @@ import type { SlashCommandName } from './slash-commands'
 
 /**
  * How each recognised token is tinted where task text is typed:
- *  - `chip` — `#tag`, a known `@person`, `/status …`, a token still being typed;
+ *  - `chip` — `#tag`, a known `@person`, a `!status`, a token still being typed;
  *  - `new` — an `@name` that matches nobody (created with the task);
  *  - `due` / `urgent` / `followup` (`/important`, `/followup …`) /
  *    `accent` (`/focus`, `/repeat …`) — the command's marker / pill colour;
- *  - `error` — an argument that can't be read, or a status that doesn't exist;
+ *  - `error` — an argument that can't be read, or a `!name` naming no status;
  *  - `ignored` — recognised but ignored (`/repeat` without `/due`, a repeat).
  * Unknown commands get no tint: they are plain title text.
  */
@@ -23,7 +23,6 @@ const COMMAND_TINT: Record<SlashCommandName, TokenTint> = {
   due: 'due',
   followup: 'followup',
   repeat: 'accent',
-  status: 'chip',
 }
 
 /**
@@ -41,12 +40,12 @@ export function tokenTints(
   const spans: TintSpan[] = []
   for (const t of parsed.tokens) {
     if (t.type === 'person') spans.push({ start: t.start, end: t.end, tint: unmatched.has(t.value.toLowerCase()) ? 'new' : 'chip' })
-    else if (t.type === 'tag') spans.push({ start: t.start, end: t.end, tint: 'chip' })
+    else if (t.type === 'tag' || t.type === 'status') spans.push({ start: t.start, end: t.end, tint: 'chip' })
     else if (t.command) spans.push({ start: t.start, end: t.end, tint: COMMAND_TINT[t.command] })
   }
   for (const p of resolved.problems ?? parsed.problems) {
     if (p.kind === 'unknown') continue
-    // A `/status` naming nothing is no longer a recognised token.
+    // A `!name` naming no status is no longer a recognised token.
     const i = spans.findIndex((s) => s.start === p.start && s.end === p.end)
     if (i >= 0) spans.splice(i, 1)
     spans.push({ start: p.start, end: p.end, tint: p.kind === 'unreadable' || p.kind === 'unmatched' ? 'error' : 'ignored' })

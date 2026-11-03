@@ -27,11 +27,11 @@ interface SearchBoxOptions {
 
 /**
  * A search box over the screen filter (D16): typed tokens become the tray's
- * chips as each completes — a space after it, ⏎, a pick in the `@ # /`
+ * chips as each completes — a space after it, ⏎, a pick in the `@ # ! /`
  * popup (`filter-store.applySearchTokens`) — and the words left are the text
  * search, written to the store (`searchText`). Backspace in the empty box
  * takes the last chip the box made back as its token; Esc on the popup
- * keeps its `@` / `#` token as words. The store's text changing elsewhere
+ * keeps its `@` / `#` / `!` token as words. The store's text changing elsewhere
  * (Clear all, another field) shows here.
  *
  * Hosts render the input over `tints` (`shared/TintedText`), `NlpPopup`
@@ -48,12 +48,12 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
   /** The text search this box last wrote (or is about to, after the pause). */
   const [written, setWritten] = useState(storeText)
   const [shownStoreText, setShownStoreText] = useState(storeText)
-  /** `@` / `#` tokens Esc kept as words, as typed. */
+  /** `@` / `#` / `!` tokens Esc kept as words, as typed. */
   const [kept, setKept] = useState<readonly string[]>([])
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** Where the caret goes once the box's text has changed under it (a new object each time: the box may read the same as before while the field does not). */
   const [caretAt, setCaretAt] = useState<{ at: number } | null>(null)
-  /** While a change is read: the text the popup completed it to (typing on past an `@` / `#` token). */
+  /** While a change is read: the text the popup completed it to (typing on past an `@` / `#` / `!` token). */
   const changingRef = useRef<{ value: string; caret: number } | null>(null)
   /** The text and caret the popup last followed (`onCaretMove` skips an event that moved nothing). */
   const lastCaretRef = useRef<{ value: string; caret: number } | null>(null)
@@ -144,7 +144,7 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
     const input = e.currentTarget
     const view = ac.state.visible ? ac.state.view : null
     if (e.key === 'Escape' && view?.mode === 'entity') {
-      // Esc keeps the `@` / `#` token as words.
+      // Esc keeps the `@` / `#` / `!` token as words.
       const raw = input.value.slice(view.anchor, view.to)
       if (raw.length > 1) setKept((k) => (k.includes(raw) ? k : [...k, raw]))
     }
@@ -160,7 +160,7 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
       setCaretAt({ at: token.length })
       lastCaretRef.current = { value: token, caret: token.length }
       writeWords(searchWords(parseSearch(token, sourcesNow(), kept)))
-      // Back on an `@` / `#` token: its popup again.
+      // Back on an `@` / `#` / `!` token: its popup again.
       handleInputChange(token, token.length, input)
       return true
     }
@@ -187,7 +187,7 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
     () => searchTints(parse, view ? { start: view.anchor, end: view.to } : undefined),
     [parse, view],
   )
-  /** `@` / `#` names matching nobody, once typing has moved past them (or no popup lists anything for them). */
+  /** `@` / `#` / `!` names matching nothing, once typing has moved past them (or no popup lists anything for them). */
   const unmatched: SearchName[] = useMemo(
     () => parse.names.filter((n) => n.unmatched && (n.complete || view?.anchor !== n.start)),
     [parse, view],
@@ -198,9 +198,14 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
 
 export type SearchBox = ReturnType<typeof useSearchBox>
 
-/** The one-line note under the box for an `@` / `#` name that matches nobody. */
+/** The one-line note under the box for an `@` / `#` / `!` name that matches nothing. */
 export function unmatchedNote(name: SearchName): { lead: string; name: string; rest: string; hint: string } {
-  return name.kind === 'person'
-    ? { lead: 'No person named ', name: name.name, rest: ' — searching the words instead', hint: 'Tab to the People chip to pick someone' }
-    : { lead: 'No tag named ', name: name.name, rest: ' — searching the words instead', hint: 'Tab to the Tags chip to pick one' }
+  switch (name.kind) {
+    case 'person':
+      return { lead: 'No person named ', name: name.name, rest: ' — searching the words instead', hint: 'Tab to the People chip to pick someone' }
+    case 'tag':
+      return { lead: 'No tag named ', name: name.name, rest: ' — searching the words instead', hint: 'Tab to the Tags chip to pick one' }
+    case 'status':
+      return { lead: 'No status named ', name: name.name, rest: ' — searching the words instead', hint: 'Tab to the Status chip to pick one' }
+  }
 }

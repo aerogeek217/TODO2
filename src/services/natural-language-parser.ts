@@ -15,18 +15,20 @@ import { collapseWhitespace } from '../utils/text'
  *  - `@name` / `@"First Last"` — people (looked up by `nlp-resolver`);
  *    like `#` and `/`, only at the start of the text or after whitespace;
  *  - `#tag` — tags (lookup-or-create on submit);
+ *  - `!name` / `!"On Hold"` — the status (an existing one only; the first
+ *    `!` counts);
  *  - slash commands (`services/slash-commands`): `/urgent`, `/important`,
  *    `/focus`, `/due <date>`, `/followup <date|interval|none>`,
- *    `/repeat <frequency>`, `/status <name>`.
+ *    `/repeat <frequency>`.
  * Everything else — dates, weekday names, `every week` — is plain title
  * text. The parser is store-free; `nlp-resolver.resolveInput` matches names.
  */
 
 export interface ParsedToken {
-  type: 'person' | 'tag' | 'command'
+  type: 'person' | 'tag' | 'status' | 'command'
   /** The command, for `type: 'command'`. */
   command?: SlashCommandName
-  /** Person / tag name, or the command's argument as typed (`''` for flags). */
+  /** Person / tag / status name, or the command's argument as typed (`''` for flags). */
   value: string
   raw: string
   start: number
@@ -34,20 +36,22 @@ export interface ParsedToken {
 }
 
 /**
- * Something typed that looks like a command but sets nothing:
+ * Something typed that looks like a command (or a `!status`) but sets nothing:
  *  - `unknown` — `/urgnt` (not a command; stays in the title);
  *  - `unreadable` — the argument can't be read, or is missing (`/due frday`,
- *    `/status` at the end; stays in the title);
- *  - `duplicate` — a second `/due` (… `/followup`, `/repeat`, `/status`):
+ *    `/due` at the end; stays in the title);
+ *  - `duplicate` — a second `/due` (… `/followup`, `/repeat`) or `!status`:
  *    the first wins, later ones stay in the title;
  *  - `ignored` — `/repeat` without a `/due` date: dropped from the title,
  *    sets nothing (repeating is anchored on the due date);
- *  - `unmatched` — `/status` naming no status (set by `nlp-resolver`; stays
+ *  - `unmatched` — a `!name` naming no status (set by `nlp-resolver`; stays
  *    in the title).
  */
 export interface CommandProblem {
   kind: 'unknown' | 'unreadable' | 'duplicate' | 'ignored' | 'unmatched'
   command?: SlashCommandName
+  /** A `!` token's problem (`duplicate`, `unmatched`): the status name as typed. */
+  status?: string
   raw: string
   start: number
   end: number
@@ -69,7 +73,7 @@ export interface ParsedInput {
    * one entry — the first-seen case wins. Resolver lookup is also
    * case-insensitive (`nlp-resolver.resolveTags`). */
   tags: string[]
-  /** Raw status name from `/status`; resolved by `resolveInput`. */
+  /** Raw status name from the first `!` token; resolved by `resolveInput`. */
   status?: string
   urgent: boolean
   important: boolean
@@ -96,6 +100,16 @@ export const BARE_MENTION_NAME = /^[\p{L}\p{M}\p{N}_]+$/u
 export function mentionToken(name: string): string {
   return BARE_MENTION_NAME.test(name) ? `@${name}` : `@"${name}"`
 }
+
+// `!` names the status: `@`'s bare names and quoting (`!Waiting`,
+// `!"On Hold"`), whitespace-anchored the same way, so `Hi!`, `!!!` or `a!b`
+// are plain text. Group 1 = the separator, 2 = a quoted name, 3 = a bare one.
+const STATUS_PATTERN = /(^|\s)!(?:"([^"]+)"|([\p{L}\p{M}\p{N}_]+))/gu
+
+/** The token that names a status: `!Name`, or `!"On Hold"` for a name that isn't bare. */
+export function statusToken(name: string): string {
+  return BARE_MENTION_NAME.test(name) ? `!${name}` : `!"${name}"`
+}
 // Whitespace-anchored #tag — group 1 is the leading separator (empty at start
 // of input); group 2 a quoted name (`#"R&D"`, `#"Q4 plan"` — any tag name a
 // bare slug can't spell), group 3 the bare slug (ASCII). Separator stays in
@@ -121,7 +135,7 @@ interface Word { text: string; start: number; end: number }
 
 /**
  * The whitespace-separated words of `text` from `from`, stopping before a
- * word that starts another token (`@`, `#`, `/`). At most `max`.
+ * word that starts another token (`@`, `#`, `!`, `/`). At most `max`.
  */
 function wordsFrom(text: string, from: number, max: number): Word[] {
   const out: Word[] = []
@@ -129,7 +143,7 @@ function wordsFrom(text: string, from: number, max: number): Word[] {
   re.lastIndex = from
   let m: RegExpExecArray | null
   while (out.length < max && (m = re.exec(text)) !== null) {
-    if (/^[@#/]/.test(m[0])) break
+    if (/^[@#!/]/.test(m[0])) break
     out.push({ text: m[0], start: m.index, end: m.index + m[0].length })
   }
   return out
@@ -153,17 +167,6 @@ function readArgument(
 ): { arg: ArgumentMatch; date?: Date; recurrence?: RecurrenceType; none?: boolean } | null {
   const argStart = skipSpaces(text, nameEnd)
   if (argStart === nameEnd) return null // no space after the command
-  if (command === 'status') {
-    if (text[argStart] === '"') {
-      const close = text.indexOf('"', argStart + 1)
-      if (close < 0) return null
-      const name = text.slice(argStart + 1, close).trim()
-      return name ? { arg: { value: name, end: close + 1 } } : null
-    }
-    const [word] = wordsFrom(text, argStart, 1)
-    if (!word || word.start !== argStart) return null
-    return { arg: { value: word.text, end: word.end } }
-  }
   if (command === 'repeat') {
     const [word] = wordsFrom(text, argStart, 1)
     if (!word || word.start !== argStart) return null
@@ -206,7 +209,6 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
   let dueDate: Date | undefined
   let recurrence: RecurrenceType | undefined
   let repeatToken: ParsedToken | undefined
-  let status: string | undefined
   let nextFollowupAt: Date | undefined
   let followupNone = false
   const flags = { urgent: false, important: false, focus: false }
@@ -252,7 +254,6 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
       else nextFollowupAt = read.date
     }
     if (command === 'repeat') { recurrence = read.recurrence; repeatToken = token }
-    if (command === 'status') status = read.arg.value
     SLASH_PATTERN.lastIndex = end
   }
   if (repeatToken && !dueDate) {
@@ -298,6 +299,25 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
       seenTags.add(slug)
       tags.push(name.trim())
     }
+  }
+
+  // The status (!name or !"On Hold"): the first counts, later ones are
+  // repeats that stay in the title. After `@` / `#`, so a quoted name's
+  // text (`#"Q4 !now"`) isn't read as one.
+  let status: string | undefined
+  STATUS_PATTERN.lastIndex = 0
+  while ((match = STATUS_PATTERN.exec(text)) !== null) {
+    const value = (match[2] ?? match[3])?.trim()
+    const start = match.index + (match[1]?.length ?? 0)
+    const end = match.index + match[0].length
+    if (!value || inCommand(start, end)) continue
+    const raw = text.slice(start, end)
+    if (status !== undefined) {
+      problems.push({ kind: 'duplicate', status: value, raw, start, end })
+      continue
+    }
+    status = value
+    tokens.push({ type: 'status', value, raw, start, end })
   }
 
   tokens.sort((a, b) => a.start - b.start)

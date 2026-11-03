@@ -203,11 +203,15 @@ describe('removeChip — per chip kind', () => {
 
   it('the repeat and the status', () => {
     expect(cut('Standup /due today /repeat daily', { kind: 'command', command: 'repeat' }).text).toBe('Standup /due today')
-    expect(cut('Fix /status Doing now', { kind: 'command', command: 'status' }).text).toBe('Fix now')
+    expect(cut('Fix !Doing now', { kind: 'status' }).text).toBe('Fix now')
   })
 
   it('a quoted status name goes whole', () => {
-    expect(cut('Fix /status "In review" now', { kind: 'command', command: 'status' }).text).toBe('Fix now')
+    expect(cut('Fix !"In review" now', { kind: 'status' }).text).toBe('Fix now')
+  })
+
+  it('the status chip takes its repeats too, so none takes its place', () => {
+    expect(cut('Fix !Doing now !"In review"', { kind: 'status' }).text).toBe('Fix now')
   })
 
   it('the title words are never touched', () => {

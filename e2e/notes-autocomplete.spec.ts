@@ -76,11 +76,12 @@ test.describe('notes autocomplete', () => {
     expect(await lineWith(editor, '- Call')).toBe('- Call @"Dana Kim" #q4 /due fri ')
     await expect(editor.locator('.cm-nlp-tint[data-tint="due"]')).toHaveText('/due fri')
 
-    // `/status` quotes a multi-word status.
-    await page.keyboard.type('/status in')
-    await expect(popup(page).getByRole('option')).toHaveText(['In progress'])
+    // `!` lists the statuses; a multi-word status is quoted.
+    await page.keyboard.type('!in')
+    await expect(popup(page)).toHaveAttribute('aria-label', 'Statuses')
+    await expect(popup(page).getByRole('option')).toHaveText(['!In progress'])
     await page.keyboard.press('Enter')
-    expect(await lineWith(editor, '- Call')).toBe('- Call @"Dana Kim" #q4 /due fri /status "In progress" ')
+    expect(await lineWith(editor, '- Call')).toBe('- Call @"Dana Kim" #q4 /due fri !"In progress" ')
 
     // ↓ moves the active row (no wrap); Esc closes only the popup and the
     // text stays; the next ⏎ is a newline again.

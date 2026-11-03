@@ -130,17 +130,41 @@ describe('useNlpAutocomplete — the open popup follows its candidates', () => {
 describe('NlpPopup — the search box’s own commands (D16)', () => {
   const STATUS: AutocompleteItem = { id: 3, name: 'Waiting', color: '#a78bfa', icon: 'clock', kind: 'status' }
 
-  it('/hot draws the Hot flame and /waiting its status glyph, each with the detail as a command’s description', () => {
+  it('/hot draws the Hot flame, with the detail as a command’s description; / lists no status', () => {
     const view = searchAutocomplete('/', 1, { people: [], tags: [], statuses: [STATUS], commands: true, followupDefault: null, today: new Date(2026, 9, 10) })
     if (!view) throw new Error('no popup')
     render(<NlpPopup view={view} selectedIndex={0} onPick={vi.fn()} />)
     const hot = screen.getByRole('option', { name: /\/hot/ })
     expect(hot.querySelector('[data-command="hot"] svg')).not.toBeNull()
-    const waiting = screen.getByRole('option', { name: /\/waiting/ })
-    expect(waiting.querySelector('svg')).not.toBeNull()
+    expect(screen.queryByRole('option', { name: /waiting/i })).toBeNull()
     // The detail sits where a command's description does (`/focus`'s "Add to Focus").
     const focusDetail = within(screen.getByRole('option', { name: /\/focus/ })).getByText('Add to Focus')
     expect(within(hot).getByText('Hot tasks').className).toBe(focusDetail.className)
-    expect(within(waiting).getByText('Status').className).toBe(focusDetail.className)
+  })
+})
+
+describe('NlpPopup — ! statuses', () => {
+  const STATUSES: AutocompleteItem[] = [
+    { id: 3, name: 'Waiting', color: '#a78bfa', icon: 'clock', kind: 'status' },
+    { id: 4, name: 'On Hold', color: '#888888', kind: 'status' },
+  ]
+
+  it('draws each status with its glyph in its colour, the typed prefix marked; no person menu', () => {
+    const view = computeAutocomplete('x !', 3, { people: [], tags: [], statuses: STATUSES, commands: true, followupDefault: null, today: new Date(2026, 9, 10) })
+    if (!view) throw new Error('no popup')
+    render(<NlpPopup view={view} selectedIndex={0} onPick={vi.fn()} />)
+    expect(screen.getByRole('listbox', { name: 'Statuses' })).toBeInTheDocument()
+    const waiting = screen.getByRole('option', { name: '!Waiting' })
+    const glyph = waiting.querySelector('svg')?.parentElement
+    expect(glyph?.style.color).toBe('rgb(167, 139, 250)')
+    // No icon set: the default glyph.
+    expect(screen.getByRole('option', { name: '!On Hold' }).querySelector('svg')).not.toBeNull()
+  })
+
+  it('marks the typed prefix', () => {
+    const view = computeAutocomplete('x !wa', 5, { people: [], tags: [], statuses: STATUSES, commands: true, followupDefault: null, today: new Date(2026, 9, 10) })
+    if (!view) throw new Error('no popup')
+    render(<NlpPopup view={view} selectedIndex={0} onPick={vi.fn()} />)
+    expect(screen.getByRole('option', { name: '!Waiting' }).querySelector('mark')?.textContent).toBe('Wa')
   })
 })

@@ -46,7 +46,7 @@ export function TaskEditHeader({
           onChange={onTitleChange}
           onBlur={onTitleBlur}
           onKeyDown={onTitleKeyDown}
-          placeholder={mode === 'create' ? 'New task… (@person #tag /command)' : 'Task title'}
+          placeholder={mode === 'create' ? 'New task… (@person #tag !status /command)' : 'Task title'}
         />
         {acState.visible && acState.view && (
           <NlpPopup

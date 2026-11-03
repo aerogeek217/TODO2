@@ -57,7 +57,7 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
   const [copying, setCopying] = useState(false)
   const viewRef = useRef<EditorView | null>(null)
   const toastRef = useLatestRef(onConvertToast)
-  // `@ # /` popup + tints over the live stores (read once by the editor).
+  // `@ # ! /` popup + tints over the live stores (read once by the editor).
   const nlp = useMemo(() => storeNotesNlpConfig(), [])
 
   useEffect(() => {

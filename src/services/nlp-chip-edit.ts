@@ -21,7 +21,8 @@ export type QuickAddChip =
   | { kind: 'tag'; name: string }
   | { kind: 'person'; personId: number }
   | { kind: 'newPerson'; name: string }
-  | { kind: 'command'; command: 'due' | 'followup' | 'repeat' | 'status' }
+  | { kind: 'status' }
+  | { kind: 'command'; command: 'due' | 'followup' | 'repeat' }
 
 /** What the default follow-up chip's × adds: no next follow-up. */
 export const FOLLOWUP_NONE_TOKEN = '/followup none'
@@ -110,9 +111,9 @@ const lower = (s: string) => s.trim().toLowerCase()
 
 /**
  * The spans of `input` a chip came from: every token for it (`#Work #work`
- * is one chip; `@Ann @ann` one person) and, for a command, the repeats
- * the first one won over (problem lines, `Repeated:`), so the chip goes
- * rather than the next one taking its place.
+ * is one chip; `@Ann @ann` one person) and, for a command or the status,
+ * the repeats the first one won over (problem lines, `Repeated:`), so the
+ * chip goes rather than the next one taking its place.
  */
 export function chipSpans(input: ParsedInput, chip: QuickAddChip, people: readonly Person[]): Span[] {
   switch (chip.kind) {
@@ -125,6 +126,11 @@ export function chipSpans(input: ParsedInput, chip: QuickAddChip, people: readon
     case 'newPerson':
       return input.tokens.filter((t) =>
         t.type === 'person' && lower(t.value) === lower(chip.name) && matchPerson(t.value, people) === undefined)
+    case 'status':
+      return [
+        ...input.tokens.filter((t) => t.type === 'status'),
+        ...input.problems.filter((p) => p.kind === 'duplicate' && p.status !== undefined),
+      ]
     case 'command': {
       const command: SlashCommandName = chip.command
       return [

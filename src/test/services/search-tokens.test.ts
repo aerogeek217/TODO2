@@ -47,23 +47,39 @@ describe('search-tokens: the D16 spec table', () => {
     expect(p.names).toEqual([expect.objectContaining({ kind: 'tag', name: 'nope', unmatched: true })])
   })
 
-  it('/status waiting and /waiting → Status', () => {
-    expect(clausesOf('/status waiting ')).toEqual([{ field: 'statusIds', id: 20 }])
-    expect(clausesOf('/waiting ')).toEqual([{ field: 'statusIds', id: 20 }])
-    expect(clausesOf('/status "In progress" ')).toEqual([{ field: 'statusIds', id: 21 }])
+  it('!waiting, !wa (a prefix) and !"In progress" → Status', () => {
+    expect(clausesOf('!waiting ')).toEqual([{ field: 'statusIds', id: 20 }])
+    expect(clausesOf('!wa ')).toEqual([{ field: 'statusIds', id: 20 }])
+    expect(clausesOf('!"In progress" ')).toEqual([{ field: 'statusIds', id: 21 }])
   })
 
-  it('/waiting reads only while a status is named so', () => {
-    const none = parseSearch('/waiting ', { ...sources, statuses: [] })
-    expect(none.tokens).toEqual([])
-    expect(searchWords(none)).toBe('/waiting')
-  })
-
-  it('a second /status ORs with the first', () => {
-    expect(clausesOf('/status waiting /status "In progress" ')).toEqual([
+  it('several ! are one clause each (they OR in the Status chip)', () => {
+    expect(clausesOf('!waiting !"In progress" ')).toEqual([
       { field: 'statusIds', id: 20 },
       { field: 'statusIds', id: 21 },
     ])
+    expect(clausesOf('!a !b ')).toEqual([])
+    expect(clausesOf('!in !wa ')).toEqual([
+      { field: 'statusIds', id: 21 },
+      { field: 'statusIds', id: 20 },
+    ])
+  })
+
+  it('an unknown !name stays words: the "new" ring and its name in the text search', () => {
+    const p = parseSearch('!nope report', sources)
+    expect(p.tokens).toEqual([])
+    expect(p.names).toEqual([expect.objectContaining({ kind: 'status', name: 'nope', unmatched: true, complete: true })])
+    expect(searchTints(p)).toEqual([{ start: 0, end: 5, tint: 'new' }])
+    expect(searchWords(p)).toBe('nope report')
+  })
+
+  it('/waiting and /status ⟨name⟩ are plain unknown text now', () => {
+    for (const text of ['/waiting ', '/status waiting ']) {
+      const p = parseSearch(text, sources)
+      expect(p.tokens, text).toEqual([])
+      expect(p.errors, text).toEqual([])
+      expect(searchWords(p), text).toBe(text.trim())
+    }
   })
 
   it('/urgent /important /focus /hot → Priority', () => {
@@ -172,6 +188,15 @@ describe('search-tokens: completion and the box', () => {
     expect(p.tokens).toEqual([])
     expect(p.names).toEqual([expect.objectContaining({ name: 'ai', unmatched: false })])
     expect(searchTints(p)).toEqual([])
+    const status = parseSearch('!wa ', sources, ['!wa'])
+    expect(status.tokens).toEqual([])
+    expect(status.names).toEqual([expect.objectContaining({ kind: 'status', name: 'wa', unmatched: false })])
+    expect(searchWords(status)).toBe('wa')
+  })
+
+  it('takeTokens takes a complete ! token like @ / #', () => {
+    const p = parseSearch('!wa budget', sources)
+    expect(takeTokens(p, 10)).toMatchObject({ text: 'budget', taken: [expect.objectContaining({ raw: '!wa', clause: { field: 'statusIds', id: 20 } })] })
   })
 
   it('tints by what a token sets; the popup\'s token as being typed', () => {
@@ -188,6 +213,7 @@ describe('search-tokens: completion and the box', () => {
 
   it('a lone trigger is left out of the text search', () => {
     expect(searchWords(parseSearch('budget @', sources))).toBe('budget')
+    expect(searchWords(parseSearch('budget !', sources))).toBe('budget')
   })
 })
 
@@ -211,25 +237,27 @@ describe('search-tokens: the popup', () => {
     expect(searchAutocomplete('#q', 2, ac)?.rows.map((r) => r.kind)).toEqual(['entity'])
   })
 
-  it('/ lists the commands without /repeat, then /hot and each one-word status', () => {
+  it('/ lists the commands without /repeat, then /hot — no status', () => {
     const view = searchAutocomplete('/', 1, ac)
     const labels = view?.rows.map((r) => (r.kind === 'command' ? `/${r.command.name}` : r.kind === 'value' ? r.label : r.kind))
-    expect(labels).toEqual(['/focus', '/urgent', '/important', '/due', '/followup', '/status', '/hot', '/waiting'])
+    expect(labels).toEqual(['/focus', '/urgent', '/important', '/due', '/followup', '/hot'])
+    expect(searchAutocomplete('/wa', 3, ac)).toBeNull()
   })
 
-  it('/wa narrows to the status command; picking it inserts /waiting', () => {
-    const view = searchAutocomplete('/wa', 3, ac)
-    expect(view?.rows).toEqual([expect.objectContaining({ kind: 'value', insert: '/waiting', label: '/waiting' })])
-    expect(view).toMatchObject({ from: 0, to: 3, mode: 'command' })
+  it('! lists the statuses (Settings order, prefix), no Create row', () => {
+    const all = searchAutocomplete('!', 1, ac)
+    expect(all).toMatchObject({ trigger: '!', mode: 'entity', header: 'Statuses' })
+    expect(all?.rows.map((r) => (r.kind === 'entity' ? r.item.name : r.kind))).toEqual(['Waiting', 'In progress', 'Urgent'])
+    const view = searchAutocomplete('x !in', 5, ac)
+    expect(view?.rows.map((r) => (r.kind === 'entity' ? r.item.name : r.kind))).toEqual(['In progress'])
+    expect(searchAutocomplete('!zz', 3, ac)?.rows).toEqual([])
   })
 
   it('/ho offers /hot alone', () => {
     expect(searchAutocomplete('x /ho', 5, ac)?.rows).toEqual([expect.objectContaining({ insert: '/hot' })])
   })
 
-  it('/status ⟨…⟩ lists the statuses (the argument popup)', () => {
-    const view = searchAutocomplete('/status w', 9, ac)
-    expect(view?.mode).toBe('argument')
-    expect(view?.rows.map((r) => (r.kind === 'value' ? r.label : r.kind))).toEqual(['Waiting'])
+  it('/status ⟨…⟩ opens nothing (no such command)', () => {
+    expect(searchAutocomplete('/status w', 9, ac)).toBeNull()
   })
 })

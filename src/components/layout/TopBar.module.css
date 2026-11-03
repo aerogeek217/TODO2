@@ -320,7 +320,7 @@
   pointer-events: none;
 }
 
-/* The `@ # /` popup under the box (portal'd, fixed). */
+/* The `@ # ! /` popup under the box (portal'd, fixed). */
 .nlpPopup {
   position: fixed;
   z-index: var(--z-popover);

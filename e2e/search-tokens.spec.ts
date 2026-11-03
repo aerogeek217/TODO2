@@ -7,7 +7,8 @@ import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/work
  * becomes the tray's own filter chips as each token completes, the box
  * keeping only the plain words — the text search — and the results
  * dropdown lists the words' matches among the tasks the chips keep.
- * Backspace in the empty box takes the last chip back as its token.
+ * Backspace in the empty box takes the last chip back as its token. `!`
+ * names a status as `@` a person.
  */
 
 const SEED: WorkspaceSeed = {
@@ -88,4 +89,41 @@ test('@ opens the people popup under the box; ⏎ makes the chip; an unknown nam
   await page.keyboard.type('@nobody report', { delay: 20 })
   await expect(page.getByRole('status').filter({ hasText: 'No person named nobody' })).toBeVisible()
   await expect(search(page)).toHaveValue('@nobody report')
+})
+
+test('! opens the statuses under the box; a space makes the Status chip, a second ! ORs in it', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...SEED,
+    statuses: ['Waiting', 'On Hold'],
+    tasks: [
+      { title: 'Chase the invoice', status: 'Waiting' },
+      { title: 'Paused rollout', status: 'On Hold' },
+      { title: 'Plain task' },
+    ],
+  })
+  await expect.poll(() => listTitles(page)).toHaveLength(3)
+
+  await search(page).click()
+  await page.keyboard.type('!wa', { delay: 20 })
+  const popup = page.getByRole('listbox', { name: 'Statuses' })
+  await expect(popup.getByRole('option')).toHaveText(['!Waiting'])
+  const box = await search(page).boundingBox()
+  const list = await popup.boundingBox()
+  expect(list && box && list.y >= box.y + box.height - 1).toBe(true)
+
+  // A space completes the token: the Status chip, the box empty.
+  await page.keyboard.type(' ', { delay: 20 })
+  await expect(popup).toHaveCount(0)
+  await expect(search(page)).toHaveValue('')
+  await expect(tray(page)).toContainText('Waiting')
+  await expect.poll(() => listTitles(page)).toEqual(['Chase the invoice'])
+
+  // A second status ORs with the first.
+  await page.keyboard.type('!"On Hold" ', { delay: 20 })
+  await expect(search(page)).toHaveValue('')
+  await expect.poll(() => listTitles(page)).toEqual(['Chase the invoice', 'Paused rollout'])
+
+  // `/waiting` is plain words now: the text search.
+  await page.keyboard.type('/waiting', { delay: 20 })
+  await expect(search(page)).toHaveValue('/waiting')
 })

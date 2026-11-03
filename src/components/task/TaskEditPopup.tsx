@@ -146,7 +146,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       const match = allTags.find((t) => t.name.toLowerCase() === lower && t.id !== undefined)
       if (match?.id !== undefined) tagIds.push(match.id)
     }
-    // The commands are carried by the fields below, so the title drops them;
+    // The commands and a `!status` are carried by the fields below, so the title drops them;
     // `@` / `#` tokens stay (new people and tags are created on create).
     return { title: resolved.textWithoutCommands ?? draft.rawTitle, resolved, tagIds }
   })

@@ -8,7 +8,7 @@ import {
   relativeDayPhrase,
   type FollowupInterval,
 } from '../utils/followup'
-import { BARE_MENTION_NAME, BARE_TAG_NAME, mentionToken, parseInput, tagToken } from './natural-language-parser'
+import { BARE_MENTION_NAME, BARE_TAG_NAME, mentionToken, parseInput, statusToken, tagToken } from './natural-language-parser'
 import { TYPED_NAME_MAX_RANK, rankByName } from './nlp-resolver'
 import {
   COMMAND_SHAPE,
@@ -37,11 +37,15 @@ import { byName } from '../utils/sort-order'
  *    Create row below the matches unless one is exactly the name. Only an
  *    exact / initials / prefix row completes a token typed on or submitted
  *    without a pick (`resolves`);
+ *  - `!` statuses (where `/` works: text parsed on create, the search box),
+ *    in Settings order, the ones whose name starts with what is typed — the
+ *    exact name first, as `nlp-resolver.matchStatus` resolves it; no Create
+ *    row (a status is made in Settings);
  *  - `/` slash commands (prefix on the name), then the command's argument
- *    (date suggestions / live parse / error, statuses, frequencies).
+ *    (date suggestions / live parse / error, frequencies).
  */
 
-export const NLP_TRIGGERS = ['@', '#', '/'] as const
+export const NLP_TRIGGERS = ['@', '#', '!', '/'] as const
 export type NlpTrigger = (typeof NLP_TRIGGERS)[number]
 
 export interface AutocompleteItem {
@@ -58,9 +62,9 @@ export interface AutocompleteItem {
 export interface AutocompleteSources {
   people: readonly AutocompleteItem[]
   tags: readonly AutocompleteItem[]
-  /** Statuses in Settings order (the `/status` argument). */
+  /** Statuses in Settings order (the `!` rows). */
   statuses: readonly AutocompleteItem[]
-  /** Whether `/` opens the slash-command menu. */
+  /** Whether `/` opens the slash-command menu and `!` the statuses. */
   commands: boolean
   /**
    * The follow-up a new task gets by default, marked `default` in the
@@ -73,7 +77,7 @@ export interface AutocompleteSources {
 
 export type AutocompleteRow =
   /**
-   * An existing person / tag. `resolves`: an exact, initials or prefix match —
+   * An existing person / tag / status. `resolves`: an exact, initials or prefix match —
    * typing on past the token or submitting without a pick completes it to
    * this row; a word-start / substring match needs an explicit pick.
    * `match`: where the typed text sits in the name (absent: initials, or
@@ -83,7 +87,7 @@ export type AutocompleteRow =
   /** Create `@name` / `#tag`: offered below the matches unless one is exactly the name; picking it creates the entity at once. */
   | { kind: 'create'; trigger: '@' | '#'; name: string }
   | { kind: 'command'; command: SlashCommandSpec; matchLength: number }
-  /** An argument suggestion (`fri`, `2w`, `none`, a status, a frequency). */
+  /** An argument suggestion (`fri`, `2w`, `none`, a frequency). */
   | {
     kind: 'value'
     insert: string
@@ -91,10 +95,9 @@ export type AutocompleteRow =
     matchLength: number
     detail?: string
     note?: string
-    status?: AutocompleteItem
     separator?: boolean
-    /** A command of the search box's own (`/hot`, a status by its name): drawn as a command row — its glyph, the detail as its description. */
-    command?: 'hot' | 'status'
+    /** A command of the search box's own (`/hot`): drawn as a command row — its glyph, the detail as its description. */
+    command?: 'hot'
   }
   /** What the typed date argument reads as. */
   | { kind: 'parsed'; insert: string; date: Date; label: string; relative: string }
@@ -193,11 +196,10 @@ export function isVisible(view: AutocompleteView | null): view is AutocompleteVi
 const MAX_ENTITY_ROWS = 8
 const MAX_ARGUMENT_WORDS = 4
 
-const ARGUMENT_HEADER: Record<'due' | 'followup' | 'repeat' | 'status', string> = {
+const ARGUMENT_HEADER: Record<'due' | 'followup' | 'repeat', string> = {
   due: 'Due date',
   followup: 'Next follow-up',
   repeat: 'Repeat',
-  status: 'Status',
 }
 
 // ─── Context ────────────────────────────────────────────────────────
@@ -209,7 +211,7 @@ function findTrigger(before: string, sources: AutocompleteSources): { trigger: N
     if (ch === undefined || /\s/.test(ch)) return null
     const atTokenStart = i === 0 || /\s/.test(before[i - 1] ?? '')
     if (!atTokenStart) continue
-    if (ch === '@' || ch === '#' || (ch === '/' && sources.commands)) return { trigger: ch, index: i }
+    if (ch === '@' || ch === '#' || ((ch === '!' || ch === '/') && sources.commands)) return { trigger: ch, index: i }
     return null
   }
   return null
@@ -268,25 +270,19 @@ function findArgumentContext(before: string, today: Date): ArgumentContext | nul
   let argStart = nameEnd
   while (argStart < before.length && (before[argStart] === ' ' || before[argStart] === '\t')) argStart++
   const arg = before.slice(argStart)
-  if (/(^|\s)[@#/]/.test(arg)) return null // another token began
+  if (/(^|\s)[@#!/]/.test(arg)) return null // another token began
   const endsWithSpace = /\s$/.test(arg)
   const words = arg.trim() ? arg.trim().split(/\s+/) : []
   // The words before the one being typed must still be an argument in progress.
   const done = endsWithSpace ? words : words.slice(0, -1)
   if (done.length > 0) {
+    // `/repeat` takes one word; a date argument runs while it is still one in progress.
+    if (spec.name === 'repeat') return null
     const doneText = done.join(' ')
-    if (spec.name === 'status') {
-      // Only a quoted name (`"In progress"`) spans words; the closing quote ends it.
-      const openQuote = doneText.startsWith('"') && (doneText.length === 1 || !doneText.endsWith('"'))
-      if (!openQuote) return null
-    } else if (spec.name === 'repeat') {
-      return null
-    } else {
-      const dateCommand = spec.name as 'due' | 'followup'
-      if (words.length > MAX_ARGUMENT_WORDS) return null
-      if (parseCommandDate(doneText, today) !== null || doneText.toLowerCase() === 'none') return null
-      if (!isPartialDateArgument(doneText, dateCommand)) return null
-    }
+    const dateCommand = spec.name as 'due' | 'followup'
+    if (words.length > MAX_ARGUMENT_WORDS) return null
+    if (parseCommandDate(doneText, today) !== null || doneText.toLowerCase() === 'none') return null
+    if (!isPartialDateArgument(doneText, dateCommand)) return null
   }
   return { spec, slash, argStart, arg }
 }
@@ -297,6 +293,37 @@ function findArgumentContext(before: string, today: Date): ArgumentContext | nul
 const CREATABLE: Record<'@' | '#', RegExp> = {
   '@': BARE_MENTION_NAME,
   '#': BARE_TAG_NAME,
+}
+
+/**
+ * The `!` rows: the statuses whose name starts with what is typed (a leading
+ * quote ignored), in Settings order with the exact name first — the first row
+ * is what `matchStatus` resolves the name to. Every row resolves.
+ */
+function statusView(index: number, cursor: number, rawQuery: string, sources: AutocompleteSources): AutocompleteView {
+  const q = rawQuery.toLowerCase().replace(/^"/, '').trim()
+  const starting = sources.statuses.filter((s) => s.name.toLowerCase().startsWith(q))
+  const ordered = [
+    ...starting.filter((s) => s.name.toLowerCase() === q),
+    ...starting.filter((s) => s.name.toLowerCase() !== q),
+  ]
+  const rows: AutocompleteRow[] = ordered.slice(0, MAX_ENTITY_ROWS).map((item) => ({
+    kind: 'entity',
+    item,
+    resolves: q.length > 0,
+    ...(q ? { match: { at: 0, length: q.length } } : {}),
+  }))
+  return {
+    trigger: '!',
+    mode: 'entity',
+    header: 'Statuses',
+    footer: false,
+    rows,
+    anchor: index,
+    from: index,
+    to: cursor,
+    query: rawQuery,
+  }
 }
 
 function entityView(
@@ -421,7 +448,7 @@ function argumentView(
   cursor: number,
   sources: AutocompleteSources,
 ): AutocompleteView | null {
-  const name = ctx.spec.name as 'due' | 'followup' | 'repeat' | 'status'
+  const name = ctx.spec.name as 'due' | 'followup' | 'repeat'
   const base = {
     trigger: '/' as const,
     mode: 'argument' as const,
@@ -437,19 +464,7 @@ function argumentView(
     const { rows, hint } = dateRows(name, ctx.arg, sources)
     return { ...base, rows, ...(hint !== undefined ? { hint } : {}) }
   }
-  const q = ctx.arg.trim().replace(/^"/, '').replace(/"$/, '').toLowerCase()
-  if (name === 'status') {
-    const rows: AutocompleteRow[] = sources.statuses
-      .filter((s) => s.name.toLowerCase().startsWith(q))
-      .map((s) => ({
-        kind: 'value',
-        insert: /\s/.test(s.name) ? `"${s.name}"` : s.name,
-        label: s.name,
-        matchLength: q.length,
-        status: s,
-      }))
-    return rows.length > 0 ? { ...base, rows } : null
-  }
+  const q = ctx.arg.trim().toLowerCase()
   const due = parseInput(value, sources.today).dueDate
   const rows: AutocompleteRow[] = REPEAT_FREQUENCIES
     .filter((f) => f.startsWith(q))
@@ -472,6 +487,7 @@ export function computeAutocomplete(
   if (found) {
     const rawQuery = before.slice(found.index + 1)
     if (found.trigger === '/') return commandView(found.index, cursor, rawQuery)
+    if (found.trigger === '!') return statusView(found.index, cursor, rawQuery, sources)
     return entityView(found.trigger, found.index, cursor, rawQuery, sources)
   }
   if (!sources.commands) return null
@@ -498,8 +514,8 @@ export function applyAutocompletePick(
   let reopen = false
   switch (row.kind) {
     case 'entity': {
-      // A name that isn't bare is quoted (a person's space or hyphen, a tag's
-      // `&` or space …), so the token reads back as the whole name.
+      // A name that isn't bare is quoted (a person's or status's space or
+      // hyphen, a tag's `&` or space …), so the token reads back as the whole name.
       insert = entityToken(view, row.item)
       break
     }
@@ -528,7 +544,7 @@ export function applyAutocompletePick(
  * highlighted row (`index`; the best match — the first row — unless ↑ / ↓ or
  * the pointer moved it), for a submit that doesn't wait for a pick: a person
  * or tag, a flag command (`/ur` → `/urgent`), or an argument suggestion
- * (`/due tom` → `tomorrow`). Unchanged when nothing was typed after the
+ * (`/due tom` → `tomorrow`), a status (`!wa` → `!Waiting`). Unchanged when nothing was typed after the
  * trigger (or the command), when the row adds nothing (a new name to create,
  * a date that already reads), for a person / tag matched only at a word start
  * or inside its name (it needs a pick), for an argument command without its argument,
@@ -545,15 +561,16 @@ export function bestMatchCompletion(value: string, view: AutocompleteView, index
   return applyAutocompletePick(value, view, row)?.value ?? value
 }
 
-/** The token text picking an existing person / tag writes (`@Ann`, `@"Ann Lee"`, `#q4`, `#"R&D"`). */
+/** The token text picking an existing person / tag / status writes (`@Ann`, `@"Ann Lee"`, `#q4`, `#"R&D"`, `!"On Hold"`). */
 function entityToken(view: AutocompleteView, item: AutocompleteItem): string {
-  return view.trigger === '#' ? tagToken(item.name) : mentionToken(item.name)
+  if (view.trigger === '#') return tagToken(item.name)
+  return view.trigger === '!' ? statusToken(item.name) : mentionToken(item.name)
 }
 
 /**
- * Typing on past an open `@` / `#` popup without picking — a space or
+ * Typing on past an open `@` / `#` / `!` popup without picking — a space or
  * punctuation typed right after the token, or the caret moved off it — uses
- * the highlighted row: an existing person / tag completes the token to its
+ * the highlighted row: an existing person / tag / status completes the token to its
  * name, as Tab would, the typed key kept after it. `prev` is the text the
  * popup was open on with its view and highlighted row; `value` / `cursor`
  * the input now. Null when nothing is to be completed: another popup or the
@@ -571,7 +588,7 @@ export function implicitAccept(
 ): { value: string; cursor: number } | null {
   const { view } = prev
   if (view.mode !== 'entity' || view.query.trim() === '') return null
-  // A quoted name being typed (`@"Ana Lo…`, `#"Q4 pl…`): a space is part of it.
+  // A quoted name being typed (`@"Ana Lo…`, `#"Q4 pl…`, `!"On H…`): a space is part of it.
   if (view.query.startsWith('"')) return null
   if (isVisible(next) && next.mode === view.mode && next.anchor === view.anchor) return null
   const row = view.rows[prev.index]

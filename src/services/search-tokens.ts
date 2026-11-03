@@ -3,28 +3,27 @@ import { parseDatePhrase } from '../utils/date-phrase'
 import { fixedAnchor } from '../utils/filter-criteria'
 import type { SearchClause } from '../utils/search-clause'
 import { collapseWhitespace } from '../utils/text'
-import { parseInput, type ParsedToken } from './natural-language-parser'
+import { parseInput } from './natural-language-parser'
 import { matchPerson, matchStatus, matchTag } from './nlp-resolver'
 import { removeTextSpans, type TextEdit } from './nlp-chip-edit'
 import {
   computeAutocomplete,
-  type AutocompleteItem,
   type AutocompleteRow,
   type AutocompleteSources,
   type AutocompleteView,
 } from './nlp-autocomplete'
-import { COMMAND_SHAPE, lookupSlashCommand, parseCommandDate } from './slash-commands'
+import { parseCommandDate } from './slash-commands'
 import type { TintSpan, TokenTint } from './nlp-token-tints'
 
 /**
  * The search box's grammar (D16): what typed into the top bar's search (or
  * the phone sheet's) becomes a screen-filter chip. A pass over Quick Add's
- * parser (`parseInput`) — its `@person`, `#tag` and `/command` tokens — that
- * also reads search words:
+ * parser (`parseInput`) — its `@person`, `#tag`, `!status` and `/command`
+ * tokens — that also reads search words:
  *
- *  - `@name` → People, `#name` → Tags (several of a kind OR, as the pickers);
- *    a name matching nobody stays words (a search never creates);
- *  - `/status ⟨name⟩`, or a status's own name as a command (`/waiting`);
+ *  - `@name` → People, `#name` → Tags, `!name` → Status (several of a kind
+ *    OR, as the pickers); a name matching nothing stays words (a search
+ *    never creates);
  *  - `/urgent` `/important` `/focus` → Priority, `/hot` → Hot;
  *  - `overdue` → Due before today;
  *  - `due ⟨phrase⟩` / `followup ⟨phrase⟩`: today · tomorrow · ⟨weekday⟩ ·
@@ -55,9 +54,9 @@ export interface SearchToken {
   complete: boolean
 }
 
-/** An `@` / `#` token the box keeps as words: no such person / tag (`unmatched`), or Esc on its popup. */
+/** An `@` / `#` / `!` token the box keeps as words: no such person / tag / status (`unmatched`), or Esc on its popup. */
 export interface SearchName {
-  kind: 'person' | 'tag'
+  kind: 'person' | 'tag' | 'status'
   name: string
   start: number
   end: number
@@ -69,7 +68,7 @@ export interface SearchParse {
   text: string
   tokens: SearchToken[]
   names: SearchName[]
-  /** Commands that can't be read (`/due frday`, `/status nope`): tinted, kept as words. */
+  /** Commands that can't be read (`/due frday`, `/repeat often`): tinted, kept as words. */
   errors: { start: number; end: number }[]
 }
 
@@ -103,14 +102,12 @@ function phraseMatch(phrase: string, field: 'deadline' | 'followup', today: Date
 
 const isSpace = (ch: string | undefined) => ch !== undefined && /\s/.test(ch)
 
-/** The `/status` argument a repeated `/status …` names (`/status "In progress"` → `In progress`). */
-function statusArgument(raw: string): string {
-  return raw.replace(/^\/status\s+/i, '').trim().replace(/^"(.*)"$/, '$1').trim()
-}
+const CLAUSE_FIELD = { person: 'personIds', tag: 'tags', status: 'statusIds' } as const
 
 /**
- * The tokens and kept names of `text`. `kept`: `@` / `#` tokens Esc kept as
- * words (on their popup), as typed (`@ai`), wherever they are.
+ * The tokens and kept names of `text`. `kept`: `@` / `#` / `!` tokens Esc
+ * kept as words (on their popup), as typed (`@ai`), wherever they are. Every
+ * `!` counts — the parser's repeats after the first one too (they OR).
  */
 export function parseSearch(text: string, sources: SearchSources, kept: readonly string[] = []): SearchParse {
   const { people, tags, statuses, today } = sources
@@ -122,20 +119,17 @@ export function parseSearch(text: string, sources: SearchSources, kept: readonly
   const push = (span: { raw: string; start: number; end: number }, clause: SearchClause) => {
     tokens.push({ raw: span.raw, start: span.start, end: span.end, clause, complete: complete(span.end) })
   }
-  const status = (span: { raw: string; start: number; end: number }, name: string) => {
-    const s = matchStatus(name, statuses)
-    if (s?.id !== undefined) push(span, { field: 'statusIds', id: s.id })
-    else errors.push({ start: span.start, end: span.end })
-  }
-  const name = (t: ParsedToken, kind: 'person' | 'tag') => {
+  const match = (kind: SearchName['kind'], value: string) =>
+    kind === 'person' ? matchPerson(value, people) : kind === 'tag' ? matchTag(value, tags) : matchStatus(value, statuses)
+  const name = (t: { raw: string; value: string; start: number; end: number }, kind: SearchName['kind']) => {
     const isKept = kept.includes(t.raw)
-    const id = isKept ? undefined : (kind === 'person' ? matchPerson(t.value, people) : matchTag(t.value, tags))?.id
-    if (id !== undefined) push(t, { field: kind === 'person' ? 'personIds' : 'tags', id })
+    const id = isKept ? undefined : match(kind, t.value)?.id
+    if (id !== undefined) push(t, { field: CLAUSE_FIELD[kind], id })
     else names.push({ kind, name: t.value, start: t.start, end: t.end, unmatched: !isKept, complete: complete(t.end) })
   }
 
   for (const t of parsed.tokens) {
-    if (t.type === 'person' || t.type === 'tag') { name(t, t.type); continue }
+    if (t.type !== 'command') { name(t, t.type); continue }
     switch (t.command) {
       case 'urgent':
       case 'important':
@@ -150,22 +144,16 @@ export function parseSearch(text: string, sources: SearchSources, kept: readonly
         if (date) push(t, { field, match: dayRange(t.value, date) })
         break
       }
-      case 'status':
-        status(t, t.value)
-        break
       default:
         break // `/repeat`: nothing to filter by; stays words
     }
   }
   for (const p of parsed.problems) {
     if (p.kind === 'unknown') {
-      // `/hot`, or a status by its own name (`/waiting`: only a status named so).
-      const word = p.raw.slice(1)
-      if (word.toLowerCase() === 'hot') { push(p, { field: 'markers', marker: 'hot' }); continue }
-      const s = statuses.find((x) => x.name.trim().toLowerCase() === word.toLowerCase())
-      if (s?.id !== undefined) push(p, { field: 'statusIds', id: s.id })
-    } else if (p.kind === 'duplicate' && p.command === 'status') {
-      status(p, statusArgument(p.raw))
+      // `/hot`: the search box's own command.
+      if (p.raw.slice(1).toLowerCase() === 'hot') push(p, { field: 'markers', marker: 'hot' })
+    } else if (p.kind === 'duplicate' && p.status !== undefined) {
+      name({ raw: p.raw, value: p.status, start: p.start, end: p.end }, 'status')
     } else if (p.kind === 'unreadable') {
       errors.push({ start: p.start, end: p.end })
     }
@@ -237,7 +225,7 @@ const MARKER_TINT: Record<MarkerKey | 'hot', TokenTint> = { urgent: 'urgent', im
 
 /**
  * The tinted spans of the box (Quick Add's tints): a token by what it sets,
- * an unknown `@` / `#` name with the "new" ring, an unreadable command as an
+ * an unknown `@` / `#` / `!` name with the "new" ring, an unreadable command as an
  * error. `active`: the token the popup is open on, tinted as being typed.
  */
 export function searchTints(parse: SearchParse, active?: { start: number; end: number }): TintSpan[] {
@@ -260,8 +248,8 @@ export function searchTints(parse: SearchParse, active?: { start: number; end: n
 
 /**
  * The text search the box's words make: the text without its tokens (a
- * token being typed too), an `@` / `#` kept as words read as its name, a
- * lone `@` / `#` / `/` left out.
+ * token being typed too), an `@` / `#` / `!` kept as words read as its name,
+ * a lone `@` / `#` / `!` / `/` left out.
  */
 export function searchWords(parse: SearchParse): string {
   const pieces: { start: number; end: number; text: string }[] = [
@@ -270,7 +258,7 @@ export function searchWords(parse: SearchParse): string {
   ].sort((a, b) => b.start - a.start)
   let out = parse.text
   for (const p of pieces) out = out.slice(0, p.start) + p.text + out.slice(p.end)
-  return collapseWhitespace(out.split(/\s+/).filter((w) => !/^[@#/]$/.test(w)).join(' '))
+  return collapseWhitespace(out.split(/\s+/).filter((w) => !/^[@#!/]$/.test(w)).join(' '))
 }
 
 /**
@@ -288,15 +276,9 @@ export function takeTokens(parse: SearchParse, caret: number, all = false): { ta
 /** What a search can't do with a `/` command: repeat (the commands' own list is Quick Add's). */
 const NOT_IN_SEARCH = new Set(['repeat'])
 
-/** A status name that works as its own command: one word, not a command's (or `hot`). */
-function isStatusCommand(name: string): boolean {
-  return COMMAND_SHAPE.test(name) && !lookupSlashCommand(name) && name.toLowerCase() !== 'hot'
-}
-
 /**
- * Quick Add's `@ # /` popup for the search box: no Create rows (a search
- * never creates), no `/repeat`, plus `/hot` and each one-word status as its
- * own command (`/waiting`). Null when nothing is listed.
+ * Quick Add's `@ # ! /` popup for the search box: no Create rows (a search
+ * never creates), no `/repeat`, plus `/hot`. Null when nothing is listed.
  */
 export function searchAutocomplete(value: string, cursor: number, sources: AutocompleteSources): AutocompleteView | null {
   const view = computeAutocomplete(value, cursor, { ...sources, commands: true })
@@ -308,12 +290,9 @@ export function searchAutocomplete(value: string, cursor: number, sources: Autoc
   const q = query.toLowerCase()
   const anchor = (slash.index ?? 0) + (slash[1]?.length ?? 0)
   const matchLength = q ? q.length + 1 : 0
-  const extra: AutocompleteRow[] = [
-    ...('hot'.startsWith(q) ? [{ kind: 'value' as const, insert: '/hot', label: '/hot', matchLength, detail: 'Hot tasks', command: 'hot' as const }] : []),
-    ...sources.statuses
-      .filter((s: AutocompleteItem) => isStatusCommand(s.name) && s.name.toLowerCase().startsWith(q))
-      .map((s) => ({ kind: 'value' as const, insert: `/${s.name.toLowerCase()}`, label: `/${s.name.toLowerCase()}`, matchLength, detail: 'Status', status: s, command: 'status' as const })),
-  ]
+  const extra: AutocompleteRow[] = 'hot'.startsWith(q)
+    ? [{ kind: 'value', insert: '/hot', label: '/hot', matchLength, detail: 'Hot tasks', command: 'hot' }]
+    : []
   const commands = (view?.rows ?? []).filter((r) => r.kind !== 'command' || !NOT_IN_SEARCH.has(r.command.name))
   const rows = [...commands, ...extra]
   if (rows.length === 0) return null

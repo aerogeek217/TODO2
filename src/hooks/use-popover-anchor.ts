@@ -469,7 +469,7 @@ function besidePosition(
  * ```
  *
  * Every anchored popover uses it (e.g. `MenuPopover` and its submenus,
- * `AnchoredPicker`, `RuntimeFilterPicker`, `TooltipBubble`, the `@ # /`
+ * `AnchoredPicker`, `RuntimeFilterPicker`, `TooltipBubble`, the `@ # ! /`
  * popups) instead of its own positioning effects.
  */
 export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAnchorResult {

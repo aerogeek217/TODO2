@@ -6,10 +6,10 @@ import { parseFollowupInput } from '../utils/followup'
  * in create mode, a note line converted to a task). `/` counts only at the
  * start of the text or after whitespace, so `a/b`, `1/2`, URLs and paths are
  * never commands. Flag commands take no argument; the others take one after a
- * space.
+ * space. A status is named with `!`, not a command (`natural-language-parser`).
  */
 
-export type SlashCommandName = 'urgent' | 'important' | 'focus' | 'due' | 'followup' | 'repeat' | 'status'
+export type SlashCommandName = 'urgent' | 'important' | 'focus' | 'due' | 'followup' | 'repeat'
 
 export interface SlashCommandSpec {
   name: SlashCommandName
@@ -29,12 +29,11 @@ export const SLASH_COMMANDS: readonly SlashCommandSpec[] = [
   { name: 'due', aliases: [], description: 'Due date…', argumentLabel: 'Due date' },
   { name: 'followup', aliases: ['follow-up'], description: 'Next follow-up…', argumentLabel: 'Next follow-up' },
   { name: 'repeat', aliases: [], description: 'Repeat…', argumentLabel: 'Repeat' },
-  { name: 'status', aliases: [], description: 'Set status…', argumentLabel: 'Status' },
 ]
 
 /** Whether the command takes an argument. */
 export function takesArgument(name: SlashCommandName): boolean {
-  return name === 'due' || name === 'followup' || name === 'repeat' || name === 'status'
+  return name === 'due' || name === 'followup' || name === 'repeat'
 }
 
 /** The command a typed name (without the `/`) spells, any case; aliases count. */

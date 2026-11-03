@@ -119,37 +119,59 @@ describe('nlp-resolver', () => {
   })
 })
 
-describe('nlp-resolver — /status', () => {
+describe('nlp-resolver — !status', () => {
   const statuses: Status[] = [
     { id: 10, name: 'Doing', color: '#0af', sortOrder: 0 },
     { id: 11, name: 'Blocked', color: '#f00', sortOrder: 1 },
     { id: 12, name: 'In progress', color: '#0f0', sortOrder: 2 },
+    { id: 13, name: 'On Hold', color: '#888', sortOrder: 3 },
+    { id: 14, name: 'On', color: '#888', sortOrder: 4 },
   ]
 
   it.each([
-    ['/status doing', 10],
-    ['/status Doing', 10],
-    ['/status bl', 11],
-    ['/status "In progress"', 12],
-    ['/status in', 12],
-  ] as const)('%s resolves', (cmd, id) => {
-    const result = resolveInput(parseInput(`fix it ${cmd}`), people, statuses)
+    ['!doing', 10],
+    ['!Doing', 10],
+    ['!DOING', 10],
+    ['!bl', 11],
+    ['!"In progress"', 12],
+    ['!in', 12],
+    // The exact name before the first it starts.
+    ['!on', 14],
+    ['!"on h"', 13],
+  ] as const)('%s resolves', (token, id) => {
+    const result = resolveInput(parseInput(`fix it ${token}`), people, statuses)
     expect(result.statusId).toBe(id)
     expect(result.title).toBe('fix it')
     expect(result.unmatchedStatuses).toEqual([])
+    expect(result.problems).toEqual([])
   })
 
-  it('an unknown name stays in the title and is reported', () => {
-    const result = resolveInput(parseInput('fix it /status typo now'), people, statuses)
+  it('an unknown name stays in the title and is reported as unmatched', () => {
+    const result = resolveInput(parseInput('fix it !typo now'), people, statuses)
     expect(result.statusId).toBeUndefined()
-    expect(result.title).toBe('fix it /status typo now')
-    expect(result.textWithoutCommands).toBe('fix it /status typo now')
+    expect(result.title).toBe('fix it !typo now')
+    expect(result.textWithoutCommands).toBe('fix it !typo now')
     expect(result.unmatchedStatuses).toEqual(['typo'])
-    expect(result.problems).toEqual([expect.objectContaining({ kind: 'unmatched', command: 'status', raw: '/status typo' })])
+    expect(result.problems).toEqual([{ kind: 'unmatched', status: 'typo', raw: '!typo', start: 7, end: 12 }])
+  })
+
+  it('textWithoutCommands drops a matched status (the editor field carries it)', () => {
+    const result = resolveInput(parseInput('Call @Mike !doing #q4'), people, statuses)
+    expect(result.textWithoutCommands).toBe('Call @Mike #q4')
+  })
+
+  it('a repeat stays in the title; the first ! counts even when it matches nothing', () => {
+    const repeat = resolveInput(parseInput('x !doing !bl'), people, statuses)
+    expect(repeat.statusId).toBe(10)
+    expect(repeat.title).toBe('x !bl')
+    expect(repeat.problems).toEqual([expect.objectContaining({ kind: 'duplicate', status: 'bl' })])
+    const unknownFirst = resolveInput(parseInput('x !nope !doing'), people, statuses)
+    expect(unknownFirst.statusId).toBeUndefined()
+    expect(unknownFirst.title).toBe('x !nope !doing')
   })
 
   it('without a status registry every name is unknown', () => {
-    const result = resolveInput(parseInput('fix it /status doing'), people)
+    const result = resolveInput(parseInput('fix it !doing'), people)
     expect(result.statusId).toBeUndefined()
     expect(result.unmatchedStatuses).toEqual(['doing'])
   })

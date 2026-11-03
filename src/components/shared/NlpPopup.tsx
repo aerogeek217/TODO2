@@ -83,8 +83,9 @@ function rowKey(row: AutocompleteRow, i: number): string {
 }
 
 /**
- * The task-text autocomplete popup (`@` people, `#` tags, `/` commands and
- * their arguments) for an `AutocompleteView` from `services/nlp-autocomplete`.
+ * The task-text autocomplete popup (`@` people, `#` tags, `!` statuses —
+ * each with its glyph in its colour —, `/` commands and their arguments)
+ * for an `AutocompleteView` from `services/nlp-autocomplete`.
  * Presentational: rows are picked on a left-button mousedown (so the input
  * keeps focus); moving the pointer over a row highlights it (`onHighlight` —
  * a move, not a popup opening under a resting pointer); keys are the host's
@@ -165,7 +166,11 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
             {...common} onMouseDown={pick(row)}
             onContextMenu={entityMenu ? rowMenu(row) : undefined}
           >
-            {row.item.color && <span className={styles.dot} style={{ background: row.item.color }} />}
+            {row.item.kind === 'status' ? (
+              <span className={styles.icon} style={{ color: row.item.color }}>
+                <StatusIcon icon={row.item.icon || DEFAULT_STATUS_ICON} filled />
+              </span>
+            ) : row.item.color && <span className={styles.dot} style={{ background: row.item.color }} />}
             <span className={styles.name}>{view.trigger}<MarkedAt text={row.item.name} match={row.match} /></span>
           </button>
         )
@@ -206,11 +211,6 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
             {...common} onMouseDown={pick(row)}
           >
             {row.command === 'hot' && <span className={styles.icon} data-command="hot"><HotIcon /></span>}
-            {row.status && (
-              <span className={styles.icon} style={{ color: row.status.color }}>
-                <StatusIcon icon={row.status.icon || DEFAULT_STATUS_ICON} filled />
-              </span>
-            )}
             <span className={styles.name}><Marked text={row.label} length={row.matchLength} /></span>
             {row.note && <span className={styles.note}>{row.note}</span>}
             {row.detail && <span className={row.command ? styles.detail : styles.value}>{row.detail}</span>}

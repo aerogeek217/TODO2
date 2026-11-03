@@ -127,7 +127,7 @@ test('a create that fails keeps Quick Add and the task editor open as typed; try
   // Details ⇥: the editor too stays open with every field as typed.
   await input.press('Tab')
   await expect(bar).toBeHidden()
-  const title = page.getByPlaceholder('New task… (@person #tag /command)')
+  const title = page.getByPlaceholder('New task… (@person #tag !status /command)')
   await expect(title).toHaveValue('Call the plumber')
   const progress = page.getByPlaceholder('e.g. 50% done, Waiting on review...')
   await progress.fill('Quote asked')

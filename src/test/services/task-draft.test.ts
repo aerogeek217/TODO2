@@ -67,8 +67,8 @@ describe('draftFromText', () => {
     expect(draftFromEditor({ title: draftEditorTitle(d) }, { personIds: [], tagIds: [] }, c).newTags).toEqual(['Q4 plan'])
   })
 
-  it('reads markers, /followup, /status and /repeat', () => {
-    const d = draftFromText('Ask @Ben /urgent /important /focus /followup 2w /status waiting', ctx)
+  it('reads markers, /followup, !status and /repeat', () => {
+    const d = draftFromText('Ask @Ben /urgent /important /focus /followup 2w !waiting', ctx)
     expect(d).toMatchObject({ title: 'Ask', urgent: true, important: true, focus: true, statusId: 8 })
     expect(d.nextFollowupAt).toEqual(new Date(2026, 9, 24))
     expect(draftFromText('Pay rent /due fri /repeat monthly', ctx).recurrence).toBe('monthly')
@@ -105,19 +105,21 @@ describe('draftFromText', () => {
     expect(draftFromText('Plain', { ...ctx, defaultStatusId: 96 }).statusId).toBeUndefined()
   })
 
-  it('status: typed /status, else the Settings default, else the filter', () => {
+  it('status: typed !status, else the Settings default, else the filter', () => {
     const defaults = { personIds: [], tagIds: [], statusId: 7 }
     expect(draftFromText('x', { ...ctx, defaults, defaultStatusId: 8 }).statusId).toBe(8)
-    expect(draftFromText('x /status in', { ...ctx, defaults, defaultStatusId: 8 }).statusId).toBe(7)
+    expect(draftFromText('x !in', { ...ctx, defaults, defaultStatusId: 8 }).statusId).toBe(7)
+    // An unknown name sets nothing and stays in the title.
+    expect(draftFromText('x !nope', { ...ctx, defaultStatusId: 8 })).toMatchObject({ statusId: 8, title: 'x !nope' })
     expect(draftFromText('x', { ...ctx, defaults }).statusId).toBe(7)
     expect(draftFromText('x', ctx).statusId).toBeUndefined()
   })
 
-  it('status with the filter first (Quick Add): typed /status, else the filter, else the Settings default', () => {
+  it('status with the filter first (Quick Add): typed !status, else the filter, else the Settings default', () => {
     const defaults = { personIds: [], tagIds: [], statusId: 7 }
     const filterFirst = { ...ctx, defaultStatusId: 8, statusDefaultFirst: 'filter' as const }
     expect(draftFromText('x', { ...filterFirst, defaults }).statusId).toBe(7)
-    expect(draftFromText('x /status wait', { ...filterFirst, defaults }).statusId).toBe(8)
+    expect(draftFromText('x !wait', { ...filterFirst, defaults }).statusId).toBe(8)
     expect(draftFromText('x', filterFirst).statusId).toBe(8)
   })
 })

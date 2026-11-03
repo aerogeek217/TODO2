@@ -5,7 +5,6 @@
 import type { SlashCommandName } from '../../services/slash-commands'
 import { FocusIcon, ImportantIcon, UrgentIcon } from './MarkerIcons'
 import { FollowupFlagIcon } from './FollowupIcons'
-import { StatusIcon } from './StatusIcon'
 
 const strokeSvg = {
   width: '1em',
@@ -49,6 +48,5 @@ export function CommandIcon({ command }: { command: SlashCommandName }) {
     case 'due': return <CalendarIcon />
     case 'followup': return <FollowupFlagIcon />
     case 'repeat': return <RepeatGlyph />
-    case 'status': return <StatusIcon icon="circle" />
   }
 }

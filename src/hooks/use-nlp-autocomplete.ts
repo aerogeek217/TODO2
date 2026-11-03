@@ -38,9 +38,9 @@ type TextInput = HTMLInputElement | HTMLTextAreaElement
 interface UseNlpAutocompleteOptions {
   people: AutocompleteItem[]
   tags?: AutocompleteItem[]
-  /** Statuses in Settings order (the `/status` argument). */
+  /** Statuses in Settings order (the `!` rows). */
   statuses?: AutocompleteItem[]
-  /** `/` opens the slash-command menu (task text that is parsed on create). */
+  /** `/` opens the slash-command menu and `!` the statuses (task text that is parsed on create). */
   commands?: boolean
   /**
    * ⏎ belongs to the host unless ↑/↓ moved the active row: `handleKeyDown`
@@ -79,7 +79,7 @@ function measureCaretLeft(input: TextInput | null, value: string, index: number)
 }
 
 /**
- * The `@ # /` autocomplete popup for a React text input: wraps the pure
+ * The `@ # ! /` autocomplete popup for a React text input: wraps the pure
  * `services/nlp-autocomplete` with popup state, caret anchoring and keys.
  * Hosts call `handleInputChange` on every change, route keydown through
  * `handleKeyDown` (true = consumed: prevent default, stop propagation), and
@@ -88,9 +88,9 @@ function measureCaretLeft(input: TextInput | null, value: string, index: number)
  * `enterSubmits`, only after ↑/↓ moved it, and otherwise goes to the host,
  * which submits `completeForSubmit(value)` (the half-typed token completed to
  * the highlighted row) once `whenCreated()` resolves. A picked Create row
- * makes the person / tag at once (`onCreate`); typing on never creates. Typing on past an `@` / `#` token without picking (a
+ * makes the person / tag at once (`onCreate`); typing on never creates. Typing on past an `@` / `#` / `!` token without picking (a
  * space, punctuation, the caret moved off it) completes it to the
- * highlighted person / tag when that is an exact, initials or prefix match (`implicitAccept`).
+ * highlighted person / tag / status when that is an exact, initials or prefix match (`implicitAccept`).
  */
 export function useNlpAutocomplete({
   people, tags = NO_ITEMS, statuses = NO_ITEMS, commands = false, enterSubmits = false, onApply, onCreate = createNlpEntity, compute = computeAutocomplete,
@@ -115,7 +115,7 @@ export function useNlpAutocomplete({
     let value = typedValue
     let cursor = typedCursor
     let view = compute(value, cursor, sources)
-    // Typed on past an `@` / `#` token without picking: the highlighted person / tag.
+    // Typed on past an `@` / `#` / `!` token without picking: the highlighted person / tag / status.
     if (prev && open.visible && open.view) {
       const done = implicitAccept({ value: prev.value, view: open.view, index: open.selectedIndex }, value, cursor, view)
       if (done) {

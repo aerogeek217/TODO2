@@ -54,7 +54,7 @@ export function TaskDialogFilterBar() {
  * The screen filter's search (D16, as the phone filter sheet's): typed tokens
  * become the Filters sections' values, the words left the text search
  * (debounced into the store, as the top bar's — the rows behind follow it).
- * The `@ # /` popup and the unmatched-name note sit under the bar's first
+ * The `@ # ! /` popup and the unmatched-name note sit under the bar's first
  * line. Esc on the popup closes it; with text, clears the box; without,
  * closes the dialog.
  */
@@ -83,7 +83,7 @@ function SearchField() {
           onScroll={syncMirror}
           onMouseUp={(e) => box.onCaretMove(e.currentTarget)}
           onKeyDown={(e) => {
-            // The `@ # /` popup's keys; ⏎ makes every token a section's value;
+            // The `@ # ! /` popup's keys; ⏎ makes every token a section's value;
             // Backspace in the empty box takes the last one back.
             if (box.onKeyDown(e)) {
               e.preventDefault()

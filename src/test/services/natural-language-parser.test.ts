@@ -39,8 +39,8 @@ describe('parseInput — plain text', () => {
     'Meeting friday',
     'Sprint planning next monday',
     'Lease due 5/4',
-    'Renew !10/20',
-    'Ship !tuesday',
+    'Renew it!',
+    'Ship it!!',
     'Plan offsite next week',
     'Wrap up this month',
     'Followup in 3 days',
@@ -324,28 +324,66 @@ describe('parseInput — /repeat', () => {
   })
 })
 
-describe('parseInput — /status', () => {
-  it('a single word', () => {
-    const r = parse('Fix login /status blocked')
+describe('parseInput — !status', () => {
+  it('a bare name', () => {
+    const r = parse('Fix login !blocked')
     expect(r.status).toBe('blocked')
     expect(r.title).toBe('Fix login')
+    expect(r.tokens).toEqual([{ type: 'status', value: 'blocked', raw: '!blocked', start: 10, end: 18 }])
+    expect(r.problems).toEqual([])
   })
 
   it('a quoted name with spaces', () => {
-    const r = parse('Vendor /status "In progress" call')
-    expect(r.status).toBe('In progress')
+    const r = parse('Vendor !"On Hold" call')
+    expect(r.status).toBe('On Hold')
     expect(r.title).toBe('Vendor call')
   })
 
-  it('an unclosed quote or missing name is unreadable', () => {
-    expect(parse('x /status "In progress').problems[0]).toMatchObject({ kind: 'unreadable', raw: '/status "In' })
-    expect(parse('x /status').problems[0]).toMatchObject({ kind: 'unreadable', raw: '/status' })
+  it('a bare name is @’s character class: accents, digits, _, any script', () => {
+    expect(parse('x !Révision').status).toBe('Révision')
+    expect(parse('x !stage_2').status).toBe('stage_2')
+    expect(parse('x !進行中').status).toBe('進行中')
+    // Punctuation ends a bare name; the rest is title text.
+    const r = parse('x !On-Hold')
+    expect(r.status).toBe('On')
+    expect(r.title).toBe('x -Hold')
   })
 
-  it('the first /status wins', () => {
-    const r = parse('/status doing x /status blocked')
+  it('only at the start of the text or after whitespace: Hi!, !!!, a!b stay text', () => {
+    for (const text of ['Hi!', 'Hi! there', '!!!', 'a!b', 'wow!!', '(!x)', '! alone', 'x !"unclosed']) {
+      const r = parse(text)
+      expect(r.status, text).toBeUndefined()
+      expect(r.tokens, text).toEqual([])
+      expect(r.title, text).toBe(text)
+    }
+  })
+
+  it('a later ! is a repeat that stays in the title; the first wins', () => {
+    const r = parse('!doing x !"On Hold"')
     expect(r.status).toBe('doing')
-    expect(r.title).toBe('x /status blocked')
+    expect(r.title).toBe('x !"On Hold"')
+    expect(r.problems).toEqual([{ kind: 'duplicate', status: 'On Hold', raw: '!"On Hold"', start: 9, end: 19 }])
+  })
+
+  it('a date argument stops before a word starting with !', () => {
+    const r = parse('Call /due fri !waiting')
+    expect(r.dueDate).toEqual(day(2026, 10, 16))
+    expect(r.status).toBe('waiting')
+    expect(r.title).toBe('Call')
+  })
+
+  it('/status is an unknown command now; its argument is title text', () => {
+    const r = parse('Fix /status blocked')
+    expect(r.status).toBeUndefined()
+    expect(r.title).toBe('Fix /status blocked')
+    expect(r.problems).toEqual([expect.objectContaining({ kind: 'unknown', raw: '/status' })])
+  })
+
+  it('not inside a quoted tag or person name', () => {
+    const r = parse('x #"Q4 !now" @"Ann !b"')
+    expect(r.status).toBeUndefined()
+    expect(r.tags).toEqual(['Q4 !now'])
+    expect(r.persons).toEqual(['Ann !b'])
   })
 })
 
@@ -357,7 +395,7 @@ describe('parseInput — unknown commands and mixes', () => {
   })
 
   it('a board example: everything at once', () => {
-    const r = parse('1:1 with Ben @Ben /due mon /repeat weekly /status waiting /followup none')
+    const r = parse('1:1 with Ben @Ben /due mon /repeat weekly !waiting /followup none')
     expect(r).toMatchObject({
       title: '1:1 with Ben',
       persons: ['Ben'],

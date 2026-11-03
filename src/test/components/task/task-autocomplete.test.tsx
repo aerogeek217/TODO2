@@ -12,7 +12,7 @@ beforeEach(() => {
 
 afterEach(() => cleanup())
 
-const TITLE_PLACEHOLDER = 'New task… (@person #tag /command)'
+const TITLE_PLACEHOLDER = 'New task… (@person #tag !status /command)'
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 // Tags kept unsorted on purpose — the component sorts alphabetically; tests assert order.

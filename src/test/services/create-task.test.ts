@@ -120,12 +120,12 @@ describe('create a task — status', () => {
     expect((await viaEditor({ title: 'C', statusId: ids.waiting })).todo.statusId).toBe(ids.waiting)
   })
 
-  it('a typed /status wins over the Settings default, a filter status and the editor field', async () => {
+  it('a typed !status wins over the Settings default, a filter status and the editor field', async () => {
     useSettingsStore.setState({ defaultStatusId: ids.waiting })
     const fd = { ...NO_DEFAULTS, statusId: ids.waiting }
-    expect((await viaQuickAdd('A /status Doing', fd)).todo.statusId).toBe(ids.doing)
-    expect((await viaDrafts('B /status Doing', fd)).todo.statusId).toBe(ids.doing)
-    expect((await viaEditor({ title: 'C /status Doing', statusId: ids.waiting })).todo.statusId).toBe(ids.doing)
+    expect((await viaQuickAdd('A !Doing', fd)).todo.statusId).toBe(ids.doing)
+    expect((await viaDrafts('B !Doing', fd)).todo.statusId).toBe(ids.doing)
+    expect((await viaEditor({ title: 'C !Doing', statusId: ids.waiting })).todo.statusId).toBe(ids.doing)
   })
 
   it('a filter status and a Settings default: Quick Add takes the filter’s, a note’s drafts the Settings default', async () => {

@@ -144,7 +144,7 @@
   pointer-events: none;
 }
 
-/* The `@ # /` popup under the bar's first line: full width, finger-sized rows. */
+/* The `@ # ! /` popup under the bar's first line: full width, finger-sized rows. */
 .popup {
   flex: 1 0 100%;
   width: auto;
