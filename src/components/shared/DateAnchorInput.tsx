@@ -13,6 +13,7 @@ import {
   type DayCount,
   type RelativeEnd,
 } from '../../utils/date-anchor'
+import { toDateInputValue } from '../../utils/date'
 import { daysUntil, resolveDateAnchor } from '../../utils/effective-date'
 import type { ChipDay } from '../../utils/filter-chips'
 import { describeAnchor } from '../../utils/filter-chips'
@@ -77,7 +78,8 @@ export function DateAnchorInput(props: DateAnchorInputProps) {
 function CalendarEnd({ side, value, onChange, label, day, touch, className }: DateAnchorInputProps) {
   const ref = useRef<HTMLButtonElement | null>(null)
   const [open, setOpen] = useState(false)
-  const dateStr = value?.kind === 'fixed' ? value.iso.slice(0, 10) : ''
+  // The date's local day (its ISO's own day is UTC's: a day off either side of it).
+  const dateStr = value?.kind === 'fixed' ? toDateInputValue(new Date(value.iso)) : ''
   const entries: MenuEntry[] = [
     ...CALENDAR_PRESETS[side].flatMap((group, i): MenuEntry[] => [
       ...(i > 0 ? [{ kind: 'separator' as const }] : []),

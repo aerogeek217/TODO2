@@ -166,7 +166,7 @@ describe('DateFilterPanel', () => {
     render(<Harness log={log} initialField="followup" initial={{ followup: range }} />)
     fireEvent.click(show('Calendar'))
     expect(log.at(-1)).toEqual({ followup: { ...range, start: { kind: 'fixed', iso: fixedIso(2026, 10, 26) }, end: { kind: 'fixed', iso: fixedIso(2026, 11, 8) } } })
-    expect(screen.getByLabelText('From')).toHaveValue(fixedIso(2026, 10, 26).slice(0, 10))
+    expect(screen.getByLabelText('From')).toHaveValue('2026-10-26')
     fireEvent.click(show('Relative'))
     // Not `6 days ahead`: end of week, as it was.
     expect(log.at(-1)).toEqual({ followup: range })

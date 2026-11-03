@@ -61,6 +61,16 @@ describe('DateAnchorInput: Calendar', () => {
     expect(screen.queryByLabelText('From: number of days')).toBeNull()
   })
 
+  it('shows the date’s local day, not its UTC one (P7–P8 review)', () => {
+    // Show Overdue Tasks stores yesterday 23:59:59.999 local: west of UTC its ISO is already today.
+    render(<Harness mode="calendar" side="to" initial={{ kind: 'fixed', iso: new Date(2026, 10, 1, 23, 59, 59, 999).toISOString() }} log={[]} />)
+    expect(screen.getByLabelText('To')).toHaveValue('2026-11-01')
+    cleanup()
+    // A typed date's local midnight: east of UTC its ISO is still the day before.
+    render(<Harness mode="calendar" side="from" initial={{ kind: 'fixed', iso: new Date(2026, 10, 1).toISOString() }} log={[]} />)
+    expect(screen.getByLabelText('From')).toHaveValue('2026-11-01')
+  })
+
   it('typing a date stores it as a fixed date; emptying clears the end', () => {
     const log: (DateAnchor | null)[] = []
     render(<Harness mode="calendar" side="to" log={log} />)

@@ -136,7 +136,8 @@ describe('FilterSheet', () => {
       const due = useFilterStore.getState().filters.dates.deadline
       const dateRangeStart = due?.match === 'range' ? due.start : null
       if (!dateRangeStart || dateRangeStart.kind !== 'fixed') throw new Error('expected fixed anchor')
-      expect(dateRangeStart.iso.slice(0, 10)).toBe('2026-04-01')
+      // The day's local midnight (its ISO's own day is UTC's).
+      expect(dateRangeStart.iso).toBe(new Date(2026, 3, 1).toISOString())
     })
 
     it('sets a rolling day from the Relative dropdown', () => {
