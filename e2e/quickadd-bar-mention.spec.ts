@@ -70,10 +70,10 @@ test.describe('QuickAddBar @ mention picker', () => {
 
     // Substring match: only the person whose name contains "acme" surfaces,
     // then the Create row (no one is named exactly "acme").
-    const targetOption = popup.getByRole('option', { name: `@${TARGET_NAME}` })
+    const targetOption = popup.getByRole('option', { name: TARGET_NAME })
     await expect(targetOption).toBeVisible()
     await expect(targetOption).toHaveAttribute('aria-selected', 'true')
-    await expect(popup.getByRole('option')).toHaveText([`@${TARGET_NAME}`, /Create @acme/])
+    await expect(popup.getByRole('option')).toHaveText([TARGET_NAME, /Create @acme/])
 
     // Tab picks (a match inside the name needs a pick: ⏎ would add `@acme` as a new person).
     await page.keyboard.press('Tab')
@@ -111,8 +111,8 @@ test.describe('QuickAddBar @ popup: the highlighted row is what you get', () => 
     const input = dialog.getByPlaceholder('New task…')
     await input.pressSequentially('Call @Fr')
     const popup = page.getByRole('listbox', { name: 'People' })
-    const fred = popup.getByRole('option', { name: /@Fred$/ })
-    const frida = popup.getByRole('option', { name: /@Frida$/ })
+    const fred = popup.getByRole('option', { name: /Fred$/ })
+    const frida = popup.getByRole('option', { name: /Frida$/ })
     await expect(fred).toHaveAttribute('aria-selected', 'true')
 
     // One highlighted row: the pointer moves it.
@@ -138,8 +138,8 @@ test.describe('QuickAddBar @ popup: the Create row', () => {
     const input = dialog.getByPlaceholder('New task…')
     await input.pressSequentially('Call @Ed')
     const popup = page.getByRole('listbox', { name: 'People' })
-    await expect(popup.getByRole('option')).toHaveText(['@Fred', /Create @Ed/])
-    await expect(popup.getByRole('option', { name: '@Fred' })).toHaveAttribute('aria-selected', 'true')
+    await expect(popup.getByRole('option')).toHaveText(['Fred', /Create @Ed/])
+    await expect(popup.getByRole('option', { name: 'Fred' })).toHaveAttribute('aria-selected', 'true')
 
     await input.press('ArrowDown')
     await expect(popup.getByRole('option', { name: /Create @Ed/ })).toHaveAttribute('aria-selected', 'true')
@@ -163,7 +163,7 @@ test.describe('QuickAddBar # popup: a tag no bare #slug can spell', () => {
     const input = dialog.getByPlaceholder('New task…')
     await input.pressSequentially('Plan #R&')
     const popup = page.getByRole('listbox', { name: 'Tags' })
-    await expect(popup.getByRole('option')).toHaveText(['#R&D'])
+    await expect(popup.getByRole('option')).toHaveText(['R&D'])
     await input.press('Tab')
     await expect(input).toHaveValue('Plan #"R&D" ')
 
@@ -191,9 +191,9 @@ test.describe('QuickAddBar # popup: a match inside the name is listed, not taken
     const input = dialog.getByPlaceholder('New task…')
     await input.pressSequentially('Ship #ui')
     const popup = page.getByRole('listbox', { name: 'Tags' })
-    await expect(popup.getByRole('option')).toHaveText(['#build', /Create #ui/])
-    await expect(popup.getByRole('option', { name: '#build' })).toHaveAttribute('aria-selected', 'true')
-    await expect(popup.getByRole('option', { name: '#build' }).locator('mark')).toHaveText('ui')
+    await expect(popup.getByRole('option')).toHaveText(['build', /Create #ui/])
+    await expect(popup.getByRole('option', { name: 'build' })).toHaveAttribute('aria-selected', 'true')
+    await expect(popup.getByRole('option', { name: 'build' }).locator('mark')).toHaveText('ui')
 
     // Typing on doesn't take a match inside the name.
     await input.press('Space')
@@ -201,7 +201,7 @@ test.describe('QuickAddBar # popup: a match inside the name is listed, not taken
 
     // A word start is listed too; Tab picks it.
     await input.pressSequentially('#alp')
-    await expect(popup.getByRole('option')).toHaveText(['#Project: Alpha', /Create #alp/])
+    await expect(popup.getByRole('option')).toHaveText(['Project: Alpha', /Create #alp/])
     await input.press('Tab')
     await expect(input).toHaveValue('Ship #ui #"Project: Alpha" ')
 

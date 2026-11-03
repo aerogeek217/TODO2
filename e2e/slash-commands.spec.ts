@@ -143,14 +143,14 @@ test.describe('Quick Add slash commands', () => {
     const { dialog, input } = await openQuickAdd(page)
     await page.keyboard.type('Vendor contract !')
     const status = page.getByRole('listbox', { name: 'Statuses' })
-    await expect(status.getByRole('option')).toHaveText(['!Waiting', '!In review'])
+    await expect(status.getByRole('option')).toHaveText(['Waiting', 'In review'])
     // Anchored at the trigger, below the input.
     const inputBox = (await input.boundingBox())!
     const statusBox = (await status.boundingBox())!
     expect(statusBox.y).toBeGreaterThanOrEqual(inputBox.y + inputBox.height)
     expect(statusBox.x).toBeGreaterThan(inputBox.x + 60)
     await page.keyboard.type('in')
-    await expect(status.getByRole('option')).toHaveText(['!In review'])
+    await expect(status.getByRole('option')).toHaveText(['In review'])
     await page.keyboard.press('Tab')
     await expect(input).toHaveValue('Vendor contract !"In review" ')
     await expect(status).toBeHidden()
@@ -160,7 +160,7 @@ test.describe('Quick Add slash commands', () => {
   test('!wa ⏎ adds the task with the status', async ({ page }) => {
     const { dialog } = await openQuickAdd(page)
     await page.keyboard.type('Chase the invoice !wa')
-    await expect(page.getByRole('listbox', { name: 'Statuses' }).getByRole('option', { name: '!Waiting' }))
+    await expect(page.getByRole('listbox', { name: 'Statuses' }).getByRole('option', { name: 'Waiting' }))
       .toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('Enter')
     await expect(dialog).toBeHidden()

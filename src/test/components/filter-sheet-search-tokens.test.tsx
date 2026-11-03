@@ -54,7 +54,7 @@ describe('FilterSheet search tokens (D16, phone)', () => {
     // Inside the sheet, not portaled out of it.
     const popup = screen.getByRole('textbox', { name: 'Search tasks' }).closest('div')?.parentElement?.querySelector<HTMLElement>('[data-nlp-popup]') ?? null
     expect(popup).not.toBeNull()
-    const option = within(popup!).getByRole('option', { name: '@Aisha Rahman' })
+    const option = within(popup!).getByRole('option', { name: 'Aisha Rahman' })
     fireEvent.mouseDown(option, { button: 0 })
     expect(f().personIds).toEqual(new Set([1]))
     // The words stay, the caret after them for the next word.

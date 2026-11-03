@@ -53,13 +53,13 @@ function typeTitle(value: string) {
   return input
 }
 
-/** The popover rows are options whose text starts with `#` — use that to
- * find them; the chip-selector's "Tags" section label collides with the
- * popover's "Tags" header, so we don't key tests off the header text. */
+/** The popover's tag rows (its `data-nlp-popup` root, not the chip
+ * selector's options; the chip-selector's "Tags" section label collides with
+ * the popover's "Tags" header, so we don't key tests off the header text). */
 function getPopoverItemTexts() {
-  return screen.queryAllByRole('option')
+  return [...document.querySelectorAll('[data-nlp-popup] [role="option"]')]
     .map((b) => b.textContent ?? '')
-    .filter((t) => t.startsWith('#') && t !== '#')
+    .filter((t) => !t.startsWith('Create '))
 }
 
 describe('task title autocomplete — tags', () => {
@@ -69,21 +69,21 @@ describe('task title autocomplete — tags', () => {
       typeTitle('#')
 
       // Alphabetical case-insensitive sort (localeCompare) yields: Backend, followup, urgent.
-      expect(getPopoverItemTexts()).toEqual(['#Backend', '#followup', '#urgent'])
+      expect(getPopoverItemTexts()).toEqual(['Backend', 'followup', 'urgent'])
     })
 
     it('typing `#ur` filters tags by case-insensitive prefix', () => {
       renderPopup()
       typeTitle('#ur')
 
-      expect(getPopoverItemTexts()).toEqual(['#urgent'])
+      expect(getPopoverItemTexts()).toEqual(['urgent'])
     })
 
     it('prefix match is case-insensitive (`#BA` matches `Backend`)', () => {
       renderPopup()
       typeTitle('#BA')
 
-      expect(getPopoverItemTexts()).toEqual(['#Backend'])
+      expect(getPopoverItemTexts()).toEqual(['Backend'])
     })
 
     it('typing `#` with no tags defined keeps the popover hidden (no query yet)', () => {
@@ -100,7 +100,7 @@ describe('task title autocomplete — tags', () => {
       renderPopup()
       typeTitle('#ur')
 
-      const row = screen.getByRole('option', { name: '#urgent' })
+      const row = screen.getByRole('option', { name: 'urgent' })
       fireEvent.mouseDown(row)
 
       const input = getTitleInput()

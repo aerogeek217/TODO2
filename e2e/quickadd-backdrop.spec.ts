@@ -112,7 +112,7 @@ test('the @ popup’s person menu and its Edit… still stack above the bar and 
   const input = await openQuickAdd(page)
   await page.keyboard.type('Call @an')
   const popup = page.locator('[data-nlp-popup]')
-  const anna = popup.getByRole('option', { name: '@Anna' })
+  const anna = popup.getByRole('option', { name: 'Anna' })
   await expect(anna).toBeVisible()
   expect(await isOnTop(anna)).toBe(true)
 
