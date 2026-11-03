@@ -481,6 +481,23 @@ describe('DateFilterPanel', () => {
     expect(log.at(-1)).toEqual({})
   })
 
+  it('Home / End move the Show choice to the first / last, as the tabs (P7–P8 review)', () => {
+    const log: DateFilters[] = []
+    render(<Harness log={log} />)
+    fireEvent.keyDown(show('Relative'), { key: 'End' })
+    expect(log.at(-1)).toEqual({ deadline: { match: 'unset' } })
+    expect(document.activeElement).toBe(show('None'))
+    fireEvent.keyDown(show('None'), { key: 'Home' })
+    expect(show('Calendar')).toHaveAttribute('aria-checked', 'true')
+    expect(document.activeElement).toBe(show('Calendar'))
+    // Created's two choices.
+    fireEvent.click(tab('Created'))
+    fireEvent.keyDown(show('Relative'), { key: 'Home' })
+    expect(document.activeElement).toBe(show('Calendar'))
+    fireEvent.keyDown(show('Calendar'), { key: 'End' })
+    expect(document.activeElement).toBe(show('Relative'))
+  })
+
   describe('Is / Is not on the range (cr25 P4)', () => {
     const isNot = (name: string) => within(screen.getByRole('radiogroup', { name: `${name}: is or is not` })).getByRole('radio', { name: 'Is not' })
     const is = (name: string) => within(screen.getByRole('radiogroup', { name: `${name}: is or is not` })).getByRole('radio', { name: 'Is' })

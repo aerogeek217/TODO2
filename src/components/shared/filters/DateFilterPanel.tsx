@@ -302,7 +302,9 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
     const n = showChoices.length
     const to = e.key === 'ArrowRight' || e.key === 'ArrowDown' ? (i + 1) % n
       : e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? (i - 1 + n) % n
-        : null
+        : e.key === 'Home' ? 0
+          : e.key === 'End' ? n - 1
+            : null
     if (to === null) return
     e.preventDefault()
     const choice = showChoices[to]
