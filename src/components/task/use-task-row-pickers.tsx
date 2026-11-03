@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { Person, PersistedTodoItem } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
+import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
 import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
@@ -53,6 +54,8 @@ export function useTaskRowPickers({
   const [peopleOpen, setPeopleOpen] = useState(false)
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
   const [followupOpen, setFollowupOpen] = useState(false)
+  // Read only while the follow-up popover shows it.
+  const newestUpdate = useStatusUpdateStore((s) => (followupOpen ? newestStatusUpdate(todo.id, s.byTodo) : undefined))
   /** The pill / flag open the follow-up popover on "Mark followed up"; the menu's "Pick a date or interval…" on the date field. */
   const [followupFocus, setFollowupFocus] = useState<'followedUp' | 'next'>('followedUp')
   const [notesOpen, setNotesOpen] = useState(false)
@@ -156,7 +159,8 @@ export function useTaskRowPickers({
           anchor={{ kind: 'ref', ref: followupAnchorRef }}
           onClose={closeFollowup}
           onSetNext={(d) => bulk.setFollowup(todo.id, d)}
-          onFollowedUp={(next) => bulk.markFollowedUp(todo.id, next)}
+          onFollowedUp={(next, update) => bulk.markFollowedUp(todo.id, next, update)}
+          newestUpdate={newestUpdate}
           initialFocus={followupFocus}
         />
       )}

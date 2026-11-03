@@ -1,5 +1,7 @@
 import { useMemo, useRef, useState } from 'react'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useStatusUpdateStore } from '../../../stores/status-update-store'
+import { markFollowedUpWithUpdate } from '../../../services/mark-followed-up'
 import { usePersonStore } from '../../../stores/person-store'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../../utils/person'
 import { useTagStore } from '../../../stores/tag-store'
@@ -75,6 +77,15 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
     return day == null ? null : new Date(day)
   }, [selectedTodos])
   const followupSeed = selectedTodos[0]
+  // The selection's newest status update, when every task's newest is the same.
+  const statusUpdates = useStatusUpdateStore((s) => s.byTodo)
+  const newestUpdate = useMemo(() => {
+    const newest = selectedTodos.map((t) => statusUpdates.get(t.id)?.at(0))
+    const [first] = newest
+    if (!first) return undefined
+    const same = newest.every((u) => u && u.text === first.text && u.date.getTime() === first.date.getTime())
+    return same ? first : undefined
+  }, [selectedTodos, statusUpdates])
 
   const close = () => setOpen(null)
   const toggle = (picker: Exclude<OpenPicker, null>) => setOpen((cur) => (cur === picker ? null : picker))
@@ -193,8 +204,9 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
           anchor={{ kind: 'ref', ref: followupRef }}
           onClose={close}
           onSetNext={(d) => { void useTodoStore.getState().bulkSetFollowup(list, d) }}
-          onFollowedUp={(next) => { void useTodoStore.getState().markFollowedUp(list, next === undefined ? undefined : { next }) }}
+          onFollowedUp={(next, update) => { void markFollowedUpWithUpdate(list, next === undefined ? undefined : { next }, update) }}
           current={followupNow}
+          newestUpdate={newestUpdate}
           followedUpToday={selectedTodos.length > 0 && selectedTodos.every((t) => isFollowedUpToday(t, today))}
         />
       )}

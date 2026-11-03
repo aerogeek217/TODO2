@@ -1,12 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import type { PersistedTodoItem } from '../../../models'
+import { STATUS_UPDATE_TEXT_MAX, type PersistedTodoItem, type StatusUpdate } from '../../../models'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useFollowupInput, NEXT_FOLLOWUP_PLACEHOLDER } from '../../../hooks/use-followup-input'
 import { useSelectAllOnFocus } from '../../../hooks/use-select-all-on-focus'
 import { useToday } from '../../../hooks/use-today'
 import { autoNextFollowup, useSettingsStore } from '../../../stores/settings-store'
-import { startOfDay } from '../../../utils/date'
+import { formatDateNumeric, startOfDay } from '../../../utils/date'
+import { statusUpdateText } from '../../../utils/status-updates'
 import {
   addFollowupInterval,
   formatFollowupDate,
@@ -34,8 +35,16 @@ interface FollowupPopoverProps {
    * "Mark followed up": last = now and next = `next`, the edited field's date
    * (`null` = none); `undefined` while the field is untouched — the store's
    * rule then decides per task (a next follow-up after today is kept).
+   * `update`: the Status update line's text, when it has any — an entry
+   * dated today on the same tasks, in the same undo step.
    */
-  onFollowedUp: (next?: Date | null) => void
+  onFollowedUp: (next?: Date | null, update?: string) => void
+  /**
+   * The newest status update, shown under the Status update field (`MM/DD
+   * text`); none when the task has none — or, from the bulk bar, when the
+   * selected tasks' newest differ.
+   */
+  newestUpdate?: Pick<StatusUpdate, 'date' | 'text'>
   /**
    * Already followed up today (dims "Mark followed up"). Defaults to `todo`'s own
    * last follow-up; the bulk bar passes "every selected task".
@@ -101,7 +110,10 @@ function sameDay(a: Date | null, b: Date | null): boolean {
  * decides per task (a later date kept); edited, the field's date — empty
  * clears it, text that isn't a date disables it. Its tooltip says which. The
  * field takes an interval or a date, or a day from the browser's date picker
- * (its calendar button). Focusing the field (click, Tab) selects its text,
+ * (its calendar button). Under the quick buttons, an optional **Status
+ * update** line (the task's newest under it): with text, Mark followed up
+ * — its button, or ⏎ in the line — also adds that entry, dated today, in
+ * the same undo step; empty, nothing else changes. Focusing the field (click, Tab) selects its text,
  * so typing replaces it. ⏎ in the field (when it differs from now), a
  * picked day or a quick button sets the next follow-up only and closes;
  * the field's × empties it; Esc / outside click closes without change. On
@@ -110,6 +122,7 @@ function sameDay(a: Date | null, b: Date | null): boolean {
  */
 export function FollowupPopover({
   todo, anchor, onClose, onSetNext, onFollowedUp, followedUpToday, current: currentProp, initialFocus = 'followedUp',
+  newestUpdate,
 }: FollowupPopoverProps) {
   const today = useToday()
   const autoFollowup = useSettingsStore((s) => s.autoFollowup)
@@ -164,6 +177,9 @@ export function FollowupPopover({
     }
   }, [])
 
+  const [update, setUpdate] = useState('')
+  const hasUpdate = statusUpdateText(update) !== ''
+
   const apply = useCallback((date: Date | null) => {
     onSetNext(date)
     onClose()
@@ -185,8 +201,18 @@ export function FollowupPopover({
     else onClose()
   }
 
+  /** Mark followed up: the next follow-up as the field says (untouched: no date — the store keeps a later one per task), and the update line. */
+  const followUp = () => {
+    if (fieldDate === 'invalid') return
+    const next = untouched ? undefined : fieldDate
+    if (hasUpdate) onFollowedUp(next, update)
+    else onFollowedUp(next)
+    onClose()
+  }
+
   const { triggerProps: followedUpTipProps, tooltip: followedUpTip } = useTooltip(
-    followedUpTooltip({ untouched, mixed, kept, fieldDate, current, proposal, today }),
+    followedUpTooltip({ untouched, mixed, kept, fieldDate, current, proposal, today })
+      + (hasUpdate ? ', and add the status update' : ''),
   )
   // Only highlight "Mark followed up" when it would record something new.
   const doneToday = followedUpToday ?? isFollowedUpToday(todo, today)
@@ -268,6 +294,32 @@ export function FollowupPopover({
         onPick={(i) => apply(addFollowupInterval(today, i))}
       />
       <div className={styles.separator} />
+      <div className={styles.updateLabelRow}>
+        <label className={styles.fieldLabel} htmlFor={`followup-update-${todo.id}`}>Status update</label>
+        <span className={styles.optional}>optional</span>
+      </div>
+      <div className={styles.inputWrap}>
+        <input
+          id={`followup-update-${todo.id}`}
+          className={styles.input}
+          value={update}
+          maxLength={STATUS_UPDATE_TEXT_MAX}
+          placeholder="Add an update…"
+          autoComplete="off"
+          onChange={(e) => setUpdate(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+            e.preventDefault()
+            followUp()
+          }}
+        />
+      </div>
+      {newestUpdate && (
+        <div className={styles.newestUpdate} data-newest-update="">
+          <span className={styles.newestUpdateDate}>{formatDateNumeric(newestUpdate.date)}</span>
+          {' '}{newestUpdate.text}
+        </div>
+      )}
       <div className={styles.lastLine}>
         {todo.lastFollowupAt ? (
           <>
@@ -279,19 +331,14 @@ export function FollowupPopover({
       <button
         ref={followedUpRef}
         type="button"
-        className={`${styles.followedUpPrimary} ${doneToday ? styles.followedUpDone : ''}`}
+        className={`${styles.followedUpPrimary} ${doneToday && !hasUpdate ? styles.followedUpDone : ''}`}
         disabled={fieldDate === 'invalid'}
         {...followedUpTipProps}
-        onClick={() => {
-          if (fieldDate === 'invalid') return
-          // Untouched: no date — the store keeps a later one per task.
-          onFollowedUp(untouched ? undefined : fieldDate)
-          onClose()
-        }}
+        onClick={followUp}
         data-done-today={doneToday ? 'true' : undefined}
       >
         <FollowedUpIcon />
-        Mark followed up
+        {hasUpdate ? 'Mark followed up + add update' : 'Mark followed up'}
       </button>
       {followedUpTip}
     </PopoverRoot>,
