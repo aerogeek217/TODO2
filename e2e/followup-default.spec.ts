@@ -9,7 +9,7 @@ import { seedTaskList } from './fixtures/workspace'
  * or none gets the rule. The follow-up popover's Next field shows what Mark
  * followed up will leave (the task's later date, else the rule's, with `Was …`
  * under it), Mark followed up untouched lets the rule decide, edited it uses
- * the field; a quick button fills the field. The new-task editor's Next field
+ * the field; a quick button sets the date only and closes. The new-task editor's Next field
  * starts on the default. Focus, selection and typing are real-browser
  * behaviour.
  *
@@ -105,15 +105,20 @@ test.describe('the automatic next follow-up', () => {
     await expect.poll(() => followupOf(page, 'delta')).toEqual({ next: '2026-11-10 00:00', last: null })
   })
 
-  test('the user’s flow: open the pill → 2 weeks → Mark followed up sets today + 14 days', async ({ page }) => {
+  test('the user’s flow: open the pill → type 2w → Mark followed up sets today + 14 days; a quick button only sets the date and closes', async ({ page }) => {
+    const pill = () => taskRowByTitle(page, 'beta').getByRole('button', { name: /^Follow-up: /, exact: false })
     await taskRowByTitle(page, 'beta').getByRole('button', { name: 'Follow-up: Thu 15', exact: true }).click()
     const pop = popover(page)
-    await pop.getByRole('button', { name: 'Follow up in 2 weeks' }).click()
-    await expect(pop.getByRole('textbox', { name: 'Next follow-up' })).toHaveValue('Sat 24 Oct')
-    await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: '2026-10-15 00:00', last: null })
+    await pop.getByRole('textbox', { name: 'Next follow-up' }).fill('2w')
     await pop.getByRole('button', { name: 'Mark followed up' }).click()
     await expect(pop).toBeHidden()
     await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: '2026-10-24 00:00', last: '2026-10-10 15:30' })
+
+    // A quick button: the next follow-up only, and the popover closes (as a picked day does).
+    await pill().first().click()
+    await pop.getByRole('button', { name: 'Follow up in 1 month' }).click()
+    await expect(pop).toBeHidden()
+    await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: '2026-11-10 00:00', last: '2026-10-10 15:30' })
   })
 
   test('a click into the field selects it once: a second click places the caret; Tab back in selects again', async ({ page }) => {

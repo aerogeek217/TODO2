@@ -101,10 +101,9 @@ function sameDay(a: Date | null, b: Date | null): boolean {
  * decides per task (a later date kept); edited, the field's date — empty
  * clears it, text that isn't a date disables it. Its tooltip says which. The
  * field takes an interval or a date, or a day from the browser's date picker
- * (its calendar button); a quick button fills the field with its interval's
- * date (nothing applied; focus to the field). Focusing the field (click,
- * Tab) selects its text, so typing replaces it. ⏎ in the field (when it
- * differs from now) or a picked day sets the next follow-up only and closes;
+ * (its calendar button). Focusing the field (click, Tab) selects its text,
+ * so typing replaces it. ⏎ in the field (when it differs from now), a
+ * picked day or a quick button sets the next follow-up only and closes;
  * the field's × empties it; Esc / outside click closes without change. On
  * close, focus goes back to what had it before (the trigger) unless
  * something else took it.
@@ -266,11 +265,7 @@ export function FollowupPopover({
       <FollowupQuickButtons
         intervals={QUICK_FOLLOWUP_INTERVALS}
         labelStyle="long"
-        onPick={(i) => {
-          // Fills the field (nothing applied): ⏎ then sets it, Mark followed up records with it.
-          input.change(formatFollowupDate(addFollowupInterval(today, i), today))
-          inputRef.current?.focus()
-        }}
+        onPick={(i) => apply(addFollowupInterval(today, i))}
       />
       <div className={styles.separator} />
       <div className={styles.lastLine}>
