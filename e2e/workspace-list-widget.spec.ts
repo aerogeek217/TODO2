@@ -106,7 +106,7 @@ test('adding a filter from the filter row makes the list unsaved; saving keeps i
   await expect(wsListWidget(page, 't1').getByTestId('list-filter-chip')).toHaveText(/People\s*Bob/)
 })
 
-test('a list’s date filters: a due-date range and Follow-up Has a date both narrow it, saved as one clause per date type', async ({ page }) => {
+test('a list’s date filters: a due-date range and Next follow-up Any both narrow it, saved as one clause per date type', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Dated' }],
     tasks: [
@@ -121,7 +121,7 @@ test('a list’s date filters: a due-date range and Follow-up Has a date both na
   const widget = wsListWidget(page, 't1')
   await expect(rows(page, 't1')).toHaveCount(4)
 
-  // + Filter › Dates opens the panel on Due; due by today + 5 days.
+  // + Filter › Dates opens the panel on Due; due by today + 5 days, typed as a Calendar date.
   const inFive = new Date()
   inFive.setDate(inFive.getDate() + 5)
   const ymd = `${inFive.getFullYear()}-${String(inFive.getMonth() + 1).padStart(2, '0')}-${String(inFive.getDate()).padStart(2, '0')}`
@@ -129,23 +129,24 @@ test('a list’s date filters: a due-date range and Follow-up Has a date both na
   await page.getByRole('menuitem', { name: 'Dates' }).click()
   const picker = page.getByTestId('list-filter-picker')
   await expect(picker.getByRole('tab', { name: 'Due' })).toHaveAttribute('aria-selected', 'true')
+  await picker.getByRole('radio', { name: 'Calendar' }).click()
   await picker.getByLabel('To', { exact: true }).fill(ymd)
   await expect(rows(page, 't1')).toHaveCount(2)
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
 
   // + Filter › Dates opens on the first date type not filtering yet (Due filters): Next follow-up,
-  // which writes nothing until Has a date.
+  // which writes nothing until Any.
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
   await expect(picker.getByRole('tab', { name: 'Next follow-up' })).toHaveAttribute('aria-selected', 'true')
   await expect(picker.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('aria-selected', 'false')
-  await expect(picker.getByLabel('To', { exact: true })).toHaveValue('')
+  await expect(picker.getByRole('button', { name: 'To: No end' })).toBeVisible()
   await expect(rows(page, 't1')).toHaveCount(2)
-  await picker.getByRole('radio', { name: 'Has a date' }).click()
+  await picker.getByRole('radio', { name: 'Any' }).click()
   await expect(rows(page, 't1')).toHaveCount(1)
   await page.keyboard.press('Escape')
-  await expect(widget.getByTestId('list-filter-chip')).toHaveText([/Due\s*on or before .+/, /Next follow-up\s*has a date/])
+  await expect(widget.getByTestId('list-filter-chip')).toHaveText([/Due\s*on or before .+/, /Next follow-up\s*any date/])
 
   await wsCell(page, 'k1').getByTestId('save-list').click()
   await page.reload()

@@ -1,339 +1,261 @@
-import { describe, it, expect, vi, afterEach } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useState } from 'react'
-import { render, fireEvent, cleanup } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { DateAnchorInput } from '../../components/shared/DateAnchorInput'
 import type { DateAnchor } from '../../models'
+import type { DateAnchorSide, DateEntryMode } from '../../utils/date-anchor'
+
+/**
+ * One end of a date range (cr25 P8, D23 boards B / C). Calendar: a date
+ * input and a Set to… action menu (each item with its day today) that fills
+ * a fixed date. Relative: a number box (digits only) + a dropdown saying
+ * what it counts — never the number — with Count / Fill in / Rolling day /
+ * No end; a saved mix's date and a token the lists no longer offer show
+ * while they are the value.
+ */
 
 afterEach(cleanup)
 
-function dateInput(container: HTMLElement) {
-  return container.querySelector('input[type="date"]') as HTMLInputElement
+const DAY = { today: new Date(2026, 10, 2), weekStartsOn: 1 as const } // Mon 2 Nov 2026
+const fixedIso = (y: number, m: number, d: number) => new Date(y, m - 1, d).toISOString()
+
+function Harness({ mode, side, initial = null, log, describedBy }: {
+  mode: DateEntryMode
+  side: DateAnchorSide
+  initial?: DateAnchor | null
+  log: (DateAnchor | null)[]
+  describedBy?: string
+}) {
+  const [value, setValue] = useState<DateAnchor | null>(initial)
+  const label = side === 'from' ? 'From' : 'To'
+  return (
+    <DateAnchorInput
+      mode={mode}
+      side={side}
+      value={value}
+      label={label}
+      day={DAY}
+      describedBy={describedBy}
+      onChange={(v) => { log.push(v); setValue(v) }}
+    />
+  )
 }
 
-function offsetInput(container: HTMLElement) {
-  return container.querySelector('input[inputmode="numeric"]') as HTMLInputElement
+/** A menu's rows: `label` or `label · note`, separators as `—`, group labels as `[Label]`, a checked row with `✓`. */
+function menuRows(name: string): string[] {
+  const menu = screen.getByRole('menu', { name })
+  return Array.from(menu.children).map((el) => {
+    if (el.getAttribute('role') === 'separator') return '—'
+    const label = (el as HTMLElement).dataset.menuLabel
+    if (label === undefined) return `[${el.textContent}]`
+    const note = el.textContent?.slice(label.length) ?? ''
+    return `${label}${note ? ` · ${note}` : ''}${el.getAttribute('aria-checked') === 'true' ? ' ✓' : ''}`
+  })
 }
 
-function tokenSelect(container: HTMLElement) {
-  return container.querySelector('select') as HTMLSelectElement
-}
-
-describe('DateAnchorInput', () => {
-  it('renders empty inputs and "None" selected when value is null', () => {
-    const { container } = render(<DateAnchorInput side="from" value={null} onChange={() => {}} />)
-    expect(dateInput(container).value).toBe('')
-    expect(tokenSelect(container).value).toBe('__none__')
+describe('DateAnchorInput: Calendar', () => {
+  it('a date input and a Set to… button; no number, no relative dropdown', () => {
+    render(<Harness mode="calendar" side="from" initial={{ kind: 'fixed', iso: '2026-04-18T12:00:00.000Z' }} log={[]} />)
+    expect(screen.getByLabelText('From')).toHaveValue('2026-04-18')
+    expect(screen.getByRole('button', { name: 'From: Set to…' })).toHaveTextContent('Set to…')
+    expect(screen.queryByLabelText('From: number of days')).toBeNull()
   })
 
-  it('shows the ISO day in the date input for a fixed anchor', () => {
-    const v: DateAnchor = { kind: 'fixed', iso: '2026-04-18T00:00:00.000Z' }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={() => {}} />)
-    expect(dateInput(container).value).toBe('2026-04-18')
-    expect(tokenSelect(container).value).toBe('')
+  it('typing a date stores it as a fixed date; emptying clears the end', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="calendar" side="to" log={log} />)
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '2026-04-20' } })
+    expect(log.at(-1)).toEqual({ kind: 'fixed', iso: new Date('2026-04-20T00:00:00').toISOString() })
+    fireEvent.change(screen.getByLabelText('To'), { target: { value: '' } })
+    expect(log.at(-1)).toBeNull()
   })
 
-  it('clears to null when "None" is explicitly picked from a fixed anchor', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'fixed', iso: '2026-04-18T00:00:00.000Z' }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: '__none__' } })
-    expect(onChange).toHaveBeenCalledWith(null)
+  it('To’s Set to… lists the ends and future days with their day today, then Clear the date (off while empty)', () => {
+    render(<Harness mode="calendar" side="to" log={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'To: Set to…' }))
+    expect(menuRows('Set To to')).toEqual([
+      'Today · Mon 2 Nov', 'End of this week · Sun 8 Nov', 'End of this month · Mon 30 Nov', 'End of next month · Thu 31 Dec',
+      '—', 'In 1 week · Mon 9 Nov', 'In 2 weeks · Mon 16 Nov', 'In 1 month · Wed 2 Dec',
+      '—', 'Clear the date',
+    ])
+    expect(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Clear the date' })).toBeDisabled()
   })
 
-  it('fires a relative "start-of-week" anchor when picked on From', () => {
-    const onChange = vi.fn()
-    const { container } = render(<DateAnchorInput side="from" value={null} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: 'start-of-week' } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'relative', token: 'start-of-week' })
+  it('From’s Set to… lists the starts and past days', () => {
+    render(<Harness mode="calendar" side="from" log={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'From: Set to…' }))
+    expect(menuRows('Set From to')).toEqual([
+      'Today · Mon 2 Nov', 'Start of this week · Mon 2 Nov', 'Start of this month · Sun 1 Nov', 'Start of last month · Thu 1 Oct',
+      '—', '1 week ago · Mon 26 Oct', '2 weeks ago · Mon 19 Oct', '1 month ago · Sat 3 Oct',
+      '—', 'Clear the date',
+    ])
   })
 
-  it('selects the matching token in the dropdown for a relative anchor', () => {
-    const v: DateAnchor = { kind: 'relative', token: 'end-of-week' }
-    const { container } = render(<DateAnchorInput side="to" value={v} onChange={() => {}} />)
-    expect(tokenSelect(container).value).toBe('end-of-week')
-    expect(dateInput(container).value).toBe('')
-  })
-
-  it('fires a fixed anchor when the native date input changes', () => {
-    const onChange = vi.fn()
-    const { container } = render(<DateAnchorInput side="from" value={null} onChange={onChange} />)
-    fireEvent.change(dateInput(container), { target: { value: '2026-04-20' } })
-    expect(onChange).toHaveBeenCalledTimes(1)
-    const arg = onChange.mock.calls[0]![0]
-    expect(arg.kind).toBe('fixed')
-    expect(arg.iso.slice(0, 10)).toBe('2026-04-20')
-  })
-
-  it('fires a relative anchor when a token is picked from the dropdown', () => {
-    const onChange = vi.fn()
-    const { container } = render(<DateAnchorInput side="to" value={null} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: 'end-of-week' } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'relative', token: 'end-of-week' })
-  })
-
-  it('clears to null when a relative anchor is reset to None', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'relative', token: 'today' }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: '__none__' } })
-    expect(onChange).toHaveBeenCalledWith(null)
-  })
-
-  it('hides the Custom… option when no fixed anchor is set', () => {
-    const { container } = render(<DateAnchorInput side="from" value={null} onChange={() => {}} />)
-    const options = Array.from(tokenSelect(container).options).map(o => o.textContent)
-    expect(options).not.toContain('Custom…')
-  })
-
-  it('shows the Custom… option when a fixed anchor is set', () => {
-    const v: DateAnchor = { kind: 'fixed', iso: '2026-04-18T00:00:00.000Z' }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={() => {}} />)
-    const options = Array.from(tokenSelect(container).options).map(o => o.textContent)
-    expect(options).toContain('Custom…')
-  })
-
-  it('clears to null when a fixed anchor date is emptied', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'fixed', iso: '2026-04-18T00:00:00.000Z' }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(dateInput(container), { target: { value: '' } })
-    expect(onChange).toHaveBeenCalledWith(null)
-  })
-
-  it('switching from fixed to relative replaces the value', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'fixed', iso: '2026-04-18T00:00:00.000Z' }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: 'today' } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'relative', token: 'today' })
-  })
-
-  it('exposes a "Custom offset…" option in the dropdown', () => {
-    const { container } = render(<DateAnchorInput side="from" value={null} onChange={() => {}} />)
-    const options = Array.from(tokenSelect(container).options).map(o => o.textContent)
-    expect(options).toContain('Custom offset…')
-  })
-
-  it('initializes offset to days=0 when "Custom offset…" is picked from null', () => {
-    const onChange = vi.fn()
-    const { container } = render(<DateAnchorInput side="from" value={null} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: '__offset__' } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: 0 })
-  })
-
-  it('preserves prior days when re-picking "Custom offset…" while already in offset mode', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'offset', days: -7 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: '__offset__' } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: -7 })
-  })
-
-  it('preserves prior custom days when re-picking "Custom offset…"', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'offset', days: -9 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: '__offset__' } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: -9 })
-  })
-
-  it('swaps the date input for a numeric text input when in offset mode', () => {
-    const v: DateAnchor = { kind: 'offset', days: -3 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={() => {}} />)
-    expect(container.querySelector('input[type="date"]')).toBeNull()
-    const num = offsetInput(container)
-    expect(num).not.toBeNull()
-    expect(num.value).toBe('-3')
-    expect(tokenSelect(container).value).toBe('__offset__')
-  })
-
-  it('fires an updated offset anchor as the days input changes', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'offset', days: 0 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(offsetInput(container), { target: { value: '14' } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: 14 })
-  })
-
-  it('rejects non-integer keystrokes (no commit, no display change)', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'offset', days: 0 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(offsetInput(container), { target: { value: '7.9' } })
-    expect(onChange).not.toHaveBeenCalled()
-  })
-
-  it('holds a lone "-" as a draft without committing or wiping the dash', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'offset', days: 0 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(offsetInput(container), { target: { value: '-' } })
-    expect(onChange).not.toHaveBeenCalled()
-    expect(offsetInput(container).value).toBe('-')
-  })
-
-  it('commits a negative offset once the user finishes typing "-7"', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'offset', days: 0 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(offsetInput(container), { target: { value: '-' } })
-    fireEvent.change(offsetInput(container), { target: { value: '-7' } })
-    expect(onChange).toHaveBeenCalledTimes(1)
-    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days: -7 })
-  })
-
-  it('preserves the last committed days when the input is cleared mid-edit', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'offset', days: -5 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(offsetInput(container), { target: { value: '' } })
-    expect(onChange).not.toHaveBeenCalled()
-    // draft string shows empty until blur
-    expect(offsetInput(container).value).toBe('')
-  })
-
-  it('snaps the input back to the committed days on blur', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'offset', days: -5 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(offsetInput(container), { target: { value: '' } })
-    fireEvent.blur(offsetInput(container))
-    expect(offsetInput(container).value).toBe('-5')
-  })
-
-  it('clears to null when "None" is picked from offset mode', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'offset', days: -7 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: '__none__' } })
-    expect(onChange).toHaveBeenCalledWith(null)
-  })
-
-  it('switching from offset to a named token replaces the value', () => {
-    const onChange = vi.fn()
-    const v: DateAnchor = { kind: 'offset', days: -7 }
-    const { container } = render(<DateAnchorInput side="from" value={v} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: 'start-of-week' } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'relative', token: 'start-of-week' })
+  it('a Set to… item fills the date (a fixed date, never a rolling one) and the button reads Set to… again; Clear the date clears', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="calendar" side="to" log={log} />)
+    fireEvent.click(screen.getByRole('button', { name: 'To: Set to…' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^End of this month/ }))
+    expect(log.at(-1)).toEqual({ kind: 'fixed', iso: fixedIso(2026, 11, 30) })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(screen.getByRole('button', { name: 'To: Set to…' })).toHaveTextContent('Set to…')
+    fireEvent.click(screen.getByRole('button', { name: 'To: Set to…' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Clear the date' }))
+    expect(log.at(-1)).toBeNull()
   })
 })
 
-function optionLabels(container: HTMLElement): (string | null)[] {
-  return Array.from(tokenSelect(container).options).map(o => o.textContent)
-}
-
-function selectedLabel(container: HTMLElement): string | null | undefined {
-  const s = tokenSelect(container)
-  return s.options[s.selectedIndex]?.textContent
-}
-
-function optionValue(container: HTMLElement, label: string): string | undefined {
-  return Array.from(tokenSelect(container).options).find(o => o.textContent === label)?.value
-}
-
-describe('DateAnchorInput: the short From / To lists', () => {
-  const OFFSETS = ['1 week ago', '2 weeks ago', '1 month ago', 'In 1 week', 'In 2 weeks', 'In 1 month']
-
-  it('From lists None, Today, Start of week, the six offsets and Custom offset…', () => {
-    const { container } = render(<DateAnchorInput side="from" value={null} onChange={() => {}} />)
-    expect(optionLabels(container)).toEqual(['None', 'Today', 'Start of week', ...OFFSETS, 'Custom offset…'])
+describe('DateAnchorInput: Relative', () => {
+  it('no end: the dropdown reads No start / No end and there is no number', () => {
+    render(<Harness mode="relative" side="from" log={[]} />)
+    expect(screen.getByRole('button', { name: 'From: No start' })).toHaveTextContent('No start')
+    expect(screen.queryByLabelText('From: number of days')).toBeNull()
+    cleanup()
+    render(<Harness mode="relative" side="to" log={[]} />)
+    expect(screen.getByRole('button', { name: 'To: No end' })).toBeInTheDocument()
   })
 
-  it('To lists End of week in Start of week’s place', () => {
-    const { container } = render(<DateAnchorInput side="to" value={null} onChange={() => {}} />)
-    expect(optionLabels(container)).toEqual(['None', 'Today', 'End of week', ...OFFSETS, 'Custom offset…'])
+  it('a count: the number unsigned, the dropdown says what it counts and never repeats the number', () => {
+    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: -7 }} log={[]} describedBy="day-line" />)
+    expect(screen.getByLabelText('To: number of days')).toHaveValue('7')
+    const dropdown = screen.getByRole('button', { name: 'To: days ago' })
+    expect(dropdown).toHaveTextContent(/^days ago$/)
+    expect(dropdown).toHaveAttribute('aria-haspopup', 'menu')
+    // Both read the day line under the end.
+    expect(screen.getByLabelText('To: number of days')).toHaveAttribute('aria-describedby', 'day-line')
+    expect(dropdown).toHaveAttribute('aria-describedby', 'day-line')
+    expect(document.body.textContent).not.toMatch(/-\s*\d|−/)
   })
 
-  it('a fixed date puts Custom… first, as before', () => {
-    const v: DateAnchor = { kind: 'fixed', iso: '2026-04-18T00:00:00.000Z' }
-    const { container } = render(<DateAnchorInput side="to" value={v} onChange={() => {}} />)
-    expect(optionLabels(container)).toEqual(['Custom…', 'None', 'Today', 'End of week', ...OFFSETS, 'Custom offset…'])
-    expect(selectedLabel(container)).toBe('Custom…')
+  it('one day reads in the singular', () => {
+    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: 1 }} log={[]} />)
+    expect(screen.getByRole('button', { name: 'To: day ahead' })).toBeInTheDocument()
   })
 
-  it.each([
-    ['1 week ago', -7], ['2 weeks ago', -14], ['1 month ago', -30],
-    ['In 1 week', 7], ['In 2 weeks', 14], ['In 1 month', 30],
-  ] as const)('picking %s stores a %i-day offset', (label, days) => {
+  it('the number takes digits only, at most three; a cleared box holds until blur', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: 14 }} log={log} />)
+    const box = screen.getByLabelText('To: number of days')
+    expect(box).toHaveAttribute('inputmode', 'numeric')
+    expect(box).toHaveAttribute('maxlength', '3')
+    fireEvent.change(box, { target: { value: '21' } })
+    expect(log.at(-1)).toEqual({ kind: 'offset', days: 21 })
+    for (const bad of ['-2', '2a', '1.5', '1000']) fireEvent.change(box, { target: { value: bad } })
+    expect(log).toHaveLength(1)
+    expect(box).toHaveValue('21')
+    fireEvent.change(box, { target: { value: '' } })
+    expect(box).toHaveValue('')
+    expect(log).toHaveLength(1)
+    fireEvent.blur(box)
+    expect(box).toHaveValue('21')
+  })
+
+  it('the dropdown: Count, Fill in (with the number each fills), Rolling day for the end, then No end', () => {
+    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: -7 }} log={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'To: days ago' }))
+    expect(menuRows('To')).toEqual([
+      '[Count]', 'days ago ✓', 'days ahead',
+      '—', '[Fill in]', '1 week ago · 7', '2 weeks ago · 14', '1 month ago · 30', 'In 1 week · 7', 'In 2 weeks · 14', 'In 1 month · 30',
+      '—', '[Rolling day]', 'today', 'end of week', 'end of month',
+      '—', 'No end',
+    ])
+    fireEvent.click(screen.getByRole('menuitem', { name: /^In 2 weeks/ }))
+  })
+
+  it('From’s rolling days are starts', () => {
+    render(<Harness mode="relative" side="from" log={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'From: No start' }))
+    const rows = menuRows('From')
+    expect(rows.slice(rows.indexOf('[Rolling day]'))).toEqual(['[Rolling day]', 'today', 'start of week', 'start of month', '—', 'No start ✓'])
+  })
+
+  it('Fill in fills the number and the count, then the dropdown reads the count', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="relative" side="to" log={log} />)
+    fireEvent.click(screen.getByRole('button', { name: 'To: No end' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^1 week ago/ }))
+    expect(log.at(-1)).toEqual({ kind: 'offset', days: -7 })
+    expect(screen.getByLabelText('To: number of days')).toHaveValue('7')
+    expect(screen.getByRole('button', { name: 'To: days ago' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'To: days ago' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^In 1 month/ }))
+    expect(log.at(-1)).toEqual({ kind: 'offset', days: 30 })
+    expect(screen.getByLabelText('To: number of days')).toHaveValue('30')
+    expect(screen.getByRole('button', { name: 'To: days ahead' })).toBeInTheDocument()
+  })
+
+  it('a count keeps the number and turns it round; picking one moves the focus to the number', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: -7 }} log={log} />)
+    fireEvent.click(screen.getByRole('button', { name: 'To: days ago' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'days ahead' }))
+    expect(log.at(-1)).toEqual({ kind: 'offset', days: 7 })
+    expect(screen.getByLabelText('To: number of days')).toHaveFocus()
+  })
+
+  it('a count from a rolling day starts at that day’s distance when it lies that way, else 0', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="relative" side="to" initial={{ kind: 'relative', token: 'end-of-week' }} log={log} />)
+    fireEvent.click(screen.getByRole('button', { name: 'To: end of week' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'days ahead' }))
+    expect(log.at(-1)).toEqual({ kind: 'offset', days: 6 }) // Sun 8 Nov
+    cleanup()
+    const log2: (DateAnchor | null)[] = []
+    render(<Harness mode="relative" side="to" log={log2} />)
+    fireEvent.click(screen.getByRole('button', { name: 'To: No end' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'days ago' }))
+    expect(log2.at(-1)).toEqual({ kind: 'offset', days: 0 })
+    expect(screen.getByLabelText('To: number of days')).toHaveValue('0')
+  })
+
+  it('0 keeps the count it was typed under', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: 5 }} log={log} />)
+    fireEvent.change(screen.getByLabelText('To: number of days'), { target: { value: '0' } })
+    expect(log.at(-1)).toEqual({ kind: 'offset', days: 0 })
+    expect(screen.getByRole('button', { name: 'To: days ahead' })).toBeInTheDocument()
+  })
+
+  it('a rolling day hides the number; No end clears', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: -7 }} log={log} />)
+    fireEvent.click(screen.getByRole('button', { name: 'To: days ago' }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'end of month' }))
+    expect(log.at(-1)).toEqual({ kind: 'relative', token: 'end-of-month' })
+    expect(screen.queryByLabelText('To: number of days')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'To: end of month' }))
+    expect(menuRows('To')).toContain('end of month ✓')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'No end' }))
+    expect(log.at(-1)).toBeNull()
+  })
+
+  it('a token the lists no longer offer is the value, listed under Rolling day only while it is', () => {
+    const log: (DateAnchor | null)[] = []
+    render(<Harness mode="relative" side="to" initial={{ kind: 'relative', token: 'end-of-next-month' }} log={log} />)
+    fireEvent.click(screen.getByRole('button', { name: 'To: end of next month' }))
+    const rows = menuRows('To')
+    expect(rows.slice(rows.indexOf('[Rolling day]'))).toEqual(['[Rolling day]', 'today', 'end of week', 'end of month', 'end of next month ✓', '—', 'No end'])
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'today' }))
+    fireEvent.click(screen.getByRole('button', { name: 'To: today' }))
+    expect(menuRows('To')).not.toContain('end of next month')
+  })
+
+  it('the other end’s week token on this end is listed too (a From holding end of week)', () => {
+    render(<Harness mode="relative" side="from" initial={{ kind: 'relative', token: 'end-of-week' }} log={[]} />)
+    fireEvent.click(screen.getByRole('button', { name: 'From: end of week' }))
+    expect(menuRows('From')).toContain('end of week ✓')
+  })
+
+  it('a saved mix: the date end is its own choice (on Oct 1) while it is the value', () => {
     const onChange = vi.fn()
-    const { container } = render(<DateAnchorInput side="from" value={null} onChange={onChange} />)
-    fireEvent.change(tokenSelect(container), { target: { value: optionValue(container, label) } })
-    expect(onChange).toHaveBeenCalledWith({ kind: 'offset', days })
-  })
-
-  it.each([
-    [-7, '1 week ago'], [-14, '2 weeks ago'], [-30, '1 month ago'],
-    [7, 'In 1 week'], [14, 'In 2 weeks'], [30, 'In 1 month'],
-  ] as const)('a stored %i-day offset selects %s and shows the days field', (days, label) => {
-    const { container } = render(<DateAnchorInput side="to" value={{ kind: 'offset', days }} onChange={() => {}} />)
-    expect(selectedLabel(container)).toBe(label)
-    expect(offsetInput(container).value).toBe(String(days))
-    expect(dateInput(container)).toBeNull()
-  })
-
-  it('any other offset, and 0, selects Custom offset…', () => {
-    for (const days of [0, -9, 21, 31]) {
-      const { container, unmount } = render(<DateAnchorInput side="from" value={{ kind: 'offset', days }} onChange={() => {}} />)
-      expect(selectedLabel(container)).toBe('Custom offset…')
-      expect(offsetInput(container).value).toBe(String(days))
-      unmount()
-    }
-  })
-
-  it('the named days select themselves', () => {
-    const { container, rerender } = render(<DateAnchorInput side="from" value={{ kind: 'relative', token: 'today' }} onChange={() => {}} />)
-    expect(selectedLabel(container)).toBe('Today')
-    rerender(<DateAnchorInput side="from" value={{ kind: 'relative', token: 'start-of-week' }} onChange={() => {}} />)
-    expect(selectedLabel(container)).toBe('Start of week')
-    rerender(<DateAnchorInput side="to" value={{ kind: 'relative', token: 'end-of-week' }} onChange={() => {}} />)
-    expect(selectedLabel(container)).toBe('End of week')
-  })
-
-  it('a stored token the list no longer offers shows as an extra option after None, only while it is the value', () => {
-    const { container, rerender } = render(<DateAnchorInput side="to" value={{ kind: 'relative', token: 'end-of-month' }} onChange={() => {}} />)
-    expect(optionLabels(container)).toEqual(['None', 'End of month', 'Today', 'End of week', ...OFFSETS, 'Custom offset…'])
-    expect(selectedLabel(container)).toBe('End of month')
-    rerender(<DateAnchorInput side="to" value={{ kind: 'relative', token: 'today' }} onChange={() => {}} />)
-    expect(optionLabels(container)).not.toContain('End of month')
-  })
-
-  it('the other end’s week token is an extra option too (From with End of week, To with Start of week)', () => {
-    const { container, rerender } = render(<DateAnchorInput side="from" value={{ kind: 'relative', token: 'end-of-week' }} onChange={() => {}} />)
-    expect(optionLabels(container)).toEqual(['None', 'End of week', 'Today', 'Start of week', ...OFFSETS, 'Custom offset…'])
-    expect(selectedLabel(container)).toBe('End of week')
-    rerender(<DateAnchorInput side="to" value={{ kind: 'relative', token: 'start-of-week' }} onChange={() => {}} />)
-    expect(optionLabels(container)).toEqual(['None', 'Start of week', 'Today', 'End of week', ...OFFSETS, 'Custom offset…'])
-    expect(selectedLabel(container)).toBe('Start of week')
-  })
-
-  it('editing the days field moves the select between a preset and Custom offset…', () => {
-    function Controlled() {
-      const [v, setV] = useState<DateAnchor | null>({ kind: 'offset', days: -7 })
-      return <DateAnchorInput side="from" value={v} onChange={setV} />
-    }
-    const { container } = render(<Controlled />)
-    expect(selectedLabel(container)).toBe('1 week ago')
-    fireEvent.change(offsetInput(container), { target: { value: '-8' } })
-    expect(selectedLabel(container)).toBe('Custom offset…')
-    fireEvent.change(offsetInput(container), { target: { value: '-14' } })
-    expect(selectedLabel(container)).toBe('2 weeks ago')
-    fireEvent.change(offsetInput(container), { target: { value: '30' } })
-    expect(selectedLabel(container)).toBe('In 1 month')
-    fireEvent.change(offsetInput(container), { target: { value: '0' } })
-    expect(selectedLabel(container)).toBe('Custom offset…')
-  })
-
-  it('picking a preset while a days draft is held replaces the draft', () => {
-    function Controlled() {
-      const [v, setV] = useState<DateAnchor | null>({ kind: 'offset', days: 5 })
-      return <DateAnchorInput side="to" value={v} onChange={setV} />
-    }
-    const { container } = render(<Controlled />)
-    fireEvent.change(offsetInput(container), { target: { value: '-' } })
-    expect(offsetInput(container).value).toBe('-')
-    fireEvent.change(tokenSelect(container), { target: { value: optionValue(container, 'In 2 weeks') } })
-    expect(offsetInput(container).value).toBe('14')
-    expect(selectedLabel(container)).toBe('In 2 weeks')
+    render(<DateAnchorInput mode="relative" side="from" value={{ kind: 'fixed', iso: fixedIso(2026, 10, 1) }} label="From" day={DAY} onChange={onChange} />)
+    expect(screen.getByRole('button', { name: 'From: on Oct 1' })).toBeInTheDocument()
+    expect(screen.queryByLabelText('From: number of days')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: 'From: on Oct 1' }))
+    const rows = menuRows('From')
+    expect(rows.slice(-3)).toEqual(['—', 'on Oct 1 ✓', 'No start'])
+    // Picking it again changes nothing.
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'on Oct 1' }))
+    expect(onChange).not.toHaveBeenCalled()
   })
 })
-

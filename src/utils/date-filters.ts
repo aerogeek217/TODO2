@@ -6,7 +6,7 @@ import {
   type DateFilters,
   type DateMatch,
 } from '../models/filter-predicate'
-import { readDateAnchor } from './date-anchor'
+import { dateAnchorsEqual, readDateAnchor } from './date-anchor'
 
 /**
  * The date filters (`DateFilters`): one clause per date type, a task must
@@ -103,14 +103,6 @@ export function dateRangeOf(m: DateMatch | null | undefined): { start: DateAncho
   return { start: m.start, end: m.end, includeNoDate: m.includeNoDate === true, not: m.not === true }
 }
 
-function anchorsEqual(a: DateAnchor | null, b: DateAnchor | null): boolean {
-  if (a == null || b == null) return a == null && b == null
-  if (a.kind === 'fixed' && b.kind === 'fixed') return a.iso === b.iso
-  if (a.kind === 'relative' && b.kind === 'relative') return a.token === b.token
-  if (a.kind === 'offset' && b.kind === 'offset') return a.days === b.days
-  return false
-}
-
 /** Whether two date filter maps filter the same (clauses compared in their stored form). */
 export function dateFiltersEqual(a: DateFilters | null | undefined, b: DateFilters | null | undefined): boolean {
   const x = normalizeDateFilters(a)
@@ -121,7 +113,7 @@ export function dateFiltersEqual(a: DateFilters | null | undefined, b: DateFilte
     if (!p || !q) return p === q
     if (p.match !== q.match) return false
     if (p.match !== 'range' || q.match !== 'range') return true
-    return anchorsEqual(p.start, q.start) && anchorsEqual(p.end, q.end)
+    return dateAnchorsEqual(p.start, q.start) && dateAnchorsEqual(p.end, q.end)
       && (p.includeNoDate === true) === (q.includeNoDate === true) && (p.not === true) === (q.not === true)
   })
 }

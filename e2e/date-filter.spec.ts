@@ -9,7 +9,9 @@ import { box, expectInsideViewport } from './fixtures/geometry'
  * filters, and selecting a tab never fills in a date. Opened from the top
  * bar's Dates button, a list's date chip / + Filter, and the phone Filters
  * sheet. A Completed range brings in the tasks completed in it without Show
- * completed; Last follow-up is an optional date (cr24 P4, D22).
+ * completed; Last follow-up is an optional date (cr24 P4, D22). Show picks
+ * Calendar · Relative (· Any · None on the optional types); a new range is
+ * Relative (cr25 P8, D23 board B).
  */
 
 /** A local date-time `days` from now, as the seed takes it (`2026-10-10T15:30`). */
@@ -34,6 +36,12 @@ function rows(page: Page, tabId: string) {
 
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Date filters' })
 
+/** Picks `item` (its label) from an end's Relative dropdown in the open date panel. */
+async function pickRelative(page: Page, end: 'From' | 'To', item: string) {
+  await dialog(page).getByRole('button', { name: new RegExp(`^${end}: (?!Set to)`) }).click()
+  await page.getByRole('menu', { name: end }).locator(`[data-menu-label="${item}"]`).click()
+}
+
 /** Every date type on in the top bar (through the filter store), so every tab shows its dot. */
 async function lightEveryDateType(page: Page) {
   await page.evaluate(async () => {
@@ -54,6 +62,16 @@ async function lightEveryDateType(page: Page) {
       },
     })
   })
+}
+
+/** Show's choices, in one row, none clipped. */
+async function expectShowUnclipped(scope: Locator, labels: string[]) {
+  const radios = scope.getByRole('radiogroup', { name: 'Which tasks' }).getByRole('radio')
+  await expect(radios).toHaveText(labels)
+  const tops = await Promise.all(labels.map(async (_, i) => Math.round((await box(radios.nth(i))).y)))
+  expect(new Set(tops).size).toBe(1)
+  const clipped = await radios.evaluateAll((els) => els.flatMap((el) => (el.scrollWidth > el.clientWidth ? [el.textContent] : [])))
+  expect(clipped).toEqual([])
 }
 
 /** The six tabs sit in two rows of three, in reading order, and no label (with its dot) is cut. */
@@ -91,8 +109,12 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   const panel = dialog(page)
   await expect(panel.getByRole('tab', { name: 'Due' })).toBeFocused()
   await expect(panel.getByText('Not filtering')).toBeVisible()
-  await panel.getByLabel('To (relative)').selectOption({ label: 'In 2 weeks' })
-  await expect(panel.getByLabel('To (days offset)')).toHaveValue('14')
+  await expect(panel.getByRole('radio', { name: 'Relative' })).toHaveAttribute('aria-checked', 'true')
+  await pickRelative(page, 'To', 'In 2 weeks')
+  await expect(panel.getByLabel('To: number of days')).toHaveValue('14')
+  await expect(panel.getByRole('button', { name: 'To: days ahead' })).toBeVisible()
+  // Its day today under it (cr25 P8).
+  await expect(panel.getByText(`${dayWords(14)} and earlier`)).toBeVisible()
   await expect(rows(page, 't1')).toHaveCount(2)
   await expect(panel.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('data-filtering', '')
 
@@ -100,11 +122,10 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await panel.getByRole('tab', { name: 'Modified' }).click()
   await expect(panel.getByRole('tab', { name: 'Modified' })).toHaveAttribute('aria-selected', 'true')
   await expect(panel.getByRole('tab', { name: 'Modified' })).not.toHaveAttribute('data-filtering', '')
-  await expect(panel.getByLabel('From', { exact: true })).toHaveValue('')
-  await expect(panel.getByLabel('To', { exact: true })).toHaveValue('')
-  await expect(panel.getByLabel('To (relative)')).toHaveValue('__none__')
+  await expect(panel.getByRole('button', { name: 'From: No start' })).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'To: No end' })).toBeVisible()
   await expect(rows(page, 't1')).toHaveCount(2)
-  await panel.getByLabel('To (relative)').selectOption({ label: '1 week ago' })
+  await pickRelative(page, 'To', '1 week ago')
   await expect(rows(page, 't1')).toHaveCount(1)
   await expect(rows(page, 't1')).toHaveText([/Due soon, old/])
   await page.keyboard.press('Escape')
@@ -149,12 +170,34 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await expect(panel.getByRole('tab', { name: 'Next follow-up' })).toBeFocused()
   await page.keyboard.press('End')
   await expect(panel.getByRole('tab', { name: 'Modified' })).toBeFocused()
-  // Tab: the range's Is / Is not (its checked Is), then From.
+  // Tab: Show (its checked Relative), the range's Is / Is not (its checked Is), then From's dropdown.
+  await page.keyboard.press('Tab')
+  await expect(panel.getByRole('radiogroup', { name: 'Which tasks' }).getByRole('radio', { name: 'Relative' })).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(panel.getByRole('radiogroup', { name: 'Modified: is or is not' }).getByRole('radio', { name: 'Is', exact: true })).toBeFocused()
   await page.keyboard.press('Tab')
-  await expect(panel.getByLabel('From', { exact: true })).toBeFocused()
+  await expect(panel.getByRole('button', { name: 'From: No start' })).toBeFocused()
+  // Nothing written so far.
   await expect(page.getByRole('button', { name: 'Dates filter', exact: true })).toBeVisible()
+  // Its menu by keyboard: Enter opens it, ↓ / Enter pick, Esc closes only the menu.
+  await page.keyboard.press('Enter')
+  const menu = page.getByRole('menu', { name: 'From' })
+  await expect(menu.getByRole('menuitemradio', { name: 'days ago' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitem', { name: /^1 week ago/ })).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeHidden()
+  await expect(panel).toBeVisible()
+  await expect(panel.getByRole('button', { name: 'From: No start' })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await page.keyboard.press('Enter')
+  // days ago: the focus moves to the number.
+  await expect(panel.getByLabel('From: number of days')).toBeFocused()
+  await page.keyboard.type('30')
+  await expect(panel.getByLabel('From: number of days')).toHaveValue('30')
+  await expect(panel.getByRole('tabpanel')).toContainText('30 days ago or later')
+  await expect(page.getByRole('button', { name: /^Dates filter: Modified 30 days ago or later$/ })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(panel).toBeHidden()
 })
@@ -183,14 +226,14 @@ test('list chips: one per date type; a chip opens the panel under it on its type
   const widget = wsListWidget(page, 't2')
   await expect(rows(page, 't2')).toHaveText([/Due only/])
   const chips = widget.getByTestId('list-filter-chip')
-  await expect(chips).toHaveText([/Due\s*has a date/, /Next follow-up\s*no date/])
+  await expect(chips).toHaveText([/Due\s*any date/, /Next follow-up\s*none/])
 
   // The Next follow-up chip (in the right-hand column) opens the panel under it, inside the viewport, on Next follow-up.
   const followupChip = chips.nth(1)
   await followupChip.click()
   const panel = dialog(page)
   await expect(panel.getByRole('tab', { name: 'Next follow-up, filtering' })).toHaveAttribute('aria-selected', 'true')
-  await expect(panel.getByRole('radio', { name: 'No date' })).toHaveAttribute('aria-checked', 'true')
+  await expect(panel.getByRole('radio', { name: 'None' })).toHaveAttribute('aria-checked', 'true')
   await expect(followupChip).toHaveAttribute('aria-expanded', 'true')
   await expectInsideViewport(page, panel)
   const chipBox = await box(followupChip)
@@ -201,7 +244,7 @@ test('list chips: one per date type; a chip opens the panel under it on its type
 
   // × on the Due chip: only the due-date clause goes; the list is unsaved.
   await chips.nth(0).getByRole('button', { name: 'Remove filter' }).click()
-  await expect(chips).toHaveText([/Next follow-up\s*no date/])
+  await expect(chips).toHaveText([/Next follow-up\s*none/])
   await expect(rows(page, 't2')).toHaveText([/Due only/, /Neither/])
   await expect(wsCell(page, 'k2').getByTestId('save-list')).toBeVisible()
 
@@ -211,9 +254,9 @@ test('list chips: one per date type; a chip opens the panel under it on its type
   await page.getByRole('menuitem', { name: 'Dates' }).click()
   await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toBeFocused()
   await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toHaveAttribute('aria-selected', 'true')
-  await panel.getByRole('radio', { name: 'No date' }).click()
+  await panel.getByRole('radio', { name: 'None' }).click()
   // A new chip goes last (the rows keep the order they were added in).
-  await expect(chips).toHaveText([/Next follow-up\s*no date/, /Due\s*no date/])
+  await expect(chips).toHaveText([/Next follow-up\s*none/, /Due\s*none/])
 })
 
 test('the six types sit in two rows of three at 336px; no label clips, every type lit', async ({ page }) => {
@@ -231,9 +274,13 @@ test('the six types sit in two rows of three at 336px; no label clips, every typ
     await expect(panel.getByRole('tab', { name: `${name}, filtering` })).toHaveAttribute('data-filtering', '')
   }
   await expectTwoRowsUnclipped(panel)
-  // Completed is a range only, with its line.
+  // Show's four choices fit its row (cr25 P8).
+  await panel.getByRole('tab', { name: 'Due, filtering' }).click()
+  await expectShowUnclipped(panel, ['Calendar', 'Relative', 'Any', 'None'])
+  // Completed is a range only (Calendar · Relative, no Is not), with its line.
   await panel.getByRole('tab', { name: 'Completed, filtering' }).click()
-  await expect(panel.getByRole('radiogroup')).toHaveCount(0)
+  await expect(panel.getByRole('radiogroup')).toHaveCount(1)
+  await expectShowUnclipped(panel, ['Calendar', 'Relative'])
   await expect(panel.getByText('Shows tasks completed in this range, even where completed tasks are hidden.')).toBeVisible()
 })
 
@@ -271,12 +318,12 @@ test('a list with Completed this week shows the tasks completed this week, witho
   await page.getByRole('button', { name: 'Dates filter', exact: true }).click()
   const panel = dialog(page)
   await panel.getByRole('tab', { name: 'Completed' }).click()
-  await panel.getByLabel('From (relative)').selectOption('start-of-week')
+  await pickRelative(page, 'From', 'start of week')
   await expect(rows(page, 't1')).toHaveText([/Done today/])
   await expect(page.getByRole('button', { name: /^1 of 3 tasks shown/ })).toBeVisible()
 })
 
-test('Last follow-up "14+ days ago, or none": in a list, and as a lens in the top bar', async ({ page }) => {
+test('Last follow-up "14+ days ago, or never": in a list, and as a lens in the top bar', async ({ page }) => {
   const stale = { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true }
   await seedWorkspace(page, {
     listDefinitions: [
@@ -302,10 +349,10 @@ test('Last follow-up "14+ days ago, or none": in a list, and as a lens in the to
   // Oldest first, never followed up last.
   await expect(rows(page, 't2')).toHaveText([/Chased a month ago/, /Chased 20 days ago/, /Never chased/])
   const chip = wsListWidget(page, 't2').getByTestId('list-filter-chip')
-  await expect(chip).toHaveText([/Last follow-up\s*14\+ days ago, or none/])
+  await expect(chip).toHaveText([/Last follow-up\s*14\+ days ago, or never/])
   // Its tooltip spells the exact last day, and the never-followed-up tasks it keeps (cr25 P7).
   await chip.hover()
-  await expect(page.getByRole('tooltip')).toHaveText(`Last follow-up: 14+ days ago, or noneLast followed up on or before ${dayWords(-14)}, or never`)
+  await expect(page.getByRole('tooltip')).toHaveText(`Last follow-up: 14+ days ago, or neverLast followed up on or before ${dayWords(-14)}, or never`)
   await page.mouse.move(0, 0)
 
   await page.getByRole('button', { name: /^Lens:/ }).click()
@@ -336,16 +383,16 @@ test.describe('phone', () => {
     await page.getByRole('tab', { name: 'Next follow-up' }).click()
     await expect(allRows).toHaveCount(3)
     expect((await box(page.getByRole('tab', { name: 'Next follow-up' }))).height).toBeGreaterThanOrEqual(36)
-    const noDate = page.getByRole('radio', { name: 'No date' })
+    const noDate = page.getByRole('radio', { name: 'None' })
     expect((await box(noDate)).height).toBeGreaterThanOrEqual(36)
     await noDate.click()
     await expect(page.getByText('Only tasks with no next follow-up.')).toBeVisible()
     await expect(allRows).toHaveCount(2)
-    await expect(datesRow.locator('..')).toContainText('Next follow-up no date')
+    await expect(datesRow.locator('..')).toContainText('Next follow-up none')
 
     await page.getByRole('tab', { name: 'Due' }).click()
     await expect(allRows).toHaveCount(2)
-    await page.getByRole('radio', { name: 'Has a date' }).click()
+    await page.getByRole('radio', { name: 'Any' }).click()
     await expect(allRows).toHaveCount(1)
     await expect(datesRow.locator('..')).toContainText('Due + Next follow-up')
 
@@ -370,5 +417,18 @@ test.describe('phone, narrowest', () => {
     const tablist = page.getByRole('tablist', { name: 'Date type' })
     await expectTwoRowsUnclipped(tablist)
     expect((await box(tablist.getByRole('tab').first())).height).toBeGreaterThanOrEqual(36)
+    // Show's four choices fit the sheet's 343px at touch size (cr25 P8).
+    await tablist.getByRole('tab', { name: 'Due, filtering' }).click()
+    const sheet = page.getByRole('radiogroup', { name: 'Which tasks' }).locator('..')
+    await expectShowUnclipped(sheet, ['Calendar', 'Relative', 'Any', 'None'])
+    expect((await box(page.getByRole('radio', { name: 'Calendar' }))).height).toBeGreaterThanOrEqual(36)
+    // The Relative ends at touch size, on Last follow-up (14+ days ago).
+    await tablist.getByRole('tab', { name: 'Last follow-up, filtering' }).click()
+    const to = page.getByRole('button', { name: 'To: days ago' })
+    await to.scrollIntoViewIfNeeded()
+    expect((await box(to)).height).toBeGreaterThanOrEqual(44)
+    await expect(page.getByLabel('To: number of days')).toHaveValue('14')
+    await expect(page.getByText(`${dayWords(-14)} and earlier`)).toBeVisible()
+    await expectInsideViewport(page, to)
   })
 })

@@ -312,7 +312,7 @@ describe('resolvePaneDrop on custom panes', () => {
     const res = resolvePaneDrop([task], 'schedule', panes, ctx)
     expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: { date: 'deadline' } } }] })
     if (res.kind !== 'blocked') return
-    expect(blockedPaneLines(panes[1]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Due filter (has a date).')
+    expect(blockedPaneLines(panes[1]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Due filter (any date).')
   })
 
   it('a Completed date clause is named in the refusal (not Show completed, not an earlier pane)', () => {

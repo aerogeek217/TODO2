@@ -1,66 +1,98 @@
+/* One end of a date range (`DateAnchorInput`): Calendar — a date + Set to…;
+ * Relative — a number + its dropdown. The date panel's inset fields;
+ * `.touch` is the phone sheet's size. */
+
 .wrapper {
-  display: inline-flex;
+  flex: 1;
+  display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   min-width: 0;
+}
+
+.field {
+  box-sizing: border-box;
+  height: 28px;
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 13px;
+  outline: none;
+}
+
+/* Focused or its menu open: Edit list's select ring. */
+.field:focus-visible,
+.open {
+  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
 }
 
 .dateInput {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-chip);
-  padding: 4px 8px;
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  outline: none;
+  flex-shrink: 0;
+  width: 132px;
+  padding: 0 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The count: up to three digits, right-aligned as numbers are. */
+.number {
+  flex-shrink: 0;
+  width: 48px;
+  padding: 0 8px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A select-button: its value + a chevron, opening a menu under it. */
+.select {
+  flex: 1;
   min-width: 0;
-}
-
-.dateInput:focus {
-  border-color: var(--color-accent-dim);
-}
-
-.tokenSelect {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-chip);
-  padding: 4px 6px;
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  outline: none;
-  max-width: 110px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  text-align: left;
   cursor: pointer;
 }
 
-.tokenSelect:focus {
-  border-color: var(--color-accent-dim);
+.select > svg {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
 }
 
-.offsetField {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
+.selectValue {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.offsetInput {
-  background: var(--color-surface);
-  color: var(--color-text-primary);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-chip);
-  padding: 4px 8px;
-  font-size: var(--font-size-meta);
-  font-family: inherit;
-  outline: none;
-  width: 60px;
-}
-
-.offsetInput:focus {
-  border-color: var(--color-accent-dim);
-}
-
-.offsetSuffix {
+/* Set to… is an action, not a value. */
+.action {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-meta);
+}
+
+/* No start / No end: an open end. */
+.placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ── Phone sheet: touch sizes (16px text: no zoom on focus) ── */
+
+.touch .field {
+  height: 44px;
+  border-radius: 8px;
+  font-size: 16px;
+}
+
+.touch .dateInput {
+  width: 160px;
+}
+
+.touch .number {
+  width: 64px;
 }

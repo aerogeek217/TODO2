@@ -32,13 +32,20 @@ const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks sh
 const titles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
 const datePanel = (page: Page) => page.getByTestId('list-filter-picker')
 
-/** In the open date panel: `type`'s tab, Is not, then From / To by their option labels. */
+/** Picks `item` (its label) from an end's Relative dropdown in the open date panel. */
+async function pickRelative(page: Page, end: 'From' | 'To', item: string) {
+  await datePanel(page).getByRole('button', { name: new RegExp(`^${end}: (?!Set to)`) }).click()
+  await page.getByRole('menu', { name: end }).locator(`[data-menu-label="${item}"]`).click()
+}
+
+/** In the open date panel: `type`'s tab, Is not, then From / To by their Relative dropdown items (a new range is Relative, cr25 P8). */
 async function setNotRange(page: Page, type: string, from: string, to: string) {
   const panel = datePanel(page)
   await panel.getByRole('tab', { name: new RegExp(`^${type}`) }).click()
+  await expect(panel.getByRole('radio', { name: 'Relative' })).toHaveAttribute('aria-checked', 'true')
   await panel.getByRole('radiogroup', { name: `${type}: is or is not` }).getByRole('radio', { name: 'Is not' }).click()
-  await panel.getByLabel('From (relative)').selectOption({ label: from })
-  await panel.getByLabel('To (relative)').selectOption({ label: to })
+  await pickRelative(page, 'From', from)
+  await pickRelative(page, 'To', to)
 }
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -57,7 +64,10 @@ test('the user\'s lens: hides only the tasks followed up lately with a next foll
   // + Filter › Dates: Last follow-up is not 1 week ago – Today.
   await editor.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Dates' }).click()
-  await setNotRange(page, 'Last follow-up', '1 week ago', 'Today')
+  await setNotRange(page, 'Last follow-up', '1 week ago', 'today')
+  await expect(datePanel(page).getByLabel('From: number of days')).toHaveValue('7')
+  await expect(datePanel(page).getByRole('button', { name: 'From: days ago' })).toBeVisible()
+  await expect(datePanel(page).getByRole('button', { name: 'To: today' })).toBeVisible()
   await expect(datePanel(page).getByRole('tabpanel')).toContainText('not within the last 7 days')
   await expect(datePanel(page).getByText('Tasks never followed up are kept.')).toBeVisible()
   await expect(datePanel(page).getByRole('checkbox')).toHaveCount(0)
@@ -74,7 +84,7 @@ test('the user\'s lens: hides only the tasks followed up lately with a next foll
   await datePanel(page).getByRole('button', { name: /Another filter \(OR\)/ }).click()
   await page.getByTestId('or-group-panel').getByRole('button', { name: 'Dates' }).click()
   await expect(datePanel(page).getByRole('tab', { name: 'Due', exact: true })).toHaveAttribute('aria-selected', 'true')
-  await setNotRange(page, 'Next follow-up', 'Today', 'In 2 weeks')
+  await setNotRange(page, 'Next follow-up', 'today', 'In 2 weeks')
   await page.keyboard.press('Escape')
   const group = editor.getByTestId('or-group')
   await expect(group.getByTestId('list-filter-chip')).toHaveCount(2)

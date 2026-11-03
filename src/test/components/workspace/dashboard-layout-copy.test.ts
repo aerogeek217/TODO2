@@ -104,7 +104,7 @@ describe('dashboard copy', () => {
       ...emptyPredicate(),
       dates: { deadline: { match: 'set' }, created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null } },
     }, { people: [], tags: [], statuses: [] })
-    expect(listFilterHint(chips)).toBe('Due: has a date · Created: on or after start of month')
+    expect(listFilterHint(chips)).toBe('Due: any date · Created: on or after start of month')
   })
 
   it('a list tile hint spells an or group as its chips joined with "or"', () => {

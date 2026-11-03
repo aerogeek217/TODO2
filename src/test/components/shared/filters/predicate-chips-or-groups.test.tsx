@@ -407,7 +407,7 @@ describe('PredicateChips — Dates again while a date type is free (cr25 P4b)', 
       // The first free type in the tabs' order — never the wrapped chip's own.
       expect(dialogTab('Due')).toHaveAttribute('aria-selected', 'true')
       fireEvent.click(dialogTab('Next follow-up'))
-      fireEvent.click(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('radio', { name: 'Has a date' }))
+      fireEvent.click(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('radio', { name: 'Any' }))
       expect(log).toHaveLength(1)
       expect(log[0]!.dates).toEqual({})
       expect(log[0]!.orGroups).toEqual([clauses({ dates: { ...lastNot, followup: set } })])
@@ -432,7 +432,7 @@ describe('PredicateChips — Dates again while a date type is free (cr25 P4b)', 
     fireEvent.click(within(screen.getByTestId('or-group')).getAllByRole('button', { name: 'Group' })[0]!)
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Group' })).getByRole('button', { name: 'Dates' }))
     expect(dialogTab('Last follow-up')).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('radio', { name: 'Has a date' }))
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('radio', { name: 'Any' }))
     expect(log.at(-1)?.orGroups).toEqual([clauses({ markers: 'hot', dates: { deadline: set, followup: set, lastFollowup: set } })])
     expect(log.at(-1)?.dates).toEqual({})
   })

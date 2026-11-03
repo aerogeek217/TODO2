@@ -294,7 +294,7 @@ describe('FilterChipBar — primitive', () => {
         fireEvent.pointerEnter(button, { pointerType: 'mouse' })
         act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
         const tip = screen.getByRole('tooltip')
-        expect(tip).toHaveTextContent('Due: has a date')
+        expect(tip).toHaveTextContent('Due: any date')
         expect(tip).toHaveTextContent('Created: on or after start of month')
         // The range's exact first day (cr25 P7): the 1st of this month, whatever today is.
         expect(tip).toHaveTextContent(/Created: on or after start of month · on or after [A-Z][a-z]{2} 1 [A-Z][a-z]{2}/)
@@ -326,6 +326,8 @@ describe('FilterChipBar — primitive', () => {
       const dialog = screen.getByRole('dialog', { name: 'Date filters' })
       expect(within(dialog).getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('aria-selected', 'true')
       fireEvent.click(within(dialog).getByRole('tab', { name: 'Created' }))
+      expect(updates).toEqual([])
+      fireEvent.click(within(dialog).getByRole('radio', { name: 'Calendar' }))
       expect(updates).toEqual([])
       fireEvent.change(within(dialog).getByLabelText('To'), { target: { value: '2026-04-30' } })
       const last = updates.at(-1)!
@@ -511,7 +513,7 @@ describe('FilterChipBar — primitive', () => {
       fireEvent.click(screen.getByText('Dates'))
       fireEvent.click(screen.getByRole('tab', { name: 'Next follow-up' }))
       expect(updates).toEqual([])
-      fireEvent.click(screen.getByRole('radio', { name: 'No date' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'None' }))
       expect(updates.at(-1)?.dates).toEqual({ followup: { match: 'unset' } })
       rerender(<FilterChipBar density="mobile" predicate={{ ...emptyPredicate(), dates: { deadline: { match: 'set' }, created } }} onChange={(p) => updates.push(p)} />)
       expect(screen.getByText('Due + Created')).toBeInTheDocument()

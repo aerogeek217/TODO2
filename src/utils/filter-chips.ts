@@ -1,7 +1,7 @@
 import { emptyFilterClauses, OR_GROUPS_MAX, type DateAnchor, type DateFilters, type DateMatch, type FilterClauses, type FilterNegation, type MarkersFilter, type NegatableField, type Person, type Status, type Tag, type TodoPredicate } from '../models'
 import { DATE_FIELD_VALUES, type DateField } from '../models/app-view'
 import { startOfDay } from './date'
-import { RELATIVE_TOKEN_LABELS } from './date-anchor'
+import { rollingDayLabel } from './date-anchor'
 import { activeDateFields, freeDateField, hasDateFilters, withDateMatch } from './date-filters'
 import { resolveDateAnchor, type WeekStart } from './effective-date'
 import { isNegated, withIdFilter, type IdList } from './filter-negation'
@@ -138,7 +138,7 @@ export function describeAnchor(anchor: DateAnchor): string {
     case 'fixed':
       return new Date(anchor.iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     case 'relative':
-      return RELATIVE_TOKEN_LABELS[anchor.token].toLowerCase()
+      return rollingDayLabel(anchor.token)
     case 'offset':
       if (anchor.days === 0) return 'today'
       return anchor.days > 0 ? `in ${dayLabel(anchor.days)}` : `${dayLabel(-anchor.days)} ago`
@@ -201,17 +201,23 @@ export function describeRange(start: DateAnchor | null, end: DateAnchor | null):
   return ''
 }
 
+/** How a type's clause names its tasks without the date: never followed up; no due date / next follow-up. */
+function noDateWord(field: DateField): string {
+  return field === 'lastFollowup' ? 'never' : 'none'
+}
+
 /**
- * One date clause in words: `within the next 14 days`, `on or before Oct
- * 31, or none`, `has a date`, `no date`; an "is not" range with `not` (`not
+ * One `field` clause in words: `within the next 14 days`, `on or before Oct
+ * 31, or none` (Last follow-up: `, or never`); Show Any `any date`, None
+ * `none` (Last follow-up: `never`); an "is not" range with `not` (`not
  * within the next 14 days`, `not within the last 7 days`).
  */
-export function describeDateMatch(m: DateMatch): string {
-  if (m.match === 'set') return 'has a date'
-  if (m.match === 'unset') return 'no date'
+export function describeDateMatch(m: DateMatch, field: DateField): string {
+  if (m.match === 'set') return 'any date'
+  if (m.match === 'unset') return noDateWord(field)
   const range = describeRange(m.start, m.end)
   if (m.not === true) return `not ${range}`
-  return m.includeNoDate === true ? `${range}, or none` : range
+  return m.includeNoDate === true ? `${range}, or ${noDateWord(field)}` : range
 }
 
 /** Today and the week start a date chip's tooltip resolves its range's days against. */
@@ -257,14 +263,14 @@ function rangeDaysWords(start: DateAnchor | null, end: DateAnchor | null, day: C
 
 /**
  * A date range chip's tooltip: its words, then the exact days — `Last
- * follow-up: 7+ days ago, or none` / `Last followed up on or before Mon 26
+ * follow-up: 7+ days ago, or never` / `Last followed up on or before Mon 26
  * Oct, or never`; an "is not" range says what it hides (`Hides tasks with a
  * next follow-up from Mon 2 Nov through Mon 16 Nov; tasks with none stay`).
  * Without `day` only an "is not" range has one (`… in that range …`).
  */
 function dateRangeTooltip(f: DateField, m: DateMatch, day: ChipDay | undefined): string | undefined {
   if (m.match !== 'range' || (m.start == null && m.end == null)) return undefined
-  const head = `${DATE_FIELD_LABELS_SHORT[f]}: ${describeDateMatch(m)}`
+  const head = `${DATE_FIELD_LABELS_SHORT[f]}: ${describeDateMatch(m, f)}`
   const w = RANGE_WORDS[f]
   const days = day ? rangeDaysWords(m.start, m.end, day) : null
   if (m.not === true) {
@@ -285,7 +291,7 @@ function dateChips(dates: DateFilters, day: ChipDay | undefined): FilterChip[] {
     const m = dates[f]
     if (!m) return []
     const label = DATE_FIELD_LABELS_SHORT[f]
-    const value = describeDateMatch(m)
+    const value = describeDateMatch(m, f)
     const tooltip = dateRangeTooltip(f, m, day)
     const chip: FilterChip = { field: 'dates', dateField: f, label, value, ...(m.match === 'range' && m.not === true ? { negated: true as const } : {}) }
     return [tooltip ? { ...chip, tooltip } : chip]
@@ -301,7 +307,7 @@ export function chipKey(chip: FilterChip): string {
 function dateClauses(dates: DateFilters): { field: DateField; match: DateMatch; text: string; words: string }[] {
   return activeDateFields(dates).flatMap((f) => {
     const m = dates[f]
-    return m ? [{ field: f, match: m, text: `${DATE_FIELD_LABELS_SHORT[f]} ${describeDateMatch(m)}`, words: describeDateMatch(m) }] : []
+    return m ? [{ field: f, match: m, text: `${DATE_FIELD_LABELS_SHORT[f]} ${describeDateMatch(m, f)}`, words: describeDateMatch(m, f) }] : []
   })
 }
 

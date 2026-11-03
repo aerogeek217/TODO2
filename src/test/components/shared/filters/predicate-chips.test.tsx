@@ -70,7 +70,7 @@ describe('PredicateChips — date chips', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
     const dialog = screen.getByRole('dialog', { name: 'Date filters' })
     expect(within(dialog).getByRole('tab', { name: 'Next follow-up' })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(within(dialog).getByRole('radio', { name: 'Has a date' }))
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Any' }))
     expect(log.at(-1)?.dates).toEqual({ deadline: { match: 'set' }, followup: { match: 'set' } })
     expect(screen.getAllByTestId('list-filter-chip').map((c) => c.getAttribute('data-date-field'))).toEqual(['deadline', 'followup'])
     unmount()
