@@ -19,14 +19,14 @@ import { dateAnchorsEqual, readDateAnchor } from './date-anchor'
  * so two maps that filter the same compare equal.
  */
 
-/** Whether a clause filters: Has a date / No date always, a range only with an end. */
+/** Whether a clause filters: Any / None (`set` / `unset`) always, a range only with an end. */
 export function isDateMatchOn(m: DateMatch | null | undefined): m is DateMatch {
   if (!m) return false
   if (m.match !== 'range') return true
   return m.start != null || m.end != null
 }
 
-/** Whether `field` offers Has a date / No date and "also tasks with no date" (due date, next / last follow-up). */
+/** Whether `field` offers Any / None (`set` / `unset`) and "also tasks with no date" (due date, next / last follow-up). */
 export function isOptionalDateField(field: DateField): boolean {
   return OPTIONAL_DATE_FIELDS.includes(field)
 }
@@ -66,7 +66,7 @@ export function freeDateField(dates: DateFilters | null | undefined, offered: re
 
 /**
  * A clause as stored for `field`, or `null` when it doesn't filter or
- * doesn't apply there (Has a date / No date on Completed / Created / Modified).
+ * doesn't apply there (Any / None — `set` / `unset` — on Completed / Created / Modified).
  */
 export function normalizeDateMatch(field: DateField, m: DateMatch | null | undefined): DateMatch | null {
   if (!isDateMatchOn(m)) return null

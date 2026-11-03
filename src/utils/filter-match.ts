@@ -149,7 +149,7 @@ function todoDate(todo: TodoItem, field: DateField): Date | null {
 }
 
 /**
- * Whether a task passes one date clause: Has a date / No date by whether the
+ * Whether a task passes one date clause: Any / None (`set` / `unset`) by whether the
  * date is set; a range by the date as a day (anchors resolved against
  * `today`; either end open), a task without the date passing only with
  * `includeNoDate`. An "is not" range (`not`; ignored on Completed, which

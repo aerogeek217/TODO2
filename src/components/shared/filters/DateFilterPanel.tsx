@@ -55,7 +55,7 @@ type ZeroCounts = Partial<Record<DateAnchorSide, DayCount>>
 
 /**
  * "Also tasks with no …", the line in its place under an "is not" range,
- * and the Has a date / No date lines, per type that offers them.
+ * and the lines under Show's Any / None, per type that offers them.
  */
 const NO_DATE_WORDS: Partial<Record<DateField, { also: string; kept: string; has: string; none: string }>> = {
   deadline: { also: 'Also tasks with no due date', kept: 'Tasks with no due date are kept.', has: 'Only tasks that have a due date.', none: 'Only tasks with no due date.' },

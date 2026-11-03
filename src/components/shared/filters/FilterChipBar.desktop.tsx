@@ -247,7 +247,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
   )
 }
 
-/** A filter button's (or Filters menu row's) name: `People filter`, `Dates filter: Due within 7 days; Created …`. */
+/** A filter button's (or Filters menu row's) name: `People filter`, `Dates filter: Due in 14 days or earlier; Created …`. */
 function filterName(field: FieldDef): string {
   const value = field.spokenValue ?? field.value
   return value != null ? `${field.label} filter: ${value}` : `${field.label} filter`

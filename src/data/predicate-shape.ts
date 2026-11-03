@@ -99,7 +99,7 @@ const DATE_FILTER_WORDS: Record<DateField, string> = {
  * One stored date clause for `field`, rebuilt from its known keys; `null`
  * for a range with neither end (no filter, not stored), `undefined` when
  * malformed — an unknown `match`, a bad range end, `includeNoDate` or
- * `not` (not a boolean), Has a date / No date on a type that is a range only
+ * `not` (not a boolean), Any / None (`set` / `unset`) on a type that is a range only
  * (completed, created, modified), or an "is not" on Completed's range (not
  * defined there; dropping only the switch would turn the filter round, so
  * the clause goes). `includeNoDate` is kept only when true, on the optional

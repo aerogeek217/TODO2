@@ -87,7 +87,7 @@ export interface DateRangeMatch {
 export type DateFilters = Partial<Record<DateField, DateMatch>>
 
 /**
- * The date types a task may lack that offer Has a date / No date and "also
+ * The date types a task may lack that offer Any / None (`set` / `unset`) and "also
  * tasks with no date": the due date, the next follow-up, the last follow-up.
  * Completed is a range only (Show completed already says has / has not), and
  * its range lets completed tasks through (`utils/filter-criteria.admitsCompleted`).
