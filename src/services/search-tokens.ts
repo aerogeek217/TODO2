@@ -30,7 +30,7 @@ import type { TintSpan, TokenTint } from './nlp-token-tints'
  *  - `due ⟨phrase⟩` / `followup ⟨phrase⟩`: today · tomorrow · ⟨weekday⟩ ·
  *    MM/DD (`utils/date-phrase`) · this week · next week · this month, and
  *    `followup late`; `/due` / `/followup ⟨date⟩` read as one day too;
- *  - `no due`, `no followup` → that date type's No date;
+ *  - `no due`, `no followup` → that date type's None (`unset`);
  *  - `done` / `completed` → Show completed.
  *
  * Everything else is the text search. A token is complete once a space

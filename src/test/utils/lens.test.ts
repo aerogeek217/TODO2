@@ -60,8 +60,8 @@ describe('presetLenses', () => {
 
   it('the presets read naturally in words', () => {
     const words = presetLenses(7, ids).map((p) => describeFilters(filterChips(p.predicate, { people: [], statuses: [{ id: 7, name: 'Waiting', color: '#aa0', sortOrder: 0 }], tags: [] })))
-    expect(words[0]).toBe('Due up to 30 days ahead, or none · Next follow-up up to 14 days ahead, or none')
-    expect(words[3]).toBe('Modified from 30 days ago')
+    expect(words[0]).toBe('Due in 30 days or earlier, or none · Next follow-up in 14 days or earlier, or none')
+    expect(words[3]).toBe('Modified 30 days ago or later')
   })
 
   it('no Not waiting without a Waiting status', () => {

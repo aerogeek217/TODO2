@@ -121,25 +121,30 @@ describe('FilterSheet', () => {
       fireEvent.click(screen.getByText('Dates'))
       fireEvent.click(screen.getByRole('tab', { name: 'Created' }))
       expect(useFilterStore.getState().filters.dates).toEqual({})
+      fireEvent.click(screen.getByRole('radio', { name: 'Calendar' }))
+      expect(useFilterStore.getState().filters.dates).toEqual({})
       fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-04-01' } })
       expect(Object.keys(useFilterStore.getState().filters.dates)).toEqual(['created'])
     })
 
-    it('sets date range start from input', () => {
+    it('sets date range start from the Calendar date input', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Dates'))
+      fireEvent.click(screen.getByRole('radio', { name: 'Calendar' }))
       fireEvent.change(screen.getByLabelText('From'), { target: { value: '2026-04-01' } })
 
       const due = useFilterStore.getState().filters.dates.deadline
       const dateRangeStart = due?.match === 'range' ? due.start : null
       if (!dateRangeStart || dateRangeStart.kind !== 'fixed') throw new Error('expected fixed anchor')
-      expect(dateRangeStart.iso.slice(0, 10)).toBe('2026-04-01')
+      // The day's local midnight (its ISO's own day is UTC's).
+      expect(dateRangeStart.iso).toBe(new Date(2026, 3, 1).toISOString())
     })
 
-    it('sets a relative-token anchor from the token dropdown', () => {
+    it('sets a rolling day from the Relative dropdown', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Dates'))
-      fireEvent.change(screen.getByLabelText('From (relative)'), { target: { value: 'start-of-week' } })
+      fireEvent.click(screen.getByRole('button', { name: 'From: No start' }))
+      fireEvent.click(screen.getByRole('menuitemradio', { name: 'start of week' }))
 
       const due = useFilterStore.getState().filters.dates.deadline
       const dateRangeStart = due?.match === 'range' ? due.start : null
@@ -147,23 +152,23 @@ describe('FilterSheet', () => {
       expect(dateRangeStart.token).toBe('start-of-week')
     })
 
-    it('Show: Has a date / No date / In range on the due date', () => {
+    it('Show: Any / None / Relative on the due date', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Dates'))
-      fireEvent.click(screen.getByRole('radio', { name: 'Has a date' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'Any' }))
       expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'set' } })
-      fireEvent.click(screen.getByRole('radio', { name: 'No date' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'None' }))
       expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'unset' } })
-      fireEvent.click(screen.getByRole('radio', { name: 'In range' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'Relative' }))
       expect(useFilterStore.getState().filters.dates).toEqual({})
     })
 
     it('two types at once: the row reads both, Clear <Type> clears one', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Dates'))
-      fireEvent.click(screen.getByRole('radio', { name: 'Has a date' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'Any' }))
       fireEvent.click(screen.getByRole('tab', { name: 'Next follow-up' }))
-      fireEvent.click(screen.getByRole('radio', { name: 'No date' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'None' }))
       expect(useFilterStore.getState().filters.dates).toEqual({ deadline: { match: 'set' }, followup: { match: 'unset' } })
       expect(screen.getByText('Due + Next follow-up')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Clear Next follow-up' }))

@@ -1,7 +1,8 @@
-import { afterEach, describe, expect, it } from 'vitest'
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { PredicateChips } from '../../../../components/shared/filters/PredicateChips'
+import { TOOLTIP_DELAY_MS } from '../../../../components/shared/use-tooltip'
 import { emptyPredicate, type TodoPredicate } from '../../../../models'
 
 /** A list's own filter chips: one chip per date type, × clears only its type, a click opens the panel on it. */
@@ -26,7 +27,22 @@ describe('PredicateChips — date chips', () => {
   it('shows one chip per date type that filters, in tab order', () => {
     render(<Harness initial={twoDates} log={[]} />)
     const chips = screen.getAllByTestId('list-filter-chip')
-    expect(chips.map((c) => c.textContent)).toEqual(['Duewithin 7 days', 'Createdfrom start of month'])
+    expect(chips.map((c) => c.textContent)).toEqual(['Duewithin the next 7 days', 'Createdon or after start of month'])
+  })
+
+  it('a date chip’s tooltip spells its exact days, resolved against today (cr25 P7)', () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] })
+    // Mon 2 Nov 2026, weeks starting Monday (the default).
+    vi.setSystemTime(new Date(2026, 10, 2, 10))
+    try {
+      render(<Harness initial={twoDates} log={[]} />)
+      const [due] = screen.getAllByTestId('list-filter-chip')
+      fireEvent.pointerEnter(due!, { pointerType: 'mouse' })
+      act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+      expect(screen.getByRole('tooltip')).toHaveTextContent('Due: within the next 7 daysDue from Mon 2 Nov through Mon 9 Nov')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('a chip’s × clears only its date type', () => {
@@ -35,7 +51,7 @@ describe('PredicateChips — date chips', () => {
     const [due] = screen.getAllByTestId('list-filter-chip')
     fireEvent.click(within(due!).getByRole('button', { name: 'Remove filter' }))
     expect(log.at(-1)?.dates).toEqual({ created: { match: 'range', start: startOfMonth, end: null } })
-    expect(screen.getAllByTestId('list-filter-chip').map((c) => c.textContent)).toEqual(['Createdfrom start of month'])
+    expect(screen.getAllByTestId('list-filter-chip').map((c) => c.textContent)).toEqual(['Createdon or after start of month'])
   })
 
   it('clicking a chip opens the date panel on that chip’s type, and shows the chip open', () => {
@@ -54,7 +70,7 @@ describe('PredicateChips — date chips', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
     const dialog = screen.getByRole('dialog', { name: 'Date filters' })
     expect(within(dialog).getByRole('tab', { name: 'Next follow-up' })).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(within(dialog).getByRole('radio', { name: 'Has a date' }))
+    fireEvent.click(within(dialog).getByRole('radio', { name: 'Any' }))
     expect(log.at(-1)?.dates).toEqual({ deadline: { match: 'set' }, followup: { match: 'set' } })
     expect(screen.getAllByTestId('list-filter-chip').map((c) => c.getAttribute('data-date-field'))).toEqual(['deadline', 'followup'])
     unmount()

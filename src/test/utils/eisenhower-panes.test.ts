@@ -84,7 +84,7 @@ describe('paneSubtitle of a custom filter', () => {
 
   it('names dates and text with their field; an empty filter is every task', () => {
     const [pane] = resolvePanes({ do: { filter: p({ dates: { deadline: { match: 'unset' } }, searchText: 'call', tags: [5] }) } })
-    expect(paneSubtitle(pane!, NAMES)).toBe('#home · Due no date · Text “call”')
+    expect(paneSubtitle(pane!, NAMES)).toBe('#home · Due none · Text “call”')
     const [empty] = resolvePanes({ do: { filter: p({}) } })
     expect(paneSubtitle(empty!, NAMES)).toBe('Every task')
   })

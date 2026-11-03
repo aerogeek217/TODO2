@@ -336,11 +336,11 @@ export function FilterChipBarMobile({
         </AccordionSection>
       )}
 
-      {/* Dates: the date panel at touch sizes */}
+      {/* Dates: the date panel at touch sizes; off, no value (as People / Tags / Status — and Show's `Any` means "has the date") */}
       <AccordionSection
         label="Dates"
-        value={dates ?? 'Any'}
-        valueOn={dates != null}
+        value={dates ?? undefined}
+        valueOn
         open={openSection === 'date'}
         onToggle={() => handleSection('date')}
       >

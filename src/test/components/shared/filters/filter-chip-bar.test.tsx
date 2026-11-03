@@ -278,7 +278,7 @@ describe('FilterChipBar — primitive', () => {
       const { rerender } = render(<FilterChipBar predicate={{ ...emptyPredicate(), dates: { deadline: due } }} onChange={() => {}} />)
       expect(screen.getByRole('button', { name: 'Dates filter: Due today – end of next week' })).toHaveTextContent('Due today – end of next week')
       rerender(<FilterChipBar predicate={{ ...emptyPredicate(), dates: { deadline: due, created } }} onChange={() => {}} />)
-      const two = screen.getByRole('button', { name: 'Dates filter: Due today – end of next week; Created from start of month' })
+      const two = screen.getByRole('button', { name: 'Dates filter: Due today – end of next week; Created on or after start of month' })
       expect(two).toHaveTextContent('Due + Created')
       rerender(<FilterChipBar predicate={{ ...emptyPredicate(), dates: { deadline: due, created, followup: { match: 'set' } } }} onChange={() => {}} />)
       expect(screen.getByRole('button', { name: /^Dates filter:/ })).toHaveTextContent('Due + 2')
@@ -294,8 +294,10 @@ describe('FilterChipBar — primitive', () => {
         fireEvent.pointerEnter(button, { pointerType: 'mouse' })
         act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
         const tip = screen.getByRole('tooltip')
-        expect(tip).toHaveTextContent('Due: has a date')
-        expect(tip).toHaveTextContent('Created: from start of month')
+        expect(tip).toHaveTextContent('Due: any date')
+        expect(tip).toHaveTextContent('Created: on or after start of month')
+        // The range's exact first day (cr25 P7): the 1st of this month, whatever today is.
+        expect(tip).toHaveTextContent(/Created: on or after start of month · on or after [A-Z][a-z]{2} 1 [A-Z][a-z]{2}/)
         expect(tip).toHaveTextContent('Tasks must match both · × clears both')
         fireEvent.click(screen.getByRole('button', { name: 'Clear date filters' }))
         expect(updates.at(-1)).toMatchObject({ dates: {}, personIds: [1] })
@@ -324,6 +326,8 @@ describe('FilterChipBar — primitive', () => {
       const dialog = screen.getByRole('dialog', { name: 'Date filters' })
       expect(within(dialog).getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('aria-selected', 'true')
       fireEvent.click(within(dialog).getByRole('tab', { name: 'Created' }))
+      expect(updates).toEqual([])
+      fireEvent.click(within(dialog).getByRole('radio', { name: 'Calendar' }))
       expect(updates).toEqual([])
       fireEvent.change(within(dialog).getByLabelText('To'), { target: { value: '2026-04-30' } })
       const last = updates.at(-1)!
@@ -499,22 +503,25 @@ describe('FilterChipBar — primitive', () => {
       expect(captured!.tags).not.toContain(10)
     })
 
-    it('the Dates section shows the Dates value (Any when off) and holds the date panel at touch sizes', () => {
+    it('the Dates section shows the Dates value (nothing when off, like People / Tags / Status) and holds the date panel at touch sizes', () => {
       const updates: TodoPredicate[] = []
       const created = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null }
       const { rerender } = render(
         <FilterChipBar density="mobile" predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />,
       )
-      expect(screen.getByText('Dates').parentElement).toHaveTextContent('Any')
+      // Not `Any`: the panel's Show › Any means "has the date" (P7–P8 review).
+      expect(screen.getByText('Dates').parentElement).toHaveTextContent(/^Dates▸$/)
       fireEvent.click(screen.getByText('Dates'))
       fireEvent.click(screen.getByRole('tab', { name: 'Next follow-up' }))
       expect(updates).toEqual([])
-      fireEvent.click(screen.getByRole('radio', { name: 'No date' }))
+      fireEvent.click(screen.getByRole('radio', { name: 'None' }))
       expect(updates.at(-1)?.dates).toEqual({ followup: { match: 'unset' } })
       rerender(<FilterChipBar density="mobile" predicate={{ ...emptyPredicate(), dates: { deadline: { match: 'set' }, created } }} onChange={(p) => updates.push(p)} />)
       expect(screen.getByText('Due + Created')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Clear all dates' }))
       expect(updates.at(-1)?.dates).toEqual({})
+      rerender(<FilterChipBar density="mobile" predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
+      expect(screen.getByText('Dates').parentElement).toHaveTextContent(/^Dates▸$/)
     })
 
     it('sets markers to Yes / No at mobile density', () => {

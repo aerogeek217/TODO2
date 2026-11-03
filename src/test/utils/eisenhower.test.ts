@@ -312,7 +312,7 @@ describe('resolvePaneDrop on custom panes', () => {
     const res = resolvePaneDrop([task], 'schedule', panes, ctx)
     expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: { date: 'deadline' } } }] })
     if (res.kind !== 'blocked') return
-    expect(blockedPaneLines(panes[1]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Due filter (has a date).')
+    expect(blockedPaneLines(panes[1]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Due filter (any date).')
   })
 
   it('a Completed date clause is named in the refusal (not Show completed, not an earlier pane)', () => {
@@ -324,7 +324,7 @@ describe('resolvePaneDrop on custom panes', () => {
     const res = resolvePaneDrop([task], 'do', panes, ctx)
     expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: { date: 'completed' } } }] })
     if (res.kind !== 'blocked') return
-    expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Completed filter (from start of week).')
+    expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Completed filter (on or after start of week).')
     // A task completed in the range lands (the pane ignores Show completed).
     expect(resolvePaneDrop([t({ urgent: true, important: true, isCompleted: true, completedAt: TODAY })], 'do', panes, ctx)).toEqual({ kind: 'none' })
   })

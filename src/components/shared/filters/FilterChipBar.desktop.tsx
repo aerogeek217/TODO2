@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, 
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor, type PopoverCaret } from '../../../hooks/use-popover-anchor'
 import { datesSpokenValue, datesTooltip, datesValue, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
+import { useChipDay } from './filter-menu'
 import { entityPickerSelection } from '../../../utils/filter-negation'
 import { NO_TAGS_LABEL } from '../../../utils/filter-labels'
 import type { TodoPredicate } from '../../../models'
@@ -246,7 +247,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
   )
 }
 
-/** A filter button's (or Filters menu row's) name: `People filter`, `Dates filter: Due within 7 days; Created …`. */
+/** A filter button's (or Filters menu row's) name: `People filter`, `Dates filter: Due in 14 days or earlier; Created …`. */
 function filterName(field: FieldDef): string {
   const value = field.spokenValue ?? field.value
   return value != null ? `${field.label} filter: ${value}` : `${field.label} filter`
@@ -475,6 +476,7 @@ export function FilterChipBarDesktop({
 
   const names = useMemo(() => ({ people, tags: sortedTags, statuses }), [people, sortedTags, statuses])
   const { values, tooltips } = useFieldValues(p, names)
+  const day = useChipDay()
 
   // "Is": an inactive field's picker opens with nothing ticked (`previewEmpty`)
   // and the first tick narrows to it. "Is not": nothing ticked is no filter,
@@ -591,7 +593,8 @@ export function FilterChipBarDesktop({
       },
     })
   }
-  const dateTooltip = datesTooltip(p.dates)
+  // A range's tooltip spells its exact days (from one date type on).
+  const dateTooltip = datesTooltip(p.dates, day)
   fields.push({
     key: 'dates',
     label: 'Dates',
