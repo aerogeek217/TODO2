@@ -11,7 +11,6 @@ export interface TodoItem {
   uid: string
   title: string
   notes?: string
-  progress?: string
   isCompleted: boolean
   /**
    * When the task was last completed. Set on completion, cleared on reopen

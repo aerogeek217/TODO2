@@ -1,10 +1,11 @@
 /**
  * Applies the changes the user ticked in the check-in import dialog. Every
- * write goes through the todo store, as a manual edit would (completion
+ * write goes through the stores, as a manual edit would (completion
  * time, task history, file-sync saves), and the whole import is one undo
  * entry with the undo snackbar: undo reopens the completed tasks and puts
- * back the old progress, notes and follow-up dates.
+ * back the old notes and follow-up dates and removes the status updates added.
  */
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import type { CheckinChange, CheckinReplyDiff } from './diff'
@@ -45,7 +46,7 @@ export interface CheckinTaskUpdate {
   todoId: number
   /** Complete the task. */
   complete: boolean
-  /** The new progress. */
+  /** The reply's status update: added to the task, dated today. */
   progress?: string
   /** The new notes (`''` removes them). */
   notes?: string
@@ -78,7 +79,8 @@ export function checkinAppliedMessage(changeCount: number, personName: string): 
 
 /**
  * Writes `updates` as one undo entry (`Applied N changes from <name>`, with
- * the undo snackbar): completions first, then each task's progress / notes,
+ * the undo snackbar): completions first, then each task's status update
+ * (an entry dated today, `followedUp` with `recordFollowup`) / notes,
  * then — when `recordFollowup` — "Mark followed up" on every updated task.
  * Returns the number of changes applied. A failed write stops there; what
  * was written before it stays and is still one undo entry, named for the
@@ -103,13 +105,20 @@ export async function applyCheckinUpdates(
     }
 
     for (const u of updates) {
-      if (u.progress === undefined && u.notes === undefined) continue
-      const saved = await useTodoStore.getState().update(u.todoId, {
-        ...(u.progress !== undefined ? { progress: u.progress } : {}),
-        ...(u.notes !== undefined ? { notes: u.notes === '' ? undefined : u.notes } : {}),
-      })
-      if (!saved) throw new Error(`Couldn't save the reply's changes to task ${u.todoId}`)
-      applied += u.changeCount - (u.complete ? 1 : 0)
+      if (u.progress !== undefined) {
+        const added = await useStatusUpdateStore.getState().add(u.todoId, {
+          date: new Date(),
+          text: u.progress,
+          ...(options.recordFollowup ? { followedUp: true } : {}),
+        })
+        if (!added) throw new Error(`Couldn't save the reply's status update to task ${u.todoId}`)
+        applied += 1
+      }
+      if (u.notes !== undefined) {
+        const saved = await useTodoStore.getState().update(u.todoId, { notes: u.notes === '' ? undefined : u.notes })
+        if (!saved) throw new Error(`Couldn't save the reply's notes to task ${u.todoId}`)
+        applied += 1
+      }
     }
 
     if (options.recordFollowup) await useTodoStore.getState().markFollowedUp(updates.map((u) => u.todoId))

@@ -848,7 +848,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
           dueDate: todo.dueDate,
           nextFollowupAt: todo.nextFollowupAt,
           notes: todo.notes,
-          progress: todo.progress,
           statusId: todo.statusId,
           recurrenceRule: todo.recurrenceRule,
           ...(todo.urgent === true ? { urgent: true } : {}),

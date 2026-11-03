@@ -10,7 +10,7 @@
 import { describe, expect, it } from 'vitest'
 import { diffCheckinReply, notesLineKey, replyNotesLines } from '../../../services/checkin-reply/diff'
 import { parseCheckinReply, type CheckinReplyBlock, type ParsedCheckinReply } from '../../../services/checkin-reply/parse'
-import { checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
+import { checkinSampleStatusUpdates, checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
 
 const files = import.meta.glob('../../fixtures/checkin-replies/*.{html,txt,json}', {
   query: '?raw',
@@ -96,7 +96,7 @@ describe('check-in reply captures', () => {
       expect(reply.blocks.length).toBeGreaterThan(0)
 
       const todos = checkinSampleTasks()
-      const diff = diffCheckinReply(reply, { todos })
+      const diff = diffCheckinReply(reply, { todos, statusUpdatesByTodo: checkinSampleStatusUpdates() })
       expect(diff.unmatched).toEqual([])
       expect(diff.tasks.map((t) => t.ref)).toEqual(reply.blocks.map((b) => b.ref))
 

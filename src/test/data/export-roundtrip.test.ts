@@ -65,7 +65,7 @@ function buildSeed(): Seed {
   return {
     todos: [
       {
-        id: 1, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e01', title: 'Send quarterly report', notes: 'Include **charts**', progress: 'draft done',
+        id: 1, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e01', title: 'Send quarterly report', notes: 'Include **charts**',
         isCompleted: false,
         dueDate: at('2026-10-16T00:00:00.000Z'),
         lastFollowupAt: at('2026-09-13T14:25:31.000Z'),

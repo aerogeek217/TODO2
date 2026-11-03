@@ -47,6 +47,12 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(true)
   })
 
+  it('a task row keeps no Progress (status updates replace it, schema v72)', () => {
+    const result = validateImportData(validData({ todos: [makeTodo({ progress: '50% done' })] }))
+    expect(result.ok).toBe(true)
+    if (result.ok) expect(result.data.todos?.[0]).not.toHaveProperty('progress')
+  })
+
   it('rejects non-object', () => {
     expect(validateImportData('string').ok).toBe(false)
     expect(validateImportData(null).ok).toBe(false)

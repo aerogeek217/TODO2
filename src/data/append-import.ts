@@ -152,7 +152,6 @@ export async function appendImportTasks(
         sortOrder: nextSort++,
       }
       if (t.notes != null) row.notes = t.notes
-      if (t.progress != null) row.progress = t.progress
       if (t.isCompleted && t.completedAt != null) row.completedAt = t.completedAt
       if (t.dueDate != null) row.dueDate = t.dueDate
       if (t.lastFollowupAt != null) row.lastFollowupAt = t.lastFollowupAt

@@ -21,6 +21,7 @@ import { parseCheckinReply, type CheckinReplyInput } from '../../services/checki
 import { advanceRecurring } from '../../utils/recurrence'
 import { usePersonStore } from '../../stores/person-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { autoFollowupInterval, useSettingsStore } from '../../stores/settings-store'
 import { describeFollowupInterval } from '../../utils/followup'
 import { formatDateShort } from '../../utils/date'
@@ -96,7 +97,10 @@ function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: st
   if (parsed.reply.blocks.length === 0) {
     return { error: 'No task updates were found. Copy the whole reply, including each task’s Ref line, and paste again.' }
   }
-  const diff = diffCheckinReply(parsed.reply, { todos: useTodoStore.getState().todos })
+  const diff = diffCheckinReply(parsed.reply, {
+    todos: useTodoStore.getState().todos,
+    statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo,
+  })
   return { reply: { diff, orphanUpdates: parsed.reply.orphanUpdates } }
 }
 

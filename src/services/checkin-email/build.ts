@@ -17,7 +17,7 @@
  *
  * The task's status is never part of the email.
  */
-import type { Person, PersistedTodoItem, Tag } from '../../models'
+import type { Person, PersistedTodoItem, StatusUpdate, Tag } from '../../models'
 import { startOfDay, toDateInputValue } from '../../utils/date'
 import { daysUntil } from '../../utils/effective-date'
 import { escapeHtml } from '../../utils/html'
@@ -39,6 +39,8 @@ export interface CheckinEmailContext {
    * `createTaskRefLookup` over every task's uid so refs stay unique.
    */
   refOf?: (uid: string) => string
+  /** Each task's status updates, newest first: the update row shows the newest's text. */
+  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
 }
 
 export interface CheckinEmailOptions {
@@ -179,7 +181,7 @@ function sectionViews(
     title: collapseWhitespace(todo.title),
     ref: refOf(todo.uid),
     meta: metaItems(todo, person, ctx, opts),
-    progress: collapseWhitespace(todo.progress ?? ''),
+    progress: collapseWhitespace(ctx.statusUpdatesByTodo?.get(todo.id)?.at(0)?.text ?? ''),
     notes: (todo.notes ?? '').replace(/\r\n?/g, '\n').trimEnd(),
   })
   const out: SectionView[] = []

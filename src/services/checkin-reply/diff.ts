@@ -7,7 +7,8 @@
  * - **Completed:** a marked box on an open task → complete it. An unmarked
  *   box proposes nothing; a reply never reopens a task.
  * - **Progress:** one line (whitespace collapsed, capped like the editor),
- *   compared with the current progress. An empty reply value never clears it.
+ *   compared with the task's newest status update; a change adds an entry
+ *   (`apply.ts`). An empty reply value proposes nothing.
  * - **Notes:** the reply's notes replace the task's notes. Both sides are
  *   compared line by line on their visible text (the current notes go
  *   through the same `mdToHtml` → `htmlToMarkdown` path the email and reply
@@ -22,7 +23,7 @@
  *   changes. Refs that match no task (or several) are returned as
  *   `unmatched` — a deleted task is one of those.
  */
-import type { PersistedTodoItem } from '../../models'
+import type { PersistedTodoItem, StatusUpdate } from '../../models'
 import { replaceMarkdownLinks } from '../../utils/markdown-links'
 import { resolveTaskRef } from '../checkin-email/ref'
 import { htmlToMarkdown, mdToHtml } from '../notes-export'
@@ -114,6 +115,8 @@ export interface CheckinReplyDiff {
 export interface CheckinDiffContext {
   /** Every task (completed ones too), to match refs against. */
   todos: readonly PersistedTodoItem[]
+  /** Each task's status updates, newest first: the reply's update is compared with the newest's text. */
+  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
 }
 
 // ── Notes lines ─────────────────────────────────────────────────────────
@@ -348,12 +351,12 @@ export function replyProgress(value: string): string {
   return collapseWhitespace(value).slice(0, CHECKIN_PROGRESS_MAX).trim()
 }
 
-function blockChanges(todo: PersistedTodoItem, block: CheckinReplyBlock): CheckinChange[] {
+function blockChanges(todo: PersistedTodoItem, block: CheckinReplyBlock, statusUpdatesByTodo: CheckinDiffContext['statusUpdatesByTodo']): CheckinChange[] {
   const changes: CheckinChange[] = []
   if (block.completed === true) changes.push({ field: 'completed', defaultSelected: true })
   if (block.progress !== undefined) {
     const to = replyProgress(block.progress)
-    const from = todo.progress ?? ''
+    const from = statusUpdatesByTodo?.get(todo.id)?.at(0)?.text ?? ''
     if (to !== '' && to !== collapseWhitespace(from)) changes.push({ field: 'progress', from, to, defaultSelected: true })
   }
   const notes = diffNotes(todo.notes ?? '', replyNotesLines(block))
@@ -383,7 +386,7 @@ export function diffCheckinReply(parsed: ParsedCheckinReply, ctx: CheckinDiffCon
       tasks.push({ ref: block.ref, todo, alreadyCompleted: true, changes: [] })
       continue
     }
-    tasks.push({ ref: block.ref, todo, alreadyCompleted: false, changes: blockChanges(todo, block) })
+    tasks.push({ ref: block.ref, todo, alreadyCompleted: false, changes: blockChanges(todo, block, ctx.statusUpdatesByTodo) })
   }
   return {
     ...(parsed.personName ? { personName: parsed.personName } : {}),

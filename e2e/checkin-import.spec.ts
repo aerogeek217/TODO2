@@ -29,10 +29,10 @@ const seed: WorkspaceSeed = {
   tasks: [
     {
       title: 'Answer Northwind’s security questionnaire', people: ['Marcus Chen'], uid: '0c4d8e17-5b2a-4f1e-9c3d-7a6b5c4d3e2f',
-      progress: 'half done', notes: 'Sections 4 and 7 still open.\nSam has the SOC 2 letter.', modifiedAt,
+      statusUpdates: [{ text: 'half done', inDays: -3 }], notes: 'Sections 4 and 7 still open.\nSam has the SOC 2 letter.', modifiedAt,
     },
     // A planned follow-up after today: recording one keeps it.
-    { title: 'Review the staging load-test results', people: ['Marcus Chen'], uid: 'b71e05d9-1111-4222-8333-444455556666', progress: '40%', followupInDays: 5, modifiedAt },
+    { title: 'Review the staging load-test results', people: ['Marcus Chen'], uid: 'b71e05d9-1111-4222-8333-444455556666', statusUpdates: [{ text: '40%', inDays: -3 }], followupInDays: 5, modifiedAt },
     { title: 'Draft the migration runbook', people: ['Marcus Chen'], uid: '3f9a1c42-aaaa-4bbb-8ccc-ddddeeeeffff', notes: RUNBOOK_NOTES, modifiedAt },
     {
       title: 'Renew the Contoso support contract — confirm pricing tier & seats (<50 users?)', people: ['Marcus Chen'],
@@ -42,14 +42,16 @@ const seed: WorkspaceSeed = {
   layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
 }
 
-interface TaskRow { title: string; isCompleted: boolean; progress?: string; notes?: string; lastFollowupAt?: string }
+interface TaskRow { title: string; isCompleted: boolean; updates: string[]; notes?: string; lastFollowupAt?: string }
 
-/** Every task row, straight from IndexedDB, by title. */
+/** Every task row, straight from IndexedDB, by title, with its status update texts (oldest written first). */
 async function readTasks(page: Page): Promise<Record<string, TaskRow>> {
-  const rows = (await readStore<Omit<TaskRow, 'lastFollowupAt'> & { lastFollowupAt?: Date }>(page, 'todos')).map((t) => ({
+  const updates = await readStore<{ todoId: number; text: string }>(page, 'statusUpdates')
+  const tasks = await readStore<Omit<TaskRow, 'lastFollowupAt' | 'updates'> & { id: number; lastFollowupAt?: Date }>(page, 'todos')
+  const rows = tasks.map((t) => ({
     title: t.title,
     isCompleted: t.isCompleted,
-    ...(t.progress !== undefined ? { progress: t.progress } : {}),
+    updates: updates.filter((u) => u.todoId === t.id).map((u) => u.text),
     ...(t.notes !== undefined ? { notes: t.notes } : {}),
     ...(t.lastFollowupAt ? { lastFollowupAt: t.lastFollowupAt.toISOString() } : {}),
   }))
@@ -110,7 +112,7 @@ test('paste a reply, untick one change, apply; Undo restores the old notes', asy
 
   await expect.poll(async () => (await readTasks(page))['Review the staging load-test results']?.isCompleted).toBe(true)
   const after = await readTasks(page)
-  expect(after['Answer Northwind’s security questionnaire']?.progress).toBe('half done')
+  expect(after['Answer Northwind’s security questionnaire']?.updates).toEqual(['half done'])
   expect(after['Answer Northwind’s security questionnaire']?.lastFollowupAt).toBeUndefined()
   const runbook = after['Draft the migration runbook']
   expect(runbook?.notes).toBe([

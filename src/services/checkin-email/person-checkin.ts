@@ -65,7 +65,10 @@ export function prepareCheckin(
   const email = buildCheckinEmail(
     person,
     sections,
-    { today: ctx.today, assignedPeopleMap: ctx.assignedPeopleMap, assignedTagsMap: ctx.assignedTagsMap, refOf: ctx.refOf },
+    {
+      today: ctx.today, assignedPeopleMap: ctx.assignedPeopleMap, assignedTagsMap: ctx.assignedTagsMap,
+      refOf: ctx.refOf, statusUpdatesByTodo: ctx.statusUpdatesByTodo,
+    },
     { ...include, sentAt },
   )
   return { email, taskIds: [...sections.overdue, ...sections.comingUp].map((t) => t.id) }

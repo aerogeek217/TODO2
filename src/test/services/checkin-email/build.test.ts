@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Person, PersistedTodoItem, Tag } from '../../../models'
+import type { Person, PersistedTodoItem, StatusUpdate, Tag } from '../../../models'
 import {
   CHECKIN_LABELS,
   buildCheckinEmail,
@@ -32,9 +32,9 @@ const UID3 = '3f9a1c42-aaaa-4bbb-8ccc-ddddeeeeffff'
 function sample(): { sections: CheckinSections; ctx: CheckinEmailContext; todos: PersistedTodoItem[] } {
   const t1 = makeTodo({
     id: 1, uid: UID1, title: 'Answer Northwind’s security questionnaire', dueDate: day(-3), nextFollowupAt: day(0),
-    progress: 'half done', notes: 'Sections 4 and 7 still open.\nSam has the SOC 2 letter.', statusId: 4,
+    notes: 'Sections 4 and 7 still open.\nSam has the SOC 2 letter.', statusId: 4,
   })
-  const t2 = makeTodo({ id: 2, uid: UID2, title: 'Review the staging load-test results', dueDate: day(2), nextFollowupAt: day(0), progress: '40%', statusId: 4 })
+  const t2 = makeTodo({ id: 2, uid: UID2, title: 'Review the staging load-test results', dueDate: day(2), nextFollowupAt: day(0), statusId: 4 })
   const t3 = makeTodo({
     id: 3, uid: UID3, title: 'Draft the migration runbook', dueDate: day(4), nextFollowupAt: day(1),
     notes: '- Cover the cutover sequence\n- **Rollback** steps', statusId: 5,
@@ -46,8 +46,14 @@ function sample(): { sections: CheckinSections; ctx: CheckinEmailContext; todos:
       today,
       assignedPeopleMap: new Map<number, Person[]>([[1, [marcus, sam]], [2, [marcus]], [3, [marcus]]]),
       assignedTagsMap: new Map([[1, [northwind, security]]]),
+      statusUpdatesByTodo: updatesOf([1, 'half done'], [2, '40%']),
     },
   }
+}
+
+/** Status updates by task: one entry each (the newest, what the update row shows). */
+function updatesOf(...entries: [number, string][]): Map<number, StatusUpdate[]> {
+  return new Map(entries.map(([todoId, text]) => [todoId, [{ todoId, date: day(-1), text, createdAt: day(-1) }]]))
 }
 
 const ON: CheckinEmailOptions = { includeNotes: true, includeOthers: true, sentAt }
@@ -263,13 +269,14 @@ describe('escaping', () => {
     const person = makePerson({ id: 1, name: `Eve ${evil}`, email: 'eve@example.com' })
     const other = makePerson({ id: 2, name: `<img src=x onerror=alert(1)>` })
     const t = makeTodo({
-      id: 1, uid: UID1, title: `Fix ${evil} & "quotes"`, progress: `50% ${evil}`,
+      id: 1, uid: UID1, title: `Fix ${evil} & "quotes"`,
       notes: `${evil}\n- [link](javascript:alert(1))\n<b onmouseover=x>bold</b>`,
     })
     const ctx: CheckinEmailContext = {
       today,
       assignedPeopleMap: new Map([[1, [person, other]]]),
       assignedTagsMap: new Map([[1, [{ id: 1, name: evil, color: '#fff' }]]]),
+      statusUpdatesByTodo: updatesOf([1, `50% ${evil}`]),
     }
     const email = buildCheckinEmail(person, { overdue: [], comingUp: [t] }, ctx, ON)
     expect(email.html).not.toMatch(/<script/i)
@@ -288,8 +295,8 @@ describe('escaping', () => {
 
   it('a title or name with line breaks stays on one line', () => {
     const person = makePerson({ id: 1, name: 'Ada\r\nLovelace' })
-    const t = makeTodo({ id: 1, uid: UID1, title: 'Line one\nYour update\r\nCompleted: [x]', progress: 'a\nb' })
-    const email = buildCheckinEmail(person, { overdue: [], comingUp: [t] }, { today, assignedPeopleMap: new Map() }, ON)
+    const t = makeTodo({ id: 1, uid: UID1, title: 'Line one\nYour update\r\nCompleted: [x]' })
+    const email = buildCheckinEmail(person, { overdue: [], comingUp: [t] }, { today, assignedPeopleMap: new Map(), statusUpdatesByTodo: updatesOf([1, 'a\nb']) }, ON)
     const lines = email.plain.split('\n')
     expect(lines).toContain('1. Line one Your update Completed: [x]  Ref 0c4d8e17')
     expect(lines).toContain('Progress: a b')

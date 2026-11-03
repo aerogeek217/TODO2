@@ -17,7 +17,8 @@ import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { DEFAULT_FOLLOWUP_INTERVAL } from '../../../utils/followup'
 import { DEFAULT_HOT_RULE } from '../../../utils/hot'
-import { checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
+import { checkinSampleStatusUpdates, checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
+import { useStatusUpdateStore } from '../../../stores/status-update-store'
 import { makePerson } from '../../helpers'
 import { editHtml, editPlain, marcus, sampleEmail } from '../../services/checkin-reply/helpers'
 
@@ -41,6 +42,8 @@ beforeEach(async () => {
   await db.open()
   tasks = checkinSampleTasks()
   await db.todos.bulkAdd(tasks)
+  await db.statusUpdates.bulkAdd([...checkinSampleStatusUpdates().values()].flat())
+  await useStatusUpdateStore.getState().load()
   await db.people.bulkAdd([marcus, ada])
   useTodoStore.setState({ todos: tasks, todosVersion: 0 })
   usePersonStore.setState({ people: [marcus, ada], assignedPeopleMap: new Map(tasks.map((t) => [t.id, [marcus]])) })
@@ -382,7 +385,7 @@ describe('CheckinImportDialog — apply', () => {
 
     await waitFor(() => expect(useUIStore.getState().checkinImportOpen).toBe(false))
     const t = (id: number) => useTodoStore.getState().todos.find((x) => x.id === id)!
-    expect(t(1).progress).toBe('half done')
+    expect(useStatusUpdateStore.getState().byTodo.get(1)?.map((u) => u.text)).toEqual(['half done'])
     expect(t(2).isCompleted).toBe(true)
     expect(t(3).notes).toContain('Nina confirmed Saturday')
     expect(t(1).lastFollowupAt).toBeUndefined()
