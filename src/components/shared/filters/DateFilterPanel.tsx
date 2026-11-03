@@ -18,6 +18,7 @@ import {
   switchAnchorMode,
   type DateAnchorSide,
   type DateEntryMode,
+  type DayCount,
   type ModeSwitchMemo,
 } from '../../../utils/date-anchor'
 import { describeDateMatch } from '../../../utils/filter-chips'
@@ -48,6 +49,9 @@ const OPTIONAL_CHOICES: readonly { mode: ShowMode; label: string }[] = [
 
 /** The ends' mode-switch memos for one type (`switchAnchorMode`), while the panel is open. */
 type SwitchMemos = Partial<Record<DateAnchorSide, ModeSwitchMemo>>
+
+/** What a 0-day end counts for one type, per end (`DateAnchorInput`'s `zeroCount`), while the panel is open. */
+type ZeroCounts = Partial<Record<DateAnchorSide, DayCount>>
 
 /**
  * "Also tasks with no …", the line in its place under an "is not" range,
@@ -152,6 +156,8 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   // from the ends) — and what a switch converted (never stored). Clear forgets both: a new range again.
   const [modes, setModes] = useState<Partial<Record<DateField, DateEntryMode>>>({})
   const [memos, setMemos] = useState<Partial<Record<DateField, SwitchMemos>>>({})
+  // What an offset of 0 counts, per type and end: the count written there last (never stored; else days ago).
+  const [zeroCounts, setZeroCounts] = useState<Partial<Record<DateField, ZeroCounts>>>({})
   const day = useChipDay()
   const tabRefs = useRef(new Map<DateField, HTMLButtonElement>())
   const showRefs = useRef(new Map<ShowMode, HTMLButtonElement>())
@@ -247,7 +253,12 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
     }
     setModes(drop)
     setMemos(drop)
+    setZeroCounts(drop)
   }
+
+  const keepZeroCount = (side: DateAnchorSide, count: DayCount) => setZeroCounts((all) => (
+    all[field]?.[side] === count ? all : { ...all, [field]: { ...all[field], [side]: count } }
+  ))
 
   const clearType = () => {
     forgetHidden(field)
@@ -395,6 +406,8 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
                       value={value}
                       label={label}
                       day={day}
+                      zeroCount={zeroCounts[field]?.[side]}
+                      onZeroCountChange={(c) => keepZeroCount(side, c)}
                       touch={sheet}
                       describedBy={words ? wordsId : undefined}
                       onChange={(v) => (side === 'from' ? setRange(v, end) : setRange(start, v))}

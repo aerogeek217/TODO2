@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { DateAnchorInput } from '../../components/shared/DateAnchorInput'
 import type { DateAnchor } from '../../models'
-import type { DateAnchorSide, DateEntryMode } from '../../utils/date-anchor'
+import type { DateAnchorSide, DateEntryMode, DayCount } from '../../utils/date-anchor'
 
 /**
  * One end of a date range (cr25 P8, D23 boards B / C). Calendar: a date
@@ -27,6 +27,8 @@ function Harness({ mode, side, initial = null, log, describedBy }: {
   describedBy?: string
 }) {
   const [value, setValue] = useState<DateAnchor | null>(initial)
+  // Held by the owner, as DateFilterPanel does.
+  const [zeroCount, setZeroCount] = useState<DayCount | undefined>(undefined)
   const label = side === 'from' ? 'From' : 'To'
   return (
     <DateAnchorInput
@@ -35,6 +37,8 @@ function Harness({ mode, side, initial = null, log, describedBy }: {
       value={value}
       label={label}
       day={DAY}
+      zeroCount={zeroCount}
+      onZeroCountChange={setZeroCount}
       describedBy={describedBy}
       onChange={(v) => { log.push(v); setValue(v) }}
     />
@@ -218,12 +222,26 @@ describe('DateAnchorInput: Relative', () => {
     expect(screen.getByLabelText('To: number of days')).toHaveValue('0')
   })
 
-  it('0 keeps the count it was typed under', () => {
+  it('0 keeps the count it was typed under (the owner holds it: zeroCount)', () => {
     const log: (DateAnchor | null)[] = []
     render(<Harness mode="relative" side="to" initial={{ kind: 'offset', days: 5 }} log={log} />)
     fireEvent.change(screen.getByLabelText('To: number of days'), { target: { value: '0' } })
     expect(log.at(-1)).toEqual({ kind: 'offset', days: 0 })
     expect(screen.getByRole('button', { name: 'To: days ahead' })).toBeInTheDocument()
+  })
+
+  it('an offset of 0 reads zeroCount, days ago without one; each count written is reported', () => {
+    const onZero = vi.fn()
+    const at0 = { kind: 'offset' as const, days: 0 }
+    const { rerender } = render(<DateAnchorInput mode="relative" side="to" value={at0} label="To" day={DAY} onChange={() => {}} onZeroCountChange={onZero} />)
+    expect(screen.getByRole('button', { name: 'To: days ago' })).toBeInTheDocument()
+    rerender(<DateAnchorInput mode="relative" side="to" value={at0} label="To" day={DAY} zeroCount="ahead" onChange={() => {}} onZeroCountChange={onZero} />)
+    expect(screen.getByRole('button', { name: 'To: days ahead' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('To: number of days'), { target: { value: '3' } })
+    expect(onZero).toHaveBeenLastCalledWith('ahead')
+    fireEvent.click(screen.getByRole('button', { name: 'To: days ahead' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: /^1 week ago/ }))
+    expect(onZero).toHaveBeenLastCalledWith('ago')
   })
 
   it('a rolling day hides the number; No end clears', () => {

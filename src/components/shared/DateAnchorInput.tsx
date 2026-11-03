@@ -41,6 +41,14 @@ export interface DateAnchorInputProps {
   label: string
   /** Today and the week start the presets resolve against. */
   day: ChipDay
+  /**
+   * What an offset of 0 counts here (it has no sign of its own); default
+   * `days ago`. The owner holds it so it outlives this input (a tab or mode
+   * switch remounts it) — see `onZeroCountChange`.
+   */
+  zeroCount?: DayCount
+  /** The count of every day count this input writes, for the owner to hold as `zeroCount`. */
+  onZeroCountChange?: (count: DayCount) => void
   /** The id of the line under a Relative end (its day today), read with the number and the dropdown. */
   describedBy?: string
   /** The phone sheet's touch sizes. */
@@ -123,17 +131,16 @@ function CalendarEnd({ side, value, onChange, label, day, touch, className }: Da
   )
 }
 
-function RelativeEnd({ side, value, onChange, label, day, describedBy, touch, className }: DateAnchorInputProps) {
+function RelativeEnd({ side, value, onChange, label, day, zeroCount, onZeroCountChange, describedBy, touch, className }: DateAnchorInputProps) {
   const ref = useRef<HTMLButtonElement | null>(null)
   const numberRef = useRef<HTMLInputElement | null>(null)
   const [open, setOpen] = useState(false)
-  // What an offset of 0 counts (it has no sign): the count picked or shown last.
-  const [lastCount, setLastCount] = useState<DayCount>('ago')
-  if (value?.kind === 'offset' && value.days !== 0) {
-    const sign: DayCount = value.days < 0 ? 'ago' : 'ahead'
-    if (sign !== lastCount) setLastCount(sign)
+  const end = relativeEndOf(value, zeroCount)
+  // A day count written: its count is what a 0 here counts from now on.
+  const writeCount = (days: number, count: DayCount) => {
+    onZeroCountChange?.(count)
+    onChange(countAnchor(days, count))
   }
-  const end = relativeEndOf(value, lastCount)
   // The number box's text while it can't be stored (cleared to retype).
   const [draft, setDraft] = useState<string | null>(null)
   if (end.kind !== 'count' && draft !== null) setDraft(null)
@@ -149,14 +156,13 @@ function RelativeEnd({ side, value, onChange, label, day, describedBy, touch, cl
     // A count keeps the number; from anything else, the end's day if it lies that way from today, else 0.
     const distance = end.kind === 'count' || value == null ? null : daysUntil(resolveDateAnchor(value, day.today, day.weekStartsOn), day.today)
     const days = end.kind === 'count' ? end.days : Math.max(0, (distance ?? 0) * (count === 'ago' ? -1 : 1))
-    setLastCount(count)
     setDraft(null)
-    onChange(countAnchor(days, count))
+    writeCount(days, count)
     setFocusNumber((n) => n + 1)
   }
   const fill = (days: number) => {
     setDraft(null)
-    onChange({ kind: 'offset', days })
+    writeCount(days, days < 0 ? 'ago' : 'ahead')
   }
 
   const rolling = ROLLING_DAYS[side]
@@ -197,7 +203,7 @@ function RelativeEnd({ side, value, onChange, label, day, describedBy, touch, cl
             if (!COUNT_DRAFT_PATTERN.test(raw)) return
             setDraft(raw)
             if (raw === '') return
-            onChange(countAnchor(parseInt(raw, 10), end.count))
+            writeCount(parseInt(raw, 10), end.count)
           }}
           onBlur={() => setDraft(null)}
           aria-label={`${label}: number of days`}

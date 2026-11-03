@@ -239,6 +239,38 @@ describe('DateFilterPanel', () => {
     })
   })
 
+  describe('0 days keeps its count while the panel is open (P7–P8 review)', () => {
+    it('another tab and back: still days ahead, and a typed number counts ahead', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} />)
+      pickRelative('To', 'days ahead')
+      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 0 } } })
+      expect(relative('To')).toHaveAccessibleName('To: days ahead')
+      fireEvent.click(tab('Created'))
+      fireEvent.click(tab('Due, filtering'))
+      expect(relative('To')).toHaveAccessibleName('To: days ahead')
+      fireEvent.change(screen.getByLabelText('To: number of days'), { target: { value: '5' } })
+      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 5 } } })
+    })
+
+    it('Calendar and back: still days ahead; each end keeps its own', () => {
+      const log: DateFilters[] = []
+      render(<Harness log={log} />)
+      pickRelative('To', 'days ahead')
+      pickRelative('From', 'days ago')
+      fireEvent.click(show('Calendar'))
+      fireEvent.click(show('Relative'))
+      expect(log.at(-1)).toEqual({ deadline: { match: 'range', start: { kind: 'offset', days: 0 }, end: { kind: 'offset', days: 0 } } })
+      expect(relative('To')).toHaveAccessibleName('To: days ahead')
+      expect(relative('From')).toHaveAccessibleName('From: days ago')
+    })
+
+    it('with nothing picked, a saved 0 reads days ago', () => {
+      render(<Harness log={[]} initial={{ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 0 } } }} />)
+      expect(relative('To')).toHaveAccessibleName('To: days ago')
+    })
+  })
+
   it('Created / Modified: Show is Calendar · Relative only, and no “also tasks with no …”', () => {
     render(<Harness log={[]} initialField="created" />)
     const group = screen.getByRole('radiogroup', { name: 'Which tasks' })
