@@ -9,6 +9,7 @@ import { useLensDraftStore } from '../stores/lens-draft-store'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListOrderStore } from '../stores/list-order-store'
+import { useStatusUpdateStore } from '../stores/status-update-store'
 import { useUndoStore } from '../stores/undo-store'
 import { useFilterStore } from '../stores/filter-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
@@ -62,6 +63,7 @@ export async function refreshAllStores() {
     useNoteStore.getState().load(),
     useListDefinitionStore.getState().load(),
     useListOrderStore.getState().load(),
+    useStatusUpdateStore.getState().load(),
     // Re-open the active layout from the replaced data (drops any unsaved
     // working copy); untouched until the workspace has been opened once.
     ...(useWorkspaceStore.getState().hydrated ? [useWorkspaceStore.getState().init()] : []),
@@ -89,6 +91,7 @@ export async function refreshTaskStores() {
     usePersonStore.getState().load(),
     useTagStore.getState().load(),
     useStatusStore.getState().load(),
+    useStatusUpdateStore.getState().load(),
   ])
   await loadAssignmentMaps({ refetch: false })
 }

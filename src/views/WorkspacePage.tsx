@@ -19,6 +19,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
+import { useStatusUpdateStore } from '../stores/status-update-store'
 import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignments-for-todos'
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
@@ -103,7 +104,7 @@ const followPointer: Modifier = ({ activatorEvent, draggingNodeRect, overlayNode
 
 /**
  * Loads everything the workspace's widgets read, whatever route the app was
- * opened on: all tasks, people, tags, statuses, lists — and the people / tag assignments of the
+ * opened on: all tasks, people, tags, statuses, lists, status updates — and the people / tag assignments of the
  * loaded tasks, so chips and person / tag groups render on a cold load. It
  * doesn't subscribe to the tasks themselves, so a task edit doesn't re-render
  * the page.
@@ -115,6 +116,7 @@ function useWorkspaceData(): void {
     void useTagStore.getState().ensureLoaded()
     void useStatusStore.getState().ensureLoaded()
     void useListDefinitionStore.getState().ensureLoaded()
+    void useStatusUpdateStore.getState().ensureLoaded()
   }, [])
   useEntityAssignmentsForLoadedTodos()
   useClearSelectionOnOutsideClick()

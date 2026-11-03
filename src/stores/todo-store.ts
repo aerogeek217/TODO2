@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { NewTodoItem, PersistedListOrder, PersistedTodoItem, TodoChanges, TodoEvent } from '../models'
+import type { NewTodoItem, PersistedListOrder, PersistedStatusUpdate, PersistedTodoItem, TodoChanges, TodoEvent } from '../models'
 import { todoRepository } from '../data'
 import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
@@ -8,12 +8,15 @@ import { loadFresh, mutate, optimistic, captureAssignments, captureAssignmentsBu
 import { autoNextFollowup, newTaskDefaultFollowup, useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
+import { useStatusUpdateStore } from './status-update-store'
+import { statusUpdateRepository } from '../data/status-update-repository'
 import { takeSafetySnapshot } from './safety-snapshot'
 import { usePersonStore } from './person-store'
 import { useTagStore } from './tag-store'
 import { resolveCompletedAt } from '../utils/completed-at'
 import { formatFollowupDate, nextAfterFollowup } from '../utils/followup'
 import { fieldsOf, revertChanges, todoChanges, withOrphanedRuleDropped } from '../utils/todo-changes'
+import { compareStatusUpdates } from '../utils/status-updates'
 
 /** A task to create with the people and tags it starts with (`addMany`). */
 export interface NewTaskWithAssignments {
@@ -236,27 +239,31 @@ export const useTodoStore = create<TodoState>((set, get) => {
   /**
    * The undo step of a task just created (`row`, with `assignments`): undo
    * deletes it, redo puts it back as it was when undone — its row, people,
-   * tags, list ranks and events read at that moment (as a delete's undo
-   * does), so a change made after the create without an undo step of its own
-   * (a manual-order move, a sync-file load) survives the round trip.
+   * tags, list ranks, status updates and events read at that moment (as a
+   * delete's undo does), so a change made after the create without an undo
+   * step of its own (a manual-order move, a sync-file load) survives the
+   * round trip.
    */
   function registerCreated(description: string, row: PersistedTodoItem, assignments: CapturedAssignments): void {
     const id = row.id
     let snapshot = row
     let captured = assignments
     let ranks: PersistedListOrder[] = []
+    let updates: PersistedStatusUpdate[] = []
     let events: TodoEvent[] = []
     undoable(
       description,
       async () => {
         await get()._restore(snapshot, captured, events)
         await useListOrderStore.getState().restoreRows(ranks)
+        await useStatusUpdateStore.getState().restoreRows(updates)
       },
       async () => {
         const current = get().todos.find((t) => t.id === id)
         if (current) snapshot = { ...current }
         captured = await captureAssignments(id)
         ranks = await listOrderRepository.getByTodos([id])
+        updates = await statusUpdateRepository.getByTodos([id])
         events = await get()._removeNoUndo(id)
       },
     )
@@ -346,6 +353,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         console.warn('[todo-store] reloading assignments after adding tasks failed', e)
       })
       let removedEvents: TodoEvent[] = []
+      let removedUpdates: PersistedStatusUpdate[] = []
       undoable(
         description,
         async () => {
@@ -353,10 +361,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
             snapshots.map((s) => ({ ...s, events: removedEvents.filter((e) => e.todoId === s.todo.id) })),
           )
           await put()
+          await useStatusUpdateStore.getState().restoreRows(removedUpdates)
         },
         async () => {
+          removedUpdates = await statusUpdateRepository.getByTodos(ids)
           removedEvents = await todoRepository.bulkDelete(ids)
           useListOrderStore.getState().forgetTodos(ids)
+          useStatusUpdateStore.getState().forgetTodos(ids)
           const idSet = new Set(ids)
           set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
         },
@@ -466,9 +477,11 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const snapshot = { ...todo }
       const assignments = await captureAssignments(id)
       const ranks = await listOrderRepository.getByTodos([id])
+      const updates = await statusUpdateRepository.getByTodos([id])
 
       const events = await todoRepository.delete(id)
       useListOrderStore.getState().forgetTodos([id])
+      useStatusUpdateStore.getState().forgetTodos([id])
       set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
 
       undoable(
@@ -477,6 +490,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         async () => {
           await get()._restore(snapshot, assignments, events)
           await useListOrderStore.getState().restoreRows(ranks)
+          await useStatusUpdateStore.getState().restoreRows(updates)
         },
         true,
       )
@@ -795,9 +809,11 @@ export const useTodoStore = create<TodoState>((set, get) => {
       })
 
       const ranks = await listOrderRepository.getByTodos(ids)
+      const updates = await statusUpdateRepository.getByTodos(ids)
 
       const events = await todoRepository.bulkDelete(ids)
       useListOrderStore.getState().forgetTodos(ids)
+      useStatusUpdateStore.getState().forgetTodos(ids)
       const idSet = new Set(ids)
       set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
 
@@ -809,6 +825,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
             await get()._restore(todo, { personIds, tagIds }, events.filter((e) => e.todoId === todo.id))
           }
           await useListOrderStore.getState().restoreRows(ranks)
+          await useStatusUpdateStore.getState().restoreRows(updates)
         },
         true,
       )
@@ -842,6 +859,17 @@ export const useTodoStore = create<TodoState>((set, get) => {
       }])
       if (!newTodo) throw new Error('The copy was not stored')
       set({ todos: [...get().todos, newTodo], todosVersion: get().todosVersion + 1 })
+      // The copy's status updates: the task's, same days and texts, written
+      // now (oldest first, so they keep their order). Best effort: the copy
+      // exists; a failed write only leaves it without them.
+      await statusUpdateRepository.getByTodos([id])
+        .then((updates) => useStatusUpdateStore.getState().addRows(
+          [...updates].sort(compareStatusUpdates).reverse()
+            .map((u) => ({ todoId: newTodo.id, date: u.date, text: u.text, createdAt: now })),
+        ))
+        .catch((e: unknown) => {
+          console.warn('[todo-store] copying the status updates of a duplicated task failed', e)
+        })
       // Best effort: the copy exists; a failed cache reload only leaves its
       // chips missing until the next load.
       if (assignments.personIds.length > 0 || assignments.tagIds.length > 0) {
@@ -870,6 +898,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     return trackWrite(async () => {
       const events = await todoRepository.delete(id)
       useListOrderStore.getState().forgetTodos([id])
+      useStatusUpdateStore.getState().forgetTodos([id])
       set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
       return events
     })
@@ -894,6 +923,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       if (doomed.length > 0) {
         await todoRepository.bulkDelete(doomed)
         useListOrderStore.getState().forgetTodos(doomed)
+        useStatusUpdateStore.getState().forgetTodos(doomed)
         const doomedSet = new Set(doomed)
         set({ todos: get().todos.filter((t) => !doomedSet.has(t.id)), todosVersion: get().todosVersion + 1 })
       }
