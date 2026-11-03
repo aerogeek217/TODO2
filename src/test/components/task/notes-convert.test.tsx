@@ -233,6 +233,17 @@ describe('Convert preview', () => {
     expect(doc()).toBe('✓ One\n  ✓ Two\nplain')
   })
 
+  it('a line’s !status gives its task the status; an unknown one stays in the title', async () => {
+    useStatusStore.setState({ statuses: [{ id: 50, name: 'Waiting', color: '#fa0', sortOrder: 0 }] })
+    const { dialog } = await openPreview('- Call vendor !wa\n- Ship !nope')
+    expect(within(dialog).getAllByRole('listitem').map((r) => r.getAttribute('aria-label'))).toEqual(['Call vendor', 'Ship !nope'])
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create 2 tasks' }))
+    await screen.findByRole('dialog', { name: 'Remove 2 converted lines from the note?' })
+    const todos = useTodoStore.getState().todos
+    expect(todos.find((t) => t.title === 'Call vendor')?.statusId).toBe(50)
+    expect(todos.find((t) => t.title === 'Ship !nope')?.statusId).toBeUndefined()
+  })
+
   it('finds the lines again when the note changed before the answer', async () => {
     const { dialog, view, doc } = await openPreview('- a\n- b\nkeep me')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create 2 tasks' }))

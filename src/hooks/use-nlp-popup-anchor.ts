@@ -3,7 +3,7 @@ import { usePopoverAnchor, type PopoverAnchor } from './use-popover-anchor'
 
 const POPUP_GAP_PX = 4
 
-/** The `@ # /` popup's width where a field hosts it (`NlpPopup`). */
+/** The `@ # ! /` popup's width where a field hosts it (`NlpPopup`). */
 export const NLP_POPUP_WIDTH_PX = 280
 
 interface AnchorRect { left: number; top: number; right: number; bottom: number }
@@ -27,7 +27,7 @@ const sameRect = (a: AnchorRect | null, b: AnchorRect | null) =>
 const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
 
 /**
- * Where a field's `@ # /` popup (`NlpPopup`, portal'd to the body, fixed)
+ * Where a field's `@ # ! /` popup (`NlpPopup`, portal'd to the body, fixed)
  * goes: `usePopoverAnchor` against the input's box from the caret column
  * (`useNlpAutocomplete`'s `caretLeft`). The rect is static to that hook, so it
  * is re-measured here on scroll (capture) and resize while the popup shows;

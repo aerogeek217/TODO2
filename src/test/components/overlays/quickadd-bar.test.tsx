@@ -408,10 +408,10 @@ describe('QuickAddBar', () => {
     })
   })
 
-  it('/status renders the status chip; :status is plain text', () => {
+  it('!status renders the status chip; :status is plain text', () => {
     const onSubmit = vi.fn()
     render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
-    changeInput('/status doing fix it :blocked')
+    changeInput('!doing fix it :blocked')
     expect(chipTexts()).toContain('Doing')
     fireEvent.keyDown(getInput(), { key: 'Enter' })
     const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
@@ -429,10 +429,80 @@ describe('QuickAddBar', () => {
 
   it('names several new people, and keeps an unknown status on its own line', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
-    changeInput('check it @ghost @"Marco Rossi" /status nope ')
+    changeInput('check it @ghost @"Marco Rossi" !nope ')
     expect(screen.getByText('New people:')).toBeInTheDocument()
     expect(screen.getByText('@ghost @Marco Rossi')).toBeInTheDocument()
-    expect(screen.getByText('Unknown status:').parentElement).toHaveTextContent(/^Unknown status:\s*\/status nope\s*— stays in the title$/)
+    expect(screen.getByText('Unknown status:').parentElement).toHaveTextContent(/^Unknown status:\s*!nope\s*— stays in the title$/)
+  })
+
+  it('a second !status is a repeat: its own line, left in the title', () => {
+    const onSubmit = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+    changeInput('fix it !doing !blocked ')
+    expect(chipTexts()).toContain('Doing')
+    expect(screen.getByText('Repeated:').parentElement).toHaveTextContent(/^Repeated:\s*!blocked\s*— stays in the title; the first !status counts$/)
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).title).toBe('fix it !blocked')
+  })
+
+  it('/status is an unknown command now', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    changeInput('fix it /status doing ')
+    expect(chipTexts()).not.toContain('Doing')
+    expect(screen.getByText('Unknown command:').parentElement).toHaveTextContent(/^Unknown command:\s*\/status\s*— stays in the title$/)
+  })
+
+  it('the footer names the ! trigger', () => {
+    render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+    expect(screen.getByText('!').parentElement).toHaveTextContent(/^! status$/)
+  })
+
+  describe('! statuses', () => {
+    function typeTo(value: string) {
+      const input = getInput()
+      input.setSelectionRange(value.length, value.length)
+      fireEvent.change(input, { target: { value } })
+      return input
+    }
+
+    beforeEach(() => {
+      useStatusStore.setState({ statuses: [
+        doingStatus,
+        { id: 101, name: 'Waiting', color: '#fa0', sortOrder: 1, icon: 'clock' },
+        { id: 102, name: 'On Hold', color: '#888', sortOrder: 2 },
+      ] })
+    })
+
+    it('! lists the statuses in Settings order with their glyphs; no Create row', () => {
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+      typeTo('Call legal !')
+      const listbox = screen.getByRole('listbox', { name: 'Statuses' })
+      const options = Array.from(listbox.querySelectorAll('[role="option"]'), (o) => o.textContent)
+      expect(options).toEqual(['!Doing', '!Waiting', '!On Hold'])
+      expect(listbox.querySelectorAll('svg')).toHaveLength(3)
+      typeTo('Call legal !zz')
+      expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
+    })
+
+    it('!wa ⏎ adds the task with the status', async () => {
+      const onSubmit = vi.fn()
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeTo('Call legal !wa')
+      expect(screen.getByRole('option', { name: '!Waiting' })).toHaveAttribute('aria-selected', 'true')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
+      const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
+      expect(draft.rawTitle).toBe('Call legal !Waiting ')
+      expect(draft.title).toBe('Call legal')
+      expect(draft.resolved.statusId).toBe(101)
+    })
+
+    it('Tab picks a status with a space in its name, quoted', async () => {
+      render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
+      typeTo('Call legal !on')
+      await act(async () => { fireEvent.keyDown(getInput(), { key: 'Tab' }) })
+      expect(getInput().value).toBe('Call legal !"On Hold" ')
+      expect(chipTexts()).toContain('On Hold')
+    })
   })
 
   describe('slash menu', () => {
@@ -451,7 +521,7 @@ describe('QuickAddBar', () => {
       typeAtCaret('Call legal /')
       expect(screen.getByRole('listbox', { name: 'Commands' })).toBeInTheDocument()
       expect(options().map((t) => t.split(/[A-Z]/)[0])).toEqual([
-        '/focus', '/urgent', '/important', '/due', '/followup', '/repeat', '/status',
+        '/focus', '/urgent', '/important', '/due', '/followup', '/repeat',
       ])
       typeAtCaret('Call legal /fo')
       expect(options()).toEqual(['/focusAdd to Focus', '/followupNext follow-up…'])
@@ -821,7 +891,7 @@ describe('QuickAddBar — chip ×', () => {
 
   it('every chip has a × that is not a Tab stop; the Adding to label has none', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} preset={{ focus: true, source: 'Focus' }} />)
-    typeAt('Fix @Anna @Zed #x /due tomorrow /repeat daily /status Doing /urgent')
+    typeAt('Fix @Anna @Zed #x /due tomorrow /repeat daily !Doing /urgent')
     const group = screen.getByRole('group', { name: 'What the task gets' })
     const buttons = Array.from(group.querySelectorAll('button'))
     expect(buttons.map((b) => b.getAttribute('aria-label'))).toEqual([
@@ -869,11 +939,11 @@ describe('QuickAddBar — chip ×', () => {
 
   it('marker, due, repeat and status chips', () => {
     render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
-    const input = typeAt('Standup /urgent /due today /repeat daily /status Doing')
+    const input = typeAt('Standup /urgent /due today /repeat daily !Doing')
     pressRemove('Remove Urgent')
-    expect(input).toHaveValue('Standup /due today /repeat daily /status Doing')
+    expect(input).toHaveValue('Standup /due today /repeat daily !Doing')
     pressRemove('Remove repeat')
-    expect(input).toHaveValue('Standup /due today /status Doing')
+    expect(input).toHaveValue('Standup /due today !Doing')
     pressRemove('Remove status')
     expect(input).toHaveValue('Standup /due today')
     pressRemove('Remove due date')

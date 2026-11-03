@@ -83,7 +83,7 @@ export function FilterSheet() {
               onScroll={syncMirror}
               onMouseUp={(e) => box.onCaretMove(e.currentTarget)}
               onKeyDown={(e) => {
-                // The `@ # /` popup's keys; ⏎ makes every token a section's value;
+                // The `@ # ! /` popup's keys; ⏎ makes every token a section's value;
                 // Backspace in the empty box takes the last one back.
                 if (box.onKeyDown(e)) {
                   e.preventDefault()
@@ -102,7 +102,7 @@ export function FilterSheet() {
               </button>
             )}
           </div>
-          {/* The `@ # /` popup inside the sheet, under the box. */}
+          {/* The `@ # ! /` popup inside the sheet, under the box. */}
           {box.ac.state.visible && box.ac.state.view && (
             <NlpPopup
               view={box.ac.state.view}

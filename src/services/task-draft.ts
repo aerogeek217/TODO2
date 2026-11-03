@@ -54,7 +54,7 @@ export interface DraftContext {
   today?: Date
 }
 
-/** A new task's status: a typed `/status`, else the two defaults in `first` order. */
+/** A new task's status: a typed `!status`, else the two defaults in `first` order. */
 export function newTaskStatus(
   typed: number | undefined,
   defaults: { settings: number | null | undefined; filter: number | null | undefined },
@@ -106,7 +106,7 @@ function splitTags(names: readonly string[], tags: readonly Tag[]): { ids: numbe
 }
 
 /**
- * Parses task text (Quick Add's grammar: `@person`, `#tag`, slash commands)
+ * Parses task text (Quick Add's grammar: `@person`, `#tag`, `!status`, slash commands)
  * into a draft with the new-task defaults (`draftFromResolved`).
  */
 export function draftFromText(text: string, ctx: DraftContext): TaskDraft {
@@ -117,7 +117,7 @@ export function draftFromText(text: string, ctx: DraftContext): TaskDraft {
 /**
  * Parsed task text into a draft, plus the defaults of where the task is
  * added: the filter's people when the text names nobody, its tags and
- * markers, and a status (typed `/status`, else Settings' default and the
+ * markers, and a status (typed `!status`, else Settings' default and the
  * filter's, in `ctx.statusDefaultFirst` order). `fallbackTitle` is the
  * title when the text is all tokens. Defaults naming a status / person / tag
  * that no longer exists are left out.
@@ -153,7 +153,7 @@ function withStatus(statusId: number | undefined): { statusId?: number } {
 /**
  * The draft the task editor's draft / create mode hands back: its fields
  * and picked people / tags, plus anything typed into the title (commands,
- * `@` / `#`), which is parsed again as on create. The editor passes
+ * `@` / `#` / `!`), which is parsed again as on create. The editor passes
  * `nextFollowupAt` only once it differs from the default. A status / person
  * / tag that no longer exists (seeded from a filter naming it) is left out.
  */

@@ -172,11 +172,13 @@ describe('notes autocomplete — commands and create', () => {
     expect(popup(v)).toBeNull()
   })
 
-  it('/status quotes a multi-word status', () => {
+  it('! lists the statuses; a multi-word status is quoted', () => {
     const { view: v } = setup('- Ship ')
-    type(v, '/status in')
+    type(v, '!in')
+    expect(popup(v)?.view.header).toBe('Statuses')
     key(v, 'Enter')
-    expect(v.state.doc.toString()).toBe('- Ship /status "In progress" ')
+    expect(v.state.doc.toString()).toBe('- Ship !"In progress" ')
+    expect(popup(v)).toBeNull()
   })
 
   it('picking a create row inserts the token and creates the entity at once', () => {
@@ -246,10 +248,11 @@ describe('notes token tints', () => {
     [...v.contentDOM.querySelectorAll<HTMLElement>('.cm-nlp-tint')].map((el) => `${el.textContent}:${el.dataset.tint}`)
 
   it('tints recognised tokens per line with the Quick Add kinds', () => {
-    const { view: v } = setup('- Draft @Anna #q4 /due fri /urgent\n- Call @Marco /status Nope\nplain a/b line')
+    const { view: v } = setup('- Draft @Anna #q4 /due fri /urgent\n- Call @Marco !Nope\n- Ship !"In progress"\nplain a/b line Hi!')
     expect(tints(v)).toEqual([
       '@Anna:chip', '#q4:chip', '/due fri:due', '/urgent:urgent',
-      '@Marco:new', '/status Nope:error',
+      '@Marco:new', '!Nope:error',
+      '!"In progress":chip',
     ])
   })
 

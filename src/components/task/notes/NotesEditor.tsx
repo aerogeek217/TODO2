@@ -27,7 +27,7 @@ interface NotesEditorProps {
    */
   viewRef?: { current: EditorView | null }
   /**
-   * The `@ # /` autocomplete popup and token tints (`notes-nlp`). Read once,
+   * The `@ # ! /` autocomplete popup and token tints (`notes-nlp`). Read once,
    * when the editor is created.
    */
   nlp?: NotesNlpConfig

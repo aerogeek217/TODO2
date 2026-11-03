@@ -89,7 +89,7 @@
   text-decoration: underline;
 }
 
-/* `@ # /` token tints: Quick Add's colours, radius 3, no padding (the
+/* `@ # ! /` token tints: Quick Add's colours, radius 3, no padding (the
    monospace columns never shift). */
 .host :global(.cm-nlp-tint) {
   border-radius: 3px;

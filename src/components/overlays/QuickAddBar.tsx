@@ -14,17 +14,17 @@
  * Eisenhower quadrant's "+") is dropped from the preset instead. The focus
  * and the caret stay in the field.
  *
- * ⏎ always adds the task, even while the `@ # /` popup is open: a
+ * ⏎ always adds the task, even while the `@ # ! /` popup is open: a
  * half-typed token is completed to its best match first; an unreadable one
  * stays in the title as typed. Tab (or a click) picks a suggestion, and so
  * does ⏎ after ↑/↓. Text that is only tokens adds nothing and says so.
  *
  * Inline syntax (parsed live, removed from the title):
- *   @person   #tag   /focus /urgent /important /due /followup /repeat /status
+ *   @person   #tag   !status   /focus /urgent /important /due /followup /repeat
  * Plain words are never read as dates.
  *
  * The bar sits on the command palette's backdrop (dimmed, blurred): a click
- * on it closes the bar and never reaches the app underneath. The `@ # /`
+ * on it closes the bar and never reaches the app underneath. The `@ # ! /`
  * popup, its person / tag menu and the editors that menu opens stack above.
  *
  * Title input carries `data-shortcut-scope="none"` so global keyboard
@@ -97,7 +97,7 @@ export type ParsedTokens = {
   recurrence?: RecurrenceType
   /** Person names from `@` tokens that didn't match any known person. */
   unmatchedPersons: string[]
-  /** The `/status` name when it matched no status. */
+  /** The `!` name when it matched no status. */
   unmatchedStatuses: string[]
   urgent?: boolean
   important?: boolean
@@ -307,7 +307,7 @@ function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
         <span className={`${styles.chip} ${styles.statusChip}`}>
           <span style={{ color: draft.status.color }}><StatusIcon icon={draft.status.icon || DEFAULT_STATUS_ICON} filled /></span>
           {draft.status.name}
-          <ChipRemove label="Remove status" onRemove={() => onRemove({ kind: 'command', command: 'status' })} />
+          <ChipRemove label="Remove status" onRemove={() => onRemove({ kind: 'status' })} />
         </span>
       )}
       {preset?.source && <span className={styles.chipsSource}>Adding to {preset.source}</span>}
@@ -319,9 +319,9 @@ function hasPreset(preset: QuickAddPreset | undefined): boolean {
   return preset != null && (preset.urgent === true || preset.important === true || preset.focus === true || !!preset.source)
 }
 
-/** One line per command that sets nothing. */
+/** One line per command (or `!status`) that sets nothing. */
 function problemLine(p: CommandProblem): { label: string; explain: string; error?: boolean } {
-  const first = p.command ? `the first /${p.command} counts` : ''
+  const first = p.command ? `the first /${p.command} counts` : p.status !== undefined ? 'the first !status counts' : ''
   switch (p.kind) {
     case 'unknown': return { label: 'Unknown command:', explain: '— stays in the title' }
     case 'duplicate': return { label: 'Repeated:', explain: `— stays in the title; ${first}` }
@@ -331,10 +331,7 @@ function problemLine(p: CommandProblem): { label: string; explain: string; error
       if (p.command === 'due' || p.command === 'followup') {
         return { label: "Can't read date:", explain: `— try ${DATE_ARGUMENT_HINT[p.command]}`, error: true }
       }
-      if (p.command === 'repeat') {
-        return { label: "Can't read repeat:", explain: `— try ${REPEAT_FREQUENCIES.join(', ')}`, error: true }
-      }
-      return { label: "Can't read status:", explain: '— add a status name', error: true }
+      return { label: "Can't read repeat:", explain: `— try ${REPEAT_FREQUENCIES.join(', ')}`, error: true }
   }
 }
 
@@ -739,7 +736,7 @@ export function QuickAddBar({
         {titleMissing && (
           <div className={styles.problemLine} role="alert">
             <span className={styles.problemLabel}>No title:</span>
-            <span>— type what the task is; @ # / only add details</span>
+            <span>— type what the task is; @ # ! / only add details</span>
           </div>
         )}
 
@@ -761,6 +758,8 @@ export function QuickAddBar({
             <span><Kbd>@</Kbd> person</span>
             <span aria-hidden="true">·</span>
             <span><Kbd>#</Kbd> tag</span>
+            <span aria-hidden="true">·</span>
+            <span><Kbd>!</Kbd> status</span>
             <span aria-hidden="true">·</span>
             <span><Kbd>/</Kbd> command</span>
           </div>

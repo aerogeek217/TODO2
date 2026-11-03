@@ -12,7 +12,7 @@ import { hasModalAbove, isInLayerAbove } from '../../utils/dom-layers'
 import styles from './TaskNotePopover.module.css'
 import { PopoverRoot } from '../shared/PopoverRoot'
 
-// The notes' `@ # /` popup is portalled to the body, and so are the notes →
+// The notes' `@ # ! /` popup is portalled to the body, and so are the notes →
 // tasks dialogs and anything opened above the popover (the popup's person /
 // tag menu, the editor or confirm it opens): presses there aren't outside.
 const isNotesLayer = (panel: Element | null, target: Element) =>
@@ -100,7 +100,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
   }, [])
 
   // Outside clicks and Escape stay here: both must leave the notes' own
-  // layers (the `@ # /` popup, the convert dialogs) alone.
+  // layers (the `@ # ! /` popup, the convert dialogs) alone.
   const isInside = useCallback(
     (target: Element) => isNotesLayer(containerRef.current, target) || (anchorRef.current?.contains(target) ?? false),
     [anchorRef],

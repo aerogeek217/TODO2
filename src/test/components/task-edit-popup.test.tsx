@@ -20,7 +20,7 @@ beforeEach(() => {
   HTMLInputElement.prototype.showPicker = vi.fn()
 })
 
-const TITLE_PLACEHOLDER = 'New task… (@person #tag /command)'
+const TITLE_PLACEHOLDER = 'New task… (@person #tag !status /command)'
 
 const alice: Person & { id: number } = makePerson({ id: 1, name: 'Alice' })
 const bob: Person & { id: number } = makePerson({ id: 2, name: 'Bob' })
@@ -606,7 +606,7 @@ describe('TaskEditPopup', () => {
 
     it('a Quick Add handoff fills the fields and drops the commands from the title', async () => {
       useUIStore.setState({
-        quickAddDraft: { rawTitle: 'Call legal @Alice #urgent /urgent /important /focus /due fri /repeat weekly /followup 2w /status waiting' },
+        quickAddDraft: { rawTitle: 'Call legal @Alice #urgent /urgent /important /focus /due fri /repeat weekly /followup 2w !waiting' },
       })
       const { onCreate } = renderCreateMode()
       expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call legal @Alice #urgent')
@@ -653,6 +653,21 @@ describe('TaskEditPopup', () => {
       renderEditMode(makeTodo({ id: 7, title: 'Existing' }) as PersistedTodoItem)
       fireEvent.change(screen.getByDisplayValue('Existing'), { target: { value: 'Existing /' } })
       expect(screen.queryByRole('listbox', { name: 'Commands' })).not.toBeInTheDocument()
+    })
+
+    it('! lists the statuses in the create-mode title; a pick writes the token', () => {
+      // The title is parsed on create (`draftFromEditor`, covered in create-task.test).
+      renderCreateMode()
+      typeTitle('Call !wa')
+      expect(screen.getByRole('listbox', { name: 'Statuses' })).toBeInTheDocument()
+      fireEvent.keyDown(screen.getByPlaceholderText(TITLE_PLACEHOLDER), { key: 'Enter' })
+      expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Call !Waiting ')
+    })
+
+    it('! is plain text in an existing task’s title', () => {
+      renderEditMode(makeTodo({ id: 7, title: 'Existing' }) as PersistedTodoItem)
+      fireEvent.change(screen.getByDisplayValue('Existing'), { target: { value: 'Existing !' } })
+      expect(screen.queryByRole('listbox', { name: 'Statuses' })).not.toBeInTheDocument()
     })
   })
 })

@@ -133,7 +133,7 @@
   pointer-events: none;
 }
 
-/* The `@ # /` popup inside the sheet: full width, finger-sized rows. */
+/* The `@ # ! /` popup inside the sheet: full width, finger-sized rows. */
 .popup {
   width: auto;
   max-width: none;

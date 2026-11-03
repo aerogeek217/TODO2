@@ -39,7 +39,7 @@ export async function createQuickAddTask(
 
 /**
  * The task editor's create: its fields and picked people / tags, plus
- * anything typed into the title (commands, `@` / `#`). With its status
+ * anything typed into the title (commands, `@` / `#` / `!`). With its status
  * field cleared the task still gets Settings' default status, as a new task
  * always has from the editor. Returns the id, or null when it couldn't be
  * stored.

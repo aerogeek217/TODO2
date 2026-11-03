@@ -212,6 +212,40 @@ describe('TopBar search tokens: tints, the popup, the note (D16)', () => {
     expect(mirror().querySelector('[data-tint="due"]')?.textContent).toBe('overdue')
   })
 
+  it('!wa opens the statuses; a space makes the Status chip, several ! OR in it', () => {
+    useStatusStore.setState({ statuses: [
+      { id: 20, name: 'Waiting', color: '#fa0', sortOrder: 0 },
+      { id: 21, name: 'On Hold', color: '#888', sortOrder: 1 },
+    ] })
+    renderBar()
+    type('!wa')
+    expect(within(popup()!).getAllByRole('option').map((o) => o.textContent)).toEqual(['!Waiting'])
+    type('!wa ')
+    expect(f().statusIds).toEqual(new Set([20]))
+    expect(input().value).toBe('')
+    type('!"On Hold" ')
+    expect(f().statusIds).toEqual(new Set([20, 21]))
+    // Backspace puts the last one back.
+    fireEvent.keyDown(input(), { key: 'Backspace' })
+    expect(input().value).toBe('!"On Hold"')
+    expect(f().statusIds).toEqual(new Set([20]))
+  })
+
+  it('an unknown !name: the "new" ring and the one-line note', () => {
+    renderBar()
+    type('!nope report')
+    expect(mirror().querySelector('[data-tint="new"]')?.textContent).toBe('!nope')
+    expect(screen.getByRole('status')).toHaveTextContent('No status named nope — searching the words instead · Tab to the Status chip to pick one')
+  })
+
+  it('/waiting is plain words now', () => {
+    useStatusStore.setState({ statuses: [{ id: 20, name: 'Waiting', color: '#fa0', sortOrder: 0 }] })
+    renderBar()
+    type('/waiting ')
+    expect(f().statusIds).toBeNull()
+    expect(input().value).toBe('/waiting ')
+  })
+
   it('Backspace puts an @ chip back with its popup', () => {
     renderBar()
     type('@aisha ')

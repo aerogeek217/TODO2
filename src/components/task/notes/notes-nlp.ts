@@ -17,7 +17,7 @@ import { resolveInput } from '../../../services/nlp-resolver'
 import { tokenTints } from '../../../services/nlp-token-tints'
 
 /**
- * The `@ # /` autocomplete and token tints for the notes editor, as a
+ * The `@ # ! /` autocomplete and token tints for the notes editor, as a
  * CodeMirror extension over the same pure functions Quick Add uses
  * (`services/nlp-autocomplete`, `services/nlp-token-tints`). Each line is task
  * text of its own: the popup reads the caret line, tints are per line.
@@ -32,9 +32,9 @@ import { tokenTints } from '../../../services/nlp-token-tints'
  *   host's Escape / outside handlers see them.
  * - Picking a create row inserts the token and calls `onCreate` at once, so
  *   the person or tag exists before the line is converted.
- * - Typing on past an `@` / `#` token without picking (a space or punctuation
+ * - Typing on past an `@` / `#` / `!` token without picking (a space or punctuation
  *   right after it, the caret moved off it) completes it to the highlighted
- *   person / tag (`implicitAccept`, in a transaction filter); a highlighted
+ *   person / tag / status (`implicitAccept`, in a transaction filter); a highlighted
  *   create row, or a person / tag matched only at a word start or inside its
  *   name, leaves the text as typed — a typed space never creates.
  *
@@ -44,7 +44,7 @@ import { tokenTints } from '../../../services/nlp-token-tints'
 export interface NotesNlpConfig {
   /** Autocomplete candidates and today, read on every evaluation. */
   sources: () => AutocompleteSources
-  /** People and statuses for the tints (an unknown `@name` / `/status` tints differently). */
+  /** People and statuses for the tints (an unknown `@name` / `!name` tints differently). */
   resolverData: () => { people: Person[]; statuses: Status[] }
   /**
    * A create row was picked: create the person (`@`) or tag (`#`) now. A
@@ -162,8 +162,8 @@ export function highlightNotesPopupRow(view: EditorView, index: number): void {
 }
 
 /**
- * Typing on past an open `@` / `#` popup (a typed character, or a caret
- * move): the token is completed to the highlighted person / tag in the same
+ * Typing on past an open `@` / `#` / `!` popup (a typed character, or a caret
+ * move): the token is completed to the highlighted person / tag / status in the same
  * step (`implicitAccept`).
  */
 const implicitAcceptFilter = EditorState.transactionFilter.of((tr) => {
@@ -241,7 +241,7 @@ function markFor(tint: string): Decoration {
   return mark
 }
 
-const MAYBE_TOKEN = /[@#/]/
+const MAYBE_TOKEN = /[@#!/]/
 
 function buildTints(view: EditorView): DecorationSet {
   const config = view.state.facet(notesNlpConfig)
@@ -310,7 +310,7 @@ export function notesPopupFocusEffect(state: EditorState, focusing: boolean): St
   return held ? null : closeNotesPopup.of(null)
 }
 
-/** The notes `@ # /` popup state, keys and token tints. */
+/** The notes `@ # ! /` popup state, keys and token tints. */
 export function notesNlp(config: NotesNlpConfig): Extension {
   return [
     notesNlpConfig.of(config),

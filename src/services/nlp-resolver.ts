@@ -4,12 +4,12 @@ import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { byName } from '../utils/sort-order'
 
 export interface ResolvedInput {
-  /** The task title: the text without its recognised tokens. An unknown
-   * `/status` name stays in it, like any other unreadable command. */
+  /** The task title: the text without its recognised tokens. A `!name`
+   * naming no status stays in it, like any other unreadable command. */
   title: string
-  /** The text without its command tokens (`@` / `#` kept) — the editor's
-   * title after a Quick Add → Details handoff, whose fields carry the
-   * commands. Absent when nothing was parsed. */
+  /** The text without its command and `!status` tokens (`@` / `#` kept) —
+   * the editor's title after a Quick Add → Details handoff, whose fields
+   * carry the commands and the status. Absent when nothing was parsed. */
   textWithoutCommands?: string
   dueDate?: Date
   recurrence?: RecurrenceType
@@ -19,9 +19,9 @@ export interface ResolvedInput {
   unmatchedPersons: string[]
   /** Normalized tag slugs from `#foo` tokens (pass-through from `ParsedInput`). */
   tags: string[]
-  /** Resolved status ID from `/status <name>` */
+  /** Resolved status ID from the `!name` token */
   statusId?: number
-  /** The `/status` name when it matched no status (it stays in the title) */
+  /** The `!` name when it matched no status (it stays in the title) */
   unmatchedStatuses: string[]
   urgent?: boolean
   important?: boolean
@@ -30,7 +30,7 @@ export interface ResolvedInput {
   nextFollowupAt?: Date
   /** `/followup none`: no next follow-up instead of the default. */
   followupNone?: boolean
-  /** Commands that set nothing (`CommandProblem`), including a `/status`
+  /** Commands that set nothing (`CommandProblem`), including a `!name`
    * naming no status (`unmatched`). Absent when nothing was parsed. */
   problems?: CommandProblem[]
 }
@@ -123,7 +123,7 @@ export function matchPerson(name: string, people: readonly Person[]): Person | u
   return typedMatch(name, people)
 }
 
-/** The status a `/status` name resolves to: the exact name, else the first it starts (any case). */
+/** The status a `!` name resolves to: the exact name, else the first it starts (any case). */
 export function matchStatus<T extends { name: string }>(name: string, statuses: readonly T[]): T | undefined {
   return matchByName(name, statuses, (s) => s.name)
 }
@@ -239,9 +239,10 @@ export async function resolveUnmatchedPeople(
 
 /**
  * Resolve parsed NLP input against known people and statuses. People match
- * as `matchPerson` (exact name, exact initials, then prefix); `/status` matches the
- * status registry case-insensitively, exact then prefix. A status name that
- * matches nothing stays in the title and is reported as a problem.
+ * as `matchPerson` (exact name, exact initials, then prefix); the `!` status
+ * matches the status registry case-insensitively, exact then prefix
+ * (`matchStatus`). A status name that matches nothing stays in the title and
+ * is reported as an `unmatched` problem.
  */
 export function resolveInput(
   parsed: ParsedInput,
@@ -251,13 +252,13 @@ export function resolveInput(
   const persons = resolveNames(parsed.persons, (name) => matchPerson(name, people))
   const status = parsed.status !== undefined ? matchStatus(parsed.status, statuses) : undefined
   const unknownStatus = parsed.status !== undefined && status?.id === undefined
-    ? parsed.tokens.find((t) => t.command === 'status')
+    ? parsed.tokens.find((t) => t.type === 'status')
     : undefined
   const kept = parsed.tokens.filter((t) => t !== unknownStatus)
   const problems: CommandProblem[] = unknownStatus
     ? [...parsed.problems, {
       kind: 'unmatched' as const,
-      command: 'status' as const,
+      status: unknownStatus.value,
       raw: unknownStatus.raw,
       start: unknownStatus.start,
       end: unknownStatus.end,
@@ -267,7 +268,7 @@ export function resolveInput(
 
   return {
     title: unknownStatus ? removeSpans(parsed.text, [...kept, ...ignored]) : parsed.title,
-    textWithoutCommands: removeSpans(parsed.text, [...kept.filter((t) => t.type === 'command'), ...ignored]),
+    textWithoutCommands: removeSpans(parsed.text, [...kept.filter((t) => t.type === 'command' || t.type === 'status'), ...ignored]),
     dueDate: parsed.dueDate,
     recurrence: parsed.recurrence,
     personIds: persons.ids,

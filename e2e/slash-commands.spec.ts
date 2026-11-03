@@ -6,7 +6,7 @@ import { afterTransactionsOn, readStore } from './fixtures/db'
 /**
  * Slash commands in Quick Add: the `/` menu (open, filter, keys, argument
  * states, Escape), ⏎ adding the task while the menu is open, a full command
- * typed without the menu, and the Details ⇥
+ * typed without the menu, the `!` statuses, and the Details ⇥
  * handoff carrying the parsed commands into the task editor. Real-browser
  * because the popup is portalled, anchored at the trigger character from the
  * measured input, and keys hop between the input, the popup and the dialog.
@@ -67,7 +67,7 @@ test.describe('Quick Add slash commands', () => {
 
     const menu = page.getByRole('listbox', { name: 'Commands' })
     await expect(menu).toBeVisible()
-    await expect(menu.getByRole('option')).toHaveCount(7)
+    await expect(menu.getByRole('option')).toHaveCount(6)
     await expect(menu.getByRole('option').first()).toHaveAttribute('aria-selected', 'true')
     await expect(menu).toContainText('or type the whole command')
 
@@ -139,20 +139,41 @@ test.describe('Quick Add slash commands', () => {
     await expect(input).toHaveValue('/urgent ')
   })
 
-  test('/status completes status names; a multi-word name is quoted', async ({ page }) => {
-    const { input } = await openQuickAdd(page)
-    await page.keyboard.type('Vendor contract /status in')
-    const status = page.getByRole('listbox', { name: 'Status' })
-    await expect(status.getByRole('option')).toHaveText(['In review'])
+  test('! completes status names; a multi-word name is quoted', async ({ page }) => {
+    const { dialog, input } = await openQuickAdd(page)
+    await page.keyboard.type('Vendor contract !')
+    const status = page.getByRole('listbox', { name: 'Statuses' })
+    await expect(status.getByRole('option')).toHaveText(['!Waiting', '!In review'])
+    // Anchored at the trigger, below the input.
+    const inputBox = (await input.boundingBox())!
+    const statusBox = (await status.boundingBox())!
+    expect(statusBox.y).toBeGreaterThanOrEqual(inputBox.y + inputBox.height)
+    expect(statusBox.x).toBeGreaterThan(inputBox.x + 60)
+    await page.keyboard.type('in')
+    await expect(status.getByRole('option')).toHaveText(['!In review'])
     await page.keyboard.press('Tab')
-    await expect(input).toHaveValue('Vendor contract /status "In review" ')
+    await expect(input).toHaveValue('Vendor contract !"In review" ')
     await expect(status).toBeHidden()
+    await expect(dialog.getByRole('group', { name: 'What the task gets' })).toContainText('In review')
+  })
+
+  test('!wa ⏎ adds the task with the status', async ({ page }) => {
+    const { dialog } = await openQuickAdd(page)
+    await page.keyboard.type('Chase the invoice !wa')
+    await expect(page.getByRole('listbox', { name: 'Statuses' }).getByRole('option', { name: '!Waiting' }))
+      .toHaveAttribute('aria-selected', 'true')
+    await page.keyboard.press('Enter')
+    await expect(dialog).toBeHidden()
+    await expect.poll(() => readTodo(page, 'Chase the invoice')).not.toBeNull()
+    const statuses = await readStore(page, 'statuses')
+    const waiting = statuses.find((s) => s.name === 'Waiting')
+    expect((await readTodo(page, 'Chase the invoice'))?.statusId).toBe(waiting?.id)
   })
 
   test('a whole command typed without the menu sets the task fields', async ({ page }) => {
     const { dialog, input } = await openQuickAdd(page)
     // A trailing space after each argument closes the popup, so ⏎ adds.
-    await input.pressSequentially('Renew domain /due tomorrow /urgent /repeat weekly /followup none /status waiting a/b ')
+    await input.pressSequentially('Renew domain /due tomorrow /urgent /repeat weekly /followup none !waiting a/b ')
     await expect(page.getByRole('listbox')).toBeHidden()
     const chips = dialog.getByRole('group', { name: 'What the task gets' })
     await expect(chips).toContainText('Urgent')
@@ -190,7 +211,7 @@ test.describe('Quick Add slash commands', () => {
     await input.pressSequentially('Call legal /important /focus /due 2w /followup 1w ')
     await page.keyboard.press('Tab')
 
-    const title = page.getByPlaceholder('New task… (@person #tag /command)')
+    const title = page.getByPlaceholder('New task… (@person #tag !status /command)')
     await expect(title).toHaveValue('Call legal')
     await expect(page.getByRole('button', { name: /Important/ })).toHaveAttribute('aria-pressed', 'true')
     await expect(page.getByRole('button', { name: /Focus/ })).toHaveAttribute('aria-pressed', 'true')

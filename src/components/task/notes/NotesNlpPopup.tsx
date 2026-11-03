@@ -27,7 +27,7 @@ const sameRect = (a: AnchorRect | null, b: AnchorRect | null) =>
 const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
 
 /**
- * The notes editor's `@ # /` popup: `NlpPopup` portalled to the body, under
+ * The notes editor's `@ # ! /` popup: `NlpPopup` portalled to the body, under
  * the trigger character (flips above near the bottom edge, clamped to the
  * viewport). It follows the caret line through every kind of scroll and
  * layout shift (a frame loop while open) and closes once the line scrolls

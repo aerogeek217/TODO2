@@ -50,7 +50,7 @@ const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   tag: 'Tags',
 }
 const MAX_GROUP_PREVIEW = 5
-/** Keys that move the search box's caret (the `@ # /` popup follows it). */
+/** Keys that move the search box's caret (the `@ # ! /` popup follows it). */
 const CARET_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End'])
 
 /**
@@ -97,7 +97,7 @@ function ClearFiltersButton({ active }: { active: boolean }) {
  * The search box's placeholder: `Search…`, and while the empty box has the
  * focus the token examples in turn (D16), so the grammar can be found.
  */
-const SEARCH_PLACEHOLDERS = ['Search…', 'Search… @person', 'Search… #tag', 'Search… overdue', 'Search… due fri']
+const SEARCH_PLACEHOLDERS = ['Search…', 'Search… @person', 'Search… #tag', 'Search… !status', 'Search… overdue', 'Search… due fri']
 const PLACEHOLDER_MS = 2500
 
 function useSearchPlaceholder(cycling: boolean): string {
@@ -390,7 +390,7 @@ export function TopBar() {
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)
     : 0
-  // The `@ # /` popup under the box (Quick Add's): the results wait while it shows.
+  // The `@ # ! /` popup under the box (Quick Add's): the results wait while it shows.
   const popupOpen = box.ac.state.visible && box.ac.state.view !== null
   const dismissPopup = box.ac.dismiss
   const popup = useNlpPopupAnchor(searchInputRef, box.ac.state)
@@ -582,7 +582,7 @@ export function TopBar() {
                 setSearchFocused(false)
               }}
               onKeyDown={(e) => {
-                // The `@ # /` popup's keys; ⏎ makes every token a chip;
+                // The `@ # ! /` popup's keys; ⏎ makes every token a chip;
                 // Backspace in the empty box takes the last one back.
                 if (box.onKeyDown(e)) {
                   e.preventDefault()
