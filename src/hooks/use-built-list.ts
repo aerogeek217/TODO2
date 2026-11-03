@@ -9,6 +9,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useListOrderStore, useListRanks } from '../stores/list-order-store'
+import { useStatusUpdateStore } from '../stores/status-update-store'
 import { applyRuntimeFilter, buildList, type ListContents } from '../services/build-list'
 import type { TodoNameLookups } from '../utils/filter'
 import { useToday } from './use-today'
@@ -92,6 +93,8 @@ export function useBuiltList(
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  // Text clauses search the tasks' status updates too.
+  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   // Markers clauses (Urgent by date, Hot) read these settings.
@@ -102,6 +105,7 @@ export function useBuiltList(
 
   useEffect(() => {
     void useListOrderStore.getState().ensureLoaded()
+    void useStatusUpdateStore.getState().ensureLoaded()
   }, [])
 
   // Tag filter clauses read `assignedTagsMap`; keep it populated for the
@@ -125,6 +129,7 @@ export function useBuiltList(
       assignedPeopleMap,
       assignedTagsMap,
       statusesById: new Map(statuses.map((st) => [st.id!, st])),
+      statusUpdatesByTodo,
     }
     const listOnly = createPredicateEvaluator(lookups, today, markerSettings)
     const evalPredicate = screenFilter ? createScreenComposedEvaluator(screenFilter, lookups, today, markerSettings) : listOnly
@@ -166,7 +171,7 @@ export function useBuiltList(
     return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, countOpenBase, kept }
   }, [
     definition, todos, people, assignedPeopleMap,
-    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings, leaving,
+    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings, leaving, statusUpdatesByTodo,
   ])
 }
 

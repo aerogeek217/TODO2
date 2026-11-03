@@ -13,6 +13,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
+import { useStatusUpdateStore } from '../stores/status-update-store'
 import { applyFilter } from '../utils/filter-match'
 import { hasNarrowingFilters } from '../utils/filter-chips'
 
@@ -68,6 +69,7 @@ export function useEisenhowerSource(leaving?: LeavingRows): EisenhowerSource {
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
   const statuses = useStatusStore((s) => s.statuses)
   const { filters: screen, active: screenActive } = useScreenFilter()
   const settings = useFilterSettings()
@@ -93,8 +95,8 @@ export function useEisenhowerSource(leaving?: LeavingRows): EisenhowerSource {
 
   // Not loaded yet: all tasks, through the screen filter.
   const allShown = useMemo(
-    () => (definition ? NO_TASKS : applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, settings)),
-    [definition, screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, settings],
+    () => (definition ? NO_TASKS : applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, settings, statusUpdatesByTodo)),
+    [definition, screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, settings, statusUpdatesByTodo],
   )
 
   return useMemo<EisenhowerSource>(

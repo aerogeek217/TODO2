@@ -39,6 +39,7 @@ import { useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
+import { useStatusUpdateStore } from '../stores/status-update-store'
 
 /** A statistic over the screen-filtered tasks, and over every task (the `of N`). */
 export interface ShownOfTotal<T> {
@@ -126,6 +127,7 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
   const statuses = useStatusStore((s) => s.statuses)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const screen = useScreenFilter().filters
   const markerSettings = useFilterSettings()
@@ -152,8 +154,8 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
   }), [today, weekStartsOn, markerSettings, assignedPeopleMap, assignedTagsMap, statuses])
 
   const shown = useMemo(
-    () => applyFilter(statsFilter(screen), todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings),
-    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings],
+    () => applyFilter(statsFilter(screen), todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo),
+    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo],
   )
   const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos])
   const filtered = countActiveFilters({ ...screen, showCompleted: false }) > 0
@@ -196,7 +198,7 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
   const eisenhower = useMemo(() => {
     const source = eisenhowerSourceTasks(todos, shown, eisenhowerList, {
       screen: statsFilter(screen),
-      lookups: { assignedPeopleMap, assignedTagsMap, statusesById: new Map(statuses.map((st) => [st.id!, st])) },
+      lookups: { assignedPeopleMap, assignedTagsMap, statusesById: new Map(statuses.map((st) => [st.id!, st])), statusUpdatesByTodo },
       today,
       settings: markerSettings,
     })
@@ -204,7 +206,7 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
       shown: computeEisenhowerSummary(source.shown, eisenhowerPanes, paneCtx),
       total: computeEisenhowerSummary(source.total, eisenhowerPanes, paneCtx),
     }
-  }, [eisenhowerList, todos, shown, screen, assignedPeopleMap, assignedTagsMap, statuses, today, markerSettings, eisenhowerPanes, paneCtx])
+  }, [eisenhowerList, todos, shown, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, today, markerSettings, eisenhowerPanes, paneCtx])
   const trend = useMemo(
     () => (events ? computeTrend(shown, events, ctx, trendRange) : null),
     [shown, events, ctx, trendRange],
@@ -224,17 +226,18 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
         assignedPeopleMap,
         assignedTagsMap,
         statusesById: new Map(statuses.map((s) => [s.id!, s])),
+        statusUpdatesByTodo,
       },
       today,
       weekStartsOn,
       markerSettings,
     })
-  }, [config.listTiles, listDefinitions, drafts, todos, screen, assignedPeopleMap, assignedTagsMap, statuses, today, weekStartsOn, markerSettings])
+  }, [config.listTiles, listDefinitions, drafts, todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, today, weekStartsOn, markerSettings])
 
   const rows = useMemo<DashboardRows>(() => {
     const now: DashboardRows = { hot: tiles.shown.hot.ids, followup: followup.shown, stale: stale.shown.ids, kept: NO_IDS }
     if (!leaving || leaving.size === 0) return now
-    const asWas = applyFilter(statsFilter(screen), restoreLeaving(todos, leaving), assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings)
+    const asWas = applyFilter(statsFilter(screen), restoreLeaving(todos, leaving), assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo)
     const hot = computeTiles(asWas, ctx).hot.ids
     const followupAsWas = computeFollowupGroups(asWas, ctx, lookAhead)
     const staleAsWas = computeStaleTasks(asWas, ctx, staleDays).ids
@@ -243,7 +246,7 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
     for (const id of kept) if (!inRows.has(id)) kept.delete(id)
     return kept.size > 0 ? { hot, followup: followupAsWas, stale: staleAsWas, kept } : now
   }, [
-    tiles, followup, stale, leaving, screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings,
+    tiles, followup, stale, leaving, screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo,
     ctx, lookAhead, staleDays,
   ])
 

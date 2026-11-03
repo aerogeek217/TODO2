@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
+import { useStatusUpdateStore } from '../stores/status-update-store'
 import type { PaneContext } from '../utils/eisenhower'
 import { useFilterSettings } from './use-filter-settings'
 import { useToday } from './use-today'
@@ -9,7 +10,7 @@ import { useToday } from './use-today'
 /**
  * What the Eisenhower panes' filters are evaluated with (`classifyPanes`,
  * `resolvePaneDrop`), subscribed: today, the filter settings, the people /
- * tag assignments and the names.
+ * tag assignments, the names and the status updates.
  */
 export function usePaneContext(): PaneContext {
   const today = useToday()
@@ -19,8 +20,9 @@ export function usePaneContext(): PaneContext {
   const tags = useTagStore((s) => s.tags)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
+  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
   return useMemo(
-    () => ({ today, settings, people, assignedPeopleMap, tags, assignedTagsMap, statuses }),
-    [today, settings, people, assignedPeopleMap, tags, assignedTagsMap, statuses],
+    () => ({ today, settings, people, assignedPeopleMap, tags, assignedTagsMap, statuses, statusUpdatesByTodo }),
+    [today, settings, people, assignedPeopleMap, tags, assignedTagsMap, statuses, statusUpdatesByTodo],
   )
 }

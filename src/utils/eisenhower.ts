@@ -1,4 +1,4 @@
-import { DATE_FIELD_VALUES, type DateField, type PersistedTodoItem, type Person, type Status, type Tag, type TodoItem } from '../models'
+import { DATE_FIELD_VALUES, type DateField, type PersistedTodoItem, type Person, type Status, type StatusUpdate, type Tag, type TodoItem } from '../models'
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
 import type { TodoNameLookups } from './filter'
 import { describeFilters, filterChips, type FilterChip, type FilterChipField, type FilterChipNames } from './filter-chips'
@@ -63,6 +63,8 @@ export interface PaneContext {
   people: readonly Person[]
   tags: readonly Tag[]
   statuses: readonly Status[]
+  /** Each task's status updates (text clauses read them); absent = not searched. */
+  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
 }
 
 /**
@@ -137,6 +139,7 @@ function createPaneMatcher(panes: readonly EisenhowerPane[], ctx: PaneContext): 
     assignedPeopleMap: ctx.assignedPeopleMap,
     assignedTagsMap: ctx.assignedTagsMap,
     statusesById: new Map(ctx.statuses.flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
+    statusUpdatesByTodo: ctx.statusUpdatesByTodo,
   }
   const test = (c: FilterCriteria, v: TaskView) => matchesFilterWithLookups(c, v.todo, v.lookups, ctx.today, ctx.settings)
   const criteriaOf = (pane: EisenhowerPane) => criteria.get(pane.id) ?? predicateToCriteria({ ...pane.filter, showCompleted: true })
