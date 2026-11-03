@@ -136,18 +136,12 @@ test.describe('Task follow-up', () => {
     await expect(pill).toBeVisible()
   })
 
-  test('a quick interval fills the field (⏎ sets it); Mark followed up keeps that later date, with the undo snackbar', async ({ page }) => {
+  test('a quick interval sets the next follow-up and closes; Mark followed up keeps that later date, with the undo snackbar', async ({ page }) => {
     const row = taskRowByTitle(page, 'alpha')
     await row.hover()
     await row.getByRole('button', { name: 'Set follow-up', exact: true }).click()
     const input = popover(page).getByRole('textbox', { name: 'Next follow-up' })
     await popover(page).getByRole('button', { name: 'Follow up in 1 week' }).click()
-    // Filled, nothing applied: the popover stays, focus in the field.
-    await expect(popover(page)).toBeVisible()
-    await expect(input).toHaveValue('Sat 17 Oct')
-    await expect(input).toBeFocused()
-    await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: null, last: null })
-    await page.keyboard.press('Enter')
     await expect(popover(page)).toBeHidden()
     const pill = row.getByRole('button', { name: 'Follow-up: Sat 17', exact: true })
     await expect(pill).toBeVisible()

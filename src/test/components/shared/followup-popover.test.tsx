@@ -232,26 +232,12 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     expect(off.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('a quick button fills the field with its date — nothing applied, the popover stays, focus to the field', () => {
-    const { field, onSetNext, onFollowedUp, onClose } = renderPopover()
+  it('a quick button sets the next follow-up only and closes, as a picked day does', () => {
+    const { onSetNext, onFollowedUp, onClose } = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: OVERDUE }) })
     fireEvent.click(screen.getByRole('button', { name: 'Follow up in 1 week' }))
-    expect(field.value).toBe('Sat 17 Oct')
-    expect(field).toHaveFocus()
-    expect(screen.getByText('Sat 17 Oct', { selector: 'strong' })).toBeInTheDocument()
-    expect(onSetNext).not.toHaveBeenCalled()
-    expect(onFollowedUp).not.toHaveBeenCalled()
-    expect(onClose).not.toHaveBeenCalled()
-    // ⏎ then sets that date only.
-    fireEvent.keyDown(field, { key: 'Enter' })
     expect(onSetNext).toHaveBeenCalledWith(new Date(2026, 9, 17))
     expect(onFollowedUp).not.toHaveBeenCalled()
-  })
-
-  it('a quick button, then Mark followed up: records with that date', () => {
-    const { button, onFollowedUp } = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: OVERDUE }) })
-    fireEvent.click(screen.getByRole('button', { name: 'Follow up in 2 weeks' }))
-    fireEvent.click(button)
-    expect(onFollowedUp).toHaveBeenCalledWith(new Date(2026, 9, 24))
+    expect(onClose).toHaveBeenCalledTimes(1)
   })
 
   it('the bulk bar’s mixed selection: an empty field (Each task’s own) and a help line; untouched, Mark followed up passes no date and ⏎ just closes', () => {
