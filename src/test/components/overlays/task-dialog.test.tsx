@@ -283,7 +283,7 @@ describe('TaskDialog — the screen filter’s tasks (a phone)', () => {
     // The popup under the bar, inside the dialog.
     const popup = bar().querySelector<HTMLElement>('[data-nlp-popup]')
     expect(popup).not.toBeNull()
-    fireEvent.mouseDown(within(popup!).getByRole('option', { name: '@Priya Nair' }), { button: 0 })
+    fireEvent.mouseDown(within(popup!).getByRole('option', { name: 'Priya Nair' }), { button: 0 })
     expect(useFilterStore.getState().filters.personIds).toEqual(new Set([PRIYA]))
     expect(search.value).toBe('forecast ')
     await vi.waitFor(() => expect(useFilterStore.getState().filters.searchText).toBe('forecast'))

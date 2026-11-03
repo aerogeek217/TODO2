@@ -47,7 +47,7 @@ test.describe('notes autocomplete', () => {
     // `@` opens under the trigger character.
     await page.keyboard.type('- Call @Da')
     await expect(popup(page)).toBeVisible()
-    await expect(popup(page).getByRole('option')).toHaveText(['@Dana Kim', /Create @Da$/])
+    await expect(popup(page).getByRole('option')).toHaveText(['Dana Kim', /Create @Da$/])
     const { tokenBox, popupBox } = await boxes(page, editor, '@Da')
     expect(Math.abs(popupBox.x - tokenBox.x)).toBeLessThan(2)
     expect(popupBox.y - (tokenBox.y + tokenBox.height)).toBeGreaterThanOrEqual(0)
@@ -61,7 +61,7 @@ test.describe('notes autocomplete', () => {
 
     // Tab picks a tag.
     await page.keyboard.type('#q')
-    await expect(popup(page).getByRole('option')).toHaveText(['#q4', /Create #q$/])
+    await expect(popup(page).getByRole('option')).toHaveText(['q4', /Create #q$/])
     await page.keyboard.press('Tab')
     expect(await lineWith(editor, '- Call')).toBe('- Call @"Dana Kim" #q4 ')
 
@@ -79,7 +79,7 @@ test.describe('notes autocomplete', () => {
     // `!` lists the statuses; a multi-word status is quoted.
     await page.keyboard.type('!in')
     await expect(popup(page)).toHaveAttribute('aria-label', 'Statuses')
-    await expect(popup(page).getByRole('option')).toHaveText(['!In progress'])
+    await expect(popup(page).getByRole('option')).toHaveText(['In progress'])
     await page.keyboard.press('Enter')
     expect(await lineWith(editor, '- Call')).toBe('- Call @"Dana Kim" #q4 /due fri !"In progress" ')
 
@@ -159,7 +159,7 @@ test.describe('notes autocomplete', () => {
       { x: box.x + box.width / 2, y: box.y + box.height / 2 })
     expect(onTop).toBe(true)
 
-    await popup(page).getByRole('option', { name: '@Anna' }).click()
+    await popup(page).getByRole('option', { name: 'Anna' }).click()
     await expect(popup(page)).toBeHidden()
     await expect(editor).toHaveText('Some notes with @Anna ')
     await expect(editor).toBeFocused()
@@ -180,7 +180,7 @@ test.describe('notes autocomplete', () => {
     await editor.click()
     await page.keyboard.press('End')
     await page.keyboard.type(' and @da')
-    await popup(page).getByRole('option', { name: '@Dana Kim' }).click()
+    await popup(page).getByRole('option', { name: 'Dana Kim' }).click()
     await expect(popover).toBeVisible()
     await expect(editor).toHaveText('Some notes and @"Dana Kim" ')
 

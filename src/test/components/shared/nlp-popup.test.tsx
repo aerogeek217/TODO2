@@ -49,7 +49,7 @@ describe('NlpPopup — a person’s / tag’s menu on its rows', () => {
 
   it('a right-click on a person row opens its menu without picking it; Esc closes only the menu, back in the field', () => {
     const { input, onPick, onOpenChange } = renderPopup('@an')
-    const andy = screen.getByRole('option', { name: '@Andy Ross' })
+    const andy = screen.getByRole('option', { name: 'Andy Ross' })
     // The right button's press doesn't pick (a left press does).
     expect(fireEvent.mouseDown(andy, { button: 2 })).toBe(false)
     fireEvent.contextMenu(andy, { button: 2, clientX: 20, clientY: 30 })
@@ -76,7 +76,7 @@ describe('NlpPopup — a person’s / tag’s menu on its rows', () => {
 
   it('a tag row’s menu is the tag’s; Show tasks runs onShowTasks first', () => {
     const { onShowTasks } = renderPopup('#q')
-    fireEvent.contextMenu(screen.getByRole('option', { name: '#q4' }), { button: 2 })
+    fireEvent.contextMenu(screen.getByRole('option', { name: 'q4' }), { button: 2 })
     fireEvent.click(screen.getByRole('menuitem', { name: 'Show tasks' }))
     expect(onShowTasks).toHaveBeenCalledOnce()
     expect(useUIStore.getState().taskDialog?.title).toBe('#q4')
@@ -94,7 +94,7 @@ describe('NlpPopup — a person’s / tag’s menu on its rows', () => {
     cleanup()
     const onPick = vi.fn()
     render(<NlpPopup view={viewFor('@an')} selectedIndex={0} onPick={onPick} />)
-    fireEvent.contextMenu(screen.getByRole('option', { name: '@Anna' }), { button: 2 })
+    fireEvent.contextMenu(screen.getByRole('option', { name: 'Anna' }), { button: 2 })
     expect(screen.queryByRole('menu')).toBeNull()
     expect(onPick).not.toHaveBeenCalled()
   })
@@ -154,17 +154,17 @@ describe('NlpPopup — ! statuses', () => {
     if (!view) throw new Error('no popup')
     render(<NlpPopup view={view} selectedIndex={0} onPick={vi.fn()} />)
     expect(screen.getByRole('listbox', { name: 'Statuses' })).toBeInTheDocument()
-    const waiting = screen.getByRole('option', { name: '!Waiting' })
+    const waiting = screen.getByRole('option', { name: 'Waiting' })
     const glyph = waiting.querySelector('svg')?.parentElement
     expect(glyph?.style.color).toBe('rgb(167, 139, 250)')
     // No icon set: the default glyph.
-    expect(screen.getByRole('option', { name: '!On Hold' }).querySelector('svg')).not.toBeNull()
+    expect(screen.getByRole('option', { name: 'On Hold' }).querySelector('svg')).not.toBeNull()
   })
 
   it('marks the typed prefix', () => {
     const view = computeAutocomplete('x !wa', 5, { people: [], tags: [], statuses: STATUSES, commands: true, followupDefault: null, today: new Date(2026, 9, 10) })
     if (!view) throw new Error('no popup')
     render(<NlpPopup view={view} selectedIndex={0} onPick={vi.fn()} />)
-    expect(screen.getByRole('option', { name: '!Waiting' }).querySelector('mark')?.textContent).toBe('Wa')
+    expect(screen.getByRole('option', { name: 'Waiting' }).querySelector('mark')?.textContent).toBe('Wa')
   })
 })

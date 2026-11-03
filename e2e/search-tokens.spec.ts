@@ -74,7 +74,7 @@ test('@ opens the people popup under the box; ⏎ makes the chip; an unknown nam
   await search(page).click()
   await page.keyboard.type('@ai', { delay: 20 })
   const popup = page.getByRole('listbox', { name: 'People' })
-  await expect(popup.getByRole('option', { name: '@Aisha Rahman' })).toBeVisible()
+  await expect(popup.getByRole('option', { name: 'Aisha Rahman' })).toBeVisible()
   await expect(popup.getByText(/Create/)).toHaveCount(0)
   // Under the box.
   const box = await search(page).boundingBox()
@@ -106,7 +106,7 @@ test('! opens the statuses under the box; a space makes the Status chip, a secon
   await search(page).click()
   await page.keyboard.type('!wa', { delay: 20 })
   const popup = page.getByRole('listbox', { name: 'Statuses' })
-  await expect(popup.getByRole('option')).toHaveText(['!Waiting'])
+  await expect(popup.getByRole('option')).toHaveText(['Waiting'])
   const box = await search(page).boundingBox()
   const list = await popup.boundingBox()
   expect(list && box && list.y >= box.y + box.height - 1).toBe(true)

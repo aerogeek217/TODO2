@@ -309,8 +309,8 @@ describe('QuickAddBar', () => {
     // popup body — the chip row above also renders an `@Anna` text node.
     const popupItems = popup.querySelectorAll('[role="option"]')
     const popupTexts = Array.from(popupItems, (el) => el.textContent ?? '')
-    expect(popupTexts.some((t) => t.includes('@Anna'))).toBe(true)
-    expect(popupTexts.some((t) => t.includes('@Bob'))).toBe(false)
+    expect(popupTexts.some((t) => t.includes('Anna'))).toBe(true)
+    expect(popupTexts.some((t) => t.includes('Bob'))).toBe(false)
   })
 
   describe('the highlighted row is what you get', () => {
@@ -326,7 +326,7 @@ describe('QuickAddBar', () => {
     it('a space typed after the token completes it to the highlighted person', () => {
       render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
       typeTo('Call @an')
-      expect(option(/@Anna/)).toHaveAttribute('aria-selected', 'true')
+      expect(option(/Anna/)).toHaveAttribute('aria-selected', 'true')
       typeTo('Call @an ')
       expect(getInput().value).toBe('Call @Anna ')
     })
@@ -336,10 +336,10 @@ describe('QuickAddBar', () => {
       const onSubmit = vi.fn()
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeTo('Call @an')
-      expect(option(/@Anna$/)).toHaveAttribute('aria-selected', 'true')
-      fireEvent.mouseMove(option(/@Annette/), { clientX: 40, clientY: 60 })
-      expect(option(/@Annette/)).toHaveAttribute('aria-selected', 'true')
-      expect(option(/@Anna$/)).toHaveAttribute('aria-selected', 'false')
+      expect(option(/Anna$/)).toHaveAttribute('aria-selected', 'true')
+      fireEvent.mouseMove(option(/Annette/), { clientX: 40, clientY: 60 })
+      expect(option(/Annette/)).toHaveAttribute('aria-selected', 'true')
+      expect(option(/Anna$/)).toHaveAttribute('aria-selected', 'false')
       fireEvent.keyDown(getInput(), { key: 'Enter' })
       expect(onSubmit).toHaveBeenCalledTimes(1)
       expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).resolved.personIds).toEqual([3])
@@ -350,8 +350,8 @@ describe('QuickAddBar', () => {
       const onSubmit = vi.fn()
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeTo('Call @nah')
-      expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
-      expect(option(/@Hannah/).querySelector('mark')?.textContent).toBe('nah') // where it matched
+      expect(option(/Hannah/)).toHaveAttribute('aria-selected', 'true')
+      expect(option(/Hannah/).querySelector('mark')?.textContent).toBe('nah') // where it matched
       fireEvent.keyDown(getInput(), { key: 'Enter' })
       expect(onSubmit).toHaveBeenCalledTimes(1)
       expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).resolved).toMatchObject({ personIds: [], unmatchedPersons: ['nah'] })
@@ -363,7 +363,7 @@ describe('QuickAddBar', () => {
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeTo('Call @ann')
       fireEvent.keyDown(getInput(), { key: 'ArrowDown' })
-      expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
+      expect(option(/Hannah/)).toHaveAttribute('aria-selected', 'true')
       fireEvent.keyDown(getInput(), { key: 'Enter' })
       expect(getInput().value).toBe('Call @Hannah ')
       expect(onSubmit).not.toHaveBeenCalled()
@@ -375,7 +375,7 @@ describe('QuickAddBar', () => {
       const onSubmit = vi.fn()
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeTo('Call @an') // Anna (substring), then Create "an"
-      expect(option(/@Anna/)).toHaveAttribute('aria-selected', 'true')
+      expect(option(/Anna/)).toHaveAttribute('aria-selected', 'true')
       fireEvent.keyDown(getInput(), { key: 'ArrowDown' })
       expect(option(/Create @an/)).toHaveAttribute('aria-selected', 'true')
       await act(async () => { fireEvent.keyDown(getInput(), { key: 'Tab' }) })
@@ -402,9 +402,9 @@ describe('QuickAddBar', () => {
       render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
       typeTo('@an') // Anna, Hannah
       fireEvent.keyDown(getInput(), { key: 'ArrowDown' })
-      expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
+      expect(option(/Hannah/)).toHaveAttribute('aria-selected', 'true')
       typeTo('@ann') // Anna, Hannah — Hannah stays highlighted
-      expect(option(/@Hannah/)).toHaveAttribute('aria-selected', 'true')
+      expect(option(/Hannah/)).toHaveAttribute('aria-selected', 'true')
     })
   })
 
@@ -478,7 +478,7 @@ describe('QuickAddBar', () => {
       typeTo('Call legal !')
       const listbox = screen.getByRole('listbox', { name: 'Statuses' })
       const options = Array.from(listbox.querySelectorAll('[role="option"]'), (o) => o.textContent)
-      expect(options).toEqual(['!Doing', '!Waiting', '!On Hold'])
+      expect(options).toEqual(['Doing', 'Waiting', 'On Hold'])
       expect(listbox.querySelectorAll('svg')).toHaveLength(3)
       typeTo('Call legal !zz')
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
@@ -488,7 +488,7 @@ describe('QuickAddBar', () => {
       const onSubmit = vi.fn()
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeTo('Call legal !wa')
-      expect(screen.getByRole('option', { name: '!Waiting' })).toHaveAttribute('aria-selected', 'true')
+      expect(screen.getByRole('option', { name: 'Waiting' })).toHaveAttribute('aria-selected', 'true')
       await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
       const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
       expect(draft.rawTitle).toBe('Call legal !Waiting ')
@@ -688,7 +688,7 @@ describe('QuickAddBar', () => {
     it('a partial match lists matches only — no create row', () => {
       render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
       typeAtCaret('Review @ann')
-      expect(screen.getByRole('option', { name: '@Anna' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Anna' })).toBeInTheDocument()
       expect(screen.queryByRole('option', { name: /create/ })).not.toBeInTheDocument()
     })
 
@@ -697,7 +697,7 @@ describe('QuickAddBar', () => {
       render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
       // "ac" is no substring of "alice chen", but the resolver matches the initials.
       typeAtCaret('Review @ac')
-      expect(screen.getByRole('option', { name: '@Alice Chen' })).toBeInTheDocument()
+      expect(screen.getByRole('option', { name: 'Alice Chen' })).toBeInTheDocument()
       expect(screen.queryByRole('option', { name: /create/ })).not.toBeInTheDocument()
     })
 

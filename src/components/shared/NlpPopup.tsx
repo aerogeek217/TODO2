@@ -171,7 +171,8 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
                 <StatusIcon icon={row.item.icon || DEFAULT_STATUS_ICON} filled />
               </span>
             ) : row.item.color && <span className={styles.dot} style={{ background: row.item.color }} />}
-            <span className={styles.name}>{view.trigger}<MarkedAt text={row.item.name} match={row.match} /></span>
+            {/* The name alone: the trigger (`@ # !`) is the header's, not each row's. */}
+            <span className={styles.name}><MarkedAt text={row.item.name} match={row.match} /></span>
           </button>
         )
       case 'create': {

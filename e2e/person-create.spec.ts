@@ -136,7 +136,7 @@ test.describe('Quick Add @ — create on pick, or on submit', () => {
 
     // A quoted multi-word name that matches nobody, typed and left, is created on submit.
     await page.keyboard.type('@"Ana Lopez" @dana')
-    await expect(popup.getByRole('option', { name: '@Dana Kim' })).toBeVisible()
+    await expect(popup.getByRole('option', { name: 'Dana Kim' })).toBeVisible()
     await page.keyboard.press('Tab')
     await expect(dialog.getByText('New person:').locator('..')).toContainText('@Ana Lopez')
     await expect(dialog.getByText('New person:').locator('..')).not.toContainText('@Marco')
