@@ -80,7 +80,7 @@ test('at 1370px one person ticked keeps every filter button: the search narrows,
   expect(before).toMatchObject({ fold: 'none', search: 200, valueCut: null, oneLine: true })
 
   await people(page).click()
-  await page.getByRole('option', { name: '@Aisha Rahman' }).click()
+  await page.getByRole('option', { name: 'Aisha Rahman' }).click()
   await page.keyboard.press('Escape')
   await expect(people(page)).toHaveAccessibleName('People filter: Aisha Rahman')
 
@@ -113,7 +113,7 @@ test('narrowing: the search narrows first, then the value is cut, then the filte
   await page.setViewportSize({ width: 1600, height: 900 })
   await seedWorkspace(page, SEED)
   await people(page).click()
-  await page.getByRole('option', { name: '@Aisha Rahman' }).click()
+  await page.getByRole('option', { name: 'Aisha Rahman' }).click()
   await page.keyboard.press('Escape')
   const wide = await settled(page)
 

@@ -60,8 +60,6 @@ interface MobileEntityListProps {
   searchPlaceholder: string
   searchText: string
   onSearchChange: (text: string) => void
-  /** Display name prefix (e.g. "@" for people, "#" for tags). */
-  namePrefix?: string
 }
 
 /** A row press keeps the focus where it is (the search box). */
@@ -88,7 +86,6 @@ function MobileEntityList({
   searchPlaceholder,
   searchText,
   onSearchChange,
-  namePrefix,
 }: MobileEntityListProps) {
   const searchRef = useRef<HTMLInputElement>(null)
   const withNone = noneLabel !== undefined
@@ -134,7 +131,6 @@ function MobileEntityList({
         style={{ background: e.color || 'var(--color-accent)' }}
       />
       <span className={sheet.entityName}>
-        {namePrefix}
         {e.name}
       </span>
       <input
@@ -305,7 +301,6 @@ export function FilterChipBarMobile({
             searchPlaceholder="Search tags..."
             searchText={entitySearch}
             onSearchChange={setEntitySearch}
-            namePrefix="#"
             noneLabel={NO_TAGS_LABEL}
           />
         )}

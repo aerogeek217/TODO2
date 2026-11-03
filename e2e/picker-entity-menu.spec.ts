@@ -154,9 +154,9 @@ test('Show tasks from the bulk bar’s tag picker closes the picker and opens th
 test('the top bar’s People filter: the menu and the editor stack above its picker; Esc steps back one layer at a time', async ({ page }) => {
   await seedTaskList(page, SEED)
   await page.getByRole('button', { name: 'People filter' }).click()
-  const filter = page.locator('[class*="dropdownPanel"]').filter({ hasText: '@Ben Ortiz' })
+  const filter = page.locator('[class*="dropdownPanel"]').filter({ hasText: 'Ben Ortiz' })
   await expect(filter).toBeVisible()
-  await filter.getByText('@Ben Ortiz').click({ button: 'right' })
+  await filter.getByText('Ben Ortiz').click({ button: 'right' })
   const menu = page.getByRole('menu', { name: '@Ben Ortiz' })
   await expect(menu).toBeVisible()
   expect(await isOnTop(menu)).toBe(true)

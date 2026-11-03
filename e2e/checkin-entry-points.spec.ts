@@ -320,7 +320,7 @@ test('D: the top-bar People filter emails the one person it is narrowed to, or o
   // Not narrowed: a hint.
   await expect(page.getByText('Narrow to some people to email them.')).toBeVisible()
   // One person (the first pick replaces "everyone"): sends at once and closes the picker.
-  await page.getByRole('option', { name: '@Ada Lovelace' }).click()
+  await page.getByRole('option', { name: 'Ada Lovelace' }).click()
   await expect(page.getByRole('button', { name: 'Paste reply from Ada Lovelace…' })).toBeVisible()
   await page.getByRole('button', { name: 'Email check-in to Ada Lovelace', exact: true }).click()
   await expect(page.getByPlaceholder('Search...')).toHaveCount(0)
@@ -332,7 +332,7 @@ test('D: the top-bar People filter emails the one person it is narrowed to, or o
 
   // Two people: the dialog with both ticked.
   await peopleButton.click()
-  await page.getByRole('option', { name: '@Bob Stone' }).click()
+  await page.getByRole('option', { name: 'Bob Stone' }).click()
   const action = page.getByRole('button', { name: 'Email check-in to 2 people…' })
   await expect(action).toBeVisible()
   await expect(page.getByRole('button', { name: /^Paste reply/ })).toHaveCount(0)
@@ -434,7 +434,7 @@ test('paste a reply: the envelope menus, the header menu and the People footer o
 
   // The top-bar People filter narrowed to one person: Paste reply from <name>… closes the picker.
   await page.getByRole('button', { name: /^People filter/ }).click()
-  await page.getByRole('option', { name: '@Bob Stone' }).click()
+  await page.getByRole('option', { name: 'Bob Stone' }).click()
   await page.getByRole('button', { name: 'Paste reply from Bob Stone…' }).click()
   await expect(page.getByPlaceholder('Search...')).toHaveCount(0)
   await expect(importDialog(page)).toBeVisible()

@@ -69,7 +69,7 @@ test('Edit list: Another filter (OR) makes a group in the chip’s place; the gr
   const panel = page.getByTestId('or-group-panel')
   await expect(panel.getByRole('button', { name: 'Tags' })).toBeFocused()
   await panel.getByRole('button', { name: 'People' }).click()
-  await page.getByTestId('list-filter-picker').getByRole('option', { name: '@Ann' }).click()
+  await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Ann' }).click()
   await expect.poll(() => titles(page)).toEqual(['Ann urgent', 'Bob urgent', 'Ann calm'])
   await expect(group.getByTestId('list-filter-chip')).toHaveText([/Priority\s*Urgent/, /People\s*Ann/])
   await page.keyboard.press('Escape')
@@ -123,7 +123,7 @@ test('the filter line: a group’s "or" opens its panel as a popover under the g
   await widget.getByTestId('list-filter-chip').click()
   await page.getByTestId('list-filter-picker').getByRole('button', { name: /Another filter \(OR\)/ }).click()
   await page.getByTestId('or-group-panel').getByRole('button', { name: 'People' }).click()
-  await page.getByTestId('list-filter-picker').getByRole('option', { name: '@Ann' }).click()
+  await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Ann' }).click()
   await expect.poll(() => titles(page)).toEqual(['Ann urgent', 'Bob urgent', 'Ann calm'])
   await page.keyboard.press('Escape')
 

@@ -334,7 +334,6 @@ interface EntityDropdownItemsProps {
   entities: readonly { id?: number; name: string; color?: string; icon?: string }[]
   isChecked: (id: number) => boolean
   onToggle: (id: number) => void
-  namePrefix?: string
   showDot?: boolean
   /** Show the leading "None" row (id 0). Default true. */
   withNone?: boolean
@@ -379,7 +378,6 @@ export function EntityDropdownItems({
   entities,
   isChecked,
   onToggle,
-  namePrefix,
   showDot = true,
   withNone = true,
   noneLabel = 'None',
@@ -529,7 +527,6 @@ export function EntityDropdownItems({
                 ) : showDot && entity.color ? (
                   <span className={picker.dot} style={{ background: entity.color }} aria-hidden="true" />
                 ) : null}
-                {namePrefix}
                 {entity.name}
               </>
             ), !!entityMenu)

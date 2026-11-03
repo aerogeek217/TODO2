@@ -289,26 +289,26 @@ describe('FilterSheet', () => {
       renderSheet()
       fireEvent.click(screen.getByText('Tags'))
       const names = () => screen.getAllByRole('checkbox').map((c) => c.closest('label')?.textContent)
-      expect(names()).toEqual(['#urgent', 'No tags', '#soon'])
+      expect(names()).toEqual(['urgent', 'No tags', 'soon'])
       fireEvent.change(screen.getByPlaceholderText('Search tags...'), { target: { value: 'so' } })
-      fireEvent.click(screen.getByRole('checkbox', { name: '#soon' }))
+      fireEvent.click(screen.getByRole('checkbox', { name: 'soon' }))
       expect(screen.getByPlaceholderText('Search tags...')).toHaveValue('')
-      expect(names()).toEqual(['#soon', '#urgent', 'No tags'])
+      expect(names()).toEqual(['soon', 'urgent', 'No tags'])
     })
 
-    it('renders registry tags sorted alphabetically prefixed with #', () => {
+    it('renders registry tags sorted alphabetically, by name alone', () => {
       seedTags()
       renderSheet()
       fireEvent.click(screen.getByText('Tags'))
-      expect(screen.getByText('#urgent')).toBeInTheDocument()
-      expect(screen.getByText('#soon')).toBeInTheDocument()
+      expect(screen.getByText('urgent')).toBeInTheDocument()
+      expect(screen.getByText('soon')).toBeInTheDocument()
     })
 
     it('toggles a tag id into the filter store (null → all-except-clicked)', () => {
       seedTags()
       renderSheet()
       fireEvent.click(screen.getByText('Tags'))
-      fireEvent.click(screen.getByText('#urgent'))
+      fireEvent.click(screen.getByText('urgent'))
 
       const { tags } = useFilterStore.getState().filters
       expect(tags).not.toBeNull()

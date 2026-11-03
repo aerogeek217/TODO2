@@ -22,7 +22,6 @@ function renderItems(entityMenu?: 'person') {
         entities={people}
         isChecked={() => false}
         onToggle={onToggle}
-        namePrefix="@"
         entityMenu={entityMenu}
         onShowTasks={onShowTasks}
       />
@@ -36,7 +35,7 @@ describe('EntityDropdownItems — a person’s / tag’s menu on its rows', () =
     const { onToggle, host } = renderItems('person')
     const search = screen.getByRole('textbox', { name: 'Search' })
     search.focus()
-    const row = screen.getByText('@Ben Ortiz')
+    const row = screen.getByText('Ben Ortiz')
     // The right button's press doesn't take the focus out of the search.
     expect(fireEvent.mouseDown(row, { button: 2 })).toBe(false)
     fireEvent.contextMenu(row, { button: 2, clientX: 30, clientY: 40 })
@@ -51,7 +50,7 @@ describe('EntityDropdownItems — a person’s / tag’s menu on its rows', () =
 
   it('Show tasks runs onShowTasks (the host closes the picker), then opens the task dialog', () => {
     const { onShowTasks } = renderItems('person')
-    fireEvent.contextMenu(screen.getByText('@Alice Chen'), { button: 2 })
+    fireEvent.contextMenu(screen.getByText('Alice Chen'), { button: 2 })
     fireEvent.click(screen.getByRole('menuitem', { name: 'Show tasks' }))
     expect(onShowTasks).toHaveBeenCalledOnce()
     expect(useUIStore.getState().taskDialog?.title).toBe('Alice Chen')
@@ -63,17 +62,16 @@ describe('EntityDropdownItems — a person’s / tag’s menu on its rows', () =
     expect(screen.queryByRole('menu')).toBeNull()
     cleanup()
     renderItems()
-    fireEvent.contextMenu(screen.getByText('@Alice Chen'), { button: 2 })
+    fireEvent.contextMenu(screen.getByText('Alice Chen'), { button: 2 })
     expect(screen.queryByRole('menu')).toBeNull()
   })
 })
 
 describe('EntityDropdownItems — the keyboard', () => {
-  function KeyboardPicker({ onToggle, initial = [], entities = people, namePrefix = '@', noneLabel, label = 'People' }: {
+  function KeyboardPicker({ onToggle, initial = [], entities = people, noneLabel, label = 'People' }: {
     onToggle: (id: number) => void
     initial?: number[]
     entities?: readonly { id?: number; name: string }[]
-    namePrefix?: string
     noneLabel?: string
     label?: string
   }) {
@@ -97,7 +95,6 @@ describe('EntityDropdownItems — the keyboard', () => {
             onToggle(id)
             setChecked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
           }}
-          namePrefix={namePrefix}
           entityMenu="person"
           onSearchClear={() => setText('')}
         />
@@ -112,7 +109,7 @@ describe('EntityDropdownItems — the keyboard', () => {
     const list = screen.getByRole('listbox', { name: 'People' })
     expect(list).toHaveAttribute('aria-multiselectable', 'true')
     const options = within(list).getAllByRole('option')
-    expect(options.map((o) => o.textContent)).toEqual(['None', '@Alice Chen', '@Ben Ortiz'])
+    expect(options.map((o) => o.textContent)).toEqual(['None', 'Alice Chen', 'Ben Ortiz'])
     expect(options.map((o) => o.tabIndex)).toEqual([0, -1, -1])
 
     const search = screen.getByPlaceholderText('Search...')
@@ -158,12 +155,12 @@ describe('EntityDropdownItems — the keyboard', () => {
     expect(onToggle).toHaveBeenLastCalledWith(2)
     expect(search.value).toBe('')
     expect(search).toHaveFocus()
-    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: 'Ben Ortiz' })).toHaveAttribute('aria-selected', 'true')
     // Enter on a ticked row unticks it.
     fireEvent.change(search, { target: { value: 'ben' } })
     fireEvent.keyDown(search, { key: 'Enter' })
     expect(onToggle).toHaveBeenCalledTimes(2)
-    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('option', { name: 'Ben Ortiz' })).toHaveAttribute('aria-selected', 'false')
   })
 
   it('with text typed, Tab ticks the highlighted row and never unticks it; the search clears and keeps the focus', () => {
@@ -183,7 +180,7 @@ describe('EntityDropdownItems — the keyboard', () => {
     expect(fireEvent.keyDown(search, { key: 'Tab' })).toBe(false)
     expect(onToggle).not.toHaveBeenCalled()
     expect(search.value).toBe('')
-    expect(screen.getByRole('option', { name: '@Alice Chen' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('option', { name: 'Alice Chen' })).toHaveAttribute('aria-selected', 'true')
   })
 
   it('while text is typed the row Tab / Enter pick is highlighted and is the search’s active descendant', () => {
@@ -197,7 +194,7 @@ describe('EntityDropdownItems — the keyboard', () => {
     expect(search).not.toHaveAttribute('aria-activedescendant')
 
     fireEvent.change(search, { target: { value: 'ben' } })
-    const ben = screen.getByRole('option', { name: '@Ben Ortiz' })
+    const ben = screen.getByRole('option', { name: 'Ben Ortiz' })
     expect(highlighted()).toEqual([ben])
     expect(ben.className).toMatch(/dropdownItemSearchPick/)
     expect(search).toHaveAttribute('aria-activedescendant', ben.id)
@@ -217,8 +214,8 @@ describe('EntityDropdownItems — the keyboard', () => {
     const highlighted = () => screen.queryAllByRole('option').filter((o) => o.hasAttribute('data-search-pick')).map((o) => o.textContent)
     // `n`: None (first on screen, its label starts with n) and Nate — Nate is picked.
     fireEvent.change(search, { target: { value: 'n' } })
-    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None', '@Nate Price'])
-    expect(highlighted()).toEqual(['@Nate Price'])
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None', 'Nate Price'])
+    expect(highlighted()).toEqual(['Nate Price'])
     fireEvent.keyDown(search, { key: 'Tab' })
     expect(onToggle).toHaveBeenLastCalledWith(2)
     // `none`: only None shows — it is picked.
@@ -232,12 +229,12 @@ describe('EntityDropdownItems — the keyboard', () => {
   it('tags: `no` picks #notes over No tags', () => {
     const tags = [{ id: 7, name: 'notes' }, { id: 8, name: 'work' }]
     const onToggle = vi.fn()
-    render(<KeyboardPicker onToggle={onToggle} entities={tags} namePrefix="#" noneLabel="No tags" label="Tags" />)
+    render(<KeyboardPicker onToggle={onToggle} entities={tags} noneLabel="No tags" label="Tags" />)
     const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
     search.focus()
     fireEvent.change(search, { target: { value: 'no' } })
-    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['No tags', '#notes'])
-    expect(screen.getAllByRole('option').filter((o) => o.hasAttribute('data-search-pick')).map((o) => o.textContent)).toEqual(['#notes'])
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['No tags', 'notes'])
+    expect(screen.getAllByRole('option').filter((o) => o.hasAttribute('data-search-pick')).map((o) => o.textContent)).toEqual(['notes'])
     fireEvent.keyDown(search, { key: 'Enter' })
     expect(onToggle).toHaveBeenLastCalledWith(7)
   })
@@ -262,9 +259,9 @@ describe('EntityDropdownItems — the keyboard', () => {
     const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
     search.focus()
     fireEvent.change(search, { target: { value: 'o' } })
-    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None', '@Ben Ortiz'])
+    expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['None', 'Ben Ortiz'])
     fireEvent.keyDown(search, { key: 'ArrowDown' })
-    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveFocus()
+    expect(screen.getByRole('option', { name: 'Ben Ortiz' })).toHaveFocus()
   })
 
   it('an IME composition’s Enter / Tab picks nothing', () => {
@@ -300,7 +297,7 @@ describe('EntityDropdownItems — the keyboard', () => {
   it('the context-menu key on a focused person opens their menu under the row', () => {
     usePersonStore.setState({ people })
     render(<KeyboardPicker onToggle={vi.fn()} />)
-    const ben = screen.getByRole('option', { name: '@Ben Ortiz' })
+    const ben = screen.getByRole('option', { name: 'Ben Ortiz' })
     ben.focus()
     fireEvent.contextMenu(ben, { button: 0 })
     expect(screen.getByRole('menu', { name: '@Ben Ortiz' })).toBeInTheDocument()
@@ -330,8 +327,7 @@ describe('EntityDropdownItems — ticked rows on top', () => {
           label="People"
           isChecked={(id) => checked.has(id)}
           onToggle={(id) => setChecked((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })}
-          namePrefix="@"
-          onSearchClear={() => setText('')}
+            onSearchClear={() => setText('')}
         />
       </SelectionPanelBody>
     )
@@ -339,34 +335,34 @@ describe('EntityDropdownItems — ticked rows on top', () => {
 
   it('the ticked rows first (alphabetical), a separator, then the rest — None first of its block', () => {
     render(<Picker initial={[3, 1]} />)
-    expect(names()).toEqual(['@Alice Chen', '@Cara Diaz', 'None', '@Ben Ortiz'])
+    expect(names()).toEqual(['Alice Chen', 'Cara Diaz', 'None', 'Ben Ortiz'])
     expect(separated()).toEqual([false, false, true, false])
     cleanup()
     render(<Picker initial={[0, 2]} />)
-    expect(names()).toEqual(['None', '@Ben Ortiz', '@Alice Chen', '@Cara Diaz'])
+    expect(names()).toEqual(['None', 'Ben Ortiz', 'Alice Chen', 'Cara Diaz'])
     cleanup()
     // Nothing ticked: one block, no separator.
     render(<Picker initial={[]} />)
-    expect(names()).toEqual(['None', '@Alice Chen', '@Ben Ortiz', '@Cara Diaz'])
+    expect(names()).toEqual(['None', 'Alice Chen', 'Ben Ortiz', 'Cara Diaz'])
     expect(separated()).toEqual([false, false, false, false])
   })
 
   it('a tick with no search text never moves a row', () => {
     render(<Picker initial={[]} />)
-    fireEvent.click(screen.getByRole('option', { name: '@Cara Diaz' }))
-    expect(screen.getByRole('option', { name: '@Cara Diaz' })).toHaveAttribute('aria-selected', 'true')
-    expect(names()).toEqual(['None', '@Alice Chen', '@Ben Ortiz', '@Cara Diaz'])
+    fireEvent.click(screen.getByRole('option', { name: 'Cara Diaz' }))
+    expect(screen.getByRole('option', { name: 'Cara Diaz' })).toHaveAttribute('aria-selected', 'true')
+    expect(names()).toEqual(['None', 'Alice Chen', 'Ben Ortiz', 'Cara Diaz'])
   })
 
   it('a click with search text ticks, clears the search (focus kept) and re-sorts', () => {
     render(<Picker initial={[]} />)
     search().focus()
     fireEvent.change(search(), { target: { value: 'car' } })
-    expect(names()).toEqual(['@Cara Diaz'])
-    fireEvent.click(screen.getByRole('option', { name: '@Cara Diaz' }))
+    expect(names()).toEqual(['Cara Diaz'])
+    fireEvent.click(screen.getByRole('option', { name: 'Cara Diaz' }))
     expect(search()).toHaveValue('')
     expect(search()).toHaveFocus()
-    expect(names()).toEqual(['@Cara Diaz', 'None', '@Alice Chen', '@Ben Ortiz'])
+    expect(names()).toEqual(['Cara Diaz', 'None', 'Alice Chen', 'Ben Ortiz'])
   })
 
   it('Space on a row with search text: the search clears and the focus follows the row to its new place', () => {
@@ -374,25 +370,25 @@ describe('EntityDropdownItems — ticked rows on top', () => {
     search().focus()
     fireEvent.change(search(), { target: { value: 'ben' } })
     fireEvent.keyDown(search(), { key: 'ArrowDown' })
-    const ben = screen.getByRole('option', { name: '@Ben Ortiz' })
+    const ben = screen.getByRole('option', { name: 'Ben Ortiz' })
     expect(ben).toHaveFocus()
     fireEvent.keyDown(ben, { key: ' ' })
     expect(search()).toHaveValue('')
-    expect(names()).toEqual(['@Alice Chen', '@Ben Ortiz', 'None', '@Cara Diaz'])
-    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveFocus()
+    expect(names()).toEqual(['Alice Chen', 'Ben Ortiz', 'None', 'Cara Diaz'])
+    expect(screen.getByRole('option', { name: 'Ben Ortiz' })).toHaveFocus()
     // Space again unticks it; no text, so nothing moves.
     fireEvent.keyDown(document.activeElement!, { key: ' ' })
-    expect(screen.getByRole('option', { name: '@Ben Ortiz' })).toHaveAttribute('aria-selected', 'false')
-    expect(names()).toEqual(['@Alice Chen', '@Ben Ortiz', 'None', '@Cara Diaz'])
+    expect(screen.getByRole('option', { name: 'Ben Ortiz' })).toHaveAttribute('aria-selected', 'false')
+    expect(names()).toEqual(['Alice Chen', 'Ben Ortiz', 'None', 'Cara Diaz'])
   })
 })
 
 describe('EntityDropdownItems — search', () => {
   it('ignores spaces around the search text, as the row picker does', () => {
     render(
-      <EntityDropdownItems searchText=" ben " entities={people} isChecked={() => false} onToggle={vi.fn()} namePrefix="@" />,
+      <EntityDropdownItems searchText=" ben " entities={people} isChecked={() => false} onToggle={vi.fn()} />,
     )
-    expect(screen.getByText('@Ben Ortiz')).toBeInTheDocument()
+    expect(screen.getByText('Ben Ortiz')).toBeInTheDocument()
     expect(screen.queryByText('@Alice Chen')).toBeNull()
   })
 })
