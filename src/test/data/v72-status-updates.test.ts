@@ -1,5 +1,4 @@
 import { describe, it, expect, afterEach } from 'vitest'
-import Dexie from 'dexie'
 import { db, CURRENT_DB_VERSION } from '../../data/database'
 import { upgradeV72 } from '../../data/upgrades/v72-status-updates'
 import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
@@ -114,21 +113,44 @@ describe('upgradeV72 (pure): a task’s Progress becomes its first status update
   })
 })
 
-/** The v68 floor's stores, as a v71 build declared them. */
-const V71_STORES = {
-  todos: '++id, isCompleted, dueDate, sortOrder, statusId, &uid',
-  people: '++id, name',
-  settings: 'key',
-  todoPeople: '++id, todoId, personId',
-  backups: '++id, createdAt, trigger',
-  statuses: '++id, sortOrder',
-  listDefinitions: '++id, sortOrder',
-  notes: '++id, modifiedAt',
-  tags: '++id, name',
-  todoTags: '++id, todoId, tagId',
-  todoEvents: '++id, todoId, type, timestamp',
-  layouts: '++id',
-  listOrders: '++id, listDefinitionId, todoId, &[listDefinitionId+todoId]',
+type IndexSpec = [name: string, keyPath: string | string[], unique?: 'unique']
+
+/** The stores and indexes a v71 build left (the v68 floor's: v69 – v71 changed none). */
+const V71_LAYOUT: Record<string, { auto: boolean; keyPath: string; indexes: IndexSpec[] }> = {
+  backups: { keyPath: 'id', auto: true, indexes: [['createdAt', 'createdAt'], ['trigger', 'trigger']] },
+  layouts: { keyPath: 'id', auto: true, indexes: [] },
+  listDefinitions: { keyPath: 'id', auto: true, indexes: [['sortOrder', 'sortOrder']] },
+  listOrders: { keyPath: 'id', auto: true, indexes: [['[listDefinitionId+todoId]', ['listDefinitionId', 'todoId'], 'unique'], ['listDefinitionId', 'listDefinitionId'], ['todoId', 'todoId']] },
+  notes: { keyPath: 'id', auto: true, indexes: [['modifiedAt', 'modifiedAt']] },
+  people: { keyPath: 'id', auto: true, indexes: [['name', 'name']] },
+  settings: { keyPath: 'key', auto: false, indexes: [] },
+  statuses: { keyPath: 'id', auto: true, indexes: [['sortOrder', 'sortOrder']] },
+  tags: { keyPath: 'id', auto: true, indexes: [['name', 'name']] },
+  todoEvents: { keyPath: 'id', auto: true, indexes: [['timestamp', 'timestamp'], ['todoId', 'todoId'], ['type', 'type']] },
+  todoPeople: { keyPath: 'id', auto: true, indexes: [['personId', 'personId'], ['todoId', 'todoId']] },
+  todoTags: { keyPath: 'id', auto: true, indexes: [['tagId', 'tagId'], ['todoId', 'todoId']] },
+  todos: { keyPath: 'id', auto: true, indexes: [['dueDate', 'dueDate'], ['isCompleted', 'isCompleted'], ['sortOrder', 'sortOrder'], ['statusId', 'statusId'], ['uid', 'uid', 'unique']] },
+}
+
+/**
+ * A raw `todo2` database as a v71 build left it, holding `todos` — made
+ * without Dexie, so no second Dexie instance of the database lingers (one
+ * would open it again at v71 on its next use).
+ */
+function createV71Db(todos: readonly Record<string, unknown>[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('todo2', 710)
+    req.onupgradeneeded = () => {
+      for (const [name, spec] of Object.entries(V71_LAYOUT)) {
+        const store = req.result.createObjectStore(name, { keyPath: spec.keyPath, autoIncrement: spec.auto })
+        for (const [index, keyPath, unique] of spec.indexes) store.createIndex(index, keyPath, { unique: unique === 'unique' })
+      }
+      const store = req.transaction!.objectStore('todos')
+      for (const t of todos) store.add(t)
+    }
+    req.onsuccess = () => { req.result.close(); resolve() }
+    req.onerror = () => reject(req.error)
+  })
 }
 
 describe('the browser database’s v72 upgrade', () => {
@@ -140,15 +162,11 @@ describe('the browser database’s v72 upgrade', () => {
   it('a v71 database opens at v72 with each Progress as the task’s first entry, the key gone', async () => {
     db.close()
     await db.delete()
-    const v71 = new Dexie('todo2')
-    v71.version(71).stores(V71_STORES)
-    await v71.open()
-    await v71.table('todos').bulkAdd([
+    await createV71Db([
       { id: 1, uid: 'u1', title: 'Q4 budget', isCompleted: false, sortOrder: 0, createdAt: created, modifiedAt: modified, progress: 'half way' },
       { id: 2, uid: 'u2', title: 'No progress', isCompleted: false, sortOrder: 1, createdAt: created, modifiedAt: modified },
       { id: 3, uid: 'u3', title: 'Blank', isCompleted: false, sortOrder: 2, createdAt: created, modifiedAt: modified, progress: '' },
     ])
-    v71.close()
 
     await db.open()
     expect(db.verno).toBe(CURRENT_DB_VERSION)
