@@ -56,7 +56,7 @@ export function ThemeColorsEditor({ onClose }: ThemeColorsEditorProps) {
         {(Object.keys(colorLabels) as Array<keyof ThemeColors>).map((key) => (
           <div key={key} className={settingsStyles.colorRow}>
             <span className={settingsStyles.colorLabel}>{colorLabels[key]}</span>
-            <ColorInput value={workingColors[key]} onChange={(color) => setColor(workingTheme, key, color)} />
+            <ColorInput value={workingColors[key]} onChange={(color) => setColor(workingTheme, key, color)} label={colorLabels[key]} />
           </div>
         ))}
       </div>

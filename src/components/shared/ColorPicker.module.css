@@ -31,3 +31,11 @@
 .swatch:focus-visible {
   box-shadow: var(--focus-ring);
 }
+
+/* Between the presets and the custom swatch. */
+.divider {
+  width: 1px;
+  height: 16px;
+  background: var(--color-border);
+  flex-shrink: 0;
+}
