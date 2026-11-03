@@ -15,12 +15,14 @@ interface NlpSyntaxSection {
 
 const SECTIONS: NlpSyntaxSection[] = [
   {
-    label: 'People & tags',
+    label: 'People, tags & status',
     rows: [
       { syntax: '@name', description: 'Assign a person: the highlighted match (pick Create to add someone new; created with the task if nobody matches)' },
       { syntax: '@"First Last"', description: 'Quoted form when the name has a space' },
       { syntax: '#tag', description: 'Add a tag: the highlighted match (pick Create to add a new one; created with the task if none matches)' },
       { syntax: '#"R&D"', description: 'Quoted form for a tag name with a space or other characters' },
+      { syntax: '!status', description: 'Set the status: the exact name, else the first one it starts (!wa → Waiting); a name matching no status stays in the title' },
+      { syntax: '!"On Hold"', description: 'Quoted form when the status name has a space' },
     ],
   },
   {
@@ -32,7 +34,6 @@ const SECTIONS: NlpSyntaxSection[] = [
       { syntax: '/due <date>', description: 'Set the due date' },
       { syntax: '/followup <date | interval | none>', description: 'Set the next follow-up (instead of the default); none = no follow-up' },
       { syntax: '/repeat <frequency>', description: 'Repeat from the due date: daily, weekly, biweekly, monthly, quarterly, yearly' },
-      { syntax: '/status <name>', description: 'Set the status; quote a name with a space: /status "In progress"' },
     ],
   },
   {
@@ -51,13 +52,13 @@ const SECTIONS: NlpSyntaxSection[] = [
     rows: [
       { syntax: 'tomorrow, by fri, every week', description: 'Plain words are never read as dates or repeats — use /due, /repeat' },
       { syntax: 'a/b, 1/2, /etc/hosts', description: 'A / inside a word or path is not a command' },
+      { syntax: 'Hi!, a!b, !!!', description: 'A ! is a status only at the start of a word, before a name' },
     ],
   },
   {
     label: 'Search — the top bar’s search box',
     rows: [
-      { syntax: '@name, #tag', description: 'The People / Tags filter (several OR); a search never creates — an unknown name stays words' },
-      { syntax: '/status <name>, /waiting', description: 'The Status filter; a one-word status works as its own command' },
+      { syntax: '@name, #tag, !status', description: 'The People / Tags / Status filter (several OR); a search never creates — an unknown name stays words' },
       { syntax: '/urgent /important /focus /hot', description: 'The Priority filter' },
       { syntax: 'overdue', description: 'Due before today' },
       { syntax: 'due today / tomorrow / fri / 11/03', description: 'Due that day' },
