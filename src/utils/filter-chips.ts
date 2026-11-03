@@ -132,7 +132,11 @@ function dayLabel(n: number): string {
   return `${n} ${n === 1 ? 'day' : 'days'}`
 }
 
-/** One endpoint in words: `Oct 15`, `today`, `end of week`, `in 3 days`, `2 days ago`. */
+/**
+ * One endpoint in words: `Oct 15`, `today`, `end of week`, `in 3 days`, `2
+ * days ago` — one day either way as its name (`yesterday`, `tomorrow`), as
+ * the tokens read.
+ */
 export function describeAnchor(anchor: DateAnchor): string {
   switch (anchor.kind) {
     case 'fixed':
@@ -141,6 +145,8 @@ export function describeAnchor(anchor: DateAnchor): string {
       return rollingDayLabel(anchor.token)
     case 'offset':
       if (anchor.days === 0) return 'today'
+      if (anchor.days === 1) return 'tomorrow'
+      if (anchor.days === -1) return 'yesterday'
       return anchor.days > 0 ? `in ${dayLabel(anchor.days)}` : `${dayLabel(-anchor.days)} ago`
   }
 }
@@ -190,13 +196,13 @@ export function describeRange(start: DateAnchor | null, end: DateAnchor | null):
     if (e == null) return `on or before ${describeAnchor(end)}`
     if (e === -1) return 'before today'
     if (e < -1) return `${-e}+ days ago`
-    return `${e === 1 ? 'tomorrow' : describeAnchor(end)} or earlier`
+    return `${describeAnchor(end)} or earlier`
   }
   if (start) {
     if (s == null) return `on or after ${describeAnchor(start)}`
     if (s === 1) return 'after today'
     if (s > 1) return `${s}+ days ahead`
-    return `${s === -1 ? 'yesterday' : describeAnchor(start)} or later`
+    return `${describeAnchor(start)} or later`
   }
   return ''
 }

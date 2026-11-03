@@ -189,7 +189,10 @@ describe('filterChips on a list with many ids', () => {
 describe('describeAnchor / describeRange', () => {
   it('words each anchor kind', () => {
     expect(describeAnchor({ kind: 'offset', days: 0 })).toBe('today')
-    expect(describeAnchor({ kind: 'offset', days: 1 })).toBe('in 1 day')
+    // One day either way is its name, as the tokens say it (P7–P8 review).
+    expect(describeAnchor({ kind: 'offset', days: 1 })).toBe('tomorrow')
+    expect(describeAnchor({ kind: 'offset', days: -1 })).toBe('yesterday')
+    expect(describeAnchor({ kind: 'offset', days: 2 })).toBe('in 2 days')
     expect(describeAnchor({ kind: 'offset', days: -3 })).toBe('3 days ago')
     expect(describeAnchor({ kind: 'relative', token: 'start-of-next-week' })).toBe('start of next week')
     expect(describeAnchor({ kind: 'fixed', iso: new Date(2026, 9, 15).toISOString() })).toBe('Oct 15')
@@ -238,6 +241,10 @@ describe('describeAnchor / describeRange', () => {
       [tok('end-of-week'), tok('end-of-week'), 'end of week'],
       // Two other ends: A – B, both included.
       [off(-7), tok('yesterday'), '7 days ago – yesterday'],
+      [off(-7), off(-1), '7 days ago – yesterday'],
+      [off(-1), tok('yesterday'), 'yesterday'],
+      [off(-1), off(-1), 'yesterday'],
+      [off(1), off(3), 'tomorrow – in 3 days'],
       [off(2), off(9), 'in 2 days – in 9 days'],
       [tok('start-of-week'), tok('end-of-week'), 'start of week – end of week'],
       [tok('today'), tok('end-of-week'), 'today – end of week'],
@@ -296,7 +303,7 @@ describe('a date range chip’s tooltip spells its exact days (cr25 P7)', () => 
     expect(tip({ deadline: { match: 'range', start: null, end: { kind: 'fixed', iso: new Date(2027, 0, 5).toISOString() } } }))
       .toEqual(['Due: on or before Jan 5\nDue on or before Tue 5 Jan 2027'])
     expect(tip({ deadline: { match: 'range', start: { kind: 'offset', days: 3 }, end: { kind: 'offset', days: 1 } } }))
-      .toEqual(['Due: in 3 days – in 1 day\nDue from Thu 5 Nov through Tue 3 Nov (no day: it starts after it ends)'])
+      .toEqual(['Due: in 3 days – tomorrow\nDue from Thu 5 Nov through Tue 3 Nov (no day: it starts after it ends)'])
   })
 
   it('the week start moves the week tokens’ days', () => {
