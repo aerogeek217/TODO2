@@ -503,13 +503,14 @@ describe('FilterChipBar — primitive', () => {
       expect(captured!.tags).not.toContain(10)
     })
 
-    it('the Dates section shows the Dates value (Any when off) and holds the date panel at touch sizes', () => {
+    it('the Dates section shows the Dates value (nothing when off, like People / Tags / Status) and holds the date panel at touch sizes', () => {
       const updates: TodoPredicate[] = []
       const created = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null }
       const { rerender } = render(
         <FilterChipBar density="mobile" predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />,
       )
-      expect(screen.getByText('Dates').parentElement).toHaveTextContent('Any')
+      // Not `Any`: the panel's Show › Any means "has the date" (P7–P8 review).
+      expect(screen.getByText('Dates').parentElement).toHaveTextContent(/^Dates▸$/)
       fireEvent.click(screen.getByText('Dates'))
       fireEvent.click(screen.getByRole('tab', { name: 'Next follow-up' }))
       expect(updates).toEqual([])
@@ -519,6 +520,8 @@ describe('FilterChipBar — primitive', () => {
       expect(screen.getByText('Due + Created')).toBeInTheDocument()
       fireEvent.click(screen.getByRole('button', { name: 'Clear all dates' }))
       expect(updates.at(-1)?.dates).toEqual({})
+      rerender(<FilterChipBar density="mobile" predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
+      expect(screen.getByText('Dates').parentElement).toHaveTextContent(/^Dates▸$/)
     })
 
     it('sets markers to Yes / No at mobile density', () => {

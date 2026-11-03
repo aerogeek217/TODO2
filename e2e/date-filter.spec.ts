@@ -414,7 +414,8 @@ test.describe('phone', () => {
     await expect(allRows).toHaveCount(3)
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('tab', { name: 'Filters', exact: true }).click()
     const datesRow = page.getByText('Dates', { exact: true })
-    await expect(datesRow.locator('..')).toContainText('Any')
+    // Off: no value (not `Any` — Show's Any means "has the date").
+    await expect(datesRow.locator('..')).toHaveText(/^Dates\s*▸$/)
     await datesRow.click()
 
     await page.getByRole('tab', { name: 'Next follow-up' }).click()
@@ -435,7 +436,7 @@ test.describe('phone', () => {
 
     await page.getByRole('button', { name: 'Clear all dates' }).click()
     await expect(allRows).toHaveCount(3)
-    await expect(datesRow.locator('..')).toContainText('Any')
+    await expect(datesRow.locator('..')).toHaveText(/^Dates\s*▸$/)
   })
 })
 
