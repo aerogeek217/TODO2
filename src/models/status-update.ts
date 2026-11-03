@@ -23,3 +23,9 @@ export type PersistedStatusUpdate = StatusUpdate & { id: number }
 
 /** The longest text an entry holds (Progress's cap). */
 export const STATUS_UPDATE_TEXT_MAX = 500
+
+/**
+ * An entry not written yet: one typed into the new-task editor before
+ * Create (or carried by a task draft), written with the task.
+ */
+export type StatusUpdateDraft = Pick<StatusUpdate, 'date' | 'text' | 'createdAt'>

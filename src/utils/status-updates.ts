@@ -7,7 +7,10 @@ import { collapseWhitespace } from './text'
  * by `createdAt` (entries of the same day), then by `id` (rows written
  * together). "Newest" is the first in this order.
  */
-export function compareStatusUpdates(a: StatusUpdate, b: StatusUpdate): number {
+export function compareStatusUpdates(
+  a: Pick<StatusUpdate, 'date' | 'createdAt' | 'id'>,
+  b: Pick<StatusUpdate, 'date' | 'createdAt' | 'id'>,
+): number {
   return b.date.getTime() - a.date.getTime()
     || b.createdAt.getTime() - a.createdAt.getTime()
     || (b.id ?? 0) - (a.id ?? 0)

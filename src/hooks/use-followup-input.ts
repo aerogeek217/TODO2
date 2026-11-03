@@ -20,11 +20,17 @@ export const NEXT_FOLLOWUP_INVALID = 'Try 2w, 10d, 1m, fri, 24 Oct or 10/24'
 const LAST_FOLLOWUP_INVALID = 'Try a date like 24 Sep, 9/24 or yesterday'
 const LAST_FOLLOWUP_FUTURE = "Last follow-up can't be in the future"
 
+/** What a `last`-mode field says to a day after today (default: the Last follow-up's words). */
+export interface FollowupInputOptions {
+  futureMessage?: string
+}
+
 /** Interpret `text` for a next- or last-follow-up input (pure; exported for tests). */
 export function interpretFollowupText(
   text: string,
   mode: FollowupInputMode,
   today: Date,
+  options: FollowupInputOptions = {},
 ): Exclude<FollowupInputState, { kind: 'unchanged' }> {
   const parsed = parseFollowupInput(text, today, mode === 'last' ? 'past' : 'future')
   if (parsed.kind === 'empty') return { kind: 'empty' }
@@ -34,18 +40,19 @@ export function interpretFollowupText(
   if (mode === 'last') {
     // Last follow-up takes dates only — an interval counts forward from today.
     if (parsed.interval) return { kind: 'invalid', message: LAST_FOLLOWUP_INVALID }
-    if (isFutureDay(parsed.date, today)) return { kind: 'invalid', message: LAST_FOLLOWUP_FUTURE }
+    if (isFutureDay(parsed.date, today)) return { kind: 'invalid', message: options.futureMessage ?? LAST_FOLLOWUP_FUTURE }
   }
   return { kind: 'valid', date: parsed.date }
 }
 
 /**
  * Text state for a follow-up date input (the row popover and the task
- * editor). Shows the stored value as `Tue 13 Oct`; once the user types, the
- * text is parsed live (`2w`, `fri`, `24 Oct`, …). Re-syncs to the stored value
- * during render when it changes underneath a clean input.
+ * editor; a status update's day takes the Last follow-up's, `last`). Shows
+ * the stored value as `Tue 13 Oct`; once the user types, the text is parsed
+ * live (`2w`, `fri`, `24 Oct`, …). Re-syncs to the stored value during render
+ * when it changes underneath a clean input.
  */
-export function useFollowupInput(value: Date | undefined, mode: FollowupInputMode, today: Date) {
+export function useFollowupInput(value: Date | undefined, mode: FollowupInputMode, today: Date, options: FollowupInputOptions = {}) {
   const display = value ? formatFollowupDate(value, today) : ''
   const [text, setText] = useState(display)
   const [dirty, setDirty] = useState(false)
@@ -55,7 +62,7 @@ export function useFollowupInput(value: Date | undefined, mode: FollowupInputMod
     if (!dirty) setText(display)
   }
 
-  const state: FollowupInputState = dirty ? interpretFollowupText(text, mode, today) : { kind: 'unchanged' }
+  const state: FollowupInputState = dirty ? interpretFollowupText(text, mode, today, options) : { kind: 'unchanged' }
 
   return {
     text,

@@ -11,6 +11,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
 
@@ -93,19 +94,21 @@ describe('TaskEditPopup with concurrent changes to its task', () => {
     expect(save).not.toHaveBeenCalled()
   })
 
-  it('progress typed while the title changes elsewhere: each keeps its own change', async () => {
+  it('a status update typed while the title changes elsewhere: each keeps its own change', async () => {
     const id = await addTodo('Old title')
+    await useStatusUpdateStore.getState().load()
     await openEditor(id)
-    const progress = screen.getByPlaceholderText('e.g. 50% done, Waiting on review...') as HTMLInputElement
+    const update = screen.getByRole('textbox', { name: 'New status update' }) as HTMLInputElement
 
-    fireEvent.change(progress, { target: { value: 'half done' } })
+    fireEvent.change(update, { target: { value: 'half done' } })
     await act(async () => {
       await useTodoStore.getState().update(id, { title: 'Renamed elsewhere' })
     })
-    expect(progress.value).toBe('half done')
+    expect(update.value).toBe('half done')
     expect(titleInput().value).toBe('Renamed elsewhere')
-    await act(async () => { fireEvent.blur(progress) })
+    await act(async () => { fireEvent.keyDown(update, { key: 'Enter' }) })
 
-    await vi.waitFor(async () => expect(await inDb(id)).toMatchObject({ title: 'Renamed elsewhere', progress: 'half done' }))
+    await vi.waitFor(async () => expect((await db.statusUpdates.where('todoId').equals(id).toArray()).map((u) => u.text)).toEqual(['half done']))
+    expect(await inDb(id)).toMatchObject({ title: 'Renamed elsewhere' })
   })
 })

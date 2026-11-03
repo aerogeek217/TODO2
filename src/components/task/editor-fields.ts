@@ -7,11 +7,11 @@ import { sameFieldValue } from '../../utils/todo-changes'
  * keeps a baseline — the task's values when the editor last synced with the
  * store — so it can tell the user's changes from changes made elsewhere.
  * The notes aren't here: their edit session (`useTaskNotesSource`) does the
- * same for them.
+ * same for them; nor are the status updates, which save at once through
+ * their store.
  */
 export interface EditorFields {
   title: string
-  progress: string
   statusId: number | undefined
   deadline: Date | null
   recurrenceType: RecurrenceType | ''
@@ -19,15 +19,14 @@ export interface EditorFields {
 
 type EditorField = keyof EditorFields
 
-const FIELDS: readonly EditorField[] = ['title', 'progress', 'statusId', 'deadline', 'recurrenceType']
+const FIELDS: readonly EditorField[] = ['title', 'statusId', 'deadline', 'recurrenceType']
 
 /** A stored task's values in the editor's terms. */
 export function editorFieldsOf(
-  todo: Pick<PersistedTodoItem, 'title' | 'progress' | 'statusId' | 'dueDate' | 'recurrenceRule'>,
+  todo: Pick<PersistedTodoItem, 'title' | 'statusId' | 'dueDate' | 'recurrenceRule'>,
 ): EditorFields {
   return {
     title: todo.title,
-    progress: todo.progress ?? '',
     statusId: todo.statusId,
     deadline: todo.dueDate ?? null,
     recurrenceType: todo.recurrenceRule?.type ?? '',
@@ -68,7 +67,6 @@ export function editorChanges(form: EditorFields, baseline: EditorFields): TodoC
   const changes: TodoChanges = {}
   const title = form.title.trim()
   if (edited.has('title') && title) changes.title = title
-  if (edited.has('progress')) changes.progress = form.progress || undefined
   if (edited.has('statusId')) changes.statusId = form.statusId
   if (edited.has('deadline')) changes.dueDate = form.deadline ?? undefined
   if (edited.has('recurrenceType') || edited.has('deadline')) {

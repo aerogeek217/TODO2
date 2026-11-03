@@ -1,4 +1,4 @@
-import type { NewTodoItem, Person, RecurrenceType, Status, Tag, TodoChanges, TodoItem } from '../models'
+import type { NewTodoItem, Person, RecurrenceType, Status, StatusUpdateDraft, Tag, TodoChanges, TodoItem } from '../models'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import { mentionToken, parseInput, tagToken } from './natural-language-parser'
 import { matchTag, resolveInput, type ResolvedInput } from './nlp-resolver'
@@ -34,8 +34,15 @@ export interface TaskDraft {
   /** `#tag`s that match no tag: created with the task. */
   newTags: string[]
   notes?: string
-  progress?: string
+  /** Status updates written with the task (the task editor's create mode: added before Create). */
+  statusUpdates?: readonly StatusUpdateDraft[]
 }
+
+/**
+ * What the task editor's create / draft mode hands back: the task's fields,
+ * plus the status updates added before Create (written with the task).
+ */
+export type EditorTaskFields = Partial<TodoItem> & { statusUpdates?: readonly StatusUpdateDraft[] }
 
 export interface DraftContext {
   people: readonly Person[]
@@ -158,7 +165,7 @@ function withStatus(statusId: number | undefined): { statusId?: number } {
  * / tag that no longer exists (seeded from a filter naming it) is left out.
  */
 export function draftFromEditor(
-  partial: Partial<TodoItem>,
+  partial: EditorTaskFields,
   assignments: { personIds: readonly number[]; tagIds: readonly number[] },
   ctx: Pick<DraftContext, 'people' | 'statuses' | 'tags' | 'today'>,
 ): TaskDraft {
@@ -185,7 +192,7 @@ export function draftFromEditor(
     newTags: tags.missing,
     ...(partial.lastFollowupAt ? { lastFollowupAt: partial.lastFollowupAt } : {}),
     ...(partial.notes ? { notes: partial.notes } : {}),
-    ...(partial.progress ? { progress: partial.progress } : {}),
+    ...(partial.statusUpdates && partial.statusUpdates.length > 0 ? { statusUpdates: [...partial.statusUpdates] } : {}),
   }
 }
 
@@ -231,6 +238,5 @@ function draftFields(draft: TaskDraft): Omit<TodoChanges, 'nextFollowupAt' | 'ti
     ...(draft.focus ? { focus: true as const } : {}),
     ...(draft.lastFollowupAt ? { lastFollowupAt: draft.lastFollowupAt } : {}),
     ...(draft.notes ? { notes: draft.notes } : {}),
-    ...(draft.progress ? { progress: draft.progress } : {}),
   }
 }

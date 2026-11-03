@@ -1,0 +1,269 @@
+/*
+ * A task's status updates in the task editor: the add row (text, then its
+ * day — the Last follow-up field's look, `Followup.module.css`), then the
+ * entries newest first, one `MM/DD text` line each.
+ */
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* The entry count beside the label. */
+.count {
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  line-height: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* ── Add / edit rows ── */
+
+.addRow,
+.editRow {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.editRow {
+  flex: 1;
+  min-width: 0;
+  padding: 6px 0;
+}
+
+.textInput {
+  width: 100%;
+  height: 30px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-nav);
+  outline: none;
+}
+
+.textInput:focus,
+.textInput:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.textInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* The day field, its help line, and (editing) Cancel / Save. */
+.dayRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.dayHint {
+  color: var(--color-text-muted);
+}
+
+.cancelButton,
+.saveButton {
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.cancelButton {
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+}
+
+.cancelButton:hover {
+  background: var(--color-tint-14);
+  color: var(--color-text-primary);
+}
+
+.saveButton {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+  font-weight: var(--font-weight-bold);
+}
+
+.saveButton:hover {
+  filter: brightness(1.08);
+}
+
+.saveButton:disabled {
+  opacity: 0.45;
+  cursor: default;
+  filter: none;
+}
+
+/* ── Entries ── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.entry {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 28px;
+  padding-right: 2px;
+  border-radius: 6px;
+  transition: background var(--transition-fast);
+}
+
+.entry:hover {
+  background: var(--color-tint-3);
+}
+
+/* The entry's line: a press edits it. Older entries are muted. */
+.entryText {
+  flex: 1;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  min-width: 0;
+  padding: 4px 6px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-task);
+  text-align: left;
+  cursor: text;
+}
+
+.entryDate {
+  flex-shrink: 0;
+  font-size: var(--font-size-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.entryBody {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entryNewest .entryText {
+  color: var(--color-text-primary);
+}
+
+.entryNewest .entryDate {
+  color: var(--color-text-secondary);
+}
+
+/* Edit / delete: shown on hover and while the keyboard is on the entry. */
+.entryActions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+.entry:hover .entryActions,
+.entry:focus-within .entryActions {
+  opacity: 1;
+}
+
+.iconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.iconButtonDanger:hover {
+  color: var(--color-danger);
+}
+
+/* ── Older updates ── */
+
+.olderClosed {
+  display: flex;
+}
+
+.olderRule {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding-left: 6px;
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.ruleLine {
+  flex: 1;
+  height: 1px;
+  background: var(--color-border-muted);
+}
+
+.olderToggle {
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+  cursor: pointer;
+}
+
+.olderToggle:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+/* Touch: no hover, so the actions stay in view. */
+@media (hover: none) {
+  .entryActions {
+    opacity: 1;
+  }
+
+  .entry:hover {
+    background: transparent;
+  }
+}

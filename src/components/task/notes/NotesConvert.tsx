@@ -1,7 +1,6 @@
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { EditorView } from '@codemirror/view'
-import type { TodoItem } from '../../../models'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { autoNextFollowup, useSettingsStore } from '../../../stores/settings-store'
@@ -22,7 +21,7 @@ import {
   type ConvertLine,
   type TextChange,
 } from '../../../services/note-lines'
-import { draftFromEditor, draftFromText, type DraftContext, type TaskDraft } from '../../../services/task-draft'
+import { draftFromEditor, draftFromText, type DraftContext, type EditorTaskFields, type TaskDraft } from '../../../services/task-draft'
 import { createTasksFromDrafts } from '../../../services/note-tasks'
 import { createTaskFromDraft } from '../../../services/create-task'
 import { ConfirmDialog } from '../../shared/Dialog'
@@ -240,7 +239,7 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
   // Single line: create, then mark the line `✓ <title>` (no prompt). Not
   // stored (the snackbar says so): null keeps the editor open and the line as
   // it is.
-  const createSingle = useCallback(async (line: ConvertLine, partial: Partial<TodoItem>, assignments?: { personIds: number[]; tagIds: number[] }) => {
+  const createSingle = useCallback(async (line: ConvertLine, partial: EditorTaskFields, assignments?: { personIds: number[]; tagIds: number[] }) => {
     const draft = draftFromEditor(partial, assignments ?? { personIds: [], tagIds: [] }, editorCtx())
     const id = await createTaskFromDraft(draft)
     if (id == null) return null
