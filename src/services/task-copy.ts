@@ -10,15 +10,17 @@
  * `Copied N tasks`; `copySelectedTasks` is the copy shortcut's (and the
  * palette's) copy of the selected or focused tasks, in display order.
  */
-import type { PersistedTodoItem, Person, Status } from '../models'
+import type { PersistedTodoItem, Person, Status, Subtask } from '../models'
 import { formatDateWith, startOfToday } from '../utils/date'
 import { formatFollowupDate } from '../utils/followup'
+import { compareSubtasks } from '../utils/subtasks'
 import { escapeHtml } from '../utils/html'
 import { attrSelector, ROW_TODO_ATTR } from '../utils/dom-contract'
 import { findScopeElement, orderByRows, readScopeRows } from '../utils/scoped-selection'
 import { wrapClipboardHtml, writeRichClipboard } from './rich-clipboard'
 import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
+import { useSubtaskStore } from '../stores/subtask-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
@@ -31,7 +33,14 @@ export interface CopyTaskSection {
 export interface CopyTaskContext {
   assignedPeopleMap: Map<number, Person[]>
   statusMap: Map<number, Status>
+  /** Each task's checklist (cr28): indented `[ ]` / `[x]` lines under its line; absent = none copied. */
+  subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
   today?: Date
+}
+
+/** A task's subtasks in order, for the lines under it. */
+function subtasksOf(todo: PersistedTodoItem, ctx: CopyTaskContext): Subtask[] {
+  return [...(ctx.subtasksByTodo?.get(todo.id) ?? [])].sort(compareSubtasks)
 }
 
 /**
@@ -89,9 +98,12 @@ function renderPlainLine(d: TodoDetails): string {
   return `${formatTaskLine(d)}${d.peopleStr}`
 }
 
-function renderHtmlItem(d: TodoDetails): string {
+function renderHtmlItem(d: TodoDetails, subtasks: readonly Subtask[]): string {
   const mark = d.check === '[x]' ? '☑' : '☐'
-  return `<li>${mark} ${escapeHtml(d.title)}${escapeHtml(d.statusStr + d.deadline + d.followup + d.peopleStr)}</li>`
+  const nested = subtasks.length > 0
+    ? `<ul>${subtasks.map((s) => `<li>${s.isCompleted ? '☑' : '☐'} ${escapeHtml(s.title)}</li>`).join('')}</ul>`
+    : ''
+  return `<li>${mark} ${escapeHtml(d.title)}${escapeHtml(d.statusStr + d.deadline + d.followup + d.peopleStr)}${nested}</li>`
 }
 
 export function buildTasksPlain(sections: CopyTaskSection[], ctx: CopyTaskContext): string {
@@ -102,6 +114,7 @@ export function buildTasksPlain(sections: CopyTaskSection[], ctx: CopyTaskContex
     if (section.label) lines.push(`== ${section.label} ==`)
     for (const todo of section.todos) {
       lines.push(renderPlainLine(todoDetails(todo, ctx, today)))
+      for (const s of subtasksOf(todo, ctx)) lines.push(`  [${s.isCompleted ? 'x' : ' '}] ${s.title}`)
     }
     lines.push('')
   }
@@ -116,7 +129,7 @@ export function buildTasksHtml(sections: CopyTaskSection[], ctx: CopyTaskContext
     if (section.label) parts.push(`<h2>${escapeHtml(section.label)}</h2>`)
     parts.push('<ul>')
     for (const todo of section.todos) {
-      parts.push(renderHtmlItem(todoDetails(todo, ctx, today)))
+      parts.push(renderHtmlItem(todoDetails(todo, ctx, today), subtasksOf(todo, ctx)))
     }
     parts.push('</ul>')
   }
@@ -144,11 +157,12 @@ export function copiedNotice(count: number): string {
   return `Copied ${count} ${count === 1 ? 'task' : 'tasks'}`
 }
 
-/** The stores' people and statuses, for a copy. */
+/** The stores' people, statuses and checklists, for a copy. */
 function storeCopyContext(): CopyTaskContext {
   return {
     assignedPeopleMap: usePersonStore.getState().assignedPeopleMap,
     statusMap: new Map(useStatusStore.getState().statuses.flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
+    subtasksByTodo: useSubtaskStore.getState().byTodo,
   }
 }
 

@@ -230,7 +230,7 @@ export const todoRepository = {
   /** `delete` for several tasks in one transaction; returns their deleted event rows. */
   async bulkDelete(ids: readonly number[]): Promise<TodoEvent[]> {
     if (ids.length === 0) return []
-    return db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.listOrders, db.statusUpdates], async () => {
+    return db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.listOrders, db.statusUpdates, db.subtasks], async () => {
       const todoIds = [...ids]
       const events = await db.todoEvents.where('todoId').anyOf(todoIds).sortBy('id')
       await db.todoPeople.where('todoId').anyOf(todoIds).delete()
@@ -238,6 +238,7 @@ export const todoRepository = {
       await db.todoEvents.where('todoId').anyOf(todoIds).delete()
       await db.listOrders.where('todoId').anyOf(todoIds).delete()
       await db.statusUpdates.where('todoId').anyOf(todoIds).delete()
+      await db.subtasks.where('todoId').anyOf(todoIds).delete()
       await db.todos.bulkDelete(todoIds)
       return events
     })

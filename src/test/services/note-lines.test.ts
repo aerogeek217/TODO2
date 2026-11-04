@@ -8,6 +8,8 @@ import {
   removeLineChanges,
   selectionLines,
   singleLineCandidate,
+  singleLineCandidateAt,
+  subtaskLinesUnder,
 } from '../../services/note-lines'
 
 describe('classifyNoteLine', () => {
@@ -177,6 +179,54 @@ describe('convertCandidates', () => {
 
   it('an empty note has none', () => {
     expect(convertCandidates('', null)).toEqual([])
+  })
+})
+
+describe('subtask lines (cr28)', () => {
+  const NESTED = [
+    '- Q4 budget @Ben due 11/20', // 1
+    '  - Send the template to all leads', // 2
+    '  - [x] Headcount from Aisha', // 3
+    '    - Get travel actuals from Marco', // 4
+    '  a note under the bullet', // 5
+    '  - Review with Ben', // 6
+    '', // 7
+    '  - Not under anything', // 8
+    '- Book the offsite venue #ops', // 9
+    '\t- Tab-indented child', // 10
+    'Notes from the call', // 11
+  ].join('\n')
+
+  it('subtaskLinesUnder: the deeper list lines right under a line, a done box done, a deeper plain line skipped, a blank or a shallower line ends them', () => {
+    expect(subtaskLinesUnder(NESTED.split('\n'), 1)).toEqual([
+      { line: 2, text: '  - Send the template to all leads', title: 'Send the template to all leads', done: false },
+      { line: 3, text: '  - [x] Headcount from Aisha', title: 'Headcount from Aisha', done: true },
+      { line: 4, text: '    - Get travel actuals from Marco', title: 'Get travel actuals from Marco', done: false },
+      { line: 6, text: '  - Review with Ben', title: 'Review with Ben', done: false },
+    ])
+    expect(subtaskLinesUnder(NESTED.split('\n'), 9).map((s) => s.title)).toEqual(['Tab-indented child'])
+    expect(subtaskLinesUnder(NESTED.split('\n'), 11)).toEqual([])
+    expect(subtaskLinesUnder(NESTED.split('\n'), 99)).toEqual([])
+  })
+
+  it('convertCandidates: a bullet carries its subtask lines, which are not candidates of their own; an indented bullet under nothing is one', () => {
+    const lines = convertCandidates(NESTED, null)
+    expect(lines.map((c) => [c.line, c.subtasks?.map((s) => s.line)])).toEqual([[1, [2, 3, 4, 6]], [8, undefined], [9, [10]]])
+    expect(lines[0]?.body).toBe('Q4 budget @Ben due 11/20')
+  })
+
+  it('convertCandidates: a selection takes only the subtask lines inside it', () => {
+    expect(convertCandidates(NESTED, { from: 1, to: 3 }).map((c) => [c.line, c.subtasks?.map((s) => s.line)])).toEqual([[1, [2, 3]]])
+    // A selection starting on a child line: the child is a candidate on its own.
+    expect(convertCandidates(NESTED, { from: 2, to: 3 }).map((c) => c.line)).toEqual([2])
+  })
+
+  it('singleLineCandidateAt: the caret line with its subtask lines; a child line alone', () => {
+    expect(singleLineCandidateAt(NESTED, 1)?.subtasks?.map((s) => s.title)).toEqual([
+      'Send the template to all leads', 'Headcount from Aisha', 'Get travel actuals from Marco', 'Review with Ben',
+    ])
+    expect(singleLineCandidateAt(NESTED, 2)).toEqual({ line: 2, text: '  - Send the template to all leads', indent: '  ', body: 'Send the template to all leads' })
+    expect(singleLineCandidateAt(NESTED, 7)).toBeNull()
   })
 })
 

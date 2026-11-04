@@ -73,6 +73,25 @@ describe('buildTasksPlain', () => {
   })
 })
 
+describe('subtasks under a task (cr28)', () => {
+  const subtasksByTodo = new Map([[1, [
+    { id: 2, todoId: 1, title: 'Review with Ben', isCompleted: false, sortOrder: 1, createdAt: new Date() },
+    { id: 1, todoId: 1, title: 'Send the <template>', isCompleted: true, sortOrder: 0, createdAt: new Date() },
+  ]]])
+  const todos = [makeTodo({ id: 1, title: 'Q4 budget' }), makeTodo({ id: 2, title: 'Other' })]
+
+  it('plain: indented [ ] / [x] lines in checklist order under the task’s line', () => {
+    expect(buildTasksPlain([{ todos }], ctx({ subtasksByTodo }))).toBe('[ ] Q4 budget\n  [x] Send the <template>\n  [ ] Review with Ben\n[ ] Other')
+    expect(buildTasksPlain([{ todos }], ctx())).toBe('[ ] Q4 budget\n[ ] Other')
+  })
+
+  it('HTML: a nested list inside the task’s item, escaped', () => {
+    expect(buildTasksHtml([{ todos }], ctx({ subtasksByTodo }))).toBe(
+      '<ul>\n<li>☐ Q4 budget<ul><li>☑ Send the &lt;template&gt;</li><li>☐ Review with Ben</li></ul></li>\n<li>☐ Other</li>\n</ul>',
+    )
+  })
+})
+
 describe('buildTasksHtml', () => {
   it('renders a flat <ul> for an unlabeled section', () => {
     const todos = [makeTodo({ id: 1, title: 'One' }), makeTodo({ id: 2, title: 'Two', isCompleted: true })]

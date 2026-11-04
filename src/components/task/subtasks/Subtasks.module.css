@@ -1,0 +1,585 @@
+/*
+ * A task's checklist (cr28): the one list in the editor's Subtasks section,
+ * the row's popover and the phone's sheet — rows of `checkbox · title · ⋯`,
+ * then the add row. `data-density`: `editor` (28px rows), `tight` (26px,
+ * the popover), `touch` (44px, the phone sheet).
+ */
+
+/* ── The editor section's heading ── */
+
+.headingRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The label's own bottom margin (`.notesLabel`) goes: the row spaces it. */
+.headingRow .heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 0;
+}
+
+.countText {
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0;
+  text-transform: none;
+  font-variant-numeric: tabular-nums;
+}
+
+/* How much of the checklist is done: a thin bar after the label. */
+.bar {
+  width: 80px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: var(--color-tint-8);
+  overflow: hidden;
+}
+
+.barFill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  transition: width var(--transition-fast);
+}
+
+/* ── The list ── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.list[data-density="tight"] {
+  margin-top: 2px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 4px 0 2px;
+  border-radius: var(--radius-md);
+  transition: background var(--transition-fast);
+}
+
+.list[data-density="tight"] .item {
+  min-height: 26px;
+}
+
+.list[data-density="touch"] .item {
+  min-height: var(--touch-target-min);
+  gap: 12px;
+  padding: 0 6px;
+}
+
+.item:hover,
+.item:focus-within {
+  background: var(--color-tint-3);
+}
+
+.item[data-dragging] {
+  background: var(--color-tint-8);
+  box-shadow: var(--shadow-dropdown);
+  z-index: var(--z-above);
+}
+
+/* The grip: shown on hover / focus (the editor only). */
+.grip {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  width: 10px;
+  color: var(--color-text-muted);
+  opacity: 0;
+  cursor: grab;
+  touch-action: none;
+  transition: opacity var(--transition-fast);
+}
+
+.item:hover .grip,
+.item:focus-within .grip,
+.grip:focus-visible {
+  opacity: 1;
+}
+
+.checkbox {
+  flex-shrink: 0;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.list[data-density="tight"] .checkbox {
+  width: 14px;
+  height: 14px;
+}
+
+.list[data-density="touch"] .checkbox {
+  width: 20px;
+  height: 20px;
+}
+
+/* The title: a press renames it in place. */
+.title {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 4px;
+  border: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-task);
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: text;
+}
+
+.list[data-density="tight"] .title {
+  font-size: var(--font-size-nav);
+}
+
+.list[data-density="touch"] .title {
+  font-size: 15px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.item[data-done] .title {
+  color: var(--color-text-completed);
+  text-decoration: line-through;
+}
+
+/* The rename field, in the title's place. */
+.titleInput {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-task);
+  outline: none;
+}
+
+.list[data-density="tight"] .titleInput {
+  font-size: var(--font-size-nav);
+}
+
+/* ⋯ : shown on hover / focus; the open trigger (D21) while its menu is open. */
+.more {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  opacity: 0;
+  cursor: pointer;
+  transition: opacity var(--transition-fast), background var(--transition-fast);
+}
+
+.item:hover .more,
+.item:focus-within .more,
+.more[data-open] {
+  opacity: 1;
+}
+
+.more:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.more[data-open] {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
+}
+
+.list[data-density="touch"] .more {
+  width: var(--touch-target-min);
+  height: var(--touch-target-min);
+}
+
+/* ── The add row ── */
+
+.addRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  padding: 0 4px 0 2px;
+}
+
+.list[data-density="tight"] + .addRow,
+.addRow[data-density="tight"] {
+  min-height: 30px;
+  margin-top: 2px;
+  padding: 0 6px;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-3);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+}
+
+.addRow[data-density="touch"] {
+  min-height: var(--touch-target-min);
+  gap: 12px;
+  padding: 0 6px;
+}
+
+.addRow[data-density="editor"] {
+  padding-left: 20px;
+}
+
+.addIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 15px;
+  color: var(--color-accent-text);
+}
+
+.addRow[data-density="tight"] .addIcon {
+  width: 14px;
+}
+
+.addRow[data-density="touch"] .addIcon {
+  width: 20px;
+}
+
+.addInput {
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-task);
+  outline: none;
+}
+
+.addRow[data-density="tight"] .addInput {
+  font-size: var(--font-size-nav);
+}
+
+.addRow[data-density="touch"] .addInput {
+  height: 32px;
+  font-size: 15px;
+}
+
+.addInput::placeholder {
+  color: var(--color-text-muted);
+}
+
+/* ── The row's count (`2/5`) ── */
+
+.count {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-5);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.count:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+/* Every subtask done: the task is ready to complete. */
+.count[data-all-done] {
+  background: var(--color-accent-bg-light);
+  color: var(--color-accent-text);
+}
+
+/* The open trigger (D21). */
+.count[data-open],
+.count[data-open]:hover {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
+}
+
+.count:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.count[data-open]:focus-visible {
+  box-shadow: var(--trigger-open-ring), var(--focus-ring);
+}
+
+/* The phone row's chip: `2/5 subtasks`. */
+.chip {
+  height: 24px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-tint-5);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chip[data-all-done] {
+  background: var(--color-accent-bg-light);
+  color: var(--color-accent-text);
+}
+
+/* ── The row's popover ── */
+
+.popover {
+  position: fixed;
+  /* Overlay layer: above the task dialog it may be opened from, below an editor opened from it. */
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  width: 340px;
+  max-height: 60vh;
+  padding: 8px 10px 8px;
+  box-sizing: border-box;
+  background: var(--color-popover-bg);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-primary);
+}
+
+.popoverHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 2px 6px 6px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+}
+
+.popoverTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.popoverCount {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.popoverBody {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.popoverFoot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 6px 0;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.openLink {
+  flex-shrink: 0;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-accent-text);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.openLink:hover {
+  background: var(--color-accent-bg-light);
+}
+
+/* ── The phone's sheet ── */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background: var(--color-overlay);
+}
+
+.sheet {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  max-height: 75vh;
+  padding: 12px 12px calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px) + 8px);
+  background: var(--color-surface);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  color: var(--color-text-primary);
+}
+
+.sheetHead {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 8px 10px;
+}
+
+.sheetTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+}
+
+.sheetCount {
+  flex-shrink: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.sheetBody {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+/* ── The task picker (Make subtask of… / Move to another task…) ── */
+
+.picker {
+  width: min(380px, calc(100vw - 32px));
+}
+
+.pickerSearch {
+  width: 100%;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-nav);
+  outline: none;
+}
+
+.pickerSearch:focus,
+.pickerSearch:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.pickerSearch::placeholder {
+  color: var(--color-text-muted);
+}
+
+.pickerList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 300px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.pickerItem {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pickerItem[data-highlighted] {
+  background: var(--color-accent-bg-light);
+}
+
+.pickerItem[data-done] .pickerTitle {
+  color: var(--color-text-muted);
+}
+
+.pickerTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-nav);
+}
+
+.pickerMeta {
+  min-height: 1em;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.pickerEmpty {
+  padding: 10px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
+/* Touch: no hover, so the grip and ⋯ stay in view. */
+@media (hover: none) {
+  .grip,
+  .more {
+    opacity: 1;
+  }
+
+  .item:hover {
+    background: transparent;
+  }
+}

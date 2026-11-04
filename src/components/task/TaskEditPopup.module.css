@@ -574,15 +574,22 @@
 }
 
 .timestamps {
+  min-width: 0;
   font-size: 11px;
   color: var(--color-text-muted);
   letter-spacing: 0.01em;
 }
 
+/* Four buttons (cr28's Make subtask of…): each stays on one line; the timestamps give way. */
 .footerActions {
   display: flex;
+  flex-shrink: 0;
   gap: 10px;
   align-items: center;
+}
+
+.footerActions button {
+  white-space: nowrap;
 }
 
 .deleteButton {

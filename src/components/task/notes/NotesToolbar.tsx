@@ -2,6 +2,7 @@ import { useCallback } from 'react'
 import { EditorSelection } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
 import { formatShortcut } from '../../../utils/platform'
+import { indentSelection } from './notes-indent'
 import { useTooltip } from '../../shared/use-tooltip'
 import styles from './NotesToolbar.module.css'
 
@@ -45,6 +46,16 @@ function convertButtonText({ count, selection, shortcutLabel }: Pick<NotesConver
     label: `Convert ${plural(count, 'bullet line', 'bullet lines')} to tasks`,
     hint: `Select lines to convert only those · ${shortcutLabel} converts the current line`,
   }
+}
+
+/** An arrow into (or out of) an indented line: the toolbar's Indent / Outdent. */
+function IndentGlyph({ out = false }: { out?: boolean }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M2.5 3h11M7.5 8h6M7.5 13h6" />
+      {out ? <path d="M5.5 5.5L3 8l2.5 2.5" /> : <path d="M2.5 5.5L5 8l-2.5 2.5" />}
+    </svg>
+  )
 }
 
 function ConvertGlyph() {
@@ -146,6 +157,14 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
     view.focus()
   }, [viewRef])
 
+  // The list lines under the selection move one level (cr28): what Tab / ⇧Tab do, from a button.
+  const indent = useCallback((direction: 'in' | 'out') => {
+    const view = viewRef.current
+    if (!view) return
+    indentSelection(view, direction)
+    view.focus()
+  }, [viewRef])
+
   return (
     <div className={styles.toolbar} role="toolbar" aria-label="Notes formatting">
       <button
@@ -203,6 +222,24 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
         aria-label="Checkbox"
       >
         ☐
+      </button>
+      <button
+        type="button"
+        className={styles.btn}
+        onClick={() => indent('in')}
+        title="Indent list line (Tab)"
+        aria-label="Indent"
+      >
+        <IndentGlyph />
+      </button>
+      <button
+        type="button"
+        className={styles.btn}
+        onClick={() => indent('out')}
+        title="Outdent list line (Shift+Tab)"
+        aria-label="Outdent"
+      >
+        <IndentGlyph out />
       </button>
       <span className={styles.spacer} />
       {convert && <ConvertButton convert={convert} />}

@@ -1,5 +1,5 @@
-import type { TodoItem, Person, TodoPerson, RecurrenceRule, RecurrenceType, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, StatusUpdate, ListOrder } from '../models'
-import { isTodoSortBy, isTodoGroupBy, isTodoSortDirection, STATUS_UPDATE_TEXT_MAX } from '../models'
+import type { TodoItem, Person, TodoPerson, RecurrenceRule, RecurrenceType, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, StatusUpdate, Subtask, ListOrder } from '../models'
+import { isTodoSortBy, isTodoGroupBy, isTodoSortDirection, STATUS_UPDATE_TEXT_MAX, SUBTASK_TITLE_MAX } from '../models'
 import type { ListDefinition, ListOwner, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { toDate, toOptDate } from './date-revive'
@@ -302,6 +302,18 @@ function checkStatusUpdate(v: unknown): CheckResult {
     ['text', isStr(v.text, STATUS_UPDATE_TEXT_MAX)],
     ['createdAt', isDateLike(v.createdAt)],
     ['followedUp', isOptTriBool(v.followedUp)],
+  ])
+}
+
+function checkSubtask(v: unknown): CheckResult {
+  if (!isRecord(v)) return 'not an object'
+  return checkFields(v, [
+    ['id', isOptId(v.id)],
+    ['todoId', isFiniteNum(v.todoId)],
+    ['title', isStr(v.title, SUBTASK_TITLE_MAX)],
+    ['isCompleted', isBool(v.isCompleted)],
+    ['sortOrder', isFiniteNum(v.sortOrder)],
+    ['createdAt', isDateLike(v.createdAt)],
   ])
 }
 
@@ -682,6 +694,17 @@ function pickStatusUpdate(v: Raw): AllFields<StatusUpdate> {
   } satisfies AllFields<StatusUpdate>
 }
 
+function pickSubtask(v: Raw): AllFields<Subtask> {
+  return {
+    id: optNum(v.id),
+    todoId: v.todoId as number,
+    title: v.title as string,
+    isCompleted: v.isCompleted as boolean,
+    sortOrder: v.sortOrder as number,
+    createdAt: toDate(v.createdAt),
+  } satisfies AllFields<Subtask>
+}
+
 function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
   if (!isRecord(v)) return undefined
   const field = v.field
@@ -831,6 +854,7 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
   todoTags: { check: checkTodoTag, pick: pickTodoTag },
   todoEvents: { check: checkTodoEvent, pick: pickTodoEvent },
   statusUpdates: { check: checkStatusUpdate, pick: pickStatusUpdate },
+  subtasks: { check: checkSubtask, pick: pickSubtask },
   layouts: {
     check: checkLayout,
     pick: pickLayout,

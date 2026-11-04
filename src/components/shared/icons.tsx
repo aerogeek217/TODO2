@@ -170,6 +170,16 @@ export function CheckIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size} strokeWidth={2}><path d="M3.5 8.5l3 3 6-7" /></Svg>
 }
 
+/** A checklist: three lines, the lower two indented under a bracket (subtasks, cr28). */
+export function ChecklistIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M3 3.5h10M6 8h7M6 12.5h7M3 8v4.5" /></Svg>
+}
+
+/** An arrow turning in under a line: make this a subtask of another task (cr28). */
+export function IndentIcon({ size = 14 }: { size?: number }) {
+  return <Svg size={size}><path d="M4 3v5.5a2 2 0 0 0 2 2h6.5M9.5 7.5l3 3-3 3" /></Svg>
+}
+
 export function CopyIcon({ size = 14 }: { size?: number }) {
   return (
     <Svg size={size}>

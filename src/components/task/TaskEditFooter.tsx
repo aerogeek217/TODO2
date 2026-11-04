@@ -7,6 +7,8 @@ interface TaskEditFooterEditProps {
   todo: PersistedTodoItem
   onDelete: () => void
   onDuplicate?: () => void
+  /** "Make subtask of…": the task becomes a line of another task's checklist (cr28). */
+  onMakeSubtaskOf?: () => void
   onClose: () => void
   onCreate?: never
   titleValid?: never
@@ -29,8 +31,8 @@ export function TaskEditFooter(props: TaskEditFooterProps) {
   const { mode, onClose } = props
 
   if (mode === 'edit') {
-    const { todo, onDelete, onDuplicate } = props
-    return <EditFooter todo={todo} onDelete={onDelete} onDuplicate={onDuplicate} onClose={onClose} />
+    const { todo, onDelete, onDuplicate, onMakeSubtaskOf } = props
+    return <EditFooter todo={todo} onDelete={onDelete} onDuplicate={onDuplicate} onMakeSubtaskOf={onMakeSubtaskOf} onClose={onClose} />
   }
 
   if (props.isDraft) {
@@ -69,10 +71,11 @@ interface EditFooterProps {
   todo: PersistedTodoItem
   onDelete: () => void
   onDuplicate?: () => void
+  onMakeSubtaskOf?: () => void
   onClose: () => void
 }
 
-function EditFooter({ todo, onDelete, onDuplicate, onClose }: EditFooterProps) {
+function EditFooter({ todo, onDelete, onDuplicate, onMakeSubtaskOf, onClose }: EditFooterProps) {
   return (
     <div className={styles.footer}>
       <span className={styles.timestamps}>
@@ -82,6 +85,11 @@ function EditFooter({ todo, onDelete, onDuplicate, onClose }: EditFooterProps) {
         {onDuplicate && (
           <button className={styles.duplicateButton} onClick={onDuplicate}>
             Duplicate
+          </button>
+        )}
+        {onMakeSubtaskOf && (
+          <button className={styles.duplicateButton} onClick={onMakeSubtaskOf}>
+            Make subtask of…
           </button>
         )}
         <button className={styles.deleteButton} onClick={onDelete}>

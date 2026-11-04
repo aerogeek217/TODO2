@@ -92,6 +92,21 @@ describe('NotesToolbar', () => {
     expect(view.state.doc.toString()).toBe('- one\n- two\n- three')
   })
 
+  it('Indent / Outdent move the list lines under the selection one level; a plain line is left alone', () => {
+    view.destroy()
+    view = makeView('- a\n- b\nplain')
+    viewRef = { current: view }
+    selectRange(view, 0, 5)
+    render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
+    fireEvent.click(screen.getByLabelText('Indent'))
+    expect(view.state.doc.toString()).toBe('  - a\n  - b\nplain')
+    fireEvent.click(screen.getByLabelText('Outdent'))
+    expect(view.state.doc.toString()).toBe('- a\n- b\nplain')
+    selectRange(view, 10, 10)
+    fireEvent.click(screen.getByLabelText('Indent'))
+    expect(view.state.doc.toString()).toBe('- a\n- b\nplain')
+  })
+
   it('Copy rich invokes the onCopy callback', () => {
     render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
     fireEvent.click(screen.getByLabelText('Copy as rich text'))

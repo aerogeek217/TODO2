@@ -1,7 +1,8 @@
-import type { StatusUpdate } from '../models'
+import type { StatusUpdate, Subtask } from '../models'
 import { usePersonStore } from '../stores/person-store'
 import { newTaskDefaultFollowup } from '../stores/settings-store'
 import { useStatusUpdateStore } from '../stores/status-update-store'
+import { useSubtaskStore } from '../stores/subtask-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
 import { resolveTags, resolveUnmatchedPeople } from './nlp-resolver'
@@ -17,10 +18,10 @@ export interface CreatedTask {
  * drafts name that don't exist yet are created first (lookup-or-create; like
  * every create of a person or tag, that part isn't undone). Tasks without a
  * follow-up choice get the Settings default (none while new tasks get no
- * follow-up). A draft's status updates are written after its task, with
- * no undo step of their own (the create's undo takes them, its redo puts
- * them back); best effort — a task that exists is never reported as not
- * created. Returns the created tasks in draft order.
+ * follow-up). A draft's status updates and subtasks are written after its
+ * task, with no undo step of their own (the create's undo takes them, its
+ * redo puts them back); best effort — a task that exists is never reported
+ * as not created. Returns the created tasks in draft order.
  */
 export async function createTasksFromDrafts(
   drafts: readonly TaskDraft[],
@@ -49,6 +50,13 @@ export async function createTasksFromDrafts(
   if (updates.length > 0) {
     await useStatusUpdateStore.getState().addRows(updates).catch((e: unknown) => {
       console.warn('[note-tasks] writing the new tasks’ status updates failed', e)
+    })
+  }
+  const subtasks: Subtask[] = ids.flatMap((todoId, i) => (drafts[i]?.subtasks ?? [])
+    .map((s, k) => ({ todoId, title: s.title, isCompleted: s.isCompleted, sortOrder: k, createdAt: now })))
+  if (subtasks.length > 0) {
+    await useSubtaskStore.getState().addRows(subtasks).catch((e: unknown) => {
+      console.warn('[note-tasks] writing the new tasks’ subtasks failed', e)
     })
   }
   return ids.map((id, i) => ({ id, title: drafts[i]?.title ?? '' }))

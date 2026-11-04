@@ -40,6 +40,7 @@ import type { TodoPerson } from '../src/models/todo-person'
 import type { TodoTag } from '../src/models/todo-tag'
 import type { TodoEvent } from '../src/models/todo-event'
 import type { StatusUpdate } from '../src/models/status-update'
+import type { Subtask } from '../src/models/subtask'
 import type { ListOrder } from '../src/models/list-order'
 import type { RecurrenceType } from '../src/models/recurrence'
 import type { ListDefinition } from '../src/models/list-definition'
@@ -51,7 +52,7 @@ import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, WorkspaceLayout }
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 72
+export const DEV_SEED_SCHEMA_VERSION = 73
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -119,6 +120,7 @@ type Json<T> = T extends Date
 
 type TodoRow = Json<TodoItem>
 type StatusUpdateRow = Json<StatusUpdate>
+type SubtaskRow = Json<Subtask>
 type LayoutRow = Json<WorkspaceLayout>
 type TabRow = Json<LayoutTab>
 type CellRow = Json<LayoutCell>
@@ -218,6 +220,8 @@ interface TaskOpts {
   notes?: string
   /** The newest status update's text (a few earlier ones are made up). */
   update?: string
+  /** The task's checklist, in order; a `[x] ` prefix marks a line done. */
+  subtasks?: string[]
   /** Completed on this day (≤ 0), with a `completed` event. */
   done?: number
   /** Completed on this day with no event (a completion from before the history log). */
@@ -271,6 +275,7 @@ const PROJECTS: ProjectDef[] = [
       ['Draft cutover runbook for the billing service', {
         due: 6, followup: 2, people: ['marcus'], tags: ['docs'], status: 'followup', important: true,
         update: 'steps 1–6 drafted',
+        subtasks: ['[x] Freeze writes', '[x] Snapshot the database', 'Flip DNS', 'Smoke test'],
         notes: '## Steps\n- Freeze writes\n- Snapshot the database\n- Flip DNS\n- Smoke test\n\nOwner: **Marcus**',
       }],
       ["Review Marcus's PR for the auth token refresh", { due: 0, people: ['marcus'], tags: ['security', 'urgent'], urgent: true }],
@@ -309,7 +314,10 @@ const PROJECTS: ProjectDef[] = [
     orgs: ['finance'],
     tags: ['budget', 'Q4', 'urgent'],
     tasks: [
-      ['Submit Q4 budget draft to Finance', { due: 0, orgs: ['finance'], tags: ['budget', 'Q4', 'urgent'], status: 'followup', important: true, update: 'waiting on numbers' }],
+      ['Submit Q4 budget draft to Finance', {
+        due: 0, orgs: ['finance'], tags: ['budget', 'Q4', 'urgent'], status: 'followup', important: true, update: 'waiting on numbers',
+        subtasks: ['[x] Send the template to all leads', '[x] Headcount from Aisha', 'Get travel actuals from Marco', 'Compare with Q3 actuals', 'Review with Ben'],
+      }],
       ['Reconcile September vendor invoices', { due: -6, dueMoves: 1, people: ['laura'], tags: ['budget'], status: 'followup' }],
       'Review headcount plan with Priya',
       ['Prepare board deck: engineering section', { recur: 'quarterly', due: 25, people: ['priya'], tags: ['Q4'], important: true }],
@@ -495,6 +503,7 @@ export interface DevSeed {
   todoTags: TodoTag[]
   todoEvents: TodoEvent[]
   statusUpdates: StatusUpdateRow[]
+  subtasks: SubtaskRow[]
   layouts: LayoutRow[]
   listOrders: ListOrder[]
   exportedAt: string
@@ -633,6 +642,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   const todoTags: Omit<TodoTag, 'id'>[] = []
   const events: Omit<TodoEvent, 'id'>[] = []
   const statusUpdates: Omit<StatusUpdateRow, 'id'>[] = []
+  const subtasks: Omit<SubtaskRow, 'id'>[] = []
 
   specs.forEach((spec, index) => {
     const id = index + 1
@@ -724,6 +734,18 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     const projectTag = spec.project !== undefined ? IDS.projectTags[spec.project] : undefined
     if (projectTag !== undefined) tagIds.add(projectTag)
     for (const tagId of tagIds) todoTags.push({ todoId: id, tagId })
+
+    // The checklist, written a minute apart soon after the task.
+    o.subtasks?.forEach((line, k) => {
+      const done = line.startsWith('[x] ')
+      subtasks.push({
+        todoId: id,
+        title: done ? line.slice(4) : line,
+        isCompleted: done,
+        sortOrder: k,
+        createdAt: iso(Math.min(created + (k + 1) * 60_000, endMs)),
+      })
+    })
 
     // Status updates: a few made-up earlier ones, then `update` the newest
     // — added with the last follow-up when the task was followed up.
@@ -964,6 +986,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     todoTags: withIds(todoTags),
     todoEvents: withIds(events),
     statusUpdates: withIds(statusUpdates),
+    subtasks: withIds(subtasks),
     layouts,
     listOrders,
     exportedAt: iso(exportedAt),

@@ -150,6 +150,10 @@ function buildSeed(): Seed {
       { id: 1, todoId: 1, date: at('2026-09-10T00:00:00.000Z'), text: 'Asked Finance for the numbers', createdAt: at('2026-09-10T15:00:00.000Z') },
       { id: 2, todoId: 1, date: at('2026-09-13T00:00:00.000Z'), text: 'Numbers in; drafting', createdAt: at('2026-09-13T14:25:31.000Z'), followedUp: true },
     ],
+    subtasks: [
+      { id: 1, todoId: 1, title: 'Collect the numbers', isCompleted: true, sortOrder: 0, createdAt: at('2026-09-10T15:00:00.000Z') },
+      { id: 2, todoId: 1, title: 'Draft the charts', isCompleted: false, sortOrder: 1, createdAt: at('2026-09-10T15:01:00.000Z') },
+    ],
     layouts: [
       { id: 1, name: 'Empty', sortOrder: 1, columns: [], createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-01T09:00:00.000Z') },
       {

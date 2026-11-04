@@ -116,6 +116,8 @@ export interface WorkspaceSeed {
     notes?: string
     /** Status updates, newest first: each a text and its day (days from today, ≤ 0; default today). */
     statusUpdates?: Array<{ text: string; inDays?: number }>
+    /** The task's checklist, in order. */
+    subtasks?: Array<{ title: string; done?: boolean }>
     /** A fixed uid (default: a random UUID). */
     uid?: string
     /** Last modified (default: now), as a local date-time string, e.g. `2026-10-10T15:30`. */
@@ -169,7 +171,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       r.onsuccess = () => resolve(r.result as number)
       r.onerror = () => reject(r.error)
     })
-    const tx = idb.transaction(['layouts', 'settings', 'listDefinitions', 'people', 'tags', 'statuses', 'todos', 'todoPeople', 'todoTags', 'statusUpdates'], 'readwrite')
+    const tx = idb.transaction(['layouts', 'settings', 'listDefinitions', 'people', 'tags', 'statuses', 'todos', 'todoPeople', 'todoTags', 'statusUpdates', 'subtasks'], 'readwrite')
     const get = (store: IDBObjectStore, key: number) => new Promise<Record<string, unknown>>((resolve, reject) => {
       const r = store.get(key)
       r.onsuccess = () => resolve(r.result as Record<string, unknown>)
@@ -253,6 +255,9 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       // Written newest first, each a moment older than the one before (same-day order).
       for (const [i, u] of (task.statusUpdates ?? []).entries()) {
         await add(tx.objectStore('statusUpdates'), { todoId, date: day(u.inDays ?? 0), text: u.text, createdAt: new Date(now.getTime() - i * 1000) })
+      }
+      for (const [i, s] of (task.subtasks ?? []).entries()) {
+        await add(tx.objectStore('subtasks'), { todoId, title: s.title, isCompleted: s.done === true, sortOrder: i, createdAt: new Date(now.getTime() - 60_000 + i * 1000) })
       }
     }
     tx.objectStore('layouts').clear()

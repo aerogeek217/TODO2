@@ -3,6 +3,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useStatusUpdateStore } from '../stores/status-update-store'
+import { useSubtaskStore } from '../stores/subtask-store'
 import type { PaneContext } from '../utils/eisenhower'
 import { useFilterSettings } from './use-filter-settings'
 import { useToday } from './use-today'
@@ -21,8 +22,9 @@ export function usePaneContext(): PaneContext {
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
+  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
   return useMemo(
-    () => ({ today, settings, people, assignedPeopleMap, tags, assignedTagsMap, statuses, statusUpdatesByTodo }),
-    [today, settings, people, assignedPeopleMap, tags, assignedTagsMap, statuses, statusUpdatesByTodo],
+    () => ({ today, settings, people, assignedPeopleMap, tags, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo }),
+    [today, settings, people, assignedPeopleMap, tags, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo],
   )
 }

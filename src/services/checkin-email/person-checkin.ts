@@ -11,7 +11,7 @@
  * or tags not loaded yet — it opens the dialog for that person instead, with
  * the reason in its status line.
  */
-import type { PersistedPerson, PersistedTodoItem, Person, Status, StatusUpdate, Tag } from '../../models'
+import type { PersistedPerson, PersistedTodoItem, Person, Status, StatusUpdate, Subtask, Tag } from '../../models'
 import { startOfToday } from '../../utils/date'
 import { isNoCheckinFilter, type CheckinOpenMethod, type CheckinTaskFilter } from '../../utils/checkin-settings'
 import type { FilterSettings } from '../../utils/filter-match'
@@ -22,6 +22,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
+import { useSubtaskStore } from '../../stores/subtask-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { buildCheckinEmail, type CheckinEmail } from './build'
@@ -67,7 +68,7 @@ export function prepareCheckin(
     sections,
     {
       today: ctx.today, assignedPeopleMap: ctx.assignedPeopleMap, assignedTagsMap: ctx.assignedTagsMap,
-      refOf: ctx.refOf, statusUpdatesByTodo: ctx.statusUpdatesByTodo,
+      refOf: ctx.refOf, statusUpdatesByTodo: ctx.statusUpdatesByTodo, subtasksByTodo: ctx.subtasksByTodo,
     },
     { ...include, sentAt },
   )
@@ -83,6 +84,8 @@ export interface CheckinContextSources {
   statuses: readonly Status[]
   /** Each task's status updates (the filter's text search reads them). */
   statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
+  /** Each task's checklist (the filter's text search reads it; the email lists the open ones). */
+  subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
   filterSettings: FilterSettings
 }
 
@@ -107,6 +110,7 @@ function currentCheckinSources(): CheckinContextSources {
     assignedTagsMap: useTagStore.getState().assignedTagsMap,
     statuses: useStatusStore.getState().statuses,
     statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo,
+    subtasksByTodo: useSubtaskStore.getState().byTodo,
     filterSettings: currentFilterSettings(),
   }
 }

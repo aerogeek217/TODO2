@@ -6,6 +6,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useStatusUpdateStore } from '../stores/status-update-store'
+import { useSubtaskStore } from '../stores/subtask-store'
 import { useFilterSettings } from './use-filter-settings'
 import { useToday } from './use-today'
 
@@ -22,14 +23,15 @@ export function useScreenTaskCounts(): ScreenTaskCounts {
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
   const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
+  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
   const { urgentRange, hotRule, weekStartsOn } = useFilterSettings()
   const today = useToday()
   return useMemo(
     () => screenTaskCounts({
-      todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, today, weekStartsOn,
+      todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn,
       markerSettings: { urgentRange, hotRule },
     }),
-    [todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, today, weekStartsOn, urgentRange, hotRule],
+    [todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, urgentRange, hotRule],
   )
 }
 

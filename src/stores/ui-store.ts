@@ -85,6 +85,14 @@ export interface BulkConfirmation {
   onConfirm?: () => void  // custom confirm handler (used with action: 'custom')
 }
 
+/**
+ * What the task picker (`TaskPickerHost`) is open for: a parent for a task
+ * becoming a subtask, or another task for a subtask to move to (cr28).
+ */
+export type TaskPickerRequest =
+  | { kind: 'make-subtask'; todoId: number }
+  | { kind: 'move-subtask'; subtaskId: number }
+
 /** A yes / no question some code is waiting on (`askConfirmation`), or a three-way one (`askChoice`). */
 export interface ConfirmPrompt {
   title: string
@@ -170,6 +178,8 @@ interface UIState {
    * person chip. `null` = closed.
    */
   taskDialog: TaskDialogPayload | null
+  /** The task picker on screen (Make subtask of… / Move to another task…), or null. */
+  taskPicker: TaskPickerRequest | null
   /**
    * The top bar's filtered-tasks panel (desktop): the screen filter's tasks
    * dropped from the filter tray, which edits them live.
@@ -282,6 +292,8 @@ interface UIState {
    * Opens the task dialog. Clears the selection, so a row's actions in the
    * dialog act on that row only.
    */
+  openTaskPicker: (request: TaskPickerRequest) => void
+  closeTaskPicker: () => void
   showTaskDialog: (payload: TaskDialogPayload) => void
   hideTaskDialog: () => void
   /**
@@ -385,6 +397,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   bulkConfirmation: null,
   confirmPrompts: [],
   taskDialog: null,
+  taskPicker: null,
   filterPanelOpen: false,
   filterPanelFocusKey: 0,
   lensLifted: false,
@@ -492,6 +505,14 @@ export const useUIStore = create<UIState>((set, get) => ({
     // popping the popup discards any unsaved seed so the next create-popup
     // open starts clean.
     set({ selectedTodoId: null, editPopupMode: null, quickAddDraft: null })
+  },
+
+  openTaskPicker(request) {
+    set({ taskPicker: request })
+  },
+
+  closeTaskPicker() {
+    set({ taskPicker: null })
   },
 
   showTaskDialog(payload) {

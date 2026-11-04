@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process'
 import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, existsSync, statSync } from 'node:fs'
 import { createServer, type Server } from 'node:http'
 import { tmpdir } from 'node:os'
-import { extname, join, normalize, resolve } from 'node:path'
+import { dirname, extname, join, normalize, resolve } from 'node:path'
+import { createRequire } from 'node:module'
 import { pathToFileURL } from 'node:url'
 import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 import { checkOfflineFile } from '../scripts/offline-file'
@@ -42,7 +43,8 @@ const MIME: Record<string, string> = {
 test.beforeAll(async () => {
   test.setTimeout(180_000)
   outDir = mkdtempSync(join(tmpdir(), 'todo2-csp-'))
-  const vite = resolve(ROOT, 'node_modules/vite/bin/vite.js')
+  // Found through the package (its `exports` hide the bin), so a worktree whose packages live in the parent checkout builds too.
+  const vite = join(dirname(createRequire(import.meta.url).resolve('vite/package.json')), 'bin/vite.js')
   execFileSync(process.execPath, [vite, 'build', '--outDir', join(outDir, 'online'), '--emptyOutDir', '--logLevel', 'error'], { cwd: ROOT, stdio: 'pipe' })
   execFileSync(process.execPath, [vite, 'build', '--config', 'vite.config.offline.ts', '--outDir', join(outDir, 'offline'), '--logLevel', 'error'], { cwd: ROOT, stdio: 'pipe' })
 

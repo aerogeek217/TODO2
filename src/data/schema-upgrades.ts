@@ -3,6 +3,7 @@ import { upgradeV69 } from './upgrades/v69-or-groups'
 import { upgradeV70 } from './upgrades/v70-date-types'
 import { upgradeV71 } from './upgrades/v71-date-not'
 import { upgradeV72 } from './upgrades/v72-status-updates'
+import { upgradeV73 } from './upgrades/v73-subtasks'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -79,7 +80,8 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * v69, v70 and v71, version markers (`upgrades/v69-or-groups.ts`,
  * `upgrades/v70-date-types.ts`, `upgrades/v71-date-not.ts`), and v72, a
  * task's Progress text as its first status update
- * (`upgrades/v72-status-updates.ts`). Each transform lives in
+ * (`upgrades/v72-status-updates.ts`), and v73, a version marker for the
+ * `subtasks` table (`upgrades/v73-subtasks.ts`). Each transform lives in
  * `data/upgrades/v<N>-*.ts`.
  */
 export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([
@@ -87,6 +89,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [70, upgradeV70],
   [71, upgradeV71],
   [72, upgradeV72],
+  [73, upgradeV73],
 ])
 
 /**
