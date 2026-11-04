@@ -88,6 +88,20 @@ describe('auditData', () => {
     expect(issue.fix).toBe('delete')
   })
 
+  it('detects orphaned subtasks (deleted todo)', async () => {
+    const { todoId } = await seedBase()
+    await db.subtasks.bulkAdd([
+      { todoId, title: 'kept', isCompleted: false, sortOrder: 0, createdAt: new Date() },
+      { todoId: 999, title: 'orphan', isCompleted: true, sortOrder: 0, createdAt: new Date() },
+    ])
+
+    const report = await auditData()
+    const issue = report.issues.find((i) => i.table === 'subtasks')!
+    expect(issue.count).toBe(1)
+    expect(issue.fix).toBe('delete')
+    expect(issue.samples?.[0]?.badFields).toEqual(['todoId'])
+  })
+
   it('detects orphaned statusUpdates (deleted todo)', async () => {
     const { todoId } = await seedBase()
     await db.statusUpdates.bulkAdd([

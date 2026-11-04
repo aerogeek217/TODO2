@@ -5,6 +5,7 @@ import { startOfToday } from '../utils/date'
 import { compareStatusUpdates, statusUpdateDay, statusUpdateText } from '../utils/status-updates'
 import { registerModuleReset } from '../utils/module-reset'
 import { loadFresh, trackWrite } from './store-helpers'
+import { notifyTasksTouched, onTasksTouched } from './task-hooks'
 import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
 
@@ -85,29 +86,12 @@ function group(rows: readonly PersistedStatusUpdate[]): Map<number, readonly Per
   return withRows(new Map(), rows)
 }
 
-/** Told the tasks an entry write stamped, and when (`onTasksTouched`). */
-type TouchListener = (todoIds: readonly number[], at: Date) => void
-
-const touchListeners = new Set<TouchListener>()
-
-/**
- * Calls `listener` after each entry write that stamped its tasks'
- * `modifiedAt` in the database (an add, edit or removal, and their undo /
- * redo — not a task delete's undo putting entries back, nor a duplicate's
- * copies), so the task store can keep its copies in step. The task store
- * subscribes here rather than this store calling it: it already imports
- * this one. Returns the unsubscribe function.
- */
-export function onTasksTouched(listener: TouchListener): () => void {
-  touchListeners.add(listener)
-  return () => { touchListeners.delete(listener) }
-}
+/** The task store subscribes here (`stores/task-hooks`), as it did before the subtask store shared the listeners. */
+export { onTasksTouched }
 
 /** The stamp for a write touching `rows`' tasks, told to the listeners once it is stored. */
 function touched(rows: readonly Pick<StatusUpdate, 'todoId'>[], at: Date): void {
-  if (rows.length === 0) return
-  const todoIds = [...new Set(rows.map((r) => r.todoId))]
-  for (const listener of touchListeners) listener(todoIds, at)
+  notifyTasksTouched(rows.map((r) => r.todoId), at)
 }
 
 let inflight: Promise<void> | null = null

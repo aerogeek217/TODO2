@@ -19,6 +19,18 @@ export function UndoSnackbar() {
       ) : (
         <span className={snackbar.notice ? styles.notice : styles.message}>{snackbar.description}</span>
       )}
+      {snackbar.action && (
+        <button
+          className={styles.actionButton}
+          data-snackbar-action=""
+          onClick={() => {
+            snackbar.action?.run()
+            dismissSnackbar()
+          }}
+        >
+          {snackbar.action.label}
+        </button>
+      )}
       {!snackbar.notice && (
         <button
           className={styles.undoButton}

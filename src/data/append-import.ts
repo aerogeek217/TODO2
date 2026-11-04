@@ -1,7 +1,7 @@
 import { db } from './database'
 import type { ImportData } from './import-validation'
 import type {
-  TodoItem, TodoEvent, StatusUpdate, Person, Tag, Status,
+  TodoItem, TodoEvent, StatusUpdate, Subtask, Person, Tag, Status,
 } from '../models'
 import { newTodoUid } from '../utils/todo-uid'
 
@@ -69,7 +69,7 @@ export async function appendImportTasks(
   const created: AppendImportResult['created'] = { people: [], tags: [], statuses: [] }
 
   const tables = [
-    db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.statusUpdates,
+    db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.statusUpdates, db.subtasks,
     db.people, db.tags, db.statuses,
   ]
   const todoIds = await db.transaction('rw', tables, async () => {
@@ -218,6 +218,15 @@ export async function appendImportTasks(
       updates.push(row)
     }
     if (updates.length > 0) await db.statusUpdates.bulkAdd(updates)
+
+    // --- Subtasks ---
+    const subtasks: Subtask[] = []
+    for (const s of data.subtasks) {
+      const todoId = todoIdMap.get(s.todoId)
+      if (todoId == null) continue
+      subtasks.push({ todoId, title: s.title, isCompleted: s.isCompleted, sortOrder: s.sortOrder, createdAt: s.createdAt })
+    }
+    if (subtasks.length > 0) await db.subtasks.bulkAdd(subtasks)
 
     return newIds
   })

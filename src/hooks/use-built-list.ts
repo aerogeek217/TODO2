@@ -10,6 +10,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useListOrderStore, useListRanks } from '../stores/list-order-store'
 import { useStatusUpdateStore } from '../stores/status-update-store'
+import { useSubtaskStore } from '../stores/subtask-store'
 import { applyRuntimeFilter, buildList, type ListContents } from '../services/build-list'
 import type { TodoNameLookups } from '../utils/filter'
 import { useToday } from './use-today'
@@ -106,6 +107,7 @@ export function useBuiltList(
   useEffect(() => {
     void useListOrderStore.getState().ensureLoaded()
     void useStatusUpdateStore.getState().ensureLoaded()
+    void useSubtaskStore.getState().ensureLoaded()
   }, [])
 
   // Tag filter clauses read `assignedTagsMap`; keep it populated for the

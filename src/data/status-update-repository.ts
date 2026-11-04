@@ -1,5 +1,6 @@
 import { db } from './database'
 import type { PersistedStatusUpdate, StatusUpdate } from '../models/status-update'
+import { presentTodoIds, touchTodos } from './touch-todos'
 
 /**
  * A task's status updates (`statusUpdates`): dated lines of text, any
@@ -8,7 +9,7 @@ import type { PersistedStatusUpdate, StatusUpdate } from '../models/status-updat
  *
  * An entry write is activity on its task: given `touchedAt`, a write stamps
  * the `modifiedAt` of every task whose entries it changed, in the same
- * transaction (so the task doesn't go stale while its updates come in).
+ * transaction (`touch-todos`; so the task doesn't go stale while its updates come in).
  */
 export const statusUpdateRepository = {
   async getAll(): Promise<PersistedStatusUpdate[]> {
@@ -91,15 +92,3 @@ export const statusUpdateRepository = {
   },
 }
 
-/** The ids among `rows`' tasks that exist (read inside the caller's transaction). */
-async function presentTodoIds(rows: readonly StatusUpdate[]): Promise<Set<number>> {
-  const todoIds = [...new Set(rows.map((r) => r.todoId))]
-  return new Set((await db.todos.bulkGet(todoIds)).flatMap((t) => (t?.id != null ? [t.id] : [])))
-}
-
-/** Stamps `modifiedAt` = `at` on `rows`' tasks (inside the caller's transaction); nothing without `at`. */
-async function touchTodos(rows: readonly Pick<StatusUpdate, 'todoId'>[], at: Date | undefined): Promise<void> {
-  if (!at || rows.length === 0) return
-  const todoIds = [...new Set(rows.map((r) => r.todoId))]
-  await db.todos.where('id').anyOf(todoIds).modify({ modifiedAt: at })
-}

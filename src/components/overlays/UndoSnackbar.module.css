@@ -59,6 +59,23 @@
   background: var(--color-accent-bg-light);
 }
 
+/* An offer beside Undo (e.g. Complete task): filled, so it reads as the primary choice. */
+.actionButton {
+  background: var(--color-accent-bg-light);
+  border: none;
+  color: var(--color-accent-text);
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-semibold);
+  padding: 2px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.actionButton:hover {
+  filter: brightness(1.1);
+}
+
 .dismissButton {
   background: none;
   border: none;
@@ -92,7 +109,8 @@
     bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px) + 72px);
   }
 
-  .undoButton {
+  .undoButton,
+  .actionButton {
     padding: 6px 12px;
     min-height: var(--touch-target-min);
   }

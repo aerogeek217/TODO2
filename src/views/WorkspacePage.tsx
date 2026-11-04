@@ -20,6 +20,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useStatusUpdateStore } from '../stores/status-update-store'
+import { useSubtaskStore } from '../stores/subtask-store'
 import { useEntityAssignmentsForLoadedTodos } from '../hooks/use-entity-assignments-for-todos'
 import { useClearSelectionOnOutsideClick } from '../hooks/use-clear-selection-on-outside-click'
 import { buildTaskCollision, dispatchTaskDrop, type CalendarDropChoiceRequest } from '../utils/task-dnd'
@@ -117,6 +118,7 @@ function useWorkspaceData(): void {
     void useStatusStore.getState().ensureLoaded()
     void useListDefinitionStore.getState().ensureLoaded()
     void useStatusUpdateStore.getState().ensureLoaded()
+    void useSubtaskStore.getState().ensureLoaded()
   }, [])
   useEntityAssignmentsForLoadedTodos()
   useClearSelectionOnOutsideClick()
