@@ -1,5 +1,4 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
-import { startOfDay } from '../../utils/date'
 import { isRecord } from '../../utils/is-record'
 
 /**
@@ -65,6 +64,11 @@ function entryOf(id: unknown, progress: unknown, modifiedAt: unknown, createdAt:
     return { todoId: id, date: startOfDay(when), text, createdAt: new Date(when.getTime()) }
   }
   return { todoId: id, date: startOfDay(new Date(Date.parse(when))).toISOString(), text, createdAt: when }
+}
+
+/** The local midnight of `d`'s day (inlined: the transform never changes once released). */
+function startOfDay(d: Date): Date {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate())
 }
 
 /** A `Date` that holds a time, or a string `Date.parse` reads. */
