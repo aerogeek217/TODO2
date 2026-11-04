@@ -12,6 +12,8 @@ import { FollowupPopover } from '../shared/followup/FollowupPopover'
 import type { TagChipSelectorProps } from '../shared/TagChipSelector'
 import type { TaskMenuHandlers } from './task-menu-entries'
 import { TaskNotePopover } from './TaskNotePopover'
+import { SubtasksPopover } from './subtasks/SubtasksPopover'
+import { SubtasksSheet } from './subtasks/SubtasksSheet'
 
 const NO_PEOPLE: Person[] = []
 
@@ -31,6 +33,8 @@ export interface TaskRowPickersOptions {
    */
   fallbackPeopleAnchorRef?: RefObject<HTMLElement | null>
   useFallbackPeopleAnchor?: boolean
+  /** How the checklist opens from the row's count: a popover under it (default), or the phone's bottom sheet. */
+  subtasksPanel?: 'popover' | 'sheet'
 }
 
 /**
@@ -38,10 +42,12 @@ export interface TaskRowPickersOptions {
  * input — and the task menu's handlers, shared by `TaskRow` and
  * `MobileTaskRow`. Every change goes through the row's selection-aware
  * actions (`useTaskRowActions`). `panels` renders the open people picker,
- * follow-up popover and notes popover; the row places its own triggers.
+ * follow-up popover, notes popover and subtasks popover (or sheet); the row
+ * places its own triggers.
  */
 export function useTaskRowPickers({
   todo, assignedPeople, ghost = false, onOpenDetail, peoplePickerClassName, fallbackPeopleAnchorRef, useFallbackPeopleAnchor = false,
+  subtasksPanel = 'popover',
 }: TaskRowPickersOptions) {
   const { bulk, handleToggleComplete, handleSetMarker, handleDelete } = useTaskRowActions({ todo })
   const allPeople = usePersonStore((s) => s.people)
@@ -59,6 +65,9 @@ export function useTaskRowPickers({
   /** The pill / flag open the follow-up popover on "Mark followed up"; the menu's "Pick a date or interval…" on the date field. */
   const [followupFocus, setFollowupFocus] = useState<'followedUp' | 'next'>('followedUp')
   const [notesOpen, setNotesOpen] = useState(false)
+  /** The checklist: open on its list, or on its add field (the menu's Add subtask…). */
+  const [subtasksOpen, setSubtasksOpen] = useState<false | 'list' | 'add'>(false)
+  const subtasksRef = useRef<HTMLButtonElement>(null)
   const peopleRef = useRef<HTMLElement>(null)
   const followupAnchorRef = useRef<HTMLButtonElement>(null)
   const deadlineInputRef = useRef<HTMLInputElement>(null)
@@ -80,6 +89,12 @@ export function useTaskRowPickers({
     e.stopPropagation()
     setNotesOpen((v) => !v)
   }, [])
+  const closeSubtasks = useCallback(() => setSubtasksOpen(false), [])
+  const toggleSubtasks = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation()
+    setSubtasksOpen((v) => (v ? false : 'list'))
+  }, [])
+  const openSubtasksAdd = useCallback(() => setSubtasksOpen('add'), [])
 
   const openDeadlinePicker = useCallback(() => {
     setTimeout(() => {
@@ -168,6 +183,12 @@ export function useTaskRowPickers({
         <TaskNotePopover todoId={todo.id} anchorRef={notesIconRef} onClose={closeNotes} />,
         document.body,
       )}
+      {subtasksOpen && (subtasksPanel === 'sheet'
+        ? <SubtasksSheet todo={todo} onClose={closeSubtasks} />
+        : createPortal(
+          <SubtasksPopover todo={todo} anchorRef={subtasksRef} onClose={closeSubtasks} onOpenDetail={onOpenDetail} focusAdd={subtasksOpen === 'add'} />,
+          document.body,
+        ))}
     </>
   )
 
@@ -191,6 +212,10 @@ export function useTaskRowPickers({
     notesOpen,
     toggleNotes,
     notesIconRef,
+    subtasksOpen: subtasksOpen !== false,
+    toggleSubtasks,
+    openSubtasksAdd,
+    subtasksRef,
     deadlineInputRef,
     openDeadlinePicker,
     onDeadlineInputChange,

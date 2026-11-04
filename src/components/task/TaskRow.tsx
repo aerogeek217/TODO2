@@ -20,6 +20,9 @@ import { useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
 import { keepRowTextUnselected } from './row-events'
 import { statusNotesPreview } from '../../utils/notes-preview'
 import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
+import { useSubtaskStore } from '../../stores/subtask-store'
+import { subtaskCount } from '../../utils/subtasks'
+import { SubtaskCountButton, SubtaskCountStatic } from './subtasks/SubtaskCountButton'
 import {
   DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
 } from './row-cells'
@@ -85,6 +88,7 @@ export const TaskRow = memo(function TaskRow({
   const {
     bulk, handleToggleComplete, assignedTags, allTags, tagPickerOpen, toggleTagPicker, closeTagPicker, toggleTag, createTag,
     peopleOpen, togglePeople, peopleRef, followupOpen, toggleFollowup, followupAnchorRef, notesOpen, toggleNotes, notesIconRef,
+    subtasksOpen, toggleSubtasks, subtasksRef,
     deadlineInputRef, openDeadlinePicker, onDeadlineInputChange, menuHandlers, panels,
   } = useTaskRowPickers({
     todo,
@@ -99,6 +103,9 @@ export const TaskRow = memo(function TaskRow({
 
   // The notes cell's first line (the row re-renders only when the task's newest changes).
   const newestUpdate = useStatusUpdateStore((s) => newestStatusUpdate(todo.id, s.byTodo))
+  // The checklist's `2/5` after the title (cr28): the row re-renders when the task's checklist changes.
+  const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
+  const count = subtasks && subtasks.length > 0 ? subtaskCount(subtasks) : null
 
   const statuses = useStatusStore((s) => s.statuses)
   const status = useMemo(() => {
@@ -136,7 +143,7 @@ export const TaskRow = memo(function TaskRow({
   const hot = isHot(todo, hotRule, today, urgentRange)
 
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
-  const pickerOpen = showStatusMenu || peopleOpen || tagPickerOpen || followupOpen || notesOpen || markersOpen
+  const pickerOpen = showStatusMenu || peopleOpen || tagPickerOpen || followupOpen || notesOpen || markersOpen || subtasksOpen
     || menu !== null || entityMenu !== null
 
   // Right-click on an avatar / a tag: Show tasks · Edit… · Delete… for it.
@@ -221,7 +228,7 @@ export const TaskRow = memo(function TaskRow({
         />
       ) : (
         <span
-          className={`${styles.title} ${hot ? styles.hot : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
+          className={`${styles.title} ${hot ? styles.hot : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${count ? styles.titleWithCount : ''}`}
           data-task-title={todo.title}
           data-hot={hot || undefined}
           {...titleTipProps}
@@ -238,6 +245,9 @@ export const TaskRow = memo(function TaskRow({
           }}
         >
           <span className={styles.titleText} data-title-text="">{todo.title}</span>
+          {count && (ghost
+            ? <SubtaskCountStatic count={count} />
+            : <SubtaskCountButton count={count} open={subtasksOpen} buttonRef={subtasksRef} onClick={toggleSubtasks} />)}
           {titleTip}
         </span>
       )}

@@ -1,4 +1,4 @@
-import type { NewTodoItem, Person, RecurrenceType, Status, StatusUpdateDraft, Tag, TodoChanges, TodoItem } from '../models'
+import type { NewTodoItem, Person, RecurrenceType, Status, StatusUpdateDraft, SubtaskDraft, Tag, TodoChanges, TodoItem } from '../models'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import { mentionToken, parseInput, tagToken } from './natural-language-parser'
 import { matchTag, resolveInput, type ResolvedInput } from './nlp-resolver'
@@ -36,13 +36,16 @@ export interface TaskDraft {
   notes?: string
   /** Status updates written with the task (the task editor's create mode: added before Create). */
   statusUpdates?: readonly StatusUpdateDraft[]
+  /** The checklist written with the task, in order (the editor's create mode; a note's indented lines). */
+  subtasks?: readonly SubtaskDraft[]
 }
 
 /**
  * What the task editor's create / draft mode hands back: the task's fields,
- * plus the status updates added before Create (written with the task).
+ * plus the status updates and subtasks added before Create (written with
+ * the task).
  */
-export type EditorTaskFields = Partial<TodoItem> & { statusUpdates?: readonly StatusUpdateDraft[] }
+export type EditorTaskFields = Partial<TodoItem> & { statusUpdates?: readonly StatusUpdateDraft[]; subtasks?: readonly SubtaskDraft[] }
 
 export interface DraftContext {
   people: readonly Person[]
@@ -193,6 +196,7 @@ export function draftFromEditor(
     ...(partial.lastFollowupAt ? { lastFollowupAt: partial.lastFollowupAt } : {}),
     ...(partial.notes ? { notes: partial.notes } : {}),
     ...(partial.statusUpdates && partial.statusUpdates.length > 0 ? { statusUpdates: [...partial.statusUpdates] } : {}),
+    ...(partial.subtasks && partial.subtasks.length > 0 ? { subtasks: [...partial.subtasks] } : {}),
   }
 }
 

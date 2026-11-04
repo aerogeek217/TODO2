@@ -25,6 +25,9 @@ import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
 import { NotesBody } from './notes/NotesBody'
 import { StatusUpdatesSection, type StatusUpdateEntry, type StatusUpdateFields } from './status-updates/StatusUpdatesSection'
+import { SubtasksSection } from './subtasks/SubtasksSection'
+import type { ChecklistItem } from './subtasks/SubtaskChecklist'
+import { useSubtasks, useSubtaskStore } from '../../stores/subtask-store'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
@@ -170,6 +173,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const storedUpdates = useStatusUpdates(todo?.id)
   const [pendingUpdates, setPendingUpdates] = useState<(StatusUpdateEntry & { createdAt: Date })[]>(
     () => (seed?.statusUpdates ?? []).map((u, i) => ({ ...u, id: i + 1 })).sort(compareStatusUpdates),
+  )
+  // Subtasks: edit mode writes each at once through the store; create mode
+  // keeps them here (in order, a local key each) until Create.
+  const storedSubtasks = useSubtasks(todo?.id)
+  const [pendingSubtasks, setPendingSubtasks] = useState<ChecklistItem[]>(
+    () => (seed?.subtasks ?? []).map((s, i) => ({ id: i + 1, title: s.title, isCompleted: s.isCompleted })),
   )
   const [statusId, setStatusId] = useState<number | undefined>(
     seed ? seed.statusId : (
@@ -395,6 +404,39 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     setPendingUpdates((prev) => prev.filter((u) => u.id !== id))
   }
 
+  // Subtasks: in edit mode each write is its own undo step, after the notes typed so far.
+  const subtaskWrite = (write: () => void) => {
+    void flushNotes()
+    write()
+  }
+  const handleAddSubtask = (title: string) => {
+    if (isEdit && todo) return subtaskWrite(() => { void useSubtaskStore.getState().add(todo.id, title) })
+    setPendingSubtasks((prev) => [...prev, { id: Math.max(0, ...prev.map((s) => s.id)) + 1, title, isCompleted: false }])
+  }
+  const handleRenameSubtask = (id: number, title: string) => {
+    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().rename(id, title) })
+    setPendingSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)))
+  }
+  const handleSetSubtaskDone = (id: number, done: boolean) => {
+    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().setDone(id, done) })
+    setPendingSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, isCompleted: done } : s)))
+  }
+  const handleRemoveSubtask = (id: number) => {
+    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().remove(id) })
+    setPendingSubtasks((prev) => prev.filter((s) => s.id !== id))
+  }
+  const handleMoveSubtask = (id: number, toIndex: number) => {
+    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().move(id, toIndex) })
+    setPendingSubtasks((prev) => {
+      const from = prev.findIndex((s) => s.id === id)
+      if (from === -1) return prev
+      const next = [...prev]
+      const [moved] = next.splice(from, 1)
+      if (moved) next.splice(Math.max(0, Math.min(toIndex, next.length)), 0, moved)
+      return next
+    })
+  }
+
   const handleToggleComplete = () => {
     if (!isEdit) return
     void flushNotes()
@@ -487,6 +529,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       notes: notesSession.text() || undefined,
       ...(pendingUpdates.length > 0
         ? { statusUpdates: pendingUpdates.map(({ date, text, createdAt }) => ({ date, text, createdAt })) }
+        : {}),
+      ...(pendingSubtasks.length > 0
+        ? { subtasks: pendingSubtasks.map(({ title, isCompleted }) => ({ title, isCompleted })) }
         : {}),
       statusId,
       dueDate: deadline ?? undefined,
@@ -742,6 +787,17 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onFollowupLastChange={handleLastFollowupChange}
             onFollowedUp={handleFollowedUp}
             hideLastFollowup={isDraft}
+          />
+
+          <SubtasksSection
+            items={isEdit ? storedSubtasks : pendingSubtasks}
+            onAdd={handleAddSubtask}
+            onRename={handleRenameSubtask}
+            onSetDone={handleSetSubtaskDone}
+            onRemove={handleRemoveSubtask}
+            onMove={handleMoveSubtask}
+            className={styles.notesSection}
+            labelClassName={styles.notesLabel}
           />
 
           <StatusUpdatesSection
