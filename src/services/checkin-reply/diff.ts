@@ -6,9 +6,12 @@
  *
  * - **Completed:** a marked box on an open task → complete it. An unmarked
  *   box proposes nothing; a reply never reopens a task.
- * - **Progress:** one line (whitespace collapsed, capped like the editor),
- *   compared with the task's newest status update; a change adds an entry
- *   (`apply.ts`). An empty reply value proposes nothing.
+ * - **Status:** one line as an entry stores it (`statusUpdateText`), the
+ *   email's `(MM/DD)` already dropped (`parse.ts`), compared with the task's
+ *   newest status update's text; a different one is a new status update
+ *   (`apply.ts` adds it dated today). An empty value, the newest's text left
+ *   as it is, or only its date removed proposes nothing — a reply never
+ *   removes an entry.
  * - **Notes:** the reply's notes replace the task's notes. Both sides are
  *   compared line by line on their visible text (the current notes go
  *   through the same `mdToHtml` → `htmlToMarkdown` path the email and reply
@@ -28,11 +31,9 @@ import { replaceMarkdownLinks } from '../../utils/markdown-links'
 import { resolveTaskRef } from '../checkin-email/ref'
 import { htmlToMarkdown, mdToHtml } from '../notes-export'
 import type { CheckinReplyBlock, ParsedCheckinReply } from './parse'
+import { statusUpdateText } from '../../utils/status-updates'
 import { collapseWhitespace } from '../../utils/text'
 import { diffSequences, lcsCells, wordDiff, wordTokens, type WordDiffPart } from '../../utils/word-diff'
-
-/** Progress is one line of at most this many characters (as in the task editor). */
-export const CHECKIN_PROGRESS_MAX = 500
 
 /** Above this many line pairs, the notes diff skips the LCS (keeps huge pastes fast). */
 const LCS_MAX_CELLS = 250_000
@@ -58,9 +59,11 @@ export type CheckinChange =
     defaultSelected: boolean
   }
   | {
-    field: 'progress'
-    from: string
-    to: string
+    field: 'statusUpdate'
+    /** The new status update's text (one line): applying adds it, dated today. */
+    text: string
+    /** The task's newest status update now; absent when it has none. */
+    newest?: Pick<StatusUpdate, 'date' | 'text'>
     defaultSelected: boolean
   }
   | {
@@ -346,19 +349,25 @@ export function notesPreviewLines(lines: readonly NotesDiffLine[], exact = true)
 
 // ── Task diff ───────────────────────────────────────────────────────────
 
-/** The reply's Progress as the task would store it: one line, capped. */
-export function replyProgress(value: string): string {
-  return collapseWhitespace(value).slice(0, CHECKIN_PROGRESS_MAX).trim()
+/**
+ * The status update change for a reply's Status value, or null when it
+ * proposes none: empty, or the newest entry's text (compared as stored).
+ */
+export function diffStatusUpdate(
+  value: string | undefined,
+  newest: Pick<StatusUpdate, 'date' | 'text'> | undefined,
+): Extract<CheckinChange, { field: 'statusUpdate' }> | null {
+  if (value === undefined) return null
+  const text = statusUpdateText(value)
+  if (text === '' || (newest && text === statusUpdateText(newest.text))) return null
+  return { field: 'statusUpdate', text, ...(newest ? { newest: { date: newest.date, text: newest.text } } : {}), defaultSelected: true }
 }
 
 function blockChanges(todo: PersistedTodoItem, block: CheckinReplyBlock, statusUpdatesByTodo: CheckinDiffContext['statusUpdatesByTodo']): CheckinChange[] {
   const changes: CheckinChange[] = []
   if (block.completed === true) changes.push({ field: 'completed', defaultSelected: true })
-  if (block.progress !== undefined) {
-    const to = replyProgress(block.progress)
-    const from = statusUpdatesByTodo?.get(todo.id)?.at(0)?.text ?? ''
-    if (to !== '' && to !== collapseWhitespace(from)) changes.push({ field: 'progress', from, to, defaultSelected: true })
-  }
+  const status = diffStatusUpdate(block.statusUpdate, statusUpdatesByTodo?.get(todo.id)?.at(0))
+  if (status) changes.push(status)
   const notes = diffNotes(todo.notes ?? '', replyNotesLines(block))
   if (notes) changes.push(notes)
   return changes

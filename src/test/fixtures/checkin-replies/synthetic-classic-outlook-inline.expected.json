@@ -5,14 +5,14 @@
     {
       "ref": "0c4d8e17",
       "completed": false,
-      "progress": "section 4 done",
+      "statusUpdate": "section 4 done",
       "notes": ["Sections 4 and 7 still open.", "Sam has the SOC 2 letter."]
     },
-    { "ref": "b71e05d9", "completed": true, "progress": "40%", "notes": [] },
+    { "ref": "b71e05d9", "completed": true, "statusUpdate": "40%", "notes": [] },
     {
       "ref": "3f9a1c42",
       "completed": false,
-      "progress": "",
+      "statusUpdate": "",
       "notes": [
         "Cover the cutover sequence, rollback steps and who is on call.",
         "Nina confirmed Saturday 06:00–08:00 for the cutover.",
@@ -21,10 +21,10 @@
         "[ ] Dry run on staging"
       ]
     },
-    { "ref": "9e8d7c6b", "completed": false, "progress": "", "notes": [] }
+    { "ref": "9e8d7c6b", "completed": false, "statusUpdate": "", "notes": [] }
   ],
   "changes": {
-    "0c4d8e17": ["progress"],
+    "0c4d8e17": ["statusUpdate"],
     "b71e05d9": ["completed"],
     "3f9a1c42": ["notes"],
     "9e8d7c6b": []

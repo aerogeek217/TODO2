@@ -301,16 +301,29 @@
   color: var(--color-accent-text);
 }
 
-/* The redline (progress, an edited notes line): the current text with the
- * removed words struck in the danger tone and the added words underlined in
- * the accent, each on a tint — a mark, not only a colour. */
+/* A new status update: its heading in the accent, the text, and the task's
+ * newest update now (a `.note`) under it. */
 
-.redline {
+.statusUpdate {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
   min-width: 0;
+}
+
+.statusUpdateHead {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.statusUpdateText {
   color: var(--color-text-primary);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* The redline (an edited notes line): the current text with the removed
+ * words struck in the danger tone and the added words underlined in the
+ * accent, each on a tint — a mark, not only a colour. */
 
 .lineEdited {
   color: var(--color-text-primary);

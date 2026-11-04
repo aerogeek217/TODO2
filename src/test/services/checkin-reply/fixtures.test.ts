@@ -21,7 +21,7 @@ const files = import.meta.glob('../../fixtures/checkin-replies/*.{html,txt,json}
 interface ExpectedBlock {
   ref: string
   completed?: boolean
-  progress?: string
+  statusUpdate?: string
   /** Comparison keys of the reply's notes lines; null = no Notes row. */
   notes?: string[] | null
 }
@@ -69,7 +69,7 @@ function noteKeys(block: CheckinReplyBlock): string[] | null {
 
 /** What both flavours must agree on. */
 function summary(reply: ParsedCheckinReply) {
-  return reply.blocks.map((b) => ({ ref: b.ref, completed: b.completed, progress: b.progress, notes: noteKeys(b) }))
+  return reply.blocks.map((b) => ({ ref: b.ref, completed: b.completed, statusUpdate: b.statusUpdate, notes: noteKeys(b) }))
 }
 
 const all = captures()
@@ -80,6 +80,7 @@ describe('check-in reply captures', () => {
       'synthetic-new-outlook-inline',
       'synthetic-classic-outlook-inline',
       'synthetic-classic-outlook-plain-quoted',
+      'synthetic-progress-label-plain-quoted',
     ]))
   })
 
@@ -105,7 +106,7 @@ describe('check-in reply captures', () => {
       if (expected.personName) expect(reply.personName).toBe(expected.personName)
       if (expected.sentDate) expect(reply.sentDate).toBe(expected.sentDate)
       expect(summary(reply)).toEqual(expected.blocks.map((b) => ({
-        ref: b.ref, completed: b.completed, progress: b.progress, notes: b.notes ?? null,
+        ref: b.ref, completed: b.completed, statusUpdate: b.statusUpdate, notes: b.notes ?? null,
       })))
       if (expected.changes) {
         const changed = Object.fromEntries(diff.tasks.map((t) => [t.ref, t.changes.map((c) => c.field)]))

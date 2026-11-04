@@ -200,26 +200,51 @@ describe('sections and tasks', () => {
 })
 
 describe('update box', () => {
-  it('each task: Your update, an empty Completed box, Progress, Notes — in that order', () => {
+  it('each task: Your update, an empty Completed box, Status, Notes — in that order', () => {
     const { sections, ctx } = sample()
     const email = buildCheckinEmail(marcus, sections, ctx, ON)
     const tables = updateTables(parse(email.html))
     expect(tables).toHaveLength(3)
     for (const table of tables) {
       const labels = [...table.rows].slice(1).map((r) => r.cells[0]?.textContent)
-      expect(labels).toEqual(['Completed:', 'Progress:', 'Notes:'])
+      expect(labels).toEqual(['Completed:', 'Status:', 'Notes:'])
       expect(table.rows[1]?.cells[1]?.textContent).toBe('[ ]')
     }
-    expect(tables[0]?.rows[2]?.cells[1]?.textContent).toBe('half done')
+    expect(tables[0]?.rows[2]?.cells[1]?.textContent).toBe('(10/11) half done')
     expect(tables[2]?.rows[2]?.cells[1]?.textContent).toBe(' ')
     const plain = email.plain.split('\n')
     expect(plain.filter((l) => l === 'Your update')).toHaveLength(3)
     expect(plain.filter((l) => l === 'Completed: [ ]')).toHaveLength(3)
-    expect(plain).toContain('Progress: half done')
-    expect(plain).toContain('Progress: 40%')
-    // Empty progress: the label stands alone.
+    expect(plain).toContain('Status: (10/11) half done')
+    expect(plain).toContain('Status: (10/11) 40%')
+    // No status update: the label stands alone.
     const i3 = plain.indexOf('3. Draft the migration runbook  Ref 3f9a1c42')
-    expect(plain.slice(i3 + 2, i3 + 6)).toEqual(['Your update', 'Completed: [ ]', 'Progress:', 'Notes:'])
+    expect(plain.slice(i3 + 2, i3 + 6)).toEqual(['Your update', 'Completed: [ ]', 'Status:', 'Notes:'])
+  })
+
+  it('Status shows the newest status update only, its date muted in HTML', () => {
+    const { sections, ctx } = sample()
+    const older = { todoId: 1, date: day(-9), text: 'started', createdAt: day(-9) }
+    const newest = { todoId: 1, date: day(-2), text: 'sent the draft  to\nlegal', createdAt: day(-2) }
+    const email = buildCheckinEmail(marcus, sections, { ...ctx, statusUpdatesByTodo: new Map([[1, [newest, older]]]) }, ON)
+    const cell = updateTables(parse(email.html))[0]?.rows[2]?.cells[1]
+    expect(cell?.textContent).toBe('(10/10) sent the draft to legal')
+    expect(cell?.querySelector('span')?.textContent).toBe('(10/10)')
+    expect(cell?.querySelector('span')?.getAttribute('style')).toContain('color: #707070')
+    expect(email.plain.split('\n')).toContain('Status: (10/10) sent the draft to legal')
+    expect(email.plain).not.toContain('started')
+  })
+
+  it('says how to fill in each row', () => {
+    const { sections, ctx } = sample()
+    const email = buildCheckinEmail(marcus, sections, ctx, ON)
+    const plain = email.plain.split('\n')
+    expect(plain).toContain('- Completed: put an x in the box when the task is finished.')
+    expect(plain).toContain('- Status: write what’s new over the line, or leave it as it is.')
+    expect(plain).toContain('- Notes: edit the text directly. Leave anything that hasn’t changed as it is.')
+    const text = parse(email.html).body.textContent ?? ''
+    expect(text).toContain('Status: write what’s new over the line, or leave it as it is.')
+    expect(text).toContain('Notes: edit the text directly.')
   })
 
   it('notes: Markdown rendered in HTML, raw in plain text; empty notes → empty cell', () => {
@@ -245,18 +270,19 @@ describe('update box', () => {
     const { sections, ctx } = sample()
     const email = buildCheckinEmail(marcus, sections, ctx, { ...ON, includeNotes: false })
     for (const table of updateTables(parse(email.html))) {
-      expect([...table.rows].slice(1).map((r) => r.cells[0]?.textContent)).toEqual(['Completed:', 'Progress:'])
+      expect([...table.rows].slice(1).map((r) => r.cells[0]?.textContent)).toEqual(['Completed:', 'Status:'])
     }
     expect(email.plain.split('\n')).not.toContain('Notes:')
     expect(email.plain).not.toContain('Sections 4 and 7')
     expect(email.html).not.toContain('Sections 4 and 7')
   })
 
-  it('never mentions a status', () => {
+  it('never mentions the task’s Status picker value', () => {
     const { sections, ctx } = sample()
     const email = buildCheckinEmail(marcus, sections, ctx, ON)
     for (const body of [email.plain, email.html]) {
-      expect(body).not.toMatch(/status/i)
+      // `Status:` is the update row's label (and its how-to line) only.
+      expect(body).not.toMatch(/status(?!:)/i)
       expect(body).not.toContain('Waiting')
     }
   })
@@ -265,7 +291,7 @@ describe('update box', () => {
 describe('escaping', () => {
   const evil = '<script>alert(1)</script>'
 
-  it('escapes titles, progress, notes, tags, names and the footer', () => {
+  it('escapes titles, status updates, notes, tags, names and the footer', () => {
     const person = makePerson({ id: 1, name: `Eve ${evil}`, email: 'eve@example.com' })
     const other = makePerson({ id: 2, name: `<img src=x onerror=alert(1)>` })
     const t = makeTodo({
@@ -299,7 +325,7 @@ describe('escaping', () => {
     const email = buildCheckinEmail(person, { overdue: [], comingUp: [t] }, { today, assignedPeopleMap: new Map(), statusUpdatesByTodo: updatesOf([1, 'a\nb']) }, ON)
     const lines = email.plain.split('\n')
     expect(lines).toContain('1. Line one Your update Completed: [x]  Ref 0c4d8e17')
-    expect(lines).toContain('Progress: a b')
+    expect(lines).toContain('Status: (10/11) a b')
     expect(lines.filter((l) => l === 'Your update')).toHaveLength(1)
     expect(lines.at(-1)).toBe('Check-in for Ada Lovelace · sent 2026-10-12')
     expect(email.to).toBe('')

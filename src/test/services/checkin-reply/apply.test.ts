@@ -48,7 +48,7 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-/** The new-Outlook reply fixture: task 1 Progress, task 2 Completed, task 3 Notes. */
+/** The new-Outlook reply fixture: task 1 Status, task 2 Completed, task 3 Notes. */
 function fixtureDiff(): CheckinReplyDiff {
   const reply = parse({ html: fixture('.html'), plain: fixture('.txt') })
   return diffCheckinReply(reply, { todos: useTodoStore.getState().todos, statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo })
@@ -64,10 +64,10 @@ describe('selection', () => {
   it('ticks every change by default; the ticked changes group per task', () => {
     const diff = fixtureDiff()
     const selected = defaultCheckinSelection(diff)
-    expect([...selected].sort()).toEqual(['1:progress', '2:completed', '3:notes'])
+    expect([...selected].sort()).toEqual(['1:statusUpdate', '2:completed', '3:notes'])
     const updates = selectedCheckinUpdates(diff, selected)
     expect(updates.map((u) => ({ ...u, notes: u.notes?.split('\n').length }))).toEqual([
-      { todoId: 1, complete: false, progress: 'section 4 done', changeCount: 1 },
+      { todoId: 1, complete: false, statusUpdate: 'section 4 done', changeCount: 1 },
       { todoId: 2, complete: true, changeCount: 1 },
       { todoId: 3, complete: false, notes: 5, changeCount: 1 },
     ])
@@ -76,7 +76,7 @@ describe('selection', () => {
   it('a task changed in the app after the send date still starts ticked (no timestamps)', () => {
     useTodoStore.setState({ todos: tasks.map((t) => (t.id === 1 ? { ...t, modifiedAt: new Date(2026, 9, 13, 8) } : t)) })
     const diff = fixtureDiff()
-    expect(defaultCheckinSelection(diff).has(checkinChangeKey(1, 'progress'))).toBe(true)
+    expect(defaultCheckinSelection(diff).has(checkinChangeKey(1, 'statusUpdate'))).toBe(true)
     expect(defaultCheckinSelection(diff).has(checkinChangeKey(2, 'completed'))).toBe(true)
   })
 

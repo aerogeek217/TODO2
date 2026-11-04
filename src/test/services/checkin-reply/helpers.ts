@@ -31,7 +31,7 @@ export function parse(input: CheckinReplyInput): ParsedCheckinReply {
   return result.reply
 }
 
-export type FieldLabel = 'Completed:' | 'Progress:' | 'Notes:'
+export type FieldLabel = 'Completed:' | 'Status:' | 'Notes:'
 
 /** The email HTML with one update cell (by task ref and label) replaced by `cellHtml`. */
 export function editHtml(html: string, ref: string, label: FieldLabel, cellHtml: string): string {

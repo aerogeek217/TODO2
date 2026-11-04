@@ -6,11 +6,12 @@ Each capture is `<name>.html` and / or `<name>.txt` — the `text/html` and `tex
 
 ## Synthetic captures
 
-The `synthetic-*` files are **hand-made imitations**, not real mail-client output. They mimic the reply edits from the manual test (an `x` in task 2's Completed box, task 1's Progress changed, a line added to task 3's Notes and one of its bullets edited):
+The `synthetic-*` files are **hand-made imitations**, not real mail-client output. They mimic the reply edits from the manual test (an `x` in task 2's Completed box, a new Status line on task 1, a line added to task 3's Notes and one of its bullets edited). Task 2's Status row comes back as sent, `(10/10) 40%` (the date of its newest status update kept — no change):
 
-- `synthetic-new-outlook-inline` — new Outlook / Outlook on the web: `elementToProof` / `x_` classes, `rgb()` inline styles, `divRplyFwdMsg` header, a Safe Links–wrapped link; plain text with tab-separated cells.
-- `synthetic-classic-outlook-inline` — classic Outlook (Word editor) clipboard HTML: `xmlns:o` document, `<style>` block, `MsoNormal` / `MsoNormalTable`, `<o:p>`, `mso-*` styles, Word list paragraphs with `mso-list:Ignore` bullets, a bold run split in two; Word's plain text with tabs and `·` bullets.
-- `synthetic-classic-outlook-plain-quoted` — a plain-text reply with `> ` quoting and lines wrapped at about 76 columns (a wrapped title and a wrapped Progress value).
+- `synthetic-new-outlook-inline` — new Outlook / Outlook on the web: `elementToProof` / `x_` classes, `rgb()` inline styles, `divRplyFwdMsg` header, a Safe Links–wrapped link; plain text with tab-separated cells. Task 1's Status typed over, its `(MM/DD)` gone.
+- `synthetic-classic-outlook-inline` — classic Outlook (Word editor) clipboard HTML: `xmlns:o` document, `<style>` block, `MsoNormal` / `MsoNormalTable`, `<o:p>`, `mso-*` styles, Word list paragraphs with `mso-list:Ignore` bullets, a bold run split in two; Word's plain text with tabs and `·` bullets. Task 1's new text written after the `(10/10)` it kept.
+- `synthetic-classic-outlook-plain-quoted` — a plain-text reply with `> ` quoting and lines wrapped at about 76 columns (a wrapped title and a wrapped Status value, its `(10/10)` kept).
+- `synthetic-progress-label-plain-quoted` — the same reply to an email sent before status updates: the box's `Progress:` label (read as Status) and no `(MM/DD)`.
 
 ## Real captures
 

@@ -283,7 +283,7 @@ describe('CheckinDialog — sending', () => {
     expect(html).toContain('Ref 11111111')
     expect(html).toContain('Ref 22222222')
     expect(html).not.toContain('Ref 33333333')
-    expect(html).toContain('>Progress:</td>')
+    expect(html).toContain('>Status:</td>')
     expect(html).not.toContain('>Notes:</td>')
     expect(html).not.toContain('Also assigned')
     expect(clicked[0]!.getAttribute('href')).toContain('subject=Task%20check-in%3A%202%20open%20tasks')

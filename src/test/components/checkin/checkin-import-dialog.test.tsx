@@ -91,9 +91,9 @@ describe('CheckinImportDialog — reading a paste', () => {
     expect(within(dialog()).getByText('Reply from Marcus Chen')).toBeTruthy()
     expect(within(dialog()).getByText('4 of 4 tasks matched by Ref · 3 changes found')).toBeTruthy()
 
-    const progress = card('Answer Northwind’s security questionnaire')
-    expect(within(progress).getByRole('checkbox', { name: 'Progress' })).toHaveProperty('checked', true)
-    expect(progress.querySelector('[data-checkin-progress-redline]')?.textContent).toBe('removed halfadded section 4 done')
+    const status = card('Answer Northwind’s security questionnaire')
+    expect(within(status).getByRole('checkbox', { name: 'Status' })).toHaveProperty('checked', true)
+    expect(status.querySelector('[data-checkin-status-update]')?.textContent).toBe('New status update · todaysection 4 doneNewest now: 10/10 · half done')
     const done = card('Review the staging load-test results')
     expect(within(done).getByRole('checkbox', { name: 'Completed' })).toHaveProperty('checked', true)
     expect(done.textContent).toContain('Mark complete')
@@ -130,7 +130,7 @@ describe('CheckinImportDialog — reading a paste', () => {
     fireEvent.click(within(card('Draft the migration runbook')).getByRole('checkbox', { name: 'Notes' }))
     expect(applyButton().textContent).toBe('Apply 2 changes')
     fireEvent.click(within(card('Review the staging load-test results')).getByRole('checkbox', { name: 'Completed' }))
-    fireEvent.click(within(card('Answer Northwind’s security questionnaire')).getByRole('checkbox', { name: 'Progress' }))
+    fireEvent.click(within(card('Answer Northwind’s security questionnaire')).getByRole('checkbox', { name: 'Status' }))
     expect(applyButton().textContent).toBe('Apply 0 changes')
     expect(applyButton()).toHaveProperty('disabled', true)
   })
@@ -141,7 +141,7 @@ describe('CheckinImportDialog — reading a paste', () => {
     paste({ html: fixture('.html'), plain: fixture('.txt') })
     const changed = card('Answer Northwind’s security questionnaire')
     expect(changed.textContent).not.toMatch(/since this email|Check before applying/)
-    expect(within(changed).getByRole('checkbox', { name: 'Progress' })).toHaveProperty('checked', true)
+    expect(within(changed).getByRole('checkbox', { name: 'Status' })).toHaveProperty('checked', true)
     expect(within(dialog()).getByText('4 of 4 tasks matched by Ref · 3 changes found')).toBeTruthy()
     expect(applyButton().textContent).toBe('Apply 3 changes')
   })
@@ -167,10 +167,10 @@ describe('CheckinImportDialog — reading a paste', () => {
     paste({ html: fixture('.html'), plain: fixture('.txt') })
     const other = card('Answer Northwind’s security questionnaire')
     expect(other.textContent).toContain('Not assigned to Marcus Chen. Check before applying.')
-    expect(within(other).getByRole('checkbox', { name: 'Progress' })).toHaveProperty('checked', false)
+    expect(within(other).getByRole('checkbox', { name: 'Status' })).toHaveProperty('checked', false)
     // Still matched and offered: a tick applies it.
     expect(applyButton().textContent).toBe('Apply 2 changes')
-    fireEvent.click(within(other).getByRole('checkbox', { name: 'Progress' }))
+    fireEvent.click(within(other).getByRole('checkbox', { name: 'Status' }))
     expect(applyButton().textContent).toBe('Apply 3 changes')
     expect(card('Review the staging load-test results').textContent).not.toContain('Not assigned')
   })
@@ -225,32 +225,30 @@ describe('CheckinImportDialog — reading a paste', () => {
   })
 })
 
-describe('CheckinImportDialog — the redline', () => {
+describe('CheckinImportDialog — the preview', () => {
   /** A mark's visible text (its visually hidden label left out). */
   const visible = (el: Element) => Array.from(el.childNodes).filter((n) => !(n instanceof HTMLElement && n.className.includes('srOnly'))).map((n) => n.textContent).join('')
 
-  it('progress: one line from the current value — removed words in <del>, added in <ins>, kept words plain', () => {
+  it('a status update: the new text dated today, the newest now under it', () => {
     open()
     paste({ html: fixture('.html'), plain: fixture('.txt') })
-    const line = card('Answer Northwind’s security questionnaire').querySelector('[data-checkin-progress-redline]')
-    if (!line) throw new Error('no progress redline')
-    expect(Array.from(line.querySelectorAll('del')).map(visible)).toEqual(['half'])
-    expect(Array.from(line.querySelectorAll('ins')).map(visible)).toEqual(['section 4'])
-    // Kept words are plain text, outside any mark.
-    expect(line.lastChild?.nodeType).toBe(Node.TEXT_NODE)
-    expect(line.lastChild?.textContent).toBe(' done')
-    // Read aloud: what goes, what comes.
-    expect(line.querySelector('del')?.textContent).toBe('removed half')
-    expect(line.querySelector('ins')?.textContent).toBe('added section 4')
+    const row = card('Answer Northwind’s security questionnaire').querySelector('[data-checkin-status-update]')
+    if (!row) throw new Error('no status update row')
+    expect(Array.from(row.children).map((c) => c.textContent)).toEqual([
+      'New status update · today',
+      'section 4 done',
+      'Newest now: 10/10 · half done',
+    ])
+    expect(row.querySelector('del, ins')).toBeNull()
   })
 
-  it('progress where there was none: all added', () => {
+  it('a status update on a task with none: no Newest now line', () => {
     const email = sampleEmail()
     open()
-    paste({ plain: editPlain(email.plain, '3f9a1c42', 'Progress:', ['Progress: drafted, in review']) })
-    const line = card('Draft the migration runbook').querySelector('[data-checkin-progress-redline]')
-    expect(line?.querySelectorAll('del')).toHaveLength(0)
-    expect(Array.from(line?.querySelectorAll('ins') ?? []).map(visible)).toEqual(['drafted, in review'])
+    paste({ plain: editPlain(email.plain, '3f9a1c42', 'Status:', ['Status: drafted, in review']) })
+    const row = card('Draft the migration runbook').querySelector('[data-checkin-status-update]')
+    expect(Array.from(row?.children ?? []).map((c) => c.textContent)).toEqual(['New status update · today', 'drafted, in review'])
+    expect(row?.querySelector('[data-checkin-status-newest]')).toBeNull()
   })
 
   it('notes: an edited line is one redlined line; whole adds and removes keep their look', () => {
@@ -380,7 +378,7 @@ describe('CheckinImportDialog — apply', () => {
   it('applies the ticked changes, closes, and shows the undo snackbar; Undo restores the old notes', async () => {
     open()
     paste({ html: fixture('.html'), plain: fixture('.txt') })
-    fireEvent.click(within(card('Answer Northwind’s security questionnaire')).getByRole('checkbox', { name: 'Progress' }))
+    fireEvent.click(within(card('Answer Northwind’s security questionnaire')).getByRole('checkbox', { name: 'Status' }))
     fireEvent.click(applyButton())
 
     await waitFor(() => expect(useUIStore.getState().checkinImportOpen).toBe(false))

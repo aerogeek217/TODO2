@@ -7,8 +7,10 @@ import { readStore } from './fixtures/db'
  * The check-in reply import in a real browser: a reply pasted as a real
  * `paste` event (both clipboard flavours) is read, one proposed change is
  * unticked, Apply writes the rest (completion, replaced notes, follow-up),
- * and Undo puts every task back — old notes included. The dialog opens from
- * the palette and from the check-in dialog's `Paste a reply…` link.
+ * and Undo puts every task back — old notes included. A reply to an email
+ * from before status updates (its `Progress:` label) adds a status update,
+ * dated today, that Undo takes back. The dialog opens from the palette and
+ * from the check-in dialog's `Paste a reply…` link.
  */
 
 const FIXTURE = 'src/test/fixtures/checkin-replies/synthetic-new-outlook-inline'
@@ -97,15 +99,19 @@ test('paste a reply, untick one change, apply; Undo restores the old notes', asy
   }))
   expect(new Set(boxes)).toEqual(new Set(['18x18']))
 
-  // The progress redline: struck and underlined marks, not only colour; the kept word plain.
-  const redline = dialog.locator('[data-checkin-progress-redline]')
-  await expect(redline).toHaveText('removed halfadded section 4 done')
-  expect(await redline.locator('del').evaluate((el) => getComputedStyle(el).textDecorationLine)).toBe('line-through')
-  expect(await redline.locator('ins').evaluate((el) => getComputedStyle(el).textDecorationLine)).toBe('underline')
+  // The status update: the new text dated today over the task's newest now — no redline.
+  const status = dialog.getByRole('region', { name: 'Answer Northwind’s security questionnaire' }).locator('[data-checkin-status-update]')
+  const newestDay = await page.evaluate(() => {
+    const d = new Date()
+    d.setDate(d.getDate() - 3)
+    return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
+  })
+  await expect(status.locator(':scope > *')).toHaveText(['New status update · today', 'section 4 done', `Newest now: ${newestDay} · half done`])
+  await expect(status.locator('del, ins')).toHaveCount(0)
   await expect(dialog.locator('[data-checkin-notes-diff] [data-op="~"]')).toHaveCount(1)
 
-  // Keep the old progress on the questionnaire.
-  await dialog.getByRole('region', { name: 'Answer Northwind’s security questionnaire' }).getByRole('checkbox', { name: 'Progress' }).uncheck()
+  // Keep the questionnaire's status updates as they are.
+  await dialog.getByRole('region', { name: 'Answer Northwind’s security questionnaire' }).getByRole('checkbox', { name: 'Status' }).uncheck()
   await expect(apply).toHaveText('Apply 2 changes')
   await apply.click()
   await expect(dialog).toBeHidden()
@@ -152,6 +158,39 @@ test('paste a reply, untick one change, apply; Undo restores the old notes', asy
   const undone = await readTasks(page)
   expect(undone['Review the staging load-test results']?.isCompleted).toBe(false)
   expect(Object.values(undone).filter((t) => t.lastFollowupAt)).toEqual([])
+})
+
+test('a reply to an email sent before status updates (Progress label): Apply adds a status update, Undo takes it back', async ({ page }) => {
+  const plain = await readFile('src/test/fixtures/checkin-replies/synthetic-progress-label-plain-quoted.txt', 'utf8')
+  await seedWorkspace(page, seed)
+
+  await openFromPalette(page, '>import check', /Import check-in reply/)
+  const dialog = page.getByRole('dialog', { name: 'Import task update' })
+  await pasteReply(dialog.getByRole('textbox', { name: 'Paste the reply here' }), '', plain)
+  await expect(dialog.getByText('4 of 4 tasks matched by Ref · 3 changes found')).toBeVisible()
+  const questionnaire = dialog.getByRole('region', { name: 'Answer Northwind’s security questionnaire' })
+  await expect(questionnaire.getByRole('checkbox', { name: 'Status' })).toBeChecked()
+  const text = 'section 4 done, section 7 waiting on the pen-test report from Sam'
+  await expect(questionnaire.locator('[data-checkin-status-update] > *').nth(1)).toHaveText(text)
+  await dialog.getByRole('button', { name: 'Apply 3 changes' }).click()
+  await expect(dialog).toBeHidden()
+
+  // Added dated today, with the follow-up it was recorded with; the older entry stays.
+  const entries = async () => {
+    const todo = (await readStore<{ id: number; title: string }>(page, 'todos')).find((t) => t.title === 'Answer Northwind’s security questionnaire')
+    const rows = await readStore<{ todoId: number; text: string; date: Date; followedUp?: true }>(page, 'statusUpdates')
+    return rows.filter((u) => u.todoId === todo?.id).map((u) => ({ text: u.text, day: u.date.getDate(), followedUp: u.followedUp ?? false }))
+  }
+  await expect.poll(async () => (await entries()).length).toBe(2)
+  const today = await page.evaluate(() => new Date().getDate())
+  expect(await entries()).toEqual(expect.arrayContaining([
+    expect.objectContaining({ text: 'half done', followedUp: false }),
+    { text, day: today, followedUp: true },
+  ]))
+
+  await expect(page.getByText('Applied 3 changes from Marcus Chen')).toBeVisible()
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect.poll(async () => (await entries()).map((u) => u.text)).toEqual(['half done'])
 })
 
 test('opens from the check-in dialog’s Paste a reply… link', async ({ page }) => {

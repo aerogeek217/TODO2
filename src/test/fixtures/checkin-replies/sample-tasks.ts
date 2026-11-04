@@ -57,7 +57,8 @@ export function checkinSampleTasks(): PersistedTodoItem[] {
 
 /**
  * The sample tasks' status updates (task id → newest first): what the
- * email's update rows show for the first two tasks.
+ * email's Status rows show for the first two tasks, `(10/10) half done`
+ * and `(10/10) 40%`.
  */
 export function checkinSampleStatusUpdates(): Map<number, PersistedStatusUpdate[]> {
   const entry = (todoId: number, text: string): PersistedStatusUpdate => ({

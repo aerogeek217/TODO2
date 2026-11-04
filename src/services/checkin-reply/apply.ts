@@ -47,7 +47,7 @@ export interface CheckinTaskUpdate {
   /** Complete the task. */
   complete: boolean
   /** The reply's status update: added to the task, dated today. */
-  progress?: string
+  statusUpdate?: string
   /** The new notes (`''` removes them). */
   notes?: string
   /** Ticked changes on this task. */
@@ -64,7 +64,7 @@ export function selectedCheckinUpdates(diff: CheckinReplyDiff, selected: Readonl
       if (!selected.has(checkinChangeKey(id, change.field))) continue
       update.changeCount++
       if (change.field === 'completed') update.complete = true
-      else if (change.field === 'progress') update.progress = change.to
+      else if (change.field === 'statusUpdate') update.statusUpdate = change.text
       else update.notes = change.to
     }
     if (update.changeCount > 0) updates.push(update)
@@ -105,10 +105,10 @@ export async function applyCheckinUpdates(
     }
 
     for (const u of updates) {
-      if (u.progress !== undefined) {
+      if (u.statusUpdate !== undefined) {
         const added = await useStatusUpdateStore.getState().add(u.todoId, {
           date: new Date(),
-          text: u.progress,
+          text: u.statusUpdate,
           ...(options.recordFollowup ? { followedUp: true } : {}),
         })
         if (!added) throw new Error(`Couldn't save the reply's status update to task ${u.todoId}`)

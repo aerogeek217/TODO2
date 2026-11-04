@@ -119,7 +119,7 @@ describe('applyPaneDrop — a write that fails', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(db.todoTags, 'bulkAdd').mockRejectedValue(new Error('disk full'))
 
-    const reply = applyCheckinUpdates([{ todoId: c, complete: false, progress: 'Half done', changeCount: 1 }], { recordFollowup: false, personName: 'Ann' })
+    const reply = applyCheckinUpdates([{ todoId: c, complete: false, statusUpdate: 'Half done', changeCount: 1 }], { recordFollowup: false, personName: 'Ann' })
     const drop = applyPaneDrop([
       { todoId: a, urgent: true, statusId: waiting, tagId: home },
       { todoId: b, urgent: true, statusId: waiting, tagId: home },
