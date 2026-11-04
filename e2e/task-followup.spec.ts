@@ -107,7 +107,7 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: null, last: null })
   })
 
-  test('pill: the field shows the task’s later next follow-up; invalid text shows help and disables Mark followed up; Esc and outside click close without change', async ({ page }) => {
+  test('pill: the field shows the task’s later next follow-up; invalid text shows help and disables Mark followed up; Esc holds once over it, then drops it; an outside click closes without change', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 13)
     const row = taskRowByTitle(page, 'alpha')
     const pill = row.getByRole('button', { name: 'Follow-up: Tue 13', exact: true })
@@ -123,6 +123,8 @@ test.describe('Task follow-up', () => {
     await expect(pop.getByRole('button', { name: 'Mark followed up' })).toBeDisabled()
     await page.keyboard.press('Enter')
     await expect(pop).toBeVisible() // invalid input doesn't apply
+    await page.keyboard.press('Escape')
+    await expect(pop.getByText(/close again to discard it/)).toBeVisible()
     await page.keyboard.press('Escape')
     await expect(pop).toBeHidden()
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-13 00:00', last: null })
@@ -159,7 +161,7 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-17 00:00', last: null })
   })
 
-  test('the popover’s × empties the field (focus stays in it); ⏎ then clears the follow-up and the cell goes back to its placeholder', async ({ page }) => {
+  test('the popover’s × clears the follow-up at once (focus stays in the field) and the cell goes back to its placeholder; ⏎ then closes', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 13)
     const row = taskRowByTitle(page, 'alpha')
     await row.getByRole('button', { name: 'Follow-up: Tue 13', exact: true }).click()
@@ -168,9 +170,9 @@ test.describe('Task follow-up', () => {
     const input = pop.getByRole('textbox', { name: 'Next follow-up' })
     await expect(input).toHaveValue('')
     await expect(input).toBeFocused()
-    await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-13 00:00', last: null })
+    await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: null, last: null })
     await page.keyboard.press('Enter')
-    await expect(pop).toBeVisible()
+    await expect(pop).toBeHidden()
     await expect(row.getByRole('button', { name: /^Follow-up:/ })).toHaveCount(0)
     await expect(row.getByRole('button', { name: 'Set follow-up', exact: true })).toBeVisible()
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: null, last: null })

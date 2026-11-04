@@ -172,6 +172,100 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  describe('closing saves what was typed', () => {
+    it('a typed date is set as it closes', () => {
+      const { field, onSetNext } = renderPopover()
+      fireEvent.change(field, { target: { value: '2w' } })
+      expect(onSetNext).not.toHaveBeenCalled()
+      cleanup()
+      expect(onSetNext.mock.calls).toEqual([[new Date(2026, 9, 24)]])
+    })
+
+    it('the same date, an untouched field or a written date write nothing more', () => {
+      let r = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: OVERDUE }) })
+      cleanup()
+      expect(r.onSetNext).not.toHaveBeenCalled()
+
+      r = renderPopover()
+      fireEvent.change(r.field, { target: { value: '27 Oct' } })
+      cleanup()
+      expect(r.onSetNext).not.toHaveBeenCalled()
+
+      const live = renderLive()
+      fireEvent.change(live.field, { target: { value: '2w' } })
+      fireEvent.keyDown(live.field, { key: 'Enter' })
+      cleanup()
+      expect(live.onSetNext).toHaveBeenCalledTimes(1)
+    })
+
+    it('the text emptied by hand clears the date as it closes; on a mixed selection it writes nothing', () => {
+      let r = renderPopover()
+      fireEvent.change(r.field, { target: { value: '' } })
+      cleanup()
+      expect(r.onSetNext.mock.calls).toEqual([[null]])
+
+      r = renderPopover({ current: 'mixed' })
+      fireEvent.change(r.field, { target: { value: '2w' } })
+      fireEvent.change(r.field, { target: { value: '' } })
+      cleanup()
+      expect(r.onSetNext).not.toHaveBeenCalled()
+    })
+
+    it('a typed date on a mixed selection is set on all', () => {
+      const r = renderPopover({ current: 'mixed' })
+      fireEvent.change(r.field, { target: { value: '2w' } })
+      cleanup()
+      expect(r.onSetNext.mock.calls).toEqual([[new Date(2026, 9, 24)]])
+    })
+
+    it('a typed status is Mark followed up with it, with the field’s date', () => {
+      let r = renderPopover()
+      fireEvent.change(screen.getByRole('textbox', { name: 'Status update' }), { target: { value: 'Sent it' } })
+      cleanup()
+      expect(r.onFollowedUp.mock.calls).toEqual([[undefined, 'Sent it']])
+      expect(r.onSetNext).not.toHaveBeenCalled()
+
+      r = renderPopover()
+      fireEvent.change(r.field, { target: { value: '2w' } })
+      fireEvent.change(screen.getByRole('textbox', { name: 'Status update' }), { target: { value: 'Sent it' } })
+      cleanup()
+      expect(r.onFollowedUp.mock.calls).toEqual([[new Date(2026, 9, 24), 'Sent it']])
+      expect(r.onSetNext).not.toHaveBeenCalled()
+    })
+
+    it('Mark followed up already took the status: nothing more as it closes', () => {
+      const r = renderPopover()
+      fireEvent.change(screen.getByRole('textbox', { name: 'Status update' }), { target: { value: 'Sent it' } })
+      fireEvent.click(screen.getByRole('button', { name: 'Mark followed up + add update' }))
+      cleanup()
+      expect(r.onFollowedUp).toHaveBeenCalledTimes(1)
+    })
+
+    it('text that isn’t a date holds Esc once, saying so; the second drops it, a status typed still saved', () => {
+      const r = renderPopover()
+      fireEvent.change(r.field, { target: { value: 'whenever' } })
+      fireEvent.change(screen.getByRole('textbox', { name: 'Status update' }), { target: { value: 'Sent it' } })
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(r.onClose).not.toHaveBeenCalled()
+      expect(screen.getByText(/close again to discard it/)).toBeInTheDocument()
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(r.onClose).toHaveBeenCalledTimes(1)
+      cleanup()
+      expect(r.onSetNext).not.toHaveBeenCalled()
+      expect(r.onFollowedUp.mock.calls).toEqual([[undefined, 'Sent it']])
+    })
+
+    it('an edit after the hold holds again', () => {
+      const r = renderPopover()
+      fireEvent.change(r.field, { target: { value: 'whenever' } })
+      fireEvent.keyDown(document, { key: 'Escape' })
+      fireEvent.change(r.field, { target: { value: 'whenever2' } })
+      expect(screen.queryByText(/close again/)).toBeNull()
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(r.onClose).not.toHaveBeenCalled()
+    })
+  })
+
   it('a held ⏎ (its repeat landing in the field, where focus went) doesn’t close', () => {
     const { button, field, onClose } = renderPopover()
     fireEvent.click(button)
@@ -239,17 +333,60 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     expect(onFollowedUp).toHaveBeenCalledWith(new Date(2026, 9, 24))
   })
 
-  it('a cleared field (×): Mark followed up clears the next follow-up; the tooltip says so', () => {
-    const { field, button, onFollowedUp, onSetNext, onClose } = renderPopover()
+  it('×: clears the stored date at once, stays open, focus in the field; the field stays empty and Mark followed up leaves none', () => {
+    const { field, button, onFollowedUp, onSetNext, onClose } = renderLive()
     fireEvent.click(screen.getByRole('button', { name: 'Clear next follow-up' }))
-    // × only empties the field (the row's own × clears the stored date).
-    expect(field.value).toBe('')
-    expect(field).toHaveFocus()
-    expect(onSetNext).not.toHaveBeenCalled()
+    expect(onSetNext.mock.calls).toEqual([[null]])
     expect(onClose).not.toHaveBeenCalled()
-    expect(tooltipOf(button)).toBe('Record a follow-up today and clear the next follow-up')
+    expect(field).toHaveFocus()
+    // Not back on the automatic date, though the task now has none.
+    expect(field.value).toBe('')
+    expect(tooltipOf(button)).toBe('Record a follow-up today (no next follow-up)')
     fireEvent.click(button)
-    expect(onFollowedUp).toHaveBeenCalledWith(null)
+    expect(onFollowedUp.mock.calls).toEqual([[null]])
+    expect(field.value).toBe('')
+    fireEvent.click(button)
+    expect(onFollowedUp.mock.calls).toEqual([[null], [null]])
+    expect(field.value).toBe('')
+    // Nothing more to clear: ⏎ closes.
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(onSetNext).toHaveBeenCalledTimes(1)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('× on a task with no date, the field on the automatic one: empties it with nothing to write', () => {
+    const { field, button, onFollowedUp, onSetNext } = renderLive(makeTodo({ id: 1 }))
+    expect(field.value).toBe('Tue 10 Nov')
+    fireEvent.click(screen.getByRole('button', { name: 'Clear next follow-up' }))
+    expect(onSetNext).not.toHaveBeenCalled()
+    expect(field.value).toBe('')
+    fireEvent.click(button)
+    expect(onFollowedUp.mock.calls).toEqual([[null]])
+  })
+
+  it('× over text typed on a mixed selection: erases the text only, each task keeps its own', () => {
+    const { field, button, onFollowedUp, onSetNext } = renderPopover({ current: 'mixed' })
+    fireEvent.change(field, { target: { value: '2w' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Clear next follow-up' }))
+    expect(onSetNext).not.toHaveBeenCalled()
+    expect(field.value).toBe('')
+    expect(field).toHaveAttribute('placeholder', 'Each task’s own')
+    fireEvent.click(button)
+    expect(onFollowedUp.mock.calls).toEqual([[undefined]])
+  })
+
+  it('the text deleted by hand: nothing written until ⏎, the help line says so; ⏎ clears and the field stays empty', () => {
+    const { field, button, onSetNext, onFollowedUp } = renderLive()
+    fireEvent.change(field, { target: { value: '' } })
+    expect(onSetNext).not.toHaveBeenCalled()
+    expect(screen.getByText('No next follow-up · ⏎ to clear')).toBeInTheDocument()
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(onSetNext.mock.calls).toEqual([[null]])
+    expect(field.value).toBe('')
+    expect(screen.queryByText(/to clear/)).toBeNull()
+    expect(button).toHaveFocus()
+    fireEvent.click(button)
+    expect(onFollowedUp.mock.calls).toEqual([[null]])
   })
 
   it('text that isn’t a date disables Mark followed up, with the field’s error', () => {
