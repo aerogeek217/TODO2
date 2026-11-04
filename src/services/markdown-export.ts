@@ -1,8 +1,17 @@
 import { buildExportData } from '../data/export-data'
-import type { PersistedTodoItem } from '../models'
+import type { PersistedTodoItem, StatusUpdate } from '../models'
 import { bySortOrder } from '../utils/sort-order'
-import { startOfToday } from '../utils/date'
+import { formatDateNumeric, startOfToday } from '../utils/date'
+import { compareStatusUpdates } from '../utils/status-updates'
 import { formatTaskLine, taskLineParts } from './task-copy'
+
+/**
+ * A task's status updates as a details list item: newest first, one
+ * `MM/DD text` sub-item each.
+ */
+function statusUpdatesItem(updates: readonly StatusUpdate[]): string[] {
+  return ['- **Status updates:**', ...updates.map((u) => `  - ${formatDateNumeric(u.date)} ${u.text}`)]
+}
 
 /**
  * A task's notes as a details list item: one line inline, several as a block
@@ -40,6 +49,13 @@ export async function buildMarkdownExport(): Promise<string> {
   }
   const todoPeopleMap = namesByTodo(data.todoPeople.map((r) => ({ todoId: r.todoId, id: r.personId })), peopleMap)
   const todoTagsMap = namesByTodo(data.todoTags.map((r) => ({ todoId: r.todoId, id: r.tagId })), tagMap)
+  const statusUpdatesByTodo = new Map<number, StatusUpdate[]>()
+  for (const u of data.statusUpdates) {
+    const list = statusUpdatesByTodo.get(u.todoId) ?? []
+    list.push(u)
+    statusUpdatesByTodo.set(u.todoId, list)
+  }
+  for (const list of statusUpdatesByTodo.values()) list.sort(compareStatusUpdates)
 
   const lines: string[] = ['# TODOs', '']
   const details: string[] = []
@@ -56,11 +72,13 @@ export async function buildMarkdownExport(): Promise<string> {
   const collectDetails = (todo: PersistedTodoItem) => {
     const people = todoPeopleMap.get(todo.id) ?? []
     const tags = todoTagsMap.get(todo.id) ?? []
-    const hasMeta = people.length > 0 || tags.length > 0 || todo.notes
+    const updates = statusUpdatesByTodo.get(todo.id) ?? []
+    const hasMeta = people.length > 0 || tags.length > 0 || updates.length > 0 || todo.notes
     if (!hasMeta) return
     details.push(`### ${todo.title}`)
     if (people.length > 0) details.push(`- **People:** ${people.join(', ')}`)
     if (tags.length > 0) details.push(`- **Tags:** ${tags.join(', ')}`)
+    if (updates.length > 0) details.push(...statusUpdatesItem(updates))
     if (todo.notes) details.push(...notesItem(todo.notes))
     details.push('')
   }
