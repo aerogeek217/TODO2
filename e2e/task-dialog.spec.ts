@@ -186,3 +186,24 @@ test('Esc in a row’s status menu or people picker over the task dialog closes 
   await expect(people).toHaveCount(0)
   await expect(dialog(page)).toBeVisible()
 })
+
+test('a row’s follow-up popover sits over the dialog at level 2, works there, and Esc closes only it', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await dash(page).locator('[data-dash-tile="hot"]').click()
+  const row = dialogRow(page, 'Plan the offsite')
+  await row.hover()
+  await row.getByRole('button', { name: 'Set follow-up', exact: true }).click()
+  const popover = page.getByRole('dialog', { name: 'Follow-up' })
+  await expect(popover).toHaveAttribute('data-popover-level', '2')
+
+  // On top where it sits: the click lands on the button, and it stays open.
+  await popover.getByRole('button', { name: 'Follow up in 1 week' }).click()
+  await expect(popover).toBeVisible()
+  await expect(row.getByRole('button', { name: /^Follow-up:/ })).toBeVisible()
+  await popover.getByRole('button', { name: /^Mark followed up/ }).click()
+  await expect(popover.getByText(/^Last followed up/)).toBeVisible()
+
+  await page.keyboard.press('Escape')
+  await expect(popover).toHaveCount(0)
+  await expect(dialog(page)).toBeVisible()
+})

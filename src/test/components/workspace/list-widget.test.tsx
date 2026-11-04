@@ -491,7 +491,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     const popover = screen.getByRole('dialog', { name: 'Follow-up' })
     const button = within(popover).getByRole('button', { name: 'Pick next follow-up date' })
     await act(async () => { fireEvent.change(button.nextElementSibling as HTMLInputElement, { target: { value: '2026-11-20' } }) })
-    expect(screen.queryByRole('dialog', { name: 'Follow-up' })).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Follow-up' })).toBeInTheDocument()
     const next = (id: number) => useTodoStore.getState().todos.find((t) => t.id === id)?.nextFollowupAt
     expect(next(1)).toEqual(new Date(2026, 10, 20))
     expect(next(2)).toEqual(new Date(2026, 10, 20))

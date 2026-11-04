@@ -70,9 +70,10 @@ test.describe('the automatic next follow-up', () => {
     await expect(pop.getByText(/^Now:/)).toHaveCount(0)
     await expect(pop.getByText(/^Was /)).toHaveCount(0)
     await page.keyboard.press('Enter')
-    await expect(pop).toBeHidden()
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-13 00:00', last: '2026-10-10 15:30' })
     await expect(page.getByText('Followed up · next follow-up kept')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(pop).toBeHidden()
 
     // A click selects the field's text: typing replaces it.
     await taskRowByTitle(page, 'beta').getByRole('button', { name: 'Follow-up: Thu 15', exact: true }).click()
@@ -81,9 +82,9 @@ test.describe('the automatic next follow-up', () => {
     await expect(input).toHaveValue('2w')
     await expect(pop.getByText('Sat 24 Oct')).toBeVisible()
     await followedUp.click()
-    await expect(pop).toBeHidden()
     await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: '2026-10-24 00:00', last: '2026-10-10 15:30' })
     await expect(page.getByText('Followed up · next follow-up Sat 24 Oct')).toBeVisible()
+    await expect(input).toHaveValue('Sat 24 Oct')
   })
 
   test('an overdue one: the field on today + the interval, Was … under it; ⏎ on Mark followed up sets it; ⏎ in the field sets the next follow-up only', async ({ page }) => {
@@ -93,31 +94,28 @@ test.describe('the automatic next follow-up', () => {
     await expect(pop.getByText('Was Thu 10/08 · overdue')).toBeVisible()
     await expect(pop.getByRole('button', { name: 'Mark followed up' })).toBeFocused()
     await page.keyboard.press('Enter')
-    await expect(pop).toBeHidden()
     await expect.poll(() => followupOf(page, 'gamma')).toEqual({ next: '2026-11-10 00:00', last: '2026-10-10 15:30' })
+    await page.keyboard.press('Escape')
+    await expect(pop).toBeHidden()
 
     await taskRowByTitle(page, 'delta').getByRole('button', { name: 'Follow-up: Fri 9, late', exact: true }).click()
     const input = pop.getByRole('textbox', { name: 'Next follow-up' })
     await input.click()
     await page.keyboard.press('Enter')
-    await expect(pop).toBeHidden()
     // The field's date, set without a follow-up stamp.
     await expect.poll(() => followupOf(page, 'delta')).toEqual({ next: '2026-11-10 00:00', last: null })
   })
 
-  test('the user’s flow: open the pill → type 2w → Mark followed up sets today + 14 days; a quick button only sets the date and closes', async ({ page }) => {
-    const pill = () => taskRowByTitle(page, 'beta').getByRole('button', { name: /^Follow-up: /, exact: false })
+  test('the user’s flow: open the pill → type 2w → Mark followed up sets today + 14 days; a quick button then only sets the date', async ({ page }) => {
     await taskRowByTitle(page, 'beta').getByRole('button', { name: 'Follow-up: Thu 15', exact: true }).click()
     const pop = popover(page)
     await pop.getByRole('textbox', { name: 'Next follow-up' }).fill('2w')
     await pop.getByRole('button', { name: 'Mark followed up' }).click()
-    await expect(pop).toBeHidden()
     await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: '2026-10-24 00:00', last: '2026-10-10 15:30' })
 
-    // A quick button: the next follow-up only, and the popover closes (as a picked day does).
-    await pill().first().click()
+    // Still open: a quick button sets the next follow-up only (as a picked day does).
     await pop.getByRole('button', { name: 'Follow up in 1 month' }).click()
-    await expect(pop).toBeHidden()
+    await expect(pop).toBeVisible()
     await expect.poll(() => followupOf(page, 'beta')).toEqual({ next: '2026-11-10 00:00', last: '2026-10-10 15:30' })
   })
 
@@ -152,7 +150,7 @@ test.describe('the automatic next follow-up', () => {
     await page.keyboard.type('3w')
     await expect(input).toHaveValue('3w')
     await page.keyboard.press('Enter')
-    await expect(popover(page)).toBeHidden()
+    await expect(popover(page)).toBeVisible()
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-31 00:00', last: null })
   })
 
@@ -164,17 +162,19 @@ test.describe('the automatic next follow-up', () => {
     await expect(pop.getByRole('textbox', { name: 'Next follow-up' })).toHaveValue('Tue 13 Oct')
     await expect(pop.getByRole('button', { name: 'Mark followed up' })).toBeFocused()
     await page.keyboard.press('Enter')
-    await expect(pop).toBeHidden()
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-13 00:00', last: '2026-10-10 15:30' })
     await expect(page.getByText('Followed up · next follow-up kept')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(pop).toBeHidden()
 
     await taskRowByTitle(page, 'gamma').getByRole('button', { name: 'Follow-up: Thu 8, late', exact: true }).click()
     await expect(pop.getByRole('textbox', { name: 'Next follow-up' })).toHaveValue('')
     await expect(pop.getByText('Was Thu 10/08 · overdue')).toBeVisible()
     await page.keyboard.press('Enter')
-    await expect(pop).toBeHidden()
     await expect.poll(() => followupOf(page, 'gamma')).toEqual({ next: null, last: '2026-10-10 15:30' })
     await expect(page.getByText('Followed up · no next follow-up')).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(pop).toBeHidden()
 
     await taskRowByTitle(page, 'beta').locator('span[data-task-title="beta"]').click({ button: 'right' })
     await page.getByRole('menuitem', { name: 'Mark followed up' }).click()

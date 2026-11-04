@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
+import { FollowupPopoverHost } from '../../components/overlays/FollowupPopoverHost'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -413,7 +414,8 @@ describe('TaskRow', () => {
     })
 
     it('Pick a date or interval… opens the follow-up popover', () => {
-      render(<TaskRow todo={makeTodo({ id: 6 })} />)
+      useTodoStore.setState({ todos: [makeTodo({ id: 6 })] })
+      render(<><TaskRow todo={makeTodo({ id: 6 })} /><FollowupPopoverHost /></>)
       fireEvent.contextMenu(getRow())
       fireEvent.click(screen.getByRole('menuitem', { name: /^Follow-up/ }))
       fireEvent.click(screen.getByRole('menuitem', { name: 'Pick a date or interval…' }))
@@ -510,7 +512,9 @@ describe('TaskRow', () => {
 
     it('the status cell opens the status menu; the follow-up cell names the day and opens the popover', () => {
       useStatusStore.setState({ statuses: [{ id: 10, name: 'Done', icon: 'check', color: '#00ff00', sortOrder: 0 }] })
-      render(<TaskRow todo={makeTodo({ id: 1, statusId: 10, nextFollowupAt: new Date(2026, 3, 20) })} />)
+      const withFollowup = makeTodo({ id: 1, statusId: 10, nextFollowupAt: new Date(2026, 3, 20) })
+      useTodoStore.setState({ todos: [withFollowup] })
+      render(<><TaskRow todo={withFollowup} /><FollowupPopoverHost /></>)
       fireEvent.click(screen.getByRole('button', { name: 'Status: Done' }))
       fireEvent.click(screen.getByText('No Status'))
       expect(mockBulk.setStatus).toHaveBeenCalledWith(1, undefined)

@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
+import { FollowupPopoverHost } from '../../components/overlays/FollowupPopoverHost'
 import { useUIStore } from '../../stores/ui-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -357,7 +358,9 @@ describe('MobileTaskRow', () => {
 
   describe('touch follow-up flag', () => {
     it('an empty follow-up slot always shows its flag, which opens the follow-up popover', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Bare' })} />)
+      const bare = makeTodo({ id: 1, title: 'Bare' })
+      useTodoStore.setState({ todos: [bare] })
+      render(<><MobileTaskRow todo={bare} /><FollowupPopoverHost /></>)
       const flag = screen.getByRole('button', { name: 'Set follow-up' })
       fireEvent.click(flag)
       expect(screen.getByRole('dialog', { name: 'Follow-up' })).toBeInTheDocument()

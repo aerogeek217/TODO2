@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { STATUS_UPDATE_TEXT_MAX, type PersistedTodoItem, type StatusUpdate } from '../../../models'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
@@ -28,6 +28,8 @@ import { PopoverRoot } from '../PopoverRoot'
 interface FollowupPopoverProps {
   todo: PersistedTodoItem
   anchor: PopoverAnchor
+  /** The button that toggles it, when `anchor` isn't that button: a press on it isn't outside. */
+  triggerRef?: RefObject<HTMLElement | null>
   onClose: () => void
   /** Set (or with `null`, clear) the next follow-up — nothing else. */
   onSetNext: (date: Date | null) => void
@@ -115,13 +117,19 @@ function sameDay(a: Date | null, b: Date | null): boolean {
  * — its button, or ⏎ in the line — also adds that entry, dated today, in
  * the same undo step; empty, nothing else changes. Focusing the field (click, Tab) selects its text,
  * so typing replaces it. ⏎ in the field (when it differs from now), a
- * picked day or a quick button sets the next follow-up only and closes;
- * the field's × empties it; Esc / outside click closes without change. On
- * close, focus goes back to what had it before (the trigger) unless
- * something else took it.
+ * picked day or a quick button sets the next follow-up only; the field's ×
+ * empties it. **Neither that nor Mark followed up closes the popover** — the
+ * two are often done together: after a date, focus goes to Mark followed up
+ * (to the field when that is already done today); after Mark followed up, to
+ * the field with its text selected, and the Status update line empties. So
+ * ⏎ ⏎ records and closes, `2w` ⏎ ⏎ ⏎ sets, records and closes: ⏎ in a field
+ * that says what there is now closes, as Esc and an outside click do, without
+ * change. On close, focus goes back to what had it before (the trigger)
+ * unless something else took it. A wheel or touch scroll outside closes it;
+ * the list moving under it (a row just left it) doesn't.
  */
 export function FollowupPopover({
-  todo, anchor, onClose, onSetNext, onFollowedUp, followedUpToday, current: currentProp, initialFocus = 'followedUp',
+  todo, anchor, triggerRef, onClose, onSetNext, onFollowedUp, followedUpToday, current: currentProp, initialFocus = 'followedUp',
   newestUpdate,
 }: FollowupPopoverProps) {
   const today = useToday()
@@ -145,7 +153,14 @@ export function FollowupPopover({
   const input = useFollowupInput(ruled ?? undefined, 'next', today)
   // The field holds a proposal the user usually replaces: focus selects it.
   const selectOnFocus = useSelectAllOnFocus()
-  const { panelRef, style, caret } = usePopoverAnchor({ anchor, open: true, onClose, caret: true })
+  const { panelRef, style, caret } = usePopoverAnchor({
+    anchor,
+    open: true,
+    onClose,
+    caret: true,
+    closeOnScroll: 'user',
+    extraInsideRefs: triggerRef ? [triggerRef] : undefined,
+  })
   const setPanel = useCallback((el: HTMLDivElement | null) => {
     containerRef.current = el
     panelRef(el)
@@ -180,10 +195,25 @@ export function FollowupPopover({
   const [update, setUpdate] = useState('')
   const hasUpdate = statusUpdateText(update) !== ''
 
-  const apply = useCallback((date: Date | null) => {
+  // Only highlight "Mark followed up" when it would record something new.
+  const doneToday = followedUpToday ?? isFollowedUpToday(todo, today)
+
+  // Where focus goes after a write, once the field shows what it wrote.
+  const [focusAfter, setFocusAfter] = useState<{ to: 'next' | 'followedUp' } | null>(null)
+  useLayoutEffect(() => {
+    if (focusAfter?.to === 'next') {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    } else if (focusAfter?.to === 'followedUp') {
+      followedUpRef.current?.focus()
+    }
+  }, [focusAfter])
+
+  const apply = (date: Date | null) => {
     onSetNext(date)
-    onClose()
-  }, [onSetNext, onClose])
+    input.settle(date)
+    setFocusAfter({ to: doneToday ? 'next' : 'followedUp' })
+  }
 
   const s = input.state
   const untouched = s.kind === 'unchanged'
@@ -194,7 +224,8 @@ export function FollowupPopover({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter') return
     e.preventDefault()
-    if (fieldDate === 'invalid') return
+    // Focus lands here mid-press after Mark followed up: a held ⏎ isn't a second one.
+    if (e.repeat || fieldDate === 'invalid') return
     // Sets the next follow-up only; a field that says what there is now (or,
     // mixed, nothing typed: each task's own) just closes.
     if (mixed ? !untouched : !sameDay(fieldDate, current)) apply(fieldDate)
@@ -207,16 +238,15 @@ export function FollowupPopover({
     const next = untouched ? undefined : fieldDate
     if (hasUpdate) onFollowedUp(next, update)
     else onFollowedUp(next)
-    onClose()
+    if (!untouched) input.settle(fieldDate)
+    setUpdate('')
+    setFocusAfter({ to: 'next' })
   }
 
   const { triggerProps: followedUpTipProps, tooltip: followedUpTip } = useTooltip(
     followedUpTooltip({ untouched, mixed, kept, fieldDate, current, proposal, today })
       + (hasUpdate ? ', and add the status update' : ''),
   )
-  // Only highlight "Mark followed up" when it would record something new.
-  const doneToday = followedUpToday ?? isFollowedUpToday(todo, today)
-
   return createPortal(
     <PopoverRoot
       ref={setPanel}

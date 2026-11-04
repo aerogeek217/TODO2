@@ -30,7 +30,7 @@ interface HarnessProps {
   anchor: PopoverAnchor
   open: boolean
   onClose: () => void
-  closeOnScroll?: boolean
+  closeOnScroll?: boolean | 'user'
   closeOnResize?: boolean
   closeOnEscape?: boolean
   closeOnOutsideClick?: boolean
@@ -268,6 +268,29 @@ describe('usePopoverAnchor — dismissal', () => {
     )
     fireEvent.scroll(window)
     expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('closeOnScroll "user": a scroll the page makes itself doesn’t close it; a wheel or a touch drag outside does, inside doesn’t', () => {
+    const onClose = vi.fn()
+    const { getByTestId } = render(
+      <Harness
+        anchor={{ kind: 'point', x: 10, y: 10 }}
+        open={true}
+        onClose={onClose}
+        closeOnScroll="user"
+        panelRect={{ width: 100, height: 100 }}
+        insideTestId="inside"
+      />,
+    )
+    fireEvent.scroll(window)
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.wheel(getByTestId('inside'))
+    fireEvent.touchMove(getByTestId('inside'))
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.wheel(document.body)
+    expect(onClose).toHaveBeenCalledTimes(1)
+    fireEvent.touchMove(document.body)
+    expect(onClose).toHaveBeenCalledTimes(2)
   })
 
   it('closes on window resize when closeOnResize is true (default)', () => {

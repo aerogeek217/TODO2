@@ -38,6 +38,53 @@ async function storedUpdates(page: Page, title: string): Promise<Array<[string, 
     .map((u) => [u.text, u.followedUp === true])
 }
 
+test('entering a status counts as following up on its day, when newer: Last moves, the next follow-up by the rule, one Undo takes back all', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...SEED,
+    tasks: [{ title: 'Late one', followupInDays: -5 }],
+  })
+  const task = async () => (await readStore<{ title: string; lastFollowupAt?: Date; nextFollowupAt?: Date }>(page, 'todos'))
+    .find((t) => t.title === 'Late one')
+  const before = (await task())?.nextFollowupAt
+  await taskRowByTitle(page, 'Late one').locator('span[data-task-title="Late one"]').dblclick()
+  const last = editor(page).getByRole('textbox', { name: 'Last follow-up' })
+  await expect(last).toHaveValue('')
+
+  const popover = page.getByRole('dialog', { name: 'Add a status update' })
+  await editor(page).getByRole('button', { name: '+ Add update' }).click()
+  await popover.getByRole('textbox', { name: 'New status update', exact: true }).fill('called them')
+  await popover.getByRole('textbox', { name: 'New status update’s day' }).fill('yesterday')
+  await popover.getByRole('textbox', { name: 'New status update', exact: true }).press('Enter')
+
+  // Dated yesterday: Last is yesterday, and the late next follow-up — before that day — moved on.
+  const yesterday = new Date()
+  yesterday.setDate(yesterday.getDate() - 1)
+  yesterday.setHours(0, 0, 0, 0)
+  await expect.poll(async () => (await task())?.lastFollowupAt?.getTime()).toBe(yesterday.getTime())
+  await expect(last).not.toHaveValue('')
+  expect((await task())?.nextFollowupAt?.getTime()).toBeGreaterThan(before?.getTime() ?? 0)
+  await expect(page.getByText(`Followed up ${mmdd(-1)} · status update added`)).toBeVisible()
+  expect(await storedUpdates(page, 'Late one')).toEqual([['called them', true]])
+
+  // An older day than that: only the entry.
+  await editor(page).getByRole('button', { name: '+ Add update' }).click()
+  await popover.getByRole('textbox', { name: 'New status update', exact: true }).fill('emailed before that')
+  await popover.getByRole('textbox', { name: 'New status update’s day' }).fill(mmdd(-3))
+  await popover.getByRole('textbox', { name: 'New status update', exact: true }).press('Enter')
+  await expect.poll(() => storedUpdates(page, 'Late one')).toEqual([['called them', true], ['emailed before that', false]])
+  expect((await task())?.lastFollowupAt?.getTime()).toBe(yesterday.getTime())
+
+  // Undo takes the older entry, then the first entry with its follow-up.
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => storedUpdates(page, 'Late one')).toEqual([['called them', true]])
+  await page.keyboard.press('Control+z')
+  await expect.poll(() => storedUpdates(page, 'Late one')).toEqual([])
+  expect((await task())?.lastFollowupAt).toBeUndefined()
+  expect((await task())?.nextFollowupAt?.getTime()).toBe(before?.getTime())
+})
+
 test('an update added in the editor shows in the row’s notes preview; Esc while editing one stays in the editor', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await taskRowByTitle(page, 'Bare task').locator('span[data-task-title="Bare task"]').dblclick()
@@ -82,7 +129,8 @@ test('an update added in the editor shows in the row’s notes preview; Esc whil
   await expect(list.getByRole('button', { name: `Delete status update: ${mmdd(-1)} sent the draft` })).toHaveCSS('opacity', '1')
   await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
-  expect(await storedUpdates(page, 'Bare task')).toEqual([['sent the draft', false], ['waiting on legal', false]])
+  // Each newer than the last follow-up then: each counted as following up.
+  expect(await storedUpdates(page, 'Bare task')).toEqual([['sent the draft', true], ['waiting on legal', true]])
 
   // The row's notes cell previews the newest.
   const cell = notesCell(taskRowByTitle(page, 'Bare task'))
@@ -103,7 +151,9 @@ test('the follow-up popover’s update line: Enter marks followed up and adds th
   await line.fill('legal signed off')
   await expect(popover.getByRole('button', { name: 'Mark followed up + add update' })).toBeVisible()
   await line.press('Enter')
-  await expect(popover).toHaveCount(0)
+  // It stays open for a date, the line emptied, the entry as the newest.
+  await expect(line).toHaveValue('')
+  await expect(popover.locator('[data-newest-update]')).toHaveText(`${mmdd()} legal signed off`)
 
   await expect.poll(() => storedUpdates(page, 'Renew the vendor contract'))
     .toEqual([['asked for the old contract', false], ['legal signed off', true]])
