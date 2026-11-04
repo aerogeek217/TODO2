@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import { emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import { anchorAtPoint, usePopoverAnchor } from '../../../hooks/use-popover-anchor'
+import { createPendingNotMemory, DatePendingNotContext } from './date-pending-not'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
 import {
   chipClauses, chipKey, heldFields, predicateLineItems, removeChip, wrapChipInOrGroup,
@@ -117,7 +118,17 @@ const FIELD_ITEMS = new Map(ADD_FILTER_ITEMS.map((item) => [item.field, item]))
  * the order they were added in: a new chip goes last, a group takes the
  * place of the chip it was made from.
  */
-export function PredicateChips({
+export function PredicateChips(props: PredicateChipsProps) {
+  // Outlives the date panel: an Is not chosen before a range has an end stays chosen.
+  const [pendingNot] = useState(createPendingNotMemory)
+  return (
+    <DatePendingNotContext.Provider value={pendingNot}>
+      <PredicateChipsBody {...props} />
+    </DatePendingNotContext.Provider>
+  )
+}
+
+function PredicateChipsBody({
   predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false, omitFields, dateHost, layout = 'line',
 }: PredicateChipsProps) {
   const stack = layout === 'stack'

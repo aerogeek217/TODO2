@@ -25,6 +25,7 @@ import {
 } from '../icons'
 import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody, type FilterModeProps } from './FilterPanels'
 import { DateFilterPanel } from './DateFilterPanel'
+import { DatePendingNotContext, screenPendingNot } from './date-pending-not'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { useTooltip } from '../use-tooltip'
 import { useReturnFocus } from '../use-popover-focus'
@@ -611,7 +612,11 @@ export function FilterChipBarDesktop({
       className: DATE_FILTER_POPOVER_CLASS,
       dialogLabel: DATE_FILTER_DIALOG_LABEL,
       // Picking a type or clearing keeps the panel open.
-      render: () => <DateFilterPanel dates={p.dates} onChange={(dates) => update({ dates })} autoFocus />,
+      render: () => (
+        <DatePendingNotContext.Provider value={screenPendingNot}>
+          <DateFilterPanel dates={p.dates} onChange={(dates) => update({ dates })} autoFocus />
+        </DatePendingNotContext.Provider>
+      ),
     },
   })
   if (statuses.length > 0) {

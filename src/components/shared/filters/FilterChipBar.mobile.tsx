@@ -6,6 +6,7 @@ import { MARKER_KEYS } from '../../../models'
 import { activeMarkers, hasExcludedMarker, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, markersValue, toggleHot } from '../../../utils/markers'
 import sheet from './FilterChipBarMobile.module.css'
 import { DateFilterPanel } from './DateFilterPanel'
+import { DatePendingNotContext, screenPendingNot } from './date-pending-not'
 import { FilterModeToggle, MarkerConditionToggle } from './FilterPanels'
 import { entityTicked, entityToggle } from '../../../utils/filter-negation'
 import { NO_TAGS_LABEL } from '../../../utils/filter-labels'
@@ -340,7 +341,9 @@ export function FilterChipBarMobile({
         onToggle={() => handleSection('date')}
       >
         <div className={sheet.dateSection}>
-          <DateFilterPanel variant="sheet" dates={p.dates} onChange={(next) => update({ dates: next })} />
+          <DatePendingNotContext.Provider value={screenPendingNot}>
+            <DateFilterPanel variant="sheet" dates={p.dates} onChange={(next) => update({ dates: next })} />
+          </DatePendingNotContext.Provider>
         </div>
       </AccordionSection>
 
