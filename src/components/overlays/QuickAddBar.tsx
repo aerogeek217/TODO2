@@ -52,6 +52,7 @@ import {
 } from '../../services/nlp-chip-edit'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { useLatestRef } from '../../hooks/use-latest-ref'
+import { useUIStore } from '../../stores/ui-store'
 import { useNlpPopupAnchor } from '../../hooks/use-nlp-popup-anchor'
 import { usePersonStore } from '../../stores/person-store'
 import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
@@ -420,9 +421,14 @@ export function QuickAddBar({
   const mirrorRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
+  // Esc, the backdrop or a press outside: typed text asks first. Closing after
+  // a create is the plain `onClose`.
+  const askingToCloseRef = useRef(false)
+  const requestCloseRef = useRef<() => void>(onClose)
+  const requestClose = useCallback(() => requestCloseRef.current(), [])
   // A press that starts and ends on the backdrop closes the bar (not a text
   // drag out of the bar); the press keeps the focus in the input.
-  const backdropPress = useBackdropPress(onClose, { keepFocus: true })
+  const backdropPress = useBackdropPress(requestClose, { keepFocus: true })
 
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
@@ -553,11 +559,11 @@ export function QuickAddBar({
       if (popupRef.current?.contains(target)) return
       // A person's / tag's menu from the popup, or the editor / confirm it opened.
       if (surfaceRef.current && isInLayerAbove(surfaceRef.current, target)) return
-      onClose()
+      requestClose()
     }
     document.addEventListener('mousedown', handler, true)
     return () => document.removeEventListener('mousedown', handler, true)
-  }, [open, onClose, popupRef])
+  }, [open, requestClose, popupRef])
 
   /** A chip's ×: edit the text (and drop a preset marker), keeping the caret in the field. */
   const onRemoveChip = (chip: ChipRemoval) => {
@@ -597,7 +603,7 @@ export function QuickAddBar({
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
       e.preventDefault()
-      onClose()
+      requestClose()
       return
     }
     if (e.key === 'Tab') {
@@ -652,6 +658,28 @@ export function QuickAddBar({
       })
       .finally(() => { submittingRef.current = false })
   }
+
+  useLayoutEffect(() => {
+    requestCloseRef.current = () => {
+      if (raw.trim() === '') {
+        onClose()
+        return
+      }
+      if (askingToCloseRef.current) return
+      askingToCloseRef.current = true
+      void useUIStore.getState().askChoice({
+        title: 'Keep this new task?',
+        message: 'It hasn’t been created yet.',
+        confirmLabel: 'Create task',
+        discardLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+      }).then((picked) => {
+        askingToCloseRef.current = false
+        if (picked === 'discard') onClose()
+        else if (picked === 'confirm') submit(raw, draftFor(raw))
+      })
+    }
+  })
 
   if (!open) return null
 

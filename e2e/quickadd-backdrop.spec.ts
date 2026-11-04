@@ -86,8 +86,9 @@ test('a click on the backdrop closes the bar and does not reach the task row und
   await page.mouse.up()
   await expect(bar(page)).toBeVisible()
 
-  // The checkbox's spot: the bar closes, the task stays open.
+  // The checkbox's spot: text typed asks first, the press going no further; Discard closes the bar, the task stays open.
   await page.mouse.click(c.x + c.width / 2, c.y + c.height / 2)
+  await page.getByRole('dialog', { name: 'Keep this new task?' }).getByRole('button', { name: 'Discard' }).click()
   await expect(bar(page)).toHaveCount(0)
   await expect(check).not.toBeChecked()
   const todos = await readStore<{ title: string; isCompleted: boolean }>(page, 'todos')

@@ -107,8 +107,9 @@ test.describe('Quick Add slash commands', () => {
     await expect(input).toHaveValue('Call legal about SOW /followup 2w /due frday')
     await expect(dialog.getByText("Can't read date:")).toBeVisible()
 
-    // A second Esc closes the bar.
+    // A second Esc closes the bar, once the typed text is discarded.
     await page.keyboard.press('Escape')
+    await page.getByRole('dialog', { name: 'Keep this new task?' }).getByRole('button', { name: 'Discard' }).click()
     await expect(dialog).toBeHidden()
   })
 
