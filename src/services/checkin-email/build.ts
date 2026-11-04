@@ -19,7 +19,8 @@
  *
  * The task's Status picker value (`statusId`) is never part of the email.
  */
-import type { Person, PersistedTodoItem, StatusUpdate, Tag } from '../../models'
+import type { Person, PersistedTodoItem, StatusUpdate, Subtask, Tag } from '../../models'
+import { compareSubtasks } from '../../utils/subtasks'
 import { formatDateNumeric, startOfDay, toDateInputValue } from '../../utils/date'
 import { daysUntil } from '../../utils/effective-date'
 import { escapeHtml } from '../../utils/html'
@@ -43,6 +44,8 @@ export interface CheckinEmailContext {
   refOf?: (uid: string) => string
   /** Each task's status updates, newest first: the Status row shows the newest, `(MM/DD) text`. */
   statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
+  /** Each task's checklist: its open subtasks are listed under the task, for context (a reply never reads them). */
+  subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
 }
 
 export interface CheckinEmailOptions {
@@ -84,6 +87,7 @@ export const CHECKIN_META_LABELS = {
   nextFollowup: 'Next follow-up',
   tags: 'Tags',
   alsoAssigned: 'Also assigned',
+  subtasks: 'Subtasks',
 } as const
 
 /** The empty Completed box. */
@@ -136,6 +140,8 @@ interface TaskView {
   title: string
   ref: string
   meta: MetaItem[]
+  /** The task's open subtasks, in order (`☐ title` lines under the meta). */
+  subtasks: string[]
   /** The newest status update; null when the task has none. */
   status: StatusView | null
   notes: string
@@ -196,6 +202,8 @@ function sectionViews(
     title: collapseWhitespace(todo.title),
     ref: refOf(todo.uid),
     meta: metaItems(todo, person, ctx, opts),
+    subtasks: [...(ctx.subtasksByTodo?.get(todo.id) ?? [])].sort(compareSubtasks)
+      .filter((s) => !s.isCompleted).map((s) => collapseWhitespace(s.title)).filter((t) => t !== ''),
     status: statusView(ctx.statusUpdatesByTodo?.get(todo.id)?.at(0)),
     notes: (todo.notes ?? '').replace(/\r\n?/g, '\n').trimEnd(),
   })
@@ -275,6 +283,12 @@ function taskHtml(t: TaskView, includeNotes: boolean): string {
     ...(t.meta.length > 0
       ? [`<tr><td colspan="2" style="padding: 0 0 8px 0; font-size: 10.5pt; color: #424242;">${metaHtml(t.meta)}</td></tr>`]
       : []),
+    ...(t.subtasks.length > 0
+      ? [`<tr><td colspan="2" style="padding: 0 0 8px 0; font-size: 10.5pt; color: #424242;">`
+        + `<span style="color: #707070;">${CHECKIN_META_LABELS.subtasks}</span> `
+        + t.subtasks.map((s) => `&#9744; ${escapeHtml(s)}`).join('&nbsp;&nbsp;·&nbsp;&nbsp;')
+        + '</td></tr>']
+      : []),
     '</table>',
   ]
   return [
@@ -317,6 +331,7 @@ function buildHtml(person: Person, sections: SectionView[], opts: CheckinEmailOp
 function taskPlain(t: TaskView, includeNotes: boolean): string[] {
   const lines = [`${t.num}. ${t.title}  Ref ${t.ref}`]
   if (t.meta.length > 0) lines.push(t.meta.map((m) => `${m.label} ${m.value}`).join(' · '))
+  if (t.subtasks.length > 0) lines.push(`${CHECKIN_META_LABELS.subtasks} ${t.subtasks.map((s) => `☐ ${s}`).join(' · ')}`)
   lines.push(
     CHECKIN_LABELS.update,
     `${CHECKIN_LABELS.completed} ${CHECKIN_COMPLETED_BOX}`,

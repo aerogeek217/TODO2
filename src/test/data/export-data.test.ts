@@ -139,6 +139,7 @@ describe('export → restore round-trip', () => {
       todoId, type: 'created', fromValue: null, toValue: null, timestamp: now.toISOString(),
     } as any)
     await db.statusUpdates.add({ todoId, date: new Date(2026, 9, 1), text: 'Asked for the numbers', createdAt: now })
+    await db.subtasks.add({ todoId, title: 'Collect the numbers', isCompleted: false, sortOrder: 0, createdAt: now })
     await db.layouts.add({
       sortOrder: 0, name: 'Default', createdAt: now, modifiedAt: now,
       columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] }],
@@ -199,6 +200,22 @@ describe('buildMarkdownExport', () => {
     ])
     // One flat list: no section headings, and no details section without details.
     expect(lines.filter((l) => l.startsWith('#'))).toEqual(['# TODOs'])
+  })
+
+  it('a task’s checklist follows its line as indented - [ ] / - [x] lines (cr28)', async () => {
+    await db.todos.add(makeTodo({ id: 1, title: 'Q4 budget', sortOrder: 1 }))
+    await db.todos.add(makeTodo({ id: 2, title: 'Other', sortOrder: 2 }))
+    await db.subtasks.bulkAdd([
+      { todoId: 1, title: 'Review with Ben', isCompleted: false, sortOrder: 1, createdAt: new Date() },
+      { todoId: 1, title: 'Send the template', isCompleted: true, sortOrder: 0, createdAt: new Date() },
+    ])
+    const md = await buildMarkdownExport()
+    expect(md.split('\n').filter((l) => /^\s*- \[/.test(l))).toEqual([
+      '- [ ] Q4 budget',
+      '  - [x] Send the template',
+      '  - [ ] Review with Ben',
+      '- [ ] Other',
+    ])
   })
 
   it('a line is the rich-copy task line (without people); a status without an icon is not named', async () => {

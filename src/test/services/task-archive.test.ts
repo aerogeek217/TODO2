@@ -98,6 +98,20 @@ describe('buildTaskArchive', () => {
     expect(prepared.data.statusUpdates.map((r) => r.text)).toEqual(['shipped'])
   })
 
+  it('carries the archived tasks’ subtasks, and only theirs', async () => {
+    const s = await seed()
+    await db.subtasks.bulkAdd([
+      { todoId: s.oldDone, title: 'tag the release', isCompleted: true, sortOrder: 0, createdAt: new Date(2026, 6, 1, 9) },
+      { todoId: s.open, title: 'still open', isCompleted: false, sortOrder: 0, createdAt: new Date(2026, 9, 1, 9) },
+    ])
+    const archive = await buildTaskArchive([s.oldDone, s.oldBare])
+    expect(archive.subtasks.map((r) => [r.todoId, r.title])).toEqual([[s.oldDone, 'tag the release']])
+    const prepared = prepareImportText(JSON.stringify(archive), { purpose: 'append' })
+    if (!prepared.ok) throw new Error(prepared.error)
+    expect(prepared.data.subtasks.map((r) => [r.title, r.isCompleted])).toEqual([['tag the release', true]])
+    expect(prepared.data.subtasks[0]?.createdAt).toBeInstanceOf(Date)
+  })
+
   it('skips ids that no longer exist', async () => {
     const s = await seed()
     const archive = await buildTaskArchive([s.oldBare, 9999])

@@ -9,6 +9,7 @@
  * - `updateEntityInMap` — refresh entity references in assignment maps
  * - `captureAssignments` — capture a task's people and tags for undo
  * - `bulkUpdateField` — shared bulk field update with undo
+ * - `saveOrReport` — a tracked write that never rejects (the entry stores')
  *
  * Capture/restore for soft-delete undo lives in `data/join-helpers.ts`
  * (`captureJoinRows`) and the per-entity repositories' `restoreWithJoins`
@@ -47,6 +48,21 @@ const writesInFlight = new Set<Promise<unknown>>()
 
 /** Reads in a row before `readFresh` gives up waiting for a quiet moment. */
 const MAX_FRESH_READS = 5
+
+/**
+ * Runs a tracked write (`trackWrite`); on failure logs it, tells the user
+ * `Couldn't <label>.` and resolves `fallback` — the status-update and
+ * subtask stores' writes, which never reject.
+ */
+export async function saveOrReport<T>(write: () => Promise<T>, fallback: T, label: string): Promise<T> {
+  try {
+    return await trackWrite(write)
+  } catch (e) {
+    console.error(`Failed to ${label}:`, e)
+    useUndoStore.getState().notify(`Couldn't ${label}.`)
+    return fallback
+  }
+}
 
 /**
  * Runs a store write — its state change and its database write — so that

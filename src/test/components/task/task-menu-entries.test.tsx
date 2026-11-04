@@ -53,6 +53,30 @@ describe('buildTaskMenuEntries — the one task menu', () => {
     ])
   })
 
+  it('Add subtask… and Make subtask of… come after Add tag… for one task only, each with its handler', () => {
+    const onAddSubtask = vi.fn()
+    const onMakeSubtaskOf = vi.fn()
+    const todo = makeTodo({ id: 1 })
+    const entries = build(todo, { h: handlers({ onAddSubtask, onMakeSubtaskOf }) })
+    expect(shape(entries)).toEqual([
+      'Open', 'Mark complete', 'Copy', '--',
+      'Set due date…', 'Follow-up', 'Mark followed up', 'Assign people…', 'Add tag…', '--',
+      'Add subtask…', 'Make subtask of…', '--',
+      '[Priority]', 'Focus', 'Urgent', 'Important', '--',
+      'Delete',
+    ])
+    item(entries, 'Add subtask…').onSelect?.()
+    item(entries, 'Make subtask of…').onSelect?.()
+    expect(onAddSubtask).toHaveBeenCalledTimes(1)
+    expect(onMakeSubtaskOf).toHaveBeenCalledTimes(1)
+    // One of the two alone keeps the group; a selection of several has neither.
+    expect(shape(build(todo, { h: handlers({ onAddSubtask }) }))).toContain('Add subtask…')
+    expect(shape(build(todo, { h: handlers({ onAddSubtask }) }))).not.toContain('Make subtask of…')
+    const several = build(todo, { targets: [todo, makeTodo({ id: 2 })], h: handlers({ onAddSubtask, onMakeSubtaskOf }) })
+    expect(shape(several)).not.toContain('Add subtask…')
+    expect(shape(several)).not.toContain('Make subtask of…')
+  })
+
   it('leaves out the items a surface has no handler for', () => {
     const entries = build(makeTodo({ id: 1 }), {
       h: handlers({ onOpen: undefined, onCopy: undefined, onSetDueDate: undefined, onAssignPeople: undefined, onAddTag: undefined, onPickFollowup: undefined }),

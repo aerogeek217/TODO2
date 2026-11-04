@@ -131,6 +131,34 @@ describe('appendImportTasks — archive from another database', () => {
   })
 })
 
+describe('appendImportTasks — subtasks', () => {
+  it('copies the tasks’ subtasks, re-pointed at the new ids, in order; a skipped task’s stay behind', async () => {
+    const now = new Date()
+    const shipped = await todoRepository.insert({ title: 'Ship release', isCompleted: true, completedAt: daysAgo(60), createdAt: daysAgo(90), modifiedAt: daysAgo(60), sortOrder: 1 })
+    const skipped = await todoRepository.insert({ title: 'Skip me', isCompleted: true, completedAt: daysAgo(60), createdAt: daysAgo(90), modifiedAt: daysAgo(60), sortOrder: 2 })
+    await db.subtasks.bulkAdd([
+      { todoId: shipped, title: 'Tag it', isCompleted: true, sortOrder: 1, createdAt: daysAgo(70) },
+      { todoId: shipped, title: 'Build it', isCompleted: true, sortOrder: 0, createdAt: daysAgo(71) },
+      { todoId: skipped, title: 'Not this one', isCompleted: false, sortOrder: 0, createdAt: daysAgo(65) },
+    ])
+    const archive = await buildTaskArchive([shipped, skipped])
+    const skipUid = archive.todos.find((t) => t.title === 'Skip me')?.uid ?? ''
+
+    await resetDb()
+    const here = await todoRepository.insert({ title: 'Already here', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 5 })
+    await db.subtasks.add({ todoId: here, title: 'mine', isCompleted: false, sortOrder: 0, createdAt: now })
+    const result = await appendImportTasks(prepareAppend(JSON.stringify(archive)), new Map([[skipUid, 'skip']]))
+
+    const [newId] = result.todoIds
+    expect(result.todoIds).toHaveLength(1)
+    const copied = await db.subtasks.where('todoId').equals(newId!).sortBy('sortOrder')
+    expect(copied.map((r) => [r.title, r.isCompleted, r.sortOrder])).toEqual([['Build it', true, 0], ['Tag it', true, 1]])
+    expect(copied[0]?.createdAt).toBeInstanceOf(Date)
+    expect((await db.subtasks.where('todoId').equals(here).toArray()).map((r) => r.title)).toEqual(['mine'])
+    expect(await db.subtasks.count()).toBe(3)
+  })
+})
+
 describe('appendImportTasks — status updates', () => {
   it('copies the tasks’ status updates, re-pointed at the new ids; a skipped task’s stay behind', async () => {
     const now = new Date()

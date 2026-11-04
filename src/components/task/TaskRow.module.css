@@ -210,6 +210,19 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* With a checklist, the title is the text then its `2/5` count (cr28): the text gives way first. */
+.title.titleWithCount {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.titleWithCount .titleText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* The strike (D19): a line under the text's middle that sweeps across it
    (220 ms) when the task is completed; at once when it loads completed. */
 .titleText {
@@ -609,6 +622,21 @@
 [data-density="comfortable"] .titleInput {
   height: 18px;
   line-height: 18px;
+}
+
+/* With a count the text clamps on its own, the count beside its first line. */
+[data-density="comfortable"] .title.titleWithCount {
+  display: flex;
+  align-items: flex-start;
+}
+
+[data-density="comfortable"] .titleWithCount .titleText {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 [data-density="comfortable"] .checkbox,

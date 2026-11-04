@@ -2,7 +2,7 @@
  * Which of a person's tasks a check-in email covers, split into the email's
  * two sections and ordered as the email lists them.
  */
-import type { Person, PersistedTodoItem, Status, StatusUpdate, Tag } from '../../models'
+import type { Person, PersistedTodoItem, Status, StatusUpdate, Subtask, Tag } from '../../models'
 import { createPredicateEvaluator } from '../../utils/filter-match'
 import { checkinFilterOf, isNoCheckinFilter, type CheckinTaskFilter } from '../../utils/checkin-settings'
 import { startOfDay } from '../../utils/date'
@@ -23,6 +23,8 @@ export interface CheckinSelectContext {
   statuses?: readonly Status[]
   /** Each task's status updates (the filter's text search reads them). */
   statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
+  /** Each task's checklist (the filter's text search reads its titles). */
+  subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
   /** Urgent range + Hot rule (the filter's Priority clause). */
   markerSettings: MarkerSettings
   weekStartsOn: WeekStart
@@ -79,6 +81,7 @@ function filterTest(filter: CheckinTaskFilter, ctx: CheckinSelectContext): (t: P
       assignedTagsMap: ctx.assignedTagsMap,
       statusesById: new Map((ctx.statuses ?? []).flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
       statusUpdatesByTodo: ctx.statusUpdatesByTodo,
+      subtasksByTodo: ctx.subtasksByTodo,
     },
     startOfDay(ctx.today),
     { ...ctx.markerSettings, weekStartsOn: ctx.weekStartsOn },

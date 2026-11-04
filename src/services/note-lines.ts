@@ -9,6 +9,10 @@
  *   plain text, headings, blank lines and a bare marker.
  * - **Alt+T** converts the caret line: any non-empty line that doesn't start
  *   with `✓`, bullet or not; a leading bullet / dash and box are stripped.
+ * - **Subtasks** (cr28): the list lines right under a bullet, indented
+ *   deeper than it, are that bullet's task's subtasks (`subtaskLinesUnder`;
+ *   a done box a done subtask; plain titles, no parsing) — never candidates
+ *   of their own.
  */
 
 export type NoteLineKind = 'candidate' | 'done' | 'converted' | 'other'
@@ -21,13 +25,56 @@ export interface NoteLine {
   body: string
 }
 
-/** A line a convert takes: 1-based line number, the full line as it was, and its body. */
+/** An indented list line under a bullet: a subtask of that bullet's task (its title is plain text). */
+export interface SubtaskLine {
+  line: number
+  text: string
+  title: string
+  done: boolean
+}
+
+/** A line a convert takes: 1-based line number, the full line as it was, its body, and its subtask lines. */
 export interface ConvertLine {
   line: number
   text: string
   indent: string
   body: string
+  subtasks?: SubtaskLine[]
 }
+
+/** The width of a line's indent, a tab as two spaces. */
+function indentWidth(text: string): number {
+  return (/^[ \t]*/.exec(text)?.[0] ?? '').replace(/\t/g, '  ').length
+}
+
+/**
+ * The subtask lines right under line `n` (1-based) of `lines`: the lines
+ * that follow it indented deeper and are list lines — a bullet or an open
+ * box an open subtask, a done box a done subtask. A deeper plain or
+ * converted line is left alone (a note line); a blank line, or one not
+ * indented deeper, ends them. Any deeper indent counts as one level.
+ */
+export function subtaskLinesUnder(lines: readonly string[], n: number): SubtaskLine[] {
+  const parent = lines[n - 1]
+  if (parent === undefined) return []
+  const parentIndent = indentWidth(parent)
+  const out: SubtaskLine[] = []
+  for (let k = n + 1; k <= lines.length; k++) {
+    const text = lines[k - 1] ?? ''
+    if (text.trim() === '' || indentWidth(text) <= parentIndent) break
+    const c = classifyNoteLine(text)
+    if (c.kind === 'candidate') out.push({ line: k, text, title: c.body, done: false })
+    else if (c.kind === 'done') out.push({ line: k, text, title: c.body, done: true })
+  }
+  return out
+}
+
+/** `line` with its subtask lines, when it has any. */
+function withSubtaskLines(line: ConvertLine, lines: readonly string[]): ConvertLine {
+  const subtasks = subtaskLinesUnder(lines, line.line)
+  return subtasks.length > 0 ? { ...line, subtasks } : line
+}
+
 
 /** 1-based, inclusive line numbers. */
 export interface LineRange {
@@ -74,14 +121,14 @@ export function singleLineCandidate(text: string, line: number): ConvertLine | n
 }
 
 /** Offsets where each line of `text` starts. */
-function lineStarts(text: string): number[] {
+export function lineStarts(text: string): number[] {
   const starts = [0]
   for (let i = 0; i < text.length; i++) if (text[i] === '\n') starts.push(i + 1)
   return starts
 }
 
 /** The 1-based line holding offset `pos`. */
-function lineAt(starts: readonly number[], pos: number): number {
+export function lineAt(starts: readonly number[], pos: number): number {
   let lo = 0
   let hi = starts.length - 1
   while (lo < hi) {
@@ -110,7 +157,9 @@ export function selectionLines(text: string, from: number, to: number): LineRang
 
 /**
  * The bullet lines a batch convert takes: every candidate line of the note,
- * or only those inside `range` (from `selectionLines`).
+ * or only those inside `range` (from `selectionLines`), each with the
+ * subtask lines under it (those inside the range), which are not
+ * candidates of their own.
  */
 export function convertCandidates(text: string, range: LineRange | null): ConvertLine[] {
   const lines = text.split('\n')
@@ -120,9 +169,20 @@ export function convertCandidates(text: string, range: LineRange | null): Conver
   for (let n = first; n <= last; n++) {
     const lineText = lines[n - 1] ?? ''
     const c = classifyNoteLine(lineText)
-    if (c.kind === 'candidate') out.push({ line: n, text: lineText, indent: c.indent, body: c.body })
+    if (c.kind !== 'candidate') continue
+    const subtasks = subtaskLinesUnder(lines, n).filter((s) => s.line <= last)
+    out.push({ line: n, text: lineText, indent: c.indent, body: c.body, ...(subtasks.length > 0 ? { subtasks } : {}) })
+    const lastChild = subtasks.at(-1)
+    if (lastChild) n = lastChild.line
   }
   return out
+}
+
+/** `singleLineCandidate` (Alt+T) for line `n` of `text`, with the subtask lines under it. */
+export function singleLineCandidateAt(text: string, n: number): ConvertLine | null {
+  const lines = text.split('\n')
+  const candidate = singleLineCandidate(lines[n - 1] ?? '', n)
+  return candidate ? withSubtaskLines(candidate, lines) : null
 }
 
 /**

@@ -2,7 +2,7 @@ import { CURRENT_DB_VERSION, db } from '../data/database'
 import { prepareImportText, TASK_ARCHIVE_KIND } from '../data/import-pipeline'
 import { SCHEMA_VERSION_KEY } from '../data/file-version'
 import type {
-  TodoItem, TodoPerson, TodoTag, TodoEvent, StatusUpdate, Person, Tag, Status,
+  TodoItem, TodoPerson, TodoTag, TodoEvent, StatusUpdate, Subtask, Person, Tag, Status,
 } from '../models'
 
 /**
@@ -32,6 +32,7 @@ export interface TaskArchive {
   todoTags: TodoTag[]
   todoEvents: TodoEvent[]
   statusUpdates: StatusUpdate[]
+  subtasks: Subtask[]
   people: Person[]
   tags: Tag[]
   statuses: Status[]
@@ -52,15 +53,16 @@ export async function buildTaskArchive(todoIds: readonly number[], now: Date = n
   const ids = [...new Set(todoIds)]
   return db.transaction(
     'r',
-    [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.statusUpdates, db.people, db.tags, db.statuses],
+    [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.statusUpdates, db.subtasks, db.people, db.tags, db.statuses],
     async () => {
       const todos = (await db.todos.bulkGet(ids)).filter((t): t is TodoItem => t != null)
       const presentIds = todos.map((t) => t.id).filter((id): id is number => id != null)
-      const [todoPeople, todoTags, todoEvents, statusUpdates] = await Promise.all([
+      const [todoPeople, todoTags, todoEvents, statusUpdates, subtasks] = await Promise.all([
         db.todoPeople.where('todoId').anyOf(presentIds).toArray(),
         db.todoTags.where('todoId').anyOf(presentIds).toArray(),
         db.todoEvents.where('todoId').anyOf(presentIds).toArray(),
         db.statusUpdates.where('todoId').anyOf(presentIds).toArray(),
+        db.subtasks.where('todoId').anyOf(presentIds).toArray(),
       ])
       const [people, tags, statuses] = await Promise.all([
         db.people.bulkGet(definedIds(todoPeople.map((r) => r.personId))),
@@ -76,6 +78,7 @@ export async function buildTaskArchive(todoIds: readonly number[], now: Date = n
         todoTags,
         todoEvents,
         statusUpdates,
+        subtasks,
         people: people.filter((r): r is Person => r != null),
         tags: tags.filter((r): r is Tag => r != null),
         statuses: statuses.filter((r): r is Status => r != null),

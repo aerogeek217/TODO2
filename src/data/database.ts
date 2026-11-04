@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { TodoItem, Person, TodoPerson, Backup, Status, Note, Tag, TodoTag, TodoEvent, StatusUpdate, ListOrder } from '../models'
+import type { TodoItem, Person, TodoPerson, Backup, Status, Note, Tag, TodoTag, TodoEvent, StatusUpdate, Subtask, ListOrder } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { SETTING_KEYS } from './setting-keys'
@@ -21,7 +21,7 @@ export interface SettingRow {
  * `db.verno === CURRENT_DB_VERSION` after open, so a `this.version(N+1)`
  * without raising this constant fails the suite.
  */
-export const CURRENT_DB_VERSION = 72
+export const CURRENT_DB_VERSION = 73
 
 /**
  * Lowest database version this build reads. A browser database whose
@@ -165,6 +165,7 @@ export class Todo2Database extends Dexie {
   todoTags!: Table<TodoTag, number>
   todoEvents!: Table<TodoEvent, number>
   statusUpdates!: Table<StatusUpdate, number>
+  subtasks!: Table<Subtask, number>
   layouts!: Table<WorkspaceLayout, number>
   listOrders!: Table<ListOrder, number>
 
@@ -203,6 +204,12 @@ export class Todo2Database extends Dexie {
     // makes each task's Progress text its first entry and drops `progress`
     // from the task rows.
     this.version(72).stores({ statusUpdates: '++id, todoId, date' }).upgrade((tx) => applySchemaUpgradeInTx(tx, 72))
+
+    // v73: the `subtasks` table (a task's checklist, cr28). A version marker
+    // for the data (`upgrades/v73-subtasks.ts` returns its input): older
+    // builds know no such table and would drop every checklist, so they
+    // refuse v73 data.
+    this.version(73).stores({ subtasks: '++id, todoId' }).upgrade((tx) => applySchemaUpgradeInTx(tx, 73))
 
     // The next schema step N goes here, after the last one:
     //

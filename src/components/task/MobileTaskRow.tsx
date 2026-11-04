@@ -11,6 +11,9 @@ import { NotesIcon } from '../shared/icons'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
+import { useSubtaskStore } from '../../stores/subtask-store'
+import { describeSubtaskCount, formatSubtaskCount, subtaskCount } from '../../utils/subtasks'
+import subtaskStyles from './subtasks/Subtasks.module.css'
 import { formatDateNumeric, startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { MarkerDots } from '../shared/MarkerDots'
@@ -51,16 +54,21 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const primaryRowRef = useRef<HTMLDivElement>(null)
   // The status chip: the task's newest status update.
   const newestUpdate = useStatusUpdateStore((s) => newestStatusUpdate(todo.id, s.byTodo))
+  // The `2/5 subtasks` chip (cr28): opens the checklist as a sheet.
+  const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
+  const count = subtasks && subtasks.length > 0 ? subtaskCount(subtasks) : null
 
   const {
     handleToggleComplete, assignedTags, tagSelectorProps, togglePeople, peopleRef, followupOpen, toggleFollowup,
     followupAnchorRef, toggleNotes, notesIconRef, deadlineInputRef, openDeadlinePicker, onDeadlineInputChange,
+    subtasksOpen, toggleSubtasks, subtasksRef,
     menuHandlers, panels,
   } = useTaskRowPickers({
     todo,
     assignedPeople,
     onOpenDetail,
     peoplePickerClassName: styles.chipDropdown,
+    subtasksPanel: 'sheet',
     // With nobody assigned there are no avatars to anchor to (Assign people… from the menu).
     fallbackPeopleAnchorRef: primaryRowRef,
     useFallbackPeopleAnchor: people.length === 0,
@@ -101,7 +109,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     !!todo.dueDate || !!todo.nextFollowupAt ||
     hasPeople ||
     assignedTags.length > 0 ||
-    !!todo.notes || !!newestUpdate
+    !!todo.notes || !!newestUpdate || count !== null
 
   // Touch has no hover, so an empty follow-up slot always shows its flag.
   const emptyFollowupFlag = (
@@ -234,6 +242,22 @@ export const MobileTaskRow = memo(function MobileTaskRow({
                 )
               })()}
             </span>
+          )}
+
+          {count && (
+            <button
+              ref={subtasksRef}
+              type="button"
+              className={subtaskStyles.chip}
+              data-subtask-count=""
+              data-all-done={count.done === count.total ? '' : undefined}
+              aria-label={`${describeSubtaskCount(count)}, show them`}
+              aria-haspopup="dialog"
+              aria-expanded={subtasksOpen}
+              onClick={toggleSubtasks}
+            >
+              {formatSubtaskCount(count)} subtasks
+            </button>
           )}
 
           {(todo.notes || newestUpdate) && (

@@ -19,3 +19,8 @@ const BIDI = /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/u
 export function plainLine(s: string): string {
   return s.replace(CONTROL_OR_BIDI, (c) => (BIDI.test(c) ? '' : ' ')).trim()
 }
+
+/** `s` cut to `max` characters with an ellipsis, for an undo entry's name, a prompt or a dialog's subline. */
+export function shortTitle(s: string, max = 40): string {
+  return s.length > max ? `${s.slice(0, max - 1)}…` : s
+}

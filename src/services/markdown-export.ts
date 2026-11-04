@@ -1,8 +1,9 @@
 import { buildExportData } from '../data/export-data'
-import type { PersistedTodoItem, StatusUpdate } from '../models'
+import type { PersistedTodoItem, StatusUpdate, Subtask } from '../models'
 import { bySortOrder } from '../utils/sort-order'
 import { formatDateNumeric, startOfToday } from '../utils/date'
 import { compareStatusUpdates } from '../utils/status-updates'
+import { compareSubtasks } from '../utils/subtasks'
 import { formatTaskLine, taskLineParts } from './task-copy'
 
 /**
@@ -56,6 +57,14 @@ export async function buildMarkdownExport(): Promise<string> {
     statusUpdatesByTodo.set(u.todoId, list)
   }
   for (const list of statusUpdatesByTodo.values()) list.sort(compareStatusUpdates)
+  // A task's checklist (cr28): indented `- [ ]` / `- [x]` lines under its line.
+  const subtasksByTodo = new Map<number, Subtask[]>()
+  for (const s of data.subtasks) {
+    const list = subtasksByTodo.get(s.todoId) ?? []
+    list.push(s)
+    subtasksByTodo.set(s.todoId, list)
+  }
+  for (const list of subtasksByTodo.values()) list.sort(compareSubtasks)
 
   const lines: string[] = ['# TODOs', '']
   const details: string[] = []
@@ -85,6 +94,7 @@ export async function buildMarkdownExport(): Promise<string> {
 
   for (const todo of [...allTodos].sort(bySortOrder)) {
     lines.push(formatTodoLine(todo))
+    for (const s of subtasksByTodo.get(todo.id) ?? []) lines.push(`  - [${s.isCompleted ? 'x' : ' '}] ${s.title}`)
     collectDetails(todo)
   }
   lines.push('')

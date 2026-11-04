@@ -10,6 +10,8 @@ import {
   type CheckinEmailOptions,
 } from '../../../services/checkin-email/build'
 import { taskRef } from '../../../services/checkin-email/ref'
+import { replyNotesLines } from '../../../services/checkin-reply/diff'
+import { parseCheckinReply } from '../../../services/checkin-reply/parse'
 import type { CheckinSections } from '../../../services/checkin-email/select'
 import { makePerson, makeTodo } from '../../helpers'
 import { expectWithin } from '../../timing'
@@ -200,6 +202,41 @@ describe('sections and tasks', () => {
 })
 
 describe('update box', () => {
+  /** Task 1's checklist: two open subtasks (out of order) and a done one. */
+  const SUBTASKS = new Map([[1, [
+    { id: 2, todoId: 1, title: 'Section 7  answers', isCompleted: false, sortOrder: 1, createdAt: day(-2) },
+    { id: 1, todoId: 1, title: 'Section 4 answers', isCompleted: false, sortOrder: 0, createdAt: day(-2) },
+    { id: 3, todoId: 1, title: 'SOC 2 letter', isCompleted: true, sortOrder: 2, createdAt: day(-2) },
+  ]]])
+
+  it('a reply to an email with the Subtasks line reads the same boxes: the line is context only, never read back', () => {
+    const { sections, ctx } = sample()
+    const email = buildCheckinEmail(marcus, sections, { ...ctx, subtasksByTodo: SUBTASKS }, ON)
+    for (const input of [{ html: email.html, plain: email.plain }, { plain: email.plain }]) {
+      const result = parseCheckinReply(input)
+      expect(result.ok).toBe(true)
+      if (!result.ok) continue
+      expect(result.reply.blocks.map((b) => [b.completed, b.statusUpdate])).toEqual([[false, 'half done'], [false, '40%'], [false, '']])
+      expect(replyNotesLines(result.reply.blocks[0]!)).toEqual(['Sections 4 and 7 still open.', 'Sam has the SOC 2 letter.'])
+      expect(JSON.stringify(result.reply.blocks)).not.toContain('Section 4 answers')
+    }
+  })
+
+  it('lists a task’s open subtasks under its meta line, for context (cr28), in both forms; none → no line', () => {
+    const { sections, ctx } = sample()
+    const email = buildCheckinEmail(marcus, sections, { ...ctx, subtasksByTodo: SUBTASKS }, ON)
+    const lines = email.plain.split('\n')
+    const meta = lines.indexOf('Due Fri, Oct 9 (3 days overdue) · Next follow-up Today · Tags #Project: Northwind Rollout  #security · Also assigned Sam Ortiz')
+    expect(lines[meta + 1]).toBe('Subtasks ☐ Section 4 answers · ☐ Section 7 answers')
+    expect(lines[meta + 2]).toBe(CHECKIN_LABELS.update)
+    expect(lines.filter((l) => l.startsWith('Subtasks'))).toHaveLength(1)
+    const cells = [...parse(email.html).querySelectorAll('td[colspan="2"]')].filter((td) => td.textContent?.startsWith('Subtasks'))
+    expect(cells).toHaveLength(1)
+    expect(cells[0]?.textContent).toBe('Subtasks ☐ Section 4 answers\u00a0\u00a0·\u00a0\u00a0☐ Section 7 answers')
+    // Never inside the update box, which a reply reads.
+    expect(updateTables(parse(email.html))[0]?.textContent).not.toContain('Subtasks')
+  })
+
   it('each task: Your update, an empty Completed box, Status, Notes — in that order', () => {
     const { sections, ctx } = sample()
     const email = buildCheckinEmail(marcus, sections, ctx, ON)

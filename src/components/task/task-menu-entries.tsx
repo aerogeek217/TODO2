@@ -10,7 +10,7 @@ import {
   QUICK_FOLLOWUP_INTERVALS,
 } from '../../utils/followup'
 import type { MenuEntry } from '../shared/MenuPopover'
-import { CheckCircleIcon, CloseIcon, CopyIcon, FlagIcon, HashIcon, OpenIcon, PersonIcon, TrashIcon, WidgetKindIcon } from '../shared/icons'
+import { CheckCircleIcon, ChecklistIcon, CloseIcon, CopyIcon, FlagIcon, HashIcon, IndentIcon, OpenIcon, PersonIcon, TrashIcon, WidgetKindIcon } from '../shared/icons'
 import { FollowedUpIcon } from '../shared/FollowupIcons'
 import { FocusIcon, ImportantIcon, UrgentIcon } from '../shared/MarkerIcons'
 import { StatusIcon } from '../shared/StatusIcon'
@@ -37,6 +37,10 @@ export interface TaskMenuHandlers {
   onAssignPeople?: () => void
   /** "Add tag…": opens the tag picker. */
   onAddTag?: () => void
+  /** "Add subtask…" (single task only): opens the task's checklist on its add field (a surface without one: the editor). */
+  onAddSubtask?: () => void
+  /** "Make subtask of…" (single task only): opens the task picker for the parent. */
+  onMakeSubtaskOf?: () => void
   /** A Markers item: `on` = set it on every task, off = clear it on every task. */
   onSetMarker: (marker: MarkerKey, on: boolean) => void
   onDelete: () => void
@@ -121,8 +125,9 @@ export function followedUpMenuEntry(
 /**
  * The one task menu (a row's right-click / context-menu key, long-press, search result):
  * Open · Mark complete · Copy | Set due date… · Follow-up › · Mark followed up ·
- * Assign people… · Add tag… | Markers | Delete. With several tasks a `N tasks`
- * label replaces Open, Copy and Delete name the count, and the markers can be
+ * Assign people… · Add tag… | Add subtask… · Make subtask of… | Markers |
+ * Delete. With several tasks a `N tasks` label replaces Open, Copy and Delete
+ * name the count, the subtask items are left out, and the markers can be
  * mixed.
  */
 export function buildTaskMenuEntries({ todo, targets, today, urgentRange, handlers, copyKbd }: BuildTaskMenuOpts): MenuEntry[] {
@@ -193,6 +198,11 @@ export function buildTaskMenuEntries({ todo, targets, today, urgentRange, handle
   )
   if (h.onAssignPeople) entries.push({ kind: 'item', label: 'Assign people…', icon: <PersonIcon />, onSelect: h.onAssignPeople })
   if (h.onAddTag) entries.push({ kind: 'item', label: 'Add tag…', icon: <HashIcon />, onSelect: h.onAddTag })
+  if (!several && (h.onAddSubtask || h.onMakeSubtaskOf)) {
+    entries.push({ kind: 'separator' })
+    if (h.onAddSubtask) entries.push({ kind: 'item', label: 'Add subtask…', icon: <ChecklistIcon />, onSelect: h.onAddSubtask })
+    if (h.onMakeSubtaskOf) entries.push({ kind: 'item', label: 'Make subtask of…', icon: <IndentIcon />, onSelect: h.onMakeSubtaskOf })
+  }
   entries.push(
     { kind: 'separator' },
     ...markerMenuEntries(targets, today, urgentRange, h.onSetMarker),

@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { NewTodoItem, PersistedListOrder, PersistedStatusUpdate, PersistedTodoItem, TodoChanges, TodoEvent } from '../models'
+import type { NewTodoItem, PersistedListOrder, PersistedStatusUpdate, PersistedSubtask, PersistedTodoItem, TodoChanges, TodoEvent } from '../models'
 import { todoRepository } from '../data'
 import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
@@ -8,8 +8,12 @@ import { loadFresh, mutate, optimistic, captureAssignments, captureAssignmentsBu
 import { autoNextFollowup, newTaskDefaultFollowup, useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
-import { onTasksTouched, useStatusUpdateStore } from './status-update-store'
+import { useStatusUpdateStore } from './status-update-store'
 import { statusUpdateRepository } from '../data/status-update-repository'
+import { useSubtaskStore } from './subtask-store'
+import { subtaskRepository } from '../data/subtask-repository'
+import { onTasksTouched, registerCompleteTask, registerTaskOpen } from './task-hooks'
+import { compareSubtasks } from '../utils/subtasks'
 import { takeSafetySnapshot } from './safety-snapshot'
 import { usePersonStore } from './person-store'
 import { useTagStore } from './tag-store'
@@ -73,6 +77,18 @@ export type PurgeOutcome =
 export const BULK_DELETE_SNAPSHOT_MIN = 5
 
 const NO_ASSIGNMENTS: CapturedAssignments = { personIds: [], tagIds: [] }
+
+/**
+ * Runs `fn` as one undo step named `description` — a group, unless one is
+ * already open (a check-in reply, an Eisenhower drop: its group takes the
+ * writes; a second group would wait on it and never start) or an undo /
+ * redo is running (nothing is pushed then).
+ */
+function asOneStep<T>(description: string, fn: () => Promise<T>): Promise<T> {
+  const undo = useUndoStore.getState()
+  if (undo.groupToken != null || undo.isPerformingUndoRedo) return fn()
+  return undo.runGroup(description, fn)
+}
 
 /** The stored form of a flag: only `true` is kept. */
 function flagValue(on: boolean): true | undefined {
@@ -239,7 +255,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
   /**
    * The undo step of a task just created (`row`, with `assignments`): undo
    * deletes it, redo puts it back as it was when undone — its row, people,
-   * tags, list ranks, status updates and events read at that moment (as a
+   * tags, list ranks, status updates, subtasks and events read at that moment (as a
    * delete's undo does), so a change made after the create without an undo
    * step of its own (a manual-order move, a sync-file load) survives the
    * round trip.
@@ -250,6 +266,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     let captured = assignments
     let ranks: PersistedListOrder[] = []
     let updates: PersistedStatusUpdate[] = []
+    let subtasks: PersistedSubtask[] = []
     let events: TodoEvent[] = []
     undoable(
       description,
@@ -257,6 +274,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         await get()._restore(snapshot, captured, events)
         await useListOrderStore.getState().restoreRows(ranks)
         await useStatusUpdateStore.getState().restoreRows(updates)
+        await useSubtaskStore.getState().restoreRows(subtasks)
       },
       async () => {
         const current = get().todos.find((t) => t.id === id)
@@ -264,6 +282,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         captured = await captureAssignments(id)
         ranks = await listOrderRepository.getByTodos([id])
         updates = await statusUpdateRepository.getByTodos([id])
+        subtasks = await subtaskRepository.getByTodos([id])
         events = await get()._removeNoUndo(id)
       },
     )
@@ -354,6 +373,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       })
       let removedEvents: TodoEvent[] = []
       let removedUpdates: PersistedStatusUpdate[] = []
+      let removedSubtasks: PersistedSubtask[] = []
       undoable(
         description,
         async () => {
@@ -362,12 +382,15 @@ export const useTodoStore = create<TodoState>((set, get) => {
           )
           await put()
           await useStatusUpdateStore.getState().restoreRows(removedUpdates)
+          await useSubtaskStore.getState().restoreRows(removedSubtasks)
         },
         async () => {
           removedUpdates = await statusUpdateRepository.getByTodos(ids)
+          removedSubtasks = await subtaskRepository.getByTodos(ids)
           removedEvents = await todoRepository.bulkDelete(ids)
           useListOrderStore.getState().forgetTodos(ids)
           useStatusUpdateStore.getState().forgetTodos(ids)
+          useSubtaskStore.getState().forgetTodos(ids)
           const idSet = new Set(ids)
           set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
         },
@@ -400,10 +423,12 @@ export const useTodoStore = create<TodoState>((set, get) => {
     const todo = get().todos.find((t) => t.id === id)
     if (!todo) return
 
-    // Recurring task: advance its due date instead of completing
+    // Recurring task: advance its due date instead of completing — and the
+    // checklist starts over (one undo step with the advance).
     if (!todo.isCompleted && todo.recurrenceRule) {
       const advance = advanceRecurring(todo)
       if (advance) {
+        const description = `Advance recurring "${todo.title}"`
         const nextChanges = { dueDate: advance.dueDate }
         const prevChanges = { dueDate: todo.dueDate }
         // Each write mints one timestamp for the store and the database.
@@ -413,26 +438,32 @@ export const useTodoStore = create<TodoState>((set, get) => {
           set({ todos: get().todos.map((t) => (t.id === id ? { ...t, ...changes, modifiedAt: at } : t)) })
         }
         const now = new Date()
-        return optimistic(
-          () => set({
-            todos: get().todos.map((t) =>
-              t.id === id ? { ...t, ...nextChanges, modifiedAt: now } : t
-            ),
-          }),
-          () => todoRepository.bulkUpdate([{ todoId: id, changes: nextChanges }], now),
-          () => set({
-            todos: get().todos.map((t) =>
-              t.id === id ? { ...t, ...prevChanges, ...(t.modifiedAt === now ? { modifiedAt: todo.modifiedAt } : {}) } : t
-            ),
-          }),
-          'Failed to advance recurring task',
-          {
-            description: `Advance recurring "${todo.title}"`,
-            redo: () => write(nextChanges),
-            undo: () => write(prevChanges),
-            showSnackbar: true,
-          },
-        )
+        // A checklist with done lines starts over, in the same step; without one the advance is the step.
+        const resets = (useSubtaskStore.getState().byTodo.get(id) ?? []).some((s) => s.isCompleted)
+        const run = async () => {
+          await optimistic(
+            () => set({
+              todos: get().todos.map((t) =>
+                t.id === id ? { ...t, ...nextChanges, modifiedAt: now } : t
+              ),
+            }),
+            () => todoRepository.bulkUpdate([{ todoId: id, changes: nextChanges }], now),
+            () => set({
+              todos: get().todos.map((t) =>
+                t.id === id ? { ...t, ...prevChanges, ...(t.modifiedAt === now ? { modifiedAt: todo.modifiedAt } : {}) } : t
+              ),
+            }),
+            'Failed to advance recurring task',
+            {
+              description,
+              redo: () => write(nextChanges),
+              undo: () => write(prevChanges),
+              showSnackbar: true,
+            },
+          )
+          if (resets) await useSubtaskStore.getState().resetDone(id)
+        }
+        return resets ? asOneStep(description, run) : run()
       }
     }
 
@@ -478,10 +509,12 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const assignments = await captureAssignments(id)
       const ranks = await listOrderRepository.getByTodos([id])
       const updates = await statusUpdateRepository.getByTodos([id])
+      const subtasks = await subtaskRepository.getByTodos([id])
 
       const events = await todoRepository.delete(id)
       useListOrderStore.getState().forgetTodos([id])
       useStatusUpdateStore.getState().forgetTodos([id])
+      useSubtaskStore.getState().forgetTodos([id])
       set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
 
       undoable(
@@ -491,6 +524,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
           await get()._restore(snapshot, assignments, events)
           await useListOrderStore.getState().restoreRows(ranks)
           await useStatusUpdateStore.getState().restoreRows(updates)
+          await useSubtaskStore.getState().restoreRows(subtasks)
         },
         true,
       )
@@ -539,7 +573,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
     )
 
     const label = completed ? 'Complete' : 'Uncomplete'
-    return reloadOnFailure(optimistic(
+    const description = `${label} ${ids.length} tasks`
+    const write = () => reloadOnFailure(optimistic(
       () => {
         set({
           todos: get().todos.map((t) => {
@@ -583,7 +618,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       },
       `Failed to ${label.toLowerCase()} tasks`,
       {
-        description: `${label} ${ids.length} tasks`,
+        description,
         redo: () => get().bulkSetCompleted(ids, completed),
         undo: async () => {
           // One timestamp and one transaction for every write of the undo,
@@ -622,6 +657,14 @@ export const useTodoStore = create<TodoState>((set, get) => {
         showSnackbar: true,
       },
     ))
+    // The recurring tasks' checklists with done lines start over, in the same undo step.
+    const byTodo = useSubtaskStore.getState().byTodo
+    const resets = recurringAdvances.map((r) => r.id).filter((id) => (byTodo.get(id) ?? []).some((s) => s.isCompleted))
+    if (resets.length === 0) return write()
+    return asOneStep(description, async () => {
+      await write()
+      for (const id of resets) await useSubtaskStore.getState().resetDone(id)
+    })
   },
 
   async bulkSetStatus(ids: number[], statusId: number | undefined) {
@@ -810,10 +853,12 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
       const ranks = await listOrderRepository.getByTodos(ids)
       const updates = await statusUpdateRepository.getByTodos(ids)
+      const subtasks = await subtaskRepository.getByTodos(ids)
 
       const events = await todoRepository.bulkDelete(ids)
       useListOrderStore.getState().forgetTodos(ids)
       useStatusUpdateStore.getState().forgetTodos(ids)
+      useSubtaskStore.getState().forgetTodos(ids)
       const idSet = new Set(ids)
       set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
 
@@ -826,6 +871,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
           }
           await useListOrderStore.getState().restoreRows(ranks)
           await useStatusUpdateStore.getState().restoreRows(updates)
+          await useSubtaskStore.getState().restoreRows(subtasks)
         },
         true,
       )
@@ -869,6 +915,15 @@ export const useTodoStore = create<TodoState>((set, get) => {
         .catch((e: unknown) => {
           console.warn('[todo-store] copying the status updates of a duplicated task failed', e)
         })
+      // The copy's checklist: the task's subtasks in order, all unchecked.
+      await subtaskRepository.getByTodos([id])
+        .then((subtasks) => useSubtaskStore.getState().addRows(
+          [...subtasks].sort(compareSubtasks)
+            .map((s, i) => ({ todoId: newTodo.id, title: s.title, isCompleted: false, sortOrder: i, createdAt: now })),
+        ))
+        .catch((e: unknown) => {
+          console.warn('[todo-store] copying the subtasks of a duplicated task failed', e)
+        })
       // Best effort: the copy exists; a failed cache reload only leaves its
       // chips missing until the next load.
       if (assignments.personIds.length > 0 || assignments.tagIds.length > 0) {
@@ -898,6 +953,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       const events = await todoRepository.delete(id)
       useListOrderStore.getState().forgetTodos([id])
       useStatusUpdateStore.getState().forgetTodos([id])
+      useSubtaskStore.getState().forgetTodos([id])
       set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
       return events
     })
@@ -923,6 +979,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
         await todoRepository.bulkDelete(doomed)
         useListOrderStore.getState().forgetTodos(doomed)
         useStatusUpdateStore.getState().forgetTodos(doomed)
+        useSubtaskStore.getState().forgetTodos(doomed)
         const doomedSet = new Set(doomed)
         set({ todos: get().todos.filter((t) => !doomedSet.has(t.id)), todosVersion: get().todosVersion + 1 })
       }
@@ -933,11 +990,22 @@ export const useTodoStore = create<TodoState>((set, get) => {
   }
 })
 
-// A status update write stamped these tasks' `modifiedAt` in the database
-// (an update counts as activity on its task): the copies here follow.
+// A status update or subtask write stamped these tasks' `modifiedAt` in the
+// database (each counts as activity on its task): the copies here follow.
 onTasksTouched((todoIds, at) => {
   const ids = new Set(todoIds)
   useTodoStore.setState((s) => ({
     todos: s.todos.map((t) => (ids.has(t.id) ? { ...t, modifiedAt: at } : t)),
   }))
+})
+
+// The offer a checklist's last check makes ("Complete task"): completes the
+// task as its checkbox would — only while it is still open.
+registerCompleteTask(async (todoId) => {
+  const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
+  if (todo && !todo.isCompleted) await useTodoStore.getState().toggleComplete(todoId)
+})
+registerTaskOpen((todoId) => {
+  const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
+  return todo !== undefined && !todo.isCompleted
 })

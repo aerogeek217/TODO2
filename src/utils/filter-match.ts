@@ -208,12 +208,14 @@ export function applyFilter(
   assignedTagsMap: Map<number, Tag[]> | undefined,
   settings: FilterSettings,
   statusUpdatesByTodo?: TodoNameLookups['statusUpdatesByTodo'],
+  subtasksByTodo?: TodoNameLookups['subtasksByTodo'],
 ): PersistedTodoItem[] {
   const lookups: TodoNameLookups = {
     assignedPeopleMap,
     assignedTagsMap,
     statusesById: statuses ? new Map(statuses.map((s) => [s.id!, s])) : undefined,
     statusUpdatesByTodo,
+    subtasksByTodo,
   }
   return todos.filter((t) => matchesFilterWithLookups(filters, t, lookups, today, settings))
 }

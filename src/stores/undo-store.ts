@@ -2,10 +2,22 @@ import { create } from 'zustand'
 import { NOTICE_SNACKBAR_MS, UNDO_SNACKBAR_MS } from '../constants'
 import { registerModuleReset } from '../utils/module-reset'
 
+/** A snackbar button that does something other than undo. */
+export interface UndoSnackbarAction {
+  label: string
+  run: () => void
+}
+
 export interface UndoEntry {
   description: string
   /** A second line for the snackbar when the entry is pushed with it (e.g. how to finish what was done); not part of the entry's name. */
   detail?: string
+  /**
+   * An offer the snackbar makes beside Undo when the entry is pushed with
+   * it (e.g. Complete task, after a checklist's last check): its own step
+   * when taken, never run on its own.
+   */
+  action?: UndoSnackbarAction
   undo: () => void | Promise<void>
   redo: () => void | Promise<void>
 }
@@ -63,8 +75,8 @@ interface UndoState {
   groupStartIndex: number | null
   /** The open group's handle (`beginGroup`), or null. */
   groupToken: UndoGroupToken | null
-  /** What the snackbar shows. `notice`: a message with no Undo (`notify`); `detail`: a second line. */
-  snackbar: { description: string; notice?: true; detail?: string } | null
+  /** What the snackbar shows. `notice`: a message with no Undo (`notify`); `detail`: a second line; `action`: an offer beside Undo. */
+  snackbar: { description: string; notice?: true; detail?: string; action?: UndoSnackbarAction } | null
   snackbarTimerId: ReturnType<typeof setTimeout> | null
 
   push: (entry: UndoEntry, showSnackbar?: boolean) => void
@@ -163,7 +175,11 @@ export const useUndoStore = create<UndoState>((set, get) => {
         set({
           undoStack: [...trimmed, entry],
           redoStack: [],
-          snackbar: entry.detail ? { description: entry.description, detail: entry.detail } : { description: entry.description },
+          snackbar: {
+            description: entry.description,
+            ...(entry.detail ? { detail: entry.detail } : {}),
+            ...(entry.action ? { action: entry.action } : {}),
+          },
           snackbarTimerId: timerId,
         })
       } else {

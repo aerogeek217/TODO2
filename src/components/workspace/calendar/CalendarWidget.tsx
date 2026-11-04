@@ -10,6 +10,7 @@ import {
 } from '../../../models/workspace-layout'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
+import { useSubtaskStore } from '../../../stores/subtask-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -632,6 +633,7 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
+  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
   const statuses = useStatusStore((s) => s.statuses)
   const { filters: screen, active: screenActive } = useScreenFilter()
   const lens = useAppliedLens()
@@ -659,8 +661,8 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const month = range.start.getMonth()
 
   const shownTodos = useMemo(
-    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo),
-    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo],
+    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo),
+    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo],
   )
 
   const entriesByDay = useMemo(

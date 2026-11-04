@@ -4,6 +4,7 @@ import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useStatusUpdateStore } from '../stores/status-update-store'
+import { useSubtaskStore } from '../stores/subtask-store'
 import { useUndoStore, type UndoGroupToken } from '../stores/undo-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { dropDescription, type PaneChange, type PaneContext } from '../utils/eisenhower'
@@ -28,6 +29,7 @@ export function currentPaneContext(today: Date): PaneContext {
     tags,
     statuses: useStatusStore.getState().statuses,
     statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo,
+    subtasksByTodo: useSubtaskStore.getState().byTodo,
   }
 }
 
