@@ -347,6 +347,19 @@ describe('a recurring task’s completion starts its checklist over', () => {
     expect(useTodoStore.getState().todos.find((t) => t.id === plain)?.isCompleted).toBe(false)
   })
 
+  it('inside an open undo group (a check-in reply) the advance and the reset join that group', async () => {
+    const id = await recurring(['a'])
+    await useUndoStore.getState().runGroup('Apply the reply', async () => {
+      await useTodoStore.getState().toggleComplete(id)
+    })
+    expect(list(id)).toEqual([['a', false]])
+    expect(useTodoStore.getState().todos.find((t) => t.id === id)?.dueDate).toEqual(addDays(startOfToday(), 7))
+    expect(undoNames()).toEqual(['Apply the reply'])
+    await useUndoStore.getState().undo()
+    expect(list(id)).toEqual([['a', true]])
+    expect(useTodoStore.getState().todos.find((t) => t.id === id)?.dueDate).toEqual(startOfToday())
+  })
+
   it('completing a plain task with open subtasks asks nothing and leaves them', async () => {
     const id = await checklist(['open'])
     await useTodoStore.getState().toggleComplete(id)

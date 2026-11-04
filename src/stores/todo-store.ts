@@ -78,6 +78,18 @@ export const BULK_DELETE_SNAPSHOT_MIN = 5
 
 const NO_ASSIGNMENTS: CapturedAssignments = { personIds: [], tagIds: [] }
 
+/**
+ * Runs `fn` as one undo step named `description` — a group, unless one is
+ * already open (a check-in reply, an Eisenhower drop: its group takes the
+ * writes; a second group would wait on it and never start) or an undo /
+ * redo is running (nothing is pushed then).
+ */
+function asOneStep<T>(description: string, fn: () => Promise<T>): Promise<T> {
+  const undo = useUndoStore.getState()
+  if (undo.groupToken != null || undo.isPerformingUndoRedo) return fn()
+  return undo.runGroup(description, fn)
+}
+
 /** The stored form of a flag: only `true` is kept. */
 function flagValue(on: boolean): true | undefined {
   return on ? true : undefined
@@ -426,7 +438,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
           set({ todos: get().todos.map((t) => (t.id === id ? { ...t, ...changes, modifiedAt: at } : t)) })
         }
         const now = new Date()
-        return useUndoStore.getState().runGroup(description, async () => {
+        return asOneStep(description, async () => {
           await optimistic(
             () => set({
               todos: get().todos.map((t) =>
@@ -644,7 +656,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     ))
     if (recurringAdvances.length === 0) return write()
     // The recurring tasks' checklists start over, in the same undo step.
-    return useUndoStore.getState().runGroup(description, async () => {
+    return asOneStep(description, async () => {
       await write()
       for (const r of recurringAdvances) await useSubtaskStore.getState().resetDone(r.id)
     })
