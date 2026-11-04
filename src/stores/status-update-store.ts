@@ -20,7 +20,8 @@ export interface NewStatusUpdate {
 /**
  * Every task's status updates (`statusUpdates`), loaded once, each task's
  * newest first (`compareStatusUpdates`). Every write saves at once and is
- * its own undo step. A write never rejects: a failure is logged, the
+ * its own undo step, and counts as activity on its task: it stamps the
+ * task's `modifiedAt` (the task store follows through `onTasksTouched`). A write never rejects: a failure is logged, the
  * snackbar says so, and it resolves as "nothing written" (`undefined` /
  * `false`). Text is stored as one trimmed line (`statusUpdateText`) — a
  * blank one is refused (no write) — and a date after today as today.
@@ -84,6 +85,31 @@ function group(rows: readonly PersistedStatusUpdate[]): Map<number, readonly Per
   return withRows(new Map(), rows)
 }
 
+/** Told the tasks an entry write stamped, and when (`onTasksTouched`). */
+type TouchListener = (todoIds: readonly number[], at: Date) => void
+
+const touchListeners = new Set<TouchListener>()
+
+/**
+ * Calls `listener` after each entry write that stamped its tasks'
+ * `modifiedAt` in the database (an add, edit or removal, and their undo /
+ * redo — not a task delete's undo putting entries back, nor a duplicate's
+ * copies), so the task store can keep its copies in step. The task store
+ * subscribes here rather than this store calling it: it already imports
+ * this one. Returns the unsubscribe function.
+ */
+export function onTasksTouched(listener: TouchListener): () => void {
+  touchListeners.add(listener)
+  return () => { touchListeners.delete(listener) }
+}
+
+/** The stamp for a write touching `rows`' tasks, told to the listeners once it is stored. */
+function touched(rows: readonly Pick<StatusUpdate, 'todoId'>[], at: Date): void {
+  if (rows.length === 0) return
+  const todoIds = [...new Set(rows.map((r) => r.todoId))]
+  for (const listener of touchListeners) listener(todoIds, at)
+}
+
 let inflight: Promise<void> | null = null
 
 /**
@@ -128,29 +154,41 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
     }
   }
 
-  /** Puts `rows` back in the database and the store; the rows put back. */
-  const putBack = async (rows: readonly PersistedStatusUpdate[]): Promise<PersistedStatusUpdate[]> => {
-    const restored = await statusUpdateRepository.restore(rows)
+  /**
+   * Puts `rows` back in the database and the store; the rows put back.
+   * `touch`: the write is activity on their tasks (an undo / redo of an
+   * entry edit), stamping their `modifiedAt`.
+   */
+  const putBack = async (rows: readonly PersistedStatusUpdate[], touch: boolean): Promise<PersistedStatusUpdate[]> => {
+    const at = new Date()
+    const restored = await statusUpdateRepository.restore(rows, touch ? at : undefined)
     if (restored.length > 0) set({ byTodo: withRows(get().byTodo, restored) })
+    if (touch) touched(restored, at)
     return restored
   }
 
-  /** Deletes the entries `ids` from the database and the store. */
+  /** Deletes the entries `ids` from the database and the store, stamping their tasks' `modifiedAt`. */
   const take = async (ids: readonly number[]): Promise<void> => {
-    await statusUpdateRepository.deleteMany(ids)
-    set({ byTodo: withoutRows(get().byTodo, new Set(ids)) })
+    const idSet = new Set(ids)
+    const rows = [...get().byTodo.values()].flatMap((list) => list.filter((r) => idSet.has(r.id)))
+    const at = new Date()
+    await statusUpdateRepository.deleteMany(ids, at)
+    set({ byTodo: withoutRows(get().byTodo, idSet) })
+    touched(rows, at)
   }
 
-  /** Adds `rows` as one undo step (`description`); the rows written. */
+  /** Adds `rows` as one undo step (`description`), stamping their tasks' `modifiedAt`; the rows written. */
   const addAsStep = (rows: readonly StatusUpdate[], description: string): Promise<PersistedStatusUpdate[]> =>
     saveOrReport(async () => {
-      const added = await statusUpdateRepository.addMany(rows)
+      const at = new Date()
+      const added = await statusUpdateRepository.addMany(rows, at)
       if (added.length === 0) return added
       set({ byTodo: withRows(get().byTodo, added) })
+      touched(added, at)
       const ids = added.map((r) => r.id)
       undoable(
         description,
-        async () => { await trackWrite(() => putBack(added)) },
+        async () => { await trackWrite(() => putBack(added, true)) },
         () => trackWrite(() => take(ids)),
       )
       return added
@@ -209,11 +247,13 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
         ...(patch.text !== undefined ? { text: prev.text } : {}),
         ...(patch.date !== undefined ? { date: prev.date } : {}),
       }
-      /** Writes `fields` to the entry, in the database and the store; false when it is gone. */
+      /** Writes `fields` to the entry (stamping its task), in the database and the store; false when it is gone. */
       const write = async (fields: Partial<Pick<StatusUpdate, 'date' | 'text'>>): Promise<boolean> => {
-        const saved = await statusUpdateRepository.update(id, fields)
+        const at = new Date()
+        const saved = await statusUpdateRepository.update(id, fields, at)
         const current = find(id)
         if (saved && current) set({ byTodo: withRows(get().byTodo, [{ ...current, ...fields }]) })
+        if (saved) touched([prev], at)
         return saved
       }
       return saveOrReport(async () => {
@@ -237,7 +277,7 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
         undoable(
           'Status update removed',
           () => trackWrite(() => take([id])),
-          async () => { await trackWrite(() => putBack([row])) },
+          async () => { await trackWrite(() => putBack([row], true)) },
           true,
         )
         return true
@@ -255,7 +295,7 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
 
     async restoreRows(rows) {
       if (rows.length === 0) return
-      await trackWrite(() => putBack(rows))
+      await trackWrite(() => putBack(rows, false))
     },
 
     forgetTodos(todoIds) {

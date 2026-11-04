@@ -273,3 +273,71 @@ describe('duplicate copies the entries', () => {
     expect(texts(copy!)).toEqual(['Same day, later', 'Same day, earlier', 'Oldest'])
   })
 })
+
+describe('an entry write is activity on its task', () => {
+  const longAgo = daysAgo(40)
+
+  /** A task last modified 40 days ago (stale), in the database and the store. */
+  async function staleTask(title = 'Old task'): Promise<number> {
+    const id = await task(title)
+    await db.todos.update(id, { modifiedAt: longAgo })
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, modifiedAt: longAgo } : t)) })
+    return id
+  }
+
+  async function modifiedAt(id: number): Promise<{ stored: Date | undefined; shown: Date | undefined }> {
+    return {
+      stored: (await db.todos.get(id))?.modifiedAt,
+      shown: useTodoStore.getState().todos.find((t) => t.id === id)?.modifiedAt,
+    }
+  }
+
+  /** Resets the task to 40 days ago and checks `write` stamps it now, stored and shown alike. */
+  async function expectStamped(id: number, write: () => Promise<unknown>): Promise<void> {
+    await db.todos.update(id, { modifiedAt: longAgo })
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, modifiedAt: longAgo } : t)) })
+    const before = Date.now()
+    await write()
+    const { stored, shown } = await modifiedAt(id)
+    expect(stored?.getTime()).toBeGreaterThanOrEqual(before)
+    expect(shown).toEqual(stored)
+  }
+
+  it('add, addToMany, update and remove stamp the task’s Modified date, stored and in the store', async () => {
+    const id = await staleTask()
+    const other = await staleTask('Other')
+    let entryId = 0
+    await expectStamped(id, async () => { entryId = (await useStatusUpdateStore.getState().add(id, { date: today(), text: 'Pinged' }))!.id })
+    await expectStamped(other, () => useStatusUpdateStore.getState().addToMany([other], { date: today(), text: 'Both' }, 'Add'))
+    await expectStamped(id, () => useStatusUpdateStore.getState().update(entryId, { text: 'Pinged twice' }))
+    await expectStamped(id, () => useStatusUpdateStore.getState().remove(entryId))
+  })
+
+  it('undo and redo of an entry write stamp it too', async () => {
+    const id = await staleTask()
+    await useStatusUpdateStore.getState().add(id, { date: today(), text: 'Pinged' })
+    await expectStamped(id, () => useUndoStore.getState().undo())
+    await expectStamped(id, () => useUndoStore.getState().redo())
+  })
+
+  it('a write that changes nothing stamps nothing', async () => {
+    const id = await staleTask()
+    const added = await useStatusUpdateStore.getState().add(id, { date: today(), text: 'Pinged' })
+    await db.todos.update(id, { modifiedAt: longAgo })
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, modifiedAt: longAgo } : t)) })
+    await useStatusUpdateStore.getState().update(added!.id, { text: 'Pinged' })
+    await useStatusUpdateStore.getState().add(id, { date: today(), text: '   ' })
+    expect(await modifiedAt(id)).toEqual({ stored: longAgo, shown: longAgo })
+  })
+
+  it('a task delete’s undo puts the task back with its own Modified date, not stamped by its entries', async () => {
+    const id = await staleTask()
+    await useStatusUpdateStore.getState().add(id, { date: today(), text: 'Pinged' })
+    await db.todos.update(id, { modifiedAt: longAgo })
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, modifiedAt: longAgo } : t)) })
+    await useTodoStore.getState().remove(id)
+    await useUndoStore.getState().undo()
+    expect(await storedTexts(id)).toEqual(['Pinged'])
+    expect(await modifiedAt(id)).toEqual({ stored: longAgo, shown: longAgo })
+  })
+})

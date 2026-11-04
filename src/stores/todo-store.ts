@@ -8,7 +8,7 @@ import { loadFresh, mutate, optimistic, captureAssignments, captureAssignmentsBu
 import { autoNextFollowup, newTaskDefaultFollowup, useSettingsStore } from './settings-store'
 import { useListOrderStore } from './list-order-store'
 import { listOrderRepository } from '../data/list-order-repository'
-import { useStatusUpdateStore } from './status-update-store'
+import { onTasksTouched, useStatusUpdateStore } from './status-update-store'
 import { statusUpdateRepository } from '../data/status-update-repository'
 import { takeSafetySnapshot } from './safety-snapshot'
 import { usePersonStore } from './person-store'
@@ -931,4 +931,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
   },
 
   }
+})
+
+// A status update write stamped these tasks' `modifiedAt` in the database
+// (an update counts as activity on its task): the copies here follow.
+onTasksTouched((todoIds, at) => {
+  const ids = new Set(todoIds)
+  useTodoStore.setState((s) => ({
+    todos: s.todos.map((t) => (ids.has(t.id) ? { ...t, modifiedAt: at } : t)),
+  }))
 })
