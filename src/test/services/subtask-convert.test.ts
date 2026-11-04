@@ -142,9 +142,13 @@ describe('makeSubtaskOf', () => {
 })
 
 describe('makeTaskFromSubtask', () => {
-  it('a subtask becomes a task with its title and done state, the parent’s people and tags, the new-task defaults; one undo step takes it back', async () => {
+  it('a subtask becomes a task with its title and done state and the parent’s people, tags, status, dates and markers; one undo step takes it back', async () => {
     useSettingsStore.setState({ autoFollowup: true, followupDefaultInterval: { count: 2, unit: 'w' } })
     const parent = await useTodoStore.getState().add('Offsite')
+    const waiting = await useStatusStore.getState().add('Waiting', '#888')
+    await useTodoStore.getState().update(parent, {
+      statusId: waiting, dueDate: new Date(2026, 10, 20), nextFollowupAt: new Date(2026, 10, 10), urgent: true, focus: true, notes: 'the parent’s',
+    })
     const lena = await usePersonStore.getState().getOrCreate('Lena')
     await usePersonStore.getState().assignPerson(parent, lena)
     const ops = await useTagStore.getState().add('ops')
@@ -159,8 +163,10 @@ describe('makeTaskFromSubtask', () => {
     const id = await makeTaskFromSubtask(a!.id)
     expect(id).not.toBeNull()
     const made = todos().find((t) => t.id === id)!
-    expect(made).toMatchObject({ title: 'Book the venue', isCompleted: false, statusId })
-    expect(made.nextFollowupAt).toEqual(addDays(startOfToday(), 14))
+    expect(made).toMatchObject({ title: 'Book the venue', isCompleted: false, statusId: waiting, dueDate: new Date(2026, 10, 20), nextFollowupAt: new Date(2026, 10, 10), urgent: true, focus: true })
+    expect(made.important).toBeUndefined()
+    expect(made.notes).toBeUndefined()
+    expect(made.recurrenceRule).toBeUndefined()
     expect(usePersonStore.getState().assignedPeopleMap.get(id!)?.map((p) => p.name)).toEqual(['Lena'])
     expect(useTagStore.getState().assignedTagsMap.get(id!)?.map((t) => t.name)).toEqual(['ops'])
     expect(titles(parent)).toEqual([['Send invites', true]])
@@ -180,6 +186,19 @@ describe('makeTaskFromSubtask', () => {
     expect(todos().map((t) => t.title)).toEqual(['Offsite'])
     expect(titles(parent)).toEqual([['Book the venue', false], ['Send invites', true]])
     expect(await db.todos.count()).toBe(1)
+  })
+
+  it('a parent without a status or next follow-up: the new task gets Settings’ defaults, as every new task', async () => {
+    useSettingsStore.setState({ autoFollowup: true, followupDefaultInterval: { count: 2, unit: 'w' } })
+    const parent = await useTodoStore.getState().add('Offsite')
+    const statusId = await useStatusStore.getState().add('To do', '#888')
+    useSettingsStore.setState({ defaultStatusId: statusId })
+    const a = await useSubtaskStore.getState().add(parent, 'Book the venue')
+    const id = await makeTaskFromSubtask(a!.id)
+    const made = todos().find((t) => t.id === id)!
+    expect(made.statusId).toBe(statusId)
+    expect(made.nextFollowupAt).toEqual(addDays(startOfToday(), 14))
+    expect(made.dueDate).toBeUndefined()
   })
 
   it('a missing subtask makes nothing', async () => {

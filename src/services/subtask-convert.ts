@@ -112,9 +112,11 @@ async function fail(group: UndoGroupToken, name: string): Promise<false> {
 
 /**
  * Makes subtask `subtaskId` a task: as one undo step named `Made “X” a
- * task`, a task with its title and done state (completed now when done),
- * the parent's people and tags copied, Settings' default status and next
- * follow-up (what every new task gets), is added and the subtask removed.
+ * task`, a task with its title and done state (completed now when done)
+ * and the parent's properties — its people, tags, status, due date, next
+ * follow-up and markers (Settings' default status and next follow-up where
+ * the parent has none, as every new task) — is added and the subtask
+ * removed. Its notes, status updates and repeat stay the parent's.
  * Resolves the new task's id, or null when nothing was done.
  */
 export async function makeTaskFromSubtask(subtaskId: number): Promise<number | null> {
@@ -125,6 +127,7 @@ export async function makeTaskFromSubtask(subtaskId: number): Promise<number | n
   }
   if (!sub) return null
   const parentId = sub.todoId
+  const parent = useTodoStore.getState().todos.find((t) => t.id === parentId)
   const personIds = (usePersonStore.getState().assignedPeopleMap.get(parentId) ?? []).flatMap((p) => (p.id != null ? [p.id] : []))
   const tagIds = (useTagStore.getState().assignedTagsMap.get(parentId) ?? []).flatMap((t) => (t.id != null ? [t.id] : []))
   const name = `Made “${short(sub.title)}” a task`
@@ -132,8 +135,8 @@ export async function makeTaskFromSubtask(subtaskId: number): Promise<number | n
   try {
     return await useUndoStore.getState().runGroup(name, async (group) => {
       const now = new Date()
-      const defaultStatusId = useSettingsStore.getState().defaultStatusId
-      const nextFollowupAt = newTaskDefaultFollowup(now)
+      const statusId = parent?.statusId ?? useSettingsStore.getState().defaultStatusId ?? undefined
+      const nextFollowupAt = parent?.nextFollowupAt ?? newTaskDefaultFollowup(now)
       // Created open (a new row is never stored completed), then completed
       // in the same step when the subtask was done.
       const [created] = await useTodoStore.getState().addMany([{
@@ -143,7 +146,11 @@ export async function makeTaskFromSubtask(subtaskId: number): Promise<number | n
           createdAt: now,
           modifiedAt: now,
           ...(nextFollowupAt && !isCompleted ? { nextFollowupAt } : {}),
-          ...(defaultStatusId != null ? { statusId: defaultStatusId } : {}),
+          ...(statusId != null ? { statusId } : {}),
+          ...(parent?.dueDate ? { dueDate: parent.dueDate } : {}),
+          ...(parent?.urgent === true ? { urgent: true } : {}),
+          ...(parent?.important === true ? { important: true } : {}),
+          ...(parent?.focus === true ? { focus: true } : {}),
         },
         personIds,
         tagIds,
