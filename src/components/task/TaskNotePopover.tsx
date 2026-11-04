@@ -4,7 +4,8 @@ import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useFlashMessage } from '../../hooks/use-flash-message'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { STATUS_UPDATE_TEXT_MAX } from '../../models'
-import { useStatusUpdateStore, useStatusUpdates } from '../../stores/status-update-store'
+import { addStatusUpdate } from '../../services/mark-followed-up'
+import { useStatusUpdates } from '../../stores/status-update-store'
 import { useUIStore } from '../../stores/ui-store'
 import { formatDateNumeric } from '../../utils/date'
 import { statusUpdateText } from '../../utils/status-updates'
@@ -63,11 +64,11 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
   const addUpdate = () => {
     const text = statusUpdateText(updateTextRef.current)
     if (text === '') return
-    // The notes typed so far are their own edit, written first.
-    void flushNotes()
     updateTextRef.current = ''
     setUpdate('')
-    void useStatusUpdateStore.getState().add(todoId, { date: new Date(), text })
+    // The notes typed so far are their own edit, written first (once the
+    // follow-up's undo group is open, a write landing would join it).
+    void flushNotes().finally(() => addStatusUpdate(todoId, { date: new Date(), text }))
   }
 
   // Whatever closes it (Esc, an outside click, the cell's toggle) keeps what was typed.

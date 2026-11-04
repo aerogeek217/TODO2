@@ -86,9 +86,13 @@ export interface UsePopoverAnchorOptions {
    * When `true` (default), an ancestor scroll fires `onClose` (capture phase
    * — catches scroll on widget bodies / `.runtimeFilterWrap` / etc). When
    * `false`, a `ref` anchor repositions the panel to track the element; a
-   * `point` anchor is static and the listener becomes a no-op.
+   * `point` anchor is static and the listener becomes a no-op. `'user'`:
+   * only the user's own scrolling closes it (a wheel or a touch drag outside
+   * the panel; a press on a scrollbar is an outside click) — a scroll the
+   * page makes itself, as a list that shrank clamps its offset, doesn't,
+   * and repositions a `ref` anchor.
    */
-  closeOnScroll?: boolean
+  closeOnScroll?: boolean | 'user'
   /**
    * When `true` (default), a window resize fires `onClose`. When `false`,
    * a `ref` anchor repositions; a `point` anchor is static.
@@ -590,26 +594,33 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
   // Scroll/resize listeners. Capture-phase scroll catches ancestors.
   useEffect(() => {
     if (!open) return
-    const handleScroll = (e: Event) => {
+    const isOwnScroll = (e: Event): boolean => {
       // Scroll inside the panel itself (e.g., a scrollable items list) is
       // intentional user navigation within the popover — don't dismiss on it.
       // Without this guard, dropdowns whose content overflows close the moment
       // the user wheel-scrolls or drags the inner scrollbar. The target may
       // be `window` / `document` for page scrolls, hence the Node check.
       const panel = panelElRef.current
-      if (panel && e.target instanceof Node && panel.contains(e.target)) return
+      if (panel && e.target instanceof Node && panel.contains(e.target)) return true
       // Nor scrolls in its own flyouts (`extraInsideRefs`) or in a layer
       // stacked above it — a submenu's or a picker's list opened from it.
       if (e.target instanceof Node) {
         const target = e.target
-        if (extraInsideRefsRef.current?.some((ref) => ref.current?.contains(target))) return
-        if (panel && isInLayerAbove(panel, target)) return
+        if (extraInsideRefsRef.current?.some((ref) => ref.current?.contains(target))) return true
+        if (panel && isInLayerAbove(panel, target)) return true
       }
-      if (closeOnScrollRef.current) {
+      return false
+    }
+    const handleScroll = (e: Event) => {
+      if (isOwnScroll(e)) return
+      if (closeOnScrollRef.current === true) {
         onCloseRef.current()
         return
       }
       if (anchorRef.current.kind === 'ref') compute()
+    }
+    const handleUserScroll = (e: Event) => {
+      if (closeOnScrollRef.current === 'user' && !isOwnScroll(e)) onCloseRef.current()
     }
     const handleResize = () => {
       if (closeOnResizeRef.current) {
@@ -619,9 +630,13 @@ export function usePopoverAnchor(opts: UsePopoverAnchorOptions): UsePopoverAncho
       if (anchorRef.current.kind === 'ref') compute()
     }
     window.addEventListener('scroll', handleScroll, true)
+    window.addEventListener('wheel', handleUserScroll, { capture: true, passive: true })
+    window.addEventListener('touchmove', handleUserScroll, { capture: true, passive: true })
     window.addEventListener('resize', handleResize)
     return () => {
       window.removeEventListener('scroll', handleScroll, true)
+      window.removeEventListener('wheel', handleUserScroll, true)
+      window.removeEventListener('touchmove', handleUserScroll, true)
       window.removeEventListener('resize', handleResize)
     }
   }, [open, compute, anchorRef, onCloseRef, closeOnScrollRef, closeOnResizeRef, extraInsideRefsRef])

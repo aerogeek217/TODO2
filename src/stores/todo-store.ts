@@ -45,6 +45,12 @@ export interface MarkFollowedUpOptions {
    * (`nextAfterFollowup` over `autoNextFollowup`).
    */
   next?: Date | null
+  /**
+   * The day the follow-up happened, when not today (a status update dated
+   * back): `lastFollowupAt` is it, and the per-task rule counts from it — a
+   * next follow-up after it is kept, else it + the Settings interval.
+   */
+  at?: Date
   /** The undo entry's name (default `Followed up · next follow-up …`, {@link followedUpName}). */
   description?: string
   /** The undo snackbar's second line. */
@@ -159,7 +165,7 @@ interface TodoState {
   /** Removes the due date from every task in `ids`. One undo step, with the undo snackbar. */
   bulkClearDueDate: (ids: number[]) => Promise<void>
   /**
-   * "Mark followed up" on every task in `ids`: `lastFollowupAt = now`, and
+   * "Mark followed up" on every task in `ids`: `lastFollowupAt = now` (or the option's `at`), and
    * `nextFollowupAt` = the option's `next` when given (a date, or `null` =
    * none — the follow-up popover's edited field), else per task: one after
    * today is kept (not written), one today / past / none gets the automatic
@@ -768,18 +774,19 @@ export const useTodoStore = create<TodoState>((set, get) => {
     if (targets.length === 0) return
     const { description, detail } = options
     const now = new Date()
+    const at = options.at ?? now
     // What every task not kept gets: the given date, else the automatic rule.
     const given = options.next !== undefined
-    const next = given ? (options.next ?? null) : autoNextFollowup(now)
+    const next = given ? (options.next ?? null) : autoNextFollowup(at)
     // Per task: a next follow-up after today is kept unless a date was given
     // (`nextAfterFollowup`); a kept one isn't written, so an edit of it that
     // lands meanwhile — or after, before an undo — stays.
     const kept = new Set(given ? [] : targets
-      .filter((t) => t.nextFollowupAt && nextAfterFollowup(t.nextFollowupAt, now, next) === t.nextFollowupAt)
+      .filter((t) => t.nextFollowupAt && nextAfterFollowup(t.nextFollowupAt, at, next) === t.nextFollowupAt)
       .map((t) => t.id))
     const changesFor = (id: number): Partial<PersistedTodoItem> => (kept.has(id)
-      ? { lastFollowupAt: now }
-      : { lastFollowupAt: now, nextFollowupAt: next ?? undefined })
+      ? { lastFollowupAt: at }
+      : { lastFollowupAt: at, nextFollowupAt: next ?? undefined })
     const prev = new Map(targets.map((t) => [t.id, {
       lastFollowupAt: t.lastFollowupAt,
       nextFollowupAt: t.nextFollowupAt,
@@ -801,7 +808,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
           if (!p) return t
           return {
             ...t,
-            ...(t.lastFollowupAt?.getTime() === now.getTime() ? { lastFollowupAt: p.lastFollowupAt } : {}),
+            ...(t.lastFollowupAt?.getTime() === at.getTime() ? { lastFollowupAt: p.lastFollowupAt } : {}),
             ...(!kept.has(t.id) && t.nextFollowupAt?.getTime() === next?.getTime() ? { nextFollowupAt: p.nextFollowupAt } : {}),
             ...(t.modifiedAt === now ? { modifiedAt: p.modifiedAt } : {}),
           }

@@ -275,11 +275,17 @@ describe('TaskNotePopover: notes are written as one edit session at a time', () 
     const line = screen.getByRole('textbox', { name: 'Status' })
     fireEvent.change(line, { target: { value: 'half' } })
     await act(async () => { fireEvent.keyDown(line, { key: 'Enter' }) })
-    await vi.waitFor(() => expect(undoEntries()).toBe(2))
+    // It counts as a follow-up: the entry and that are one step.
+    await vi.waitFor(() => {
+      expect(useTodoStore.getState().todos[0]?.lastFollowupAt).toBeDefined()
+      expect(useUndoStore.getState().groupToken).toBeNull()
+      expect(undoEntries()).toBe(2)
+    })
     expect(useTodoStore.getState().todos[0]).toMatchObject({ notes: 'notes' })
     expect(useStatusUpdateStore.getState().byTodo.get(100)?.map((u) => u.text)).toEqual(['half'])
     await act(async () => { await useUndoStore.getState().undo() })
     expect(useStatusUpdateStore.getState().byTodo.get(100)).toBeUndefined()
+    expect(useTodoStore.getState().todos[0]?.lastFollowupAt).toBeUndefined()
     expect(useTodoStore.getState().todos[0]).toMatchObject({ notes: 'notes' })
   })
 

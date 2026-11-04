@@ -4,12 +4,11 @@ import type { Person, PersistedTodoItem } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
-import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
 import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
+import { usePopoverLevel } from '../shared/popover-level'
 import { ChipSelector } from '../shared/ChipSelector'
-import { FollowupPopover } from '../shared/followup/FollowupPopover'
 import type { TagChipSelectorProps } from '../shared/TagChipSelector'
 import type { TaskMenuHandlers } from './task-menu-entries'
 import { TaskNotePopover } from './TaskNotePopover'
@@ -67,17 +66,27 @@ export function useTaskRowPickers({
 
   const [peopleOpen, setPeopleOpen] = useState(false)
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
-  const [followupOpen, setFollowupOpen] = useState(false)
-  // Read only while the follow-up popover shows it.
-  const newestUpdate = useStatusUpdateStore((s) => (followupOpen ? newestStatusUpdate(todo.id, s.byTodo) : undefined))
-  /** The pill / flag open the follow-up popover on "Mark followed up"; the menu's "Pick a date or interval…" on the date field. */
-  const [followupFocus, setFollowupFocus] = useState<'followedUp' | 'next'>('followedUp')
   const [notesOpen, setNotesOpen] = useState(false)
   /** The checklist: open on its list, or on its add field (the menu's Add subtask…). */
   const [subtasksOpen, setSubtasksOpen] = useState<false | 'list' | 'add'>(false)
   const subtasksRef = useRef<HTMLButtonElement>(null)
   const peopleRef = useRef<HTMLElement>(null)
   const followupAnchorRef = useRef<HTMLButtonElement>(null)
+  const followupOpen = useUIStore((s) => s.followupPopover?.triggerRef === followupAnchorRef)
+  const popoverLevel = usePopoverLevel()
+  /** The pill / flag open the follow-up popover on "Mark followed up"; the menu's "Pick a date or interval…" on the date field. */
+  const openFollowup = useCallback((initialFocus: 'followedUp' | 'next') => {
+    const el = followupAnchorRef.current
+    if (!el) return
+    const { left, top, right, bottom } = el.getBoundingClientRect()
+    useUIStore.getState().openFollowupPopover({
+      todoId: todo.id,
+      anchor: { left, top, right, bottom },
+      triggerRef: followupAnchorRef,
+      initialFocus,
+      level: popoverLevel,
+    })
+  }, [todo.id, popoverLevel])
   const deadlineInputRef = useRef<HTMLInputElement>(null)
   const notesIconRef = useRef<HTMLButtonElement>(null)
 
@@ -86,12 +95,12 @@ export function useTaskRowPickers({
 
   const closePeople = useCallback(() => setPeopleOpen(false), [])
   const togglePeople = useCallback(() => setPeopleOpen((v) => !v), [])
-  const closeFollowup = useCallback(() => setFollowupOpen(false), [])
   const toggleFollowup = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    setFollowupFocus('followedUp')
-    setFollowupOpen((v) => !v)
-  }, [])
+    const ui = useUIStore.getState()
+    if (ui.followupPopover?.triggerRef === followupAnchorRef) ui.closeFollowupPopover()
+    else openFollowup('followedUp')
+  }, [openFollowup])
   const closeNotes = useCallback(() => setNotesOpen(false), [])
   const toggleNotes = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
@@ -149,7 +158,7 @@ export function useTaskRowPickers({
     onToggleComplete: handleToggleComplete,
     onSetDueDate: ghost ? undefined : openDeadlinePicker,
     onSetFollowup: (d) => bulk.setFollowup(todo.id, d),
-    onPickFollowup: ghost ? undefined : () => { setFollowupFocus('next'); setFollowupOpen(true) },
+    onPickFollowup: ghost ? undefined : () => openFollowup('next'),
     onFollowedUp: () => bulk.markFollowedUp(todo.id),
     onAssignPeople: ghost ? undefined : () => setPeopleOpen(true),
     onAddTag: ghost ? undefined : () => setTagPickerOpen(true),
@@ -178,17 +187,6 @@ export function useTaskRowPickers({
             />
           </div>
         </AnchoredPicker>
-      )}
-      {followupOpen && (
-        <FollowupPopover
-          todo={todo}
-          anchor={{ kind: 'ref', ref: followupAnchorRef }}
-          onClose={closeFollowup}
-          onSetNext={(d) => bulk.setFollowup(todo.id, d)}
-          onFollowedUp={(next, update) => bulk.markFollowedUp(todo.id, next, update)}
-          newestUpdate={newestUpdate}
-          initialFocus={followupFocus}
-        />
       )}
       {notesOpen && createPortal(
         <TaskNotePopover todoId={todo.id} anchorRef={notesIconRef} onClose={closeNotes} />,

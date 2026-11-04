@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { create } from 'zustand'
 import { registerModuleReset } from '../utils/module-reset'
 import type { TaskDialogPayload } from './task-dialog-payload'
@@ -83,6 +84,23 @@ export interface BulkConfirmation {
   title?: string          // custom dialog title
   confirmLabel?: string   // custom confirm button text
   onConfirm?: () => void  // custom confirm handler (used with action: 'custom')
+}
+
+/**
+ * What a row's follow-up popover (`FollowupPopoverHost`) is open on. Hosted
+ * outside the row, so it outlives a row that leaves its list once the task
+ * is marked followed up.
+ */
+export interface FollowupPopoverRequest {
+  todoId: number
+  /** The trigger's place when it opened: the popover stays there while the row moves or goes. */
+  anchor: { left: number; top: number; right: number; bottom: number }
+  /** The row's pill / flag that opened it: the toggle. */
+  triggerRef: RefObject<HTMLElement | null>
+  /** What has focus on open (`FollowupPopover`'s `initialFocus`). */
+  initialFocus: 'followedUp' | 'next'
+  /** The popover level (`usePopoverLevel`) where the row is: 2 in a dialog. */
+  level: number
 }
 
 /**
@@ -180,6 +198,7 @@ interface UIState {
   taskDialog: TaskDialogPayload | null
   /** The task picker on screen (Make subtask of… / Move to another task…), or null. */
   taskPicker: TaskPickerRequest | null
+  followupPopover: FollowupPopoverRequest | null
   /**
    * The top bar's filtered-tasks panel (desktop): the screen filter's tasks
    * dropped from the filter tray, which edits them live.
@@ -294,6 +313,8 @@ interface UIState {
    */
   openTaskPicker: (request: TaskPickerRequest) => void
   closeTaskPicker: () => void
+  openFollowupPopover: (request: FollowupPopoverRequest) => void
+  closeFollowupPopover: () => void
   showTaskDialog: (payload: TaskDialogPayload) => void
   hideTaskDialog: () => void
   /**
@@ -398,6 +419,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   confirmPrompts: [],
   taskDialog: null,
   taskPicker: null,
+  followupPopover: null,
   filterPanelOpen: false,
   filterPanelFocusKey: 0,
   lensLifted: false,
@@ -513,6 +535,14 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   closeTaskPicker() {
     set({ taskPicker: null })
+  },
+
+  openFollowupPopover(request) {
+    set({ followupPopover: request })
+  },
+
+  closeFollowupPopover() {
+    set({ followupPopover: null })
   },
 
   showTaskDialog(payload) {

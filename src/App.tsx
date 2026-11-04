@@ -14,6 +14,7 @@ import { QuickAddBar, type QuickAddDraft, type QuickAddPreset } from './componen
 import { RecentTaskPill } from './components/overlays/RecentTaskPill'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { ConfirmPromptHost } from './components/overlays/ConfirmPromptHost'
+import { FollowupPopoverHost } from './components/overlays/FollowupPopoverHost'
 import { TaskPickerHost } from './components/overlays/TaskPickerHost'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
@@ -467,6 +468,7 @@ export default function App() {
       <RouterProvider router={router} />
       <FileMigrationOverlay />
       <TaskPickerHost />
+      <FollowupPopoverHost />
       <ConfirmPromptHost />
     </ErrorBoundary>
   )

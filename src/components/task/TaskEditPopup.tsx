@@ -12,11 +12,12 @@ import { getFilterDefaults } from '../../utils/filter-defaults'
 import { StatusIcon } from '../shared/StatusIcon'
 import { FocusIcon, ImportantIcon, UrgentClockIcon, UrgentIcon } from '../shared/MarkerIcons'
 import { useTooltip } from '../shared/use-tooltip'
-import { startOfToday } from '../../utils/date'
+import { startOfDay, startOfToday } from '../../utils/date'
 import { urgentMark, urgentToggleHint } from '../../utils/urgency'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { makeRecurrenceRule } from '../../utils/recurrence'
+import { addStatusUpdate } from '../../services/mark-followed-up'
 import { parseTaskInput } from '../../services/nlp-task-creator'
 import { draftEditorTitle, type EditorTaskFields, type TaskDraft } from '../../services/task-draft'
 import { compareStatusUpdates, statusUpdateDay } from '../../utils/status-updates'
@@ -375,8 +376,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // Status updates: in edit mode each is its own undo step, after the notes typed so far.
   const handleAddUpdate = (entry: StatusUpdateFields) => {
     if (isEdit && todo) {
-      void flushNotes()
-      void useStatusUpdateStore.getState().add(todo.id, entry)
+      // After the notes (once the follow-up's undo group is open, a write landing would join it).
+      void flushNotes().finally(() => addStatusUpdate(todo.id, entry))
       return
     }
     const now = new Date()
@@ -463,6 +464,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }
 
+  // A new task's status updates count as following up on their day, when newer.
+  const newestPendingDay = pendingUpdates.at(0)?.date
+  const draftLastWithUpdates = newestPendingDay
+    && (!draftLastFollowup || newestPendingDay.getTime() > startOfDay(draftLastFollowup).getTime())
+    ? newestPendingDay
+    : draftLastFollowup
+
   const handleFollowedUp = () => {
     if (isEdit && todo) {
       void flushNotes()
@@ -538,7 +546,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       dueDate: deadline ?? undefined,
       // Left out while still the default, so a `/followup` in the title applies.
       ...(nextFollowupIsDefault ? {} : { nextFollowupAt: draftNextFollowup }),
-      lastFollowupAt: draftLastFollowup,
+      lastFollowupAt: draftLastWithUpdates,
       recurrenceRule: buildRule(),
       ...(draftUrgent ? { urgent: true } : {}),
       ...(draftImportant ? { important: true } : {}),
@@ -778,7 +786,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             openDropdown={openDropdown}
             setOpenDropdown={setOpenDropdown}
             followupNext={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
-            followupLast={isEdit ? todo?.lastFollowupAt : draftLastFollowup}
+            followupLast={isEdit ? todo?.lastFollowupAt : draftLastWithUpdates}
             followupNextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
               ? `Default · ${describeFollowupInterval(followupInterval)}`
               : undefined}

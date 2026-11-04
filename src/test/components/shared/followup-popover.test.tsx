@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { useState } from 'react'
 import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { FollowupPopover } from '../../../components/shared/followup/FollowupPopover'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -40,6 +41,32 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
         {...props}
       />,
     )
+    const field = screen.getByRole('textbox', { name: 'Next follow-up' }) as HTMLInputElement
+    const button = screen.getByRole('button', { name: 'Mark followed up' })
+    return { onSetNext, onFollowedUp, onClose, field, button }
+  }
+
+  /** With the task live, as a row's is: a write reaches the popover's `todo`. */
+  function renderLive(initial = makeTodo({ id: 1, nextFollowupAt: FUTURE })) {
+    const onSetNext = vi.fn()
+    const onFollowedUp = vi.fn()
+    const onClose = vi.fn()
+    function Live() {
+      const [todo, setTodo] = useState(initial)
+      return (
+        <FollowupPopover
+          todo={todo}
+          anchor={anchor}
+          onClose={onClose}
+          onSetNext={(d) => { onSetNext(d); setTodo((t) => ({ ...t, nextFollowupAt: d ?? undefined })) }}
+          onFollowedUp={(next) => {
+            onFollowedUp(next)
+            setTodo((t) => ({ ...t, lastFollowupAt: TODAY, ...(next !== undefined ? { nextFollowupAt: next ?? undefined } : {}) }))
+          }}
+        />
+      )
+    }
+    render(<Live />)
     const field = screen.getByRole('textbox', { name: 'Next follow-up' }) as HTMLInputElement
     const button = screen.getByRole('button', { name: 'Mark followed up' })
     return { onSetNext, onFollowedUp, onClose, field, button }
@@ -122,16 +149,69 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     expect(fireEvent.mouseUp(field)).toBe(true)
   })
 
-  it('Mark followed up untouched passes no date (the store keeps a later one) and closes — future, overdue or none', () => {
+  it('Mark followed up untouched passes no date (the store keeps a later one) and stays open — future, overdue or none', () => {
     for (const next of [FUTURE, OVERDUE, undefined]) {
-      const { button, onFollowedUp, onSetNext, onClose } = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: next }) })
+      const { button, field, onFollowedUp, onSetNext, onClose } = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: next }) })
       fireEvent.click(button)
       expect(onFollowedUp).toHaveBeenCalledTimes(1)
       expect(onFollowedUp.mock.calls[0]).toEqual([undefined])
       expect(onSetNext).not.toHaveBeenCalled()
-      expect(onClose).toHaveBeenCalledTimes(1)
+      expect(onClose).not.toHaveBeenCalled()
+      // On to the date: the field has focus, its text selected.
+      expect(field).toHaveFocus()
+      expect([field.selectionStart, field.selectionEnd]).toEqual([0, field.value.length])
       cleanup()
     }
+  })
+
+  it('⏎ ⏎ records and closes: after Mark followed up, ⏎ in the unchanged field closes', () => {
+    const { button, field, onSetNext, onClose } = renderPopover()
+    fireEvent.click(button)
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(onSetNext).not.toHaveBeenCalled()
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('a held ⏎ (its repeat landing in the field, where focus went) doesn’t close', () => {
+    const { button, field, onClose } = renderPopover()
+    fireEvent.click(button)
+    fireEvent.keyDown(field, { key: 'Enter', repeat: true })
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('a date then Mark followed up: focus goes to the button, which marks with the date set', () => {
+    const { button, field, onSetNext, onFollowedUp, onClose } = renderLive()
+    fireEvent.change(field, { target: { value: '2w' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(onSetNext).toHaveBeenCalledWith(new Date(2026, 9, 24))
+    expect(onClose).not.toHaveBeenCalled()
+    // The field shows it as set, no longer as an edit waiting for ⏎.
+    expect(field.value).toBe('Sat 24 Oct')
+    expect(screen.queryByText(/to set/)).toBeNull()
+    expect(button).toHaveFocus()
+    fireEvent.click(button)
+    // The date is set: the rule keeps it.
+    expect(onFollowedUp.mock.calls).toEqual([[undefined]])
+    expect(screen.getByText(/^Last followed up/)).toHaveTextContent('Last followed up Sat 10 Oct')
+    expect(field.value).toBe('Sat 24 Oct')
+    expect(field).toHaveFocus()
+  })
+
+  it('a date when already followed up today: focus stays in the field, so ⏎ then closes', () => {
+    const { field, onClose } = renderPopover({ followedUpToday: true, current: null })
+    fireEvent.change(field, { target: { value: '2w' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(field).toHaveFocus()
+    expect(onClose).not.toHaveBeenCalled()
+  })
+
+  it('Mark followed up with an edited field: the field then shows that date, settled', () => {
+    const { button, field, onFollowedUp } = renderLive()
+    fireEvent.change(field, { target: { value: '2w' } })
+    fireEvent.click(button)
+    expect(onFollowedUp).toHaveBeenCalledWith(new Date(2026, 9, 24))
+    expect(field.value).toBe('Sat 24 Oct')
+    expect(screen.queryByText(/to set/)).toBeNull()
   })
 
   it('its tooltip says what will happen: keep / set / clear / none', () => {
@@ -188,7 +268,7 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     fireEvent.keyDown(r.field, { key: 'Enter' })
     expect(r.onSetNext).toHaveBeenCalledWith(new Date(2026, 10, 10))
     expect(r.onFollowedUp).not.toHaveBeenCalled()
-    expect(r.onClose).toHaveBeenCalledTimes(1)
+    expect(r.onClose).not.toHaveBeenCalled()
     cleanup()
 
     r = renderPopover()
@@ -232,12 +312,14 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     expect(off.onClose).toHaveBeenCalledTimes(1)
   })
 
-  it('a quick button sets the next follow-up only and closes, as a picked day does', () => {
-    const { onSetNext, onFollowedUp, onClose } = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: OVERDUE }) })
+  it('a quick button sets the next follow-up only and stays open, as a picked day does; focus on Mark followed up', () => {
+    const { onSetNext, onFollowedUp, onClose, field, button } = renderLive(makeTodo({ id: 1, nextFollowupAt: OVERDUE }))
     fireEvent.click(screen.getByRole('button', { name: 'Follow up in 1 week' }))
     expect(onSetNext).toHaveBeenCalledWith(new Date(2026, 9, 17))
     expect(onFollowedUp).not.toHaveBeenCalled()
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
+    expect(field.value).toBe('Sat 17 Oct')
+    expect(button).toHaveFocus()
   })
 
   it('the bulk bar’s mixed selection: an empty field (Each task’s own) and a help line; untouched, Mark followed up passes no date and ⏎ just closes', () => {
@@ -317,7 +399,10 @@ describe('<FollowupPopover> Status update line', () => {
     const button = screen.getByRole('button', { name: 'Mark followed up + add update' })
     fireEvent.click(button)
     expect(r.onFollowedUp.mock.calls[0]).toEqual([undefined, 'Waiting on legal'])
-    expect(r.onClose).toHaveBeenCalledTimes(1)
+    expect(r.onClose).not.toHaveBeenCalled()
+    // Written: the line empties and the button says plain Mark followed up again.
+    expect(r.update.value).toBe('')
+    expect(screen.getByRole('button', { name: 'Mark followed up' })).toBeInTheDocument()
     cleanup()
 
     r = renderPopover()
@@ -389,11 +474,11 @@ describe('<FollowupPopover> date picker', () => {
     expect(picker).toHaveFocus()
   })
 
-  it('a picked day sets the next follow-up and closes the popover', () => {
+  it('a picked day sets the next follow-up and leaves the popover open', () => {
     const { onSetNext, onClose, picker } = renderPopover()
     fireEvent.change(picker, { target: { value: '2026-11-20' } })
     expect(onSetNext).toHaveBeenCalledWith(new Date(2026, 10, 20))
-    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('a cleared picker clears the next follow-up', () => {

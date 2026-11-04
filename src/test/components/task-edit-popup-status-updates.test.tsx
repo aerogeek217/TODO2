@@ -174,6 +174,24 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
     return { onCreate }
   }
 
+  it('a new task’s updates count as following up: Last shows the newest’s day and goes with the task; taking it out takes that back', async () => {
+    const { onCreate } = renderCreate()
+    const last = () => screen.getByRole('textbox', { name: 'Last follow-up' }) as HTMLInputElement
+    fireEvent.change(screen.getByPlaceholderText(/New task/), { target: { value: 'Write the report' } })
+    expect(last().value).toBe('')
+    fireEvent.change(addField(), { target: { value: 'outline done' } })
+    fireEvent.change(addDayField(), { target: { value: 'yesterday' } })
+    fireEvent.keyDown(addField(), { key: 'Enter' })
+    expect(last().value).not.toBe('')
+    fireEvent.click(screen.getByRole('button', { name: /^Delete status update/ }))
+    expect(last().value).toBe('')
+    fireEvent.change(addField(), { target: { value: 'first draft' } })
+    fireEvent.change(addDayField(), { target: { value: 'yesterday' } })
+    fireEvent.keyDown(addField(), { key: 'Enter' })
+    await act(async () => { fireEvent.click(screen.getByText('Create task')) })
+    expect(onCreate.mock.calls[0]?.[0].lastFollowupAt).toEqual(daysAgo(1))
+  })
+
   it('updates added before Create wait in the list and go with the task; nothing is written before', async () => {
     const { onCreate } = renderCreate()
     fireEvent.change(screen.getByPlaceholderText(/New task/), { target: { value: 'Write the report' } })
