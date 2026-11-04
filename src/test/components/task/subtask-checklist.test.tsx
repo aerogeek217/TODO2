@@ -1,10 +1,11 @@
 // The shared checklist (cr28): the add row (⏎ adds a trimmed title and keeps
-// the focus; Esc with text clears), renaming in place (⏎ saves, Esc cancels
-// and stops there, a blank cancels), the checkbox, and the ⋯ menu (Rename ·
+// the focus), renaming in place (⏎ saves, Esc cancels
+// and stops there, a blank cancels), what goes with the checklist going
+// away, the checkbox, and the ⋯ menu (Rename ·
 // the host's extra items | Delete).
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
-import { SubtaskChecklist, type ChecklistItem } from '../../../components/task/subtasks/SubtaskChecklist'
+import { render, screen, fireEvent, cleanup, within, act } from '@testing-library/react'
+import { SubtaskChecklist, type ChecklistAddDraft, type ChecklistItem } from '../../../components/task/subtasks/SubtaskChecklist'
 
 afterEach(cleanup)
 
@@ -41,15 +42,92 @@ describe('SubtaskChecklist — add', () => {
     expect(onAdd).toHaveBeenCalledTimes(1)
   })
 
-  it('Esc with text clears it and stops there; an empty field leaves Esc to the host', () => {
+  it('Esc is the host’s, the text kept', () => {
     const { onParentKey } = setup()
     const field = addField()
     fireEvent.change(field, { target: { value: 'half typed' } })
     fireEvent.keyDown(field, { key: 'Escape' })
-    expect(field.value).toBe('')
-    expect(onParentKey).not.toHaveBeenCalled()
-    fireEvent.keyDown(field, { key: 'Escape' })
+    expect(field.value).toBe('half typed')
     expect(onParentKey).toHaveBeenCalledTimes(1)
+  })
+
+  describe('the checklist going away', () => {
+    const renderChecklist = (addDraftRef?: { current: ChecklistAddDraft | null }) => {
+      const onAdd = vi.fn()
+      const onRename = vi.fn()
+      const view = render(
+        <SubtaskChecklist
+          items={ITEMS}
+          density="tight"
+          label="Subtasks"
+          onAdd={onAdd}
+          onRename={onRename}
+          onSetDone={vi.fn()}
+          onRemove={vi.fn()}
+          addDraftRef={addDraftRef}
+        />,
+      )
+      return { onAdd, onRename, unmount: view.unmount }
+    }
+    const firstTitle = () => ITEMS.at(0)?.title ?? ''
+
+    it('adds the line typed, once; nothing when blank', () => {
+      let r = renderChecklist()
+      fireEvent.change(addField(), { target: { value: '  half typed ' } })
+      r.unmount()
+      expect(r.onAdd.mock.calls).toEqual([['half typed']])
+
+      r = renderChecklist()
+      fireEvent.change(addField(), { target: { value: 'added' } })
+      fireEvent.keyDown(addField(), { key: 'Enter' })
+      r.unmount()
+      expect(r.onAdd.mock.calls).toEqual([['added']])
+
+      r = renderChecklist()
+      fireEvent.change(addField(), { target: { value: '   ' } })
+      r.unmount()
+      expect(r.onAdd).not.toHaveBeenCalled()
+    })
+
+    it('saves a rename in progress; not an unchanged or blank one, nor one Esc cancelled', () => {
+      const startRename = () => {
+        fireEvent.click(screen.getByRole('button', { name: `Rename ${firstTitle()}` }))
+        return screen.getByRole('textbox', { name: 'Subtask title' })
+      }
+      let r = renderChecklist()
+      fireEvent.change(startRename(), { target: { value: 'renamed' } })
+      r.unmount()
+      expect(r.onRename.mock.calls.map((c) => c[1])).toEqual(['renamed'])
+
+      r = renderChecklist()
+      startRename()
+      r.unmount()
+      expect(r.onRename).not.toHaveBeenCalled()
+
+      r = renderChecklist()
+      fireEvent.change(startRename(), { target: { value: '   ' } })
+      r.unmount()
+      expect(r.onRename).not.toHaveBeenCalled()
+
+      r = renderChecklist()
+      const field = startRename()
+      fireEvent.change(field, { target: { value: 'not this' } })
+      fireEvent.keyDown(field, { key: 'Escape' })
+      r.unmount()
+      expect(r.onRename).not.toHaveBeenCalled()
+    })
+
+    it('a host can read and take the line typed; taken, it isn’t added again', () => {
+      const handle: { current: ChecklistAddDraft | null } = { current: null }
+      const r = renderChecklist(handle)
+      fireEvent.change(addField(), { target: { value: ' typed ' } })
+      expect(handle.current?.peek()).toBe('typed')
+      act(() => { expect(handle.current?.take()).toBe('typed') })
+      expect(addField().value).toBe('')
+      expect(handle.current?.peek()).toBe('')
+      r.unmount()
+      expect(r.onAdd).not.toHaveBeenCalled()
+    })
   })
 
   it('autoFocusAdd focuses the add field on mount', () => {

@@ -316,3 +316,9 @@
     background: transparent;
   }
 }
+
+/* The Add update popover, a close held over a day that isn't one. */
+.closeHeld {
+  font-size: 12px;
+  color: var(--color-danger);
+}

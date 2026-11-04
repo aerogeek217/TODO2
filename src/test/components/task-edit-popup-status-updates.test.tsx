@@ -224,18 +224,18 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
 })
 
 describe('TaskEditPopup — the Add update popover', () => {
-  it('opens from the button, Esc closes it — not the editor — and hands the focus back', async () => {
+  it('opens from the button, Esc closes it — not the editor — adds what was typed and hands the focus back', async () => {
     await openStored()
     expect(screen.queryByRole('textbox', { name: 'New status update' })).toBeNull()
     fireEvent.click(addButton())
     expect(addButton()).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.change(addField(), { target: { value: 'not this one' } })
+    fireEvent.change(addField(), { target: { value: 'this one' } })
     await act(async () => { fireEvent.keyDown(addField(), { key: 'Escape' }) })
     expect(screen.queryByRole('dialog', { name: 'Add a status update' })).toBeNull()
     expect(screen.getByRole('dialog', { name: 'Edit task' })).toBeInTheDocument()
     await act(async () => { await new Promise((r) => requestAnimationFrame(() => r(undefined))) })
     expect(addButton()).toHaveFocus()
-    expect(await db.statusUpdates.count()).toBe(0)
+    await vi.waitFor(async () => expect(await storedTexts()).toEqual([[formatDateNumeric(today()), 'this one']]))
   })
 
   it('Add writes the update and closes the popover; Cancel writes nothing', async () => {

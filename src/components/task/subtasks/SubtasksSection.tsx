@@ -1,7 +1,7 @@
-import { useId } from 'react'
+import { useId, type Ref } from 'react'
 import { subtaskCount } from '../../../utils/subtasks'
 import type { MenuEntry } from '../../shared/MenuPopover'
-import { SubtaskChecklist, type ChecklistItem } from './SubtaskChecklist'
+import { SubtaskChecklist, type ChecklistAddDraft, type ChecklistItem } from './SubtaskChecklist'
 import styles from './Subtasks.module.css'
 
 /**
@@ -11,7 +11,7 @@ import styles from './Subtasks.module.css'
  * write is the host's (the store in edit mode, the pending rows in create
  * mode, where the ⋯ menu has no Make a task / Move).
  */
-export function SubtasksSection({ items, onAdd, onRename, onSetDone, onRemove, onMove, extraMenuEntries, className, labelClassName }: {
+export function SubtasksSection({ items, onAdd, onRename, onSetDone, onRemove, onMove, extraMenuEntries, className, labelClassName, addDraftRef }: {
   items: readonly ChecklistItem[]
   onAdd: (title: string) => void
   onRename: (id: number, title: string) => void
@@ -21,6 +21,7 @@ export function SubtasksSection({ items, onAdd, onRename, onSetDone, onRemove, o
   extraMenuEntries?: (item: ChecklistItem) => MenuEntry[]
   className?: string
   labelClassName?: string
+  addDraftRef?: Ref<ChecklistAddDraft>
 }) {
   const labelId = useId()
   const count = subtaskCount(items)
@@ -47,6 +48,7 @@ export function SubtasksSection({ items, onAdd, onRename, onSetDone, onRemove, o
         onRemove={onRemove}
         onMove={onMove}
         extraMenuEntries={extraMenuEntries}
+        addDraftRef={addDraftRef}
       />
     </section>
   )

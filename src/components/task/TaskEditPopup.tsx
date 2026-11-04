@@ -27,7 +27,7 @@ import { TaskEditFooter } from './TaskEditFooter'
 import { NotesBody } from './notes/NotesBody'
 import { StatusUpdatesSection, type StatusUpdateEntry, type StatusUpdateFields } from './status-updates/StatusUpdatesSection'
 import { SubtasksSection } from './subtasks/SubtasksSection'
-import type { ChecklistItem } from './subtasks/SubtaskChecklist'
+import type { ChecklistAddDraft, ChecklistItem } from './subtasks/SubtaskChecklist'
 import { useSubtasks, useSubtaskStore } from '../../stores/subtask-store'
 import { storedSubtaskMenuEntries } from './subtasks/subtask-menu'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
@@ -527,20 +527,29 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }
 
+  // The add row's line typed and not added yet goes with the task.
+  const subtaskDraftRef = useRef<ChecklistAddDraft>(null)
+
   // A create in flight: a second Create / Enter waits for it.
   const creatingRef = useRef(false)
   const handleCreate = async () => {
     if (props.mode !== 'create' || !title.trim() || creatingRef.current) return
     // A person / tag picked from the title's Create row is saved first, so the token names it.
     if (ac.creating()) await ac.whenCreated()
+    const typedSubtask = subtaskDraftRef.current?.take() ?? ''
+    const subtasksToCreate = typedSubtask === ''
+      ? pendingSubtasks
+      : [...pendingSubtasks, { id: Math.max(0, ...pendingSubtasks.map((s) => s.id)) + 1, title: typedSubtask, isCompleted: false }]
+    // Kept as a row, should the create fail and the editor stay open.
+    if (typedSubtask !== '') setPendingSubtasks(subtasksToCreate)
     const partial: EditorTaskFields = {
       title: title.trim(),
       notes: notesSession.text() || undefined,
       ...(pendingUpdates.length > 0
         ? { statusUpdates: pendingUpdates.map(({ date, text, createdAt }) => ({ date, text, createdAt })) }
         : {}),
-      ...(pendingSubtasks.length > 0
-        ? { subtasks: pendingSubtasks.map(({ title, isCompleted }) => ({ title, isCompleted })) }
+      ...(subtasksToCreate.length > 0
+        ? { subtasks: subtasksToCreate.map(({ title, isCompleted }) => ({ title, isCompleted })) }
         : {}),
       statusId,
       dueDate: deadline ?? undefined,
@@ -567,6 +576,62 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       creatingRef.current = false
     }
     onClose()
+  }
+
+  // Create mode: what the form holds, to tell whether Esc or the backdrop would lose anything.
+  const createFormState = (formTitle: string) => JSON.stringify({
+    title: formTitle.trim(),
+    statusId,
+    due: deadline?.getTime(),
+    next: draftNextFollowup?.getTime(),
+    last: draftLastFollowup?.getTime(),
+    urgent: draftUrgent,
+    important: draftImportant,
+    focus: draftFocus,
+    recurrenceType,
+    people: [...pendingPersonIds].sort((a, b) => a - b),
+    tags: [...pendingTagIds].sort((a, b) => a - b),
+    updates: pendingUpdates.map((u) => [u.date.getTime(), u.text]),
+    subtasks: pendingSubtasks.map((s) => [s.title, s.isCompleted]),
+  })
+  // A title handed over from Quick Add was typed; a draft's title (a note line) is where it starts.
+  const [openingForm] = useState(() => createFormState(seed ? title : ''))
+  const askingToCloseRef = useRef(false)
+  /** Esc / the backdrop. In create mode, anything to lose asks first; Cancel is the plain `onClose`. */
+  const requestClose = () => {
+    const dirty = !isEdit && (
+      createFormState(title) !== openingForm
+      || notesSession.text() !== (seed?.notes ?? '')
+      || (subtaskDraftRef.current?.peek() ?? '') !== ''
+    )
+    if (!dirty) {
+      onClose()
+      return
+    }
+    if (askingToCloseRef.current) return
+    askingToCloseRef.current = true
+    const ui = useUIStore.getState()
+    const answer = title.trim() === ''
+      ? ui.askConfirmation({
+        title: 'Discard this new task?',
+        message: 'It has no title yet, so it can’t be created.',
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+        danger: true,
+        cancelIsDefault: true,
+      }).then((discard) => (discard ? 'discard' as const : 'cancel' as const))
+      : ui.askChoice({
+        title: isDraft ? 'Keep this draft?' : 'Keep this new task?',
+        message: isDraft ? 'Your changes to it haven’t been saved.' : 'It hasn’t been created yet.',
+        confirmLabel: isDraft ? 'Save draft' : 'Create task',
+        discardLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+      })
+    void answer.then((picked) => {
+      askingToCloseRef.current = false
+      if (picked === 'discard') onClose()
+      else if (picked === 'confirm') void handleCreate()
+    })
   }
 
   const handleCreatePerson = onCreatePerson ? async (name: string) => {
@@ -659,7 +724,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     // press, focus in / kept inside / back to the opener, no app shortcuts
     // inside; stacked above a dialog when `nested`.
     <DialogFrame
-      onClose={onClose}
+      onClose={requestClose}
       layer={nested ? 'raised' : 'overlay'}
       className={styles.card}
       backdropClassName={`${styles.backdrop} ${nested ? styles.backdropNested : ''}`}
@@ -806,6 +871,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onRemove={handleRemoveSubtask}
             onMove={handleMoveSubtask}
             extraMenuEntries={isEdit ? storedSubtaskMenuEntries : undefined}
+            addDraftRef={subtaskDraftRef}
             className={styles.notesSection}
             labelClassName={styles.notesLabel}
           />

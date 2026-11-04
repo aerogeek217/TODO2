@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { STATUS_UPDATE_TEXT_MAX, type PersistedTodoItem, type StatusUpdate } from '../../../models'
+import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { usePopoverAnchor, type PopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useFollowupInput, NEXT_FOLLOWUP_PLACEHOLDER } from '../../../hooks/use-followup-input'
 import { useSelectAllOnFocus } from '../../../hooks/use-select-all-on-focus'
@@ -117,16 +118,23 @@ function sameDay(a: Date | null, b: Date | null): boolean {
  * — its button, or ⏎ in the line — also adds that entry, dated today, in
  * the same undo step; empty, nothing else changes. Focusing the field (click, Tab) selects its text,
  * so typing replaces it. ⏎ in the field (when it differs from now), a
- * picked day or a quick button sets the next follow-up only; the field's ×
- * empties it. **Neither that nor Mark followed up closes the popover** — the
+ * picked day or a quick button sets the next follow-up only. The field's ×
+ * clears it at once and the field stays empty — it doesn't fill back up with
+ * the automatic date, so Mark followed up leaves none — (over a mixed
+ * selection's typed text, it only erases that: each task keeps its own).
+ * **Neither a date nor Mark followed up closes the popover** — the
  * two are often done together: after a date, focus goes to Mark followed up
  * (to the field when that is already done today); after Mark followed up, to
  * the field with its text selected, and the Status update line empties. So
  * ⏎ ⏎ records and closes, `2w` ⏎ ⏎ ⏎ sets, records and closes: ⏎ in a field
- * that says what there is now closes, as Esc and an outside click do, without
- * change. On close, focus goes back to what had it before (the trigger)
- * unless something else took it. A wheel or touch scroll outside closes it;
- * the list moving under it (a row just left it) doesn't.
+ * that says what there is now closes. **However it closes, what was typed
+ * sticks**: a date in the field is set, a Status update line is Mark followed
+ * up with that entry (the notes popover's Status line does the same). Text
+ * that isn't a date keeps it open, its error asking to close again; a second
+ * Esc or outside click then drops that text. On close, focus goes back to
+ * what had it before (the trigger) unless something else took it. A wheel or
+ * touch scroll outside closes it; the list moving under it (a row just left
+ * it) doesn't.
  */
 export function FollowupPopover({
   todo, anchor, triggerRef, onClose, onSetNext, onFollowedUp, followedUpToday, current: currentProp, initialFocus = 'followedUp',
@@ -146,6 +154,8 @@ export function FollowupPopover({
   const kept = !mixed && current !== null && ruled === current
   // A date today or past that Mark followed up replaces: said under the field.
   const was = !mixed && current !== null && !kept ? current : null
+  // Close asked for over text that isn't a date: held once, saying so.
+  const [closeHeld, setCloseHeld] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
   const followedUpRef = useRef<HTMLButtonElement>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
@@ -153,10 +163,18 @@ export function FollowupPopover({
   const input = useFollowupInput(ruled ?? undefined, 'next', today)
   // The field holds a proposal the user usually replaces: focus selects it.
   const selectOnFocus = useSelectAllOnFocus()
+  const requestClose = () => {
+    if (input.state.kind === 'invalid' && !closeHeld) {
+      setCloseHeld(true)
+      inputRef.current?.focus()
+      return
+    }
+    onClose()
+  }
   const { panelRef, style, caret } = usePopoverAnchor({
     anchor,
     open: true,
-    onClose,
+    onClose: requestClose,
     caret: true,
     closeOnScroll: 'user',
     extraInsideRefs: triggerRef ? [triggerRef] : undefined,
@@ -211,8 +229,21 @@ export function FollowupPopover({
 
   const apply = (date: Date | null) => {
     onSetNext(date)
-    input.settle(date)
+    // Cleared: the field stays empty, not back on the automatic date.
+    if (date) input.settle(date)
+    else input.change('')
     setFocusAfter({ to: doneToday ? 'next' : 'followedUp' })
+  }
+
+  /** ×: no next follow-up, at once — how the popover then closes doesn't matter. */
+  const clearNext = () => {
+    if (mixed) {
+      input.reset()
+    } else {
+      input.change('')
+      if (current !== null) onSetNext(null)
+    }
+    inputRef.current?.focus()
   }
 
   const s = input.state
@@ -238,10 +269,19 @@ export function FollowupPopover({
     const next = untouched ? undefined : fieldDate
     if (hasUpdate) onFollowedUp(next, update)
     else onFollowedUp(next)
-    if (!untouched) input.settle(fieldDate)
+    if (!untouched && fieldDate) input.settle(fieldDate)
     setUpdate('')
     setFocusAfter({ to: 'next' })
   }
+
+  /** What was typed and not written yet, written as the popover goes (whatever closes it). */
+  const saveOnClose = () => {
+    const date = untouched || fieldDate === 'invalid' || (mixed && fieldDate === null) ? undefined : fieldDate
+    if (hasUpdate) onFollowedUp(date, update)
+    else if (date !== undefined && (mixed || !sameDay(date, current))) onSetNext(date)
+  }
+  const saveOnCloseRef = useLatestRef(saveOnClose)
+  useEffect(() => () => saveOnCloseRef.current(), [saveOnCloseRef])
 
   const { triggerProps: followedUpTipProps, tooltip: followedUpTip } = useTooltip(
     followedUpTooltip({ untouched, mixed, kept, fieldDate, current, proposal, today })
@@ -272,7 +312,7 @@ export function FollowupPopover({
           className={styles.input}
           value={input.text}
           placeholder={mixed && untouched ? EACH_TASKS_OWN : NEXT_FOLLOWUP_PLACEHOLDER}
-          onChange={(e) => input.change(e.target.value)}
+          onChange={(e) => { setCloseHeld(false); input.change(e.target.value) }}
           onKeyDown={handleKeyDown}
           {...selectOnFocus}
           aria-invalid={s.kind === 'invalid'}
@@ -289,10 +329,7 @@ export function FollowupPopover({
             className={styles.inputClear}
             aria-label="Clear next follow-up"
             title="Clear the date"
-            onClick={() => {
-              input.change('')
-              inputRef.current?.focus()
-            }}
+            onClick={clearNext}
           >
             &times;
           </button>
@@ -310,7 +347,8 @@ export function FollowupPopover({
             {' · '}{relativeDayPhrase(s.date, today)} · ⏎ to set
           </>
         )}
-        {s.kind === 'invalid' && <span className={styles.helpError}>{s.message}</span>}
+        {s.kind === 'invalid' && <span className={styles.helpError}>{closeHeld ? `${s.message} · close again to discard it` : s.message}</span>}
+        {s.kind === 'empty' && !mixed && current !== null && 'No next follow-up · ⏎ to clear'}
         {untouched && was && (isFollowupOverdue({ nextFollowupAt: was, isCompleted: false }, today)
           ? `Was ${formatWeekdayNumeric(was)} · overdue`
           : 'Was today')}

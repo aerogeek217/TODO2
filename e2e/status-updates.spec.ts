@@ -105,15 +105,15 @@ test('an update added in the editor shows in the row’s notes preview; Esc whil
   await add.fill('waiting on legal')
   await add.press('Enter')
   await expect(addButton).toBeFocused()
-  // Esc closes the popover only.
+  // Esc closes the popover only, and adds what was typed.
   await addButton.click()
-  await add.fill('not this')
+  await add.fill('this too')
   await page.keyboard.press('Escape')
   await expect(popover).toHaveCount(0)
   await expect(editor(page)).toBeVisible()
   await expect(addButton).toBeFocused()
   const list = editor(page).getByRole('list', { name: 'Status updates' })
-  await expect(list.locator('[data-status-update]')).toHaveText([`${mmdd()}waiting on legal`, `${mmdd(-1)}sent the draft`])
+  await expect(list.locator('[data-status-update]')).toHaveText([`${mmdd()}this too`, `${mmdd()}waiting on legal`, `${mmdd(-1)}sent the draft`])
 
   // Edit in place: Esc cancels the edit, not the editor; focus back on the entry's edit button.
   const edit = list.getByRole('button', { name: `Edit status update: ${mmdd(-1)} sent the draft` })
@@ -130,13 +130,13 @@ test('an update added in the editor shows in the row’s notes preview; Esc whil
   await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
   // Each newer than the last follow-up then: each counted as following up.
-  expect(await storedUpdates(page, 'Bare task')).toEqual([['sent the draft', true], ['waiting on legal', true]])
+  expect(await storedUpdates(page, 'Bare task')).toEqual([['sent the draft', true], ['waiting on legal', true], ['this too', false]])
 
   // The row's notes cell previews the newest.
   const cell = notesCell(taskRowByTitle(page, 'Bare task'))
   await expect(cell).toHaveAccessibleName('Edit status and notes')
   await cell.hover()
-  await expect(page.getByRole('tooltip')).toHaveText(`${mmdd()} waiting on legal`)
+  await expect(page.getByRole('tooltip')).toHaveText(`${mmdd()} this too`)
 })
 
 test('the follow-up popover’s update line: Enter marks followed up and adds the update; one Undo takes back both', async ({ page }) => {

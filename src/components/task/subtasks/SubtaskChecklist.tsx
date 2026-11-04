@@ -1,4 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react'
+import { useLatestRef } from '../../../hooks/use-latest-ref'
+import { ESCAPE_CLEARS_ATTR } from '../../../hooks/use-popover-anchor'
 import {
   DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors,
   type Announcements, type UniqueIdentifier,
@@ -6,7 +8,6 @@ import {
 import { SortableContext, sortableKeyboardCoordinates, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { SUBTASK_TITLE_MAX } from '../../../models'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../../constants'
-import { ESCAPE_CLEARS_ATTR } from '../../../hooks/use-popover-anchor'
 import { useSortableReorderHandler, useSortableRow } from '../../../hooks/use-sortable-row'
 import { subtaskTitle } from '../../../utils/subtasks'
 import { DragHandle } from '../../shared/DragHandle'
@@ -41,6 +42,16 @@ export interface SubtaskChecklistProps {
   autoFocusAdd?: boolean
   /** Rendered under the add row (a hint line). */
   footer?: ReactNode
+  /** For a host that needs the add row's unadded text (the new-task editor's Create). */
+  addDraftRef?: Ref<ChecklistAddDraft>
+}
+
+/** The add row's text, as typed and not added yet. */
+export interface ChecklistAddDraft {
+  /** The title it would add ('' when none). */
+  peek: () => string
+  /** The title, emptying the row. */
+  take: () => string
 }
 
 const ADD_PLACEHOLDER = 'Add a subtask…'
@@ -48,21 +59,28 @@ const ADD_PLACEHOLDER = 'Add a subtask…'
 /**
  * A task's checklist (cr28, T1 / T2): rows of `checkbox · title · ⋯`, then
  * an add row. Space on a checkbox checks it; a click on the title renames it
- * in place (⏎ saves, Esc cancels — the key stops there, so a dialog around
- * the list stays open; a blank title cancels too); ⋯ opens the subtask menu
- * (Rename · the host's extra items | Delete). The add row's ⏎ adds the line
- * and keeps the focus for the next; Esc in it with text clears the text
- * (`ESCAPE_CLEARS_ATTR`), empty it is the host's. With `onMove` the rows
+ * in place (⏎ or leaving saves, Esc cancels — the key stops there, so a
+ * dialog around the list stays open; a blank title cancels too); ⋯ opens the
+ * subtask menu (Rename · the host's extra items | Delete). The add row's ⏎
+ * adds the line and keeps the focus for the next; Esc in it is the host's.
+ * The checklist going away (its popover or editor closed) writes what was
+ * typed: the add row's line and a rename in progress. With `onMove` the rows
  * drag to reorder (dnd-kit, the lenses' sortable row). What the callbacks
  * write is the host's (the store in the editor's edit mode and the popover,
  * pending rows in create mode).
  */
 export function SubtaskChecklist({
-  items, density, label, onAdd, onRename, onSetDone, onRemove, onMove, extraMenuEntries, autoFocusAdd, footer,
+  items, density, label, onAdd, onRename, onSetDone, onRemove, onMove, extraMenuEntries, autoFocusAdd, footer, addDraftRef,
 }: SubtaskChecklistProps) {
   const [renaming, setRenaming] = useState<number | null>(null)
   const [menuFor, setMenuFor] = useState<number | null>(null)
-  const [draft, setDraft] = useState('')
+  const [draft, setDraftState] = useState('')
+  // Also a ref: read as the checklist goes, and written with the state, so nothing adds twice.
+  const draftRef = useRef('')
+  const setDraft = (text: string) => {
+    draftRef.current = text
+    setDraftState(text)
+  }
   const addRef = useRef<HTMLInputElement>(null)
   const moreButtons = useRef(new Map<number, HTMLButtonElement>())
   const menuAnchor = useRef<HTMLButtonElement | null>(null)
@@ -72,22 +90,28 @@ export function SubtaskChecklist({
   }, [autoFocusAdd])
 
   const add = () => {
-    const title = subtaskTitle(draft)
+    const title = subtaskTitle(draftRef.current)
     if (title === '') return
     onAdd(title)
     setDraft('')
   }
+  useImperativeHandle(addDraftRef, () => ({
+    peek: () => subtaskTitle(draftRef.current),
+    take: () => {
+      const title = subtaskTitle(draftRef.current)
+      setDraft('')
+      return title
+    },
+  }), [])
+  // Going away (its popover or editor closed): the line typed is added.
+  const addOnCloseRef = useLatestRef(add)
+  useEffect(() => () => addOnCloseRef.current(), [addOnCloseRef])
 
   const onAddKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing) return
     if (e.key === 'Enter') {
       e.preventDefault()
       add()
-    } else if (e.key === 'Escape' && draft !== '') {
-      // Clears first; the next Esc is the host's (the popover / editor closes).
-      e.preventDefault()
-      e.stopPropagation()
-      setDraft('')
     }
   }
 
@@ -185,7 +209,6 @@ export function SubtaskChecklist({
           placeholder={ADD_PLACEHOLDER}
           aria-label="New subtask"
           autoComplete="off"
-          {...{ [ESCAPE_CLEARS_ATTR]: '' }}
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={onAddKeyDown}
         />
@@ -204,7 +227,11 @@ export function SubtaskChecklist({
   )
 }
 
-/** The rename field, in the title's place: ⏎ saves, Esc cancels (and stops there), blur saves. */
+/**
+ * The rename field, in the title's place: ⏎ saves, Esc cancels (and stops
+ * there), blur saves — and so does the field going away: a popover closes on
+ * the press, before any blur.
+ */
 function RenameField({ title, onSave, onCancel, density }: {
   title: string
   onSave: (title: string) => void
@@ -226,6 +253,10 @@ function RenameField({ title, onSave, onCancel, density }: {
     if (clean === '') onCancel()
     else onSave(clean)
   }
+  const saveOnCloseRef = useLatestRef(() => {
+    if (subtaskTitle(value) !== title) save()
+  })
+  useEffect(() => () => saveOnCloseRef.current(), [saveOnCloseRef])
   return (
     <input
       ref={ref}
@@ -233,6 +264,8 @@ function RenameField({ title, onSave, onCancel, density }: {
       value={value}
       maxLength={SUBTASK_TITLE_MAX}
       aria-label="Subtask title"
+      // Esc cancels the rename here, before a popover around it would close (and save it).
+      {...{ [ESCAPE_CLEARS_ATTR]: '' }}
       autoComplete="off"
       data-density={density}
       onChange={(e) => setValue(e.target.value)}

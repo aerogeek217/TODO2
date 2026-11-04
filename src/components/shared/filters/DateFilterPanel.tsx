@@ -1,4 +1,5 @@
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { useContext, useEffect, useId, useRef, useState, type KeyboardEvent } from 'react'
+import { DatePendingNotContext, type PendingNot } from './date-pending-not'
 import type { DateAnchor, DateFilters, DateRangeMatch } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import {
@@ -151,7 +152,9 @@ export function DateFilterPanel({ dates, initialField, onChange, variant = 'popo
   // A range kept while Show is Any / None, so Calendar / Relative brings it back (never stored).
   const [hidden, setHidden] = useState<Partial<Record<DateField, HiddenRange>>>({})
   // Is not picked before the range has an end (no clause to hold it yet; never stored).
-  const [pendingNot, setPendingNot] = useState<Partial<Record<DateField, true>>>({})
+  const pendingNotMemory = useContext(DatePendingNotContext)
+  const [pendingNot, setPendingNot] = useState<PendingNot>(() => pendingNotMemory?.get() ?? {})
+  useEffect(() => { pendingNotMemory?.set(pendingNot) }, [pendingNotMemory, pendingNot])
   // Calendar / Relative per type — picked, or pinned by the first edit to the mode shown (else read
   // from the ends) — and what a switch converted (never stored). Clear forgets both: a new range again.
   const [modes, setModes] = useState<Partial<Record<DateField, DateEntryMode>>>({})
