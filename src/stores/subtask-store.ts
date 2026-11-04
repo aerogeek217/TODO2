@@ -2,11 +2,11 @@ import { create } from 'zustand'
 import { subtaskRepository, type SubtaskPatch } from '../data/subtask-repository'
 import type { PersistedSubtask, Subtask } from '../models/subtask'
 import { compareSubtasks, nextSubtaskOrder, subtaskTitle } from '../utils/subtasks'
+import { shortTitle as short } from '../utils/text'
 import { registerModuleReset } from '../utils/module-reset'
-import { loadFresh, trackWrite } from './store-helpers'
-import { completeTask, notifyTasksTouched } from './task-hooks'
+import { loadFresh, saveOrReport, trackWrite } from './store-helpers'
+import { completeTask, isTaskOpen, notifyTasksTouched } from './task-hooks'
 import { undoable } from './undoable'
-import { useUndoStore } from './undo-store'
 
 const NO_SUBTASKS: readonly PersistedSubtask[] = []
 
@@ -98,22 +98,6 @@ export function resetSubtaskLoad(): void {
   inflight = null
 }
 registerModuleReset(resetSubtaskLoad)
-
-/** Runs a write; on failure logs it, tells the user and resolves `fallback`. */
-async function saveOrReport<T>(write: () => Promise<T>, fallback: T, label: string): Promise<T> {
-  try {
-    return await trackWrite(write)
-  } catch (e) {
-    console.error(`Failed to ${label}:`, e)
-    useUndoStore.getState().notify(`Couldn't ${label}.`)
-    return fallback
-  }
-}
-
-/** Shortens a title for an undo entry's name. */
-function short(title: string): string {
-  return title.length > 40 ? `${title.slice(0, 39)}…` : title
-}
 
 export const useSubtaskStore = create<SubtaskState>((set, get) => {
   const find = (id: number): PersistedSubtask | undefined => {
@@ -245,8 +229,8 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
       const prev = find(id)
       if (!prev || prev.isCompleted === done) return false
       const siblings = get().byTodo.get(prev.todoId) ?? NO_SUBTASKS
-      // The check that finishes the checklist: the snackbar offers to complete the task.
-      const last = done && siblings.every((s) => s.id === id || s.isCompleted)
+      // The check that finishes an open task's checklist: the snackbar offers to complete the task.
+      const last = done && isTaskOpen(prev.todoId) && siblings.every((s) => s.id === id || s.isCompleted)
       const description = done ? `Check “${short(prev.title)}”` : `Uncheck “${short(prev.title)}”`
       return saveOrReport(async () => {
         const written = await write([{ id, changes: { isCompleted: done } }])

@@ -36,6 +36,13 @@ export interface TaskRowPickersOptions {
   useFallbackPeopleAnchor?: boolean
   /** How the checklist opens from the row's count: a popover under it (default), or the phone's bottom sheet. */
   subtasksPanel?: 'popover' | 'sheet'
+  /**
+   * Where the checklist popover opens when the row shows no count to anchor
+   * it (`useFallbackSubtasksAnchor`: a task without a checklist, from the
+   * menu's Add subtask…): the row. A click there is outside, so it closes it.
+   */
+  fallbackSubtasksAnchorRef?: RefObject<HTMLElement | null>
+  useFallbackSubtasksAnchor?: boolean
 }
 
 /**
@@ -48,7 +55,7 @@ export interface TaskRowPickersOptions {
  */
 export function useTaskRowPickers({
   todo, assignedPeople, ghost = false, onOpenDetail, peoplePickerClassName, fallbackPeopleAnchorRef, useFallbackPeopleAnchor = false,
-  subtasksPanel = 'popover',
+  subtasksPanel = 'popover', fallbackSubtasksAnchorRef, useFallbackSubtasksAnchor = false,
 }: TaskRowPickersOptions) {
   const { bulk, handleToggleComplete, handleSetMarker, handleDelete } = useTaskRowActions({ todo })
   const allPeople = usePersonStore((s) => s.people)
@@ -153,6 +160,7 @@ export function useTaskRowPickers({
   }
 
   const peopleAnchor = useFallbackPeopleAnchor && fallbackPeopleAnchorRef ? fallbackPeopleAnchorRef : peopleRef
+  const subtasksAnchor = useFallbackSubtasksAnchor && fallbackSubtasksAnchorRef ? fallbackSubtasksAnchorRef : subtasksRef
   const panels: ReactNode = ghost ? null : (
     <>
       {peopleOpen && (
@@ -189,7 +197,14 @@ export function useTaskRowPickers({
       {subtasksOpen && (subtasksPanel === 'sheet'
         ? <SubtasksSheet todo={todo} onClose={closeSubtasks} />
         : createPortal(
-          <SubtasksPopover todo={todo} anchorRef={subtasksRef} onClose={closeSubtasks} onOpenDetail={onOpenDetail} focusAdd={subtasksOpen === 'add'} />,
+          <SubtasksPopover
+            todo={todo}
+            anchorRef={subtasksAnchor}
+            anchorIsInside={subtasksAnchor === subtasksRef}
+            onClose={closeSubtasks}
+            onOpenDetail={onOpenDetail}
+            focusAdd={subtasksOpen === 'add'}
+          />,
           document.body,
         ))}
     </>

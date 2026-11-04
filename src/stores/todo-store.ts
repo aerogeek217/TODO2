@@ -12,7 +12,7 @@ import { useStatusUpdateStore } from './status-update-store'
 import { statusUpdateRepository } from '../data/status-update-repository'
 import { useSubtaskStore } from './subtask-store'
 import { subtaskRepository } from '../data/subtask-repository'
-import { onTasksTouched, registerCompleteTask } from './task-hooks'
+import { onTasksTouched, registerCompleteTask, registerTaskOpen } from './task-hooks'
 import { compareSubtasks } from '../utils/subtasks'
 import { takeSafetySnapshot } from './safety-snapshot'
 import { usePersonStore } from './person-store'
@@ -438,7 +438,9 @@ export const useTodoStore = create<TodoState>((set, get) => {
           set({ todos: get().todos.map((t) => (t.id === id ? { ...t, ...changes, modifiedAt: at } : t)) })
         }
         const now = new Date()
-        return asOneStep(description, async () => {
+        // A checklist with done lines starts over, in the same step; without one the advance is the step.
+        const resets = (useSubtaskStore.getState().byTodo.get(id) ?? []).some((s) => s.isCompleted)
+        const run = async () => {
           await optimistic(
             () => set({
               todos: get().todos.map((t) =>
@@ -459,8 +461,9 @@ export const useTodoStore = create<TodoState>((set, get) => {
               showSnackbar: true,
             },
           )
-          await useSubtaskStore.getState().resetDone(id)
-        })
+          if (resets) await useSubtaskStore.getState().resetDone(id)
+        }
+        return resets ? asOneStep(description, run) : run()
       }
     }
 
@@ -654,11 +657,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
         showSnackbar: true,
       },
     ))
-    if (recurringAdvances.length === 0) return write()
-    // The recurring tasks' checklists start over, in the same undo step.
+    // The recurring tasks' checklists with done lines start over, in the same undo step.
+    const byTodo = useSubtaskStore.getState().byTodo
+    const resets = recurringAdvances.map((r) => r.id).filter((id) => (byTodo.get(id) ?? []).some((s) => s.isCompleted))
+    if (resets.length === 0) return write()
     return asOneStep(description, async () => {
       await write()
-      for (const r of recurringAdvances) await useSubtaskStore.getState().resetDone(r.id)
+      for (const id of resets) await useSubtaskStore.getState().resetDone(id)
     })
   },
 
@@ -999,4 +1004,8 @@ onTasksTouched((todoIds, at) => {
 registerCompleteTask(async (todoId) => {
   const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
   if (todo && !todo.isCompleted) await useTodoStore.getState().toggleComplete(todoId)
+})
+registerTaskOpen((todoId) => {
+  const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
+  return todo !== undefined && !todo.isCompleted
 })

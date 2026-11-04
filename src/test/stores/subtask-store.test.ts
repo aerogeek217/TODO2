@@ -141,6 +141,18 @@ describe('subtask-store: rename and check', () => {
   })
 })
 
+describe('subtask-store: the Complete task offer', () => {
+  it('is not made on a completed task, nor on one the task store does not hold', async () => {
+    const id = await checklist(['a'])
+    await useTodoStore.getState().toggleComplete(id)
+    useUndoStore.getState().clear()
+    const [a] = useSubtaskStore.getState().byTodo.get(id) ?? []
+    expect(await useSubtaskStore.getState().setDone(a!.id, true)).toBe(true)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+    expect(useUndoStore.getState().undoStack.at(-1)?.action).toBeUndefined()
+  })
+})
+
 describe('subtask-store: order', () => {
   it('move puts a subtask at an index, writing only the rows whose place changed; undo puts the order back', async () => {
     const id = await checklist(['a', 'b', 'c', 'd'])

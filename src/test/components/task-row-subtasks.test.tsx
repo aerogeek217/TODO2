@@ -3,7 +3,7 @@
 // popover, whose checks write through the store (the count follows); Esc
 // closes it and hands the focus back to the count. The phone row's chip opens
 // the sheet.
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
@@ -98,6 +98,24 @@ describe('TaskRow — the subtask count', () => {
     expect((await db.subtasks.where('todoId').equals(1).sortBy('sortOrder')).map((s) => s.title)).toEqual(['a', 'b'])
     expect(count()).toHaveTextContent('1/2')
     expect(within(popover()).getAllByRole('listitem').map((li) => li.textContent)).toEqual(['a', 'b'])
+  })
+})
+
+describe('TaskRow — Add subtask… without a checklist', () => {
+  it('opens the popover at the row on its add field; the first subtask makes the count appear', async () => {
+    await seed([])
+    render(<TaskRow todo={todo()} />)
+    fireEvent.contextMenu(document.querySelector('[data-todo-id]')!, { clientX: 40, clientY: 20 })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add subtask…' }))
+    const dialog = popover()
+    const add = within(dialog).getByRole('textbox', { name: 'New subtask' })
+    expect(document.activeElement).toBe(add)
+    // Placed by the anchor hook, at the row (never at its off-screen start).
+    expect(dialog.style.position).toBe('fixed')
+    fireEvent.change(add, { target: { value: 'First line' } })
+    await act(async () => { fireEvent.keyDown(add, { key: 'Enter' }) })
+    await vi.waitFor(() => expect(count()).toHaveTextContent('0/1'))
+    expect((await db.subtasks.where('todoId').equals(1).toArray()).map((s) => s.title)).toEqual(['First line'])
   })
 })
 

@@ -29,6 +29,7 @@ export function notifyTasksTouched(todoIds: Iterable<number>, at: Date): void {
 }
 
 let completeTaskHandler: ((todoId: number) => Promise<void>) | null = null
+let taskOpenHandler: ((todoId: number) => boolean) | null = null
 
 /** Registers how a task is completed (the task store's `toggleComplete`), for the offer a checklist's last check makes. */
 export function registerCompleteTask(handler: (todoId: number) => Promise<void>): void {
@@ -38,4 +39,14 @@ export function registerCompleteTask(handler: (todoId: number) => Promise<void>)
 /** Completes the task `todoId` through the registered handler (nothing before the task store loads). */
 export function completeTask(todoId: number): Promise<void> {
   return completeTaskHandler ? completeTaskHandler(todoId) : Promise.resolve()
+}
+
+/** Registers how to tell whether a task is open (the task store's rows), for the offer to be made only then. */
+export function registerTaskOpen(handler: (todoId: number) => boolean): void {
+  taskOpenHandler = handler
+}
+
+/** Whether the task `todoId` is loaded and open (false before the task store registers). */
+export function isTaskOpen(todoId: number): boolean {
+  return taskOpenHandler ? taskOpenHandler(todoId) : false
 }

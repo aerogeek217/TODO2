@@ -47,6 +47,8 @@ export async function refreshAllStores() {
   // name other rows.
   useUIStore.getState().clearSelection()
   useUIStore.getState().closeEditPopup()
+  // The task picker names a task or a subtask by id too.
+  useUIStore.getState().closeTaskPicker()
   // Edit list names a list and a tab by id.
   useUIStore.getState().closeListEditor()
   // Note text typed before the replace would be saved over the new note.

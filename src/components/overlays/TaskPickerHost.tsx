@@ -32,7 +32,7 @@ function OpenTaskPicker({ request }: { request: TaskPickerRequest }) {
   })
   // What it was asked for is gone (deleted meanwhile): nothing to pick for.
   const gone = request.kind === 'make-subtask' ? !todo : !subtask
-  useEffect(() => { if (gone) close() }, [gone])
+  useEffect(() => { if (gone) useUIStore.getState().closeTaskPicker() }, [gone])
   const excludeIds = useMemo(
     () => new Set([request.kind === 'make-subtask' ? request.todoId : (subtask?.todoId ?? -1)]),
     [request, subtask?.todoId],

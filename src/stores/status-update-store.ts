@@ -4,10 +4,9 @@ import type { PersistedStatusUpdate, StatusUpdate } from '../models/status-updat
 import { startOfToday } from '../utils/date'
 import { compareStatusUpdates, statusUpdateDay, statusUpdateText } from '../utils/status-updates'
 import { registerModuleReset } from '../utils/module-reset'
-import { loadFresh, trackWrite } from './store-helpers'
-import { notifyTasksTouched, onTasksTouched } from './task-hooks'
+import { loadFresh, saveOrReport, trackWrite } from './store-helpers'
+import { notifyTasksTouched } from './task-hooks'
 import { undoable } from './undoable'
-import { useUndoStore } from './undo-store'
 
 const NO_UPDATES: readonly PersistedStatusUpdate[] = []
 
@@ -22,7 +21,7 @@ export interface NewStatusUpdate {
  * Every task's status updates (`statusUpdates`), loaded once, each task's
  * newest first (`compareStatusUpdates`). Every write saves at once and is
  * its own undo step, and counts as activity on its task: it stamps the
- * task's `modifiedAt` (the task store follows through `onTasksTouched`). A write never rejects: a failure is logged, the
+ * task's `modifiedAt` (the task store follows through `task-hooks.onTasksTouched`). A write never rejects: a failure is logged, the
  * snackbar says so, and it resolves as "nothing written" (`undefined` /
  * `false`). Text is stored as one trimmed line (`statusUpdateText`) — a
  * blank one is refused (no write) — and a date after today as today.
@@ -86,9 +85,6 @@ function group(rows: readonly PersistedStatusUpdate[]): Map<number, readonly Per
   return withRows(new Map(), rows)
 }
 
-/** The task store subscribes here (`stores/task-hooks`), as it did before the subtask store shared the listeners. */
-export { onTasksTouched }
-
 /** The stamp for a write touching `rows`' tasks, told to the listeners once it is stored. */
 function touched(rows: readonly Pick<StatusUpdate, 'todoId'>[], at: Date): void {
   notifyTasksTouched(rows.map((r) => r.todoId), at)
@@ -104,17 +100,6 @@ export function resetStatusUpdateLoad(): void {
   inflight = null
 }
 registerModuleReset(resetStatusUpdateLoad)
-
-/** Runs a write; on failure logs it, tells the user and resolves `fallback`. */
-async function saveOrReport<T>(write: () => Promise<T>, fallback: T, label: string): Promise<T> {
-  try {
-    return await trackWrite(write)
-  } catch (e) {
-    console.error(`Failed to ${label}:`, e)
-    useUndoStore.getState().notify(`Couldn't ${label}.`)
-    return fallback
-  }
-}
 
 export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
   const find = (id: number): PersistedStatusUpdate | undefined => {

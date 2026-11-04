@@ -21,9 +21,11 @@ import styles from './Subtasks.module.css'
  * count, unless something else took it. Every write goes through the
  * subtask store (its own undo step each).
  */
-export function SubtasksPopover({ todo, anchorRef, onClose, onOpenDetail, focusAdd = false, extraMenuEntries = storedSubtaskMenuEntries }: {
+export function SubtasksPopover({ todo, anchorRef, anchorIsInside = true, onClose, onOpenDetail, focusAdd = false, extraMenuEntries = storedSubtaskMenuEntries }: {
   todo: PersistedTodoItem
   anchorRef: RefObject<HTMLElement | null>
+  /** `false` when the anchor isn't the count (the row, for a task without a checklist): a click on it closes the popover. */
+  anchorIsInside?: boolean
   onClose: () => void
   onOpenDetail?: (todoId: number) => void
   focusAdd?: boolean
@@ -42,6 +44,7 @@ export function SubtasksPopover({ todo, anchorRef, onClose, onOpenDetail, focusA
     closeOnResize: false,
     consumeEscape: true,
     observeSize: true,
+    anchorIsInside,
     onClose,
     caret: true,
   })
@@ -53,6 +56,8 @@ export function SubtasksPopover({ todo, anchorRef, onClose, onOpenDetail, focusA
   // Remember what had the focus (the count), then focus the first open
   // subtask's checkbox — or the add field.
   const wantsAdd = focusAdd || subtasks.length === 0 || count.done === count.total
+  // As it was on open: the effect runs once, the checklist's later changes don't move the focus.
+  const wantsAddOnOpen = useRef(wantsAdd)
   useLayoutEffect(() => {
     const previous = document.activeElement
     if (previous instanceof HTMLElement && previous !== document.body && !containerRef.current?.contains(previous)) {
@@ -60,12 +65,10 @@ export function SubtasksPopover({ todo, anchorRef, onClose, onOpenDetail, focusA
     } else if (anchorRef.current) {
       returnFocusRef.current = anchorRef.current
     }
-    if (wantsAdd) return
+    if (wantsAddOnOpen.current) return
     const first = containerRef.current?.querySelector<HTMLInputElement>('input[type="checkbox"]:not(:checked)')
     first?.focus({ preventScroll: true })
-    // Once, on open.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [anchorRef])
   useLayoutEffect(() => {
     const container = containerRef.current
     return () => {

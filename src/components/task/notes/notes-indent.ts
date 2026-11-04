@@ -1,6 +1,6 @@
 import { Prec, StateEffect, StateField, type Extension } from '@codemirror/state'
 import { keymap, type Command } from '@codemirror/view'
-import { selectionLines, type LineRange, type TextChange } from '../../../services/note-lines'
+import { lineAt, lineStarts, selectionLines, type LineRange, type TextChange } from '../../../services/note-lines'
 import { notesPopupField } from './notes-nlp'
 
 /**
@@ -23,20 +23,6 @@ const LIST_LINE_RE = /^\s*(?:[-*•](?:\s+\[[ xX]\])?|\[[ xX]\]|\d+[.)])(?:\s|$)
 
 export function isListLine(text: string): boolean {
   return LIST_LINE_RE.test(text)
-}
-
-/** Offsets where each line of `text` starts. */
-function lineStarts(text: string): number[] {
-  const starts = [0]
-  for (let i = 0; i < text.length; i++) if (text[i] === '\n') starts.push(i + 1)
-  return starts
-}
-
-/** The 1-based line holding offset `pos`. */
-function lineAt(starts: readonly number[], pos: number): number {
-  let n = 1
-  while (n < starts.length && (starts[n] ?? Infinity) <= pos) n++
-  return n
 }
 
 /** The lines a selection touches — the caret's line when it is empty. */

@@ -10,6 +10,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { getFilterDefaults } from '../../../utils/filter-defaults'
 import { startOfToday } from '../../../utils/date'
+import { shortTitle } from '../../../utils/text'
 import {
   applyTextChanges,
   convertCandidates,
@@ -72,7 +73,7 @@ export function noteNameOf(text: string): string | null {
   const first = text.split('\n').find((l) => l.trim() !== '')
   const name = first === undefined ? undefined : headingText(first)?.trim()
   if (!name) return null
-  return name.length > 40 ? `${name.slice(0, 39)}…` : name
+  return shortTitle(name)
 }
 
 const SPACE = /\s/

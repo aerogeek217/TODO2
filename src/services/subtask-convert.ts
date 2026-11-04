@@ -8,6 +8,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore, type UndoGroupToken } from '../stores/undo-store'
 import { formatDateNumeric } from '../utils/date'
+import { shortTitle as short } from '../utils/text'
 import { compareSubtasks } from '../utils/subtasks'
 
 /**
@@ -23,11 +24,6 @@ import { compareSubtasks } from '../utils/subtasks'
  *   every new task gets (Settings' default status and next follow-up). One
  *   undo step takes both back.
  */
-
-/** Shortens a title for an undo entry's name or a prompt. */
-function short(title: string): string {
-  return title.length > 40 ? `${title.slice(0, 39)}…` : title
-}
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
 

@@ -84,6 +84,9 @@ export const TaskRow = memo(function TaskRow({
   const markersRef = useRef<HTMLButtonElement>(null)
   useTaskRowTracks(rowRef)
   const tagsRef = useRef<HTMLButtonElement>(null)
+  // The checklist's `2/5` after the title (cr28): the row re-renders when the task's checklist changes.
+  const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
+  const count = subtasks && subtasks.length > 0 ? subtaskCount(subtasks) : null
 
   const {
     bulk, handleToggleComplete, assignedTags, allTags, tagPickerOpen, toggleTagPicker, closeTagPicker, toggleTag, createTag,
@@ -99,13 +102,13 @@ export const TaskRow = memo(function TaskRow({
     // With its column removed, the people picker (Assign people…) opens at the row.
     fallbackPeopleAnchorRef: rowRef,
     useFallbackPeopleAnchor: !hasPeople,
+    // Without a checklist there is no count: the popover (Add subtask…) opens at the row.
+    fallbackSubtasksAnchorRef: rowRef,
+    useFallbackSubtasksAnchor: count === null,
   })
 
   // The notes cell's first line (the row re-renders only when the task's newest changes).
   const newestUpdate = useStatusUpdateStore((s) => newestStatusUpdate(todo.id, s.byTodo))
-  // The checklist's `2/5` after the title (cr28): the row re-renders when the task's checklist changes.
-  const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
-  const count = subtasks && subtasks.length > 0 ? subtaskCount(subtasks) : null
 
   const statuses = useStatusStore((s) => s.statuses)
   const status = useMemo(() => {

@@ -121,14 +121,14 @@ export function singleLineCandidate(text: string, line: number): ConvertLine | n
 }
 
 /** Offsets where each line of `text` starts. */
-function lineStarts(text: string): number[] {
+export function lineStarts(text: string): number[] {
   const starts = [0]
   for (let i = 0; i < text.length; i++) if (text[i] === '\n') starts.push(i + 1)
   return starts
 }
 
 /** The 1-based line holding offset `pos`. */
-function lineAt(starts: readonly number[], pos: number): number {
+export function lineAt(starts: readonly number[], pos: number): number {
   let lo = 0
   let hi = starts.length - 1
   while (lo < hi) {
