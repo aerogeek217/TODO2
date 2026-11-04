@@ -1,7 +1,7 @@
 import type { Person, PersistedTodoItem } from '../../../models'
 import { buildCheckinEmail, type CheckinEmail } from '../../../services/checkin-email/build'
 import { parseCheckinReply, type ParsedCheckinReply, type CheckinReplyInput } from '../../../services/checkin-reply/parse'
-import { checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
+import { checkinSampleStatusUpdates, checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
 import { makePerson } from '../../helpers'
 
 export const SENT_AT = new Date(2026, 9, 12, 9, 14)
@@ -16,7 +16,11 @@ export function sampleEmail(
   return buildCheckinEmail(
     opts.person ?? marcus,
     { overdue: first ? [first] : [], comingUp: rest },
-    { today: new Date(2026, 9, 12), assignedPeopleMap: new Map(todos.map((t) => [t.id, [marcus]])) },
+    {
+      today: new Date(2026, 9, 12),
+      assignedPeopleMap: new Map(todos.map((t) => [t.id, [marcus]])),
+      statusUpdatesByTodo: checkinSampleStatusUpdates(),
+    },
     { includeNotes: opts.includeNotes ?? true, includeOthers: true, sentAt: opts.sentAt ?? SENT_AT },
   )
 }
@@ -27,7 +31,7 @@ export function parse(input: CheckinReplyInput): ParsedCheckinReply {
   return result.reply
 }
 
-export type FieldLabel = 'Completed:' | 'Progress:' | 'Notes:'
+export type FieldLabel = 'Completed:' | 'Status:' | 'Notes:'
 
 /** The email HTML with one update cell (by task ref and label) replaced by `cellHtml`. */
 export function editHtml(html: string, ref: string, label: FieldLabel, cellHtml: string): string {

@@ -11,7 +11,7 @@
  * or tags not loaded yet — it opens the dialog for that person instead, with
  * the reason in its status line.
  */
-import type { PersistedPerson, PersistedTodoItem, Person, Status, Tag } from '../../models'
+import type { PersistedPerson, PersistedTodoItem, Person, Status, StatusUpdate, Tag } from '../../models'
 import { startOfToday } from '../../utils/date'
 import { isNoCheckinFilter, type CheckinOpenMethod, type CheckinTaskFilter } from '../../utils/checkin-settings'
 import type { FilterSettings } from '../../utils/filter-match'
@@ -21,6 +21,7 @@ import { currentFilterSettings, useSettingsStore } from '../../stores/settings-s
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { buildCheckinEmail, type CheckinEmail } from './build'
@@ -64,7 +65,10 @@ export function prepareCheckin(
   const email = buildCheckinEmail(
     person,
     sections,
-    { today: ctx.today, assignedPeopleMap: ctx.assignedPeopleMap, assignedTagsMap: ctx.assignedTagsMap, refOf: ctx.refOf },
+    {
+      today: ctx.today, assignedPeopleMap: ctx.assignedPeopleMap, assignedTagsMap: ctx.assignedTagsMap,
+      refOf: ctx.refOf, statusUpdatesByTodo: ctx.statusUpdatesByTodo,
+    },
     { ...include, sentAt },
   )
   return { email, taskIds: [...sections.overdue, ...sections.comingUp].map((t) => t.id) }
@@ -77,6 +81,8 @@ export interface CheckinContextSources {
   assignedPeopleMap: ReadonlyMap<number, readonly Person[]>
   assignedTagsMap: ReadonlyMap<number, readonly Tag[]>
   statuses: readonly Status[]
+  /** Each task's status updates (the filter's text search reads them). */
+  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
   filterSettings: FilterSettings
 }
 
@@ -100,6 +106,7 @@ function currentCheckinSources(): CheckinContextSources {
     assignedPeopleMap: usePersonStore.getState().assignedPeopleMap,
     assignedTagsMap: useTagStore.getState().assignedTagsMap,
     statuses: useStatusStore.getState().statuses,
+    statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo,
     filterSettings: currentFilterSettings(),
   }
 }

@@ -79,10 +79,11 @@ test('a row opens the editor on top; Esc in the editor closes only the editor', 
   await dialogRow(page, 'Plan the offsite').locator('span[data-task-title="Plan the offsite"]').click()
   await expect(editor(page)).toBeVisible()
   // The editor is on top: its fields take clicks over the dialog.
-  const progress = page.getByPlaceholder('e.g. 50% done, Waiting on review...')
-  await progress.click()
-  await progress.fill('Room booked')
-  // Esc leaves the field, then closes the editor — never the dialog.
+  await page.getByRole('button', { name: '+ Add update' }).click()
+  const update = page.getByRole('textbox', { name: 'New status update', exact: true })
+  await update.click()
+  await update.fill('Room booked')
+  // Esc closes the Add update popover, then the editor — never the dialog.
   for (let i = 0; i < 3 && await editor(page).isVisible(); i++) {
     await page.keyboard.press('Escape')
     await expect(dialog(page)).toBeVisible()
@@ -149,8 +150,8 @@ test('a row’s status menu and notes popover open above the task dialog', async
   await page.getByRole('button', { name: 'Waiting' }).click()
   await expect(row.getByRole('button', { name: 'Status: Waiting' })).toBeVisible()
 
-  await row.getByRole('button', { name: 'Edit progress and notes' }).click()
-  const notes = page.getByRole('dialog', { name: 'Progress and notes' })
+  await row.getByRole('button', { name: 'Edit status and notes' }).click()
+  const notes = page.getByRole('dialog', { name: 'Status and notes' })
   await notes.getByText('Ask about the boiler').click()
   await page.keyboard.press('End')
   await page.keyboard.type(' today')

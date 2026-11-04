@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
-import { groupTodosByTextMatch, matchTodoText, toggleItem } from '../../utils/filter'
+import { groupTodosByTextMatch, matchTodoText, textMatchContextFor, toggleItem } from '../../utils/filter'
+import { matchesFilterWithLookups } from '../../utils/filter-match'
+import { emptyFilterCriteria, makeTodo } from '../helpers'
+import { DEFAULT_HOT_RULE } from '../../utils/hot'
 
 describe('matchTodoText', () => {
   it('returns matched=true with no fields for empty query', () => {
@@ -27,6 +30,13 @@ describe('matchTodoText', () => {
     })
     expect(r.matched).toBe(true)
     expect(r.fields).toEqual(['title', 'notes', 'person', 'tag'])
+  })
+
+  it('matches the task’s status updates via ctx, as their own field, after notes', () => {
+    const todo = { title: 'Budget', notes: 'numbers' }
+    expect(matchTodoText(todo, 'slack', { statusUpdateTexts: ['Pinged on Slack', 'Waiting'] }).fields).toEqual(['statusUpdate'])
+    expect(matchTodoText(todo, 'num', { statusUpdateTexts: ['Numbers by Friday'] }).fields).toEqual(['notes', 'statusUpdate'])
+    expect(matchTodoText(todo, 'slack').matched).toBe(false)
   })
 
   it('matches on person / status via ctx', () => {
@@ -125,7 +135,34 @@ describe('groupTodosByTextMatch', () => {
 
   it('returns all-empty groups for an empty query', () => {
     const g = groupTodosByTextMatch([{ id: 1, title: 'a', isCompleted: false }], '', ctxFor)
-    expect(Object.keys(g)).toEqual(['title', 'notes', 'person', 'status', 'tag'])
+    expect(Object.keys(g)).toEqual(['title', 'notes', 'statusUpdate', 'person', 'status', 'tag'])
     expect(Object.values(g).every((arr) => arr.length === 0)).toBe(true)
+  })
+})
+
+describe('status updates in the text search', () => {
+  const entry = (todoId: number, text: string) => ({ id: todoId * 10, todoId, date: new Date(2026, 9, 5), text, createdAt: new Date(2026, 9, 5, 9) })
+  const statusUpdatesByTodo = new Map([[1, [entry(1, 'Pinged on Slack'), entry(1, 'Asked Ben')]]])
+
+  it('textMatchContextFor reads the task’s entry texts from the lookups', () => {
+    expect(textMatchContextFor({ id: 1 }, { statusUpdatesByTodo }).statusUpdateTexts).toEqual(['Pinged on Slack', 'Asked Ben'])
+    expect(textMatchContextFor({ id: 2 }, { statusUpdatesByTodo }).statusUpdateTexts).toEqual([])
+    expect(textMatchContextFor({ id: 1 }, {}).statusUpdateTexts).toEqual([])
+  })
+
+  it('groups a task whose entry matches under statusUpdate', () => {
+    const todos = [makeTodo({ id: 1, title: 'Q4 budget' }), makeTodo({ id: 2, title: 'Slack cleanup' })]
+    const groups = groupTodosByTextMatch(todos, 'slack', (t) => textMatchContextFor(t, { statusUpdatesByTodo }))
+    expect(groups.statusUpdate.map((t) => t.id)).toEqual([1])
+    expect(groups.title.map((t) => t.id)).toEqual([2])
+  })
+
+  it('a search clause (a list’s, the screen filter’s) keeps a task whose entry matches', () => {
+    const settings = { urgentRange: null, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 as const }
+    const filters = { ...emptyFilterCriteria, searchText: 'ben' }
+    const today = new Date(2026, 9, 6)
+    expect(matchesFilterWithLookups(filters, makeTodo({ id: 1, title: 'Q4 budget' }), { statusUpdatesByTodo }, today, settings)).toBe(true)
+    expect(matchesFilterWithLookups(filters, makeTodo({ id: 1, title: 'Q4 budget' }), {}, today, settings)).toBe(false)
+    expect(matchesFilterWithLookups(filters, makeTodo({ id: 2, title: 'Other' }), { statusUpdatesByTodo }, today, settings)).toBe(false)
   })
 })

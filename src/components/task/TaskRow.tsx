@@ -18,7 +18,8 @@ import { EntityMenu, type MenuEntity } from '../shared/EntityMenu'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { useTaskRowColumn, useTaskRowTracks } from './task-row-grid-context'
 import { keepRowTextUnselected } from './row-events'
-import { progressNotesPreview } from '../../utils/notes-preview'
+import { statusNotesPreview } from '../../utils/notes-preview'
+import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
 import {
   DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
 } from './row-cells'
@@ -95,6 +96,9 @@ export const TaskRow = memo(function TaskRow({
     fallbackPeopleAnchorRef: rowRef,
     useFallbackPeopleAnchor: !hasPeople,
   })
+
+  // The notes cell's first line (the row re-renders only when the task's newest changes).
+  const newestUpdate = useStatusUpdateStore((s) => newestStatusUpdate(todo.id, s.byTodo))
 
   const statuses = useStatusStore((s) => s.statuses)
   const status = useMemo(() => {
@@ -240,12 +244,12 @@ export const TaskRow = memo(function TaskRow({
 
       {ghost ? (
         // The drag overlay's copy: the title and a notes mark only.
-        progressNotesPreview(todo.progress, todo.notes)
-          ? <span className={`${styles.cell} ${styles.cellCenter}`} title="Has progress or notes"><NotesGlyph /></span>
+        statusNotesPreview(newestUpdate, todo.notes)
+          ? <span className={`${styles.cell} ${styles.cellCenter}`} title="Has a status or notes"><NotesGlyph /></span>
           : null
       ) : (
         <>
-          <NotesCell progress={todo.progress} notes={todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />
+          <NotesCell update={newestUpdate} notes={todo.notes} anchorRef={notesIconRef} open={notesOpen} onToggle={toggleNotes} />
           {hasPeople && (
             <PeopleCell
               people={people}

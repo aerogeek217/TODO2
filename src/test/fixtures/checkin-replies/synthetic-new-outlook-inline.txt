@@ -12,7 +12,8 @@ Hi Marcus,
 Here are the open tasks I have assigned to you. When you get a chance, please Reply and update the Your update box under each task:
 
 Completed: put an x in the box when the task is finished.
-Progress and Notes: edit the text directly. Leave anything that hasn’t changed as it is.
+Status: write what’s new over the line, or leave it as it is.
+Notes: edit the text directly. Leave anything that hasn’t changed as it is.
 
 OVERDUE
 
@@ -20,7 +21,7 @@ OVERDUE
 Due Fri, Oct 9 (3 days overdue)  ·  Next follow-up Today  ·  Tags #Project: Northwind Rollout  #security  ·  Also assigned Sam Ortiz
 Your update
 Completed:	[ ]
-Progress:	section 4 done
+Status:	section 4 done
 Notes:
 Sections 4 and 7 still open.
 Sam has the SOC 2 letter.
@@ -31,13 +32,13 @@ COMING UP
 Due Wed, Oct 14  ·  Next follow-up Today
 Your update
 Completed:	[x ]
-Progress:	40%
+Status:	(10/10) 40%
 Notes:
 3. Draft the migration runbook	Ref 3f9a1c42
 Due Fri, Oct 16  ·  Next follow-up Tue, Oct 13  ·  Tags #Project: Platform Migration  #docs  ·  Also assigned Nina Patel
 Your update
 Completed:	[ ]
-Progress:
+Status:
 Notes:
 Cover the cutover sequence, rollback steps and who is on call.
 Nina confirmed Saturday 06:00–08:00 for the cutover.
@@ -48,7 +49,7 @@ Agreed the rollback window with Nina
 Next follow-up Sun, Nov 1
 Your update
 Completed:	[ ]
-Progress:
+Status:
 Notes:
 
 Thanks,

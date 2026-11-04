@@ -11,13 +11,14 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTaskEditCallbacks } from '../../hooks/use-task-edit-callbacks'
 import { createQuickAddTask } from '../../services/create-task'
 import { createTasksFromDrafts } from '../../services/note-tasks'
-import { draftFromText } from '../../services/task-draft'
+import { draftFromText, type EditorTaskFields } from '../../services/task-draft'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { parseTaskInput } from '../../services/nlp-task-creator'
 import { makeRecurrenceRule } from '../../utils/recurrence'
 import { addFollowupInterval, DEFAULT_FOLLOWUP_INTERVAL } from '../../utils/followup'
 import { addDays, startOfToday } from '../../utils/date'
 import type { FilterDefaults } from '../../utils/filter-defaults'
-import type { PersistedTodoItem, TodoItem } from '../../models'
+import type { PersistedTodoItem } from '../../models'
 import { resetStores } from '../store-tracking'
 
 // The three ways a task is created — Quick Add, a note's drafts, and the
@@ -83,7 +84,7 @@ async function viaDrafts(text: string, fd: FilterDefaults = NO_DEFAULTS): Promis
 }
 
 async function viaEditor(
-  partial: Partial<TodoItem>,
+  partial: EditorTaskFields,
   assignments?: { personIds: number[]; tagIds: number[] },
 ): Promise<Created> {
   const { result } = renderHook(() => useTaskEditCallbacks())
@@ -263,13 +264,14 @@ describe('create a task — undo', () => {
       people: (await db.todoPeople.where('todoId').equals(id).toArray()).map((j) => j.personId).sort(),
       tags: (await db.todoTags.where('todoId').equals(id).toArray()).map((j) => j.tagId).sort(),
       events: (await db.todoEvents.where('todoId').equals(id).toArray()).map((e) => [e.id, e.type]),
+      updates: (await db.statusUpdates.where('todoId').equals(id).toArray()).map((u) => [u.id, u.text]),
     }
   }
 
   for (const [name, make] of [
     ['Quick Add', () => viaQuickAdd('Plan offsite @Bob @Zed #home #fresh /urgent /focus /due tomorrow /repeat monthly /followup 2w', { ...NO_DEFAULTS, tagIds: [ids.work] })],
     ['the editor', () => viaEditor(
-      { title: 'Plan offsite @Zed #fresh /important', dueDate: day(11, 3), recurrenceRule: makeRecurrenceRule('monthly', day(11, 3)), urgent: true, notes: 'n', progress: 'p' },
+      { title: 'Plan offsite @Zed #fresh /important', dueDate: day(11, 3), recurrenceRule: makeRecurrenceRule('monthly', day(11, 3)), urgent: true, notes: 'n', statusUpdates: [{ date: startOfToday(), text: 'p', createdAt: new Date() }] },
       { personIds: [ids.ann], tagIds: [ids.work] },
     )],
   ] as const) {
@@ -284,7 +286,7 @@ describe('create a task — undo', () => {
       expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual([`Add "${todo.title}"`])
 
       await useUndoStore.getState().undo()
-      expect(await whole(todo.id)).toEqual({ row: null, people: [], tags: [], events: [] })
+      expect(await whole(todo.id)).toEqual({ row: null, people: [], tags: [], events: [], updates: [] })
       expect(useTodoStore.getState().todos.some((t) => t.id === todo.id)).toBe(false)
       // People and tags created on the way stay (creating one is never undone).
       expect(await db.people.where('name').equals('Zed').count()).toBe(1)
@@ -300,8 +302,18 @@ describe('create a task — undo', () => {
 })
 
 describe('create a task — the editor', () => {
-  it('keeps the Progress typed in the new-task editor', async () => {
-    expect((await viaEditor({ title: 'A', progress: 'Half done' })).todo.progress).toBe('Half done')
+  it('writes the status updates added in the new-task editor with the task, their days as entered', async () => {
+    const yesterday = new Date(new Date().getFullYear(), new Date().getMonth(), new Date().getDate() - 1)
+    const { todo } = await viaEditor({
+      title: 'A',
+      statusUpdates: [
+        { date: yesterday, text: 'Kicked off', createdAt: new Date(Date.now() - 1000) },
+        { date: startOfToday(), text: 'Half done', createdAt: new Date() },
+      ],
+    })
+    expect(useStatusUpdateStore.getState().byTodo.get(todo.id)?.map((u) => [u.date, u.text]))
+      .toEqual([[startOfToday(), 'Half done'], [yesterday, 'Kicked off']])
+    expect(await db.statusUpdates.where('todoId').equals(todo.id).count()).toBe(2)
   })
 })
 

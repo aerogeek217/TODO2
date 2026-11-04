@@ -3,8 +3,9 @@ import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useUIStore } from '../stores/ui-store'
-import type { Person, Tag, TodoItem, TodoChanges } from '../models'
+import type { Person, Tag, TodoChanges } from '../models'
 import { createEditorTask } from '../services/create-task'
+import type { EditorTaskFields } from '../services/task-draft'
 
 const NO_PEOPLE: Person[] = []
 const NO_TAGS: Tag[] = []
@@ -40,7 +41,7 @@ export function useTaskEditCallbacks() {
   const assignTag = useTagStore((s) => s.assignTag)
   const unassignTag = useTagStore((s) => s.unassignTag)
 
-  const onCreate = useCallback(async (partial: Partial<TodoItem>, assignments?: { personIds: number[]; tagIds?: number[] }) => {
+  const onCreate = useCallback(async (partial: EditorTaskFields, assignments?: { personIds: number[]; tagIds?: number[] }) => {
     const id = await createEditorTask(partial, {
       personIds: assignments?.personIds ?? [],
       tagIds: assignments?.tagIds ?? [],

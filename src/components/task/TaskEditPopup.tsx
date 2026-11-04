@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
-import type { TodoItem, TodoChanges, PersistedTodoItem, Person, RecurrenceType, Tag } from '../../models'
+import type { TodoChanges, PersistedTodoItem, Person, RecurrenceType, Tag } from '../../models'
 import { DEFAULT_STATUS_ICON } from '../../models'
 import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useStatusUpdateStore, useStatusUpdates } from '../../stores/status-update-store'
 import { describeFollowupInterval, nextAfterFollowup } from '../../utils/followup'
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
@@ -17,11 +18,13 @@ import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { makeRecurrenceRule } from '../../utils/recurrence'
 import { parseTaskInput } from '../../services/nlp-task-creator'
-import { draftEditorTitle, type TaskDraft } from '../../services/task-draft'
+import { draftEditorTitle, type EditorTaskFields, type TaskDraft } from '../../services/task-draft'
+import { compareStatusUpdates, statusUpdateDay } from '../../utils/status-updates'
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
 import { NotesBody } from './notes/NotesBody'
+import { StatusUpdatesSection, type StatusUpdateEntry, type StatusUpdateFields } from './status-updates/StatusUpdatesSection'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
@@ -65,8 +68,12 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
   onUpdate?: never
   onToggleComplete?: never
   onDelete?: never
-  /** Resolves to the new task's id, or null when it couldn't be stored — the editor then stays open. */
-  onCreate: (todo: Partial<TodoItem>, assignments?: { personIds: number[], tagIds: number[] }) => Promise<number | null>
+  /**
+   * Resolves to the new task's id, or null when it couldn't be stored — the
+   * editor then stays open. `todo` carries the status updates added before
+   * Create (`statusUpdates`), written with the task.
+   */
+  onCreate: (todo: EditorTaskFields, assignments?: { personIds: number[], tagIds: number[] }) => Promise<number | null>
   /**
    * Starts from this draft (a converted note line) instead of Quick Add's
    * handoff and the screen filter's defaults; the draft already carries
@@ -78,7 +85,7 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
    * The footer's Save draft hands the fields back instead of creating, and
    * there is no Last follow-up / Mark followed up (a draft has no history).
    */
-  onSaveDraft?: (todo: Partial<TodoItem>, assignments: { personIds: number[], tagIds: number[] }) => void
+  onSaveDraft?: (todo: EditorTaskFields, assignments: { personIds: number[], tagIds: number[] }) => void
   /** Stacks the editor above dialogs (the convert preview, another editor). */
   nested?: boolean
 }
@@ -158,7 +165,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // each stays its own undo step, in order. A create reads the text.
   const notesSession = useTaskNotesSource({ todoId: todo?.id, initial: todo?.notes ?? seed?.notes ?? '' })
   const flushNotes = notesSession.flush
-  const [progress, setProgress] = useState(todo?.progress ?? seed?.progress ?? '')
+  // Status updates: edit mode writes each at once through the store; create
+  // mode keeps them here (newest first, a local key each) until Create.
+  const storedUpdates = useStatusUpdates(todo?.id)
+  const [pendingUpdates, setPendingUpdates] = useState<(StatusUpdateEntry & { createdAt: Date })[]>(
+    () => (seed?.statusUpdates ?? []).map((u, i) => ({ ...u, id: i + 1 })).sort(compareStatusUpdates),
+  )
   const [statusId, setStatusId] = useState<number | undefined>(
     seed ? seed.statusId : (
       todo?.statusId
@@ -245,17 +257,16 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // (The notes do the same in their session.)
   const todoId = todo?.id
   const todoTitle = todo?.title
-  const todoProgress = todo?.progress
   const todoStatusId = todo?.statusId
   const todoDueDate = todo?.dueDate
   const todoRecurrenceRule = todo?.recurrenceRule
   const baselineRef = useRef<EditorFields | null>(todo ? editorFieldsOf(todo) : null)
   const baselineIdRef = useRef(todoId)
-  const formRef = useLatestRef<EditorFields>({ title, progress, statusId, deadline, recurrenceType })
+  const formRef = useLatestRef<EditorFields>({ title, statusId, deadline, recurrenceType })
   useEffect(() => {
     if (todoId === undefined || todoTitle === undefined) return
     const store = editorFieldsOf({
-      title: todoTitle, progress: todoProgress, statusId: todoStatusId,
+      title: todoTitle, statusId: todoStatusId,
       dueDate: todoDueDate, recurrenceRule: todoRecurrenceRule,
     })
     const baseline = baselineRef.current
@@ -266,11 +277,10 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     baselineRef.current = store
     baselineIdRef.current = todoId
     if (show.title !== undefined) setTitle(show.title)
-    if (show.progress !== undefined) setProgress(show.progress)
     if ('statusId' in show) setStatusId(show.statusId)
     if (show.deadline !== undefined) setDeadline(show.deadline)
     if (show.recurrenceType !== undefined) setRecurrenceType(show.recurrenceType)
-  }, [todoId, todoTitle, todoProgress, todoStatusId, todoDueDate, todoRecurrenceRule, formRef])
+  }, [todoId, todoTitle, todoStatusId, todoDueDate, todoRecurrenceRule, formRef])
 
   // The first Esc in a text field only leaves the field (claimed, so the
   // frame doesn't close); focus stays in the editor, so the next Esc closes it.
@@ -291,8 +301,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     return undefined
   }, [recurrenceType, deadline])
 
-  // Writes the fields the user changed since the last sync (title / progress
-  // on blur; the other fields also save as they change).
+  // Writes the fields the user changed since the last sync (the title on
+  // blur; the other fields also save as they change).
   const saveEdit = () => {
     const baseline = baselineRef.current
     if (props.mode !== 'edit' || !baseline) return
@@ -350,6 +360,39 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       void flushNotes()
       props.onUpdate({ recurrenceRule: nextRule })
     }
+  }
+
+  // Status updates: in edit mode each is its own undo step, after the notes typed so far.
+  const handleAddUpdate = (entry: StatusUpdateFields) => {
+    if (isEdit && todo) {
+      void flushNotes()
+      void useStatusUpdateStore.getState().add(todo.id, entry)
+      return
+    }
+    const now = new Date()
+    setPendingUpdates((prev) => [
+      ...prev,
+      { id: Math.max(0, ...prev.map((u) => u.id)) + 1, date: statusUpdateDay(entry.date, now), text: entry.text, createdAt: now },
+    ].sort(compareStatusUpdates))
+  }
+
+  const handleEditUpdate = (id: number, changes: StatusUpdateFields) => {
+    if (isEdit) {
+      void flushNotes()
+      void useStatusUpdateStore.getState().update(id, changes)
+      return
+    }
+    const date = statusUpdateDay(changes.date, new Date())
+    setPendingUpdates((prev) => prev.map((u) => (u.id === id ? { ...u, date, text: changes.text } : u)).sort(compareStatusUpdates))
+  }
+
+  const handleRemoveUpdate = (id: number) => {
+    if (isEdit) {
+      void flushNotes()
+      void useStatusUpdateStore.getState().remove(id)
+      return
+    }
+    setPendingUpdates((prev) => prev.filter((u) => u.id !== id))
   }
 
   const handleToggleComplete = () => {
@@ -439,10 +482,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (props.mode !== 'create' || !title.trim() || creatingRef.current) return
     // A person / tag picked from the title's Create row is saved first, so the token names it.
     if (ac.creating()) await ac.whenCreated()
-    const partial: Partial<TodoItem> = {
+    const partial: EditorTaskFields = {
       title: title.trim(),
       notes: notesSession.text() || undefined,
-      progress: progress || undefined,
+      ...(pendingUpdates.length > 0
+        ? { statusUpdates: pendingUpdates.map(({ date, text, createdAt }) => ({ date, text, createdAt })) }
+        : {}),
       statusId,
       dueDate: deadline ?? undefined,
       // Left out while still the default, so a `/followup` in the title applies.
@@ -699,18 +744,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             hideLastFollowup={isDraft}
           />
 
-          {/* Progress */}
-          <div className={styles.notesSection}>
-            <div className={styles.notesLabel}>Progress</div>
-            <input
-              className={styles.metaInput}
-              value={progress}
-              maxLength={500}
-              onChange={(e) => setProgress(e.target.value)}
-              onBlur={() => { if (isEdit) saveEdit() }}
-              placeholder="e.g. 50% done, Waiting on review..."
-            />
-          </div>
+          <StatusUpdatesSection
+            entries={isEdit ? storedUpdates : pendingUpdates}
+            onAdd={handleAddUpdate}
+            onEdit={handleEditUpdate}
+            onRemove={handleRemoveUpdate}
+            className={styles.notesSection}
+            labelClassName={styles.notesLabel}
+          />
 
           {/* Notes */}
           <div className={styles.notesSection}>

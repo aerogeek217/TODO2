@@ -3,6 +3,7 @@ import { useUIStore } from '../stores/ui-store'
 import { useTodoStore } from '../stores/todo-store'
 import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
+import { markFollowedUpWithUpdate } from '../services/mark-followed-up'
 
 /**
  * Returns the set of IDs to act on: all selected IDs if the target is
@@ -68,9 +69,13 @@ export function useBulkActions() {
     void useTodoStore.getState().bulkSetImportant(getTargetIds(todoId), on)
   }, [])
 
-  /** "Mark followed up" on the task (or the selection it's part of): `next` as given (`null` = none), else the automatic rule. */
-  const markFollowedUp = useCallback((todoId: number, next?: Date | null) => {
-    void useTodoStore.getState().markFollowedUp(getTargetIds(todoId), next === undefined ? undefined : { next })
+  /**
+   * "Mark followed up" on the task (or the selection it's part of): `next`
+   * as given (`null` = none), else the automatic rule; with `update`'s text
+   * also that status update on each, in the same undo step.
+   */
+  const markFollowedUp = useCallback((todoId: number, next?: Date | null, update?: string) => {
+    void markFollowedUpWithUpdate(getTargetIds(todoId), next === undefined ? undefined : { next }, update)
   }, [])
 
   const setStatus = useCallback((todoId: number, statusId: number | undefined) => {

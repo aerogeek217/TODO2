@@ -1,4 +1,4 @@
-import type { Person, Status, Tag } from '../models'
+import type { Person, Status, StatusUpdate, Tag } from '../models'
 
 /**
  * Toggle an item in a null-or-Set filter.
@@ -21,10 +21,10 @@ export function toggleItem<T>(current: Set<T> | null, item: T, allItems: T[]): S
 }
 
 /** Field kinds that a text search can hit. Ordered so UI groupings render consistently. */
-export type TextMatchField = 'title' | 'notes' | 'person' | 'status' | 'tag'
+export type TextMatchField = 'title' | 'notes' | 'statusUpdate' | 'person' | 'status' | 'tag'
 
 export const TEXT_MATCH_FIELDS: readonly TextMatchField[] = [
-  'title', 'notes', 'person', 'status', 'tag',
+  'title', 'notes', 'statusUpdate', 'person', 'status', 'tag',
 ] as const
 
 /**
@@ -37,6 +37,8 @@ export interface TextMatchContext {
   personNames?: string[]
   statusName?: string
   tagNames?: string[]
+  /** The texts of the task's status updates. */
+  statusUpdateTexts?: string[]
 }
 
 /**
@@ -48,9 +50,11 @@ export interface TodoNameLookups {
   assignedPeopleMap?: ReadonlyMap<number, readonly Person[]>
   assignedTagsMap?: ReadonlyMap<number, readonly Tag[]>
   statusesById?: ReadonlyMap<number, Status>
+  /** Each task's status updates (`status-update-store.byTodo`); absent = their texts aren't searched. */
+  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
 }
 
-/** Resolve the person / status / tag names a text search can hit. */
+/** Resolve the person / status / tag names and the status update texts a text search can hit. */
 export function textMatchContextFor(
   todo: { id: number; statusId?: number },
   lookups: TodoNameLookups,
@@ -59,6 +63,7 @@ export function textMatchContextFor(
     personNames: (lookups.assignedPeopleMap?.get(todo.id) ?? []).map((p) => p.name),
     statusName: todo.statusId != null ? lookups.statusesById?.get(todo.statusId)?.name : undefined,
     tagNames: (lookups.assignedTagsMap?.get(todo.id) ?? []).map((t) => t.name),
+    statusUpdateTexts: (lookups.statusUpdatesByTodo?.get(todo.id) ?? []).map((u) => u.text),
   }
 }
 
@@ -71,7 +76,7 @@ export interface TextMatchResult {
  * Case-insensitive substring match across the todo's text-bearing fields. An
  * empty query matches everything with no fields reported. `ctx` is optional:
  * callers that can't cheaply resolve names pass `undefined` and get title/notes
- * matching only.
+ * matching only (the status updates live outside the task too).
  */
 export function matchTodoText(
   todo: { title?: string; notes?: string },
@@ -83,6 +88,7 @@ export function matchTodoText(
   const fields: TextMatchField[] = []
   if (todo.title && todo.title.toLowerCase().includes(q)) fields.push('title')
   if (todo.notes && todo.notes.toLowerCase().includes(q)) fields.push('notes')
+  if (ctx?.statusUpdateTexts && ctx.statusUpdateTexts.some(n => n.toLowerCase().includes(q))) fields.push('statusUpdate')
   if (ctx?.personNames && ctx.personNames.some(n => n.toLowerCase().includes(q))) fields.push('person')
   if (ctx?.statusName && ctx.statusName.toLowerCase().includes(q)) fields.push('status')
   if (ctx?.tagNames && ctx.tagNames.some(n => n.toLowerCase().includes(q))) fields.push('tag')
@@ -102,10 +108,10 @@ export function groupTodosByTextMatch<T extends { title?: string; notes?: string
   ctxFor: (todo: T) => TextMatchContext | undefined,
 ): Record<TextMatchField, T[]> {
   const groups: Record<TextMatchField, T[]> = {
-    title: [], notes: [], person: [], status: [], tag: [],
+    title: [], notes: [], statusUpdate: [], person: [], status: [], tag: [],
   }
   const completed: Record<TextMatchField, T[]> = {
-    title: [], notes: [], person: [], status: [], tag: [],
+    title: [], notes: [], statusUpdate: [], person: [], status: [], tag: [],
   }
   for (const t of todos) {
     const { fields } = matchTodoText(t, query, ctxFor(t))

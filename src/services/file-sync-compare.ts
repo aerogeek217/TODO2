@@ -16,15 +16,29 @@ function canonical(value: unknown): string {
   })
 }
 
+/**
+ * Tables whose row ids nothing refers to, compared without them: the v72
+ * upgrade makes status updates without ids, so an upgraded older file holds
+ * none while the browser's upgraded rows got theirs from IndexedDB — the same
+ * entries, different ids.
+ */
+const ID_FREE_TABLES: ReadonlySet<string> = new Set(['statusUpdates'])
+
 function tableRows(data: ImportData, name: string): unknown[] {
   const rows = (data as unknown as Record<string, unknown>)[name]
-  return Array.isArray(rows) ? rows : []
+  if (!Array.isArray(rows)) return []
+  if (!ID_FREE_TABLES.has(name)) return rows
+  return rows.map((row: unknown) => {
+    if (!row || typeof row !== 'object') return row
+    return Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'id'))
+  })
 }
 
 /**
  * True when two prepared (validated, `pick*`-normalized) datasets hold the
- * same rows in every data table, ignoring row order and key order. `Date`s
- * vs ISO strings are equalized by a JSON round-trip.
+ * same rows in every data table, ignoring row order and key order (and the
+ * ids of `ID_FREE_TABLES`' rows). `Date`s vs ISO strings are equalized by a
+ * JSON round-trip.
  */
 export function importDataEqual(a: ImportData, b: ImportData): boolean {
   const ja = JSON.parse(JSON.stringify(a)) as ImportData

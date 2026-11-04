@@ -131,6 +131,35 @@ describe('appendImportTasks — archive from another database', () => {
   })
 })
 
+describe('appendImportTasks — status updates', () => {
+  it('copies the tasks’ status updates, re-pointed at the new ids; a skipped task’s stay behind', async () => {
+    const now = new Date()
+    const shipped = await todoRepository.insert({ title: 'Ship release', isCompleted: true, completedAt: daysAgo(60), createdAt: daysAgo(90), modifiedAt: daysAgo(60), sortOrder: 1 })
+    const skipped = await todoRepository.insert({ title: 'Skip me', isCompleted: true, completedAt: daysAgo(60), createdAt: daysAgo(90), modifiedAt: daysAgo(60), sortOrder: 2 })
+    await db.statusUpdates.bulkAdd([
+      { todoId: shipped, date: daysAgo(70), text: 'Release candidate out', createdAt: daysAgo(70) },
+      { todoId: shipped, date: daysAgo(61), text: 'Signed off', createdAt: daysAgo(61), followedUp: true },
+      { todoId: skipped, date: daysAgo(65), text: 'Not this one', createdAt: daysAgo(65) },
+    ])
+    const archive = await buildTaskArchive([shipped, skipped])
+    const skipUid = archive.todos.find((t) => t.title === 'Skip me')?.uid ?? ''
+
+    // Another database whose ids overlap the archive's.
+    await resetDb()
+    const here = await todoRepository.insert({ title: 'Already here', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 5 })
+    await db.statusUpdates.add({ todoId: here, date: daysAgo(1), text: 'mine', createdAt: daysAgo(1) })
+    const result = await appendImportTasks(prepareAppend(JSON.stringify(archive)), new Map([[skipUid, 'skip']]))
+
+    const [newId] = result.todoIds
+    expect(result.todoIds).toHaveLength(1)
+    const copied = await db.statusUpdates.where('todoId').equals(newId!).sortBy('date')
+    expect(copied.map((r) => [r.text, r.followedUp])).toEqual([['Release candidate out', undefined], ['Signed off', true]])
+    expect(copied[0]?.date).toBeInstanceOf(Date)
+    expect((await db.statusUpdates.where('todoId').equals(here).toArray()).map((r) => r.text)).toEqual(['mine'])
+    expect(await db.statusUpdates.count()).toBe(3)
+  })
+})
+
 describe('appendImportTasks — person emails', () => {
   it('matches people by name only: a match keeps its own email, a created person brings the archived one', async () => {
     const alice = await db.people.add({ name: 'Alice', initials: 'AL', email: 'alice@source.example' }) as number

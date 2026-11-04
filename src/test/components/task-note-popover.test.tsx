@@ -7,6 +7,9 @@ import { useTodoStore } from '../../stores/todo-store'
 import { SAVE_DEBOUNCE_MS, useNoteStore } from '../../stores/note-store'
 import { todoRepository } from '../../data'
 import { useUndoStore } from '../../stores/undo-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
+import { useUIStore } from '../../stores/ui-store'
+import { addDays, formatDateNumeric, startOfToday } from '../../utils/date'
 import { makeTodo } from '../helpers'
 import { EditorView } from '@codemirror/view'
 
@@ -188,7 +191,7 @@ describe('TaskNotePopover: notes are written as one edit session at a time', () 
     await open()
     type('bc')
     await act(async () => { fireEvent.keyDown(document, { key: 'Escape' }) })
-    expect(screen.queryByRole('dialog', { name: 'Progress and notes' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Status and notes' })).toBeNull()
     expect(storedNotes()).toBe('abc')
     await vi.waitFor(async () => expect((await db.todos.get(100))?.notes).toBe('abc'))
     expect(undoEntries()).toBe(1)
@@ -265,16 +268,19 @@ describe('TaskNotePopover: notes are written as one edit session at a time', () 
     expect(useTodoStore.getState().todos[0]?.notes).toBeUndefined()
   })
 
-  it('saving Progress writes the notes typed first, each its own undo step', async () => {
+  it('adding a status update writes the notes typed first, each its own undo step', async () => {
     await seedStored('n')
     await open()
     type('otes')
-    fireEvent.change(screen.getByRole('textbox', { name: 'Progress' }), { target: { value: 'half' } })
-    await act(async () => { fireEvent.blur(screen.getByRole('textbox', { name: 'Progress' })) })
+    const line = screen.getByRole('textbox', { name: 'Status' })
+    fireEvent.change(line, { target: { value: 'half' } })
+    await act(async () => { fireEvent.keyDown(line, { key: 'Enter' }) })
     await vi.waitFor(() => expect(undoEntries()).toBe(2))
-    expect(useTodoStore.getState().todos[0]).toMatchObject({ notes: 'notes', progress: 'half' })
+    expect(useTodoStore.getState().todos[0]).toMatchObject({ notes: 'notes' })
+    expect(useStatusUpdateStore.getState().byTodo.get(100)?.map((u) => u.text)).toEqual(['half'])
     await act(async () => { await useUndoStore.getState().undo() })
-    expect(useTodoStore.getState().todos[0]).toMatchObject({ notes: 'notes', progress: undefined })
+    expect(useStatusUpdateStore.getState().byTodo.get(100)).toBeUndefined()
+    expect(useTodoStore.getState().todos[0]).toMatchObject({ notes: 'notes' })
   })
 
   it('a failed write keeps the text and writes it with the next flush', async () => {
@@ -293,9 +299,15 @@ describe('TaskNotePopover: notes are written as one edit session at a time', () 
   })
 })
 
-describe('TaskNotePopover: Progress', () => {
-  function seed(progress?: string, notes?: string) {
-    useTodoStore.setState({ todos: [makeTodo({ id: 100, title: 'Task', progress, notes })] })
+describe('TaskNotePopover: Status', () => {
+  async function seed(updates: { date: Date; text: string }[] = [], notes?: string) {
+    const todo = makeTodo({ id: 100, title: 'Task', notes })
+    await db.todos.add(todo)
+    useTodoStore.setState({ todos: [todo] })
+    const now = Date.now()
+    await db.statusUpdates.bulkAdd(updates.map((u, i) => ({ todoId: 100, ...u, createdAt: new Date(now - i * 1000) })))
+    await useStatusUpdateStore.getState().load()
+    useUndoStore.getState().clear()
   }
 
   /** The popover over its trigger, closed by its own onClose (as the row does). */
@@ -316,105 +328,84 @@ describe('TaskNotePopover: Progress', () => {
     await act(async () => { await Promise.resolve() })
   }
 
-  const progressField = () => screen.getByRole('textbox', { name: 'Progress' })
-  const dialog = () => screen.queryByRole('dialog', { name: 'Progress and notes' })
+  const line = () => screen.getByRole('textbox', { name: 'Status' })
+  const dialog = () => screen.queryByRole('dialog', { name: 'Status and notes' })
+  const texts = () => (useStatusUpdateStore.getState().byTodo.get(100) ?? []).map((u) => u.text)
+  const today = () => startOfToday()
 
-  it('is one dialog with the Progress field (seeded, focused) above the notes', async () => {
-    seed('50% done', 'Some notes')
+  it('is one dialog: Status (the newest update, History (N), a focused add line) above the notes', async () => {
+    await seed([{ date: addDays(today(), -1), text: '50% done' }, { date: addDays(today(), -4), text: 'started' }], 'Some notes')
     await renderHarness()
     expect(dialog()).toBeInTheDocument()
-    expect(progressField()).toHaveValue('50% done')
-    expect(progressField()).toHaveFocus()
-    expect(progressField()).toHaveAttribute('maxLength', '500')
+    expect(document.querySelector('[data-newest-update]')).toHaveTextContent(`${formatDateNumeric(addDays(today(), -1))} 50% done`)
+    expect(screen.getByRole('button', { name: 'History (2) →' })).toBeInTheDocument()
+    expect(line()).toHaveValue('')
+    expect(line()).toHaveFocus()
+    expect(line()).toHaveAttribute('maxLength', '500')
+    expect(screen.getByText('Today · ⏎')).toBeInTheDocument()
     expect(document.querySelector('.cm-content')?.textContent).toContain('Some notes')
   })
 
-  it('a changed value saves on blur as just the progress field', async () => {
-    seed('50%', 'keep these')
-    const updateSpy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValue(true)
+  it('without updates: no newest line, no History', async () => {
+    await seed()
     await renderHarness()
-    fireEvent.change(progressField(), { target: { value: '80%' } })
-    expect(updateSpy).not.toHaveBeenCalled()
-    fireEvent.blur(progressField())
-    expect(updateSpy).toHaveBeenCalledTimes(1)
-    expect(updateSpy).toHaveBeenCalledWith(100, { progress: '80%' })
+    expect(document.querySelector('[data-newest-update]')).toBeNull()
+    expect(screen.queryByRole('button', { name: /^History/ })).toBeNull()
   })
 
-  it('an unchanged value writes nothing (blur, Enter, close)', async () => {
-    seed('50%')
-    const updateSpy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValue(true)
+  it('⏎ adds the update dated today, clears the line and stays open; it becomes the newest', async () => {
+    await seed([{ date: addDays(today(), -3), text: 'old' }])
     await renderHarness()
-    fireEvent.blur(progressField())
-    fireEvent.change(progressField(), { target: { value: '60%' } })
-    fireEvent.change(progressField(), { target: { value: '50%' } })
-    fireEvent.keyDown(progressField(), { key: 'Enter' })
-    expect(dialog()).toBeNull()
-    expect(updateSpy).not.toHaveBeenCalled()
+    fireEvent.change(line(), { target: { value: '  Waiting on Sam ' } })
+    await act(async () => { fireEvent.keyDown(line(), { key: 'Enter' }) })
+    await vi.waitFor(() => expect(texts()).toEqual(['Waiting on Sam', 'old']))
+    expect(useStatusUpdateStore.getState().byTodo.get(100)?.[0]?.date).toEqual(today())
+    expect(dialog()).toBeInTheDocument()
+    expect(line()).toHaveValue('')
+    expect(line()).toHaveFocus()
+    expect(document.querySelector('[data-newest-update]')).toHaveTextContent(`${formatDateNumeric(today())} Waiting on Sam`)
+    expect(screen.getByRole('button', { name: 'History (2) →' })).toBeInTheDocument()
+    // Blank adds nothing.
+    fireEvent.change(line(), { target: { value: '   ' } })
+    await act(async () => { fireEvent.keyDown(line(), { key: 'Enter' }) })
+    expect(await db.statusUpdates.count()).toBe(2)
   })
 
-  it('cleared, it clears the field', async () => {
-    seed('50%')
-    const updateSpy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValue(true)
+  it('Esc closes keeping what was typed (added, as the notes are kept), focus back on the cell', async () => {
+    await seed()
     await renderHarness()
-    fireEvent.change(progressField(), { target: { value: '' } })
-    fireEvent.blur(progressField())
-    expect(updateSpy).toHaveBeenCalledWith(100, { progress: undefined })
-  })
-
-  it('Enter saves and closes, handing the focus back to the cell', async () => {
-    seed()
-    const updateSpy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValue(true)
-    await renderHarness()
-    fireEvent.change(progressField(), { target: { value: 'Waiting on Sam' } })
-    fireEvent.keyDown(progressField(), { key: 'Enter' })
-    expect(dialog()).toBeNull()
-    expect(updateSpy).toHaveBeenCalledTimes(1)
-    expect(updateSpy).toHaveBeenCalledWith(100, { progress: 'Waiting on Sam' })
-    expect(screen.getByText('cell')).toHaveFocus()
-  })
-
-  it('Esc closes keeping what was typed (as the notes are kept), focus back on the cell', async () => {
-    seed('a')
-    const updateSpy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValue(true)
-    await renderHarness()
-    fireEvent.change(progressField(), { target: { value: 'b' } })
+    fireEvent.change(line(), { target: { value: 'b' } })
     await act(async () => { fireEvent.keyDown(document, { key: 'Escape' }) })
     expect(dialog()).toBeNull()
-    expect(updateSpy).toHaveBeenCalledWith(100, { progress: 'b' })
+    await vi.waitFor(() => expect(texts()).toEqual(['b']))
     expect(screen.getByText('cell')).toHaveFocus()
   })
 
-  it('an outside click closes it keeping what was typed', async () => {
-    seed()
-    const updateSpy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValue(true)
+  it('an outside click closes it keeping what was typed; an empty line adds nothing', async () => {
+    await seed()
     await renderHarness()
-    fireEvent.change(progressField(), { target: { value: 'typed' } })
+    fireEvent.change(line(), { target: { value: 'typed' } })
     await act(async () => { fireEvent.mouseDown(screen.getByTestId('elsewhere')) })
     expect(dialog()).toBeNull()
-    expect(updateSpy).toHaveBeenCalledWith(100, { progress: 'typed' })
+    await vi.waitFor(() => expect(texts()).toEqual(['typed']))
+
+    await renderHarness()
+    await act(async () => { fireEvent.mouseDown(screen.getAllByTestId('elsewhere')[0]!) })
+    expect(await db.statusUpdates.count()).toBe(1)
   })
 
-  it('a change made elsewhere shows until the field is typed in; then the typed text stays', async () => {
-    seed('one')
+  it('History (N) → closes it and opens the task’s editor', async () => {
+    await seed([{ date: today(), text: 'one' }])
     await renderHarness()
-    act(() => useTodoStore.setState({ todos: [makeTodo({ id: 100, title: 'Task', progress: 'two' })] }))
-    expect(progressField()).toHaveValue('two')
-    fireEvent.change(progressField(), { target: { value: 'mine' } })
-    act(() => useTodoStore.setState({ todos: [makeTodo({ id: 100, title: 'Task', progress: 'three' })] }))
-    expect(progressField()).toHaveValue('mine')
+    fireEvent.click(screen.getByRole('button', { name: 'History (1) →' }))
+    expect(dialog()).toBeNull()
+    expect(useUIStore.getState()).toMatchObject({ selectedTodoId: 100, editPopupMode: 'edit' })
   })
 
-  it('saves through the todo store as one undoable edit', async () => {
-    const todo = makeTodo({ id: 100, title: 'Task', progress: 'old' })
-    await db.todos.add(todo)
-    useTodoStore.setState({ todos: [todo] })
+  it('a change made elsewhere shows as the newest', async () => {
+    await seed([{ date: addDays(today(), -2), text: 'one' }])
     await renderHarness()
-    fireEvent.change(progressField(), { target: { value: 'new' } })
-    await act(async () => { fireEvent.blur(progressField()) })
-    await act(async () => { await Promise.resolve() })
-    expect(useTodoStore.getState().todos[0]?.progress).toBe('new')
-    expect((await db.todos.get(100))?.progress).toBe('new')
-    await act(async () => { await useUndoStore.getState().undo() })
-    expect(useTodoStore.getState().todos[0]?.progress).toBe('old')
+    await act(async () => { await useStatusUpdateStore.getState().add(100, { date: today(), text: 'two' }) })
+    expect(document.querySelector('[data-newest-update]')).toHaveTextContent(`${formatDateNumeric(today())} two`)
   })
 })

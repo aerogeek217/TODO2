@@ -9,16 +9,18 @@
  * - each task starts on one line / one table row: `<n>. <title>` then
  *   `Ref <token>`;
  * - its update box starts with a line (HTML: a table whose first cell) that is
- *   exactly `Your update`, followed by `Completed:` (`[ ]`), `Progress:` and —
- *   when notes are included — `Notes:`, always in that order;
+ *   exactly `Your update`, followed by `Completed:` (`[ ]`), `Status:` and —
+ *   when notes are included — `Notes:`, always in that order (emails sent
+ *   before status updates read `Progress:` for `Status:`);
+ * - the Status value is the task's newest status update, `(MM/DD) text`;
  * - section headers are exactly `Overdue` and `Coming up`;
  * - the sign-off is `Thanks,` and the last line is
  *   `Check-in for <person name> · sent <YYYY-MM-DD>` (local send date).
  *
- * The task's status is never part of the email.
+ * The task's Status picker value (`statusId`) is never part of the email.
  */
-import type { Person, PersistedTodoItem, Tag } from '../../models'
-import { startOfDay, toDateInputValue } from '../../utils/date'
+import type { Person, PersistedTodoItem, StatusUpdate, Tag } from '../../models'
+import { formatDateNumeric, startOfDay, toDateInputValue } from '../../utils/date'
 import { daysUntil } from '../../utils/effective-date'
 import { escapeHtml } from '../../utils/html'
 import { mdToHtml } from '../notes-export'
@@ -39,6 +41,8 @@ export interface CheckinEmailContext {
    * `createTaskRefLookup` over every task's uid so refs stay unique.
    */
   refOf?: (uid: string) => string
+  /** Each task's status updates, newest first: the Status row shows the newest, `(MM/DD) text`. */
+  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
 }
 
 export interface CheckinEmailOptions {
@@ -70,7 +74,7 @@ export const CHECKIN_SECTION_LABELS = { overdue: 'Overdue', comingUp: 'Coming up
 export const CHECKIN_LABELS = {
   update: 'Your update',
   completed: 'Completed:',
-  progress: 'Progress:',
+  status: 'Status:',
   notes: 'Notes:',
 } as const
 
@@ -132,8 +136,21 @@ interface TaskView {
   title: string
   ref: string
   meta: MetaItem[]
-  progress: string
+  /** The newest status update; null when the task has none. */
+  status: StatusView | null
   notes: string
+}
+
+/** A task's newest status update as the Status row shows it. */
+interface StatusView {
+  /** `(MM/DD)`. */
+  date: string
+  text: string
+}
+
+function statusView(update: StatusUpdate | undefined): StatusView | null {
+  const text = collapseWhitespace(update?.text ?? '')
+  return update && text !== '' ? { date: `(${formatDateNumeric(update.date)})`, text } : null
 }
 
 function metaItems(
@@ -179,7 +196,7 @@ function sectionViews(
     title: collapseWhitespace(todo.title),
     ref: refOf(todo.uid),
     meta: metaItems(todo, person, ctx, opts),
-    progress: collapseWhitespace(todo.progress ?? ''),
+    status: statusView(ctx.statusUpdatesByTodo?.get(todo.id)?.at(0)),
     notes: (todo.notes ?? '').replace(/\r\n?/g, '\n').trimEnd(),
   })
   const out: SectionView[] = []
@@ -195,6 +212,7 @@ function sectionViews(
 const INTRO = 'Here are the open tasks I have assigned to you. When you get a chance, please'
 const NO_TASKS = 'There are no open tasks I have assigned to you right now.'
 const HOW_COMPLETED = 'put an x in the box when the task is finished.'
+const HOW_STATUS = 'write what’s new over the line, or leave it as it is.'
 const HOW_TEXT = 'edit the text directly. Leave anything that hasn’t changed as it is.'
 const KEEP_REFS = 'Your reply is read back into my task list. Please keep the “Ref” lines and the box labels in your reply.'
 
@@ -222,6 +240,12 @@ function notesHtml(notes: string): string {
     .replace(/<h([1-3])>/g, '<h$1 style="margin: 0; font-size: 11pt; font-weight: bold;">')
 }
 
+/** The Status cell: the newest update's date muted, then its text. */
+function statusHtml(status: StatusView | null): string {
+  if (!status) return EMPTY_CELL
+  return `<span style="color: #707070;">${status.date}</span> ${escapeHtml(status.text)}`
+}
+
 function metaHtml(items: MetaItem[]): string {
   return items
     .map((m) => {
@@ -237,7 +261,7 @@ function taskHtml(t: TaskView, includeNotes: boolean): string {
   const rows = [
     `<tr><td colspan="2" style="padding: 6px 12px; border: 1px solid ${BOX_BORDER}; background-color: #ebf3fc; color: #0c3b5e; font-size: 10pt; font-weight: bold;">${CHECKIN_LABELS.update}</td></tr>`,
     `<tr><td ${LABEL_CELL}>${CHECKIN_LABELS.completed}</td><td style="${CELL} ${MONO};">[&nbsp;]</td></tr>`,
-    `<tr><td ${LABEL_CELL}>${CHECKIN_LABELS.progress}</td><td style="${CELL}">${t.progress ? escapeHtml(t.progress) : EMPTY_CELL}</td></tr>`,
+    `<tr><td ${LABEL_CELL}>${CHECKIN_LABELS.status}</td><td style="${CELL}">${statusHtml(t.status)}</td></tr>`,
   ]
   if (includeNotes) {
     rows.push(`<tr><td ${LABEL_CELL}>${CHECKIN_LABELS.notes}</td><td style="${CELL}">${notesHtml(t.notes)}</td></tr>`)
@@ -271,7 +295,8 @@ function buildHtml(person: Person, sections: SectionView[], opts: CheckinEmailOp
       `<table ${TABLE} style="width: 100%; border-collapse: collapse; margin: 0 0 16px 0;"><tr>`
       + `<td style="padding: 10px 14px; background-color: #f5f5f5; color: #424242; font-size: 10.5pt; line-height: 1.6;">`
       + `<b>Completed:</b> ${HOW_COMPLETED}<br>`
-      + `<b>Progress</b> and <b>Notes:</b> ${HOW_TEXT}`
+      + `<b>Status:</b> ${HOW_STATUS}<br>`
+      + `<b>Notes:</b> ${HOW_TEXT}`
       + '</td></tr></table>',
     )
     for (const s of sections) {
@@ -295,7 +320,7 @@ function taskPlain(t: TaskView, includeNotes: boolean): string[] {
   lines.push(
     CHECKIN_LABELS.update,
     `${CHECKIN_LABELS.completed} ${CHECKIN_COMPLETED_BOX}`,
-    t.progress ? `${CHECKIN_LABELS.progress} ${t.progress}` : CHECKIN_LABELS.progress,
+    t.status ? `${CHECKIN_LABELS.status} ${t.status.date} ${t.status.text}` : CHECKIN_LABELS.status,
   )
   if (includeNotes) {
     lines.push(CHECKIN_LABELS.notes)
@@ -313,7 +338,8 @@ function buildPlain(person: Person, sections: SectionView[], opts: CheckinEmailO
       `${INTRO} reply and update the "${CHECKIN_LABELS.update}" box under each task:`,
       '',
       `- Completed: ${HOW_COMPLETED}`,
-      `- Progress and Notes: ${HOW_TEXT}`,
+      `- Status: ${HOW_STATUS}`,
+      `- Notes: ${HOW_TEXT}`,
       '',
     )
     for (const s of sections) {
@@ -329,7 +355,7 @@ function buildPlain(person: Person, sections: SectionView[], opts: CheckinEmailO
  * The check-in email for `person` over `sections` (from `selectCheckinTasks`):
  * numbered tasks across the Overdue and Coming up sections, each with its
  * ref, dates, tags, other assignees (when `includeOthers`) and an update box
- * (Completed `[ ]`, Progress, and Notes when `includeNotes`).
+ * (Completed `[ ]`, Status, and Notes when `includeNotes`).
  */
 export function buildCheckinEmail(
   person: Person & { id: number },

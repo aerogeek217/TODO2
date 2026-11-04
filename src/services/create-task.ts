@@ -3,10 +3,9 @@ import { useTagStore } from '../stores/tag-store'
 import { useStatusStore } from '../stores/status-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUndoStore } from '../stores/undo-store'
-import type { TodoItem } from '../models'
 import type { FilterDefaults } from '../utils/filter-defaults'
 import type { ResolvedInput } from './nlp-resolver'
-import { draftFromEditor, draftFromResolved, type TaskDraft } from './task-draft'
+import { draftFromEditor, draftFromResolved, type EditorTaskFields, type TaskDraft } from './task-draft'
 import { createTasksFromDrafts } from './note-tasks'
 
 /**
@@ -38,14 +37,14 @@ export async function createQuickAddTask(
 }
 
 /**
- * The task editor's create: its fields and picked people / tags, plus
- * anything typed into the title (commands, `@` / `#` / `!`). With its status
+ * The task editor's create: its fields, status updates and picked people /
+ * tags, plus anything typed into the title (commands, `@` / `#` / `!`). With its status
  * field cleared the task still gets Settings' default status, as a new task
  * always has from the editor. Returns the id, or null when it couldn't be
  * stored.
  */
 export async function createEditorTask(
-  partial: Partial<TodoItem>,
+  partial: EditorTaskFields,
   assignments: { personIds: readonly number[]; tagIds: readonly number[] },
 ): Promise<number | null> {
   const draft = draftFromEditor(partial, assignments, {

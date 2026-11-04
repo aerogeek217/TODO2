@@ -114,7 +114,7 @@ export function RepeatIcon({ size = 10 }: { size?: number }) {
   )
 }
 
-/** A page with a folded corner and two lines: a task's progress / notes. */
+/** A page with a folded corner and two lines: a task's status / notes. */
 export function NotesIcon({ size = 12 }: { size?: number }) {
   return (
     <Svg size={size}>

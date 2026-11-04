@@ -1,5 +1,5 @@
 import Dexie, { type Table } from 'dexie'
-import type { TodoItem, Person, TodoPerson, Backup, Status, Note, Tag, TodoTag, TodoEvent, ListOrder } from '../models'
+import type { TodoItem, Person, TodoPerson, Backup, Status, Note, Tag, TodoTag, TodoEvent, StatusUpdate, ListOrder } from '../models'
 import type { ListDefinition } from '../models/list-definition'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { SETTING_KEYS } from './setting-keys'
@@ -21,7 +21,7 @@ export interface SettingRow {
  * `db.verno === CURRENT_DB_VERSION` after open, so a `this.version(N+1)`
  * without raising this constant fails the suite.
  */
-export const CURRENT_DB_VERSION = 71
+export const CURRENT_DB_VERSION = 72
 
 /**
  * Lowest database version this build reads. A browser database whose
@@ -164,6 +164,7 @@ export class Todo2Database extends Dexie {
   tags!: Table<Tag, number>
   todoTags!: Table<TodoTag, number>
   todoEvents!: Table<TodoEvent, number>
+  statusUpdates!: Table<StatusUpdate, number>
   layouts!: Table<WorkspaceLayout, number>
   listOrders!: Table<ListOrder, number>
 
@@ -196,6 +197,12 @@ export class Todo2Database extends Dexie {
     // stored filter's "is not" date range, which an older build would read
     // as "is" (keeping the opposite tasks), so older builds refuse it.
     this.version(71).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 71))
+
+    // v72: the `statusUpdates` table (a task's dated status updates, in
+    // place of its one-line Progress field). `upgrades/v72-status-updates.ts`
+    // makes each task's Progress text its first entry and drops `progress`
+    // from the task rows.
+    this.version(72).stores({ statusUpdates: '++id, todoId, date' }).upgrade((tx) => applySchemaUpgradeInTx(tx, 72))
 
     // The next schema step N goes here, after the last one:
     //

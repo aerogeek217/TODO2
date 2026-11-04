@@ -1,4 +1,4 @@
-import type { PersistedTodoItem } from '../../../models'
+import type { PersistedStatusUpdate, PersistedTodoItem } from '../../../models'
 
 /**
  * The four tasks of the sample check-in email to "Marcus Chen" (sent
@@ -19,7 +19,6 @@ export function checkinSampleTasks(): PersistedTodoItem[] {
       uid: '0c4d8e17-5b2a-4f1e-9c3d-7a6b5c4d3e2f',
       title: 'Answer Northwind’s security questionnaire',
       dueDate: new Date(2026, 9, 9),
-      progress: 'half done',
       notes: 'Sections 4 and 7 still open.\nSam has the SOC 2 letter.',
       sortOrder: 1,
     },
@@ -29,7 +28,6 @@ export function checkinSampleTasks(): PersistedTodoItem[] {
       uid: 'b71e05d9-1111-4222-8333-444455556666',
       title: 'Review the staging load-test results',
       dueDate: new Date(2026, 9, 14),
-      progress: '40%',
       sortOrder: 2,
     },
     {
@@ -55,4 +53,16 @@ export function checkinSampleTasks(): PersistedTodoItem[] {
       sortOrder: 4,
     },
   ]
+}
+
+/**
+ * The sample tasks' status updates (task id → newest first): what the
+ * email's Status rows show for the first two tasks, `(10/10) half done`
+ * and `(10/10) 40%`.
+ */
+export function checkinSampleStatusUpdates(): Map<number, PersistedStatusUpdate[]> {
+  const entry = (todoId: number, text: string): PersistedStatusUpdate => ({
+    id: todoId, todoId, date: new Date(2026, 9, 10), text, createdAt: new Date(2026, 9, 10, 15, 30),
+  })
+  return new Map([[1, [entry(1, 'half done')]], [2, [entry(2, '40%')]]])
 }

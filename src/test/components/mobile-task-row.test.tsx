@@ -6,6 +6,7 @@ import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { makeTodo, makePerson } from '../helpers'
 
 const mockToggleComplete = vi.fn()
@@ -177,9 +178,18 @@ describe('MobileTaskRow', () => {
       expect(screen.queryByText('D')).not.toBeInTheDocument()
     })
 
-    it('shows progress text and bar', () => {
-      render(<MobileTaskRow todo={makeTodo({ id: 1, progress: '50%' })} />)
-      expect(screen.getByText(/50%/)).toBeInTheDocument()
+    it('shows the newest status update (MM/DD text) with a bar for a percentage in it, and the notes icon', () => {
+      const date = new Date(2026, 9, 28)
+      useStatusUpdateStore.setState({ byTodo: new Map([[1, [
+        { id: 2, todoId: 1, date, text: 'drafted, 50% done', createdAt: date },
+        { id: 1, todoId: 1, date: new Date(2026, 9, 20), text: 'older', createdAt: date },
+      ]]]) })
+      const { container } = render(<MobileTaskRow todo={makeTodo({ id: 1 })} />)
+      const chip = container.querySelector('[data-status-chip]')
+      expect(chip).toHaveTextContent('10/28 drafted, 50% done')
+      expect(chip?.querySelector('[class*="progressBarFill"]')).toHaveStyle({ width: '50%' })
+      expect(screen.queryByText(/older/)).toBeNull()
+      expect(screen.getByRole('button', { name: 'Edit status and notes' })).toBeInTheDocument()
     })
 
     it('shows notes icon when notes present', () => {

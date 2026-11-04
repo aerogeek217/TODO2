@@ -4,6 +4,7 @@ import { usePersonStore } from '../stores/person-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
+import { useStatusUpdateStore } from '../stores/status-update-store'
 import type { Lens } from '../utils/lens'
 import { useFilterSettings } from './use-filter-settings'
 import { useToday } from './use-today'
@@ -14,13 +15,14 @@ export function useLensHideCounts(lenses: readonly Lens[]): LensHideCounts {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const statuses = useStatusStore((s) => s.statuses)
+  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
   const { urgentRange, hotRule, weekStartsOn } = useFilterSettings()
   const today = useToday()
   return useMemo(
     () => lensHideCounts({
-      todos, assignedPeopleMap, assignedTagsMap, statuses, today, weekStartsOn,
+      todos, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, today, weekStartsOn,
       markerSettings: { urgentRange, hotRule },
     }, lenses),
-    [lenses, todos, assignedPeopleMap, assignedTagsMap, statuses, today, weekStartsOn, urgentRange, hotRule],
+    [lenses, todos, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, today, weekStartsOn, urgentRange, hotRule],
   )
 }

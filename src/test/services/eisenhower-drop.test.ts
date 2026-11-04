@@ -11,6 +11,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 
 beforeEach(async () => {
   await db.delete()
@@ -118,7 +119,7 @@ describe('applyPaneDrop — a write that fails', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(db.todoTags, 'bulkAdd').mockRejectedValue(new Error('disk full'))
 
-    const reply = applyCheckinUpdates([{ todoId: c, complete: false, progress: 'Half done', changeCount: 1 }], { recordFollowup: false, personName: 'Ann' })
+    const reply = applyCheckinUpdates([{ todoId: c, complete: false, statusUpdate: 'Half done', changeCount: 1 }], { recordFollowup: false, personName: 'Ann' })
     const drop = applyPaneDrop([
       { todoId: a, urgent: true, statusId: waiting, tagId: home },
       { todoId: b, urgent: true, statusId: waiting, tagId: home },
@@ -126,8 +127,8 @@ describe('applyPaneDrop — a write that fails', () => {
     await Promise.all([reply, drop])
 
     // The reply's write stays, as its own undo step; the drop left nothing.
-    expect(mem(c).progress).toBe('Half done')
-    expect((await db.todos.get(c))!.progress).toBe('Half done')
+    expect(useStatusUpdateStore.getState().byTodo.get(c)?.map((u) => u.text)).toEqual(['Half done'])
+    expect((await db.statusUpdates.where('todoId').equals(c).toArray()).map((u) => u.text)).toEqual(['Half done'])
     expect(mem(a).urgent).toBeUndefined()
     expect(mem(a).statusId).toBeUndefined()
     expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Applied 1 change from Ann'])

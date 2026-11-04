@@ -6,10 +6,16 @@ import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useTagStore } from '../../stores/tag-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { TaskRowColumnsContext } from '../../components/task/task-row-grid-context'
 import { createValueStore } from '../../utils/value-store'
 import { taskRowColumns } from '../../utils/task-row-columns'
 import { makeTodo, makePerson, resetEntityStores } from '../helpers'
+
+/** Gives task 1 one status update (the store's state, as loaded). */
+function withUpdate(text: string, date = new Date(2026, 3, 14)) {
+  useStatusUpdateStore.setState({ byTodo: new Map([[1, [{ id: 1, todoId: 1, date, text, createdAt: date }]]]) })
+}
 
 const mockBulk = {
   toggleComplete: vi.fn(),
@@ -199,13 +205,14 @@ describe('TaskRow', () => {
       const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
       const cells = Array.from(container.querySelectorAll('[data-row-cell]')).map((el) => el.getAttribute('data-row-cell'))
       expect(cells).toEqual(['markers', 'checkbox', 'notes', 'people', 'tags', 'dates', 'due', 'followup', 'status'])
-      for (const name of ['Add progress or notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
+      for (const name of ['Add status or notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
       }
     })
 
-    it('no progress on the row (it stays in the editor) and no drag grip', () => {
-      const { container } = render(<TaskRow todo={makeTodo({ id: 1, progress: '50%' })} />)
+    it('no status update on the row (it stays in the notes cell) and no drag grip', () => {
+      withUpdate('50%')
+      const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
       expect(screen.queryByText('50%')).toBeNull()
       expect(container.querySelector('[class*="dragHandle"]')).toBeNull()
     })
@@ -515,7 +522,7 @@ describe('TaskRow', () => {
       // Its Mark followed up hands the row's action the field's date (here: cleared → none).
       fireEvent.click(within(popover).getByRole('button', { name: 'Clear next follow-up' }))
       fireEvent.click(within(popover).getByRole('button', { name: 'Mark followed up' }))
-      expect(mockBulk.markFollowedUp).toHaveBeenCalledWith(1, null)
+      expect(mockBulk.markFollowedUp).toHaveBeenCalledWith(1, null, undefined)
     })
 
     it('a late follow-up is the filled, late flag; today’s is filled', () => {
@@ -526,31 +533,31 @@ describe('TaskRow', () => {
       expect(screen.getByRole('button', { name: 'Follow-up: Today' })).toHaveAttribute('data-followup', 'today')
     })
 
-    it('the notes cell: Add progress or notes when empty; Edit progress and notes with either', () => {
+    it('the notes cell: Add status or notes when empty; Edit status and notes with an update, notes or both', () => {
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      const empty = screen.getByRole('button', { name: 'Add progress or notes' })
+      const empty = screen.getByRole('button', { name: 'Add status or notes' })
       // Empty: the placeholder glyph only (hidden until hover / focus).
       expect(empty.querySelector('[class*="ph"]')).not.toBeNull()
       unmount()
-      for (const fields of [{ notes: 'Some notes' }, { progress: '50%' }, { notes: 'n', progress: 'p' }]) {
-        const { unmount: u } = render(<TaskRow todo={makeTodo({ id: 1, ...fields })} />)
-        const cell = screen.getByRole('button', { name: 'Edit progress and notes' })
+      for (const [notes, update] of [['Some notes', null], [undefined, '50%'], ['n', 'p']] as const) {
+        useStatusUpdateStore.setState({ byTodo: new Map() })
+        if (update) withUpdate(update)
+        const { unmount: u } = render(<TaskRow todo={makeTodo({ id: 1, notes })} />)
+        const cell = screen.getByRole('button', { name: 'Edit status and notes' })
         // Filled: the glyph itself, not a placeholder.
         expect(cell.querySelector('svg')).not.toBeNull()
         expect(cell.querySelector('[class*="ph"]')).toBeNull()
         u()
       }
-      // Spaces only is no progress.
-      render(<TaskRow todo={makeTodo({ id: 1, progress: '  ' })} />)
-      expect(screen.getByRole('button', { name: 'Add progress or notes' })).toBeInTheDocument()
     })
 
-    it('hovering the notes cell previews the progress and the notes', () => {
-      render(<TaskRow todo={makeTodo({ id: 1, progress: '50% done', notes: '## Call\n- ask about **budget**' })} />)
-      fireEvent.pointerEnter(screen.getByRole('button', { name: 'Edit progress and notes' }))
+    it('hovering the notes cell previews the newest status update (MM/DD text) and the notes', () => {
+      withUpdate('50% done')
+      render(<TaskRow todo={makeTodo({ id: 1, notes: '## Call\n- ask about **budget**' })} />)
+      fireEvent.pointerEnter(screen.getByRole('button', { name: 'Edit status and notes' }))
       act(() => { vi.advanceTimersByTime(400) })
       const tip = screen.getByRole('tooltip')
-      expect(tip).toHaveTextContent('Progress: 50% done')
+      expect(tip).toHaveTextContent('04/14 50% done')
       expect(tip).toHaveTextContent('Notes')
       expect(tip).toHaveTextContent('Call')
       expect(tip).toHaveTextContent('• ask about budget')
@@ -559,17 +566,18 @@ describe('TaskRow', () => {
 
     it('an empty notes cell shows no preview', () => {
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
-      fireEvent.pointerEnter(screen.getByRole('button', { name: 'Add progress or notes' }))
+      fireEvent.pointerEnter(screen.getByRole('button', { name: 'Add status or notes' }))
       act(() => { vi.advanceTimersByTime(400) })
       expect(screen.queryByRole('tooltip')).toBeNull()
     })
 
-    it('a click opens the progress and notes popover; no preview while it is open', () => {
-      useTodoStore.setState({ todos: [makeTodo({ id: 1, progress: '50%' })] })
-      render(<TaskRow todo={makeTodo({ id: 1, progress: '50%' })} />)
-      const cell = screen.getByRole('button', { name: 'Edit progress and notes' })
+    it('a click opens the status and notes popover; no preview while it is open', () => {
+      withUpdate('50%')
+      useTodoStore.setState({ todos: [makeTodo({ id: 1 })] })
+      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      const cell = screen.getByRole('button', { name: 'Edit status and notes' })
       fireEvent.click(cell)
-      expect(screen.getByRole('dialog', { name: 'Progress and notes' })).toBeInTheDocument()
+      expect(screen.getByRole('dialog', { name: 'Status and notes' })).toBeInTheDocument()
       expect(cell).toHaveAttribute('aria-expanded', 'true')
       fireEvent.pointerEnter(cell)
       act(() => { vi.advanceTimersByTime(400) })

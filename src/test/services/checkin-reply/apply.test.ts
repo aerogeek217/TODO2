@@ -13,7 +13,8 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { DEFAULT_FOLLOWUP_INTERVAL } from '../../../utils/followup'
-import { checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
+import { checkinSampleStatusUpdates, checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
+import { useStatusUpdateStore } from '../../../stores/status-update-store'
 import { editHtml, parse, sampleEmail } from './helpers'
 
 const fixtures = import.meta.glob('../../fixtures/checkin-replies/synthetic-new-outlook-inline.*', {
@@ -35,6 +36,8 @@ beforeEach(async () => {
   await db.open()
   tasks = checkinSampleTasks()
   await db.todos.bulkAdd(tasks)
+  await db.statusUpdates.bulkAdd([...checkinSampleStatusUpdates().values()].flat())
+  await useStatusUpdateStore.getState().load()
   useTodoStore.setState({ todos: tasks, todosVersion: 0 })
   useSettingsStore.setState({ followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL, defaultStatusId: null })
   useUndoStore.getState().clear()
@@ -45,23 +48,26 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-/** The new-Outlook reply fixture: task 1 Progress, task 2 Completed, task 3 Notes. */
+/** The new-Outlook reply fixture: task 1 Status, task 2 Completed, task 3 Notes. */
 function fixtureDiff(): CheckinReplyDiff {
   const reply = parse({ html: fixture('.html'), plain: fixture('.txt') })
-  return diffCheckinReply(reply, { todos: useTodoStore.getState().todos })
+  return diffCheckinReply(reply, { todos: useTodoStore.getState().todos, statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo })
 }
 
 const mem = (id: number) => useTodoStore.getState().todos.find((t) => t.id === id)!
 const row = async (id: number) => (await db.todos.get(id))!
+/** The task's newest status update in the store, and its stored ones (texts, newest written last). */
+const newest = (id: number) => useStatusUpdateStore.getState().byTodo.get(id)?.[0]
+const storedUpdates = async (id: number) => (await db.statusUpdates.where('todoId').equals(id).sortBy('id')).map((u) => u.text)
 
 describe('selection', () => {
   it('ticks every change by default; the ticked changes group per task', () => {
     const diff = fixtureDiff()
     const selected = defaultCheckinSelection(diff)
-    expect([...selected].sort()).toEqual(['1:progress', '2:completed', '3:notes'])
+    expect([...selected].sort()).toEqual(['1:statusUpdate', '2:completed', '3:notes'])
     const updates = selectedCheckinUpdates(diff, selected)
     expect(updates.map((u) => ({ ...u, notes: u.notes?.split('\n').length }))).toEqual([
-      { todoId: 1, complete: false, progress: 'section 4 done', changeCount: 1 },
+      { todoId: 1, complete: false, statusUpdate: 'section 4 done', changeCount: 1 },
       { todoId: 2, complete: true, changeCount: 1 },
       { todoId: 3, complete: false, notes: 5, changeCount: 1 },
     ])
@@ -70,14 +76,14 @@ describe('selection', () => {
   it('a task changed in the app after the send date still starts ticked (no timestamps)', () => {
     useTodoStore.setState({ todos: tasks.map((t) => (t.id === 1 ? { ...t, modifiedAt: new Date(2026, 9, 13, 8) } : t)) })
     const diff = fixtureDiff()
-    expect(defaultCheckinSelection(diff).has(checkinChangeKey(1, 'progress'))).toBe(true)
+    expect(defaultCheckinSelection(diff).has(checkinChangeKey(1, 'statusUpdate'))).toBe(true)
     expect(defaultCheckinSelection(diff).has(checkinChangeKey(2, 'completed'))).toBe(true)
   })
 
   it('emptied notes start unticked', () => {
     const email = sampleEmail()
     const html = editHtml(email.html, '0c4d8e17', 'Notes:', '&nbsp;')
-    const diff = diffCheckinReply(parse({ html, plain: email.plain }), { todos: tasks })
+    const diff = diffCheckinReply(parse({ html, plain: email.plain }), { todos: tasks, statusUpdatesByTodo: checkinSampleStatusUpdates() })
     const notes = diff.tasks.find((t) => t.todo.id === 1)?.changes.find((c) => c.field === 'notes')
     expect(notes).toMatchObject({ field: 'notes', emptied: true, to: '' })
     expect(defaultCheckinSelection(diff).has(checkinChangeKey(1, 'notes'))).toBe(false)
@@ -96,7 +102,7 @@ describe('selection', () => {
 })
 
 describe('applyCheckinUpdates', () => {
-  it('completes, sets progress, replaces notes and records a follow-up on the updated tasks — one undo entry', async () => {
+  it('completes, adds the status update (today, followedUp), replaces notes and records a follow-up on the updated tasks — one undo entry', async () => {
     const diff = fixtureDiff()
     const updates = selectedCheckinUpdates(diff, defaultCheckinSelection(diff))
     const expectedNotes = updates.find((u) => u.todoId === 3)?.notes
@@ -104,10 +110,10 @@ describe('applyCheckinUpdates', () => {
     const n = await applyCheckinUpdates(updates, { recordFollowup: true, personName: 'Marcus Chen' })
     expect(n).toBe(3)
 
-    expect(mem(1).progress).toBe('section 4 done')
+    expect(newest(1)).toMatchObject({ text: 'section 4 done', date: new Date(2026, 9, 13), followedUp: true })
     expect(mem(2).isCompleted).toBe(true)
     expect(mem(3).notes).toBe(expectedNotes)
-    expect((await row(1)).progress).toBe('section 4 done')
+    expect(await storedUpdates(1)).toEqual(['half done', 'section 4 done'])
     expect((await row(2)).isCompleted).toBe(true)
     expect((await row(2)).completedAt).toEqual(NOW)
     expect((await row(3)).notes).toBe(expectedNotes)
@@ -128,15 +134,17 @@ describe('applyCheckinUpdates', () => {
     expect(undo.snackbar).toEqual({ description: 'Applied 3 changes from Marcus Chen' })
   })
 
-  it('undo restores every task (old progress, notes, completion and follow-up dates); redo applies again', async () => {
+  it('undo restores every task (status updates, notes, completion and follow-up dates); redo applies again', async () => {
     const diff = fixtureDiff()
     await applyCheckinUpdates(selectedCheckinUpdates(diff, defaultCheckinSelection(diff)), { recordFollowup: true, personName: 'Marcus Chen' })
     await useUndoStore.getState().undo()
 
+    const sample = checkinSampleStatusUpdates()
     for (const original of tasks) {
+      expect(newest(original.id)?.text).toBe(sample.get(original.id)?.[0]?.text)
+      expect(await storedUpdates(original.id)).toEqual((sample.get(original.id) ?? []).map((u) => u.text))
       const stored = await row(original.id)
       for (const t of [stored, mem(original.id)]) {
-        expect(t.progress).toBe(original.progress)
         expect(t.notes).toBe(original.notes)
         expect(t.isCompleted).toBe(false)
         expect(t.completedAt).toBeUndefined()
@@ -147,7 +155,7 @@ describe('applyCheckinUpdates', () => {
     expect((await db.todoEvents.where('todoId').equals(2).toArray()).map((e) => e.type)).toEqual(['completed', 'reopened'])
 
     await useUndoStore.getState().redo()
-    expect((await row(1)).progress).toBe('section 4 done')
+    expect(newest(1)?.text).toBe('section 4 done')
     expect((await row(2)).isCompleted).toBe(true)
     expect((await row(3)).notes).toContain('Nina confirmed Saturday')
     expect((await row(3)).lastFollowupAt).toEqual(NOW)
@@ -210,8 +218,8 @@ describe('applyCheckinUpdates', () => {
 
     await expect(applyCheckinUpdates(updates, { recordFollowup: true, personName: 'Marcus Chen' })).rejects.toThrow()
     expect((await row(1)).lastFollowupAt).toEqual(before.lastFollowupAt)
-    // Only the completion (written first) went in: the undo entry says 1, not 3.
-    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe(checkinAppliedMessage(1, 'Marcus Chen'))
+    // The completion (written first) and task 1's status update went in, task 3's notes failed: the undo entry says 2, not 3.
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe(checkinAppliedMessage(2, 'Marcus Chen'))
     vi.restoreAllMocks()
   })
 })

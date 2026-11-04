@@ -196,7 +196,7 @@ test.describe('task row notes popover', () => {
   test('a click on Edit… in the person menu opens the editor; Esc and clicks in it leave the popover open', async ({ page }) => {
     await seedWorkspace(page, ROW_SEED)
     await taskRowByTitle(page, 'Plan the offsite').locator('[data-row-cell="notes"]').click()
-    const notesPopover = page.getByRole('dialog', { name: 'Progress and notes' })
+    const notesPopover = page.getByRole('dialog', { name: 'Status and notes' })
     await expect(notesPopover).toBeVisible()
     const editor = notesPopover.locator('.cm-content')
     await editor.click()

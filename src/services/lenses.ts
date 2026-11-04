@@ -27,6 +27,7 @@ export function lensHideCounts(env: Omit<ScreenCountEnv, 'screen'>, lenses: read
     assignedPeopleMap: env.assignedPeopleMap,
     assignedTagsMap: env.assignedTagsMap,
     statusesById: new Map(env.statuses.map((s) => [s.id!, s])),
+    statusUpdatesByTodo: env.statusUpdatesByTodo,
   }
   const settings = { ...env.markerSettings, weekStartsOn: env.weekStartsOn }
   const open = env.todos.filter((t) => !t.isCompleted)

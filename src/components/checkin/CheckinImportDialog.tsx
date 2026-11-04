@@ -21,15 +21,16 @@ import { parseCheckinReply, type CheckinReplyInput } from '../../services/checki
 import { advanceRecurring } from '../../utils/recurrence'
 import { usePersonStore } from '../../stores/person-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { autoFollowupInterval, useSettingsStore } from '../../stores/settings-store'
 import { describeFollowupInterval } from '../../utils/followup'
-import { formatDateShort } from '../../utils/date'
+import { formatDateNumeric, formatDateShort } from '../../utils/date'
 import { useUIStore } from '../../stores/ui-store'
 import { DialogFrame } from '../shared/Dialog'
 import styles from './CheckinImportDialog.module.css'
 import { collapseWhitespace } from '../../utils/text'
 import { byName } from '../../utils/sort-order'
-import { wordDiff, type WordDiffPart } from '../../utils/word-diff'
+import type { WordDiffPart } from '../../utils/word-diff'
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
 /** `, sent Oct 12` for the footer's send date (`YYYY-MM-DD`); empty without one. Information only. */
@@ -42,7 +43,7 @@ const sameName = (a: string, b: string) => collapseWhitespace(a).toLocaleLowerCa
 
 const FIELD_LABEL: Record<CheckinChange['field'], string> = {
   completed: 'Completed',
-  progress: 'Progress',
+  statusUpdate: 'Status',
   notes: 'Notes',
 }
 
@@ -96,7 +97,10 @@ function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: st
   if (parsed.reply.blocks.length === 0) {
     return { error: 'No task updates were found. Copy the whole reply, including each task’s Ref line, and paste again.' }
   }
-  const diff = diffCheckinReply(parsed.reply, { todos: useTodoStore.getState().todos })
+  const diff = diffCheckinReply(parsed.reply, {
+    todos: useTodoStore.getState().todos,
+    statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo,
+  })
   return { reply: { diff, orphanUpdates: parsed.reply.orphanUpdates } }
 }
 
@@ -109,7 +113,7 @@ function readPaste(input: CheckinReplyInput): { reply: ReadReply } | { error: st
  * changed.
  *
  * Each change previews what applying does to the task now: Mark complete,
- * the progress redlined from its current value, the notes line diff with
+ * the new status update (dated today) over the task's newest one, the notes line diff with
  * each edited line redlined (removed words struck, added words underlined —
  * `<del>` / `<ins>` with a visually hidden "removed" / "added").
  *
@@ -500,9 +504,15 @@ function ChangeRow({ change, repeats, checked, onToggle }: {
             {repeats && <span className={styles.note}>Repeats, so it moves to its next due date.</span>}
           </div>
         )}
-        {change.field === 'progress' && (
-          <div className={styles.redline} data-checkin-progress-redline="">
-            <ProgressRedline from={change.from} to={change.to} />
+        {change.field === 'statusUpdate' && (
+          <div className={styles.statusUpdate} data-checkin-status-update="">
+            <span className={styles.statusUpdateHead}>New status update · today</span>
+            <span className={styles.statusUpdateText}>{change.text}</span>
+            {change.newest && (
+              <span className={styles.note} data-checkin-status-newest="">
+                Newest now: {formatDateNumeric(change.newest.date)} · {change.newest.text}
+              </span>
+            )}
           </div>
         )}
         {change.field === 'notes' && (
@@ -514,12 +524,6 @@ function ChangeRow({ change, repeats, checked, onToggle }: {
       </div>
     </div>
   )
-}
-
-/** The progress now redlined to the reply's (the word diff kept across re-renders). */
-function ProgressRedline({ from, to }: { from: string; to: string }) {
-  const parts = useMemo(() => wordDiff(collapseWhitespace(from), to), [from, to])
-  return <Redline parts={parts} />
 }
 
 /** Leading whitespace, the rest, trailing whitespace. */

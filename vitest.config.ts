@@ -8,10 +8,16 @@ import { configDefaults, defineConfig } from 'vitest/config'
 // per-file jsdom + import cost; src/test/setup-shared.ts resets the shared
 // state at each file boundary. In both projects src/test/setup.ts resets the
 // stores and module state before each test.
-const ISOLATED = readdirSync('src', { recursive: true, encoding: 'utf8' })
+const MOCKING = readdirSync('src', { recursive: true, encoding: 'utf8' })
   .filter((f) => /\.test\.tsx?$/.test(f))
   .map((f) => `src/${f.replaceAll('\\', '/')}`)
   .filter((f) => /\bvi\.(mock|doMock)\(/.test(readFileSync(f, 'utf8')))
+// Files whose database open is refused below the floor: the floor's upgrade
+// throws, which leaves Dexie's in-memory schema of the shared `db` at the
+// floor's tables, so every database it created later in the worker would
+// lack the tables added since (v72's `statusUpdates`).
+const REFUSED_OPEN = ['src/test/data/database-too-old.test.tsx']
+const ISOLATED = [...MOCKING, ...REFUSED_OPEN]
 
 // `.claude/` is gitignored tooling (agent worktrees hold whole checkouts): never test files here.
 export default defineConfig({

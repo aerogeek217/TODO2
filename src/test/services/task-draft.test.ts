@@ -166,6 +166,13 @@ describe('draftFromEditor', () => {
     expect(draftFromEditor({ title: 'x /followup none' }, none, ctx).nextFollowupAt).toBeNull()
   })
 
+  it('carries the status updates added before Create; none = no key', () => {
+    const none = { personIds: [], tagIds: [] }
+    const update = { date: new Date(2026, 9, 1), text: 'Kicked off', createdAt: new Date(2026, 9, 1, 9) }
+    expect(draftFromEditor({ title: 'x', statusUpdates: [update] }, none, ctx).statusUpdates).toEqual([update])
+    expect('statusUpdates' in draftFromEditor({ title: 'x', statusUpdates: [] }, none, ctx)).toBe(false)
+  })
+
   it('round-trips a draft through the editor title', () => {
     const draft = draftFromText('Call legal @Marco #launch @Ben', ctx)
     const back = draftFromEditor({ title: draftEditorTitle(draft) }, { personIds: draft.personIds, tagIds: draft.tagIds }, ctx)
@@ -202,10 +209,15 @@ describe('draftToTodo', () => {
     expect(row).toEqual({ title: 'T', isCompleted: false, createdAt: now, modifiedAt: now, nextFollowupAt: fallback, urgent: true })
   })
 
-  it('keeps the editor’s Last follow-up, notes and Progress; a repeat keeps its day of month', () => {
+  it('keeps the editor’s Last follow-up and notes; a repeat keeps its day of month', () => {
     const due = new Date(2026, 9, 12)
     const d = new Date(2026, 9, 1)
-    const row = draftToTodo({ ...base, dueDate: due, recurrence: 'monthly', statusId: 7, lastFollowupAt: d, notes: 'n', progress: 'p' }, now, fallback)
-    expect(row).toMatchObject({ dueDate: due, recurrenceRule: { type: 'monthly', originalDayOfMonth: 12 }, statusId: 7, lastFollowupAt: d, notes: 'n', progress: 'p' })
+    const row = draftToTodo({ ...base, dueDate: due, recurrence: 'monthly', statusId: 7, lastFollowupAt: d, notes: 'n' }, now, fallback)
+    expect(row).toMatchObject({ dueDate: due, recurrenceRule: { type: 'monthly', originalDayOfMonth: 12 }, statusId: 7, lastFollowupAt: d, notes: 'n' })
+  })
+
+  it('leaves a draft’s status updates off the row (they are written after it)', () => {
+    const update = { date: new Date(2026, 9, 1), text: 'Kicked off', createdAt: now }
+    expect(draftToTodo({ ...base, statusUpdates: [update] }, now, fallback)).not.toHaveProperty('statusUpdates')
   })
 })

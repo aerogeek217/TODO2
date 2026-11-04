@@ -8,6 +8,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import type { Tag } from '../../models'
 import { makePerson, makeTodo } from '../helpers'
 import { SEARCH_DEBOUNCE_MS } from '../../constants'
@@ -87,6 +88,28 @@ describe('TopBar grouped search', () => {
       expect(within(screen.getByRole('listbox', { name: /search results/i })).getAllByRole('option')).toHaveLength(5)
     })
     expect(screen.getByText('Show all 7')).toBeInTheDocument()
+  })
+
+  it('renders a Status updates group for a match in a task’s status updates, with the matching entry', async () => {
+    useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Q4 budget numbers' })] })
+    useStatusUpdateStore.setState({
+      byTodo: new Map([[1, [
+        { id: 2, todoId: 1, date: new Date(2026, 10, 3), text: 'Pinged on Slack', createdAt: new Date(2026, 10, 3, 9) },
+        { id: 1, todoId: 1, date: new Date(2026, 9, 20), text: 'Asked for the final numbers by Friday', createdAt: new Date(2026, 9, 20, 9) },
+      ]]]),
+    })
+    renderBar()
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      fireEvent.change(input, { target: { value: 'friday' } })
+    })
+
+    const listbox = await screen.findByRole('listbox', { name: /search results/i })
+    const group = within(listbox).getByRole('group', { name: 'Status updates' })
+    expect(within(group).getByText('Q4 budget numbers')).toBeInTheDocument()
+    expect(within(group).getByText('10/20 · Asked for the final numbers by Friday')).toBeInTheDocument()
+    expect(within(listbox).queryByRole('group', { name: 'Title' })).toBeNull()
   })
 
   it('does not show the listbox when no results match', async () => {

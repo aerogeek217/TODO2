@@ -12,12 +12,12 @@ import { seedWorkspace, type WorkspaceSeed, type WsTabSeed } from './fixtures/wo
 const PEOPLE = ['Alice Chen', 'Ben Ortiz', 'Carla Diaz']
 const TAGS = ['customer', 'budget', 'q4-planning']
 
-/** Rows with everything a row can show (all markers, notes, progress, three tags and people, both dates, a status). */
+/** Rows with everything a row can show (all markers, notes, a status update, three tags and people, both dates, a status). */
 const TASKS: NonNullable<WorkspaceSeed['tasks']> = [
   {
     title: 'Prepare the quarterly business review deck for Northwind',
     urgent: true, important: true, focus: true,
-    notes: 'Numbers from finance first', progress: '50% drafted',
+    notes: 'Numbers from finance first', statusUpdates: [{ text: '50% drafted' }],
     tags: TAGS, people: PEOPLE, dueInDays: 1, followupInDays: 2, status: 'Waiting',
   },
   {

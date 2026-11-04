@@ -29,6 +29,38 @@
   color: var(--color-text-secondary);
 }
 
+/* "Status update" over its field, `optional` at the right. */
+.updateLabelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin-bottom: -4px;
+}
+
+.updateLabelRow .fieldLabel {
+  margin-bottom: 0;
+}
+
+.optional {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* The task's newest status update under the field: `MM/DD text`, one line. */
+.newestUpdate {
+  margin-top: -4px;
+  overflow: hidden;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.newestUpdateDate {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ═══ Input (shared by popover + editor) ═══ */
 
 .inputWrap,

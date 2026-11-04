@@ -4,13 +4,14 @@ import { useLocation } from 'react-router'
 import { ROUTE_WORKSPACE } from '../../routes'
 import { useFilterStore } from '../../stores/filter-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
-import type { Person, PersistedTodoItem, Status, Tag, TodoPredicate } from '../../models'
+import type { PersistedStatusUpdate, Person, PersistedTodoItem, Status, Tag, TodoPredicate } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { useUIStore } from '../../stores/ui-store'
-import { startOfToday } from '../../utils/date'
+import { formatDateNumeric, startOfToday } from '../../utils/date'
 import { groupTodosByTextMatch, textMatchContextFor, type TextMatchField } from '../../utils/filter'
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
@@ -41,10 +42,11 @@ import { tabAcross } from '../../utils/focusables'
 import { trayExpansion, type TrayExpansion } from './tray-expansion'
 import { PopoverRoot } from '../shared/PopoverRoot'
 
-const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'person', 'status', 'tag']
+const SEARCH_FIELD_ORDER: TextMatchField[] = ['title', 'notes', 'statusUpdate', 'person', 'status', 'tag']
 const SEARCH_FIELD_LABELS: Record<TextMatchField, string> = {
   title: 'Title',
   notes: 'Notes',
+  statusUpdate: 'Status updates',
   person: 'Person',
   status: 'Status',
   tag: 'Tags',
@@ -117,6 +119,8 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
       return <svg {...common}><path d="M3 3h10M3 6h10M3 9h7M3 12h10" /></svg>
     case 'notes':
       return <svg {...common}><path d="M4 2h6l2 2v10H4z" /><path d="M6 6h4M6 8h4M6 10h3" /></svg>
+    case 'statusUpdate':
+      return <svg {...common}><circle cx="8" cy="8" r="5.5" /><path d="M8 5v3l2 1.5" /></svg>
     case 'person':
       return <span className={styles.miniListGroupIcon} style={{ fontSize: 12 }}>@</span>
     case 'status':
@@ -129,11 +133,20 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
 /**
  * Per-row pill context resolved once on TopBar and threaded down to every
  * `SearchResultRow`. Keeping it in one place avoids re-subscribing each row
- * to the assigned-people / status stores.
+ * to the assigned-people / status / status update stores.
  */
 interface SearchResultPillContext {
   peopleByTodoId: Map<number, Person[]>
   statusesById: Map<number, Status>
+  /** Each task's status updates, newest first (a Status updates hit's snippet). */
+  statusUpdatesByTodo: ReadonlyMap<number, readonly PersistedStatusUpdate[]>
+}
+
+/** A Status updates hit's snippet: the newest entry the query hits, `MM/DD · text`. */
+function statusUpdateSnippet(updates: readonly PersistedStatusUpdate[] | undefined, query: string): string | undefined {
+  const q = query.toLowerCase().trim()
+  const hit = updates?.find((u) => u.text.toLowerCase().includes(q))
+  return hit ? `${formatDateNumeric(hit.date)} · ${hit.text}` : undefined
 }
 
 function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: SearchResultPillContext }) {
@@ -166,15 +179,17 @@ function SearchResultPills({ todo, ctx }: { todo: PersistedTodoItem; ctx: Search
  * the dropdown stays mounted underneath the menu (the result list stays
  * visible while the menu is open so the user can pick another row).
  */
-function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContextMenu }: {
+function SearchResultRow({ todo, field, query, pillCtx, onOpen, onKeyDown, onOpenContextMenu }: {
   todo: PersistedTodoItem
   field: TextMatchField
+  query: string
   pillCtx: SearchResultPillContext
   onOpen: (todoId: number) => void
   onKeyDown: (e: React.KeyboardEvent<HTMLButtonElement>, todoId: number) => void
   onOpenContextMenu: (todo: PersistedTodoItem, x: number, y: number) => void
 }) {
   const { handleToggleComplete } = useTaskRowActions({ todo })
+  const updateSnippet = field === 'statusUpdate' ? statusUpdateSnippet(pillCtx.statusUpdatesByTodo.get(todo.id), query) : undefined
   return (
     <div className={`${styles.miniListItem} ${todo.isCompleted ? styles.miniListItemCompleted : ''}`}>
       <input
@@ -205,6 +220,7 @@ function SearchResultRow({ todo, field, pillCtx, onOpen, onKeyDown, onOpenContex
         {field === 'notes' && todo.notes && (
           <span className={styles.miniListMatchSnippet}>{collapseWhitespace(todo.notes)}</span>
         )}
+        {updateSnippet && <span className={styles.miniListMatchSnippet}>{updateSnippet}</span>}
         <SearchResultPills todo={todo} ctx={pillCtx} />
       </button>
     </div>
@@ -238,6 +254,7 @@ const NO_EXPANDED_FIELDS: ReadonlySet<TextMatchField> = new Set()
 const NO_TODOS: PersistedTodoItem[] = []
 const NO_PEOPLE_MAP = new Map<number, Person[]>()
 const NO_TAGS_MAP = new Map<number, Tag[]>()
+const NO_STATUS_UPDATES = new Map<number, readonly PersistedStatusUpdate[]>()
 
 const SearchResultsGroups = forwardRef<HTMLDivElement, {
   groups: Record<TextMatchField, PersistedTodoItem[]>
@@ -307,6 +324,7 @@ const SearchResultsGroups = forwardRef<HTMLDivElement, {
                 key={`${field}-${todo.id}-${localIdx}`}
                 todo={todo}
                 field={field}
+                query={query}
                 pillCtx={pillCtx}
                 onOpen={onOpen}
                 onKeyDown={onItemKeyDown}
@@ -358,6 +376,7 @@ export function TopBar() {
   const statuses = useStatusStore((s) => s.statuses)
   const assignedPeopleMap = usePersonStore((s) => (searching ? s.assignedPeopleMap : NO_PEOPLE_MAP))
   const assignedTagsMap = useTagStore((s) => (searching ? s.assignedTagsMap : NO_TAGS_MAP))
+  const statusUpdatesByTodo = useStatusUpdateStore((s) => (searching ? s.byTodo : NO_STATUS_UPDATES))
   const openEditPopup = useUIStore((s) => s.openEditPopup)
 
   const statusesById = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
@@ -370,7 +389,8 @@ export function TopBar() {
   const searchPillCtx = useMemo<SearchResultPillContext>(() => ({
     peopleByTodoId: assignedPeopleMap,
     statusesById,
-  }), [assignedPeopleMap, statusesById])
+    statusUpdatesByTodo,
+  }), [assignedPeopleMap, statusesById, statusUpdatesByTodo])
 
   // The dropdown lists the words' matches among the tasks the chips and the
   // lens keep (completed ones too, last, as before the chips).
@@ -378,14 +398,14 @@ export function TopBar() {
   const filterSettings = useFilterSettings()
   const miniListGroups = useMemo(() => {
     if (!searchWords || !searchFocused) return null
-    const lookups = { assignedPeopleMap, assignedTagsMap, statusesById }
+    const lookups = { assignedPeopleMap, assignedTagsMap, statusesById, statusUpdatesByTodo }
     const narrowing = { ...screenFilter.filters, searchText: '', showCompleted: true }
     const today = startOfToday()
     const kept = screenFilter.active
       ? todos.filter((t) => matchesFilterWithLookups(narrowing, t, lookups, today, filterSettings))
       : todos
     return groupTodosByTextMatch(kept, searchWords, (t) => textMatchContextFor(t, lookups))
-  }, [searchWords, searchFocused, todos, assignedPeopleMap, assignedTagsMap, statusesById, screenFilter.filters, screenFilter.active, filterSettings])
+  }, [searchWords, searchFocused, todos, assignedPeopleMap, assignedTagsMap, statusesById, statusUpdatesByTodo, screenFilter.filters, screenFilter.active, filterSettings])
 
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)

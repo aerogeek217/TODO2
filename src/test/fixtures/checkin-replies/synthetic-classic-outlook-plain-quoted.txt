@@ -14,7 +14,8 @@ Subject: Task check-in: 4 open tasks
 > please reply and update the "Your update" box under each task:
 >
 > - Completed: put an x in the box when the task is finished.
-> - Progress and Notes: edit the text directly. Leave anything that hasn’t
+> - Status: write what’s new over the line, or leave it as it is.
+> - Notes: edit the text directly. Leave anything that hasn’t
 > changed as it is.
 >
 > Overdue
@@ -24,8 +25,8 @@ Subject: Task check-in: 4 open tasks
 > Northwind Rollout  #security · Also assigned Sam Ortiz
 > Your update
 > Completed: [ ]
-> Progress: section 4 done, section 7 waiting on the pen-test report from
-> Sam
+> Status: (10/10) section 4 done, section 7 waiting on the pen-test report
+> from Sam
 > Notes:
 > Sections 4 and 7 still open.
 > Sam has the SOC 2 letter.
@@ -36,7 +37,7 @@ Subject: Task check-in: 4 open tasks
 > Due Wed, Oct 14 · Next follow-up Today
 > Your update
 > Completed: [x]
-> Progress: 40%
+> Status: (10/10) 40%
 > Notes:
 >
 > 3. Draft the migration runbook  Ref 3f9a1c42
@@ -44,7 +45,7 @@ Subject: Task check-in: 4 open tasks
 > Migration  #docs · Also assigned Nina Patel
 > Your update
 > Completed: [ ]
-> Progress:
+> Status:
 > Notes:
 > Cover the cutover sequence, rollback steps and who is on call.
 > Nina confirmed Saturday 06:00–08:00 for the cutover.
@@ -57,7 +58,7 @@ Subject: Task check-in: 4 open tasks
 > Next follow-up Sun, Nov 1
 > Your update
 > Completed: [ ]
-> Progress:
+> Status:
 > Notes:
 >
 > Thanks,

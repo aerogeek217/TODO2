@@ -85,6 +85,19 @@ describe('buildTaskArchive', () => {
     expect(archive).not.toHaveProperty('listDefinitions')
   })
 
+  it('carries the archived tasks’ status updates, and only theirs', async () => {
+    const s = await seed()
+    await db.statusUpdates.bulkAdd([
+      { todoId: s.oldDone, date: new Date(2026, 6, 1), text: 'shipped', createdAt: new Date(2026, 6, 1, 9) },
+      { todoId: s.open, date: new Date(2026, 9, 1), text: 'still open', createdAt: new Date(2026, 9, 1, 9) },
+    ])
+    const archive = await buildTaskArchive([s.oldDone, s.oldBare])
+    expect(archive.statusUpdates.map((r) => [r.todoId, r.text])).toEqual([[s.oldDone, 'shipped']])
+    const prepared = prepareImportText(JSON.stringify(archive), { purpose: 'append' })
+    if (!prepared.ok) throw new Error(prepared.error)
+    expect(prepared.data.statusUpdates.map((r) => r.text)).toEqual(['shipped'])
+  })
+
   it('skips ids that no longer exist', async () => {
     const s = await seed()
     const archive = await buildTaskArchive([s.oldBare, 9999])

@@ -114,6 +114,19 @@ describe('todoRepository', () => {
     expect(await db.todoTags.count()).toBe(0)
     expect(await db.tags.count()).toBe(1)
   })
+
+  it('delete / bulkDelete take the tasks’ status updates with them, and no one else’s', async () => {
+    const id1 = await todoRepository.insert(makeTodo({ title: 'a' }))
+    const id2 = await todoRepository.insert(makeTodo({ title: 'b' }))
+    const id3 = await todoRepository.insert(makeTodo({ title: 'c' }))
+    const entry = (todoId: number) => ({ todoId, date: new Date(2026, 9, 5), text: `on ${todoId}`, createdAt: new Date() })
+    await db.statusUpdates.bulkAdd([entry(id1), entry(id1), entry(id2), entry(id3)])
+
+    await todoRepository.delete(id1)
+    expect((await db.statusUpdates.toArray()).map((r) => r.todoId)).toEqual([id2, id3])
+    await todoRepository.bulkDelete([id2])
+    expect((await db.statusUpdates.toArray()).map((r) => r.todoId)).toEqual([id3])
+  })
 })
 
 describe('todoRepository — orphan-rule cleanup on write', () => {

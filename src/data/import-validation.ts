@@ -1,5 +1,5 @@
-import type { TodoItem, Person, TodoPerson, RecurrenceRule, RecurrenceType, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, ListOrder } from '../models'
-import { isTodoSortBy, isTodoGroupBy, isTodoSortDirection } from '../models'
+import type { TodoItem, Person, TodoPerson, RecurrenceRule, RecurrenceType, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, StatusUpdate, ListOrder } from '../models'
+import { isTodoSortBy, isTodoGroupBy, isTodoSortDirection, STATUS_UPDATE_TEXT_MAX } from '../models'
 import type { ListDefinition, ListOwner, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { toDate, toOptDate } from './date-revive'
@@ -131,7 +131,6 @@ function checkTodo(v: unknown): CheckResult {
     ['uid', isStr(v.uid, 200)],
     ['title', isStr(v.title, TITLE_MAX_CHARS)],
     ['notes', isOptStr(v.notes, NOTES_MAX_CHARS)],
-    ['progress', isOptStr(v.progress, 500)],
     ['isCompleted', isBool(v.isCompleted)],
     ['completedAt', isOptDateLike(v.completedAt)],
     ['dueDate', isOptDateLike(v.dueDate)],
@@ -291,6 +290,18 @@ function checkTodoEvent(v: unknown): CheckResult {
     ['fromValue', isOptScalarValue(v.fromValue)],
     ['toValue', isOptScalarValue(v.toValue)],
     ['timestamp', typeof v.timestamp === 'string' && !isNaN(Date.parse(v.timestamp))],
+  ])
+}
+
+function checkStatusUpdate(v: unknown): CheckResult {
+  if (!isRecord(v)) return 'not an object'
+  return checkFields(v, [
+    ['id', isOptId(v.id)],
+    ['todoId', isFiniteNum(v.todoId)],
+    ['date', isDateLike(v.date)],
+    ['text', isStr(v.text, STATUS_UPDATE_TEXT_MAX)],
+    ['createdAt', isDateLike(v.createdAt)],
+    ['followedUp', isOptTriBool(v.followedUp)],
   ])
 }
 
@@ -480,7 +491,6 @@ function pickTodo(v: Raw): AllFields<TodoItem> {
     completedAt: toOptDate(v.completedAt),
     createdAt: toDate(v.createdAt), modifiedAt: toDate(v.modifiedAt), sortOrder: v.sortOrder as number,
     notes: optStr(v.notes),
-    progress: optStr(v.progress),
     dueDate: toOptDate(v.dueDate),
     lastFollowupAt: toOptDate(v.lastFollowupAt),
     nextFollowupAt: toOptDate(v.nextFollowupAt),
@@ -660,6 +670,18 @@ function pickTodoEvent(v: Raw): AllFields<TodoEvent> {
   } satisfies AllFields<TodoEvent>
 }
 
+function pickStatusUpdate(v: Raw): AllFields<StatusUpdate> {
+  return {
+    id: optNum(v.id),
+    todoId: v.todoId as number,
+    date: toDate(v.date),
+    text: v.text as string,
+    createdAt: toDate(v.createdAt),
+    // Only `true` is stored; `false` / absent both mean "added on its own".
+    followedUp: v.followedUp === true ? true : undefined,
+  } satisfies AllFields<StatusUpdate>
+}
+
 function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
   if (!isRecord(v)) return undefined
   const field = v.field
@@ -808,6 +830,7 @@ export const IMPORT_TABLES: { readonly [K in DataTableName]: ImportTableRules<K>
   tags: { check: checkTag, pick: pickTag },
   todoTags: { check: checkTodoTag, pick: pickTodoTag },
   todoEvents: { check: checkTodoEvent, pick: pickTodoEvent },
+  statusUpdates: { check: checkStatusUpdate, pick: pickStatusUpdate },
   layouts: {
     check: checkLayout,
     pick: pickLayout,

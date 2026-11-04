@@ -6,7 +6,7 @@ import { readStore, readStores, type Row } from './fixtures/db'
  * Creating a task in a real browser, the three ways: Quick Add, a note's
  * line (Convert), and the task editor (Quick Add's Details ⇥ handoff). The
  * same text makes the same task each way — they share one rule set. Also the
- * editor's Progress on create, and the notes' rich copy (the shared
+ * editor's status updates on create, and the notes' rich copy (the shared
  * clipboard write). Real-browser because the popups, dialog stacking and
  * the clipboard are.
  */
@@ -28,7 +28,6 @@ interface StoredTask {
   dueDate?: string
   nextFollowupAt?: string
   recurrence?: string
-  progress?: string
   people: string[]
   tags: string[]
 }
@@ -51,7 +50,6 @@ async function readTask(page: Page, title: string): Promise<StoredTask | null> {
     dueDate: day(t.dueDate),
     nextFollowupAt: day(t.nextFollowupAt),
     recurrence: (t.recurrenceRule as { type?: string } | undefined)?.type,
-    progress: t.progress as string | undefined,
     people: names(todoPeople, 'personId', people),
     tags: names(todoTags, 'tagId', tags),
   }
@@ -128,14 +126,22 @@ test('the same text makes the same task from Quick Add, a note’s line and the 
   expect(await tagCount(page, 'fresh')).toBe(1)
 })
 
-test('the new-task editor keeps the Progress typed into it', async ({ page }) => {
+test('the new-task editor writes the status updates added before Create with the task', async ({ page }) => {
   const { dialog, input } = await openQuickAdd(page)
   await input.pressSequentially('Write the report')
   await page.keyboard.press('Tab')
   await expect(dialog).toBeHidden()
-  await page.getByPlaceholder('e.g. 50% done, Waiting on review...').fill('Outline done')
+  await page.getByRole('button', { name: '+ Add update' }).click()
+  const update = page.getByRole('textbox', { name: 'New status update', exact: true })
+  await update.fill('Outline done')
+  await update.press('Enter')
+  await expect(page.getByRole('list', { name: 'Status updates' })).toContainText('Outline done')
+  expect(await readStore(page, 'statusUpdates')).toEqual([])
   await page.getByRole('button', { name: 'Create task' }).click()
-  await expect.poll(async () => (await readTask(page, 'Write the report'))?.progress).toBe('Outline done')
+  await expect.poll(async () => {
+    const task = (await readStore(page, 'todos')).find((t) => t.title === 'Write the report')
+    return (await readStore(page, 'statusUpdates')).filter((u) => u.todoId === task?.id).map((u) => u.text)
+  }).toEqual(['Outline done'])
 })
 
 test('Copy as rich text puts the note on the clipboard as HTML and as its Markdown', async ({ page, context }) => {

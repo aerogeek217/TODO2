@@ -138,6 +138,7 @@ describe('export → restore round-trip', () => {
     await db.todoEvents.add({
       todoId, type: 'created', fromValue: null, toValue: null, timestamp: now.toISOString(),
     } as any)
+    await db.statusUpdates.add({ todoId, date: new Date(2026, 9, 1), text: 'Asked for the numbers', createdAt: now })
     await db.layouts.add({
       sortOrder: 0, name: 'Default', createdAt: now, modifiedAt: now,
       columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] }],
@@ -236,6 +237,36 @@ describe('buildMarkdownExport', () => {
       '- **People:** Ann Lee, Bob Stone',
       '- **Tags:** urgent, Project: Work',
       '- **Notes:** Use the **new** template',
+      '',
+    ])
+  })
+
+  it('lists a task’s status updates newest first, `MM/DD text`, before its notes', async () => {
+    await db.todos.add(makeTodo({ id: 1, title: 'Plain', sortOrder: 1 }))
+    await db.todos.add(makeTodo({ id: 2, title: 'Budget', sortOrder: 2, notes: 'Ask Marco' }))
+    await db.todos.add(makeTodo({ id: 3, title: 'Only updates', sortOrder: 3 }))
+    await db.statusUpdates.bulkAdd([
+      { todoId: 2, date: new Date(2026, 9, 28), text: 'Sent the draft', createdAt: new Date(2026, 9, 28, 9) },
+      { todoId: 2, date: new Date(2026, 10, 3), text: 'Pinged on Slack', createdAt: new Date(2026, 10, 3, 9) },
+      // Same day, written later: newer.
+      { todoId: 2, date: new Date(2026, 10, 3), text: 'Numbers after the 15th', createdAt: new Date(2026, 10, 3, 16) },
+      { todoId: 3, date: new Date(2026, 0, 5), text: 'Waiting on legal', createdAt: new Date(2026, 0, 5) },
+    ])
+
+    const md = await buildMarkdownExport()
+    expect(md.slice(md.indexOf('# Task Details')).split('\n')).toEqual([
+      '# Task Details',
+      '',
+      '### Budget',
+      '- **Status updates:**',
+      '  - 11/03 Numbers after the 15th',
+      '  - 11/03 Pinged on Slack',
+      '  - 10/28 Sent the draft',
+      '- **Notes:** Ask Marco',
+      '',
+      '### Only updates',
+      '- **Status updates:**',
+      '  - 01/05 Waiting on legal',
       '',
     ])
   })

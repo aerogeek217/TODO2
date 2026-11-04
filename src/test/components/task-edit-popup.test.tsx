@@ -680,7 +680,10 @@ describe('TaskEditPopup — a create that fails', () => {
     const onCreate = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(43)
     const { onClose } = renderCreateMode({ onCreate })
     typeTitle('Write report')
-    fireEvent.change(screen.getByPlaceholderText('e.g. 50% done, Waiting on review...'), { target: { value: 'Outline done' } })
+    fireEvent.click(screen.getByRole('button', { name: '+ Add update' }))
+    const update = screen.getByRole('textbox', { name: 'New status update' })
+    fireEvent.change(update, { target: { value: 'Outline done' } })
+    fireEvent.keyDown(update, { key: 'Enter' })
     fireEvent.click(screen.getByRole('button', { name: /Urgent/ }))
 
     clickCreate()
@@ -688,7 +691,7 @@ describe('TaskEditPopup — a create that fails', () => {
     await act(async () => {})
     expect(onClose).not.toHaveBeenCalled()
     expect(screen.getByPlaceholderText(TITLE_PLACEHOLDER)).toHaveValue('Write report')
-    expect(screen.getByPlaceholderText('e.g. 50% done, Waiting on review...')).toHaveValue('Outline done')
+    expect(screen.getByRole('region', { name: /Status updates/ })).toHaveTextContent('Outline done')
     expect(screen.getByRole('button', { name: /Urgent/ })).toHaveAttribute('aria-pressed', 'true')
 
     clickCreate()

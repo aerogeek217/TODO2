@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import type { PersistedTodoItem } from '../../../models'
+import { STATUS_UPDATE_TEXT_MAX, type PersistedTodoItem } from '../../../models'
 import {
-  CHECKIN_PROGRESS_MAX,
   diffCheckinReply,
   diffNotes,
   notesLineKey,
@@ -11,7 +10,7 @@ import {
   type CheckinReplyDiff,
 } from '../../../services/checkin-reply/diff'
 import type { ParsedCheckinReply } from '../../../services/checkin-reply/parse'
-import { checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
+import { checkinSampleStatusUpdates, checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
 import { editHtml, editPlain, parse, sampleEmail } from './helpers'
 import { expectWithin } from '../../timing'
 
@@ -35,7 +34,7 @@ describe('diffCheckinReply — an unedited reply', () => {
   it.each(['html', 'plain'] as const)('%s: proposes nothing (formatting round trip included)', (flavour) => {
     const email = sampleEmail()
     const parsed = parse(flavour === 'html' ? { html: email.html, plain: email.plain } : { plain: email.plain })
-    const diff = diffCheckinReply(parsed, { todos: checkinSampleTasks() })
+    const diff = diffCheckinReply(parsed, { todos: checkinSampleTasks(), statusUpdatesByTodo: checkinSampleStatusUpdates() })
     expect(diff.tasks).toHaveLength(4)
     expect(diff.changeCount).toBe(0)
     expect(diff.unmatched).toEqual([])
@@ -47,7 +46,7 @@ describe('diffCheckinReply — an unedited reply', () => {
     const todos = checkinSampleTasks().map((t) => (t.id === 3 ? { ...t, notes } : t))
     const email = sampleEmail(todos)
     for (const input of [{ html: email.html, plain: email.plain }, { plain: email.plain }]) {
-      expect(diffCheckinReply(parse(input), { todos }).changeCount).toBe(0)
+      expect(diffCheckinReply(parse(input), { todos, statusUpdatesByTodo: checkinSampleStatusUpdates() }).changeCount).toBe(0)
     }
   })
 })
@@ -55,7 +54,7 @@ describe('diffCheckinReply — an unedited reply', () => {
 describe('Completed', () => {
   it('a marked box completes an open task; an empty box proposes nothing', () => {
     const plain = editPlain(sampleEmail().plain, 'b71e05d9', 'Completed:', ['Completed: [x]'])
-    const diff = diffCheckinReply(parse({ plain }), { todos: checkinSampleTasks() })
+    const diff = diffCheckinReply(parse({ plain }), { todos: checkinSampleTasks(), statusUpdatesByTodo: checkinSampleStatusUpdates() })
     expect(changesOf(diff, 'b71e05d9')).toEqual([{ field: 'completed', defaultSelected: true }])
     expect(changesOf(diff, '0c4d8e17')).toEqual([])
   })
@@ -63,40 +62,70 @@ describe('Completed', () => {
   it('never reopens: a task already completed in the app is listed with no changes', () => {
     const todos = checkinSampleTasks().map((t) => (t.id === 2 ? { ...t, isCompleted: true, completedAt: new Date(2026, 9, 12, 15) } : t))
     let plain = editPlain(sampleEmail().plain, 'b71e05d9', 'Completed:', ['Completed: [ ]'])
-    plain = editPlain(plain, 'b71e05d9', 'Progress:', ['Progress: 90%'])
-    const diff = diffCheckinReply(parse({ plain }), { todos })
+    plain = editPlain(plain, 'b71e05d9', 'Status:', ['Status: 90%'])
+    const diff = diffCheckinReply(parse({ plain }), { todos, statusUpdatesByTodo: checkinSampleStatusUpdates() })
     const task = diff.tasks.find((t) => t.ref === 'b71e05d9')
     expect(task).toMatchObject({ alreadyCompleted: true, changes: [] })
   })
 })
 
-describe('Progress', () => {
+describe('Status (a new status update)', () => {
   const todos = checkinSampleTasks()
-  const progressOf = (value: string, current?: string) => {
-    const list = current === undefined ? todos : todos.map((t) => (t.id === 1 ? { ...t, progress: current } : t))
-    const diff = diffCheckinReply(reply([{ ref: '0c4d8e17', progress: value }]), { todos: list })
+  /**
+   * The reply's Status value (as parsed) against task 1's newest status
+   * update (`current` in place of the sample's text; `null`: none).
+   */
+  const statusOf = (value: string, current?: string | null) => {
+    const updates = checkinSampleStatusUpdates()
+    const first = updates.get(1)?.[0]
+    if (current === null) updates.delete(1)
+    else if (current !== undefined && first) updates.set(1, [{ ...first, text: current }])
+    const diff = diffCheckinReply(reply([{ ref: '0c4d8e17', statusUpdate: value }]), { todos, statusUpdatesByTodo: updates })
     return changesOf(diff, '0c4d8e17')
   }
 
-  it('a new value is a change from the current one', () => {
-    expect(progressOf('section 4 done')).toEqual([{ field: 'progress', from: 'half done', to: 'section 4 done', defaultSelected: true }])
+  it('a new text is a new status update, shown over the newest now', () => {
+    expect(statusOf('section 4 done')).toEqual([{
+      field: 'statusUpdate',
+      text: 'section 4 done',
+      newest: { date: new Date(2026, 9, 10), text: 'half done' },
+      defaultSelected: true,
+    }])
   })
 
-  it('the same text (whitespace aside) is no change', () => {
-    expect(progressOf('  half   done ')).toEqual([])
-    expect(progressOf('half done', 'half\ndone')).toEqual([])
+  it('a task without status updates: the change has no newest', () => {
+    expect(statusOf('first word', null)).toEqual([{ field: 'statusUpdate', text: 'first word', defaultSelected: true }])
   })
 
-  it('an empty value never clears it', () => {
-    expect(progressOf('')).toEqual([])
-    expect(progressOf(' ')).toEqual([])
+  it('the newest’s text (whitespace aside) is no change', () => {
+    expect(statusOf('  half   done ')).toEqual([])
+    expect(statusOf('half done', 'half\ndone')).toEqual([])
   })
 
-  it('is one line, capped like the editor', () => {
-    const [change] = progressOf(`${'a'.repeat(CHECKIN_PROGRESS_MAX)}\nmore`)
-    expect(change).toMatchObject({ field: 'progress', to: 'a'.repeat(CHECKIN_PROGRESS_MAX) })
-    const [multi] = progressOf('line one\n  line two')
-    expect(multi).toMatchObject({ to: 'line one line two' })
+  it('an empty value proposes nothing (a reply never removes an entry)', () => {
+    expect(statusOf('')).toEqual([])
+    expect(statusOf(' ')).toEqual([])
+    expect(statusOf('', null)).toEqual([])
+  })
+
+  it('is one line, capped like an entry', () => {
+    const [change] = statusOf(`${'a'.repeat(STATUS_UPDATE_TEXT_MAX)}\nmore`)
+    expect(change).toMatchObject({ field: 'statusUpdate', text: 'a'.repeat(STATUS_UPDATE_TEXT_MAX) })
+    const [multi] = statusOf('line one\n  line two')
+    expect(multi).toMatchObject({ text: 'line one line two' })
+  })
+
+  it.each(['html', 'plain'] as const)('%s: the email’s (MM/DD) kept, removed or retyped is no change; new text after it is', (flavour) => {
+    const email = sampleEmail()
+    const edit = (cell: string) => (flavour === 'html'
+      ? parse({ html: editHtml(email.html, '0c4d8e17', 'Status:', cell), plain: '' })
+      : parse({ plain: editPlain(email.plain, '0c4d8e17', 'Status:', [`Status: ${cell}`]) }))
+    const diffOf = (cell: string) => changesOf(diffCheckinReply(edit(cell), { todos, statusUpdatesByTodo: checkinSampleStatusUpdates() }), '0c4d8e17')
+    expect(diffOf('(10/10) half done')).toEqual([])
+    expect(diffOf('half done')).toEqual([])
+    expect(diffOf('( 10/10 )  half done')).toEqual([])
+    expect(diffOf('(10/10)')).toEqual([])
+    expect(diffOf('(10/10) section 4 done')).toMatchObject([{ field: 'statusUpdate', text: 'section 4 done' }])
   })
 })
 
@@ -111,7 +140,7 @@ describe('Notes', () => {
       '<li class="MsoListParagraph">Ask Nina about the <a href="https://example.com/runbook"><span style="color:#0563C1">rollback window</span></a> by Friday<o:p></o:p></li>',
       '<li class="MsoListParagraph"><span style="font-family:\'Segoe UI Symbol\'">☐</span> Dry run on staging<o:p></o:p></li></ul>',
     ].join(''))
-    const change = notesChange(diffCheckinReply(parse({ html, plain: '' }), { todos: checkinSampleTasks() }), '3f9a1c42')
+    const change = notesChange(diffCheckinReply(parse({ html, plain: '' }), { todos: checkinSampleTasks(), statusUpdatesByTodo: checkinSampleStatusUpdates() }), '3f9a1c42')
     expect(change.to).toBe([
       'Cover the cutover sequence, rollback steps and who is on call.',
       '- Link the existing **DB checklist**',
@@ -136,27 +165,27 @@ describe('Notes', () => {
 
   it('emptied notes are a change that starts unticked', () => {
     const plain = editPlain(sampleEmail().plain, '3f9a1c42', 'Notes:', ['Notes:'])
-    const change = notesChange(diffCheckinReply(parse({ plain }), { todos: checkinSampleTasks() }), '3f9a1c42')
+    const change = notesChange(diffCheckinReply(parse({ plain }), { todos: checkinSampleTasks(), statusUpdatesByTodo: checkinSampleStatusUpdates() }), '3f9a1c42')
     expect(change).toMatchObject({ to: '', emptied: true, defaultSelected: false })
     expect(change.lines.every((l) => l.op === '-')).toBe(true)
   })
 
   it('notes added to a task without notes', () => {
     const plain = editPlain(sampleEmail().plain, 'b71e05d9', 'Notes:', ['Notes:', 'Rerun scheduled for Thursday.'])
-    const change = notesChange(diffCheckinReply(parse({ plain }), { todos: checkinSampleTasks() }), 'b71e05d9')
+    const change = notesChange(diffCheckinReply(parse({ plain }), { todos: checkinSampleTasks(), statusUpdatesByTodo: checkinSampleStatusUpdates() }), 'b71e05d9')
     expect(change).toMatchObject({ from: '', to: 'Rerun scheduled for Thursday.', emptied: false, lines: [{ op: '+', text: 'Rerun scheduled for Thursday.' }] })
   })
 
   it('no Notes row (notes left out of the email) proposes nothing', () => {
     const email = sampleEmail(undefined, { includeNotes: false })
-    const diff = diffCheckinReply(parse({ html: email.html, plain: email.plain }), { todos: checkinSampleTasks() })
+    const diff = diffCheckinReply(parse({ html: email.html, plain: email.plain }), { todos: checkinSampleTasks(), statusUpdatesByTodo: checkinSampleStatusUpdates() })
     expect(diff.changeCount).toBe(0)
   })
 
   it('a pasted script never reaches the notes; script-like text stays literal text', () => {
     const email = sampleEmail()
     const html = editHtml(email.html, '0c4d8e17', 'Notes:', '<p>Sections 4 and 7 still open.</p><script>alert(1)</script><p>Sam has the SOC 2 letter.</p><p>&lt;img src=x onerror=alert(1)&gt;</p>')
-    const change = notesChange(diffCheckinReply(parse({ html, plain: '' }), { todos: checkinSampleTasks() }), '0c4d8e17')
+    const change = notesChange(diffCheckinReply(parse({ html, plain: '' }), { todos: checkinSampleTasks(), statusUpdatesByTodo: checkinSampleStatusUpdates() }), '0c4d8e17')
     expect(change.to).toBe('Sections 4 and 7 still open.\nSam has the SOC 2 letter.\n<img src=x onerror=alert(1)>')
     expect(change.to).not.toContain('alert(1)</')
   })
@@ -259,7 +288,7 @@ describe('notesPreviewLines (the dialog’s redline pairing)', () => {
 describe('ticking (no timestamps)', () => {
   const edited = () => {
     let plain = editPlain(sampleEmail().plain, '0c4d8e17', 'Completed:', ['Completed: [x]'])
-    plain = editPlain(plain, '0c4d8e17', 'Progress:', ['Progress: section 4 done'])
+    plain = editPlain(plain, '0c4d8e17', 'Status:', ['Status: section 4 done'])
     plain = editPlain(plain, '0c4d8e17', 'Notes:', ['Notes:', 'All sections done.'])
     return parse({ plain })
   }
@@ -272,15 +301,15 @@ describe('ticking (no timestamps)', () => {
     ['after the send date', new Date(2026, 9, 13, 0, 5)],
     ['long after', new Date(2030, 0, 1)],
   ])('a task modified %s: every change starts ticked, nothing flagged', (_, modifiedAt) => {
-    const diff = diffCheckinReply(edited(), { todos: withModified(modifiedAt) })
+    const diff = diffCheckinReply(edited(), { todos: withModified(modifiedAt), statusUpdatesByTodo: checkinSampleStatusUpdates() })
     const task = diff.tasks.find((t) => t.ref === '0c4d8e17')
-    expect(task?.changes.map((c) => [c.field, c.defaultSelected])).toEqual([['completed', true], ['progress', true], ['notes', true]])
+    expect(task?.changes.map((c) => [c.field, c.defaultSelected])).toEqual([['completed', true], ['statusUpdate', true], ['notes', true]])
     expect(Object.keys(task ?? {}).sort()).toEqual(['alreadyCompleted', 'changes', 'ref', 'todo'])
     expect(Object.keys(diff)).not.toContain('staleCount')
   })
 
   it('without a footer date: the same ticks', () => {
-    const diff = diffCheckinReply({ ...edited(), sentDate: undefined }, { todos: withModified(new Date(2030, 0, 1)) })
+    const diff = diffCheckinReply({ ...edited(), sentDate: undefined }, { todos: withModified(new Date(2030, 0, 1)), statusUpdatesByTodo: checkinSampleStatusUpdates() })
     expect(diff.sentDate).toBeUndefined()
     expect(diff.tasks.find((t) => t.ref === '0c4d8e17')?.changes.every((c) => c.defaultSelected)).toBe(true)
   })
@@ -298,7 +327,7 @@ describe('refs', () => {
       { ref: 'abcdef12', title: 'Twin' },
       { ref: 'b71e05d9', completed: true },
     ])
-    const diff = diffCheckinReply(parsed, { todos })
+    const diff = diffCheckinReply(parsed, { todos, statusUpdatesByTodo: checkinSampleStatusUpdates() })
     expect(diff.unmatched).toEqual([
       { ref: '9e8d7c6b', title: 'Renew the Contoso support contract', reason: 'not-found' },
       { ref: 'abcdef12', title: 'Twin', reason: 'ambiguous' },
@@ -309,12 +338,12 @@ describe('refs', () => {
 
   it('a task named by two refs (short and lengthened) is listed once, by the first', () => {
     const parsed = reply([
-      { ref: 'b71e05d9', progress: 'first' },
-      { ref: 'b71e05d91111', progress: 'second' },
+      { ref: 'b71e05d9', statusUpdate: 'first' },
+      { ref: 'b71e05d91111', statusUpdate: 'second' },
     ])
-    const diff = diffCheckinReply(parsed, { todos: checkinSampleTasks() })
+    const diff = diffCheckinReply(parsed, { todos: checkinSampleTasks(), statusUpdatesByTodo: checkinSampleStatusUpdates() })
     expect(diff.tasks).toHaveLength(1)
-    expect(changesOf(diff, 'b71e05d9')).toEqual([{ field: 'progress', from: '40%', to: 'first', defaultSelected: true }])
+    expect(changesOf(diff, 'b71e05d9')).toEqual([{ field: 'statusUpdate', text: 'first', newest: { date: new Date(2026, 9, 10), text: '40%' }, defaultSelected: true }])
   })
 })
 

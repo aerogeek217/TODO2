@@ -422,9 +422,9 @@ test.describe('carets on a row’s note popover', () => {
   test('near the right edge: shifted left to end at the icon, the caret still under the icon; the icon ringed', async ({ page }) => {
     const title = 'Prepare the quarterly vendor review notes'
     await seedRightColumnList(page, [{ title, notes: 'Vendor notes' }])
-    const icon = taskRowByTitle(page, title).getByRole('button', { name: 'Edit progress and notes' })
+    const icon = taskRowByTitle(page, title).getByRole('button', { name: 'Edit status and notes' })
     await icon.click()
-    const popover = page.getByRole('dialog', { name: 'Progress and notes' })
+    const popover = page.getByRole('dialog', { name: 'Status and notes' })
     await expect(popover).toBeVisible()
     // Start-aligned at the icon it would have crossed the right edge: it sits left of it.
     expect((await box(popover)).x).toBeLessThan((await box(icon)).x)
@@ -437,9 +437,9 @@ test.describe('carets on a row’s note popover', () => {
     await seedRightColumnList(page, [...fillers, { title: 'Last with notes', notes: 'Bottom notes' }])
     const row = taskRowByTitle(page, 'Last with notes')
     await row.scrollIntoViewIfNeeded()
-    const icon = row.getByRole('button', { name: 'Edit progress and notes' })
+    const icon = row.getByRole('button', { name: 'Edit status and notes' })
     await icon.click()
-    const popover = page.getByRole('dialog', { name: 'Progress and notes' })
+    const popover = page.getByRole('dialog', { name: 'Status and notes' })
     await expect.poll(async () => (await box(popover)).y + (await box(popover)).height - (await box(icon)).y).toBeLessThanOrEqual(0)
     await expectCaretAt(popover, icon, 'bottom')
   })

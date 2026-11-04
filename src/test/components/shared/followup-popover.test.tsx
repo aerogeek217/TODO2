@@ -275,6 +275,75 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
   })
 })
 
+describe('<FollowupPopover> Status update line', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(TODAY)
+    useSettingsStore.setState({ autoFollowup: true, followupDefaultInterval: { count: 1, unit: 'm' } })
+  })
+  afterEach(() => {
+    cleanup()
+    vi.useRealTimers()
+  })
+
+  function renderPopover(props: Partial<React.ComponentProps<typeof FollowupPopover>> = {}) {
+    const onFollowedUp = vi.fn()
+    const onClose = vi.fn()
+    render(
+      <FollowupPopover
+        todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 9, 27) })}
+        anchor={anchor}
+        onClose={onClose}
+        onSetNext={vi.fn()}
+        onFollowedUp={onFollowedUp}
+        {...props}
+      />,
+    )
+    const update = screen.getByRole('textbox', { name: 'Status update' }) as HTMLInputElement
+    return { onFollowedUp, onClose, update }
+  }
+
+  it('optional: empty, Mark followed up is exactly what it was (no update passed)', () => {
+    const { onFollowedUp, update } = renderPopover()
+    expect(update.value).toBe('')
+    expect(screen.getByText('optional')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
+    expect(onFollowedUp.mock.calls[0]).toEqual([undefined])
+  })
+
+  it('with text the button says so; it and ⏎ in the line pass the update with the next follow-up', () => {
+    let r = renderPopover()
+    fireEvent.change(r.update, { target: { value: 'Waiting on legal' } })
+    const button = screen.getByRole('button', { name: 'Mark followed up + add update' })
+    fireEvent.click(button)
+    expect(r.onFollowedUp.mock.calls[0]).toEqual([undefined, 'Waiting on legal'])
+    expect(r.onClose).toHaveBeenCalledTimes(1)
+    cleanup()
+
+    r = renderPopover()
+    fireEvent.change(screen.getByRole('textbox', { name: 'Next follow-up' }), { target: { value: '2w' } })
+    fireEvent.change(r.update, { target: { value: 'Sent the quote' } })
+    fireEvent.keyDown(r.update, { key: 'Enter' })
+    expect(r.onFollowedUp.mock.calls[0]).toEqual([new Date(2026, 9, 24), 'Sent the quote'])
+    cleanup()
+
+    // Blank text is no update.
+    r = renderPopover()
+    fireEvent.change(r.update, { target: { value: '   ' } })
+    fireEvent.keyDown(r.update, { key: 'Enter' })
+    expect(r.onFollowedUp.mock.calls[0]).toEqual([undefined])
+  })
+
+  it('the newest update shows under the line as MM/DD text; nothing without one', () => {
+    renderPopover({ newestUpdate: { date: new Date(2026, 9, 8), text: 'Asked for the quote' } })
+    expect(document.querySelector('[data-newest-update]')).toHaveTextContent('10/08 Asked for the quote')
+    expect(screen.queryByText(/^Was /)).toBeNull()
+    cleanup()
+    renderPopover()
+    expect(document.querySelector('[data-newest-update]')).toBeNull()
+  })
+})
+
 describe('formatWeekdayNumeric', () => {
   it('is the short weekday and the zero-padded MM/DD', () => {
     expect(formatWeekdayNumeric(new Date(2026, 9, 22))).toBe('Thu 10/22')

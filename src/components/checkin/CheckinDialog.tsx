@@ -20,6 +20,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { useUIStore } from '../../stores/ui-store'
 import { isValidEmail } from '../../utils/person'
 import { CHECKIN_OPEN_METHOD_OPTIONS, isNoCheckinFilter } from '../../utils/checkin-settings'
@@ -104,6 +105,7 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const todos = useTodoStore((s) => s.todos)
   const statuses = useStatusStore((s) => s.statuses)
+  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
   const filter = useSettingsStore((s) => s.checkinTaskFilter)
   const method = useSettingsStore((s) => s.checkinOpenMethod)
   const filterSettings = useFilterSettings()
@@ -117,8 +119,8 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
     [people, todos, assignedPeopleMap, opened],
   )
   const buildCtx = useMemo(() => buildCheckinContext({
-    todos, today, assignedPeopleMap, assignedTagsMap, statuses, filterSettings,
-  }), [todos, today, assignedPeopleMap, assignedTagsMap, statuses, filterSettings])
+    todos, today, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, filterSettings,
+  }), [todos, today, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, filterSettings])
 
   const countFor = useCallback(
     (p: PersistedPerson) => checkinTaskCount(selectCheckinTasks(p, filter, buildCtx)),

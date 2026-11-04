@@ -15,7 +15,7 @@ vi.mock('../../utils/markdown-links', async (importOriginal) => {
   }
 })
 
-import { NOTES_PREVIEW_MAX_LINES, progressNotesPreview } from '../../utils/notes-preview'
+import { NOTES_PREVIEW_MAX_LINES, statusNotesPreview } from '../../utils/notes-preview'
 
 beforeEach(() => {
   linkScans.count = 0
@@ -25,21 +25,21 @@ beforeEach(() => {
 describe('notes preview cost', () => {
   it('reads only the lines it shows (and one more), however long the note', () => {
     const notes = Array.from({ length: 20_000 }, (_, i) => `- line ${i}`).join('\n')
-    const preview = progressNotesPreview(undefined, notes)
+    const preview = statusNotesPreview(undefined, notes)
     expect(preview?.text.split('\n')).toHaveLength(NOTES_PREVIEW_MAX_LINES + 1)
     expect(linkScans.count).toBeLessThanOrEqual(NOTES_PREVIEW_MAX_LINES + 1)
   })
 
   it('a huge single line is cut before the Markdown work', () => {
     const notes = `start ${'x'.repeat(2_000_000)}`
-    const preview = progressNotesPreview(undefined, notes)
+    const preview = statusNotesPreview(undefined, notes)
     expect(preview?.text.split('\n')[1]).toMatch(/^start x+…$/)
     expect(linkScans.longest).toBeLessThan(10_000)
   })
 
   it('blank lines in between are skipped without the Markdown work', () => {
     const notes = `first\n${'\n   '.repeat(50_000)}\nsecond`
-    expect(progressNotesPreview(undefined, notes)?.text).toBe('Notes\nfirst\nsecond')
+    expect(statusNotesPreview(undefined, notes)?.text).toBe('Notes\nfirst\nsecond')
     expect(linkScans.count).toBe(2)
   })
 })

@@ -3,11 +3,11 @@ import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION, db } from '../../data/
 
 /**
  * The database declares the floor's store layout (no versions before it)
- * and the version steps after it, none of which changes a store yet. A v68
- * database as the builds that declared every version left it — the layout
- * below, read from one — must open with only the version steps: no Dexie
- * schema patch (which would add a `$meta` store), every store and index
- * kept, its rows untouched.
+ * and the version steps after it: v69 – v71 change no store, v72 adds
+ * `statusUpdates`. A v68 database as the builds that declared every version
+ * left it — the layout below, read from one — must open with only the
+ * version steps: no Dexie schema patch (which would add a `$meta` store),
+ * every store and index kept, `statusUpdates` added, its rows untouched.
  */
 
 type IndexSpec = [name: string, keyPath: string | string[], unique?: 'unique']
@@ -28,6 +28,12 @@ const V68_LAYOUT: Record<string, StoreSpec> = {
   todoPeople: { keyPath: 'id', auto: true, indexes: [['personId', 'personId'], ['todoId', 'todoId']] },
   todoTags: { keyPath: 'id', auto: true, indexes: [['tagId', 'tagId'], ['todoId', 'todoId']] },
   todos: { keyPath: 'id', auto: true, indexes: [['dueDate', 'dueDate'], ['isCompleted', 'isCompleted'], ['sortOrder', 'sortOrder'], ['statusId', 'statusId'], ['uid', 'uid', 'unique']] },
+}
+
+/** The current layout: the floor's plus v72's `statusUpdates`. */
+const V72_LAYOUT: Record<string, StoreSpec> = {
+  ...V68_LAYOUT,
+  statusUpdates: { keyPath: 'id', auto: true, indexes: [['date', 'date'], ['todoId', 'todoId']] },
 }
 
 const task = { id: 1, uid: 'u1', title: 'Kept', isCompleted: false, sortOrder: 0 }
@@ -82,12 +88,12 @@ afterEach(async () => {
 })
 
 describe('the floor’s store layout', () => {
-  it('the floor is v68, the current version v71', () => {
+  it('the floor is v68, the current version v72', () => {
     expect(OLDEST_SUPPORTED_DB_VERSION).toBe(68)
-    expect(CURRENT_DB_VERSION).toBe(71)
+    expect(CURRENT_DB_VERSION).toBe(72)
   })
 
-  it('a v68 database as the full version chain left it opens at v71 with its stores, indexes and rows unchanged: no patch', async () => {
+  it('a v68 database as the full version chain left it opens at v72 with its stores, indexes and rows kept, statusUpdates added: no patch', async () => {
     db.close()
     await db.delete()
     await createRawDb(680, V68_LAYOUT)
@@ -96,16 +102,16 @@ describe('the floor’s store layout', () => {
     expect(await db.todos.toArray()).toEqual([task])
     db.close()
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('SchemaDiff'))
-    expect(await readRawDb()).toEqual({ version: 710, layout: V68_LAYOUT, todos: [task] })
+    expect(await readRawDb()).toEqual({ version: 720, layout: V72_LAYOUT, todos: [task] })
   })
 
-  it('a new database gets exactly the v68 layout, at v71 (v69, v70 and v71 changed no store)', async () => {
+  it('a new database gets exactly the v68 layout plus statusUpdates, at v72 (v69, v70 and v71 changed no store)', async () => {
     db.close()
     await db.delete()
     await db.open()
     db.close()
     const raw = await readRawDb()
-    expect(raw.version).toBe(710)
-    expect(raw.layout).toEqual(V68_LAYOUT)
+    expect(raw.version).toBe(720)
+    expect(raw.layout).toEqual(V72_LAYOUT)
   })
 })

@@ -1,13 +1,15 @@
 /**
  * Reads a pasted reply to a check-in email (`services/checkin-email/build.ts`)
  * back into one block per task: its ref, whether the Completed box is marked,
- * the Progress text and the Notes.
+ * the Status text (a new status update) and the Notes.
  *
  * The HTML flavour is read first. It is parsed into an inert document with
  * `DOMParser` — never attached to the page, so nothing in it runs or loads.
  * Each task is a table row ending in a `Ref <token>` cell; its update box is
  * the next table whose first cell reads `Your update`, with one label / value
- * row each for `Completed:`, `Progress:` and `Notes:`. Mail clients restyle
+ * row each for `Completed:`, `Status:` and `Notes:` (`Progress:` for `Status:`
+ * in emails sent before status updates). The Status value's leading
+ * `(MM/DD)` — the date of the update the email showed — is dropped. Mail clients restyle
  * the markup freely (Word's `MsoNormal` paragraphs, `<o:p>`, `mso-*` styles,
  * extra wrappers), so only the label cells' text and the row structure are
  * relied on.
@@ -51,8 +53,11 @@ export interface CheckinReplyBlock {
   title?: string
   /** The Completed box: `true` when marked, `false` when left empty; absent without a Completed row. */
   completed?: boolean
-  /** The Progress text, whitespace collapsed (`''` when empty); absent without a Progress row. */
-  progress?: string
+  /**
+   * The Status text, whitespace collapsed and its leading `(MM/DD)` dropped
+   * (`''` when empty); absent without a Status (or Progress) row.
+   */
+  statusUpdate?: string
   /**
    * The Notes cell's HTML (HTML replies), cleaned: no scripts, styles,
    * comments, images or attributes other than a sanitized link `href`; Word
@@ -123,23 +128,37 @@ function matchFooter(line: string): Footer | null {
   return { personName: name, sentDate: m[2] }
 }
 
-type Field = 'completed' | 'progress' | 'notes'
-const FIELD_ORDER: Field[] = ['completed', 'progress', 'notes']
-const FIELD_LABELS: Record<Field, string> = {
-  completed: CHECKIN_LABELS.completed.replace(/:$/, '').toLowerCase(),
-  progress: CHECKIN_LABELS.progress.replace(/:$/, '').toLowerCase(),
-  notes: CHECKIN_LABELS.notes.replace(/:$/, '').toLowerCase(),
+type Field = 'completed' | 'statusUpdate' | 'notes'
+const FIELD_ORDER: Field[] = ['completed', 'statusUpdate', 'notes']
+const labelWord = (label: string) => label.replace(/:$/, '').toLowerCase()
+/** Each field's label words; the Status row read `Progress:` in emails sent before status updates. */
+const FIELD_LABELS: Record<Field, readonly string[]> = {
+  completed: [labelWord(CHECKIN_LABELS.completed)],
+  statusUpdate: [labelWord(CHECKIN_LABELS.status), 'progress'],
+  notes: [labelWord(CHECKIN_LABELS.notes)],
 }
 const UPDATE_HEADER = CHECKIN_LABELS.update.toLowerCase()
 const SECTION_HEADERS = new Set(Object.values(CHECKIN_SECTION_LABELS).map((s) => s.toLowerCase()))
 const SIGN_OFF = CHECKIN_SIGN_OFF.toLowerCase()
-const LABEL_WORDS = FIELD_ORDER.map((f) => FIELD_LABELS[f]).join('|')
+const LABEL_WORDS = FIELD_ORDER.flatMap((f) => FIELD_LABELS[f]).join('|')
 /** `Label: value`, `Label` + tab + value, or the label alone (colon optional). */
 const LABEL_LINE = new RegExp(`^(${LABEL_WORDS})(?:\\s*:\\s*|\\t\\s*|\\s*$)(.*)$`, 'is')
 
 function fieldOfLabel(text: string): Field | null {
   const label = collapseWhitespace(text).replace(/\s*:$/, '').toLowerCase()
-  return FIELD_ORDER.find((f) => FIELD_LABELS[f] === label) ?? null
+  return FIELD_ORDER.find((f) => FIELD_LABELS[f].includes(label)) ?? null
+}
+
+/** A leading `(MM/DD)` (a year, `(MM/DD/YYYY)`, allowed) and the spaces around it. */
+const STATUS_DATE_PREFIX = /^\(\s*\d{1,2}\s*\/\s*\d{1,2}(?:\s*\/\s*\d{2,4})?\s*\)\s*/
+
+/**
+ * A Status value as read: whitespace collapsed, without the `(MM/DD)` the
+ * email put before the newest update's text (kept or not, it is never part
+ * of the new text).
+ */
+export function replyStatusValue(value: string): string {
+  return collapseWhitespace(value).replace(STATUS_DATE_PREFIX, '')
 }
 
 /** Words that mark the Completed box when typed without the brackets. */
@@ -308,7 +327,7 @@ function readUpdateTable(table: HTMLTableElement, block: CheckinReplyBlock): voi
     let valueCell: Element | undefined = cells[1]
     let valueText: string | undefined
     if (!field && cells.length === 1) {
-      // Label and value in one cell: `Progress: …`.
+      // Label and value in one cell: `Status: …`.
       const m = LABEL_LINE.exec(collapseWhitespace(labelCell.textContent ?? ''))
       field = m?.[1] ? fieldOfLabel(m[1]) : null
       valueCell = undefined
@@ -318,7 +337,7 @@ function readUpdateTable(table: HTMLTableElement, block: CheckinReplyBlock): voi
     seen.add(field)
     const text = valueText ?? cellText(valueCell)
     if (field === 'completed') block.completed = isCompletedMarked(text)
-    else if (field === 'progress') block.progress = collapseWhitespace(text)
+    else if (field === 'statusUpdate') block.statusUpdate = replyStatusValue(text)
     else block.notesHtml = valueCell ? cleanNotesCell(valueCell) : escapeHtml(text)
   }
 }
@@ -439,8 +458,8 @@ function parsePlain(plain: string): FlavourResult {
   let field: Field | null = null
   /** The current label stood alone: its value is the next non-empty line. */
   let awaitingValue = false
-  /** Progress is still taking wrapped continuation lines. */
-  let progressOpen = false
+  /** Status is still taking wrapped continuation lines. */
+  let statusOpen = false
   let notes: string[] | null = null
 
   const close = () => {
@@ -449,13 +468,13 @@ function parsePlain(plain: string): FlavourResult {
     mode = 'none'
     field = null
     awaitingValue = false
-    progressOpen = false
+    statusOpen = false
     notes = null
   }
   const setValue = (f: Field, value: string) => {
     if (!block) return
     if (f === 'completed') block.completed = isCompletedMarked(value)
-    else if (f === 'progress') block.progress = collapseWhitespace(value)
+    else if (f === 'statusUpdate') block.statusUpdate = replyStatusValue(value)
   }
 
   let i = 0
@@ -505,7 +524,7 @@ function parsePlain(plain: string): FlavourResult {
     const label = matchLabelLine(line, field)
     if (label) {
       field = label.field
-      progressOpen = false
+      statusOpen = false
       awaitingValue = false
       const value = label.value.trim()
       if (label.field === 'notes') {
@@ -513,7 +532,7 @@ function parsePlain(plain: string): FlavourResult {
       } else {
         setValue(label.field, value)
         awaitingValue = value === ''
-        progressOpen = value !== '' && label.field === 'progress'
+        statusOpen = value !== '' && label.field === 'statusUpdate'
       }
       continue
     }
@@ -521,13 +540,13 @@ function parsePlain(plain: string): FlavourResult {
       if (text) {
         setValue(field, text)
         awaitingValue = false
-        progressOpen = field === 'progress'
+        statusOpen = field === 'statusUpdate'
       }
       continue
     }
-    if (progressOpen && block) {
-      if (text) block.progress = collapseWhitespace(`${block.progress ?? ''} ${text}`)
-      else progressOpen = false
+    if (statusOpen && block) {
+      if (text) block.statusUpdate = block.statusUpdate ? collapseWhitespace(`${block.statusUpdate} ${text}`) : replyStatusValue(text)
+      else statusOpen = false
     }
   }
   close()

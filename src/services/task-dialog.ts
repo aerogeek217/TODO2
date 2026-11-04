@@ -1,4 +1,4 @@
-import { emptyPredicate, type PersistedTodoItem, type Person, type Status, type Tag } from '../models'
+import { emptyPredicate, type PersistedStatusUpdate, type PersistedTodoItem, type Person, type Status, type Tag } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import type { TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models/todo-sort-group'
 import type { EisenhowerQuadrant } from '../models/workspace-layout'
@@ -25,6 +25,7 @@ import { currentFilterSettings, useSettingsStore } from '../stores/settings-stor
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
+import { useStatusUpdateStore } from '../stores/status-update-store'
 
 /**
  * The task dialog: the tasks behind a number (a dashboard count) or an
@@ -53,6 +54,8 @@ export interface TaskDialogEnv {
   assignedTagsMap: Map<number, Tag[]>
   people: Person[]
   statuses: Status[]
+  /** Each task's status updates (text search reads them); absent = not searched. */
+  statusUpdatesByTodo?: ReadonlyMap<number, readonly PersistedStatusUpdate[]>
   /** List definitions as shown (unsaved drafts over the stored ones). */
   listDefinitions: readonly PersistedListDefinition[]
   /** The top-bar filter (list and screen sources compose it in). */
@@ -84,6 +87,7 @@ export function currentTaskDialogEnv(): TaskDialogEnv {
     assignedTagsMap: tags.assignedTagsMap,
     people: people.people,
     statuses: useStatusStore.getState().statuses,
+    statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo,
     listDefinitions: useListDefinitionStore.getState().listDefinitions.map((d) => drafts[d.id] ?? d),
     screen: currentScreenFilter(),
     listRanks: useListOrderStore.getState().ranks,
@@ -91,11 +95,12 @@ export function currentTaskDialogEnv(): TaskDialogEnv {
   }
 }
 
-function lookupsOf(env: Pick<TaskDialogEnv, 'assignedPeopleMap' | 'assignedTagsMap' | 'statuses'>): TodoNameLookups {
+function lookupsOf(env: Pick<TaskDialogEnv, 'assignedPeopleMap' | 'assignedTagsMap' | 'statuses' | 'statusUpdatesByTodo'>): TodoNameLookups {
   return {
     assignedPeopleMap: env.assignedPeopleMap,
     assignedTagsMap: env.assignedTagsMap,
     statusesById: new Map(env.statuses.map((s) => [s.id!, s])),
+    statusUpdatesByTodo: env.statusUpdatesByTodo,
   }
 }
 
@@ -180,7 +185,7 @@ function screenListDefinition(view: NewListView): PersistedListDefinition {
 
 /** What `screenTaskCount` reads. */
 export type ScreenCountEnv = Pick<TaskDialogEnv,
-  'todos' | 'today' | 'weekStartsOn' | 'markerSettings' | 'assignedPeopleMap' | 'assignedTagsMap' | 'statuses' | 'screen'>
+  'todos' | 'today' | 'weekStartsOn' | 'markerSettings' | 'assignedPeopleMap' | 'assignedTagsMap' | 'statuses' | 'statusUpdatesByTodo' | 'screen'>
 
 /** How many tasks the screen filter's dialog lists: open ones the filter matches (completed too under its Show completed). */
 export function screenTaskCount(env: ScreenCountEnv): number {

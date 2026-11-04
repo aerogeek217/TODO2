@@ -65,7 +65,7 @@ function buildSeed(): Seed {
   return {
     todos: [
       {
-        id: 1, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e01', title: 'Send quarterly report', notes: 'Include **charts**', progress: 'draft done',
+        id: 1, uid: '0b6f3c2e-1d4a-4c8e-9f21-7a5b3c9d1e01', title: 'Send quarterly report', notes: 'Include **charts**',
         isCompleted: false,
         dueDate: at('2026-10-16T00:00:00.000Z'),
         lastFollowupAt: at('2026-09-13T14:25:31.000Z'),
@@ -145,6 +145,10 @@ function buildSeed(): Seed {
       { id: 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-09-02T10:00:00.000Z' },
       { id: 2, todoId: 1, type: 'deadline', fromValue: null, toValue: '2026-10-16T00:00:00.000Z', timestamp: '2026-09-11T09:30:00.000Z' },
       { id: 3, todoId: 1, type: 'status', fromValue: 1, toValue: 2, timestamp: '2026-09-11T09:31:00.000Z' },
+    ],
+    statusUpdates: [
+      { id: 1, todoId: 1, date: at('2026-09-10T00:00:00.000Z'), text: 'Asked Finance for the numbers', createdAt: at('2026-09-10T15:00:00.000Z') },
+      { id: 2, todoId: 1, date: at('2026-09-13T00:00:00.000Z'), text: 'Numbers in; drafting', createdAt: at('2026-09-13T14:25:31.000Z'), followedUp: true },
     ],
     layouts: [
       { id: 1, name: 'Empty', sortOrder: 1, columns: [], createdAt: at('2026-09-01T09:00:00.000Z'), modifiedAt: at('2026-09-01T09:00:00.000Z') },

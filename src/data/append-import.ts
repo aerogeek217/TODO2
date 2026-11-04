@@ -1,7 +1,7 @@
 import { db } from './database'
 import type { ImportData } from './import-validation'
 import type {
-  TodoItem, TodoEvent, Person, Tag, Status,
+  TodoItem, TodoEvent, StatusUpdate, Person, Tag, Status,
 } from '../models'
 import { newTodoUid } from '../utils/todo-uid'
 
@@ -53,9 +53,9 @@ function byNameIndex<T extends { id?: number; name: string }>(rows: readonly T[]
  *   (trimmed, case-insensitive); missing ones are created from the file's
  *   row. (Files from before projects became tags arrive with their projects
  *   already turned into `Project: <name>` tags by the upgrade pipeline.)
- * - Join rows (`todoPeople` / `todoTags`) and the tasks'
- *   `todoEvents` history are re-pointed at the new ids (status-change event
- *   values at the resolved status ids).
+ * - Join rows (`todoPeople` / `todoTags`), the tasks' `todoEvents` history
+ *   (status-change event values at the resolved status ids) and their
+ *   `statusUpdates` are re-pointed at the new ids.
  * - Tasks whose `choices` entry is `skip` are left out with their rows.
  *
  * No backup snapshot and no store refresh — the caller does both.
@@ -69,7 +69,7 @@ export async function appendImportTasks(
   const created: AppendImportResult['created'] = { people: [], tags: [], statuses: [] }
 
   const tables = [
-    db.todos, db.todoPeople, db.todoTags, db.todoEvents,
+    db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.statusUpdates,
     db.people, db.tags, db.statuses,
   ]
   const todoIds = await db.transaction('rw', tables, async () => {
@@ -152,7 +152,6 @@ export async function appendImportTasks(
         sortOrder: nextSort++,
       }
       if (t.notes != null) row.notes = t.notes
-      if (t.progress != null) row.progress = t.progress
       if (t.isCompleted && t.completedAt != null) row.completedAt = t.completedAt
       if (t.dueDate != null) row.dueDate = t.dueDate
       if (t.lastFollowupAt != null) row.lastFollowupAt = t.lastFollowupAt
@@ -208,6 +207,17 @@ export async function appendImportTasks(
       })
     }
     if (events.length > 0) await db.todoEvents.bulkAdd(events)
+
+    // --- Status updates ---
+    const updates: StatusUpdate[] = []
+    for (const u of data.statusUpdates) {
+      const todoId = todoIdMap.get(u.todoId)
+      if (todoId == null) continue
+      const row: StatusUpdate = { todoId, date: u.date, text: u.text, createdAt: u.createdAt }
+      if (u.followedUp === true) row.followedUp = true
+      updates.push(row)
+    }
+    if (updates.length > 0) await db.statusUpdates.bulkAdd(updates)
 
     return newIds
   })
