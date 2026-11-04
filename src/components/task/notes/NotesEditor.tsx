@@ -7,6 +7,7 @@ import { htmlToMarkdown } from '../../../services/notes-export'
 import { notesNlp, notesPopupField, type NotesNlpConfig, type NotesPopupState } from './notes-nlp'
 import { NotesNlpPopup } from './NotesNlpPopup'
 import { convertHighlight } from './notes-convert-highlight'
+import { notesIndent } from './notes-indent'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import styles from './NotesEditor.module.css'
 import { shortcutScope } from '../../../utils/dom-contract'
@@ -128,6 +129,8 @@ export function NotesEditor({
           })
           : [],
         convertHighlight,
+        // Tab / ⇧Tab indent list lines (the popup, above, takes Tab to pick a row while open).
+        notesIndent,
         EditorView.updateListener.of((update) => {
           const nextPopup = update.state.field(notesPopupField, false) ?? null
           if (nextPopup !== (update.startState.field(notesPopupField, false) ?? null)) {
