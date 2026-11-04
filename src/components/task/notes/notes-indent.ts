@@ -1,5 +1,5 @@
 import { Prec, StateEffect, StateField, type Extension } from '@codemirror/state'
-import { keymap, type Command } from '@codemirror/view'
+import { keymap, type Command, type EditorView } from '@codemirror/view'
 import { lineAt, lineStarts, selectionLines, type LineRange, type TextChange } from '../../../services/note-lines'
 import { notesPopupField } from './notes-nlp'
 
@@ -89,25 +89,30 @@ export const tabLeavesField = StateField.define<boolean>({
   },
 })
 
-/** Tab: indent the list lines under the selection. */
-export const indentListLines: Command = (view) => {
-  if (view.state.field(notesPopupField, false) || view.state.field(tabLeavesField, false)) return false
+/**
+ * Indents (`'in'`) or outdents the list lines under the selection: the
+ * toolbar's buttons, and the Tab keys below. False when a line under the
+ * selection isn't a list line (nothing changes).
+ */
+export function indentSelection(view: EditorView, direction: 'in' | 'out'): boolean {
   const { from, to } = view.state.selection.main
-  const changes = indentLines(view.state.doc.toString(), from, to)
+  const text = view.state.doc.toString()
+  const changes = direction === 'in' ? indentLines(text, from, to) : outdentLines(text, from, to)
   if (!changes) return false
-  view.dispatch({ changes, userEvent: 'input.indent' })
+  if (changes.length > 0) view.dispatch({ changes, userEvent: direction === 'in' ? 'input.indent' : 'delete.dedent' })
   return true
 }
 
-/** ⇧Tab: outdent the list lines under the selection. */
-export const outdentListLines: Command = (view) => {
-  if (view.state.field(notesPopupField, false) || view.state.field(tabLeavesField, false)) return false
-  const { from, to } = view.state.selection.main
-  const changes = outdentLines(view.state.doc.toString(), from, to)
-  if (!changes) return false
-  if (changes.length > 0) view.dispatch({ changes, userEvent: 'delete.dedent' })
-  return true
+/** Whether Tab is ours now: not while the popup is open, nor after an Esc armed it to leave. */
+function tabIsOurs(view: EditorView): boolean {
+  return !view.state.field(notesPopupField, false) && !view.state.field(tabLeavesField, false)
 }
+
+/** Tab: indent the list lines under the selection. */
+export const indentListLines: Command = (view) => tabIsOurs(view) && indentSelection(view, 'in')
+
+/** ⇧Tab: outdent the list lines under the selection. */
+export const outdentListLines: Command = (view) => tabIsOurs(view) && indentSelection(view, 'out')
 
 /**
  * Esc with no popup open: the next Tab leaves. Returns false, so the key
