@@ -226,20 +226,20 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
       <button
         type="button"
         className={styles.btn}
-        onClick={() => indent('in')}
-        title="Indent list line (Tab)"
-        aria-label="Indent"
-      >
-        <IndentGlyph />
-      </button>
-      <button
-        type="button"
-        className={styles.btn}
         onClick={() => indent('out')}
         title="Outdent list line (Shift+Tab)"
         aria-label="Outdent"
       >
         <IndentGlyph out />
+      </button>
+      <button
+        type="button"
+        className={styles.btn}
+        onClick={() => indent('in')}
+        title="Indent list line (Tab)"
+        aria-label="Indent"
+      >
+        <IndentGlyph />
       </button>
       <span className={styles.spacer} />
       {convert && <ConvertButton convert={convert} />}

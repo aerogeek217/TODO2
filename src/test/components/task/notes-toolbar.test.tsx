@@ -92,6 +92,12 @@ describe('NotesToolbar', () => {
     expect(view.state.doc.toString()).toBe('- one\n- two\n- three')
   })
 
+  it('Outdent sits before Indent, as in other editors', () => {
+    render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
+    const order = screen.getByLabelText('Outdent').compareDocumentPosition(screen.getByLabelText('Indent'))
+    expect(order & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('Indent / Outdent move the list lines under the selection one level; a plain line is left alone', () => {
     view.destroy()
     view = makeView('- a\n- b\nplain')
