@@ -135,8 +135,39 @@ describe('groupTodosByTextMatch', () => {
 
   it('returns all-empty groups for an empty query', () => {
     const g = groupTodosByTextMatch([{ id: 1, title: 'a', isCompleted: false }], '', ctxFor)
-    expect(Object.keys(g)).toEqual(['title', 'notes', 'statusUpdate', 'person', 'status', 'tag'])
+    expect(Object.keys(g)).toEqual(['title', 'notes', 'statusUpdate', 'subtask', 'person', 'status', 'tag'])
     expect(Object.values(g).every((arr) => arr.length === 0)).toBe(true)
+  })
+})
+
+describe('subtasks in the text search (cr28)', () => {
+  const sub = (id: number, todoId: number, title: string) => ({ id, todoId, title, isCompleted: false, sortOrder: id, createdAt: new Date(2026, 9, 5) })
+  const subtasksByTodo = new Map([[1, [sub(1, 1, 'Get travel actuals from Marco'), sub(2, 1, 'Review with Ben')]]])
+
+  it('matches a subtask title via ctx, as its own field after status updates; never without the ctx', () => {
+    const todo = { title: 'Q4 budget', notes: 'travel policy' }
+    expect(matchTodoText(todo, 'marco', { subtaskTitles: ['Get travel actuals from Marco'] }).fields).toEqual(['subtask'])
+    expect(matchTodoText(todo, 'travel', { subtaskTitles: ['Get travel actuals from Marco'], statusUpdateTexts: ['travel booked'] }).fields)
+      .toEqual(['notes', 'statusUpdate', 'subtask'])
+    expect(matchTodoText(todo, 'marco').matched).toBe(false)
+  })
+
+  it('textMatchContextFor reads the task’s subtask titles from the lookups', () => {
+    expect(textMatchContextFor({ id: 1 }, { subtasksByTodo }).subtaskTitles).toEqual(['Get travel actuals from Marco', 'Review with Ben'])
+    expect(textMatchContextFor({ id: 2 }, { subtasksByTodo }).subtaskTitles).toEqual([])
+    expect(textMatchContextFor({ id: 1 }, {}).subtaskTitles).toEqual([])
+  })
+
+  it('groups the task (never the subtask) under subtask; a search clause keeps the task', () => {
+    const todos = [makeTodo({ id: 1, title: 'Q4 budget' }), makeTodo({ id: 2, title: 'Travel budget review' })]
+    const groups = groupTodosByTextMatch(todos, 'travel', (t) => textMatchContextFor(t, { subtasksByTodo }))
+    expect(groups.subtask.map((t) => t.id)).toEqual([1])
+    expect(groups.title.map((t) => t.id)).toEqual([2])
+    const settings = { urgentRange: null, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 as const }
+    const filters = { ...emptyFilterCriteria, searchText: 'marco' }
+    const today = new Date(2026, 9, 6)
+    expect(matchesFilterWithLookups(filters, makeTodo({ id: 1, title: 'Q4 budget' }), { subtasksByTodo }, today, settings)).toBe(true)
+    expect(matchesFilterWithLookups(filters, makeTodo({ id: 1, title: 'Q4 budget' }), {}, today, settings)).toBe(false)
   })
 })
 

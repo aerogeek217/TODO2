@@ -94,8 +94,9 @@ export function useBuiltList(
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
-  // Text clauses search the tasks' status updates too.
+  // Text clauses search the tasks' status updates and subtasks too.
   const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
+  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   // Markers clauses (Urgent by date, Hot) read these settings.
@@ -132,6 +133,7 @@ export function useBuiltList(
       assignedTagsMap,
       statusesById: new Map(statuses.map((st) => [st.id!, st])),
       statusUpdatesByTodo,
+      subtasksByTodo,
     }
     const listOnly = createPredicateEvaluator(lookups, today, markerSettings)
     const evalPredicate = screenFilter ? createScreenComposedEvaluator(screenFilter, lookups, today, markerSettings) : listOnly
@@ -173,7 +175,7 @@ export function useBuiltList(
     return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, countOpenBase, kept }
   }, [
     definition, todos, people, assignedPeopleMap,
-    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings, leaving, statusUpdatesByTodo,
+    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings, leaving, statusUpdatesByTodo, subtasksByTodo,
   ])
 }
 

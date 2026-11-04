@@ -293,7 +293,8 @@ function SortableList({ items, label, density, onMove, row }: {
     }
   }, [items, ids])
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} accessibility={{ announcements }} onDragEnd={onDragEnd}>
+    // No auto-scroll: a short list in a dialog that scrolls as a whole; a scroll while a row is held would move its target.
+    <DndContext sensors={sensors} collisionDetection={closestCenter} autoScroll={false} accessibility={{ announcements }} onDragEnd={onDragEnd}>
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <ul className={styles.list} aria-label={label} data-density={density}>
           {items.map((item) => <SortableRow key={item.id} item={item} row={row} />)}

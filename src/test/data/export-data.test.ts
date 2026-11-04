@@ -202,6 +202,22 @@ describe('buildMarkdownExport', () => {
     expect(lines.filter((l) => l.startsWith('#'))).toEqual(['# TODOs'])
   })
 
+  it('a task’s checklist follows its line as indented - [ ] / - [x] lines (cr28)', async () => {
+    await db.todos.add(makeTodo({ id: 1, title: 'Q4 budget', sortOrder: 1 }))
+    await db.todos.add(makeTodo({ id: 2, title: 'Other', sortOrder: 2 }))
+    await db.subtasks.bulkAdd([
+      { todoId: 1, title: 'Review with Ben', isCompleted: false, sortOrder: 1, createdAt: new Date() },
+      { todoId: 1, title: 'Send the template', isCompleted: true, sortOrder: 0, createdAt: new Date() },
+    ])
+    const md = await buildMarkdownExport()
+    expect(md.split('\n').filter((l) => /^\s*- \[/.test(l))).toEqual([
+      '- [ ] Q4 budget',
+      '  - [x] Send the template',
+      '  - [ ] Review with Ben',
+      '- [ ] Other',
+    ])
+  })
+
   it('a line is the rich-copy task line (without people); a status without an icon is not named', async () => {
     await db.statuses.add({ id: 3, name: 'Waiting', color: '#888888', sortOrder: 0, icon: 'clock' } as any)
     await db.statuses.add({ id: 4, name: 'Plain', color: '#888888', sortOrder: 1 } as any)

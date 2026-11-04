@@ -137,6 +137,13 @@ function DraftRowItem({ row, lookups, onEdit, onRemove, rowRef }: {
           ×
         </button>
       </span>
+      {row.draft.subtasks && row.draft.subtasks.length > 0 && (
+        <ul className={styles.subtaskLines} aria-label={`Subtasks of ${row.draft.title}`}>
+          {row.draft.subtasks.map((s, i) => (
+            <li key={i} data-done={s.isCompleted ? '' : undefined}>{s.isCompleted ? '☑' : '☐'} {s.title}</li>
+          ))}
+        </ul>
+      )}
       {tooltip}
     </li>
   )

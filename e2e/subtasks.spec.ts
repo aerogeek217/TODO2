@@ -115,7 +115,11 @@ test('the editor’s section: a drag reorders the checklist, ⋯ › Delete remo
     page,
     { x: from.x + from.width / 2, y: from.y + from.height / 2 },
     { x: from.x + from.width / 2, y: first.y + first.height / 2 - 4 },
-    { lifted: () => expect(last).toHaveAttribute('data-dragging', '') },
+    {
+      lifted: () => expect(last).toHaveAttribute('data-dragging', ''),
+      // The first row has made room (dnd-kit moved it down) before the drop: the target is registered.
+      during: () => expect(items.nth(0)).not.toHaveCSS('transform', 'none'),
+    },
   )
   await expect(items).toHaveText(['Get travel actuals from Marco', 'Send the template to all leads', 'Headcount from Aisha'])
   await expect.poll(() => storedChecklist(page, 'Q4 budget')).toEqual([
@@ -172,6 +176,46 @@ test('Make a task from the popover’s ⋯: a new row with the parent’s people
   await expect(made.getByRole('img', { name: /Ben Ortiz/ }).or(made.getByText('BO'))).toBeVisible()
   await expect(countOf(row)).toHaveText('1/2')
   await expect(page.getByText('Made “Get travel actuals from Marco” a task')).toBeVisible()
+})
+
+test('the top bar’s search finds a task by a subtask’s words, under a Subtasks group with the line as a snippet', async ({ page }) => {
+  await seedWorkspace(page, { ...SEED, tasks: [...SEED.tasks!, { title: 'Travel budget review' }] })
+  const search = page.locator('header').getByRole('textbox', { name: 'Search tasks' })
+  await search.click()
+  await search.fill('travel')
+  const listbox = page.getByRole('listbox', { name: /search results/i })
+  await expect(listbox).toBeVisible()
+  const group = listbox.getByRole('group', { name: 'Subtasks' })
+  await expect(group.getByRole('option')).toHaveCount(1)
+  await expect(group).toContainText('Q4 budget')
+  await expect(group).toContainText('☐ Get travel actuals from Marco')
+  await expect(listbox.getByRole('group', { name: 'Title' })).toContainText('Travel budget review')
+  // The screen filter keeps the task too: the list shows both.
+  await search.press('Enter')
+  await expect(taskRowByTitle(page, 'Q4 budget')).toBeVisible()
+  await expect(taskRowByTitle(page, 'Bare task')).toHaveCount(0)
+})
+
+test('notes → tasks: the indented lines under a bullet become its task’s subtasks', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...SEED,
+    tasks: [],
+    layouts: [{ name: 'Main', columns: [
+      { id: 'c', cells: [{ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] }] },
+      { id: 'n', cells: [{ id: 'nk', tabs: [{ id: 'notes', kind: 'notes' }] }] },
+    ] }],
+  })
+  const editor = page.getByRole('region', { name: 'Notes cell' }).locator('.cm-content')
+  await editor.click()
+  await page.keyboard.insertText('- Offsite\n  - Book the venue\n  - [x] Pick a date\n- Other')
+  await page.getByRole('button', { name: /^Convert 2 / }).click()
+  const preview = page.getByRole('dialog', { name: 'Convert to tasks' })
+  await expect(preview.getByRole('list', { name: 'Subtasks of Offsite' }).getByRole('listitem')).toHaveText(['☐ Book the venue', '☑ Pick a date'])
+  await preview.getByRole('button', { name: 'Create 2 tasks' }).click()
+  await page.getByRole('dialog', { name: 'Remove 2 converted lines from the note?' }).getByRole('button', { name: 'Remove 2 lines' }).click()
+  await expect(countOf(taskRowByTitle(page, 'Offsite'))).toHaveText('1/2')
+  await expect.poll(() => storedChecklist(page, 'Offsite')).toEqual([['Book the venue', false], ['Pick a date', true]])
+  await expect(editor.locator('.cm-line')).toHaveText([''])
 })
 
 test('a renamed subtask: ⏎ saves, Esc on the field cancels without closing the editor', async ({ page }) => {

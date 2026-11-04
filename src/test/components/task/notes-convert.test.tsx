@@ -224,13 +224,37 @@ describe('Convert preview', () => {
   })
 
   it('Keep (or Esc) marks each converted line ✓ <title>', async () => {
-    const { dialog, doc } = await openPreview('- One /urgent\n  - Two @Marco\nplain')
+    const { dialog, doc } = await openPreview('- One /urgent\n- Two @Marco\nplain')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create 2 tasks' }))
     const prompt = await screen.findByRole('dialog', { name: 'Remove 2 converted lines from the note?' })
     // The new person was created with the tasks.
     expect(usePersonStore.getState().people.map((p) => p.name)).toEqual(['Marco'])
     fireEvent.click(within(prompt).getByRole('button', { name: 'Keep' }))
-    expect(doc()).toBe('✓ One\n  ✓ Two\nplain')
+    expect(doc()).toBe('✓ One\n✓ Two\nplain')
+  })
+
+  it('indented list lines under a bullet are its task’s subtasks (cr28): shown under the draft, stored with the task; Remove takes them with the line', async () => {
+    const { dialog, doc } = await openPreview('- Q4 budget\n  - Send the template @Marco\n  - [x] Headcount\n- Other\nplain')
+    expect(within(dialog).getByText('2 drafts')).toBeInTheDocument()
+    const row = within(dialog).getByRole('listitem', { name: 'Q4 budget' })
+    expect(within(row).getByRole('list', { name: 'Subtasks of Q4 budget' })).toHaveTextContent('☐ Send the template @Marco☑ Headcount')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create 2 tasks' }))
+    const prompt = await screen.findByRole('dialog', { name: 'Remove 2 converted lines from the note?' })
+    // A subtask's words are plain text: no person was created.
+    expect(usePersonStore.getState().people).toEqual([])
+    const budget = useTodoStore.getState().todos.find((t) => t.title === 'Q4 budget')!
+    expect((await db.subtasks.where('todoId').equals(budget.id).sortBy('sortOrder')).map((s) => [s.title, s.isCompleted]))
+      .toEqual([['Send the template @Marco', false], ['Headcount', true]])
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Remove 2 lines' }))
+    expect(doc()).toBe('plain')
+  })
+
+  it('Keep marks the bullet ✓ and drops its subtask lines, whose text now lives in the task', async () => {
+    const { dialog, doc } = await openPreview('- Q4 budget\n  - Send the template\n- Other')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create 2 tasks' }))
+    const prompt = await screen.findByRole('dialog', { name: 'Remove 2 converted lines from the note?' })
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Keep' }))
+    expect(doc()).toBe('✓ Q4 budget\n✓ Other')
   })
 
   it('a line’s !status gives its task the status; an unknown one stays in the title', async () => {

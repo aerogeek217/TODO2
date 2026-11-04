@@ -17,7 +17,7 @@ import {
   markLineChanges,
   removeLineChanges,
   selectionLines,
-  singleLineCandidate,
+  singleLineCandidateAt,
   type ConvertLine,
   type TextChange,
 } from '../../../services/note-lines'
@@ -119,6 +119,24 @@ function plural(n: number, one: string, many: string): string {
   return `${n} ${n === 1 ? one : many}`
 }
 
+/** The line's draft: its body parsed, its subtask lines as plain subtasks (cr28). */
+function draftOf(line: ConvertLine, ctx: DraftContext): TaskDraft {
+  const draft = draftFromText(line.body, ctx)
+  const subtasks = line.subtasks ?? []
+  return subtasks.length > 0 ? { ...draft, subtasks: subtasks.map((s) => ({ title: s.title, isCompleted: s.done })) } : draft
+}
+
+/**
+ * Finds `lines` (and their subtask lines) in `text` as it is now: the lines
+ * found, by kind, and how many of the lines themselves couldn't be found.
+ */
+function locateConvertLines(text: string, lines: readonly ConvertLine[]): { parents: (number | null)[]; children: number[]; missing: number } {
+  const parents = locateLines(text, lines)
+  const childTargets = lines.flatMap((l) => l.subtasks ?? [])
+  const children = locateLines(text, childTargets).filter((n): n is number => n != null)
+  return { parents, children, missing: parents.filter((n) => n == null).length }
+}
+
 export interface NotesConvertOptions {
   viewRef: { current: EditorView | null }
   /** The note's text and a writer, used when the editor is gone. */
@@ -140,7 +158,9 @@ export interface NotesConvertOptions {
  * preview, exactly one opens the editor like Alt+T. Created tasks turn
  * their lines into `✓ <title>`; after a preview the user picks Remove (the
  * lines go) or Keep (`✓`) — one editor transaction, so one Ctrl+Z in the
- * note undoes it. The task create is its own undo step (the snackbar's
+ * note undoes it. A line's indented list lines become its task's subtasks
+ * (cr28): they go with the line on Remove, and on Keep too (their text now
+ * lives in the task). The task create is its own undo step (the snackbar's
  * Undo deletes the tasks and leaves the note as it is).
  */
 export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: NotesConvertOptions) {
@@ -167,16 +187,19 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
     void flush?.()
   }, [viewRef, getText, setText, flush])
 
-  /** Rewrites converted lines as `✓ <title>`; returns how many couldn't be found. */
+  /** Rewrites converted lines as `✓ <title>` and removes their subtask lines; returns how many lines couldn't be found. */
   const markConverted = useCallback((items: readonly { line: ConvertLine; title: string }[]) => {
     let missing = 0
     applyToNote((text) => {
-      const found = locateLines(text, items.map((i) => i.line))
-      missing = found.filter((n) => n == null).length
-      return markLineChanges(text, items.flatMap((item, k) => {
-        const line = found[k]
-        return line != null ? [{ line, title: item.title }] : []
-      }))
+      const found = locateConvertLines(text, items.map((i) => i.line))
+      missing = found.missing
+      return [
+        ...markLineChanges(text, items.flatMap((item, k) => {
+          const line = found.parents[k]
+          return line != null ? [{ line, title: item.title }] : []
+        })),
+        ...removeLineChanges(text, found.children),
+      ]
     })
     return missing
   }, [applyToNote])
@@ -188,14 +211,14 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
 
   const openSingle = useCallback((line: ConvertLine) => {
     void flush?.()
-    setState({ kind: 'single', line, draft: draftFromText(line.body, draftContext()) })
+    setState({ kind: 'single', line, draft: draftOf(line, draftContext()) })
   }, [flush])
 
   /** Alt+T: the caret line. False when it can't be converted (blank / already `✓`). */
   const convertLine = useCallback((view: EditorView): boolean => {
     if (state) return true
     const line = view.state.doc.lineAt(view.state.selection.main.head)
-    const candidate = singleLineCandidate(line.text, line.number)
+    const candidate = singleLineCandidateAt(view.state.doc.toString(), line.number)
     if (!candidate) return false
     openSingle(candidate)
     return true
@@ -219,7 +242,7 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
     const ctx = draftContext()
     setState({
       kind: 'preview',
-      rows: lines.map((line, key) => ({ key, line, draft: draftFromText(line.body, ctx), edited: false })),
+      rows: lines.map((line, key) => ({ key, line, draft: draftOf(line, ctx), edited: false })),
       fromSelection: range != null,
       noteName: noteNameOf(text),
       leftOut: 0,
@@ -281,9 +304,9 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
     let missing = 0
     if (remove) {
       applyToNote((text) => {
-        const found = locateLines(text, items.map((i) => i.line))
-        missing = found.filter((n) => n == null).length
-        return removeLineChanges(text, found.filter((n): n is number => n != null))
+        const found = locateConvertLines(text, items.map((i) => i.line))
+        missing = found.missing
+        return removeLineChanges(text, [...found.parents.filter((n): n is number => n != null), ...found.children])
       })
     } else {
       missing = markConverted(items)

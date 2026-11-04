@@ -9,6 +9,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
+import { useSubtaskStore } from '../../stores/subtask-store'
 import type { Tag } from '../../models'
 import { makePerson, makeTodo } from '../helpers'
 import { SEARCH_DEBOUNCE_MS } from '../../constants'
@@ -110,6 +111,30 @@ describe('TopBar grouped search', () => {
     expect(within(group).getByText('Q4 budget numbers')).toBeInTheDocument()
     expect(within(group).getByText('10/20 · Asked for the final numbers by Friday')).toBeInTheDocument()
     expect(within(listbox).queryByRole('group', { name: 'Title' })).toBeNull()
+  })
+
+  it('renders a Subtasks group for a match in a task’s checklist, with the matching line as a snippet', async () => {
+    useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Q4 budget' }), makeTodo({ id: 2, title: 'Travel budget review' })] })
+    useSubtaskStore.setState({
+      byTodo: new Map([[1, [
+        { id: 1, todoId: 1, title: 'Send the template', isCompleted: true, sortOrder: 0, createdAt: new Date() },
+        { id: 2, todoId: 1, title: 'Get travel actuals from Marco', isCompleted: false, sortOrder: 1, createdAt: new Date() },
+      ]]]),
+    })
+    renderBar()
+    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    await act(async () => {
+      input.focus()
+      fireEvent.change(input, { target: { value: 'travel' } })
+    })
+
+    const listbox = await screen.findByRole('listbox', { name: /search results/i })
+    const group = within(listbox).getByRole('group', { name: 'Subtasks' })
+    expect(within(group).getByText('Q4 budget')).toBeInTheDocument()
+    expect(within(group).getByText('☐ Get travel actuals from Marco')).toBeInTheDocument()
+    // The subtask is never a result of its own; the other task is a Title hit.
+    expect(within(group).getAllByRole('option')).toHaveLength(1)
+    expect(within(within(listbox).getByRole('group', { name: 'Title' })).getByText('Travel budget review')).toBeInTheDocument()
   })
 
   it('does not show the listbox when no results match', async () => {

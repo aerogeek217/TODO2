@@ -78,6 +78,7 @@
 }
 
 .row {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -96,6 +97,23 @@
 
 .row:focus-visible {
   box-shadow: var(--focus-ring-inset);
+}
+
+/* A draft's subtask lines (cr28): under its title, indented, one per line. */
+.subtaskLines {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 2px 0 0;
+  padding: 0 0 0 28px;
+  list-style: none;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+
+.subtaskLines li[data-done] {
+  color: var(--color-text-muted);
 }
 
 .ring {
