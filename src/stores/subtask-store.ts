@@ -31,8 +31,8 @@ interface SubtaskState {
 
   load: () => Promise<void>
   ensureLoaded: () => Promise<void>
-  /** Adds a subtask last on a task's checklist (undo removes it). Resolves it, or undefined when nothing was written. */
-  add: (todoId: number, title: string) => Promise<PersistedSubtask | undefined>
+  /** Adds a subtask last on a task's checklist (undo removes it), done when `done` (a converted task's state). Resolves it, or undefined when nothing was written. */
+  add: (todoId: number, title: string, opts?: { done?: boolean }) => Promise<PersistedSubtask | undefined>
   /** Renames a subtask (undo puts the title back). False when nothing was written. */
   rename: (id: number, title: string) => Promise<boolean>
   /** Checks (`true`) or unchecks a subtask. False when nothing was written. */
@@ -203,13 +203,13 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
       return run
     },
 
-    async add(todoId, title) {
+    async add(todoId, title, opts = {}) {
       const clean = subtaskTitle(title)
       if (clean === '') return undefined
       const row: Subtask = {
         todoId,
         title: clean,
-        isCompleted: false,
+        isCompleted: opts.done === true,
         sortOrder: nextSubtaskOrder(get().byTodo.get(todoId) ?? NO_SUBTASKS),
         createdAt: new Date(),
       }

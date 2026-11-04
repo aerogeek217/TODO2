@@ -8,6 +8,7 @@ import type { TaskMenuHandlers } from '../task/task-menu-entries'
  * aren't part of the selection, so every action acts on just this task, and
  * the row has no due-date / follow-up / people / tag pickers, so those
  * picker items are left out (the Follow-up submenu's quick intervals stay).
+ * Add subtask… opens the task's editor (no row to anchor a checklist to).
  */
 export function searchMenuHandlers(params: {
   todo: PersistedTodoItem
@@ -26,6 +27,8 @@ export function searchMenuHandlers(params: {
       else if (marker === 'important') void store().bulkSetImportant(ids, on)
       else void store().bulkSetFocus(ids, on)
     },
+    onAddSubtask: () => onOpen(todo.id),
+    onMakeSubtaskOf: () => useUIStore.getState().openTaskPicker({ kind: 'make-subtask', todoId: todo.id }),
     onDelete: () => useUIStore.getState().showBulkConfirmation('delete', ids),
   }
 }

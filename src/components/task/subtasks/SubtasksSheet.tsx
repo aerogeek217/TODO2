@@ -5,6 +5,7 @@ import { useSubtasks, useSubtaskStore } from '../../../stores/subtask-store'
 import { subtaskCount } from '../../../utils/subtasks'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import { SubtaskChecklist, type ChecklistItem } from './SubtaskChecklist'
+import { storedSubtaskMenuEntries } from './subtask-menu'
 import styles from './Subtasks.module.css'
 
 /**
@@ -12,7 +13,7 @@ import styles from './Subtasks.module.css'
  * the row's `2/5 subtasks` chip — the task's title and count, the checklist
  * with touch-height rows, the add row. The scrim's tap and Esc close it.
  */
-export function SubtasksSheet({ todo, onClose, extraMenuEntries }: {
+export function SubtasksSheet({ todo, onClose, extraMenuEntries = storedSubtaskMenuEntries }: {
   todo: PersistedTodoItem
   onClose: () => void
   extraMenuEntries?: (item: ChecklistItem) => MenuEntry[]

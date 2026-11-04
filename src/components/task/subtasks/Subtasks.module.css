@@ -488,6 +488,89 @@
   overflow-y: auto;
 }
 
+/* ── The task picker (Make subtask of… / Move to another task…) ── */
+
+.picker {
+  width: min(380px, calc(100vw - 32px));
+}
+
+.pickerSearch {
+  width: 100%;
+  height: 32px;
+  box-sizing: border-box;
+  padding: 0 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-nav);
+  outline: none;
+}
+
+.pickerSearch:focus,
+.pickerSearch:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+
+.pickerSearch::placeholder {
+  color: var(--color-text-muted);
+}
+
+.pickerList {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 300px;
+  margin: 8px 0 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+}
+
+.pickerItem {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pickerItem[data-highlighted] {
+  background: var(--color-accent-bg-light);
+}
+
+.pickerItem[data-done] .pickerTitle {
+  color: var(--color-text-muted);
+}
+
+.pickerTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-nav);
+}
+
+.pickerMeta {
+  min-height: 1em;
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.pickerEmpty {
+  padding: 10px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+}
+
 /* Touch: no hover, so the grip and ⋯ stay in view. */
 @media (hover: none) {
   .grip,

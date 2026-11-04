@@ -28,6 +28,7 @@ import { StatusUpdatesSection, type StatusUpdateEntry, type StatusUpdateFields }
 import { SubtasksSection } from './subtasks/SubtasksSection'
 import type { ChecklistItem } from './subtasks/SubtaskChecklist'
 import { useSubtasks, useSubtaskStore } from '../../stores/subtask-store'
+import { storedSubtaskMenuEntries } from './subtasks/subtask-menu'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
@@ -796,6 +797,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onSetDone={handleSetSubtaskDone}
             onRemove={handleRemoveSubtask}
             onMove={handleMoveSubtask}
+            extraMenuEntries={isEdit ? storedSubtaskMenuEntries : undefined}
             className={styles.notesSection}
             labelClassName={styles.notesLabel}
           />
@@ -829,6 +831,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             todo={todo}
             onDelete={afterNotes(props.onDelete)}
             onDuplicate={props.onDuplicate && afterNotes(props.onDuplicate)}
+            onMakeSubtaskOf={afterNotes(() => useUIStore.getState().openTaskPicker({ kind: 'make-subtask', todoId: todo.id }))}
             onClose={onClose}
           />
         ) : (

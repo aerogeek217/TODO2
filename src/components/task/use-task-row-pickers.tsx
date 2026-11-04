@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom'
 import type { Person, PersistedTodoItem } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
+import { useUIStore } from '../../stores/ui-store'
 import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
 import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
@@ -145,6 +146,8 @@ export function useTaskRowPickers({
     onFollowedUp: () => bulk.markFollowedUp(todo.id),
     onAssignPeople: ghost ? undefined : () => setPeopleOpen(true),
     onAddTag: ghost ? undefined : () => setTagPickerOpen(true),
+    onAddSubtask: ghost ? undefined : openSubtasksAdd,
+    onMakeSubtaskOf: ghost ? undefined : () => useUIStore.getState().openTaskPicker({ kind: 'make-subtask', todoId: todo.id }),
     onSetMarker: handleSetMarker,
     onDelete: handleDelete,
   }

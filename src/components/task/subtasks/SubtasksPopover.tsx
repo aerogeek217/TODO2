@@ -6,6 +6,7 @@ import { subtaskCount } from '../../../utils/subtasks'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import { PopoverRoot } from '../../shared/PopoverRoot'
 import { SubtaskChecklist, type ChecklistItem } from './SubtaskChecklist'
+import { storedSubtaskMenuEntries } from './subtask-menu'
 import styles from './Subtasks.module.css'
 
 /**
@@ -20,7 +21,7 @@ import styles from './Subtasks.module.css'
  * count, unless something else took it. Every write goes through the
  * subtask store (its own undo step each).
  */
-export function SubtasksPopover({ todo, anchorRef, onClose, onOpenDetail, focusAdd = false, extraMenuEntries }: {
+export function SubtasksPopover({ todo, anchorRef, onClose, onOpenDetail, focusAdd = false, extraMenuEntries = storedSubtaskMenuEntries }: {
   todo: PersistedTodoItem
   anchorRef: RefObject<HTMLElement | null>
   onClose: () => void

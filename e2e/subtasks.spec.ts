@@ -111,7 +111,12 @@ test('the editor’s section: a drag reorders the checklist, ⋯ › Delete remo
   const from = await grip.boundingBox()
   const first = await items.nth(0).boundingBox()
   if (!from || !first) throw new Error('rows not laid out')
-  await drag(page, { x: from.x + from.width / 2, y: from.y + from.height / 2 }, { x: from.x + from.width / 2, y: first.y + 2 })
+  await drag(
+    page,
+    { x: from.x + from.width / 2, y: from.y + from.height / 2 },
+    { x: from.x + from.width / 2, y: first.y + first.height / 2 - 4 },
+    { lifted: () => expect(last).toHaveAttribute('data-dragging', '') },
+  )
   await expect(items).toHaveText(['Get travel actuals from Marco', 'Send the template to all leads', 'Headcount from Aisha'])
   await expect.poll(() => storedChecklist(page, 'Q4 budget')).toEqual([
     ['Get travel actuals from Marco', false], ['Send the template to all leads', true], ['Headcount from Aisha', false],
@@ -126,6 +131,47 @@ test('the editor’s section: a drag reorders the checklist, ⋯ › Delete remo
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(items).toHaveText(['Get travel actuals from Marco', 'Send the template to all leads', 'Headcount from Aisha'])
   await expect(editor(page)).toBeVisible()
+})
+
+test('Make subtask of… from the row menu: the picker, the prompt, the row gone and the parent’s count grown; Undo brings it back', async ({ page }) => {
+  await seedWorkspace(page, { ...SEED, tasks: [...SEED.tasks!, { title: 'Book travel', dueInDays: 5 }] })
+  const row = taskRowByTitle(page, 'Book travel')
+  await row.locator('span[data-task-title="Book travel"]').click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Make subtask of…' }).click()
+  const picker = page.getByRole('dialog', { name: 'Make “Book travel” a subtask of…' })
+  await expect(picker).toBeVisible()
+  const search = picker.getByRole('textbox', { name: 'Find a task' })
+  await expect(search).toBeFocused()
+  await expect(picker.getByRole('option')).toHaveText(['Q4 budget3 subtasks', 'Bare task'])
+  await search.fill('q4')
+  await search.press('Enter')
+  await expect(picker).toHaveCount(0)
+  // The task has a due date: the prompt lists it.
+  const prompt = page.getByRole('dialog', { name: 'Make “Book travel” a subtask of “Q4 budget”?' })
+  await expect(prompt).toBeVisible()
+  await expect(prompt).toContainText('Due ')
+  await prompt.getByRole('button', { name: 'Make subtask' }).click()
+  await expect(row).toHaveCount(0)
+  await expect(countOf(taskRowByTitle(page, 'Q4 budget'))).toHaveText('1/4')
+  await expect.poll(async () => (await storedChecklist(page, 'Q4 budget')).at(-1)).toEqual(['Book travel', false])
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect(taskRowByTitle(page, 'Book travel')).toBeVisible()
+  await expect(countOf(taskRowByTitle(page, 'Q4 budget'))).toHaveText('1/3')
+})
+
+test('Make a task from the popover’s ⋯: a new row with the parent’s people; the subtask leaves the checklist', async ({ page }) => {
+  await seedWorkspace(page, { ...SEED, people: [{ name: 'Ben Ortiz', initials: 'BO' }], tasks: [{ ...SEED.tasks![0]!, people: ['Ben Ortiz'] }] })
+  const row = taskRowByTitle(page, 'Q4 budget')
+  await countOf(row).click()
+  const item = popover(page).getByRole('listitem').filter({ hasText: 'Get travel actuals from Marco' })
+  await item.hover()
+  await item.getByRole('button', { name: 'Subtask menu: Get travel actuals from Marco' }).click()
+  await page.getByRole('menuitem', { name: 'Make a task' }).click()
+  const made = taskRowByTitle(page, 'Get travel actuals from Marco')
+  await expect(made).toBeVisible()
+  await expect(made.getByRole('img', { name: /Ben Ortiz/ }).or(made.getByText('BO'))).toBeVisible()
+  await expect(countOf(row)).toHaveText('1/2')
+  await expect(page.getByText('Made “Get travel actuals from Marco” a task')).toBeVisible()
 })
 
 test('a renamed subtask: ⏎ saves, Esc on the field cancels without closing the editor', async ({ page }) => {
