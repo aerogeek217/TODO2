@@ -189,7 +189,7 @@
   overflow: hidden;
 }
 
-.progressChip {
+.statusUpdateChip {
   font-size: 11px;
   color: var(--color-text-muted);
   padding: 1px 6px;

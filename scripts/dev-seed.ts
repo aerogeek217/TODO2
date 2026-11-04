@@ -217,7 +217,7 @@ interface TaskOpts {
   important?: boolean
   notes?: string
   /** The newest status update's text (a few earlier ones are made up). */
-  progress?: string
+  update?: string
   /** Completed on this day (≤ 0), with a `completed` event. */
   done?: number
   /** Completed on this day with no event (a completion from before the history log). */
@@ -248,9 +248,9 @@ const NOTES_POOL = [
   'Questions:\n1. Who signs off?\n2. Is there budget left this quarter?',
 ]
 
-const PROGRESS_POOL = ['first draft done', 'waiting on numbers', 'half way', 'outline agreed', '2 of 5 done']
+const NEWEST_UPDATES_POOL = ['first draft done', 'waiting on numbers', 'half way', 'outline agreed', '2 of 5 done']
 
-/** Earlier status updates, before the newest (`progress`). */
+/** Earlier status updates, before the newest (`update`). */
 const EARLIER_UPDATES_POOL = [
   'Kicked off; owner agreed',
   'Asked for the inputs on Slack',
@@ -270,7 +270,7 @@ const PROJECTS: ProjectDef[] = [
     tasks: [
       ['Draft cutover runbook for the billing service', {
         due: 6, followup: 2, people: ['marcus'], tags: ['docs'], status: 'followup', important: true,
-        progress: 'steps 1–6 drafted',
+        update: 'steps 1–6 drafted',
         notes: '## Steps\n- Freeze writes\n- Snapshot the database\n- Flip DNS\n- Smoke test\n\nOwner: **Marcus**',
       }],
       ["Review Marcus's PR for the auth token refresh", { due: 0, people: ['marcus'], tags: ['security', 'urgent'], urgent: true }],
@@ -291,7 +291,7 @@ const PROJECTS: ProjectDef[] = [
       ['Send weekly migration status update', { recur: 'weekly', due: 4, tags: ['docs'] }],
       'Check TLS certificate expiry on the old cluster',
       ['Archive the old wiki pages', { done: -90, tags: ['docs'] }],
-      ['Ask Bluefield for the revised SOW', { followup: 3, followedUp: -1, orgs: ['bluefield'], status: 'followup', progress: 'Revised SOW promised for Friday' }],
+      ['Ask Bluefield for the revised SOW', { followup: 3, followedUp: -1, orgs: ['bluefield'], status: 'followup', update: 'Revised SOW promised for Friday' }],
       'Verify backups restore cleanly in staging',
       'Document the new deploy pipeline',
       'Clean up unused IAM roles',
@@ -309,7 +309,7 @@ const PROJECTS: ProjectDef[] = [
     orgs: ['finance'],
     tags: ['budget', 'Q4', 'urgent'],
     tasks: [
-      ['Submit Q4 budget draft to Finance', { due: 0, orgs: ['finance'], tags: ['budget', 'Q4', 'urgent'], status: 'followup', important: true, progress: 'waiting on numbers' }],
+      ['Submit Q4 budget draft to Finance', { due: 0, orgs: ['finance'], tags: ['budget', 'Q4', 'urgent'], status: 'followup', important: true, update: 'waiting on numbers' }],
       ['Reconcile September vendor invoices', { due: -6, dueMoves: 1, people: ['laura'], tags: ['budget'], status: 'followup' }],
       'Review headcount plan with Priya',
       ['Prepare board deck: engineering section', { recur: 'quarterly', due: 25, people: ['priya'], tags: ['Q4'], important: true }],
@@ -386,7 +386,7 @@ const PROJECTS: ProjectDef[] = [
     tasks: [
       ['1:1 with Marcus', { recur: 'weekly', due: 2, people: ['marcus'], tags: ['1:1'], notes: '- migration workload\n- conference talk?\n- feedback on the runbook' }],
       ['1:1 with Sarah', { recur: 'biweekly', due: 9, people: ['sarah'], tags: ['1:1'] }],
-      ["Write Aisha's performance review", { due: -4, people: ['aisha'], status: 'followup', progress: 'half way', important: true }],
+      ["Write Aisha's performance review", { due: -4, people: ['aisha'], status: 'followup', update: 'half way', important: true }],
       'Prepare interview loop for the senior backend role',
       "Review Jonas's promotion packet",
       'Schedule team retro',
@@ -590,7 +590,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     else if (tr < 0.55) o.tags = rng.pickN(tags, 2)
     else if (tr < 0.6) o.tags = rng.pickN(tags, 3)
     if (rng.chance(0.15)) o.notes = rng.pick(NOTES_POOL)
-    if (o.done === undefined && rng.chance(0.07)) o.progress = rng.pick(PROGRESS_POOL)
+    if (o.done === undefined && rng.chance(0.07)) o.update = rng.pick(NEWEST_UPDATES_POOL)
     return o
   }
 
@@ -725,10 +725,10 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     if (projectTag !== undefined) tagIds.add(projectTag)
     for (const tagId of tagIds) todoTags.push({ todoId: id, tagId })
 
-    // Status updates: a few made-up earlier ones, then `progress` the newest
+    // Status updates: a few made-up earlier ones, then `update` the newest
     // — added with the last follow-up when the task was followed up.
-    if (o.progress) {
-      const texts = [...updateRng.pickN(EARLIER_UPDATES_POOL, updateRng.int(1, 3)), o.progress]
+    if (o.update) {
+      const texts = [...updateRng.pickN(EARLIER_UPDATES_POOL, updateRng.int(1, 3)), o.update]
       const newestMs = lastFollowupMs ?? between(texts.length / (texts.length + 1))
       texts.forEach((text, k) => {
         const newest = k === texts.length - 1

@@ -220,7 +220,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
           {!todo.nextFollowupAt && emptyFollowupFlag}
 
           {newestUpdate && (
-            <span className={styles.progressChip} data-status-chip="">
+            <span className={styles.statusUpdateChip} data-status-chip="">
               {formatDateNumeric(newestUpdate.date)} {newestUpdate.text}
               {(() => {
                 // A percentage in the update's text (`60% done`) draws its bar.
