@@ -2,23 +2,20 @@ import type { StatusUpdateDayInput } from '../../../hooks/use-status-update-day'
 import { formatFollowupDate, relativeDayPhrase } from '../../../utils/followup'
 import { FollowupDateButton } from '../../shared/followup/FollowupDateButton'
 import followupStyles from '../../shared/followup/Followup.module.css'
-import styles from './StatusUpdates.module.css'
 
 /**
  * The day of a status update, as the task editor's Last follow-up field: a
  * text field that takes a date or words (`yesterday`, `mon`, `10/28`) with
  * the calendar button at its end (no day after today). Empty = today. ⏎
  * runs `onEnter`; the line after it says what the text means, or what's
- * wrong with it, else `hint`.
+ * wrong with it.
  */
-export function StatusUpdateDayField({ input, label, today, onEnter, hint }: {
+export function StatusUpdateDayField({ input, label, today, onEnter }: {
   input: StatusUpdateDayInput
   /** The field's accessible name. */
   label: string
   today: Date
   onEnter: () => void
-  /** Shown after the field while it holds no typed day. */
-  hint?: string
 }) {
   const s = input.state
   return (
@@ -54,9 +51,7 @@ export function StatusUpdateDayField({ input, label, today, onEnter, hint }: {
           → <strong className={followupStyles.helpDate}>{formatFollowupDate(s.date, today)}</strong>
           {' · '}{relativeDayPhrase(s.date, today)}
         </span>
-      ) : (
-        <span className={`${followupStyles.editorHint} ${styles.dayHint}`}>{hint}</span>
-      )}
+      ) : null}
     </>
   )
 }

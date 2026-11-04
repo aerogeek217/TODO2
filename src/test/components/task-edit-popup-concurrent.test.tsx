@@ -98,6 +98,7 @@ describe('TaskEditPopup with concurrent changes to its task', () => {
     const id = await addTodo('Old title')
     await useStatusUpdateStore.getState().load()
     await openEditor(id)
+    fireEvent.click(screen.getByRole('button', { name: '+ Add update' }))
     const update = screen.getByRole('textbox', { name: 'New status update' }) as HTMLInputElement
 
     fireEvent.change(update, { target: { value: 'half done' } })

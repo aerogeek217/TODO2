@@ -1,10 +1,13 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
 import { STATUS_UPDATE_TEXT_MAX } from '../../../models'
+import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useStatusUpdateDay } from '../../../hooks/use-status-update-day'
 import { useToday } from '../../../hooks/use-today'
 import { formatDateNumeric } from '../../../utils/date'
 import { statusUpdateText } from '../../../utils/status-updates'
 import { PencilIcon, TrashIcon } from '../../shared/icons'
+import { PopoverRoot } from '../../shared/PopoverRoot'
 import { StatusUpdateDayField } from './StatusUpdateDayField'
 import styles from './StatusUpdates.module.css'
 
@@ -24,13 +27,14 @@ export interface StatusUpdateFields {
 /** Entries shown before the `▸ N older updates` disclosure. */
 const SHOWN = 3
 
-const STATUS_UPDATE_PLACEHOLDER = 'Add an update… e.g. waiting on legal, 50% done'
+const STATUS_UPDATE_PLACEHOLDER = 'e.g. waiting on legal, 50% done'
 
 /**
- * The task editor's **Status updates**: an add row (the text, then its day
- * — words or a date, the calendar button, never after today, empty = today;
- * ⏎ in either adds), then the entries newest first, one line each `MM/DD
- * text` (the newest in the primary colour). Three show; the rest wait behind
+ * The task editor's **Status updates**: the label with the count and an
+ * **Add update** button, which opens a popover with the text and its day
+ * (words or a date, the calendar button, never after today, empty = today;
+ * ⏎ in either, or Add, adds and closes it), then the entries newest first,
+ * one line each `MM/DD text` (the newest in the primary colour). Three show; the rest wait behind
  * `▸ N older updates`, which opens them under an "Older" rule (closed again
  * by `▾ Hide older`; closed whenever the editor opens). Hover or focus shows
  * an entry's edit and delete; a click on its text edits too. Editing puts
@@ -50,11 +54,10 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
 }) {
   const today = useToday()
   const labelId = useId()
-  const [text, setText] = useState('')
-  const day = useStatusUpdateDay(undefined, today)
+  const [adding, setAdding] = useState(false)
   const [olderOpen, setOlderOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const textRef = useRef<HTMLInputElement>(null)
+  const addButtonRef = useRef<HTMLButtonElement>(null)
   // Each entry's edit button, to hand the focus back to after an edit or a delete.
   const editButtons = useRef(new Map<number, HTMLButtonElement>())
   const focusAfter = useRef<number | 'add' | null>(null)
@@ -63,17 +66,18 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
     const target = focusAfter.current
     if (target === null || editingId !== null) return
     focusAfter.current = null
-    if (target === 'add') textRef.current?.focus()
+    if (target === 'add') addButtonRef.current?.focus()
     else editButtons.current.get(target)?.focus()
   })
 
-  const add = () => {
-    const clean = statusUpdateText(text)
-    if (clean === '' || day.day === 'invalid') return
-    onAdd({ date: day.day, text: clean })
-    setText('')
-    day.reset()
-    textRef.current?.focus()
+  // Closed by Add, Cancel or Esc the focus goes back to the button; closed by
+  // a press elsewhere it stays where that press put it.
+  const closeAdd = () => {
+    setAdding(false)
+    requestAnimationFrame(() => {
+      const active = document.activeElement
+      if (!active || active === document.body || !active.isConnected) addButtonRef.current?.focus()
+    })
   }
 
   const remove = (id: number) => {
@@ -141,30 +145,31 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
 
   return (
     <section className={className} aria-labelledby={labelId} data-status-updates="">
-      <div className={`${labelClassName ?? ''} ${styles.heading}`} id={labelId}>
-        Status updates
-        {entries.length > 0 && <span className={styles.count}>{entries.length}</span>}
-      </div>
-      <div className={styles.addRow}>
-        <input
-          ref={textRef}
-          className={styles.textInput}
-          value={text}
-          maxLength={STATUS_UPDATE_TEXT_MAX}
-          placeholder={STATUS_UPDATE_PLACEHOLDER}
-          aria-label="New status update"
-          autoComplete="off"
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
-            e.preventDefault()
-            add()
-          }}
-        />
-        <div className={styles.dayRow}>
-          <StatusUpdateDayField input={day} label="New status update’s day" today={today} onEnter={add} hint="⏎ adds the update" />
+      <div className={styles.headingRow}>
+        <div className={`${labelClassName ?? ''} ${styles.heading}`} id={labelId}>
+          Status updates
+          {entries.length > 0 && <span className={styles.count}>{entries.length}</span>}
         </div>
+        <button
+          ref={addButtonRef}
+          type="button"
+          className={styles.addButton}
+          aria-haspopup="dialog"
+          aria-expanded={adding}
+          data-open={adding ? 'true' : undefined}
+          onClick={() => (adding ? closeAdd() : setAdding(true))}
+        >
+          + Add update
+        </button>
       </div>
+      {adding && (
+        <AddUpdatePopover
+          anchorRef={addButtonRef}
+          today={today}
+          onAdd={(entry) => { onAdd(entry); closeAdd() }}
+          onClose={closeAdd}
+        />
+      )}
       {entries.length > 0 && (
         <ul className={styles.list} aria-label="Status updates">
           {entries.slice(0, SHOWN).map((e, i) => renderEntry(e, i === 0))}
@@ -191,6 +196,78 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
         </ul>
       )}
     </section>
+  )
+}
+
+/**
+ * The Add update popover, under its button (placed by `usePopoverAnchor`,
+ * flipped / clamped, above the editor): the update's text (focused), its day
+ * and Cancel / Add. ⏎ in either field adds; Esc closes it — not the editor.
+ */
+function AddUpdatePopover({ anchorRef, today, onAdd, onClose }: {
+  anchorRef: RefObject<HTMLButtonElement | null>
+  today: Date
+  onAdd: (entry: StatusUpdateFields) => void
+  onClose: () => void
+}) {
+  const [text, setText] = useState('')
+  const day = useStatusUpdateDay(undefined, today)
+  const textRef = useRef<HTMLInputElement>(null)
+  const { panelRef, style, caret } = usePopoverAnchor({
+    anchor: { kind: 'ref', ref: anchorRef },
+    open: true,
+    placement: 'bottom-end',
+    closeOnScroll: false,
+    closeOnResize: false,
+    consumeEscape: true,
+    observeSize: true,
+    onClose,
+    caret: true,
+  })
+  useEffect(() => { textRef.current?.focus() }, [])
+  const clean = statusUpdateText(text)
+  const canAdd = clean !== '' && day.day !== 'invalid'
+  const add = () => {
+    if (canAdd && day.day !== 'invalid') onAdd({ date: day.day, text: clean })
+  }
+  const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+    e.preventDefault()
+    add()
+  }
+  return createPortal(
+    <PopoverRoot
+      ref={panelRef}
+      caret={caret}
+      className={styles.addPopover}
+      style={{ position: style.position, left: style.left, top: style.top }}
+      role="dialog"
+      aria-label="Add a status update"
+      // Portaled out of the editor, but React events still bubble to it: keep them here.
+      onMouseDown={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
+      <input
+        ref={textRef}
+        className={styles.textInput}
+        value={text}
+        maxLength={STATUS_UPDATE_TEXT_MAX}
+        placeholder={STATUS_UPDATE_PLACEHOLDER}
+        aria-label="New status update"
+        autoComplete="off"
+        onChange={(e) => setText(e.target.value)}
+        onKeyDown={onEnter}
+      />
+      <div className={styles.dayRow}>
+        <StatusUpdateDayField input={day} label="New status update’s day" today={today} onEnter={add} />
+      </div>
+      <div className={styles.popoverActions}>
+        <button type="button" className={styles.cancelButton} onClick={onClose}>Cancel</button>
+        <button type="button" className={styles.saveButton} onClick={add} disabled={!canAdd}>Add</button>
+      </div>
+    </PopoverRoot>,
+    document.body,
   )
 }
 

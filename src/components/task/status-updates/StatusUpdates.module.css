@@ -1,12 +1,69 @@
 /*
- * A task's status updates in the task editor: the add row (text, then its
- * day — the Last follow-up field's look, `Followup.module.css`), then the
- * entries newest first, one `MM/DD text` line each.
+ * A task's status updates in the task editor: the label with its Add update
+ * button (a popover: the text, then its day — the Last follow-up field's
+ * look, `Followup.module.css`), then the entries newest first, one `MM/DD
+ * text` line each.
  */
 
-.heading {
+.headingRow {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+/* The label's own bottom margin (`.notesLabel`) goes: the row spaces it. */
+.headingRow .heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 0;
+}
+
+.addButton {
+  flex-shrink: 0;
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-accent-text);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.addButton:hover {
+  background: var(--color-accent-bg-light);
+}
+
+/* The open trigger (D21) while its popover is open. */
+.addButton[data-open] {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+}
+
+/* The Add update popover: placed by `usePopoverAnchor`, above the editor. */
+.addPopover {
+  position: fixed;
+  z-index: var(--z-dialog-nested);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 320px;
+  padding: 12px;
+  box-sizing: border-box;
+  background: var(--color-popover-bg);
+  border-radius: 8px;
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-task);
+}
+
+.popoverActions {
+  display: flex;
+  justify-content: flex-end;
   gap: 6px;
 }
 
@@ -22,17 +79,13 @@
   text-transform: none;
 }
 
-/* ── Add / edit rows ── */
+/* ── The edit row ── */
 
-.addRow,
 .editRow {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 6px;
-}
-
-.editRow {
-  flex: 1;
   min-width: 0;
   padding: 6px 0;
 }
@@ -67,10 +120,6 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
-}
-
-.dayHint {
-  color: var(--color-text-muted);
 }
 
 .cancelButton,

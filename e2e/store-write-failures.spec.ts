@@ -129,6 +129,7 @@ test('a create that fails keeps Quick Add and the task editor open as typed; try
   await expect(bar).toBeHidden()
   const title = page.getByPlaceholder('New task… (@person #tag !status /command)')
   await expect(title).toHaveValue('Call the plumber')
+  await page.getByRole('button', { name: '+ Add update' }).click()
   const update = page.getByRole('textbox', { name: 'New status update', exact: true })
   await update.fill('Quote asked')
   await update.press('Enter')

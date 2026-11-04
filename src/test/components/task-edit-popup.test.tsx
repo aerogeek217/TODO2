@@ -680,6 +680,7 @@ describe('TaskEditPopup — a create that fails', () => {
     const onCreate = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(43)
     const { onClose } = renderCreateMode({ onCreate })
     typeTitle('Write report')
+    fireEvent.click(screen.getByRole('button', { name: '+ Add update' }))
     const update = screen.getByRole('textbox', { name: 'New status update' })
     fireEvent.change(update, { target: { value: 'Outline done' } })
     fireEvent.keyDown(update, { key: 'Enter' })
