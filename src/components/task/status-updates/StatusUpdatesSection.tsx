@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState, type RefObject } from 'react'
+import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { createPortal } from 'react-dom'
 import { STATUS_UPDATE_TEXT_MAX } from '../../../models'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
@@ -108,6 +109,7 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
           entry={entry}
           today={today}
           onSave={(changes) => { onEdit(entry.id, changes); finishEdit(entry.id) }}
+          onSaveOnClose={(changes) => onEdit(entry.id, changes)}
           onCancel={() => finishEdit(entry.id)}
         />
       ) : (
@@ -167,6 +169,7 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
           anchorRef={addButtonRef}
           today={today}
           onAdd={(entry) => { onAdd(entry); closeAdd() }}
+          onAddOnClose={onAdd}
           onClose={closeAdd}
         />
       )}
@@ -202,15 +205,22 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
 /**
  * The Add update popover, under its button (placed by `usePopoverAnchor`,
  * flipped / clamped, above the editor): the update's text (focused), its day
- * and Cancel / Add. ⏎ in either field adds; Esc closes it — not the editor.
+ * and Cancel / Add. ⏎ in either field adds. Esc (it, not the editor) and an
+ * outside click close it and add what was typed; only Cancel drops it. A day
+ * that isn't one holds the close once, saying so; closing again drops it.
  */
-function AddUpdatePopover({ anchorRef, today, onAdd, onClose }: {
+function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose }: {
   anchorRef: RefObject<HTMLButtonElement | null>
   today: Date
   onAdd: (entry: StatusUpdateFields) => void
+  /** Added as it goes: the host's write only, the focus being wherever the close left it. */
+  onAddOnClose: (entry: StatusUpdateFields) => void
   onClose: () => void
 }) {
   const [text, setText] = useState('')
+  const [closeHeld, setCloseHeld] = useState(false)
+  // Added or cancelled: nothing left to add as it goes.
+  const finished = useRef(false)
   const day = useStatusUpdateDay(undefined, today)
   const textRef = useRef<HTMLInputElement>(null)
   const { panelRef, style, caret } = usePopoverAnchor({
@@ -221,15 +231,25 @@ function AddUpdatePopover({ anchorRef, today, onAdd, onClose }: {
     closeOnResize: false,
     consumeEscape: true,
     observeSize: true,
-    onClose,
+    onClose: () => {
+      if (statusUpdateText(text) !== '' && day.day === 'invalid' && !closeHeld) setCloseHeld(true)
+      else onClose()
+    },
     caret: true,
   })
   useEffect(() => { textRef.current?.focus() }, [])
   const clean = statusUpdateText(text)
   const canAdd = clean !== '' && day.day !== 'invalid'
   const add = () => {
-    if (canAdd && day.day !== 'invalid') onAdd({ date: day.day, text: clean })
+    if (canAdd && day.day !== 'invalid') {
+      finished.current = true
+      onAdd({ date: day.day, text: clean })
+    }
   }
+  const addOnCloseRef = useLatestRef(() => {
+    if (!finished.current && canAdd && day.day !== 'invalid') onAddOnClose({ date: day.day, text: clean })
+  })
+  useEffect(() => () => addOnCloseRef.current(), [addOnCloseRef])
   const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
     e.preventDefault()
@@ -262,8 +282,9 @@ function AddUpdatePopover({ anchorRef, today, onAdd, onClose }: {
       <div className={styles.dayRow}>
         <StatusUpdateDayField input={day} label="New status update’s day" today={today} onEnter={add} />
       </div>
+      {closeHeld && day.day === 'invalid' && <div role="status" className={styles.closeHeld}>Fix the day, or close again to discard this update.</div>}
       <div className={styles.popoverActions}>
-        <button type="button" className={styles.cancelButton} onClick={onClose}>Cancel</button>
+        <button type="button" className={styles.cancelButton} onClick={() => { finished.current = true; onClose() }}>Cancel</button>
         <button type="button" className={styles.saveButton} onClick={add} disabled={!canAdd}>Add</button>
       </div>
     </PopoverRoot>,
@@ -271,13 +292,20 @@ function AddUpdatePopover({ anchorRef, today, onAdd, onClose }: {
   )
 }
 
-/** An entry being edited, in its place: its text, then its day with Cancel / Save. */
-function EntryEditor({ entry, today, onSave, onCancel }: {
+/**
+ * An entry being edited, in its place: its text, then its day with Cancel /
+ * Save. Esc and Cancel drop the edit; the editor closing around it saves it
+ * (a day that isn't one: the text, on the day it had).
+ */
+function EntryEditor({ entry, today, onSave, onSaveOnClose, onCancel }: {
   entry: StatusUpdateEntry
   today: Date
   onSave: (changes: StatusUpdateFields) => void
+  onSaveOnClose: (changes: StatusUpdateFields) => void
   onCancel: () => void
 }) {
+  // Saved or cancelled: nothing left to save as it goes.
+  const finished = useRef(false)
   const [text, setText] = useState(entry.text)
   const day = useStatusUpdateDay(entry.date, today)
   const textRef = useRef<HTMLInputElement>(null)
@@ -285,8 +313,21 @@ function EntryEditor({ entry, today, onSave, onCancel }: {
   const clean = statusUpdateText(text)
   const canSave = clean !== '' && day.day !== 'invalid'
   const save = () => {
-    if (canSave && day.day !== 'invalid') onSave({ date: day.day, text: clean })
+    if (canSave && day.day !== 'invalid') {
+      finished.current = true
+      onSave({ date: day.day, text: clean })
+    }
   }
+  const cancel = () => {
+    finished.current = true
+    onCancel()
+  }
+  const saveOnCloseRef = useLatestRef(() => {
+    if (finished.current || clean === '') return
+    const date = day.day === 'invalid' ? entry.date : day.day
+    if (clean !== entry.text || date.getTime() !== entry.date.getTime()) onSaveOnClose({ date, text: clean })
+  })
+  useEffect(() => () => saveOnCloseRef.current(), [saveOnCloseRef])
   return (
     <div
       className={styles.editRow}
@@ -295,7 +336,7 @@ function EntryEditor({ entry, today, onSave, onCancel }: {
         if (e.key !== 'Escape') return
         e.preventDefault()
         e.stopPropagation()
-        onCancel()
+        cancel()
       }}
     >
       <input
@@ -314,7 +355,7 @@ function EntryEditor({ entry, today, onSave, onCancel }: {
       />
       <div className={styles.dayRow}>
         <StatusUpdateDayField input={day} label="Status update’s day" today={today} onEnter={save} />
-        <button type="button" className={styles.cancelButton} onClick={onCancel}>Cancel</button>
+        <button type="button" className={styles.cancelButton} onClick={cancel}>Cancel</button>
         <button type="button" className={styles.saveButton} onClick={save} disabled={!canSave}>Save</button>
       </div>
     </div>
