@@ -40,6 +40,40 @@ describe('upgradeV74 — a stored Priority filter as conditions', () => {
     expect(upgraded(legacy('hot'), [{ key: 'hotRule', value: 'not json' }]).markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['focus', 'important'] }])
   })
 
+  it('a long rule upgrades at once to the conditions the full expansion gives (the picks kept once each)', () => {
+    type M = 'focus' | 'urgent' | 'important'
+    const KEYS: readonly M[] = ['focus', 'urgent', 'important']
+    // The expansion as first written: every pick kept, so n lines of 3 make 3^n.
+    const reference = (rule: readonly (readonly M[])[]) => {
+      let picks: M[][] = [[]]
+      for (const line of rule) picks = picks.flatMap((pick) => line.map((m) => (pick.includes(m) ? pick : [...pick, m])))
+      const sets = picks.map((pick) => KEYS.filter((m) => pick.includes(m)))
+      return sets.filter((set, i) => !sets.some((other, j) => i !== j && other.every((m) => set.includes(m)) && (other.length < set.length || j < i)))
+        .map((values) => ({ values }))
+    }
+    const asRow = (rule: readonly (readonly M[])[]) => [{ key: 'hotRule', value: JSON.stringify(rule.map((line) => Object.fromEntries(line.map((m) => [m, true])))) }]
+    const LINES: M[][] = [['focus'], ['urgent'], ['important'], ['focus', 'urgent'], ['focus', 'important'], ['urgent', 'important'], ['focus', 'urgent', 'important']]
+    // Every rule of up to 3 lines, the order of the conditions included.
+    let rules: M[][][] = [[]]
+    for (let n = 0; n < 3; n++) {
+      rules = rules.flatMap((r) => LINES.map((l) => [...r, l]))
+      for (const rule of rules) expect(upgraded(legacy('hot'), asRow(rule)).markers).toEqual(reference(rule))
+    }
+    // 30 lines — 3^30 picks the first way — in milliseconds, as the same rule once each.
+    const long = Array.from({ length: 30 }, (_, i) => LINES[i % LINES.length] ?? [])
+    const started = performance.now()
+    const markers = upgraded(legacy('hot'), asRow(long)).markers
+    expect(performance.now() - started).toBeLessThan(200)
+    expect(markers).toEqual(reference(LINES))
+    const allThree = Array.from({ length: 30 }, (): M[] => ['urgent', 'important', 'focus'])
+    expect(upgraded(legacy('hot'), asRow(allThree)).markers).toEqual([{ values: ['focus'] }, { values: ['urgent'] }, { values: ['important'] }])
+  })
+
+  it('a stored rule with an empty line reads as the default', () => {
+    expect(upgraded(legacy('hot'), [{ key: 'hotRule', value: '[{}]' }]).markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['focus', 'important'] }])
+    expect(upgraded(legacy('hot'), [{ key: 'hotRule', value: '[{"focus":true},{"urgent":false}]' }]).markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['focus', 'important'] }])
+  })
+
   it('an AND in an or group distributes over its other clauses', () => {
     const group = { ...emptyFilterClauses(), personIds: [1], markers: { urgent: true, important: true } }
     expect(upgraded({ ...emptyPredicate(), orGroups: [group] }).orGroups).toEqual([

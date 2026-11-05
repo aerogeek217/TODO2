@@ -59,17 +59,27 @@ function readRule(settings: readonly DataRow[] | undefined): readonly (readonly 
   return lines.length > 0 && lines.every((l) => l.length > 0) ? lines : DEFAULT_RULE
 }
 
-/** Lines ORed, each an AND → the same as an AND of "any of" lists: one marker from each line, the ones another implies left out. */
+const bitOf = (m: Marker): number => 1 << MARKERS.indexOf(m)
+
+/**
+ * Lines ORed, each an AND → the same as an AND of "any of" lists: one marker
+ * from each line, the ones another implies left out. A pick is a set of the
+ * 3 markers (a bitmask), so there are at most 8 of them whatever the rule's
+ * length: the picks are kept once each, in the order they first come, which
+ * is the order the full expansion would give them.
+ */
 function ruleConditions(rule: readonly (readonly Marker[])[]): Condition[] {
-  let picks: Marker[][] = [[]]
+  let picks: number[] = [0]
   for (const line of rule) {
-    picks = picks.flatMap((pick) => line.map((m) => (pick.includes(m) ? pick : [...pick, m])))
+    const next = new Set<number>()
+    for (const pick of picks) for (const m of line) next.add(pick | bitOf(m))
+    picks = [...next]
   }
-  const sets = picks.map((pick) => MARKERS.filter((m) => pick.includes(m)))
+  const sets = picks.map((pick) => MARKERS.filter((m) => (pick & bitOf(m)) !== 0))
   const minimal = sets.filter((set, i) => !sets.some((other, j) => {
     if (i === j || !other.every((m) => set.includes(m))) return false
-    // A smaller list implies this one; of two the same, the first stays.
-    return other.length < set.length || j < i
+    // A smaller list implies this one (picks are distinct, so no two are the same).
+    return other.length < set.length
   }))
   return minimal.map((values) => ({ values }))
 }
