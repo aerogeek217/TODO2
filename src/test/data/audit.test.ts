@@ -392,6 +392,18 @@ describe('sanitisable-row audit', () => {
     expect((await auditData()).issues).toEqual([])
   })
 
+  it('a list with too many Priority conditions: cleanup caps them and the issue is gone', async () => {
+    const markers = Array.from({ length: 11 }, () => ({ values: ['urgent'] }))
+    const id = await db.listDefinitions.add(list('Many', { markers }) as any)
+
+    const report = await auditData()
+    expect(report.issues.find((i) => i.table === 'listDefinitions')).toMatchObject({ fix: 'sanitize', ids: [id] })
+    await cleanupIssues(report.issues)
+    const stored = await db.listDefinitions.get(id)
+    expect(stored?.membership.kind === 'custom' ? stored.membership.predicate.markers : undefined).toHaveLength(10)
+    expect((await auditData()).issues).toEqual([])
+  })
+
   it('reports a list with an unknown sort direction; cleanup drops it and keeps the sort', async () => {
     const id = await db.listDefinitions.add({ ...list('Odd', {}), sort: 'name', sortDirection: 'up' } as any)
     await db.listDefinitions.add({ ...list('Down', {}), sort: 'name', sortDirection: 'desc' } as any)
