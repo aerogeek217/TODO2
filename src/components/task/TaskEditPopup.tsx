@@ -88,6 +88,12 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
    */
   seed?: TaskDraft
   /**
+   * The seed's title was typed (Quick Add on a note line, its text edited,
+   * then Details): the close's "anything to lose?" counts it, as it counts
+   * the top bar's Quick Add hand-off (cr31 N3).
+   */
+  seedTyped?: boolean
+  /**
    * Draft mode (editing a row of the convert preview): nothing is stored.
    * The footer's Save draft hands the fields back instead of creating, and
    * there is no Last follow-up / Mark followed up (a draft has no history).
@@ -432,15 +438,16 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     setPendingSubtasks((prev) => [...prev, { id: Math.max(0, ...prev.map((s) => s.id)) + 1, title, isCompleted: false }])
   }
   // Notes → this task's subtasks: stored at once, or (create mode) pending with the rest.
-  const noteSubtaskTarget: NoteSubtaskTarget = async (drafts, writeNote) => {
-    if (isEdit && todo) return addSubtasksFromNote(todo.id, drafts, writeNote)
+  // Stable, so the notes editor doesn't reconfigure its keymap on every keystroke (cr31 N6).
+  const noteSubtaskTarget = useCallback<NoteSubtaskTarget>(async (drafts, writeNote) => {
+    if (isEdit && todoId !== undefined) return addSubtasksFromNote(todoId, drafts, writeNote)
     setPendingSubtasks((prev) => {
       const first = Math.max(0, ...prev.map((s) => s.id)) + 1
       return [...prev, ...drafts.map((d, i) => ({ id: first + i, title: subtaskTitle(d.title), isCompleted: d.done }))]
     })
     await writeNote()
     return true
-  }
+  }, [isEdit, todoId])
   const handleRenameSubtask = (id: number, title: string) => {
     if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().rename(id, title) })
     setPendingSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)))
@@ -618,7 +625,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     subtasks: pendingSubtasks.map((s) => [s.title, s.isCompleted]),
   })
   // A title handed over from Quick Add was typed; a draft's title (a note line) is where it starts.
-  const [openingForm] = useState(() => createFormState(seed ? title : '', pendingUpdates))
+  const [openingForm] = useState(() => createFormState(seed && !(props.mode === 'create' && props.seedTyped) ? title : '', pendingUpdates))
   const askingToCloseRef = useRef(false)
   /** Esc / the backdrop. In create mode, anything to lose asks first; Cancel is the plain `onClose`. */
   const requestClose = () => {
@@ -729,7 +736,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     return () => document.removeEventListener('mousedown', handler, true)
   }, [openDropdown])
 
-  // Close status menu on outside click
+  // Close status menu on outside click; Esc closes the menu only, not the
+  // editor around it (cr31 T8), and hands the focus back to its button.
   useEffect(() => {
     if (!showStatusMenu) return
     const handler = (e: MouseEvent) => {
@@ -737,8 +745,19 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         setShowStatusMenu(false)
       }
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      e.preventDefault()
+      e.stopPropagation()
+      setShowStatusMenu(false)
+      statusMenuRef.current?.querySelector<HTMLElement>('button')?.focus()
+    }
     document.addEventListener('mousedown', handler, true)
-    return () => document.removeEventListener('mousedown', handler, true)
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', handler, true)
+      document.removeEventListener('keydown', onKey, true)
+    }
   }, [showStatusMenu])
 
   return (

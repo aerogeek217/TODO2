@@ -40,7 +40,7 @@ interface CreatedLine {
 
 type ConvertState =
   | { kind: 'quick'; line: ConvertLine }
-  | { kind: 'single'; line: ConvertLine; draft: TaskDraft }
+  | { kind: 'single'; line: ConvertLine; draft: TaskDraft; typed?: boolean }
   | {
     kind: 'preview'
     rows: PreviewRow[]
@@ -444,17 +444,19 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast, sub
         onClose={close}
         onSubmit={(submitted) => createFromQuickAdd(line, submitted)}
         onOpenFullEditor={(submitted) => {
-          setState({ kind: 'single', line, draft: withLineSubtasks(draftFromText(submitted.rawTitle, draftContext()), line) })
+          // Edited in the bar: the editor asks before that is dropped.
+          setState({ kind: 'single', line, draft: withLineSubtasks(draftFromText(submitted.rawTitle, draftContext()), line), typed: submitted.rawTitle !== line.body })
         }}
       />
     )
   } else if (state?.kind === 'single') {
-    const { line, draft } = state
+    const { line, draft, typed } = state
     content = (
       <TaskEditPopup
         mode="create"
         nested
         seed={draft}
+        seedTyped={typed}
         assignedPeople={[]}
         allPeople={people}
         assignedTags={[]}

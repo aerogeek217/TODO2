@@ -275,6 +275,38 @@ describe('TaskEditPopup', () => {
     })
   })
 
+  describe('edit mode — header and Status menu (cr31 T8, T14, N6)', () => {
+    it('the complete box is named by what it does', () => {
+      renderEditMode(makeTodo({ isCompleted: false }))
+      expect(screen.getByRole('checkbox', { name: 'Mark complete' })).toBeInTheDocument()
+      cleanup()
+      renderEditMode(makeTodo({ isCompleted: true }))
+      expect(screen.getByRole('checkbox', { name: 'Mark incomplete' })).toBeInTheDocument()
+    })
+
+    it('Esc with the Status menu open closes the menu only, the focus back on its button', () => {
+      useStatusStore.setState({ statuses: [{ id: 1, name: 'Doing', color: '#888', icon: 'circle', sortOrder: 0 }] as never })
+      const { props } = renderEditMode(makeTodo({}))
+      const button = screen.getByRole('button', { name: /^Status/ })
+      fireEvent.click(button)
+      expect(screen.getByRole('button', { name: 'No Status' })).toBeInTheDocument()
+      fireEvent.keyDown(screen.getByRole('button', { name: 'No Status' }), { key: 'Escape' })
+      expect(screen.queryByRole('button', { name: 'No Status' })).toBeNull()
+      expect(props.onClose).not.toHaveBeenCalled()
+      expect(document.activeElement).toBe(button)
+    })
+
+    it('typing in the title doesn’t reconfigure the notes editor (a stable subtask target)', () => {
+      renderEditMode(makeTodo({}))
+      const view = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)!
+      const dispatch = vi.spyOn(view, 'dispatch')
+      const title = document.querySelector('[role="dialog"] input:not([type="checkbox"])') as HTMLInputElement
+      fireEvent.change(title, { target: { value: 'a' } })
+      fireEvent.change(title, { target: { value: 'ab' } })
+      expect(dispatch).not.toHaveBeenCalled()
+    })
+  })
+
   describe('edit mode — callbacks', () => {
     it('toggling a person calls onAssignPerson/onUnassignPerson', () => {
       const todo = makeTodo({ id: 10, title: 'Edit task' })

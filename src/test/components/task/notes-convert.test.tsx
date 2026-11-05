@@ -145,6 +145,28 @@ describe('Alt+T: one line through Quick Add', () => {
     expect(doc()).toBe(NOTE)
   })
 
+  it('text edited in Quick Add, then Details: Esc in the editor asks before dropping it; unedited, it closes (cr31 N3)', async () => {
+    for (const edited of [true, false]) {
+      const { view } = setup(NOTE)
+      act(() => view.dispatch({ selection: { anchor: lineStart(view, 3) } }))
+      pressAltT(view)
+      const input = await screen.findByDisplayValue('Random thought: maybe switch CDN?')
+      if (edited) fireEvent.change(input, { target: { value: 'Switch the CDN' } })
+      fireEvent.click(screen.getByRole('button', { name: /Details/ }))
+      const editor = await screen.findByRole('dialog', { name: 'New task' })
+      fireEvent.keyDown(editor, { key: 'Escape' })
+      if (edited) {
+        await waitFor(() => expect(useUIStore.getState().confirmPrompts).toHaveLength(1))
+        expect(screen.getByRole('dialog', { name: 'New task' })).toBeInTheDocument()
+      } else {
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New task' })).toBeNull())
+        expect(useUIStore.getState().confirmPrompts).toEqual([])
+      }
+      cleanup()
+      useUIStore.setState({ confirmPrompts: [] })
+    }
+  })
+
   it('does nothing on a blank or already converted line', () => {
     const { view } = setup('✓ Done\n\n- x')
     act(() => view.dispatch({ selection: { anchor: 0 } }))
