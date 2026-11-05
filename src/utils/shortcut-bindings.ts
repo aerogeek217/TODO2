@@ -137,8 +137,6 @@ const TEXT_EDITING_RESERVED: readonly ReservedCombo[] = [
   { combo: mod('z'), what: 'Undo typing' },
   { combo: mod('y'), what: 'Redo typing' },
   { combo: mod('z', { shift: true }), what: 'Redo typing' },
-  { combo: mod('b'), what: 'Bold' },
-  { combo: mod('i'), what: 'Italic' },
   { combo: mod('k', { shift: true }), what: 'Delete line' },
   { combo: mod('['), what: 'Outdent' },
   { combo: mod(']'), what: 'Indent' },

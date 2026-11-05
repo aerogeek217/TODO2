@@ -182,6 +182,4 @@ export interface ShortcutInfoRow {
 export const SHORTCUT_INFO_ROWS: readonly ShortcutInfoRow[] = [
   { category: 'navigation', label: 'Shift+Up / Down', description: 'Extend selection' },
   { category: 'notes', label: 'Alt-T', description: 'Convert current line to task' },
-  { category: 'notes', label: 'Mod-B', description: 'Bold' },
-  { category: 'notes', label: 'Mod-I', description: 'Italic' },
 ]

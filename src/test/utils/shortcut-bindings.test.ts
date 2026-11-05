@@ -127,7 +127,6 @@ describe('shortcutRefusal', () => {
     expect(shortcutRefusal('quick-add', chord('q a'), {})).toMatch(/can't be a two-key sequence/)
     expect(shortcutRefusal('quick-add', chord('Mod-c'), {})).toBe('Ctrl+C is used in text fields (Copy).')
     expect(shortcutRefusal('quick-add', chord('Alt-t'), {})).toMatch(/needs Ctrl/)
-    expect(shortcutRefusal('quick-add', chord('Mod-b'), {})).toMatch(/Bold/)
     // A binding that doesn't fire while typing may use them.
     expect(shortcutRefusal('focus-filters', chord('Alt-t'), {})).toBeNull()
   })

@@ -37,7 +37,7 @@ describe('KeyboardShortcutsModal', () => {
     expect(labelOf('Command Palette')).toBe('Ctrl+K')
     expect(labelOf('Redo (alternative)')).toBe('Ctrl+Shift+Z')
     expect(labelOf('Open Settings')).toBe('G then S')
-    expect(labelOf('Bold')).toBe('Ctrl+B')
+    expect(labelOf('Convert current line to task')).toBe('Alt+T')
     expect(document.body.textContent).not.toContain('⌘')
   })
 
