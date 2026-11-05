@@ -606,8 +606,8 @@
 
 .deleteButton:hover {
   color: var(--color-danger);
-  border-color: rgba(238, 125, 119, 0.35);
-  background: rgba(238, 125, 119, 0.06);
+  border-color: var(--color-danger-ring);
+  background: color-mix(in srgb, var(--color-danger) 6%, transparent);
 }
 
 .duplicateButton {
