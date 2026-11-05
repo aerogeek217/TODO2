@@ -592,6 +592,20 @@ describe('the Eisenhower settings', () => {
     expect(await db.settings.get('eisenhowerPanes')).toEqual({ key: 'eisenhowerPanes', value: JSON.stringify(HAND_OFF) })
   })
 
+  it('a pane filter’s group of one stays as written (the filter row dissolves it); its dissolve adds no undo step', async () => {
+    const base = { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null }
+    const single = { ...base, orGroups: [{ ...base, statusIds: [3] }] }
+    // An open picker may still be on the group: it isn't dissolved under it.
+    await useSettingsStore.getState().setEisenhowerPanes({ drop: { filter: single } }, 'Changed pane “Drop”')
+    expect(useSettingsStore.getState().eisenhowerPanes.drop?.filter?.orGroups).toHaveLength(1)
+    // Stored as read: the group as its item.
+    expect(JSON.parse((await db.settings.get('eisenhowerPanes'))!.value).drop.filter).toMatchObject({ statusIds: [3] })
+    await useSettingsStore.getState().setEisenhowerPanes({ drop: { filter: { ...base, statusIds: [3] } } }, 'Changed pane “Drop”')
+    expect(useSettingsStore.getState().eisenhowerPanes.drop?.filter).toMatchObject({ statusIds: [3] })
+    expect(useSettingsStore.getState().eisenhowerPanes.drop?.filter?.orGroups).toBeUndefined()
+    expect(undoNames()).toEqual(['Changed pane “Drop”'])
+  })
+
   it('writes with the same merge key in a row are one undo step; another write ends the run', async () => {
     const set = useSettingsStore.getState().setEisenhowerPanes
     await set({ drop: { name: 'S' } }, 'Renamed pane “Drop”', 'name:drop')

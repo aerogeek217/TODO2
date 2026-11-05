@@ -290,9 +290,11 @@ function pickOrGroups(raw: unknown, fixes: PredicateFix[]): FilterClauses[] | un
  * clauses (`pickClauses`), Show completed, and its or groups
  * (`pickOrGroups`; the key only while one is left). A required field that is
  * missing gets its default. See the module comment for what is dropped and
- * reported.
+ * reported. A group of one item is read as that item (`dissolveSingleOrGroups`)
+ * unless `keepSingleGroups`: an in-app write, whose filter row dissolves it
+ * itself once no picker is open on it.
  */
-export function pickPredicate(raw: unknown): PickedPredicate {
+export function pickPredicate(raw: unknown, { keepSingleGroups = false }: { keepSingleGroups?: boolean } = {}): PickedPredicate {
   const fixes: PredicateFix[] = []
   const v: Obj = isRecord(raw) ? raw : {}
   if (!isRecord(raw)) fixes.push('filters reset')
@@ -305,7 +307,7 @@ export function pickPredicate(raw: unknown): PickedPredicate {
   const orGroups = pickOrGroups(v.orGroups, fixes)
   if (orGroups && orGroups.length > 0) predicate.orGroups = orGroups
   // A group of one filters as its clause does: read as that clause, not a fix.
-  return { predicate: dissolveSingleOrGroups(predicate).predicate, fixes }
+  return { predicate: keepSingleGroups ? predicate : dissolveSingleOrGroups(predicate).predicate, fixes }
 }
 
 /** An id filter's name in a fix (`people filter dropped`). */

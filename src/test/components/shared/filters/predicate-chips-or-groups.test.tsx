@@ -485,3 +485,52 @@ describe('PredicateChips — Dates again while a date type is free (cr25 P4b)', 
     expect(panelFields()).not.toContain('Dates')
   })
 })
+
+describe('PredicateChips — two rows on one filter (cr31 UI F1)', () => {
+  /** The list's filter line and Edit list's Filters block, both on one predicate. */
+  function TwoRows({ initial, log }: { initial: TodoPredicate; log: TodoPredicate[] }) {
+    const [p, setP] = useState(initial)
+    const onChange = (next: TodoPredicate) => { log.push(next); setP(next) }
+    return (
+      <>
+        <div data-testid="line"><PredicateChips predicate={p} onChange={onChange} /></div>
+        <div data-testid="editor"><PredicateChips predicate={p} onChange={onChange} layout="stack" inDialog /></div>
+      </>
+    )
+  }
+  const texted: TodoPredicate = { ...waiting, orGroups: [clauses({ searchText: '1499', personIds: [1] })] }
+  const editorChip = (text: RegExp) => within(screen.getByTestId('editor')).getAllByTestId('list-filter-chip').find((c) => text.test(c.textContent ?? ''))!
+
+  it('a group emptied to one item under the editor’s open picker stays a group: the next keystrokes fill it again (OR stays OR)', () => {
+    const log: TodoPredicate[] = []
+    render(<TwoRows initial={texted} log={log} />)
+    fireEvent.click(editorChip(/Text/))
+    const field = screen.getByRole('textbox')
+    fireEvent.change(field, { target: { value: '' } })
+    // The filter line, settled, leaves the group alone while the editor's picker is open on it.
+    expect(log.at(-1)?.orGroups).toEqual([clauses({ personIds: [1] })])
+    expect(within(screen.getByTestId('line')).getByTestId('or-group')).toBeInTheDocument()
+    fireEvent.change(field, { target: { value: '1498' } })
+    expect(log.at(-1)).toEqual({ ...waiting, orGroups: [clauses({ searchText: '1498', personIds: [1] })] })
+    expect(log.every((p) => p.searchText === '')).toBe(true)
+  })
+
+  it('emptied and closed: the row the edit was made in dissolves the group once', () => {
+    const log: TodoPredicate[] = []
+    render(<TwoRows initial={texted} log={log} />)
+    fireEvent.click(editorChip(/Text/))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } })
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
+    expect(log.at(-1)).toEqual({ ...waiting, personIds: [1] })
+    expect(screen.queryByTestId('or-group')).toBeNull()
+    // One dissolve, not one per row.
+    expect(log.filter((p) => p.personIds != null && (p.orGroups ?? []).length === 0)).toHaveLength(1)
+  })
+
+  it('a row with no edit of its own never dissolves a group of one it is shown', () => {
+    const log: TodoPredicate[] = []
+    render(<TwoRows initial={{ ...waiting, orGroups: [clauses({ personIds: [1] })] }} log={log} />)
+    expect(log).toEqual([])
+    expect(screen.getAllByTestId('or-group')).toHaveLength(2)
+  })
+})

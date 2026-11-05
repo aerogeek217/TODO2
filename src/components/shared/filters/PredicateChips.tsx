@@ -21,6 +21,8 @@ import { DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { pointBelow } from './popover-point'
 import { useTooltip } from '../use-tooltip'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
+import { predicatesEqual } from '../../../utils/list-def-equal'
+import { useAnyFilterPickerOpen, useFilterPickerOpen } from './open-pickers'
 import menuStyles from '../MenuPopover.module.css'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
@@ -188,10 +190,14 @@ function PredicateChipsBody({
     }
     return [...items].sort((a, b) => position(itemKey(a)) - position(itemKey(b)))
   }, [items, order, wrapFrom, wrapTo])
+  // The filter as it was before this row's last edit (null: no edit here
+  // since the last dissolve). Only the row an edit was made in dissolves.
+  const editedFrom = useRef<TodoPredicate | null>(null)
   /** Every write: the rows `next` adds join the order last. */
   const write = (next: TodoPredicate) => {
     const added = predicateLineItems(next, names).map(itemKey)
     setOrder((o) => [...o, ...added.filter((k) => !o.includes(k))])
+    if (!predicatesEqual(next, predicate)) editedFrom.current = predicate
     onChange(next)
   }
   /** Or group `index` is going: its key goes from the order, the later groups' keys move down. */
@@ -248,13 +254,23 @@ function PredicateChipsBody({
     } else if (open.wrap) setOpen({ ...open, wrap: undefined })
   }
 
-  // A group left with one item goes, its item taking its place, once nothing
-  // is open: a picker that just emptied a chip may still fill it again.
+  // A group left with one item goes, its item taking its place — only in the
+  // row the edit was made in (another row on the same filter, Edit list
+  // beside the list's line, may have a picker open on that group), and once
+  // no row has a picker open: one that just emptied a chip may fill it again,
+  // and one open elsewhere edits the groups by their places.
   const onChangeRef = useLatestRef(onChange)
   const namesRef = useLatestRef(names)
-  const settled = open == null && addPicker == null
+  const openHere = open != null || addPicker != null
+  useFilterPickerOpen(openHere)
+  const anyOpen = useAnyFilterPickerOpen()
+  const settled = !openHere && !anyOpen
   useEffect(() => {
     if (!settled) return
+    const from = editedFrom.current
+    // No edit here, or it hasn't reached the filter yet.
+    if (from == null || from === predicate) return
+    editedFrom.current = null
     const { predicate: next, dissolved } = dissolveSingleOrGroups(predicate)
     if (dissolved.length === 0) return
     const chipOf = (index: number) => {

@@ -40,9 +40,10 @@ export interface PickedPanes {
  * clause `pickPredicate` drops, is a `dropped` fix; a known pane that isn't
  * an object, a name that isn't a string or a filter without the list
  * predicate's core shape (`checkPredicateShape`) is reset to its default (a
- * `reset` fix) — the other panes are kept.
+ * `reset` fix) — the other panes are kept. `keepSingleGroups`: a filter's
+ * or group of one item stays (`pickPredicate`).
  */
-export function pickPanes(raw: unknown): PickedPanes {
+export function pickPanes(raw: unknown, options: { keepSingleGroups?: boolean } = {}): PickedPanes {
   const counts = new Map<PaneFix, number>()
   const fix = (what: PaneFix) => { counts.set(what, (counts.get(what) ?? 0) + 1) }
   const picked: EisenhowerPanes = {}
@@ -63,7 +64,7 @@ export function pickPanes(raw: unknown): PickedPanes {
       if (pane.filter !== undefined) {
         if (checkPredicateShape(pane.filter) !== true) fix('reset')
         else {
-          const { predicate, fixes } = pickPredicate(pane.filter)
+          const { predicate, fixes } = pickPredicate(pane.filter, options)
           for (let i = 0; i < fixes.length; i++) fix('dropped')
           config.filter = predicate
         }
