@@ -29,7 +29,7 @@ const APP = [
 ].join('')
 
 /** A file shaped like the built one: `parts` override its pieces. */
-function offlineFile(parts: { csp?: string; head?: string; beforeCsp?: string; script?: string; body?: string; referrer?: boolean } = {}): string {
+function offlineFile(parts: { csp?: string; head?: string; beforeCsp?: string; script?: string; body?: string; referrer?: boolean; dnsPrefetch?: boolean } = {}): string {
   const script = parts.script ?? APP
   const csp = parts.csp ?? `default-src 'none'; script-src ${scriptHash(script)}; style-src 'unsafe-inline'; img-src data:; font-src data:; connect-src 'none'; frame-src 'none'; base-uri 'none'; form-action 'none'`
   return [
@@ -41,6 +41,7 @@ function offlineFile(parts: { csp?: string; head?: string; beforeCsp?: string; s
     parts.beforeCsp ?? '',
     `    <meta http-equiv="Content-Security-Policy" content="${csp}" />`,
     parts.referrer === false ? '' : '    <meta name="referrer" content="no-referrer" />',
+    parts.dnsPrefetch === false ? '' : '    <meta http-equiv="x-dns-prefetch-control" content="off" />',
     `    ${ICON}`,
     '    <title>TODO2</title>',
     `    <script type="module" crossorigin>${script}</script>`,
@@ -83,17 +84,30 @@ describe('checkOfflineFile', () => {
     ])
   })
 
+  it('fails a directive named twice: a browser enforces the first copy, so a strict later copy hides a loose one (cr31 L3)', () => {
+    const strict = `default-src 'none'; script-src ${scriptHash(APP)}; base-uri 'none'; form-action 'none'`
+    expect(checkOfflineFile(offlineFile({ csp: `default-src *; connect-src https:; ${strict}; connect-src 'none'` }))).toEqual([
+      'CSP: default-src is named more than once',
+      'CSP: connect-src is named more than once',
+      "CSP: default-src isn't 'none'",
+      'CSP: default-src allows *',
+      'CSP: connect-src allows https:',
+    ])
+    expect(checkOfflineFile(offlineFile({ csp: `${strict}; Default-Src 'none'` }))).toEqual(['CSP: default-src is named more than once'])
+  })
+
   it("fails a script-src hash that isn't the script's", () => {
     const csp = `default-src 'none'; script-src ${scriptHash(`${APP};`)}; base-uri 'none'; form-action 'none'`
     expect(checkOfflineFile(offlineFile({ csp }))).toEqual(["CSP: script-src isn't the hash of the inline script alone"])
   })
 
-  it('fails anything before the CSP, a second CSP, and a missing referrer policy', () => {
+  it('fails anything before the CSP, a second CSP, and a missing referrer policy or DNS prefetch control', () => {
     expect(checkOfflineFile(offlineFile({ beforeCsp: ICON }))).toEqual([`has markup before its CSP <meta>: ${ICON.slice(0, 120)}…`])
     expect(checkOfflineFile(offlineFile({ head: `<meta http-equiv="Content-Security-Policy" content="default-src *" />` }))).toEqual([
       'holds 2 CSP <meta> elements, not one',
     ])
     expect(checkOfflineFile(offlineFile({ referrer: false }))).toEqual(['has no <meta name="referrer" content="no-referrer">'])
+    expect(checkOfflineFile(offlineFile({ dnsPrefetch: false }))).toEqual(['has no <meta http-equiv="x-dns-prefetch-control" content="off">'])
   })
 
   it('fails markup that loads: a link that is not a data: icon, an element that fetches, a refresh', () => {
