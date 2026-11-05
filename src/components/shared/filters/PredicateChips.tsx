@@ -231,6 +231,14 @@ export function PredicateChips({
    */
   const commit = (next: TodoPredicate, edited?: { index: number; clauses?: FilterClauses }) => {
     if (open?.wrap && wrapFrom != null && wrapTo != null) wrapWritten(wrapFrom, wrapTo)
+    // A Priority chip of the predicate's own emptied in its picker with later
+    // ones behind it: it goes and they move up (the picker closes), so its key
+    // goes too, or each later chip would take the place of the one before it.
+    const markerIndex = open?.kind === 'field' && open.scope == null && open.field === 'markers' ? open.markerIndex : undefined
+    const markersLeft = next.markers?.length ?? 0
+    if (markerIndex !== undefined && markersLeft < (shown.markers?.length ?? 0) && markerIndex < markersLeft) {
+      setOrder((o) => withoutMarkerKey(o, markerIndex))
+    }
     write(next)
     const index = open == null ? null : open.kind === 'group' ? open.index : open.scope
     const dropped = edited != null && (next.orGroups?.length ?? 0) < groups.length
@@ -285,8 +293,13 @@ export function PredicateChips({
   }, [settled, predicate, namesRef, onChangeRef, pendingNot])
 
   const rowKey = (scope: Scope, chip: ChipRef) => `${scope ?? 'root'}:${refKey(chip)}`
+  // What a close already handled: Esc can reach `close` twice (the popover's
+  // own handler and the field's), which would drop a second group's key.
+  const closedRef = useRef<Open | null>(null)
   /** Closes what is open; a held group is then left out, the later groups moving down. */
   const close = () => {
+    if (open != null && closedRef.current === open) return
+    closedRef.current = open
     if (heldIndex != null) dropGroupKey(heldIndex)
     setOpen(null)
   }

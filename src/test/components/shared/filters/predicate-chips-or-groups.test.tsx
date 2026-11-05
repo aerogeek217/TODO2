@@ -558,3 +558,53 @@ describe('PredicateChips — a pending date Is not is kept per scope (cr31 UI F3
     expect(dueSwitch('Is not')).toHaveAttribute('aria-checked', 'true')
   })
 })
+
+describe('PredicateChips — rows keep their order (cr31 UI F5)', () => {
+  const rowTexts = () => Array.from(screen.getByTestId('filter-stack').querySelectorAll('[data-testid="list-filter-chip"], [data-testid="or-group"]'))
+    .filter((el) => el.parentElement?.closest('[data-testid="or-group"]') == null)
+    .map((el) => el.textContent)
+
+  it('Esc reaching close twice drops only the held group’s row: the next group keeps its place', () => {
+    const p: TodoPredicate = {
+      ...waiting,
+      tags: [10],
+      searchText: 'a',
+      // A group of one on a field the predicate filters stays a group.
+      orGroups: [clauses({ searchText: 'x' }), clauses({ personIds: [1], searchText: 'b' })],
+    }
+    render(<Harness initial={p} log={[]} layout="stack" />)
+    // A chip added last, after the groups.
+    fireEvent.click(screen.getByRole('button', { name: 'Another filter (AND)' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'People' }))
+    tick('Bob')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    const before = rowTexts()
+    expect(before.slice(-3)).toEqual(['Text“x”', 'PeopleAliceorText“b”', 'PeopleBob'])
+    fireEvent.click(within(screen.getAllByTestId('or-group')[0]!).getByTestId('list-filter-chip'))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } })
+    // Emptied: the group is held by its picker. Esc in the field closes it.
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
+    expect(screen.queryByTestId('list-filter-picker')).toBeNull()
+    expect(rowTexts()).toEqual([...before.slice(0, -3), 'PeopleAliceorText“b”', 'PeopleBob'])
+  })
+
+  it('a Priority chip emptied in its picker with later ones behind it: the later ones keep their places', () => {
+    const p: TodoPredicate = {
+      ...emptyPredicate(),
+      markers: [{ values: ['focus'] }, { values: ['urgent'] }],
+      statusIds: [2],
+    }
+    render(<Harness initial={p} log={[]} layout="stack" />)
+    // Rows as stored: Priority, Priority, Status. Add a third Priority last.
+    fireEvent.click(screen.getByRole('button', { name: 'Another filter (AND)' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Priority' }))
+    tick('Important')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(rowTexts()).toEqual(['PriorityFocus', 'PriorityUrgent', 'StatusWaiting', 'PriorityImportant'])
+    // The first one emptied in its picker: it goes, the picker closes.
+    fireEvent.click(chip(/Focus/))
+    tick('Focus')
+    expect(screen.queryByTestId('list-filter-picker')).toBeNull()
+    expect(rowTexts()).toEqual(['PriorityUrgent', 'StatusWaiting', 'PriorityImportant'])
+  })
+})
