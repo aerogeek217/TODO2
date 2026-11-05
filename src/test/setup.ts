@@ -1,9 +1,9 @@
 import 'fake-indexeddb/auto'
 import '@testing-library/jest-dom/vitest'
-import { beforeEach, vi } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
 import type * as Zustand from 'zustand'
 import { resetStores } from './store-tracking'
-import { resetModuleState } from '../utils/module-reset'
+import { resetModuleState, settleModuleWork } from '../utils/module-reset'
 
 if (typeof globalThis.ResizeObserver === 'undefined') {
   globalThis.ResizeObserver = class {
@@ -42,4 +42,26 @@ vi.mock('zustand', async (importOriginal) =>
 beforeEach(() => {
   resetStores()
   resetModuleState()
+})
+
+// The real clock, taken before any test fakes it.
+const realSetTimeout = globalThis.setTimeout
+const realClearTimeout = globalThis.clearTimeout
+const realSetImmediate = globalThis.setImmediate
+/** Longest wait for a test's work in flight (a write the test left stuck, e.g. under fake timers). */
+const SETTLE_MAX_MS = 2_000
+
+// After every test, in both projects: the store writes it left in flight
+// land now, and what each does once its database write is done (an undo
+// push, a rollback), plus one macrotask for the continuations after that —
+// not in the next test, after its reset (cr31 tests 2.2). A write stuck past
+// the bound is forgotten by the next test's reset (`resetWriteTracking`).
+afterEach(async () => {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  await Promise.race([
+    settleModuleWork(),
+    new Promise<void>((resolve) => { timer = realSetTimeout(resolve, SETTLE_MAX_MS) }),
+  ])
+  realClearTimeout(timer)
+  await new Promise<void>((resolve) => { realSetImmediate(resolve) })
 })

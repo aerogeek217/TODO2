@@ -17,3 +17,20 @@ export function registerModuleReset(reset: () => void): void {
 export function resetModuleState(): void {
   for (const reset of resets) reset()
 }
+
+const settles = new Set<() => Promise<void>>()
+
+/**
+ * Registers `settle`, which resolves once the module's async work in flight
+ * (a tracked write and what it does after its database write lands) has run
+ * — awaited by the test setup after every test, so that work lands in the
+ * test that started it, not in the next one after its reset.
+ */
+export function registerModuleSettle(settle: () => Promise<void>): void {
+  settles.add(settle)
+}
+
+/** Resolves once every registered settle has. Tests only. */
+export async function settleModuleWork(): Promise<void> {
+  await Promise.all([...settles].map((settle) => settle()))
+}

@@ -263,6 +263,8 @@ describe('Settings › Tasks › Lenses — filter edits are saved or reverted',
     await waitFor(() => expect(useSettingsStore.getState().lenses.map((l) => l.name)).toEqual(['Not waiting', 'Not waiting 2', 'Every task']))
     // The copy is of the saved lens.
     expect(useSettingsStore.getState().lenses[1]!.predicate.statusIds).toEqual([3])
+    // Shown at once, saved after: the test ends once the save's undo step is in.
+    await waitFor(() => expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Duplicated lens “Not waiting”']))
   })
 
   it('Rename keeps the draft; Delete drops it without asking', async () => {
