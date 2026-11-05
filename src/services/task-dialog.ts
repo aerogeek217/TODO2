@@ -149,7 +149,6 @@ function listBuildContext(env: TaskDialogEnv): ListBuildContext {
     people: env.people,
     statuses: env.statuses,
     urgentRange: env.markerSettings.urgentRange,
-    hotRule: env.markerSettings.hotRule,
   }
 }
 

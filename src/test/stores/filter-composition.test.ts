@@ -6,7 +6,6 @@ import { emptyPredicate } from '../../models'
 import type { TodoNameLookups } from '../../utils/filter'
 import { makeTodo } from '../helpers'
 import { currentFilterSettings, useSettingsStore } from '../../stores/settings-store'
-import { DEFAULT_HOT_RULE } from '../../utils/hot'
 
 // The screen (top-bar) filter composed with a list's own filter: narrowing
 // clauses AND strictly (even on the same field); showCompleted ORs.
@@ -107,7 +106,7 @@ const fields: Array<{ name: string; a: Partial<FilterCriteria>; b: Partial<Filte
 
 describe('composeScreenFilter', () => {
   beforeEach(() => {
-    useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE })
+    useSettingsStore.setState({ urgentDueWithinDays: 3 })
   })
 
   it('ORs showCompleted into both stages and leaves the other clauses alone', () => {

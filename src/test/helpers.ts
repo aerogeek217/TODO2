@@ -13,7 +13,6 @@ import { useTagStore } from '../stores/tag-store'
 import { blockedPaneLines, resolvePaneDrop, type PaneChange, type PaneContext } from '../utils/eisenhower'
 import { resolvePanes } from '../utils/eisenhower-panes'
 import type { EisenhowerQuadrant } from '../models/workspace-layout'
-import { DEFAULT_HOT_RULE } from '../utils/hot'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { StatsContext } from '../services/stats/stats-context'
 
@@ -24,7 +23,7 @@ import type { StatsContext } from '../services/stats/stats-context'
 export function makePaneContext(today: Date, range: UrgentDueWithinDays, extra: Partial<PaneContext> = {}): PaneContext {
   return {
     today,
-    settings: { urgentRange: range, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 },
+    settings: { urgentRange: range, weekStartsOn: 0 },
     assignedPeopleMap: new Map(),
     assignedTagsMap: new Map(),
     people: [],
@@ -40,7 +39,7 @@ export function makePaneContext(today: Date, range: UrgentDueWithinDays, extra: 
  */
 export function statsPaneContext(ctx: StatsContext, extra: Partial<PaneContext> = {}): PaneContext {
   return makePaneContext(ctx.today, ctx.urgentRange, {
-    settings: { urgentRange: ctx.urgentRange, hotRule: ctx.hotRule, weekStartsOn: ctx.weekStartsOn },
+    settings: { urgentRange: ctx.urgentRange, weekStartsOn: ctx.weekStartsOn },
     assignedPeopleMap: ctx.assignedPeopleMap,
     assignedTagsMap: ctx.assignedTagsMap,
     statuses: ctx.statuses,

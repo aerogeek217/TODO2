@@ -23,7 +23,7 @@ import type { TintSpan, TokenTint } from './nlp-token-tints'
  *  - `@name` → People, `#name` → Tags, `!name` → Status (several of a kind
  *    OR, as the pickers); a name matching nothing stays words (a search
  *    never creates);
- *  - `/urgent` `/important` `/focus` → Priority, `/hot` → Hot;
+ *  - `/urgent` `/important` `/focus` → Priority (several: any of them);
  *  - `overdue` → Due before today;
  *  - `due ⟨phrase⟩` / `followup ⟨phrase⟩`: today · tomorrow · ⟨weekday⟩ ·
  *    MM/DD (`utils/date-phrase`) · this week · next week · this month, and
@@ -274,7 +274,7 @@ const NOT_IN_SEARCH = new Set(['repeat'])
 
 /**
  * Quick Add's `@ # ! /` popup for the search box: no Create rows (a search
- * never creates), no `/repeat`, plus `/hot`. Null when nothing is listed.
+ * never creates), no `/repeat`. Null when nothing is listed.
  */
 export function searchAutocomplete(value: string, cursor: number, sources: AutocompleteSources): AutocompleteView | null {
   const view = computeAutocomplete(value, cursor, { ...sources, commands: true })

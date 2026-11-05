@@ -447,7 +447,7 @@ function chipWords(c: FilterChip): string {
 
 /**
  * The filters in words, e.g. `Status Waiting · Due within the next 14 days`; an or
- * group as its chips joined with "or" (`Priority Hot or People Aisha`).
+ * group as its chips joined with "or" (`Priority Focus or People Aisha`).
  */
 export function describeFilters(items: readonly (FilterChip | LineItem)[]): string {
   return items.map((item) => {
@@ -465,7 +465,7 @@ function chipHint(c: FilterChip): string {
 /**
  * A list's filters in a few words, for a hint under its name (a dashboard
  * list tile, Copy from's rows): `Status: Waiting`, `@Priya`, `#q4`, an or
- * group as its chips joined with "or" (`Priority: Hot or @Aisha`); `All
+ * group as its chips joined with "or" (`Priority: Focus or @Aisha`); `All
  * tasks` with none.
  */
 export function listFilterHint(items: readonly (FilterChip | LineItem)[]): string {

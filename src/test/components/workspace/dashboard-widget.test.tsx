@@ -16,7 +16,6 @@ import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { trendEventsKey, useTrendEventsStore } from '../../../stores/trend-events-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import {
@@ -51,7 +50,7 @@ beforeEach(() => {
   lastResult = null
   resetEntityStores()
   clearFilterStore()
-  useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 })
+  useSettingsStore.setState({ urgentDueWithinDays: 3, weekStartsOn: 0 })
   useTodoStore.setState({ todos: SAMPLE_TASKS })
   usePersonStore.setState({ people: PEOPLE, assignedPeopleMap: ASSIGNED_PEOPLE })
   useTagStore.setState({ tags: TAGS, assignedTagsMap: ASSIGNED_TAGS })
@@ -80,10 +79,9 @@ describe('DashboardWidget — the design sample', () => {
   it('renders the default tiles with the design numbers and sub-lines', () => {
     setup()
     expect(Array.from(document.querySelectorAll('[data-dash-tile]')).map((el) => (el as HTMLElement).dataset.dashTile))
-      .toEqual(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'])
-    expect(['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'].map(tileCount)).toEqual(['19', '4', '8', '2', '2', '3'])
+      .toEqual(['open', 'focus', 'urgent', 'overdue', 'followupDue'])
+    expect(['open', 'urgent', 'overdue', 'followupDue', 'focus'].map(tileCount)).toEqual(['19', '8', '2', '2', '3'])
     expect(tile('open').textContent).toContain('+3 in the last 14 days')
-    expect(tile('hot').textContent).toContain('3 urgent + important · 1 Focus')
     expect(tile('urgent').textContent).toContain('3 flagged · 5 by due date')
     expect(tile('overdue').textContent).toContain('Oldest Wed 7 · 3d late')
     expect(tile('followupDue').textContent).toContain('1 late · 3 more in 7 days')
@@ -93,8 +91,8 @@ describe('DashboardWidget — the design sample', () => {
 
   it('tiles are lit only when their number asks for action', () => {
     setup()
-    expect(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'].filter((id) => tile(id).dataset.lit === 'true'))
-      .toEqual(['hot', 'urgent', 'overdue', 'followupDue'])
+    expect(['open', 'focus', 'urgent', 'overdue', 'followupDue'].filter((id) => tile(id).dataset.lit === 'true'))
+      .toEqual(['urgent', 'overdue', 'followupDue'])
     const count = (id: string) => tile(id).querySelector<HTMLElement>('[data-testid="dash-tile-count"]')!.style.color
     expect(count('overdue')).toBe('var(--color-overdue)')
     expect(count('open')).toBe('var(--color-text-primary)')
@@ -104,7 +102,7 @@ describe('DashboardWidget — the design sample', () => {
   it('reports the open count for the tab and its counts for Copy summary', () => {
     setup(tabWith({ listTiles: [1] }))
     expect(lastResult?.countLabel).toBe('19')
-    expect(lastResult?.summary.plain).toBe('Open 19 · Hot 4 · Focus 3 · Urgent 8 · Overdue 2 · Follow-up due 2\nWaiting on 2')
+    expect(lastResult?.summary.plain).toBe('Open 19 · Focus 3 · Urgent 8 · Overdue 2 · Follow-up due 2\nWaiting on 2')
   })
 
   it('no add-a-list-tile button: no list tiles = no strip, even when the host can open Customize; tiles = tiles only', () => {
@@ -131,21 +129,11 @@ describe('DashboardWidget — the design sample', () => {
   it('renders every section in the default order and spans', () => {
     setup()
     const ids = Array.from(document.querySelectorAll('[data-dash-section]')).map((el) => (el as HTMLElement).dataset.dashSection)
-    expect(ids).toEqual(['hot', 'followup', 'next7', 'trend', 'status', 'people'])
-    expect(['hot', 'followup', 'next7', 'trend', 'status', 'people'].map((id) => section(id)!.style.gridColumn))
-      .toEqual(['span 5', 'span 4', 'span 3', 'span 5', 'span 3', 'span 4'])
+    expect(ids).toEqual(['followup', 'next7', 'trend', 'status', 'people'])
+    expect(['followup', 'next7', 'trend', 'status', 'people'].map((id) => section(id)!.style.gridColumn))
+      .toEqual(['span 4', 'span 3', 'span 5', 'span 3', 'span 9'])
     // No list tiles configured: no strip.
     expect(document.querySelector('[aria-label="List tiles"]')).toBeNull()
-  })
-
-  it('Hot: the hot tasks as task rows, overdue first then by due date, with the rule in words', () => {
-    setup()
-    const hot = section('hot')!
-    expect(sectionCount('hot')).toBe('4')
-    expect(hot.textContent).toContain('Urgent and important, or in Focus')
-    expect(rowTitles(hot)).toEqual(['Fix checkout outage', 'Headcount request', 'Draft homepage copy', 'Book venue for offsite'])
-    // Real task rows: draggable list-widget rows of this tab.
-    expect(hot.querySelector('[data-drag-id^="lw|dash|hot|"]')).not.toBeNull()
   })
 
   it('Needs follow-up: Late / Today / Next 7 days groups', () => {
@@ -215,13 +203,33 @@ describe('DashboardWidget — the design sample', () => {
   })
 })
 
+describe('DashboardWidget — priority badges', () => {
+  const badges = (row: Element) => Array.from(row.querySelectorAll<HTMLElement>('[data-priority]')).map((b) => [b.dataset.priority, b.textContent])
+
+  it('a People row shows its open tasks by priority, a badge for each that has any, named on the row', () => {
+    setup(tabWith({ sections: [{ id: 'people' }] }), vi.fn())
+    const rows = Array.from(section('people')!.querySelectorAll<HTMLElement>('[data-person-row]'))
+    expect(rows.length).toBeGreaterThan(1)
+    const withBadges = rows.find((r) => badges(r).length > 0)!
+    for (const [key, count] of badges(withBadges)) expect(withBadges.getAttribute('aria-label')).toMatch(new RegExp(`${count} ${key}`, 'i'))
+    expect(section('people')!.textContent).toContain('Priority')
+    expect(section('people')!.textContent).not.toContain('Hot')
+  })
+
+  it('a Tags row likewise', () => {
+    setup(tabWith({ sections: [{ id: 'tags' }] }), vi.fn())
+    expect(section('tags')!.querySelector('[data-priority]')).not.toBeNull()
+    expect(section('tags')!.textContent).not.toContain('Hot')
+  })
+})
+
 describe('DashboardWidget — config', () => {
   it('shows only the configured tiles and sections, in config order, re-flowing spans', () => {
-    setup(tabWith({ tiles: ['focus', 'noFollowup'], sections: [{ id: 'hot' }, { id: 'trend' }, { id: 'people' }] }))
+    setup(tabWith({ tiles: ['focus', 'noFollowup'], sections: [{ id: 'stale' }, { id: 'trend' }, { id: 'people' }] }))
     expect(Array.from(document.querySelectorAll('[data-dash-tile]')).map((el) => (el as HTMLElement).dataset.dashTile)).toEqual(['focus', 'noFollowup'])
-    expect(Array.from(document.querySelectorAll('[data-dash-section]')).map((el) => (el as HTMLElement).dataset.dashSection)).toEqual(['hot', 'trend', 'people'])
+    expect(Array.from(document.querySelectorAll('[data-dash-section]')).map((el) => (el as HTMLElement).dataset.dashSection)).toEqual(['stale', 'trend', 'people'])
     // 5 + 5 fit a row and the row's last stretches to 7; People (4) starts a row alone.
-    expect(['hot', 'trend', 'people'].map((id) => section(id)!.style.gridColumn)).toEqual(['span 5', 'span 7', 'span 12'])
+    expect(['stale', 'trend', 'people'].map((id) => section(id)!.style.gridColumn)).toEqual(['span 5', 'span 7', 'span 12'])
     expect(widget().style.gridTemplateRows).toBe('auto minmax(200px, 1fr) 272px')
   })
 
@@ -241,30 +249,21 @@ describe('DashboardWidget — config', () => {
     expect(within(document.querySelector<HTMLElement>('[data-dash-list-tile="1"]')!).getByTestId('dash-list-count').textContent).toBe('11')
   })
 
-  it('an empty section shows its empty lines', () => {
-    useSettingsStore.setState({ hotRule: [{ urgent: true, important: true, focus: true }] })
-    useTodoStore.setState({ todos: SAMPLE_TASKS.filter((t) => t.focus !== true) })
-    setup()
-    expect(section('hot')!.textContent).toContain('Nothing hot')
-    expect(section('hot')!.textContent).toContain('Tasks matching the Hot setting show here.')
-  })
 })
 
 describe('DashboardWidget — screen filter', () => {
   it('every count reads shown of total under the top-bar filter', () => {
     useFilterStore.setState((s) => ({ filters: { ...s.filters, tags: new Set([Q4]) } }))
     setup()
-    expect(['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'].map(tileCount))
-      .toEqual(['5of 19', '1of 4', '1of 8', '0of 2', '0of 2', '1of 3'])
-    expect(tile('hot').textContent).toContain('1 in Focus')
+    expect(['open', 'urgent', 'overdue', 'followupDue', 'focus'].map(tileCount))
+      .toEqual(['5of 19', '1of 8', '0of 2', '0of 2', '1of 3'])
     expect(tile('overdue').textContent).toContain('Nothing overdue')
     // At 0 a tile goes neutral, its count muted.
     expect(tile('overdue').dataset.lit).toBeUndefined()
     expect(tile('overdue').querySelector<HTMLElement>('[data-testid="dash-tile-count"]')!.style.color).toBe('var(--color-text-muted)')
     expect(tile('focus').textContent).toContain('None due today')
     expect(lastResult?.countLabel).toBe('5 of 19')
-    expect(lastResult?.summary.plain).toBe('Open 5 of 19 · Hot 1 of 4 · Focus 1 of 3 · Urgent 1 of 8 · Overdue 0 of 2 · Follow-up due 0 of 2')
-    expect(sectionCount('hot')).toBe('1 of 4')
+    expect(lastResult?.summary.plain).toBe('Open 5 of 19 · Focus 1 of 3 · Urgent 1 of 8 · Overdue 0 of 2 · Follow-up due 0 of 2')
     expect(sectionCount('status')).toBe('5 of 19 open')
   })
 
@@ -280,28 +279,23 @@ describe('DashboardWidget — screen filter', () => {
       useTodoStore.setState({ todos: SAMPLE_TASKS.map((t) => (t.id === 1 ? { ...t, isCompleted: true } : t)) })
     })
     expect(tileCount('open')).toBe('18')
-    expect(tileCount('hot')).toBe('3')
+    expect(tileCount('urgent')).toBe('7')
   })
 })
 
 describe('DashboardWidget — drill hook', () => {
-  const HOT_WORDS = 'Hot = urgent and important, or in Focus (Settings › Tasks).'
   type Group = { label: string; todoIds: number[] }
 
   it('without a drill handler numbers are not buttons', () => {
     setup()
-    expect(tile('hot').tagName).toBe('DIV')
-    expect(section('hot')!.querySelector('button[data-testid="dash-section-count"]')).toBeNull()
+    expect(tile('open').tagName).toBe('DIV')
+    expect(section('followup')!.querySelector('button[data-testid="dash-section-count"]')).toBeNull()
     expect(section('people')!.querySelector('button[data-person-row]')).toBeNull()
   })
 
   it('a tile opens its tasks in dialog order, saying what it counts', () => {
     const onDrill = vi.fn()
-    setup(tabWith({ tiles: ['hot', 'urgent', 'dueNext7'] }), onDrill)
-    fireEvent.click(tile('hot'))
-    expect(onDrill).toHaveBeenLastCalledWith({
-      title: 'Hot tasks', glyph: 'hot', description: HOT_WORDS, source: { kind: 'todos', todoIds: [1, 2, 3, 4] },
-    })
+    setup(tabWith({ tiles: ['urgent', 'dueNext7'] }), onDrill)
     fireEvent.click(tile('urgent'))
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({
       description: 'Urgent = flagged urgent, or due within 3 days (Settings › Tasks).',
@@ -321,12 +315,9 @@ describe('DashboardWidget — drill hook', () => {
     })
   })
 
-  it('panel counts open their tasks: Hot as its tile, Needs follow-up and Status under headings', () => {
+  it('panel counts open their tasks: Needs follow-up and Status under headings', () => {
     const onDrill = vi.fn()
     setup(tabWith(), onDrill)
-    fireEvent.click(within(section('hot')!).getByTestId('dash-section-count'))
-    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Hot tasks', source: { kind: 'todos', todoIds: [1, 2, 3, 4] } })
-
     fireEvent.click(within(section('followup')!).getByTestId('dash-section-count'))
     const fu = onDrill.mock.lastCall?.[0]
     expect(fu.title).toBe('Needs follow-up')
@@ -583,18 +574,18 @@ describe('DashboardWidget — a completed row leaves its section (D19)', () => {
     vi.unstubAllGlobals()
   })
 
-  it('Hot: stays in place, completed, for 500 ms, folds for 180 ms, then drops out; the count moves at once', () => {
-    setup(tabWith({ sections: [{ id: 'hot' }] }))
-    complete(2)
-    const hot = section('hot')!
-    expect(rowTitles(hot)).toEqual(['Fix checkout outage', 'Headcount request', 'Draft homepage copy', 'Book venue for offsite'])
-    expect(leavingOf(hot, 2)).toBe('stay')
-    expect(within(hot.querySelector<HTMLElement>('[data-row-todo="2"]')!).getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
-    expect(sectionCount('hot')).toBe('3')
+  it('stays in place, completed, for 500 ms, folds for 180 ms, then drops out; the count moves at once', () => {
+    setup(tabWith({ sections: [{ id: 'stale' }] }))
+    complete(17)
+    const stale = section('stale')!
+    expect(rowTitles(stale)).toEqual(['Offsite agenda', 'Clean up shared drive'])
+    expect(leavingOf(stale, 17)).toBe('stay')
+    expect(within(stale.querySelector<HTMLElement>('[data-row-todo="17"]')!).getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
+    expect(sectionCount('stale')).toBe('1')
     act(() => { vi.advanceTimersByTime(500) })
-    expect(leavingOf(hot, 2)).toBe('fold')
+    expect(leavingOf(stale, 17)).toBe('fold')
     act(() => { vi.advanceTimersByTime(180) })
-    expect(rowTitles(hot)).toEqual(['Fix checkout outage', 'Draft homepage copy', 'Book venue for offsite'])
+    expect(rowTitles(stale)).toEqual(['Clean up shared drive'])
   })
 
   it('Needs follow-up and Stale tasks: the row lingers in its group, which stays until it has folded', () => {
@@ -623,26 +614,26 @@ describe('DashboardWidget — a completed row leaves its section (D19)', () => {
   })
 
   it('a section that shows completed tasks (Recently completed) gains the row at once, unfolded', () => {
-    setup(tabWith({ sections: [{ id: 'hot' }, { id: 'recent' }] }))
-    complete(2)
-    expect(leavingOf(section('hot')!, 2)).toBe('stay')
-    expect(section('recent')!.querySelector('[data-row-todo="2"]')).not.toBeNull()
-    expect(leavingOf(section('recent')!, 2)).toBeNull()
+    setup(tabWith({ sections: [{ id: 'stale' }, { id: 'recent' }] }))
+    complete(17)
+    expect(leavingOf(section('stale')!, 17)).toBe('stay')
+    expect(section('recent')!.querySelector('[data-row-todo="17"]')).not.toBeNull()
+    expect(leavingOf(section('recent')!, 17)).toBeNull()
   })
 
   it('reopened while it lingers, it simply stays', () => {
-    setup(tabWith({ sections: [{ id: 'hot' }] }))
-    complete(2)
-    reopen(2)
-    expect(leavingOf(section('hot')!, 2)).toBeNull()
+    setup(tabWith({ sections: [{ id: 'stale' }] }))
+    complete(17)
+    reopen(17)
+    expect(leavingOf(section('stale')!, 17)).toBeNull()
     act(() => { vi.advanceTimersByTime(1000) })
-    expect(rowTitles(section('hot')!)).toContain('Headcount request')
+    expect(rowTitles(section('stale')!)).toContain('Offsite agenda')
   })
 
   it('under reduced motion the row leaves at once', () => {
     vi.stubGlobal('matchMedia', (query: string) => ({ matches: query.includes('reduce'), media: query, addEventListener: () => {}, removeEventListener: () => {} }))
-    setup(tabWith({ sections: [{ id: 'hot' }] }))
-    complete(2)
-    expect(rowTitles(section('hot')!)).toEqual(['Fix checkout outage', 'Draft homepage copy', 'Book venue for offsite'])
+    setup(tabWith({ sections: [{ id: 'stale' }] }))
+    complete(17)
+    expect(rowTitles(section('stale')!)).toEqual(['Clean up shared drive'])
   })
 })

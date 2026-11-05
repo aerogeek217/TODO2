@@ -80,6 +80,35 @@ describe('upgradeV74 — a stored Priority filter as conditions', () => {
     expect(out.find((r) => r.key === 'theme')?.value).toBe('dark')
   })
 
+  it('Hot goes: the rule\'s row after it was read, a dashboard\'s tile and section, wherever the tab sits', () => {
+    const rows: DataRow[] = [{ key: 'hotRule', value: '[{"focus":true}]' }, { key: 'theme', value: 'dark' }]
+    expect(upgradeV74({ settings: rows }).settings).toEqual([{ key: 'theme', value: 'dark' }])
+
+    const dash = { id: 'd', kind: 'dashboard', config: { tiles: ['open', 'hot'], listTiles: [1], sections: [{ id: 'hot' }, { id: 'people', options: { showUnassigned: false } }] } }
+    const clean = { ...dash, config: { tiles: ['open'], listTiles: [1], sections: [{ id: 'people', options: { showUnassigned: false } }] } }
+    const lens = { id: 'l', kind: 'lens', config: { listDefinitionId: 1 } }
+    const layout = {
+      id: 1, name: 'L',
+      columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [dash, lens] }] }],
+      top: { id: 't', height: 100, tabs: [dash] },
+    }
+    expect(upgradeV74({ layouts: [layout] }).layouts).toEqual([{
+      ...layout,
+      columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [clean, lens] }] }],
+      top: { id: 't', height: 100, tabs: [clean] },
+    }])
+  })
+
+  it('returns its input when there is nothing to do', () => {
+    const data = {
+      listDefinitions: [list({ ...emptyPredicate(), markers: [{ values: ['focus'] }] })],
+      settings: [{ key: 'theme', value: 'dark' }, { key: 'lenses', value: '[{"predicate":{"markers":null}}]' }],
+      layouts: [{ id: 1, columns: [{ cells: [{ tabs: [{ kind: 'lens' }] }] }] }],
+      todos: [],
+    }
+    expect(upgradeV74(data)).toBe(data)
+  })
+
   it('is idempotent', () => {
     const once = upgradeV74({ listDefinitions: [list(legacy('hot'))], settings: [{ key: 'lenses', value: JSON.stringify([{ predicate: legacy({ focus: true }) }]) }] })
     expect(upgradeV74(once)).toEqual(once)

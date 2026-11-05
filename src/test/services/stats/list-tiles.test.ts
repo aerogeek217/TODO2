@@ -3,7 +3,6 @@ import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { TodoPredicate } from '../../../models'
 import type { FilterCriteria } from '../../../utils/filter-criteria'
 import { computeListTileCounts, isListTileEligible } from '../../../services/stats/list-tiles'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { emptyFilterCriteria, makePerson, makeTodo } from '../../helpers'
 
 const today = new Date(2026, 9, 10)
@@ -31,7 +30,7 @@ const tasks = [
 ]
 const lookups = { assignedPeopleMap: new Map([[1, [alice, bob]], [2, [alice]], [3, [alice]]]) }
 const opts = (screen?: FilterCriteria, urgentRange: number | null = 3) => ({
-  screen, lookups, today, weekStartsOn: 1 as const, markerSettings: { urgentRange, hotRule: DEFAULT_HOT_RULE },
+  screen, lookups, today, weekStartsOn: 1 as const, markerSettings: { urgentRange },
 })
 
 describe('computeListTileCounts', () => {

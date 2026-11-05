@@ -3,7 +3,6 @@ import type { WeekStart } from './effective-date'
 import { bySortOrder } from './sort-order'
 import { DATE_BUCKET_LABELS, DATE_BUCKET_ORDER, dateBucketKey, isDateBucketKey } from './bucket-by-date'
 import { NEUTRAL_PERSON_COLOR } from '../constants'
-import type { HotRule } from './hot'
 import type { UrgentDueWithinDays } from './urgency'
 import {
   PRIORITY_GROUP_COLOR,
@@ -30,8 +29,6 @@ export interface GroupingContext {
   weekStartsOn: WeekStart
   /** Priority groups: the "due date makes a task urgent" range; absent = flags only. */
   urgentRange?: UrgentDueWithinDays
-  /** Priority groups: the Hot rule; absent = the default rule. */
-  hotRule?: HotRule
 }
 
 export interface PartitionGroup<T extends PersistedTodoItem> {
@@ -72,7 +69,7 @@ function parseId(prefix: string, key: string): number | null {
  * Bucket keys for `deadline` / `followup` are the shared relative-date keys
  * (`overdue` / `today` / `week` / `later`, see `utils/bucket-by-date`).
  *
- * Priority keys are `priority-hot` / `-focus` / `-urgent` / `-important`
+ * Priority keys are `priority-focus` / `-urgent` / `-important`
  * (`utils/priority-groups`); a task with none of them is ungrouped (No
  * priority).
  *
@@ -107,7 +104,7 @@ export function getGroupKey(
     case 'followup':
       return dateBucketKey(todo.nextFollowupAt ? new Date(todo.nextFollowupAt) : null, ctx.today, ctx.weekStartsOn)
     case 'priority': {
-      const groups = priorityGroupsOf(todo, { today: ctx.today, urgentRange: ctx.urgentRange ?? null, hotRule: ctx.hotRule })
+      const groups = priorityGroupsOf(todo, { today: ctx.today, urgentRange: ctx.urgentRange ?? null })
       return groups.length === 0 ? null : groups.map(priorityGroupKey)
     }
     case 'none':
@@ -272,7 +269,7 @@ function orderGroupKeys(
  * - Within each bucket, todo order is preserved from the input.
  * - Group order: status by `sortOrder`, deadline/followup by
  *   bucket order (overdue → today → week → later), people/tag
- *   alphabetically by label, priority Hot → Focus → Urgent → Important.
+ *   alphabetically by label, priority Focus → Urgent → Important.
  * - A todo with N keys (people/tag/priority) appears once per group — the same
  *   row reference, no clone.
  *

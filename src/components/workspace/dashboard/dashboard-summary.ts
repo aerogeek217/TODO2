@@ -64,7 +64,7 @@ export function sectionSummaryLines(sections: readonly DashboardSectionConfig[],
 
 /**
  * The counts the dashboard shows, in its order: one line of tiles
- * (`Open 19 · Hot 4 · Urgent 8 · …`), then one of list tiles
+ * (`Open 19 · Focus 2 · Urgent 8 · …`), then one of list tiles
  * (`Waiting on 2 · Priya 1:1 agenda 1`), then the count sections' lines
  * (`sectionSummaryLines`). Counts read `shown of total` when the screen
  * filter hides some. With nothing else to list, the Open count stands in so

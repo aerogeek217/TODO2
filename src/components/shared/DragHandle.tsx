@@ -5,7 +5,7 @@ interface DragHandleProps {
   attributes?: DraggableAttributes
   listeners?: DraggableSyntheticListeners
   ariaHidden?: boolean
-  /** Accessible name when the handle is the activator (e.g. `Move Hot`). */
+  /** Accessible name when the handle is the activator (e.g. `Move Focus`). */
   label?: string
 }
 

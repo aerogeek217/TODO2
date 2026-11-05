@@ -1,26 +1,24 @@
 import { MARKER_KEYS, type MarkerKey } from '../models/filter-predicate'
 import { dropDescription } from './eisenhower'
-import { DEFAULT_HOT_RULE, hasMarker, isHot, type HotRule, type MarkerFields } from './hot'
-import { HOT_COLOR, HOT_LABEL, MARKER_COLOR, MARKER_LABELS, NO_PRIORITY_LABEL } from './markers'
+import { hasMarker, MARKER_COLOR, MARKER_LABELS, NO_PRIORITY_LABEL, type MarkerFields } from './markers'
 import { URGENT_BY_DATE_HINT, urgentByDateSentence, type UrgentDueWithinDays } from './urgency'
 
 /**
- * A list grouped by Priority: the groups Hot, Focus, Urgent and Important,
+ * A list grouped by Priority: the groups Focus, Urgent and Important,
  * then the tasks with none of them under No priority. A task shows in every
- * group it belongs to (like tags or people). Hot follows the Hot rule (open
- * tasks only); Urgent is effective Urgent — flagged, or due within the
- * urgent range.
+ * group it belongs to (like tags or people). Urgent is effective Urgent —
+ * flagged, or due within the urgent range.
  */
 
 /** A Priority group (No priority is the list's trailing ungrouped section). */
-export type PriorityGroup = 'hot' | MarkerKey
+export type PriorityGroup = MarkerKey
 
 /** The groups in list order. */
-export const PRIORITY_GROUPS: readonly PriorityGroup[] = ['hot', ...MARKER_KEYS]
+export const PRIORITY_GROUPS: readonly PriorityGroup[] = MARKER_KEYS
 
 const KEY_PREFIX = 'priority-'
 
-/** A group's section key (`priority-hot`, `priority-urgent`, …). */
+/** A group's section key (`priority-focus`, `priority-urgent`, …). */
 export function priorityGroupKey(group: PriorityGroup): string {
   return `${KEY_PREFIX}${group}`
 }
@@ -36,30 +34,21 @@ export function priorityGroupOfKey(key: string): PriorityGroup | null {
 export const NO_PRIORITY_KEY = 'no-priority'
 export { NO_PRIORITY_LABEL }
 
-export const PRIORITY_GROUP_LABEL: Record<PriorityGroup, string> = {
-  hot: HOT_LABEL,
-  ...MARKER_LABELS,
-}
+export const PRIORITY_GROUP_LABEL: Record<PriorityGroup, string> = MARKER_LABELS
 
-/** Each group's colour: the flame for Hot, the marker's colour otherwise. */
-export const PRIORITY_GROUP_COLOR: Record<PriorityGroup, string> = {
-  hot: HOT_COLOR,
-  ...MARKER_COLOR,
-}
+/** Each group's colour: the marker's. */
+export const PRIORITY_GROUP_COLOR: Record<PriorityGroup, string> = MARKER_COLOR
 
 /** What the groups are worked out with. */
 export interface PriorityGroupContext {
   today: Date
   /** The "due date makes a task urgent" range; `null` = flags only. */
   urgentRange: UrgentDueWithinDays
-  /** The Hot rule; absent = the default rule. */
-  hotRule?: HotRule
 }
 
 /** The groups `todo` belongs to, in list order (none = No priority). */
 export function priorityGroupsOf(todo: MarkerFields, ctx: PriorityGroupContext): PriorityGroup[] {
   const out: PriorityGroup[] = []
-  if (isHot(todo, ctx.hotRule ?? DEFAULT_HOT_RULE, ctx.today, ctx.urgentRange)) out.push('hot')
   for (const k of MARKER_KEYS) if (hasMarker(todo, k, ctx.today, ctx.urgentRange)) out.push(k)
   return out
 }
@@ -94,10 +83,9 @@ function groupOf(key: string): PriorityGroup | 'none' | null {
  * `targetKey` (the sections' keys; `NO_PRIORITY_KEY` = No priority):
  *
  * - into Focus / Urgent / Important: sets that flag, and clears the flag of
- *   the group it came from (a row dragged out of Hot or No priority clears
+ *   the group it came from (a row dragged out of No priority clears
  *   nothing);
  * - into No priority: clears all three flags;
- * - into Hot: refused — Hot comes from the markers;
  * - refused, too, when the task would stay in the group it came from, or
  *   not land in No priority, because its due date keeps it urgent.
  *
@@ -115,26 +103,20 @@ export function resolvePriorityDrop(
   if (source == null || target == null || source === target) return null
   const targetName = target === 'none' ? NO_PRIORITY_LABEL : PRIORITY_GROUP_LABEL[target]
   const title = `Can’t move to ${targetName}`
-  if (target === 'hot') {
-    return {
-      kind: 'refused',
-      lines: [title, 'Hot comes from a task’s markers, by the Hot rule in Settings.', 'Drop it on Focus, Urgent or Important instead.'],
-    }
-  }
 
   const wanted: PriorityFlags = {}
   if (target === 'none') {
     for (const k of MARKER_KEYS) wanted[k] = false
   } else {
     wanted[target] = true
-    if (source !== 'hot' && source !== 'none') wanted[source] = false
+    if (source !== 'none') wanted[source] = false
   }
   const after = { ...todo, ...wanted }
   const groups = priorityGroupsOf(after, ctx)
-  const staysInSource = source !== 'hot' && source !== 'none' && groups.includes(source)
+  const staysInSource = source !== 'none' && groups.includes(source)
   const missesTarget = target === 'none' && groups.length > 0
   // With its flags as the drop sets them, only a due date can keep the task
-  // urgent (and so in Urgent, or Hot by a rule line of Urgent alone).
+  // urgent (and so in Urgent).
   if (staysInSource || missesTarget) {
     const why = urgentByDateSentence(after, ctx.today, ctx.urgentRange) || `${todo.title} counts as urgent.`
     return { kind: 'refused', lines: [title, why, URGENT_BY_DATE_HINT] }

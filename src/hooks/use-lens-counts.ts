@@ -18,13 +18,13 @@ export function useLensHideCounts(lenses: readonly Lens[]): LensHideCounts {
   const statuses = useStatusStore((s) => s.statuses)
   const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
   const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
-  const { urgentRange, hotRule, weekStartsOn } = useFilterSettings()
+  const { urgentRange, weekStartsOn } = useFilterSettings()
   const today = useToday()
   return useMemo(
     () => lensHideCounts({
       todos, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn,
-      markerSettings: { urgentRange, hotRule },
+      markerSettings: { urgentRange },
     }, lenses),
-    [lenses, todos, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, urgentRange, hotRule],
+    [lenses, todos, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, urgentRange],
   )
 }

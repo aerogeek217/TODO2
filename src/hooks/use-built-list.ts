@@ -99,7 +99,7 @@ export function useBuiltList(
   const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  // Markers clauses (Urgent by date, Hot) read these settings.
+  // Priority clauses (Urgent by date) read these settings.
   const markerSettings = useFilterSettings()
   // Date-sensitive predicates roll at midnight.
   const today = useToday()
@@ -148,7 +148,6 @@ export function useBuiltList(
       runtimeFilterValue,
       ranks,
       urgentRange: markerSettings.urgentRange,
-      hotRule: markerSettings.hotRule,
     })
     let list = build(todos)
     let kept: ReadonlySet<number> = NO_IDS

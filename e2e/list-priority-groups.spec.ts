@@ -4,7 +4,7 @@ import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
 
 /**
- * A list grouped by Priority (Hot, Focus, Urgent, Important, No priority — a
+ * A list grouped by Priority (Focus, Urgent, Important, No priority — a
  * task in each of its groups): dragging a row between the groups writes the
  * flags, or is refused with why; and a list set to hide its filter line.
  */
@@ -51,10 +51,9 @@ async function stored(page: Page, title: string): Promise<StoredTodo | undefined
   return (await readStore<StoredTodo>(page, 'todos')).find((t) => t.title === title)
 }
 
-test('a Focus + Urgent task shows under Hot, Focus and Urgent; due soon counts as Urgent', async ({ page }) => {
+test('a Focus + Urgent task shows under Focus and Urgent; due soon counts as Urgent', async ({ page }) => {
   await seedWorkspace(page, seed())
-  await expect(widget(page).getByTestId('list-group-name')).toHaveText(['Hot', 'Focus', 'Urgent', 'Important', 'No priority'])
-  await expect.poll(() => titlesIn(page, 'priority-hot')).toEqual(['Launch'])
+  await expect(widget(page).getByTestId('list-group-name')).toHaveText(['Focus', 'Urgent', 'Important', 'No priority'])
   await expect.poll(() => titlesIn(page, 'priority-focus')).toEqual(['Launch'])
   await expect.poll(() => titlesIn(page, 'priority-urgent')).toEqual(['Launch', 'Report', 'Renewal'])
   await expect.poll(() => titlesIn(page, 'priority-important')).toEqual(['Ideas'])
@@ -102,17 +101,6 @@ test('dragging a task urgent by its due date out of Urgent is refused, saying wh
   await expect.poll(() => titlesIn(page, 'priority-urgent')).toEqual(['Launch', 'Report', 'Renewal'])
   await expect.poll(() => titlesIn(page, 'priority-important')).toEqual(['Ideas'])
   expect((await stored(page, 'Renewal'))?.important).toBeUndefined()
-})
-
-test('dragging into Hot is refused', async ({ page }) => {
-  await seedWorkspace(page, seed())
-  await expect.poll(() => titlesIn(page, 'priority-hot')).toEqual(['Launch'])
-  await dragRow(page, row(page, 'Ideas', 'priority-important'), await above(row(page, 'Launch', 'priority-hot')), async () => {
-    await expect(page.getByTestId('list-drop-refusal')).toContainText('Can’t move to Hot')
-  })
-  await expect.poll(() => titlesIn(page, 'priority-hot')).toEqual(['Launch'])
-  expect(await stored(page, 'Ideas')).toMatchObject({ important: true })
-  expect((await stored(page, 'Ideas'))?.urgent).toBeUndefined()
 })
 
 test('a hidden filter line comes back while the list is unsaved and leaves after Save', async ({ page }) => {

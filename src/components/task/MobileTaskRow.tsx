@@ -18,7 +18,6 @@ import { formatDateNumeric, startOfToday, toDateInputValue } from '../../utils/d
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { MarkerDots } from '../shared/MarkerDots'
 import { markerSummary } from '../../utils/markers'
-import { isHot } from '../../utils/hot'
 import { isStale } from '../../utils/stale'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { keepRowTextUnselected } from './row-events'
@@ -99,8 +98,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const hasDefaultStatus = useStatusStore((s) => defaultStatusId != null && s.statuses.some((st) => st.id === defaultStatusId))
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const markers = markerSummary(todo, today, urgentRange)
-  const hotRule = useSettingsStore((s) => s.hotRule)
-  const hot = isHot(todo, hotRule, today, urgentRange)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
   const stale = isStale(todo, today, staleAfterDays)
 
@@ -156,10 +153,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
         <button
           type="button"
-          className={`${styles.title} ${hot ? styles.hot : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
+          className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''}`}
           aria-pressed={!!isSelected}
           data-task-title={todo.title}
-          data-hot={hot || undefined}
           onClick={handleRowTap}
         >
           {todo.title}

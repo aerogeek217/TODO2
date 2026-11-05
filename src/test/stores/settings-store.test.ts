@@ -4,7 +4,6 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { emptyPredicate } from '../../models/filter-predicate'
 import { settingsRepository } from '../../data'
 import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
-import type { HotRule } from '../../utils/hot'
 import { useUndoStore } from '../../stores/undo-store'
 
 beforeEach(async () => {
@@ -166,28 +165,6 @@ describe('useSettingsStore', () => {
     await db.settings.put({ key: 'urgentDueWithinDays', value: 'soon' })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().urgentDueWithinDays).toBe(3)
-  })
-
-  it('hotRule defaults to (Urgent AND Important) OR Focus, saves normalized, and ignores junk on load', async () => {
-    const DEFAULT: HotRule = [{ urgent: true, important: true }, { focus: true }]
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().hotRule).toEqual(DEFAULT)
-
-    await useSettingsStore.getState().setHotRule([{ focus: true, important: true }, {}, { important: true, focus: true }, { urgent: true }])
-    expect((await db.settings.get('hotRule'))!.value).toBe('[{"important":true,"focus":true},{"urgent":true}]')
-    expect(useSettingsStore.getState().hotRule).toEqual([{ important: true, focus: true }, { urgent: true }])
-    useSettingsStore.setState({ hotRule: DEFAULT })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().hotRule).toEqual([{ important: true, focus: true }, { urgent: true }])
-
-    // No marker at all: not a rule, not written.
-    await useSettingsStore.getState().setHotRule([{}])
-    await useSettingsStore.getState().setHotRule([])
-    expect((await db.settings.get('hotRule'))!.value).toBe('[{"important":true,"focus":true},{"urgent":true}]')
-
-    await db.settings.put({ key: 'hotRule', value: '[{"warm":true}]' })
-    await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().hotRule).toEqual(DEFAULT)
   })
 
   it('check-in open method defaults to mailto, saves, and ignores junk on load', async () => {

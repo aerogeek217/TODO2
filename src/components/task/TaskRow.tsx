@@ -6,7 +6,6 @@ import { useStatusStore } from '../../stores/status-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { startOfToday } from '../../utils/date'
-import { isHot } from '../../utils/hot'
 import { isStale, staleTooltipLine } from '../../utils/stale'
 import { TagPicker } from '../shared/TagChipSelector'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
@@ -138,10 +137,6 @@ export const TaskRow = memo(function TaskRow({
     const el = e.currentTarget
     if (stale || el.scrollWidth > el.clientWidth) titleTipProps.onPointerEnter?.(e)
   }
-  // Hot (the Settings rule): the title semibold — the one weight step in a list.
-  const hotRule = useSettingsStore((s) => s.hotRule)
-  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
-  const hot = isHot(todo, hotRule, today, urgentRange)
 
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
   const pickerOpen = showStatusMenu || peopleOpen || tagPickerOpen || followupOpen || notesOpen || markersOpen || subtasksOpen
@@ -229,9 +224,8 @@ export const TaskRow = memo(function TaskRow({
         />
       ) : (
         <span
-          className={`${styles.title} ${hot ? styles.hot : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${count ? styles.titleWithCount : ''}`}
+          className={`${styles.title} ${todo.isCompleted ? styles.completedTitle : ''} ${count ? styles.titleWithCount : ''}`}
           data-task-title={todo.title}
-          data-hot={hot || undefined}
           {...titleTipProps}
           onPointerEnter={onTitlePointerEnter}
           onClick={(e) => {

@@ -19,6 +19,10 @@ import type { DataRow, DataSet } from '../schema-upgrades'
  *   group's conditions OR: `(U & I) or Ann` → `[U or Ann]` and `[I or Ann]`.
  *   Up to 3 conditions from each of at most 10 groups: `OR_GROUPS_MAX` holds them.
  *
+ * Hot itself goes: the `hotRule` settings row (read above, then deleted) and a
+ * dashboard tab's Hot tile and section, so a stored layout doesn't open as
+ * needing repair.
+ *
  * Holds its own copies of the marker keys and the rule's reading: this step
  * must go on meaning this whatever later builds do with them. A value it can't
  * read passes through, for validation to drop; a list is already in the new
@@ -124,6 +128,40 @@ function mapSame<T>(list: readonly T[], edit: (item: T) => T): readonly T[] {
   return out.every((item, i) => item === list[i]) ? list : out
 }
 
+/** A dashboard tab without its Hot tile and section; the tab itself when it has neither. */
+function withoutHot(tab: unknown): unknown {
+  if (!isRecord(tab) || tab.kind !== 'dashboard' || !isRecord(tab.config)) return tab
+  const { tiles, sections } = tab.config
+  const keptTiles = Array.isArray(tiles) ? tiles.filter((t) => t !== 'hot') : tiles
+  const keptSections = Array.isArray(sections) ? sections.filter((s) => !(isRecord(s) && s.id === 'hot')) : sections
+  const same = (Array.isArray(tiles) ? (keptTiles as unknown[]).length === tiles.length : true)
+    && (Array.isArray(sections) ? (keptSections as unknown[]).length === sections.length : true)
+  if (same) return tab
+  return { ...tab, config: { ...tab.config, tiles: keptTiles, sections: keptSections } }
+}
+
+function panelWithoutHot(panel: unknown): unknown {
+  if (!isRecord(panel) || !Array.isArray(panel.tabs)) return panel
+  const tabs = mapSame(panel.tabs as unknown[], withoutHot)
+  return tabs === panel.tabs ? panel : { ...panel, tabs }
+}
+
+/** A layout row (or a kept draft's body) without its dashboards' Hot. */
+function layoutWithoutHot(row: DataRow): DataRow {
+  let out = row
+  for (const edge of ['top', 'bottom'] as const) {
+    const band = panelWithoutHot(out[edge])
+    if (band !== out[edge]) out = { ...out, [edge]: band }
+  }
+  if (!Array.isArray(row.columns)) return out
+  const columns = mapSame(row.columns as unknown[], (col) => {
+    if (!isRecord(col) || !Array.isArray(col.cells)) return col
+    const cells = mapSame(col.cells as unknown[], panelWithoutHot)
+    return cells === col.cells ? col : { ...col, cells }
+  })
+  return columns === row.columns ? out : { ...out, columns }
+}
+
 /** The object with its predicate at `key` upgraded; the object itself when that changes nothing. */
 function withPredicateAt<T extends Record<string, unknown>>(holder: T, key: string, rule: readonly (readonly Marker[])[]): T {
   const next = upgradePredicate(holder[key], rule)
@@ -137,7 +175,8 @@ export function upgradeV74(data: DataSet): DataSet {
     const membership = withPredicateAt(row.membership, 'predicate', rule)
     return membership === row.membership ? row : { ...row, membership }
   })
-  const settings = data.settings && mapSame(data.settings, (row) => {
+  const layouts = data.layouts && mapSame(data.layouts, layoutWithoutHot)
+  const upgradedSettings = data.settings && mapSame(data.settings, (row) => {
     switch (row.key) {
       case 'checkinTaskFilter':
         return withJsonValue(row, (filter) => upgradePredicate(filter, rule))
@@ -160,10 +199,13 @@ export function upgradeV74(data: DataSet): DataSet {
         return row
     }
   })
-  if (lists === data.listDefinitions && settings === data.settings) return data
+  const hasRule = upgradedSettings?.some((row) => row.key === 'hotRule') === true
+  const settings = hasRule ? upgradedSettings?.filter((row) => row.key !== 'hotRule') : upgradedSettings
+  if (lists === data.listDefinitions && settings === data.settings && layouts === data.layouts) return data
   return {
     ...data,
     ...(lists ? { listDefinitions: lists as DataRow[] } : {}),
     ...(settings ? { settings: settings as DataRow[] } : {}),
+    ...(layouts ? { layouts: layouts as DataRow[] } : {}),
   }
 }

@@ -8,7 +8,7 @@ import { matchesMarkerClause, type MarkerSettings } from './markers'
 
 /**
  * The settings a filter is evaluated with: the Markers filter's (urgent
- * range, Hot rule) and the week start that relative date anchors resolve
+ * range) and the week start that relative date anchors resolve
  * against. `settings-store.currentFilterSettings` reads them as they are now;
  * a memoized caller passes its own subscribed copy (`useFilterSettings`) so
  * a settings change re-runs it.

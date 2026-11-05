@@ -6,7 +6,7 @@ import { seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
  * list" submenu opens by hover or ArrowRight, Escape closes it back to the
  * menu, and a pick switches the tab's list; Shift+F10 opens the menu under
  * the tab and Esc gives the tab its focus back; the menu stays inside the
- * window; the dashboard's Hot is › panel and the Eisenhower range submenu
+ * window; the Eisenhower range submenu
  * sit beside their items (flipped left near the right edge). Plus the
  * add-tab list picker, which must stay inside the viewport when opened from a
  * cell near the bottom.
@@ -124,41 +124,6 @@ test('the tab menu opened at the window’s right edge stays inside the window',
   const m = await rect(menu)
   expect(m.x + m.width).toBeLessThanOrEqual(vp.width - 8 + 0.5)
   expect(m.y + m.height).toBeLessThanOrEqual(vp.height - 8 + 0.5)
-})
-
-test('the Hot is › panel sits beside the menu, flipped to its left near the right edge; outside click closes both', async ({ page }) => {
-  await page.setViewportSize({ width: 1100, height: 800 })
-  await seedWorkspace(page, twoColumns)
-  const tab = wsTab(page, 'dashTab')
-  const t = await rect(tab)
-  await page.mouse.click(t.x + t.width - 4, t.y + t.height / 2, { button: 'right' })
-  const menu = tabMenu(page)
-  const hotIs = menu.getByRole('menuitem', { name: /Hot is/ })
-  await hotIs.hover()
-  const panel = page.getByRole('dialog', { name: 'Hot rule' })
-  await expect(panel).toBeVisible()
-  await expect(panel).toHaveAttribute('data-shortcut-scope', 'none')
-  const m = await rect(menu)
-  const p = await rect(panel)
-  const i = await rect(hotIs)
-  // No room on the right: on the menu's left, top level with its item.
-  expect(m.x + m.width + p.width).toBeGreaterThan(1100 - 8)
-  expect(p.x + p.width).toBeLessThanOrEqual(m.x + 0.5)
-  expect(Math.abs(p.y - i.y)).toBeLessThanOrEqual(1)
-  // Hovering another plain item closes a panel that was only hovered open.
-  await menu.getByRole('menuitem', { name: 'Customize dashboard…' }).hover()
-  await expect(panel).toHaveCount(0)
-
-  // Clicked open, it takes the focus and stays while the pointer crosses other items.
-  await hotIs.click()
-  await expect(panel).toBeVisible()
-  await expect(panel.locator(':focus')).toHaveCount(1)
-  await menu.getByRole('menuitem', { name: 'Customize dashboard…' }).hover()
-  await expect(panel).toBeVisible()
-  // A click outside the menu and its panel closes both.
-  await page.mouse.click(20, 780)
-  await expect(panel).toHaveCount(0)
-  await expect(menu).toHaveCount(0)
 })
 
 test('the Eisenhower range submenu: → opens it on the current value beside its item; ← goes back', async ({ page }) => {

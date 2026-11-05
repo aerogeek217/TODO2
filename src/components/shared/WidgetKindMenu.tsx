@@ -33,7 +33,7 @@ export interface WidgetSetting {
 
 /**
  * A panel a widget action opens beside its item (e.g. the dashboard's
- * `Hot is ›`): controls rather than menu choices, so it's a small dialog —
+ * a flyout): controls rather than menu choices, so it's a small dialog —
  * changes apply as they're made and it stays open until Esc / ← / a click
  * outside the menu.
  */

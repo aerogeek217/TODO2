@@ -15,7 +15,6 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_TASKS, STATUSES, TAGS,
@@ -23,7 +22,7 @@ import {
 
 const HOT: TaskDialogPayload = {
   title: 'Hot tasks',
-  glyph: 'hot',
+  glyph: 'urgent',
   description: 'Hot = urgent and important, or in Focus (Settings › Tasks).',
   source: { kind: 'todos', todoIds: [1, 2, 3, 4] },
   fromTabId: 'dash',
@@ -52,7 +51,7 @@ beforeEach(() => {
   vi.setSystemTime(new Date(2026, 9, 10, 10))
   resetEntityStores()
   clearFilterStore()
-  useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 })
+  useSettingsStore.setState({ urgentDueWithinDays: 3, weekStartsOn: 0 })
   useTodoStore.setState({ todos: SAMPLE_TASKS })
   // Loaded as the store loads them: an entry for every task, empty when nobody is on it.
   usePersonStore.setState({ people: PEOPLE, assignedPeopleMap: new Map(SAMPLE_TASKS.map((t) => [t.id, ASSIGNED_PEOPLE.get(t.id) ?? []])) })

@@ -22,7 +22,7 @@ const PEOPLE = ['Alice Chen', 'Ben Ortiz', 'Carla Diaz', 'Dee King', 'Eli Moss']
 const TAGS = ['planning', 'q4', 'exec', 'finance', 'hiring', 'ops']
 const ROWS = 40
 
-/** Rows with every kind of cell filled, spread over the Eisenhower quadrants and the dashboard's Hot / follow-up sections. */
+/** Rows with every kind of cell filled, spread over the Eisenhower quadrants and the dashboard's follow-up section. */
 const TASKS: NonNullable<WorkspaceSeed['tasks']> = Array.from({ length: ROWS }, (_, i) => ({
   title: `Task ${i} with a reasonably long title to cut`,
   people: PEOPLE.slice(0, i % 5),
@@ -191,15 +191,15 @@ test('Eisenhower: every quadrant follows the drag without the widget or its rows
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
 })
 
-test('dashboard: both task-row sections follow the drag without the widget or its rows re-rendering', async ({ page }) => {
+test('dashboard: a task-row section follows the drag without the widget or its rows re-rendering', async ({ page }) => {
   await installRenderCounter(page, WATCHED)
-  await seedWorkspace(page, seed({ kind: 'dashboard', dashboard: { tiles: [], sections: [{ id: 'hot' }, { id: 'followup' }] } }))
+  await seedWorkspace(page, seed({ kind: 'dashboard', dashboard: { tiles: [], sections: [{ id: 'followup' }] } }))
   await expect(page.locator('[data-dash-section="followup"] [data-todo-id]').first()).toBeVisible()
   await settled(page.locator('[data-dash-section="followup"]'))
   await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
-  await dragDivider(page, page.locator('[data-dash-section="hot"]'), 60, 10, async () => {
-    await expectDetails(page.locator('[data-ws-area]'), '[data-dash-section="hot"], [data-dash-section="followup"]', 240)
+  await dragDivider(page, page.locator('[data-dash-section="followup"]'), 60, 10, async () => {
+    await expectDetails(page.locator('[data-ws-area]'), '[data-dash-section="followup"]', 240)
     const counts = await readRenderCounts(page)
     expect(counts.TaskRow).toBe(0)
     expect(counts.DashboardWidget).toBe(0)

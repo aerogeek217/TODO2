@@ -149,11 +149,6 @@
   color: var(--color-marker-focus);
 }
 
-.glyphHot {
-  display: inline-flex;
-  color: var(--color-marker-urgent);
-}
-
 /* A custom name may be long: it keeps at most half the header. */
 .name {
   flex-shrink: 0;

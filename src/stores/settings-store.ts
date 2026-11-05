@@ -19,7 +19,6 @@ import {
   parseUrgentDueWithinDays,
   type UrgentDueWithinDays,
 } from '../utils/urgency'
-import { DEFAULT_HOT_RULE, formatHotRule, normalizeHotRule, parseHotRule, type HotRule } from '../utils/hot'
 import {
   DEFAULT_CHECKIN_OPEN_METHOD,
   checkinFilterOf,
@@ -99,8 +98,6 @@ interface SettingsState {
   removeConvertedLines: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
-  /** Hot rule: OR of lines, each an AND of markers (`utils/hot.ts`). */
-  hotRule: HotRule
   /** How a check-in email opens in the mail app. */
   checkinOpenMethod: CheckinOpenMethod
   /**
@@ -163,7 +160,6 @@ interface SettingsState {
   setRemoveConvertedLines: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
-  setHotRule: (rule: HotRule) => Promise<void>
   setCheckinOpenMethod: (method: CheckinOpenMethod) => Promise<void>
   /**
    * Remembers the check-in filter (kept without people; no filter = the row
@@ -389,7 +385,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   autoFollowup: true,
   removeConvertedLines: false,
   urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
-  hotRule: DEFAULT_HOT_RULE,
   checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
   checkinTaskFilter: emptyPredicate(),
   newListSort: 'manual' as TodoSortBy,
@@ -423,7 +418,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let autoFollowup = true
       let removeConvertedLines = false
       let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
-      let hotRule: HotRule = DEFAULT_HOT_RULE
       let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
       let checkinTaskFilter: CheckinTaskFilter = emptyPredicate()
       let newListSort: TodoSortBy = 'manual'
@@ -467,8 +461,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === SETTING_KEYS.urgentDueWithinDays) {
           const parsed = parseUrgentDueWithinDays(row.value)
           urgentDueWithinDays = parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
-        } else if (row.key === SETTING_KEYS.hotRule) {
-          hotRule = parseHotRule(row.value) ?? DEFAULT_HOT_RULE
         } else if (row.key === SETTING_KEYS.checkinOpenMethod) {
           if (isCheckinOpenMethod(row.value)) checkinOpenMethod = row.value
         } else if (row.key === SETTING_KEYS.checkinTaskFilter) {
@@ -507,7 +499,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (!sortHasDirection(newListSort)) newListSortDirection = 'asc'
       set({
         colors, defaultStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
-        followupDefaultInterval, autoFollowup, removeConvertedLines, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
+        followupDefaultInterval, autoFollowup, removeConvertedLines, urgentDueWithinDays, checkinOpenMethod, checkinTaskFilter,
         newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt, staleAfterDays,
         rowDensity, lenses, lensPresetsSeeded, activeLensId, shortcutOverrides, eisenhowerPanes, eisenhowerListId,
       })
@@ -644,15 +636,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (parseUrgentDueWithinDays(value) === undefined) return
       await settingsRepository.put(SETTING_KEYS.urgentDueWithinDays, value)
       set({ urgentDueWithinDays: range })
-    })
-  },
-
-  setHotRule(rule: HotRule) {
-    return trackWrite(async () => {
-      const next = normalizeHotRule(rule)
-      if (next.length === 0) return
-      await settingsRepository.put(SETTING_KEYS.hotRule, formatHotRule(next))
-      set({ hotRule: next })
     })
   },
 
@@ -1129,13 +1112,13 @@ function writeStaleAfterDays(days: number): Promise<boolean> {
 }
 
 /**
- * The settings filters are evaluated with (urgent range, Hot rule, week
+ * The settings filters are evaluated with (urgent range, week
  * start), as they are now. A memoized caller uses `useFilterSettings`
  * instead, so a settings change re-runs it.
  */
 export function currentFilterSettings(): FilterSettings {
-  const { urgentDueWithinDays, hotRule, weekStartsOn } = useSettingsStore.getState()
-  return { urgentRange: urgentDueWithinDays, hotRule, weekStartsOn }
+  const { urgentDueWithinDays, weekStartsOn } = useSettingsStore.getState()
+  return { urgentRange: urgentDueWithinDays, weekStartsOn }
 }
 
 /** The two settings the automatic next follow-up is read from. */

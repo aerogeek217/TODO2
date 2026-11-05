@@ -16,7 +16,6 @@ import { statsFilter } from '../../services/stats/stats-context'
 import type { FilterCriteria } from '../../utils/filter-criteria'
 import { applyFilter } from '../../utils/filter-match'
 import { resolvePanes } from '../../utils/eisenhower-panes'
-import { DEFAULT_HOT_RULE } from '../../utils/hot'
 import { startOfDay } from '../../utils/date'
 import { emptyFilterCriteria, makeTodo, statsPaneContext } from '../helpers'
 
@@ -95,7 +94,7 @@ describe('the Eisenhower’s new list (no filter) shows what All tasks showed', 
 
   it.each(SCREENS)('on the dashboard, under %s: the same counts per pane, shown and in total', (_what, screen) => {
     const criteria: FilterCriteria = { ...emptyFilterCriteria, ...screen }
-    const settings = { urgentRange: 3 as const, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 1 as const }
+    const settings = { urgentRange: 3 as const, weekStartsOn: 1 as const }
     const lookups = { assignedPeopleMap, assignedTagsMap: new Map(), statusesById: new Map([[2, waiting]]) }
     // The dashboard's screen-filtered tasks (completed included).
     const shownAll = applyFilter(statsFilter(criteria), todos, assignedPeopleMap, [waiting], today, new Map(), settings)
@@ -103,7 +102,7 @@ describe('the Eisenhower’s new list (no filter) shows what All tasks showed', 
     const all = eisenhowerSourceTasks(todos, shownAll, undefined, opts)
     const own = eisenhowerSourceTasks(todos, shownAll, madeList, opts)
     const panes = resolvePanes({})
-    const paneCtx = statsPaneContext({ today, weekStartsOn: 1, urgentRange: 3, hotRule: DEFAULT_HOT_RULE, assignedPeopleMap, assignedTagsMap: new Map(), statuses: [waiting] })
+    const paneCtx = statsPaneContext({ today, weekStartsOn: 1, urgentRange: 3, assignedPeopleMap, assignedTagsMap: new Map(), statuses: [waiting] })
     expect(computeEisenhowerSummary(own.shown, panes, paneCtx)).toEqual(computeEisenhowerSummary(all.shown, panes, paneCtx))
     expect(computeEisenhowerSummary(own.total, panes, paneCtx)).toEqual(computeEisenhowerSummary(all.total, panes, paneCtx))
     expect(ids(own.total.filter((t) => !t.isCompleted))).toEqual(ids(all.total.filter((t) => !t.isCompleted)))

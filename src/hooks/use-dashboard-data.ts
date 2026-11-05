@@ -80,17 +80,16 @@ export interface DashboardData {
   /** `null` until the history has been read. */
   trend: TrendStats | null
   trendRange: DashboardTrendRange
-  /** The task-row sections' rows (Hot, Needs follow-up, Stale). */
+  /** The task-row sections' rows (Needs follow-up, Stale). */
   rows: DashboardRows
 }
 
 /**
- * The rows of the task-row sections: `tiles.shown.hot`, `followup.shown` and
+ * The rows of the task-row sections: `followup.shown` and
  * `stale.shown` — plus, while a just-completed task lingers (D19), that task
  * as it was before, in its place.
  */
 export interface DashboardRows {
-  hot: number[]
   followup: FollowupGroups
   stale: number[]
   /** The leaving tasks these rows keep as they were (they show as they are now, completed). */
@@ -99,8 +98,8 @@ export interface DashboardRows {
 
 const NO_IDS: ReadonlySet<number> = new Set()
 
-function rowIds(hot: readonly number[], followup: FollowupGroups, stale: readonly number[]): number[] {
-  return [...hot, ...followup.late, ...followup.today, ...followup.upcoming, ...stale]
+function rowIds(followup: FollowupGroups, stale: readonly number[]): number[] {
+  return [...followup.late, ...followup.today, ...followup.upcoming, ...stale]
 }
 
 /** The Eisenhower settings as the dashboard's Eisenhower section uses them. */
@@ -149,7 +148,6 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
     today,
     weekStartsOn,
     urgentRange: markerSettings.urgentRange,
-    hotRule: markerSettings.hotRule,
     assignedPeopleMap,
     assignedTagsMap,
     statuses,
@@ -238,18 +236,17 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
   }, [config.listTiles, listDefinitions, drafts, todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, markerSettings])
 
   const rows = useMemo<DashboardRows>(() => {
-    const now: DashboardRows = { hot: tiles.shown.hot.ids, followup: followup.shown, stale: stale.shown.ids, kept: NO_IDS }
+    const now: DashboardRows = { followup: followup.shown, stale: stale.shown.ids, kept: NO_IDS }
     if (!leaving || leaving.size === 0) return now
     const asWas = applyFilter(statsFilter(screen), restoreLeaving(todos, leaving), assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo)
-    const hot = computeTiles(asWas, ctx).hot.ids
     const followupAsWas = computeFollowupGroups(asWas, ctx, lookAhead)
     const staleAsWas = computeStaleTasks(asWas, ctx, staleDays).ids
-    const inRows = new Set(rowIds(hot, followupAsWas, staleAsWas))
-    const kept = keptOf(leaving, new Set(rowIds(now.hot, now.followup, now.stale)))
+    const inRows = new Set(rowIds(followupAsWas, staleAsWas))
+    const kept = keptOf(leaving, new Set(rowIds(now.followup, now.stale)))
     for (const id of kept) if (!inRows.has(id)) kept.delete(id)
-    return kept.size > 0 ? { hot, followup: followupAsWas, stale: staleAsWas, kept } : now
+    return kept.size > 0 ? { followup: followupAsWas, stale: staleAsWas, kept } : now
   }, [
-    tiles, followup, stale, leaving, screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo,
+    followup, stale, leaving, screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo,
     ctx, lookAhead, staleDays,
   ])
 

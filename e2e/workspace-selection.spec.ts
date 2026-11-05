@@ -44,16 +44,16 @@ test('switching tabs drops the hidden list selection', async ({ page }) => {
  * holds a selection at a time.
  */
 test('list, Eisenhower and dashboard rows select alike; one widget at a time', async ({ page }) => {
-  const hot = { urgent: true, important: true }
+  const due = { urgent: true, important: true, followupInDays: 0 }
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Tasks' }],
-    tasks: [{ title: 'alpha', ...hot }, { title: 'bravo', ...hot }, { title: 'charlie', ...hot }],
+    tasks: [{ title: 'alpha', ...due }, { title: 'bravo', ...due }, { title: 'charlie', ...due }],
     layouts: [{
       name: 'Main',
       columns: [
         { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] },
         { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] }] },
-        { id: 'c3', cells: [{ id: 'k3', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: [], sections: [{ id: 'hot' }] } }] }] },
+        { id: 'c3', cells: [{ id: 'k3', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: [], sections: [{ id: 'followup' }] } }] }] },
       ],
     }],
   })

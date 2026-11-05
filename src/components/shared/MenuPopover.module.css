@@ -211,7 +211,7 @@
   color: var(--color-text-muted);
 }
 
-/* A panel of controls beside its item (e.g. the dashboard's Hot rule). */
+/* A panel of controls beside its item (a small dialog). */
 .panel {
   padding: 12px;
 }

@@ -16,7 +16,6 @@ import { isNegated, withIdFilter } from '../utils/filter-negation'
 import { buildListSections, listSortComparator, type Section } from './list-sections'
 import type { ListRanks } from '../utils/list-order'
 import type { UrgentDueWithinDays } from '../utils/urgency'
-import type { HotRule } from '../utils/hot'
 
 /** Whether a task passes a predicate (closes over assignment maps, statuses, the screen filter). */
 export type PredicateEvaluator = (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean
@@ -47,8 +46,6 @@ export interface ListBuildContext {
   ranks?: ListRanks
   /** The app's urgent range, for the Priority sort and groups; absent = flags only. */
   urgentRange?: UrgentDueWithinDays
-  /** The Hot rule, for the Priority groups; absent = the default rule. */
-  hotRule?: HotRule
 }
 
 /** A list definition run over the tasks: its members and sections. */
@@ -135,7 +132,6 @@ export function buildList(
       assignedTagsMap: ctx.assignedTagsMap ?? new Map(),
       manualRanks: ctx.ranks,
       urgentRange: ctx.urgentRange,
-      hotRule: ctx.hotRule,
     },
   )
   const sorted = [...members].sort(listSortComparator(def.sort, {

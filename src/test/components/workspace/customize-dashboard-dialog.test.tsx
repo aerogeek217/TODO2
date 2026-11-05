@@ -69,7 +69,7 @@ describe('CustomizeDashboardDialog', () => {
     setup()
     expect(screen.getByRole('dialog', { name: 'Customize dashboard' })).toBeTruthy()
     expect(rowIds('Tiles')).toEqual([
-      'tile:open', 'tile:hot', 'tile:focus', 'tile:urgent', 'tile:overdue', 'tile:followupDue', 'tile:dueToday', 'tile:dueNext7', 'tile:noFollowup',
+      'tile:open', 'tile:focus', 'tile:urgent', 'tile:overdue', 'tile:followupDue', 'tile:dueToday', 'tile:dueNext7', 'tile:noFollowup',
     ])
     const tiles = within(group('Tiles'))
     expect((tiles.getByRole('checkbox', { name: 'Open' }) as HTMLInputElement).checked).toBe(true)
@@ -77,7 +77,7 @@ describe('CustomizeDashboardDialog', () => {
     expect(group('Tiles').textContent).toContain('Flagged, or due within 3 days')
     expect(group('Tiles').textContent).toContain('Today through Fri 16')
     expect(rowIds('Sections')).toEqual([
-      'section:hot', 'section:followup', 'section:next7', 'section:trend', 'section:status', 'section:people',
+      'section:followup', 'section:next7', 'section:trend', 'section:status', 'section:people',
       'section:tags', 'section:stale', 'section:recent', 'section:eisenhower',
     ])
     const sections = within(group('Sections'))
@@ -98,7 +98,7 @@ describe('CustomizeDashboardDialog', () => {
   it('ticking a tile shows it at once and makes the layout unsaved; unticking it back is no change', () => {
     setup()
     fireEvent.click(within(group('Tiles')).getByRole('checkbox', { name: 'Due today' }))
-    expect(tabConfig().tiles).toEqual(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue', 'dueToday'])
+    expect(tabConfig().tiles).toEqual(['open', 'focus', 'urgent', 'overdue', 'followupDue', 'dueToday'])
     expect(dirty()).toBe(true)
     fireEvent.click(within(group('Tiles')).getByRole('checkbox', { name: 'Due today' }))
     expect(tabConfig().tiles).toEqual(defaultDashboardConfig().tiles)
@@ -110,23 +110,23 @@ describe('CustomizeDashboardDialog', () => {
     act(() => {
       useWorkspaceStore.getState().patchTabConfig('dash', 'dashboard', {
         tiles: ['dueToday', 'open'],
-        sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'hot' }],
+        sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'stale' }],
       })
     })
     expect(rowIds('Tiles').slice(0, 2)).toEqual(['tile:dueToday', 'tile:open'])
-    expect(rowIds('Sections').slice(0, 2)).toEqual(['section:people', 'section:hot'])
+    expect(rowIds('Sections').slice(0, 2)).toEqual(['section:people', 'section:stale'])
     expect(screen.getByRole('button', { name: 'Unassigned: Hidden' })).toBeTruthy()
-    fireEvent.click(within(group('Tiles')).getByRole('checkbox', { name: 'Hot' }))
-    expect(tabConfig().tiles).toEqual(['dueToday', 'open', 'hot'])
+    fireEvent.click(within(group('Tiles')).getByRole('checkbox', { name: 'Focus' }))
+    expect(tabConfig().tiles).toEqual(['dueToday', 'open', 'focus'])
     fireEvent.click(within(group('Sections')).getByRole('checkbox', { name: 'Status' }))
-    expect(tabConfig().sections.map((s) => s.id)).toEqual(['people', 'hot', 'status'])
+    expect(tabConfig().sections.map((s) => s.id)).toEqual(['people', 'stale', 'status'])
     expect(tabConfig().sections[0]).toEqual({ id: 'people', options: { showUnassigned: false } })
   })
 
   it('hiding a section drops it from the config; its option is disabled while hidden', () => {
     setup()
     fireEvent.click(within(group('Sections')).getByRole('checkbox', { name: 'Created vs completed' }))
-    expect(tabConfig().sections.map((s) => s.id)).toEqual(['hot', 'followup', 'next7', 'status', 'people'])
+    expect(tabConfig().sections.map((s) => s.id)).toEqual(['followup', 'next7', 'status', 'people'])
     expect((screen.getByRole('button', { name: 'Range: 14 days' }) as HTMLButtonElement).disabled).toBe(true)
     expect(dirty()).toBe(true)
   })
@@ -149,7 +149,7 @@ describe('CustomizeDashboardDialog', () => {
     expect((screen.getByRole('button', { name: 'Older than: 14 days' }) as HTMLButtonElement).disabled).toBe(true)
     for (const name of ['Stale tasks', 'Eisenhower', 'Tags', 'Recently completed']) fireEvent.click(sections.getByRole('checkbox', { name }))
     // Shown in the dialog's order, after the default ones.
-    expect(tabConfig().sections.map((s) => s.id)).toEqual(['hot', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhower'])
+    expect(tabConfig().sections.map((s) => s.id)).toEqual(['followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhower'])
     expect(dirty()).toBe(true)
 
     fireEvent.click(screen.getByRole('button', { name: 'Older than: 14 days' }))
@@ -204,14 +204,14 @@ describe('CustomizeDashboardDialog', () => {
   it('Reset to default restores the default config (here: the saved one, so the layout is clean again)', () => {
     seed()
     setup()
-    fireEvent.click(within(group('Tiles')).getByRole('checkbox', { name: 'Hot' }))
+    fireEvent.click(within(group('Tiles')).getByRole('checkbox', { name: 'Focus' }))
     fireEvent.click(screen.getByRole('button', { name: 'Look ahead: 7 days' }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: '3 days' }))
     expect(dirty()).toBe(true)
     fireEvent.click(screen.getByRole('button', { name: 'Reset to default' }))
     expect(tabConfig()).toEqual(defaultDashboardConfig())
     expect(dirty()).toBe(false)
-    expect((within(group('Tiles')).getByRole('checkbox', { name: 'Hot' }) as HTMLInputElement).checked).toBe(true)
+    expect((within(group('Tiles')).getByRole('checkbox', { name: 'Focus' }) as HTMLInputElement).checked).toBe(true)
   })
 
   it('Done, ×, Esc and a backdrop click close it; changes stay', () => {

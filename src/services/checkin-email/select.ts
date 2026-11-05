@@ -25,7 +25,7 @@ export interface CheckinSelectContext {
   statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
   /** Each task's checklist (the filter's text search reads its titles). */
   subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
-  /** Urgent range + Hot rule (the filter's Priority clause). */
+  /** The urgent range (the filter's Priority clause). */
   markerSettings: MarkerSettings
   weekStartsOn: WeekStart
 }

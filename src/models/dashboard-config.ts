@@ -6,24 +6,24 @@
 
 /** The built-in tiles, in catalog order. */
 export const DASHBOARD_TILE_IDS = [
-  'open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue', 'dueToday', 'dueNext7', 'noFollowup',
+  'open', 'focus', 'urgent', 'overdue', 'followupDue', 'dueToday', 'dueNext7', 'noFollowup',
 ] as const
 export type DashboardTileId = (typeof DASHBOARD_TILE_IDS)[number]
 
-/** The tiles a new dashboard shows (six fit in a row). */
-export const DEFAULT_DASHBOARD_TILES: readonly DashboardTileId[] = ['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue']
+/** The tiles a new dashboard shows. */
+export const DEFAULT_DASHBOARD_TILES: readonly DashboardTileId[] = ['open', 'focus', 'urgent', 'overdue', 'followupDue']
 
 /** The sections, in catalog order (Customize lists hidden ones in this order). */
 export const DASHBOARD_SECTION_IDS = [
-  'hot', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhower',
+  'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhower',
 ] as const
 export type DashboardSectionId = (typeof DASHBOARD_SECTION_IDS)[number]
 
 /**
- * The sections a new dashboard shows, in order: the six that fill a
- * full-screen cell in two rows. The rest are added from Customize.
+ * The sections a new dashboard shows, in order, filling a full-screen cell in
+ * two rows. The rest are added from Customize.
  */
-export const DEFAULT_DASHBOARD_SECTIONS: readonly DashboardSectionId[] = ['hot', 'followup', 'next7', 'trend', 'status', 'people']
+export const DEFAULT_DASHBOARD_SECTIONS: readonly DashboardSectionId[] = ['followup', 'next7', 'trend', 'status', 'people']
 
 /** Needs follow-up: how many days ahead (starting today) the section looks. */
 export const DASHBOARD_LOOK_AHEAD_CHOICES = [3, 7, 14] as const

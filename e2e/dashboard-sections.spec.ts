@@ -126,7 +126,7 @@ test('their numbers open the task dialog with the tasks they count', async ({ pa
 test('Customize shows a section, changes its option and hides it again, as layout changes', async ({ page }) => {
   // A dashboard with the default config: none of the four.
   await seedWorkspace(page, seedWith({ dashboard: { tiles: ['open'] } }))
-  await expect(section(page, 'hot')).toBeVisible()
+  await expect(section(page, 'followup')).toBeVisible()
   for (const { id } of NEW_SECTIONS) await expect(section(page, id)).toHaveCount(0)
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 
@@ -162,7 +162,7 @@ test('Customize shows a section, changes its option and hides it again, as layou
   await expect(customize(page)).toHaveCount(0)
   // A ticked section takes its place in the dialog's order.
   const ids = await dash(page).locator('[data-dash-section]').evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.dashSection))
-  expect(ids).toEqual(['hot', 'followup', 'next7', 'trend', 'status', 'people', 'stale', 'eisenhower'])
+  expect(ids).toEqual(['followup', 'next7', 'trend', 'status', 'people', 'stale', 'eisenhower'])
 })
 
 test('Stale and Recently completed rows are task rows: select, drag out, reopen', async ({ page }) => {

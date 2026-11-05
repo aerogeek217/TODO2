@@ -4,7 +4,6 @@ import { countActiveFilters, criteriaToPredicate, predicateToCriteria } from '..
 import type { PersistedTodoItem } from '../../models'
 import { applyFilterNow as applyFilter, makeTodo, matchesFilterNow as matchesFilter, patchScreenFilter } from '../helpers'
 import { useSettingsStore } from '../../stores/settings-store'
-import { DEFAULT_HOT_RULE } from '../../utils/hot'
 
 /** Short-hand: current active filter state from the store. */
 const f = () => useFilterStore.getState().filters
@@ -160,7 +159,7 @@ describe('useFilterStore', () => {
     const day = (offset: number) => new Date(2026, 9, 10 + offset)
 
     beforeEach(() => {
-      useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE })
+      useSettingsStore.setState({ urgentDueWithinDays: 3 })
     })
 
     it('each ticked marker narrows; several AND together', () => {

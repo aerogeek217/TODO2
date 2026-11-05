@@ -22,7 +22,6 @@ import {
 } from '../../services/task-dialog'
 import type { TaskDialogSource } from '../../stores/task-dialog-payload'
 import { buildTasksPlain } from '../../services/task-copy'
-import { DEFAULT_HOT_RULE } from '../../utils/hot'
 import { emptyFilterCriteria } from '../helpers'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import {
@@ -35,7 +34,7 @@ function env(over: Partial<TaskDialogEnv> = {}): TaskDialogEnv {
     todos: SAMPLE_TASKS,
     today: SAMPLE_TODAY,
     weekStartsOn: 0,
-    markerSettings: { urgentRange: 3, hotRule: DEFAULT_HOT_RULE },
+    markerSettings: { urgentRange: 3 },
     assignedPeopleMap: ASSIGNED_PEOPLE,
     assignedTagsMap: ASSIGNED_TAGS,
     people: PEOPLE,

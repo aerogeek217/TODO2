@@ -36,9 +36,7 @@ export interface FilterCriteria {
    */
   dates: DateFilters
   /**
-   * Markers filter: the task must be hot (Settings' Hot rule) or meet every
-   * marker's Yes (`true`) / No (`false`) (Urgent = effective urgent,
-   * `utils/urgency.ts`). null = no filter.
+   * Priority filter: its conditions (`MarkersFilter`).
    */
   markers: MarkersFilter | null
   /**
@@ -131,8 +129,8 @@ export function countActiveFilters(f: FilterCriteria): number {
  *
  * - Narrowing clauses (people, status, tags, markers, search, dates) AND
  *   together — strictly, even on the same field: screen `@Alice` + list
- *   `@Bob` keeps only tasks assigned to both; screen Hot + list Urgent
- *   keeps only hot tasks that are urgent. Each side keeps its own "is not"
+ *   `@Bob` keeps only tasks assigned to both; screen Focus + list Urgent
+ *   keeps only tasks in Focus that are urgent. Each side keeps its own "is not"
  *   switches: screen Status is not Waiting + list Status is Waiting, Done
  *   keeps only Done.
  * - Completion ORs: completed tasks show when either side lets them through

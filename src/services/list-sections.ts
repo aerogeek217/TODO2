@@ -9,7 +9,6 @@ import type { DateBucketKey } from '../utils/bucket-by-date'
 import { manualOrderComparator, type ListRanks } from '../utils/list-order'
 import { priorityRank } from '../utils/markers'
 import type { UrgentDueWithinDays } from '../utils/urgency'
-import type { HotRule } from '../utils/hot'
 import { NO_PRIORITY_KEY, NO_PRIORITY_LABEL } from '../utils/priority-groups'
 
 /**
@@ -55,8 +54,6 @@ export interface ListSectionsContext {
   manualRanks?: ListRanks
   /** The app's "due date makes a task urgent" range, for the Priority sort and groups; absent = flags only. */
   urgentRange?: UrgentDueWithinDays
-  /** The Hot rule, for the Priority groups' Hot; absent = the default rule. */
-  hotRule?: HotRule
 }
 
 /** What a sort reads besides the tasks. */
@@ -240,8 +237,8 @@ function restrictKeys(spec: ListSectionsSpec): { keys?: string[]; keepUngrouped:
  *
  * Group order: dates Overdue → Today → This Week → Later; status by its
  * registry `sortOrder`; people and tags alphabetically (or in the
- * restrict order); Priority Hot → Focus → Urgent → Important (Hot by
- * `ctx.hotRule`, open tasks only; Urgent = effective Urgent). A task with
+ * restrict order); Priority Focus → Urgent → Important (Urgent = effective
+ * Urgent). A task with
  * several people / tags / priority markers appears in each of their
  * sections. Tasks with no value on the axis trail in one "No …" /
  * "Unassigned" section. Empty groups aren't shown. Ungrouped lists return
@@ -276,7 +273,6 @@ export function buildListSections(
     today: ctx.today,
     weekStartsOn: ctx.weekStartsOn,
     urgentRange: ctx.urgentRange,
-    hotRule: ctx.hotRule,
   }
   const restrict = restrictKeys({ ...spec, groupBy })
   // An empty restrict set means "nothing named" (only the unassigned pick):

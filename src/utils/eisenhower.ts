@@ -55,7 +55,7 @@ export function insertionIndex<T extends SortFields & { id: number }>(sorted: re
 /** What pane classification and the drop rules read besides the task itself. */
 export interface PaneContext {
   today: Date
-  /** The urgent range and Hot rule (Priority clauses), the week start (date clauses). */
+  /** The urgent range (Priority clauses), the week start (date clauses). */
   settings: FilterSettings
   assignedPeopleMap: ReadonlyMap<number, readonly Person[]>
   assignedTagsMap: ReadonlyMap<number, readonly Tag[]>

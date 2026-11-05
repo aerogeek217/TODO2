@@ -24,14 +24,14 @@ export function useScreenTaskCounts(): ScreenTaskCounts {
   const statuses = useStatusStore((s) => s.statuses)
   const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
   const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
-  const { urgentRange, hotRule, weekStartsOn } = useFilterSettings()
+  const { urgentRange, weekStartsOn } = useFilterSettings()
   const today = useToday()
   return useMemo(
     () => screenTaskCounts({
       todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn,
-      markerSettings: { urgentRange, hotRule },
+      markerSettings: { urgentRange },
     }),
-    [todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, urgentRange, hotRule],
+    [todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, urgentRange],
   )
 }
 

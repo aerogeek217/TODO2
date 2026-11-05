@@ -46,8 +46,7 @@ export interface MenuItemEntry {
   /** Height cap of the nested submenu (it scrolls); the viewport otherwise. */
   childrenMaxHeight?: number
   /**
-   * A panel of controls the menu shows beside the item, like a submenu (e.g.
-   * the dashboard's Hot rule editor): a small dialog whose changes apply as
+   * A panel of controls the menu shows beside the item, like a submenu (a small dialog whose changes apply as
    * they're made. Hover opens it; a click, Enter or → opens it with the focus
    * inside, and so does any click or focus in it — it then stays open while
    * the pointer crosses other items. Esc or ← closes it, back on its item.

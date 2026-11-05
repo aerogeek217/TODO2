@@ -470,21 +470,6 @@
   }
 }
 
-/* ═══ Task defaults: the Hot tasks row label ═══ */
-
-.labelWithIcon {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.hotIcon {
-  display: inline-flex;
-  font-size: 14px;
-  line-height: 0;
-  color: var(--color-danger);
-}
-
 /* ═══ Radio options (label + muted help line) ═══ */
 
 .radioGroup {

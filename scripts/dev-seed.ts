@@ -22,7 +22,7 @@
  * status updates (a few per task, one added with a follow-up); the global note; two layouts — Default (columns plus a
  * dashboard band) and Planning (a calendar band, lists, the Eisenhower, a
  * dashboard) — each owning its lists, with list prompts, an "is not"
- * filter, a descending sort, Hot / Focus markers and manual orders; the
+ * filter, a descending sort, Priority filters (several values, "is not") and manual orders; the
  * Eisenhower's own list with one renamed pane; a check-in filter.
  *
  * Pure: no Node or DOM APIs, so the vitest suite can run it in memory. The
@@ -846,7 +846,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       personIds: [IDS.people.elena, IDS.people.david, 0], tags: [IDS.tags.customer, IDS.tags.urgent],
     }), 'people', 'people', def, { runtimeFilter: { field: 'person' } }),
     list(L.focus, 'Focus', filter({ markers: [{ values: ['focus'] }] }), 'manual', 'none', def),
-    list(L.hot, 'Hot', filter({ markers: [{ values: ['urgent', 'focus'] }, { values: ['important', 'focus'] }] }), 'priority', 'none', plan),
+    list(L.hot, 'Top priority', filter({ markers: [{ values: ['urgent', 'focus'] }, { values: ['important', 'focus'] }] }), 'priority', 'none', plan),
     list(L.recentlyAdded, 'Recently added', filter({
       statusIds: [IDS.statuses.parked], negate: { statusIds: true },
       dates: { created: range({ kind: 'offset', days: -14 }, null) },
@@ -900,9 +900,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         ]),
       ],
       bottom: band('band-dash', 260, [dashboard('tab-dash', {
-        tiles: ['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'],
+        tiles: ['open', 'focus', 'urgent', 'overdue', 'followupDue'],
         listTiles: [L.focus, L.dueSoon],
-        sections: [{ id: 'hot' }, { id: 'followup' }, { id: 'next7' }, { id: 'trend', options: { range: '4w' } }, { id: 'status' }, { id: 'people' }],
+        sections: [{ id: 'followup' }, { id: 'next7' }, { id: 'trend', options: { range: '4w' } }, { id: 'status' }, { id: 'people' }],
       })]),
       createdAt: longAgo,
       modifiedAt: iso(at(-3, 17, 20)),
@@ -926,7 +926,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           cell('cell-matrix', [{ id: 'tab-matrix2', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }]),
           cell('cell-stats', [
             dashboard('tab-stats', {
-              tiles: ['open', 'hot', 'overdue', 'followupDue', 'dueToday', 'dueNext7'],
+              tiles: ['open', 'overdue', 'followupDue', 'dueToday', 'dueNext7'],
               listTiles: [L.hot],
               sections: [{ id: 'eisenhower' }, { id: 'tags', options: { showUntagged: false } }, { id: 'stale', options: { staleDays: 30 } }, { id: 'recent', options: { recentDays: 14 } }],
             }),

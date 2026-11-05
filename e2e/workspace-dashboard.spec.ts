@@ -6,7 +6,7 @@ import { box, pointIn } from './fixtures/geometry'
  * The Dashboard widget in a real browser: a cold load straight into a
  * dashboard-only layout renders its counts and the people / tag chips of
  * its task rows; the top-bar filter turns counts into `shown of total`; the
- * tab's config decides what shows; Hot rows drag out onto a calendar.
+ * tab's config decides what shows; follow-up rows drag out onto a calendar.
  */
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -46,7 +46,6 @@ test('a cold-loaded dashboard-only layout renders its counts and the rows’ chi
   await expect(dash(page)).toHaveAttribute('data-layout', 'grid')
 
   await expect(tileCount(page, 'open')).toHaveText('4')
-  await expect(tileCount(page, 'hot')).toHaveText('2')
   await expect(tileCount(page, 'urgent')).toHaveText('2')
   await expect(tileCount(page, 'overdue')).toHaveText('1')
   await expect(tileCount(page, 'followupDue')).toHaveText('1')
@@ -55,12 +54,11 @@ test('a cold-loaded dashboard-only layout renders its counts and the rows’ chi
   await expect(wsTab(page, 'dash')).toContainText('4')
   await expect(dash(page).locator('[data-dash-list-tile]').getByTestId('dash-list-count')).toHaveText('1')
 
-  // Hot rows are real task rows, with their tag and person chips.
-  const outage = section(page, 'hot').locator('[data-row-key]').filter({ hasText: 'Fix checkout outage' })
-  await expect(outage).toBeVisible()
-  await expect(outage.getByText('#q4')).toBeVisible()
-  await expect(outage.getByText(/Alice|AC/).first()).toBeVisible()
-  await expect(section(page, 'hot').locator('[data-row-key]')).toHaveCount(2)
+  // Needs follow-up's rows are real task rows, with their tag and person chips.
+  const followup = section(page, 'followup').locator('[data-row-key]')
+  await expect(followup.filter({ hasText: 'Plan the offsite' }).getByText('#q4')).toBeVisible()
+  await expect(followup.filter({ hasText: 'Vendor contract' }).locator('[data-person-avatar="Ben Ortiz"]')).toBeVisible()
+  await expect(followup).toHaveCount(2)
 
   // People: assignments loaded on a cold load (not everything "Unassigned").
   await expect(section(page, 'people').locator('[data-person-row]')).toHaveCount(3)
@@ -75,7 +73,6 @@ test('the top-bar filter turns counts into shown of total', async ({ page }) => 
   await page.keyboard.press('Escape')
 
   await expect(tileCount(page, 'open')).toHaveText('2of 4')
-  await expect(tileCount(page, 'hot')).toHaveText('2')
   await expect(tileCount(page, 'urgent')).toHaveText('1of 2')
   await expect(tileCount(page, 'overdue')).toHaveText('0of 1')
   await expect(tileCount(page, 'followupDue')).toHaveText('0of 1')
@@ -87,11 +84,11 @@ test('the top-bar filter turns counts into shown of total', async ({ page }) => 
 })
 
 test('the tab config decides which tiles and sections show; a dashboard is a layout change', async ({ page }) => {
-  await seedWorkspace(page, seedWith({ dashboard: { tiles: ['focus', 'noFollowup'], sections: [{ id: 'people' }, { id: 'hot' }] } }))
+  await seedWorkspace(page, seedWith({ dashboard: { tiles: ['focus', 'noFollowup'], sections: [{ id: 'people' }, { id: 'stale' }] } }))
   await expect(dash(page).locator('[data-dash-tile]')).toHaveCount(2)
-  expect(await sectionIds(page)).toEqual(['people', 'hot'])
+  expect(await sectionIds(page)).toEqual(['people', 'stale'])
   // 4 + 5 share a row; the last one stretches to fill it.
-  await expect(section(page, 'hot')).toHaveCSS('grid-column-start', 'span 8')
+  await expect(section(page, 'stale')).toHaveCSS('grid-column-start', 'span 8')
   // No list tiles: no strip (Customize adds them; the dashboard has no add button).
   await expect(dash(page).locator('[data-dash-list-tile]')).toHaveCount(0)
   await expect(dash(page).locator('[aria-label="List tiles"]')).toHaveCount(0)
@@ -105,11 +102,11 @@ test('the tab config decides which tiles and sections show; a dashboard is a lay
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
 })
 
-test('a Hot row drags onto a calendar day to set its due date', async ({ page }) => {
+test('a Needs follow-up row drags onto a calendar day to set its due date', async ({ page }) => {
   await seedWorkspace(page, seedWith({}, [
     { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] }] },
   ]))
-  const row = section(page, 'hot').locator('[data-row-key]').filter({ hasText: 'Plan the offsite' })
+  const row = section(page, 'followup').locator('[data-row-key]').filter({ hasText: 'Plan the offsite' })
   const day = wsCell(page, 'k2').locator('[data-day]').nth(2)
   await expect(row).toBeVisible()
   const from = await box(row)

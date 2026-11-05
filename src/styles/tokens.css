@@ -223,8 +223,6 @@
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
-  /* A hot row's ember: the danger colour at this strength at its left edge. */
-  --ember-strength: 11%;
 
   /* Layout hues (D19, a layout's `hue`): its active tab, cell headers and
      focus ring. Each ≥ 3:1 on every surface. */
@@ -457,7 +455,6 @@
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
-  --ember-strength: 7%;
 
   /* Layout hues: the light twins, each ≥ 3:1 on every light surface. */
   --hue-teal: #2f9a8f;

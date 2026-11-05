@@ -213,7 +213,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const crossKey = (key: string) => (isUngroupedSectionKey(groupedBy, key) ? UNGROUPED_GROUP_KEY : key)
   /** A Priority group's drop: the flags it writes, or why it's refused (`null`: nothing to do). */
   const priorityDrop = (todo: PersistedTodoItem, sourceKey: string, targetKey: string): PriorityDrop | null =>
-    resolvePriorityDrop(todo, sourceKey, targetKey, { today, urgentRange: filterSettings.urgentRange, hotRule: filterSettings.hotRule })
+    resolvePriorityDrop(todo, sourceKey, targetKey, { today, urgentRange: filterSettings.urgentRange })
   const crossMutation = (todo: PersistedTodoItem, sourceKey: string, targetKey: string): CrossGroupMutation | null => {
     if (groupedBy !== 'priority') return resolveCrossGroupMutation(groupedBy, crossKey(sourceKey), crossKey(targetKey), todo.id)
     const drop = priorityDrop(todo, sourceKey, targetKey)

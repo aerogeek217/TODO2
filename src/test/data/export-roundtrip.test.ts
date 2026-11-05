@@ -95,7 +95,6 @@ function buildSeed(): Seed {
       { key: 'newTaskFollowup', value: 'false' },
       { key: 'removeConvertedLines', value: 'true' },
       { key: 'urgentDueWithinDays', value: 'off' },
-      { key: 'hotRule', value: '[{"important":true,"focus":true},{"urgent":true}]' },
       { key: 'checkinOpenMethod', value: 'eml' },
       { key: 'checkinTaskFilter', value: formatCheckinFilterSetting({ ...FULL_PREDICATE, personIds: null, markers: [{ values: ['focus'] }], negate: { tags: true }, orGroups: [OR_GROUPS[1]!] }) },
       { key: 'newListSort', value: 'deadline' },
@@ -177,7 +176,7 @@ function buildSeed(): Seed {
               { id: 'k3', weight: 1, tabs: [
                 {
                   id: 't5', kind: 'dashboard', config: {
-                    tiles: ['hot', 'open', 'noFollowup'],
+                    tiles: ['focus', 'open', 'noFollowup'],
                     listTiles: [2, 1],
                     sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'trend', options: { range: '4w' } }, { id: 'followup', options: { lookAhead: 14 } }, { id: 'status' }],
                   },

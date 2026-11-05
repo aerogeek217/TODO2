@@ -840,7 +840,7 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  describe('Priority filter and Hot rule', () => {
+  describe('Priority filter', () => {
     function listWithMarkers(markers: unknown) {
       return {
         id: 1, name: 'List', sortOrder: 0, 
@@ -867,30 +867,6 @@ describe('validateImportData', () => {
         expect(result.warnings).toEqual(['Fixed 1 list: "List" (priority filter dropped)'])
       },
     )
-
-    it('accepts a Hot rule and stores it with duplicate lines collapsed', () => {
-      const result = validateImportData(validData({
-        settings: [{ key: 'hotRule', value: '[{"focus":true},{"important":true,"urgent":true},{"urgent":true,"important":true}]' }],
-      }))
-      expect(result.ok).toBe(true)
-      if (result.ok) {
-        expect(result.data.settings).toEqual([{ key: 'hotRule', value: '[{"focus":true},{"urgent":true,"important":true}]' }])
-      }
-    })
-
-    it.each([
-      ['no lines', '[]'],
-      ['an empty line', '[{"urgent":true},{}]'],
-      ['an unknown key', '[{"urgent":true,"overdue":true}]'],
-      ['a non-true value', '[{"focus":false}]'],
-      ['text that is not JSON', 'urgent+important'],
-    ])('rejects a Hot rule with %s', (_name, value) => {
-      const result = validateImportData(validData({ settings: [{ key: 'hotRule', value }] }))
-      expect(result).toEqual({
-        ok: false,
-        error: expect.stringContaining('hotRule must be a list of lines'),
-      })
-    })
   })
 
   describe('list predicates: malformed filters are dropped with a warning, not rejected', () => {

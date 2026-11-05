@@ -7,7 +7,6 @@ import { computeRecentlyCompleted } from '../../../services/stats/recently-compl
 import { computeStaleTasks } from '../../../services/stats/stale'
 import type { StatsContext } from '../../../services/stats/stats-context'
 import { computeTagStats } from '../../../services/stats/tags'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { emptyFilterCriteria, makeTodo, statsPaneContext } from '../../helpers'
 import { defaultPaneFilter, resolvePanes } from '../../../utils/eisenhower-panes'
 
@@ -15,7 +14,7 @@ const today = new Date(2026, 9, 10)
 const day = (n: number, hour = 9) => new Date(2026, 9, 10 + n, hour)
 
 function ctx(assignedTagsMap: Map<number, Tag[]> = new Map()): StatsContext {
-  return { today, weekStartsOn: 1, urgentRange: 3, hotRule: DEFAULT_HOT_RULE, assignedPeopleMap: new Map(), assignedTagsMap, statuses: [] }
+  return { today, weekStartsOn: 1, urgentRange: 3, assignedPeopleMap: new Map(), assignedTagsMap, statuses: [] }
 }
 
 describe('computeStaleTasks', () => {
@@ -89,19 +88,19 @@ describe('computeTagStats', () => {
       [5, [q4]],
     ])
     const out = computeTagStats(tasks, ctx(map))
-    expect(out.rows.map((r) => [r.tag.name, r.ids, r.hotIds, r.followupDueIds])).toEqual([
-      ['home', [1, 4], [1], []],
-      ['q4', [1, 2], [1], [2]],
-      ['art', [3], [], []],
+    expect(out.rows.map((r) => [r.tag.name, r.ids, r.priority.focus + r.priority.urgent + r.priority.important > 0, r.followupDueIds])).toEqual([
+      ['home', [1, 4], true, []],
+      ['q4', [1, 2], true, [2]],
+      ['art', [3], false, []],
     ])
-    expect(out.untagged).toEqual({ ids: [6], hotIds: [], followupDueIds: [6] })
+    expect(out.untagged).toEqual({ ids: [6], priority: { focus: 0, urgent: 0, important: 0 }, followupDueIds: [6] })
     expect(out.taggedIds).toEqual([1, 2, 3, 4])
   })
 
   it('no open tasks → no rows', () => {
     expect(computeTagStats([makeTodo({ id: 1, isCompleted: true })], ctx(new Map([[1, [q4]]])))).toEqual({
       rows: [],
-      untagged: { ids: [], hotIds: [], followupDueIds: [] },
+      untagged: { ids: [], priority: { focus: 0, urgent: 0, important: 0 }, followupDueIds: [] },
       taggedIds: [],
     })
   })
@@ -160,7 +159,7 @@ describe('eisenhowerSourceTasks', () => {
     screen,
     lookups: { assignedPeopleMap: new Map(), assignedTagsMap: new Map(), statusesById: new Map() },
     today,
-    settings: { urgentRange: 3, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 1 as const },
+    settings: { urgentRange: 3, weekStartsOn: 1 as const },
   })
   const list = {
     id: 9, name: 'Urgent', sortOrder: 0, sort: 'manual' as const, grouping: 'none' as const,

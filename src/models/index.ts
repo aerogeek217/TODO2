@@ -34,7 +34,6 @@ export {
   type MarkerClause,
   type MarkersFilter,
   type MarkerValue,
-  type MarkerSet,
   type MarkerConditions,
   MARKER_CLAUSES_MAX,
   NO_PRIORITY,

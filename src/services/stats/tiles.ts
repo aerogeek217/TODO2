@@ -1,6 +1,5 @@
-import type { MarkerSet, PersistedTodoItem } from '../../models'
+import type { PersistedTodoItem } from '../../models'
 import { daysUntil } from '../../utils/effective-date'
-import { matchesHotLine } from '../../utils/hot'
 import { isEffectivelyUrgent } from '../../utils/urgency'
 import { idsByDate, NEXT_DAYS, openTasks, type StatsContext } from './stats-context'
 
@@ -13,12 +12,6 @@ import { idsByDate, NEXT_DAYS, openTasks, type StatsContext } from './stats-cont
 export interface TileStats {
   /** Every open task. (The `+N in the last …` line comes from the trend.) */
   open: { ids: number[] }
-  /**
-   * Hot tasks (Settings' Hot rule). `lines` follows the rule's lines: each
-   * hot task is counted under the first line it matches, so the line counts
-   * add up to the tile (`3 urgent + important · 1 Focus`).
-   */
-  hot: { ids: number[]; lines: Array<{ line: MarkerSet; ids: number[] }> }
   /** Effective urgent: `flagged` + `byDate` (urgent only by its due date). */
   urgent: { ids: number[]; flagged: number; byDate: number }
   /** Due before today; the oldest due day and how many days late it is. */
@@ -44,11 +37,9 @@ export type TileId = keyof TileStats
 
 /** Every tile's stats over `tasks` (completed tasks are skipped). */
 export function computeTiles(tasks: readonly PersistedTodoItem[], ctx: StatsContext): TileStats {
-  const { today, urgentRange, hotRule } = ctx
+  const { today, urgentRange } = ctx
   const open = openTasks(tasks)
 
-  const hot: PersistedTodoItem[] = []
-  const hotLines = hotRule.map((line) => ({ line, tasks: [] as PersistedTodoItem[] }))
   const urgent: PersistedTodoItem[] = []
   let flagged = 0
   const overdue: PersistedTodoItem[] = []
@@ -63,12 +54,6 @@ export function computeTiles(tasks: readonly PersistedTodoItem[], ctx: StatsCont
   const noFollowup: PersistedTodoItem[] = []
 
   for (const t of open) {
-    const firstLine = hotLines.find((l) => matchesHotLine(t, l.line, today, urgentRange))
-    if (firstLine) {
-      hot.push(t)
-      firstLine.tasks.push(t)
-    }
-
     if (isEffectivelyUrgent(t, today, urgentRange)) {
       urgent.push(t)
       if (t.urgent === true) flagged++
@@ -105,10 +90,6 @@ export function computeTiles(tasks: readonly PersistedTodoItem[], ctx: StatsCont
 
   return {
     open: { ids: idsByDate(open, 'deadline') },
-    hot: {
-      ids: idsByDate(hot, 'deadline'),
-      lines: hotLines.map((l) => ({ line: l.line, ids: idsByDate(l.tasks, 'deadline') })),
-    },
     urgent: {
       ids: idsByDate(urgent, 'deadline'),
       flagged,

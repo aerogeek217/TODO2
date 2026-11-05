@@ -1,6 +1,6 @@
 import { MARKER_CLAUSES_MAX, MARKER_KEYS, NO_PRIORITY, type MarkerClause, type MarkerConditions, type MarkerKey, type MarkersFilter, type MarkerValue } from '../models/filter-predicate'
-import { hasMarker, type HotRule, type MarkerFields } from './hot'
-import { urgentByDateReason, urgentMark, type UrgentDueWithinDays, type UrgentMark } from './urgency'
+import type { TodoItem } from '../models/todo-item'
+import { isEffectivelyUrgent, urgentByDateReason, urgentMark, type UrgentDueWithinDays, type UrgentMark } from './urgency'
 
 /** Display names of the task markers. */
 export const MARKER_LABELS: Record<MarkerKey, string> = {
@@ -16,8 +16,17 @@ export const MARKER_COLOR: Record<MarkerKey, string> = {
   important: 'var(--color-marker-important)',
 }
 
-/** The colour of Hot (the flame). */
-export const HOT_COLOR = 'var(--color-danger)'
+/** The fields a marker check reads. */
+export type MarkerFields = Pick<TodoItem, 'urgent' | 'important' | 'focus' | 'dueDate' | 'isCompleted'>
+
+/** Whether `todo` has a marker (Urgent = effective urgent, flag or due date). */
+export function hasMarker(todo: MarkerFields, key: MarkerKey, today: Date, range: UrgentDueWithinDays): boolean {
+  switch (key) {
+    case 'urgent': return isEffectivelyUrgent(todo, today, range)
+    case 'important': return todo.important === true
+    case 'focus': return todo.focus === true
+  }
+}
 
 /** The name of the markers as a group (filters, menus, the task row's marker gutter). */
 export const MARKERS_LABEL = 'Priority'
@@ -72,13 +81,9 @@ export function priorityRank(todo: MarkerFields, today: Date, range: UrgentDueWi
   return important ? 3 : 4
 }
 
-/** Display name of the Markers filter's Hot choice. */
-export const HOT_LABEL = 'Hot'
-
-/** The settings a Priority filter is evaluated with: the urgent range and the Hot rule. */
+/** The settings a Priority filter is evaluated with: the urgent range. */
 export interface MarkerSettings {
   urgentRange: UrgentDueWithinDays
-  hotRule: HotRule
 }
 
 /** The name of a Priority filter's "none" choice, and of a list's trailing group. */

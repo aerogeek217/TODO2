@@ -8,7 +8,6 @@ import {
   type CheckinSelectContext,
 } from '../../../services/checkin-email/select'
 import { emptyPredicate } from '../../../models/filter-predicate'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { makePerson, makeTodo } from '../../helpers'
 
 const CHECKIN_DUE_SOON_DAYS = 14
@@ -36,7 +35,7 @@ function context(
     todos,
     today,
     assignedPeopleMap: new Map(Object.entries(assignments).map(([id, people]) => [Number(id), people])),
-    markerSettings: { urgentRange: 3, hotRule: DEFAULT_HOT_RULE },
+    markerSettings: { urgentRange: 3 },
     weekStartsOn: 1,
     ...extra,
   }
@@ -113,7 +112,7 @@ describe('selectCheckinTasks', () => {
     const hot = filter({ markers: [{ values: ['focus', 'urgent'] }, { values: ['focus', 'important'] }] })
     const out = selectCheckinTasks(ada, hot, context(todos, people))
     expect([...ids(out.overdue), ...ids(out.comingUp)].sort()).toEqual([1, 2, 4])
-    const narrowRange = context(todos, people, { markerSettings: { urgentRange: 1, hotRule: DEFAULT_HOT_RULE } })
+    const narrowRange = context(todos, people, { markerSettings: { urgentRange: 1 } })
     expect([...ids(selectCheckinTasks(ada, hot, narrowRange).comingUp)].sort()).toEqual([1, 2])
   })
 

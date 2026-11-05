@@ -37,29 +37,29 @@ const dialogTitles = (page: Page) => dialog(page).locator('[data-todo-id]').eval
 
 test('a tile opens its tasks; a completed row stays, struck through, while the count drops', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await expect(tileCount(page, 'hot')).toHaveText('2')
+  await expect(tileCount(page, 'urgent')).toHaveText('3')
 
-  await dash(page).locator('[data-dash-tile="hot"]').click()
+  await dash(page).locator('[data-dash-tile="urgent"]').click()
   await expect(dialog(page)).toBeVisible()
-  await expect(dialog(page).getByRole('heading')).toHaveText('Hot tasks')
-  await expect(dialog(page).getByTestId('task-dialog-count')).toHaveText('2')
-  await expect(dialog(page)).toContainText('Hot = urgent and important, or in Focus (Settings › Tasks).')
-  await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
+  await expect(dialog(page).getByRole('heading')).toHaveText('Urgent tasks')
+  await expect(dialog(page).getByTestId('task-dialog-count')).toHaveText('3')
+  await expect(dialog(page)).toContainText('Urgent = flagged urgent, or due within 3 days (Settings › Tasks).')
+  await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(3)
 
   const outage = dialogRow(page, 'Fix checkout outage')
   await outage.getByRole('checkbox', { name: 'Mark complete' }).click()
   // The count behind drops at once; the row stays, struck through.
-  await expect(tileCount(page, 'hot')).toHaveText('1')
+  await expect(tileCount(page, 'urgent')).toHaveText('2')
   await expect(outage).toBeVisible()
   await expect(outage.getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
   await expect(outage.locator('span[data-task-title="Fix checkout outage"] [data-title-text]')).toHaveCSS('background-size', '100% 1.5px')
-  await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
+  await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(3)
 
   await page.keyboard.press('Escape')
   await expect(dialog(page)).toHaveCount(0)
   // Reopened, the completed task is gone.
-  await dash(page).locator('[data-dash-tile="hot"]').click()
-  await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(1)
+  await dash(page).locator('[data-dash-tile="urgent"]').click()
+  await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
 })
 
 test('a row opens the editor on top; Esc in the editor closes only the editor', async ({ page }) => {
@@ -189,7 +189,7 @@ test('Esc in a row’s status menu or people picker over the task dialog closes 
 
 test('a row’s follow-up popover sits over the dialog at level 2, works there, and Esc closes only it', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await dash(page).locator('[data-dash-tile="hot"]').click()
+  await dash(page).locator('[data-dash-tile="urgent"]').click()
   const row = dialogRow(page, 'Plan the offsite')
   await row.hover()
   await row.getByRole('button', { name: 'Set follow-up', exact: true }).click()

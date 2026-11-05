@@ -34,7 +34,7 @@ const SEED: WorkspaceSeed = {
 }
 
 const dash = (page: Page) => page.locator('[data-dashboard="dash"]')
-const hotTile = (page: Page) => dash(page).locator('[data-dash-tile="hot"]')
+const focusTile = (page: Page) => dash(page).locator('[data-dash-tile="focus"]')
 const taskDialog = (page: Page) => page.locator('[data-task-dialog]')
 const checkin = (page: Page) => page.getByRole('dialog', { name: 'Email task check-ins' })
 const editorTitle = (page: Page) => page.getByRole('textbox', { name: 'Task title' })
@@ -157,10 +157,10 @@ test('task dialog: Esc, focus trap and return, backdrop press', async ({ page })
   await checkContract(page, {
     dialog,
     open: async () => {
-      await hotTile(page).click()
+      await focusTile(page).click()
       await expect(dialog).toBeVisible()
     },
-    trigger: hotTile(page),
+    trigger: focusTile(page),
     inside: dialog.getByRole('heading'),
     initialFocus: dialog,
   })
@@ -168,7 +168,7 @@ test('task dialog: Esc, focus trap and return, backdrop press', async ({ page })
 
 test('task dialog → editor: the editor owns Esc, focused or not; then Esc closes the dialog', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await hotTile(page).click()
+  await focusTile(page).click()
   const dialog = taskDialog(page)
   await dialog.locator('[data-todo-id]').filter({ hasText: 'Plan the offsite' }).locator('span[data-task-title="Plan the offsite"]').click()
   await expect(editorTitle(page)).toBeVisible()

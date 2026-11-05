@@ -6,7 +6,6 @@
 // statuses 11 / 5 / 2 / 1, trend 17 created / 14 completed, …) follow from it.
 import type { PersistedTodoItem, Person, Status, Tag, TodoEvent, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
-import { DEFAULT_HOT_RULE } from '../../utils/hot'
 import type { StatsContext } from '../../services/stats/stats-context'
 
 /** Sat 10 Oct 2026, local midnight. */
@@ -168,9 +167,7 @@ export const DESIGN_TREND_Q4 = {
 export const SAMPLE_CTX: StatsContext = {
   today: SAMPLE_TODAY,
   weekStartsOn: 0,
-  urgentRange: 3,
-  hotRule: DEFAULT_HOT_RULE,
-  assignedPeopleMap: ASSIGNED_PEOPLE,
+  urgentRange: 3,  assignedPeopleMap: ASSIGNED_PEOPLE,
   assignedTagsMap: ASSIGNED_TAGS,
   statuses: STATUSES,
 }

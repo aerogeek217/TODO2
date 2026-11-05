@@ -181,7 +181,7 @@ describe('structural edits and dirty state', () => {
     await ws().save()
     expect(ws().isDirty).toBe(false)
     // Hiding a section (what Customize writes).
-    ws().patchTabConfig('b1', 'dashboard', { sections: [{ id: 'hot' }, { id: 'people' }] })
+    ws().patchTabConfig('b1', 'dashboard', { sections: [{ id: 'stale' }, { id: 'people' }] })
     expect(ws().isDirty).toBe(true)
   })
 

@@ -127,7 +127,7 @@ test.describe('task rows fit their container', () => {
   })
 
   test('dashboard panels', async ({ page }) => {
-    await seedWorkspace(page, seed({ kind: 'dashboard', dashboard: { sections: [{ id: 'hot' }, { id: 'followup' }] } }, 380))
+    await seedWorkspace(page, seed({ kind: 'dashboard', dashboard: { sections: [{ id: 'followup' }, { id: 'stale' }] } }, 380))
     await expect(page.locator('[data-todo-id]').first()).toBeVisible()
     const { rows, problems } = await rowOverflow(page)
     expect(rows).toBeGreaterThan(0)

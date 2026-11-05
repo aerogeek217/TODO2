@@ -36,11 +36,6 @@ export const SETTING_KEYS = {
    * Absent = the default (3 days).
    */
   urgentDueWithinDays: 'urgentDueWithinDays',
-  /**
-   * Hot rule: JSON array of lines, each an object of markers set to `true`
-   * (`[{"urgent":true,"important":true},{"focus":true}]`). Absent = that default.
-   */
-  hotRule: 'hotRule',
   /** How a check-in email opens: `mailto` (open, then paste) or `eml` (download a draft). Absent = `mailto`. */
   checkinOpenMethod: 'checkinOpenMethod',
   /**

@@ -111,12 +111,6 @@ export type MarkerKey = 'urgent' | 'important' | 'focus'
 export const MARKER_KEYS: readonly MarkerKey[] = ['focus', 'urgent', 'important']
 
 /**
- * A set of markers: only `true` values are stored, an empty object is none.
- * One line of the Hot rule (a task has every marker of the line).
- */
-export type MarkerSet = { [K in MarkerKey]?: true }
-
-/**
  * What a Priority filter asks of each marker: `true` = the task must have it
  * (Yes), `false` = it must not (No), absent = either (Any). An empty object
  * tests nothing. Also the flags a filter seeds on new tasks (`false` = off).
@@ -196,8 +190,7 @@ export interface TodoPredicate {
   /** The date filters, one clause per date type (AND); `{}` = none. */
   dates: DateFilters
   /**
-   * Markers (Priority) filter: Hot, or Yes / No per marker (Focus / Urgent /
-   * Important, strict AND); null or absent = no filter. Optional on read.
+   * Priority filter: its conditions, a chip each (`MarkersFilter`).
    */
   markers?: MarkersFilter | null
   /**

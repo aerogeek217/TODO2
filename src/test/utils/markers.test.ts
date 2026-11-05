@@ -1,11 +1,10 @@
 import { describe, it, expect } from 'vitest'
 import { MARKER_CLAUSES_MAX } from '../../models'
-import { activeMarkers, hasMarkers, markerClauseOfIds, markerConditions, markerPickerIds, markersEqual, markerSummary, matchesMarkerClause, normalizeMarkersFilter, priorityRank, withMarkerClause, type MarkerSettings } from '../../utils/markers'
-import { DEFAULT_HOT_RULE, type MarkerFields } from '../../utils/hot'
+import { activeMarkers, hasMarkers, markerClauseOfIds, markerConditions, markerPickerIds, markersEqual, markerSummary, matchesMarkerClause, normalizeMarkersFilter, priorityRank, withMarkerClause, type MarkerFields, type MarkerSettings } from '../../utils/markers'
 
 const today = new Date(2026, 9, 10)
 const open = (t: object): MarkerFields => ({ isCompleted: false, ...t })
-const within = (urgentRange: number | null): MarkerSettings => ({ urgentRange, hotRule: DEFAULT_HOT_RULE })
+const within = (urgentRange: number | null): MarkerSettings => ({ urgentRange })
 
 describe('Priority filter helpers', () => {
   it('a filter narrows while a condition names something', () => {

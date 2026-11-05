@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { packSections, sectionRowTracks } from '../../../components/workspace/dashboard/dashboard-layout'
 import {
-  countOf, hotLineLabel, hotRuleInWords, nextDayLabels, signed, tileSubLine, trendBucketLabel,
+  countOf, nextDayLabels, signed, tileSubLine, trendBucketLabel,
 } from '../../../components/workspace/dashboard/dashboard-copy'
 import { computeTiles } from '../../../services/stats/tiles'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { SAMPLE_CTX } from '../../fixtures/dashboard-sample'
 import { makeTodo } from '../../helpers'
 import { filterChips, listFilterHint, predicateLineItems } from '../../../utils/filter-chips'
@@ -47,19 +46,11 @@ describe('dashboard copy', () => {
     expect([signed(3), signed(-2), signed(0)]).toEqual(['+3', '−2', '0'])
   })
 
-  it('the Hot rule in words', () => {
-    expect(hotRuleInWords(DEFAULT_HOT_RULE)).toBe('Urgent and important, or in Focus')
-    expect(hotRuleInWords([{ focus: true }, { urgent: true }])).toBe('In Focus, or urgent')
-    expect(hotRuleInWords([{ urgent: true, important: true, focus: true }])).toBe('Focus and urgent and important')
-    expect(hotLineLabel({ important: true, urgent: true })).toBe('urgent + important')
-  })
-
   it('tile sub-lines when nothing matches', () => {
     const tiles = computeTiles([makeTodo({ id: 1 })], SAMPLE_CTX)
     const ctx = { today: SAMPLE_CTX.today, trendNet: 0, trendRange: '4w' as const }
     expect(tileSubLine('open', tiles, ctx)).toBe('No change in the last 4 weeks')
     expect(tileSubLine('open', tiles, { ...ctx, trendNet: null })).toBe('')
-    expect(tileSubLine('hot', tiles, ctx)).toBe('None right now')
     expect(tileSubLine('urgent', tiles, ctx)).toBe('Nothing urgent')
     expect(tileSubLine('overdue', tiles, ctx)).toBe('Nothing overdue')
     expect(tileSubLine('followupDue', tiles, ctx)).toBe('Nothing due')

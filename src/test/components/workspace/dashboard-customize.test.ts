@@ -12,10 +12,9 @@ import {
 } from '../../../components/workspace/dashboard/dashboard-customize'
 import { resolvePanes } from '../../../utils/eisenhower-panes'
 import { buildDashboardSummary, sectionSummaryLines } from '../../../components/workspace/dashboard/dashboard-summary'
-import { hotRuleShort, tileCatalogHint } from '../../../components/workspace/dashboard/dashboard-copy'
+import { tileCatalogHint } from '../../../components/workspace/dashboard/dashboard-copy'
 import { defaultDashboardConfig, DASHBOARD_SECTION_IDS, DASHBOARD_TILE_IDS, type DashboardTabConfig } from '../../../models/dashboard-config'
 import type { TileStats } from '../../../services/stats/tiles'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 
 const config = (c: Partial<DashboardTabConfig> = {}): DashboardTabConfig => ({ ...defaultDashboardConfig(), ...c })
 
@@ -23,10 +22,10 @@ describe('Customize dashboard — the dialog state', () => {
   it('lists the shown items first, in the config’s order, then the hidden ones in catalog order', () => {
     const state = customizeStateFrom(config({
       tiles: ['focus', 'open'],
-      sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'hot' }],
+      sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'stale' }],
     }))
-    expect(state.tileOrder).toEqual(['focus', 'open', 'hot', 'urgent', 'overdue', 'followupDue', 'dueToday', 'dueNext7', 'noFollowup'])
-    expect(state.sectionOrder).toEqual(['people', 'hot', 'followup', 'next7', 'trend', 'status', 'tags', 'stale', 'recent', 'eisenhower'])
+    expect(state.tileOrder).toEqual(['focus', 'open', 'urgent', 'overdue', 'followupDue', 'dueToday', 'dueNext7', 'noFollowup'])
+    expect(state.sectionOrder).toEqual(['people', 'stale', 'followup', 'next7', 'trend', 'status', 'tags', 'recent', 'eisenhower'])
     expect(state.options).toEqual({ people: { showUnassigned: false } })
   })
 
@@ -34,9 +33,9 @@ describe('Customize dashboard — the dialog state', () => {
     const c = config()
     const state = customizeStateFrom(c)
     const moved = { ...state, tileOrder: moveItem(state.tileOrder, 0, 1) }
-    expect(tilesFor(moved, new Set(c.tiles))).toEqual(['hot', 'open', 'focus', 'urgent', 'overdue', 'followupDue'])
+    expect(tilesFor(moved, new Set(c.tiles))).toEqual(['focus', 'open', 'urgent', 'overdue', 'followupDue'])
     // A hidden tile moved above shown ones stays hidden.
-    const hiddenUp = { ...state, tileOrder: moveItem(state.tileOrder, 8, 0) }
+    const hiddenUp = { ...state, tileOrder: moveItem(state.tileOrder, 7, 0) }
     expect(tilesFor(hiddenUp, new Set(c.tiles))[0]).toBe('open')
     expect(hiddenUp.tileOrder[0]).toBe('noFollowup')
   })
@@ -45,9 +44,9 @@ describe('Customize dashboard — the dialog state', () => {
     const c = config()
     const state = customizeStateFrom(c)
     expect(tilesFor(state, toggled(new Set(c.tiles), 'dueToday'))).toEqual([...c.tiles, 'dueToday'])
-    expect(tilesFor(state, toggled(new Set(c.tiles), 'hot'))).toEqual(['open', 'focus', 'urgent', 'overdue', 'followupDue'])
+    expect(tilesFor(state, toggled(new Set(c.tiles), 'focus'))).toEqual(['open', 'urgent', 'overdue', 'followupDue'])
     const sections = sectionsFor(state, toggled(new Set(c.sections.map((s) => s.id)), 'trend'))
-    expect(sections.map((s) => s.id)).toEqual(['hot', 'followup', 'next7', 'status', 'people'])
+    expect(sections.map((s) => s.id)).toEqual(['followup', 'next7', 'status', 'people'])
   })
 
   it('options: stored only when not the default; a hidden section keeps its option for when it’s shown again', () => {
@@ -58,7 +57,6 @@ describe('Customize dashboard — the dialog state', () => {
     state = withSectionOption(state, 'trend', 'range', '4w')
     state = withSectionOption(state, 'people', 'showUnassigned', false)
     expect(sectionsFor(state, all)).toEqual([
-      { id: 'hot' },
       { id: 'followup', options: { lookAhead: 14 } },
       { id: 'next7' },
       { id: 'trend', options: { range: '4w' } },
@@ -98,21 +96,21 @@ describe('Customize dashboard — the dialog state', () => {
     const state = customizeStateFrom(defaultDashboardConfig())
     expect(state.tileOrder).toEqual([...DASHBOARD_TILE_IDS])
     expect(state.sectionOrder).toEqual([...DASHBOARD_SECTION_IDS])
-    expect(defaultDashboardConfig().sections.map((s) => s.id)).toEqual(['hot', 'followup', 'next7', 'trend', 'status', 'people'])
+    expect(defaultDashboardConfig().sections.map((s) => s.id)).toEqual(['followup', 'next7', 'trend', 'status', 'people'])
     expect(sectionsFor(state, new Set(defaultDashboardConfig().sections.map((s) => s.id)))).toEqual(defaultDashboardConfig().sections)
   })
 
   it('syncCustomizeState keeps the state while the config is its own edit (a hidden row keeps its place), else follows the config', () => {
-    const start = customizeStateFrom(config({ tiles: ['open', 'hot'] }))
+    const start = customizeStateFrom(config({ tiles: ['open', 'focus'] }))
     const moved = { ...start, tileOrder: moveItem(start.tileOrder, start.tileOrder.indexOf('dueToday'), 0) }
-    // Its own edit: Hot hidden, the hidden Due today still first.
+    // Its own edit: Focus hidden, the hidden Due today still first.
     const own = config({ tiles: tilesFor(moved, new Set(['open'] as const)) })
     expect(syncCustomizeState(moved, own)).toBe(moved)
     // Made elsewhere: the config's order, a hidden section's option kept.
     const withOption = withSectionOption(moved, 'stale', 'staleDays', 30)
-    const elsewhere = config({ tiles: ['hot', 'open'] })
+    const elsewhere = config({ tiles: ['focus', 'open'] })
     const synced = syncCustomizeState(withOption, elsewhere)
-    expect(synced.tileOrder.slice(0, 2)).toEqual(['hot', 'open'])
+    expect(synced.tileOrder.slice(0, 2)).toEqual(['focus', 'open'])
     expect(synced.options.stale).toEqual({ staleDays: 30 })
   })
 
@@ -122,12 +120,6 @@ describe('Customize dashboard — the dialog state', () => {
 })
 
 describe('dashboard copy for the tab menu and Customize', () => {
-  it('the Hot rule at a glance', () => {
-    expect(hotRuleShort(DEFAULT_HOT_RULE)).toBe('U+I or Focus')
-    expect(hotRuleShort([{ urgent: true }])).toBe('Urgent')
-    expect(hotRuleShort([{ urgent: true, important: true, focus: true }, { important: true }])).toBe('F+U+I or Important')
-  })
-
   it('what each tile counts, with the urgent range and the next-7-days end', () => {
     const today = new Date(2026, 9, 10)
     expect(tileCatalogHint('urgent', { today, urgentRange: 3 })).toBe('Flagged, or due within 3 days')
@@ -147,22 +139,22 @@ describe('Copy summary', () => {
   }
 
   it('one line of tiles in the dashboard’s order, one of list tiles', () => {
-    const tiles = stats({ open: 19, hot: 4, urgent: 8, overdue: 2, followupDue: 2, focus: 3 })
+    const tiles = stats({ open: 19, urgent: 8, overdue: 2, followupDue: 2, focus: 3 })
     const summary = buildDashboardSummary(
-      ['open', 'hot', 'urgent', 'overdue', 'followupDue', 'focus'],
+      ['open', 'urgent', 'overdue', 'followupDue', 'focus'],
       { shown: tiles, total: tiles },
       [{ id: 1, name: 'Waiting on', shown: 2, total: 2 }, { id: 2, name: 'Priya <1:1>', shown: 1, total: 3 }],
     )
-    expect(summary.plain).toBe('Open 19 · Hot 4 · Urgent 8 · Overdue 2 · Follow-up due 2 · Focus 3\nWaiting on 2 · Priya <1:1> 1 of 3')
+    expect(summary.plain).toBe('Open 19 · Urgent 8 · Overdue 2 · Follow-up due 2 · Focus 3\nWaiting on 2 · Priya <1:1> 1 of 3')
     expect(summary.html).toBe(
-      '<p><b>Open</b> 19 · <b>Hot</b> 4 · <b>Urgent</b> 8 · <b>Overdue</b> 2 · <b>Follow-up due</b> 2 · <b>Focus</b> 3</p>'
+      '<p><b>Open</b> 19 · <b>Urgent</b> 8 · <b>Overdue</b> 2 · <b>Follow-up due</b> 2 · <b>Focus</b> 3</p>'
       + '<p><b>Waiting on</b> 2 · <b>Priya &lt;1:1&gt;</b> 1 of 3</p>',
     )
   })
 
   it('the Tags / Stale tasks / Recently completed / Eisenhower sections add a line each, in section order', () => {
-    const row = (id: number, name: string, n: number) => ({ tag: { id, name, color: '#999' }, ids: Array.from({ length: n }, (_, i) => i + 1), hotIds: [], followupDueIds: [] })
-    const empty = { ids: [], hotIds: [], followupDueIds: [] }
+    const row = (id: number, name: string, n: number) => ({ tag: { id, name, color: '#999' }, ids: Array.from({ length: n }, (_, i) => i + 1), priority: { focus: 0, urgent: 0, important: 0 }, followupDueIds: [] })
+    const empty = { ids: [], priority: { focus: 0, urgent: 0, important: 0 }, followupDueIds: [] }
     const quadrants = (d: number, s: number, g: number, x: number) => ({
       do: { ids: Array.from({ length: d }, (_, i) => i), byDate: 0 },
       schedule: { ids: Array.from({ length: s }, (_, i) => i), byDate: 0 },
@@ -180,7 +172,7 @@ describe('Copy summary', () => {
       eisenhowerSetup: { panes: resolvePanes({}), listName: null },
     }
     const lines = sectionSummaryLines(
-      [{ id: 'hot' }, { id: 'eisenhower' }, { id: 'recent' }, { id: 'tags' }, { id: 'stale' }],
+      [{ id: 'followup' }, { id: 'eisenhower' }, { id: 'recent' }, { id: 'tags' }, { id: 'stale' }],
       data,
     )
     const summary = buildDashboardSummary(['open'], { shown: stats({ open: 6 }), total: stats({ open: 9 }) }, [], lines)
@@ -208,8 +200,8 @@ describe('Copy summary', () => {
   })
 
   it('counts read shown of total under a screen filter; no tiles at all → the Open count', () => {
-    const summary = buildDashboardSummary(['hot'], { shown: stats({ hot: 1 }), total: stats({ hot: 4 }) }, [])
-    expect(summary.plain).toBe('Hot 1 of 4')
+    const summary = buildDashboardSummary(['urgent'], { shown: stats({ urgent: 1 }), total: stats({ urgent: 4 }) }, [])
+    expect(summary.plain).toBe('Urgent 1 of 4')
     expect(buildDashboardSummary([], { shown: stats({ open: 5 }), total: stats({ open: 5 }) }, []).plain).toBe('Open 5')
   })
 })

@@ -2,8 +2,6 @@ import { useState } from 'react'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { FollowupIntervalSetting } from '../FollowupIntervalSetting'
-import { HotRuleEditor } from '../../shared/HotRuleEditor'
-import { HotIcon } from '../../shared/MarkerIcons'
 import {
   URGENT_DUE_WITHIN_CHOICES,
   formatUrgentDueWithinDays,
@@ -31,8 +29,7 @@ function urgentChoiceLabel(range: UrgentDueWithinDays): string {
 
 /**
  * Defaults for new tasks: status, whether they get a next follow-up and the
- * follow-up interval, when a due date makes a task urgent, which tasks are
- * hot, when an untouched task's row fades, the first day of the week, how
+ * follow-up interval, when a due date makes a task urgent, when an untouched task's row fades, the first day of the week, how
  * new lists sort and group, and what a note's converted lines become.
  */
 export function TaskDefaultsSection() {
@@ -98,13 +95,6 @@ export function TaskDefaultsSection() {
             </option>
           ))}
         </select>
-      </SettingRow>
-      <SettingRow
-        label={<span className={styles.labelWithIcon}><span className={styles.hotIcon}><HotIcon /></span>Hot tasks</span>}
-        help="A task is hot when it matches any line. Within a line it needs everything lit."
-        column
-      >
-        <HotRuleEditor />
       </SettingRow>
       <StaleAfterDaysSetting />
       <SettingRow label="Week starts on" help="Calendars and the This Week group.">

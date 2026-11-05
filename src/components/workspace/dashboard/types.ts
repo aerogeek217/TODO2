@@ -14,7 +14,7 @@ export type DashboardDrill = Omit<TaskDialogPayload, 'fromTabId'>
 /** Opens the tasks behind a number; absent = numbers aren't clickable. */
 export type OnDashboardDrill = (drill: DashboardDrill) => void
 
-/** What the task-row sections (Hot, Needs follow-up) share. */
+/** What the task-row sections (Needs follow-up, Stale) share. */
 export interface DashboardRowKit {
   tabId: string
   isMobile: boolean
