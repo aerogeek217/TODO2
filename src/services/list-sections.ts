@@ -36,7 +36,10 @@ export interface ListSectionsSpec {
    * Unassigned section. `null` / empty → every person gets a section.
    */
   restrictToPersonIds?: ReadonlyArray<number> | null
-  /** Same for the tag filter when grouping by tag (no untagged section then). */
+  /**
+   * Same for the tag filter when grouping by tag: id `0` (No tags) keeps the
+   * trailing No tags section; without it there is none.
+   */
   restrictToTagIds?: ReadonlyArray<number> | null
 }
 
@@ -226,10 +229,10 @@ function restrictKeys(spec: ListSectionsSpec): { keys?: string[]; keepUngrouped:
     : null
   if (!ids || ids.length === 0) return { keepUngrouped: true }
   const prefix = spec.groupBy === 'people' ? 'person-' : 'tag-'
-  return {
-    keys: ids.filter((id) => id !== 0).map((id) => `${prefix}${id}`),
-    keepUngrouped: spec.groupBy === 'people' && ids.includes(0),
-  }
+  const keys = ids.filter((id) => id !== 0).map((id) => `${prefix}${id}`)
+  // Only the none pick (Unassigned / No tags): a key no task has, so every
+  // assigned or tagged task drops out and the trailing section alone shows.
+  return { keys: keys.length > 0 ? keys : [`${prefix}0`], keepUngrouped: ids.includes(0) }
 }
 
 /**
@@ -275,10 +278,7 @@ export function buildListSections(
     urgentRange: ctx.urgentRange,
   }
   const restrict = restrictKeys({ ...spec, groupBy })
-  // An empty restrict set means "nothing named" (only the unassigned pick):
-  // pass a key no task has so every assigned task drops out.
-  const restrictSet = restrict.keys && restrict.keys.length === 0 ? ['person-0'] : restrict.keys
-  const { groups, ungrouped } = partitionByGroup(sorted, groupBy, groupingCtx, undefined, restrictSet)
+  const { groups, ungrouped } = partitionByGroup(sorted, groupBy, groupingCtx, undefined, restrict.keys)
   const peopleById = new Map(ctx.people.map((p) => [p.id, p] as const))
 
   const sections: Section[] = groups.map((g) => {

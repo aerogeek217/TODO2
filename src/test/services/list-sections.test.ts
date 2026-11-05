@@ -268,6 +268,20 @@ describe('buildListSections — tag grouping, visible-groups intersection', () =
     expect(sections.map((s) => s.key)).toEqual(['tag-5'])
   })
 
+  it('a tag filter that includes No tags keeps the No tags section (cr31 filters F1)', () => {
+    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
+    const assigned = new Map<number, Tag[]>([[1, [ZETA]], [3, [ALPHA]]])
+    // `Tags is #zeta or No tags`: the untagged member shows, the alpha one (not a member) drops.
+    expect(buildTagSections(todos, assigned, [5, 0]).map((s) => [s.key, s.todos.map((t) => t.id)]))
+      .toEqual([['tag-5', [1]], ['no-tag', [2]]])
+    // `Tags is No tags` (a triage list): its untagged members, not a blank body.
+    expect(buildTagSections([makeTodo({ id: 2 })], assigned, [0]).map((s) => [s.key, s.todos.map((t) => t.id)]))
+      .toEqual([['no-tag', [2]]])
+    // A tagged task never shows under No tags alone.
+    expect(buildTagSections(todos, assigned, [0]).map((s) => [s.key, s.todos.map((t) => t.id)]))
+      .toEqual([['no-tag', [2]]])
+  })
+
   it('emits a task under each filter-set tag it has, dropping non-filter tags', () => {
     // T has tags {zeta, mu, alpha}; filter is {zeta, alpha} → T appears in
     // zeta and alpha sections only, never mu.
