@@ -159,6 +159,21 @@ describe('draft storage', () => {
     expect(read?.kind === 'custom' ? read.predicate.markers : undefined).toEqual([{ values: ['urgent'] }, { values: ['important'], not: true }])
   })
 
+  it('a layout draft an older build kept loses its dashboards’ Hot tile and section, the body and the base', () => {
+    const dash = (id: string) => createTab('dashboard', id)
+    const withHot = (id: string) => {
+      const tab = dash(id)
+      return { ...tab, config: { ...tab.config, tiles: [...tab.config.tiles, 'hot'], sections: [...tab.config.sections, { id: 'hot' }] } }
+    }
+    const cols = (tab: unknown) => [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'd', tabs: [tab] }] }]
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({
+      kind: 'saved', layoutId: 2, columns: cols(withHot('d')), baseColumns: cols(withHot('d')), top: { id: 'T', height: 100, tabs: [withHot('t')] }, schemaVersion: 73,
+    }))
+    expect(readLayoutDraft()).toEqual({
+      kind: 'saved', layoutId: 2, base: { columns: cols(dash('d')) }, body: { columns: cols(dash('d')), top: { id: 'T', height: 100, tabs: [dash('t')] } },
+    })
+  })
+
   it('clearUnsavedDrafts forgets both kinds', () => {
     writeLayoutDraft(savedDraft)
     writeListDrafts(new Map([[4, { draft: listDef({ name: 'B' }), base: listDef() }]]))
