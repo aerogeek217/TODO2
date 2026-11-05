@@ -190,7 +190,7 @@ test('Space on a focused row control is the control’s; on the page it toggles 
 
   // The row itself is no focusable "draggable" button (M1).
   await expect(row).not.toHaveAttribute('role', 'button')
-  await expect(row).not.toHaveAttribute('tabindex', /.*/)
+  await expect(row).toHaveAttribute('tabindex', '-1')
 
   const status = row.getByRole('button', { name: 'Set status' })
   await status.focus()

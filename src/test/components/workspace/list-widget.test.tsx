@@ -412,7 +412,8 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     setup(def({ grouping: 'people' }))
     const row = document.querySelector('[data-row-key="person-1|3"]')!
     expect(row.getAttribute('role')).toBeNull()
-    expect(row.getAttribute('tabindex')).toBeNull()
+    // Focusable by a click (the editor hands the focus back to it), no tab stop.
+    expect(row.getAttribute('tabindex')).toBe('-1')
     expect(row.getAttribute('aria-roledescription')).toBeNull()
     expect(row.getAttribute('aria-describedby')).toBeNull()
   })
