@@ -77,10 +77,11 @@ describe('TaskEditPopup — Status updates (edit mode)', () => {
     fireEvent.change(addDayField(), { target: { value: 'yesterday' } })
     await act(async () => { fireEvent.keyDown(addDayField(), { key: 'Enter' }) })
     await vi.waitFor(async () => expect(await storedTexts()).toHaveLength(2))
-    expect(shownLines()).toEqual([
+    // The section follows the store, which follows the stored rows: wait on it too.
+    await vi.waitFor(() => expect(shownLines()).toEqual([
       `${formatDateNumeric(today())}waiting on legal`,
       `${formatDateNumeric(daysAgo(1))}sent the draft`,
-    ])
+    ]))
     // The count beside the label.
     expect(section().querySelector('[id]')?.textContent).toBe('Status updates2')
   })

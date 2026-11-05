@@ -4,7 +4,7 @@
 // closes it and hands the focus back to the count. The phone row's chip opens
 // the sheet.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { act, render, screen, fireEvent, cleanup, within } from '@testing-library/react'
+import { act, render, screen, fireEvent, cleanup, within, waitFor } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
 import { MobileTaskRow } from '../../components/task/MobileTaskRow'
 import { db } from '../../data/database'
@@ -76,11 +76,12 @@ describe('TaskRow — the subtask count', () => {
 
     await act(async () => { fireEvent.click(b) })
     expect((await db.subtasks.where('todoId').equals(1).sortBy('sortOrder')).map((s) => s.isCompleted)).toEqual([true, true, false])
-    expect(count()).toHaveTextContent('2/3')
+    // The store follows the stored row: wait on what it drives, not one read.
+    await waitFor(() => expect(count()).toHaveTextContent('2/3'))
     expect(within(popover()).getByText('2 of 3')).toBeInTheDocument()
     // The check stamped the task (activity), stored and shown.
     expect((await db.todos.get(1))?.modifiedAt.getTime()).toBeGreaterThan(new Date(2026, 0, 1).getTime())
-    expect(todo().modifiedAt.getTime()).toBeGreaterThan(new Date(2026, 0, 1).getTime())
+    await waitFor(() => expect(todo().modifiedAt.getTime()).toBeGreaterThan(new Date(2026, 0, 1).getTime()))
 
     fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Subtasks of Q4 budget' })).toBeNull()
@@ -130,7 +131,7 @@ describe('MobileTaskRow — the subtasks chip', () => {
     expect(sheet).toHaveAttribute('data-subtasks-sheet')
     await act(async () => { fireEvent.click(within(sheet).getByRole('checkbox', { name: 'Check c' })) })
     expect((await db.subtasks.where('todoId').equals(1).sortBy('sortOrder')).map((s) => s.isCompleted)).toEqual([true, false, true])
-    expect(chip).toHaveTextContent('2/3 subtasks')
+    await waitFor(() => expect(chip).toHaveTextContent('2/3 subtasks'))
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Subtasks of Q4 budget' })).toBeNull()
   })

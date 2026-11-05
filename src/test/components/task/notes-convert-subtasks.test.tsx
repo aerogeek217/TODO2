@@ -111,6 +111,8 @@ describe('a task’s notes convert to subtasks', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
     // A press is dropped while the last convert settles (it would convert the same line twice).
     await waitFor(() => expect(useUndoStore.getState().groupToken).toBeNull())
+    // The group closes synchronously (`endGroup`); all that is left of the
+    // convert is promise continuations, so one macrotask has run them all.
     await act(async () => { await new Promise((r) => setTimeout(r)) })
 
     act(() => { view.dispatch({ selection: { anchor: view.state.doc.line(2).from } }) })
