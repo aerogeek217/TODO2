@@ -43,7 +43,9 @@ interface StatusUpdateState {
   remove: (id: number) => Promise<boolean>
   /**
    * Writes whole rows with no undo step of their own — a duplicate's copies
-   * (the task's create step covers them). Resolves the rows written.
+   * and a new task's drafts (the task's create step covers them). Each text
+   * is stored as `add` stores it (`statusUpdateText`); a row left with none
+   * is not written. Resolves the rows written.
    */
   addRows: (rows: readonly StatusUpdate[]) => Promise<PersistedStatusUpdate[]>
   /** Puts deleted rows back (undo), those whose task still exists. */
@@ -253,7 +255,12 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
       }, false, 'remove the status update')
     },
 
-    async addRows(rows) {
+    async addRows(given) {
+      // The one choke point for rows written whole: every text as `add` stores it, a blank one dropped.
+      const rows = given.flatMap((r) => {
+        const text = statusUpdateText(r.text)
+        return text === '' ? [] : [{ ...r, text }]
+      })
       if (rows.length === 0) return []
       return trackWrite(async () => {
         const added = await statusUpdateRepository.addMany(rows)

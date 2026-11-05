@@ -117,6 +117,20 @@ describe('status-update-store: addToMany', () => {
   })
 })
 
+describe('status-update-store: addRows', () => {
+  it('stores each text as add does and drops a row left with none', async () => {
+    const id = await task()
+    const now = new Date()
+    const added = await useStatusUpdateStore.getState().addRows([
+      { todoId: id, date: daysAgo(1), text: '', createdAt: now },
+      { todoId: id, date: daysAgo(1), text: ' Asked \n again ', createdAt: now },
+      { todoId: id, date: daysAgo(1), text: 'r'.repeat(600), createdAt: now },
+    ])
+    expect(added.map((r) => r.text)).toEqual(['Asked again', 'r'.repeat(500)])
+    expect(await storedTexts(id)).toEqual(['Asked again', 'r'.repeat(500)])
+  })
+})
+
 describe('status-update-store: update', () => {
   it('changes the day and the text, re-sorts, and undo / redo swap them', async () => {
     const id = await task()

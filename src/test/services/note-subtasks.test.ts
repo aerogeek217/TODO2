@@ -25,6 +25,16 @@ describe('noteSubtaskDrafts', () => {
     ])
   })
 
+  it('titles are as stored: a line with none makes no subtask, the rest convert; a long one is cut', () => {
+    const long = 'z'.repeat(600)
+    const lines = convertCandidates(`- Venue\n  - [x]\n  - ${long}\n  - Call`, null)
+    expect(noteSubtaskDrafts(lines)).toEqual([
+      { title: 'Venue', done: false },
+      { title: 'z'.repeat(500), done: false },
+      { title: 'Call', done: false },
+    ])
+  })
+
   it('a single done box is a done subtask', () => {
     const line = singleLineCandidateAt('- [x] Finished', 1)
     if (!line) throw new Error('no line')
@@ -54,6 +64,26 @@ describe('addSubtasksFromNote', () => {
     useUndoStore.getState().clear()
     await addSubtasksFromNote(id, [{ title: 'One', done: false }], async () => {})
     expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Added subtask “One”'])
+  })
+
+  it('a draft with no title is skipped, not a failure: the rest go in and the note is written', async () => {
+    const id = await useTodoStore.getState().add('Offsite')
+    useUndoStore.getState().clear()
+    const writeNote = vi.fn(async () => {})
+    const ok = await addSubtasksFromNote(id, [{ title: 'One', done: false }, { title: '  ', done: true }, { title: 'Two', done: false }], writeNote)
+    expect(ok).toBe(true)
+    expect(writeNote).toHaveBeenCalledOnce()
+    expect((await db.subtasks.where('todoId').equals(id).sortBy('sortOrder')).map((s) => s.title)).toEqual(['One', 'Two'])
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Added 2 subtasks'])
+  })
+
+  it('drafts with no title at all add nothing and leave the note alone', async () => {
+    const id = await useTodoStore.getState().add('Offsite')
+    useUndoStore.getState().clear()
+    const writeNote = vi.fn(async () => {})
+    expect(await addSubtasksFromNote(id, [{ title: '', done: true }], writeNote)).toBe(false)
+    expect(writeNote).not.toHaveBeenCalled()
+    expect(useUndoStore.getState().undoStack).toEqual([])
   })
 
   it('a failed write takes back what went in, leaves the note alone and leaves no step', async () => {

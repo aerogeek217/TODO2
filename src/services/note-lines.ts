@@ -16,6 +16,8 @@
  *   of their own.
  */
 
+import { subtaskTitle } from '../utils/subtasks'
+
 export type NoteLineKind = 'candidate' | 'done' | 'converted' | 'other'
 
 /** A list line's marker within it, spaces after it included: a bullet, an open box or a done box. */
@@ -59,8 +61,9 @@ function indentWidth(text: string): number {
  * The subtask lines right under line `n` (1-based) of `lines`: the lines
  * that follow it indented deeper and are list lines — a bullet or an open
  * box an open subtask, a done box a done subtask. A deeper plain or
- * converted line is left alone (a note line); a blank line, or one not
- * indented deeper, ends them. Any deeper indent counts as one level.
+ * converted line is left alone (a note line), as is a box with no text; a
+ * blank line, or one not indented deeper, ends them. Any deeper indent
+ * counts as one level. Titles are as stored (`subtaskTitle`).
  */
 export function subtaskLinesUnder(lines: readonly string[], n: number): SubtaskLine[] {
   const parent = lines[n - 1]
@@ -71,8 +74,10 @@ export function subtaskLinesUnder(lines: readonly string[], n: number): SubtaskL
     const text = lines[k - 1] ?? ''
     if (text.trim() === '' || indentWidth(text) <= parentIndent) break
     const c = classifyNoteLine(text)
-    if (c.kind === 'candidate') out.push({ line: k, text, title: c.body, done: false })
-    else if (c.kind === 'done') out.push({ line: k, text, title: c.body, done: true })
+    if (c.kind !== 'candidate' && c.kind !== 'done') continue
+    // The title as stored: an empty done box makes no subtask (as an empty open box), a long line is cut.
+    const title = subtaskTitle(c.body)
+    if (title !== '') out.push({ line: k, text, title, done: c.kind === 'done' })
   }
   return out
 }
