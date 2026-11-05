@@ -115,7 +115,10 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
     const { doc, selection } = view.state
     const { from, to, empty } = selection.main
     const first = doc.lineAt(from).number
-    const last = doc.lineAt(to).number
+    // A selection of whole lines ends at the next line's start: that line
+    // isn't in it (as Indent and Convert read it, cr31 N4).
+    const end = doc.lineAt(to)
+    const last = !empty && end.number > first && end.from === to ? end.number - 1 : end.number
     const lines = Array.from({ length: last - first + 1 }, (_, i) => doc.line(first + i))
       .filter((line) => first === last || line.text.trim() !== '')
     const next = lines.every((line) => listKindOf(line.text) === kind) ? null : kind
