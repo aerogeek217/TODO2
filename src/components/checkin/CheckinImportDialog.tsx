@@ -28,7 +28,7 @@ import { formatDateNumeric, formatDateShort } from '../../utils/date'
 import { useUIStore } from '../../stores/ui-store'
 import { DialogFrame } from '../shared/Dialog'
 import styles from './CheckinImportDialog.module.css'
-import { collapseWhitespace } from '../../utils/text'
+import { collapseWhitespace, splitEdgeSpace } from '../../utils/text'
 import { byName } from '../../utils/sort-order'
 import type { WordDiffPart } from '../../utils/word-diff'
 
@@ -526,9 +526,6 @@ function ChangeRow({ change, repeats, checked, onToggle }: {
   )
 }
 
-/** Leading whitespace, the rest, trailing whitespace. */
-const EDGE_SPACE = /^(\s*)([^]*?)(\s*)$/
-
 /**
  * A word diff as one line of text: kept words plain, removed words struck
  * (`<del>`), added words underlined (`<ins>`), each with a visually hidden
@@ -538,7 +535,7 @@ const EDGE_SPACE = /^(\s*)([^]*?)(\s*)$/
 function Redline({ parts }: { parts: readonly WordDiffPart[] }) {
   return parts.map((part, i) => {
     if (part.op === '=') return <Fragment key={i}>{part.text}</Fragment>
-    const [, lead = '', core = '', trail = ''] = EDGE_SPACE.exec(part.text) ?? []
+    const { lead, core, trail } = splitEdgeSpace(part.text)
     if (core === '') return <Fragment key={i}>{part.op === '+' ? part.text : ''}</Fragment>
     const mark = part.op === '-'
       ? <del className={styles.del}><span className={styles.srOnly}>removed </span>{core}</del>
