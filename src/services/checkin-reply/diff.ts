@@ -256,6 +256,18 @@ const countWords = (text: string) => wordTokens(text).filter((t) => /[\p{L}\p{N}
 const PAIR_MAX_CELLS = 2_500
 
 /**
+ * Above this many word-diff token cells over every pair of a run (its removed
+ * lines' tokens × its added lines' — what word-diffing each pair costs at
+ * most), the preview pairs none of them: each pair's own cap
+ * (`WORD_DIFF_MAX_CELLS`) times up to `PAIR_MAX_CELLS` pairs froze the
+ * dialog for seconds on long rewritten lines (cr31 L1). A 50-line note of
+ * 20-word lines rewritten whole stays under it.
+ */
+export const PAIR_MAX_TOKEN_CELLS = 5_000_000
+
+const tokenCount = (lines: readonly NotesDiffLine[]) => lines.reduce((n, l) => n + wordTokens(l.text).length, 0)
+
+/**
  * A removed line and an added line as one edited line: their word diff, and
  * how many words it keeps — null when it keeps fewer than half the shorter
  * line's words (or none): two unrelated lines, shown whole.
@@ -277,6 +289,7 @@ function pairRun(removed: readonly NotesDiffLine[], added: readonly NotesDiffLin
   const n = removed.length
   const m = added.length
   if (n === 0 || m === 0 || n * m > PAIR_MAX_CELLS) return [...removed, ...added]
+  if (tokenCount(removed) * tokenCount(added) > PAIR_MAX_TOKEN_CELLS) return [...removed, ...added]
   const edits = removed.map((r) => added.map((a) => editOf(r.text, a.text)))
   // best[i][j]: the most kept words pairing removed[i..] with added[j..].
   const best = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0))
