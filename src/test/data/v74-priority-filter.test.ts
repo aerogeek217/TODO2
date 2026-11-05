@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { upgradeV74 } from '../../data/upgrades/v74-priority-filter'
 import { pickPredicate } from '../../data/predicate-shape'
+import { prepareImport } from '../../data/import-pipeline'
 import { CURRENT_DB_VERSION } from '../../data/database'
 import { SCHEMA_UPGRADES, type DataRow } from '../../data/schema-upgrades'
 import { emptyFilterClauses, emptyPredicate, OR_GROUPS_MAX, type TodoPredicate } from '../../models'
@@ -158,6 +159,23 @@ describe('upgradeV74 — a stored Priority filter as conditions', () => {
     expect(pickPredicate((out[3]?.membership as { predicate: unknown }).predicate).fixes).toContain('priority filter dropped')
     const bad: DataRow[] = [{ key: 'lenses', value: '{not json' }, { key: 'eisenhowerPanes', value: 5 }]
     expect(upgradeV74({ settings: bad }).settings).toEqual(bad)
+  })
+
+  it('passes a row that is not an object through, for validation to name, in every table it reads', () => {
+    const rows = [null, 5, 'x', [1]] as unknown as DataRow[]
+    const data = { settings: [...rows, { key: 'hotRule', value: '[{"focus":true}]' }], listDefinitions: [...rows, list(legacy('hot'))], layouts: rows }
+    const out = upgradeV74(data)
+    expect(out.settings).toEqual(rows)
+    expect(out.listDefinitions?.slice(0, 4)).toEqual(rows)
+    expect((out.listDefinitions?.[4]?.membership as { predicate: TodoPredicate }).predicate.markers).toEqual([{ values: ['focus'] }])
+    expect(out.layouts).toBe(data.layouts)
+  })
+
+  it('a v73 file with such a row is refused by validation, naming the row, not by the upgrade', () => {
+    for (const table of ['settings', 'listDefinitions', 'layouts']) {
+      const file = { __schemaVersion: 73, todos: [], settings: [], [table]: [null] }
+      expect(prepareImport(file), table).toMatchObject({ ok: false, reason: 'invalid', error: expect.stringContaining(`Invalid "${table}" record at index 0`) as unknown })
+    }
   })
 
   it('a filter keeps exactly the tasks it matched', () => {

@@ -46,7 +46,7 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 
 /** The rule's lines (each an AND of markers), the default for a row that is absent or can't be read. */
 function readRule(settings: readonly DataRow[] | undefined): readonly (readonly Marker[])[] {
-  const row = settings?.find((s) => s.key === 'hotRule')
+  const row = settings?.find((s) => isRecord(s) && s.key === 'hotRule')
   if (typeof row?.value !== 'string') return DEFAULT_RULE
   let parsed: unknown
   try {
@@ -158,6 +158,7 @@ function panelWithoutHot(panel: unknown): unknown {
 
 /** A layout row (or a kept draft's body) without its dashboards' Hot. */
 function layoutWithoutHot(row: DataRow): DataRow {
+  if (!isRecord(row)) return row
   let out = row
   for (const edge of ['top', 'bottom'] as const) {
     const band = panelWithoutHot(out[edge])
@@ -181,12 +182,13 @@ function withPredicateAt<T extends Record<string, unknown>>(holder: T, key: stri
 export function upgradeV74(data: DataSet): DataSet {
   const rule = readRule(data.settings)
   const lists = data.listDefinitions && mapSame(data.listDefinitions, (row) => {
-    if (!isRecord(row.membership)) return row
+    if (!isRecord(row) || !isRecord(row.membership)) return row
     const membership = withPredicateAt(row.membership, 'predicate', rule)
     return membership === row.membership ? row : { ...row, membership }
   })
   const layouts = data.layouts && mapSame(data.layouts, layoutWithoutHot)
   const upgradedSettings = data.settings && mapSame(data.settings, (row) => {
+    if (!isRecord(row)) return row
     switch (row.key) {
       case 'checkinTaskFilter':
         return withJsonValue(row, (filter) => upgradePredicate(filter, rule))
@@ -209,8 +211,8 @@ export function upgradeV74(data: DataSet): DataSet {
         return row
     }
   })
-  const hasRule = upgradedSettings?.some((row) => row.key === 'hotRule') === true
-  const settings = hasRule ? upgradedSettings?.filter((row) => row.key !== 'hotRule') : upgradedSettings
+  const isRule = (row: DataRow) => isRecord(row) && row.key === 'hotRule'
+  const settings = upgradedSettings?.some(isRule) === true ? upgradedSettings.filter((row) => !isRule(row)) : upgradedSettings
   if (lists === data.listDefinitions && settings === data.settings && layouts === data.layouts) return data
   return {
     ...data,
