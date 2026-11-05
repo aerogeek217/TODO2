@@ -79,7 +79,10 @@ export const ListWidgetRow = memo(function ListWidgetRow({
 
   return (
     <TaskDraggable todo={todo} surface="list-widget" scope={tabId} sectionKey={sectionKey} extraData={{ ...dragData }}>
-      {({ attributes, listeners, setNodeRef }) => (
+      {/* Only the pointer listeners: dnd-kit's `attributes` would make the row a
+          focusable `role=button` "draggable" naming every control in it, with
+          instructions for a keyboard drag that doesn't exist (no KeyboardSensor). */}
+      {({ listeners, setNodeRef }) => (
         <div
           ref={setNodeRef}
           className={cls}
@@ -88,7 +91,6 @@ export const ListWidgetRow = memo(function ListWidgetRow({
           data-selected={selected ? 'true' : undefined}
           data-cursor={cursor ? 'true' : undefined}
           data-leaving={leaving}
-          {...attributes}
           {...listeners}
           // Shift / Ctrl-click selects rows; don't let it select text too.
           onMouseDown={(e) => { if (e.shiftKey || e.ctrlKey || e.metaKey) e.preventDefault() }}
