@@ -12,16 +12,15 @@ import type {
  * tasks and what is needed to re-attach them on an append import:
  *
  * - `todos` and their `todoPeople` / `todoTags` join rows,
- *   `todoEvents` history and `statusUpdates`;
+ *   `todoEvents` history, `statusUpdates` and `subtasks`;
  * - the referenced `people` / `tags` / `statuses` rows, so the append
  *   import can match them **by name** in another database.
  *
  * It imports through the same pipeline as everything else
  * (`prepareImport(…, { purpose: 'append' })` — the schema transforms tolerate
  * the missing tables), so an archive written today still loads after later
- * schema changes — e.g. older archives carry `orgs` / `todoOrgs`, which the
- * upgrade turns into people and person assignments, and `projects`, which
- * it turns into `Project: <name>` tags.
+ * schema changes, as long as its version is at or above the floor
+ * (`OLDEST_SUPPORTED_DB_VERSION`); one from below it is refused.
  */
 export interface TaskArchive {
   [SCHEMA_VERSION_KEY]: number

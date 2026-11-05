@@ -24,8 +24,8 @@ export async function readDataTables(): Promise<DataTableArrays> {
 /**
  * Reads all database tables (`readDataTables`) and returns a plain object
  * suitable for JSON serialization (export, file-storage save, or backup
- * snapshot) — every data table, so it round-trips through `parseAndRestore`
- * without silent loss.
+ * snapshot) — every data table, so it round-trips through the import
+ * pipeline (`prepareImport` → `restoreFromImportData`) without silent loss.
  *
  * The returned object is stamped with `__schemaVersion = CURRENT_DB_VERSION` so
  * the import path can detect older files without reaching for field-shape
