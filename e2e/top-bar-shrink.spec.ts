@@ -162,3 +162,28 @@ test('narrowing: the search narrows first, then the value is cut, then the filte
   await page.setViewportSize({ width: 1600, height: 900 })
   await expect.poll(() => settled(page)).toEqual(wide)
 })
+
+test('a pick that needs the fold waits for its picker to close: the button and its picker stay put mid-pick (cr31 UI F10)', async ({ page }) => {
+  // Just wide enough for every filter button with no value; a Status value folds them.
+  await page.setViewportSize({ width: 1290, height: 900 })
+  await seedWorkspace(page, SEED)
+  await expectEveryFilterButton(page)
+  expect((await settled(page)).fold).toBe('none')
+
+  const status = tray(page).getByRole('button', { name: /^Status filter/ })
+  await status.click()
+  const list = page.getByRole('listbox', { name: 'Status' })
+  await list.getByRole('option', { name: 'Assigned' }).click()
+  await list.getByRole('option', { name: 'Waiting' }).click()
+  // Still open, both picked, the bar unfolded under it.
+  await expect(list.getByRole('option', { name: 'Waiting' })).toHaveAttribute('aria-selected', 'true')
+  await expect(list.getByRole('option', { name: 'Assigned' })).toHaveAttribute('aria-selected', 'true')
+  await expect(filtersMenu(page)).toHaveCount(0)
+  await expect(status).toHaveAccessibleName('Status filter: Assigned or Waiting')
+
+  // Closed: now it folds.
+  await page.keyboard.press('Escape')
+  await expect(list).toHaveCount(0)
+  await expect(filtersMenu(page)).toHaveAccessibleName('Filters, 1 active')
+  expect(await settled(page)).toMatchObject({ fold: 'filters', oneLine: true })
+})

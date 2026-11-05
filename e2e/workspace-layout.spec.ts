@@ -446,7 +446,7 @@ test.describe('saved layouts', () => {
 
     // Only the phone's Settings tab still navigates away from the workspace.
     await page.setViewportSize({ width: 390, height: 844 })
-    const settingsTab = page.getByRole('tab', { name: 'Settings' })
+    const settingsTab = page.getByRole('button', { name: 'Settings' })
     await settingsTab.click()
     const dialog = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
     await expect(dialog).toContainText('You’re leaving the workspace.')
@@ -458,7 +458,7 @@ test.describe('saved layouts', () => {
     await expect(page).toHaveURL(/#\/settings$/)
 
     // Back on the workspace: the discarded change is gone, nothing to save.
-    await page.getByRole('tab', { name: 'Workspace' }).click()
+    await page.getByRole('button', { name: 'Workspace' }).click()
     await page.setViewportSize({ width: 1280, height: 800 })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')

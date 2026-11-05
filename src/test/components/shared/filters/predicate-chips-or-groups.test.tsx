@@ -116,6 +116,11 @@ describe('PredicateChips — or groups on the filter line', () => {
     expect(log.at(-1)?.tags).toBeNull()
   })
 
+  it('a chip says it opens a popover (cr31 UI F9)', () => {
+    render(<Harness initial={grouped} log={[]} />)
+    for (const c of screen.getAllByTestId('list-filter-chip')) expect(c).toHaveAttribute('aria-haspopup', 'dialog')
+  })
+
   it('a chip in a group: × takes it out; the group left with one item goes, the item staying', () => {
     const log: TodoPredicate[] = []
     render(<Harness initial={grouped} log={log} />)
@@ -483,5 +488,159 @@ describe('PredicateChips — Dates again while a date type is free (cr25 P4b)', 
     render(<Harness initial={{ ...waiting, orGroups: [clauses({ markers: [{ values: ['focus'] }], dates: allButCompleted })] }} log={[]} dateHost={{ omit: ['completed'] }} />)
     fireEvent.click(within(screen.getByTestId('or-group')).getAllByRole('button', { name: 'Group' })[0]!)
     expect(panelFields()).not.toContain('Dates')
+  })
+})
+
+describe('PredicateChips — two rows on one filter (cr31 UI F1)', () => {
+  /** The list's filter line and Edit list's Filters block, both on one predicate. */
+  function TwoRows({ initial, log }: { initial: TodoPredicate; log: TodoPredicate[] }) {
+    const [p, setP] = useState(initial)
+    const onChange = (next: TodoPredicate) => { log.push(next); setP(next) }
+    return (
+      <>
+        <div data-testid="line"><PredicateChips predicate={p} onChange={onChange} /></div>
+        <div data-testid="editor"><PredicateChips predicate={p} onChange={onChange} layout="stack" inDialog /></div>
+      </>
+    )
+  }
+  const texted: TodoPredicate = { ...waiting, orGroups: [clauses({ searchText: '1499', personIds: [1] })] }
+  const editorChip = (text: RegExp) => within(screen.getByTestId('editor')).getAllByTestId('list-filter-chip').find((c) => text.test(c.textContent ?? ''))!
+
+  it('a group emptied to one item under the editor’s open picker stays a group: the next keystrokes fill it again (OR stays OR)', () => {
+    const log: TodoPredicate[] = []
+    render(<TwoRows initial={texted} log={log} />)
+    fireEvent.click(editorChip(/Text/))
+    const field = screen.getByRole('textbox')
+    fireEvent.change(field, { target: { value: '' } })
+    // The filter line, settled, leaves the group alone while the editor's picker is open on it.
+    expect(log.at(-1)?.orGroups).toEqual([clauses({ personIds: [1] })])
+    expect(within(screen.getByTestId('line')).getByTestId('or-group')).toBeInTheDocument()
+    fireEvent.change(field, { target: { value: '1498' } })
+    expect(log.at(-1)).toEqual({ ...waiting, orGroups: [clauses({ searchText: '1498', personIds: [1] })] })
+    expect(log.every((p) => p.searchText === '')).toBe(true)
+  })
+
+  it('emptied and closed: the row the edit was made in dissolves the group once', () => {
+    const log: TodoPredicate[] = []
+    render(<TwoRows initial={texted} log={log} />)
+    fireEvent.click(editorChip(/Text/))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } })
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Enter' })
+    expect(log.at(-1)).toEqual({ ...waiting, personIds: [1] })
+    expect(screen.queryByTestId('or-group')).toBeNull()
+    // One dissolve, not one per row.
+    expect(log.filter((p) => p.personIds != null && (p.orGroups ?? []).length === 0)).toHaveLength(1)
+  })
+
+  it('a row with no edit of its own never dissolves a group of one it is shown', () => {
+    const log: TodoPredicate[] = []
+    render(<TwoRows initial={{ ...waiting, orGroups: [clauses({ personIds: [1] })] }} log={log} />)
+    expect(log).toEqual([])
+    expect(screen.getAllByTestId('or-group')).toHaveLength(2)
+  })
+})
+
+describe('PredicateChips — a pending date Is not is kept per scope (cr31 UI F3)', () => {
+  const dueSwitch = (name: 'Is' | 'Is not') => within(screen.getByRole('radiogroup', { name: 'Due: is or is not' })).getByRole('radio', { name })
+
+  it('an Is not left pending on the predicate’s own Due doesn’t open a group’s Due panel on Is not', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={grouped} log={log} />)
+    // + Filter › Dates opens on Due (free): Is not, no end yet — nothing written.
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
+    fireEvent.click(dueSwitch('Is not'))
+    expect(log).toEqual([])
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    // The group's panel › Dates opens on its own Due: Is.
+    fireEvent.click(within(screen.getByTestId('or-group')).getByRole('button', { name: 'Group' }))
+    fireEvent.click(within(screen.getByTestId('or-group-panel')).getByRole('button', { name: 'Dates' }))
+    expect(dueSwitch('Is')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    // The predicate's own Due still has it pending.
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
+    expect(dueSwitch('Is not')).toHaveAttribute('aria-checked', 'true')
+  })
+})
+
+describe('PredicateChips — where the focus goes when a chip does (cr31 UI F4)', () => {
+  const chips = () => screen.getAllByTestId('list-filter-chip')
+
+  it('Delete on a focused chip: the chip now in its place takes the focus; the last one gone, + Filter', () => {
+    render(<Harness initial={{ ...waiting, personIds: [1] }} log={[]} layout="stack" />)
+    chip(/Status/).focus()
+    fireEvent.keyDown(chip(/Status/), { key: 'Delete' })
+    expect(document.activeElement).toBe(chip(/People/))
+    fireEvent.keyDown(chip(/People/), { key: 'Backspace' })
+    expect(screen.queryAllByTestId('list-filter-chip')).toHaveLength(0)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Filter' }))
+  })
+
+  it('× on the last chip: the chip before it', () => {
+    render(<Harness initial={{ ...waiting, personIds: [1] }} log={[]} />)
+    const remove = within(chip(/People/)).getByRole('button', { name: 'Remove filter' })
+    remove.focus()
+    fireEvent.click(remove)
+    expect(document.activeElement).toBe(chip(/Status/))
+  })
+
+  it('a group dissolving under the focused chip: the chip, drawn in its place, keeps the focus', () => {
+    render(<Harness initial={grouped} log={[]} layout="stack" />)
+    chip(/Priority/).focus()
+    fireEvent.keyDown(chip(/Priority/), { key: 'Delete' })
+    expect(screen.queryByTestId('or-group')).toBeNull()
+    expect(chips().map((c) => c.textContent)).toEqual(['StatusWaiting', 'PeopleAlice'])
+    expect(document.activeElement).toBe(chip(/People/))
+  })
+})
+
+describe('PredicateChips — rows keep their order (cr31 UI F5)', () => {
+  const rowTexts = () => Array.from(screen.getByTestId('filter-stack').querySelectorAll('[data-testid="list-filter-chip"], [data-testid="or-group"]'))
+    .filter((el) => el.parentElement?.closest('[data-testid="or-group"]') == null)
+    .map((el) => el.textContent)
+
+  it('Esc reaching close twice drops only the held group’s row: the next group keeps its place', () => {
+    const p: TodoPredicate = {
+      ...waiting,
+      tags: [10],
+      searchText: 'a',
+      // A group of one on a field the predicate filters stays a group.
+      orGroups: [clauses({ searchText: 'x' }), clauses({ personIds: [1], searchText: 'b' })],
+    }
+    render(<Harness initial={p} log={[]} layout="stack" />)
+    // A chip added last, after the groups.
+    fireEvent.click(screen.getByRole('button', { name: 'Another filter (AND)' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'People' }))
+    tick('Bob')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    const before = rowTexts()
+    expect(before.slice(-3)).toEqual(['Text“x”', 'PeopleAliceorText“b”', 'PeopleBob'])
+    fireEvent.click(within(screen.getAllByTestId('or-group')[0]!).getByTestId('list-filter-chip'))
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: '' } })
+    // Emptied: the group is held by its picker. Esc in the field closes it.
+    fireEvent.keyDown(screen.getByRole('textbox'), { key: 'Escape' })
+    expect(screen.queryByTestId('list-filter-picker')).toBeNull()
+    expect(rowTexts()).toEqual([...before.slice(0, -3), 'PeopleAliceorText“b”', 'PeopleBob'])
+  })
+
+  it('a Priority chip emptied in its picker with later ones behind it: the later ones keep their places', () => {
+    const p: TodoPredicate = {
+      ...emptyPredicate(),
+      markers: [{ values: ['focus'] }, { values: ['urgent'] }],
+      statusIds: [2],
+    }
+    render(<Harness initial={p} log={[]} layout="stack" />)
+    // Rows as stored: Priority, Priority, Status. Add a third Priority last.
+    fireEvent.click(screen.getByRole('button', { name: 'Another filter (AND)' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Priority' }))
+    tick('Important')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    expect(rowTexts()).toEqual(['PriorityFocus', 'PriorityUrgent', 'StatusWaiting', 'PriorityImportant'])
+    // The first one emptied in its picker: it goes, the picker closes.
+    fireEvent.click(chip(/Focus/))
+    tick('Focus')
+    expect(screen.queryByTestId('list-filter-picker')).toBeNull()
+    expect(rowTexts()).toEqual(['PriorityUrgent', 'StatusWaiting', 'PriorityImportant'])
   })
 })

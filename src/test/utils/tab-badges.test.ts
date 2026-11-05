@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   countTabBadges,
+  inTabBadgeRange,
   parseTabBadgeRange,
   pickListTabBadges,
   tabBadgeRangeLabel,
@@ -66,6 +67,20 @@ describe('countTabBadges', () => {
     expect(countTabBadges([task({ due: -1, followup: -1 })], { due: 'off', followup: 'off' }, today).due).toBe(0)
     expect(countTabBadges([task({ due: -1, followup: -1, done: true })], { due: 3, followup: 0 }, today))
       .toEqual({ due: 0, dueOverdue: 0, followup: 0, followupOverdue: 0 })
+  })
+})
+
+describe('inTabBadgeRange', () => {
+  const ranges = { due: 3, followup: 0 }
+  const tasks = [
+    task({ due: -1 }), task({ due: 3 }), task({ due: 4 }), task({ followup: 0 }), task({ followup: 1 }),
+    task({ due: 1, followup: -2 }), task({}), task({ due: -1, done: true }),
+  ]
+
+  it('is the tasks countTabBadges counts: open, a date inside its range (cr31 UI W4)', () => {
+    expect(tasks.map((t) => inTabBadgeRange(t, ranges, today))).toEqual([true, true, false, true, false, true, false, false])
+    expect(countTabBadges(tasks.filter((t) => inTabBadgeRange(t, ranges, today)), ranges, today)).toEqual(countTabBadges(tasks, ranges, today))
+    expect(tasks.some((t) => inTabBadgeRange(t, { due: 'off', followup: 'off' }, today))).toBe(false)
   })
 })
 

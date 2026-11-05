@@ -889,15 +889,20 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async setEisenhowerPanes(panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) {
-    const next = pickPanes(panes ?? {}).panes
-    if (formatPanesSetting(get().eisenhowerPanes) === formatPanesSetting(next)) return
+    // A group of one stays: the pane's filter row dissolves it once no picker is open on it.
+    const keep = { keepSingleGroups: true }
+    const next = pickPanes(panes ?? {}, keep).panes
+    const now = get().eisenhowerPanes
+    if (JSON.stringify(pickPanes(now, keep).panes) === JSON.stringify(next)) return
+    // Only a group of one dissolved (the stored text reads the same): no undo step of its own.
+    const sameStored = formatPanesSetting(now) === formatPanesSetting(next)
     const saved = await writeEisenhowerPanes(next)
     if (saved.stale) return
     if (!saved.ok) {
       useUndoStore.getState().notify('Couldn’t save the Eisenhower panes.')
       return
     }
-    recordPanesUndo(saved.before, next, description, mergeKey)
+    if (!sameStored) recordPanesUndo(saved.before, next, description, mergeKey)
   },
 
 }))

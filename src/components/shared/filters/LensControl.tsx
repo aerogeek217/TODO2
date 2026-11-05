@@ -45,7 +45,8 @@ export function LensControl({ nameWidth = null }: { nameWidth?: number | null } 
           type="button"
           className={styles.toggle}
           aria-pressed={!lifted}
-          aria-label={lifted ? 'Lens lifted. Put it back' : 'Lens on. Lift it'}
+          // One name for both states: aria-pressed says which (lifted = not pressed).
+          aria-label="Apply the lens"
           onClick={() => useUIStore.getState().setLensLifted(!lifted)}
           {...toggleTip.triggerProps}
         >

@@ -263,13 +263,16 @@ export function createScreenComposedEvaluator(
   today: Date,
   settings: FilterSettings,
 ): (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean {
-  const criteriaByPredicate = new WeakMap<TodoPredicate, FilterCriteria>()
+  // Composed once per predicate, not once per task.
+  const stagesByPredicate = new WeakMap<TodoPredicate, readonly [FilterCriteria, FilterCriteria]>()
   return (predicate, todo) => {
-    let criteria = criteriaByPredicate.get(predicate)
-    if (!criteria) {
-      criteria = predicateToCriteria(predicate)
-      criteriaByPredicate.set(predicate, criteria)
+    let stages = stagesByPredicate.get(predicate)
+    if (!stages) {
+      stages = composeScreenFilter(screen, predicateToCriteria(predicate))
+      stagesByPredicate.set(predicate, stages)
     }
-    return matchesComposedFilter(screen, criteria, todo, lookups, today, settings)
+    const [screenStage, listStage] = stages
+    return matchesFilterWithLookups(listStage, todo, lookups, today, settings)
+      && matchesFilterWithLookups(screenStage, todo, lookups, today, settings)
   }
 }

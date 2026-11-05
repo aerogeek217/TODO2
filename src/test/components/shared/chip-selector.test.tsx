@@ -133,6 +133,17 @@ describe('ChipSelector', () => {
     expect(onCreate).not.toHaveBeenCalled()
   })
 
+  it('the Enter or Tab that ends an IME composition toggles and creates nothing (cr31 UI F7)', () => {
+    const { onToggle, onCreate } = renderPicker()
+    type('dan')
+    fireEvent.keyDown(input(), { key: 'Enter', isComposing: true })
+    fireEvent.keyDown(input(), { key: 'Tab', isComposing: true })
+    expect(onToggle).not.toHaveBeenCalled()
+    expect(onCreate).not.toHaveBeenCalled()
+    key('Enter')
+    expect(onToggle).toHaveBeenCalledWith(5)
+  })
+
   it('a pick with a query typed clears it: the whole list, re-sorted, the pick highlighted at its new place', () => {
     function Host() {
       const [selected, setSelected] = useState(new Set([3]))

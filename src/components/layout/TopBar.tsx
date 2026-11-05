@@ -607,8 +607,8 @@ export function TopBar() {
                 if (CARET_KEYS.has(e.key)) box.onCaretMove(e.currentTarget)
               }}
               onScroll={syncMirror}
-              aria-controls="search-results"
-              aria-expanded={showMiniList || popupOpen}
+              // A text box: no aria-expanded (not one of its states); the results it controls while shown.
+              aria-controls={showMiniList ? 'search-results' : undefined}
               onFocus={() => setSearchFocused(true)}
               onBlur={(e) => {
                 dismissPopup()

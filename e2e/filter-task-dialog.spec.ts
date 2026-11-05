@@ -432,7 +432,7 @@ test.describe('phone', () => {
     await seedWorkspace(page, SEED)
     const rows = page.locator('[data-ws-area] [data-todo-id]')
     await expect(rows).toHaveCount(4)
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('tab', { name: 'Filters', exact: true }).click()
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Filters', exact: true }).click()
     await expect(page.getByRole('button', { name: /^Show \d+ tasks?$/ })).toHaveCount(0)
     await page.getByPlaceholder('Search tasks...').fill('ann')
     await page.getByRole('button', { name: 'Show 2 tasks' }).click()

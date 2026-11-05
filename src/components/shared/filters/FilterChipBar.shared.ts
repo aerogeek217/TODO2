@@ -58,6 +58,12 @@ export type FoldVariant = 'open' | 'folded'
 export const FOLD_HIDDEN_ATTR = 'data-fold-hidden'
 /** On a filter button's value text while the filter is on: the field (`people`, …). */
 export const FOLD_VALUE_ATTR = 'data-fold-value'
+/**
+ * On a filter button (or the Filters menu's) while its picker is open: the
+ * bar keeps its fold until it closes, so a pick that widens a value never
+ * folds the button — and its picker — away mid-pick.
+ */
+export const FOLD_HOLD_ATTR = 'data-fold-hold'
 
 export const DEFAULT_PREDICATE: TodoPredicate = {
   showCompleted: false,
