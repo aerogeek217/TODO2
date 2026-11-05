@@ -29,43 +29,11 @@ describe('NotesToolbar', () => {
     cleanup()
   })
 
-  it('Bold wraps the current selection in **', () => {
-    selectRange(view, 0, 5) // "hello"
+  it('has no bold, italic or heading buttons', () => {
     render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
-    fireEvent.click(screen.getByLabelText('Bold'))
-    expect(view.state.doc.toString()).toBe('**hello** world')
-  })
-
-  it('Italic wraps the current selection in *', () => {
-    selectRange(view, 6, 11) // "world"
-    render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
-    fireEvent.click(screen.getByLabelText('Italic'))
-    expect(view.state.doc.toString()).toBe('hello *world*')
-  })
-
-  it('Bold with collapsed caret inserts `****` and places cursor between markers', () => {
-    selectRange(view, 5, 5)
-    render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
-    fireEvent.click(screen.getByLabelText('Bold'))
-    expect(view.state.doc.toString()).toBe('hello**** world')
-    expect(view.state.selection.main.anchor).toBe(7)
-  })
-
-  it('Heading 1 prepends `# ` to the current line', () => {
-    selectRange(view, 0, 0)
-    render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
-    fireEvent.click(screen.getByLabelText('Heading 1'))
-    expect(view.state.doc.toString()).toBe('# hello world')
-  })
-
-  it('Heading 2 replaces an existing H1 marker', () => {
-    view.destroy()
-    view = makeView('# title')
-    viewRef.current = view
-    selectRange(view, 0, 0)
-    render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
-    fireEvent.click(screen.getByLabelText('Heading 2'))
-    expect(view.state.doc.toString()).toBe('## title')
+    for (const name of ['Bold', 'Italic', 'Heading 1', 'Heading 2']) {
+      expect(screen.queryByLabelText(name)).toBeNull()
+    }
   })
 
   it('Bullet prepends `- ` to the current line', () => {
@@ -90,6 +58,68 @@ describe('NotesToolbar', () => {
     render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
     fireEvent.click(screen.getByLabelText('Bullet list'))
     expect(view.state.doc.toString()).toBe('- one\n- two\n- three')
+  })
+
+  describe('the list buttons change or toggle what a line has', () => {
+    const click = (name: string, doc: string, from = 0, to = from) => {
+      view.destroy()
+      view = makeView(doc)
+      viewRef.current = view
+      selectRange(view, from, to)
+      const { unmount } = render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
+      fireEvent.click(screen.getByLabelText(name))
+      unmount()
+      return view.state.doc.toString()
+    }
+
+    it.each([
+      ['Bullet list', '- item', 'item'],
+      ['Bullet list', '* item', 'item'],
+      ['Bullet list', '• item', 'item'],
+      ['Bullet list', '- [ ] item', '- item'],
+      ['Bullet list', '[ ] item', '- item'],
+      ['Bullet list', '- [x] item', '- item'],
+      ['Bullet list', '- ', ''],
+      ['Bullet list', '- [ ] ', '- '],
+      ['Bullet list', '', '- '],
+      ['Checkbox', '- [ ] item', 'item'],
+      ['Checkbox', '[ ] item', 'item'],
+      ['Checkbox', '- [x] item', 'item'],
+      ['Checkbox', '- item', '- [ ] item'],
+      ['Checkbox', '* item', '- [ ] item'],
+      ['Checkbox', '- ', '- [ ] '],
+      ['Checkbox', '', '- [ ] '],
+      ['Checkbox', '  - nested', '  - [ ] nested'],
+      ['Bullet list', '  - [ ] nested', '  - nested'],
+      ['Bullet list', '  - nested', '  nested'],
+      ['Bullet list', '  plain', '  - plain'],
+    ])('%s on %j gives %j', (name, doc, result) => {
+      expect(click(name, doc, doc.length)).toBe(result)
+    })
+
+    it('the caret stays in the text', () => {
+      click('Checkbox', '- item', 4)
+      expect(view.state.doc.toString()).toBe('- [ ] item')
+      expect(view.state.selection.main.head).toBe(8)
+      click('Bullet list', '- item', 4)
+      expect(view.state.doc.toString()).toBe('item')
+      expect(view.state.selection.main.head).toBe(2)
+    })
+
+    it('a caret on an empty line or at the start of the text goes after the new marker', () => {
+      click('Checkbox', '')
+      expect(view.state.selection.main.head).toBe(6)
+      click('Bullet list', 'item')
+      expect(view.state.selection.main.head).toBe(2)
+    })
+
+    it('over several lines: all of that kind go back to plain, else all become it; blank lines are left alone', () => {
+      const all = '- one\n\n- two'
+      expect(click('Bullet list', all, 0, all.length)).toBe('one\n\ntwo')
+      const mixed = '- one\nplain\n- [ ] box'
+      expect(click('Bullet list', mixed, 0, mixed.length)).toBe('- one\n- plain\n- box')
+      expect(click('Checkbox', mixed, 0, mixed.length)).toBe('- [ ] one\n- [ ] plain\n- [ ] box')
+    })
   })
 
   it('Outdent sits before Indent, as in other editors', () => {

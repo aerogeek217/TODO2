@@ -119,9 +119,9 @@ test.describe('notes autocomplete', () => {
     await page.keyboard.type('Mail bob@acme.com about the SOW')
     await expect(popup(page)).toBeHidden()
     await expect(editor.locator('.cm-nlp-tint')).toHaveCount(0)
-    // Alt+T opens the task popup prefilled from the line; ⏎ creates.
+    // Alt+T opens Quick Add prefilled from the line; ⏎ creates.
     await page.keyboard.press('Alt+t')
-    await expect(page.getByRole('textbox', { name: /^New task…/ })).toHaveValue('Mail bob@acme.com about the SOW')
+    await expect(page.getByRole('dialog', { name: 'Quick add task' }).getByPlaceholder('New task…')).toHaveValue('Mail bob@acme.com about the SOW')
     await page.keyboard.press('Enter')
     await expect(editor.locator('.cm-line').first()).toHaveText('✓ Mail bob@acme.com about the SOW')
     expect(await storedNames(page, 'people')).toEqual(['Anna', 'Dana Kim'])

@@ -34,6 +34,68 @@
   font-family: inherit;
 }
 
+/* A list marker shown as a symbol (`notes-list-markers`): its characters stay in
+   the text, unseen and with no width (the font is monospaced), at the line's full
+   height. Not `font-size: 0`: a box with no height sends CodeMirror's click search
+   to the wrong piece of the line, and a caret inside it has no height to draw. */
+.host :global(.cm-list-marker) {
+  letter-spacing: -1ch;
+  color: transparent;
+}
+
+.host :global(.cm-list-marker)::before {
+  display: inline-block;
+  width: 2ch;
+  letter-spacing: normal;
+  color: var(--color-text-muted);
+}
+
+.host :global(.cm-list-marker[data-marker="bullet"])::before {
+  content: '•';
+}
+
+.host :global(.cm-list-marker[data-marker="open"])::before {
+  content: '☐';
+}
+
+.host :global(.cm-list-marker[data-marker="done"])::before {
+  content: '☑';
+}
+
+/* The left margin the convert icon sits in (`notes-line-convert`). Touch has no hover: no icon, no margin. */
+@media (hover: hover) {
+  .host :global(.cm-has-line-convert .cm-scroller) {
+    position: relative;
+    padding-left: 26px;
+  }
+}
+
+.host :global(.cm-line-convert) {
+  position: absolute;
+  left: 3px;
+  width: 20px;
+  height: 20px;
+  display: none;
+  place-items: center;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .host :global(.cm-line-convert[data-show]) {
+    display: grid;
+  }
+}
+
+.host :global(.cm-line-convert:hover) {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
 .host :global(.cm-content) {
   caret-color: var(--color-text-primary);
 }
@@ -58,23 +120,6 @@
 .host :global(.cm-selectionBackground),
 .host :global(.cm-content ::selection) {
   background: var(--color-accent-dim, rgba(162, 207, 203, 0.35)) !important;
-}
-
-.host :global(.tok-heading) {
-  color: var(--color-text-muted);
-  font-weight: 600;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-  font-size: 11.5px;
-}
-
-.host :global(.tok-emphasis) {
-  font-style: italic;
-}
-
-.host :global(.tok-strong) {
-  font-weight: 700;
-  color: var(--color-text-primary);
 }
 
 .host :global(.tok-monospace) {

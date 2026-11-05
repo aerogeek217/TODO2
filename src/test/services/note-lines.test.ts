@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  listMarker,
   applyTextChanges,
   classifyNoteLine,
   convertCandidates,
@@ -116,6 +117,51 @@ function at(text: string, line: number, col = 0): number {
   for (let n = 1; n < line; n++) off += (lines[n - 1]?.length ?? 0) + 1
   return off + col
 }
+
+describe('singleLineCandidate (Alt+T, the hover icon)', () => {
+  it.each([
+    ['- bullet', 'bullet'],
+    ['* star', 'star'],
+    ['• dot', 'dot'],
+    ['- [ ] box', 'box'],
+    ['[ ] bare box', 'bare box'],
+    ['  - nested', 'nested'],
+    ['plain text', 'plain text'],
+    ['# Heading', 'Heading'],
+    ['### Sub', 'Sub'],
+    ['- [x] done', 'done'],
+    ['[X] done', 'done'],
+    ['#tag first', '#tag first'],
+  ])('%j gives the title %j', (line, title) => {
+    expect(singleLineCandidate(line, 1)?.body).toBe(title)
+  })
+
+  it.each(['', '   ', '# ', '- ', '- [ ] ', '✓ converted', '- ✓ converted'])('not %j', (line) => {
+    expect(singleLineCandidate(line, 1)).toBeNull()
+  })
+})
+
+describe('listMarker (the symbols shown in the editor)', () => {
+  it.each([
+    ['- item', { from: 0, to: 2, kind: 'bullet' }],
+    ['* item', { from: 0, to: 2, kind: 'bullet' }],
+    ['• item', { from: 0, to: 2, kind: 'bullet' }],
+    ['  - nested', { from: 2, to: 4, kind: 'bullet' }],
+    ['- [ ] item', { from: 0, to: 6, kind: 'open' }],
+    ['[ ] item', { from: 0, to: 4, kind: 'open' }],
+    ['  - [ ] nested', { from: 2, to: 8, kind: 'open' }],
+    ['- [x] item', { from: 0, to: 6, kind: 'done' }],
+    ['[X] item', { from: 0, to: 4, kind: 'done' }],
+    ['- ', { from: 0, to: 2, kind: 'bullet' }],
+    ['- [ ]', { from: 0, to: 5, kind: 'open' }],
+  ])('%j', (line, marker) => {
+    expect(listMarker(line)).toEqual(marker)
+  })
+
+  it.each(['plain', '-no space', '-', '# Heading', '✓ converted', '', '  ', '1. numbered'])('none on %j', (line) => {
+    expect(listMarker(line)).toBeNull()
+  })
+})
 
 describe('selectionLines', () => {
   it('is null for an empty selection', () => {

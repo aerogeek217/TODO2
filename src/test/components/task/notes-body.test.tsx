@@ -35,7 +35,7 @@ describe('NotesBody', () => {
     })
     render(<NotesBody />)
     expect(screen.getByRole('toolbar', { name: /Notes formatting/i })).toBeInTheDocument()
-    expect(screen.getByLabelText('Bold')).toBeInTheDocument()
+    expect(screen.getByLabelText('Bullet list')).toBeInTheDocument()
     expect(screen.getByLabelText('Copy as rich text')).toBeInTheDocument()
   })
 

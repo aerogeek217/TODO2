@@ -8,6 +8,8 @@ import { notesNlp, notesPopupField, type NotesNlpConfig, type NotesPopupState } 
 import { NotesNlpPopup } from './NotesNlpPopup'
 import { convertHighlight } from './notes-convert-highlight'
 import { notesIndent } from './notes-indent'
+import { lineConvert } from './notes-line-convert'
+import { notesListMarkers } from './notes-list-markers'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import styles from './NotesEditor.module.css'
 import { shortcutScope } from '../../../utils/dom-contract'
@@ -34,6 +36,8 @@ interface NotesEditorProps {
   nlp?: NotesNlpConfig
   /** Shown to the user when the `nlp` popup's create row fails. */
   onNlpError?: (message: string) => void
+  /** The left margin's hover icon converts this line (1-based); absent = no icon and no margin. */
+  onLineConvert?: (line: number) => void
 }
 
 /**
@@ -68,6 +72,7 @@ export function NotesEditor({
   viewRef: externalViewRef,
   nlp,
   onNlpError,
+  onLineConvert,
 }: NotesEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -81,6 +86,10 @@ export function NotesEditor({
   // applied `value` is never reported back as a change.
   const valueRef = useRef(value)
   const keymapCompartment = useRef(new Compartment())
+  const lineConvertCompartment = useRef(new Compartment())
+  const onLineConvertRef = useLatestRef(onLineConvert)
+  const hasLineConvert = onLineConvert !== undefined
+  const lineConvertExtension = useLatestRef(() => lineConvert((_view, line) => onLineConvertRef.current?.(line)))
   const [popup, setPopup] = useState<{ editor: EditorView; state: NotesPopupState } | null>(null)
 
   useEffect(() => {
@@ -129,6 +138,8 @@ export function NotesEditor({
           })
           : [],
         convertHighlight,
+        notesListMarkers,
+        lineConvertCompartment.current.of(hasLineConvert ? lineConvertExtension.current() : []),
         // Tab / ⇧Tab indent list lines (the popup, above, takes Tab to pick a row while open).
         notesIndent,
         EditorView.updateListener.of((update) => {
@@ -181,6 +192,13 @@ export function NotesEditor({
     }
   }, [value])
 
+  // The hover icon and its margin come and go with `onLineConvert`.
+  useEffect(() => {
+    viewRef.current?.dispatch({
+      effects: lineConvertCompartment.current.reconfigure(hasLineConvert ? lineConvertExtension.current() : []),
+    })
+  }, [hasLineConvert, lineConvertExtension])
+
   // Re-apply the keymap when `extraKeymap` changes.
   useEffect(() => {
     const view = viewRef.current
@@ -196,10 +214,11 @@ export function NotesEditor({
     })
   }, [extraKeymap])
 
-  // Clicking below the last line of content lands on `.cm-scroller` (its
-  // bottom padding) or on `.host` itself — neither is contenteditable, so
-  // CM6 doesn't auto-focus. Catch those clicks on mousedown (to beat the
-  // native focus race), move the caret to doc end, and focus the editor.
+  // Clicking outside the text lands on `.cm-scroller` (its padding, the left
+  // margin) or on `.host` itself — neither is contenteditable, so CM6 doesn't
+  // auto-focus. Catch those clicks on mousedown (to beat the native focus
+  // race), focus the editor and put the caret on the line beside the click;
+  // below the last line, at the end of the note.
   const handleHostMouseDown = (event: React.MouseEvent<HTMLDivElement>) => {
     const view = viewRef.current
     if (!view) return
@@ -207,7 +226,9 @@ export function NotesEditor({
     if (!target) return
     if (target.closest('.cm-content')) return
     event.preventDefault()
-    view.dispatch({ selection: { anchor: view.state.doc.length } })
+    const belowText = event.clientY - view.documentTop >= view.contentHeight
+    const anchor = belowText ? view.state.doc.length : view.posAtCoords({ x: event.clientX, y: event.clientY }, false)
+    view.dispatch({ selection: { anchor } })
     view.focus()
   }
 
