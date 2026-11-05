@@ -1,4 +1,4 @@
-import { createContext, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import type { MarkerClause } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
 import { ClearableField } from '../ClearableField'
@@ -506,7 +506,8 @@ export function EntityDropdownItems({
  * One Priority condition's picker: the Status picker over the markers — Is /
  * Is not, Select all / Deselect all, a row per marker and `No priority`.
  * Nothing ticked is no condition (`null`); "Is not" with nothing ticked is
- * held here until the first tick. Picking keeps the picker open.
+ * held here until the first tick. Picking keeps the picker open. Opening it
+ * focuses its rows (it has no search box).
  */
 export function MarkerClausePicker({ clause, onChange }: {
   clause: MarkerClause | null
@@ -520,8 +521,16 @@ export function MarkerClausePicker({ clause, onChange }: {
     onChange(markerClauseOfIds(next, not))
   }
   const allIds = [0, ...MARKER_PICKER_ROWS.map((r) => r.id)]
+  // It has no search box: the focus goes to its rows' tab stop, so the keyboard reaches them.
+  const panelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      panelRef.current?.querySelector<HTMLElement>('[role="option"][tabindex="0"]')?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [])
   return (
-    <div className={markerStyles.panel} role="group" aria-label={MARKERS_LABEL}>
+    <div ref={panelRef} className={markerStyles.panel} role="group" aria-label={MARKERS_LABEL}>
       <SelectionPanelBody
         mode={{
           field: MARKERS_LABEL,

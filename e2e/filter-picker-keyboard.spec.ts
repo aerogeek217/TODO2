@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 
 /**
@@ -148,4 +148,42 @@ test('Tab in a list’s prompt field adds the highlighted person and keeps the f
   await input.focus()
   await page.keyboard.press('Tab')
   await expect(input).not.toBeFocused()
+})
+
+test('the top bar’s Priority picker takes the focus: arrows and Space tick a value (cr31 UI F2)', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...SEED,
+    tasks: [{ title: 'Calm task' }, { title: 'Focus task', focus: true }],
+  })
+  await expect.poll(() => titles(page)).toEqual(['Calm task', 'Focus task'])
+
+  const button = page.getByRole('button', { name: /^Priority filter/ })
+  await button.focus()
+  await page.keyboard.press('Enter')
+  const list = page.getByRole('listbox', { name: 'Priority' })
+  // No search box: the focus is on its first row.
+  await expect(list.getByRole('option').first()).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  const focus = list.getByRole('option', { name: 'Focus' })
+  await expect(focus).toBeFocused()
+  await page.keyboard.press('Space')
+  await expect(focus).toHaveAttribute('aria-selected', 'true')
+  await expect.poll(() => titles(page)).toEqual(['Focus task'])
+  await page.keyboard.press('Escape')
+  await expect(list).toHaveCount(0)
+  await expect(button).toBeFocused()
+})
+
+test('a lens’s Priority picker in Settings takes the focus too', async ({ page }) => {
+  await seedWorkspace(page, { ...SEED, lenses: [{ id: 'lens-a', name: 'Mine' }] })
+  const settings = await openSettings(page, 'Tasks')
+  await settings.getByTestId('lens-list').getByRole('button', { name: /^Mine/ }).click()
+  await settings.getByTestId('lens-filter').getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Priority' }).click()
+  const list = page.getByTestId('list-filter-picker').getByRole('listbox', { name: 'Priority' })
+  await expect(list.getByRole('option').first()).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('Space')
+  await expect(list.getByRole('option', { name: 'Focus' })).toHaveAttribute('aria-selected', 'true')
+  await expect(settings.getByTestId('lens-filter').getByTestId('list-filter-chip')).toHaveText(/Priority\s*Focus/)
 })
