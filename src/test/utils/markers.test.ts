@@ -46,6 +46,9 @@ describe('Priority filter helpers', () => {
     expect(markerConditions([{ values: ['none'] }])).toEqual({})
     expect(markerConditions([{ values: ['urgent', 'none'], not: true }])).toEqual({ urgent: false })
     expect(Object.keys(markerConditions([{ values: ['important'], not: true }, { values: ['focus'] }]))).toEqual(['focus', 'important'])
+    // Conflicting conditions on one flag (a filter no task passes): the later one is what it implies.
+    expect(markerConditions([{ values: ['urgent'] }, { values: ['urgent'], not: true }])).toEqual({ urgent: false })
+    expect(markerConditions([{ values: ['urgent'], not: true }, { values: ['urgent'] }])).toEqual({ urgent: true })
     expect(activeMarkers({ important: false, focus: true })).toEqual(['focus', 'important'])
     expect(activeMarkers(null)).toEqual([])
   })

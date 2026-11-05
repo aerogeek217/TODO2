@@ -193,6 +193,23 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
     expect(onCreate.mock.calls[0]?.[0].lastFollowupAt).toEqual(daysAgo(1))
   })
 
+  it('a Last follow-up later than the newest pending update stays: an older update doesn’t move it back', async () => {
+    const { onCreate } = renderCreate()
+    const last = () => screen.getByRole('textbox', { name: 'Last follow-up' }) as HTMLInputElement
+    fireEvent.change(screen.getByPlaceholderText(/New task/), { target: { value: 'Write the report' } })
+    fireEvent.change(last(), { target: { value: 'yesterday' } })
+    fireEvent.blur(last())
+    const shown = last().value
+    expect(shown).not.toBe('')
+    fireEvent.change(addField(), { target: { value: 'outline done' } })
+    fireEvent.change(addDayField(), { target: { value: formatDateNumeric(daysAgo(3)) } })
+    fireEvent.keyDown(addField(), { key: 'Enter' })
+    expect(shownLines()).toEqual([`${formatDateNumeric(daysAgo(3))}outline done`])
+    expect(last().value).toBe(shown)
+    await act(async () => { fireEvent.click(screen.getByText('Create task')) })
+    expect(onCreate.mock.calls[0]?.[0].lastFollowupAt).toEqual(daysAgo(1))
+  })
+
   it('updates added before Create wait in the list and go with the task; nothing is written before', async () => {
     const { onCreate } = renderCreate()
     fireEvent.change(screen.getByPlaceholderText(/New task/), { target: { value: 'Write the report' } })
