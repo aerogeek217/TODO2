@@ -157,9 +157,33 @@ function useWorkspaceDragState() {
   const active = drag != null
   useEffect(() => {
     if (!active) return
-    const onMove = (e: PointerEvent) => update(e.clientX, e.clientY)
+    let pointer: { x: number; y: number } | null = null
+    const onMove = (e: PointerEvent) => {
+      pointer = { x: e.clientX, y: e.clientY }
+      update(e.clientX, e.clientY)
+    }
+    // The columns (or a column) scrolling under the drag — dnd-kit's
+    // auto-scroll at an edge — move every cell: measured again, once a
+    // frame, and the pointer hit-tested against the new places (cr31 W3).
+    let frame = 0
+    const onScroll = () => {
+      if (frame) return
+      frame = requestAnimationFrame(() => {
+        frame = 0
+        const current = dragRef.current
+        const area = document.querySelector<HTMLElement>('[data-ws-area]')
+        if (!current || !area) return
+        dragRef.current = { ...current, geometry: measureWorkspace(area) }
+        if (pointer) update(pointer.x, pointer.y)
+      })
+    }
     window.addEventListener('pointermove', onMove)
-    return () => window.removeEventListener('pointermove', onMove)
+    window.addEventListener('scroll', onScroll, true)
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      window.removeEventListener('scroll', onScroll, true)
+      if (frame) cancelAnimationFrame(frame)
+    }
   }, [active, update])
 
   const start = useCallback((event: DragStartEvent): boolean => {
