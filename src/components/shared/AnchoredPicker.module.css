@@ -21,3 +21,8 @@
   position: static;
   margin-top: 0;
 }
+
+/* Opened from a dialog above the overlay tier: above it too. */
+.picker.aboveDialog {
+  z-index: var(--z-dialog-nested);
+}

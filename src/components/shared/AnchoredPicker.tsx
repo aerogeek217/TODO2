@@ -1,6 +1,7 @@
 import type { ReactNode, RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
+import { useDialogLayer } from './dialog-layer'
 import styles from './AnchoredPicker.module.css'
 import { PopoverRoot } from './PopoverRoot'
 
@@ -27,9 +28,12 @@ interface AnchoredPickerProps {
  *
  * On the overlay layer: opened from a row inside an overlay (the task
  * dialog) it mounts after it, so DOM order puts it on top; an overlay opened
- * later (an editor) still covers it.
+ * later (an editor) still covers it. Opened from a dialog on a higher tier
+ * (the notes convert preview's draft rows), it sits above that dialog.
  */
 export function AnchoredPicker({ anchorRef, onClose, closeOnEscape = false, anchorIsInside = true, children }: AnchoredPickerProps) {
+  const layer = useDialogLayer()
+  const aboveDialog = layer != null && layer !== 'overlay'
   const { panelRef, style, caret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: anchorRef },
     open: true,
@@ -43,7 +47,7 @@ export function AnchoredPicker({ anchorRef, onClose, closeOnEscape = false, anch
     caret: true,
   })
   return createPortal(
-    <PopoverRoot ref={panelRef} caret={caret} className={styles.picker} data-anchored-picker="" style={{ position: style.position, left: style.left, top: style.top }}>
+    <PopoverRoot ref={panelRef} caret={caret} className={`${styles.picker} ${aboveDialog ? styles.aboveDialog : ''}`} data-anchored-picker="" style={{ position: style.position, left: style.left, top: style.top }}>
       {children}
     </PopoverRoot>,
     document.body,
