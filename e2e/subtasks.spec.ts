@@ -273,3 +273,55 @@ test('a renamed subtask: ⏎ saves, Esc on the field cancels without closing the
   await expect(section(page).getByRole('button', { name: 'Rename Headcount from Aisha and Ben' })).toBeVisible()
   expect((await storedChecklist(page, 'Q4 budget')).map(([t]) => t)).toContain('Headcount from Aisha and Ben')
 })
+
+test('a task’s notes convert to its subtasks at once, in the editor and the popover; Undo takes both back', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...SEED,
+    tasks: [{ title: 'Offsite', notes: '- Book the venue\n  - [x] Pick a date\n- Send invites\nA thought' }, { title: 'Popover task', notes: 'One line' }],
+  })
+  const row = taskRowByTitle(page, 'Offsite')
+  await row.locator('span[data-task-title="Offsite"]').dblclick()
+  const dialog = editor(page)
+  await dialog.getByRole('button', { name: /^Convert 2 bullet lines to subtasks/ }).click()
+
+  await expect(dialog.locator('.cm-line')).toHaveText(['✓ Book the venue', '✓ Send invites', 'A thought'])
+  await expect(page.getByRole('dialog', { name: 'Convert to tasks' })).toHaveCount(0)
+  await expect(section(page).getByRole('button', { name: 'Rename Pick a date' })).toBeVisible()
+  await expect.poll(() => storedChecklist(page, 'Offsite')).toEqual([['Book the venue', false], ['Pick a date', true], ['Send invites', false]])
+  await expect(dialog).toBeVisible()
+  expect((await readStore<{ title: string }>(page, 'todos')).map((t) => t.title).sort()).toEqual(['Offsite', 'Popover task'])
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(dialog.locator('.cm-line')).toHaveText(['- Book the venue', '  - [x] Pick a date', '- Send invites', 'A thought'])
+  await expect.poll(() => storedChecklist(page, 'Offsite')).toEqual([])
+  await dialog.getByRole('button', { name: 'Close' }).first().click()
+  await expect(dialog).toHaveCount(0)
+
+  // The notes popover: Alt+T on the caret's line, and it stays open.
+  await taskRowByTitle(page, 'Popover task').getByRole('button', { name: 'Edit status and notes' }).click()
+  const pop = page.getByRole('dialog', { name: 'Status and notes' })
+  await pop.locator('.cm-content').click()
+  await page.keyboard.press('Alt+t')
+  await expect(pop.locator('.cm-line')).toHaveText(['✓ One line'])
+  await expect.poll(() => storedChecklist(page, 'Popover task')).toEqual([['One line', false]])
+  await expect(pop).toBeVisible()
+})
+
+test('a new task’s notes convert to its pending subtasks, stored with the task', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await page.keyboard.press('Control+Space')
+  const quick = page.getByRole('dialog', { name: 'Quick add task' })
+  await quick.getByPlaceholder('New task…').pressSequentially('Brand new')
+  await page.keyboard.press('Tab')
+  await expect(quick).toBeHidden()
+
+  const notes = page.getByRole('dialog', { name: /task/i }).locator('.cm-content')
+  await notes.click()
+  await page.keyboard.insertText('- First\n- Second')
+  await page.getByRole('button', { name: /^Convert 2 bullet lines to subtasks/ }).click()
+  await expect(notes.locator('.cm-line')).toHaveText(['✓ First', '✓ Second'])
+  expect((await readStore<{ title: string }>(page, 'todos')).map((t) => t.title)).not.toContain('Brand new')
+
+  await page.getByRole('button', { name: 'Create task' }).click()
+  await expect.poll(() => storedChecklist(page, 'Brand new')).toEqual([['First', false], ['Second', false]])
+})

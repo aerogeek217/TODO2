@@ -15,7 +15,7 @@ const BUTTON_SIZE_PX = 20
  * (`showConvertScope`). A press keeps the caret and the selection where they
  * are. Not on touch screens, which have no hover (CSS).
  */
-export function lineConvert(onConvert: (view: EditorView, line: number) => void): Extension {
+export function lineConvert(onConvert: (view: EditorView, line: number) => void, label = 'Convert this line to a task'): Extension {
   const plugin = ViewPlugin.fromClass(class {
     private readonly button: HTMLButtonElement
     private line: number | null = null
@@ -25,8 +25,8 @@ export function lineConvert(onConvert: (view: EditorView, line: number) => void)
       button.type = 'button'
       button.className = 'cm-line-convert'
       button.tabIndex = -1
-      button.title = 'Convert this line to a task'
-      button.setAttribute('aria-label', 'Convert this line to a task')
+      button.title = label
+      button.setAttribute('aria-label', label)
       button.innerHTML = CONVERT_ICON
       button.addEventListener('mousedown', this.onPress)
       button.addEventListener('click', this.onClick)

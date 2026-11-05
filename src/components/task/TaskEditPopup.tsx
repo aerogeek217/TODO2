@@ -31,6 +31,8 @@ import type { ChecklistItem } from './subtasks/SubtaskChecklist'
 import { useSubtasks, useSubtaskStore } from '../../stores/subtask-store'
 import { storedSubtaskMenuEntries } from './subtasks/subtask-menu'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
+import { addSubtasksFromNote, type NoteSubtaskTarget } from '../../services/note-subtasks'
+import { subtaskTitle } from '../../utils/subtasks'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { isInLayerAbove } from '../../utils/dom-layers'
@@ -414,6 +416,16 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const handleAddSubtask = (title: string) => {
     if (isEdit && todo) return subtaskWrite(() => { void useSubtaskStore.getState().add(todo.id, title) })
     setPendingSubtasks((prev) => [...prev, { id: Math.max(0, ...prev.map((s) => s.id)) + 1, title, isCompleted: false }])
+  }
+  // Notes → this task's subtasks: stored at once, or (create mode) pending with the rest.
+  const noteSubtaskTarget: NoteSubtaskTarget = async (drafts, writeNote) => {
+    if (isEdit && todo) return addSubtasksFromNote(todo.id, drafts, writeNote)
+    setPendingSubtasks((prev) => {
+      const first = Math.max(0, ...prev.map((s) => s.id)) + 1
+      return [...prev, ...drafts.map((d, i) => ({ id: first + i, title: subtaskTitle(d.title), isCompleted: d.done }))]
+    })
+    await writeNote()
+    return true
   }
   const handleRenameSubtask = (id: number, title: string) => {
     if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().rename(id, title) })
@@ -882,7 +894,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                 source={notesSession.source}
                 showToolbar
                 placeholder="Add notes..."
-                convert={!seed}
+                subtaskTarget={noteSubtaskTarget}
               />
             </div>
           </div>

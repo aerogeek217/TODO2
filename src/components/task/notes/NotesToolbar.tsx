@@ -14,6 +14,8 @@ export interface NotesConvertControl {
   selection: boolean
   /** Pre-formatted platform-aware Alt+T label (e.g. "⌥T", "Alt+T"). */
   shortcutLabel: string
+  /** What the lines become. */
+  target: 'task' | 'subtask'
   onClick: () => void
   /** Hover / focus: mark (true) or unmark (false) the lines in scope. */
   onShowScope: (show: boolean) => void
@@ -32,7 +34,7 @@ function plural(n: number, one: string, many: string): string {
 }
 
 /** The button's tooltip (label + muted second line) and accessible name. */
-function convertButtonText({ count, selection, shortcutLabel }: Pick<NotesConvertControl, 'count' | 'selection' | 'shortcutLabel'>): { label: string; hint: string } {
+function convertButtonText({ count, selection, shortcutLabel, target }: Pick<NotesConvertControl, 'count' | 'selection' | 'shortcutLabel' | 'target'>): { label: string; hint: string } {
   if (count === 0) {
     return {
       label: selection ? 'No bullet lines in the selection' : 'No bullet lines to convert',
@@ -40,10 +42,10 @@ function convertButtonText({ count, selection, shortcutLabel }: Pick<NotesConver
     }
   }
   if (selection) {
-    return { label: `Convert ${plural(count, 'selected line', 'selected lines')} to tasks`, hint: 'Bullet lines in the selection only' }
+    return { label: `Convert ${plural(count, 'selected line', 'selected lines')} to ${target}s`, hint: 'Bullet lines in the selection only' }
   }
   return {
-    label: `Convert ${plural(count, 'bullet line', 'bullet lines')} to tasks`,
+    label: `Convert ${plural(count, 'bullet line', 'bullet lines')} to ${target}s`,
     hint: `Select lines to convert only those · ${shortcutLabel} converts the current line`,
   }
 }

@@ -38,6 +38,8 @@ interface NotesEditorProps {
   onNlpError?: (message: string) => void
   /** The left margin's hover icon converts this line (1-based); absent = no icon and no margin. */
   onLineConvert?: (line: number) => void
+  /** That icon's name (default: to a task). */
+  lineConvertLabel?: string
 }
 
 /**
@@ -73,6 +75,7 @@ export function NotesEditor({
   nlp,
   onNlpError,
   onLineConvert,
+  lineConvertLabel,
 }: NotesEditorProps) {
   const hostRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<EditorView | null>(null)
@@ -89,7 +92,7 @@ export function NotesEditor({
   const lineConvertCompartment = useRef(new Compartment())
   const onLineConvertRef = useLatestRef(onLineConvert)
   const hasLineConvert = onLineConvert !== undefined
-  const lineConvertExtension = useLatestRef(() => lineConvert((_view, line) => onLineConvertRef.current?.(line)))
+  const lineConvertExtension = useLatestRef(() => lineConvert((_view, line) => onLineConvertRef.current?.(line), lineConvertLabel))
   const [popup, setPopup] = useState<{ editor: EditorView; state: NotesPopupState } | null>(null)
 
   useEffect(() => {

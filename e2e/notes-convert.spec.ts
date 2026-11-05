@@ -724,56 +724,33 @@ test.describe('notes → tasks', () => {
     expect((await readStore<{ title: string }>(page, 'subtasks')).map((s) => s.title)).toEqual(['call them'])
   })
 
-  test('row notes popover: Convert stays inside it; Esc closes the preview, not the popover', async ({ page }) => {
+  test('row notes popover: Convert makes the task’s subtasks and stays open', async ({ page }) => {
     await seedTaskList(page, { tasks: [{ title: 'alpha', notes: '- one\n- two' }] })
     await taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Edit status and notes' }).click()
     const popover = page.getByRole('dialog', { name: 'Status and notes' })
-    const convert = popover.getByRole('button', { name: 'Convert 2 bullet lines to tasks' })
+    const convert = popover.getByRole('button', { name: 'Convert 2 bullet lines to subtasks' })
     await expect(convert).toBeVisible()
     // The popover is narrower than 360px: glyph + count only.
     await expect(convert.getByText('Convert', { exact: true })).toBeHidden()
     await convert.click()
-    const preview = page.getByRole('dialog', { name: 'Convert to tasks' })
-    await expect(preview).toBeVisible()
-    await page.keyboard.press('Escape')
-    await expect(preview).toBeHidden()
+    await expect(popover.locator('.cm-line')).toHaveText(['✓ one', '✓ two'])
     await expect(popover).toBeVisible()
-
-    // Through to the prompt: clicking in the dialogs never closes the popover.
-    await convert.press('Enter')
-    await preview.getByRole('button', { name: 'Create 2 tasks' }).click()
-    await page.getByRole('dialog', { name: /Remove 2 converted lines/ }).getByRole('button', { name: 'Remove 2 lines' }).click()
-    await expect(popover).toBeVisible()
-    await expect(popover.locator('.cm-content')).toHaveText('')
-    await expect(taskRowByTitle(page, 'one')).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Convert to tasks' })).toHaveCount(0)
+    await expect.poll(async () => (await readStore<{ title: string }>(page, 'subtasks')).map((s) => s.title)).toEqual(['one', 'two'])
+    expect((await storedTodos(page)).map((t) => t.title)).toEqual(['alpha'])
   })
 
-  test('task editor notes: Alt+T stacks Quick Add on the editor; Esc closes only it', async ({ page }) => {
+  test('task editor notes: Alt+T makes a subtask with the line as its plain title, no Quick Add', async ({ page }) => {
     await seedTaskList(page, { tasks: [{ title: 'alpha', notes: 'Call vendor /urgent' }] })
     await taskRowByTitle(page, 'alpha').locator('span[data-task-title="alpha"]').dblclick()
     const editTitle = page.getByRole('textbox', { name: 'Task title' })
     await expect(editTitle).toBeVisible()
     await page.locator('.cm-content').click()
     await page.keyboard.press('Alt+t')
-    const createTitle = quickAddInput(page)
-    await expect(createTitle).toHaveValue('Call vendor /urgent')
-    // Nothing of the editor below covers the bar.
-    const box = await createTitle.boundingBox()
-    if (!box) throw new Error('no title box')
-    const onTop = await page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.getAttribute('placeholder') ?? '',
-      { x: box.x + box.width / 2, y: box.y + box.height / 2 })
-    expect(onTop).toMatch(/^New task…/)
-    await createTitle.press('Escape')
-    await expect(createTitle).toBeHidden()
+    await expect(page.locator('.cm-content')).toHaveText('✓ Call vendor /urgent')
+    await expect(quickAddInput(page)).toHaveCount(0)
     await expect(editTitle).toBeVisible()
+    await expect.poll(async () => (await readStore<{ title: string }>(page, 'subtasks')).map((s) => s.title)).toEqual(['Call vendor /urgent'])
     expect((await storedTodos(page)).map((t) => t.title)).toEqual(['alpha'])
-
-    await page.locator('.cm-content').click()
-    await page.keyboard.press('Alt+t')
-    await page.keyboard.press('Enter')
-    await expect(createTitle).toBeHidden()
-    await expect(editTitle).toBeVisible()
-    await expect(page.locator('.cm-content')).toHaveText('✓ Call vendor')
-    expect((await storedTodos(page)).map((t) => t.title).sort()).toEqual(['Call vendor', 'alpha'])
   })
 })

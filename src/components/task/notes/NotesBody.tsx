@@ -9,6 +9,7 @@ import { NotesToolbar, type NotesConvertControl } from './NotesToolbar'
 import { storeNotesNlpConfig } from './notes-nlp-stores'
 import { showConvertScope } from './notes-convert-highlight'
 import { useNotesConvert } from './NotesConvert'
+import type { NoteSubtaskTarget } from '../../../services/note-subtasks'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import styles from './NotesBody.module.css'
 
@@ -36,8 +37,8 @@ interface NotesBodyProps {
   source?: NotesSource
   /** Placeholder text for the editor. */
   placeholder?: string
-  /** Notes → tasks (the toolbar's Convert and Alt+T). Defaults to true. */
-  convert?: boolean
+  /** A task's notes: the toolbar's Convert, Alt+T and the hover icon make that task's subtasks, not tasks. */
+  subtaskTarget?: NoteSubtaskTarget
 }
 
 /**
@@ -46,7 +47,7 @@ interface NotesBodyProps {
  * (the toolbar's Convert, Alt+T — `useNotesConvert`); the outer chrome is
  * supplied by each surface.
  */
-export function NotesBody({ onConvertToast, showToolbar = true, source, placeholder, convert = true }: NotesBodyProps) {
+export function NotesBody({ onConvertToast, showToolbar = true, source, placeholder, subtaskTarget }: NotesBodyProps) {
   const activeId = useNoteStore((s) => s.activeId)
   const notes = useNoteStore((s) => s.notes)
   const storeSetContent = useNoteStore((s) => s.setContent)
@@ -91,9 +92,11 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
     setText: useCallback((next: string) => handleChangeRef.current(next), [handleChangeRef]),
     flush: flushNow,
     onToast: useCallback((message: string) => toastRef.current?.(message), [toastRef]),
+    subtaskTarget,
   })
   const { convertLine, convertScope } = notesConvert
-  const canConvert = convert && (source != null || activeId != null)
+  const canConvert = source != null || activeId != null
+  const convertsTo = subtaskTarget ? 'subtask' : 'task'
 
   const extraKeymap = useMemo(
     () => (canConvert ? [{
@@ -117,12 +120,13 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
     count: scope.lines.length,
     selection: scope.selection,
     shortcutLabel: convertShortcut,
+    target: convertsTo,
     onClick: () => {
       showConvertScope(viewRef.current, [])
       convertScope()
     },
     onShowScope: (show) => showConvertScope(viewRef.current, show ? scopeRef.current.lines : []),
-  } : undefined), [canConvert, scope, convertShortcut, convertScope, scopeRef])
+  } : undefined), [canConvert, scope, convertShortcut, convertScope, scopeRef, convertsTo])
 
   const handleCopy = useCallback(async () => {
     setCopying(true)
@@ -170,6 +174,7 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
         nlp={nlp}
         onNlpError={onConvertToast}
         onLineConvert={canConvert ? notesConvert.convertLineAt : undefined}
+        lineConvertLabel={`Convert this line to a ${convertsTo}`}
       />
       {notesConvert.layer}
     </div>

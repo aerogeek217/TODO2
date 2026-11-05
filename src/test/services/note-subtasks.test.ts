@@ -1,0 +1,77 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { db } from '../../data/database'
+import { addSubtasksFromNote, noteSubtaskDrafts } from '../../services/note-subtasks'
+import { convertCandidates, singleLineCandidateAt } from '../../services/note-lines'
+import { useSubtaskStore } from '../../stores/subtask-store'
+import { useTodoStore } from '../../stores/todo-store'
+import { useUndoStore } from '../../stores/undo-store'
+import { resetDb } from '../helpers'
+import { resetStores } from '../store-tracking'
+
+beforeEach(async () => {
+  await resetDb()
+  resetStores()
+  useUndoStore.getState().clear()
+})
+
+describe('noteSubtaskDrafts', () => {
+  it('flattens a line and the list lines under it, in note order, titles unparsed', () => {
+    const lines = convertCandidates('- Venue @Ben #ops\n  - Call\n  - [x] Date\n- Invites', null)
+    expect(noteSubtaskDrafts(lines)).toEqual([
+      { title: 'Venue @Ben #ops', done: false },
+      { title: 'Call', done: false },
+      { title: 'Date', done: true },
+      { title: 'Invites', done: false },
+    ])
+  })
+
+  it('a single done box is a done subtask', () => {
+    const line = singleLineCandidateAt('- [x] Finished', 1)
+    if (!line) throw new Error('no line')
+    expect(noteSubtaskDrafts([line])).toEqual([{ title: 'Finished', done: true }])
+  })
+})
+
+describe('addSubtasksFromNote', () => {
+  it('adds last on the checklist, then writes the note, as one undo step', async () => {
+    const id = await useTodoStore.getState().add('Offsite')
+    await useSubtaskStore.getState().add(id, 'Existing')
+    useUndoStore.getState().clear()
+    const seen: string[][] = []
+    const ok = await addSubtasksFromNote(id, [{ title: 'One', done: false }, { title: 'Two', done: true }], async () => {
+      seen.push((useSubtaskStore.getState().byTodo.get(id) ?? []).map((s) => s.title))
+    })
+    expect(ok).toBe(true)
+    expect(seen).toEqual([['Existing', 'One', 'Two']])
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Added 2 subtasks'])
+    expect(useUndoStore.getState().snackbar?.description).toBe('Added 2 subtasks')
+    await useUndoStore.getState().undo()
+    expect(await db.subtasks.where('todoId').equals(id).count()).toBe(1)
+  })
+
+  it('names a single subtask', async () => {
+    const id = await useTodoStore.getState().add('Offsite')
+    useUndoStore.getState().clear()
+    await addSubtasksFromNote(id, [{ title: 'One', done: false }], async () => {})
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Added subtask “One”'])
+  })
+
+  it('a failed write takes back what went in, leaves the note alone and leaves no step', async () => {
+    const id = await useTodoStore.getState().add('Offsite')
+    useUndoStore.getState().clear()
+    const realAdd = useSubtaskStore.getState().add
+    let calls = 0
+    useSubtaskStore.setState({
+      add: (...args) => {
+        calls += 1
+        return calls === 2 ? Promise.resolve(undefined) : realAdd(...args)
+      },
+    })
+    const writeNote = vi.fn(async () => {})
+    const ok = await addSubtasksFromNote(id, [{ title: 'One', done: false }, { title: 'Two', done: false }], writeNote)
+    expect(ok).toBe(false)
+    expect(writeNote).not.toHaveBeenCalled()
+    expect(await db.subtasks.where('todoId').equals(id).count()).toBe(0)
+    expect(useUndoStore.getState().undoStack).toEqual([])
+  })
+})
