@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { TooNewDBInfo } from '../../services/migration-check'
-import { tooNewDatabaseMessage, tooOldDatabaseMessage } from '../../data/database'
+import { onDatabaseChangedElsewhere, tooNewDatabaseMessage, tooOldDatabaseMessage, type DatabaseChangeElsewhere } from '../../data/database'
 import type { ImportData } from '../../data/import-validation'
 import { readRawDatabaseExport, replaceUnreadableDatabase } from '../../data/old-database'
 import { exportFileTimestamp, readImportFile } from '../../services/data-files'
@@ -18,6 +18,34 @@ export function DatabaseTooNewDialog({ info }: { info: TooNewDBInfo }) {
     <Dialog open onClose={() => {}} blockBackdropClose size="md" title="Data from a newer version of TODO2">
       <DialogBody>
         {tooNewDatabaseMessage(info.storedVersion, info.buildVersion)} If the newer version is open in another tab, use that one.
+      </DialogBody>
+      <DialogActions>
+        <button className={styles.primaryButton} onClick={() => window.location.reload()}>
+          Reload
+        </button>
+      </DialogActions>
+    </Dialog>
+  )
+}
+
+/**
+ * Another tab upgraded the database (a newer TODO2 opened it) or deleted it
+ * while this tab had it open: this tab's connection is closed and nothing it
+ * writes from now on is saved, so the page is blocked until a Reload
+ * (`onDatabaseChangedElsewhere`). Mounted for the app's lifetime; renders
+ * nothing until then.
+ */
+export function DatabaseChangedElsewhereGuard() {
+  const [change, setChange] = useState<DatabaseChangeElsewhere | null>(null)
+  useEffect(() => onDatabaseChangedElsewhere((c) => setChange((prev) => prev ?? c)), [])
+  if (!change) return null
+  const what = change === 'upgraded'
+    ? 'A newer version of TODO2 opened this browser’s data in another tab or window.'
+    : 'This browser’s TODO2 data was deleted or replaced in another tab or window.'
+  return (
+    <Dialog open onClose={() => {}} blockBackdropClose size="md" title="TODO2 changed in another tab">
+      <DialogBody>
+        {what} This tab can’t save any more: reload it to go on with the data as it is now.
       </DialogBody>
       <DialogActions>
         <button className={styles.primaryButton} onClick={() => window.location.reload()}>

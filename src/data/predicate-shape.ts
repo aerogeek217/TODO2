@@ -235,9 +235,20 @@ function pickClauses(v: Obj, fixes: PredicateFix[], reportReset: boolean): Filte
   }
   if ('markers' in v && v.markers !== undefined) {
     const markers = readMarkers(v.markers)
-    if (markers === undefined) fixes.push('priority filter dropped')
-    else if (markers !== null && markers.length > MARKER_CLAUSES_MAX) fixes.push('priority filter capped')
-    clauses.markers = markers ?? null
+    if (markers === undefined) {
+      fixes.push('priority filter dropped')
+      clauses.markers = null
+    } else if (markers !== null && markers.length > 0) {
+      // As the filter reads it (`normalizeMarkersFilter`), so the cap reported
+      // is the one stored: a condition naming nothing goes, a value repeated
+      // goes, conditions past `MARKER_CLAUSES_MAX` go. Values keep their order.
+      const named = markers.flatMap((c) => {
+        const values = [...new Set(c.values)]
+        return values.length > 0 ? [{ ...c, values }] : []
+      })
+      if (named.length > MARKER_CLAUSES_MAX) fixes.push('priority filter capped')
+      clauses.markers = named.length > 0 ? named.slice(0, MARKER_CLAUSES_MAX) : null
+    } else clauses.markers = markers ?? null
   }
   if ('tags' in v && v.tags !== undefined) clauses.tags = ids(v.tags, 'tag')
   readNegation(v.negate, clauses, fixes)

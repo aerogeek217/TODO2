@@ -3,6 +3,7 @@ import { readDataTables } from './export-data'
 import { DATA_TABLE_NAMES, type DataTableName } from './tables'
 import { isEisenhowerOwner, ownerLayoutId } from '../models/list-definition'
 import { RECOVERED_LISTS_LAYOUT_NAME, layoutRepository } from './layout-repository'
+import { subtaskTitle } from '../utils/subtasks'
 import {
   KNOWN_DB_TABLES,
   validateRow,
@@ -132,13 +133,34 @@ function joinTargetTable(field: string): string {
   }
 }
 
+/** An unreadable row as cleanup rewrites it, and what that changes in words. */
+interface RowRepair {
+  row: unknown
+  fixes: string[]
+}
+
+/** A subtask whose title alone is wrong (too long), with the title the store writes (`subtaskTitle`); null when no title is left or anything else is wrong. */
+function repairedSubtask(row: unknown): RowRepair | null {
+  if (typeof row !== 'object' || row === null || !('title' in row) || typeof row.title !== 'string') return null
+  const title = subtaskTitle(row.title)
+  const out = { ...row, title }
+  if (title === '' || validateRow('subtasks', out) !== true) return null
+  return { row: out, fixes: ['title shortened'] }
+}
+
 /**
- * Tables whose unreadable rows cleanup repairs instead of deleting: a layout
- * the validator rejects is rebuilt with its bad parts dropped (`sanitizeRow`
- * → `pickLayout`), so cleanup never deletes a layout — the active one, maybe
- * the only one, included.
+ * Tables whose unreadable rows cleanup repairs instead of deleting, and how
+ * (`null`: this row can't be, so it is deleted). A layout the validator
+ * rejects is rebuilt with its bad parts dropped (`sanitizeRow` →
+ * `pickLayout`), so cleanup never deletes a layout — the active one, maybe
+ * the only one, included. A subtask whose title is too long (stored by a
+ * build before v74's checks, data H1 of cr31) keeps its text up to the
+ * limit; one with no title is deleted, as it holds nothing.
  */
-const REPAIRED_NOT_DELETED: ReadonlySet<DataTableName> = new Set<DataTableName>(['layouts'])
+const REPAIRS: Partial<Record<DataTableName, (row: unknown) => RowRepair | null>> = {
+  layouts: (row) => ({ row: sanitizeRow('layouts', row), fixes: rowFixes('layouts', row) }),
+  subtasks: repairedSubtask,
+}
 
 /** Scan all tables for orphaned join rows and dangling foreign keys. */
 export async function auditData(): Promise<AuditReport> {
@@ -182,8 +204,8 @@ export async function auditData(): Promise<AuditReport> {
   // rows whose `value` fails the per-key validator (legacy shapes, stale
   // formats) delete; the fixable-value pass sanitises a readable value with
   // parts an import would drop.
-  // A layout the validator rejects is repaired, never deleted
-  // (`REPAIRED_NOT_DELETED`).
+  // A layout the validator rejects is repaired, never deleted, and a
+  // subtask with a long title repaired (`REPAIRS`).
   for (const tableKey of DATA_TABLE_NAMES) {
     if (tableKey === 'settings') continue
     const rows: readonly unknown[] = tables[tableKey]
@@ -214,14 +236,15 @@ export async function auditData(): Promise<AuditReport> {
       // "key (unrecognized)") on failure. Strip the parenthetical so the
       // popup can highlight the field name reliably.
       const badField = result.replace(/\s*\(.*\)$/, '').trim()
-      if (REPAIRED_NOT_DELETED.has(tableKey)) {
+      const repair = REPAIRS[tableKey]?.(row)
+      if (repair) {
         repairIds.push(id)
         if (repairSamples.length < MAX_SAMPLES_PER_ISSUE) {
           repairSamples.push({
             row: toSampleRow(row),
             id,
             badFields: badField ? [badField] : [],
-            note: `Schema validator rejected this row: ${result}. Cleanup: ${rowFixes(tableKey, row).join(', ')}`,
+            note: `Schema validator rejected this row: ${result}. Cleanup: ${repair.fixes.join(', ')}`,
           })
         }
         continue
@@ -528,7 +551,11 @@ export async function cleanupIssues(issues: AuditIssue[]): Promise<number> {
         const key = issue.table as Parameters<typeof sanitizeRow>[0]
         for (const id of issue.keys && issue.keys.length > 0 ? issue.keys : issue.ids) {
           const row: unknown = await table.get(id)
-          if (row !== undefined) await table.put(sanitizeRow(key, row))
+          if (row === undefined) continue
+          // An unreadable row its table repairs (`REPAIRS`); a readable one as import stores it.
+          const repair = validateRow(key, row) === true ? undefined : REPAIRS[key]?.(row)
+          if (repair === null) continue
+          await table.put(repair ? repair.row : sanitizeRow(key, row))
         }
         cleaned += issue.count
       } else if (issue.fix === 'adopt-lists') {

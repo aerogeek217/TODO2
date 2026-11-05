@@ -255,6 +255,15 @@ describe('subtask lines (cr28)', () => {
     expect(subtaskLinesUnder(NESTED.split('\n'), 99)).toEqual([])
   })
 
+  it('subtaskLinesUnder: a box with no text makes no subtask (done or open), a long line is cut as subtaskTitle stores it', () => {
+    const long = 'w '.repeat(400)
+    const lines = ['- Plan trip', '  - [x]', '  - [ ]', `  - ${long}`, '  - [x]   Book  the   flights'].join('\n').split('\n')
+    const subs = subtaskLinesUnder(lines, 1)
+    expect(subs.map((s) => [s.line, s.done])).toEqual([[4, false], [5, true]])
+    expect(subs[0]?.title).toBe(long.trim().slice(0, 500).trim())
+    expect(subs[1]?.title).toBe('Book the flights')
+  })
+
   it('convertCandidates: a bullet carries its subtask lines, which are not candidates of their own; an indented bullet under nothing is one', () => {
     const lines = convertCandidates(NESTED, null)
     expect(lines.map((c) => [c.line, c.subtasks?.map((s) => s.line)])).toEqual([[1, [2, 3, 4, 6]], [8, undefined], [9, [10]]])

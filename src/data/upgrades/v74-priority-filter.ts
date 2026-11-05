@@ -23,6 +23,13 @@ import type { DataRow, DataSet } from '../schema-upgrades'
  * dashboard tab's Hot tile and section, so a stored layout doesn't open as
  * needing repair.
  *
+ * Subtask titles are made what the subtask store writes (cr31): one line,
+ * trimmed, at most 500 characters; a row left with no title goes. v73 builds
+ * stored a note line's subtasks as they were — an empty done box (`- [x]`)
+ * as `''`, a long line whole — which import refuses, so one such row made
+ * every export, backup and sync file of that browser unimportable. Here both
+ * the browser's database and every file a v73 build wrote are repaired.
+ *
  * Holds its own copies of the marker keys and the rule's reading: this step
  * must go on meaning this whatever later builds do with them. A value it can't
  * read passes through, for validation to drop; a list is already in the new
@@ -44,9 +51,29 @@ function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
 }
 
+/** The subtask title rule as v74 stores it (`utils/subtasks.subtaskTitle` then). */
+const SUBTASK_TITLE_MAX = 500
+
+function storedSubtaskTitle(title: string): string {
+  return title.replace(/\s+/g, ' ').trim().slice(0, SUBTASK_TITLE_MAX).trim()
+}
+
+/** The subtasks with their titles as stored, a row left with none dropped; the table itself when nothing changes. */
+function withStoredTitles(rows: readonly DataRow[]): readonly DataRow[] {
+  let changed = false
+  const out = rows.flatMap((row) => {
+    if (!isRecord(row) || typeof row.title !== 'string') return [row]
+    const title = storedSubtaskTitle(row.title)
+    if (title !== '' && title === row.title) return [row]
+    changed = true
+    return title === '' ? [] : [{ ...row, title }]
+  })
+  return changed ? out : rows
+}
+
 /** The rule's lines (each an AND of markers), the default for a row that is absent or can't be read. */
 function readRule(settings: readonly DataRow[] | undefined): readonly (readonly Marker[])[] {
-  const row = settings?.find((s) => s.key === 'hotRule')
+  const row = settings?.find((s) => isRecord(s) && s.key === 'hotRule')
   if (typeof row?.value !== 'string') return DEFAULT_RULE
   let parsed: unknown
   try {
@@ -59,17 +86,27 @@ function readRule(settings: readonly DataRow[] | undefined): readonly (readonly 
   return lines.length > 0 && lines.every((l) => l.length > 0) ? lines : DEFAULT_RULE
 }
 
-/** Lines ORed, each an AND → the same as an AND of "any of" lists: one marker from each line, the ones another implies left out. */
+const bitOf = (m: Marker): number => 1 << MARKERS.indexOf(m)
+
+/**
+ * Lines ORed, each an AND → the same as an AND of "any of" lists: one marker
+ * from each line, the ones another implies left out. A pick is a set of the
+ * 3 markers (a bitmask), so there are at most 8 of them whatever the rule's
+ * length: the picks are kept once each, in the order they first come, which
+ * is the order the full expansion would give them.
+ */
 function ruleConditions(rule: readonly (readonly Marker[])[]): Condition[] {
-  let picks: Marker[][] = [[]]
+  let picks: number[] = [0]
   for (const line of rule) {
-    picks = picks.flatMap((pick) => line.map((m) => (pick.includes(m) ? pick : [...pick, m])))
+    const next = new Set<number>()
+    for (const pick of picks) for (const m of line) next.add(pick | bitOf(m))
+    picks = [...next]
   }
-  const sets = picks.map((pick) => MARKERS.filter((m) => pick.includes(m)))
+  const sets = picks.map((pick) => MARKERS.filter((m) => (pick & bitOf(m)) !== 0))
   const minimal = sets.filter((set, i) => !sets.some((other, j) => {
     if (i === j || !other.every((m) => set.includes(m))) return false
-    // A smaller list implies this one; of two the same, the first stays.
-    return other.length < set.length || j < i
+    // A smaller list implies this one (picks are distinct, so no two are the same).
+    return other.length < set.length
   }))
   return minimal.map((values) => ({ values }))
 }
@@ -148,6 +185,7 @@ function panelWithoutHot(panel: unknown): unknown {
 
 /** A layout row (or a kept draft's body) without its dashboards' Hot. */
 function layoutWithoutHot(row: DataRow): DataRow {
+  if (!isRecord(row)) return row
   let out = row
   for (const edge of ['top', 'bottom'] as const) {
     const band = panelWithoutHot(out[edge])
@@ -171,12 +209,13 @@ function withPredicateAt<T extends Record<string, unknown>>(holder: T, key: stri
 export function upgradeV74(data: DataSet): DataSet {
   const rule = readRule(data.settings)
   const lists = data.listDefinitions && mapSame(data.listDefinitions, (row) => {
-    if (!isRecord(row.membership)) return row
+    if (!isRecord(row) || !isRecord(row.membership)) return row
     const membership = withPredicateAt(row.membership, 'predicate', rule)
     return membership === row.membership ? row : { ...row, membership }
   })
   const layouts = data.layouts && mapSame(data.layouts, layoutWithoutHot)
   const upgradedSettings = data.settings && mapSame(data.settings, (row) => {
+    if (!isRecord(row)) return row
     switch (row.key) {
       case 'checkinTaskFilter':
         return withJsonValue(row, (filter) => upgradePredicate(filter, rule))
@@ -199,11 +238,13 @@ export function upgradeV74(data: DataSet): DataSet {
         return row
     }
   })
-  const hasRule = upgradedSettings?.some((row) => row.key === 'hotRule') === true
-  const settings = hasRule ? upgradedSettings?.filter((row) => row.key !== 'hotRule') : upgradedSettings
-  if (lists === data.listDefinitions && settings === data.settings && layouts === data.layouts) return data
+  const isRule = (row: DataRow) => isRecord(row) && row.key === 'hotRule'
+  const settings = upgradedSettings?.some(isRule) === true ? upgradedSettings.filter((row) => !isRule(row)) : upgradedSettings
+  const subtasks = data.subtasks && withStoredTitles(data.subtasks)
+  if (lists === data.listDefinitions && settings === data.settings && layouts === data.layouts && subtasks === data.subtasks) return data
   return {
     ...data,
+    ...(subtasks ? { subtasks: subtasks as DataRow[] } : {}),
     ...(lists ? { listDefinitions: lists as DataRow[] } : {}),
     ...(settings ? { settings: settings as DataRow[] } : {}),
     ...(layouts ? { layouts: layouts as DataRow[] } : {}),

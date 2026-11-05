@@ -51,8 +51,9 @@ interface SubtaskState {
   resetDone: (todoId: number) => Promise<void>
   /**
    * Writes whole rows with no undo step of their own — a duplicate's copies,
-   * a new task's drafts (the task's create step covers them). Resolves the
-   * rows written.
+   * a new task's drafts (the task's create step covers them). Each title is
+   * stored as `add` stores it (`subtaskTitle`); a row left with none is not
+   * written. Resolves the rows written.
    */
   addRows: (rows: readonly Subtask[]) => Promise<PersistedSubtask[]>
   /** Puts deleted rows back (undo), those whose task still exists. */
@@ -306,7 +307,12 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
       )
     },
 
-    async addRows(rows) {
+    async addRows(given) {
+      // The one choke point for rows written whole: every title as `add` stores it, a blank one dropped.
+      const rows = given.flatMap((r) => {
+        const title = subtaskTitle(r.title)
+        return title === '' ? [] : [{ ...r, title }]
+      })
       if (rows.length === 0) return []
       return trackWrite(async () => {
         const added = await subtaskRepository.addMany(rows)

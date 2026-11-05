@@ -83,7 +83,8 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * task's Progress text as its first status update
  * (`upgrades/v72-status-updates.ts`), v73, a version marker for the
  * `subtasks` table (`upgrades/v73-subtasks.ts`), and v74, stored Priority
- * filters as lists of conditions (`upgrades/v74-priority-filter.ts`). Each transform lives in
+ * filters as lists of conditions and subtask titles as the store writes them
+ * (`upgrades/v74-priority-filter.ts`). Each transform lives in
  * `data/upgrades/v<N>-*.ts`.
  */
 export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { checkPredicateShape, pickPredicate, PREDICATE_ID_LIST_MAX, PREDICATE_SEARCH_TEXT_MAX } from '../../data/predicate-shape'
-import { OR_GROUPS_MAX, emptyFilterClauses, emptyPredicate } from '../../models'
+import { MARKER_CLAUSES_MAX, OR_GROUPS_MAX, emptyFilterClauses, emptyPredicate } from '../../models'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import type { TodoPredicate } from '../../models/filter-predicate'
 
@@ -75,6 +75,20 @@ describe('pickPredicate', () => {
     expect(fixes).toEqual(['people filter dropped', 'status filter dropped', 'tag filter dropped'])
     // The runtime filter can be built from it.
     expect(() => predicateToCriteria(predicate)).not.toThrow()
+  })
+
+  it('a Priority filter past the cap is stored capped, as reported; a condition naming nothing and a repeated value go', () => {
+    const many = Array.from({ length: MARKER_CLAUSES_MAX + 1 }, (_, i) => ({ values: [i % 2 === 0 ? 'urgent' : 'focus'] }))
+    const capped = pickPredicate({ ...emptyPredicate(), markers: many })
+    expect(capped.fixes).toEqual(['priority filter capped'])
+    expect(capped.predicate.markers).toEqual(many.slice(0, MARKER_CLAUSES_MAX))
+    // Read again, nothing is left to fix (the audit's cleanup sticks).
+    expect(pickPredicate(capped.predicate).fixes).toEqual([])
+    // An empty condition doesn't count towards the cap.
+    expect(pickPredicate({ ...emptyPredicate(), markers: [...many.slice(0, MARKER_CLAUSES_MAX), { values: [] }] }).fixes).toEqual([])
+    expect(pickPredicate({ ...emptyPredicate(), markers: [{ values: [] }, { values: ['urgent', 'urgent', 'focus'], not: true }] }))
+      .toEqual({ predicate: { ...emptyPredicate(), markers: [{ values: ['urgent', 'focus'], not: true }] }, fixes: [] })
+    expect(pickPredicate({ ...emptyPredicate(), markers: [{ values: [] }] }).predicate.markers).toBeNull()
   })
 
   it('keeps an id filter at the cap', () => {

@@ -88,6 +88,28 @@ describe('subtask-store: add', () => {
   })
 })
 
+describe('subtask-store: addRows', () => {
+  it('stores each title as add does and drops a row left with none', async () => {
+    const id = await task()
+    const now = new Date()
+    const added = await useSubtaskStore.getState().addRows([
+      { todoId: id, title: '', isCompleted: true, sortOrder: 0, createdAt: now },
+      { todoId: id, title: '  Two \n lines ', isCompleted: false, sortOrder: 1, createdAt: now },
+      { todoId: id, title: '   ', isCompleted: false, sortOrder: 2, createdAt: now },
+      { todoId: id, title: 'q'.repeat(600), isCompleted: false, sortOrder: 3, createdAt: now },
+    ])
+    expect(added.map((r) => r.title)).toEqual(['Two lines', 'q'.repeat(500)])
+    expect(await storedTitles(id)).toEqual(['Two lines', 'q'.repeat(500)])
+    expect(titles(id)).toEqual(['Two lines', 'q'.repeat(500)])
+  })
+
+  it('writes nothing when every row is blank', async () => {
+    const id = await task()
+    expect(await useSubtaskStore.getState().addRows([{ todoId: id, title: ' ', isCompleted: false, sortOrder: 0, createdAt: new Date() }])).toEqual([])
+    expect(await db.subtasks.count()).toBe(0)
+  })
+})
+
 describe('subtask-store: rename and check', () => {
   it('rename stores the new title; undo / redo swap them; no change or a blank → nothing', async () => {
     const id = await checklist(['Draft'])

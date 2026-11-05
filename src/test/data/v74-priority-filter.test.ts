@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { upgradeV74 } from '../../data/upgrades/v74-priority-filter'
 import { pickPredicate } from '../../data/predicate-shape'
+import { prepareImport } from '../../data/import-pipeline'
 import { CURRENT_DB_VERSION } from '../../data/database'
 import { SCHEMA_UPGRADES, type DataRow } from '../../data/schema-upgrades'
 import { emptyFilterClauses, emptyPredicate, OR_GROUPS_MAX, type TodoPredicate } from '../../models'
@@ -38,6 +39,40 @@ describe('upgradeV74 — a stored Priority filter as conditions', () => {
     expect(upgraded(legacy('hot'), rule([{ urgent: true }, { important: true }])).markers).toEqual([{ values: ['urgent', 'important'] }])
     expect(upgraded(legacy('hot'), rule([{ urgent: true, important: true }])).markers).toEqual([{ values: ['urgent'] }, { values: ['important'] }])
     expect(upgraded(legacy('hot'), [{ key: 'hotRule', value: 'not json' }]).markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['focus', 'important'] }])
+  })
+
+  it('a long rule upgrades at once to the conditions the full expansion gives (the picks kept once each)', () => {
+    type M = 'focus' | 'urgent' | 'important'
+    const KEYS: readonly M[] = ['focus', 'urgent', 'important']
+    // The expansion as first written: every pick kept, so n lines of 3 make 3^n.
+    const reference = (rule: readonly (readonly M[])[]) => {
+      let picks: M[][] = [[]]
+      for (const line of rule) picks = picks.flatMap((pick) => line.map((m) => (pick.includes(m) ? pick : [...pick, m])))
+      const sets = picks.map((pick) => KEYS.filter((m) => pick.includes(m)))
+      return sets.filter((set, i) => !sets.some((other, j) => i !== j && other.every((m) => set.includes(m)) && (other.length < set.length || j < i)))
+        .map((values) => ({ values }))
+    }
+    const asRow = (rule: readonly (readonly M[])[]) => [{ key: 'hotRule', value: JSON.stringify(rule.map((line) => Object.fromEntries(line.map((m) => [m, true])))) }]
+    const LINES: M[][] = [['focus'], ['urgent'], ['important'], ['focus', 'urgent'], ['focus', 'important'], ['urgent', 'important'], ['focus', 'urgent', 'important']]
+    // Every rule of up to 3 lines, the order of the conditions included.
+    let rules: M[][][] = [[]]
+    for (let n = 0; n < 3; n++) {
+      rules = rules.flatMap((r) => LINES.map((l) => [...r, l]))
+      for (const rule of rules) expect(upgraded(legacy('hot'), asRow(rule)).markers).toEqual(reference(rule))
+    }
+    // 30 lines — 3^30 picks the first way — in milliseconds, as the same rule once each.
+    const long = Array.from({ length: 30 }, (_, i) => LINES[i % LINES.length] ?? [])
+    const started = performance.now()
+    const markers = upgraded(legacy('hot'), asRow(long)).markers
+    expect(performance.now() - started).toBeLessThan(200)
+    expect(markers).toEqual(reference(LINES))
+    const allThree = Array.from({ length: 30 }, (): M[] => ['urgent', 'important', 'focus'])
+    expect(upgraded(legacy('hot'), asRow(allThree)).markers).toEqual([{ values: ['focus'] }, { values: ['urgent'] }, { values: ['important'] }])
+  })
+
+  it('a stored rule with an empty line reads as the default', () => {
+    expect(upgraded(legacy('hot'), [{ key: 'hotRule', value: '[{}]' }]).markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['focus', 'important'] }])
+    expect(upgraded(legacy('hot'), [{ key: 'hotRule', value: '[{"focus":true},{"urgent":false}]' }]).markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['focus', 'important'] }])
   })
 
   it('an AND in an or group distributes over its other clauses', () => {
@@ -124,6 +159,34 @@ describe('upgradeV74 — a stored Priority filter as conditions', () => {
     expect(pickPredicate((out[3]?.membership as { predicate: unknown }).predicate).fixes).toContain('priority filter dropped')
     const bad: DataRow[] = [{ key: 'lenses', value: '{not json' }, { key: 'eisenhowerPanes', value: 5 }]
     expect(upgradeV74({ settings: bad }).settings).toEqual(bad)
+  })
+
+  it('passes a row that is not an object through, for validation to name, in every table it reads', () => {
+    const rows = [null, 5, 'x', [1]] as unknown as DataRow[]
+    const data = { settings: [...rows, { key: 'hotRule', value: '[{"focus":true}]' }], listDefinitions: [...rows, list(legacy('hot'))], layouts: rows }
+    const out = upgradeV74(data)
+    expect(out.settings).toEqual(rows)
+    expect(out.listDefinitions?.slice(0, 4)).toEqual(rows)
+    expect((out.listDefinitions?.[4]?.membership as { predicate: TodoPredicate }).predicate.markers).toEqual([{ values: ['focus'] }])
+    expect(out.layouts).toBe(data.layouts)
+  })
+
+  it('a v73 file with such a row is refused by validation, naming the row, not by the upgrade', () => {
+    for (const table of ['settings', 'listDefinitions', 'layouts']) {
+      const file = { __schemaVersion: 73, todos: [], settings: [], [table]: [null] }
+      expect(prepareImport(file), table).toMatchObject({ ok: false, reason: 'invalid', error: expect.stringContaining(`Invalid "${table}" record at index 0`) as unknown })
+    }
+  })
+
+  it('subtask titles become what the store writes: one line, at most 500 characters; a row with none goes', () => {
+    const sub = (id: number, title: unknown): DataRow => ({ id, todoId: 1, title, isCompleted: false, sortOrder: id, createdAt: '2026-10-20T09:00:00.000Z' })
+    const rows = [sub(1, ''), sub(2, '   '), sub(3, 'q'.repeat(600)), sub(4, '  Two\n lines '), sub(5, 'Fine'), sub(6, 7), { id: 7 }, null] as unknown as DataRow[]
+    const out = upgradeV74({ subtasks: rows }).subtasks
+    expect(out).toEqual([sub(3, 'q'.repeat(500)), sub(4, 'Two lines'), sub(5, 'Fine'), sub(6, 7), { id: 7 }, null])
+    expect(out?.[2]).toBe(rows[4])
+    expect(upgradeV74({ subtasks: out ?? [] }).subtasks).toBe(out)
+    const clean = { subtasks: [sub(1, 'Fine')] }
+    expect(upgradeV74(clean)).toBe(clean)
   })
 
   it('a filter keeps exactly the tasks it matched', () => {
