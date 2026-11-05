@@ -1,4 +1,7 @@
 import { create } from 'zustand'
+import type { TabBadgeRanges } from '../models/list-definition'
+import { DEFAULT_PRIORITY_CUES, parsePriorityCues, type PriorityCues } from '../utils/priority-cues'
+import { DEFAULT_TAB_BADGES, formatTabBadgeRange, parseTabBadgeRange } from '../utils/tab-badges'
 import { settingsRepository } from '../data'
 import { SETTING_KEYS } from '../data/setting-keys'
 import { isValidCssColor } from '../utils/css'
@@ -117,6 +120,10 @@ interface SettingsState {
   purgePromptLastAt: Date | null
   /** "Fade tasks untouched for": days without a change after which an open task's row is drawn faded; 0 = off. */
   staleAfterDays: number
+  /** What a list tab's badges count, unless the list has its own (`utils/tab-badges`). */
+  tabBadges: TabBadgeRanges
+  /** What each priority adds to a task's row (`utils/priority-cues`). */
+  priorityCues: PriorityCues
   /** Row density of the desktop task rows (`utils/row-density`). */
   rowDensity: RowDensity
   /** The lenses (named screen filters, picked in the top bar — `utils/lens`), in Settings' order. */
@@ -182,6 +189,8 @@ interface SettingsState {
   setPurgePromptLastAt: (at: Date) => Promise<void>
   /** Fade tasks untouched for `days` (0–365 whole days, 0 = off; anything else is ignored); stored only when not 30. */
   setStaleAfterDays: (days: number) => Promise<void>
+  setTabBadges: (ranges: TabBadgeRanges) => Promise<void>
+  setPriorityCues: (cues: PriorityCues) => Promise<void>
   /** The row density (an unknown value is ignored); stored only when not `compact`. */
   setRowDensity: (density: RowDensity) => Promise<void>
   /**
@@ -393,6 +402,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   purgePromptIntervalDays: DEFAULT_PURGE_PROMPT_INTERVAL_DAYS,
   purgePromptLastAt: null,
   staleAfterDays: DEFAULT_STALE_AFTER_DAYS,
+  tabBadges: DEFAULT_TAB_BADGES,
+  priorityCues: DEFAULT_PRIORITY_CUES,
   rowDensity: DEFAULT_ROW_DENSITY,
   lenses: [],
   lensPresetsSeeded: false,
@@ -426,6 +437,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let purgePromptIntervalDays = DEFAULT_PURGE_PROMPT_INTERVAL_DAYS
       let purgePromptLastAt: Date | null = null
       let staleAfterDays = DEFAULT_STALE_AFTER_DAYS
+      let tabBadges = DEFAULT_TAB_BADGES
+      let priorityCues = DEFAULT_PRIORITY_CUES
       let rowDensity: RowDensity = DEFAULT_ROW_DENSITY
       let lenses: readonly Lens[] = []
       let lensPresetsSeeded = false
@@ -476,6 +489,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         } else if (row.key === SETTING_KEYS.purgePromptLastAt) {
           const at = new Date(row.value)
           purgePromptLastAt = Number.isNaN(at.getTime()) ? null : at
+        } else if (row.key === SETTING_KEYS.tabBadgeDue) {
+          tabBadges = { ...tabBadges, due: parseTabBadgeRange(row.value) ?? DEFAULT_TAB_BADGES.due }
+        } else if (row.key === SETTING_KEYS.tabBadgeFollowup) {
+          tabBadges = { ...tabBadges, followup: parseTabBadgeRange(row.value) ?? DEFAULT_TAB_BADGES.followup }
+        } else if (row.key === SETTING_KEYS.priorityCues) {
+          priorityCues = parsePriorityCues(row.value) ?? DEFAULT_PRIORITY_CUES
         } else if (row.key === SETTING_KEYS.staleAfterDays) {
           staleAfterDays = parseStaleAfterDays(row.value) ?? DEFAULT_STALE_AFTER_DAYS
         } else if (row.key === SETTING_KEYS.rowDensity) {
@@ -500,7 +519,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       set({
         colors, defaultStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
         followupDefaultInterval, autoFollowup, removeConvertedLines, urgentDueWithinDays, checkinOpenMethod, checkinTaskFilter,
-        newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt, staleAfterDays,
+        newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt, tabBadges, priorityCues, staleAfterDays,
         rowDensity, lenses, lensPresetsSeeded, activeLensId, shortcutOverrides, eisenhowerPanes, eisenhowerListId,
       })
       applyThemeMode(themeMode)
@@ -708,6 +727,19 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       () => writePurgePromptInterval(before),
       'Couldn’t save how often to ask about old completed tasks.',
     )
+  },
+
+  async setTabBadges(ranges: TabBadgeRanges) {
+    await writeSetting({ tabBadges: ranges }, async () => {
+      await settingsRepository.put(SETTING_KEYS.tabBadgeDue, formatTabBadgeRange(ranges.due))
+      await settingsRepository.put(SETTING_KEYS.tabBadgeFollowup, formatTabBadgeRange(ranges.followup))
+    }, 'the tab badge ranges')
+  },
+
+  async setPriorityCues(cues: PriorityCues) {
+    await writeSetting({ priorityCues: cues }, async () => {
+      await settingsRepository.put(SETTING_KEYS.priorityCues, JSON.stringify(cues))
+    }, 'the priority cues')
   },
 
   async setStaleAfterDays(days: number) {

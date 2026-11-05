@@ -1,3 +1,4 @@
+import { useTabBadges, type TabBadge } from '../../hooks/use-tab-badges'
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
@@ -75,8 +76,20 @@ function stripRoom(strip: HTMLElement): number {
   return room - px(cs.columnGap) * Math.max(0, inFlow - 1)
 }
 
+/** A tab's badge: both counts in one capsule, each solid while any of it is overdue. */
+function TabBadgeCapsule({ badge }: { badge: TabBadge }) {
+  const { due, dueOverdue, followup, followupOverdue } = badge.counts
+  return (
+    <span className={styles.badge} role="img" aria-label={badge.summary.join(', ')} data-tab-badge="">
+      {due > 0 && <span className={`${styles.badgeDue} ${dueOverdue > 0 ? styles.badgeDueOverdue : ''}`}>{due}</span>}
+      {followup > 0 && <span className={`${styles.badgeFollowup} ${followupOverdue > 0 ? styles.badgeFollowupOverdue : ''}`}>{followup}</span>}
+    </span>
+  )
+}
+
 interface TabProps {
   tab: LayoutTab
+  badge?: TabBadge
   active: boolean
   collapsed: boolean
   count?: string
@@ -93,7 +106,7 @@ interface TabProps {
   size?: CSSProperties
 }
 
-function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef, offstage, size }: TabProps) {
+function Tab({ tab, badge, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef, offstage, size }: TabProps) {
   const title = useTabTitle(tab)
   // A list tab's list, or an Eisenhower tab's (the Eisenhower's own): its unsaved dot.
   const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
@@ -121,9 +134,10 @@ function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpen
         touch ? styles.touch : '',
         isDragging ? styles.dragSource : '',
         offstage ? styles.offstage : '',
+        badge ? styles.hasBadge : '',
       ].join(' ')}
       style={size}
-      title={title}
+      title={badge ? [title, ...badge.summary].join('\n') : title}
       onClick={onActivate}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -147,6 +161,7 @@ function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpen
       <span className={styles.title} data-tab-title="">{title}</span>
       {listUnsaved && <span className={styles.unsavedDot} role="img" aria-label="unsaved list changes" />}
       {count != null && <span className={styles.count}>{count}</span>}
+      {badge && <TabBadgeCapsule badge={badge} />}
       {closable && (
         <button
           type="button"
@@ -213,6 +228,7 @@ export function CellTabStrip({
   onAddTab,
 }: CellTabStripProps) {
   const active = getActiveTab(cell)
+  const badges = useTabBadges(cell.tabs)
   const stripRef = useRef<HTMLDivElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const addRef = useRef<HTMLButtonElement | null>(null)
@@ -235,7 +251,11 @@ export function CellTabStrip({
   const hidden = order.slice(Math.max(fitCount, 0))
   const sizeOf = useMemo(() => new Map(fit.sizes.map((s) => [s.id, s])), [fit.sizes])
 
-  const tabKey = cell.tabs.map((t) => t.id).join('|')
+  // A badge changes its tab's width: the fit is measured again.
+  const tabKey = cell.tabs.map((t) => {
+    const counts = badges.get(t.id)?.counts
+    return counts ? `${t.id}:${counts.due}:${counts.followup}` : t.id
+  }).join('|')
   const tabsRef = useLatestRef(cell.tabs)
   const activeId = active?.id
   const hasAdd = !collapsed && onAddTab != null
@@ -296,6 +316,7 @@ export function CellTabStrip({
             collapsed={collapsed}
             touch={touch}
             count={tab.id === active?.id ? activeCount : undefined}
+            badge={badges.get(tab.id)}
             onActivate={() => onActivate(tab.id)}
             onClose={onClose ? () => onClose(tab.id) : undefined}
             onOpenMenu={onOpenTabMenu ? (p) => onOpenTabMenu(tab.id, p) : undefined}
@@ -339,6 +360,7 @@ export function CellTabStrip({
         <OverflowMenu
           anchorRef={overflowRef}
           tabs={hidden}
+          badges={badges}
           onPick={(id) => onActivate(id)}
           onClose={() => setOverflowOpen(false)}
         />
@@ -365,19 +387,24 @@ function shareOf(size: TabSize | undefined, squeeze: boolean): CSSProperties | u
   return { flex: '1 1 0px', minWidth: squeeze ? size.least ?? size.min : size.min, maxWidth: size.natural + 1 }
 }
 
-function OverflowMenu({ anchorRef, tabs, onPick, onClose }: {
+function OverflowMenu({ anchorRef, tabs, badges, onPick, onClose }: {
   anchorRef: RefObject<HTMLButtonElement | null>
   tabs: LayoutTab[]
+  badges: ReadonlyMap<string, TabBadge>
   onPick: (tabId: string) => void
   onClose: () => void
 }) {
   // The strip's own titles: a list's unsaved name included.
   const titles = useTabTitles(tabs)
-  const entries = tabs.map((tab, i) => ({
+  const entries = tabs.map((tab, i) => {
+    const badge = badges.get(tab.id)
+    return {
     kind: 'item' as const,
     label: titles[i] ?? '',
     icon: <WidgetKindIcon kind={tab.kind} />,
+    ...(badge ? { trailing: <TabBadgeCapsule badge={badge} /> } : {}),
     onSelect: () => onPick(tab.id),
-  }))
+    }
+  })
   return <MenuPopover anchorRef={anchorRef} placement="bottom-end" entries={entries} label="More tabs" onClose={onClose} />
 }

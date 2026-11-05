@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { FollowupIntervalSetting } from '../FollowupIntervalSetting'
@@ -19,12 +19,71 @@ import {
 } from '../../../utils/list-options'
 import { TODO_SORT_DIRECTIONS, isTodoGroupBy, isTodoSortBy, sortDirectionOnPick, sortHasDirection } from '../../../models/todo-sort-group'
 import { STALE_AFTER_MAX_DAYS, isStaleAfterDays } from '../../../utils/stale'
+import { MARKER_KEYS } from '../../../models'
+import { MARKER_COLOR, MARKER_LABELS } from '../../../utils/markers'
+import { formatTabBadgeRange, parseTabBadgeRange, TAB_BADGE_CHOICES, tabBadgeRangeLabel } from '../../../utils/tab-badges'
+import type { TabBadgeRange } from '../../../models/list-definition'
 import { SettingRow } from './SettingRow'
 import styles from './sections.module.css'
 
 /** `Off` / `Today` / `Within 3 days` — a range choice as the select shows it. */
 function urgentChoiceLabel(range: UrgentDueWithinDays): string {
   return range == null || range === 0 ? urgentRangeLabel(range) : `Within ${urgentRangeLabel(range)}`
+}
+
+/** A tab badge range's select; a range set outside the offered choices (e.g. by an import) still shows. */
+function TabBadgeRangeSelect({ label, value, onChange }: { label: string; value: TabBadgeRange; onChange: (next: TabBadgeRange) => void }) {
+  const choices = TAB_BADGE_CHOICES.includes(value) ? TAB_BADGE_CHOICES : [...TAB_BADGE_CHOICES, value]
+  return (
+    <select
+      className={styles.select}
+      aria-label={label}
+      value={formatTabBadgeRange(value)}
+      onChange={(e) => {
+        const next = parseTabBadgeRange(e.target.value)
+        if (next !== undefined) onChange(next)
+      }}
+    >
+      {choices.map((range) => (
+        <option key={formatTabBadgeRange(range)} value={formatTabBadgeRange(range)}>{tabBadgeRangeLabel(range)}</option>
+      ))}
+    </select>
+  )
+}
+
+/** What each priority adds to a task's row, beside its dot. */
+function PriorityCuesSetting() {
+  const cues = useSettingsStore((s) => s.priorityCues)
+  const setCues = useSettingsStore((s) => s.setPriorityCues)
+  const toggle = (name: string, on: boolean, flip: () => void) => (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={name}
+      className={`${styles.switch} ${on ? styles.switchOn : ''}`}
+      onClick={flip}
+    />
+  )
+  return (
+    <SettingRow label="Priority cues" help="Beside each task's dots. Several glows blend along the row." column>
+      <div className={styles.cueGrid}>
+        <span />
+        <span className={styles.cueHead}>Glow</span>
+        <span className={styles.cueHead}>Semibold</span>
+        {MARKER_KEYS.map((key) => (
+          <Fragment key={key}>
+            <span className={styles.cueName}>
+              <span className={styles.cueDot} style={{ background: MARKER_COLOR[key] }} aria-hidden="true" />
+              {MARKER_LABELS[key]}
+            </span>
+            {toggle(`${MARKER_LABELS[key]} glow`, cues[key].glow, () => void setCues({ ...cues, [key]: { ...cues[key], glow: !cues[key].glow } }))}
+            {toggle(`${MARKER_LABELS[key]} semibold`, cues[key].semibold, () => void setCues({ ...cues, [key]: { ...cues[key], semibold: !cues[key].semibold } }))}
+          </Fragment>
+        ))}
+      </div>
+    </SettingRow>
+  )
 }
 
 /**
@@ -42,6 +101,8 @@ export function TaskDefaultsSection() {
   const setRemoveConvertedLines = useSettingsStore((s) => s.setRemoveConvertedLines)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const setUrgentRange = useSettingsStore((s) => s.setUrgentDueWithinDays)
+  const tabBadges = useSettingsStore((s) => s.tabBadges)
+  const setTabBadges = useSettingsStore((s) => s.setTabBadges)
   // A range set outside the offered choices (e.g. by an import) still shows.
   const urgentChoices = URGENT_DUE_WITHIN_CHOICES.includes(urgentRange)
     ? URGENT_DUE_WITHIN_CHOICES
@@ -97,6 +158,13 @@ export function TaskDefaultsSection() {
         </select>
       </SettingRow>
       <StaleAfterDaysSetting />
+      <SettingRow label="Tab badges: due" help="A list's tab counts its open tasks due in this range. Edit list can change it for one list.">
+        <TabBadgeRangeSelect label="Tab badges: due" value={tabBadges.due} onChange={(due) => void setTabBadges({ ...tabBadges, due })} />
+      </SettingRow>
+      <SettingRow label="Tab badges: follow-up" help="Its open tasks due for a follow-up in this range.">
+        <TabBadgeRangeSelect label="Tab badges: follow-up" value={tabBadges.followup} onChange={(followup) => void setTabBadges({ ...tabBadges, followup })} />
+      </SettingRow>
+      <PriorityCuesSetting />
       <SettingRow label="Week starts on" help="Calendars and the This Week group.">
         <select
           className={styles.select}

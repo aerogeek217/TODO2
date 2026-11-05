@@ -1,4 +1,6 @@
 .row {
+  /* The priority glow (`utils/priority-cues`); the other fills paint over it. */
+  background: var(--row-glow);
   display: flex;
   flex-direction: column;
   min-height: var(--mobile-row-min-height);
@@ -110,6 +112,10 @@
 }
 
 /* The title: the row's button (a tap selects the task), drawn as plain text. */
+.titleSemibold {
+  font-weight: var(--font-weight-semibold);
+}
+
 .title {
   flex: 1;
   min-width: 0;

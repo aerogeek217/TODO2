@@ -69,7 +69,24 @@ export interface ListDefinition {
   owner?: ListOwner
   /** `false` hides the list's filter line; absent = shown (only `false` is stored). */
   showFilterLine?: false
+  /** Its tab's badges, when not the app's (Settings › Tasks); absent = the app's. */
+  tabBadges?: ListTabBadges
 }
+
+/**
+ * What a tab badge counts of one kind: `off`, `overdue` (overdue only), or a
+ * day count (overdue plus that many days ahead; `0` = overdue and today).
+ */
+export type TabBadgeRange = 'off' | 'overdue' | number
+
+/** A tab badge's two ranges. */
+export interface TabBadgeRanges {
+  due: TabBadgeRange
+  followup: TabBadgeRange
+}
+
+/** A list's own tab badges: `off`, or its own ranges. */
+export type ListTabBadges = 'off' | TabBadgeRanges
 
 export type PersistedListDefinition = ListDefinition & { id: number }
 

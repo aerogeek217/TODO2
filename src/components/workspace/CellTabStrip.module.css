@@ -91,6 +91,49 @@
   color: var(--color-text-muted);
 }
 
+/* A badge takes the tab's width from its title, so the tab tightens up. */
+.hasBadge {
+  gap: 4px;
+  padding: 0 8px;
+}
+
+/* A list's due and follow-up counts, one capsule. Solid: some of it is overdue. */
+.badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: var(--font-weight-bold);
+  line-height: 14px;
+}
+
+.badgeDue,
+.badgeFollowup {
+  padding: 0 4px;
+}
+
+.badgeDue {
+  background: var(--color-overdue-bg-strong);
+  color: var(--color-overdue);
+}
+
+.badgeDueOverdue {
+  background: var(--cal-overdue-solid);
+  color: var(--cal-on-overdue);
+}
+
+.badgeFollowup {
+  background: var(--color-followup-bg-strong);
+  color: var(--color-followup);
+}
+
+.badgeFollowupOverdue {
+  background: var(--cal-followup-solid);
+  color: var(--cal-on-followup);
+}
+
 /* The tab's list has unsaved edits. */
 .unsavedDot {
   flex-shrink: 0;

@@ -428,7 +428,7 @@ test.describe('phone', () => {
     await expect(allRows).toHaveCount(2)
     await expect(datesRow.locator('..')).toContainText('Next follow-up none')
 
-    await page.getByRole('tab', { name: 'Due' }).click()
+    await page.getByRole('tab', { name: 'Due', exact: true }).click()
     await expect(allRows).toHaveCount(2)
     await page.getByRole('radio', { name: 'Any' }).click()
     await expect(allRows).toHaveCount(1)

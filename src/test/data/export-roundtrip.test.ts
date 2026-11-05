@@ -94,6 +94,9 @@ function buildSeed(): Seed {
       { key: 'followupDefaultInterval', value: '2w' },
       { key: 'newTaskFollowup', value: 'false' },
       { key: 'removeConvertedLines', value: 'true' },
+      { key: 'tabBadgeDue', value: 'overdue' },
+      { key: 'tabBadgeFollowup', value: '7' },
+      { key: 'priorityCues', value: JSON.stringify({ focus: { glow: true, semibold: false }, urgent: { glow: false, semibold: false }, important: { glow: true, semibold: true } }) },
       { key: 'urgentDueWithinDays', value: 'off' },
       { key: 'checkinOpenMethod', value: 'eml' },
       { key: 'checkinTaskFilter', value: formatCheckinFilterSetting({ ...FULL_PREDICATE, personIds: null, markers: [{ values: ['focus'] }], negate: { tags: true }, orGroups: [OR_GROUPS[1]!] }) },
@@ -127,7 +130,7 @@ function buildSeed(): Seed {
       id: 2, name: 'Follow-ups', sortOrder: 1,
       membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: [{ values: ['focus'] }] } },
       sort: 'followup', grouping: 'followup',
-      owner: { layoutId: 2 }, showFilterLine: false,
+      owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' },
     }, {
       id: 3, name: 'Eisenhower', sortOrder: 2,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },

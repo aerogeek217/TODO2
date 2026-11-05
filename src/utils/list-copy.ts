@@ -74,7 +74,7 @@ export function copySourceGroups<T extends CopySourceRef>({
  * completed with them), group, sort and its direction, the prompt and Show
  * filter line. Never the name, the owner or the manual order.
  */
-export type CopiedListParts = Pick<ListDefinition, 'membership' | 'sort' | 'sortDirection' | 'grouping' | 'runtimeFilter' | 'showFilterLine'>
+export type CopiedListParts = Pick<ListDefinition, 'membership' | 'sort' | 'sortDirection' | 'grouping' | 'runtimeFilter' | 'showFilterLine' | 'tabBadges'>
 
 /** `source`'s copied parts (`CopiedListParts`), its filter cloned; parts it doesn't set are absent. */
 export function copiedListParts(source: ListDefinition): CopiedListParts {
@@ -85,6 +85,7 @@ export function copiedListParts(source: ListDefinition): CopiedListParts {
     grouping: source.grouping,
     ...(source.runtimeFilter != null ? { runtimeFilter: { field: source.runtimeFilter.field } } : {}),
     ...(source.showFilterLine === false ? { showFilterLine: false as const } : {}),
+    ...(source.tabBadges != null ? { tabBadges: structuredClone(source.tabBadges) } : {}),
   }
 }
 
@@ -99,6 +100,7 @@ export function withCopiedParts<T extends ListDefinition>(target: T, source: Lis
   delete next.sortDirection
   delete next.runtimeFilter
   delete next.showFilterLine
+  delete next.tabBadges
   return { ...next, ...copiedListParts(source) }
 }
 

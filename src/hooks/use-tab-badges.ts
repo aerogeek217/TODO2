@@ -1,0 +1,96 @@
+import { useEffect, useMemo } from 'react'
+import type { LayoutTab } from '../models/workspace-layout'
+import { applyRuntimeFilter } from '../services/build-list'
+import { useListDefinitionStore } from '../stores/list-definition-store'
+import { useListDraftStore } from '../stores/list-draft-store'
+import { useListWidgetStore } from '../stores/list-widget-store'
+import { usePersonStore } from '../stores/person-store'
+import { useScreenFilter } from '../stores/screen-filter'
+import { useSettingsStore } from '../stores/settings-store'
+import { useStatusStore } from '../stores/status-store'
+import { useStatusUpdateStore } from '../stores/status-update-store'
+import { useSubtaskStore } from '../stores/subtask-store'
+import { useTagStore } from '../stores/tag-store'
+import { useTodoStore } from '../stores/todo-store'
+import type { TodoNameLookups } from '../utils/filter'
+import { createPredicateEvaluator, createScreenComposedEvaluator } from '../utils/filter-match'
+import { countTabBadges, tabBadgeRangesFor, tabBadgeSummary, type TabBadgeCounts } from '../utils/tab-badges'
+import { useFilterSettings } from './use-filter-settings'
+import { useToday } from './use-today'
+
+export interface TabBadge {
+  counts: TabBadgeCounts
+  /** The badge in words, a line per kind. */
+  summary: string[]
+}
+
+const NO_BADGES: ReadonlyMap<string, TabBadge> = new Map()
+
+/**
+ * The badges of a strip's list tabs (by tab id; a tab with nothing to count
+ * has none): the open tasks the tab shows on opening — the list as edited,
+ * its prompt pick and the screen filter — inside the list's ranges or the
+ * app's. A list still waiting on its prompt has none.
+ */
+export function useTabBadges(tabs: readonly LayoutTab[]): ReadonlyMap<string, TabBadge> {
+  const defs = useListDefinitionStore((s) => s.listDefinitions)
+  const drafts = useListDraftStore((s) => s.drafts)
+  const picks = useListWidgetStore((s) => s.picks)
+  const appRanges = useSettingsStore((s) => s.tabBadges)
+  const todos = useTodoStore((s) => s.todos)
+  const statuses = useStatusStore((s) => s.statuses)
+  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
+  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
+  const loadTagAssignments = useTagStore((s) => s.loadAssignments)
+  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
+  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
+  const { filters: screen, active: screenActive } = useScreenFilter()
+  const settings = useFilterSettings()
+  const today = useToday()
+  const hasListTab = tabs.some((tab) => tab.kind === 'lens')
+
+  // A list tab may be the only reader of these: its widget isn't mounted until it is opened.
+  useEffect(() => {
+    if (!hasListTab) return
+    void useStatusUpdateStore.getState().ensureLoaded()
+    void useSubtaskStore.getState().ensureLoaded()
+  }, [hasListTab])
+  useEffect(() => {
+    if (hasListTab && todos.length > 0) loadTagAssignments(todos.map((t) => t.id))
+  }, [hasListTab, todos, loadTagAssignments])
+
+  return useMemo(() => {
+    if (!hasListTab) return NO_BADGES
+    const lookups: TodoNameLookups = {
+      assignedPeopleMap,
+      assignedTagsMap,
+      statusesById: new Map(statuses.map((st) => [st.id!, st])),
+      statusUpdatesByTodo,
+      subtasksByTodo,
+    }
+    const matches = screenActive
+      ? createScreenComposedEvaluator(screen, lookups, today, settings)
+      : createPredicateEvaluator(lookups, today, settings)
+    const open = todos.filter((t) => !t.isCompleted)
+    const badges = new Map<string, TabBadge>()
+    for (const tab of tabs) {
+      if (tab.kind !== 'lens') continue
+      const id = tab.config.listDefinitionId
+      if (id == null) continue
+      const saved = defs.find((d) => d.id === id)
+      if (!saved) continue
+      const def = drafts[id] ?? saved
+      const ranges = tabBadgeRangesFor(def.tabBadges, appRanges)
+      if (ranges.due === 'off' && ranges.followup === 'off') continue
+      const pick = picks[tab.id]
+      if (def.runtimeFilter && pick == null) continue
+      const predicate = def.runtimeFilter && pick && pick.length > 0
+        ? applyRuntimeFilter(def.membership.predicate, def.runtimeFilter, pick)
+        : def.membership.predicate
+      const counts = countTabBadges(open.filter((t) => matches(predicate, t)), ranges, today)
+      if (counts.due + counts.followup > 0) badges.set(tab.id, { counts, summary: tabBadgeSummary(counts, ranges) })
+    }
+    return badges
+  }, [hasListTab, tabs, defs, drafts, picks, appRanges, todos, statuses, assignedPeopleMap, assignedTagsMap,
+    statusUpdatesByTodo, subtasksByTodo, screen, screenActive, settings, today])
+}

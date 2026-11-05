@@ -524,3 +524,31 @@
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
 }
+
+/* Priority cues: a priority per row, a switch per cue. */
+.cueGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) repeat(2, 72px);
+  align-items: center;
+  justify-items: center;
+  gap: 8px 0;
+  max-width: 320px;
+}
+
+.cueHead {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.cueName {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  justify-self: start;
+}
+
+.cueDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}

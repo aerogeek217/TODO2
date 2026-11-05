@@ -5,6 +5,8 @@
  * moves on hover.
  */
 .row {
+  /* The priority glow (`utils/priority-cues`); hover and the other fills paint over it. */
+  background: var(--row-glow);
   display: grid;
   column-gap: 5px;
   align-items: center;
@@ -195,6 +197,11 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   padding-right: 4px;
+}
+
+/* A priority's semibold cue (`utils/priority-cues`). */
+.title.titleSemibold {
+  font-weight: var(--font-weight-semibold);
 }
 
 /* With a checklist, the title is the text then its `2/5` count (cr28): the text gives way first. */

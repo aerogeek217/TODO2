@@ -32,6 +32,8 @@ export interface MenuItemEntry {
   checked?: boolean | 'mixed'
   /** Muted trailing text (e.g. "Edited", a current date, "1 of 3"). */
   note?: string
+  /** A trailing element of its own (e.g. a tab's badge). */
+  trailing?: ReactNode
   /** A muted, wrapping line under the label (what a choice means). */
   description?: string
   /** Shows a submenu chevron; `onSelect` opens the caller's own submenu. */
@@ -519,6 +521,7 @@ function MenuItemButton({ entry, index: i, expanded, onSelect, onHoverItem, sort
       ) : (
         <span className={styles.label}>{entry.label}</span>
       )}
+      {entry.trailing}
       {entry.note && <span className={styles.note}>{entry.note}</span>}
       {entry.shortcut && <kbd className={styles.kbd} aria-hidden="true">{entry.shortcut}</kbd>}
       {entry.kbd && <kbd className={styles.kbd} aria-hidden="true">{entry.kbd}</kbd>}

@@ -223,6 +223,8 @@
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+  /* A priority's row glow (D19's Ember, `utils/priority-cues`). */
+  --priority-glow-strength: 11%;
 
   /* Layout hues (D19, a layout's `hue`): its active tab, cell headers and
      focus ring. Each ≥ 3:1 on every surface. */
@@ -455,6 +457,7 @@
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+  --priority-glow-strength: 7%;
 
   /* Layout hues: the light twins, each ≥ 3:1 on every light surface. */
   --hue-teal: #2f9a8f;
