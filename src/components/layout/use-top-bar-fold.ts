@@ -1,7 +1,7 @@
 import { useLayoutEffect, useState, type RefObject } from 'react'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { attrSelector } from '../../utils/dom-contract'
-import { FOLD_HIDDEN_ATTR, FOLD_VALUE_ATTR, FOLD_VARIANT_ATTR, type FoldVariant } from '../shared/filters/FilterChipBar.shared'
+import { FOLD_HIDDEN_ATTR, FOLD_HOLD_ATTR, FOLD_VALUE_ATTR, FOLD_VARIANT_ATTR, type FoldVariant } from '../shared/filters/FilterChipBar.shared'
 import { LENS_NAME_ATTR, LENS_NAME_MAX_WIDTH } from '../shared/filters/lens-fold'
 
 /**
@@ -336,15 +336,37 @@ export function useTopBarFold(
   useLayoutEffect(() => {
     const bar = barRef.current
     if (!bar || typeof ResizeObserver === 'undefined') return
-    const observer = new ResizeObserver(() => setMeasure(remeasure(bar, latest.current)))
+    // While a filter picker is open (`FOLD_HOLD_ATTR` on its button, not in a
+    // measure-only copy) the fold holds: a pick that widens its value would
+    // otherwise fold the button, and the picker with it, away mid-pick. The
+    // bar is measured again once it closes.
+    let missed = false
+    const holding = () => Array.from(bar.querySelectorAll(attrSelector(FOLD_HOLD_ATTR)))
+      .some((el) => el.closest(attrSelector(FOLD_HIDDEN_ATTR)) == null)
+    const measureNow = () => {
+      if (holding()) {
+        missed = true
+        return
+      }
+      missed = false
+      setMeasure(remeasure(bar, latest.current))
+    }
+    const observer = new ResizeObserver(measureNow)
     observer.observe(bar)
+    const released = typeof MutationObserver === 'undefined' ? null : new MutationObserver(() => {
+      if (missed) measureNow()
+    })
+    released?.observe(bar, { subtree: true, attributes: true, attributeFilter: [FOLD_HOLD_ATTR] })
     // The parts and what is in them: a part that shrinks (the tray) keeps
     // its box while its content changes; the filter bar's hidden fold.
     for (const child of Array.from(bar.children)) {
       observer.observe(child)
       for (const inner of Array.from(child.children)) observer.observe(inner)
     }
-    return () => observer.disconnect()
+    return () => {
+      observer.disconnect()
+      released?.disconnect()
+    }
   }, [barRef, latest, partsKey, fold])
   const room = trayRoom(measure, fold)
   const folded = filtersFolded(fold)

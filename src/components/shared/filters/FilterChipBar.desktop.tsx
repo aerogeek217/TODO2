@@ -31,6 +31,7 @@ import { useTooltip } from '../use-tooltip'
 import { useReturnFocus } from '../use-popover-focus'
 import {
   FOLD_HIDDEN_ATTR,
+  FOLD_HOLD_ATTR,
   FOLD_VALUE_ATTR,
   FOLD_VARIANT_ATTR,
   narrowedPeople,
@@ -204,6 +205,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
     <div
       ref={pillRef}
       className={`${styles.filterButton} ${field.highlighted ? styles.filterButtonActive : ''} ${on ? styles.filterButtonOn : ''} ${open ? styles.filterButtonOpen : ''}`}
+      {...(open ? { [FOLD_HOLD_ATTR]: '' } : {})}
     >
       <button
         ref={mainRef}
@@ -343,6 +345,7 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
         type="button"
         className={`${styles.filterButton} ${styles.filterMain} ${styles.filtersTrigger} ${count > 0 ? styles.filterButtonActive : ''}`}
         aria-expanded={open}
+        {...(open ? { [FOLD_HOLD_ATTR]: '' } : {})}
         aria-label={count > 0 ? `Filters, ${count} active` : 'Filters'}
         onClick={() => (open ? closeAll() : setOpen(true))}
       >
