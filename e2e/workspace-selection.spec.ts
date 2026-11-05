@@ -170,3 +170,42 @@ test('a click outside the rows clears the selection; rows, the bulk bar, menus a
   await page.mouse.click(header.x + header.width - 60, header.y + header.height / 2)
   await expect(selected).toHaveCount(0)
 })
+
+/**
+ * Space / Enter / Delete on a focused control are that control's, never an
+ * act on the selected rows (cr31 W2): Space on the selected row's own Set
+ * status button opens its menu and leaves the task open; with focus back on
+ * the page, Space completes the selection as before.
+ */
+test('Space on a focused row control is the control’s; on the page it toggles the selection', async ({ page }) => {
+  await seedWorkspace(page, {
+    listDefinitions: [{ name: 'Tasks', predicate: { showCompleted: true } }],
+    tasks: [{ title: 'one' }, { title: 'two' }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  })
+  await wsListWidget(page, 'list').waitFor({ state: 'visible' })
+  const row = taskRowByTitle(page, 'one')
+  await row.locator('span[data-task-title="one"]').click()
+  await expect(page.locator('[data-selected="true"]')).toHaveCount(1)
+
+  // The row itself is no focusable "draggable" button (M1).
+  await expect(row).not.toHaveAttribute('role', 'button')
+  await expect(row).not.toHaveAttribute('tabindex', /.*/)
+
+  const status = row.getByRole('button', { name: 'Set status' })
+  await status.focus()
+  await page.keyboard.press(' ')
+  await expect(status).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByRole('button', { name: 'No Status' })).toBeVisible()
+  await expect(row.getByRole('checkbox', { name: 'Mark complete' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(status).toHaveAttribute('aria-expanded', 'false')
+
+  await status.focus()
+  await page.keyboard.press('Delete')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+  await page.keyboard.press(' ')
+  await expect(row.getByRole('checkbox', { name: 'Mark incomplete' })).toBeVisible()
+})

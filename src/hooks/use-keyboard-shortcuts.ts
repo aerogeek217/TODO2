@@ -8,7 +8,7 @@ import {
 } from '../services/keyboard-shortcuts'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
-import { attrSelector, SHORTCUT_SCOPE_ATTR, type ShortcutScope } from '../utils/dom-contract'
+import { attrSelector, ROW_KEY_ATTR, SHORTCUT_SCOPE_ATTR, type ShortcutScope } from '../utils/dom-contract'
 import { resolveBindings } from '../utils/shortcut-bindings'
 import { comboMatchesEvent, sequenceKeyMatchesEvent } from '../utils/shortcut-chord'
 import { useLatestRef } from './use-latest-ref'
@@ -39,7 +39,14 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
       const active = document.activeElement as HTMLElement | null
       // Inside a modal dialog no app shortcut fires, not even the ones
       // allowed in text fields (they'd act on the page behind it).
-      if (inModal(target) || inModal(active)) {
+      if (inModal(target) || inModal(active) || behindModal(active)) {
+        pendingChordRef.current = null
+        return
+      }
+      // Space / Enter / Delete on a focused control are that control's (a
+      // button's press, a tab's switch, a menu item's pick), never an act on
+      // the selected rows behind it; nor is a key a component already handled.
+      if (isActivationKey(e) && (e.defaultPrevented || ownsActivationKeys(target) || ownsActivationKeys(active))) {
         pendingChordRef.current = null
         return
       }
@@ -109,6 +116,36 @@ export function useKeyboardShortcuts(options: KeyboardShortcutOptions) {
 function ownsLetterKeys(el: HTMLElement | null): boolean {
   if (!el || typeof el.closest !== 'function') return false
   return el.closest('select, a[href], button, [role="button"], [role="combobox"], [role="listbox"]') !== null
+}
+
+/** The keys a focused control acts on itself: an unmodified Space, Enter or Delete. */
+function isActivationKey(e: KeyboardEvent): boolean {
+  if (e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return false
+  return e.key === ' ' || e.key === 'Enter' || e.key === 'Delete'
+}
+
+/**
+ * A control that a Space / Enter / Delete belongs to: a button, a link, a
+ * select, or an element in an interactive role. A task row's own wrapper is
+ * not one — keys on it act on the selection.
+ */
+const ACTIVATION_CONTROLS = [
+  'button', 'a[href]', 'select', 'summary',
+  ...['button', 'link', 'tab', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'checkbox', 'radio',
+    'switch', 'option', 'combobox', 'listbox', 'slider', 'spinbutton', 'treeitem']
+    .map((role) => `[role="${role}"]`),
+].join(', ')
+
+function ownsActivationKeys(el: HTMLElement | null): boolean {
+  if (!el || typeof el.closest !== 'function') return false
+  const control = el.closest(ACTIVATION_CONTROLS)
+  return control !== null && !control.hasAttribute(ROW_KEY_ATTR)
+}
+
+/** Focus fell to the page (`body`) while a modal is open: keys belong to the modal, not the page behind it. */
+function behindModal(active: HTMLElement | null): boolean {
+  if (active && active !== document.body && active !== document.documentElement) return false
+  return document.querySelector(scopeSelector('modal')) !== null
 }
 
 const scopeSelector = (scope: ShortcutScope) => attrSelector(SHORTCUT_SCOPE_ATTR, scope)
