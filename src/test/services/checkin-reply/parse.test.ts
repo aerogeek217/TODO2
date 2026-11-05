@@ -9,6 +9,7 @@ import {
 import { checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
 import { editHtml, editPlain, parse, sampleEmail } from './helpers'
 import { expectWithin } from '../../timing'
+import { statusUpdateText } from '../../../utils/status-updates'
 
 const REFS = ['0c4d8e17', 'b71e05d9', '3f9a1c42', '9e8d7c6b']
 
@@ -347,6 +348,19 @@ describe('size', () => {
       const fromPlain = parse({ plain })
       expect(fromPlain.blocks).toHaveLength(4)
       expect(block(fromPlain, '0c4d8e17').notesText?.split('\n').length).toBe(4002)
+    })
+  })
+
+  it('reads a Status wrapped over a near-cap paste of short lines quickly (was quadratic, cr31 M3)', () => {
+    const email = sampleEmail()
+    const lines = Array.from({ length: 600_000 }, (_, i) => `w${i % 10}`)
+    const plain = editPlain(email.plain, '0c4d8e17', 'Status:', [`Status: a\n${lines.join('\n')}`])
+    expect(plain.length).toBeLessThan(CHECKIN_REPLY_MAX_CHARS)
+    expect(plain.length).toBeGreaterThan(CHECKIN_REPLY_MAX_CHARS * 0.8)
+    expectWithin(2000, () => {
+      const status = block(parse({ plain }), '0c4d8e17').statusUpdate ?? ''
+      // What an entry stores (its first 500 characters) is unchanged by the lines not read.
+      expect(statusUpdateText(status)).toBe(statusUpdateText(['a', ...lines].join(' ')))
     })
   })
 
