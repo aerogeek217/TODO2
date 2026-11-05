@@ -2,6 +2,7 @@ import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest'
 import { render, cleanup, fireEvent } from '@testing-library/react'
 import { createRef } from 'react'
 import type { EditorView } from '@codemirror/view'
+import { undo, undoDepth } from '@codemirror/commands'
 import { NotesEditor } from '../../../components/task/notes/NotesEditor'
 import type { NotesNlpConfig } from '../../../components/task/notes/notes-nlp'
 import { personItems, statusItems, tagItems } from '../../../services/nlp-autocomplete'
@@ -193,6 +194,44 @@ describe('NotesEditor — value and callbacks', () => {
     rerender(<NotesEditor value="two" onChange={onChange} viewRef={viewRef} />)
     expect(viewRef.current!.state.doc.toString()).toBe('two')
     expect(onChange).not.toHaveBeenCalled()
+  })
+
+  const LIST = ['- a', '- b', '- c'].join(String.fromCharCode(10))
+  const CONVERTED = ['✓ a', '✓ c'].join(String.fromCharCode(10))
+
+  it('a new value from the parent starts a fresh undo history and keeps the caret inside the text (cr31 N1)', () => {
+    const viewRef = createRef<EditorView>() as { current: EditorView | null }
+    const onChange = vi.fn()
+    const { rerender } = render(<NotesEditor value={LIST} onChange={onChange} viewRef={viewRef} />)
+    const view = viewRef.current!
+    // The convert: an edit in the editor (in its history).
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: CONVERTED }, selection: { anchor: 3 } })
+    expect(undoDepth(view.state)).toBe(1)
+    // The host saves it and passes it back (the buffer already holds it).
+    rerender(<NotesEditor value={CONVERTED} onChange={onChange} viewRef={viewRef} />)
+    expect(undoDepth(view.state)).toBe(1)
+    // The snackbar's Undo puts the old text back from outside.
+    rerender(<NotesEditor value={LIST} onChange={onChange} viewRef={viewRef} />)
+    expect(view.state.doc.toString()).toBe(LIST)
+    expect(view.state.selection.main.head).toBe(3)
+    expect(undoDepth(view.state)).toBe(0)
+    onChange.mockClear()
+    // Ctrl+Z in the note: nothing to undo, nothing written.
+    undo(view)
+    expect(view.state.doc.toString()).toBe(LIST)
+    expect(onChange).not.toHaveBeenCalled()
+    // Edits after it are undoable as usual.
+    view.dispatch({ changes: { from: 0, insert: 'x' } })
+    undo(view)
+    expect(view.state.doc.toString()).toBe(LIST)
+  })
+
+  it('a shorter new value clamps the caret to its end', () => {
+    const viewRef = createRef<EditorView>() as { current: EditorView | null }
+    const { rerender } = render(<NotesEditor value="a long note" onChange={() => {}} viewRef={viewRef} />)
+    viewRef.current!.dispatch({ selection: { anchor: 11 } })
+    rerender(<NotesEditor value="ab" onChange={() => {}} viewRef={viewRef} />)
+    expect(viewRef.current!.state.selection.main.head).toBe(2)
   })
 
   it('reports an edit to the latest onChange', () => {

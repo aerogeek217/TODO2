@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { EditorState, Compartment, Prec } from '@codemirror/state'
+import { EditorState, Compartment, Prec, Transaction } from '@codemirror/state'
 import { EditorView, keymap } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { commonmarkLanguage, markdownKeymap, pasteURLAsLink } from '@codemirror/lang-markdown'
@@ -90,6 +90,7 @@ export function NotesEditor({
   const valueRef = useRef(value)
   const keymapCompartment = useRef(new Compartment())
   const lineConvertCompartment = useRef(new Compartment())
+  const historyCompartment = useRef(new Compartment())
   const onLineConvertRef = useLatestRef(onLineConvert)
   const hasLineConvert = onLineConvert !== undefined
   const lineConvertExtension = useLatestRef(() => lineConvert((_view, line) => onLineConvertRef.current?.(line), lineConvertLabel))
@@ -127,7 +128,7 @@ export function NotesEditor({
     const state = EditorState.create({
       doc: value,
       extensions: [
-        history(),
+        historyCompartment.current.of(history()),
         notesMarkdown,
         EditorView.lineWrapping,
         pasteHandler,
@@ -182,16 +183,25 @@ export function NotesEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // External value changes: only re-apply when the editor's own buffer differs.
+  // External value changes (a snackbar Undo, a data replace): only re-apply
+  // when the editor's own buffer differs. The new text starts a fresh undo
+  // history — the old entries describe a text that is gone, and undoing one
+  // would write it back over the new value (or splice it in) and save it.
+  // The caret stays where it was, inside the new text.
   useEffect(() => {
     const view = viewRef.current
     if (!view) return
     const current = view.state.doc.toString()
     if (current !== value) {
       valueRef.current = value
+      const { anchor, head } = view.state.selection.main
       view.dispatch({
         changes: { from: 0, to: current.length, insert: value },
+        selection: { anchor: Math.min(anchor, value.length), head: Math.min(head, value.length) },
+        annotations: Transaction.addToHistory.of(false),
+        effects: historyCompartment.current.reconfigure([]),
       })
+      view.dispatch({ effects: historyCompartment.current.reconfigure(history()) })
     }
   }, [value])
 
