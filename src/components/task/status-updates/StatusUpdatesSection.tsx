@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { createPortal } from 'react-dom'
 import { STATUS_UPDATE_TEXT_MAX } from '../../../models'
@@ -43,8 +43,13 @@ const STATUS_UPDATE_PLACEHOLDER = 'e.g. waiting on legal, 50% done'
  * entry's, not the editor's). Delete asks nothing: the store's undo snackbar
  * takes it back. What the callbacks write is the host's (the store in edit
  * mode, the pending entries in create mode).
+ *
+ * `commitRef` (create mode): the host's way to write an entry still being
+ * edited, or an update still being typed, before it reads its entries —
+ * Create task / ⏎ / Save draft, and the close's "anything to lose?" check,
+ * run before the open field unmounts.
  */
-export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, className, labelClassName }: {
+export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, className, labelClassName, commitRef }: {
   /** Newest first. */
   entries: readonly StatusUpdateEntry[]
   onAdd: (entry: StatusUpdateFields) => void
@@ -52,8 +57,21 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
   onRemove: (id: number) => void
   className?: string
   labelClassName?: string
+  commitRef?: { current: (() => void) | null }
 }) {
   const today = useToday()
+  // The open edit's / add's commit, for `commitRef`.
+  const openCommits = useRef(new Set<() => void>())
+  useLayoutEffect(() => {
+    if (!commitRef) return
+    const commit = () => { for (const c of [...openCommits.current]) c() }
+    commitRef.current = commit
+    return () => { if (commitRef.current === commit) commitRef.current = null }
+  }, [commitRef])
+  const registerCommit = useCallback((commit: () => void) => {
+    openCommits.current.add(commit)
+    return () => { openCommits.current.delete(commit) }
+  }, [])
   const labelId = useId()
   const [adding, setAdding] = useState(false)
   const [olderOpen, setOlderOpen] = useState(false)
@@ -111,6 +129,7 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
           onSave={(changes) => { onEdit(entry.id, changes); finishEdit(entry.id) }}
           onSaveOnClose={(changes) => onEdit(entry.id, changes)}
           onCancel={() => finishEdit(entry.id)}
+          registerCommit={registerCommit}
         />
       ) : (
         <>
@@ -171,6 +190,7 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
           onAdd={(entry) => { onAdd(entry); closeAdd() }}
           onAddOnClose={onAdd}
           onClose={closeAdd}
+          registerCommit={registerCommit}
         />
       )}
       {entries.length > 0 && (
@@ -209,13 +229,14 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
  * outside click close it and add what was typed; only Cancel drops it. A day
  * that isn't one holds the close once, saying so; closing again drops it.
  */
-function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose }: {
+function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose, registerCommit }: {
   anchorRef: RefObject<HTMLButtonElement | null>
   today: Date
   onAdd: (entry: StatusUpdateFields) => void
   /** Added as it goes: the host's write only, the focus being wherever the close left it. */
   onAddOnClose: (entry: StatusUpdateFields) => void
   onClose: () => void
+  registerCommit: (commit: () => void) => () => void
 }) {
   const [text, setText] = useState('')
   const [closeHeld, setCloseHeld] = useState(false)
@@ -232,11 +253,43 @@ function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose }: {
     consumeEscape: true,
     observeSize: true,
     onClose: () => {
-      if (statusUpdateText(text) !== '' && day.day === 'invalid' && !closeHeld) setCloseHeld(true)
-      else onClose()
+      if (statusUpdateText(text) !== '' && day.day === 'invalid' && !closeHeld) {
+        setCloseHeld(true)
+        // Held by a press outside: the click that ends it is held too — it
+        // would close the editor (its ×, Done, Create, the backdrop) and drop
+        // the update all the same (cr31 T6).
+        if (pressOutside.current) holdClick.current = true
+      } else onClose()
     },
     caret: true,
   })
+  const panelEl = useRef<HTMLElement | null>(null)
+  const setPanel = useCallback((el: HTMLDivElement | null) => {
+    panelEl.current = el
+    panelRef(el)
+  }, [panelRef])
+  // A press outside in progress (set before the popover's outside-press
+  // close runs), and the click to swallow after a held press.
+  const pressOutside = useRef(false)
+  const holdClick = useRef(false)
+  useEffect(() => {
+    const outside = (e: Event) => !(e.target instanceof Node && panelEl.current?.contains(e.target))
+    const onDown = (e: PointerEvent) => { pressOutside.current = outside(e) }
+    const onClick = (e: MouseEvent) => {
+      pressOutside.current = false
+      if (!holdClick.current) return
+      holdClick.current = false
+      if (!outside(e)) return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    window.addEventListener('click', onClick, true)
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true)
+      window.removeEventListener('click', onClick, true)
+    }
+  }, [])
   useEffect(() => { textRef.current?.focus() }, [])
   const clean = statusUpdateText(text)
   const canAdd = clean !== '' && day.day !== 'invalid'
@@ -251,6 +304,13 @@ function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose }: {
   })
   // In the commit that closes it, so a click right behind the closing press (Create) reads the result.
   useLayoutEffect(() => () => addOnCloseRef.current(), [addOnCloseRef])
+  // The host reading its entries first (`commitRef`): add what was typed, and close.
+  const onCloseRef = useLatestRef(onClose)
+  useLayoutEffect(() => registerCommit(() => {
+    addOnCloseRef.current()
+    finished.current = true
+    onCloseRef.current()
+  }), [registerCommit, addOnCloseRef, onCloseRef])
   const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
     e.preventDefault()
@@ -258,7 +318,7 @@ function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose }: {
   }
   return createPortal(
     <PopoverRoot
-      ref={panelRef}
+      ref={setPanel}
       caret={caret}
       className={styles.addPopover}
       style={{ position: style.position, left: style.left, top: style.top }}
@@ -298,12 +358,13 @@ function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose }: {
  * Save. Esc and Cancel drop the edit; the editor closing around it saves it
  * (a day that isn't one: the text, on the day it had).
  */
-function EntryEditor({ entry, today, onSave, onSaveOnClose, onCancel }: {
+function EntryEditor({ entry, today, onSave, onSaveOnClose, onCancel, registerCommit }: {
   entry: StatusUpdateEntry
   today: Date
   onSave: (changes: StatusUpdateFields) => void
   onSaveOnClose: (changes: StatusUpdateFields) => void
   onCancel: () => void
+  registerCommit: (commit: () => void) => () => void
 }) {
   // Saved or cancelled: nothing left to save as it goes.
   const finished = useRef(false)
@@ -330,6 +391,8 @@ function EntryEditor({ entry, today, onSave, onSaveOnClose, onCancel }: {
   })
   // In the commit that closes it, so a click right behind the closing press (Create) reads the result.
   useLayoutEffect(() => () => saveOnCloseRef.current(), [saveOnCloseRef])
+  // The host reading its entries first (`commitRef`): the edit so far (saving it again on close writes the same).
+  useLayoutEffect(() => registerCommit(() => saveOnCloseRef.current()), [registerCommit, saveOnCloseRef])
   return (
     <div
       className={styles.editRow}

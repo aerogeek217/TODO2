@@ -408,6 +408,16 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(ids).toContain('lw|t1|person-2|3')
   })
 
+  it('a row is no focusable "draggable" button with keyboard-drag instructions (no keyboard sensor; cr31 M1)', () => {
+    setup(def({ grouping: 'people' }))
+    const row = document.querySelector('[data-row-key="person-1|3"]')!
+    expect(row.getAttribute('role')).toBeNull()
+    // Focusable by a click (the editor hands the focus back to it), no tab stop.
+    expect(row.getAttribute('tabindex')).toBe('-1')
+    expect(row.getAttribute('aria-roledescription')).toBeNull()
+    expect(row.getAttribute('aria-describedby')).toBeNull()
+  })
+
   it('click selects one; Shift extends across groups; Ctrl toggles; the cursor sits on one occurrence', () => {
     setup(def({ grouping: 'people' }))
     clickTitle('person-1|3')

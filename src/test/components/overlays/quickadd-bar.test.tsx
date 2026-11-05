@@ -342,6 +342,24 @@ describe('QuickAddBar', () => {
       expect(getInput().value).toBe('Call @Anna ')
     })
 
+    it('the close prompt’s Create task reads the text as ⏎ does: the open token completed to the highlighted row (cr31 N7)', async () => {
+      usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Annette', initials: 'AE' }] })
+      const onSubmit = vi.fn()
+      const ask = vi.spyOn(useUIStore.getState(), 'askChoice').mockResolvedValue('confirm')
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeTo('Call @an')
+      fireEvent.mouseMove(option(/Annette/), { clientX: 40, clientY: 60 })
+      expect(option(/Annette/)).toHaveAttribute('aria-selected', 'true')
+      // A click on the backdrop with the popup still open: asks, then Create task.
+      const backdrop = screen.getByTestId('quickadd-backdrop')
+      fireEvent.mouseDown(backdrop)
+      fireEvent.click(backdrop)
+      expect(ask).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+      const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
+      expect(draft.resolved.personIds).toEqual([3])
+    })
+
     it('moving the pointer over a row highlights it; Enter then submits with that one', () => {
       usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Annette', initials: 'AE' }] })
       const onSubmit = vi.fn()

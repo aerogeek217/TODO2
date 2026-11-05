@@ -1,5 +1,6 @@
 import { useCallback } from 'react'
 import type { MarkerKey, PersistedTodoItem } from '../models'
+import { useTodoStore } from '../stores/todo-store'
 import { useBulkActions } from './use-bulk-actions'
 
 interface UseTaskRowActionsOpts {
@@ -20,9 +21,16 @@ interface UseTaskRowActionsOpts {
 export function useTaskRowActions({ todo }: UseTaskRowActionsOpts) {
   const bulk = useBulkActions()
 
+  // Only a row showing the task's own completion toggles it. A recurring
+  // task's finished occurrence lingers shown completed while the task is
+  // already open on its next date (`use-leaving-rows`, `advanced`): its tick
+  // would advance the task a second time, skipping an occurrence.
+  const shownCompleted = todo.isCompleted
   const handleToggleComplete = useCallback(() => {
+    const stored = useTodoStore.getState().todos.find((t) => t.id === todo.id)
+    if (stored && stored.isCompleted !== shownCompleted) return
     bulk.toggleComplete(todo.id)
-  }, [bulk, todo.id])
+  }, [bulk, todo.id, shownCompleted])
 
   /** Sets or clears a marker's flag on the task (or its selection). */
   const handleSetMarker = useCallback((marker: MarkerKey, on: boolean) => {

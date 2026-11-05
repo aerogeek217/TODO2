@@ -202,11 +202,16 @@ export function MenuPopover({
     return () => window.removeEventListener('keydown', handler, true)
   }, [sub, closeSub, onCloseRef])
 
-  /** Runs an item and closes the menu (unless the item keeps it open); with `restoreFocus`, the focus goes back first. */
+  /**
+   * Runs an item and closes the menu (unless the item keeps it open). The
+   * focus goes back first — to what had it (`restoreFocus`), else to the
+   * menu's trigger — so a dialog the item opens takes that as its opener
+   * and returns the focus there, not to the item about to go (cr31 T16).
+   */
   const run = (entry: MenuItemEntry) => {
-    if (restoreFocus && !entry.keepOpen) {
-      const previous = previousRef.current
-      if (previous?.isConnected) previous.focus({ preventScroll: true })
+    if (!entry.keepOpen) {
+      const back = restoreFocus ? previousRef.current : anchorRef?.current
+      if (back?.isConnected) back.focus({ preventScroll: true })
     }
     entry.onSelect?.()
     if (!entry.keepOpen) onClose()

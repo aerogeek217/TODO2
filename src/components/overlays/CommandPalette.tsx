@@ -151,7 +151,13 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
     activeItemRef.current?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex])
 
+  // What had the focus when the palette opened (read before its field takes it).
+  const [opener] = useState(() => (typeof document !== 'undefined' ? document.activeElement as HTMLElement | null : null))
   const executeCommand = (cmd: Command) => {
+    // The focus goes back first, so a dialog the command opens takes that as
+    // its opener and returns the focus there on close — not to this field,
+    // gone by then (cr31 N5).
+    if (opener && opener !== document.body && opener.isConnected) opener.focus({ preventScroll: true })
     cmd.action()
     onClose()
   }

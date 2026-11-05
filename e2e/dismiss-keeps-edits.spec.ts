@@ -174,6 +174,21 @@ test('the Add update popover: a day that isn’t one holds the close, saying so'
   expect(await updates(page)).toEqual(['old status', 'CANARY'])
 })
 
+test('the Add update popover: a press on the editor’s × with a day that isn’t one holds — the editor stays (cr31 T6)', async ({ page }) => {
+  await openEditor(page)
+  await editor(page).getByRole('button', { name: '+ Add update' }).click()
+  await addUpdate(page).getByRole('textbox', { name: 'New status update', exact: true }).fill('TYPED')
+  await addUpdate(page).getByRole('textbox', { name: 'New status update’s day' }).fill('nonsense')
+  const close = editor(page).getByRole('button', { name: 'Close' }).first()
+  await close.click()
+  await expect(addUpdate(page).getByText('Fix the day, or close again to discard this update.')).toBeVisible()
+  await expect(editor(page)).toBeVisible()
+  // Pressed again: the update goes, and the editor closes.
+  await close.click()
+  await expect(addUpdate(page)).toBeHidden()
+  await expect(editor(page)).toBeHidden()
+})
+
 test('the task editor closing saves a typed subtask and an entry being edited; Esc on the entry cancels it', async ({ page }) => {
   await openEditor(page)
   await typeSubtask(page, editor(page))

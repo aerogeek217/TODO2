@@ -62,20 +62,33 @@ export function useListRowDrag({ tabId, scrollRef, canCross, onDrop }: UseListRo
 
   /** Follows the pointer to the landing spot, from the drag's first move on. */
   const followPointer = () => {
-    const onMove = (e: PointerEvent) => {
+    let last: { x: number; y: number } | null = null
+    const follow = (x: number, y: number) => {
       const current = dragRef.current
       const scrollEl = scrollRef.current
       const geom = geomRef.current
       if (!current || !scrollEl || !geom) return
       const r = scrollEl.getBoundingClientRect()
-      const inside = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
-      const target = inside ? listRowDropTarget(geom, contentY(scrollEl, e.clientY), current.source, canCrossRef.current) : null
+      const inside = x >= r.left && x <= r.right && y >= r.top && y <= r.bottom
+      const target = inside ? listRowDropTarget(geom, contentY(scrollEl, y), current.source, canCrossRef.current) : null
       const prev = current.target
       if (prev === target || (prev && target && prev.sectionKey === target.sectionKey && prev.index === target.index && prev.cross === target.cross)) return
-      setDrag({ ...current, target, pointer: { x: e.clientX, y: e.clientY } })
+      setDrag({ ...current, target, pointer: { x, y } })
     }
+    const onMove = (e: PointerEvent) => {
+      last = { x: e.clientX, y: e.clientY }
+      follow(e.clientX, e.clientY)
+    }
+    // The list scrolling under a still pointer (dnd-kit's auto-scroll at its
+    // edge) moves the landing spot too (cr31 W7).
+    const onScroll = () => { if (last) follow(last.x, last.y) }
+    const scrollEl = scrollRef.current
     window.addEventListener('pointermove', onMove)
-    stopFollowingRef.current = () => window.removeEventListener('pointermove', onMove)
+    scrollEl?.addEventListener('scroll', onScroll, { passive: true })
+    stopFollowingRef.current = () => {
+      window.removeEventListener('pointermove', onMove)
+      scrollEl?.removeEventListener('scroll', onScroll)
+    }
   }
 
   useDndMonitor({

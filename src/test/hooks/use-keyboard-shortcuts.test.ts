@@ -3,6 +3,9 @@ import { renderHook } from '@testing-library/react'
 import { useKeyboardShortcuts } from '../../hooks/use-keyboard-shortcuts'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { useTodoStore } from '../../stores/todo-store'
+import { useUIStore } from '../../stores/ui-store'
+import type { PersistedTodoItem } from '../../models'
 
 function dispatchKey(target: EventTarget, key: string, init: KeyboardEventInit = {}) {
   target.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init }))
@@ -196,5 +199,71 @@ describe('useKeyboardShortcuts — user bindings', () => {
     expect(openShortcutsModal).not.toHaveBeenCalled()
     dispatchKey(window, 'h')
     expect(openShortcutsModal).toHaveBeenCalledOnce()
+  })
+})
+
+describe('useKeyboardShortcuts — Space / Enter / Delete on a focused control (cr31 W2)', () => {
+  const noop = () => {}
+  const opts = { openPalette: noop, closePalette: noop, openSettings: noop }
+
+  beforeEach(() => {
+    useTodoStore.setState({ todos: [{ id: 7, title: 'seven', isCompleted: false } as PersistedTodoItem] })
+    useUIStore.getState().selectAll([7])
+  })
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
+
+  function focused(html: string): HTMLElement {
+    document.body.innerHTML = html
+    const el = document.body.querySelector<HTMLElement>('[data-focus]')!
+    el.focus()
+    return el
+  }
+
+  it.each([
+    ['a button', '<button data-focus>Set status</button>'],
+    ['a role=tab', '<div role="tab" tabindex="0" data-focus>Tab</div>'],
+    ['a role=menuitem', '<div role="menuitem" tabindex="0" data-focus>Item</div>'],
+    ['a link', '<a href="#x" data-focus>Link</a>'],
+    ['a child of a button', '<button><span tabindex="-1" data-focus>x</span></button>'],
+  ])('%s keeps them: nothing acts on the selection', (_name, html) => {
+    const toggle = vi.spyOn(useTodoStore.getState(), 'toggleComplete')
+    renderHook(() => useKeyboardShortcuts(opts))
+    const el = focused(html)
+    dispatchKey(el, ' ')
+    dispatchKey(el, 'Enter')
+    dispatchKey(el, 'Delete')
+    expect(toggle).not.toHaveBeenCalled()
+    expect(useUIStore.getState().editPopupMode).toBeNull()
+    expect(useUIStore.getState().bulkConfirmation).toBeNull()
+  })
+
+  it('a key a component already handled (default prevented) is left alone', () => {
+    const toggle = vi.spyOn(useTodoStore.getState(), 'toggleComplete')
+    renderHook(() => useKeyboardShortcuts(opts))
+    const ev = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })
+    ev.preventDefault()
+    window.dispatchEvent(ev)
+    expect(toggle).not.toHaveBeenCalled()
+  })
+
+  it('focus on the page behind an open modal: Space does nothing', () => {
+    const toggle = vi.spyOn(useTodoStore.getState(), 'toggleComplete')
+    renderHook(() => useKeyboardShortcuts(opts))
+    document.body.innerHTML = '<div data-shortcut-scope="modal"><button>x</button></div>'
+    ;(document.activeElement as HTMLElement | null)?.blur()
+    dispatchKey(document.body, ' ')
+    expect(toggle).not.toHaveBeenCalled()
+  })
+
+  it('on the page (no control focused) or on a task row, Space still toggles the selected task', () => {
+    const toggle = vi.spyOn(useTodoStore.getState(), 'toggleComplete').mockResolvedValue(undefined)
+    renderHook(() => useKeyboardShortcuts(opts))
+    dispatchKey(document.body, ' ')
+    expect(toggle).toHaveBeenCalledTimes(1)
+    const row = focused('<div data-row-key="k" role="button" tabindex="0" data-focus>row</div>')
+    dispatchKey(row, ' ')
+    expect(toggle).toHaveBeenCalledTimes(2)
   })
 })

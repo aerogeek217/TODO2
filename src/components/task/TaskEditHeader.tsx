@@ -35,6 +35,7 @@ export function TaskEditHeader({
           className={styles.checkboxLarge}
           checked={isCompleted}
           onChange={onToggleComplete}
+          aria-label={isCompleted ? 'Mark incomplete' : 'Mark complete'}
         />
       )}
       <div className={styles.titleWrapper}>

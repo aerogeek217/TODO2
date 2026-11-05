@@ -187,7 +187,7 @@ test('Make subtask of… from the row menu: the picker, the prompt, the row gone
   await page.getByRole('menuitem', { name: 'Make subtask of…' }).click()
   const picker = page.getByRole('dialog', { name: 'Make “Book travel” a subtask of…' })
   await expect(picker).toBeVisible()
-  const search = picker.getByRole('textbox', { name: 'Find a task' })
+  const search = picker.getByRole('combobox', { name: 'Find a task' })
   await expect(search).toBeFocused()
   await expect(picker.getByRole('option')).toHaveText(['Q4 budget3 subtasks', 'Bare task'])
   await search.fill('q4')
@@ -296,6 +296,32 @@ test('a renamed subtask: ⏎ saves, Esc on the field cancels without closing the
   await expect(editor(page)).toBeVisible()
   await expect(section(page).getByRole('button', { name: 'Rename Headcount from Aisha and Ben' })).toBeVisible()
   expect((await storedChecklist(page, 'Q4 budget')).map(([t]) => t)).toContain('Headcount from Aisha and Ben')
+})
+
+test('a rename ended by ⏎ or Esc hands the focus back to its title; Esc in an emptied field cancels only the rename (cr31 T7, M2)', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  // The editor: ⏎, then Esc — the focus is back on the title each time.
+  await taskRowByTitle(page, 'Q4 budget').locator('span[data-task-title="Q4 budget"]').dblclick()
+  await section(page).getByRole('button', { name: 'Rename Headcount from Aisha' }).click()
+  await section(page).getByRole('textbox', { name: 'Subtask title' }).fill('Headcount')
+  await page.keyboard.press('Enter')
+  await expect(section(page).getByRole('button', { name: 'Rename Headcount', exact: true })).toBeFocused()
+  await page.keyboard.press('Enter')
+  await section(page).getByRole('textbox', { name: 'Subtask title' }).fill('')
+  await page.keyboard.press('Escape')
+  await expect(section(page).getByRole('button', { name: 'Rename Headcount', exact: true })).toBeFocused()
+  await expect(editor(page)).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
+
+  // The row's popover: Esc in an emptied rename field leaves the popover open.
+  await countOf(taskRowByTitle(page, 'Q4 budget')).click()
+  await popover(page).getByRole('button', { name: 'Rename Headcount', exact: true }).click()
+  await popover(page).getByRole('textbox', { name: 'Subtask title' }).fill('')
+  await page.keyboard.press('Escape')
+  await expect(popover(page)).toBeVisible()
+  await expect(popover(page).getByRole('button', { name: 'Rename Headcount', exact: true })).toBeFocused()
+  expect((await storedChecklist(page, 'Q4 budget')).map(([t]) => t)).toContain('Headcount')
 })
 
 test('a task’s notes convert to its subtasks at once, in the editor and the popover; Undo takes both back', async ({ page }) => {

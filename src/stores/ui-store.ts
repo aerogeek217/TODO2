@@ -104,6 +104,26 @@ export interface FollowupPopoverRequest {
 }
 
 /**
+ * A task row's notes popover or checklist (popover, or the phone's sheet),
+ * shown by `RowPopoverHost` outside the row: a write in it can take the row
+ * out of its list or group, and it stays open (cr31 T1).
+ */
+export interface RowPopoverRequest {
+  kind: 'notes' | 'subtasks'
+  todoId: number
+  /** The row's cell / count that opened it (or the row, `anchorIsInside: false`): its anchor while the row is there, and the toggle. */
+  anchorRef: RefObject<HTMLElement | null>
+  anchorIsInside: boolean
+  /** The checklist as the phone's bottom sheet. */
+  sheet: boolean
+  /** The checklist opens on its add field (the menu's Add subtask…). */
+  focusAdd: boolean
+  /** The popover level (`usePopoverLevel`) where the row is: 2 in a dialog. */
+  level: number
+  onOpenDetail?: (todoId: number) => void
+}
+
+/**
  * What the task picker (`TaskPickerHost`) is open for: a parent for a task
  * becoming a subtask, or another task for a subtask to move to (cr28).
  */
@@ -199,6 +219,8 @@ interface UIState {
   /** The task picker on screen (Make subtask of… / Move to another task…), or null. */
   taskPicker: TaskPickerRequest | null
   followupPopover: FollowupPopoverRequest | null
+  /** A row's notes popover or checklist (`RowPopoverHost`). */
+  rowPopover: RowPopoverRequest | null
   /**
    * The top bar's filtered-tasks panel (desktop): the screen filter's tasks
    * dropped from the filter tray, which edits them live.
@@ -314,6 +336,8 @@ interface UIState {
   openTaskPicker: (request: TaskPickerRequest) => void
   closeTaskPicker: () => void
   openFollowupPopover: (request: FollowupPopoverRequest) => void
+  openRowPopover: (request: RowPopoverRequest) => void
+  closeRowPopover: () => void
   closeFollowupPopover: () => void
   showTaskDialog: (payload: TaskDialogPayload) => void
   hideTaskDialog: () => void
@@ -420,6 +444,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   taskDialog: null,
   taskPicker: null,
   followupPopover: null,
+  rowPopover: null,
   filterPanelOpen: false,
   filterPanelFocusKey: 0,
   lensLifted: false,
@@ -535,6 +560,14 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   closeTaskPicker() {
     set({ taskPicker: null })
+  },
+
+  openRowPopover(request) {
+    set({ rowPopover: request })
+  },
+
+  closeRowPopover() {
+    set({ rowPopover: null })
   },
 
   openFollowupPopover(request) {

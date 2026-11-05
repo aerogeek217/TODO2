@@ -34,7 +34,7 @@ describe('TaskPickerDialog', () => {
   it('lists tasks open first then completed, with their checklist or completion as a note; the excluded one is left out', () => {
     render(<TaskPickerDialog title="Make “Book travel” a subtask of…" excludeIds={new Set([4])} onPick={vi.fn()} onClose={vi.fn()} />)
     expect(screen.getByRole('dialog', { name: 'Make “Book travel” a subtask of…' })).toBeInTheDocument()
-    expect(document.activeElement).toBe(screen.getByRole('textbox', { name: 'Find a task' }))
+    expect(document.activeElement).toBe(screen.getByRole('combobox', { name: 'Find a task' }))
     expect(options()).toEqual([['Offsite2 subtasks', true], ['Offsite catering', false], ['Spring offsite recapCompleted 04/12', false]])
     expect(screen.getByRole('option', { name: /Spring offsite recap/ })).toHaveAttribute('data-done')
   })
@@ -42,7 +42,7 @@ describe('TaskPickerDialog', () => {
   it('the search narrows by title; ↑↓ move the highlight and ⏎ picks it; a click picks a row', () => {
     const onPick = vi.fn()
     render(<TaskPickerDialog title="Pick" excludeIds={new Set()} onPick={onPick} onClose={vi.fn()} />)
-    const search = screen.getByRole('textbox', { name: 'Find a task' })
+    const search = screen.getByRole('combobox', { name: 'Find a task' })
     fireEvent.change(search, { target: { value: 'offs' } })
     expect(options().map(([t]) => t)).toEqual(['Offsite2 subtasks', 'Offsite catering', 'Spring offsite recapCompleted 04/12'])
     fireEvent.keyDown(search, { key: 'ArrowDown' })
@@ -62,10 +62,29 @@ describe('TaskPickerDialog', () => {
     expect(onPick).toHaveBeenCalledTimes(2)
   })
 
+  it('a combobox over the list: the highlight is its active descendant, kept in view; options are no tab stops (cr31 T12)', () => {
+    const scrolled: Element[] = []
+    const had = 'scrollIntoView' in Element.prototype
+    Object.defineProperty(Element.prototype, 'scrollIntoView', { value: function (this: Element) { scrolled.push(this) }, configurable: true, writable: true })
+    try {
+      render(<TaskPickerDialog title="Pick" excludeIds={new Set()} onPick={vi.fn()} onClose={vi.fn()} />)
+      const search = screen.getByRole('combobox', { name: 'Find a task' })
+      const list = screen.getByRole('listbox', { name: 'Tasks' })
+      expect(search.getAttribute('aria-controls')).toBe(list.id)
+      fireEvent.keyDown(search, { key: 'ArrowDown' })
+      const second = screen.getAllByRole('option')[1]!
+      expect(search.getAttribute('aria-activedescendant')).toBe(second.id)
+      expect(scrolled.at(-1)).toBe(second)
+      for (const option of screen.getAllByRole('option')) expect(option.getAttribute('tabindex')).toBe('-1')
+    } finally {
+      if (!had) delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView
+    }
+  })
+
   it('Esc closes it', () => {
     const onClose = vi.fn()
     render(<TaskPickerDialog title="Pick" excludeIds={new Set()} onPick={vi.fn()} onClose={onClose} />)
-    fireEvent.keyDown(screen.getByRole('textbox', { name: 'Find a task' }), { key: 'Escape' })
+    fireEvent.keyDown(screen.getByRole('combobox', { name: 'Find a task' }), { key: 'Escape' })
     expect(onClose).toHaveBeenCalled()
   })
 })

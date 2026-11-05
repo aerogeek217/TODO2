@@ -1,5 +1,4 @@
 import { useCallback, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
-import { createPortal } from 'react-dom'
 import type { Person, PersistedTodoItem } from '../../models'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -11,9 +10,6 @@ import { usePopoverLevel } from '../shared/popover-level'
 import { ChipSelector } from '../shared/ChipSelector'
 import type { TagChipSelectorProps } from '../shared/TagChipSelector'
 import type { TaskMenuHandlers } from './task-menu-entries'
-import { TaskNotePopover } from './TaskNotePopover'
-import { SubtasksPopover } from './subtasks/SubtasksPopover'
-import { SubtasksSheet } from './subtasks/SubtasksSheet'
 
 const NO_PEOPLE: Person[] = []
 
@@ -66,9 +62,6 @@ export function useTaskRowPickers({
 
   const [peopleOpen, setPeopleOpen] = useState(false)
   const [tagPickerOpen, setTagPickerOpen] = useState(false)
-  const [notesOpen, setNotesOpen] = useState(false)
-  /** The checklist: open on its list, or on its add field (the menu's Add subtask…). */
-  const [subtasksOpen, setSubtasksOpen] = useState<false | 'list' | 'add'>(false)
   const subtasksRef = useRef<HTMLButtonElement>(null)
   const peopleRef = useRef<HTMLElement>(null)
   const followupAnchorRef = useRef<HTMLButtonElement>(null)
@@ -89,6 +82,30 @@ export function useTaskRowPickers({
   }, [todo.id, popoverLevel])
   const deadlineInputRef = useRef<HTMLInputElement>(null)
   const notesIconRef = useRef<HTMLButtonElement>(null)
+  // The notes popover and the checklist are hosted outside the row
+  // (`RowPopoverHost`): what is written in them can take the row out of its
+  // list or group, and they stay open. This row's is open when its trigger
+  // opened it.
+  const subtasksAnchor = useFallbackSubtasksAnchor && fallbackSubtasksAnchorRef ? fallbackSubtasksAnchorRef : subtasksRef
+  const notesOpen = useUIStore((s) => s.rowPopover?.kind === 'notes' && s.rowPopover.anchorRef === notesIconRef)
+  const subtasksOpen = useUIStore((s) => s.rowPopover?.kind === 'subtasks' && s.rowPopover.anchorRef === subtasksAnchor)
+  const openRowPopover = useCallback((kind: 'notes' | 'subtasks', focusAdd = false) => {
+    useUIStore.getState().openRowPopover({
+      kind,
+      todoId: todo.id,
+      anchorRef: kind === 'notes' ? notesIconRef : subtasksAnchor,
+      anchorIsInside: kind === 'notes' || subtasksAnchor === subtasksRef,
+      sheet: kind === 'subtasks' && subtasksPanel === 'sheet',
+      focusAdd,
+      level: popoverLevel,
+      onOpenDetail,
+    })
+  }, [todo.id, subtasksAnchor, subtasksPanel, popoverLevel, onOpenDetail])
+  /** Closes this row's notes popover / checklist (not another row's). */
+  const closeRowPopover = useCallback((ref: RefObject<HTMLElement | null>) => {
+    const ui = useUIStore.getState()
+    if (ui.rowPopover?.anchorRef === ref) ui.closeRowPopover()
+  }, [])
 
   const closeTagPicker = useCallback(() => setTagPickerOpen(false), [])
   const toggleTagPicker = useCallback(() => setTagPickerOpen((v) => !v), [])
@@ -101,17 +118,17 @@ export function useTaskRowPickers({
     if (ui.followupPopover?.triggerRef === followupAnchorRef) ui.closeFollowupPopover()
     else openFollowup('followedUp')
   }, [openFollowup])
-  const closeNotes = useCallback(() => setNotesOpen(false), [])
   const toggleNotes = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    setNotesOpen((v) => !v)
-  }, [])
-  const closeSubtasks = useCallback(() => setSubtasksOpen(false), [])
+    if (useUIStore.getState().rowPopover?.anchorRef === notesIconRef) closeRowPopover(notesIconRef)
+    else openRowPopover('notes')
+  }, [openRowPopover, closeRowPopover])
   const toggleSubtasks = useCallback((e: React.MouseEvent) => {
     e.stopPropagation()
-    setSubtasksOpen((v) => (v ? false : 'list'))
-  }, [])
-  const openSubtasksAdd = useCallback(() => setSubtasksOpen('add'), [])
+    if (useUIStore.getState().rowPopover?.anchorRef === subtasksAnchor) closeRowPopover(subtasksAnchor)
+    else openRowPopover('subtasks')
+  }, [openRowPopover, closeRowPopover, subtasksAnchor])
+  const openSubtasksAdd = useCallback(() => openRowPopover('subtasks', true), [openRowPopover])
 
   const openDeadlinePicker = useCallback(() => {
     setTimeout(() => {
@@ -169,7 +186,6 @@ export function useTaskRowPickers({
   }
 
   const peopleAnchor = useFallbackPeopleAnchor && fallbackPeopleAnchorRef ? fallbackPeopleAnchorRef : peopleRef
-  const subtasksAnchor = useFallbackSubtasksAnchor && fallbackSubtasksAnchorRef ? fallbackSubtasksAnchorRef : subtasksRef
   const panels: ReactNode = ghost ? null : (
     <>
       {peopleOpen && (
@@ -188,23 +204,6 @@ export function useTaskRowPickers({
           </div>
         </AnchoredPicker>
       )}
-      {notesOpen && createPortal(
-        <TaskNotePopover todoId={todo.id} anchorRef={notesIconRef} onClose={closeNotes} />,
-        document.body,
-      )}
-      {subtasksOpen && (subtasksPanel === 'sheet'
-        ? <SubtasksSheet todo={todo} onClose={closeSubtasks} />
-        : createPortal(
-          <SubtasksPopover
-            todo={todo}
-            anchorRef={subtasksAnchor}
-            anchorIsInside={subtasksAnchor === subtasksRef}
-            onClose={closeSubtasks}
-            onOpenDetail={onOpenDetail}
-            focusAdd={subtasksOpen === 'add'}
-          />,
-          document.body,
-        ))}
     </>
   )
 
@@ -228,7 +227,7 @@ export function useTaskRowPickers({
     notesOpen,
     toggleNotes,
     notesIconRef,
-    subtasksOpen: subtasksOpen !== false,
+    subtasksOpen,
     toggleSubtasks,
     openSubtasksAdd,
     subtasksRef,

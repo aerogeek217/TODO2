@@ -15,6 +15,7 @@ import { RecentTaskPill } from './components/overlays/RecentTaskPill'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { ConfirmPromptHost } from './components/overlays/ConfirmPromptHost'
 import { FollowupPopoverHost } from './components/overlays/FollowupPopoverHost'
+import { RowPopoverHost } from './components/overlays/RowPopoverHost'
 import { TaskPickerHost } from './components/overlays/TaskPickerHost'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
@@ -469,6 +470,7 @@ export default function App() {
       <FileMigrationOverlay />
       <TaskPickerHost />
       <FollowupPopoverHost />
+      <RowPopoverHost />
       <ConfirmPromptHost />
       <DatabaseChangedElsewhereGuard />
     </ErrorBoundary>

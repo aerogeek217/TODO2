@@ -60,6 +60,17 @@ describe('NotesToolbar', () => {
     expect(view.state.doc.toString()).toBe('- one\n- two\n- three')
   })
 
+  it('a whole-line selection ending at the next line’s start leaves that line alone (cr31 N4)', () => {
+    view.destroy()
+    view = makeView(['one', 'two', 'three'].join(String.fromCharCode(10)))
+    viewRef.current = view
+    // "one" and "two" with their line breaks: the selection ends where "three" starts.
+    selectRange(view, 0, view.state.doc.line(3).from)
+    render(<NotesToolbar viewRef={viewRef} onCopy={onCopy} />)
+    fireEvent.click(screen.getByLabelText('Checkbox'))
+    expect(view.state.doc.toString().split(String.fromCharCode(10))).toEqual(['- [ ] one', '- [ ] two', 'three'])
+  })
+
   describe('the list buttons change or toggle what a line has', () => {
     const click = (name: string, doc: string, from = 0, to = from) => {
       view.destroy()

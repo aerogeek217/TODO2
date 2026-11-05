@@ -4,6 +4,7 @@ import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
 import { useDialogLayer } from './dialog-layer'
 import styles from './AnchoredPicker.module.css'
 import { PopoverRoot } from './PopoverRoot'
+import { KEEP_EVENTS_INSIDE } from './keep-events-inside'
 
 interface AnchoredPickerProps {
   anchorRef: RefObject<HTMLElement | null>
@@ -26,6 +27,10 @@ interface AnchoredPickerProps {
  * resizes and its own size changes; an outside click closes it, and a click
  * on the trigger is left to the trigger's own toggle.
  *
+ * Its pointer events stay inside (`KEEP_EVENTS_INSIDE`): a press in it never
+ * starts the row's drag, a click never selects the row, a double-click never
+ * opens the editor.
+ *
  * On the overlay layer: opened from a row inside an overlay (the task
  * dialog) it mounts after it, so DOM order puts it on top; an overlay opened
  * later (an editor) still covers it. Opened from a dialog on a higher tier
@@ -47,7 +52,7 @@ export function AnchoredPicker({ anchorRef, onClose, closeOnEscape = false, anch
     caret: true,
   })
   return createPortal(
-    <PopoverRoot ref={panelRef} caret={caret} className={`${styles.picker} ${aboveDialog ? styles.aboveDialog : ''}`} data-anchored-picker="" style={{ position: style.position, left: style.left, top: style.top }}>
+    <PopoverRoot ref={panelRef} caret={caret} className={`${styles.picker} ${aboveDialog ? styles.aboveDialog : ''}`} data-anchored-picker="" style={{ position: style.position, left: style.left, top: style.top }} {...KEEP_EVENTS_INSIDE}>
       {children}
     </PopoverRoot>,
     document.body,
