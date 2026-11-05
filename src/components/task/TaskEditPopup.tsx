@@ -178,6 +178,20 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const [pendingUpdates, setPendingUpdates] = useState<(StatusUpdateEntry & { createdAt: Date })[]>(
     () => (seed?.statusUpdates ?? []).map((u, i) => ({ ...u, id: i + 1 })).sort(compareStatusUpdates),
   )
+  // The pending entries as written so far, for Create and the close check —
+  // which first commit an entry still being edited (`updatesCommitRef`), in
+  // the same handler, before a re-render could show it.
+  const pendingUpdatesRef = useRef(pendingUpdates)
+  const updatePending = (next: (prev: typeof pendingUpdates) => typeof pendingUpdates) => {
+    pendingUpdatesRef.current = next(pendingUpdatesRef.current)
+    setPendingUpdates(pendingUpdatesRef.current)
+  }
+  const updatesCommitRef = useRef<(() => void) | null>(null)
+  /** The pending entries with an open edit or add written first. */
+  const committedUpdates = () => {
+    updatesCommitRef.current?.()
+    return pendingUpdatesRef.current
+  }
   // Subtasks: edit mode writes each at once through the store; create mode
   // keeps them here (in order, a local key each) until Create.
   const storedSubtasks = useSubtasks(todo?.id)
@@ -383,7 +397,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       return
     }
     const now = new Date()
-    setPendingUpdates((prev) => [
+    updatePending((prev) => [
       ...prev,
       { id: Math.max(0, ...prev.map((u) => u.id)) + 1, date: statusUpdateDay(entry.date, now), text: entry.text, createdAt: now },
     ].sort(compareStatusUpdates))
@@ -396,7 +410,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       return
     }
     const date = statusUpdateDay(changes.date, new Date())
-    setPendingUpdates((prev) => prev.map((u) => (u.id === id ? { ...u, date, text: changes.text } : u)).sort(compareStatusUpdates))
+    updatePending((prev) => prev.map((u) => (u.id === id ? { ...u, date, text: changes.text } : u)).sort(compareStatusUpdates))
   }
 
   const handleRemoveUpdate = (id: number) => {
@@ -405,7 +419,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       void useStatusUpdateStore.getState().remove(id)
       return
     }
-    setPendingUpdates((prev) => prev.filter((u) => u.id !== id))
+    updatePending((prev) => prev.filter((u) => u.id !== id))
   }
 
   // Subtasks: in edit mode each write is its own undo step, after the notes typed so far.
@@ -479,11 +493,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }
 
   // A new task's status updates count as following up on their day, when newer.
-  const newestPendingDay = pendingUpdates.at(0)?.date
-  const draftLastWithUpdates = newestPendingDay
-    && (!draftLastFollowup || newestPendingDay.getTime() > startOfDay(draftLastFollowup).getTime())
-    ? newestPendingDay
-    : draftLastFollowup
+  const lastWithUpdates = (updates: typeof pendingUpdates) => {
+    const newestPendingDay = updates.at(0)?.date
+    return newestPendingDay
+      && (!draftLastFollowup || newestPendingDay.getTime() > startOfDay(draftLastFollowup).getTime())
+      ? newestPendingDay
+      : draftLastFollowup
+  }
+  const draftLastWithUpdates = lastWithUpdates(pendingUpdates)
 
   const handleFollowedUp = () => {
     if (isEdit && todo) {
@@ -546,12 +563,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const handleCreate = async () => {
     if (props.mode !== 'create' || !title.trim() || creatingRef.current) return
     // A person / tag picked from the title's Create row is saved first, so the token names it.
+    const updates = committedUpdates()
     if (ac.creating()) await ac.whenCreated()
     const partial: EditorTaskFields = {
       title: title.trim(),
       notes: notesSession.text() || undefined,
-      ...(pendingUpdates.length > 0
-        ? { statusUpdates: pendingUpdates.map(({ date, text, createdAt }) => ({ date, text, createdAt })) }
+      ...(updates.length > 0
+        ? { statusUpdates: updates.map(({ date, text, createdAt }) => ({ date, text, createdAt })) }
         : {}),
       ...(pendingSubtasks.length > 0
         ? { subtasks: pendingSubtasks.map(({ title, isCompleted }) => ({ title, isCompleted })) }
@@ -560,7 +578,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       dueDate: deadline ?? undefined,
       // Left out while still the default, so a `/followup` in the title applies.
       ...(nextFollowupIsDefault ? {} : { nextFollowupAt: draftNextFollowup }),
-      lastFollowupAt: draftLastWithUpdates,
+      lastFollowupAt: lastWithUpdates(updates),
       recurrenceRule: buildRule(),
       ...(draftUrgent ? { urgent: true } : {}),
       ...(draftImportant ? { important: true } : {}),
@@ -584,7 +602,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }
 
   // Create mode: what the form holds, to tell whether Esc or the backdrop would lose anything.
-  const createFormState = (formTitle: string) => JSON.stringify({
+  const createFormState = (formTitle: string, updates: typeof pendingUpdates) => JSON.stringify({
     title: formTitle.trim(),
     statusId,
     due: deadline?.getTime(),
@@ -596,16 +614,16 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     recurrenceType,
     people: [...pendingPersonIds].sort((a, b) => a - b),
     tags: [...pendingTagIds].sort((a, b) => a - b),
-    updates: pendingUpdates.map((u) => [u.date.getTime(), u.text]),
+    updates: updates.map((u) => [u.date.getTime(), u.text]),
     subtasks: pendingSubtasks.map((s) => [s.title, s.isCompleted]),
   })
   // A title handed over from Quick Add was typed; a draft's title (a note line) is where it starts.
-  const [openingForm] = useState(() => createFormState(seed ? title : ''))
+  const [openingForm] = useState(() => createFormState(seed ? title : '', pendingUpdates))
   const askingToCloseRef = useRef(false)
   /** Esc / the backdrop. In create mode, anything to lose asks first; Cancel is the plain `onClose`. */
   const requestClose = () => {
     const dirty = !isEdit && (
-      createFormState(title) !== openingForm
+      createFormState(title, committedUpdates()) !== openingForm
       || notesSession.text() !== (seed?.notes ?? '')
     )
     if (!dirty) {
@@ -886,6 +904,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onRemove={handleRemoveUpdate}
             className={styles.notesSection}
             labelClassName={styles.notesLabel}
+            commitRef={isEdit ? undefined : updatesCommitRef}
           />
 
           {/* Notes */}
