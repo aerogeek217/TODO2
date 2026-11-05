@@ -357,7 +357,7 @@ describe('sanitisable-row audit', () => {
   })
 
   it('reports a list with a malformed or group; cleanup drops it and keeps the readable one', async () => {
-    const group = { personIds: [1], statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
+    const group = { personIds: [1], statusIds: [2], searchText: '', dates: {}, markers: null, tags: null }
     const id = await db.listDefinitions.add(list('Odd', { orGroups: [group, 7] }) as any)
     await db.listDefinitions.add(list('Fine', { orGroups: [group] }) as any)
 

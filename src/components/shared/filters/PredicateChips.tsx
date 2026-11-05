@@ -6,11 +6,11 @@ import { anchorAtPoint, usePopoverAnchor } from '../../../hooks/use-popover-anch
 import { createPendingNotMemory, DatePendingNotContext } from './date-pending-not'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
 import {
-  chipClauses, chipKey, heldFields, predicateLineItems, removeChip, wrapChipInOrGroup,
+  chipClauses, chipKey, filterChips, heldFields, predicateLineItems, removeChip, wrapChipInOrGroup,
   type FilterChip, type LineItem,
 } from '../../../utils/filter-chips'
 import { freeDateField, offeredDateFields } from '../../../utils/date-filters'
-import { hasFilterClause, withOrGroupClauses, withoutOrGroup } from '../../../utils/or-groups'
+import { dissolveSingleOrGroups, hasFilterClause, withOrGroupClauses, withoutOrGroup } from '../../../utils/or-groups'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
 import { ChevronDownIcon, ChevronRightIcon, CloseIcon, PlusIcon } from '../icons'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
@@ -20,6 +20,7 @@ import { pickerLabel } from './picker-label'
 import { DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { pointBelow } from './popover-point'
 import { useTooltip } from '../use-tooltip'
+import { useLatestRef } from '../../../hooks/use-latest-ref'
 import menuStyles from '../MenuPopover.module.css'
 import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
@@ -232,6 +233,27 @@ function PredicateChipsBody({
       setOpen({ ...open, adding: false, wrap: undefined, held: undefined })
     } else if (open.wrap) setOpen({ ...open, wrap: undefined })
   }
+
+  // A group left with one item goes, its item taking its place, once nothing
+  // is open: a picker that just emptied a chip may still fill it again.
+  const onChangeRef = useLatestRef(onChange)
+  const namesRef = useLatestRef(names)
+  const settled = open == null && addPicker == null
+  useEffect(() => {
+    if (!settled) return
+    const { predicate: next, dissolved } = dissolveSingleOrGroups(predicate)
+    if (dissolved.length === 0) return
+    const chipOf = (index: number) => {
+      const group = predicate.orGroups?.[index]
+      const [chip] = group ? filterChips(group, namesRef.current) : []
+      return chip ? chipKey(chip) : null
+    }
+    setOrder((o) => [...dissolved].reverse().reduce((keys, index) => {
+      const key = chipOf(index)
+      return withoutGroupKey(key ? keys.map((k) => (k === groupKey(index) ? key : k)) : keys, index)
+    }, o))
+    onChangeRef.current(next)
+  }, [settled, predicate, namesRef, onChangeRef])
 
   const rowKey = (scope: Scope, chip: ChipRef) => `${scope ?? 'root'}:${refKey(chip)}`
   /** Closes what is open; a held group is then left out, the later groups moving down. */

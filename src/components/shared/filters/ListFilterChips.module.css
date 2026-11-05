@@ -234,6 +234,32 @@
   min-width: 0;
 }
 
+/* In the editors a chip wraps its text to the block's width, nothing cut off. */
+.stack .listChip {
+  flex-shrink: 1;
+  min-width: 0;
+  height: auto;
+  min-height: 22px;
+  padding-block: 4px;
+  line-height: 1.25;
+  text-align: left;
+  white-space: normal;
+}
+
+.stack .chipLabel,
+.stack .chipRemove {
+  flex-shrink: 0;
+}
+
+:global([data-touch-chips]) .stack .listChip {
+  min-height: 32px;
+}
+
+.stack .groupTail {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
 /* In the editors a group's chips wrap to the block's width. */
 .stack .orGroup {
   flex-wrap: wrap;

@@ -13,6 +13,7 @@ import {
 import { countActiveFilters, criteriaToPredicate, predicateToCriteria, type FilterCriteria } from '../../utils/filter-criteria'
 import { applyFilter, createPredicateEvaluator, createScreenComposedEvaluator } from '../../utils/filter-match'
 import {
+  dissolveSingleOrGroups,
   hasFilterClause,
   hasOrGroups,
   normalizeClauses,
@@ -262,5 +263,70 @@ describe('withoutOrGroup', () => {
     const p = predicate({ orGroups: [a] })
     expect(withoutOrGroup(p, 1)).toBe(p)
     expect(withoutOrGroup(p, -1)).toBe(p)
+  })
+})
+
+describe('dissolveSingleOrGroups', () => {
+  const base = { ...emptyPredicate(), statusIds: [1] }
+
+  it('returns the predicate itself when no group is of one clause', () => {
+    const p = { ...base, orGroups: [{ ...emptyFilterClauses(), tags: [1], searchText: 'a' }] }
+    expect(dissolveSingleOrGroups(p)).toEqual({ predicate: p, dissolved: [] })
+    expect(dissolveSingleOrGroups(p).predicate).toBe(p)
+    expect(dissolveSingleOrGroups(base).predicate).toBe(base)
+  })
+
+  it('moves a group of one clause among the predicate\'s own, the other groups kept in order', () => {
+    const two = { ...emptyFilterClauses(), tags: [1], searchText: 'a' }
+    const { predicate, dissolved } = dissolveSingleOrGroups({ ...base, orGroups: [two, { ...emptyFilterClauses(), personIds: [2] }, two] })
+    expect(dissolved).toEqual([1])
+    expect(predicate).toEqual({ ...base, personIds: [2], orGroups: [two, two] })
+  })
+
+  it('drops the key with the last group', () => {
+    const { predicate } = dissolveSingleOrGroups({ ...base, orGroups: [{ ...emptyFilterClauses(), searchText: 'a' }] })
+    expect(predicate).toEqual({ ...base, searchText: 'a' })
+    expect('orGroups' in predicate).toBe(false)
+  })
+
+  it('carries an "is not" switch with its clause', () => {
+    const { predicate } = dissolveSingleOrGroups({
+      ...base,
+      negate: { statusIds: true },
+      orGroups: [{ ...emptyFilterClauses(), tags: [3], negate: { tags: true } }],
+    })
+    expect(predicate).toEqual({ ...base, tags: [3], negate: { statusIds: true, tags: true } })
+  })
+
+  it('moves one date type beside the predicate\'s other date types', () => {
+    const due = { match: 'set' as const }
+    const { predicate } = dissolveSingleOrGroups({
+      ...base,
+      dates: { deadline: due },
+      orGroups: [{ ...emptyFilterClauses(), dates: { followup: due } }],
+    })
+    expect(predicate).toEqual({ ...base, dates: { deadline: due, followup: due } })
+  })
+
+  it.each([
+    ['status', { statusIds: [2] }],
+    ['a date type', { dates: { deadline: { match: 'set' as const } } }],
+  ])('keeps a group of one when the predicate filters on %s already', (_name, patch) => {
+    const p = { ...base, dates: { deadline: { match: 'unset' as const } }, orGroups: [{ ...emptyFilterClauses(), ...patch }] }
+    expect(dissolveSingleOrGroups(p)).toEqual({ predicate: p, dissolved: [] })
+  })
+
+  it('two groups of one on the same field: the first moves, the second stays', () => {
+    const { predicate, dissolved } = dissolveSingleOrGroups({
+      ...emptyPredicate(),
+      orGroups: [{ ...emptyFilterClauses(), tags: [1] }, { ...emptyFilterClauses(), tags: [2] }],
+    })
+    expect(dissolved).toEqual([0])
+    expect(predicate).toEqual({ ...emptyPredicate(), tags: [1], orGroups: [{ ...emptyFilterClauses(), tags: [2] }] })
+  })
+
+  it('a group of an id filter with nothing ticked still counts as its clause', () => {
+    const { predicate } = dissolveSingleOrGroups({ ...base, orGroups: [{ ...emptyFilterClauses(), personIds: [] }] })
+    expect(predicate).toEqual({ ...base, personIds: [] })
   })
 })

@@ -215,6 +215,8 @@ describe('pickPredicate', () => {
 
   describe('or groups', () => {
     const hot = { ...emptyFilterClauses(), markers: 'hot' as const }
+    // Two clauses: a group of one is read as its clause.
+    const two = { ...emptyFilterClauses(), markers: 'hot' as const, tags: [9] }
     const withGroups = (orGroups: unknown) => ({ ...emptyPredicate(), statusIds: [1], orGroups })
 
     it('reads an absent or null orGroups as none, with no fix and no key', () => {
@@ -230,19 +232,29 @@ describe('pickPredicate', () => {
     })
 
     it.each([['null', null], ['a number', 3], ['an array', [hot]], ['a string', 'hot']])('drops an or group that is %s, keeping the others', (_name, bad) => {
-      expect(pickPredicate(withGroups([bad, hot]))).toEqual({ predicate: withGroups([hot]), fixes: ['or group dropped'] })
+      expect(pickPredicate(withGroups([bad, two]))).toEqual({ predicate: withGroups([two]), fixes: ['or group dropped'] })
+    })
+
+    it('reads a group of one clause as that clause, with no fix', () => {
+      const picked = pickPredicate(withGroups([hot, two]))
+      expect(picked).toEqual({ predicate: { ...emptyPredicate(), statusIds: [1], markers: 'hot', orGroups: [two] }, fixes: [] })
+    })
+
+    it('keeps a group of one when the predicate filters on that field already', () => {
+      const own = { ...emptyFilterClauses(), statusIds: [2] }
+      expect(pickPredicate(withGroups([own]))).toEqual({ predicate: withGroups([own]), fixes: [] })
     })
 
     it('counts several or groups dropped in one fix', () => {
-      expect(pickPredicate(withGroups([1, 2, hot, 'x'])).fixes).toEqual(['3 or groups dropped'])
+      expect(pickPredicate(withGroups([1, 2, two, 'x'])).fixes).toEqual(['3 or groups dropped'])
     })
 
     it('drops a malformed clause inside an or group with its own fix; an or group left with no clause goes too', () => {
       const { predicate, fixes } = pickPredicate(withGroups([
         { ...emptyFilterClauses(), personIds: 'x' },
-        { ...emptyFilterClauses(), personIds: 'x', tags: [2] },
+        { ...emptyFilterClauses(), personIds: 'x', tags: [2], searchText: 'a' },
       ]))
-      expect(predicate.orGroups).toEqual([{ ...emptyFilterClauses(), tags: [2] }])
+      expect(predicate.orGroups).toEqual([{ ...emptyFilterClauses(), tags: [2], searchText: 'a' }])
       expect(fixes).toEqual(['people filter dropped', 'or group dropped'])
     })
 
@@ -272,7 +284,7 @@ describe('pickPredicate', () => {
     })
 
     it(`keeps ${OR_GROUPS_MAX} or groups and drops the rest`, () => {
-      const groups = Array.from({ length: OR_GROUPS_MAX + 1 }, (_, i) => ({ ...emptyFilterClauses(), tags: [i + 1] }))
+      const groups = Array.from({ length: OR_GROUPS_MAX + 1 }, (_, i) => ({ ...emptyFilterClauses(), tags: [i + 1], searchText: 'a' }))
       const { predicate, fixes } = pickPredicate(withGroups(groups))
       expect(predicate.orGroups).toEqual(groups.slice(0, OR_GROUPS_MAX))
       expect(fixes).toEqual(['or groups capped'])
@@ -280,8 +292,8 @@ describe('pickPredicate', () => {
     })
 
     it('fills an or group\'s missing text filter and date filters, saying so', () => {
-      const { predicate, fixes } = pickPredicate(withGroups([{ tags: [1] }]))
-      expect(predicate.orGroups).toEqual([{ ...emptyFilterClauses(), tags: [1] }])
+      const { predicate, fixes } = pickPredicate(withGroups([{ tags: [1], statusIds: [2] }]))
+      expect(predicate.orGroups).toEqual([{ ...emptyFilterClauses(), tags: [1], statusIds: [2] }])
       expect(fixes).toEqual(['text filter reset', 'date filters reset'])
     })
   })

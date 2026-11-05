@@ -148,6 +148,99 @@ test.describe('desktop', () => {
   })
 })
 
+test.describe('a group of one, and long groups', () => {
+  test.use({ viewport: { width: 1600, height: 900 } })
+
+  const LONG = 'a really long piece of search text that keeps on going well past the width of any editor'
+  const longGroup = { personIds: null, statusIds: null, searchText: LONG, dates: {}, markers: { urgent: true, important: true, focus: false }, tags: null }
+
+  /** Nothing of a stack's or groups runs past its plate, and no plate past its block. */
+  async function expectNoSpill(page: Page) {
+    const stack = page.getByTestId('filter-stack').filter({ has: page.getByTestId('or-group') }).first()
+    await expect(stack).toBeVisible()
+    const spill = await stack.evaluate((host) => {
+      const right = host.getBoundingClientRect().right
+      return [...host.querySelectorAll('[data-testid="or-group"]')].flatMap((plate) => {
+        const edge = plate.getBoundingClientRect().right
+        const past = [...plate.querySelectorAll('[data-testid="list-filter-chip"], button')]
+          .filter((el) => el.getBoundingClientRect().right > edge + 0.5).length
+        return [edge > right + 0.5 ? 1 : 0, past, plate.scrollWidth - plate.clientWidth]
+      })
+    })
+    expect(spill.every((n) => n <= 0)).toBe(true)
+  }
+
+  test('a long group stays inside Edit list, a lens and an Eisenhower pane, its text wrapping', async ({ page }) => {
+    await seedWorkspace(page, {
+      ...SEED,
+      listDefinitions: [{ name: 'Team', predicate: { orGroups: [longGroup] } }],
+      lenses: [{ id: 'lens-long', name: 'Long', predicate: { orGroups: [longGroup] } }],
+      eisenhower: { panes: { do: { filter: { orGroups: [longGroup] } } } },
+    })
+    await wsTab(page, 't1').click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Edit list…' }).click()
+    await expectNoSpill(page)
+    await page.keyboard.press('Escape')
+
+    const settings = await openSettings(page, 'Tasks')
+    await settings.getByTestId('lens-list').getByRole('button', { name: /^Long/ }).click()
+    await expectNoSpill(page)
+    await settings.getByTestId('lens-list').getByRole('button', { name: /^Long/ }).click()
+    const pane = settings.locator('[data-pane-card="do"]')
+    await pane.scrollIntoViewIfNeeded()
+    await expect(pane.getByTestId('or-group')).toBeVisible()
+    const [paneRight, plateRight] = await Promise.all([
+      pane.evaluate((el) => el.getBoundingClientRect().right),
+      pane.getByTestId('or-group').evaluate((el) => el.getBoundingClientRect().right),
+    ])
+    expect(plateRight).toBeLessThanOrEqual(paneRight)
+  })
+
+  test('× leaves one item: the group goes and the item stays, in its place; the list stays as it was on opening', async ({ page }) => {
+    const grouped = { personIds: null, statusIds: null, searchText: 'task', dates: {}, markers: { focus: true }, tags: null }
+    await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', predicate: { orGroups: [grouped] } }] })
+    const widget = wsListWidget(page, 't1')
+    const save = page.getByRole('button', { name: 'Save list' })
+    await wsTab(page, 't1').click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Edit list…' }).click()
+    // Opening writes nothing: a stored group of two is left alone.
+    await expect(save).toBeDisabled()
+    await page.keyboard.press('Escape')
+
+    await widget.getByTestId('or-group').getByTestId('list-filter-chip').filter({ hasText: 'Text' }).getByRole('button', { name: 'Remove filter' }).click()
+    await expect(widget.getByTestId('or-group')).toHaveCount(0)
+    await expect(widget.getByTestId('list-filter-chip')).toHaveText(/Priority\s*Focus/)
+    await expect.poll(() => titles(page)).toEqual(['Hot one'])
+  })
+
+  test('emptied in its picker: the group waits while the picker is open and goes when it closes', async ({ page }) => {
+    const grouped = { personIds: null, statusIds: null, searchText: 'task', dates: {}, markers: { focus: true }, tags: null }
+    await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', predicate: { orGroups: [grouped] } }] })
+    const widget = wsListWidget(page, 't1')
+    await widget.getByTestId('list-filter-chip').filter({ hasText: 'Text' }).click()
+    const field = page.getByTestId('list-filter-picker').getByRole('textbox')
+    await field.fill('')
+    await expect(widget.getByTestId('or-group')).toHaveCount(1)
+    await field.fill('Ann')
+    await expect(widget.getByTestId('or-group').getByTestId('list-filter-chip')).toHaveCount(2)
+    await field.fill('')
+    await page.keyboard.press('Escape')
+    await expect(widget.getByTestId('or-group')).toHaveCount(0)
+    await expect(widget.getByTestId('list-filter-chip')).toHaveText(/Priority\s*Focus/)
+  })
+
+  test('a stored group of one reads as its chip, and the list isn\'t unsaved for it', async ({ page }) => {
+    const single = { personIds: null, statusIds: null, searchText: '', dates: {}, markers: { focus: true }, tags: null }
+    await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', predicate: { orGroups: [single] } }] })
+    const widget = wsListWidget(page, 't1')
+    await expect(widget.getByTestId('or-group')).toHaveCount(0)
+    await expect(widget.getByTestId('list-filter-chip')).toHaveText(/Priority\s*Focus/)
+    await wsTab(page, 't1').click({ button: 'right' })
+    await page.getByRole('menuitem', { name: 'Edit list…' }).click()
+    await expect(page.getByRole('button', { name: 'Save list' })).toBeDisabled()
+  })
+})
+
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 

@@ -22,7 +22,9 @@ import { shortcutScope } from '../../../utils/dom-contract'
 import { PopoverRoot } from '../../shared/PopoverRoot'
 
 /** The side popover's width (px) and its gap to the panel. */
-const POPOVER_WIDTH_PX = 340
+/** Wide enough for a filter's groups; narrower where only that fits beside the panel. */
+const POPOVER_WIDTH_PX = 400
+const POPOVER_NARROW_WIDTH_PX = 340
 const POPOVER_GAP_PX = 8
 const VIEWPORT_MARGIN_PX = 8
 /** The popover's top sits this far below the panel's top (its arrow then points at the tab strip). */
@@ -198,8 +200,8 @@ function usePressElsewhereCloses(
 
 /** Where the popover goes: beside the panel (the hook picks the side), or below its filter line when neither side fits. */
 type Placement =
-  | { mode: 'beside'; rect: { left: number; top: number; right: number; bottom: number } }
-  | { mode: 'below'; rect: { left: number; top: number; right: number; bottom: number } }
+  | { mode: 'beside'; width: number; rect: { left: number; top: number; right: number; bottom: number } }
+  | { mode: 'below'; width: number; rect: { left: number; top: number; right: number; bottom: number } }
 
 function cellOf(tabId: string): HTMLElement | null {
   return document.querySelector<HTMLElement>(`[data-ws-tab="${tabId}"]`)?.closest<HTMLElement>('[data-ws-cell]') ?? null
@@ -208,16 +210,17 @@ function cellOf(tabId: string): HTMLElement | null {
 function measurePlacement(cell: HTMLElement, tabId: string): Placement {
   const r = cell.getBoundingClientRect()
   const vw = window.innerWidth
-  const fitsRight = r.right + POPOVER_GAP_PX + POPOVER_WIDTH_PX <= vw - VIEWPORT_MARGIN_PX
-  const fitsLeft = r.left - POPOVER_GAP_PX - POPOVER_WIDTH_PX >= VIEWPORT_MARGIN_PX
-  if (fitsRight || fitsLeft) {
-    return { mode: 'beside', rect: { left: r.left, right: r.right, top: r.top + TOP_INSET_PX, bottom: r.bottom } }
+  const fits = (width: number) =>
+    r.right + POPOVER_GAP_PX + width <= vw - VIEWPORT_MARGIN_PX || r.left - POPOVER_GAP_PX - width >= VIEWPORT_MARGIN_PX
+  const beside = [POPOVER_WIDTH_PX, POPOVER_NARROW_WIDTH_PX].find(fits)
+  if (beside !== undefined) {
+    return { mode: 'beside', width: beside, rect: { left: r.left, right: r.right, top: r.top + TOP_INSET_PX, bottom: r.bottom } }
   }
   // Last resort: over the lower rows, under the filter line (else the header), right-aligned to the panel.
   const widget = cell.querySelector(`[data-list-host="${tabId}"]`)
   const line = widget?.querySelector('[data-testid="list-filter-row"]') ?? cell.querySelector('[data-ws-cell-header]')
   const b = (line ?? cell).getBoundingClientRect()
-  return { mode: 'below', rect: { left: r.left, right: r.right - TOP_INSET_PX, top: b.top, bottom: b.bottom } }
+  return { mode: 'below', width: POPOVER_WIDTH_PX, rect: { left: r.left, right: r.right - TOP_INSET_PX, top: b.top, bottom: b.bottom } }
 }
 
 /** `readPlacement` when the list isn't on screen. */
@@ -272,8 +275,8 @@ function createPlacementStore(tabId: string, cellId: string | undefined, shown: 
 }
 
 /**
- * The desktop popover: 340 wide beside the list's panel (right, else left,
- * else below its filter line), its arrow at the panel's tab strip. Not
+ * The desktop popover: 400 wide (340 where only that fits) beside the list's
+ * panel (right, else left, else below its filter line), its arrow at the panel's tab strip. Not
  * modal — the list stays in view, updating live; a press elsewhere in the
  * app (its own panel included), Esc or × close it, and so does the list
  * leaving the screen.
@@ -339,7 +342,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
     <PopoverRoot
       ref={setPanel}
       className={styles.popover}
-      style={{ left: style.left, top: style.top, visibility: placed ? undefined : 'hidden' }}
+      style={{ left: style.left, top: style.top, width: placement?.width, visibility: placed ? undefined : 'hidden' }}
       role="dialog"
       aria-label={`Edit list ${model.def.name.trim() || model.saved.name}`}
       data-testid="edit-list"

@@ -157,7 +157,7 @@ describe('pickPredicate reads `not`', () => {
   })
 
   it('reads it inside or groups', () => {
-    const p = pickPredicate({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), dates: { followup: notNext2Weeks } }] })
+    const p = pickPredicate({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), tags: [1], dates: { followup: notNext2Weeks } }] })
     expect(p.fixes).toEqual([])
     expect(p.predicate.orGroups?.[0]?.dates.followup).toEqual(notNext2Weeks)
   })

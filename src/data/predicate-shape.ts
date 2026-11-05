@@ -20,7 +20,7 @@ import {
   type RelativeDateToken,
   type TodoPredicate,
 } from '../models/filter-predicate'
-import { hasFilterClause, normalizeClauses } from '../utils/or-groups'
+import { dissolveSingleOrGroups, hasFilterClause, normalizeClauses } from '../utils/or-groups'
 import { withNormalizedNegation } from '../utils/filter-negation'
 import { isRecord } from '../utils/is-record'
 
@@ -301,7 +301,8 @@ export function pickPredicate(raw: unknown): PickedPredicate {
   const predicate: TodoPredicate = { showCompleted, ...clauses }
   const orGroups = pickOrGroups(v.orGroups, fixes)
   if (orGroups && orGroups.length > 0) predicate.orGroups = orGroups
-  return { predicate, fixes }
+  // A group of one filters as its clause does: read as that clause, not a fix.
+  return { predicate: dissolveSingleOrGroups(predicate).predicate, fixes }
 }
 
 /** An id filter's name in a fix (`people filter dropped`). */
