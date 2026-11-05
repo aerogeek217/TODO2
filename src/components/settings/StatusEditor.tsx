@@ -72,7 +72,7 @@ function IconPicker({ value, onChange, color }: { value?: StatusIconKey; onChang
               className={`${styles.iconPickerCell} ${(value || DEFAULT_STATUS_ICON) === key ? styles.iconPickerCellActive : ''}`}
               style={{ color }}
               onClick={() => { onChange(key); setOpen(false) }}
-              title={key}
+              title={key === 'snooze' ? 'inbox' : key}
             >
               <StatusIcon icon={key} />
             </button>
