@@ -27,7 +27,7 @@ import { TaskEditFooter } from './TaskEditFooter'
 import { NotesBody } from './notes/NotesBody'
 import { StatusUpdatesSection, type StatusUpdateEntry, type StatusUpdateFields } from './status-updates/StatusUpdatesSection'
 import { SubtasksSection } from './subtasks/SubtasksSection'
-import type { ChecklistAddDraft, ChecklistItem } from './subtasks/SubtaskChecklist'
+import type { ChecklistItem } from './subtasks/SubtaskChecklist'
 import { useSubtasks, useSubtaskStore } from '../../stores/subtask-store'
 import { storedSubtaskMenuEntries } from './subtasks/subtask-menu'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
@@ -527,29 +527,20 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }
 
-  // The add row's line typed and not added yet goes with the task.
-  const subtaskDraftRef = useRef<ChecklistAddDraft>(null)
-
   // A create in flight: a second Create / Enter waits for it.
   const creatingRef = useRef(false)
   const handleCreate = async () => {
     if (props.mode !== 'create' || !title.trim() || creatingRef.current) return
     // A person / tag picked from the title's Create row is saved first, so the token names it.
     if (ac.creating()) await ac.whenCreated()
-    const typedSubtask = subtaskDraftRef.current?.take() ?? ''
-    const subtasksToCreate = typedSubtask === ''
-      ? pendingSubtasks
-      : [...pendingSubtasks, { id: Math.max(0, ...pendingSubtasks.map((s) => s.id)) + 1, title: typedSubtask, isCompleted: false }]
-    // Kept as a row, should the create fail and the editor stay open.
-    if (typedSubtask !== '') setPendingSubtasks(subtasksToCreate)
     const partial: EditorTaskFields = {
       title: title.trim(),
       notes: notesSession.text() || undefined,
       ...(pendingUpdates.length > 0
         ? { statusUpdates: pendingUpdates.map(({ date, text, createdAt }) => ({ date, text, createdAt })) }
         : {}),
-      ...(subtasksToCreate.length > 0
-        ? { subtasks: subtasksToCreate.map(({ title, isCompleted }) => ({ title, isCompleted })) }
+      ...(pendingSubtasks.length > 0
+        ? { subtasks: pendingSubtasks.map(({ title, isCompleted }) => ({ title, isCompleted })) }
         : {}),
       statusId,
       dueDate: deadline ?? undefined,
@@ -602,7 +593,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     const dirty = !isEdit && (
       createFormState(title) !== openingForm
       || notesSession.text() !== (seed?.notes ?? '')
-      || (subtaskDraftRef.current?.peek() ?? '') !== ''
     )
     if (!dirty) {
       onClose()
@@ -871,7 +861,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             onRemove={handleRemoveSubtask}
             onMove={handleMoveSubtask}
             extraMenuEntries={isEdit ? storedSubtaskMenuEntries : undefined}
-            addDraftRef={subtaskDraftRef}
             className={styles.notesSection}
             labelClassName={styles.notesLabel}
           />

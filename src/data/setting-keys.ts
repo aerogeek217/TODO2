@@ -26,6 +26,12 @@ export const SETTING_KEYS = {
    */
   newTaskFollowup: 'newTaskFollowup',
   /**
+   * "Remove note lines after converting": a line made into a task goes from
+   * the note, asking nothing, instead of becoming `✓ <title>`. `true` = on;
+   * absent (or `false`) = off.
+   */
+  removeConvertedLines: 'removeConvertedLines',
+  /**
    * "Due date makes a task urgent": days ahead (`0` = today) or `off`.
    * Absent = the default (3 days).
    */

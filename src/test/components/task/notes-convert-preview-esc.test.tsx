@@ -23,6 +23,8 @@ function renderPreview(editing: boolean, defaultFollowup: Date | null = new Date
       focusKey={null}
       editing={editing}
       onEdit={vi.fn()}
+      onChange={() => {}}
+      onCheck={() => {}}
       onRemove={vi.fn()}
       onCreate={vi.fn()}
       onCancel={onCancel}
@@ -47,12 +49,12 @@ describe('NotesConvertPreview Esc while a draft is open in the editor', () => {
   })
 })
 
-describe('NotesConvertPreview follow-up chip', () => {
+describe('NotesConvertPreview follow-up cell', () => {
   it('shows the default next follow-up, and none while new tasks get no follow-up', () => {
     renderPreview(false)
-    expect(document.querySelector('[title="The default next follow-up"]')).not.toBeNull()
+    expect(document.querySelector('[data-row-cell="followup"]')?.getAttribute('aria-label')).toMatch(/^Follow-up:/)
     cleanup()
     renderPreview(false, null)
-    expect(document.querySelector('[title="The default next follow-up"]')).toBeNull()
+    expect(document.querySelector('[data-row-cell="followup"]')?.getAttribute('aria-label')).toBe('Set follow-up')
   })
 })

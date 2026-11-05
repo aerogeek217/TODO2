@@ -28,6 +28,8 @@ const SEED: WorkspaceSeed = {
   layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] }] }] }],
 }
 
+/** The editor's + Add subtask popover. */
+const addPopover = (page: Page) => page.getByRole('dialog', { name: 'Add a subtask' })
 const countOf = (row: Locator) => row.locator('[data-subtask-count]')
 const popover = (page: Page) => page.getByRole('dialog', { name: 'Subtasks of Q4 budget' })
 const editor = (page: Page) => page.getByRole('dialog', { name: 'Edit task' })
@@ -46,6 +48,43 @@ async function modifiedAt(page: Page, title: string): Promise<number> {
   const task = (await readStore<{ title: string; modifiedAt: Date }>(page, 'todos')).find((t) => t.title === title)
   return new Date(task?.modifiedAt ?? 0).getTime()
 }
+
+test('the editor’s + Add subtask matches + Add update, at the right of its heading; ⏎ adds and stays, Esc adds what was typed, Cancel drops it', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await taskRowByTitle(page, 'Q4 budget').locator('span[data-task-title="Q4 budget"]').dblclick()
+  await expect(editor(page)).toBeVisible()
+  const add = section(page).getByRole('button', { name: '+ Add subtask' })
+  const update = editor(page).getByRole('button', { name: '+ Add update' })
+  const look = (l: Locator) => l.evaluate((el) => {
+    const c = getComputedStyle(el)
+    return [c.color, c.fontSize, c.fontWeight, c.height, c.backgroundColor, c.borderRadius]
+  })
+  expect(await look(add)).toEqual(await look(update))
+  // Their right edges line up, and there is no add row taking height.
+  const edge = async (l: Locator) => { const b = await l.boundingBox(); return Math.round((b?.x ?? 0) + (b?.width ?? 0)) }
+  expect(Math.abs(await edge(add) - await edge(update))).toBeLessThanOrEqual(1)
+  await expect(section(page).getByRole('textbox', { name: 'New subtask' })).toHaveCount(0)
+
+  await add.click()
+  const field = addPopover(page).getByRole('textbox', { name: 'New subtask' })
+  await expect(field).toBeFocused()
+  await field.fill('One')
+  await field.press('Enter')
+  await expect(field).toHaveValue('')
+  await expect(field).toBeFocused()
+  await field.fill('Two')
+  await page.keyboard.press('Escape')
+  await expect(addPopover(page)).toHaveCount(0)
+  await expect(editor(page)).toBeVisible()
+  await expect(add).toBeFocused()
+  await expect.poll(async () => (await storedChecklist(page, 'Q4 budget')).map((s) => s[0]).slice(-2)).toEqual(['One', 'Two'])
+
+  await add.click()
+  await field.fill('Not this')
+  await addPopover(page).getByRole('button', { name: 'Cancel' }).click()
+  await expect(addPopover(page)).toHaveCount(0)
+  expect((await storedChecklist(page, 'Q4 budget')).map((s) => s[0])).not.toContain('Not this')
+})
 
 test('the row’s count opens the popover; Space checks the focused subtask, the count and Modified follow; ⏎ adds; Esc closes with the focus back on the count', async ({ page }) => {
   await seedWorkspace(page, SEED)

@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { createPortal } from 'react-dom'
 import { STATUS_UPDATE_TEXT_MAX } from '../../../models'
@@ -249,7 +249,8 @@ function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose }: {
   const addOnCloseRef = useLatestRef(() => {
     if (!finished.current && canAdd && day.day !== 'invalid') onAddOnClose({ date: day.day, text: clean })
   })
-  useEffect(() => () => addOnCloseRef.current(), [addOnCloseRef])
+  // In the commit that closes it, so a click right behind the closing press (Create) reads the result.
+  useLayoutEffect(() => () => addOnCloseRef.current(), [addOnCloseRef])
   const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
     e.preventDefault()
@@ -327,7 +328,8 @@ function EntryEditor({ entry, today, onSave, onSaveOnClose, onCancel }: {
     const date = day.day === 'invalid' ? entry.date : day.day
     if (clean !== entry.text || date.getTime() !== entry.date.getTime()) onSaveOnClose({ date, text: clean })
   })
-  useEffect(() => () => saveOnCloseRef.current(), [saveOnCloseRef])
+  // In the commit that closes it, so a click right behind the closing press (Create) reads the result.
+  useLayoutEffect(() => () => saveOnCloseRef.current(), [saveOnCloseRef])
   return (
     <div
       className={styles.editRow}

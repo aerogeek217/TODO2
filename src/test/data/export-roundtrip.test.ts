@@ -93,6 +93,7 @@ function buildSeed(): Seed {
       { key: 'weekStartsOn', value: '1' },
       { key: 'followupDefaultInterval', value: '2w' },
       { key: 'newTaskFollowup', value: 'false' },
+      { key: 'removeConvertedLines', value: 'true' },
       { key: 'urgentDueWithinDays', value: 'off' },
       { key: 'hotRule', value: '[{"important":true,"focus":true},{"urgent":true}]' },
       { key: 'checkinOpenMethod', value: 'eml' },

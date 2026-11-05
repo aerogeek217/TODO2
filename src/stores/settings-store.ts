@@ -95,6 +95,8 @@ interface SettingsState {
    * `SETTING_KEYS.newTaskFollowup`.
    */
   autoFollowup: boolean
+  /** "Remove note lines after converting": a converted line leaves the note instead of becoming `✓ <title>`. Off by default. */
+  removeConvertedLines: boolean
   /** "Due date makes a task urgent": days ahead (0 = today), null = off. */
   urgentDueWithinDays: UrgentDueWithinDays
   /** Hot rule: OR of lines, each an AND of markers (`utils/hot.ts`). */
@@ -158,6 +160,7 @@ interface SettingsState {
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
   /** "Set a next follow-up automatically"; shown at once, put back when the save fails. */
   setAutoFollowup: (on: boolean) => Promise<void>
+  setRemoveConvertedLines: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
   /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
   setHotRule: (rule: HotRule) => Promise<void>
@@ -384,6 +387,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   weekStartsOn: 1 as WeekStart,
   followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
   autoFollowup: true,
+  removeConvertedLines: false,
   urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
   hotRule: DEFAULT_HOT_RULE,
   checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
@@ -417,6 +421,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       let weekStartsOn: WeekStart = 1
       let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
       let autoFollowup = true
+      let removeConvertedLines = false
       let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
       let hotRule: HotRule = DEFAULT_HOT_RULE
       let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
@@ -457,6 +462,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
           followupDefaultInterval = parseFollowupInterval(row.value) ?? DEFAULT_FOLLOWUP_INTERVAL
         } else if (row.key === SETTING_KEYS.newTaskFollowup) {
           autoFollowup = row.value !== 'false'
+        } else if (row.key === SETTING_KEYS.removeConvertedLines) {
+          removeConvertedLines = row.value === 'true'
         } else if (row.key === SETTING_KEYS.urgentDueWithinDays) {
           const parsed = parseUrgentDueWithinDays(row.value)
           urgentDueWithinDays = parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
@@ -500,7 +507,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       if (!sortHasDirection(newListSort)) newListSortDirection = 'asc'
       set({
         colors, defaultStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
-        followupDefaultInterval, autoFollowup, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
+        followupDefaultInterval, autoFollowup, removeConvertedLines, urgentDueWithinDays, hotRule, checkinOpenMethod, checkinTaskFilter,
         newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt, staleAfterDays,
         rowDensity, lenses, lensPresetsSeeded, activeLensId, shortcutOverrides, eisenhowerPanes, eisenhowerListId,
       })
@@ -612,6 +619,21 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       } catch (e) {
         console.error('Failed to save whether a next follow-up is set automatically:', e)
         set({ autoFollowup: prev })
+      }
+    })
+  },
+
+  setRemoveConvertedLines(on: boolean) {
+    return trackWrite(async () => {
+      const prev = get().removeConvertedLines
+      set({ removeConvertedLines: on })
+      try {
+        // Stored only when on: absent = off.
+        if (on) await settingsRepository.put(SETTING_KEYS.removeConvertedLines, 'true')
+        else await settingsRepository.delete(SETTING_KEYS.removeConvertedLines)
+      } catch (e) {
+        console.error('Failed to save whether converted lines are removed from the note:', e)
+        set({ removeConvertedLines: prev })
       }
     })
   },

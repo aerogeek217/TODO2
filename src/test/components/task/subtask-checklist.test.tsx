@@ -4,8 +4,8 @@
 // away, the checkbox, and the ⋯ menu (Rename ·
 // the host's extra items | Delete).
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent, cleanup, within, act } from '@testing-library/react'
-import { SubtaskChecklist, type ChecklistAddDraft, type ChecklistItem } from '../../../components/task/subtasks/SubtaskChecklist'
+import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
+import { SubtaskChecklist, type ChecklistItem } from '../../../components/task/subtasks/SubtaskChecklist'
 
 afterEach(cleanup)
 
@@ -52,7 +52,7 @@ describe('SubtaskChecklist — add', () => {
   })
 
   describe('the checklist going away', () => {
-    const renderChecklist = (addDraftRef?: { current: ChecklistAddDraft | null }) => {
+    const renderChecklist = () => {
       const onAdd = vi.fn()
       const onRename = vi.fn()
       const view = render(
@@ -64,7 +64,6 @@ describe('SubtaskChecklist — add', () => {
           onRename={onRename}
           onSetDone={vi.fn()}
           onRemove={vi.fn()}
-          addDraftRef={addDraftRef}
         />,
       )
       return { onAdd, onRename, unmount: view.unmount }
@@ -117,16 +116,9 @@ describe('SubtaskChecklist — add', () => {
       expect(r.onRename).not.toHaveBeenCalled()
     })
 
-    it('a host can read and take the line typed; taken, it isn’t added again', () => {
-      const handle: { current: ChecklistAddDraft | null } = { current: null }
-      const r = renderChecklist(handle)
-      fireEvent.change(addField(), { target: { value: ' typed ' } })
-      expect(handle.current?.peek()).toBe('typed')
-      act(() => { expect(handle.current?.take()).toBe('typed') })
-      expect(addField().value).toBe('')
-      expect(handle.current?.peek()).toBe('')
-      r.unmount()
-      expect(r.onAdd).not.toHaveBeenCalled()
+    it('hideAddRow leaves the add row out', () => {
+      render(<SubtaskChecklist items={ITEMS} density="editor" label="Subtasks" hideAddRow onAdd={vi.fn()} onRename={vi.fn()} onSetDone={vi.fn()} onRemove={vi.fn()} />)
+      expect(screen.queryByRole('textbox', { name: 'New subtask' })).toBeNull()
     })
   })
 

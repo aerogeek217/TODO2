@@ -29,14 +29,6 @@
   border-color: var(--color-border);
 }
 
-.btnBold {
-  font-weight: 700;
-}
-
-.btnItalic {
-  font-style: italic;
-}
-
 .sep {
   width: 1px;
   height: 14px;

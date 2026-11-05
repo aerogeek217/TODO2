@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { EditorView } from '@codemirror/view'
 import { useFilterStore } from '../../../stores/filter-store'
@@ -22,11 +22,13 @@ import {
   type ConvertLine,
   type TextChange,
 } from '../../../services/note-lines'
-import { draftFromEditor, draftFromText, type DraftContext, type EditorTaskFields, type TaskDraft } from '../../../services/task-draft'
+import { draftFromEditor, draftFromResolved, draftFromText, type DraftContext, type EditorTaskFields, type TaskDraft } from '../../../services/task-draft'
 import { createTasksFromDrafts } from '../../../services/note-tasks'
 import { createTaskFromDraft } from '../../../services/create-task'
+import { QuickAddBar, type QuickAddDraft } from '../QuickAddBar'
 import { ConfirmDialog } from '../../shared/Dialog'
 import { TaskEditPopup } from '../TaskEditPopup'
+import { convertActionLabel, plural } from './convert-action-label'
 import { NotesConvertPreview, type PreviewRow } from './NotesConvertPreview'
 
 /** Marks the body while any convert dialog is open (hosts ignore outside clicks / Esc then). */
@@ -44,6 +46,7 @@ interface CreatedLine {
 }
 
 type ConvertState =
+  | { kind: 'quick'; line: ConvertLine }
   | { kind: 'single'; line: ConvertLine; draft: TaskDraft }
   | {
     kind: 'preview'
@@ -55,7 +58,7 @@ type ConvertState =
     focusKey: number | null
     busy: boolean
   }
-  | { kind: 'prompt'; items: CreatedLine[]; leftOut: number }
+  | { kind: 'prompt'; items: CreatedLine[]; leftOut: number; cleared: ConvertLine[] }
 
 function draftContext(): DraftContext {
   return {
@@ -116,15 +119,15 @@ function headingText(line: string): string | null {
   return null
 }
 
-function plural(n: number, one: string, many: string): string {
-  return `${n} ${n === 1 ? one : many}`
-}
-
-/** The line's draft: its body parsed, its subtask lines as plain subtasks (cr28). */
-function draftOf(line: ConvertLine, ctx: DraftContext): TaskDraft {
-  const draft = draftFromText(line.body, ctx)
+/** `draft` with the line's subtask lines as plain subtasks (cr28). */
+function withLineSubtasks(draft: TaskDraft, line: ConvertLine): TaskDraft {
   const subtasks = line.subtasks ?? []
   return subtasks.length > 0 ? { ...draft, subtasks: subtasks.map((s) => ({ title: s.title, isCompleted: s.done })) } : draft
+}
+
+/** The line's draft: its body parsed, with its subtask lines. */
+function draftOf(line: ConvertLine, ctx: DraftContext): TaskDraft {
+  return withLineSubtasks(draftFromText(line.body, ctx), line)
 }
 
 /**
@@ -153,13 +156,17 @@ export interface NotesConvertOptions {
 }
 
 /**
- * Notes → tasks. `convertLine` (Alt+T) opens the task editor in create mode
- * for the caret line; `convertScope` (the toolbar's Convert) takes the
+ * Notes → tasks. `convertLine` (Alt+T) and `convertLineAt` (the editor's
+ * hover icon) open Quick Add on one line, its text prefilled (Details hands
+ * off to the task editor); `convertScope` (the toolbar's Convert) takes the
  * bullet lines of the note, or of the selection: two or more open the
- * preview, exactly one opens the editor like Alt+T. Created tasks turn
+ * preview, exactly one opens Quick Add like Alt+T. Created tasks turn
  * their lines into `✓ <title>`; after a preview the user picks Remove (the
  * lines go) or Keep (`✓`) — one editor transaction, so one Ctrl+Z in the
- * note undoes it. A line's indented list lines become its task's subtasks
+ * note undoes it. With Settings' `removeConvertedLines` the lines just go,
+ * from a single line too, and nothing is asked. A draft checked off in the preview makes no task: its line
+ * goes in that same transaction, whichever is picked (with only checked
+ * drafts there is nothing to pick). A line's indented list lines become its task's subtasks
  * (cr28): they go with the line on Remove, and on Keep too (their text now
  * lives in the task). The task create is its own undo step (the snackbar's
  * Undo deletes the tasks and leaves the note as it is).
@@ -188,19 +195,38 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
     void flush?.()
   }, [viewRef, getText, setText, flush])
 
-  /** Rewrites converted lines as `✓ <title>` and removes their subtask lines; returns how many lines couldn't be found. */
-  const markConverted = useCallback((items: readonly { line: ConvertLine; title: string }[]) => {
+  /**
+   * Rewrites converted lines as `✓ <title>` and removes their subtask lines,
+   * and removes `cleared` lines (checked off) with theirs; returns how many
+   * lines couldn't be found.
+   */
+  const markConverted = useCallback((items: readonly { line: ConvertLine; title: string }[], cleared: readonly ConvertLine[] = []) => {
     let missing = 0
     applyToNote((text) => {
-      const found = locateConvertLines(text, items.map((i) => i.line))
+      // Located together, so two identical lines can't claim the same one.
+      const found = locateConvertLines(text, [...items.map((i) => i.line), ...cleared])
       missing = found.missing
       return [
         ...markLineChanges(text, items.flatMap((item, k) => {
           const line = found.parents[k]
           return line != null ? [{ line, title: item.title }] : []
         })),
-        ...removeLineChanges(text, found.children),
+        ...removeLineChanges(text, [
+          ...found.children,
+          ...found.parents.slice(items.length).filter((n): n is number => n != null),
+        ]),
       ]
+    })
+    return missing
+  }, [applyToNote])
+
+  /** Removes `lines` with their subtask lines; returns how many couldn't be found. */
+  const removeLines = useCallback((lines: readonly ConvertLine[]) => {
+    let missing = 0
+    applyToNote((text) => {
+      const found = locateConvertLines(text, lines)
+      missing = found.missing
+      return removeLineChanges(text, [...found.parents.filter((n): n is number => n != null), ...found.children])
     })
     return missing
   }, [applyToNote])
@@ -212,7 +238,7 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
 
   const openSingle = useCallback((line: ConvertLine) => {
     void flush?.()
-    setState({ kind: 'single', line, draft: draftOf(line, draftContext()) })
+    setState({ kind: 'quick', line })
   }, [flush])
 
   /** Alt+T: the caret line. False when it can't be converted (blank / already `✓`). */
@@ -224,6 +250,13 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
     openSingle(candidate)
     return true
   }, [state, openSingle])
+
+  /** The editor's hover icon: line `n`, as Alt+T takes the caret's. */
+  const convertLineAt = useCallback((n: number) => {
+    if (state) return
+    const candidate = singleLineCandidateAt(currentText(), n)
+    if (candidate) openSingle(candidate)
+  }, [state, currentText, openSingle])
 
   /** The toolbar's Convert: the bullet lines of the note or the selection. */
   const convertScope = useCallback(() => {
@@ -261,29 +294,60 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
   }), [])
 
   // Single line: create, then mark the line `✓ <title>` (no prompt). Not
-  // stored (the snackbar says so): null keeps the editor open and the line as
-  // it is.
-  const createSingle = useCallback(async (line: ConvertLine, partial: EditorTaskFields, assignments?: { personIds: number[]; tagIds: number[] }) => {
-    const draft = draftFromEditor(partial, assignments ?? { personIds: [], tagIds: [] }, editorCtx())
+  // stored (the snackbar says so): null keeps Quick Add or the editor open and
+  // the line as it is.
+  const createLineTask = useCallback(async (line: ConvertLine, draft: TaskDraft) => {
     const id = await createTaskFromDraft(draft)
     if (id == null) return null
     useUIStore.getState().showRecentlyCreated(id)
-    if (markConverted([{ line, title: draft.title }]) > 0) onToast?.('Task created — its line changed, so it was left as it is')
+    const missing = useSettingsStore.getState().removeConvertedLines
+      ? removeLines([line])
+      : markConverted([{ line, title: draft.title }])
+    if (missing > 0) onToast?.('Task created — its line changed, so it was left as it is')
     return id
-  }, [editorCtx, markConverted, onToast])
+  }, [markConverted, removeLines, onToast])
+
+  const createSingle = useCallback((line: ConvertLine, partial: EditorTaskFields, assignments?: { personIds: number[]; tagIds: number[] }) => (
+    createLineTask(line, draftFromEditor(partial, assignments ?? { personIds: [], tagIds: [] }, editorCtx()))
+  ), [createLineTask, editorCtx])
+
+  // Quick Add's text, with the defaults every note line gets (`draftContext`).
+  const createFromQuickAdd = useCallback(async (line: ConvertLine, submitted: QuickAddDraft) => {
+    const draft = withLineSubtasks(draftFromResolved(submitted.resolved, submitted.title, draftContext()), line)
+    return (await createLineTask(line, draft)) != null
+  }, [createLineTask])
 
   const createAll = useCallback(async () => {
     if (state?.kind !== 'preview' || state.busy || state.rows.length === 0) return
-    const { rows, leftOut } = state
+    const { leftOut } = state
+    const rows = state.rows.filter((r) => r.checked !== true)
+    const cleared = state.rows.filter((r) => r.checked === true).map((r) => r.line)
+    if (rows.length === 0) {
+      // Only checked drafts: no task, nothing to pick. The note's Ctrl+Z brings them back.
+      const missing = removeLines(cleared)
+      onToast?.(missing > 0
+        ? `${plural(missing, 'line was', 'lines were')} changed meanwhile and left as ${missing === 1 ? 'it is' : 'they are'}`
+        : `Removed ${plural(cleared.length, 'line', 'lines')} · Ctrl+Z in the note brings ${cleared.length === 1 ? 'it' : 'them'} back`)
+      close()
+      return
+    }
     setState({ ...state, busy: true })
     try {
       const created = await createTasksFromDrafts(rows.map((r) => r.draft), {
         description: `Created ${plural(rows.length, 'task', 'tasks')}`,
         snackbar: true,
       })
+      if (useSettingsStore.getState().removeConvertedLines) {
+        // Nothing to ask: their lines go, with the checked ones, in one note edit.
+        const missing = removeLines([...rows.map((r) => r.line), ...cleared])
+        if (missing > 0) onToast?.(`${plural(missing, 'line was', 'lines were')} changed meanwhile and left as ${missing === 1 ? 'it is' : 'they are'}`)
+        close()
+        return
+      }
       setState({
         kind: 'prompt',
         leftOut,
+        cleared,
         items: created.flatMap((c, i) => {
           const row = rows[i]
           return row ? [{ line: row.line, id: c.id, title: c.title }] : []
@@ -294,7 +358,30 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
       onToast?.('Failed to create the tasks')
       setState({ ...state, busy: false })
     }
-  }, [state, onToast])
+  }, [state, onToast, removeLines, close])
+
+  // Esc, the backdrop or × over changes the note doesn't hold asks first; Cancel doesn't.
+  const askingToCloseRef = useRef(false)
+  const dismissPreview = useCallback(() => {
+    if (state?.kind !== 'preview') return
+    if (!state.rows.some((r) => r.edited || r.checked === true) && state.leftOut === 0) {
+      close()
+      return
+    }
+    if (askingToCloseRef.current) return
+    askingToCloseRef.current = true
+    void useUIStore.getState().askChoice({
+      title: 'Keep your changes to these drafts?',
+      message: 'Nothing has been created or removed yet.',
+      confirmLabel: state.rows.length > 0 ? convertActionLabel(state.rows) : 'Keep editing',
+      discardLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+    }).then((picked) => {
+      askingToCloseRef.current = false
+      if (picked === 'discard') close()
+      else if (picked === 'confirm' && state.rows.length > 0) void createAll()
+    })
+  }, [state, close, createAll])
 
   // The remove prompt acts only on lines whose task still exists (the
   // snackbar's Undo may have deleted them meanwhile).
@@ -302,19 +389,12 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
     if (state?.kind !== 'prompt') return
     const existing = new Set(useTodoStore.getState().todos.map((t) => t.id))
     const items = state.items.filter((i) => existing.has(i.id))
-    let missing = 0
-    if (remove) {
-      applyToNote((text) => {
-        const found = locateConvertLines(text, items.map((i) => i.line))
-        missing = found.missing
-        return removeLineChanges(text, [...found.parents.filter((n): n is number => n != null), ...found.children])
-      })
-    } else {
-      missing = markConverted(items)
-    }
+    const missing = remove
+      ? removeLines([...items.map((i) => i.line), ...state.cleared])
+      : markConverted(items, state.cleared)
     if (missing > 0) onToast?.(`${plural(missing, 'line was', 'lines were')} changed meanwhile and left as ${missing === 1 ? 'it is' : 'they are'}`)
     close()
-  }, [state, applyToNote, markConverted, onToast, close])
+  }, [state, removeLines, markConverted, onToast, close])
 
   const entityCreators = useMemo(() => ({
     onCreatePerson: (name: string) => usePersonStore.getState().getOrCreate(name),
@@ -324,7 +404,23 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
   const noop = useCallback(() => {}, [])
 
   let content: ReactNode = null
-  if (state?.kind === 'single') {
+  if (state?.kind === 'quick') {
+    const { line } = state
+    const subtaskCount = line.subtasks?.length ?? 0
+    content = (
+      <QuickAddBar
+        open
+        initialDraft={{ rawTitle: line.body }}
+        // They aren't shown here, and their lines go from the note with this one.
+        preset={subtaskCount > 0 ? { caption: `With ${plural(subtaskCount, 'subtask', 'subtasks')}` } : undefined}
+        onClose={close}
+        onSubmit={(submitted) => createFromQuickAdd(line, submitted)}
+        onOpenFullEditor={(submitted) => {
+          setState({ kind: 'single', line, draft: withLineSubtasks(draftFromText(submitted.rawTitle, draftContext()), line) })
+        }}
+      />
+    )
+  } else if (state?.kind === 'single') {
     const { line, draft } = state
     content = (
       <TaskEditPopup
@@ -359,6 +455,12 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
           focusKey={state.focusKey}
           editing={editingRow !== undefined}
           onEdit={(key) => setState({ ...state, editing: key, focusKey: key })}
+          onChange={(key, draft) => setState((s) => (s?.kind === 'preview'
+            ? { ...s, rows: s.rows.map((r) => (r.key === key ? { ...r, draft, edited: true } : r)) }
+            : s))}
+          onCheck={(key, checked) => setState((s) => (s?.kind === 'preview'
+            ? { ...s, rows: s.rows.map((r) => (r.key === key ? { ...r, checked } : r)) }
+            : s))}
           onRemove={(key) => {
             const index = state.rows.findIndex((r) => r.key === key)
             const rows = state.rows.filter((r) => r.key !== key)
@@ -367,6 +469,7 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
           }}
           onCreate={() => { void createAll() }}
           onCancel={close}
+          onDismiss={dismissPreview}
         />
         {editingRow && (
           <TaskEditPopup
@@ -402,6 +505,8 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
         open
         title={`Remove ${plural(n, 'converted line', 'converted lines')} from the note?`}
         message={`Keep marks ${n === 1 ? 'it' : 'them'} ✓ so ${n === 1 ? "it isn't" : "they aren't"} converted again.${
+          state.cleared.length > 0 ? ` ${plural(state.cleared.length, 'line', 'lines')} you checked off ${state.cleared.length === 1 ? 'goes' : 'go'} either way.` : ''
+        }${
           state.leftOut > 0 ? ` The ${state.leftOut === 1 ? 'line you left out stays as it is' : 'lines you left out stay as they are'}.` : ''}`}
         confirmLabel={`Remove ${plural(n, 'line', 'lines')}`}
         cancelLabel="Keep"
@@ -415,5 +520,5 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
     ? createPortal(<div {...{ [NOTES_CONVERT_ATTR]: '' }}>{content}</div>, document.body)
     : null
 
-  return { convertLine, convertScope, layer, open: state !== null }
+  return { convertLine, convertLineAt, convertScope, layer, open: state !== null }
 }

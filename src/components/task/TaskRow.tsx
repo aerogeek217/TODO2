@@ -1,5 +1,5 @@
 import { useRef, useState, useCallback, useMemo, memo, type MouseEvent } from 'react'
-import { type PersistedTodoItem, type Person, type Tag, DEFAULT_STATUS_ICON } from '../../models'
+import { type PersistedTodoItem, type Person, type Tag } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -8,7 +8,6 @@ import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { startOfToday } from '../../utils/date'
 import { isHot } from '../../utils/hot'
 import { isStale, staleTooltipLine } from '../../utils/stale'
-import { StatusIcon } from '../shared/StatusIcon'
 import { TagPicker } from '../shared/TagChipSelector'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { useTooltip } from '../shared/use-tooltip'
@@ -24,8 +23,7 @@ import { useSubtaskStore } from '../../stores/subtask-store'
 import { subtaskCount } from '../../utils/subtasks'
 import { SubtaskCountButton, SubtaskCountStatic } from './subtasks/SubtaskCountButton'
 import {
-  DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell,
-} from './row-cells'
+  DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell, StatusMenu } from './row-cells'
 import styles from './TaskRow.module.css'
 import { TODO_ID_ATTR } from '../../utils/dom-contract'
 
@@ -317,25 +315,11 @@ export const TaskRow = memo(function TaskRow({
 
       {!ghost && showStatusMenu && (
         <AnchoredPicker anchorRef={statusRef} onClose={closeStatus} closeOnEscape>
-          <div className={styles.statusMenu}>
-            <button
-              className={`${styles.statusOption} ${!todo.statusId ? styles.statusOptionActive : ''}`}
-              onClick={(e) => { e.stopPropagation(); bulk.setStatus(todo.id, undefined); setShowStatusMenu(false) }}
-            >
-              <span className={styles.statusOptionDot} style={{ background: 'var(--color-text-muted)' }} />
-              No Status
-            </button>
-            {statuses.map(s => (
-              <button
-                key={s.id}
-                className={`${styles.statusOption} ${todo.statusId === s.id ? styles.statusOptionActive : ''}`}
-                onClick={(e) => { e.stopPropagation(); bulk.setStatus(todo.id, s.id); setShowStatusMenu(false) }}
-              >
-                <span style={{ color: s.color }}><StatusIcon icon={s.icon || DEFAULT_STATUS_ICON} filled /></span>
-                {s.name}
-              </button>
-            ))}
-          </div>
+          <StatusMenu
+            statuses={statuses}
+            statusId={todo.statusId}
+            onPick={(statusId) => { bulk.setStatus(todo.id, statusId); setShowStatusMenu(false) }}
+          />
         </AnchoredPicker>
       )}
 

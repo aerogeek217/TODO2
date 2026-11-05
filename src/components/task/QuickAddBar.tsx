@@ -129,6 +129,8 @@ export interface QuickAddPreset {
   important?: boolean
   focus?: boolean
   source?: string
+  /** What else the task will get, in words (a converted note line's subtasks). */
+  caption?: string
 }
 
 export interface QuickAddBarProps {
@@ -312,12 +314,13 @@ function ParsedChips({ draft, preset, defaultFollowup, today, onRemove }: {
         </span>
       )}
       {preset?.source && <span className={styles.chipsSource}>Adding to {preset.source}</span>}
+      {preset?.caption && <span className={styles.chipsSource}>{preset.caption}</span>}
     </div>
   )
 }
 
 function hasPreset(preset: QuickAddPreset | undefined): boolean {
-  return preset != null && (preset.urgent === true || preset.important === true || preset.focus === true || !!preset.source)
+  return preset != null && (preset.urgent === true || preset.important === true || preset.focus === true || !!preset.source || !!preset.caption)
 }
 
 /** One line per command (or `!status`) that sets nothing. */
@@ -511,14 +514,18 @@ export function QuickAddBar({
   // while the bar is closed, that draft feeds the popup, not the bar).
   const { dismiss: dismissAutocomplete } = ac
   const initialDraftRef = useLatestRef(initialDraft)
+  // The text it opened with: closing on that asks nothing, nothing was typed.
+  const openedWithRef = useRef('')
   useEffect(() => {
     if (open) {
       const seed = initialDraftRef.current
+      openedWithRef.current = seed?.rawTitle ?? ''
       if (seed) {
         setRaw(seed.rawTitle)
       }
-      // Wait a paint so the portal node exists.
-      requestAnimationFrame(() => inputRef.current?.focus())
+      // At once, so a key pressed right after it opens reaches the bar, not what
+      // it opened over.
+      inputRef.current?.focus()
     } else {
       setRaw('')
       setTitleMissing(false)
@@ -661,7 +668,9 @@ export function QuickAddBar({
 
   useLayoutEffect(() => {
     requestCloseRef.current = () => {
-      if (raw.trim() === '') {
+      // The task is being stored: the bar closes by itself, or stays to try again.
+      if (submittingRef.current) return
+      if (raw.trim() === '' || raw === openedWithRef.current) {
         onClose()
         return
       }
@@ -727,6 +736,8 @@ export function QuickAddBar({
               onSelect={(e) => {
                 const input = e.currentTarget
                 syncMirror()
+                // Text it opened with opens no popup: nothing was typed yet.
+                if (input.value === openedWithRef.current) return
                 // Moving the caret into / out of a token updates the popup.
                 ac.handleInputChange(input.value, input.selectionStart ?? input.value.length, input)
               }}

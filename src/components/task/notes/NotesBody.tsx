@@ -169,6 +169,7 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
         viewRef={viewRef}
         nlp={nlp}
         onNlpError={onConvertToast}
+        onLineConvert={canConvert ? notesConvert.convertLineAt : undefined}
       />
       {notesConvert.layer}
     </div>

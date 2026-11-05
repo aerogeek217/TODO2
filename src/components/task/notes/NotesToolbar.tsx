@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 import { EditorSelection } from '@codemirror/state'
 import type { EditorView } from '@codemirror/view'
-import { formatShortcut } from '../../../utils/platform'
+import { listKindChange, listKindOf, type ListKind } from '../../../services/note-lines'
 import { indentSelection } from './notes-indent'
 import { useTooltip } from '../../shared/use-tooltip'
 import styles from './NotesToolbar.module.css'
@@ -104,56 +104,29 @@ function ConvertButton({ convert }: { convert: NotesConvertControl }) {
  * (it needs the current content string + the note-store flush hook).
  */
 export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: NotesToolbarProps) {
-  const wrapSelection = useCallback((marker: string) => {
+  // The bullet and box buttons. A line of that kind goes back to plain text; a
+  // line of the other kind, or none, becomes that kind. Over several lines,
+  // all of that kind go back, else all become it; blank lines are left alone.
+  const toggleList = useCallback((kind: ListKind) => {
     const view = viewRef.current
     if (!view) return
-    const { from, to } = view.state.selection.main
-    const selected = view.state.sliceDoc(from, to)
-    if (from === to) {
-      // Collapsed: insert markers and place cursor between them.
-      view.dispatch({
-        changes: { from, to, insert: `${marker}${marker}` },
-        selection: { anchor: from + marker.length },
-      })
-    } else {
-      view.dispatch({
-        changes: { from, to, insert: `${marker}${selected}${marker}` },
-        selection: { anchor: from + marker.length, head: from + marker.length + selected.length },
-      })
-    }
-    view.focus()
-  }, [viewRef])
-
-  const prefixLines = useCallback((prefix: string, { replaceHeading = false } = {}) => {
-    const view = viewRef.current
-    if (!view) return
-    const { from, to } = view.state.selection.main
-    const startLine = view.state.doc.lineAt(from)
-    const endLine = view.state.doc.lineAt(to)
-    const changes: Array<{ from: number; to: number; insert: string }> = []
-    for (let n = startLine.number; n <= endLine.number; n++) {
-      const line = view.state.doc.line(n)
-      let text = line.text
-      if (replaceHeading) {
-        text = text.replace(/^#{1,6}\s+/, '')
-      }
-      // Toggle: if the line already starts with the exact prefix, strip it.
-      if (text.startsWith(prefix)) {
-        const stripped = text.slice(prefix.length)
-        changes.push({ from: line.from, to: line.to, insert: stripped })
-      } else {
-        changes.push({ from: line.from, to: line.to, insert: `${prefix}${text}` })
-      }
-    }
-    view.dispatch({ changes })
-    // For single-line invocations (the common bullet / checkbox add on an
-    // empty line), the caret would otherwise stay pinned at the original
-    // offset — which is *before* the newly inserted prefix. Move it to the
-    // end of the (now-prefixed) line so the user can just start typing.
-    if (startLine.number === endLine.number) {
-      const lineNow = view.state.doc.line(startLine.number)
-      view.dispatch({ selection: EditorSelection.cursor(lineNow.to) })
-    }
+    const { doc, selection } = view.state
+    const { from, to, empty } = selection.main
+    const first = doc.lineAt(from).number
+    const last = doc.lineAt(to).number
+    const lines = Array.from({ length: last - first + 1 }, (_, i) => doc.line(first + i))
+      .filter((line) => first === last || line.text.trim() !== '')
+    const next = lines.every((line) => listKindOf(line.text) === kind) ? null : kind
+    const changes = lines.map((line) => {
+      const change = listKindChange(line.text, next)
+      return { from: line.from + change.from, to: line.from + change.to, insert: change.insert }
+    })
+    const [only] = changes
+    // One line: the caret stays in the text, or starts it (an empty line, a new marker).
+    const caret = empty && only && lines.length === 1
+      ? { selection: EditorSelection.cursor(Math.max(only.from + only.insert.length, view.state.changes(changes).mapPos(from, 1))) }
+      : {}
+    view.dispatch({ changes, ...caret })
     view.focus()
   }, [viewRef])
 
@@ -170,45 +143,7 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
       <button
         type="button"
         className={styles.btn}
-        onClick={() => wrapSelection('**')}
-        title={`Bold (${formatShortcut('Mod-b')})`}
-        aria-label="Bold"
-      >
-        <span className={styles.btnBold}>B</span>
-      </button>
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={() => wrapSelection('*')}
-        title={`Italic (${formatShortcut('Mod-i')})`}
-        aria-label="Italic"
-      >
-        <span className={styles.btnItalic}>I</span>
-      </button>
-      <span className={styles.sep} aria-hidden="true" />
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={() => prefixLines('# ', { replaceHeading: true })}
-        title="Heading 1"
-        aria-label="Heading 1"
-      >
-        H1
-      </button>
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={() => prefixLines('## ', { replaceHeading: true })}
-        title="Heading 2"
-        aria-label="Heading 2"
-      >
-        H2
-      </button>
-      <span className={styles.sep} aria-hidden="true" />
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={() => prefixLines('- ')}
+        onClick={() => toggleList('bullet')}
         title="Bullet list"
         aria-label="Bullet list"
       >
@@ -217,20 +152,11 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
       <button
         type="button"
         className={styles.btn}
-        onClick={() => prefixLines('- [ ] ')}
+        onClick={() => toggleList('box')}
         title="Checkbox"
         aria-label="Checkbox"
       >
         ☐
-      </button>
-      <button
-        type="button"
-        className={styles.btn}
-        onClick={() => indent('in')}
-        title="Indent list line (Tab)"
-        aria-label="Indent"
-      >
-        <IndentGlyph />
       </button>
       <button
         type="button"
@@ -240,6 +166,15 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
         aria-label="Outdent"
       >
         <IndentGlyph out />
+      </button>
+      <button
+        type="button"
+        className={styles.btn}
+        onClick={() => indent('in')}
+        title="Indent list line (Tab)"
+        aria-label="Indent"
+      >
+        <IndentGlyph />
       </button>
       <span className={styles.spacer} />
       {convert && <ConvertButton convert={convert} />}

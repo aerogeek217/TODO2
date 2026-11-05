@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
-import { QuickAddBar, type QuickAddDraft } from '../../../components/overlays/QuickAddBar'
+import { QuickAddBar, type QuickAddDraft } from '../../../components/task/QuickAddBar'
 import { usePersonStore } from '../../../stores/person-store'
+import { useUIStore } from '../../../stores/ui-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -816,6 +817,20 @@ describe('QuickAddBar — submit', () => {
 
     await act(async () => { fireEvent.keyDown(getInput(), { key: 'Enter' }) })
     expect(onSubmit).toHaveBeenCalledTimes(2)
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
+  it('Esc while a submit runs asks nothing and leaves the bar to close by itself', async () => {
+    let finish!: (ok: boolean) => void
+    const onSubmit = vi.fn(() => new Promise<boolean>((r) => { finish = r }))
+    const onClose = vi.fn()
+    render(<QuickAddBar open onClose={onClose} onSubmit={onSubmit} />)
+    changeInput('Once')
+    fireEvent.keyDown(getInput(), { key: 'Enter' })
+    fireEvent.keyDown(getInput(), { key: 'Escape' })
+    expect(useUIStore.getState().confirmPrompts).toEqual([])
+    expect(onClose).not.toHaveBeenCalled()
+    await act(async () => { finish(true) })
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 

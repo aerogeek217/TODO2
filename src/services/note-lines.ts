@@ -7,8 +7,9 @@
  *   `- text`, `* text`, `• text`, `[ ] text`, `- [ ] text` (indent ignored).
  *   It skips done boxes (`- [x] text`), lines already converted (`✓ text`),
  *   plain text, headings, blank lines and a bare marker.
- * - **Alt+T** converts the caret line: any non-empty line that doesn't start
- *   with `✓`, bullet or not; a leading bullet / dash and box are stripped.
+ * - **One line** (Alt+T, the editor's hover icon) can be any line with text
+ *   that doesn't start with `✓`, list line or not; a leading heading mark,
+ *   bullet / dash and box are stripped.
  * - **Subtasks** (cr28): the list lines right under a bullet, indented
  *   deeper than it, are that bullet's task's subtasks (`subtaskLinesUnder`;
  *   a done box a done subtask; plain titles, no parsing) — never candidates
@@ -16,6 +17,13 @@
  */
 
 export type NoteLineKind = 'candidate' | 'done' | 'converted' | 'other'
+
+/** A list line's marker within it, spaces after it included: a bullet, an open box or a done box. */
+export interface ListMarker {
+  from: number
+  to: number
+  kind: 'bullet' | 'open' | 'done'
+}
 
 export interface NoteLine {
   kind: NoteLineKind
@@ -88,6 +96,41 @@ const BULLET_RE = /^([-*•])\s+(?:\[([ xX])\](?:\s+|$))?/
 const BOX_RE = /^\[([ xX])\](?:\s+|$)/
 
 /** Classifies one note line for the batch convert. */
+/** The marker of list line `text` (`- `, `* `, `• `, `- [ ] `, `[ ] `, `- [x] `…), or null when it has none. */
+export function listMarker(text: string): ListMarker | null {
+  const from = (/^\s*/.exec(text)?.[0] ?? '').length
+  const rest = text.slice(from)
+  const bullet = BULLET_RE.exec(rest)
+  const box = bullet ? null : BOX_RE.exec(rest)
+  const match = bullet ?? box
+  if (!match) return null
+  const mark = bullet ? bullet[2] : box?.[1]
+  const kind = mark === undefined ? 'bullet' : mark === ' ' ? 'open' : 'done'
+  return { from, to: from + match[0].length, kind }
+}
+
+/** What the toolbar's list buttons make a line: a bullet or a box (open or done). */
+export type ListKind = 'bullet' | 'box'
+
+const LIST_PREFIX: Record<ListKind, string> = { bullet: '- ', box: '- [ ] ' }
+
+/** The list kind of line `text`, or null when it isn't a list line. */
+export function listKindOf(text: string): ListKind | null {
+  const marker = listMarker(text)
+  if (!marker) return null
+  return marker.kind === 'bullet' ? 'bullet' : 'box'
+}
+
+/**
+ * The change that makes line `text` a `kind` line, or plain text with null:
+ * the marker it has goes (indent and text stay). Offsets are within the line.
+ */
+export function listKindChange(text: string, kind: ListKind | null): TextChange {
+  const marker = listMarker(text)
+  const from = marker ? marker.from : (/^\s*/.exec(text)?.[0] ?? '').length
+  return { from, to: marker ? marker.to : from, insert: kind ? LIST_PREFIX[kind] : '' }
+}
+
 export function classifyNoteLine(text: string): NoteLine {
   const indent = /^\s*/.exec(text)?.[0] ?? ''
   const rest = text.slice(indent.length)
@@ -104,12 +147,12 @@ export function classifyNoteLine(text: string): NoteLine {
   return { kind: 'candidate', indent, body }
 }
 
-// Alt+T: a leading bullet or dash, then a box (open or done), are stripped.
-const SINGLE_PREFIX_RE = /^(?:[-*•–—]\s+)?(?:\[[ xX]\]\s+)?/
+// One line: a leading heading mark, or a bullet or dash then a box (open or done), are stripped.
+const SINGLE_PREFIX_RE = /^(?:#{1,6}\s+|(?:[-*•–—]\s+)?(?:\[[ xX]\]\s+)?)/
 
 /**
- * The line Alt+T converts, or null when it can't be (blank, or already
- * converted). Any other line qualifies, bullet or not.
+ * The line Alt+T or the hover icon converts, or null when it can't be (no
+ * text, or already converted). Any other line qualifies, list line or not.
  */
 export function singleLineCandidate(text: string, line: number): ConvertLine | null {
   const indent = /^\s*/.exec(text)?.[0] ?? ''

@@ -423,6 +423,35 @@ function FollowupPart({ todo, today, width, showDate, anchorRef, open, onToggle,
 
 // ── Status ──────────────────────────────────────────────────────────────────
 
+/** The status picker's list: No Status, then every status; a pick is the caller's (and closing). */
+export function StatusMenu({ statuses, statusId, onPick }: {
+  statuses: readonly Status[]
+  statusId: number | undefined
+  onPick: (statusId: number | undefined) => void
+}) {
+  return (
+    <div className={styles.statusMenu}>
+      <button
+        className={`${styles.statusOption} ${!statusId ? styles.statusOptionActive : ''}`}
+        onClick={(e) => { e.stopPropagation(); onPick(undefined) }}
+      >
+        <span className={styles.statusOptionDot} style={{ background: 'var(--color-text-muted)' }} />
+        No Status
+      </button>
+      {statuses.map((s) => (
+        <button
+          key={s.id}
+          className={`${styles.statusOption} ${statusId === s.id ? styles.statusOptionActive : ''}`}
+          onClick={(e) => { e.stopPropagation(); onPick(s.id) }}
+        >
+          <span style={{ color: s.color }}><StatusIcon icon={s.icon || DEFAULT_STATUS_ICON} filled /></span>
+          {s.name}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 export function StatusCell({ status, anchorRef, open, onToggle }: {
   status: Status | undefined
   anchorRef: RefObject<HTMLButtonElement | null>

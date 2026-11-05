@@ -94,7 +94,7 @@ describe('NotesEditor — click-to-focus below content', () => {
     // handler should run.
     const scroller = container.querySelector('.cm-scroller') as HTMLElement
     expect(scroller).toBeTruthy()
-    fireEvent.mouseDown(scroller)
+    fireEvent.mouseDown(scroller, { clientY: 10_000 })
 
     expect(view.state.selection.main.head).toBe(view.state.doc.length)
     expect(view.hasFocus).toBe(true)

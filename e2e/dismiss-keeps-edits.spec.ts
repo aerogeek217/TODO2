@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test'
+import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
@@ -49,6 +49,11 @@ const quickAdd = (p: Page) => p.getByRole('dialog', { name: 'Quick add task' })
 const addUpdate = (p: Page) => p.getByRole('dialog', { name: 'Add a status update' })
 const prompt = (p: Page, name: string) => p.getByRole('dialog', { name })
 
+/** The editor's + Add subtask, 'TYPED' in its field, not added. */
+const typeSubtask = async (p: Page, dialog: Locator) => {
+  await dialog.getByRole('button', { name: '+ Add subtask' }).click()
+  await p.getByRole('dialog', { name: 'Add a subtask' }).getByRole('textbox', { name: 'New subtask' }).fill('TYPED')
+}
 const openEditor = async (p: Page) => {
   await row(p).locator('span[data-task-title="Alpha"]').dblclick()
   await expect(editor(p)).toBeVisible()
@@ -157,7 +162,7 @@ test('the Add update popover: a day that isn’t one holds the close, saying so'
 
 test('the task editor closing saves a typed subtask and an entry being edited; Esc on the entry cancels it', async ({ page }) => {
   await openEditor(page)
-  await editor(page).getByRole('region', { name: /Subtasks/ }).getByRole('textbox', { name: 'New subtask' }).fill('TYPED')
+  await typeSubtask(page, editor(page))
   await editor(page).getByRole('button', { name: /^Edit status update:/ }).click()
   await editor(page).getByRole('textbox', { name: 'Status update', exact: true }).fill('EDITED')
   await clickOff(page)
@@ -239,7 +244,7 @@ test.describe('the new-task editor asks before losing the form', () => {
 
   test('a click off: Create task, with a subtask typed and not added; Discard', async ({ page }) => {
     await open(page, 'FIRST')
-    await newTask(page).getByRole('region', { name: /Subtasks/ }).getByRole('textbox', { name: 'New subtask' }).fill('TYPED')
+    await typeSubtask(page, newTask(page))
     await clickOff(page)
     await prompt(page, 'Keep this new task?').getByRole('button', { name: 'Create task' }).click()
     await expect(newTask(page)).toHaveCount(0)
@@ -270,9 +275,18 @@ test.describe('the new-task editor asks before losing the form', () => {
     expect(await titles(page)).not.toContain('FIRST')
   })
 
+  test('a status update typed in its popover and Create pressed right after: it goes with the task', async ({ page }) => {
+    await open(page, 'FIRST')
+    await newTask(page).getByRole('button', { name: '+ Add update' }).click()
+    await addUpdate(page).getByRole('textbox', { name: 'New status update', exact: true }).fill('TYPED')
+    await newTask(page).getByRole('button', { name: 'Create task' }).click({ delay: 0 })
+    await expect(newTask(page)).toHaveCount(0)
+    await expect.poll(() => updates(page)).toContain('TYPED')
+  })
+
   test('Create task with a subtask typed and not added takes it along', async ({ page }) => {
     await open(page, 'FIRST')
-    await newTask(page).getByRole('region', { name: /Subtasks/ }).getByRole('textbox', { name: 'New subtask' }).fill('TYPED')
+    await typeSubtask(page, newTask(page))
     await newTask(page).getByRole('button', { name: 'Create task' }).click()
     await expect(newTask(page)).toHaveCount(0)
     await expect.poll(() => subs(page)).toContain('TYPED')
@@ -282,7 +296,7 @@ test.describe('the new-task editor asks before losing the form', () => {
     await open(page, 'FIRST')
     const title = newTask(page).getByPlaceholder(/New task/)
     await title.fill('')
-    await newTask(page).getByRole('region', { name: /Subtasks/ }).getByRole('textbox', { name: 'New subtask' }).fill('TYPED')
+    await typeSubtask(page, newTask(page))
     await clickOff(page)
     const ask = prompt(page, 'Discard this new task?')
     await expect(ask.getByRole('button', { name: 'Create task' })).toHaveCount(0)

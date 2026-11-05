@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { useMemo, useRef, useState } from 'react'
 import { EditorView } from '@codemirror/view'
+import { undo } from '@codemirror/commands'
 import { db } from '../../../data/database'
 import { NotesBody, type NotesSource } from '../../../components/task/notes/NotesBody'
 import { useTodoStore } from '../../../stores/todo-store'
@@ -117,29 +118,29 @@ describe('Convert button', () => {
   })
 })
 
-describe('Alt+T: one line through the task popup', () => {
-  it('opens the create popup prefilled from the line; Create task makes the task and marks the line', async () => {
+describe('Alt+T: one line through Quick Add', () => {
+  it('opens Quick Add prefilled from the line; Enter makes the task and marks the line', async () => {
     const { view, doc } = setup(NOTE)
     act(() => view.dispatch({ selection: { anchor: lineStart(view, 4) + 5 } }))
     pressAltT(view)
-    const title = await screen.findByDisplayValue('Book venue for team dinner')
-    expect(title).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: /Important/ })).toHaveAttribute('aria-pressed', 'true')
+    const title = await screen.findByDisplayValue('Book venue for team dinner /important')
+    expect(screen.getByRole('group', { name: 'What the task gets' })).toHaveTextContent('Important')
     expect(titles()).toEqual([])
-    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    fireEvent.keyDown(title, { key: 'Enter' })
     await waitFor(() => expect(titles()).toEqual(['Book venue for team dinner']))
     expect(useTodoStore.getState().todos[0]?.important).toBe(true)
     await waitFor(() => expect(doc().split('\n')[3]).toBe('✓ Book venue for team dinner'))
-    expect(screen.queryByDisplayValue('Book venue for team dinner')).toBeNull()
+    await waitFor(() => expect(screen.queryByDisplayValue('Book venue for team dinner /important')).toBeNull())
   })
 
-  it('Cancel creates nothing and leaves the note unchanged', async () => {
+  it('Esc on the text it opened with creates nothing, asks nothing and leaves the note unchanged', async () => {
     const { view, doc } = setup(NOTE)
     act(() => view.dispatch({ selection: { anchor: lineStart(view, 3) } }))
     pressAltT(view) // a plain line: Alt+T takes any line
-    await screen.findByDisplayValue('Random thought: maybe switch CDN?')
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    const input = await screen.findByDisplayValue('Random thought: maybe switch CDN?')
+    fireEvent.keyDown(input, { key: 'Escape' })
     expect(screen.queryByDisplayValue('Random thought: maybe switch CDN?')).toBeNull()
+    expect(useUIStore.getState().confirmPrompts).toEqual([])
     expect(titles()).toEqual([])
     expect(doc()).toBe(NOTE)
   })
@@ -150,14 +151,52 @@ describe('Alt+T: one line through the task popup', () => {
     pressAltT(view)
     act(() => view.dispatch({ selection: { anchor: lineStart(view, 2) } }))
     pressAltT(view)
-    expect(screen.queryByRole('button', { name: 'Create task' })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Quick add task' })).toBeNull()
   })
 
-  it('a Convert scope of exactly one line opens the popup too', async () => {
+  it('a Convert scope of exactly one line opens Quick Add too', async () => {
     setup('Plain\n- Only bullet /focus\nPlain')
     fireEvent.click(screen.getByRole('button', { name: 'Convert 1 bullet line to tasks' }))
-    expect(await screen.findByDisplayValue('Only bullet')).toBeInTheDocument()
+    expect(await screen.findByDisplayValue('Only bullet /focus')).toBeInTheDocument()
     expect(screen.queryByRole('dialog', { name: 'Convert to tasks' })).toBeNull()
+  })
+})
+
+describe('Remove note lines after converting (the setting)', () => {
+  beforeEach(() => { useSettingsStore.setState({ removeConvertedLines: true }) })
+
+  it('one line: the task is made and its line, with the lines under it, goes; one undo brings them back', async () => {
+    const text = 'keep\n- Book venue\n  - call them\nlast'
+    const { view, doc } = setup(text)
+    act(() => view.dispatch({ selection: { anchor: lineStart(view, 2) + 3 } }))
+    pressAltT(view)
+    fireEvent.keyDown(await screen.findByDisplayValue('Book venue'), { key: 'Enter' })
+    await waitFor(() => expect(titles()).toEqual(['Book venue']))
+    await waitFor(() => expect(doc()).toBe('keep\nlast'))
+    act(() => { undo(view) })
+    expect(doc()).toBe(text)
+  })
+
+  it('the preview: its button says the lines go; no remove / keep prompt; lines left out stay', async () => {
+    const { doc } = setup('- a\n- b\n- c\nplain')
+    fireEvent.click(screen.getByRole('button', { name: /^Convert 3 / }))
+    const dialog = await screen.findByRole('dialog', { name: 'Convert to tasks' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Remove "c"' }))
+    fireEvent.click(within(dialog).getByRole('checkbox', { name: 'Done: remove "b" from the note' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create 1 task, remove 2 lines' }))
+    await waitFor(() => expect(titles()).toEqual(['a']))
+    await waitFor(() => expect(doc()).toBe('- c\nplain'))
+    expect(screen.queryByRole('dialog', { name: /Remove .* from the note/ })).toBeNull()
+    expect(screen.queryByRole('dialog', { name: 'Convert to tasks' })).toBeNull()
+  })
+
+  it('off, nothing changes: the line is marked ✓', async () => {
+    useSettingsStore.setState({ removeConvertedLines: false })
+    const { view, doc } = setup('- only')
+    act(() => view.dispatch({ selection: { anchor: 3 } }))
+    pressAltT(view)
+    fireEvent.keyDown(await screen.findByDisplayValue('only'), { key: 'Enter' })
+    await waitFor(() => expect(doc()).toBe('✓ only'))
   })
 })
 
@@ -192,7 +231,7 @@ describe('Convert preview', () => {
 
   it('edit a row in draft mode, remove one, create, then Remove the converted lines', async () => {
     const { dialog, doc } = await openPreview()
-    fireEvent.click(within(dialog).getByRole('listitem', { name: 'Renew domain' }))
+    fireEvent.doubleClick(within(within(dialog).getByRole('listitem', { name: 'Renew domain' })).getByText('Renew domain'))
     // Draft mode: the badge, Save draft, no Last follow-up.
     expect(await screen.findByText('Draft')).toBeInTheDocument()
     expect(screen.getByText('Nothing is saved until you create the tasks')).toBeInTheDocument()
@@ -201,8 +240,7 @@ describe('Convert preview', () => {
     const title = screen.getByDisplayValue('Renew domain')
     fireEvent.change(title, { target: { value: 'Renew the domain' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
-    const edited = await within(dialog).findByRole('listitem', { name: 'Renew the domain' })
-    expect(within(edited).getByText('edited')).toBeInTheDocument()
+    await within(dialog).findByRole('listitem', { name: 'Renew the domain' })
     expect(titles()).toEqual([])
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Remove "Draft homepage copy"' }))
@@ -333,24 +371,26 @@ describe('a create that fails (the task store refuses the write)', () => {
   }
   afterEach(() => { vi.restoreAllMocks() })
 
-  it('one line: the editor stays open as typed, the line is not marked; Create again works', async () => {
+  it('one line: Quick Add stays open as typed, the line is not marked; Enter again works', async () => {
     const insert = await failInserts()
     const { view, doc } = setup(NOTE)
     act(() => view.dispatch({ selection: { anchor: lineStart(view, 4) + 5 } }))
     pressAltT(view)
-    const title = await screen.findByDisplayValue('Book venue for team dinner')
+    const title = await screen.findByDisplayValue('Book venue for team dinner /important')
     fireEvent.change(title, { target: { value: 'Book the venue' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    fireEvent.keyDown(title, { key: 'Enter' })
     await waitFor(() => expect(useUndoStore.getState().snackbar?.description).toBe('Couldn\'t add "Book the venue".'))
+    await waitFor(() => expect(insert).toHaveBeenCalled())
     expect(screen.getByDisplayValue('Book the venue')).toBeInTheDocument()
     expect(doc()).toBe(NOTE)
     expect(titles()).toEqual([])
 
     insert.mockRestore()
-    fireEvent.click(screen.getByRole('button', { name: 'Create task' }))
+    await act(async () => { await Promise.resolve() })
+    fireEvent.keyDown(screen.getByDisplayValue('Book the venue'), { key: 'Enter' })
     await waitFor(() => expect(titles()).toEqual(['Book the venue']))
     await waitFor(() => expect(doc().split('\n')[3]).toBe('✓ Book the venue'))
-    expect(screen.queryByDisplayValue('Book the venue')).toBeNull()
+    await waitFor(() => expect(screen.queryByDisplayValue('Book the venue')).toBeNull())
   })
 
   it('the preview: the drafts stay and no remove / keep prompt shows; Create again works', async () => {
