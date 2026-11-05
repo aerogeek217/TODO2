@@ -95,3 +95,17 @@ test('a stale row lingers too, though completing it moves its modified date to n
   expect(await rowTitles(stale)).toEqual(['Plan the offsite', 'Collect sign-offs', 'Clean the garage'])
   await expect.poll(() => rowTitles(stale)).toEqual(['Plan the offsite', 'Clean the garage'])
 })
+
+test('completing a task from its editor closes the editor; the row folds with the snackbar, whose Undo brings it back', async ({ page }) => {
+  await seedTaskList(page, { tasks: TASKS })
+  const done = row(page, 'Collect sign-offs')
+  await done.locator('span[data-task-title="Collect sign-offs"]').dblclick()
+  const editor = page.getByRole('dialog', { name: 'Edit task' })
+  await editor.locator('input[type="checkbox"]').first().click()
+  await expect(editor).toHaveCount(0)
+  await expect(snackbar(page)).toBeVisible()
+  await expect(done).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(done).toBeVisible()
+})

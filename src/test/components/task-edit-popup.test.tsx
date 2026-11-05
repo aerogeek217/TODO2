@@ -256,6 +256,25 @@ describe('TaskEditPopup', () => {
     })
   })
 
+  describe('edit mode — completing', () => {
+    // The dialog is in a portal; the first checkbox in it is the header's.
+    const headerCheckbox = () => document.querySelector('[role="dialog"] input[type="checkbox"]') as HTMLInputElement
+
+    it('completing the task closes the editor', () => {
+      const { props } = renderEditMode(makeTodo({ isCompleted: false }))
+      fireEvent.click(headerCheckbox())
+      expect(props.onToggleComplete).toHaveBeenCalledTimes(1)
+      expect(props.onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('reopening a completed task leaves the editor open', () => {
+      const { props } = renderEditMode(makeTodo({ isCompleted: true }))
+      fireEvent.click(headerCheckbox())
+      expect(props.onToggleComplete).toHaveBeenCalledTimes(1)
+      expect(props.onClose).not.toHaveBeenCalled()
+    })
+  })
+
   describe('edit mode — callbacks', () => {
     it('toggling a person calls onAssignPerson/onUnassignPerson', () => {
       const todo = makeTodo({ id: 10, title: 'Edit task' })

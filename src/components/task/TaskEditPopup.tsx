@@ -455,6 +455,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (!isEdit) return
     void flushNotes()
     props.onToggleComplete()
+    // Done with it: completing closes the editor. Reopening a task stays, to go on working on it.
+    if (todo?.isCompleted !== true) onClose()
   }
 
   const handleNextFollowupChange = (next: Date | null) => {
