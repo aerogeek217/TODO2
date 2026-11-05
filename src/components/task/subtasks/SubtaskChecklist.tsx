@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type KeyboardEvent, type ReactNode, type Ref } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { ESCAPE_CLEARS_ATTR } from '../../../hooks/use-popover-anchor'
 import {
@@ -42,16 +42,8 @@ export interface SubtaskChecklistProps {
   autoFocusAdd?: boolean
   /** Rendered under the add row (a hint line). */
   footer?: ReactNode
-  /** For a host that needs the add row's unadded text (the new-task editor's Create). */
-  addDraftRef?: Ref<ChecklistAddDraft>
-}
-
-/** The add row's text, as typed and not added yet. */
-export interface ChecklistAddDraft {
-  /** The title it would add ('' when none). */
-  peek: () => string
-  /** The title, emptying the row. */
-  take: () => string
+  /** The host adds its own way (the editor's + Add subtask): no add row. */
+  hideAddRow?: boolean
 }
 
 const ADD_PLACEHOLDER = 'Add a subtask…'
@@ -70,7 +62,7 @@ const ADD_PLACEHOLDER = 'Add a subtask…'
  * pending rows in create mode).
  */
 export function SubtaskChecklist({
-  items, density, label, onAdd, onRename, onSetDone, onRemove, onMove, extraMenuEntries, autoFocusAdd, footer, addDraftRef,
+  items, density, label, onAdd, onRename, onSetDone, onRemove, onMove, extraMenuEntries, autoFocusAdd, footer, hideAddRow = false,
 }: SubtaskChecklistProps) {
   const [renaming, setRenaming] = useState<number | null>(null)
   const [menuFor, setMenuFor] = useState<number | null>(null)
@@ -95,17 +87,10 @@ export function SubtaskChecklist({
     onAdd(title)
     setDraft('')
   }
-  useImperativeHandle(addDraftRef, () => ({
-    peek: () => subtaskTitle(draftRef.current),
-    take: () => {
-      const title = subtaskTitle(draftRef.current)
-      setDraft('')
-      return title
-    },
-  }), [])
   // Going away (its popover or editor closed): the line typed is added.
   const addOnCloseRef = useLatestRef(add)
-  useEffect(() => () => addOnCloseRef.current(), [addOnCloseRef])
+  // In the commit that closes it, so a click right behind the closing press (Create) reads the result.
+  useLayoutEffect(() => () => addOnCloseRef.current(), [addOnCloseRef])
 
   const onAddKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing) return
@@ -199,20 +184,22 @@ export function SubtaskChecklist({
   return (
     <>
       {items.length > 0 && list}
-      <div className={styles.addRow} data-density={density}>
-        <span className={styles.addIcon} aria-hidden="true"><PlusIcon size={density === 'touch' ? 16 : 13} strokeWidth={2} /></span>
-        <input
-          ref={addRef}
-          className={styles.addInput}
-          value={draft}
-          maxLength={SUBTASK_TITLE_MAX}
-          placeholder={ADD_PLACEHOLDER}
-          aria-label="New subtask"
-          autoComplete="off"
-          onChange={(e) => setDraft(e.target.value)}
-          onKeyDown={onAddKeyDown}
-        />
-      </div>
+      {!hideAddRow && (
+        <div className={styles.addRow} data-density={density}>
+          <span className={styles.addIcon} aria-hidden="true"><PlusIcon size={density === 'touch' ? 16 : 13} strokeWidth={2} /></span>
+          <input
+            ref={addRef}
+            className={styles.addInput}
+            value={draft}
+            maxLength={SUBTASK_TITLE_MAX}
+            placeholder={ADD_PLACEHOLDER}
+            aria-label="New subtask"
+            autoComplete="off"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={onAddKeyDown}
+          />
+        </div>
+      )}
       {footer}
       {menuItem && (
         <MenuPopover
@@ -256,7 +243,8 @@ function RenameField({ title, onSave, onCancel, density }: {
   const saveOnCloseRef = useLatestRef(() => {
     if (subtaskTitle(value) !== title) save()
   })
-  useEffect(() => () => saveOnCloseRef.current(), [saveOnCloseRef])
+  // In the commit that closes it, so a click right behind the closing press (Create) reads the result.
+  useLayoutEffect(() => () => saveOnCloseRef.current(), [saveOnCloseRef])
   return (
     <input
       ref={ref}

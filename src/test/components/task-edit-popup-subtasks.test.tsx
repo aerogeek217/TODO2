@@ -26,7 +26,11 @@ afterEach(() => {
 })
 
 const section = () => screen.getByRole('region', { name: /Subtasks/ })
-const addField = () => within(section()).getByRole('textbox', { name: 'New subtask' }) as HTMLInputElement
+/** The + Add subtask popover's field, the popover opened first when it is closed. */
+const addField = () => {
+  if (!screen.queryByRole('textbox', { name: 'New subtask' })) fireEvent.click(within(section()).getByRole('button', { name: '+ Add subtask' }))
+  return screen.getByRole('textbox', { name: 'New subtask' }) as HTMLInputElement
+}
 const shown = () => within(section()).queryAllByRole('listitem').map((li) => [li.textContent ?? '', li.hasAttribute('data-done')])
 const stored = async () => (await db.subtasks.where('todoId').equals(100).sortBy('sortOrder')).map((s) => [s.title, s.isCompleted])
 
