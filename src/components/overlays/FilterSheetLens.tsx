@@ -6,6 +6,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { GlassesIcon } from '../shared/icons'
 import { useChipNames } from '../shared/filters/filter-menu'
 import { lensSummary } from '../shared/filters/lens-text'
+import { sheetHeaderProps } from '../shared/filters/sheet-header'
 import sheet from '../shared/filters/FilterChipBarMobile.module.css'
 import styles from './FilterSheetLens.module.css'
 
@@ -30,13 +31,13 @@ export function FilterSheetLens() {
   }
   return (
     <div className={sheet.entitySection} data-testid="sheet-lens">
-      <div className={sheet.entityHeader} onClick={() => setOpen(!open)}>
+      <div className={sheet.entityHeader} {...sheetHeaderProps(open, () => setOpen(!open))}>
         <span className={sheet.filterLabel}>
           <span className={`${styles.glyph} ${lens && !lifted ? styles.glyphOn : ''}`}><GlassesIcon slashed={lens != null && lifted} /></span>
           Lens
         </span>
         <span className={`${sheet.sectionValue} ${lens ? sheet.sectionValueOn : ''} ${lifted ? styles.struck : ''}`}>{lens?.name ?? 'No lens'}</span>
-        <span className={`${sheet.entityChevron} ${open ? sheet.entityChevronOpen : ''}`}>▸</span>
+        <span className={`${sheet.entityChevron} ${open ? sheet.entityChevronOpen : ''}`} aria-hidden="true">▸</span>
       </div>
       {open && (
         <div className={styles.body}>

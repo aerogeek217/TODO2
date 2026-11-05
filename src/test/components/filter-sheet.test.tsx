@@ -60,6 +60,44 @@ describe('FilterSheet', () => {
     })
   })
 
+  // ── Accessibility (cr31 UI F6) ────────────────────────────────────
+
+  describe('as a dialog', () => {
+    it('is a modal dialog named Filters; Esc closes it', () => {
+      renderSheet()
+      expect(screen.getByRole('dialog', { name: 'Filters' })).toHaveAttribute('aria-modal', 'true')
+      fireEvent.keyDown(screen.getByPlaceholderText('Search tasks...'), { key: 'Escape' })
+      expect(useUIStore.getState().isFilterSheetOpen).toBe(false)
+    })
+
+    it('Esc something inside took first leaves the sheet open', () => {
+      renderSheet()
+      const input = screen.getByPlaceholderText('Search tasks...')
+      input.addEventListener('keydown', (e) => e.preventDefault())
+      fireEvent.keyDown(input, { key: 'Escape' })
+      expect(useUIStore.getState().isFilterSheetOpen).toBe(true)
+    })
+
+    it('its section headers are buttons that say whether they are open; Enter / Space toggle them', () => {
+      renderSheet()
+      const lens = screen.getByRole('button', { name: /^Lens/ })
+      expect(lens).toHaveAttribute('aria-expanded', 'true')
+      fireEvent.keyDown(lens, { key: 'Enter' })
+      expect(lens).toHaveAttribute('aria-expanded', 'false')
+      const dates = screen.getByRole('button', { name: /^Dates/ })
+      expect(dates).toHaveAttribute('aria-expanded', 'false')
+      fireEvent.keyDown(dates, { key: ' ' })
+      expect(dates).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByRole('tab', { name: 'Created' })).toBeInTheDocument()
+    })
+
+    it('the search’s × is named', () => {
+      renderSheet()
+      fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'milk' } })
+      expect(screen.getByRole('button', { name: 'Clear search' })).toBeInTheDocument()
+    })
+  })
+
   // ── Show N tasks ──────────────────────────────────────────────────
 
   describe('Show N tasks', () => {

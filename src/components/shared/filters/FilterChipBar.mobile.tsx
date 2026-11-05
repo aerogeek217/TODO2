@@ -4,6 +4,7 @@ import { datesValue, filterChips } from '../../../utils/filter-chips'
 import { MARKER_PICKER_ROWS, markerClauseOfIds, markerPickerIds, MARKERS_LABEL, NO_PRIORITY_LABEL } from '../../../utils/markers'
 import sheet from './FilterChipBarMobile.module.css'
 import { DateFilterPanel } from './DateFilterPanel'
+import { sheetHeaderProps } from './sheet-header'
 import { DatePendingNotContext, screenPendingNot } from './date-pending-not'
 import { FilterModeToggle } from './FilterPanels'
 import { entityTicked, entityToggle } from '../../../utils/filter-negation'
@@ -32,13 +33,13 @@ interface AccordionSectionProps {
 function AccordionSection({ label, badge, value, valueOn = false, open, onToggle, children }: AccordionSectionProps) {
   return (
     <div className={sheet.entitySection}>
-      <div className={sheet.entityHeader} onClick={onToggle}>
+      <div className={sheet.entityHeader} {...sheetHeaderProps(open, onToggle)}>
         <span className={sheet.filterLabel}>
           {label}
           {badge !== undefined && badge > 0 && <span className={sheet.activeCount}>{badge}</span>}
         </span>
         {value !== undefined && <span className={`${sheet.sectionValue} ${valueOn ? sheet.sectionValueOn : ''}`}>{value}</span>}
-        <span className={`${sheet.entityChevron} ${open ? sheet.entityChevronOpen : ''}`}>▸</span>
+        <span className={`${sheet.entityChevron} ${open ? sheet.entityChevronOpen : ''}`} aria-hidden="true">▸</span>
       </div>
       {open && children}
     </div>
