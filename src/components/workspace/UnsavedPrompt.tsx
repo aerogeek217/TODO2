@@ -71,6 +71,8 @@ function UnsavedListDialog({ listId, onDone, onCancel }: {
   onCancel: () => void
 }) {
   const saveRef = useRef<HTMLButtonElement>(null)
+  // A save in flight: a second press waits for it (cr31 W8).
+  const [busy, setBusy] = useState(false)
   const name = listName(listId)
   const n = widgetCount(listId)
   const body = n <= 1
@@ -83,6 +85,7 @@ function UnsavedListDialog({ listId, onDone, onCancel }: {
         <button
           type="button"
           className={styles.dangerGhost}
+          disabled={busy}
           onClick={() => {
             useListDraftStore.getState().discard(listId)
             onDone()
@@ -98,7 +101,16 @@ function UnsavedListDialog({ listId, onDone, onCancel }: {
           ref={saveRef}
           type="button"
           className={styles.primary}
-          onClick={() => { void useListDraftStore.getState().save(listId).then(onDone) }}
+          disabled={busy}
+          onClick={() => {
+            setBusy(true)
+            void useListDraftStore.getState().save(listId).then(() => {
+              setBusy(false)
+              // Not stored (the store kept the draft and said so): the prompt stays.
+              if (listId in useListDraftStore.getState().drafts) return
+              onDone()
+            })
+          }}
         >
           Save list
         </button>
@@ -152,21 +164,35 @@ function CombinedDialog({ lead, layout, listIds, onDone, onCancel }: Omit<Unsave
     return next
   })
 
+  // A finish in flight: the buttons wait for it, so a double click saves once (cr31 W8).
+  const [busy, setBusy] = useState(false)
   const finish = async (save: ReadonlySet<string>) => {
-    const workspace = useWorkspaceStore.getState()
-    const drafts = useListDraftStore.getState()
-    if (layout) {
-      if (save.has('layout')) {
-        // A failed save keeps the prompt open: leaving would drop the layout.
-        if (!(await workspace.save())) return
-      } else await workspace.discard()
+    if (busy) return
+    setBusy(true)
+    try {
+      const workspace = useWorkspaceStore.getState()
+      const drafts = useListDraftStore.getState()
+      if (layout) {
+        if (save.has('layout')) {
+          // A failed save keeps the prompt open: leaving would drop the layout.
+          if (!(await workspace.save())) return
+        } else await workspace.discard()
+      }
+      let failed = false
+      for (const id of listIds) {
+        if (save.has(`list-${id}`)) {
+          await drafts.save(id)
+          // Not stored: the store kept its draft; the prompt stays to say so.
+          if (id in useListDraftStore.getState().drafts) failed = true
+        }
+        // A list made for discarded layout edits is gone with its draft.
+        else if (!(layout && followers.has(id) && !save.has('layout'))) drafts.discard(id)
+      }
+      if (failed) return
+      onDone()
+    } finally {
+      setBusy(false)
     }
-    for (const id of listIds) {
-      if (save.has(`list-${id}`)) await drafts.save(id)
-      // A list made for discarded layout edits is gone with its draft.
-      else if (!(layout && followers.has(id) && !save.has('layout'))) drafts.discard(id)
-    }
-    onDone()
   }
 
   return (
@@ -184,12 +210,12 @@ function CombinedDialog({ lead, layout, listIds, onDone, onCancel }: Omit<Unsave
         </div>
       </DialogBody>
       <DialogActions className={styles.actions}>
-        <button type="button" className={styles.dangerGhost} onClick={() => { void finish(new Set()) }}>Discard all</button>
+        <button type="button" className={styles.dangerGhost} disabled={busy} onClick={() => { void finish(new Set()) }}>Discard all</button>
         <span className={styles.spacer} />
         <button type="button" className={styles.ghost} onClick={onCancel}>
           Cancel <kbd className={styles.kbd}>Esc</kbd>
         </button>
-        <button ref={saveRef} type="button" className={styles.primary} disabled={checked.size === 0} onClick={() => { void finish(checked) }}>
+        <button ref={saveRef} type="button" className={styles.primary} disabled={busy || checked.size === 0} onClick={() => { void finish(checked) }}>
           Save {checked.size} checked
         </button>
       </DialogActions>
