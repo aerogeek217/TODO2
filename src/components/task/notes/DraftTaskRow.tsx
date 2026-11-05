@@ -93,12 +93,18 @@ function DraftFollowupPopover({ value, today, anchorRef, onSet, onClose }: {
     inputRef.current?.focus()
     inputRef.current?.select()
   }, [])
+  // Set and closed in one batch: the popover unmounts before rendering the
+  // settled field, so the close's save would read the date typed before and
+  // write it over the pick.
+  const committed = useRef(false)
   const set = (date: Date | null) => {
+    committed.current = true
     input.settle(date)
     onSet(date)
     onClose()
   }
   const saveOnCloseRef = useLatestRef(() => {
+    if (committed.current) return
     if (s.kind === 'valid') onSet(s.date)
     else if (s.kind === 'empty' && value) onSet(null)
   })
