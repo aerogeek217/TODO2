@@ -96,6 +96,25 @@ describe('makeSubtaskOf', () => {
     expect(titles(parent)).toEqual([['Pick a date', false], ['Book travel', true]])
   })
 
+  it('a title longer than a subtask’s asks first, saying it is cut; Undo brings the task back whole', async () => {
+    const parent = await useTodoStore.getState().add('Offsite')
+    const long = `Book ${'travel '.repeat(100)}`.trim()
+    const task = await useTodoStore.getState().add(long)
+    useUndoStore.getState().clear()
+
+    const declined = answerNext(false)
+    expect(await makeSubtaskOf(task, parent)).toBe(false)
+    expect(declined.asked()?.message).toBe('A subtask is a line of “Offsite”’s checklist: it keeps the first 500 characters of its title and whether it’s done.')
+    expect(useTodoStore.getState().todos.some((t) => t.id === task)).toBe(true)
+    await new Promise((resolve) => { setTimeout(resolve, 0) }) // the first answerer unsubscribes
+
+    answerNext(true)
+    expect(await makeSubtaskOf(task, parent)).toBe(true)
+    expect((await db.subtasks.where('todoId').equals(parent).toArray()).map((s) => s.title)).toEqual([long.slice(0, 500).trim()])
+    await useUndoStore.getState().undo()
+    expect(useTodoStore.getState().todos.find((t) => t.id === task)?.title).toBe(long)
+  })
+
   it('a task with more asks first, listing what goes; its own subtasks move to the parent; Undo brings everything back', async () => {
     const parent = await useTodoStore.getState().add('Offsite')
     const task = await useTodoStore.getState().add('Book travel')
