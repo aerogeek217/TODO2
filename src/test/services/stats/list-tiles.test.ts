@@ -46,10 +46,24 @@ describe('computeListTileCounts', () => {
     expect(counts).toEqual([{ id: 1, name: 'List 1', shown: 1, total: 2 }])
   })
 
-  it('the screen’s Show completed adds nothing; a list that shows completed tasks counts them', () => {
+  it('the screen’s Show completed brings the list’s completed members in, as the list widget shows them (cr31 filters F2)', () => {
     const screen = { ...NONE, showCompleted: true }
-    expect(computeListTileCounts([list(1, {})], tasks, opts(screen))[0]).toMatchObject({ shown: 3, total: 3 })
+    expect(computeListTileCounts([list(1, {})], tasks, opts(screen))[0]).toMatchObject({ shown: 4, total: 4 })
     expect(computeListTileCounts([list(1, { showCompleted: true })], tasks, opts(screen))[0]).toMatchObject({ shown: 4, total: 4 })
+    // No screen filter: the list's own Show completed alone.
+    expect(computeListTileCounts([list(1, {})], tasks, opts(NONE))[0]).toMatchObject({ shown: 3, total: 3 })
+  })
+
+  it('a Completed range on the screen (a "Done this week" lens or chip) counts the completed members it keeps, of every member it lets through', () => {
+    const done = [
+      makeTodo({ id: 1 }),
+      makeTodo({ id: 2 }),
+      makeTodo({ id: 3, isCompleted: true, completedAt: new Date(2026, 9, 9) }),
+      makeTodo({ id: 4, isCompleted: true, completedAt: new Date(2026, 8, 1) }),
+    ]
+    const thisWeek = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-week' as const }, end: { kind: 'relative' as const, token: 'today' as const } }
+    const screen = { ...NONE, dates: { completed: thisWeek } }
+    expect(computeListTileCounts([list(1, {})], done, opts(screen))[0]).toMatchObject({ shown: 1, total: 4 })
   })
 
   it('an "is not" list counts the tasks without the ticked values, composed with an "is not" screen filter', () => {

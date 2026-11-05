@@ -1,6 +1,6 @@
 import type { PersistedTodoItem } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
-import type { FilterCriteria } from '../../utils/filter-criteria'
+import { admitsCompleted, type FilterCriteria } from '../../utils/filter-criteria'
 import { createPredicateEvaluator, createScreenComposedEvaluator } from '../../utils/filter-match'
 import type { WeekStart } from '../../utils/effective-date'
 import type { TodoNameLookups } from '../../utils/filter'
@@ -13,7 +13,11 @@ export interface ListTileCount {
   name: string
   /** Members passing the screen filter too (what a List widget for the list shows). */
   shown: number
-  /** Members by the list's own filter alone (the `of N`). Equals `shown` without a screen filter. */
+  /**
+   * Members by the list's own filter alone (the `of N`), completed ones too
+   * while the screen filter lets completed tasks through. Equals `shown`
+   * without a screen filter.
+   */
   total: number
 }
 
@@ -36,14 +40,13 @@ export function isListTileEligible(def: Pick<PersistedListDefinition, 'runtimeFi
 }
 
 /**
- * Counts for the given list tiles, in the given order. Membership goes
- * through the same evaluators a List widget uses (`useBuiltList`): the list's
- * predicate, composed with the screen filter (`createScreenComposedEvaluator`
- * — narrowing clauses AND). A shown task is always a member by the list's
- * own filter, so the screen's Show completed adds nothing to a tile (it
- * counts completed tasks only when the list itself shows them). The count is
- * every member. Lists with a runtime prompt are skipped (see
- * `isListTileEligible`).
+ * Counts for the given list tiles, in the given order, as a List widget for
+ * the list counts them (`useBuiltList`): `shown` through the list's predicate
+ * composed with the screen filter (`createScreenComposedEvaluator` —
+ * narrowing clauses AND, completion ORed, so the screen's Show completed or a
+ * Completed range brings the list's completed members in), `total` by the
+ * list's own clauses under that same completion gate. Lists with a runtime
+ * prompt are skipped (see `isListTileEligible`).
  */
 export function computeListTileCounts(
   definitions: readonly PersistedListDefinition[],
@@ -53,16 +56,23 @@ export function computeListTileCounts(
   const { screen, lookups, today, weekStartsOn, markerSettings } = opts
   const settings = { ...markerSettings, weekStartsOn }
   const listOnly = createPredicateEvaluator(lookups, today, settings)
-  const composed = screen ? createScreenComposedEvaluator(screen, lookups, today, settings) : null
+  const composed = screen ? createScreenComposedEvaluator(screen, lookups, today, settings) : listOnly
+  const screenAdmitsCompleted = screen != null && admitsCompleted(screen)
   const out: ListTileCount[] = []
   for (const def of definitions) {
     if (!isListTileEligible(def)) continue
+    const own = def.membership.predicate
+    // The list's own clauses under the composed completion gate (as `composeScreenFilter`).
+    const base = screenAdmitsCompleted && !own.showCompleted
+      ? { ...def.membership, predicate: { ...own, showCompleted: true } }
+      : def.membership
     let total = 0
     let shown = 0
     for (const t of todos) {
-      if (!matchesMembership(def.membership, t, listOnly)) continue
+      // Shown ⊆ total: the composed gate admits completed tasks only where `base` does.
+      if (!matchesMembership(base, t, listOnly)) continue
       total++
-      if (!composed || matchesMembership(def.membership, t, composed)) shown++
+      if (matchesMembership(def.membership, t, composed)) shown++
     }
     out.push({ id: def.id, name: def.name, shown, total })
   }
