@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { readStore } from './fixtures/db'
+import { readStore, readStores, type Row } from './fixtures/db'
 import { taskRowByTitle } from './fixtures/seed'
 import { drag, seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 
@@ -130,7 +130,11 @@ test('checking the last open subtask offers Complete task in the snackbar; the t
   await expect(countOf(row)).toHaveAttribute('data-all-done', '')
   const offer = page.getByRole('button', { name: 'Complete task' })
   await expect(offer).toBeVisible()
+  // The check is stored (with the task's stamp, in its one transaction) and
+  // the offer is up, which comes after it: the task is still open.
+  await expect.poll(() => storedChecklist(page, 'Q4 budget')).toEqual([['only one', true]])
   expect((await readStore<{ isCompleted: boolean }>(page, 'todos'))[0]?.isCompleted).toBe(false)
+  await expect(row.getByRole('checkbox', { name: 'Mark complete' })).not.toBeChecked()
   await offer.click()
   await expect.poll(async () => (await readStore<{ isCompleted: boolean }>(page, 'todos'))[0]?.isCompleted).toBe(true)
 })
@@ -192,18 +196,28 @@ test('Make subtask of… from the row menu: the picker, the prompt, the row gone
   // The task has a due date: the prompt lists it.
   const prompt = page.getByRole('dialog', { name: 'Make “Book travel” a subtask of “Q4 budget”?' })
   await expect(prompt).toBeVisible()
-  await expect(prompt).toContainText('Due ')
+  const due = new Date()
+  due.setDate(due.getDate() + 5)
+  const dueText = `${String(due.getMonth() + 1).padStart(2, '0')}/${String(due.getDate()).padStart(2, '0')}`
+  await expect(prompt).toContainText(`These go with the task: Due ${dueText}.`)
   await prompt.getByRole('button', { name: 'Make subtask' }).click()
   await expect(row).toHaveCount(0)
   await expect(countOf(taskRowByTitle(page, 'Q4 budget'))).toHaveText('1/4')
   await expect.poll(async () => (await storedChecklist(page, 'Q4 budget')).at(-1)).toEqual(['Book travel', false])
+  await expect.poll(async () => (await readStore<{ title: string }>(page, 'todos')).map((t) => t.title)).not.toContain('Book travel')
   await page.getByRole('button', { name: 'Undo' }).click()
   await expect(taskRowByTitle(page, 'Book travel')).toBeVisible()
   await expect(countOf(taskRowByTitle(page, 'Q4 budget'))).toHaveText('1/3')
+  // Stored as before: the task back with its due date, the checklist without it.
+  await expect.poll(() => storedChecklist(page, 'Q4 budget')).toEqual([
+    ['Send the template to all leads', true], ['Headcount from Aisha', false], ['Get travel actuals from Marco', false],
+  ])
+  const back = (await readStore<{ title: string; dueDate?: Date }>(page, 'todos')).find((t) => t.title === 'Book travel')
+  expect(new Date(back?.dueDate ?? 0).setHours(0, 0, 0, 0)).toBe(due.setHours(0, 0, 0, 0))
 })
 
 test('Make a task from the popover’s ⋯: a new row with the parent’s people; the subtask leaves the checklist', async ({ page }) => {
-  await seedWorkspace(page, { ...SEED, people: [{ name: 'Ben Ortiz', initials: 'BO' }], tasks: [{ ...SEED.tasks![0]!, people: ['Ben Ortiz'] }] })
+  await seedWorkspace(page, { ...SEED, people: [{ name: 'Ben Ortiz', initials: 'BO' }], tags: ['finance'], tasks: [{ ...SEED.tasks![0]!, people: ['Ben Ortiz'], tags: ['finance'] }] })
   const row = taskRowByTitle(page, 'Q4 budget')
   await countOf(row).click()
   const item = popover(page).getByRole('listitem').filter({ hasText: 'Get travel actuals from Marco' })
@@ -215,6 +229,16 @@ test('Make a task from the popover’s ⋯: a new row with the parent’s people
   await expect(made.getByRole('img', { name: /Ben Ortiz/ }).or(made.getByText('BO'))).toBeVisible()
   await expect(countOf(row)).toHaveText('1/2')
   await expect(page.getByText('Made “Get travel actuals from Marco” a task')).toBeVisible()
+  // Stored: the new task with the parent's person and tag, the line gone from the checklist.
+  const assigned = async () => {
+    const { todos, todoPeople, people, todoTags, tags } = await readStores(page, ['todos', 'todoPeople', 'people', 'todoTags', 'tags'])
+    const id = todos.find((t) => t.title === 'Get travel actuals from Marco')?.id
+    const names = (links: Row[], key: string, rows: Row[]) =>
+      links.filter((l) => l.todoId === id).map((l) => rows.find((r) => r.id === l[key])?.name)
+    return id === undefined ? null : { people: names(todoPeople, 'personId', people), tags: names(todoTags, 'tagId', tags) }
+  }
+  await expect.poll(assigned).toEqual({ people: ['Ben Ortiz'], tags: ['finance'] })
+  expect(await storedChecklist(page, 'Q4 budget')).toEqual([['Send the template to all leads', true], ['Headcount from Aisha', false]])
 })
 
 test('the top bar’s search finds a task by a subtask’s words, under a Subtasks group with the line as a snippet', async ({ page }) => {

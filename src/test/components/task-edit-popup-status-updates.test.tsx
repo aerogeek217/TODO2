@@ -77,10 +77,11 @@ describe('TaskEditPopup — Status updates (edit mode)', () => {
     fireEvent.change(addDayField(), { target: { value: 'yesterday' } })
     await act(async () => { fireEvent.keyDown(addDayField(), { key: 'Enter' }) })
     await vi.waitFor(async () => expect(await storedTexts()).toHaveLength(2))
-    expect(shownLines()).toEqual([
+    // The section follows the store, which follows the stored rows: wait on it too.
+    await vi.waitFor(() => expect(shownLines()).toEqual([
       `${formatDateNumeric(today())}waiting on legal`,
       `${formatDateNumeric(daysAgo(1))}sent the draft`,
-    ])
+    ]))
     // The count beside the label.
     expect(section().querySelector('[id]')?.textContent).toBe('Status updates2')
   })
@@ -188,6 +189,23 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
     fireEvent.change(addField(), { target: { value: 'first draft' } })
     fireEvent.change(addDayField(), { target: { value: 'yesterday' } })
     fireEvent.keyDown(addField(), { key: 'Enter' })
+    await act(async () => { fireEvent.click(screen.getByText('Create task')) })
+    expect(onCreate.mock.calls[0]?.[0].lastFollowupAt).toEqual(daysAgo(1))
+  })
+
+  it('a Last follow-up later than the newest pending update stays: an older update doesn’t move it back', async () => {
+    const { onCreate } = renderCreate()
+    const last = () => screen.getByRole('textbox', { name: 'Last follow-up' }) as HTMLInputElement
+    fireEvent.change(screen.getByPlaceholderText(/New task/), { target: { value: 'Write the report' } })
+    fireEvent.change(last(), { target: { value: 'yesterday' } })
+    fireEvent.blur(last())
+    const shown = last().value
+    expect(shown).not.toBe('')
+    fireEvent.change(addField(), { target: { value: 'outline done' } })
+    fireEvent.change(addDayField(), { target: { value: formatDateNumeric(daysAgo(3)) } })
+    fireEvent.keyDown(addField(), { key: 'Enter' })
+    expect(shownLines()).toEqual([`${formatDateNumeric(daysAgo(3))}outline done`])
+    expect(last().value).toBe(shown)
     await act(async () => { fireEvent.click(screen.getByText('Create task')) })
     expect(onCreate.mock.calls[0]?.[0].lastFollowupAt).toEqual(daysAgo(1))
   })

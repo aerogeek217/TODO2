@@ -279,6 +279,25 @@ describe('notesPreviewLines (the dialog’s redline pairing)', () => {
     expect(shown).toHaveLength(3)
   })
 
+  it('stays fast when every line of a run is rewritten long: over the run’s token budget it pairs nothing (cr31 L1)', () => {
+    // 50 ordinary lines (~30 tokens) each rewritten into ~8,000 tokens: every
+    // pair is under the word diff's own cap, 2,500 of them took ~17 s.
+    const removed = Array.from({ length: 50 }, (_, i) => l('-', `Line ${i} about the plan for the vendor and the quote`))
+    const added = Array.from({ length: 50 }, (_, i) => l('+', `Line ${i} about the plan ${'and more words '.repeat(1300)}`))
+    expectWithin(1000, () => {
+      const shown = notesPreviewLines([...removed, ...added])
+      expect(shown).toEqual([...removed, ...added])
+    })
+  })
+
+  it('still pairs a whole ordinary note rewritten line by line (under the token budget)', () => {
+    const words = 'about the plan for the vendor and the quote we got on Monday from the team'
+    const removed = Array.from({ length: 50 }, (_, i) => l('-', `Line ${i} ${words}`))
+    const added = Array.from({ length: 50 }, (_, i) => l('+', `Line ${i} ${words} done`))
+    const shown = notesPreviewLines([...removed, ...added])
+    expect(shown.map((x) => x.op)).toEqual(Array.from({ length: 50 }, () => '~'))
+  })
+
   it('pairs nothing when the line diff was too long for an LCS', () => {
     const lines = [l('-', 'one a'), l('+', 'one A')]
     expect(notesPreviewLines(lines, false)).toEqual(lines)

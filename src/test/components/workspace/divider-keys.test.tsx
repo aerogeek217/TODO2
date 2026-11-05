@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, fireEvent, renderHook } from '@testing-library/react'
+import { cleanup, render, fireEvent, renderHook } from '@testing-library/react'
 import { BandDivider } from '../../../components/workspace/BandDivider'
 import { WorkspaceDivider } from '../../../components/workspace/WorkspaceDivider'
 import { useKeyboardShortcuts } from '../../../hooks/use-keyboard-shortcuts'
@@ -20,6 +20,8 @@ function withShortcutsAndARow() {
 }
 
 afterEach(() => {
+  // Unmounted, not only detached: a mounted tree keeps its document listeners (the shortcuts hook's).
+  cleanup()
   document.body.innerHTML = ''
 })
 

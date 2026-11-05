@@ -218,6 +218,7 @@ export function checkOfflineFile(html: string): string[] {
 
   problems.push(...checkCsp(markup, script))
   if (!/<meta name="referrer" content="no-referrer"\s*\/?>/.test(markup)) problems.push('has no <meta name="referrer" content="no-referrer">')
+  if (!/<meta http-equiv="x-dns-prefetch-control" content="off"\s*\/?>/.test(markup)) problems.push('has no <meta http-equiv="x-dns-prefetch-control" content="off">')
 
   for (const link of markup.match(/<link\b[^>]*>/gi) ?? []) {
     if (!/\srel="icon"/.test(link) || !/\shref="data:/.test(link)) problems.push(`has a <link> that isn't a data: icon: ${clip(link)}`)
@@ -267,7 +268,12 @@ function checkCsp(markup: string, script: ScriptElement | undefined): string[] {
   const directives = new Map<string, string[]>()
   for (const part of (meta[1] ?? '').split(';')) {
     const [name, ...sources] = part.trim().split(/\s+/)
-    if (name) directives.set(name.toLowerCase(), sources)
+    if (!name) continue
+    const key = name.toLowerCase()
+    // A browser enforces a directive's first copy and ignores the rest, so a
+    // check reading any other copy would pass a looser policy (cr31 L3).
+    if (directives.has(key)) problems.push(`CSP: ${key} is named more than once`)
+    else directives.set(key, sources)
   }
   if (directives.get('default-src')?.join(' ') !== "'none'") problems.push("CSP: default-src isn't 'none'")
   for (const name of ['base-uri', 'form-action'] as const) {

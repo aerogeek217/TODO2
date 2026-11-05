@@ -1,9 +1,12 @@
-import { describe, it, expect } from 'vitest'
-import { fireEvent, render, screen } from '@testing-library/react'
+import { describe, it, expect, afterEach } from 'vitest'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { RecentTaskPill } from '../../../components/overlays/RecentTaskPill'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { makeTodo } from '../../helpers'
+
+// The shared project cleans up only at the file's end: unmount each test's tree.
+afterEach(() => { cleanup() })
 
 describe('RecentTaskPill', () => {
   it('shows the new task with a dismiss button and no Focus button (/focus covers it)', () => {

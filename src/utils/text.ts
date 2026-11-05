@@ -24,3 +24,16 @@ export function plainLine(s: string): string {
 export function shortTitle(s: string, max = 40): string {
   return s.length > max ? `${s.slice(0, max - 1)}…` : s
 }
+
+/**
+ * `s` as its leading whitespace, the rest, and its trailing whitespace
+ * (all-space text is all lead). By `trimStart` / `trimEnd` lengths, not an
+ * `^(\s*)(.*?)(\s*)$` regex — that backtracks quadratically on a long space
+ * run before a non-space (cr31 L2).
+ */
+export function splitEdgeSpace(s: string): { lead: string; core: string; trail: string } {
+  const start = s.length - s.trimStart().length
+  if (start === s.length) return { lead: s, core: '', trail: '' }
+  const end = s.trimEnd().length
+  return { lead: s.slice(0, start), core: s.slice(start, end), trail: s.slice(end) }
+}

@@ -5,6 +5,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { createTab, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
+import { cleanup } from '@testing-library/react'
 
 // A layout write that fails (e.g. browser storage full) must not leave the
 // workspace saying the layout is saved, nor reject into the `void` callers
@@ -38,6 +39,7 @@ beforeEach(async () => {
 })
 
 afterEach(() => {
+  cleanup()
   vi.restoreAllMocks()
 })
 

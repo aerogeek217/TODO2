@@ -29,6 +29,19 @@ export default defineConfig({
     // test take several times as long, and a hang still fails.
     testTimeout: 30_000,
     hookTimeout: 30_000,
+    // What `vi.useFakeTimers()` fakes when a test names nothing: vitest's own
+    // default (every timer but nextTick / queueMicrotask) less setImmediate,
+    // which fake-indexeddb runs every database step on. Faked, a database
+    // open started under fake timers was dropped by useRealTimers and every
+    // later database op in the file hung (cr31 tests 2.4). A test naming
+    // its own `toFake` replaces this list.
+    fakeTimers: {
+      toFake: [
+        'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'Date',
+        'requestAnimationFrame', 'cancelAnimationFrame', 'requestIdleCallback', 'cancelIdleCallback',
+        'performance', 'hrtime', 'Intl', 'Temporal',
+      ],
+    },
     exclude: [...configDefaults.exclude, 'e2e/**', '.claude/**'],
     coverage: {
       provider: 'v8',

@@ -35,6 +35,7 @@ import { TASK_REF_LENGTH } from '../checkin-email/ref'
 import { escapeHtml } from '../../utils/html'
 import { sanitizeHref } from '../notes-export'
 import { collapseWhitespace } from '../../utils/text'
+import { STATUS_UPDATE_TEXT_MAX } from '../../models/status-update'
 
 /** Largest paste read (HTML + plain text, in UTF-16 code units). */
 export const CHECKIN_REPLY_MAX_CHARS = 2 * 1024 * 1024
@@ -545,8 +546,14 @@ function parsePlain(plain: string): FlavourResult {
       continue
     }
     if (statusOpen && block) {
-      if (text) block.statusUpdate = block.statusUpdate ? collapseWhitespace(`${block.statusUpdate} ${text}`) : replyStatusValue(text)
-      else statusOpen = false
+      if (!text) statusOpen = false
+      else if (!block.statusUpdate) block.statusUpdate = replyStatusValue(text)
+      // Both sides are collapsed already, so joining them with one space is
+      // the collapsed join — no rescan of the growing text per line (a
+      // pasted reply of many short lines was quadratic, cr31 M3). Past what
+      // an entry stores (`statusUpdateText` cuts at STATUS_UPDATE_TEXT_MAX)
+      // a further line changes nothing, so it isn't read.
+      else if (block.statusUpdate.length <= STATUS_UPDATE_TEXT_MAX) block.statusUpdate = `${block.statusUpdate} ${text}`
     }
   }
   close()

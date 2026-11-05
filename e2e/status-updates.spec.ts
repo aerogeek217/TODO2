@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { addFollowupInterval, DEFAULT_FOLLOWUP_INTERVAL } from '../src/utils/followup'
 
 /**
  * A task's status updates in a real browser: added in the editor (Esc on an
@@ -62,7 +63,9 @@ test('entering a status counts as following up on its day, when newer: Last move
   yesterday.setHours(0, 0, 0, 0)
   await expect.poll(async () => (await task())?.lastFollowupAt?.getTime()).toBe(yesterday.getTime())
   await expect(last).not.toHaveValue('')
-  expect((await task())?.nextFollowupAt?.getTime()).toBeGreaterThan(before?.getTime() ?? 0)
+  // The rule (Settings' default interval, on in a fresh database) counted from that day.
+  expect(before?.getTime()).toBeLessThan(yesterday.getTime())
+  expect((await task())?.nextFollowupAt?.getTime()).toBe(addFollowupInterval(yesterday, DEFAULT_FOLLOWUP_INTERVAL).getTime())
   await expect(page.getByText(`Followed up ${mmdd(-1)} · status update added`)).toBeVisible()
   expect(await storedUpdates(page, 'Late one')).toEqual([['called them', true]])
 

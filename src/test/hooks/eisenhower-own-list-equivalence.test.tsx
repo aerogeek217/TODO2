@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { act, renderHook } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { act, cleanup, renderHook } from '@testing-library/react'
 import { db } from '../../data/database'
 import { listDefinitionRepository } from '../../data/list-definition-repository'
 import type { PersistedListDefinition } from '../../models/list-definition'
@@ -64,6 +64,9 @@ beforeEach(async () => {
   useStatusStore.setState({ statuses: [waiting] })
   useListDefinitionStore.setState({ listDefinitions: [madeList], loaded: true })
 })
+
+// The shared project cleans up only at the file's end: unmount each test's hooks.
+afterEach(() => { cleanup() })
 
 const ids = (tasks: readonly { id: number }[]) => tasks.map((t) => t.id).sort((a, b) => a - b)
 

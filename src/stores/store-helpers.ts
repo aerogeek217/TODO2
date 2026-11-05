@@ -23,7 +23,7 @@ import { todoRepository } from '../data'
 import type { PersistedTodoItem } from '../models'
 import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
-import { registerModuleReset } from '../utils/module-reset'
+import { registerModuleReset, registerModuleSettle } from '../utils/module-reset'
 import { withOrphanedRuleDropped } from '../utils/todo-changes'
 
 export type SetFn = (partial: Record<string, unknown>) => void
@@ -96,7 +96,20 @@ export async function readFresh<T>(fetcher: () => Promise<T>): Promise<T> {
   }
 }
 
-/** Test hook: forgets writes left in flight by a previous test file. */
+/**
+ * Test hook: resolves once no tracked write is in flight — what a store does
+ * after a write's database write (an undo push, a rollback) has run by then.
+ * The setup awaits it after every test (`settleModuleWork`).
+ */
+export async function settleWrites(): Promise<void> {
+  while (writesInFlight.size > 0) await Promise.allSettled([...writesInFlight])
+}
+registerModuleSettle(settleWrites)
+
+/**
+ * Test hook: forgets writes still in flight — only those that never settled
+ * (`settleWrites` ran after the test), e.g. under a test's fake timers.
+ */
 export function resetWriteTracking(): void {
   writesInFlight.clear()
 }
