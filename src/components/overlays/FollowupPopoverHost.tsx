@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useBulkActions } from '../../hooks/use-bulk-actions'
 import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -6,6 +6,7 @@ import { useUIStore, type FollowupPopoverRequest } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { FollowupPopover } from '../shared/followup/FollowupPopover'
 import { PopoverLevelContext } from '../shared/popover-level'
+import { sharedNextFollowup } from '../../utils/followup'
 
 /**
  * Shows the follow-up popover a task row asks for (`ui-store.followupPopover`,
@@ -25,6 +26,16 @@ function OpenFollowupPopover({ request }: { request: FollowupPopoverRequest }) {
   const { todoId } = request
   const close = useUIStore((s) => s.closeFollowupPopover)
   const todo = useTodoStore((s) => s.todos.find((t) => t.id === todoId))
+  // A row in a multi-selection edits the selection (`useBulkActions`): the
+  // popover starts from what the selected tasks share, or mixed — as the bulk
+  // bar's does —, so a date equal to this task's is still set on the others
+  // (cr31 T11).
+  const selectedIds = useUIStore((s) => s.selectedTodoIds)
+  const todos = useTodoStore((s) => s.todos)
+  const current = useMemo(() => {
+    if (selectedIds.size <= 1 || !selectedIds.has(todoId)) return undefined
+    return sharedNextFollowup(todos.filter((t) => selectedIds.has(t.id)))
+  }, [selectedIds, todos, todoId])
   const newestUpdate = useStatusUpdateStore((s) => newestStatusUpdate(todoId, s.byTodo))
   const bulk = useBulkActions()
 
@@ -46,6 +57,7 @@ function OpenFollowupPopover({ request }: { request: FollowupPopoverRequest }) {
         onSetNext={(d) => bulk.setFollowup(todoId, d)}
         onFollowedUp={(next, update) => bulk.markFollowedUp(todoId, next, update)}
         newestUpdate={newestUpdate}
+        current={current}
         initialFocus={request.initialFocus}
       />
     </PopoverLevelContext.Provider>

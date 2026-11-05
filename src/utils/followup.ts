@@ -283,3 +283,15 @@ export function nextAfterFollowup(current: Date | null | undefined, today: Date,
 export function isFollowedUpToday(t: Pick<TodoItem, 'lastFollowupAt'>, today: Date): boolean {
   return !!t.lastFollowupAt && dayDiff(t.lastFollowupAt, today) === 0
 }
+
+/**
+ * Tasks' shared next follow-up — what a follow-up popover over a selection
+ * starts from: the day they all have (none when none has one), or `'mixed'`
+ * when they differ.
+ */
+export function sharedNextFollowup(todos: readonly Pick<TodoItem, 'nextFollowupAt'>[]): Date | null | 'mixed' {
+  const days = new Set(todos.map((t) => (t.nextFollowupAt ? startOfDay(t.nextFollowupAt).getTime() : null)))
+  if (days.size > 1) return 'mixed'
+  const [day] = days
+  return day == null ? null : new Date(day)
+}

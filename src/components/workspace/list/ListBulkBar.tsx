@@ -13,8 +13,7 @@ import { FollowupFlagIcon } from '../../shared/FollowupIcons'
 import { FollowupPopover } from '../../shared/followup/FollowupPopover'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useToday } from '../../../hooks/use-today'
-import { isFollowedUpToday } from '../../../utils/followup'
-import { startOfDay } from '../../../utils/date'
+import { isFollowedUpToday, sharedNextFollowup } from '../../../utils/followup'
 import { followedUpMenuEntry, markerMenuEntries } from '../../task/task-menu-entries'
 import { MenuPopover } from '../../shared/MenuPopover'
 import { AtIcon, CheckIcon, CloseIcon, HashIcon, MoreIcon, TrashIcon } from '../../shared/icons'
@@ -70,12 +69,7 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
   const sharedTags = useMemo(() => sharedIds(assignedTagsMap, ids), [assignedTagsMap, ids])
   // The follow-up popover edits "the selection": what it starts from is the
   // tasks' shared next follow-up (none when none has one), or mixed.
-  const followupNow = useMemo<Date | null | 'mixed'>(() => {
-    const days = new Set(selectedTodos.map((t) => (t.nextFollowupAt ? startOfDay(t.nextFollowupAt).getTime() : null)))
-    if (days.size > 1) return 'mixed'
-    const [day] = days
-    return day == null ? null : new Date(day)
-  }, [selectedTodos])
+  const followupNow = useMemo(() => sharedNextFollowup(selectedTodos), [selectedTodos])
   const followupSeed = selectedTodos[0]
   // The selection's newest status update, when every task's newest is the same.
   const statusUpdates = useStatusUpdateStore((s) => s.byTodo)
