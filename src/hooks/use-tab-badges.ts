@@ -1,4 +1,6 @@
 import { useEffect, useMemo } from 'react'
+import type { PersistedTodoItem } from '../models'
+import type { TabBadgeRanges } from '../models/list-definition'
 import type { LayoutTab } from '../models/workspace-layout'
 import { applyRuntimeFilter } from '../services/build-list'
 import { useListDefinitionStore } from '../stores/list-definition-store'
@@ -14,7 +16,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
 import type { TodoNameLookups } from '../utils/filter'
 import { createPredicateEvaluator, createScreenComposedEvaluator } from '../utils/filter-match'
-import { countTabBadges, tabBadgeRangesFor, tabBadgeSummary, type TabBadgeCounts } from '../utils/tab-badges'
+import { countTabBadges, inTabBadgeRange, tabBadgeRangesFor, tabBadgeSummary, type TabBadgeCounts } from '../utils/tab-badges'
 import { useFilterSettings } from './use-filter-settings'
 import { useToday } from './use-today'
 
@@ -71,7 +73,18 @@ export function useTabBadges(tabs: readonly LayoutTab[]): ReadonlyMap<string, Ta
     const matches = screenActive
       ? createScreenComposedEvaluator(screen, lookups, today, settings)
       : createPredicateEvaluator(lookups, today, settings)
-    const open = todos.filter((t) => !t.isCompleted)
+    // Only a task inside a badge range can count: each list's filter runs on
+    // those alone (a few of every open task), once per set of ranges.
+    const candidatesByRanges = new Map<string, PersistedTodoItem[]>()
+    const candidatesFor = (ranges: TabBadgeRanges) => {
+      const key = `${String(ranges.due)}|${String(ranges.followup)}`
+      let candidates = candidatesByRanges.get(key)
+      if (!candidates) {
+        candidates = todos.filter((t) => inTabBadgeRange(t, ranges, today))
+        candidatesByRanges.set(key, candidates)
+      }
+      return candidates
+    }
     const badges = new Map<string, TabBadge>()
     for (const tab of tabs) {
       if (tab.kind !== 'lens') continue
@@ -87,7 +100,7 @@ export function useTabBadges(tabs: readonly LayoutTab[]): ReadonlyMap<string, Ta
       const predicate = def.runtimeFilter && pick && pick.length > 0
         ? applyRuntimeFilter(def.membership.predicate, def.runtimeFilter, pick)
         : def.membership.predicate
-      const counts = countTabBadges(open.filter((t) => matches(predicate, t)), ranges, today)
+      const counts = countTabBadges(candidatesFor(ranges).filter((t) => matches(predicate, t)), ranges, today)
       if (counts.due + counts.followup > 0) badges.set(tab.id, { counts, summary: tabBadgeSummary(counts, ranges) })
     }
     return badges

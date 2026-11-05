@@ -69,6 +69,20 @@ function rangeHit(date: Date | null | undefined, range: TabBadgeRange, today: Da
   return range !== 'overdue' && days <= range ? 0 : null
 }
 
+/**
+ * Whether `task` would count toward a badge with `ranges` — open, its due
+ * date or next follow-up inside its range. A list's filter need only run on
+ * these: the rest add nothing to `countTabBadges`.
+ */
+export function inTabBadgeRange(
+  task: Pick<TodoItem, 'isCompleted' | 'dueDate' | 'nextFollowupAt'>,
+  ranges: TabBadgeRanges,
+  today: Date,
+): boolean {
+  return !task.isCompleted
+    && (rangeHit(task.dueDate, ranges.due, today) != null || rangeHit(task.nextFollowupAt, ranges.followup, today) != null)
+}
+
 /** The badge counts of `tasks` (those a list shows); completed tasks never count. */
 export function countTabBadges(
   tasks: readonly Pick<TodoItem, 'isCompleted' | 'dueDate' | 'nextFollowupAt'>[],
