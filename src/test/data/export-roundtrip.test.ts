@@ -48,7 +48,7 @@ const FULL_PREDICATE: TodoPredicate = {
     created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null },
     modified: { match: 'range', start: { kind: 'offset', days: -7 }, end: { kind: 'relative', token: 'today' }, not: true },
   },
-  markers: { urgent: true, important: false },
+  markers: [{ values: ['urgent'] }, { values: ['important'], not: true }],
   tags: [1],
 }
 
@@ -56,9 +56,9 @@ const FULL_PREDICATE: TodoPredicate = {
 const OR_GROUPS: FilterClauses[] = [
   {
     personIds: [2], statusIds: null, searchText: 'call',
-    dates: { followup: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null } }, markers: 'hot', tags: [0],
+    dates: { followup: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null } }, markers: [{ values: ['focus', 'urgent'] }], tags: [0],
   },
-  { personIds: null, statusIds: [1, 0], searchText: '', dates: {}, markers: { urgent: false }, tags: null, negate: { statusIds: true } },
+  { personIds: null, statusIds: [1, 0], searchText: '', dates: {}, markers: [{ values: ['urgent'], not: true }], tags: null, negate: { statusIds: true } },
 ]
 
 function buildSeed(): Seed {
@@ -97,7 +97,7 @@ function buildSeed(): Seed {
       { key: 'urgentDueWithinDays', value: 'off' },
       { key: 'hotRule', value: '[{"important":true,"focus":true},{"urgent":true}]' },
       { key: 'checkinOpenMethod', value: 'eml' },
-      { key: 'checkinTaskFilter', value: formatCheckinFilterSetting({ ...FULL_PREDICATE, personIds: null, markers: 'hot', negate: { tags: true }, orGroups: [OR_GROUPS[1]!] }) },
+      { key: 'checkinTaskFilter', value: formatCheckinFilterSetting({ ...FULL_PREDICATE, personIds: null, markers: [{ values: ['focus'] }], negate: { tags: true }, orGroups: [OR_GROUPS[1]!] }) },
       { key: 'newListSort', value: 'deadline' },
       { key: 'newListSortDirection', value: 'desc' },
       { key: 'newListGroup', value: 'tag' },
@@ -105,7 +105,7 @@ function buildSeed(): Seed {
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
       { key: 'rowDensity', value: 'comfortable' },
-      { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...FULL_PREDICATE, showCompleted: false, markers: 'hot', negate: { statusIds: true }, orGroups: OR_GROUPS } }]) },
+      { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...FULL_PREDICATE, showCompleted: false, markers: [{ values: ['focus'] }], negate: { statusIds: true }, orGroups: OR_GROUPS } }]) },
       { key: 'lensPresetsSeeded', value: 'true' },
       { key: 'activeLensId', value: 'lens-a' },
       { key: 'themeMode', value: 'dark' },
@@ -126,7 +126,7 @@ function buildSeed(): Seed {
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
-      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: 'hot' } },
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: [{ values: ['focus'] }] } },
       sort: 'followup', grouping: 'followup',
       owner: { layoutId: 2 }, showFilterLine: false,
     }, {
@@ -202,8 +202,8 @@ function buildSeed(): Seed {
 
 /** The seed's Eisenhower panes, in their stored form (what import keeps unchanged). */
 const SEED_PANES: EisenhowerPanes = {
-  do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: { focus: true, urgent: false }, tags: [2], negate: { tags: true } } },
-  delegate: { filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, tags: null, negate: { statusIds: true }, orGroups: [OR_GROUPS[0]!] } },
+  do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: [{ values: ['focus'] }, { values: ['urgent'], not: true }], tags: [2], negate: { tags: true } } },
+  delegate: { filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: [{ values: ['urgent'] }, { values: ['important'], not: true }], tags: null, negate: { statusIds: true }, orGroups: [OR_GROUPS[0]!] } },
   drop: { name: 'Someday' },
 }
 
@@ -272,11 +272,12 @@ describe('export → JSON → import round-trip', () => {
     // Both kinds of owner: a layout's list and the Eisenhower's.
     expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'layoutId' in d.owner)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'eisenhower' in d.owner)).toBe(true)
-    // Both forms of the Markers filter: Hot and markers set to Yes and No.
-    const markers = seed.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate.markers : undefined)
-    expect(markers).toContain('hot')
-    const conditions = markers.flatMap((m) => (typeof m === 'object' && m !== null ? Object.values(m) : []))
-    expect(new Set(conditions)).toEqual(new Set([true, false]))
+    // A Priority filter's forms: "is" with several values, and "is not".
+    const markers = seed.listDefinitions.flatMap((d) => (d.membership.kind === 'custom'
+      ? [d.membership.predicate, ...(d.membership.predicate.orGroups ?? [])].flatMap((c) => c.markers ?? [])
+      : []))
+    expect(markers.some((c) => c.values.length > 1)).toBe(true)
+    expect(markers.some((c) => c.not === true)).toBe(true)
     // Every "is not" switch.
     const negations = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.keys(d.membership.predicate.negate ?? {}) : [])
     expect(new Set(negations)).toEqual(new Set(NEGATABLE_FIELDS))
@@ -308,7 +309,7 @@ describe('export → JSON → import round-trip', () => {
     const panesRow = seed.settings.find((r) => r.key === 'eisenhowerPanes')
     const panes = Object.values(JSON.parse(panesRow?.value ?? '{}') as EisenhowerPanes)
     expect(panes.some((p) => p?.name !== undefined && p.filter !== undefined)).toBe(true)
-    expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers !== 'hot' && p.filter.markers?.important === false)).toBe(true)
+    expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers?.some((c) => c.not === true && c.values.includes('important')))).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
     const dashboard = tabs.find((t) => t.kind === 'dashboard')
     expect(dashboard?.kind === 'dashboard' && dashboard.config.listTiles.length > 0 && dashboard.config.sections.some((sec) => sec.options !== undefined)).toBe(true)

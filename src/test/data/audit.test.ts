@@ -24,7 +24,7 @@ describe('auditData', () => {
     const layoutId = await db.layouts.add({ name: 'Main', sortOrder: 0, columns: [], createdAt: new Date(), modifiedAt: new Date() })
     const listDefinitionId = await db.listDefinitions.add({
       name: 'Focus', sortOrder: 0, sort: 'manual', grouping: 'none',
-      membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: { focus: true } } },
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: [{ values: ['focus'] }] } },
       owner: { layoutId },
     })
     await db.listOrders.add({ listDefinitionId, todoId, rank: 1 })
@@ -400,7 +400,7 @@ describe('sanitisable-row audit', () => {
 
   it('keeps a Priority filter with No markers; reports one it cannot read and cleanup drops it', async () => {
     const id = await db.listDefinitions.add(list('Odd', { statusIds: [2], markers: { urgent: false, important: 'no' } }) as any)
-    const fine = await db.listDefinitions.add(list('Delegate', { markers: { urgent: true, important: false } }) as any)
+    const fine = await db.listDefinitions.add(list('Delegate', { markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] }) as any)
 
     const report = await auditData()
     const issue = report.issues.find((i) => i.table === 'listDefinitions')!
@@ -408,7 +408,7 @@ describe('sanitisable-row audit', () => {
     expect(issue.samples![0]!.note).toBe('Cleanup: priority filter dropped')
     await cleanupIssues(report.issues)
     expect((await db.listDefinitions.get(id))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ statusIds: [2], markers: null }) })
-    expect((await db.listDefinitions.get(fine))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ markers: { urgent: true, important: false } }) })
+    expect((await db.listDefinitions.get(fine))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] }) })
     expect((await auditData()).issues).toEqual([])
   })
 

@@ -1,5 +1,5 @@
 import type { DateField } from '../models/app-view'
-import { NEGATABLE_FIELDS, OR_GROUPS_MAX, emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../models/filter-predicate'
+import { MARKER_CLAUSES_MAX, NEGATABLE_FIELDS, OR_GROUPS_MAX, emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../models/filter-predicate'
 import { hasDateFilters, normalizeDateFilters } from './date-filters'
 import { withNormalizedNegation } from './filter-negation'
 import { hasMarkers, normalizeMarkersFilter } from './markers'
@@ -96,7 +96,7 @@ function clauseCount(c: FilterClauses): number {
     + (c.statusIds != null ? 1 : 0)
     + (c.tags != null ? 1 : 0)
     + ((c.searchText ?? '').trim() !== '' ? 1 : 0)
-    + (hasMarkers(c.markers) ? 1 : 0)
+    + (c.markers?.length ?? 0)
     + Object.keys(normalizeDateFilters(c.dates)).length
 }
 
@@ -109,7 +109,11 @@ function withClauseMoved<T extends FilterClauses>(own: T, group: FilterClauses):
     if (normalizeDateFilters(own.dates)[dateField]) return null
     return { ...own, dates: { ...own.dates, ...dates } }
   }
-  if (hasMarkers(group.markers)) return hasMarkers(own.markers) ? null : { ...own, markers: group.markers }
+  if (hasMarkers(group.markers)) {
+    // Priority repeats: it joins the predicate's own conditions (they AND).
+    const markers = [...(own.markers ?? []), ...(group.markers ?? [])]
+    return markers.length > MARKER_CLAUSES_MAX ? null : { ...own, markers }
+  }
   if ((group.searchText ?? '').trim() !== '') return (own.searchText ?? '').trim() !== '' ? null : { ...own, searchText: group.searchText }
   for (const key of NEGATABLE_FIELDS) {
     if (group[key] == null) continue

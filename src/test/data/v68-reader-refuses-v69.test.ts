@@ -18,7 +18,7 @@ vi.mock('../../data/database', async (importOriginal) => ({
   CURRENT_DB_VERSION: 68,
 }))
 
-const group = { personIds: null, statusIds: null, searchText: '', dates: {}, markers: 'hot', tags: [0] }
+const group = { personIds: null, statusIds: null, searchText: '', dates: {}, markers: [{ values: ['focus'] }], tags: [0] }
 const columns = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'l', kind: 'lens', config: { listDefinitionId: 4 } }] }] }]
 const list = {
   id: 4, name: 'Hot or untagged', sortOrder: 0, sort: 'manual', grouping: 'none', owner: { layoutId: 1 },

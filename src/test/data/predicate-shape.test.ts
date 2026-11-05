@@ -26,31 +26,31 @@ const APP_PREDICATES: Array<[string, TodoPredicate]> = [
       created: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } },
       modified: { match: 'range', start: { kind: 'offset', days: -30 }, end: null },
     },
-    markers: { urgent: true, focus: true }, tags: [3, 4],
+    markers: [{ values: ['focus'] }, { values: ['urgent'] }], tags: [3, 4],
   }],
   ['Hot markers and relative dates', {
-    ...emptyPredicate(), markers: 'hot',
+    ...emptyPredicate(), markers: [{ values: ['focus'] }],
     dates: { deadline: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'end-of-month-plus-3' } } },
   }],
   ['a due date that must be set', { ...emptyPredicate(), dates: { deadline: { match: 'set' } } }],
-  ['empty id filters (match nothing)', { ...emptyPredicate(), personIds: [], statusIds: [], tags: [], markers: {} }],
+  ['empty id filters (match nothing)', { ...emptyPredicate(), personIds: [], statusIds: [], tags: [], markers: [] }],
   ['a predicate stored before the optional fields existed', requiredOnly()],
   ['"is not" on people, status and tags', {
     ...emptyPredicate(), personIds: [0, 2], statusIds: [1], tags: [3],
     negate: { personIds: true, statusIds: true, tags: true },
   }],
   ['"is not" on one field', { ...emptyPredicate(), statusIds: [1, 0], tags: [3], negate: { statusIds: true } }],
-  ['Priority Yes and No', { ...emptyPredicate(), markers: { urgent: true, important: false } }],
-  ['Priority No on every marker', { ...emptyPredicate(), markers: { focus: false, urgent: false, important: false } }],
+  ['Priority Yes and No', { ...emptyPredicate(), markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] }],
+  ['Priority No on every marker', { ...emptyPredicate(), markers: [{ values: ['focus'], not: true }, { values: ['urgent'], not: true }, { values: ['important'], not: true }] }],
   ['two or groups beside a clause', {
     ...emptyPredicate(), statusIds: [1],
     orGroups: [
-      { ...emptyFilterClauses(), markers: 'hot', dates: { deadline: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } } } },
+      { ...emptyFilterClauses(), markers: [{ values: ['focus'] }], dates: { deadline: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } } } },
       { ...emptyFilterClauses(), personIds: [2], tags: [0], searchText: 'call', negate: { personIds: true } },
     ],
   }],
   ['an or group written from the runtime filter', criteriaToPredicate(predicateToCriteria({
-    ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), tags: [3, 4], markers: { urgent: true } }],
+    ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), tags: [3, 4], markers: [{ values: ['urgent'] }] }],
   }))],
 ]
 
@@ -193,8 +193,8 @@ describe('pickPredicate', () => {
     })
 
     it('drops an unknown switch and keeps the rest', () => {
-      const { predicate, fixes } = pickPredicate({ ...emptyPredicate(), statusIds: [2], markers: { urgent: true }, negate: { markers: true, statusIds: true } })
-      expect(predicate).toMatchObject({ statusIds: [2], markers: { urgent: true }, negate: { statusIds: true } })
+      const { predicate, fixes } = pickPredicate({ ...emptyPredicate(), statusIds: [2], markers: [{ values: ['urgent'] }], negate: { markers: true, statusIds: true } })
+      expect(predicate).toMatchObject({ statusIds: [2], markers: [{ values: ['urgent'] }], negate: { statusIds: true } })
       expect(predicate.negate).toEqual({ statusIds: true })
       expect(fixes).toEqual(['unknown "is not" switch dropped'])
     })
@@ -214,9 +214,9 @@ describe('pickPredicate', () => {
   })
 
   describe('or groups', () => {
-    const hot = { ...emptyFilterClauses(), markers: 'hot' as const }
+    const hot = { ...emptyFilterClauses(), markers: [{ values: ['focus'] }] }
     // Two clauses: a group of one is read as its clause.
-    const two = { ...emptyFilterClauses(), markers: 'hot' as const, tags: [9] }
+    const two = { ...emptyFilterClauses(), markers: [{ values: ['focus'] }], tags: [9] }
     const withGroups = (orGroups: unknown) => ({ ...emptyPredicate(), statusIds: [1], orGroups })
 
     it('reads an absent or null orGroups as none, with no fix and no key', () => {
@@ -237,7 +237,7 @@ describe('pickPredicate', () => {
 
     it('reads a group of one clause as that clause, with no fix', () => {
       const picked = pickPredicate(withGroups([hot, two]))
-      expect(picked).toEqual({ predicate: { ...emptyPredicate(), statusIds: [1], markers: 'hot', orGroups: [two] }, fixes: [] })
+      expect(picked).toEqual({ predicate: { ...emptyPredicate(), statusIds: [1], markers: [{ values: ['focus'] }], orGroups: [two] }, fixes: [] })
     })
 
     it('keeps a group of one when the predicate filters on that field already', () => {

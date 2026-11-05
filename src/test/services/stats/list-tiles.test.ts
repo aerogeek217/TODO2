@@ -62,20 +62,20 @@ describe('computeListTileCounts', () => {
     expect(computeListTileCounts([notBob], tasks, opts(screen))[0]).toMatchObject({ shown: 1, total: 2 })
   })
 
-  it('Markers clauses use the given settings (Hot list, urgent range)', () => {
-    const hot = list(1, { markers: 'hot' })
+  it('Priority clauses use the given settings (the urgent range)', () => {
+    const hot = list(1, { markers: [{ values: ['focus' as const, 'urgent' as const] }, { values: ['focus' as const, 'important' as const] }] })
     expect(computeListTileCounts([hot], tasks, opts(undefined, 3))[0]).toMatchObject({ total: 2 })
     expect(computeListTileCounts([hot], tasks, opts(undefined, null))[0]).toMatchObject({ total: 1 })
   })
 
   it('a Priority No counts the tasks without that marker (Urgent No: not urgent by flag or by due date)', () => {
     // Open tasks: 1 (none), 2 (urgent + important), 4 (important, due tomorrow).
-    expect(computeListTileCounts([list(1, { markers: { important: false } })], tasks, opts())[0]).toMatchObject({ total: 1 })
-    expect(computeListTileCounts([list(1, { markers: { urgent: false } })], tasks, opts(undefined, 3))[0]).toMatchObject({ total: 1 })
-    expect(computeListTileCounts([list(1, { markers: { urgent: false } })], tasks, opts(undefined, null))[0]).toMatchObject({ total: 2 })
+    expect(computeListTileCounts([list(1, { markers: [{ values: ['important' as const], not: true as const }] })], tasks, opts())[0]).toMatchObject({ total: 1 })
+    expect(computeListTileCounts([list(1, { markers: [{ values: ['urgent' as const], not: true as const }] })], tasks, opts(undefined, 3))[0]).toMatchObject({ total: 1 })
+    expect(computeListTileCounts([list(1, { markers: [{ values: ['urgent' as const], not: true as const }] })], tasks, opts(undefined, null))[0]).toMatchObject({ total: 2 })
     // Screen Important Yes + list Urgent No: task 4 only while it isn't urgent by its due date.
-    const screen = { ...NONE, markers: { important: true } }
-    expect(computeListTileCounts([list(1, { markers: { urgent: false } })], tasks, opts(screen, null))[0]).toMatchObject({ shown: 1, total: 2 })
+    const screen = { ...NONE, markers: [{ values: ['important' as const] }] }
+    expect(computeListTileCounts([list(1, { markers: [{ values: ['urgent' as const], not: true as const }] })], tasks, opts(screen, null))[0]).toMatchObject({ shown: 1, total: 2 })
   })
 
   it('no lists, or no tasks, gives no / zero counts', () => {

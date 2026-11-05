@@ -176,7 +176,7 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
     expect(screenTaskCounts(env({ screen: { ...emptyFilterCriteria, lens } })))
       .toEqual({ shown: priyaOpen, total: SAMPLE_OPEN_COUNT, lensKeeps: priyaOpen, withCompleted: false })
     // Chips on top: shown narrows further; the lens's own count stays.
-    const hot = { ...emptyFilterCriteria, markers: 'hot' as const, lens }
+    const hot = { ...emptyFilterCriteria, markers: [{ values: ['focus' as const] }], lens }
     const counts = screenTaskCounts(env({ screen: hot }))
     expect(counts.lensKeeps).toBe(priyaOpen)
     expect(counts.shown).toBe(screenTaskCount(env({ screen: hot })))

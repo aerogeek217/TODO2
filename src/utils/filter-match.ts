@@ -4,7 +4,7 @@ import { isNegatableDateField } from './date-filters'
 import { resolveDateAnchor, type WeekStart } from './effective-date'
 import { matchTodoText, textMatchContextFor, type TextMatchContext, type TodoNameLookups } from './filter'
 import { admitsCompleted, composeScreenFilter, predicateToCriteria, type CriteriaClauses, type FilterCriteria } from './filter-criteria'
-import { matchesMarkers, type MarkerSettings } from './markers'
+import { matchesMarkerClause, type MarkerSettings } from './markers'
 
 /**
  * The settings a filter is evaluated with: the Markers filter's (urgent
@@ -48,10 +48,6 @@ function matchesPeopleClause(c: CriteriaClauses, t: ClauseTask): boolean {
   return (personMatch || unassignedSentinel) !== (c.negate?.personIds === true)
 }
 
-function matchesMarkersClause(c: CriteriaClauses, t: ClauseTask): boolean {
-  return c.markers != null && matchesMarkers(t.todo, c.markers, t.today, t.settings)
-}
-
 function matchesTagsClause(c: CriteriaClauses, t: ClauseTask): boolean {
   // 0 = no tags. Is: one of the ticked tags (or untagged when No tags is
   // ticked). Is not: none of them (untagged passes unless No tags is ticked).
@@ -82,7 +78,9 @@ function scanClauses(c: CriteriaClauses, t: ClauseTask, stopAt: boolean): boolea
   if (c.statusIds != null && hit(matchesStatusClause(c, t))) return stopAt
   if (c.searchText && hit(matchesTextClause(c, t))) return stopAt
   if (c.personIds != null && hit(matchesPeopleClause(c, t))) return stopAt
-  if (c.markers != null && hit(matchesMarkersClause(c, t))) return stopAt
+  for (const clause of c.markers ?? []) {
+    if (hit(matchesMarkerClause(t.todo, clause, t.today, t.settings))) return stopAt
+  }
   if (c.tags != null && hit(matchesTagsClause(c, t))) return stopAt
   for (const field of DATE_FIELD_VALUES) {
     if (c.dates[field] && hit(matchesDateClause(c, field, t))) return stopAt

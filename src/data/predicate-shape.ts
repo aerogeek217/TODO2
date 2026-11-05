@@ -1,6 +1,7 @@
 import { DATE_FIELD_VALUES, type DateField } from '../models'
 import {
-  HOT_MARKERS,
+  MARKER_CLAUSES_MAX,
+  NO_PRIORITY,
   MARKER_KEYS,
   NEGATABLE_DATE_FIELDS,
   NEGATABLE_FIELDS,
@@ -13,8 +14,7 @@ import {
   OR_GROUPS_MAX,
   type FilterClauses,
   type FilterNegation,
-  type MarkerConditions,
-  type MarkerKey,
+  type MarkerClause,
   type MarkersFilter,
   type NegatableField,
   type RelativeDateToken,
@@ -176,18 +176,20 @@ function readIdList(v: unknown): number[] | null | undefined {
 }
 
 /**
- * A Markers filter: `'hot'` or an object of known markers set to `true` (Yes)
- * or `false` (No); `undefined` when malformed (an unknown marker or any other
- * value drops the whole filter — which way it filtered is unknown).
+ * A Priority filter: a list of conditions, each `values` naming known markers
+ * or `No priority` and an optional `not`; `undefined` when malformed (an
+ * unknown value or any other shape drops the whole filter — which way it
+ * filtered is unknown).
  */
 function readMarkers(v: unknown): MarkersFilter | null | undefined {
   if (v === null) return null
-  if (v === HOT_MARKERS) return HOT_MARKERS
-  if (!isRecord(v)) return undefined
-  const out: MarkerConditions = {}
-  for (const [k, val] of Object.entries(v)) {
-    if (!(MARKER_KEYS as readonly string[]).includes(k) || typeof val !== 'boolean') return undefined
-    out[k as MarkerKey] = val
+  if (!Array.isArray(v)) return undefined
+  const known = (x: unknown) => x === NO_PRIORITY || (MARKER_KEYS as readonly unknown[]).includes(x)
+  const out: MarkerClause[] = []
+  for (const c of v as unknown[]) {
+    if (!isRecord(c) || !Array.isArray(c.values) || !c.values.every(known)) return undefined
+    if (c.not !== undefined && typeof c.not !== 'boolean') return undefined
+    out.push({ values: c.values as MarkerClause['values'], ...(c.not === true ? { not: true as const } : {}) })
   }
   return out
 }
@@ -234,6 +236,7 @@ function pickClauses(v: Obj, fixes: PredicateFix[], reportReset: boolean): Filte
   if ('markers' in v && v.markers !== undefined) {
     const markers = readMarkers(v.markers)
     if (markers === undefined) fixes.push('priority filter dropped')
+    else if (markers !== null && markers.length > MARKER_CLAUSES_MAX) fixes.push('priority filter capped')
     clauses.markers = markers ?? null
   }
   if ('tags' in v && v.tags !== undefined) clauses.tags = ids(v.tags, 'tag')

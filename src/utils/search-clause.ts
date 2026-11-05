@@ -1,14 +1,14 @@
 import type { DateMatch, MarkerKey } from '../models'
 import { withDateMatch } from './date-filters'
 import type { FilterCriteria } from './filter-criteria'
-import { isHotFilter } from './markers'
+import { withMarkerClause } from './markers'
 
 /**
  * What one search token (`services/search-tokens`) sets on the screen filter
  * — the clause the chip's own picker would set — and how it merges in: a
  * person, tag or status joins its field's ids (OR, as the pickers tick them;
  * an "is not" field becomes "is" this one), a marker joins the Priority
- * filter (Hot replaces the markers, a marker replaces Hot), a date replaces
+ * filter's values likewise (the top bar holds one condition), a date replaces
  * that date type's clause, `done` turns Show completed on.
  */
 
@@ -17,7 +17,7 @@ export type SearchField = 'personIds' | 'tags' | 'statusIds' | 'markers' | 'dead
 
 export type SearchClause =
   | { field: 'personIds' | 'tags' | 'statusIds'; id: number }
-  | { field: 'markers'; marker: MarkerKey | 'hot' }
+  | { field: 'markers'; marker: MarkerKey }
   | { field: 'deadline' | 'followup'; match: DateMatch }
   | { field: 'showCompleted' }
 
@@ -85,9 +85,9 @@ export function withSearchClause(f: FilterCriteria, clause: SearchClause): Filte
       return { ...f, [field]: ids, negate }
     }
     case 'markers': {
-      if (clause.marker === 'hot') return { ...f, markers: 'hot' }
-      const current = isHotFilter(f.markers) || f.markers == null ? {} : f.markers
-      return { ...f, markers: { ...current, [clause.marker]: true } }
+      const [first] = f.markers ?? []
+      const values = first && !first.not ? first.values : []
+      return { ...f, markers: withMarkerClause(f.markers, 0, { values: [...values, clause.marker] }) }
     }
     case 'deadline':
     case 'followup':

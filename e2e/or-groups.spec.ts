@@ -38,10 +38,10 @@ test.describe('desktop', () => {
     const widget = wsListWidget(page, 't1')
     await expect.poll(() => titles(page)).toEqual(ALL)
 
-    // + Filter › Priority › Hot.
+    // + Filter › Priority › Focus.
     await widget.getByRole('button', { name: 'Filter', exact: true }).click()
     await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Priority' }).click()
-    await page.getByTestId('list-filter-picker').getByRole('checkbox', { name: 'Hot' }).click()
+    await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Focus' }).click()
     await expect.poll(() => titles(page)).toEqual(['Hot one'])
     await page.keyboard.press('Escape')
     await expect(page.getByTestId('list-filter-picker')).toHaveCount(0)
@@ -54,7 +54,7 @@ test.describe('desktop', () => {
     await expect.poll(() => titles(page)).toEqual(['Hot one', 'Ann task'])
     await page.keyboard.press('Escape')
     const group = widget.getByTestId('or-group')
-    await expect(group).toHaveText(/Priority\s*Hot\s*or\s*People\s*Ann/)
+    await expect(group).toHaveText(/Priority\s*Focus\s*or\s*People\s*Ann/)
     await expect(group.getByTestId('list-filter-chip')).toHaveCount(2)
 
     // Saved, it is kept across a reload.
@@ -63,7 +63,7 @@ test.describe('desktop', () => {
     await page.reload()
     await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
     await expect.poll(() => titles(page)).toEqual(['Hot one', 'Ann task'])
-    await expect(group).toHaveText(/Priority\s*Hot\s*or\s*People\s*Ann/)
+    await expect(group).toHaveText(/Priority\s*Focus\s*or\s*People\s*Ann/)
 
     // The group's panel (its "or"): Remove group, with its 2 filters.
     await group.getByRole('button', { name: 'Group' }).click()
@@ -77,7 +77,7 @@ test.describe('desktop', () => {
   test('a lens with a group hides what none of its filters keeps; its row reads the group; the counter follows', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
-      lenses: [{ id: 'lens-focus', name: 'Triage', predicate: { markers: { focus: true } } }],
+      lenses: [{ id: 'lens-focus', name: 'Triage', predicate: { markers: [{ values: ['focus'] }] } }],
     })
     const tray = page.locator('header').getByRole('group', { name: 'Screen filters — apply to every widget' })
     await page.locator('header').getByRole('button', { name: /^Lens:/ }).click()
@@ -124,15 +124,15 @@ test.describe('desktop', () => {
     const settings = page.getByRole('dialog', { name: 'Settings', exact: true })
     const card = settings.locator('[data-pane-card="do"]')
     // The pane's chip opens its picker as a popover; Another filter (OR) › Status › Waiting.
-    await card.getByTestId('list-filter-chip').click()
+    await card.getByTestId('list-filter-chip').filter({ hasText: 'Important' }).click()
     await page.getByTestId('list-filter-picker').getByRole('button', { name: /Another filter \(OR\)/ }).click()
     await page.getByTestId('or-group-panel').getByRole('button', { name: 'Status' }).click()
     await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Waiting' }).click()
-    await expect(card.getByTestId('or-group')).toHaveText(/Priority\s*Urgent, Important\s*or\s*Status\s*Waiting/)
+    await expect(card.getByTestId('or-group')).toHaveText(/Priority\s*Important\s*or\s*Status\s*Waiting/)
     await settings.getByRole('button', { name: 'Close settings' }).click()
     await expect(settings).toHaveCount(0)
 
-    await expect(quadrant('do').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent, Important or Waiting')
+    await expect(quadrant('do').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent · Important or Waiting')
     // The group writes nothing: a task none of its filters keeps is refused, naming the group.
     const from = wsCell(page, 'a1').locator('[data-row-key]').filter({ hasText: 'Calm task' })
     const a = await box(from)
@@ -141,7 +141,7 @@ test.describe('desktop', () => {
         await expect(quadrant('do')).toHaveAttribute('data-drop-state', 'refused')
         const tip = page.getByTestId('eisenhower-refusal')
         await expect(tip).toContainText('Can’t move to Do')
-        await expect(tip).toContainText('Calm task doesn’t match any filter in its group (Priority Urgent, Important or Status Waiting).')
+        await expect(tip).toContainText('Calm task doesn’t match any filter in its group (Priority Important or Status Waiting).')
       },
     })
     await expect(page.getByTestId('eisenhower-refusal')).toHaveCount(0)
@@ -152,7 +152,7 @@ test.describe('a group of one, and long groups', () => {
   test.use({ viewport: { width: 1600, height: 900 } })
 
   const LONG = 'a really long piece of search text that keeps on going well past the width of any editor'
-  const longGroup = { personIds: null, statusIds: null, searchText: LONG, dates: {}, markers: { urgent: true, important: true, focus: false }, tags: null }
+  const longGroup = { personIds: null, statusIds: null, searchText: LONG, dates: {}, markers: [{ values: ['urgent'] }, { values: ['important'] }, { values: ['focus'], not: true }], tags: null }
 
   /** Nothing of a stack's or groups runs past its plate, and no plate past its block. */
   async function expectNoSpill(page: Page) {
@@ -197,7 +197,7 @@ test.describe('a group of one, and long groups', () => {
   })
 
   test('× leaves one item: the group goes and the item stays, in its place; the list stays as it was on opening', async ({ page }) => {
-    const grouped = { personIds: null, statusIds: null, searchText: 'task', dates: {}, markers: { focus: true }, tags: null }
+    const grouped = { personIds: null, statusIds: null, searchText: 'task', dates: {}, markers: [{ values: ['focus'] }], tags: null }
     await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', predicate: { orGroups: [grouped] } }] })
     const widget = wsListWidget(page, 't1')
     const save = page.getByRole('button', { name: 'Save list' })
@@ -214,7 +214,7 @@ test.describe('a group of one, and long groups', () => {
   })
 
   test('emptied in its picker: the group waits while the picker is open and goes when it closes', async ({ page }) => {
-    const grouped = { personIds: null, statusIds: null, searchText: 'task', dates: {}, markers: { focus: true }, tags: null }
+    const grouped = { personIds: null, statusIds: null, searchText: 'task', dates: {}, markers: [{ values: ['focus'] }], tags: null }
     await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', predicate: { orGroups: [grouped] } }] })
     const widget = wsListWidget(page, 't1')
     await widget.getByTestId('list-filter-chip').filter({ hasText: 'Text' }).click()
@@ -230,7 +230,7 @@ test.describe('a group of one, and long groups', () => {
   })
 
   test('a stored group of one reads as its chip, and the list isn\'t unsaved for it', async ({ page }) => {
-    const single = { personIds: null, statusIds: null, searchText: '', dates: {}, markers: { focus: true }, tags: null }
+    const single = { personIds: null, statusIds: null, searchText: '', dates: {}, markers: [{ values: ['focus'] }], tags: null }
     await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', predicate: { orGroups: [single] } }] })
     const widget = wsListWidget(page, 't1')
     await expect(widget.getByTestId('or-group')).toHaveCount(0)
@@ -245,7 +245,7 @@ test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
   test('the Edit list sheet makes a group from a chip; the list behind follows', async ({ page }) => {
-    await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', predicate: { markers: { focus: true } } }] })
+    await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', predicate: { markers: [{ values: ['focus'] }] } }] })
     const shown = async () => (await wsCell(page, 'k1').locator('[data-todo-id]').allTextContents())
       .map((text) => ALL.find((title) => text.includes(title)) ?? text)
     await expect.poll(shown).toEqual(['Hot one'])

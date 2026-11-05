@@ -1,4 +1,4 @@
-import { emptyFilterClauses, OR_GROUPS_MAX, type DateAnchor, type DateFilters, type DateMatch, type FilterClauses, type FilterNegation, type MarkersFilter, type NegatableField, type Person, type Status, type Tag, type TodoPredicate } from '../models'
+import { emptyFilterClauses, MARKER_CLAUSES_MAX, OR_GROUPS_MAX, type DateAnchor, type DateFilters, type DateMatch, type FilterClauses, type FilterNegation, type MarkersFilter, type NegatableField, type Person, type Status, type Tag, type TodoPredicate } from '../models'
 import { DATE_FIELD_VALUES, type DateField } from '../models/app-view'
 import { startOfDay } from './date'
 import { rollingDayLabel } from './date-anchor'
@@ -7,7 +7,7 @@ import { resolveDateAnchor, type WeekStart } from './effective-date'
 import { isNegated, withIdFilter, type IdList } from './filter-negation'
 import { DATE_FIELD_LABELS_SHORT, NO_STATUS_LABEL, NO_TAGS_LABEL, UNASSIGNED_LABEL } from './filter-labels'
 import { formatFollowupDate } from './followup'
-import { hasMarkers, MARKERS_LABEL, markersTooltip, markersValue } from './markers'
+import { hasMarkers, MARKERS_LABEL, markerClauseNames, markersHideLine, withMarkerClause } from './markers'
 import { hasOrGroups, withOrGroupClauses } from './or-groups'
 
 /** The filter fields a chip stands for. */
@@ -20,6 +20,8 @@ export interface FilterChip {
   field: FilterChipField
   /** A date chip's date type (one chip per date type that filters). */
   dateField?: DateField
+  /** A Priority chip: which condition of the Priority filter it shows (Priority repeats). */
+  markerIndex?: number
   /** Field name, e.g. `Due`, `Status` (list chips show it muted before the value). */
   label: string
   /** Value text, e.g. `within the next 14 days`, `Alice or Ben`, `#q4`, `not Waiting`, `Urgent, not Important`. */
@@ -27,7 +29,7 @@ export interface FilterChip {
   /** An "is not" People / Status / Tags chip or date range: its value starts `not ` (or reads `has a tag`). */
   negated?: true
   /**
-   * Spelled out for a tooltip — an "is not" chip or a Priority No (what it
+   * Spelled out for a tooltip — an "is not" chip (what it
    * hides), a multi-value "is" chip (every value, and that any of them
    * will do), a date range (its exact days, given `FilterChipNames.day`);
    * absent when the chip says it all.
@@ -304,8 +306,9 @@ function dateChips(dates: DateFilters, day: ChipDay | undefined): FilterChip[] {
   })
 }
 
-/** A key unique among a filter's chips: the field, or `dates:<type>` for a date chip. */
-export function chipKey(chip: FilterChip): string {
+/** A key unique among a filter's chips: the field, `dates:<type>` for a date chip, `markers:<index>` for a Priority chip. */
+export function chipKey(chip: Pick<FilterChip, 'field' | 'dateField' | 'markerIndex'>): string {
+  if (chip.markerIndex !== undefined) return `${chip.field}:${chip.markerIndex}`
   return chip.dateField ? `${chip.field}:${chip.dateField}` : chip.field
 }
 
@@ -370,11 +373,20 @@ export function datesSpokenValue(dates: DateFilters): string | null {
  */
 export function filterChips(c: ChipClauses, names: FilterChipNames, includeCompleted = false): FilterChip[] {
   const chips: FilterChip[] = []
-  if (hasMarkers(c.markers)) {
-    // A No marker: `Urgent, not Important`, with a tooltip saying what it hides.
-    const tooltip = markersTooltip(c.markers)
-    chips.push({ field: 'markers', label: MARKERS_LABEL, value: markersValue(c.markers), ...(tooltip ? { tooltip } : {}) })
-  }
+  // Priority: a chip per condition, read as a Status chip (`Urgent or Important`, `not Focus`).
+  ;(c.markers ?? []).forEach((clause, markerIndex) => {
+    if (clause.values.length === 0) return
+    const names = markerClauseNames(clause)
+    const value = orValue(names)
+    const base = { field: 'markers' as const, markerIndex, label: MARKERS_LABEL }
+    if (clause.not) {
+      chips.push({ ...base, value: `not ${value}`, negated: true, tooltip: `${MARKERS_LABEL}: not ${orList(names)}\n${markersHideLine(clause)}` })
+    } else if (names.length > 1) {
+      chips.push({ ...base, value, tooltip: `${MARKERS_LABEL}: ${orList(names)}\nTasks with any of them` })
+    } else {
+      chips.push({ ...base, value })
+    }
+  })
   // An id chip: `Alice or Ben` with a tooltip spelling every value, or —
   // "is not" — `not Alice or Ben` with a tooltip saying what it hides.
   const idChip = (field: 'tags' | 'people' | 'status', key: NegatableField, label: string, ids: Iterable<number>, nameOf: (id: number) => string | undefined, zeroName: string, prefix = ''): FilterChip => {
@@ -471,12 +483,12 @@ export function listFilterHint(items: readonly (FilterChip | LineItem)[]): strin
  * `completed` turns Show completed off (clauses without it are returned as
  * they are).
  */
-export function clearChipField<T extends ChipClauses & FilterClauses>(p: T, field: FilterChipField, dateField?: DateField): T {
+export function clearChipField<T extends ChipClauses & FilterClauses>(p: T, field: FilterChipField, dateField?: DateField, markerIndex?: number): T {
   switch (field) {
     case 'people': return withIdFilter(p, 'personIds', null, false)
     case 'tags': return withIdFilter(p, 'tags', null, false)
     case 'status': return withIdFilter(p, 'statusIds', null, false)
-    case 'markers': return { ...p, markers: null }
+    case 'markers': return { ...p, markers: markerIndex === undefined ? null : withMarkerClause(p.markers, markerIndex, null) }
     case 'text': return { ...p, searchText: '' }
     case 'dates': return { ...p, dates: dateField ? withDateMatch(p.dates, dateField, null) : {} }
     case 'completed': return p.showCompleted === undefined ? p : { ...p, showCompleted: false }
@@ -487,20 +499,21 @@ export function clearChipField<T extends ChipClauses & FilterClauses>(p: T, fiel
  * The predicate without one chip's clause — of its own clauses, or of or
  * group `orGroup`'s (the or group goes when that was its last clause).
  */
-export function removeChip(p: TodoPredicate, chip: Pick<FilterChip, 'field' | 'dateField'>, orGroup?: number): TodoPredicate {
-  if (orGroup == null) return clearChipField(p, chip.field, chip.dateField)
-  return withOrGroupClauses(p, orGroup, (c) => clearChipField(c, chip.field, chip.dateField))
+export function removeChip(p: TodoPredicate, chip: Pick<FilterChip, 'field' | 'dateField' | 'markerIndex'>, orGroup?: number): TodoPredicate {
+  if (orGroup == null) return clearChipField(p, chip.field, chip.dateField, chip.markerIndex)
+  return withOrGroupClauses(p, orGroup, (c) => clearChipField(c, chip.field, chip.dateField, chip.markerIndex))
 }
 
 /**
  * The fields `c` can't take again: those whose clauses filter there — and
  * `dates` only when every date type of `dateTypes` (the types the host's
  * date panel offers) filters, since each date type is its own chip (one
- * clause per type): while a type is free, Dates adds a chip for it.
+ * clause per type): while a type is free, Dates adds a chip for it; `markers`
+ * only at `MARKER_CLAUSES_MAX`, since Priority repeats.
  */
 export function heldFields(c: FilterClauses, dateTypes: readonly DateField[] = DATE_FIELD_VALUES): Set<FilterChipField> {
   const held = new Set<FilterChipField>()
-  if (hasMarkers(c.markers)) held.add('markers')
+  if ((c.markers?.length ?? 0) >= MARKER_CLAUSES_MAX) held.add('markers')
   if (c.tags != null) held.add('tags')
   if (c.personIds != null) held.add('people')
   if (freeDateField(c.dates, dateTypes) == null) held.add('dates')
@@ -510,14 +523,17 @@ export function heldFields(c: FilterClauses, dateTypes: readonly DateField[] = D
 }
 
 /** Only one chip's clause of `c` (its "is not" switch with it; a date chip's date type alone). */
-export function chipClauses(c: FilterClauses, chip: Pick<FilterChip, 'field' | 'dateField'>): FilterClauses {
+export function chipClauses(c: FilterClauses, chip: Pick<FilterChip, 'field' | 'dateField' | 'markerIndex'>): FilterClauses {
   const out = emptyFilterClauses()
   const negated = (key: NegatableField) => (isNegated(c, key) ? { negate: { [key]: true } } : {})
   switch (chip.field) {
     case 'people': return { ...out, personIds: c.personIds, ...negated('personIds') }
     case 'tags': return { ...out, tags: c.tags ?? null, ...negated('tags') }
     case 'status': return { ...out, statusIds: c.statusIds, ...negated('statusIds') }
-    case 'markers': return { ...out, markers: c.markers ?? null }
+    case 'markers': {
+      const one = chip.markerIndex === undefined ? c.markers : c.markers?.slice(chip.markerIndex, chip.markerIndex + 1)
+      return { ...out, markers: one ?? null }
+    }
     case 'text': return { ...out, searchText: c.searchText }
     case 'dates': {
       const m = chip.dateField ? c.dates[chip.dateField] : undefined
@@ -532,8 +548,8 @@ export function chipClauses(c: FilterClauses, chip: Pick<FilterChip, 'field' | '
  * group's first alternative (it then filters exactly as the chip did);
  * `null` when `OR_GROUPS_MAX` or groups are there.
  */
-export function wrapChipInOrGroup(p: TodoPredicate, chip: Pick<FilterChip, 'field' | 'dateField'>): TodoPredicate | null {
+export function wrapChipInOrGroup(p: TodoPredicate, chip: Pick<FilterChip, 'field' | 'dateField' | 'markerIndex'>): TodoPredicate | null {
   const count = p.orGroups?.length ?? 0
   if (count >= OR_GROUPS_MAX) return null
-  return withOrGroupClauses(clearChipField(p, chip.field, chip.dateField), count, () => chipClauses(p, chip))
+  return withOrGroupClauses(clearChipField(p, chip.field, chip.dateField, chip.markerIndex), count, () => chipClauses(p, chip))
 }

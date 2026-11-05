@@ -23,7 +23,7 @@ import {
   StatusRingIcon,
   WidgetKindIcon,
 } from '../icons'
-import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody, type FilterModeProps } from './FilterPanels'
+import { EntityDropdownItems, MarkerClausePicker, SelectionPanelBody, type FilterModeProps } from './FilterPanels'
 import { DateFilterPanel } from './DateFilterPanel'
 import { DatePendingNotContext, screenPendingNot } from './date-pending-not'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
@@ -415,11 +415,11 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
 interface FieldValues {
   /** The value text of each active field (tags without their `#`: the button shows a # glyph). */
   values: Partial<Record<FieldKey, string>>
-  /** An "is not" field's (or a Priority No's) tooltip: what it hides. */
+  /** An "is not" field's tooltip: what it hides. */
   tooltips: Partial<Record<FieldKey, string>>
 }
 
-/** Each active field's value text (`not Waiting` for an "is not" one) and the "is not" / Priority No tooltips. */
+/** Each active field's value text (`not Waiting` for an "is not" one) and the "is not" tooltips. */
 function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[1]): FieldValues {
   return useMemo(() => {
     const values: Partial<Record<FieldKey, string>> = {}
@@ -663,8 +663,8 @@ export function FilterChipBarDesktop({
     onClear: () => clearField('markers'),
     panel: {
       kind: 'custom',
-      // Several markers can be set, so picking one keeps the picker open.
-      render: () => <MarkersPanelBody value={p.markers ?? null} onChange={(markers) => update({ markers })} />,
+      // The top bar is flat: one condition. Picking keeps the picker open.
+      render: () => <MarkerClausePicker clause={p.markers?.[0] ?? null} onChange={(c) => update({ markers: c ? [c] : null })} />,
     },
   })
   // Buttons and the folded menu in display order (Priority, Tags, People, Dates, Status).

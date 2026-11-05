@@ -210,7 +210,7 @@ describe('useSettingsStore', () => {
   })
 
   it('the check-in filter defaults to none, is kept without people (none = the row removed), and reads leniently', async () => {
-    useSettingsStore.setState({ checkinTaskFilter: { ...emptyPredicate(), markers: 'hot' } })
+    useSettingsStore.setState({ checkinTaskFilter: { ...emptyPredicate(), markers: [{ values: ['focus' as const] }] } })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().checkinTaskFilter).toEqual(emptyPredicate())
 
@@ -583,7 +583,7 @@ describe('useSettingsStore', () => {
 })
 
 describe('the Eisenhower settings', () => {
-  const HAND_OFF = { delegate: { name: 'Hand off', filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: { urgent: true, important: false }, negate: { statusIds: true as const } } } }
+  const HAND_OFF = { delegate: { name: 'Hand off', filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: [{ values: ['urgent' as const] }, { values: ['important' as const], not: true as const }], negate: { statusIds: true as const } } } }
   const undoNames = () => useUndoStore.getState().undoStack.map((e) => e.description)
   afterEach(() => { vi.restoreAllMocks() })
 

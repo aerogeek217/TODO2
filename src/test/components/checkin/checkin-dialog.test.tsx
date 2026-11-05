@@ -46,7 +46,7 @@ const ASSIGNED = new Map<number, Person[]>([[1, [ada]], [2, [ada, bob]], [3, [ad
 const REVIEWS: TodoPredicate = {
   showCompleted: false, personIds: null, statusIds: null, searchText: 'review', dates: {}, markers: null, tags: null,
 }
-const HOT: TodoPredicate = { ...REVIEWS, searchText: '', markers: 'hot' }
+const HOT: TodoPredicate = { ...REVIEWS, searchText: '', markers: [{ values: ['focus'] }] }
 
 let events: string[]
 let clicked: HTMLAnchorElement[]
@@ -209,11 +209,11 @@ describe('CheckinDialog — Which tasks', () => {
     expect([count(1), count(2)]).toEqual(['3 tasks', '2 tasks'])
     fireEvent.click(within(filterLine()).getByRole('button', { name: 'Filter' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Priority' }))
-    await act(async () => { fireEvent.click(screen.getByRole('checkbox', { name: 'Hot' })) })
-    expect(useSettingsStore.getState().checkinTaskFilter.markers).toBe('hot')
+    await act(async () => { fireEvent.click(screen.getByRole('option', { name: /Focus/ })) })
+    expect(useSettingsStore.getState().checkinTaskFilter.markers).toEqual([{ values: ['focus'] }])
     expect(await db.settings.get('checkinTaskFilter')).toBeTruthy()
     expect([count(1), count(2)]).toEqual(['0 tasks', '0 tasks'])
-    expect(within(filterLine()).getAllByTestId('list-filter-chip').map((c) => c.textContent)).toEqual(['PriorityHot'])
+    expect(within(filterLine()).getAllByTestId('list-filter-chip').map((c) => c.textContent)).toEqual(['PriorityFocus'])
     expect(within(row(1)).getByRole('button', { name: 'Copy & open for Ada Lovelace' })).toHaveProperty('disabled', true)
   })
 
@@ -234,9 +234,9 @@ describe('CheckinDialog — Which tasks', () => {
     open([1])
     fireEvent.click(within(filterLine()).getByRole('button', { name: 'Filter' }))
     fireEvent.click(screen.getByRole('menuitem', { name: 'Priority' }))
-    const hot = screen.getByRole('checkbox', { name: 'Hot' })
-    fireEvent.keyDown(hot, { key: 'Escape' })
-    expect(screen.queryByRole('checkbox', { name: 'Hot' })).toBeNull()
+    const focus = screen.getByRole('option', { name: /Focus/ })
+    fireEvent.keyDown(focus, { key: 'Escape' })
+    expect(screen.queryByRole('option', { name: /Focus/ })).toBeNull()
     expect(dialog()).toBeTruthy()
   })
 

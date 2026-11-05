@@ -52,7 +52,7 @@ import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, WorkspaceLayout }
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 73
+export const DEV_SEED_SCHEMA_VERSION = 74
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -845,8 +845,8 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     list(L.byPerson, 'By person', filter({
       personIds: [IDS.people.elena, IDS.people.david, 0], tags: [IDS.tags.customer, IDS.tags.urgent],
     }), 'people', 'people', def, { runtimeFilter: { field: 'person' } }),
-    list(L.focus, 'Focus', filter({ markers: { focus: true } }), 'manual', 'none', def),
-    list(L.hot, 'Hot', filter({ markers: 'hot' }), 'priority', 'none', plan),
+    list(L.focus, 'Focus', filter({ markers: [{ values: ['focus'] }] }), 'manual', 'none', def),
+    list(L.hot, 'Hot', filter({ markers: [{ values: ['urgent', 'focus'] }, { values: ['important', 'focus'] }] }), 'priority', 'none', plan),
     list(L.recentlyAdded, 'Recently added', filter({
       statusIds: [IDS.statuses.parked], negate: { statusIds: true },
       dates: { created: range({ kind: 'offset', days: -14 }, null) },

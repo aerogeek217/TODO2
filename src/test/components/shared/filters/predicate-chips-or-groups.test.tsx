@@ -41,7 +41,7 @@ const waiting: TodoPredicate = { ...emptyPredicate(), statusIds: [2] }
 const grouped: TodoPredicate = {
   ...emptyPredicate(),
   statusIds: [2],
-  orGroups: [clauses({ markers: 'hot', personIds: [1] })],
+  orGroups: [clauses({ markers: [{ values: ['focus'] }], personIds: [1] })],
 }
 
 const chip = (text: RegExp) => screen.getAllByTestId('list-filter-chip').find((c) => text.test(c.textContent ?? ''))!
@@ -55,7 +55,7 @@ describe('PredicateChips — or groups on the filter line', () => {
     const { container, unmount } = render(<Harness initial={grouped} log={[]} />)
     const plate = screen.getByTestId('or-group')
     expect(plate).toHaveAttribute('aria-label', 'Group')
-    expect(within(plate).getAllByTestId('list-filter-chip').map((c) => c.textContent)).toEqual(['PriorityHot', 'PeopleAlice'])
+    expect(within(plate).getAllByTestId('list-filter-chip').map((c) => c.textContent)).toEqual(['PriorityFocus', 'PeopleAlice'])
     expect(words(container)).toEqual(['and', 'or'])
     unmount()
     const { container: flat } = render(<Harness initial={{ ...waiting, personIds: [1] }} log={[]} />)
@@ -99,7 +99,7 @@ describe('PredicateChips — or groups on the filter line', () => {
     fireEvent.click(within(screen.getByTestId('or-group')).getByRole('button', { name: 'Group' }))
     const panel = screen.getByRole('dialog', { name: 'Group' })
     expect(within(panel).getAllByRole('button').map((b) => b.textContent)).toEqual([
-      'Tags', 'Dates', 'Status', 'Text contains…', 'Remove groupwith its 2 filters',
+      'Priority', 'Tags', 'Dates', 'Status', 'Text contains…', 'Remove groupwith its 2 filters',
     ])
     fireEvent.click(within(panel).getByRole('button', { name: /Remove group/ }))
     expect(log.at(-1)).toEqual(waiting)
@@ -112,7 +112,7 @@ describe('PredicateChips — or groups on the filter line', () => {
     fireEvent.click(within(screen.getByTestId('or-group')).getByRole('button', { name: 'Group' }))
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Group' })).getByRole('button', { name: 'Tags' }))
     tick('work')
-    expect(log.at(-1)?.orGroups).toEqual([clauses({ markers: 'hot', personIds: [1], tags: [10] })])
+    expect(log.at(-1)?.orGroups).toEqual([clauses({ markers: [{ values: ['focus'] }], personIds: [1], tags: [10] })])
     expect(log.at(-1)?.tags).toBeNull()
   })
 
@@ -161,7 +161,7 @@ describe('PredicateChips — or groups on the filter line', () => {
   })
 
   it('no new group past the cap: a chip of its own offers no "Another filter (OR)"', () => {
-    const full: TodoPredicate = { ...waiting, orGroups: Array.from({ length: OR_GROUPS_MAX }, () => clauses({ markers: 'hot', personIds: [1] })) }
+    const full: TodoPredicate = { ...waiting, orGroups: Array.from({ length: OR_GROUPS_MAX }, () => clauses({ markers: [{ values: ['focus'] }], personIds: [1] })) }
     render(<Harness initial={full} log={[]} />)
     fireEvent.click(chip(/Status/))
     expect(screen.getByRole('dialog', { name: 'Status filter' })).toBeInTheDocument()
@@ -244,13 +244,13 @@ describe('PredicateChips — a group emptied while its picker is open', () => {
     const third = clauses({ statusIds: [2], searchText: 'b' })
     const three: TodoPredicate = {
       ...emptyPredicate(),
-      // The first group is of one clause and stays: the predicate filters on Priority too.
-      markers: { urgent: true },
-      orGroups: [clauses({ markers: 'hot' }), second, third],
+      // The first group is of one clause and stays: the predicate filters on text too.
+      searchText: 'own',
+      orGroups: [clauses({ searchText: 'first' }), second, third],
     }
     render(<Harness initial={three} log={log} layout="stack" />)
     fireEvent.click(chip(/People/))
-    fireEvent.click(within(chip(/Hot/)).getByRole('button', { name: 'Remove filter' }))
+    fireEvent.click(within(chip(/first/)).getByRole('button', { name: 'Remove filter' }))
     expect(log.at(-1)?.orGroups).toEqual([second, third])
     expect(screen.getByTestId('list-filter-picker')).toHaveAttribute('aria-label', 'People filter')
     tick('Bob')
@@ -379,14 +379,14 @@ describe('PredicateChips — the rows keep the order they were added in', () => 
 
   it('a filter added from + Filter goes last, whatever its field (the stored order puts People and Tags before Status)', () => {
     render(<Harness initial={grouped} log={[]} layout="stack" />)
-    expect(rowTexts()).toEqual(['StatusWaiting', 'PriorityHotorPeopleAlice'])
+    expect(rowTexts()).toEqual(['StatusWaiting', 'PriorityFocusorPeopleAlice'])
     addFilter('People')
     tick('Bob')
-    expect(rowTexts()).toEqual(['StatusWaiting', 'PriorityHotorPeopleAlice', 'PeopleBob'])
+    expect(rowTexts()).toEqual(['StatusWaiting', 'PriorityFocusorPeopleAlice', 'PeopleBob'])
     fireEvent.keyDown(document.body, { key: 'Escape' })
     addFilter('Tags')
     tick('work')
-    expect(rowTexts()).toEqual(['StatusWaiting', 'PriorityHotorPeopleAlice', 'PeopleBob', 'Tags#work'])
+    expect(rowTexts()).toEqual(['StatusWaiting', 'PriorityFocusorPeopleAlice', 'PeopleBob', 'Tags#work'])
   })
 
   it('a chip removed then added again goes last', () => {
@@ -402,7 +402,7 @@ describe('PredicateChips — the rows keep the order they were added in', () => 
     const three: TodoPredicate = {
       ...emptyPredicate(),
       orGroups: [
-        clauses({ markers: 'hot', searchText: 'a' }),
+        clauses({ markers: [{ values: ['focus'] }], searchText: 'a' }),
         clauses({ personIds: [1], statusIds: [1] }),
         clauses({ statusIds: [2], searchText: 'b' }),
       ],
@@ -411,7 +411,7 @@ describe('PredicateChips — the rows keep the order they were added in', () => 
     addFilter('Tags')
     tick('work')
     fireEvent.keyDown(document.body, { key: 'Escape' })
-    const hotGroup = 'PriorityHotorText“a”'
+    const hotGroup = 'PriorityFocusorText“a”'
     const peopleGroup = 'PeopleAliceorStatusActive'
     const statusGroup = 'StatusWaitingorText“b”'
     expect(rowTexts()).toEqual([hotGroup, peopleGroup, statusGroup, 'Tags#work'])
@@ -466,21 +466,21 @@ describe('PredicateChips — Dates again while a date type is free (cr25 P4b)', 
 
   it('a group’s panel offers Dates while a type is free there, on the first free type', () => {
     const log: TodoPredicate[] = []
-    render(<Harness initial={{ ...waiting, orGroups: [clauses({ markers: 'hot', dates: { deadline: set, followup: set } })] }} log={log} />)
+    render(<Harness initial={{ ...waiting, orGroups: [clauses({ markers: [{ values: ['focus'] }], dates: { deadline: set, followup: set } })] }} log={log} />)
     fireEvent.click(within(screen.getByTestId('or-group')).getAllByRole('button', { name: 'Group' })[0]!)
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Group' })).getByRole('button', { name: 'Dates' }))
     expect(dialogTab('Last follow-up')).toHaveAttribute('aria-selected', 'true')
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Date filters' })).getByRole('radio', { name: 'Any' }))
-    expect(log.at(-1)?.orGroups).toEqual([clauses({ markers: 'hot', dates: { deadline: set, followup: set, lastFollowup: set } })])
+    expect(log.at(-1)?.orGroups).toEqual([clauses({ markers: [{ values: ['focus'] }], dates: { deadline: set, followup: set, lastFollowup: set } })])
     expect(log.at(-1)?.dates).toEqual({})
   })
 
   it('a group with every offered type filtering doesn’t offer Dates — the host’s left-out types not counted', () => {
-    const { unmount } = render(<Harness initial={{ ...waiting, orGroups: [clauses({ markers: 'hot', dates: allButCompleted })] }} log={[]} />)
+    const { unmount } = render(<Harness initial={{ ...waiting, orGroups: [clauses({ markers: [{ values: ['focus'] }], dates: allButCompleted })] }} log={[]} />)
     fireEvent.click(within(screen.getByTestId('or-group')).getAllByRole('button', { name: 'Group' })[0]!)
     expect(panelFields()).toContain('Dates')
     unmount()
-    render(<Harness initial={{ ...waiting, orGroups: [clauses({ markers: 'hot', dates: allButCompleted })] }} log={[]} dateHost={{ omit: ['completed'] }} />)
+    render(<Harness initial={{ ...waiting, orGroups: [clauses({ markers: [{ values: ['focus'] }], dates: allButCompleted })] }} log={[]} dateHost={{ omit: ['completed'] }} />)
     fireEvent.click(within(screen.getByTestId('or-group')).getAllByRole('button', { name: 'Group' })[0]!)
     expect(panelFields()).not.toContain('Dates')
   })

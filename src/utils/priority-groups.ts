@@ -1,7 +1,7 @@
 import { MARKER_KEYS, type MarkerKey } from '../models/filter-predicate'
 import { dropDescription } from './eisenhower'
 import { DEFAULT_HOT_RULE, hasMarker, isHot, type HotRule, type MarkerFields } from './hot'
-import { HOT_COLOR, HOT_LABEL, MARKER_COLOR, MARKER_LABELS } from './markers'
+import { HOT_COLOR, HOT_LABEL, MARKER_COLOR, MARKER_LABELS, NO_PRIORITY_LABEL } from './markers'
 import { URGENT_BY_DATE_HINT, urgentByDateSentence, type UrgentDueWithinDays } from './urgency'
 
 /**
@@ -34,7 +34,7 @@ export function priorityGroupOfKey(key: string): PriorityGroup | null {
 
 /** The No priority section: its key and name. */
 export const NO_PRIORITY_KEY = 'no-priority'
-export const NO_PRIORITY_LABEL = 'No priority'
+export { NO_PRIORITY_LABEL }
 
 export const PRIORITY_GROUP_LABEL: Record<PriorityGroup, string> = {
   hot: HOT_LABEL,

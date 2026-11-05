@@ -140,7 +140,7 @@ describe('EisenhowerWidget', () => {
     setup()
     act(() => {
       useFilterStore.getState().setPersonIds(new Set([9]))
-      patchScreenFilter({ markers: { focus: true, urgent: true } })
+      patchScreenFilter({ markers: [{ values: ['focus'] }, { values: ['urgent'] }] })
     })
     fireEvent.click(within(quadrant('schedule')).getByRole('button', { name: 'Add task to Schedule' }))
     expect(useUIStore.getState().quickAddOpen).toBe(true)

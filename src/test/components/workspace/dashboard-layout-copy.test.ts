@@ -112,9 +112,9 @@ describe('dashboard copy', () => {
     const items = predicateLineItems({
       ...emptyPredicate(),
       statusIds: [0],
-      orGroups: [{ ...emptyFilterClauses(), markers: 'hot', personIds: [1] }],
+      orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }], personIds: [1] }],
     }, names)
-    expect(listFilterHint(items)).toBe('Status: No status · Priority: Hot or @Aisha')
+    expect(listFilterHint(items)).toBe('Status: No status · Priority: Focus or @Aisha')
     expect(listFilterHint(predicateLineItems({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), personIds: [1] }] }, names))).toBe('@Aisha')
   })
 })

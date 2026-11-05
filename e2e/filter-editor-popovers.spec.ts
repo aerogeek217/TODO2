@@ -13,7 +13,7 @@ import { rowTitles } from './fixtures/seed'
 
 const SEED: WorkspaceSeed = {
   people: ['Ann', 'Bob'],
-  listDefinitions: [{ name: 'Team', predicate: { markers: { urgent: true } } }],
+  listDefinitions: [{ name: 'Team', predicate: { markers: [{ values: ['urgent'] }] } }],
   tasks: [
     { title: 'Ann urgent', people: ['Ann'], urgent: true },
     { title: 'Bob urgent', people: ['Bob'], urgent: true },
@@ -67,7 +67,7 @@ test('Edit list: Another filter (OR) makes a group in the chip’s place; the gr
   await expect(group.getByTestId('list-filter-chip')).toHaveText(/Priority\s*Urgent/)
   // The fields to add, the first one focused.
   const panel = page.getByTestId('or-group-panel')
-  await expect(panel.getByRole('button', { name: 'Tags' })).toBeFocused()
+  await expect(panel.getByRole('button', { name: 'Priority' })).toBeFocused()
   await panel.getByRole('button', { name: 'People' }).click()
   await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Ann' }).click()
   await expect.poll(() => titles(page)).toEqual(['Ann urgent', 'Bob urgent', 'Ann calm'])
@@ -75,7 +75,7 @@ test('Edit list: Another filter (OR) makes a group in the chip’s place; the gr
   await page.keyboard.press('Escape')
 
   await group.getByRole('button', { name: 'Group' }).click()
-  await expect(panel.getByRole('button', { name: 'Tags' })).toBeFocused()
+  await expect(panel.getByRole('button', { name: 'Priority' })).toBeFocused()
   await panel.getByRole('button', { name: /Remove group/ }).click()
   await expect.poll(() => titles(page)).toEqual(['Ann urgent', 'Bob urgent', 'Ann calm', 'Nobody calm'])
 })
@@ -87,7 +87,7 @@ test('Edit list: a filter added from + Another filter (AND) goes last, below the
       name: 'Team',
       predicate: {
         statusIds: null,
-        orGroups: [{ personIds: [1, 2], statusIds: null, tags: null, searchText: '', dates: {}, markers: null }],
+        orGroups: [{ personIds: [1, 2], statusIds: null, tags: null, searchText: 'calm', dates: {}, markers: null }],
       },
     }],
   })
@@ -97,7 +97,7 @@ test('Edit list: a filter added from + Another filter (AND) goes last, below the
   await expect(stack.getByTestId('or-group')).toBeVisible()
   await editList.getByRole('button', { name: 'Another filter (AND)', exact: true }).click()
   await page.getByRole('menu', { name: 'Add a filter' }).getByRole('menuitem', { name: 'Priority' }).click()
-  await page.getByTestId('list-filter-picker').getByRole('radio', { name: 'Yes' }).first().click()
+  await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Focus' }).click()
   // Priority sorts first in the stored order; added, it is the last row.
   const rows = stack.locator('[data-testid="list-filter-chip"]:not([data-testid="or-group"] *), [data-testid="or-group"]')
   await expect(rows).toHaveCount(2)
@@ -114,12 +114,12 @@ test('the filter line: a group’s "or" opens its panel as a popover under the g
     listDefinitions: [{
       name: 'Team',
       predicate: {
-        orGroups: [{ personIds: null, statusIds: null, tags: null, searchText: '', dates: {}, markers: { urgent: true } }],
+        markers: [{ values: ['urgent'] }],
       },
     }],
   })
   const widget = wsListWidget(page, 't1')
-  // One chip in the group: give it a second alternative from its picker.
+  // One chip: make it a group from its picker.
   await widget.getByTestId('list-filter-chip').click()
   await page.getByTestId('list-filter-picker').getByRole('button', { name: /Another filter \(OR\)/ }).click()
   await page.getByTestId('or-group-panel').getByRole('button', { name: 'People' }).click()
@@ -135,7 +135,7 @@ test('the filter line: a group’s "or" opens its panel as a popover under the g
   const panelBox = (await panel.boundingBox())!
   expect(panelBox.y).toBeGreaterThanOrEqual(groupBox.y + groupBox.height)
   expect(Math.abs(panelBox.x - groupBox.x)).toBeLessThan(2)
-  await expect(panel.getByRole('button', { name: 'Tags' })).toBeFocused()
+  await expect(panel.getByRole('button', { name: 'Priority' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(panel).toHaveCount(0)
 })
@@ -148,17 +148,18 @@ for (const where of ['Edit list', 'the filter line'] as const) {
       ...SEED,
       listDefinitions: [{
         name: 'Team',
-        predicate: { orGroups: [{ ...NO_CLAUSE, searchText: 'urgent' }, { ...NO_CLAUSE, markers: { urgent: true } }] },
+        // Text in both places: the group of one stays, it can't join the list's own.
+        predicate: { searchText: 'a', orGroups: [{ ...NO_CLAUSE, searchText: 'urgent' }, { ...NO_CLAUSE, markers: [{ values: ['urgent'] }], tags: [1] }] },
       }],
     })
-    await expect.poll(() => titles(page)).toEqual(['Ann urgent', 'Bob urgent'])
+    await expect.poll(() => titles(page)).toEqual(['Ann urgent'])
     const widget = wsListWidget(page, 't1')
     let block = widget
     if (where === 'Edit list') {
       await widget.getByTestId('list-summary').click()
       block = page.getByTestId('edit-list')
     }
-    await block.getByTestId('list-filter-chip').filter({ hasText: 'Text' }).click()
+    await block.getByTestId('list-filter-chip').filter({ hasText: '“urgent”' }).click()
     const input = page.getByRole('textbox', { name: 'Text contains' })
     await expect(input).toBeFocused()
     // Emptied, the group goes from the list; the picker stays on it.

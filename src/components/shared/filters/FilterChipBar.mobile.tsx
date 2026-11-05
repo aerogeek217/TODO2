@@ -1,13 +1,11 @@
 import { useCallback, useMemo, useRef, useState } from 'react'
 import { ClearableField } from '../ClearableField'
 import { datesValue, filterChips } from '../../../utils/filter-chips'
-import { HotIcon, MarkerIcon } from '../MarkerIcons'
-import { MARKER_KEYS } from '../../../models'
-import { activeMarkers, hasExcludedMarker, HOT_LABEL, isHotFilter, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, markersValue, toggleHot } from '../../../utils/markers'
+import { MARKER_PICKER_ROWS, markerClauseOfIds, markerPickerIds, MARKERS_LABEL, NO_PRIORITY_LABEL } from '../../../utils/markers'
 import sheet from './FilterChipBarMobile.module.css'
 import { DateFilterPanel } from './DateFilterPanel'
 import { DatePendingNotContext, screenPendingNot } from './date-pending-not'
-import { FilterModeToggle, MarkerConditionToggle } from './FilterPanels'
+import { FilterModeToggle } from './FilterPanels'
 import { entityTicked, entityToggle } from '../../../utils/filter-negation'
 import { NO_TAGS_LABEL } from '../../../utils/filter-labels'
 import {
@@ -58,10 +56,15 @@ interface MobileEntityListProps {
   onToggle: (id: number) => void
   /** The None row's name (`Unassigned`, `No status`, `No tags`); without one, no None row. */
   noneLabel?: string
-  searchPlaceholder: string
+  /** No search box when absent (a list too short to need one). */
+  searchPlaceholder?: string
   searchText: string
   onSearchChange: (text: string) => void
+  /** The rows stay in the order given, not by name (Priority's fixed order). */
+  keepOrder?: boolean
 }
+
+const noSearch = () => {}
 
 /** A row press keeps the focus where it is (the search box). */
 function keepFocus(e: React.MouseEvent) {
@@ -87,6 +90,7 @@ function MobileEntityList({
   searchPlaceholder,
   searchText,
   onSearchChange,
+  keepOrder = false,
 }: MobileEntityListProps) {
   const searchRef = useRef<HTMLInputElement>(null)
   const withNone = noneLabel !== undefined
@@ -97,7 +101,7 @@ function MobileEntityList({
   const matching = entities
     .flatMap((e) => (e.id == null ? [] : [{ ...e, id: e.id }]))
     .filter((e) => !q || e.name.toLowerCase().includes(q))
-    .toSorted(byName)
+    .toSorted(keepOrder ? () => 0 : byName)
   const { top, rest } = splitOnTop(matching, (e) => order.onTop(e.id))
   const noneOnTop = withNone && order.onTop(0)
   const firstRestId = top.length > 0 || noneOnTop
@@ -145,21 +149,23 @@ function MobileEntityList({
   return (
     <div className={sheet.entityList}>
       <FilterModeToggle field={field} negated={negated} onChange={onNegatedChange} touch />
-      <ClearableField
-        className={sheet.entitySearchField}
-        value={searchText}
-        onClear={() => onSearchChange('')}
-        inputRef={searchRef}
-        label="Clear search"
-      >
-        <input
-          ref={searchRef}
-          className={sheet.entitySearchInput}
-          placeholder={searchPlaceholder}
+      {searchPlaceholder !== undefined && (
+        <ClearableField
+          className={sheet.entitySearchField}
           value={searchText}
-          onChange={(e) => onSearchChange(e.target.value)}
-        />
-      </ClearableField>
+          onClear={() => onSearchChange('')}
+          inputRef={searchRef}
+          label="Clear search"
+        >
+          <input
+            ref={searchRef}
+            className={sheet.entitySearchInput}
+            placeholder={searchPlaceholder}
+            value={searchText}
+            onChange={(e) => onSearchChange(e.target.value)}
+          />
+        </ClearableField>
+      )}
       {/* Each row is a real checkbox with its name as the label: a tap, Space or a screen reader ticks it. */}
       {noneOnTop && noneRow}
       {top.map(entityRow)}
@@ -178,6 +184,8 @@ export function FilterChipBarMobile({
 }: FilterChipBarProps) {
   const [openSection, setOpenSection] = useState<MobileSection | null>(null)
   const [entitySearch, setEntitySearch] = useState('')
+  // "Is not" with nothing ticked: no condition yet, so the section holds the mode.
+  const [markersPendingNot, setMarkersPendingNot] = useState(false)
   const resetDensityState = useCallback(() => {
     setOpenSection(null)
     setEntitySearch('')
@@ -207,9 +215,9 @@ export function FilterChipBarMobile({
   // An "is not" section shows its chip value (`not Waiting`) instead of a count.
   const names = useMemo(() => ({ people, tags: sortedTags, statuses }), [people, sortedTags, statuses])
   const notValues = useMemo(() => {
-    const out: Partial<Record<'people' | 'status' | 'tags', string>> = {}
+    const out: Partial<Record<'people' | 'status' | 'tags' | 'markers', string>> = {}
     for (const chip of filterChips(p, names)) {
-      if (chip.negated && (chip.field === 'people' || chip.field === 'status' || chip.field === 'tags')) out[chip.field] = chip.value
+      if (chip.negated && (chip.field === 'people' || chip.field === 'status' || chip.field === 'tags' || chip.field === 'markers')) out[chip.field] = chip.value
     }
     return out
   }, [p, names])
@@ -232,48 +240,47 @@ export function FilterChipBarMobile({
     setTags(entityToggle(tagIdsSet, negated.tags, tagId, allTagIds))
   }
 
-  const hot = isHotFilter(p.markers)
-  const markersActiveCount = (hot ? 1 : 0) + activeMarkers(p.markers).length
-  // With a No marker the row spells the filter out (`Urgent, not Important`), like an "is not" field.
-  const markersNot = hasExcludedMarker(p.markers)
+  // Priority: one condition in the phone's flat filter, ticked as Status is.
+  const markerClause = p.markers?.[0] ?? null
+  const markersNegated = markerClause ? markerClause.not === true : markersPendingNot
+  const markerIdsSet = markerClause ? markerPickerIds(markerClause) : null
+  const writeMarkers = (ids: Iterable<number> | null, not: boolean) => {
+    if (not) setMarkersPendingNot(true)
+    const clause = ids ? markerClauseOfIds(ids, not) : null
+    update({ markers: clause ? [clause] : null })
+  }
+  const handleMarkerToggle = (id: number) => {
+    const allIds = [0, ...MARKER_PICKER_ROWS.map((r) => r.id)]
+    writeMarkers(entityToggle(markerIdsSet, markersNegated, id, allIds), markersNegated)
+  }
+  const handleMarkersNegated = (on: boolean) => {
+    setMarkersPendingNot(on)
+    if (markerIdsSet) writeMarkers(markerIdsSet, on)
+  }
 
   return (
     <>
       {/* Priority section */}
       <AccordionSection
         label={MARKERS_LABEL}
-        badge={markersNot ? undefined : markersActiveCount}
-        value={markersNot ? markersValue(p.markers) : undefined}
+        badge={markerClause && !markerClause.not ? markerClause.values.length : undefined}
+        value={markerClause?.not ? notValues.markers : undefined}
         valueOn
         open={openSection === 'markers'}
         onToggle={() => handleSection('markers')}
       >
-        <div>
-          {/* Priority: Hot, or Any · Yes · No per marker (strict AND). Hot
-              clears the single markers and disables them. */}
-          <div className={sheet.filterRow}>
-            <span className={sheet.filterLabel}>
-              <span className={sheet.filterLabelIcon} style={{ color: 'var(--color-danger)' }}><HotIcon /></span>
-              {HOT_LABEL}
-            </span>
-            <button
-              className={`${sheet.toggle} ${hot ? sheet.toggleActive : ''}`}
-              onClick={() => update({ markers: toggleHot(p.markers) })}
-              role="switch"
-              aria-checked={hot}
-              aria-label="Only hot tasks"
-            />
-          </div>
-          {MARKER_KEYS.map((key) => (
-            <div key={key} className={`${sheet.filterRow} ${hot ? sheet.filterRowDisabled : ''}`}>
-              <span className={sheet.filterLabel} aria-hidden>
-                <span className={sheet.filterLabelIcon} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
-                {MARKER_LABELS[key]}
-              </span>
-              <MarkerConditionToggle marker={key} value={p.markers} onChange={(markers) => update({ markers })} touch disabled={hot} />
-            </div>
-          ))}
-        </div>
+        <MobileEntityList
+          field={MARKERS_LABEL}
+          entities={[...MARKER_PICKER_ROWS]}
+          filterIds={markerIdsSet}
+          negated={markersNegated}
+          onNegatedChange={handleMarkersNegated}
+          onToggle={handleMarkerToggle}
+          noneLabel={NO_PRIORITY_LABEL}
+          searchText=""
+          onSearchChange={noSearch}
+          keepOrder
+        />
       </AccordionSection>
 
       {/* Tags */}

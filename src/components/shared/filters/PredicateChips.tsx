@@ -29,8 +29,8 @@ import { PopoverRoot } from '../PopoverRoot'
 /** Which clauses an edit goes to: the predicate's own (`null`) or or group `n`'s. */
 type Scope = number | null
 
-/** A chip by what it filters: its field, and a date chip's date type. */
-type ChipRef = Pick<FilterChip, 'field' | 'dateField'>
+/** A chip by what it filters: its field, a date chip's date type, a Priority chip's condition. */
+type ChipRef = Pick<FilterChip, 'field' | 'dateField' | 'markerIndex'>
 
 /**
  * One of the predicate's own chips shown moved into a new or group (at
@@ -53,13 +53,22 @@ interface Wrap {
  * there; closing leaves it out.
  */
 type Open =
-  | { kind: 'field'; scope: Scope; field: ListFilterField; dateField?: DateField; adding: boolean; wrap?: Wrap; held?: FilterClauses; at: PopoverPoint }
+  | { kind: 'field'; scope: Scope; field: ListFilterField; dateField?: DateField; markerIndex?: number; adding: boolean; wrap?: Wrap; held?: FilterClauses; at: PopoverPoint }
   | { kind: 'group'; index: number; orAnother: boolean; wrap?: Wrap; at: PopoverPoint }
 
 /** A row's key in the rows' order: a chip's `chipKey`, a group's `group:<index>`. */
 const groupKey = (index: number) => `group:${index}`
 const itemKey = (item: LineItem) => (item.kind === 'chip' ? chipKey(item.chip) : groupKey(item.index))
-const refKey = (chip: ChipRef) => chipKey(chip as FilterChip)
+const refKey = (chip: ChipRef) => chipKey(chip)
+/** The order without Priority chip `index`'s key, the later Priority chips' keys moved down. */
+function withoutMarkerKey(order: readonly string[], index: number): string[] {
+  return order.flatMap((k) => {
+    if (!k.startsWith('markers:')) return [k]
+    const n = Number(k.slice('markers:'.length))
+    if (n === index) return []
+    return [n > index ? `markers:${n - 1}` : k]
+  })
+}
 /** The order without or group `index`'s key, the later groups' keys moved down. */
 function withoutGroupKey(order: readonly string[], index: number): string[] {
   return order.flatMap((k) => {
@@ -73,11 +82,13 @@ function withoutGroupKey(order: readonly string[], index: number): string[] {
 /**
  * A + Filter pick: that field's picker as a popover, adding to the
  * predicate's own clauses (Dates: on the first date type they don't filter
- * yet, so it adds a chip; every type filtering, the panel's default).
+ * yet, so it adds a chip; every type filtering, the panel's default.
+ * Priority: a new condition, so another chip).
  */
 interface AddPicker {
   field: ListFilterField
   dateField?: DateField
+  markerIndex?: number
   at: PopoverPoint
 }
 
@@ -167,7 +178,7 @@ function PredicateChipsBody({
   const [order, setOrder] = useState<string[]>(() => items.map(itemKey))
   // (The keys spelled here, not through `refKey`: the compiler reads a call
   // on `wrap` as a possible mutation and stops memoizing `shown`.)
-  const wrapFrom = wrap ? (wrap.chip.dateField ? `${wrap.chip.field}:${wrap.chip.dateField}` : wrap.chip.field) : null
+  const wrapFrom = wrap ? (wrap.chip.markerIndex !== undefined ? `${wrap.chip.field}:${wrap.chip.markerIndex}` : wrap.chip.dateField ? `${wrap.chip.field}:${wrap.chip.dateField}` : wrap.chip.field) : null
   const wrapTo = wrap ? `group:${wrap.index}` : null
   const rows = useMemo((): LineItem[] => {
     const position = (k: string) => {
@@ -186,7 +197,7 @@ function PredicateChipsBody({
   /** Or group `index` is going: its key goes from the order, the later groups' keys move down. */
   const dropGroupKey = (index: number) => setOrder((o) => withoutGroupKey(o, index))
   /** A chip of the predicate's own is going: its key goes, so the chip added again goes last. */
-  const dropChipKey = (chip: ChipRef) => setOrder((o) => o.filter((k) => k !== refKey(chip)))
+  const dropChipKey = (chip: ChipRef) => setOrder((o) => (chip.markerIndex !== undefined ? withoutMarkerKey(o, chip.markerIndex) : o.filter((k) => k !== refKey(chip))))
   /** The wrap is written: its group takes the chip's place. */
   const wrapWritten = (from: string, to: string) => setOrder((o) => o.map((k) => (k === from ? to : k)))
 
@@ -201,9 +212,12 @@ function PredicateChipsBody({
     const held = heldFields(clauses, dateTypes)
     return ADD_FILTER_ITEMS.filter((item) => offered(item.field) && !held.has(item.field))
   }
-  /** Where adding `field` to `clauses` opens: Dates on the first type they don't filter yet (a new chip). */
-  const addingDateField = (field: ListFilterField, clauses: FilterClauses) =>
-    (field === 'dates' ? freeDateField(clauses.dates, dateTypes) : undefined)
+  /** Where adding `field` to `clauses` opens: Dates on the first type they don't filter yet, Priority on a new condition (a new chip). */
+  const addingAt = (field: ListFilterField, clauses: FilterClauses): { dateField?: DateField; markerIndex?: number } => {
+    if (field === 'markers') return { markerIndex: clauses.markers?.length ?? 0 }
+    const dateField = field === 'dates' ? freeDateField(clauses.dates, dateTypes) : undefined
+    return dateField ? { dateField } : {}
+  }
   const clausesOf = (scope: Scope): FilterClauses => (scope == null ? shown : groups[scope] ?? emptyFilterClauses())
 
   /**
@@ -249,7 +263,9 @@ function PredicateChipsBody({
       return chip ? chipKey(chip) : null
     }
     setOrder((o) => [...dissolved].reverse().reduce((keys, index) => {
-      const key = chipOf(index)
+      // A Priority chip joins the predicate's own, after those it holds.
+      const chip = chipOf(index)
+      const key = chip === 'markers:0' ? `markers:${predicate.markers?.length ?? 0}` : chip
       return withoutGroupKey(key ? keys.map((k) => (k === groupKey(index) ? key : k)) : keys, index)
     }, o))
     onChangeRef.current(next)
@@ -267,8 +283,10 @@ function PredicateChipsBody({
       // The wrap isn't written: the chip is still the predicate's own.
       setOpen(null)
       const own = scope === wrap.index || scope == null
-      if (own) dropChipKey(chip)
-      write(removeChip(predicate, chip, own ? undefined : scope))
+      // In the wrap's group the chip is the first of it; it is still the predicate's own one.
+      const target = scope === wrap.index ? wrap.chip : chip
+      if (own) dropChipKey(target)
+      write(removeChip(predicate, target, own ? undefined : scope))
       return
     }
     if (held) {
@@ -285,6 +303,7 @@ function PredicateChipsBody({
 
   function isChipOpen(chip: ChipRef, scope: Scope): boolean {
     if (open?.kind !== 'field' || open.scope !== scope || open.field !== chip.field) return false
+    if (chip.field === 'markers') return open.markerIndex === chip.markerIndex
     return chip.field !== 'dates' || open.dateField == null || open.dateField === chip.dateField
   }
   const isGroupOpen = (index: number) => open?.kind === 'group' && open.index === index
@@ -310,7 +329,7 @@ function PredicateChipsBody({
     }
     // The wrapped chip in its new group (not written yet): its picker edits that group, the first edit writes the wrap.
     const keepWrap = wrap && scope === wrap.index ? { wrap } : {}
-    setOpen({ kind: 'field', scope, field: chip.field as ListFilterField, dateField: chip.dateField, adding: false, ...keepWrap, at: pointBelow(el) })
+    setOpen({ kind: 'field', scope, field: chip.field as ListFilterField, dateField: chip.dateField, markerIndex: chip.markerIndex, adding: false, ...keepWrap, at: pointBelow(el) })
   }
   const toggleGroup = (index: number, el: Element) => {
     setAddPicker(null)
@@ -328,7 +347,7 @@ function PredicateChipsBody({
       setOpen({ kind: 'group', index: o.scope, orAnother: true, at: o.at })
       return
     }
-    const chip = { field: o.field, dateField: o.dateField }
+    const chip = { field: o.field, dateField: o.dateField, markerIndex: o.markerIndex }
     setOpen({ kind: 'group', index: groups.length, orAnother: true, wrap: { chip, index: groups.length }, at: o.at })
   }
   /**
@@ -340,15 +359,14 @@ function PredicateChipsBody({
   const offersOrAnother = (o: Extract<Open, { kind: 'field' }>) => {
     if (o.adding || o.held) return false
     if (o.scope != null) return addable(clausesOf(o.scope)).length > 0
-    const chip = { field: o.field, dateField: o.dateField }
+    const chip = { field: o.field, dateField: o.dateField, markerIndex: o.markerIndex }
     const own = chipClauses(shown, chip)
     return hasFilterClause(own) && wrapChipInOrGroup(shown, chip) != null && addable(own).length > 0
   }
 
   const addToGroup = (o: Extract<Open, { kind: 'group' }>, field: ListFilterField) => {
-    // A wrap not written yet is in `shown`: the group's clauses hold the wrapped chip, so Dates opens on another type.
-    const dateField = addingDateField(field, clausesOf(o.index))
-    setOpen({ kind: 'field', scope: o.index, field, ...(dateField ? { dateField } : {}), adding: true, ...(o.wrap ? { wrap: o.wrap } : {}), at: o.at })
+    // A wrap not written yet is in `shown`: the group's clauses hold the wrapped chip, so Dates opens on another type and Priority on another condition.
+    setOpen({ kind: 'field', scope: o.index, field, ...addingAt(field, clausesOf(o.index)), adding: true, ...(o.wrap ? { wrap: o.wrap } : {}), at: o.at })
   }
 
   const orAnotherRow = (o: Extract<Open, { kind: 'field' }>) => (offersOrAnother(o) ? (
@@ -397,6 +415,7 @@ function PredicateChipsBody({
         onChange={commit}
         adding={o.adding}
         dateField={o.dateField}
+        markerIndex={o.markerIndex}
         dateHost={dateHost}
         onClose={close}
       />
@@ -407,6 +426,7 @@ function PredicateChipsBody({
         onChange={(c) => commit(withOrGroupClauses(shown, scope, () => c), { index: scope, clauses: c })}
         adding={o.adding}
         dateField={o.dateField}
+        markerIndex={o.markerIndex}
         dateHost={dateHost}
         onClose={close}
       />
@@ -501,8 +521,7 @@ function PredicateChipsBody({
       onSelect: () => {
         if (!menuAt) return
         setOpen(null)
-        const dateField = addingDateField(item.field, predicate)
-        setAddPicker({ field: item.field, ...(dateField ? { dateField } : {}), at: menuAt })
+        setAddPicker({ field: item.field, ...addingAt(item.field, predicate), at: menuAt })
       },
     })),
   ]
@@ -560,9 +579,10 @@ function PredicateChipsBody({
       )}
       {addPicker && (
         <PredicateFieldPicker
-          key={`add-${addPicker.field}-${addPicker.dateField ?? ''}-${addPicker.at.x}-${addPicker.at.y}`}
+          key={`add-${addPicker.field}-${addPicker.dateField ?? ''}-${addPicker.markerIndex ?? ''}-${addPicker.at.x}-${addPicker.at.y}`}
           field={addPicker.field}
           dateField={addPicker.dateField}
+          markerIndex={addPicker.markerIndex}
           predicate={predicate}
           onChange={write}
           at={addPicker.at}
@@ -574,7 +594,7 @@ function PredicateChipsBody({
       )}
       {open && (open.kind === 'field' ? (
         <FieldPopover
-          key={`${open.scope ?? 'root'}-${open.field}-${open.dateField ?? ''}-${open.at.x}-${open.at.y}`}
+          key={`${open.scope ?? 'root'}-${open.field}-${open.dateField ?? ''}-${open.markerIndex ?? ''}-${open.at.x}-${open.at.y}`}
           field={open.field}
           at={open.at}
           consumeEscape={inDialog}

@@ -59,7 +59,7 @@ const SECTIONS: NlpSyntaxSection[] = [
     label: 'Search — the top bar’s search box',
     rows: [
       { syntax: '@name, #tag, !status', description: 'The People / Tags / Status filter (several OR); a search never creates — an unknown name stays words' },
-      { syntax: '/urgent /important /focus /hot', description: 'The Priority filter' },
+      { syntax: '/urgent /important /focus', description: 'The Priority filter (several: any of them)' },
       { syntax: 'overdue', description: 'Due before today' },
       { syntax: 'due today / tomorrow / fri / 11/03', description: 'Due that day' },
       { syntax: 'due this week / next week / this month', description: 'Due in that range (from today)' },

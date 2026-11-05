@@ -67,7 +67,7 @@ const CLAUSES: Array<[string, Partial<FilterClauses>]> = [
   ['People', { personIds: [2] }],
   ['People Unassigned', { personIds: [0] }],
   ['Tags', { tags: [1] }],
-  ['Priority', { markers: { important: true } }],
+  ['Priority', { markers: [{ values: ['important'] }] }],
   ['Text', { searchText: 'invoice' }],
   ['Text naming a person', { searchText: 'bob' }],
   ['Due date', { dates: { deadline: { match: 'set' } } }],
@@ -87,7 +87,7 @@ describe('evaluating or groups', () => {
   })
 
   it('every or group must pass (AND between them)', () => {
-    const urgentOrWork = clauses({ tags: [1], markers: { important: true } })
+    const urgentOrWork = clauses({ tags: [1], markers: [{ values: ['important'] }] })
     const bobOrNobody = clauses({ personIds: [2, 0] })
     expect(idsOf(predicate({ orGroups: [urgentOrWork, bobOrNobody] }))).toEqual([2, 3])
   })
@@ -139,7 +139,7 @@ describe('evaluating or groups', () => {
 
   it('an or group in the lens applies under the top bar\'s chips, its text read with the task\'s names', () => {
     const screen = predicateToCriteria(predicate({ tags: [1, 2] }))
-    const lens = { id: 'l', name: 'Bob or important', predicate: predicate({ orGroups: [clauses({ searchText: 'bob', markers: { important: true } })] }) }
+    const lens = { id: 'l', name: 'Bob or important', predicate: predicate({ orGroups: [clauses({ searchText: 'bob', markers: [{ values: ['important'] }] })] }) }
     expect(ids(withLens(screen, lens))).toEqual([2, 3])
     expect(countActiveFilters(withLens(screen, lens))).toBe(2)
   })
@@ -156,7 +156,7 @@ describe('or groups between the stored and the runtime filter', () => {
   const stored = predicate({
     statusIds: [1],
     orGroups: [
-      clauses({ markers: 'hot', dates: { deadline: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null } } }),
+      clauses({ markers: [{ values: ['focus'] }], dates: { deadline: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null } } }),
       clauses({ personIds: [2], tags: [0], negate: { personIds: true } }),
     ],
   })
@@ -182,7 +182,7 @@ describe('or groups between the stored and the runtime filter', () => {
 describe('normalising or groups', () => {
   it('hasFilterClause: any clause that filters', () => {
     expect(hasFilterClause(emptyFilterClauses())).toBe(false)
-    expect(hasFilterClause(clauses({ markers: {} }))).toBe(false)
+    expect(hasFilterClause(clauses({ markers: [] }))).toBe(false)
     expect(hasFilterClause(clauses({ dates: { deadline: { match: 'range', start: null, end: null } } }))).toBe(false)
     for (const [, patch] of CLAUSES) expect(hasFilterClause(clauses(patch))).toBe(true)
     expect(hasFilterClause(clauses({ tags: [] }))).toBe(true)
@@ -191,7 +191,7 @@ describe('normalising or groups', () => {
 
   it('normalizeClauses: the narrowing fields alone, in stored form, "is not" normalised', () => {
     const raw = {
-      ...emptyPredicate(), showCompleted: true, orGroups: [clauses({ tags: [1] })], markers: {},
+      ...emptyPredicate(), showCompleted: true, orGroups: [clauses({ tags: [1] })], markers: [],
       statusIds: [], tags: [2], negate: { statusIds: true, tags: true },
       dates: { created: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 2 }, includeNoDate: false } },
     } as TodoPredicate
@@ -225,11 +225,11 @@ describe('normalising or groups', () => {
   it('hasOrGroups: an or group that filters', () => {
     expect(hasOrGroups(emptyPredicate())).toBe(false)
     expect(hasOrGroups(predicate({ orGroups: [emptyFilterClauses()] }))).toBe(false)
-    expect(hasOrGroups(predicate({ orGroups: [clauses({ markers: 'hot' })] }))).toBe(true)
+    expect(hasOrGroups(predicate({ orGroups: [clauses({ markers: [{ values: ['focus'] }] })] }))).toBe(true)
   })
 
   it('withOrGroupClauses edits one or group, adds one past the last, and drops one left with nothing', () => {
-    const hot = clauses({ markers: 'hot' })
+    const hot = clauses({ markers: [{ values: ['focus'] }] })
     const p = predicate({ orGroups: [hot] })
     expect(withOrGroupClauses(p, 0, (c) => ({ ...c, tags: [1] })).orGroups).toEqual([{ ...hot, tags: [1] }])
     expect(withOrGroupClauses(p, 1, (c) => ({ ...c, statusIds: [2] })).orGroups).toEqual([hot, clauses({ statusIds: [2] })])
@@ -237,26 +237,26 @@ describe('normalising or groups', () => {
     expect(withOrGroupClauses(p, 2, (c) => c)).toBe(p)
     expect(withOrGroupClauses(p, -1, (c) => c)).toBe(p)
     const full = predicate({ orGroups: Array.from({ length: OR_GROUPS_MAX }, (_, i) => clauses({ tags: [i + 1] })) })
-    expect(withOrGroupClauses(full, OR_GROUPS_MAX, (c) => ({ ...c, markers: 'hot' }))).toBe(full)
+    expect(withOrGroupClauses(full, OR_GROUPS_MAX, (c) => ({ ...c, markers: [{ values: ['focus'] }] }))).toBe(full)
   })
 })
 
 describe('what reads only the clauses outside the or groups', () => {
   it('a new task seeds nothing from an or group', () => {
-    expect(predicateToFilterDefaults(predicate({ orGroups: [clauses({ personIds: [1], tags: [2], statusIds: [1], markers: { urgent: true } })] })))
+    expect(predicateToFilterDefaults(predicate({ orGroups: [clauses({ personIds: [1], tags: [2], statusIds: [1], markers: [{ values: ['urgent'] }] })] })))
       .toEqual({ personIds: [], tagIds: [], statusId: undefined })
     expect(predicateToFilterDefaults(predicate({ tags: [2], orGroups: [clauses({ personIds: [1] })] })).tagIds).toEqual([2])
   })
 
   it('a Prompt for pick merges into the clauses outside the or groups and keeps them', () => {
-    const group = clauses({ personIds: [2], markers: 'hot' })
+    const group = clauses({ personIds: [2], markers: [{ values: ['focus'] }] })
     expect(applyRuntimeFilter(predicate({ orGroups: [group] }), { field: 'person' }, [1])).toEqual(predicate({ personIds: [1], orGroups: [group] }))
   })
 })
 
 describe('withoutOrGroup', () => {
   it('takes one or group out; the key goes with the last one; another index changes nothing', () => {
-    const a = clauses({ markers: 'hot' })
+    const a = clauses({ markers: [{ values: ['focus'] }] })
     const b = clauses({ tags: [0] })
     expect(withoutOrGroup(predicate({ orGroups: [a, b] }), 0)).toEqual(predicate({ orGroups: [b] }))
     expect(withoutOrGroup(predicate({ orGroups: [a] }), 0)).toEqual(predicate({}))

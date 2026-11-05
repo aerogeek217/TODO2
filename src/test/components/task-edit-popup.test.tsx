@@ -476,7 +476,7 @@ describe('TaskEditPopup', () => {
     })
 
     it('create mode: a Markers screen filter starts those toggles on', () => {
-      patchScreenFilter({ markers: { focus: true, important: true } })
+      patchScreenFilter({ markers: [{ values: ['focus'] }, { values: ['important'] }] })
       renderCreateMode()
       expect(screen.getByRole('button', { name: 'Focus' })).toHaveAttribute('aria-pressed', 'true')
       expect(screen.getByRole('button', { name: 'Important' })).toHaveAttribute('aria-pressed', 'true')

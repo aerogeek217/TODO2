@@ -9,7 +9,8 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { entityPickerSelection, isNegated, withIdFilter } from '../../../utils/filter-negation'
 import { NO_TAGS_LABEL } from '../../../utils/filter-labels'
-import { EntityDropdownItems, MarkersPanelBody, SelectionPanelBody } from './FilterPanels'
+import { EntityDropdownItems, MarkerClausePicker, SelectionPanelBody } from './FilterPanels'
+import { withMarkerClause } from '../../../utils/markers'
 import { DateFilterPanel, type DateFilterHost } from './DateFilterPanel'
 import { DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { PICKER_TITLE, pickerLabel } from './picker-label'
@@ -30,6 +31,8 @@ interface PickerBodyProps<T extends FilterClauses> {
   adding?: boolean
   /** The date type the date panel opens on (a date chip's); default the first that filters, else Due. */
   dateField?: DateField
+  /** The Priority condition edited (a chip's; one past the last adds one). */
+  markerIndex?: number
   /** The date panel's host options (types left out, the Completed note). */
   dateHost?: DateFilterHost
   onClose: () => void
@@ -78,7 +81,7 @@ export function PredicateFieldPicker<T extends FilterClauses>({ at, consumeEscap
  * One field's picker body, without a popover around it (a list editor draws
  * it in place under the chip).
  */
-export function PredicateFieldPickerBody<T extends FilterClauses>({ field, predicate: stored, onChange, adding = false, dateField, dateHost, onClose }: PickerBodyProps<T>) {
+export function PredicateFieldPickerBody<T extends FilterClauses>({ field, predicate: stored, onChange, adding = false, dateField, markerIndex, dateHost, onClose }: PickerBodyProps<T>) {
   // Stored clauses may predate some fields; read them with their defaults.
   const predicate = useMemo((): T => ({ ...emptyFilterClauses(), ...stored }), [stored])
 
@@ -98,8 +101,20 @@ export function PredicateFieldPickerBody<T extends FilterClauses>({ field, predi
     return <DateFilterPanel dates={predicate.dates} initialField={dateField} onChange={(d) => update({ dates: d })} host={dateHost} autoFocus />
   }
   if (field === 'text') return <TextPicker predicate={predicate} update={update} onClose={onClose} />
-  // Several markers can be set, so picking one keeps the picker open.
-  if (field === 'markers') return <MarkersPanelBody value={predicate.markers ?? null} onChange={(markers) => update({ markers })} />
+  if (field === 'markers') {
+    const index = markerIndex ?? predicate.markers?.length ?? 0
+    return (
+      <MarkerClausePicker
+        clause={predicate.markers?.[index] ?? null}
+        onChange={(clause) => {
+          // Emptied, the later chips move up: this picker has nothing left to stay on.
+          const later = (predicate.markers?.length ?? 0) > index + 1
+          replace((p) => ({ ...p, markers: withMarkerClause(p.markers, index, clause) }))
+          if (!clause && later) onClose()
+        }}
+      />
+    )
+  }
   return <EntityPicker field={field} predicate={predicate} adding={adding} replace={replace} onClose={onClose} />
 }
 

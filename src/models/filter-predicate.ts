@@ -123,17 +123,32 @@ export type MarkerSet = { [K in MarkerKey]?: true }
  */
 export type MarkerConditions = { [K in MarkerKey]?: boolean }
 
-/** The Markers filter's Hot choice: the task must be hot (Settings' Hot rule, `utils/hot.ts`). */
-export const HOT_MARKERS = 'hot'
+/** A Priority filter's "none" choice: a task with no marker (as Status's `No status`). */
+export const NO_PRIORITY = 'none'
+
+/** What a Priority condition can name: a marker, or no marker at all. */
+export type MarkerValue = MarkerKey | typeof NO_PRIORITY
 
 /**
- * The Markers (Priority) filter: either `'hot'` — the task must be hot — or
- * a condition per marker, all of which must hold (strict AND): e.g. Urgent
- * Yes and Important No. `urgent` means effective urgent — flagged, or due
- * within the Settings range (`utils/urgency.ts`), so Urgent No also leaves
- * out tasks urgent by their due date. Hot excludes the single markers.
+ * One Priority condition, one chip: the task is (or, `not`, isn't) any of
+ * `values`, as a Status filter reads. `urgent` means effective urgent —
+ * flagged, or due within the Settings range (`utils/urgency.ts`), so `is not
+ * Urgent` also leaves out tasks urgent by their due date.
  */
-export type MarkersFilter = typeof HOT_MARKERS | MarkerConditions
+export interface MarkerClause {
+  values: MarkerValue[]
+  not?: true
+}
+
+/**
+ * The Priority filter: its conditions, each a chip. Among a predicate's own
+ * clauses a task must pass them all (`is Urgent` and `is Important`); in an or
+ * group one is enough, as any of the group's clauses.
+ */
+export type MarkersFilter = MarkerClause[]
+
+/** The most Priority conditions one set of clauses holds. */
+export const MARKER_CLAUSES_MAX = 10
 
 /** The id filters an "is not" switch can turn round: people, status, tags. */
 export type NegatableField = 'personIds' | 'statusIds' | 'tags'
@@ -222,7 +237,7 @@ export interface TodoPredicate {
 export type FilterClauses = Pick<TodoPredicate, 'personIds' | 'statusIds' | 'tags' | 'searchText' | 'dates' | 'markers' | 'negate'>
 
 /** Most or groups a predicate holds. */
-export const OR_GROUPS_MAX = 10
+export const OR_GROUPS_MAX = 30
 
 /** Empty predicate — matches every open task (completed tasks need `showCompleted`). */
 export function emptyPredicate(): TodoPredicate {

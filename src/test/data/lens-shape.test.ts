@@ -34,7 +34,7 @@ describe('the stored lenses', () => {
   })
 
   it('keeps a lens’s or groups; a malformed one fixes the lens', () => {
-    const group = { ...emptyFilterClauses(), markers: 'hot' as const, tags: [0] }
+    const group = { ...emptyFilterClauses(), markers: [{ values: ['focus' as const] }], tags: [0] }
     const triage = { id: 'a', name: 'Triage', predicate: { ...emptyPredicate(), statusIds: [1], orGroups: [group] } }
     expect(readLensesSetting(formatLensesSetting([triage]))).toEqual({ lenses: [triage], fixes: [] })
     const { lenses, fixes } = pickLenses([{ ...triage, predicate: { ...triage.predicate, orGroups: [group, 'x'] } }])

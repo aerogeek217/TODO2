@@ -121,9 +121,9 @@ const predicates: Array<[string, TodoPredicate]> = [
   ['search by tag name', { ...emptyPredicate(), searchText: 'work' }],
   ['search by status name', { ...emptyPredicate(), searchText: 'waiting' }],
   ['search by project tag name', { ...emptyPredicate(), searchText: 'beta' }],
-  ['in focus', { ...emptyPredicate(), markers: { focus: true } }],
-  ['urgent (flag or due soon)', { ...emptyPredicate(), markers: { urgent: true } }],
-  ['important and in focus', { ...emptyPredicate(), markers: { important: true, focus: true } }],
+  ['in focus', { ...emptyPredicate(), markers: [{ values: ['focus'] }] }],
+  ['urgent (flag or due soon)', { ...emptyPredicate(), markers: [{ values: ['urgent'] }] }],
+  ['important and in focus', { ...emptyPredicate(), markers: [{ values: ['focus'] }, { values: ['important'] }] }],
 ]
 
 const runtimeCases: Array<[string, RuntimeFilterSpec | undefined, number[] | undefined]> = [

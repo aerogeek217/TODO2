@@ -112,7 +112,7 @@ describe('EisenhowerWidget with custom panes', () => {
   })
 
   it('a pane’s "+" seeds what its filter writes, from "<pane>"', () => {
-    setup({ drop: { name: 'Delegated', filter: { ...emptyPredicate(), statusIds: [3], markers: { focus: true } } } })
+    setup({ drop: { name: 'Delegated', filter: { ...emptyPredicate(), statusIds: [3], markers: [{ values: ['focus'] }] } } })
     fireEvent.click(within(quadrant('drop')).getByRole('button', { name: 'Add task to Delegated' }))
     expect(useUIStore.getState().quickAddDraft).toEqual({
       rawTitle: '',
@@ -122,7 +122,7 @@ describe('EisenhowerWidget with custom panes', () => {
   })
 
   it('a pane’s "+" never seeds a status that no longer exists', () => {
-    setup({ drop: { name: 'Waiting', filter: { ...emptyPredicate(), statusIds: [99], markers: { focus: true } } } })
+    setup({ drop: { name: 'Waiting', filter: { ...emptyPredicate(), statusIds: [99], markers: [{ values: ['focus'] }] } } })
     fireEvent.click(within(quadrant('drop')).getByRole('button', { name: 'Add task to Waiting' }))
     expect(useUIStore.getState().quickAddDraft?.defaults).toEqual({ personIds: [], tagIds: [], statusId: undefined, markers: { focus: true } })
   })

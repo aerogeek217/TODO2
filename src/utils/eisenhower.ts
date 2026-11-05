@@ -5,7 +5,7 @@ import { describeFilters, filterChips, type FilterChip, type FilterChipField, ty
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 import { matchesFilterWithLookups, type FilterSettings } from './filter-match'
-import { isHotFilter, MARKER_LABELS } from './markers'
+import { MARKER_LABELS, markerConditions } from './markers'
 import { normalizeOrGroups } from './or-groups'
 import { isEffectivelyUrgent, isUrgentByDate, URGENT_BY_DATE_HINT, urgentByDateSentence, type UrgentDueWithinDays } from './urgency'
 import { paneWrites, QUADRANT_ADD_HINT, QUADRANT_NAME, type EisenhowerPane, type PaneEntityField } from './eisenhower-panes'
@@ -320,8 +320,7 @@ function missOf(
   if (typeof field === 'object' && 'orGroup' in field) return { kind: 'orGroup', index: field.orGroup }
   const gone = deleted.find((f) => f === field)
   if (gone) return { kind: 'deleted', field: gone }
-  const markers = pane.filter.markers
-  if (field === 'markers' && markers != null && !isHotFilter(markers) && markers.urgent === false
+  if (field === 'markers' && markerConditions(pane.filter.markers).urgent === false
     && isUrgentByDate(after.todo, ctx.today, ctx.settings.urgentRange)) {
     return { kind: 'urgent-date' }
   }
@@ -478,8 +477,9 @@ function missSentence(
     return status ? `${task.title} is still ${status}.` : `${task.title} has no status.`
   }
   const field = miss.kind === 'clause' ? miss.field : 'markers'
-  const chip = filterChips(pane.filter, names).find((c) => chipOfClause(c, field))
-  const value = chip ? ` (${chip.value})` : ''
+  // Priority repeats: its chips together are what the task doesn't match.
+  const chips = filterChips(pane.filter, names).filter((c) => chipOfClause(c, field))
+  const value = chips.length > 0 ? ` (${chips.map((c) => c.value).join(' and ')})` : ''
   return `${task.title} doesn’t match its ${clauseName(field)} filter${value}.`
 }
 

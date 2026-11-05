@@ -54,7 +54,7 @@ describe('withPaneSeed on the default panes', () => {
   const base = { personIds: [1], tagIds: [2], statusId: 3 }
   const seed = (q: Parameters<typeof defaultPaneFilter>[0]) => paneWrites(defaultPaneFilter(q), { people: [], tags: [], statuses: [] })
   it('replaces Urgent / Important, keeps Focus and the rest', () => {
-    expect(withPaneSeed({ ...base, markers: { urgent: true, focus: true } }, seed('schedule')))
+    expect(withPaneSeed({ ...base, markers: { focus: true, urgent: true } }, seed('schedule')))
       .toEqual({ ...base, markers: { focus: true, important: true } })
     expect(withPaneSeed({ ...base, markers: { urgent: true } }, seed('drop'))).toEqual(base)
     expect(withPaneSeed(base, seed('do'))).toEqual({ ...base, markers: { urgent: true, important: true } })
@@ -62,7 +62,7 @@ describe('withPaneSeed on the default panes', () => {
 
   it('keeps a Focus No and drops an Urgent / Important No (the pane decides those)', () => {
     expect(withPaneSeed({ ...base, markers: { focus: false, important: false } }, seed('delegate')))
-      .toEqual({ ...base, markers: { focus: false, urgent: true } })
+      .toEqual({ ...base, markers: { urgent: true, focus: false } })
   })
 })
 

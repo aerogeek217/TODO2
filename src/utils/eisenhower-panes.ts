@@ -1,4 +1,4 @@
-import { emptyPredicate, MARKER_KEYS, type MarkerConditions, type TodoPredicate } from '../models/filter-predicate'
+import { emptyPredicate, MARKER_KEYS, type MarkerConditions, type MarkersFilter, type TodoPredicate } from '../models/filter-predicate'
 import type { EisenhowerPaneConfig, EisenhowerPanes } from '../models/eisenhower-settings'
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
 import { predicateLineItems, type FilterChip, type FilterChipNames } from './filter-chips'
@@ -61,10 +61,17 @@ export const QUADRANT_ADD_HINT: Record<EisenhowerQuadrant, string> = {
   drop: 'Opens Quick Add.',
 }
 
-/** A position's default filter: its quadrant's Urgent / Important, each Yes or No. */
+/** A quadrant's filter: is what it wants, is not what it doesn't (the two together when it wants neither). */
+const QUADRANT_MARKERS: Record<EisenhowerQuadrant, MarkersFilter> = {
+  do: [{ values: ['urgent'] }, { values: ['important'] }],
+  schedule: [{ values: ['important'] }, { values: ['urgent'], not: true }],
+  delegate: [{ values: ['urgent'] }, { values: ['important'], not: true }],
+  drop: [{ values: ['urgent', 'important'], not: true }],
+}
+
+/** A position's default filter: its quadrant's Urgent / Important. */
 export function defaultPaneFilter(q: EisenhowerQuadrant): TodoPredicate {
-  const flags = QUADRANT_FLAGS[q]
-  return { ...emptyPredicate(), markers: { urgent: flags.urgent, important: flags.important } }
+  return { ...emptyPredicate(), markers: QUADRANT_MARKERS[q] }
 }
 
 /** A pane as the matrix uses it: its stored settings over its position's defaults. */
@@ -148,7 +155,6 @@ export function withPaneConfig(
 /** A filter's clauses as short values: `Urgent`, `not Important`, `not Delegated`, `Due within the next 7 days`. */
 function chipWords(chip: FilterChip): string[] {
   switch (chip.field) {
-    case 'markers': return chip.value.split(', ')
     case 'dates': return [`${chip.label} ${chip.value}`]
     case 'text': return [`Text ${chip.value}`]
     default: return [chip.value]
@@ -175,10 +181,10 @@ export type PaneEntityField = 'status' | 'people' | 'tags'
 
 /**
  * What a pane's filter writes on a task dropped on it or added with its "+":
- * each Priority marker it tests set Yes (`true`) or No (`false`); the status
+ * each Priority marker it decides (`markerConditions`) set Yes (`true`) or No (`false`); the status
  * when it is "Status is" one status; a person when it is "People is" one
- * person; a tag when it is "Tags is" one tag — only one that exists. A Hot
- * filter, "is not", several values, "No status" / "Unassigned" /
+ * person; a tag when it is "Tags is" one tag — only one that exists. Otherwise
+ * "is not", several values, "No priority" / "No status" / "Unassigned" /
  * "No tags", dates and text imply nothing.
  */
 export interface PaneWrites {

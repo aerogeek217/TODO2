@@ -1,5 +1,5 @@
-import { HOT_MARKERS, MARKER_KEYS, type MarkerConditions, type MarkerKey, type MarkersFilter } from '../models/filter-predicate'
-import { hasMarker, isHot, type HotRule, type MarkerFields } from './hot'
+import { MARKER_CLAUSES_MAX, MARKER_KEYS, NO_PRIORITY, type MarkerClause, type MarkerConditions, type MarkerKey, type MarkersFilter, type MarkerValue } from '../models/filter-predicate'
+import { hasMarker, type HotRule, type MarkerFields } from './hot'
 import { urgentByDateReason, urgentMark, type UrgentDueWithinDays, type UrgentMark } from './urgency'
 
 /** Display names of the task markers. */
@@ -75,97 +75,74 @@ export function priorityRank(todo: MarkerFields, today: Date, range: UrgentDueWi
 /** Display name of the Markers filter's Hot choice. */
 export const HOT_LABEL = 'Hot'
 
-/** The settings a Markers filter is evaluated with: the urgent range and the Hot rule. */
+/** The settings a Priority filter is evaluated with: the urgent range and the Hot rule. */
 export interface MarkerSettings {
   urgentRange: UrgentDueWithinDays
   hotRule: HotRule
 }
 
-/** Whether the Markers filter is Hot. */
-export function isHotFilter(m: MarkersFilter | null | undefined): m is typeof HOT_MARKERS {
-  return m === HOT_MARKERS
+/** The name of a Priority filter's "none" choice, and of a list's trailing group. */
+export const NO_PRIORITY_LABEL = 'No priority'
+
+/** A Priority condition's values, in display order (Focus › Urgent › Important › No priority). */
+export const MARKER_VALUES: readonly MarkerValue[] = [...MARKER_KEYS, NO_PRIORITY]
+
+/** The display name of a value a Priority condition can name. */
+export function markerValueLabel(v: MarkerValue): string {
+  return v === NO_PRIORITY ? NO_PRIORITY_LABEL : MARKER_LABELS[v]
 }
 
-/**
- * What a filter asks of `key`: `true` (Yes, must have it), `false` (No, must
- * not), `undefined` (Any) — also for no filter and for Hot (Hot is its own
- * choice, not a condition per marker).
- */
-export function markerCondition(m: MarkersFilter | null | undefined, key: MarkerKey): boolean | undefined {
-  if (m == null || isHotFilter(m)) return undefined
-  const v = m[key]
-  return typeof v === 'boolean' ? v : undefined
-}
-
-/**
- * The single markers a filter tests (Yes or No), in display order; empty for
- * no filter and for Hot.
- */
-export function activeMarkers(m: MarkersFilter | null | undefined): MarkerKey[] {
-  return MARKER_KEYS.filter((k) => markerCondition(m, k) !== undefined)
-}
-
-/**
- * The filter's conditions as a fresh object with the keys in display order,
- * `false` and `true` only (`{}` for no filter and for Hot).
- */
-export function markerConditions(m: MarkersFilter | null | undefined): MarkerConditions {
-  const out: MarkerConditions = {}
-  for (const k of activeMarkers(m)) out[k] = markerCondition(m, k)
-  return out
-}
-
-/** Whether a Markers filter narrows anything (Hot, or a Yes / No on at least one marker). */
+/** Whether a Priority filter narrows anything. */
 export function hasMarkers(m: MarkersFilter | null | undefined): boolean {
-  return isHotFilter(m) || activeMarkers(m).length > 0
+  return (m ?? []).some((c) => c.values.length > 0)
 }
 
-/** Hot, a copy of the markers' Yes / No conditions, or null when no marker is tested. */
+/** A condition with its values once each, in display order; `null` when it names none. */
+function normalizeMarkerClause(c: MarkerClause): MarkerClause | null {
+  const values = MARKER_VALUES.filter((v) => c.values.includes(v))
+  if (values.length === 0) return null
+  return c.not ? { values, not: true } : { values }
+}
+
+/** The conditions that name something, each in its stored form (at most `MARKER_CLAUSES_MAX`); `null` when none is left. */
 export function normalizeMarkersFilter(m: MarkersFilter | null | undefined): MarkersFilter | null {
-  if (isHotFilter(m)) return m
-  return activeMarkers(m).length > 0 ? markerConditions(m) : null
+  const clauses = (m ?? []).flatMap((c) => normalizeMarkerClause(c) ?? []).slice(0, MARKER_CLAUSES_MAX)
+  return clauses.length > 0 ? clauses : null
 }
 
 /**
- * `m` with `key` set to Yes (`true`), No (`false`) or Any (`undefined`);
- * `null` once no marker is tested. While Hot is on the single markers are
- * disabled: `m` comes back unchanged.
+ * `m` with condition `index` replaced by `clause`, or removed by `null` (the
+ * later ones move up); an index past the last adds one.
  */
-export function withMarkerCondition(
-  m: MarkersFilter | null | undefined,
-  key: MarkerKey,
-  condition: boolean | undefined,
-): MarkersFilter | null {
-  if (isHotFilter(m)) return m
-  const next: MarkerConditions = {}
-  for (const k of MARKER_KEYS) {
-    const v = k === key ? condition : markerCondition(m, k)
-    if (v !== undefined) next[k] = v
-  }
-  return activeMarkers(next).length > 0 ? next : null
+export function withMarkerClause(m: MarkersFilter | null | undefined, index: number, clause: MarkerClause | null): MarkersFilter | null {
+  const next = [...(m ?? [])]
+  if (clause) next[Math.min(index, next.length)] = clause
+  else next.splice(index, 1)
+  return normalizeMarkersFilter(next)
 }
 
-/** Hot ticked (clearing any single markers) or unticked (no filter). */
-export function toggleHot(m: MarkersFilter | null | undefined): MarkersFilter | null {
-  return isHotFilter(m) ? null : HOT_MARKERS
+function clauseKey(c: MarkerClause): string {
+  return `${c.not ? '!' : ''}${MARKER_VALUES.filter((v) => c.values.includes(v)).join()}`
 }
 
-/** Whether two Markers filters ask the same (absent == null == `{}`; Hot only equals Hot). */
+/** Whether two Priority filters ask the same, whatever order their conditions are in (absent == null == `[]`). */
 export function markersEqual(a: MarkersFilter | null | undefined, b: MarkersFilter | null | undefined): boolean {
-  if (isHotFilter(a) || isHotFilter(b)) return a === b
-  return MARKER_KEYS.every((k) => markerCondition(a, k) === markerCondition(b, k))
+  const keys = (m: MarkersFilter | null | undefined) => (normalizeMarkersFilter(m) ?? []).map(clauseKey).sort().join(';')
+  return keys(a) === keys(b)
 }
 
-/**
- * `Hot`, `Urgent`, `Focus, Urgent, not Important` — the filter's value as a
- * chip / button shows it: every tested marker in display order, a No one as
- * `not <marker>`.
- */
-export function markersValue(m: MarkersFilter | null | undefined): string {
-  if (isHotFilter(m)) return HOT_LABEL
-  return activeMarkers(m)
-    .map((k) => (markerCondition(m, k) === false ? `not ${MARKER_LABELS[k]}` : MARKER_LABELS[k]))
-    .join(', ')
+/** The conditions a Priority filter's words read as, in order: `Urgent or Important`, `not Focus`. */
+export function markerClauseNames(c: MarkerClause): string[] {
+  return c.values.map(markerValueLabel)
+}
+
+/** The tooltip of a Priority chip's "is not": `Hides tasks that are Important`; for Urgent, `(flagged or due soon)`. */
+export function markersHideLine(c: MarkerClause): string {
+  const names = c.values.map((v) => {
+    if (v === NO_PRIORITY) return 'without a priority'
+    return v === 'urgent' ? `${MARKER_LABELS[v]} (flagged or due soon)` : MARKER_LABELS[v]
+  })
+  return `Hides tasks that are ${orNames(names)}`
 }
 
 /** `a`, `a or b`, `a, b or c`. */
@@ -173,39 +150,55 @@ function orNames(names: readonly string[]): string {
   return names.length <= 1 ? names.join('') : `${names.slice(0, -1).join(', ')} or ${names.at(-1)}`
 }
 
-/** The markers a Priority filter wants a task not to have (No). */
-function excludedMarkers(m: MarkersFilter | null | undefined): MarkerKey[] {
-  return activeMarkers(m).filter((k) => markerCondition(m, k) === false)
-}
-
-/** Whether a Priority filter has a No (its value is then spelled out, like an "is not" field's). */
-export function hasExcludedMarker(m: MarkersFilter | null | undefined): boolean {
-  return excludedMarkers(m).length > 0
-}
-
 /**
- * The tooltip of a Priority filter with a No: its value, then what it hides
- * (`Hides tasks that are Important`; for Urgent, `(flagged or due soon)`).
- * `null` when no marker is No.
+ * What a Priority filter implies for a task it should hold (a new task's
+ * seeds, a pane's drop): a one-value `is` sets that flag, an `is not` clears
+ * its flags. Several values or `No priority` imply nothing, as Status's. In
+ * display order.
  */
-export function markersTooltip(m: MarkersFilter | null | undefined): string | null {
-  const excluded = excludedMarkers(m)
-  if (excluded.length === 0) return null
-  const names = excluded.map((k) => (k === 'urgent' ? `${MARKER_LABELS[k]} (flagged or due soon)` : MARKER_LABELS[k]))
-  return `${MARKERS_LABEL}: ${markersValue(m)}\nHides tasks that are ${orNames(names)}`
+export function markerConditions(m: MarkersFilter | null | undefined): MarkerConditions {
+  const found: MarkerConditions = {}
+  for (const c of m ?? []) {
+    const [only] = c.values
+    if (c.not) {
+      for (const v of c.values) if (v !== NO_PRIORITY) found[v] = false
+    } else if (c.values.length === 1 && only !== undefined && only !== NO_PRIORITY) {
+      found[only] = true
+    }
+  }
+  const out: MarkerConditions = {}
+  for (const k of MARKER_KEYS) {
+    const v = found[k]
+    if (v !== undefined) out[k] = v
+  }
+  return out
 }
 
-/**
- * Whether `todo` passes the Markers filter: hot by `settings.hotRule`, or
- * meeting every marker's condition — having each Yes marker and none of the
- * No ones (strict AND; Urgent = effective urgent).
- */
-export function matchesMarkers(
-  todo: MarkerFields,
-  m: MarkersFilter | null | undefined,
-  today: Date,
-  settings: MarkerSettings,
-): boolean {
-  if (isHotFilter(m)) return isHot(todo, settings.hotRule, today, settings.urgentRange)
-  return activeMarkers(m).every((k) => hasMarker(todo, k, today, settings.urgentRange) === markerCondition(m, k))
+/** The markers `conditions` decide (Yes or No), in display order. */
+export function activeMarkers(conditions: MarkerConditions | null | undefined): MarkerKey[] {
+  return MARKER_KEYS.filter((k) => conditions?.[k] !== undefined)
+}
+
+/** Whether `todo` passes one Priority condition. */
+export function matchesMarkerClause(todo: MarkerFields, c: MarkerClause, today: Date, settings: MarkerSettings): boolean {
+  const held = (v: MarkerValue) => (v === NO_PRIORITY
+    ? MARKER_KEYS.every((k) => !hasMarker(todo, k, today, settings.urgentRange))
+    : hasMarker(todo, v, today, settings.urgentRange))
+  return c.values.some(held) !== (c.not === true)
+}
+
+/** A Priority picker's rows, as the Status picker's entities: id 0 is its "none" row, `No priority`. */
+export const MARKER_PICKER_ROWS: readonly { id: number; value: MarkerKey; name: string; color: string }[] =
+  MARKER_KEYS.map((value, i) => ({ id: i + 1, value, name: MARKER_LABELS[value], color: MARKER_COLOR[value] }))
+
+/** A Priority condition's values as the picker's row ids. */
+export function markerPickerIds(c: MarkerClause | null | undefined): Set<number> {
+  return new Set((c?.values ?? []).map((v) => (v === NO_PRIORITY ? 0 : MARKER_PICKER_ROWS.find((r) => r.value === v)?.id ?? 0)))
+}
+
+/** The condition the picker's ticked row ids make; `null` with nothing ticked (no condition). */
+export function markerClauseOfIds(ids: Iterable<number>, not: boolean): MarkerClause | null {
+  const values = [...ids].map((id): MarkerValue => MARKER_PICKER_ROWS.find((r) => r.id === id)?.value ?? NO_PRIORITY)
+  if (values.length === 0) return null
+  return not ? { values, not: true } : { values }
 }

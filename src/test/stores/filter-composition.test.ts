@@ -93,33 +93,21 @@ const fields: Array<{ name: string; a: Partial<FilterCriteria>; b: Partial<Filte
   },
   { name: 'has due date', a: { dates: { deadline: { match: 'set' } } }, b: { dates: { deadline: { match: 'unset' } } }, onlyA: [1, 2, 3], onlyB: [4], both: [] },
   { name: 'has follow-up', a: { dates: { followup: { match: 'set' } } }, b: { dates: { deadline: { match: 'set' } } }, onlyA: [2, 4], onlyB: [1, 2, 3], both: [2] },
-  { name: 'markers', a: { markers: { focus: true } }, b: { markers: { important: true } }, onlyA: [2, 3], onlyB: [4], both: [] },
+  { name: 'markers', a: { markers: [{ values: ['focus'] }] }, b: { markers: [{ values: ['important'] }] }, onlyA: [2, 3], onlyB: [4], both: [] },
   // Urgent = flagged (2) or due within 3 days, overdue included (1, 3).
-  { name: 'urgent marker with focus', a: { markers: { urgent: true } }, b: { markers: { focus: true } }, onlyA: [1, 2, 3], onlyB: [2, 3], both: [2, 3] },
-  { name: 'markers with people', a: { markers: { focus: true } }, b: { personIds: new Set([1]) }, onlyA: [2, 3], onlyB: [1, 3], both: [3] },
-  // Hot (default rule: Urgent AND Important, or Focus) = 2, 3.
-  { name: 'hot with urgent', a: { markers: 'hot' }, b: { markers: { urgent: true } }, onlyA: [2, 3], onlyB: [1, 2, 3], both: [2, 3] },
-  { name: 'hot with important', a: { markers: 'hot' }, b: { markers: { important: true } }, onlyA: [2, 3], onlyB: [4], both: [] },
-  { name: 'hot with people', a: { markers: 'hot' }, b: { personIds: new Set([1]) }, onlyA: [2, 3], onlyB: [1, 3], both: [3] },
+  { name: 'urgent marker with focus', a: { markers: [{ values: ['urgent'] }] }, b: { markers: [{ values: ['focus'] }] }, onlyA: [1, 2, 3], onlyB: [2, 3], both: [2, 3] },
+  { name: 'markers with people', a: { markers: [{ values: ['focus'] }] }, b: { personIds: new Set([1]) }, onlyA: [2, 3], onlyB: [1, 3], both: [3] },
+  // Several values: any of them.
+  { name: 'focus or important with urgent', a: { markers: [{ values: ['focus', 'important'] }] }, b: { markers: [{ values: ['urgent'] }] }, onlyA: [2, 3, 4], onlyB: [1, 2, 3], both: [2, 3] },
   // A No: Urgent No = neither flagged nor due within the range (4 only).
-  { name: 'urgent yes with urgent no', a: { markers: { urgent: true } }, b: { markers: { urgent: false } }, onlyA: [1, 2, 3], onlyB: [4], both: [] },
-  { name: 'urgent no with important yes', a: { markers: { urgent: false } }, b: { markers: { important: true } }, onlyA: [4], onlyB: [4], both: [4] },
-  { name: 'focus no with people', a: { markers: { focus: false } }, b: { personIds: new Set([1]) }, onlyA: [1, 4], onlyB: [1, 3], both: [1] },
+  { name: 'urgent yes with urgent no', a: { markers: [{ values: ['urgent'] }] }, b: { markers: [{ values: ['urgent'], not: true }] }, onlyA: [1, 2, 3], onlyB: [4], both: [] },
+  { name: 'urgent no with important yes', a: { markers: [{ values: ['urgent'], not: true }] }, b: { markers: [{ values: ['important'] }] }, onlyA: [4], onlyB: [4], both: [4] },
+  { name: 'focus no with people', a: { markers: [{ values: ['focus'], not: true }] }, b: { personIds: new Set([1]) }, onlyA: [1, 4], onlyB: [1, 3], both: [1] },
 ]
 
 describe('composeScreenFilter', () => {
   beforeEach(() => {
     useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE })
-  })
-
-  it('Hot follows the Settings rule on both sides', () => {
-    useSettingsStore.setState({ hotRule: [{ important: true }, { urgent: true, focus: true }] })
-    // 3 is in Focus and urgent by its due date (day after tomorrow).
-    expect(ids(crit({ markers: 'hot' }), none())).toEqual([2, 3, 4])
-    expect(ids(none(), crit({ markers: 'hot' }))).toEqual([2, 3, 4])
-    expect(evaluatorIds(crit({ markers: 'hot' }), crit({ markers: { important: true } }))).toEqual([4])
-    useSettingsStore.setState({ urgentDueWithinDays: null })
-    expect(ids(crit({ markers: 'hot' }), none())).toEqual([2, 4])
   })
 
   it('ORs showCompleted into both stages and leaves the other clauses alone', () => {

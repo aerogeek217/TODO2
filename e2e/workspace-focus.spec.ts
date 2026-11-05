@@ -21,7 +21,7 @@ test('putting tasks in focus fills the Focus list, whose order persists', async 
   await seedWorkspace(page, {
     listDefinitions: [
       { name: 'All' },
-      { name: 'Focus', predicate: { markers: { focus: true } } },
+      { name: 'Focus', predicate: { markers: [{ values: ['focus'] }] } },
     ],
     tasks: [{ title: 'Alpha' }, { title: 'Bravo' }, { title: 'Charlie' }],
     layouts: [{

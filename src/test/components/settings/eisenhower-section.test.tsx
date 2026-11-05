@@ -163,8 +163,8 @@ describe('Settings › Tasks › Eisenhower', () => {
   it('a chip’s × edits the pane’s filter, one undo step, with the snackbar', async () => {
     const { part } = open({ delegate: { filter: NOT_DELEGATED } })
     const chips = within(card(part, 'delegate')).getAllByRole('button', { name: 'Remove filter' })
-    // Priority, then Status: remove the status clause.
-    fireEvent.click(chips[1]!)
+    // Priority's two chips, then Status: remove the status clause.
+    fireEvent.click(chips[2]!)
     expect(storedPanes()).toEqual({})
     await vi.waitFor(() => expect(undoNames()).toEqual(['Changed pane “Delegate”']))
     expect(useUndoStore.getState().snackbar).toEqual({ description: 'Changed pane “Delegate”' })

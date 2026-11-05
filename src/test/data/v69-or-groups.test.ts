@@ -17,7 +17,7 @@ const v68List = (): DataRow => ({
 /** The same list with an or group, as this build writes it. */
 const groupedList = (): DataRow => ({
   ...v68List(),
-  membership: { kind: 'custom', predicate: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: 'hot', tags: [0] }] } },
+  membership: { kind: 'custom', predicate: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }], tags: [0] }] } },
 })
 
 describe('upgradeV69 (pure): a version marker, no data change', () => {

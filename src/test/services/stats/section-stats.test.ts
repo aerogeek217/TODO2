@@ -164,7 +164,7 @@ describe('eisenhowerSourceTasks', () => {
   })
   const list = {
     id: 9, name: 'Urgent', sortOrder: 0, sort: 'manual' as const, grouping: 'none' as const,
-    membership: { kind: 'custom' as const, predicate: { ...emptyPredicate(), markers: { urgent: true } } },
+    membership: { kind: 'custom' as const, predicate: { ...emptyPredicate(), markers: [{ values: ['urgent' as const] }] } },
   }
 
   it('all tasks: the screen-filtered tasks shown, every task in the total', () => {

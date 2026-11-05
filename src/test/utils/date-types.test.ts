@@ -112,7 +112,7 @@ describe('Completed', () => {
     const either = crit({ orGroups: [{ ...none(), dates: { completed: thisWeek, lastFollowup: { match: 'unset' } } }] })
     expect(admitsCompleted(either)).toBe(false)
     expect(ids(either)).toEqual([3, 7])
-    const withMarkers = crit({ orGroups: [{ ...none(), markers: 'hot', dates: { completed: thisWeek } }] })
+    const withMarkers = crit({ orGroups: [{ ...none(), markers: [{ values: ['focus'] }], dates: { completed: thisWeek } }] })
     expect(admitsCompleted(withMarkers)).toBe(false)
     // Show completed opens the gate; the group then keeps the completed ones too.
     expect(ids({ ...either, showCompleted: true })).toEqual([3, 4, 5, 6, 7])

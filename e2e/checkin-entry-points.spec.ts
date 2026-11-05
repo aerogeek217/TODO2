@@ -343,7 +343,7 @@ test('D: the top-bar People filter emails the one person it is narrowed to, or o
 
 test('fallback: no open tasks match the saved check-in filter: opens the dialog for the person, saying why', async ({ page, context }) => {
   await setup(page, context)
-  await withCheckinSettings(page, { checkinTaskFilter: JSON.stringify({ ...emptyPredicate(), markers: 'hot' }) })
+  await withCheckinSettings(page, { checkinTaskFilter: JSON.stringify({ ...emptyPredicate(), markers: [{ values: ['focus'] }] }) })
   await page.keyboard.press('Control+k')
   await page.getByPlaceholder(/Search tasks, commands/).pressSequentially('email ada')
   // The command exists once Ada's tasks and their people have loaded (the reload above).

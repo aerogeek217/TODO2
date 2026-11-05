@@ -520,7 +520,7 @@ describe('DashboardWidget — the Eisenhower section follows the app-wide panes 
     useListDefinitionStore.setState({ listDefinitions: [...SAMPLE_LISTS, Q4_LIST] })
     useSettingsStore.setState({
       eisenhowerListId: 90,
-      eisenhowerPanes: { delegate: { name: 'Hand off', filter: { ...emptyPredicate(), markers: { urgent: true, important: false }, statusIds: [waiting.id!], negate: { statusIds: true } } } },
+      eisenhowerPanes: { delegate: { name: 'Hand off', filter: { ...emptyPredicate(), markers: [{ values: ['urgent'] }, { values: ['important'], not: true }], statusIds: [waiting.id!], negate: { statusIds: true } } } },
     })
     const onDrill = vi.fn()
     setup(tabWith({ tiles: ['open'], sections: [{ id: 'eisenhower' }] }), onDrill)

@@ -226,7 +226,7 @@ describe('ListWidget', () => {
     expect(screen.getByTestId('revert-list')).toBeInTheDocument()
   })
 
-  it('grouped by Priority: Hot, Focus, Urgent, Important, No priority; a task in each of its groups', () => {
+  it('grouped by Priority: Focus, Focus, Urgent, Important, No priority; a task in each of its groups', () => {
     useTodoStore.setState({
       todos: [
         makeTodo({ id: 1, title: 'Focus urgent', sortOrder: 1, focus: true, urgent: true }),
@@ -663,41 +663,37 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
   })
 
   it('a Markers list offers + Add task (new tasks start with those markers)', () => {
-    setup(def({}, { markers: { focus: true, important: true } }))
+    setup(def({}, { markers: [{ values: ['focus'] }, { values: ['important'] }] }))
     expect(screen.getByRole('button', { name: /Add task/ })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ important: true, focus: true })
   })
 
-  it('a Hot list offers + Add task, seeding the Hot rule’s first line (the new task is hot)', () => {
-    useSettingsStore.setState({ hotRule: [{ urgent: true, important: true }, { focus: true }] })
-    setup(def({}, { markers: 'hot' }))
+  it('a list of several priorities offers + Add task, seeding none of them (as Status)', () => {
+    setup(def({}, { markers: [{ values: ['urgent', 'important'] }] }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
-    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: true, important: true })
-    act(() => useSettingsStore.setState({ hotRule: [{ focus: true }] }))
-    fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
-    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ focus: true })
+    expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toBeUndefined()
   })
 
   it('a list whose only Priority clause is a No offers + Add task (the new task starts without the marker)', () => {
-    setup(def({}, { markers: { urgent: false } }))
+    setup(def({}, { markers: [{ values: ['urgent'], not: true }] }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: false })
   })
 
   it('a list whose only filter is an or group offers + Add task and seeds nothing; the clauses outside a group seed', () => {
-    setup(def({}, { orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: { focus: true } }] }))
+    setup(def({}, { orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: [{ values: ['focus'] }] }] }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     const defaults = useUIStore.getState().quickAddDraft?.defaults
     expect(defaults?.personIds).toEqual([])
     expect(defaults?.markers).toBeUndefined()
     cleanup()
-    setup(def({}, { statusIds: [2], orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: { focus: true } }] }))
+    setup(def({}, { statusIds: [2], orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: [{ values: ['focus'] }] }] }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     expect(useUIStore.getState().quickAddDraft?.defaults).toMatchObject({ statusId: 2, personIds: [] })
   })
 
-  it('a Hot list re-filters when the Hot rule or the urgent range changes', () => {
+  it('a Priority list re-filters when the urgent range changes', () => {
     const tomorrow = new Date()
     tomorrow.setHours(0, 0, 0, 0)
     tomorrow.setDate(tomorrow.getDate() + 1)
@@ -708,15 +704,11 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
         makeTodo({ id: 3, title: 'Shared task', sortOrder: 3, important: true }),
       ],
     })
-    const { result } = setup(def({}, { markers: 'hot' }))
+    const { result } = setup(def({}, { markers: [{ values: ['urgent', 'focus'] }] }))
     expect(titles()).toEqual(['Alice task', 'Bob task'])
-    act(() => useSettingsStore.setState({ hotRule: [{ important: true }] }))
-    expect(titles()).toEqual(['Alice task', 'Shared task'])
     expect(result()?.countLabel).toBe('2')
-    act(() => useSettingsStore.setState({ hotRule: [{ urgent: true }] }))
-    expect(titles()).toEqual(['Alice task'])
     act(() => useSettingsStore.setState({ urgentDueWithinDays: null }))
-    expect(titles()).toEqual([])
+    expect(titles()).toEqual(['Bob task'])
   })
 
   it('a manual list follows its ranks; unranked tasks come after, oldest first', () => {

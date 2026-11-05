@@ -53,7 +53,7 @@ const SCREENS: Array<[string, Partial<FilterCriteria>]> = [
   ['a person, with Show completed', { personIds: new Set([1]), showCompleted: true }],
   ['a status “is not”', { statusIds: new Set([2]), negate: { statusIds: true } }],
   ['search text, with Show completed', { searchText: 'report', showCompleted: true }],
-  ['a marker', { markers: { urgent: true } }],
+  ['a marker', { markers: [{ values: ['urgent'] }] }],
   ['a due date', { dates: { deadline: { match: 'set' } } }],
 ]
 

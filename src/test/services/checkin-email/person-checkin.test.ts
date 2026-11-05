@@ -204,7 +204,7 @@ describe('sendPersonCheckin', () => {
   })
 
   it('no open tasks match the filter: opens the dialog for the person with the reason; nothing copied or recorded', async () => {
-    useSettingsStore.setState({ checkinTaskFilter: { ...emptyPredicate(), markers: 'hot' } })
+    useSettingsStore.setState({ checkinTaskFilter: { ...emptyPredicate(), markers: [{ values: ['focus'] }] } })
     expect(await sendPersonCheckin(1)).toBe('dialog')
     expect(events).toEqual([])
     expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: noTasksNotice('Ada Lovelace', true) })
@@ -278,7 +278,7 @@ describe('sendPersonCheckin before the tasks’ people and tags are loaded', () 
     for (const group of [{ tags: [7], negate: { tags: true as const } }, { searchText: 'home' }]) {
       useUIStore.setState({ checkinDialog: null })
       useSettingsStore.setState({
-        checkinTaskFilter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: 'hot', ...group }] },
+        checkinTaskFilter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }], ...group }] },
       })
       expect(await sendPersonCheckin(1)).toBe('dialog')
       expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: ASSIGNMENTS_LOADING_NOTICE })

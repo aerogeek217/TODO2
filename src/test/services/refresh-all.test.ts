@@ -111,7 +111,7 @@ describe('refreshAllStores', () => {
     const ui = useUIStore.getState()
     ui.setScopedSelection('tab-1', { ids: new Set([1, 2]), anchorKey: 'a', cursorKey: 'b', cursorTodoId: 2 })
     ui.openEditPopup(1)
-    ui.setQuickAddDraft({ rawTitle: 'half typed', defaults: { personIds: [3], statusId: null, tagIds: [], markers: {} } as never })
+    ui.setQuickAddDraft({ rawTitle: 'half typed', defaults: { personIds: [3], statusId: null, tagIds: [], markers: [] } as never })
 
     await refreshAllStores()
 

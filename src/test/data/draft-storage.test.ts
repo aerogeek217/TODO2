@@ -138,17 +138,25 @@ describe('draft storage', () => {
     expect(kept.kind === 'custom' && 'negate' in kept.predicate).toBe(false)
   })
 
-  it('a list draft keeps a Priority filter with No markers; one it cannot read is not taken back', () => {
+  it('a list draft keeps a Priority filter with an "is not"; one it cannot read is not taken back', () => {
     const base = listDef()
     const withMarkers = (markers: unknown) => ({ kind: 'custom' as const, predicate: { ...emptyPredicate(), markers } as TodoPredicate })
-    const draft = listDef({ membership: withMarkers({ urgent: true, important: false }) })
+    const draft = listDef({ membership: withMarkers([{ values: ['urgent'] }, { values: ['important'], not: true }]) })
     writeListDrafts(new Map([[4, { draft, base }]]))
     expect(readListDrafts()).toEqual(new Map([[4, { draft, base }]]))
 
     localStorage.setItem('todo2-unsaved-lists', JSON.stringify({
-      5: { draft: { ...listDef({ membership: withMarkers({ urgent: 'no' }) }), id: 5 }, base: { ...base, id: 5 }, schemaVersion: CURRENT_DB_VERSION },
+      5: { draft: { ...listDef({ membership: withMarkers([{ values: ['warm'] }]) }), id: 5 }, base: { ...base, id: 5 }, schemaVersion: CURRENT_DB_VERSION },
     }))
     expect([...readListDrafts().keys()]).toEqual([])
+  })
+
+  it('a list draft an older build kept reads in the current Priority shape', () => {
+    const base = listDef()
+    const old = { ...listDef(), membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: { urgent: true, important: false } } } }
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({ 4: { draft: old, base, schemaVersion: 73 } }))
+    const read = readListDrafts().get(4)?.draft.membership
+    expect(read?.kind === 'custom' ? read.predicate.markers : undefined).toEqual([{ values: ['urgent'] }, { values: ['important'], not: true }])
   })
 
   it('clearUnsavedDrafts forgets both kinds', () => {

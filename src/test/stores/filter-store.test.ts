@@ -170,14 +170,14 @@ describe('useFilterStore', () => {
       const plain = makeTodo({ id: 4 })
       expect(f().markers).toBeNull()
       for (const t of [focused, important, both, plain]) expect(matchesFilter(f(), t, undefined, today)).toBe(true)
-      patchScreenFilter({ markers: { focus: true } })
+      patchScreenFilter({ markers: [{ values: ['focus'] }] })
       expect([focused, important, both, plain].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([true, false, true, false])
-      patchScreenFilter({ markers: { focus: true, important: true } })
+      patchScreenFilter({ markers: [{ values: ['focus'] }, { values: ['important'] }] })
       expect([focused, important, both, plain].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([false, false, true, false])
     })
 
     it('Urgent means effective urgent: the flag, or due within the range (overdue included)', () => {
-      patchScreenFilter({ markers: { urgent: true } })
+      patchScreenFilter({ markers: [{ values: ['urgent'] }] })
       const flagged = makeTodo({ id: 1, urgent: true })
       const overdue = makeTodo({ id: 2, dueDate: day(-2) })
       const edge = makeTodo({ id: 3, dueDate: day(3) })
@@ -192,41 +192,33 @@ describe('useFilterStore', () => {
     })
 
     it('counts as one active filter, clears with clearAll, and an emptied set is no filter', () => {
-      patchScreenFilter({ markers: { urgent: true, focus: true } })
+      patchScreenFilter({ markers: [{ values: ['focus'] }, { values: ['urgent'] }] })
       expect(useFilterStore.getState().isActive).toBe(true)
       expect(countActiveFilters(f())).toBe(1)
       useFilterStore.getState().clearAll()
       expect(f().markers).toBeNull()
-      patchScreenFilter({ markers: {} })
+      patchScreenFilter({ markers: [] })
       expect(countActiveFilters(f())).toBe(0)
       expect(useFilterStore.getState().isActive).toBe(false)
     })
 
-    it('Hot keeps the tasks the Settings rule makes hot, and is one active filter', () => {
-      patchScreenFilter({ markers: 'hot' })
-      expect(f().markers).toBe('hot')
+    it('several values keep any of them, and are one active filter', () => {
+      patchScreenFilter({ markers: [{ values: ['urgent', 'focus'] }] })
       expect(countActiveFilters(f())).toBe(1)
-      const urgentImportant = makeTodo({ id: 1, important: true, dueDate: day(1) })
+      const urgent = makeTodo({ id: 1, important: true, dueDate: day(1) })
       const focused = makeTodo({ id: 2, focus: true })
       const importantOnly = makeTodo({ id: 3, important: true })
-      const doneFocused = makeTodo({ id: 4, focus: true, isCompleted: true })
-      useFilterStore.getState().setShowCompleted(true)
-      const shown = () => [urgentImportant, focused, importantOnly, doneFocused].map((t) => matchesFilter(f(), t, undefined, today))
-      expect(shown()).toEqual([true, true, false, false])
-      useSettingsStore.setState({ hotRule: [{ important: true }] })
-      expect(shown()).toEqual([true, false, true, false])
-      // A caller's own settings win over the store's.
-      expect(matchesFilter(f(), focused, undefined, today, undefined, undefined, { urgentRange: 3, hotRule: [{ focus: true }], weekStartsOn: 0 })).toBe(true)
+      expect([urgent, focused, importantOnly].map((t) => matchesFilter(f(), t, undefined, today))).toEqual([true, true, false])
       const predicate = criteriaToPredicate(f())
-      expect(predicate.markers).toBe('hot')
-      expect(predicateToCriteria(predicate).markers).toBe('hot')
+      expect(predicate.markers).toEqual([{ values: ['focus', 'urgent'] }])
+      expect(predicateToCriteria(predicate).markers).toEqual([{ values: ['focus', 'urgent'] }])
     })
 
     it('round-trips through the predicate; a predicate without it reads as null', () => {
-      patchScreenFilter({ markers: { important: true } })
+      patchScreenFilter({ markers: [{ values: ['important'] }] })
       const predicate = criteriaToPredicate(f())
-      expect(predicate.markers).toEqual({ important: true })
-      expect(predicateToCriteria(predicate).markers).toEqual({ important: true })
+      expect(predicate.markers).toEqual([{ values: ['important'] }])
+      expect(predicateToCriteria(predicate).markers).toEqual([{ values: ['important'] }])
       const { markers: _drop, ...legacy } = predicate
       void _drop
       expect(predicateToCriteria(legacy).markers).toBeNull()

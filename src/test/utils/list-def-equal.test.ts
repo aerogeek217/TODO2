@@ -11,17 +11,25 @@ function def(over: Partial<PersistedListDefinition> = {}): PersistedListDefiniti
   }
 }
 
-describe('list definition equality — Priority Yes / No', () => {
+describe('list definition equality — Priority is / is not', () => {
   const withMarkers = (markers: TodoPredicate['markers']) => def({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers } } })
 
-  it('Yes and No on a marker are different filters', () => {
-    expect(defsEqual(withMarkers({ urgent: true }), withMarkers({ urgent: false }))).toBe(false)
-    expect([...changedListFields(withMarkers({ urgent: false }), withMarkers({ urgent: true }))]).toEqual(['filters'])
+  it('is and is not on a marker are different filters', () => {
+    expect(defsEqual(withMarkers([{ values: ['urgent'] }]), withMarkers([{ values: ['urgent'], not: true }]))).toBe(false)
+    expect([...changedListFields(withMarkers([{ values: ['urgent'], not: true }]), withMarkers([{ values: ['urgent'] }]))]).toEqual(['filters'])
   })
 
-  it('no markers and an empty set are the same; key order doesn’t matter', () => {
-    expect(defsEqual(withMarkers(null), withMarkers({}))).toBe(true)
-    expect(defsEqual(withMarkers({ urgent: true, important: false }), withMarkers({ important: false, urgent: true }))).toBe(true)
+  it('no conditions and an empty list are the same; the order of values and of chips doesn’t matter', () => {
+    expect(defsEqual(withMarkers(null), withMarkers([]))).toBe(true)
+    expect(defsEqual(withMarkers([{ values: ['urgent', 'important'] }]), withMarkers([{ values: ['important', 'urgent'] }]))).toBe(true)
+    expect(defsEqual(
+      withMarkers([{ values: ['urgent'] }, { values: ['important'], not: true }]),
+      withMarkers([{ values: ['important'], not: true }, { values: ['urgent'] }]),
+    )).toBe(true)
+  })
+
+  it('two chips (AND) are not one chip of two values (OR)', () => {
+    expect(defsEqual(withMarkers([{ values: ['urgent'] }, { values: ['important'] }]), withMarkers([{ values: ['urgent', 'important'] }]))).toBe(false)
   })
 })
 
@@ -57,7 +65,7 @@ describe('list definition equality — filter line and Priority grouping', () =>
 })
 
 describe('list definition equality — or groups', () => {
-  const hot: FilterClauses = { ...emptyFilterClauses(), markers: 'hot' }
+  const hot: FilterClauses = { ...emptyFilterClauses(), markers: [{ values: ['focus'] }] }
   const mine: FilterClauses = { ...emptyFilterClauses(), personIds: [1, 2] }
   const withGroups = (orGroups: FilterClauses[] | undefined, extra: Partial<TodoPredicate> = {}) =>
     def({ membership: { kind: 'custom', predicate: { ...emptyPredicate(), ...extra, ...(orGroups ? { orGroups } : {}) } } })
@@ -80,6 +88,6 @@ describe('list definition equality — or groups', () => {
   })
 
   it('a clause inside an or group is not the same clause outside it', () => {
-    expect(defsEqual(withGroups([hot]), withGroups(undefined, { markers: 'hot' }))).toBe(false)
+    expect(defsEqual(withGroups([hot]), withGroups(undefined, { markers: [{ values: ['focus'] }] }))).toBe(false)
   })
 })
