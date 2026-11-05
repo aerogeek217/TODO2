@@ -1,5 +1,6 @@
 import {
   pointerWithin,
+  type Collision,
   type CollisionDetection,
   type UniqueIdentifier,
 } from '@dnd-kit/core'
@@ -43,7 +44,45 @@ export interface CollisionActive {
  * droppable is in scope.
  */
 export function buildTaskCollision(rules: readonly TaskCollisionRule[]): CollisionDetection {
+  return withinVisible(buildRuleCollision(rules))
+}
+
+type DetectArgs = Parameters<CollisionDetection>[0]
+
+/**
+ * Keeps only the hits whose droppable shows at the pointer. dnd-kit measures
+ * droppables unclipped, so a calendar day or an Eisenhower pane scrolled out
+ * of its scroller still has a rect — over whatever lies beyond the scroller
+ * (the list a row is dragged in). A hit counts only where no ancestor that
+ * clips its overflow cuts the point off (cr31 W1).
+ */
+function withinVisible(detect: CollisionDetection): CollisionDetection {
   return (args) => {
+    const hits = detect(args)
+    const point = args.pointerCoordinates
+    if (!point || hits.length === 0) return hits
+    return hits.filter((hit) => {
+      const node = args.droppableContainers.find((c) => c.id === hit.id)?.node.current
+      return !node || !clippedAt(node, point.x, point.y)
+    })
+  }
+}
+
+/** Whether an ancestor of `node` that clips its overflow (a scroller) leaves the point outside. */
+export function clippedAt(node: Element, x: number, y: number): boolean {
+  for (let el = node.parentElement; el && el !== document.body; el = el.parentElement) {
+    const { overflowX, overflowY } = getComputedStyle(el)
+    const clipsX = overflowX !== 'visible'
+    const clipsY = overflowY !== 'visible'
+    if (!clipsX && !clipsY) continue
+    const r = el.getBoundingClientRect()
+    if ((clipsX && (x < r.left || x > r.right)) || (clipsY && (y < r.top || y > r.bottom))) return true
+  }
+  return false
+}
+
+function buildRuleCollision(rules: readonly TaskCollisionRule[]): CollisionDetection {
+  return (args: DetectArgs): Collision[] => {
     const active = args.active as unknown as CollisionActive | null
     if (!active) {
       dndLog('collision.no-active.fallback', {})

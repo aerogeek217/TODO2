@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { CollisionDetection, DroppableContainer } from '@dnd-kit/core'
 import { WORKSPACE_TAB_DRAG } from '../../../components/workspace/workspace-drag'
 import { TASK_DRAG_KIND, buildTaskCollision } from '../../../utils/task-dnd'
+import { clippedAt } from '../../../utils/task-dnd/collision'
 
 type DetectArgs = Parameters<CollisionDetection>[0]
 
@@ -13,8 +14,8 @@ vi.mock('@dnd-kit/core', () => ({
   pointerWithin: (args: DetectArgs) => pointerWithinSpy(args),
 }))
 
-function container(id: string | number): DroppableContainer {
-  return { id, data: { current: {} } } as unknown as DroppableContainer
+function container(id: string | number, node: HTMLElement | null = null): DroppableContainer {
+  return { id, data: { current: {} }, node: { current: node } } as unknown as DroppableContainer
 }
 
 function callArgs(
@@ -23,7 +24,7 @@ function callArgs(
 ): DetectArgs {
   return {
     active,
-    droppableContainers: ids.map(container),
+    droppableContainers: ids.map((id) => container(id)),
     collisionRect: { top: 0, left: 0, bottom: 0, right: 0, width: 0, height: 0 },
     droppableRects: new Map(),
     pointerCoordinates: { x: 0, y: 0 },
@@ -107,5 +108,50 @@ describe('buildTaskCollision — workspace tab / task isolation', () => {
     }))
     expect(pointerWithinSpy).toHaveBeenCalledTimes(1)
     expect(seenIds()).toEqual(droppables)
+  })
+})
+
+describe('buildTaskCollision — a droppable scrolled out of view (cr31 W1)', () => {
+  function rect(top: number, bottom: number): DOMRect {
+    return { top, bottom, left: 0, right: 500, x: 0, y: top, width: 500, height: bottom - top, toJSON: () => ({}) } as DOMRect
+  }
+  /** A scroller showing y `top`–`top + 100`, holding a day at `dayTop`–`dayTop + 40`. */
+  function scrollerWithDay(dayTop: number, top = 0) {
+    const scroller = document.createElement('div')
+    scroller.style.overflowY = 'auto'
+    const day = document.createElement('div')
+    scroller.appendChild(day)
+    document.body.appendChild(scroller)
+    scroller.getBoundingClientRect = () => rect(top, top + 100)
+    day.getBoundingClientRect = () => rect(dayTop, dayTop + 40)
+    return { scroller, day }
+  }
+
+  it('a hit whose node its scroller clips at the pointer is dropped; a shown one is kept', () => {
+    // A list's scroller (y 120–220) with its row under the pointer, and a
+    // calendar's (y 0–100) whose day at 140–180 is scrolled out below it.
+    const shown = scrollerWithDay(130, 120).day
+    const hidden = scrollerWithDay(140).day
+    const detect = buildTaskCollision([])
+    const args = {
+      ...callArgs([], { id: 'task', data: { current: { type: TASK_DRAG_KIND.task } } }),
+      droppableContainers: [container('shown', shown), container('hidden', hidden)],
+      pointerCoordinates: { x: 10, y: 150 },
+    } as DetectArgs
+    // The spy reports both as under the pointer, as dnd-kit's unclipped rects would.
+    expect(detect(args).map((c) => c.id)).toEqual(['shown'])
+    expect(clippedAt(hidden, 10, 150)).toBe(true)
+    expect(clippedAt(shown, 10, 150)).toBe(false)
+    document.body.innerHTML = ''
+  })
+
+  it('an ancestor that doesn’t clip (overflow visible) doesn’t hide it', () => {
+    const wrap = document.createElement('div')
+    const day = document.createElement('div')
+    wrap.appendChild(day)
+    document.body.appendChild(wrap)
+    wrap.getBoundingClientRect = () => rect(0, 10)
+    expect(clippedAt(day, 10, 150)).toBe(false)
+    document.body.innerHTML = ''
   })
 })
