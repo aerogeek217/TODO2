@@ -193,7 +193,7 @@ export function useTaskRowPickers({
         document.body,
       )}
       {subtasksOpen && (subtasksPanel === 'sheet'
-        ? <SubtasksSheet todo={todo} onClose={closeSubtasks} />
+        ? <SubtasksSheet todo={todo} onClose={closeSubtasks} focusAdd={subtasksOpen === 'add'} />
         : createPortal(
           <SubtasksPopover
             todo={todo}

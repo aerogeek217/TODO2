@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { useRef } from 'react'
-import { render, fireEvent, screen } from '@testing-library/react'
+import { render, fireEvent, screen, cleanup } from '@testing-library/react'
 import { AnchoredPicker } from '../../../components/shared/AnchoredPicker'
 import { SubtasksSheet } from '../../../components/task/subtasks/SubtasksSheet'
 import type { PersistedTodoItem } from '../../../models'
@@ -10,6 +10,8 @@ import type { PersistedTodoItem } from '../../../models'
  * React tree) to the row that opened it — its select, drag, editor and task
  * menu handlers (cr31 T2, T5).
  */
+afterEach(cleanup)
+
 function rowSpies() {
   return {
     onClick: vi.fn(), onDoubleClick: vi.fn(), onMouseDown: vi.fn(),
@@ -61,5 +63,26 @@ describe('portaled row layers keep their events inside', () => {
     fireAll(scrim)
     expectNoneCalled(spies)
     expect(onClose).toHaveBeenCalled()
+  })
+})
+
+describe('SubtasksSheet: Esc and the scrim (cr31 T9, T10)', () => {
+  const todo = { id: 1, title: 'Parent', isCompleted: false } as PersistedTodoItem
+
+  it('Esc in the sheet closes only the sheet, not a dialog it was opened from', () => {
+    const dialogKeyDown = vi.fn()
+    const onClose = vi.fn()
+    render(<div onKeyDown={dialogKeyDown}><SubtasksSheet todo={todo} onClose={onClose} /></div>)
+    fireEvent.keyDown(screen.getByLabelText('New subtask'), { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+    expect(dialogKeyDown).not.toHaveBeenCalled()
+  })
+
+  it('a touch drag on the scrim doesn’t scroll the page behind (a non-passive listener)', () => {
+    render(<SubtasksSheet todo={todo} onClose={() => {}} />)
+    const scrim = document.querySelector('[data-subtasks-sheet]')!.previousElementSibling!
+    const move = new Event('touchmove', { bubbles: true, cancelable: true })
+    scrim.dispatchEvent(move)
+    expect(move.defaultPrevented).toBe(true)
   })
 })
