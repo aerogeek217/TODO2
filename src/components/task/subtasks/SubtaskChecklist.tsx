@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { ESCAPE_CLEARS_ATTR } from '../../../hooks/use-popover-anchor'
+import { ESCAPE_OWN_ATTR } from '../../../hooks/use-popover-anchor'
 import {
   DndContext, KeyboardSensor, PointerSensor, closestCenter, useSensor, useSensors,
   type Announcements, type UniqueIdentifier,
@@ -76,6 +76,15 @@ export function SubtaskChecklist({
   const addRef = useRef<HTMLInputElement>(null)
   const moreButtons = useRef(new Map<number, HTMLButtonElement>())
   const menuAnchor = useRef<HTMLButtonElement | null>(null)
+  // A rename ended by ⏎ / Esc hands the focus back to its title (the field is gone).
+  const titleButtons = useRef(new Map<number, HTMLButtonElement>())
+  const refocusTitle = useRef<number | null>(null)
+  useEffect(() => {
+    if (renaming !== null || refocusTitle.current === null) return
+    const id = refocusTitle.current
+    refocusTitle.current = null
+    titleButtons.current.get(id)?.focus({ preventScroll: true })
+  }, [renaming])
 
   useEffect(() => {
     if (autoFocusAdd) addRef.current?.focus({ preventScroll: true })
@@ -145,11 +154,13 @@ export function SubtaskChecklist({
           title={item.title}
           onSave={(title) => { if (title !== item.title) onRename(item.id, title); setRenaming(null) }}
           onCancel={() => setRenaming(null)}
+          onKeyFinish={() => { refocusTitle.current = item.id }}
           density={density}
         />
       ) : (
         <button
           type="button"
+          ref={(el) => { if (el) titleButtons.current.set(item.id, el); else titleButtons.current.delete(item.id) }}
           className={styles.title}
           title={item.title}
           onClick={() => setRenaming(item.id)}
@@ -219,10 +230,12 @@ export function SubtaskChecklist({
  * there), blur saves — and so does the field going away: a popover closes on
  * the press, before any blur.
  */
-function RenameField({ title, onSave, onCancel, density }: {
+function RenameField({ title, onSave, onCancel, onKeyFinish, density }: {
   title: string
   onSave: (title: string) => void
   onCancel: () => void
+  /** ⏎ or Esc ended it (not a blur): the focus goes back to the title. */
+  onKeyFinish: () => void
   density: ChecklistDensity
 }) {
   const [value, setValue] = useState(title)
@@ -252,8 +265,8 @@ function RenameField({ title, onSave, onCancel, density }: {
       value={value}
       maxLength={SUBTASK_TITLE_MAX}
       aria-label="Subtask title"
-      // Esc cancels the rename here, before a popover around it would close (and save it).
-      {...{ [ESCAPE_CLEARS_ATTR]: '' }}
+      // Esc cancels the rename here — emptied or not — before a popover around it would close (and save it).
+      {...{ [ESCAPE_OWN_ATTR]: '' }}
       autoComplete="off"
       data-density={density}
       onChange={(e) => setValue(e.target.value)}
@@ -262,11 +275,13 @@ function RenameField({ title, onSave, onCancel, density }: {
         if (e.nativeEvent.isComposing) return
         if (e.key === 'Enter') {
           e.preventDefault()
+          onKeyFinish()
           save()
         } else if (e.key === 'Escape') {
           e.preventDefault()
           e.stopPropagation()
           done.current = true
+          onKeyFinish()
           onCancel()
         }
       }}
