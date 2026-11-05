@@ -23,6 +23,13 @@ import type { DataRow, DataSet } from '../schema-upgrades'
  * dashboard tab's Hot tile and section, so a stored layout doesn't open as
  * needing repair.
  *
+ * Subtask titles are made what the subtask store writes (cr31): one line,
+ * trimmed, at most 500 characters; a row left with no title goes. v73 builds
+ * stored a note line's subtasks as they were — an empty done box (`- [x]`)
+ * as `''`, a long line whole — which import refuses, so one such row made
+ * every export, backup and sync file of that browser unimportable. Here both
+ * the browser's database and every file a v73 build wrote are repaired.
+ *
  * Holds its own copies of the marker keys and the rule's reading: this step
  * must go on meaning this whatever later builds do with them. A value it can't
  * read passes through, for validation to drop; a list is already in the new
@@ -42,6 +49,26 @@ const DEFAULT_RULE: readonly (readonly Marker[])[] = [['urgent', 'important'], [
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v)
+}
+
+/** The subtask title rule as v74 stores it (`utils/subtasks.subtaskTitle` then). */
+const SUBTASK_TITLE_MAX = 500
+
+function storedSubtaskTitle(title: string): string {
+  return title.replace(/\s+/g, ' ').trim().slice(0, SUBTASK_TITLE_MAX).trim()
+}
+
+/** The subtasks with their titles as stored, a row left with none dropped; the table itself when nothing changes. */
+function withStoredTitles(rows: readonly DataRow[]): readonly DataRow[] {
+  let changed = false
+  const out = rows.flatMap((row) => {
+    if (!isRecord(row) || typeof row.title !== 'string') return [row]
+    const title = storedSubtaskTitle(row.title)
+    if (title !== '' && title === row.title) return [row]
+    changed = true
+    return title === '' ? [] : [{ ...row, title }]
+  })
+  return changed ? out : rows
 }
 
 /** The rule's lines (each an AND of markers), the default for a row that is absent or can't be read. */
@@ -213,9 +240,11 @@ export function upgradeV74(data: DataSet): DataSet {
   })
   const isRule = (row: DataRow) => isRecord(row) && row.key === 'hotRule'
   const settings = upgradedSettings?.some(isRule) === true ? upgradedSettings.filter((row) => !isRule(row)) : upgradedSettings
-  if (lists === data.listDefinitions && settings === data.settings && layouts === data.layouts) return data
+  const subtasks = data.subtasks && withStoredTitles(data.subtasks)
+  if (lists === data.listDefinitions && settings === data.settings && layouts === data.layouts && subtasks === data.subtasks) return data
   return {
     ...data,
+    ...(subtasks ? { subtasks: subtasks as DataRow[] } : {}),
     ...(lists ? { listDefinitions: lists as DataRow[] } : {}),
     ...(settings ? { settings: settings as DataRow[] } : {}),
     ...(layouts ? { layouts: layouts as DataRow[] } : {}),

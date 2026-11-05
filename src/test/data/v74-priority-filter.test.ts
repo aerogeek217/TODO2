@@ -178,6 +178,17 @@ describe('upgradeV74 — a stored Priority filter as conditions', () => {
     }
   })
 
+  it('subtask titles become what the store writes: one line, at most 500 characters; a row with none goes', () => {
+    const sub = (id: number, title: unknown): DataRow => ({ id, todoId: 1, title, isCompleted: false, sortOrder: id, createdAt: '2026-10-20T09:00:00.000Z' })
+    const rows = [sub(1, ''), sub(2, '   '), sub(3, 'q'.repeat(600)), sub(4, '  Two\n lines '), sub(5, 'Fine'), sub(6, 7), { id: 7 }, null] as unknown as DataRow[]
+    const out = upgradeV74({ subtasks: rows }).subtasks
+    expect(out).toEqual([sub(3, 'q'.repeat(500)), sub(4, 'Two lines'), sub(5, 'Fine'), sub(6, 7), { id: 7 }, null])
+    expect(out?.[2]).toBe(rows[4])
+    expect(upgradeV74({ subtasks: out ?? [] }).subtasks).toBe(out)
+    const clean = { subtasks: [sub(1, 'Fine')] }
+    expect(upgradeV74(clean)).toBe(clean)
+  })
+
   it('a filter keeps exactly the tasks it matched', () => {
     const settings = { urgentRange: null, hotRule: [{ urgent: true, important: true }, { focus: true }], weekStartsOn: 0 } as const
     const flags = [false, true]
