@@ -7,6 +7,7 @@ import type { MenuEntry } from '../../shared/MenuPopover'
 import { SubtaskChecklist, type ChecklistItem } from './SubtaskChecklist'
 import { storedSubtaskMenuEntries } from './subtask-menu'
 import styles from './Subtasks.module.css'
+import { KEEP_EVENTS_INSIDE } from '../../shared/keep-events-inside'
 
 /**
  * The phone's checklist (cr28, T2): a bottom sheet over a scrim, opened by
@@ -32,13 +33,15 @@ export function SubtasksSheet({ todo, onClose, extraMenuEntries = storedSubtaskM
   const store = () => useSubtaskStore.getState()
   return createPortal(
     <>
-      <div className={styles.backdrop} onClick={onClose} onTouchMove={(e) => e.preventDefault()} />
+      <div className={styles.backdrop} {...KEEP_EVENTS_INSIDE} onClick={(e) => { e.stopPropagation(); onClose() }} onTouchMove={(e) => e.preventDefault()} />
       <div
         className={styles.sheet}
         role="dialog"
         aria-label={`Subtasks of ${todo.title}`}
         data-subtasks-sheet=""
-        onClick={(e) => e.stopPropagation()}
+        // Long-press / right-click in it is the sheet's (the fields' copy /
+        // paste), never the row's task menu; nor is a tap or press the row's.
+        {...KEEP_EVENTS_INSIDE}
       >
         <div className={styles.sheetHead}>
           <span className={styles.sheetTitle}>{todo.title}</span>

@@ -132,6 +132,33 @@ test.describe('people picker', () => {
     await expect(panel).toHaveCount(0)
   })
 
+  test('a press and move in it never drags the row; a click in it never takes the selection (cr31 T2)', async ({ page }) => {
+    await open(page, [{ title: 'Top task', people: ['Alice'] }, { title: 'Other task' }])
+    // A multi-selection the picker's clicks must keep.
+    await taskRowByTitle(page, 'Top task').locator('span[data-task-title="Top task"]').click()
+    await taskRowByTitle(page, 'Other task').locator('span[data-task-title="Other task"]').click({ modifiers: ['Control'] })
+    await expect(page.locator('[data-selected="true"]')).toHaveCount(2)
+    const trigger = taskRowByTitle(page, 'Top task').getByRole('button', { name: 'People: Alice' })
+    await trigger.click()
+    const panel = picker(page)
+    const field = panel.getByRole('combobox')
+    await expect(field).toBeFocused()
+
+    const f = await box(field)
+    await page.mouse.move(f.x + 10, f.y + f.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(f.x + 50, f.y + 60, { steps: 8 })
+    await page.mouse.move(f.x + 90, f.y + 80, { steps: 8 })
+    await expect(wsListWidget(page, 'tasks').locator('[data-drop-slot]')).toHaveCount(0)
+    await page.mouse.up()
+    await expect(panel).toBeVisible()
+
+    // A click on the panel's padding leaves the rows' selection alone.
+    const p = await box(panel)
+    await page.mouse.click(p.x + 3, p.y + p.height - 3)
+    await expect(page.locator('[data-selected="true"]')).toHaveCount(2)
+  })
+
   test('follows the trigger when the list scrolls', async ({ page }) => {
     await open(page, [{ title: 'Top task', people: ['Alice'] }, ...FILLERS])
     const trigger = taskRowByTitle(page, 'Top task').getByRole('button', { name: 'People: Alice' })
