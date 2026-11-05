@@ -447,6 +447,9 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === SETTING_KEYS.lensPresetsSeeded) {
     return v.value === 'true' ? true : 'value (lensPresetsSeeded must be true)'
   }
+  if (v.key === SETTING_KEYS.removeConvertedLines) {
+    return v.value === 'true' || v.value === 'false' ? true : 'value (removeConvertedLines must be true or false)'
+  }
   if (v.key === SETTING_KEYS.newTaskFollowup) {
     return v.value === 'true' || v.value === 'false' ? true : 'value (newTaskFollowup must be true or false)'
   }

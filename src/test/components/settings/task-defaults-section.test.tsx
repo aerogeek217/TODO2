@@ -38,6 +38,24 @@ describe('TaskDefaultsSection — follow-up', () => {
   })
 })
 
+describe('TaskDefaultsSection — Remove note lines after converting', () => {
+  it('is off by default; the switch saves it, stored only while on', async () => {
+    render(<TaskDefaultsSection />)
+    const sw = screen.getByRole('switch', { name: 'Remove note lines after converting' })
+    expect(sw).toHaveAttribute('aria-checked', 'false')
+    fireEvent.click(sw)
+    await waitFor(async () => expect((await db.settings.get('removeConvertedLines'))?.value).toBe('true'))
+    expect(useSettingsStore.getState().removeConvertedLines).toBe(true)
+    expect(sw).toHaveAttribute('aria-checked', 'true')
+    useSettingsStore.setState({ removeConvertedLines: false })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().removeConvertedLines).toBe(true)
+    fireEvent.click(sw)
+    await waitFor(async () => expect(await db.settings.get('removeConvertedLines')).toBeUndefined())
+    expect(useSettingsStore.getState().removeConvertedLines).toBe(false)
+  })
+})
+
 describe('TaskDefaultsSection — Due date makes a task urgent', () => {
   it('shows the range (default Within 3 days) with its help line and offers Off · Today · 1 · 2 · 3 days · 1 · 2 weeks', () => {
     render(<TaskDefaultsSection />)

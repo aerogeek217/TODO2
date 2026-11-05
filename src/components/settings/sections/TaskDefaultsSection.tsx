@@ -32,8 +32,8 @@ function urgentChoiceLabel(range: UrgentDueWithinDays): string {
 /**
  * Defaults for new tasks: status, whether they get a next follow-up and the
  * follow-up interval, when a due date makes a task urgent, which tasks are
- * hot, when an untouched task's row fades, the first day of the week, and
- * how new lists sort and group.
+ * hot, when an untouched task's row fades, the first day of the week, how
+ * new lists sort and group, and what a note's converted lines become.
  */
 export function TaskDefaultsSection() {
   const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
@@ -41,6 +41,8 @@ export function TaskDefaultsSection() {
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const setWeekStartsOn = useSettingsStore((s) => s.setWeekStartsOn)
   const statuses = useStatusStore((s) => s.statuses)
+  const removeConvertedLines = useSettingsStore((s) => s.removeConvertedLines)
+  const setRemoveConvertedLines = useSettingsStore((s) => s.setRemoveConvertedLines)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const setUrgentRange = useSettingsStore((s) => s.setUrgentDueWithinDays)
   // A range set outside the offered choices (e.g. by an import) still shows.
@@ -64,6 +66,19 @@ export function TaskDefaultsSection() {
         </select>
       </SettingRow>
       <FollowupIntervalSetting />
+      <SettingRow
+        label="Remove note lines after converting"
+        help="A line made into a task goes from the note, without asking. Ctrl+Z in the note brings it back. Off: one converted line stays marked ✓, and converting several asks."
+      >
+        <button
+          type="button"
+          role="switch"
+          aria-checked={removeConvertedLines}
+          aria-label="Remove note lines after converting"
+          className={`${styles.switch} ${removeConvertedLines ? styles.switchOn : ''}`}
+          onClick={() => void setRemoveConvertedLines(!removeConvertedLines)}
+        />
+      </SettingRow>
       <SettingRow
         label="Due date makes a task urgent"
         help="Overdue tasks count too. They show a clock instead of the urgent mark."
