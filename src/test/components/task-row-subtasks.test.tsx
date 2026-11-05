@@ -11,6 +11,7 @@ import { db } from '../../data/database'
 import { useTodoStore } from '../../stores/todo-store'
 import { useSubtaskStore } from '../../stores/subtask-store'
 import { makeTodo, resetDb } from '../helpers'
+import { RowPopoverHost } from '../../components/overlays/RowPopoverHost'
 
 afterEach(cleanup)
 
@@ -36,14 +37,14 @@ const popover = () => screen.getByRole('dialog', { name: 'Subtasks of Q4 budget'
 describe('TaskRow — the subtask count', () => {
   it('shows nothing without subtasks', async () => {
     await seed([])
-    render(<TaskRow todo={todo()} />)
+    render(<><TaskRow todo={todo()} /><RowPopoverHost /></>)
     expect(count()).toBeNull()
     expect(document.querySelector('[data-subtask-count]')).toBeNull()
   })
 
   it('shows `1/3` after the title, named in words; all done takes the accent', async () => {
     await seed(['[x] a', 'b', 'c'])
-    const { unmount } = render(<TaskRow todo={todo()} />)
+    const { unmount } = render(<><TaskRow todo={todo()} /><RowPopoverHost /></>)
     expect(count()).toHaveTextContent('1/3')
     expect(count()).toHaveAttribute('aria-label', '1 of 3 subtasks done, show them')
     expect(count()).not.toHaveAttribute('data-all-done')
@@ -51,21 +52,21 @@ describe('TaskRow — the subtask count', () => {
     unmount()
     await resetDb()
     await seed(['[x] a'])
-    render(<TaskRow todo={todo()} />)
+    render(<><TaskRow todo={todo()} /><RowPopoverHost /></>)
     expect(count()).toHaveTextContent('1/1')
     expect(count()).toHaveAttribute('data-all-done')
   })
 
   it('the drag ghost shows the count with nothing to press', async () => {
     await seed(['[x] a', 'b'])
-    render(<TaskRow todo={todo()} ghost />)
+    render(<><TaskRow todo={todo()} ghost /><RowPopoverHost /></>)
     expect(count()).toBeNull()
     expect(document.querySelector('[data-subtask-count]')).toHaveTextContent('1/2')
   })
 
   it('a click opens the popover with the first open subtask focused; a check writes and the count follows; Esc closes it and the focus goes back', async () => {
     await seed(['[x] a', 'b', 'c'])
-    render(<TaskRow todo={todo()} />)
+    render(<><TaskRow todo={todo()} /><RowPopoverHost /></>)
     fireEvent.click(count()!)
     expect(popover()).toBeInTheDocument()
     expect(count()).toHaveAttribute('aria-expanded', 'true')
@@ -89,7 +90,7 @@ describe('TaskRow — the subtask count', () => {
 
   it('⏎ in the popover’s add row adds a subtask last; every subtask done focuses the add row', async () => {
     await seed(['[x] a'])
-    render(<TaskRow todo={todo()} />)
+    render(<><TaskRow todo={todo()} /><RowPopoverHost /></>)
     fireEvent.click(count()!)
     const add = within(popover()).getByRole('textbox', { name: 'New subtask' })
     expect(document.activeElement).toBe(add)
@@ -104,7 +105,7 @@ describe('TaskRow — the subtask count', () => {
 describe('TaskRow — Add subtask… without a checklist', () => {
   it('opens the popover at the row on its add field; the first subtask makes the count appear', async () => {
     await seed([])
-    render(<TaskRow todo={todo()} />)
+    render(<><TaskRow todo={todo()} /><RowPopoverHost /></>)
     fireEvent.contextMenu(document.querySelector('[data-todo-id]')!, { clientX: 40, clientY: 20 })
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add subtask…' }))
     const dialog = popover()
@@ -122,7 +123,7 @@ describe('TaskRow — Add subtask… without a checklist', () => {
 describe('MobileTaskRow — the subtasks chip', () => {
   it('shows `1/3 subtasks` and opens the checklist as a sheet, whose checks write', async () => {
     await seed(['[x] a', 'b', 'c'])
-    render(<MobileTaskRow todo={todo()} />)
+    render(<><MobileTaskRow todo={todo()} /><RowPopoverHost /></>)
     const chip = screen.getByRole('button', { name: '1 of 3 subtasks done, show them' })
     expect(chip).toHaveTextContent('1/3 subtasks')
     fireEvent.click(chip)
@@ -137,7 +138,7 @@ describe('MobileTaskRow — the subtasks chip', () => {
 
   it('shows no chip without subtasks', async () => {
     await seed([])
-    render(<MobileTaskRow todo={todo()} />)
+    render(<><MobileTaskRow todo={todo()} /><RowPopoverHost /></>)
     expect(screen.queryByRole('button', { name: /subtasks? done/ })).toBeNull()
   })
 })

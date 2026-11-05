@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
 import { FollowupPopoverHost } from '../../components/overlays/FollowupPopoverHost'
+import { RowPopoverHost } from '../../components/overlays/RowPopoverHost'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -552,7 +553,7 @@ describe('TaskRow', () => {
     it('a click opens the status and notes popover; no preview while it is open', () => {
       withUpdate('50%')
       useTodoStore.setState({ todos: [makeTodo({ id: 1 })] })
-      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      render(<><TaskRow todo={makeTodo({ id: 1 })} /><RowPopoverHost /></>)
       const cell = screen.getByRole('button', { name: 'Edit status and notes' })
       fireEvent.click(cell)
       expect(screen.getByRole('dialog', { name: 'Status and notes' })).toBeInTheDocument()
