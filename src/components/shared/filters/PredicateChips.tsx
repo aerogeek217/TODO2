@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import { anchorAtPoint, usePopoverAnchor } from '../../../hooks/use-popover-anchor'
-import { createPendingNotMemory, DatePendingNotContext } from './date-pending-not'
+import { createScopedPendingNot, DatePendingNotContext } from './date-pending-not'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
 import {
   chipClauses, chipKey, filterChips, heldFields, predicateLineItems, removeChip, wrapChipInOrGroup,
@@ -132,20 +132,13 @@ const FIELD_ITEMS = new Map(ADD_FILTER_ITEMS.map((item) => [item.field, item]))
  * the order they were added in: a new chip goes last, a group takes the
  * place of the chip it was made from.
  */
-export function PredicateChips(props: PredicateChipsProps) {
-  // Outlives the date panel: an Is not chosen before a range has an end stays chosen.
-  const [pendingNot] = useState(createPendingNotMemory)
-  return (
-    <DatePendingNotContext.Provider value={pendingNot}>
-      <PredicateChipsBody {...props} />
-    </DatePendingNotContext.Provider>
-  )
-}
-
-function PredicateChipsBody({
+export function PredicateChips({
   predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false, omitFields, dateHost, layout = 'line',
 }: PredicateChipsProps) {
   const stack = layout === 'stack'
+  // Outlives the date panel: an Is not chosen before a range has an end stays
+  // chosen — per scope (the predicate's own clauses, each or group).
+  const [pendingNot] = useState(createScopedPendingNot)
   const names = useChipNames()
   const [open, setOpen] = useState<Open | null>(null)
   const [addPicker, setAddPicker] = useState<AddPicker | null>(null)
@@ -201,7 +194,10 @@ function PredicateChipsBody({
     onChange(next)
   }
   /** Or group `index` is going: its key goes from the order, the later groups' keys move down. */
-  const dropGroupKey = (index: number) => setOrder((o) => withoutGroupKey(o, index))
+  const dropGroupKey = (index: number) => {
+    pendingNot.clearGroups()
+    setOrder((o) => withoutGroupKey(o, index))
+  }
   /** A chip of the predicate's own is going: its key goes, so the chip added again goes last. */
   const dropChipKey = (chip: ChipRef) => setOrder((o) => (chip.markerIndex !== undefined ? withoutMarkerKey(o, chip.markerIndex) : o.filter((k) => k !== refKey(chip))))
   /** The wrap is written: its group takes the chip's place. */
@@ -278,6 +274,7 @@ function PredicateChipsBody({
       const [chip] = group ? filterChips(group, namesRef.current) : []
       return chip ? chipKey(chip) : null
     }
+    pendingNot.clearGroups()
     setOrder((o) => [...dissolved].reverse().reduce((keys, index) => {
       // A Priority chip joins the predicate's own, after those it holds.
       const chip = chipOf(index)
@@ -285,7 +282,7 @@ function PredicateChipsBody({
       return withoutGroupKey(key ? keys.map((k) => (k === groupKey(index) ? key : k)) : keys, index)
     }, o))
     onChangeRef.current(next)
-  }, [settled, predicate, namesRef, onChangeRef])
+  }, [settled, predicate, namesRef, onChangeRef, pendingNot])
 
   const rowKey = (scope: Scope, chip: ChipRef) => `${scope ?? 'root'}:${refKey(chip)}`
   /** Closes what is open; a held group is then left out, the later groups moving down. */
@@ -423,6 +420,14 @@ function PredicateChipsBody({
 
   /** A field's picker body: of the predicate's own clauses, or of an or group's. */
   const fieldPicker = (o: Extract<Open, { kind: 'field' }>) => {
+    const scope = o.scope
+    return (
+      <DatePendingNotContext.Provider value={pendingNot.of(scope)}>
+        {scopedFieldPicker(o)}
+      </DatePendingNotContext.Provider>
+    )
+  }
+  const scopedFieldPicker = (o: Extract<Open, { kind: 'field' }>) => {
     const scope = o.scope
     return scope == null ? (
       <PredicateFieldPickerBody
@@ -594,19 +599,21 @@ function PredicateChipsBody({
         />
       )}
       {addPicker && (
-        <PredicateFieldPicker
-          key={`add-${addPicker.field}-${addPicker.dateField ?? ''}-${addPicker.markerIndex ?? ''}-${addPicker.at.x}-${addPicker.at.y}`}
-          field={addPicker.field}
-          dateField={addPicker.dateField}
-          markerIndex={addPicker.markerIndex}
-          predicate={predicate}
-          onChange={write}
-          at={addPicker.at}
-          adding
-          dateHost={dateHost}
-          consumeEscape={inDialog}
-          onClose={() => setAddPicker(null)}
-        />
+        <DatePendingNotContext.Provider value={pendingNot.of(null)}>
+          <PredicateFieldPicker
+            key={`add-${addPicker.field}-${addPicker.dateField ?? ''}-${addPicker.markerIndex ?? ''}-${addPicker.at.x}-${addPicker.at.y}`}
+            field={addPicker.field}
+            dateField={addPicker.dateField}
+            markerIndex={addPicker.markerIndex}
+            predicate={predicate}
+            onChange={write}
+            at={addPicker.at}
+            adding
+            dateHost={dateHost}
+            consumeEscape={inDialog}
+            onClose={() => setAddPicker(null)}
+          />
+        </DatePendingNotContext.Provider>
       )}
       {open && (open.kind === 'field' ? (
         <FieldPopover

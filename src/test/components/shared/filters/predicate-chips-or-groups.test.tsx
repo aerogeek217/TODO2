@@ -534,3 +534,27 @@ describe('PredicateChips — two rows on one filter (cr31 UI F1)', () => {
     expect(screen.getAllByTestId('or-group')).toHaveLength(2)
   })
 })
+
+describe('PredicateChips — a pending date Is not is kept per scope (cr31 UI F3)', () => {
+  const dueSwitch = (name: 'Is' | 'Is not') => within(screen.getByRole('radiogroup', { name: 'Due: is or is not' })).getByRole('radio', { name })
+
+  it('an Is not left pending on the predicate’s own Due doesn’t open a group’s Due panel on Is not', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={grouped} log={log} />)
+    // + Filter › Dates opens on Due (free): Is not, no end yet — nothing written.
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
+    fireEvent.click(dueSwitch('Is not'))
+    expect(log).toEqual([])
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    // The group's panel › Dates opens on its own Due: Is.
+    fireEvent.click(within(screen.getByTestId('or-group')).getByRole('button', { name: 'Group' }))
+    fireEvent.click(within(screen.getByTestId('or-group-panel')).getByRole('button', { name: 'Dates' }))
+    expect(dueSwitch('Is')).toHaveAttribute('aria-checked', 'true')
+    fireEvent.keyDown(document.body, { key: 'Escape' })
+    // The predicate's own Due still has it pending.
+    fireEvent.click(screen.getByRole('button', { name: 'Filter' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Dates' }))
+    expect(dueSwitch('Is not')).toHaveAttribute('aria-checked', 'true')
+  })
+})
