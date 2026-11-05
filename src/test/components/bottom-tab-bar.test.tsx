@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
-import { render, screen, fireEvent, cleanup, act } from '@testing-library/react'
+import { render, screen, within, fireEvent, cleanup, act } from '@testing-library/react'
 import { MemoryRouter, useLocation } from 'react-router'
 import { BottomTabBar } from '../../components/layout/BottomTabBar'
 import { useFilterStore } from '../../stores/filter-store'
@@ -30,9 +30,11 @@ describe('BottomTabBar', () => {
 
   // ── Rendering ─────────────────────────────────────────────────────
 
-  it('renders three tabs', () => {
+  it('renders three buttons in the nav, none a tab (there is no tablist) (cr31 UI F9)', () => {
     renderTabBar()
-    expect(screen.getAllByRole('tab')).toHaveLength(3)
+    const nav = screen.getByRole('navigation', { name: 'Main navigation' })
+    expect(within(nav).getAllByRole('button')).toHaveLength(3)
+    expect(screen.queryAllByRole('tab')).toHaveLength(0)
   })
 
   it('renders tab labels', () => {
@@ -50,43 +52,37 @@ describe('BottomTabBar', () => {
   // ── Active tab states ─────────────────────────────────────────────
 
   describe('active states', () => {
-    it('Workspace tab is active on /', () => {
+    const workspace = () => screen.getByRole('button', { name: 'Workspace' })
+    const filters = () => screen.getByRole('button', { name: 'Filters' })
+    const settings = () => screen.getByRole('button', { name: 'Settings' })
+
+    it('Workspace is the current page on /; Filters is a closed sheet', () => {
       renderTabBar('/')
-      const tabs = screen.getAllByRole('tab')
-      expect(tabs[0]).toHaveAttribute('aria-selected', 'true')
-      expect(tabs[1]).toHaveAttribute('aria-selected', 'false')
-      expect(tabs[2]).toHaveAttribute('aria-selected', 'false')
+      expect(workspace()).toHaveAttribute('aria-current', 'page')
+      expect(settings()).not.toHaveAttribute('aria-current')
+      expect(filters()).not.toHaveAttribute('aria-current')
+      expect(filters()).toHaveAttribute('aria-haspopup', 'dialog')
+      expect(filters()).toHaveAttribute('aria-expanded', 'false')
     })
 
-    it('Workspace tab is active on /', () => {
-      renderTabBar('/')
-      expect(screen.getAllByRole('tab')[0]).toHaveAttribute('aria-selected', 'true')
-    })
-
-    it('Settings tab is active on /settings', () => {
+    it('Settings is the current page on /settings', () => {
       renderTabBar('/settings')
-      const tabs = screen.getAllByRole('tab')
-      expect(tabs[0]).toHaveAttribute('aria-selected', 'false')
-      expect(tabs[2]).toHaveAttribute('aria-selected', 'true')
+      expect(workspace()).not.toHaveAttribute('aria-current')
+      expect(settings()).toHaveAttribute('aria-current', 'page')
     })
 
-    it('Filters tab is active when filter sheet is open', () => {
+    it('Filters is expanded while the sheet is open; the page under it isn’t marked current', () => {
       renderTabBar('/')
       act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
-
-      const tabs = screen.getAllByRole('tab')
-      expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
-      // Workspace tab deactivates when filter sheet is open
-      expect(tabs[0]).toHaveAttribute('aria-selected', 'false')
+      expect(filters()).toHaveAttribute('aria-expanded', 'true')
+      expect(workspace()).not.toHaveAttribute('aria-current')
     })
 
-    it('Settings tab deactivates when filter sheet is open', () => {
+    it('Settings deactivates when the filter sheet is open', () => {
       renderTabBar('/settings')
       act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
-
-      const tabs = screen.getAllByRole('tab')
-      expect(tabs[2]).toHaveAttribute('aria-selected', 'false')
-      expect(tabs[1]).toHaveAttribute('aria-selected', 'true')
+      expect(settings()).not.toHaveAttribute('aria-current')
+      expect(filters()).toHaveAttribute('aria-expanded', 'true')
     })
   })
 
@@ -138,7 +134,7 @@ describe('BottomTabBar', () => {
     it('shows no badge when no filters are active', () => {
       renderTabBar()
       expect(screen.queryByTestId('filter-count')).toBeNull()
-      expect(screen.getByRole('tab', { name: 'Filters' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Filters' })).toBeInTheDocument()
     })
 
     it('counts each active screen filter', () => {
@@ -146,7 +142,7 @@ describe('BottomTabBar', () => {
       useFilterStore.getState().setShowCompleted(true)
       renderTabBar()
       expect(screen.getByTestId('filter-count')).toHaveTextContent('2')
-      expect(screen.getByRole('tab', { name: 'Filters (2 active)' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Filters (2 active)' })).toBeInTheDocument()
     })
   })
 })

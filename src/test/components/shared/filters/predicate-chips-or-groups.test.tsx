@@ -116,6 +116,11 @@ describe('PredicateChips — or groups on the filter line', () => {
     expect(log.at(-1)?.tags).toBeNull()
   })
 
+  it('a chip says it opens a popover (cr31 UI F9)', () => {
+    render(<Harness initial={grouped} log={[]} />)
+    for (const c of screen.getAllByTestId('list-filter-chip')) expect(c).toHaveAttribute('aria-haspopup', 'dialog')
+  })
+
   it('a chip in a group: × takes it out; the group left with one item goes, the item staying', () => {
     const log: TodoPredicate[] = []
     render(<Harness initial={grouped} log={log} />)

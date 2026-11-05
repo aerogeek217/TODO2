@@ -809,6 +809,7 @@ function ListChip({ chip, open, disclosure, rowKey, owner, onPress, onEdit, onRe
       <span
         role="button"
         tabIndex={0}
+        aria-haspopup="dialog"
         aria-expanded={open}
         className={`${styles.listChip} ${open ? styles.listChipOpen : ''}`}
         data-testid="list-filter-chip"

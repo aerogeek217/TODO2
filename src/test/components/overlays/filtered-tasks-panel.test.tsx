@@ -134,7 +134,7 @@ describe('FilteredTasksPanel', () => {
     fireEvent.change(search, { target: { value: 'q4 forecast' } })
     await vi.waitFor(() => expect(rowTitles()).toEqual(['Q4 forecast']))
     expect(document.getElementById('search-results')).toBeNull()
-    expect(search).toHaveAttribute('aria-expanded', 'false')
+    expect(search).not.toHaveAttribute('aria-controls')
   })
 
   it('Clear all keeps it open on every open task, with Show N tasks still its toggle', () => {

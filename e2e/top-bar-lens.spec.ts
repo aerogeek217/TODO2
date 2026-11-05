@@ -240,10 +240,10 @@ for (const mode of ['dark', 'light'] as const) {
     await expectLit(page)
     await personChip(page, null)
 
-    await header(page).getByRole('button', { name: 'Lens on. Lift it' }).click()
+    await header(page).getByRole('button', { name: 'Apply the lens' }).click()
     await expect(control(page)).toHaveAttribute('data-state', 'lifted')
     await expectNeutral(page)
-    await header(page).getByRole('button', { name: 'Lens lifted. Put it back' }).click()
+    await header(page).getByRole('button', { name: 'Apply the lens' }).click()
     await expectLit(page)
 
     await pickLens(page, 'No lens')

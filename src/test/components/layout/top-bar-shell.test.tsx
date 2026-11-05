@@ -61,6 +61,13 @@ describe('TopBar — app shell', () => {
     expect(tray).not.toHaveAttribute('data-filtered')
   })
 
+  it('the search is a plain text box: no aria-expanded, and it controls the results only while they show (cr31 UI F9)', () => {
+    renderBar()
+    const search = within(screen.getByRole('group', { name: 'Screen filters — apply to every widget' })).getByRole('textbox', { name: 'Search tasks' })
+    expect(search).not.toHaveAttribute('aria-expanded')
+    expect(search).not.toHaveAttribute('aria-controls')
+  })
+
   it('the funnel, left of search, clears every screen filter; disabled while none is on; no Clear all text', () => {
     renderBar()
     const tray = screen.getByRole('group', { name: 'Screen filters — apply to every widget' })

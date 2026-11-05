@@ -412,7 +412,7 @@ test.describe('phone', () => {
     })
     const allRows = page.locator('[data-todo-id]')
     await expect(allRows).toHaveCount(3)
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('tab', { name: 'Filters', exact: true }).click()
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Filters', exact: true }).click()
     const datesRow = page.getByText('Dates', { exact: true })
     // Off: no value (not `Any` — Show's Any means "has the date").
     await expect(datesRow.locator('..')).toHaveText(/^Dates\s*▸$/)
@@ -450,7 +450,7 @@ test.describe('phone, narrowest', () => {
       layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
     })
     await lightEveryDateType(page)
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('tab', { name: /^Filters/ }).click()
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: /^Filters/ }).click()
     await page.getByText('Dates', { exact: true }).click()
     const tablist = page.getByRole('tablist', { name: 'Date type' })
     await expectTwoRowsUnclipped(tablist)

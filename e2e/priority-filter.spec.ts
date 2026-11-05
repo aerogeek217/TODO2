@@ -180,7 +180,7 @@ test.describe('phone', () => {
     await seedWorkspace(page, SEED)
     const rows = page.locator('[data-todo-id]')
     await expect(rows).toHaveCount(5)
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('tab', { name: 'Filters', exact: true }).click()
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Filters', exact: true }).click()
     const section = page.getByText('Priority', { exact: true })
     await section.click()
     const urgent = page.getByRole('checkbox', { name: 'Urgent' })
