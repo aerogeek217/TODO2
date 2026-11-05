@@ -35,7 +35,7 @@ import { createQuickAddTask } from './services/create-task'
 import { getFilterDefaults, markerFlags, withoutMarkers } from './utils/filter-defaults'
 import { checkTooNewDB, checkTooOldDB } from './services/migration-check'
 import type { TooNewDBInfo, TooOldDBInfo } from './services/migration-check'
-import { DatabaseTooNewDialog, DatabaseTooOldDialog } from './components/overlays/DatabaseVersionDialog'
+import { DatabaseChangedElsewhereGuard, DatabaseTooNewDialog, DatabaseTooOldDialog } from './components/overlays/DatabaseVersionDialog'
 import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
 import { StartupPurgePrompt } from './components/overlays/StartupPurgePrompt'
@@ -470,6 +470,7 @@ export default function App() {
       <TaskPickerHost />
       <FollowupPopoverHost />
       <ConfirmPromptHost />
+      <DatabaseChangedElsewhereGuard />
     </ErrorBoundary>
   )
 }

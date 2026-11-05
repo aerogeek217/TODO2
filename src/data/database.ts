@@ -6,6 +6,7 @@ import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { DATA_TABLE_NAMES, type DataTableName, type DataTableRows } from './tables'
 import { applySchemaUpgradeInTx } from './schema-upgrades'
+import { registerModuleReset } from '../utils/module-reset'
 
 export interface SettingRow {
   key: string
@@ -118,6 +119,24 @@ export function findDatabaseTooNew(error: unknown): DatabaseTooNewError | null {
 /** The `DatabaseTooOldError` behind `error`, if any. */
 export function findDatabaseTooOld(error: unknown): DatabaseTooOldError | null {
   return findWrapped(error, DatabaseTooOldError)
+}
+
+/** What another tab did to the database this tab has open: opened it at a newer version (upgrading it), or deleted it. */
+export type DatabaseChangeElsewhere = 'upgraded' | 'deleted'
+
+const changeListeners = new Set<(change: DatabaseChangeElsewhere) => void>()
+registerModuleReset(() => changeListeners.clear())
+
+/**
+ * Subscribes `listener` to another tab (or window) upgrading or deleting the
+ * database while this tab has it open; returns its unsubscribe. Dexie then
+ * closes this tab's connection so the other can go on, and every later write
+ * here fails (the next open finds a newer database, `DatabaseTooNewError`):
+ * the app blocks the page and asks for a reload (`DatabaseChangedElsewhereGuard`).
+ */
+export function onDatabaseChangedElsewhere(listener: (change: DatabaseChangeElsewhere) => void): () => void {
+  changeListeners.add(listener)
+  return () => { changeListeners.delete(listener) }
 }
 
 /**
@@ -235,6 +254,14 @@ export class Todo2Database extends Dexie {
       const stored = Math.floor(vipDb.backendDB().version / 10)
       if (stored > vipDb.verno) throw new DatabaseTooNewError(stored)
     }, true)
+
+    // Another tab opens the database at a newer version (or deletes it):
+    // Dexie's own handler closes this connection so that one can go on; the
+    // app is told, since nothing this tab writes from now on is saved.
+    this.on('versionchange', (ev) => {
+      const change: DatabaseChangeElsewhere = ev.newVersion ? 'upgraded' : 'deleted'
+      for (const listener of [...changeListeners]) listener(change)
+    })
   }
 }
 
