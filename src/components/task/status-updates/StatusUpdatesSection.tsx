@@ -253,11 +253,43 @@ function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose, regi
     consumeEscape: true,
     observeSize: true,
     onClose: () => {
-      if (statusUpdateText(text) !== '' && day.day === 'invalid' && !closeHeld) setCloseHeld(true)
-      else onClose()
+      if (statusUpdateText(text) !== '' && day.day === 'invalid' && !closeHeld) {
+        setCloseHeld(true)
+        // Held by a press outside: the click that ends it is held too — it
+        // would close the editor (its ×, Done, Create, the backdrop) and drop
+        // the update all the same (cr31 T6).
+        if (pressOutside.current) holdClick.current = true
+      } else onClose()
     },
     caret: true,
   })
+  const panelEl = useRef<HTMLElement | null>(null)
+  const setPanel = useCallback((el: HTMLDivElement | null) => {
+    panelEl.current = el
+    panelRef(el)
+  }, [panelRef])
+  // A press outside in progress (set before the popover's outside-press
+  // close runs), and the click to swallow after a held press.
+  const pressOutside = useRef(false)
+  const holdClick = useRef(false)
+  useEffect(() => {
+    const outside = (e: Event) => !(e.target instanceof Node && panelEl.current?.contains(e.target))
+    const onDown = (e: PointerEvent) => { pressOutside.current = outside(e) }
+    const onClick = (e: MouseEvent) => {
+      pressOutside.current = false
+      if (!holdClick.current) return
+      holdClick.current = false
+      if (!outside(e)) return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    document.addEventListener('pointerdown', onDown, true)
+    window.addEventListener('click', onClick, true)
+    return () => {
+      document.removeEventListener('pointerdown', onDown, true)
+      window.removeEventListener('click', onClick, true)
+    }
+  }, [])
   useEffect(() => { textRef.current?.focus() }, [])
   const clean = statusUpdateText(text)
   const canAdd = clean !== '' && day.day !== 'invalid'
@@ -286,7 +318,7 @@ function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose, regi
   }
   return createPortal(
     <PopoverRoot
-      ref={panelRef}
+      ref={setPanel}
       caret={caret}
       className={styles.addPopover}
       style={{ position: style.position, left: style.left, top: style.top }}
