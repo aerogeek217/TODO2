@@ -22,7 +22,7 @@ test('a subtask ⋯ › Move to another task… dialog cancelled: the focus is b
   const more = editor.getByRole('button', { name: 'Subtask menu: Headcount' })
   await more.click()
   await page.getByRole('menuitem', { name: 'Move to another task…' }).click()
-  const picker = page.getByRole('textbox', { name: 'Find a task' })
+  const picker = page.getByRole('combobox', { name: 'Find a task' })
   await expect(picker).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(picker).toHaveCount(0)

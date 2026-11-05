@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useSubtaskStore } from '../../../stores/subtask-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { formatDateNumeric } from '../../../utils/date'
@@ -36,6 +36,15 @@ export function TaskPickerDialog({ title, excludeIds, onPick, onClose }: {
     return [...open, ...done].slice(0, MAX_SHOWN)
   }, [todos, query, excludeIds])
   const highlighted = Math.min(index, Math.max(0, matches.length - 1))
+  // A combobox over the list (cr31 T12): the field keeps the focus, the
+  // highlighted option is its active descendant and is kept in view; the
+  // options aren't tab stops.
+  const listId = useId()
+  const optionId = (i: number) => `${listId}-option-${i}`
+  const listRef = useRef<HTMLUListElement>(null)
+  useEffect(() => {
+    listRef.current?.querySelector<HTMLElement>('[data-highlighted]')?.scrollIntoView?.({ block: 'nearest' })
+  }, [highlighted, matches])
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing) return
@@ -67,16 +76,23 @@ export function TaskPickerDialog({ title, excludeIds, onPick, onClose }: {
           value={query}
           placeholder="Find a task…"
           aria-label="Find a task"
+          role="combobox"
+          aria-expanded
+          aria-controls={listId}
+          aria-autocomplete="list"
+          aria-activedescendant={matches.length > 0 ? optionId(highlighted) : undefined}
           autoComplete="off"
           onChange={(e) => { setQuery(e.target.value); setIndex(0) }}
           onKeyDown={onKeyDown}
         />
-        <ul className={styles.pickerList} role="listbox" aria-label="Tasks" data-task-picker="">
+        <ul ref={listRef} id={listId} className={styles.pickerList} role="listbox" aria-label="Tasks" data-task-picker="">
           {matches.map((t, i) => (
             <li key={t.id} role="presentation">
               <button
                 type="button"
                 role="option"
+                id={optionId(i)}
+                tabIndex={-1}
                 aria-selected={i === highlighted}
                 className={styles.pickerItem}
                 data-highlighted={i === highlighted ? '' : undefined}

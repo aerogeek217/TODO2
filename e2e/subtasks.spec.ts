@@ -183,7 +183,7 @@ test('Make subtask of… from the row menu: the picker, the prompt, the row gone
   await page.getByRole('menuitem', { name: 'Make subtask of…' }).click()
   const picker = page.getByRole('dialog', { name: 'Make “Book travel” a subtask of…' })
   await expect(picker).toBeVisible()
-  const search = picker.getByRole('textbox', { name: 'Find a task' })
+  const search = picker.getByRole('combobox', { name: 'Find a task' })
   await expect(search).toBeFocused()
   await expect(picker.getByRole('option')).toHaveText(['Q4 budget3 subtasks', 'Bare task'])
   await search.fill('q4')
