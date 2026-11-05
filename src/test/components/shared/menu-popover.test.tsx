@@ -119,67 +119,7 @@ describe('MenuPopover — the popover menu', () => {
   })
 })
 
-describe('MenuPopover — panels, radio choices, footnotes, focus owner', () => {
-  const panelItem = (onButton = vi.fn()): MenuEntry => item('Rule', {
-    onSelect: undefined,
-    note: 'U+I',
-    panel: {
-      label: 'Rule panel',
-      width: 300,
-      render: () => <div><button type="button" onClick={onButton}>First</button><button type="button">Second</button></div>,
-    },
-  })
-
-  it('hover opens a panel without focus; hovering a plain item closes it again', () => {
-    render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={vi.fn()} entries={[item('Plain'), panelItem()]} />)
-    const row = screen.getByRole('menuitem', { name: /Rule/ })
-    expect(row).toHaveAttribute('aria-haspopup', 'dialog')
-    fireEvent.pointerEnter(row)
-    const panel = screen.getByRole('dialog', { name: 'Rule panel' })
-    expect(panel.style.width).toBe('300px')
-    expect(panel).toHaveAttribute('data-shortcut-scope', 'none')
-    expect(document.activeElement).not.toBe(screen.getByRole('button', { name: 'First' }))
-    fireEvent.pointerEnter(screen.getByRole('menuitem', { name: 'Plain' }))
-    expect(screen.queryByRole('dialog', { name: 'Rule panel' })).toBeNull()
-  })
-
-  it('a click opens it pinned with the focus inside: plain items don’t close it, its controls don’t close the menu', () => {
-    const onClose = vi.fn()
-    const onButton = vi.fn()
-    render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={onClose} entries={[item('Plain'), panelItem(onButton)]} />)
-    fireEvent.click(screen.getByRole('menuitem', { name: /Rule/ }), { detail: 1 })
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'First' }))
-    fireEvent.pointerEnter(screen.getByRole('menuitem', { name: 'Plain' }))
-    expect(screen.getByRole('dialog', { name: 'Rule panel' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'First' }))
-    expect(onButton).toHaveBeenCalled()
-    expect(onClose).not.toHaveBeenCalled()
-    // Tab cycles inside the panel.
-    act(() => { screen.getByRole('button', { name: 'Second' }).focus() })
-    fireEvent.keyDown(document.activeElement!, { key: 'Tab' })
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'First' }))
-  })
-
-  it('Esc or ← in the panel closes only it, back on its item; a mousedown inside is not outside', () => {
-    const onClose = vi.fn()
-    render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={onClose} entries={[panelItem()]} />)
-    const row = screen.getByRole('menuitem', { name: /Rule/ })
-    act(() => { row.focus() })
-    fireEvent.keyDown(row, { key: 'ArrowRight' })
-    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'First' }))
-    fireEvent.mouseDown(screen.getByRole('button', { name: 'Second' }))
-    expect(onClose).not.toHaveBeenCalled()
-    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
-    expect(screen.queryByRole('dialog', { name: 'Rule panel' })).toBeNull()
-    expect(document.activeElement).toBe(row)
-    expect(onClose).not.toHaveBeenCalled()
-
-    fireEvent.keyDown(row, { key: 'ArrowRight' })
-    fireEvent.keyDown(document.activeElement!, { key: 'ArrowLeft' })
-    expect(screen.queryByRole('dialog', { name: 'Rule panel' })).toBeNull()
-    expect(document.activeElement).toBe(row)
-  })
-
+describe('MenuPopover — radio choices, footnotes, focus owner', () => {
   it('radio choices with a leading circle and a footnote; → focuses the checked one', () => {
     render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={vi.fn()} entries={[
       item('Range', {

@@ -3,7 +3,7 @@ import { WIDGET_KINDS, widgetKindLabel, type WidgetKind } from '../../models/wor
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { listChoiceEntries } from './list-choice-entries'
 import { WidgetKindIcon } from './icons'
-import { MenuPopover, type MenuEntry, type MenuItemEntry, type MenuPanelSpec } from './MenuPopover'
+import { MenuPopover, type MenuEntry, type MenuItemEntry } from './MenuPopover'
 
 /** One choice of a {@link WidgetSetting}. */
 export interface WidgetSettingOption {
@@ -31,18 +31,12 @@ export interface WidgetSetting {
   footnote?: string
 }
 
-/**
- * A panel a widget action opens beside its item (e.g. the dashboard's
- * a flyout): controls rather than menu choices, so it's a small dialog —
- * changes apply as they're made and it stays open until Esc / ← / a click
- * outside the menu.
- */
-export type WidgetMenuPanel = MenuPanelSpec
-
-/** A widget action in the tab menu: runs and closes, or opens a {@link WidgetMenuPanel}. */
-export type WidgetMenuAction =
-  | { label: string; icon?: ReactNode; onSelect: () => void; note?: undefined; panel?: undefined }
-  | { label: string; icon?: ReactNode; note?: string; panel: WidgetMenuPanel; onSelect?: undefined }
+/** A widget action in the tab menu: runs and closes. */
+export interface WidgetMenuAction {
+  label: string
+  icon?: ReactNode
+  onSelect: () => void
+}
 
 export interface WidgetKindMenuProps {
   anchor: { x: number; y: number }
@@ -97,8 +91,7 @@ const SETTING_SUBMENU_WIDTH_PX = 248
  * A tab's menu (right-click or Shift+F10 / the Menu key on a tab) and the
  * add-tab menu, as a {@link MenuPopover} at the pointer: the widget's own
  * items first (a list's Edit list… / Change list ›, a
- * widget setting's radio submenu, widget actions — plain items or a panel
- * beside the item), then the kinds under "Change widget" (radio items, the
+ * widget setting's radio submenu, widget actions), then the kinds under "Change widget" (radio items, the
  * current one checked) or "Add widget".
  */
 export function WidgetKindMenu({
@@ -134,9 +127,7 @@ export function WidgetKindMenu({
     childrenWidth: CHANGE_LIST_WIDTH_PX,
     childrenMaxHeight: CHANGE_LIST_MAX_HEIGHT_PX,
   }
-  const actions: MenuItemEntry[] = (widgetActions ?? []).map((a) => (a.panel
-    ? { kind: 'item', label: a.label, icon: listFirst ? undefined : a.icon, note: a.note, panel: a.panel }
-    : { kind: 'item', label: a.label, icon: listFirst ? undefined : a.icon, onSelect: a.onSelect }))
+  const actions: MenuItemEntry[] = (widgetActions ?? []).map((a) => ({ kind: 'item', label: a.label, icon: listFirst ? undefined : a.icon, onSelect: a.onSelect }))
   const kinds: MenuItemEntry[] = WIDGET_KINDS.map((k) => ({
     kind: 'item',
     label: widgetKindLabel(k),

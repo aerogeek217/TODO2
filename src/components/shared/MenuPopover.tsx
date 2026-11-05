@@ -47,13 +47,6 @@ export interface MenuItemEntry {
   childrenWidth?: number
   /** Height cap of the nested submenu (it scrolls); the viewport otherwise. */
   childrenMaxHeight?: number
-  /**
-   * A panel of controls the menu shows beside the item, like a submenu (a small dialog whose changes apply as
-   * they're made. Hover opens it; a click, Enter or → opens it with the focus
-   * inside, and so does any click or focus in it — it then stays open while
-   * the pointer crosses other items. Esc or ← closes it, back on its item.
-   */
-  panel?: MenuPanelSpec
   /** `'radio'`: a leading radio circle shows `checked` instead of the trailing check (a setting's choices). */
   indicator?: 'radio'
   /** Keep the menu open after `onSelect` (submenus open their own popover). */
@@ -69,14 +62,6 @@ export interface MenuItemEntry {
    * items (e.g. the layout list); a drop calls the menu's `onReorder`.
    */
   dragId?: string
-}
-
-/** What a {@link MenuItemEntry.panel} shows. */
-export interface MenuPanelSpec {
-  /** The panel's accessible name. */
-  label: string
-  width: number
-  render: () => ReactNode
 }
 
 export type MenuEntry =
@@ -120,7 +105,6 @@ interface MenuPopoverProps {
 const SUBMENU_GAP_PX = 2
 /** The menu's padding: a submenu's first item lines up with its parent item. */
 const MENU_PADDING_PX = 4
-const PANEL_FOCUSABLE = 'button:not([disabled]):not([aria-disabled="true"]), input:not([disabled]), select:not([disabled]), [tabindex="0"]'
 const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
 
 function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
@@ -130,10 +114,9 @@ function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
 /**
  * Popover menu: 28px items with a leading icon and an optional trailing
  * note, key hint, check / mixed dash or chevron; separators, group labels and
- * footnotes; radio and checkbox rows; nested submenus and panels beside an
- * item. ↑↓ / Home / End move, a letter jumps to the next item starting with
- * it, Enter activates, → / ← open and close a submenu or panel, Esc closes the
- * submenu / panel or the menu, an outside click or Tab closes. Focus starts on
+ * footnotes; radio and checkbox rows; nested submenus. ↑↓ / Home / End move, a letter jumps to the next item starting with
+ * it, Enter activates, → / ← open and close a submenu, Esc closes the
+ * submenu or the menu, an outside click or Tab closes. Focus starts on
  * the first enabled item and goes back to the trigger when the menu closes (a
  * menu at the pointer: to whatever had it before, on Esc). Keys inside never
  * reach the app's shortcuts (`data-shortcut-scope="none"`).
@@ -144,11 +127,9 @@ export function MenuPopover({
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
   /**
-   * The open submenu or panel; `pinned` = a panel opened by a click / key or
-   * used (pointer moves don't close it); `focus` = it takes the focus when it
-   * opens.
+   * The open submenu; `focus` = it takes the focus when it opens.
    */
-  const [open, setOpen] = useState<{ index: number; pinned: boolean; focus: boolean } | null>(null)
+  const [open, setOpen] = useState<{ index: number; focus: boolean } | null>(null)
   const sub = open?.index ?? null
   const level = usePopoverLevel()
   const beside = placement === 'right-start' || placement === 'left-start'
@@ -232,13 +213,8 @@ export function MenuPopover({
   }
 
   const select = (entry: MenuItemEntry, index: number, viaKeyboard: boolean) => {
-    if (entry.panel) {
-      // A click or key opens it to work in: pinned, focus on its first control.
-      setOpen({ index, pinned: true, focus: true })
-      return
-    }
     if (entry.children) {
-      setOpen({ index, pinned: false, focus: viaKeyboard })
+      setOpen({ index, focus: viaKeyboard })
       return
     }
     run(entry)
@@ -260,14 +236,14 @@ export function MenuPopover({
           onSelect={select}
           onReorder={onReorder}
           onHoverItem={(index, entry) => {
-            if ((entry.children || entry.panel) && !entry.disabled) {
-              setOpen((prev) => (prev?.index === index ? prev : { index, pinned: false, focus: false }))
-            } else if (open && index !== open.index && !open.pinned) setOpen(null)
+            if (entry.children && !entry.disabled) {
+              setOpen((prev) => (prev?.index === index ? prev : { index, focus: false }))
+            } else if (open && index !== open.index) setOpen(null)
           }}
           onKey={(e, panel) => {
             const focusedIndex = Number((document.activeElement as HTMLElement | null)?.dataset.menuIndex ?? -1)
             const focused = entries[focusedIndex]
-            if (e.key === 'ArrowRight' && focused?.kind === 'item' && (focused.children || focused.panel) && !focused.disabled) {
+            if (e.key === 'ArrowRight' && focused?.kind === 'item' && focused.children && !focused.disabled) {
               e.preventDefault()
               select(focused, focusedIndex, true)
               return true
@@ -277,7 +253,7 @@ export function MenuPopover({
         />,
         document.body,
       )}
-      {/* A submenu or panel is a popover on the menu: a level above it. */}
+      {/* A submenu is a popover on the menu: a level above it. */}
       <PopoverLevelContext.Provider value={level}>
         {openEntry?.kind === 'item' && openEntry.children && sub != null && (
           <Submenu
@@ -291,17 +267,6 @@ export function MenuPopover({
             autoFocus={open?.focus ?? false}
             onRun={run}
             onClose={onClose}
-            onBack={closeSub}
-          />
-        )}
-        {openEntry?.kind === 'item' && openEntry.panel && sub != null && (
-          <FlyoutPanel
-            subRef={subRef}
-            parentRef={menuRef}
-            parentIndex={sub}
-            panel={openEntry.panel}
-            autoFocus={open?.focus ?? false}
-            onPin={() => setOpen((prev) => (prev && !prev.pinned ? { ...prev, pinned: true } : prev))}
             onBack={closeSub}
           />
         )}
@@ -392,7 +357,7 @@ function MenuPanel({ panelRef, entries, label, className, style, caret, openInde
     const props: MenuItemButtonProps = {
       entry,
       index: i,
-      expanded: (entry.children || entry.panel) ? openIndex === i : undefined,
+      expanded: entry.children ? openIndex === i : undefined,
       onSelect,
       onHoverItem,
     }
@@ -474,7 +439,7 @@ function MenuItemButton({ entry, index: i, expanded, onSelect, onHoverItem, sort
     dragging: boolean
   }
 }) {
-  const hasSub = entry.submenu || !!entry.children || !!entry.panel
+  const hasSub = entry.submenu || !!entry.children
   const role = entry.radio ? 'menuitemradio' : entry.checkbox ? 'menuitemcheckbox' : 'menuitem'
   const ariaChecked = entry.radio
     ? entry.checked === true
@@ -488,7 +453,7 @@ function MenuItemButton({ entry, index: i, expanded, onSelect, onHoverItem, sort
       type="button"
       role={role}
       aria-checked={ariaChecked}
-      aria-haspopup={entry.panel ? 'dialog' : hasSub ? 'menu' : undefined}
+      aria-haspopup={hasSub ? 'menu' : undefined}
       aria-expanded={expanded}
       aria-keyshortcuts={entry.shortcut}
       disabled={entry.disabled}
@@ -629,70 +594,6 @@ function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHei
         return handleMenuKeys(e, panel, entries, onClose, (entry) => select(entry))
       }}
     />,
-    document.body,
-  )
-}
-
-/**
- * An item's panel beside it (flips left when there's no room): a small
- * dialog. Keys stay in it (the menu's arrows / letters don't apply); Tab
- * cycles its controls; ← goes back to the item (Esc too, via the menu).
- */
-function FlyoutPanel({ subRef, parentRef, parentIndex, panel, autoFocus, onPin, onBack }: {
-  subRef: RefObject<HTMLDivElement | null>
-  parentRef: RefObject<HTMLDivElement | null>
-  parentIndex: number
-  panel: MenuPanelSpec
-  /** Opened by a click or key: focus its first control. */
-  autoFocus: boolean
-  onPin: () => void
-  onBack: () => void
-}) {
-  const { panelRef, style } = useBesideItem(parentRef, parentIndex, 0, onBack)
-  const setRef = useCallback((el: HTMLDivElement | null) => {
-    subRef.current = el
-    panelRef(el)
-  }, [subRef, panelRef])
-  useEffect(() => {
-    if (autoFocus) subRef.current?.querySelector<HTMLElement>(PANEL_FOCUSABLE)?.focus()
-  }, [autoFocus, subRef])
-
-  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
-    e.stopPropagation()
-    if (e.key === 'ArrowLeft') {
-      e.preventDefault()
-      onBack()
-      return
-    }
-    if (e.key !== 'Tab') return
-    const items = Array.from(e.currentTarget.querySelectorAll<HTMLElement>(PANEL_FOCUSABLE))
-    const first = items[0]
-    const last = items[items.length - 1]
-    if (!first || !last) return
-    if (e.shiftKey && document.activeElement === first) {
-      e.preventDefault()
-      last.focus()
-    } else if (!e.shiftKey && document.activeElement === last) {
-      e.preventDefault()
-      first.focus()
-    }
-  }
-
-  return createPortal(
-    <PopoverRoot
-      ref={setRef}
-      className={`${styles.menu} ${styles.submenu} ${styles.panel}`}
-      style={{ position: 'fixed', left: style.left, top: style.top, maxHeight: style.maxHeight, width: panel.width }}
-      role="dialog"
-      aria-label={panel.label}
-      {...shortcutScope('none')}
-      {...KEEP_EVENTS_INSIDE}
-      onPointerDown={(e) => { e.stopPropagation(); onPin() }}
-      onFocus={onPin}
-      onKeyDown={onKeyDown}
-    >
-      {panel.render()}
-    </PopoverRoot>,
     document.body,
   )
 }
