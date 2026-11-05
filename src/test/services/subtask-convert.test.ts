@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
+import { subtaskRepository } from '../../data/subtask-repository'
 import { droppedFields, makeSubtaskOf, makeSubtaskPrompt, makeTaskFromSubtask } from '../../services/subtask-convert'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -141,6 +142,58 @@ describe('makeSubtaskOf', () => {
   })
 })
 
+describe('makeSubtaskOf — a failed write takes back what was written', () => {
+  /** A task with two subtasks of its own (nothing else: no prompt) and a parent with one. */
+  async function setUp() {
+    const parent = await useTodoStore.getState().add('Offsite')
+    await useSubtaskStore.getState().add(parent, 'Pick a date')
+    const task = await useTodoStore.getState().add('Book travel')
+    await useSubtaskStore.getState().add(task, 'Flights')
+    await useSubtaskStore.getState().add(task, 'Hotel')
+    useUndoStore.getState().clear()
+    return { parent, task }
+  }
+
+  /** Nothing changed, in the store and the database, and no undo step. */
+  async function expectUnchanged({ parent, task }: { parent: number; task: number }) {
+    expect(todos().map((t) => t.title)).toEqual(['Offsite', 'Book travel'])
+    expect((await db.todos.get(task))?.title).toBe('Book travel')
+    expect(titles(parent)).toEqual([['Pick a date', false]])
+    expect(titles(task)).toEqual([['Flights', false], ['Hotel', false]])
+    const stored = await db.subtasks.toArray()
+    expect(stored.filter((r) => r.todoId === parent).map((r) => r.title)).toEqual(['Pick a date'])
+    expect(stored.filter((r) => r.todoId === task).map((r) => r.title).sort()).toEqual(['Flights', 'Hotel'])
+    expect(undoNames()).toEqual([])
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t make it a subtask. Nothing changed.')
+  }
+
+  it('moving its second subtask fails: the first moves back', async () => {
+    const ids = await setUp()
+    const real = subtaskRepository.updateMany.bind(subtaskRepository)
+    let calls = 0
+    const spy = vi.spyOn(subtaskRepository, 'updateMany').mockImplementation(async (patches, at) => (++calls === 2 ? 0 : real(patches, at)))
+    expect(await makeSubtaskOf(ids.task, ids.parent)).toBe(false)
+    spy.mockRestore()
+    await expectUnchanged(ids)
+  })
+
+  it('adding the subtask fails: its own subtasks, already on the parent, move back', async () => {
+    const ids = await setUp()
+    const spy = vi.spyOn(subtaskRepository, 'add').mockResolvedValueOnce(undefined)
+    expect(await makeSubtaskOf(ids.task, ids.parent)).toBe(false)
+    spy.mockRestore()
+    await expectUnchanged(ids)
+  })
+
+  it('deleting the task fails: the added subtask goes and the moved ones come back', async () => {
+    const ids = await setUp()
+    const spy = vi.spyOn(useTodoStore.getState(), 'remove').mockRejectedValueOnce(new Error('disk full'))
+    expect(await makeSubtaskOf(ids.task, ids.parent)).toBe(false)
+    spy.mockRestore()
+    await expectUnchanged(ids)
+  })
+})
+
 describe('makeTaskFromSubtask', () => {
   it('a subtask becomes a task with its title and done state and the parent’s people, tags, status, dates and markers; one undo step takes it back', async () => {
     useSettingsStore.setState({ autoFollowup: true, followupDefaultInterval: { count: 2, unit: 'w' } })
@@ -204,6 +257,20 @@ describe('makeTaskFromSubtask', () => {
   it('a missing subtask makes nothing', async () => {
     expect(await makeTaskFromSubtask(9999)).toBeNull()
     expect(undoNames()).toEqual([])
+  })
+
+  it('the subtask can’t be removed (deleted meanwhile): the new task goes again and it says so', async () => {
+    const parent = await useTodoStore.getState().add('Offsite')
+    const a = await useSubtaskStore.getState().add(parent, 'Book the venue')
+    useUndoStore.getState().clear()
+    const spy = vi.spyOn(useSubtaskStore.getState(), 'remove').mockResolvedValueOnce(false)
+    expect(await makeTaskFromSubtask(a!.id)).toBeNull()
+    spy.mockRestore()
+    expect(todos().map((t) => t.title)).toEqual(['Offsite'])
+    expect((await db.todos.toArray()).map((t) => t.title)).toEqual(['Offsite'])
+    expect(titles(parent)).toEqual([['Book the venue', false]])
+    expect(undoNames()).toEqual([])
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t make it a task. Nothing changed.')
   })
 
   it('a failed create takes nothing and says so', async () => {
