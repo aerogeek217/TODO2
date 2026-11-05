@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../../../models'
 import type { DateField } from '../../../models/app-view'
@@ -183,6 +183,31 @@ export function PredicateChips({
     }
     return [...items].sort((a, b) => position(itemKey(a)) - position(itemKey(b)))
   }, [items, order, wrapFrom, wrapTo])
+  // A chip that goes (× / Delete, or drawn anew when its group dissolves)
+  // takes the focus with it: the chip now at its place gets it, else the
+  // last chip, else + Filter — never <body>, where Esc would close Edit list.
+  const owner = useId()
+  const addFilterRef = useRef<HTMLButtonElement>(null)
+  const refocus = useRef<{ index: number; el: HTMLElement } | null>(null)
+  const [keepFocusOnChip] = useState(() => (from?: Element) => {
+    const chips = Array.from(document.querySelectorAll<HTMLElement>(`[data-chips-owner="${owner}"][data-testid="list-filter-chip"]`))
+    const active = document.activeElement
+    const index = chips.findIndex((c) => (from ? c === from : c.contains(active)))
+    const el = chips[index]
+    if (el && el.contains(active)) refocus.current = { index, el }
+  })
+  useLayoutEffect(() => {
+    const pending = refocus.current
+    if (!pending) return
+    const active = document.activeElement
+    // Not gone yet (the filter hasn't changed): wait.
+    if (pending.el.isConnected && pending.el.contains(active)) return
+    refocus.current = null
+    if (active && active !== document.body && active.isConnected) return
+    const chips = Array.from(document.querySelectorAll<HTMLElement>(`[data-chips-owner="${owner}"][data-testid="list-filter-chip"]`))
+    ;(chips[Math.min(pending.index, chips.length - 1)] ?? addFilterRef.current)?.focus()
+  })
+
   // The filter as it was before this row's last edit (null: no edit here
   // since the last dissolve). Only the row an edit was made in dissolves.
   const editedFrom = useRef<TodoPredicate | null>(null)
@@ -283,6 +308,8 @@ export function PredicateChips({
       return chip ? chipKey(chip) : null
     }
     pendingNot.clearGroups()
+    // The dissolved group's chip is drawn anew in its place: the focus follows it.
+    keepFocusOnChip()
     setOrder((o) => [...dissolved].reverse().reduce((keys, index) => {
       // A Priority chip joins the predicate's own, after those it holds.
       const chip = chipOf(index)
@@ -290,7 +317,7 @@ export function PredicateChips({
       return withoutGroupKey(key ? keys.map((k) => (k === groupKey(index) ? key : k)) : keys, index)
     }, o))
     onChangeRef.current(next)
-  }, [settled, predicate, namesRef, onChangeRef, pendingNot])
+  }, [settled, predicate, namesRef, onChangeRef, pendingNot, keepFocusOnChip])
 
   const rowKey = (scope: Scope, chip: ChipRef) => `${scope ?? 'root'}:${refKey(chip)}`
   // What a close already handled: Esc can reach `close` twice (the popover's
@@ -474,9 +501,13 @@ export function PredicateChips({
       open={isChipOpen(chip, scope)}
       disclosure={stack}
       rowKey={rowKey(scope, chip)}
+      owner={owner}
       onPress={() => press(isChipOpen(chip, scope))}
       onEdit={(el) => toggleChip(chip, scope, el)}
-      onRemove={() => remove(chip, scope)}
+      onRemove={(el) => {
+        keepFocusOnChip(el)
+        remove(chip, scope)
+      }}
     />
   )
 
@@ -562,6 +593,7 @@ export function PredicateChips({
 
   const addFilter = (
     <button
+      ref={addFilterRef}
       type="button"
       className={`${styles.addFilter} ${menuAt ? styles.addFilterOpen : ''}`}
       aria-haspopup="menu"
@@ -759,14 +791,17 @@ function GroupPopover(props: { at: PopoverPoint; consumeEscape: boolean; onClose
  * the editors it is a disclosure: a chevron at its end. A chip with several
  * values or an "is not" spells itself out in a tooltip.
  */
-function ListChip({ chip, open, disclosure, rowKey, onPress, onEdit, onRemove }: {
+function ListChip({ chip, open, disclosure, rowKey, owner, onPress, onEdit, onRemove }: {
   chip: FilterChip
   open: boolean
   disclosure: boolean
   rowKey: string
+  /** The chip row it belongs to (`data-chips-owner`): where the focus goes when a chip does. */
+  owner: string
   onPress: () => void
   onEdit: (el: Element) => void
-  onRemove: () => void
+  /** `el`: the chip. */
+  onRemove: (el: HTMLElement) => void
 }) {
   const { triggerProps, tooltip } = useTooltip(open ? null : chip.tooltip, { labelLines: 1 })
   return (
@@ -778,6 +813,7 @@ function ListChip({ chip, open, disclosure, rowKey, onPress, onEdit, onRemove }:
         className={`${styles.listChip} ${open ? styles.listChipOpen : ''}`}
         data-testid="list-filter-chip"
         data-filter-row={rowKey}
+        data-chips-owner={owner}
         data-date-field={chip.dateField}
         data-negated={chip.negated ? '' : undefined}
         {...triggerProps}
@@ -793,7 +829,7 @@ function ListChip({ chip, open, disclosure, rowKey, onPress, onEdit, onRemove }:
             onEdit(e.currentTarget)
           } else if (e.key === 'Delete' || e.key === 'Backspace') {
             e.preventDefault()
-            onRemove()
+            onRemove(e.currentTarget)
           }
         }}
       >
@@ -804,7 +840,11 @@ function ListChip({ chip, open, disclosure, rowKey, onPress, onEdit, onRemove }:
           className={styles.chipRemove}
           aria-label="Remove filter"
           title="Remove filter"
-          onClick={(e) => { e.stopPropagation(); onRemove() }}
+          onClick={(e) => {
+            e.stopPropagation()
+            const el = e.currentTarget.closest<HTMLElement>('[data-testid="list-filter-chip"]')
+            if (el) onRemove(el)
+          }}
         >
           <CloseIcon size={9} />
         </button>

@@ -559,6 +559,37 @@ describe('PredicateChips — a pending date Is not is kept per scope (cr31 UI F3
   })
 })
 
+describe('PredicateChips — where the focus goes when a chip does (cr31 UI F4)', () => {
+  const chips = () => screen.getAllByTestId('list-filter-chip')
+
+  it('Delete on a focused chip: the chip now in its place takes the focus; the last one gone, + Filter', () => {
+    render(<Harness initial={{ ...waiting, personIds: [1] }} log={[]} layout="stack" />)
+    chip(/Status/).focus()
+    fireEvent.keyDown(chip(/Status/), { key: 'Delete' })
+    expect(document.activeElement).toBe(chip(/People/))
+    fireEvent.keyDown(chip(/People/), { key: 'Backspace' })
+    expect(screen.queryAllByTestId('list-filter-chip')).toHaveLength(0)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Filter' }))
+  })
+
+  it('× on the last chip: the chip before it', () => {
+    render(<Harness initial={{ ...waiting, personIds: [1] }} log={[]} />)
+    const remove = within(chip(/People/)).getByRole('button', { name: 'Remove filter' })
+    remove.focus()
+    fireEvent.click(remove)
+    expect(document.activeElement).toBe(chip(/Status/))
+  })
+
+  it('a group dissolving under the focused chip: the chip, drawn in its place, keeps the focus', () => {
+    render(<Harness initial={grouped} log={[]} layout="stack" />)
+    chip(/Priority/).focus()
+    fireEvent.keyDown(chip(/Priority/), { key: 'Delete' })
+    expect(screen.queryByTestId('or-group')).toBeNull()
+    expect(chips().map((c) => c.textContent)).toEqual(['StatusWaiting', 'PeopleAlice'])
+    expect(document.activeElement).toBe(chip(/People/))
+  })
+})
+
 describe('PredicateChips — rows keep their order (cr31 UI F5)', () => {
   const rowTexts = () => Array.from(screen.getByTestId('filter-stack').querySelectorAll('[data-testid="list-filter-chip"], [data-testid="or-group"]'))
     .filter((el) => el.parentElement?.closest('[data-testid="or-group"]') == null)

@@ -187,3 +187,24 @@ test('a lens’s Priority picker in Settings takes the focus too', async ({ page
   await expect(list.getByRole('option', { name: 'Focus' })).toHaveAttribute('aria-selected', 'true')
   await expect(settings.getByTestId('lens-filter').getByTestId('list-filter-chip')).toHaveText(/Priority\s*Focus/)
 })
+
+test('Delete on a focused chip in Edit list: the focus goes to the next chip, then + Filter — never <body> (cr31 UI F4)', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...SEED,
+    listDefinitions: [{ name: 'Team', people: ['Ann'], predicate: { searchText: 'task' } }],
+  })
+  await expect.poll(() => titles(page)).toEqual(['Ann task'])
+  await page.getByRole('tab').filter({ hasText: 'Team' }).first().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Edit list…' }).click()
+  const editor = page.getByTestId('edit-list')
+  const chips = editor.getByTestId('list-filter-chip')
+  await expect(chips).toHaveCount(2)
+  await chips.first().focus()
+  await page.keyboard.press('Delete')
+  await expect(chips).toHaveCount(1)
+  await expect(chips.first()).toBeFocused()
+  await page.keyboard.press('Delete')
+  await expect(chips).toHaveCount(0)
+  await expect(editor.getByRole('button', { name: 'Filter', exact: true })).toBeFocused()
+  await expect(editor).toBeVisible()
+})
