@@ -65,6 +65,17 @@ export function pairPercent(sizeA: number, sizeB: number): number {
   return pair > 0 ? Math.round((sizeA / pair) * 100) : 50
 }
 
+/**
+ * What the expanded parts among `parts` (a layout's columns, a column's cells)
+ * weigh together: the `flex-grow` of each is its weight over this. Weights are
+ * only relative, and removing a part doesn't hand its weight on, so they may
+ * sum to under 1 — and flexbox gives out only that fraction of the free space,
+ * leaving the rest empty. A collapsed part takes no free space and isn't counted.
+ */
+export function expandedWeight(parts: readonly { weight: number; collapsed?: boolean }[]): number {
+  return parts.reduce((sum, part) => (part.collapsed ? sum : sum + part.weight), 0)
+}
+
 /** Smallest height (px) of an expanded band: the header plus an 80px body. */
 export const BAND_MIN_PX = CELL_MIN_PX
 /** Smallest height (px) the column area between the bands keeps. */

@@ -224,6 +224,105 @@ test.describe('resize and collapse', () => {
   })
 })
 
+test.describe('a pane that goes leaves no void', () => {
+  /** Unfilled px of the column area, right of its last column (its padding not counted). */
+  const voidRight = (page: Page) => page.evaluate(() => {
+    const area = document.querySelector<HTMLElement>('[data-ws-columns]')
+    const last = Array.from(document.querySelectorAll('[data-ws-column]')).at(-1)
+    if (!area || !last) throw new Error('no columns')
+    return area.getBoundingClientRect().right - parseFloat(getComputedStyle(area).paddingRight) - last.getBoundingClientRect().right
+  })
+  /** Unfilled px of a column, below its last cell. */
+  const voidBelow = (page: Page, columnId: string) => page.evaluate((id) => {
+    const col = document.querySelector(`[data-ws-column="${id}"]`)
+    const last = col && Array.from(col.querySelectorAll('[data-ws-cell]')).at(-1)
+    if (!col || !last) throw new Error('no cells')
+    return col.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom
+  }, columnId)
+
+  test('a cell split off, whose last tab then joins another pane, gives its height back', async ({ page }) => {
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        columns: [
+          { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] }] },
+          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+        ],
+      }],
+    })
+    await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'a1', 0.92))
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['eisTab']], [['calTab']]])
+
+    await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.5))
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'eisTab']]])
+    await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
+  })
+
+  test('a column whose last tab joins another column gives its width back', async ({ page }) => {
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        columns: [
+          { id: 'colA', weight: 0.5, cells: [{ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }] },
+          { id: 'colB', weight: 0.5, cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+        ],
+      }],
+    })
+    await dragTab(page, wsTab(page, 'calTab'), await bodyPoint(page, 'a1', 0.5))
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'calTab']]])
+    await expect.poll(() => voidRight(page)).toBeLessThan(1)
+  })
+
+  test('a layout stored with weights under 1 fills the workspace', async ({ page }) => {
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        columns: [{ id: 'colA', weight: 0.5, cells: [{ id: 'a1', weight: 0.25, tabs: [{ id: 'notesTab', kind: 'notes' }] }] }],
+      }],
+    })
+    await expect.poll(() => voidRight(page)).toBeLessThan(1)
+    await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
+  })
+
+  test('beside a collapsed cell, the expanded cell takes all the free height', async ({ page }) => {
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        columns: [
+          { id: 'colA', cells: [
+            { id: 'a1', weight: 0.25, collapsed: true, tabs: [{ id: 'notesTab', kind: 'notes' }] },
+            { id: 'a2', weight: 0.25, tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
+            { id: 'a3', weight: 0.5, tabs: [{ id: 'dashTab', kind: 'dashboard' }] },
+          ] },
+          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+        ],
+      }],
+    })
+    await dragTab(page, wsTab(page, 'dashTab'), await bodyPoint(page, 'b1', 0.5))
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['eisTab']], [['calTab', 'dashTab']]])
+    await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
+  })
+
+  test('the last expanded cell going expands the collapsed one left', async ({ page }) => {
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        columns: [
+          { id: 'colA', cells: [
+            { id: 'a1', collapsed: true, tabs: [{ id: 'notesTab', kind: 'notes' }] },
+            { id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
+          ] },
+          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+        ],
+      }],
+    })
+    await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.5))
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'eisTab']]])
+    await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
+    await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
+  })
+})
+
 test.describe('saved layouts', () => {
   const second: WsLayoutSeed = {
     name: 'Second',

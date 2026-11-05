@@ -462,6 +462,29 @@ describe('movePanel', () => {
     expect(movePanel(base(), 'kc', { kind: 'layout' }, seqIds()).columns.map((c) => c.cells[0]!.tabs[0]!.id)).toEqual(['a1', 'c1', 'b1'])
   })
 
+  it('removing a column’s last expanded cell expands the cell above it, else the new first', () => {
+    const cells = () => [cell('k1', ['t1'], { collapsed: true }), cell('k2', ['t2']), cell('k3', ['t3'], { collapsed: true })]
+    const expanded = (l: WorkspaceLayout) => l.columns[0]!.cells.filter((c) => c.collapsed !== true).map((c) => c.id)
+    const other = col('B', [cell('kb', ['b1'])])
+
+    expect(expanded(closeCell(layout(col('A', cells())), 'k2'))).toEqual(['k1'])
+    expect(expanded(closeTab(layout(col('A', cells())), 't2'))).toEqual(['k1'])
+    expect(expanded(moveTab(layout(col('A', cells()), other), 't2', { kind: 'cell', cellId: 'kb' }, seqIds()))).toEqual(['k1'])
+    expect(expanded(movePanel(layout(col('A', cells()), other), 'k2', { kind: 'cell', cellId: 'kb' }, seqIds()))).toEqual(['k1'])
+
+    const firstGoes = [cell('k1', ['t1']), cell('k2', ['t2'], { collapsed: true })]
+    expect(expanded(closeCell(layout(col('A', firstGoes)), 'k1'))).toEqual(['k2'])
+  })
+
+  it('removing a cell leaves the others’ collapse alone while an expanded cell remains, or when it was collapsed', () => {
+    const three = [cell('k1', ['t1'], { collapsed: true }), cell('k2', ['t2']), cell('k3', ['t3'])]
+    const left = closeCell(layout(col('A', three)), 'k3').columns[0]!.cells
+    expect(left.map((c) => c.collapsed === true)).toEqual([true, false])
+
+    const allCollapsed = [cell('k1', ['t1'], { collapsed: true }), cell('k2', ['t2'], { collapsed: true })]
+    expect(closeCell(layout(col('A', allCollapsed)), 'k2').columns[0]!.cells[0]!.collapsed).toBe(true)
+  })
+
   it('a collapsed panel moved to a new place opens expanded', () => {
     const l = setCellCollapsed(base(), 'kb', true)
     const next = movePanel(l, 'kb', { kind: 'cell-edge', cellId: 'kc', edge: 'top' }, seqIds())
