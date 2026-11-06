@@ -116,7 +116,7 @@ export interface WorkspaceState {
    * copy is dropped. Call after app startup has loaded the sync file.
    */
   init: () => Promise<void>
-  /** Opens a layout, dropping the working copy. Unknown id → no-op. */
+  /** Opens a layout, dropping the working copy. Unknown id → no-op. Never rejects: a failure is reported, the open layout kept. */
   load: (id: number) => Promise<void>
   /**
    * Stores a new, empty layout named `name` (after the others) and opens
@@ -158,7 +158,9 @@ export interface WorkspaceState {
   /**
    * Deletes a layout — never the last one (`false`). Deleting the open layout
    * opens the most recently used remaining one. The lists it owns go with
-   * it (their manual order and unsaved edits too). Not undoable.
+   * it (their manual order and unsaved edits too). Not undoable. Never
+   * rejects: a failed delete is reported and resolves false; a failure after
+   * the delete committed (opening the next layout) is reported too.
    */
   delete: (id: number) => Promise<boolean>
   /**
@@ -699,6 +701,32 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     }
   }
 
+  /**
+   * Opens layout `id` (unknown id: nothing). Never rejects: a failed read or
+   * write is reported (the snackbar) and resolves false, the open layout
+   * staying as it was.
+   */
+  async function openLayout(id: number): Promise<boolean> {
+    try {
+      const read = await layoutRepository.get(id)
+      if (!read) return true
+      const now = new Date()
+      const layout: Layout = { ...read.layout, lastUsedAt: now }
+      // Only the last-used time: the rest of the row stays as stored.
+      await layoutRepository.touch(id, now)
+      await layoutRepository.setActiveId(id)
+      const repairedIds = new Set(get().repairedIds)
+      if (read.fixes.length > 0) repairedIds.add(id)
+      else repairedIds.delete(id)
+      open({ layout, fixes: read.fixes }, replaceLayout(get().layouts, layout), repairedIds)
+      return true
+    } catch (err) {
+      const name = get().layouts.find((l) => l.id === id)?.name ?? 'the layout'
+      reportWriteFailure(`Couldn't open layout "${name}".`, err)
+      return false
+    }
+  }
+
   return {
     layouts: [],
     activeLayoutId: null,
@@ -719,17 +747,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async load(id) {
-      const read = await layoutRepository.get(id)
-      if (!read) return
-      const now = new Date()
-      const layout: Layout = { ...read.layout, lastUsedAt: now }
-      // Only the last-used time: the rest of the row stays as stored.
-      await layoutRepository.touch(id, now)
-      await layoutRepository.setActiveId(id)
-      const repairedIds = new Set(get().repairedIds)
-      if (read.fixes.length > 0) repairedIds.add(id)
-      else repairedIds.delete(id)
-      open({ layout, fixes: read.fixes }, replaceLayout(get().layouts, layout), repairedIds)
+      await openLayout(id)
     },
 
     async createLayout(name) {
@@ -912,22 +930,33 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async delete(id) {
+      const name = get().layouts.find((l) => l.id === id)?.name ?? 'the layout'
       // Its lists go with it.
-      const removed = await layoutRepository.deleteUnlessLast(id)
-      if (!removed) return false
-      const reads = await layoutRepository.getAll()
-      const layouts = reads.map((r) => r.layout)
-      const repairedIds = new Set([...get().repairedIds].filter((r) => r !== id))
-      if (get().activeLayoutId !== id) {
-        set({ layouts, repairedIds })
-        await applyRemoved(removed)
-        return true
+      let removed: OwnedListsRemoved | null
+      try {
+        removed = await layoutRepository.deleteUnlessLast(id)
+      } catch (err) {
+        reportWriteFailure(`Couldn't delete layout "${name}".`, err)
+        return false
       }
-      set({ repairedIds })
-      const next = mostRecentlyUsed(layouts)
-      if (next) await get().load(next.id)
-      set({ layouts: get().layouts.filter((l) => l.id !== id) })
-      await applyRemoved(removed)
+      if (!removed) return false
+      // Deleted from here on: what follows brings the screen in step with it.
+      const repairedIds = new Set([...get().repairedIds].filter((r) => r !== id))
+      try {
+        const layouts = (await layoutRepository.getAll()).map((r) => r.layout)
+        if (get().activeLayoutId !== id) {
+          set({ layouts, repairedIds })
+        } else {
+          set({ repairedIds })
+          const next = mostRecentlyUsed(layouts)
+          if (next && !await openLayout(next.id)) throw new Error('the next layout did not open')
+          set({ layouts: get().layouts.filter((l) => l.id !== id) })
+        }
+        await applyRemoved(removed)
+      } catch (err) {
+        set({ layouts: get().layouts.filter((l) => l.id !== id), repairedIds })
+        reportWriteFailure(`Deleted layout "${name}", but couldn't open another. Reload the page.`, err)
+      }
       return true
     },
 
