@@ -67,3 +67,42 @@ test('a long title keeps it inside the window, under the input; a resize re-plac
   const moved = Math.round((await box(input)).x - i.x)
   await expect.poll(async () => Math.round((await box(popup)).x - p.x)).toBe(moved)
 })
+
+test('a title too long for one line wraps, the field growing; the popup opens at its token on the wrapped line', async ({ page }) => {
+  const input = await openQuickAdd(page)
+  await page.setViewportSize({ width: 900, height: 700 })
+  const oneLine = (await box(input)).height
+  await page.keyboard.type('Prepare the quarterly planning review deck with the budget numbers and the hiring plan for the offsite, then share it with @al')
+  const popup = page.getByRole('listbox', { name: 'People' })
+  await expect(popup).toBeVisible()
+  // Wrapped, never scrolled sideways: every word shows.
+  await expect.poll(async () => (await box(input)).height).toBeGreaterThan(oneLine * 2 - 1)
+  expect(await input.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
+  // The `@` sits on a later line, in from the field's left: the popup is at it, under the field.
+  const at = await page.getByTestId('quickadd-mirror').evaluate((mirror, text) => {
+    const node = document.createTreeWalker(mirror, NodeFilter.SHOW_TEXT)
+    let seen = 0
+    for (let n = node.nextNode(); n; n = node.nextNode()) {
+      const value = n.textContent ?? ''
+      const i = value.indexOf('@al')
+      if (i >= 0) {
+        const range = document.createRange()
+        range.setStart(n, i)
+        range.setEnd(n, i + 1)
+        const r = range.getBoundingClientRect()
+        return { x: r.left, y: r.top, before: seen + i === text.indexOf('@al') }
+      }
+      seen += value.length
+    }
+    throw new Error('no @al in the mirror')
+  }, await input.inputValue())
+  const i = await box(input)
+  expect(at.before).toBe(true)
+  expect(at.y).toBeGreaterThan(i.y + oneLine - 1)
+  const p = await box(popup)
+  expect(Math.abs(p.x - at.x)).toBeLessThan(2)
+  expect(Math.round(p.y - (i.y + i.height))).toBe(4)
+  // ⏎ picks the person; the title stays one line of text however it wraps.
+  await page.keyboard.press('Enter')
+  expect(await input.inputValue()).not.toContain('\n')
+})

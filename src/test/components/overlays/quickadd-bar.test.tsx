@@ -26,7 +26,7 @@ function seedStores() {
 function noop() {}
 
 function getInput() {
-  return screen.getByPlaceholderText('New task…') as HTMLInputElement
+  return screen.getByPlaceholderText('New task…') as HTMLTextAreaElement
 }
 
 /** Texts of the chips row (what the task will get), without the chips' ×. */
@@ -235,6 +235,27 @@ describe('QuickAddBar', () => {
     const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
     expect(draft.title).toBe('Fix the build /triage')
     expect(draft.resolved.title).toBe('Fix the build /triage')
+  })
+
+  it('the title wraps in a field of its own; ⏎ adds, ⇧⏎ breaks no line, a pasted line break is a space', () => {
+    const onSubmit = vi.fn()
+    render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+    const field = getInput()
+    expect(field.tagName).toBe('TEXTAREA')
+    expect(field).toHaveAttribute('rows', '1')
+    // ⇧⏎: the default (a line break) is prevented, and nothing is added.
+    changeInput('Draft the plan ')
+    const shiftEnter = fireEvent.keyDown(field, { key: 'Enter', shiftKey: true })
+    expect(shiftEnter).toBe(false)
+    expect(onSubmit).not.toHaveBeenCalled()
+    // A pasted break becomes a space, one character for one.
+    fireEvent.change(field, { target: { value: 'Draft the plan\nand the budget\n\n' } })
+    expect(field.value).toBe('Draft the plan and the budget  ')
+    expect(screen.getByTestId('quickadd-mirror')).toHaveTextContent('Draft the plan and the budget')
+    const enter = fireEvent.keyDown(field, { key: 'Enter' })
+    expect(enter).toBe(false)
+    expect(onSubmit).toHaveBeenCalledTimes(1)
+    expect((onSubmit.mock.calls[0]![0] as QuickAddDraft).title).toBe('Draft the plan and the budget')
   })
 
   it('blank submit is a no-op (Enter on empty input does not fire onSubmit/onClose)', () => {

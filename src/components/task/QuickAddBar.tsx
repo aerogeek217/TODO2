@@ -53,7 +53,7 @@ import {
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useUIStore } from '../../stores/ui-store'
-import { useNlpPopupAnchor } from '../../hooks/use-nlp-popup-anchor'
+import { mirrorCharX, useNlpPopupAnchor } from '../../hooks/use-nlp-popup-anchor'
 import { usePersonStore } from '../../stores/person-store'
 import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
@@ -76,6 +76,11 @@ import { isInLayerAbove } from '../../utils/dom-layers'
 import { StatusIcon } from '../shared/StatusIcon'
 import styles from './QuickAddBar.module.css'
 import { shortcutScope } from '../../utils/dom-contract'
+
+/** The title field's line height (px; `.titleInput`'s `line-height`). */
+const TITLE_LINE_PX = 28
+/** The most lines the title field grows to before it scrolls. */
+const TITLE_MAX_LINES = 6
 
 /** Each marker chip's tint (`data-tint`). */
 const MARKER_CHIP_TINT: Record<MarkerKey, string> = { focus: 'accent', urgent: 'urgent', important: 'followup' }
@@ -420,7 +425,7 @@ export function QuickAddBar({
   const [removedPresetMarkers, setRemovedPresetMarkers] = useState<MarkerKey[]>([])
   /** Where the caret goes once a chip × has changed the text. */
   const pendingCaretRef = useRef<number | null>(null)
-  const inputRef = useRef<HTMLInputElement>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
   const surfaceRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -544,14 +549,41 @@ export function QuickAddBar({
     input.setSelectionRange(caret, caret)
   }, [raw])
 
-  // Keep the tint mirror scrolled with the input's text.
+  // Keep the tint mirror scrolled with the field's text.
   const syncMirror = useCallback(() => {
-    if (mirrorRef.current && inputRef.current) mirrorRef.current.scrollLeft = inputRef.current.scrollLeft
+    if (mirrorRef.current && inputRef.current) mirrorRef.current.scrollTop = inputRef.current.scrollTop
   }, [])
-  useLayoutEffect(() => { syncMirror() }, [raw, syncMirror])
+  // The field wraps and grows with its text, up to `TITLE_MAX_LINES` lines
+  // (then it scrolls): measured again for each change and each new width.
+  const fitHeight = useCallback(() => {
+    const field = inputRef.current
+    if (!field) return
+    field.style.height = 'auto'
+    field.style.height = `${Math.min(Math.max(field.scrollHeight, TITLE_LINE_PX), TITLE_MAX_LINES * TITLE_LINE_PX)}px`
+    syncMirror()
+  }, [syncMirror])
+  useLayoutEffect(() => { fitHeight() }, [raw, fitHeight])
+  useEffect(() => {
+    const field = inputRef.current
+    if (!open || !field || typeof ResizeObserver === 'undefined') return
+    let width = field.clientWidth
+    const observer = new ResizeObserver(() => {
+      if (field.clientWidth === width) return
+      width = field.clientWidth
+      fitHeight()
+    })
+    observer.observe(field)
+    return () => observer.disconnect()
+  }, [open, fitHeight])
 
-  // Popup placement (`useNlpPopupAnchor`), portal'd to body.
-  const { popupRef, setPopupEl, style: popupStyle } = useNlpPopupAnchor(inputRef, ac.state)
+  // Popup placement (`useNlpPopupAnchor`), portal'd to body: at the token's
+  // character in the mirror, which wraps as the field does.
+  const popupAnchorIndex = ac.state.view?.anchor ?? null
+  const caretX = useCallback(
+    () => (mirrorRef.current && popupAnchorIndex != null ? mirrorCharX(mirrorRef.current, popupAnchorIndex) : null),
+    [popupAnchorIndex],
+  )
+  const { popupRef, setPopupEl, style: popupStyle } = useNlpPopupAnchor(inputRef, ac.state, { x: caretX, key: raw })
 
   // A press outside the bar and its backdrop (the backdrop closes on its own
   // click) closes the bar. The backdrop covers the page, so this is only
@@ -591,12 +623,16 @@ export function QuickAddBar({
     setTitleMissing(false)
   }
 
-  const onInputKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+  const onInputKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     // While the popup is open its keys never reach the bar's Esc / Tab / ⏎.
     if (ac.handleKeyDown(e, inputRef.current)) {
       e.preventDefault()
       e.stopPropagation()
+      return
     }
+    // A title is one line, however it wraps: ⏎ (the bar's: add) and ⇧⏎ never
+    // break it.
+    if (e.key === 'Enter') e.preventDefault()
   }
 
   // A submit in flight: a second Enter waits for it.
@@ -727,19 +763,21 @@ export function QuickAddBar({
             <div ref={mirrorRef} className={styles.mirror} aria-hidden="true" data-testid="quickadd-mirror">
               <TintedText text={raw} spans={tints} />
             </div>
-            <input
+            <textarea
               ref={inputRef}
               className={styles.titleInput}
               placeholder="New task…"
+              rows={1}
               value={raw}
               onChange={(e) => {
-                setRaw(e.target.value)
+                // A pasted or dropped line break becomes a space (one
+                // character for one, so the caret stays where it was).
+                const value = e.target.value.replace(/[\r\n]/g, ' ')
+                const caret = e.target.selectionStart ?? value.length
+                if (value !== e.target.value) pendingCaretRef.current = caret
+                setRaw(value)
                 setTitleMissing(false)
-                ac.handleInputChange(
-                  e.target.value,
-                  e.target.selectionStart ?? e.target.value.length,
-                  e.target,
-                )
+                ac.handleInputChange(value, caret, e.target)
               }}
               onSelect={(e) => {
                 const input = e.currentTarget
