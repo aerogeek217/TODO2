@@ -297,6 +297,22 @@ export function CellTabStrip({
     // Re-observe when the tabs, the active one or the header's parts change (the tabs are read through a ref).
   }, [tabKey, tabsRef, activeId, hasAdd, collapsed])
 
+  // The tab an arrow key moved to, focused once it shows: a folded one is out of
+  // sight (not focusable) until its activation renders it in place — which a
+  // view transition holds back past this task (cr31 W6).
+  const pendingFocus = useRef<string | null>(null)
+  const focusPending = () => {
+    const id = pendingFocus.current
+    if (id == null) return
+    const el = tabEls.current.get(id)
+    if (!el || el.hasAttribute('data-ws-tab-folded')) return
+    pendingFocus.current = null
+    // Only while the focus is still the strip's (or lost with a tab folded away): never taken from elsewhere.
+    const focused = document.activeElement
+    if (focused == null || focused === document.body || stripRef.current?.contains(focused)) el.focus()
+  }
+  useLayoutEffect(focusPending)
+
   const focusSibling = (fromId: string, delta: 1 | -1 | 'first' | 'last') => {
     const ids = order.map((t) => t.id)
     const i = ids.indexOf(fromId)
@@ -304,8 +320,9 @@ export function CellTabStrip({
     const next = delta === 'first' ? 0 : delta === 'last' ? n - 1 : (i + delta + n) % n
     const id = ids[next]
     if (!id) return
+    pendingFocus.current = id
     onActivate(id)
-    queueMicrotask(() => tabEls.current.get(id)?.focus())
+    queueMicrotask(focusPending)
   }
 
   return (
