@@ -58,6 +58,13 @@ describe('FilterSheet', () => {
       fireEvent.click(container.children[0]!)
       expect(useUIStore.getState().isFilterSheetOpen).toBe(false)
     })
+
+    it('a touch drag on the backdrop doesn’t scroll the page behind — opened after mount too (a non-passive listener, cr31 T10)', () => {
+      const { container } = renderSheet()
+      const move = new Event('touchmove', { bubbles: true, cancelable: true })
+      container.children[0]!.dispatchEvent(move)
+      expect(move.defaultPrevented).toBe(true)
+    })
   })
 
   // ── Accessibility (cr31 UI F6) ────────────────────────────────────

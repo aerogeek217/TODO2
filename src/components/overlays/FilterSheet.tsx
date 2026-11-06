@@ -12,6 +12,7 @@ import { FilterSheetLens } from './FilterSheetLens'
 import { unmatchedNote, useSearchBox } from '../../hooks/use-search-box'
 import { NlpPopup } from '../shared/NlpPopup'
 import { TintedText } from '../shared/TintedText'
+import { useBlockTouchScroll } from '../../hooks/use-block-touch-scroll'
 import styles from './FilterSheet.module.css'
 
 export function FilterSheet() {
@@ -48,6 +49,10 @@ export function FilterSheet() {
     return () => document.removeEventListener('keydown', onKey)
   }, [isOpen, closeSheet])
 
+  // A touch drag on the backdrop doesn't scroll the page behind (React's onTouchMove is passive).
+  const backdropRef = useRef<HTMLDivElement>(null)
+  useBlockTouchScroll(backdropRef, isOpen)
+
   // Lock body scroll when open
   useEffect(() => {
     if (isOpen) {
@@ -69,9 +74,9 @@ export function FilterSheet() {
   return (
     <>
       <div
+        ref={backdropRef}
         className={styles.backdrop}
         onClick={closeSheet}
-        onTouchMove={(e) => e.preventDefault()}
       />
       <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="Filters">
         <div className={styles.scrollBody}>
