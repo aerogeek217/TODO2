@@ -37,6 +37,8 @@ export interface AssignmentActions {
   unassign: (todoId: number, entityId: number) => Promise<void>
   bulkAssign: (todoIds: number[], entityId: number) => Promise<void>
   bulkUnassign: (todoIds: number[], entityId: number) => Promise<void>
+  /** Drops deleted tasks' entries from the map (their join rows went with them); a later load reads them again. */
+  forgetTodos: (todoIds: readonly number[]) => void
 }
 
 /**
@@ -143,6 +145,15 @@ export function createAssignmentActions<T extends { id?: number }>(
         }
       }
       if (!identical) setMap(merged)
+    },
+
+    forgetTodos(todoIds: readonly number[]) {
+      const map = getMap()
+      const gone = todoIds.filter((id) => map.has(id))
+      if (gone.length === 0) return
+      const next = new Map(map)
+      for (const id of gone) next.delete(id)
+      setMap(next)
     },
 
     async assign(todoId: number, entityId: number) {

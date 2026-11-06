@@ -12,6 +12,7 @@ import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await db.delete()
@@ -30,8 +31,8 @@ describe('applyPaneDrop', () => {
     await usePersonStore.getState().load()
     await useTagStore.getState().load()
     await useStatusStore.getState().load()
-    const a = await useTodoStore.getState().add('Chase vendor')
-    const b = await useTodoStore.getState().add('Book venue')
+    const a = await addTask('Chase vendor')
+    const b = await addTask('Book venue')
     useUndoStore.setState(useUndoStore.getInitialState(), true)
 
     await applyPaneDrop([
@@ -54,7 +55,7 @@ describe('applyPaneDrop', () => {
   })
 
   it('flags alone are the flag write itself', async () => {
-    const a = await useTodoStore.getState().add('A')
+    const a = await addTask('A')
     useUndoStore.setState(useUndoStore.getInitialState(), true)
     await applyPaneDrop([{ todoId: a, important: true }])
     expect(mem(a).important).toBe(true)
@@ -70,8 +71,8 @@ describe('applyPaneDrop — a write that fails', () => {
     const waiting = await db.statuses.add({ name: 'Waiting', color: '#000', icon: 'circle', sortOrder: 1 }) as number
     await useTagStore.getState().load()
     await useStatusStore.getState().load()
-    const a = await useTodoStore.getState().add('Chase vendor')
-    const b = await useTodoStore.getState().add('Book venue')
+    const a = await addTask('Chase vendor')
+    const b = await addTask('Book venue')
     useUndoStore.setState(useUndoStore.getInitialState(), true)
     return { home, waiting, a, b }
   }
@@ -114,7 +115,7 @@ describe('applyPaneDrop — a write that fails', () => {
 
   it('a drop that fails while a check-in reply is being applied takes back only its own writes', async () => {
     const { home, waiting, a, b } = await seed()
-    const c = await useTodoStore.getState().add('Reply task')
+    const c = await addTask('Reply task')
     useUndoStore.setState(useUndoStore.getInitialState(), true)
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(db.todoTags, 'bulkAdd').mockRejectedValue(new Error('disk full'))

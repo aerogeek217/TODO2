@@ -8,6 +8,7 @@ import { predicateToCriteria } from '../../utils/filter-criteria'
 import { getFilterDefaults, markerFlags, predicateToFilterDefaults, withoutMarkers } from '../../utils/filter-defaults'
 import { defsEqual } from '../../utils/list-def-equal'
 import type { PersistedListDefinition } from '../../models/list-definition'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await db.delete()
@@ -20,8 +21,8 @@ const mem = (id: number) => useTodoStore.getState().todos.find((t) => t.id === i
 
 describe('bulkSetFocus', () => {
   it('puts tasks in focus and takes them out (absent, not false), undoably', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
 
     await useTodoStore.getState().bulkSetFocus([a, b], true)
     expect((await db.todos.get(a))!.focus).toBe(true)
@@ -47,8 +48,8 @@ describe('bulkSetFocus', () => {
 describe('bulkSetUrgent / bulkSetImportant', () => {
   it.each(['urgent', 'important'] as const)('sets and clears %s (absent, not false), one undo step each', async (field) => {
     const set = field === 'urgent' ? useTodoStore.getState().bulkSetUrgent : useTodoStore.getState().bulkSetImportant
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
 
     await set([a, b], true)
     expect((await db.todos.get(a))![field]).toBe(true)
@@ -72,8 +73,8 @@ describe('bulkSetUrgent / bulkSetImportant', () => {
 
 describe('bulkClearDueDate', () => {
   it('removes the due dates in one undo step and shows the undo snackbar', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
     const due = new Date(2026, 9, 12)
     await useTodoStore.getState().bulkSetDeadline([a, b], due)
 
@@ -90,7 +91,7 @@ describe('bulkClearDueDate', () => {
 
 describe('duplicate', () => {
   it('copies the urgent and important flags', async () => {
-    const a = await useTodoStore.getState().add('A')
+    const a = await addTask('A')
     await useTodoStore.getState().bulkSetUrgent([a], true)
     await useTodoStore.getState().bulkSetImportant([a], true)
     const copy = (await useTodoStore.getState().duplicate(a))!

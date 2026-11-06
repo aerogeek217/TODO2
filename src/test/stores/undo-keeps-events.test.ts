@@ -9,6 +9,7 @@ import { computeTrend } from '../../services/stats/trend'
 import { startOfToday } from '../../utils/date'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await resetDb()
@@ -27,7 +28,7 @@ async function trend(): Promise<unknown> {
 
 /** A task with a history: created, a due date, completed and reopened. */
 async function taskWithHistory(title: string): Promise<number> {
-  const id = await useTodoStore.getState().add(title)
+  const id = await addTask(title)
   await useTodoStore.getState().update(id, { dueDate: new Date(2026, 9, 20) })
   await useTodoStore.getState().toggleComplete(id)
   await useTodoStore.getState().toggleComplete(id)
@@ -72,7 +73,7 @@ describe('delete undo keeps the task events', () => {
 
 describe('redo of a create keeps its created event', () => {
   it('add', async () => {
-    const id = await useTodoStore.getState().add('Milk')
+    const id = await addTask('Milk')
     const before = await events()
     await useUndoStore.getState().undo()
     expect(await db.todos.get(id)).toBeUndefined()
@@ -96,7 +97,7 @@ describe('redo of a create keeps its created event', () => {
   })
 
   it('duplicate', async () => {
-    const id = await useTodoStore.getState().add('Milk')
+    const id = await addTask('Milk')
     const copy = await useTodoStore.getState().duplicate(id)
     const before = await events()
     await useUndoStore.getState().undo()

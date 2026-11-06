@@ -1,4 +1,6 @@
-import { db } from './database'
+import type { Table } from 'dexie'
+import { db, DATA_TABLES } from './database'
+import { TASK_CHILD_TABLE_NAMES } from './tables'
 import { nextSortOrder } from './create-repository'
 import type { TodoItem, PersistedTodoItem, NewTodoItem, TodoEvent } from '../models'
 import { encodeDateValue } from './todo-event-repository'
@@ -218,10 +220,11 @@ export const todoRepository = {
   },
 
   /**
-   * Deletes a task with its people, tags, events, list ranks and status
-   * updates. Returns the deleted event rows (undo puts them back with
-   * `restoreManyWithAssignments`; the ranks and status updates, read before,
-   * go back through their own repositories).
+   * Deletes a task with its own rows — people, tags, events, list ranks,
+   * status updates and subtasks (`TASK_CHILD_TABLE_NAMES`). Returns the
+   * deleted event rows (undo puts them back with
+   * `restoreManyWithAssignments`; the ranks, status updates and subtasks,
+   * read before, go back through their own repositories).
    */
   async delete(id: number): Promise<TodoEvent[]> {
     return todoRepository.bulkDelete([id])
@@ -230,15 +233,11 @@ export const todoRepository = {
   /** `delete` for several tasks in one transaction; returns their deleted event rows. */
   async bulkDelete(ids: readonly number[]): Promise<TodoEvent[]> {
     if (ids.length === 0) return []
-    return db.transaction('rw', [db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.listOrders, db.statusUpdates, db.subtasks], async () => {
+    const children = TASK_CHILD_TABLE_NAMES.map((name) => DATA_TABLES[name] as Table)
+    return db.transaction('rw', [db.todos, ...children], async () => {
       const todoIds = [...ids]
       const events = await db.todoEvents.where('todoId').anyOf(todoIds).sortBy('id')
-      await db.todoPeople.where('todoId').anyOf(todoIds).delete()
-      await db.todoTags.where('todoId').anyOf(todoIds).delete()
-      await db.todoEvents.where('todoId').anyOf(todoIds).delete()
-      await db.listOrders.where('todoId').anyOf(todoIds).delete()
-      await db.statusUpdates.where('todoId').anyOf(todoIds).delete()
-      await db.subtasks.where('todoId').anyOf(todoIds).delete()
+      for (const table of children) await table.where('todoId').anyOf(todoIds).delete()
       await db.todos.bulkDelete(todoIds)
       return events
     })

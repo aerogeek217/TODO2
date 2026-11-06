@@ -9,6 +9,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await resetDb()
@@ -24,8 +25,8 @@ const sortOrders = async () => (await db.todos.toArray()).map((t) => t.sortOrder
 
 describe('concurrent adds get distinct sort orders', () => {
   it('two task adds', async () => {
-    await useTodoStore.getState().add('First')
-    await Promise.all([useTodoStore.getState().add('A'), useTodoStore.getState().add('B')])
+    await addTask('First')
+    await Promise.all([addTask('A'), addTask('B')])
     expect(await sortOrders()).toEqual([1, 2, 3])
     expect(useTodoStore.getState().todos.map((t) => t.sortOrder).sort((a, b) => a - b)).toEqual([1, 2, 3])
   })
@@ -36,21 +37,21 @@ describe('concurrent adds get distinct sort orders', () => {
         [{ todo: newTodo('M1'), personIds: [], tagIds: [] }, { todo: newTodo('M2'), personIds: [], tagIds: [] }],
         { description: 'Add 2 tasks' },
       ),
-      useTodoStore.getState().add('A'),
+      addTask('A'),
     ])
     expect(new Set(await sortOrders()).size).toBe(3)
   })
 
   it('a duplicate next to a task add', async () => {
-    const id = await useTodoStore.getState().add('Original')
-    await Promise.all([useTodoStore.getState().duplicate(id), useTodoStore.getState().add('A')])
+    const id = await addTask('Original')
+    await Promise.all([useTodoStore.getState().duplicate(id), addTask('A')])
     expect(await sortOrders()).toEqual([1, 2, 3])
   })
 
   it('a new task goes after the highest sort order in the database, loaded or not', async () => {
     const now = new Date()
     await db.todos.add({ uid: 'x', title: 'Not loaded', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 41 })
-    await useTodoStore.getState().add('New')
+    await addTask('New')
     expect(await sortOrders()).toEqual([41, 42])
   })
 

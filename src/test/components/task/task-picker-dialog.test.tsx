@@ -12,6 +12,7 @@ import { useSubtaskStore } from '../../../stores/subtask-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { makeTodo, resetDb } from '../../helpers'
+import { addTask } from '../../add-task'
 
 afterEach(cleanup)
 
@@ -98,8 +99,8 @@ describe('TaskPickerHost', () => {
   })
 
   it('opens the picker for a task, without the task itself; a pick closes it and converts the task', async () => {
-    const a = await useTodoStore.getState().add('Book travel')
-    const b = await useTodoStore.getState().add('Offsite')
+    const a = await addTask('Book travel')
+    const b = await addTask('Offsite')
     render(<TaskPickerHost />)
     expect(screen.queryByRole('dialog')).toBeNull()
     act(() => useUIStore.getState().openTaskPicker({ kind: 'make-subtask', todoId: a }))
@@ -112,8 +113,8 @@ describe('TaskPickerHost', () => {
   })
 
   it('opens the picker for a subtask, without its own task; a pick moves it there', async () => {
-    const a = await useTodoStore.getState().add('Offsite')
-    const b = await useTodoStore.getState().add('Q4 budget')
+    const a = await addTask('Offsite')
+    const b = await addTask('Q4 budget')
     const sub = await useSubtaskStore.getState().add(a, 'Book the venue')
     render(<TaskPickerHost />)
     act(() => useUIStore.getState().openTaskPicker({ kind: 'move-subtask', subtaskId: sub!.id }))
@@ -125,7 +126,7 @@ describe('TaskPickerHost', () => {
   })
 
   it('closes on its own when what it was opened for is gone', async () => {
-    const a = await useTodoStore.getState().add('Gone soon')
+    const a = await addTask('Gone soon')
     render(<TaskPickerHost />)
     act(() => useUIStore.getState().openTaskPicker({ kind: 'make-subtask', todoId: a }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()

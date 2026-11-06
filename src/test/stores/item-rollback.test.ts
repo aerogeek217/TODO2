@@ -16,6 +16,7 @@ import { todoRepository } from '../../data/todo-repository'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 interface Held {
   /** Rejects the held write. */
@@ -225,7 +226,7 @@ describe('task bulk writes', () => {
   async function oneTask() {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 9, 1, 9, 0))
-    const id = await useTodoStore.getState().add('Call')
+    const id = await addTask('Call')
     vi.setSystemTime(new Date(2026, 9, 1, 10, 0))
     return id
   }

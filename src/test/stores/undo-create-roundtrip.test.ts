@@ -1,7 +1,9 @@
 // Undoing a create and redoing it puts the task back as it was when the
 // undo ran — its people, tags, list ranks and row — not as it was created:
 // changes made after the create without an undo step of their own (a manual
-// order move, a sync-file load) survive the round trip, as for a delete.
+// order move, a sync-file load) survive the round trip, as for a delete. A
+// delete's redo likewise captures afresh for the next undo (cr31 stores L3,
+// L4: every path runs through `todo-store`'s one take / put-back).
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { personRepository } from '../../data/person-repository'
@@ -14,6 +16,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await resetDb()
@@ -53,8 +56,27 @@ async function expectAsChanged(id: number) {
 }
 
 describe('undo → redo of a create', () => {
+  it('a create through addMany (Quick Add, the editor, notes): redo brings back the rank it was dragged to', async () => {
+    const [a, b] = await useTodoStore.getState().addMany([
+      { todo: { title: 'Milk', isCompleted: false, createdAt: new Date(), modifiedAt: new Date() }, personIds: [], tagIds: [] },
+      { todo: { title: 'Eggs', isCompleted: false, createdAt: new Date(), modifiedAt: new Date() }, personIds: [], tagIds: [] },
+    ], { description: 'Add 2 tasks' })
+    await useListOrderStore.getState().setRanks(7, [{ todoId: a!, rank: 1 }, { todoId: b!, rank: 0 }])
+
+    await useUndoStore.getState().undo()
+    expect(await db.todos.count()).toBe(0)
+    expect(await db.listOrders.count()).toBe(0)
+    expect(useListOrderStore.getState().ranks.get(7)).toBeUndefined()
+    await useUndoStore.getState().redo()
+
+    expect((await db.listOrders.where('todoId').equals(a!).toArray()).map((r) => r.rank)).toEqual([1])
+    expect(useListOrderStore.getState().ranks.get(7)?.get(a!)).toBe(1)
+    expect(useListOrderStore.getState().ranks.get(7)?.get(b!)).toBe(0)
+    expect(useTodoStore.getState().todos.map((t) => t.title).sort()).toEqual(['Eggs', 'Milk'])
+  })
+
   it('add: redo brings back the people, tags, ranks and row the task had when undone', async () => {
-    const id = await useTodoStore.getState().add('Milk')
+    const id = await addTask('Milk')
     await changeWithoutUndo(id)
 
     await useUndoStore.getState().undo()
@@ -66,7 +88,7 @@ describe('undo → redo of a create', () => {
   })
 
   it('duplicate: the copy keeps the source’s people and tags, and redo brings back what it had when undone', async () => {
-    const source = await useTodoStore.getState().add('Source')
+    const source = await addTask('Source')
     const bob = await db.people.add({ name: 'Bob', initials: 'BO' }) as number
     await usePersonStore.getState().load()
     await usePersonStore.getState().loadAssignments([source])
@@ -83,5 +105,53 @@ describe('undo → redo of a create', () => {
     await useUndoStore.getState().redo()
 
     await expectAsChanged(copy)
+  })
+})
+
+describe('undo → redo → undo of a delete', () => {
+  it('remove: the second undo brings back the rank the task had when redone', async () => {
+    const id = await addTask('Milk')
+    await useListOrderStore.getState().setRanks(7, [{ todoId: id, rank: 1 }])
+    await useTodoStore.getState().remove(id)
+    await useUndoStore.getState().undo()
+    await useListOrderStore.getState().setRanks(7, [{ todoId: id, rank: 9 }])
+
+    await useUndoStore.getState().redo()
+    expect(await db.todos.get(id)).toBeUndefined()
+    await useUndoStore.getState().undo()
+
+    expect((await db.listOrders.where('todoId').equals(id).toArray()).map((r) => r.rank)).toEqual([9])
+    expect(useListOrderStore.getState().ranks.get(7)?.get(id)).toBe(9)
+  })
+
+  it('bulkRemove: the second undo brings back the ranks and row the tasks had when redone', async () => {
+    const a = await addTask('A')
+    const b = await addTask('B')
+    await useListOrderStore.getState().setRanks(7, [{ todoId: a, rank: 1 }, { todoId: b, rank: 2 }])
+    await useTodoStore.getState().bulkRemove([a, b])
+    await useUndoStore.getState().undo()
+    await useListOrderStore.getState().setRanks(7, [{ todoId: a, rank: 5 }])
+    await todoRepository.update(b, { title: 'B renamed' })
+    await useTodoStore.getState().loadAll()
+
+    await useUndoStore.getState().redo()
+    expect(await db.todos.count()).toBe(0)
+    await useUndoStore.getState().undo()
+
+    expect(useListOrderStore.getState().ranks.get(7)?.get(a)).toBe(5)
+    expect(useListOrderStore.getState().ranks.get(7)?.get(b)).toBe(2)
+    expect((await db.todos.get(b))?.title).toBe('B renamed')
+    expect(useTodoStore.getState().todos.find((t) => t.id === b)?.title).toBe('B renamed')
+  })
+
+  it('bulkRemove: a task not loaded in the store is deleted and its undo brings it back', async () => {
+    const a = await addTask('A')
+    const stray = await todoRepository.insert({ title: 'Not loaded', isCompleted: false, createdAt: new Date(), modifiedAt: new Date() })
+    await useTodoStore.getState().bulkRemove([a, stray])
+    expect(await db.todos.get(stray)).toBeUndefined()
+    await useUndoStore.getState().undo()
+
+    expect((await db.todos.get(stray))?.title).toBe('Not loaded')
+    expect(useTodoStore.getState().todos.map((t) => t.id).sort()).toEqual([a, stray].sort())
   })
 })

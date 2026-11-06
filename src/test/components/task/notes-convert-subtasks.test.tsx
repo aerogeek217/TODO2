@@ -12,6 +12,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { resetDb } from '../../helpers'
 import { resetStores } from '../../store-tracking'
+import { addTask } from '../../add-task'
 
 beforeEach(async () => {
   await resetDb()
@@ -29,7 +30,7 @@ function Harness({ todoId }: { todoId: number }) {
 }
 
 async function setup(note: string) {
-  const id = await useTodoStore.getState().add('Offsite')
+  const id = await addTask('Offsite')
   await useTodoStore.getState().update(id, { notes: note })
   useUndoStore.getState().clear()
   const utils = render(<Harness todoId={id} />)

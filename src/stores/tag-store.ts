@@ -23,6 +23,8 @@ interface TagState {
   /** How many tasks (any, loaded or not) carry the tag — read from the database, for the delete confirm. */
   countTasks: (tagId: number) => Promise<number>
   loadAssignments: (todoIds: number[], options?: LoadAssignmentsOptions) => Promise<void>
+  /** Drops deleted tasks' entries from the assignment map (their join rows went with them). */
+  forgetAssignments: (todoIds: readonly number[]) => void
   assignTag: (todoId: number, tagId: number) => Promise<void>
   unassignTag: (todoId: number, tagId: number) => Promise<void>
   bulkAssignTag: (todoIds: number[], tagId: number) => Promise<void>
@@ -138,6 +140,7 @@ export const useTagStore = create<TagState>((set, get) => {
     },
 
     loadAssignments: assignment.loadAssignments,
+    forgetAssignments: assignment.forgetTodos,
     assignTag: assignment.assign,
     unassignTag: assignment.unassign,
     bulkAssignTag: assignment.bulkAssign,

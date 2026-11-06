@@ -12,6 +12,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 /**
  * Every path that writes subtask or status-update rows writes rows import
@@ -66,7 +67,7 @@ describe('every subtask / status-update write path stores rows import accepts', 
   })
 
   it('a duplicate of a task holding rows stored before the titles were checked', async () => {
-    const id = await useTodoStore.getState().add('Source')
+    const id = await addTask('Source')
     await db.subtasks.bulkAdd([
       { todoId: id, title: '', isCompleted: true, sortOrder: 0, createdAt: new Date() },
       { todoId: id, title: LONG, isCompleted: false, sortOrder: 1, createdAt: new Date() },
@@ -83,7 +84,7 @@ describe('every subtask / status-update write path stores rows import accepts', 
   })
 
   it('a task’s own notes converted to its subtasks', async () => {
-    const id = await useTodoStore.getState().add('Offsite')
+    const id = await addTask('Offsite')
     const drafts = noteSubtaskDrafts(convertCandidates(`- Venue\n  - [x]\n  - ${LONG}`, null))
     expect(await addSubtasksFromNote(id, drafts, async () => {})).toBe(true)
     expect((await db.subtasks.toArray()).map((s) => s.title.length)).toEqual([5, SUBTASK_TITLE_MAX])
@@ -91,7 +92,7 @@ describe('every subtask / status-update write path stores rows import accepts', 
   })
 
   it('a check-in reply’s status update', async () => {
-    const id = await useTodoStore.getState().add('Report')
+    const id = await addTask('Report')
     await applyCheckinUpdates(
       [{ todoId: id, complete: false, statusUpdate: LONG_TEXT, changeCount: 1 }],
       { recordFollowup: false, personName: 'Ann' },

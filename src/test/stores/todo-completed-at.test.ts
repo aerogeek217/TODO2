@@ -5,6 +5,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { isExpiredCompleted, resolveCompletedAt, retentionCutoff, selectExpiredCompleted } from '../../utils/completed-at'
 import { newTodoUid } from '../../utils/todo-uid'
+import { addTask } from '../add-task'
 
 /** What the launch prompt / Settings cleanup delete once the user confirms. */
 const purgeExpired = async (days: number) => {
@@ -62,7 +63,7 @@ describe('resolveCompletedAt / isExpiredCompleted (pure)', () => {
 
 describe('completedAt on every completion path', () => {
   it('toggleComplete sets completedAt (store + DB) and reopening clears it', async () => {
-    const id = await useTodoStore.getState().add('Task')
+    const id = await addTask('Task')
     expect((await stored(id)).completedAt).toBeUndefined()
 
     const before = Date.now()
@@ -78,8 +79,8 @@ describe('completedAt on every completion path', () => {
   })
 
   it('bulkSetCompleted sets / clears completedAt; re-completing a completed task keeps its time', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
     const old = daysAgo(50)
     await todoRepository.complete(b, true, old)
     await useTodoStore.getState().loadAll()
@@ -97,7 +98,7 @@ describe('completedAt on every completion path', () => {
   })
 
   it('undoing a bulk reopen restores the original completion time', async () => {
-    const id = await useTodoStore.getState().add('Done long ago')
+    const id = await addTask('Done long ago')
     const old = daysAgo(90)
     await todoRepository.complete(id, true, old)
     await useTodoStore.getState().loadAll()
@@ -113,7 +114,7 @@ describe('completedAt on every completion path', () => {
   })
 
   it('update() keeps completedAt in step when it flips isCompleted (TaskEditPopup-style writes)', async () => {
-    const id = await useTodoStore.getState().add('Edit me')
+    const id = await addTask('Edit me')
     await useTodoStore.getState().update(id, { isCompleted: true })
     expect((await stored(id)).completedAt).toBeInstanceOf(Date)
     const at = (await stored(id)).completedAt
@@ -127,7 +128,7 @@ describe('completedAt on every completion path', () => {
   })
 
   it('bulkUpdate with isCompleted keeps completedAt in step; other changes leave it alone', async () => {
-    const id = await useTodoStore.getState().add('Bulk')
+    const id = await addTask('Bulk')
     await todoRepository.bulkUpdate([{ todoId: id, changes: { isCompleted: true } }])
     const at = (await stored(id)).completedAt
     expect(at).toBeInstanceOf(Date)
@@ -138,7 +139,7 @@ describe('completedAt on every completion path', () => {
   })
 
   it('completing a recurring task advances it instead and sets no completedAt', async () => {
-    const id = await useTodoStore.getState().add('Weekly')
+    const id = await addTask('Weekly')
     const due = new Date('2026-10-12T00:00:00.000Z')
     await useTodoStore.getState().update(id, { dueDate: due, recurrenceRule: { type: 'weekly' } })
     await useTodoStore.getState().toggleComplete(id)
@@ -157,7 +158,7 @@ describe('completedAt on every completion path', () => {
 
 describe('purgeCompleted (expired selection) keys on completedAt', () => {
   it('purges a task completed long ago even if modifiedAt is fresh (reorders / sort normalization)', async () => {
-    const id = await useTodoStore.getState().add('Done in summer')
+    const id = await addTask('Done in summer')
     await todoRepository.complete(id, true, daysAgo(60))
     // A reorder / normalization bumps modifiedAt — the old purge clock.
     await db.todos.update(id, { sortOrder: 5, modifiedAt: new Date() })
@@ -169,7 +170,7 @@ describe('purgeCompleted (expired selection) keys on completedAt', () => {
   })
 
   it('keeps a task completed recently even if modifiedAt is old', async () => {
-    const id = await useTodoStore.getState().add('Done yesterday')
+    const id = await addTask('Done yesterday')
     await todoRepository.complete(id, true, daysAgo(1))
     await db.todos.update(id, { modifiedAt: daysAgo(400) })
     await useTodoStore.getState().loadAll()
@@ -181,8 +182,8 @@ describe('purgeCompleted (expired selection) keys on completedAt', () => {
 
 describe('uid on every insert path', () => {
   it('add / duplicate mint distinct uids; an explicit uid is kept', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
     const c = (await useTodoStore.getState().duplicate(a))!
     const uids = await Promise.all([a, b, c].map(async (id) => (await stored(id)).uid))
     for (const uid of uids) expect(uid).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/)
@@ -204,7 +205,7 @@ describe('uid on every insert path', () => {
   })
 
   it('undo of a delete restores the same uid', async () => {
-    const id = await useTodoStore.getState().add('Keep my uid')
+    const id = await addTask('Keep my uid')
     const uid = (await stored(id)).uid
     await useTodoStore.getState().remove(id)
     await useUndoStore.getState().undo()
