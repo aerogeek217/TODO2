@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { LineItem } from '../../utils/filter-chips'
+import type { GraphicalLineItem as LineItem } from '../../utils/filter-chips'
 import {
   rowId, rowOrderOf, sortedRows, withGroupsDissolved, withoutChipRow, withoutGroupRow, withoutPriorityRow, withRowRenamed, withRowsAdded,
   type ChipRef, type RowRef,

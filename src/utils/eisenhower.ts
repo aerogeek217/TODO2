@@ -2,7 +2,10 @@ import { DATE_FIELD_VALUES, type DateField, type PersistedTodoItem, type Person,
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
 import { todoNameLookups, type TodoNameLookups } from './filter'
 import { describeFilters, filterChips, type FilterChip, type FilterChipField, type FilterChipNames } from './filter-chips'
-import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
+import { predicateToCriteria, topLevelCriteria, type FilterCriteria } from './filter-criteria'
+import { printTerm, splitTopLevel } from './filter-expression'
+import { expressionNamesOf } from './filter-chips'
+import { topLevelPredicate } from './predicate-expression'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 import { matchesFilterWithLookups, type FilterSettings } from './filter-match'
 import { MARKER_LABELS, markerConditions } from './markers'
@@ -90,7 +93,7 @@ interface PaneMatcher {
    * or groups it fails (`orGroup`: its index among the groups that filter);
    * `null` when it matches.
    */
-  failing: (pane: EisenhowerPane, view: TaskView) => PaneClauseKey | { orGroup: number } | null
+  failing: (pane: EisenhowerPane, view: TaskView) => PaneClauseKey | { orGroup: number } | { term: number } | null
 }
 
 /**
@@ -160,10 +163,14 @@ function createPaneMatcher(panes: readonly EisenhowerPane[], ctx: PaneContext): 
     paneOf: (v) => panes.find((p) => test(criteriaOf(p), v))?.id ?? null,
     failing: (pane, v) => {
       const c = criteriaOf(pane)
-      const field = CLAUSE_ORDER.find((f) => !test(onlyField(c, f), v))
+      // An expression's top-level chips are read as clauses; its other terms after them.
+      const top = topLevelCriteria(c)
+      const field = CLAUSE_ORDER.find((f) => !test(onlyField(top, f), v))
       if (field) return field
       const orGroup = (c.orGroups ?? []).findIndex((group) => !test({ ...NO_FILTER, orGroups: [group] }, v))
-      return orGroup >= 0 ? { orGroup } : null
+      if (orGroup >= 0) return { orGroup }
+      const term = splitTopLevel(c.expression).rest.findIndex((t) => !test({ ...NO_FILTER, expression: t }, v))
+      return term >= 0 ? { term } : null
     },
   }
 }
@@ -217,6 +224,8 @@ export type PaneMiss =
   | { kind: 'clause'; field: PaneClauseKey }
   /** It fails every clause of the pane's or group `index` (among those that filter); a drop writes none of them. */
   | { kind: 'orGroup'; index: number }
+  /** It fails the pane's expression term `index` (among its top-level terms that aren't chips); a drop writes none of it. */
+  | { kind: 'term'; index: number }
   /** The status / person / tag the pane's clause on `field` names no longer exists (nothing is written). */
   | { kind: 'deleted'; field: PaneEntityField }
 
@@ -312,6 +321,7 @@ function missOf(
   const field = m.failing(pane, after)
   if (field == null) return landed ? { kind: 'earlier', pane: landed } : { kind: 'clause', field: 'markers' }
   if (typeof field === 'object' && 'orGroup' in field) return { kind: 'orGroup', index: field.orGroup }
+  if (typeof field === 'object' && 'term' in field) return { kind: 'term', index: field.term }
   const gone = deleted.find((f) => f === field)
   if (gone) return { kind: 'deleted', field: gone }
   if (field === 'markers' && markerConditions(pane.filter.markers).urgent === false
@@ -466,13 +476,17 @@ function missSentence(
     const value = chips.length > 0 ? ` (${describeFilters([{ kind: 'orGroup', index: miss.index, chips }])})` : ''
     return `${task.title} doesn’t match any filter in its group${value}.`
   }
+  if (miss.kind === 'term') {
+    const term = splitTopLevel(pane.filter.expression).rest.at(miss.index)
+    return term ? `${task.title} doesn’t match “${printTerm(term, expressionNamesOf(names))}”.` : `${task.title} doesn’t match this pane.`
+  }
   if (miss.kind === 'clause' && miss.field === 'status') {
     const status = task.statusId != null ? nameIn(names.statuses, task.statusId) : undefined
     return status ? `${task.title} is still ${status}.` : `${task.title} has no status.`
   }
   const field = miss.kind === 'clause' ? miss.field : 'markers'
   // Priority repeats: its chips together are what the task doesn't match.
-  const chips = filterChips(pane.filter, names).filter((c) => chipOfClause(c, field))
+  const chips = filterChips(topLevelPredicate(pane.filter), names).filter((c) => chipOfClause(c, field))
   const value = chips.length > 0 ? ` (${chips.map((c) => c.value).join(' and ')})` : ''
   return `${task.title} doesn’t match its ${clauseName(field)} filter${value}.`
 }

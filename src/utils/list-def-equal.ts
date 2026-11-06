@@ -5,6 +5,7 @@ import { dateFiltersEqual } from './date-filters'
 import { hasFilterClause } from './or-groups'
 import { markersEqual } from './markers'
 import { negationEqual } from './filter-negation'
+import { expressionsEqual } from './filter-expression'
 
 function idArraysEqualAsSet(a: number[] | null | undefined, b: number[] | null | undefined): boolean {
   if (a == null && b == null) return true
@@ -35,7 +36,7 @@ function clausesEqual(a: FilterClauses, b: FilterClauses): boolean {
  * doesn't count).
  */
 export function predicatesEqual(a: TodoPredicate, b: TodoPredicate): boolean {
-  if (a.showCompleted !== b.showCompleted || !clausesEqual(a, b)) return false
+  if (a.showCompleted !== b.showCompleted || !clausesEqual(a, b) || !expressionsEqual(a.expression, b.expression)) return false
   const x = (a.orGroups ?? []).filter(hasFilterClause)
   const y = (b.orGroups ?? []).filter(hasFilterClause)
   return x.length === y.length && x.every((group, i) => {

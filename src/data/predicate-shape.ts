@@ -21,6 +21,9 @@ import {
   type TodoPredicate,
 } from '../models/filter-predicate'
 import { dissolveSingleOrGroups, hasFilterClause, normalizeClauses } from '../utils/or-groups'
+import { EXPRESSION_DEPTH_MAX, EXPRESSION_NODES_MAX, type FilterExpr } from '../models/filter-expression'
+import { expressionDepth, expressionSize, normalizeExpression, wholeExpression } from '../utils/filter-expression'
+import { withExpression } from '../utils/predicate-expression'
 import { withNormalizedNegation } from '../utils/filter-negation'
 import { isRecord } from '../utils/is-record'
 
@@ -317,8 +320,85 @@ export function pickPredicate(raw: unknown, { keepSingleGroups = false }: { keep
   const predicate: TodoPredicate = { showCompleted, ...clauses }
   const orGroups = pickOrGroups(v.orGroups, fixes)
   if (orGroups && orGroups.length > 0) predicate.orGroups = orGroups
+  const expression = readExpression(v.expression, fixes)
+  // An expression holds the whole filter: clauses or or groups beside it fold into it.
+  if (expression) return { predicate: withExpression(predicate, wholeExpression({ ...predicate, expression })), fixes }
   // A group of one filters as its clause does: read as that clause, not a fix.
   return { predicate: keepSingleGroups ? predicate : dissolveSingleOrGroups(predicate).predicate, fixes }
+}
+
+/** An expression this build can't read: the whole expression goes (which way it filtered is unknown). */
+class BadExpression extends Error {}
+
+/**
+ * One node of a stored expression (`TodoPredicate.expression`), rebuilt from
+ * its known keys; throws `BadExpression` on anything it can't read. A date
+ * atom's "is not" and "or none" become `not` / `or … none` nodes; a text
+ * longer than the cap is shortened (one fix).
+ */
+function readExpressionNode(v: unknown, fixes: PredicateFix[]): FilterExpr {
+  if (!isRecord(v)) throw new BadExpression()
+  switch (v.kind) {
+    case 'and':
+    case 'or': {
+      if (!Array.isArray(v.items) || v.items.length === 0 || v.items.length > EXPRESSION_NODES_MAX) throw new BadExpression()
+      return { kind: v.kind, items: (v.items as unknown[]).map((item) => readExpressionNode(item, fixes)) }
+    }
+    case 'not':
+      return { kind: 'not', item: readExpressionNode(v.item, fixes) }
+    case 'person':
+    case 'tag':
+    case 'status': {
+      const id = v.id
+      if (typeof id !== 'number' || !Number.isInteger(id) || id < 0) throw new BadExpression()
+      return { kind: v.kind, id }
+    }
+    case 'priority': {
+      const value = v.value
+      if (value !== NO_PRIORITY && !(MARKER_KEYS as readonly unknown[]).includes(value)) throw new BadExpression()
+      return { kind: 'priority', value: value as MarkerClause['values'][number] }
+    }
+    case 'text': {
+      if (typeof v.text !== 'string' || v.text.trim() === '') throw new BadExpression()
+      const text = v.text.trim()
+      if (text.length <= PREDICATE_SEARCH_TEXT_MAX) return { kind: 'text', text }
+      fixes.push('text filter shortened')
+      return { kind: 'text', text: text.slice(0, PREDICATE_SEARCH_TEXT_MAX) }
+    }
+    case 'date': {
+      if (!isDateField(v.field)) throw new BadExpression()
+      const field = v.field
+      const m = readDateMatch(field, v.match, fixes)
+      if (!m) throw new BadExpression()
+      if (m.match !== 'range') return { kind: 'date', field, match: m }
+      const atom: FilterExpr = { kind: 'date', field, match: { match: 'range', start: m.start, end: m.end } }
+      if (m.not === true) return { kind: 'not', item: atom }
+      if (m.includeNoDate === true) return { kind: 'or', items: [atom, { kind: 'date', field, match: { match: 'unset' } }] }
+      return atom
+    }
+    default:
+      throw new BadExpression()
+  }
+}
+
+/**
+ * The stored expression in its normal form; `undefined` when absent (or
+ * `null`) or dropped — anything it can't read, or past the caps
+ * (`EXPRESSION_NODES_MAX`, `EXPRESSION_DEPTH_MAX`), drops it with a fix.
+ */
+function readExpression(raw: unknown, fixes: PredicateFix[]): FilterExpr | undefined {
+  if (raw === undefined || raw === null) return undefined
+  const own: PredicateFix[] = []
+  try {
+    const e = normalizeExpression(readExpressionNode(raw, own))
+    if (expressionSize(e) > EXPRESSION_NODES_MAX || expressionDepth(e) > EXPRESSION_DEPTH_MAX) throw new BadExpression()
+    fixes.push(...own)
+    return e
+  } catch (err) {
+    if (!(err instanceof BadExpression)) throw err
+    fixes.push('expression dropped')
+    return undefined
+  }
 }
 
 /** An id filter's name in a fix (`people filter dropped`). */

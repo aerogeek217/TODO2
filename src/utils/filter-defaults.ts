@@ -2,6 +2,7 @@ import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import type { MarkerConditions, MarkerKey, TodoItem, TodoPredicate } from '../models'
 import { activeMarkers, markerConditions } from './markers'
 import { isNegated } from './filter-negation'
+import { topLevelPredicate } from './predicate-expression'
 
 export interface FilterDefaults {
   personIds: number[]
@@ -64,8 +65,9 @@ export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): 
  * Same shape as `getFilterDefaults` but reads from a serializable
  * `TodoPredicate` — the form a `ListDefinition` stores on disk. Used to seed
  * a "+ Add task" affordance from the predicate of a list widget,
- * post any runtime-filter merge.
+ * post any runtime-filter merge. An expression seeds from its top-level
+ * terms that are chips (`topLevelPredicate`), as clauses outside or groups do.
  */
 export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefaults {
-  return getFilterDefaults(predicateToCriteria(predicate))
+  return getFilterDefaults(predicateToCriteria(topLevelPredicate(predicate)))
 }

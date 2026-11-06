@@ -1,4 +1,4 @@
-import { chipKey, type FilterChip, type LineItem } from './filter-chips'
+import { chipKey, type FilterChip, type GraphicalLineItem } from './filter-chips'
 
 /**
  * The order a filter's rows keep in the editors (`PredicateChips`): the
@@ -20,7 +20,7 @@ export type RowRef = { kind: 'chip'; chip: ChipRef } | { kind: 'group'; index: n
 export type RowOrder = readonly RowRef[]
 
 /** The row `item` is. */
-export function rowOf(item: LineItem): RowRef {
+export function rowOf(item: GraphicalLineItem): RowRef {
   return item.kind === 'chip'
     ? { kind: 'chip', chip: { field: item.chip.field, dateField: item.chip.dateField, markerIndex: item.chip.markerIndex } }
     : { kind: 'group', index: item.index }
@@ -35,12 +35,12 @@ const isPriority = (row: RowRef, index?: number): row is { kind: 'chip'; chip: C
   row.kind === 'chip' && row.chip.markerIndex !== undefined && (index === undefined || row.chip.markerIndex === index)
 
 /** The order `items` show in now (the order at mount). */
-export function rowOrderOf(items: readonly LineItem[]): RowRef[] {
+export function rowOrderOf(items: readonly GraphicalLineItem[]): RowRef[] {
   return items.map(rowOf)
 }
 
 /** `order` with the rows of `items` it hasn't got yet, last. */
-export function withRowsAdded(order: RowOrder, items: readonly LineItem[]): RowRef[] {
+export function withRowsAdded(order: RowOrder, items: readonly GraphicalLineItem[]): RowRef[] {
   const have = new Set(order.map(rowId))
   return [...order, ...items.map(rowOf).filter((row) => !have.has(rowId(row)))]
 }
@@ -111,11 +111,11 @@ export function withGroupsDissolved(
  * under another's place (a chip wrapped in a new group not written yet: the
  * group sits where the chip was).
  */
-export function sortedRows(items: readonly LineItem[], order: RowOrder, alias?: { row: RowRef; as: RowRef }): LineItem[] {
+export function sortedRows(items: readonly GraphicalLineItem[], order: RowOrder, alias?: { row: RowRef; as: RowRef }): GraphicalLineItem[] {
   const ids = order.map(rowId)
   const aliasId = alias ? rowId(alias.row) : null
   const asId = alias ? rowId(alias.as) : null
-  const position = (item: LineItem) => {
+  const position = (item: GraphicalLineItem) => {
     const id = rowId(rowOf(item))
     const i = ids.indexOf(id === aliasId && asId != null ? asId : id)
     return i < 0 ? ids.length : i

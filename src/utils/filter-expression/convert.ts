@@ -10,6 +10,7 @@ import {
   type MarkerClause,
   type MarkerValue,
   type NegatableField,
+  type TodoPredicate,
 } from '../../models/filter-predicate'
 import { normalizeExpression, topLevelTerms } from './tree'
 
@@ -182,4 +183,29 @@ export function splitTopLevel(e: FilterExpr | null | undefined, { markerChips = 
 export function expressionToClauses(e: FilterExpr | null | undefined): FilterClauses | null {
   const { clauses, rest } = splitTopLevel(e, { markerChips: 1 })
   return rest.length === 0 ? clauses : null
+}
+
+/** An or group as one term: any of its clauses. Null when it has none. */
+export function orGroupTerm(group: FilterClauses): FilterExpr | null {
+  const e = clausesToExpression(group)
+  if (!e) return null
+  return e.kind === 'and' ? { kind: 'or', items: e.items } : e
+}
+
+/**
+ * Everything `p` narrows by as one expression — its own clauses, each or
+ * group as an `or` of its clauses and its expression, ANDed — or null when
+ * it narrows by nothing. Show completed is not part of it.
+ */
+export function wholeExpression(p: Pick<TodoPredicate, 'personIds' | 'statusIds' | 'tags' | 'searchText' | 'dates' | 'markers' | 'negate' | 'orGroups' | 'expression'>): FilterExpr | null {
+  const terms: FilterExpr[] = []
+  const own = clausesToExpression(p)
+  if (own) terms.push(own)
+  for (const group of p.orGroups ?? []) {
+    const t = orGroupTerm(group)
+    if (t) terms.push(t)
+  }
+  if (p.expression) terms.push(p.expression)
+  if (terms.length === 0) return null
+  return normalizeExpression(terms.length === 1 && terms[0] ? terms[0] : { kind: 'and', items: terms })
 }

@@ -9,6 +9,7 @@ import { DATE_FIELD_LABELS_SHORT, NO_STATUS_LABEL, NO_TAGS_LABEL, UNASSIGNED_LAB
 import { formatFollowupDate } from './followup'
 import { hasMarkers, MARKERS_LABEL, markerClauseNames, markersHideLine, withMarkerClause } from './markers'
 import { hasOrGroups, withOrGroupClauses } from './or-groups'
+import { printExpression, type ExpressionNames } from './filter-expression'
 
 /** The filter fields a chip stands for. */
 export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'markers' | 'text' | 'completed'
@@ -417,6 +418,22 @@ export function hasNarrowingFilters(p: TodoPredicate): boolean {
     || hasDateFilters(p.dates)
     || hasMarkers(p.markers)
     || hasOrGroups(p)
+    || p.expression != null
+}
+
+/** The names an expression prints with (`printExpression`), read from the chips' names. */
+export function expressionNamesOf(names: Pick<FilterChipNames, 'people' | 'tags' | 'statuses'>): ExpressionNames {
+  const nameOf = (rows: readonly { id?: number; name: string }[], id: number) => rows.find((r) => r.id === id)?.name
+  return {
+    person: (id) => nameOf(names.people, id),
+    tag: (id) => nameOf(names.tags, id),
+    status: (id) => nameOf(names.statuses, id),
+  }
+}
+
+/** A predicate's expression as text (`(/focus or /urgent) and @Aisha`), Show completed left out; `''` without one. */
+export function expressionText(p: Pick<TodoPredicate, 'expression'>, names: Pick<FilterChipNames, 'people' | 'tags' | 'statuses'>): string {
+  return p.expression ? printExpression(p.expression, false, expressionNamesOf(names)) : ''
 }
 
 /**
@@ -426,12 +443,23 @@ export function hasNarrowingFilters(p: TodoPredicate): boolean {
 export type LineItem =
   | { kind: 'chip'; chip: FilterChip }
   | { kind: 'orGroup'; index: number; chips: FilterChip[] }
+  /** The predicate's expression, as text: a filter written as one is a single item. */
+  | { kind: 'expression'; text: string }
+
+/** A line item of a Graphical filter: a chip or an or group. */
+export type GraphicalLineItem = Exclude<LineItem, { kind: 'expression' }>
+
+/** Whether `item` is a chip or an or group (not an expression). */
+export function isGraphicalItem(item: LineItem): item is GraphicalLineItem {
+  return item.kind !== 'expression'
+}
 
 /**
  * A predicate's filter line: its own chips in `FILTER_FIELD_ORDER`, then
  * each or group that has a chip, in order.
  */
 export function predicateLineItems(p: TodoPredicate, names: FilterChipNames): LineItem[] {
+  if (p.expression) return [{ kind: 'expression', text: expressionText(p, names) }]
   const items: LineItem[] = filterChips(p, names).map((chip) => ({ kind: 'chip', chip }))
   ;(p.orGroups ?? []).forEach((group, index) => {
     const chips = filterChips(group, names)
@@ -452,6 +480,7 @@ function chipWords(c: FilterChip): string {
 export function describeFilters(items: readonly (FilterChip | LineItem)[]): string {
   return items.map((item) => {
     if (!('kind' in item)) return chipWords(item)
+    if (item.kind === 'expression') return item.text
     return item.kind === 'chip' ? chipWords(item.chip) : item.chips.map(chipWords).join(' or ')
   }).join(' · ')
 }
@@ -472,6 +501,7 @@ export function listFilterHint(items: readonly (FilterChip | LineItem)[]): strin
   if (items.length === 0) return 'All tasks'
   return items.map((item) => {
     if (!('kind' in item)) return chipHint(item)
+    if (item.kind === 'expression') return item.text
     return item.kind === 'chip' ? chipHint(item.chip) : item.chips.map(chipHint).join(' or ')
   }).join(' · ')
 }

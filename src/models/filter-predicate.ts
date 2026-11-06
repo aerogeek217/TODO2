@@ -1,4 +1,5 @@
 import type { DateField } from './app-view'
+import type { FilterExpr } from './filter-expression'
 
 /**
  * Relative-date tokens resolve to a concrete Date at eval time against "today"
@@ -227,6 +228,14 @@ export interface TodoPredicate {
    * stored; at most `OR_GROUPS_MAX`. Optional on read: older predicates have none.
    */
   orGroups?: FilterClauses[]
+  /**
+   * The filter as an expression (`models/filter-expression`): a task must
+   * pass it as well. A predicate is Graphical (its clauses) or an
+   * expression: while this is present its own clauses are empty and it has
+   * no or groups (`pickPredicate` folds any into it). Show completed stays
+   * the predicate's (`and done` in the text). Absent = Graphical.
+   */
+  expression?: FilterExpr
 }
 
 /**

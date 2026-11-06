@@ -2,6 +2,7 @@ import type { EisenhowerPanes } from '../models/eisenhower-settings'
 import type { TodoPredicate } from '../models/filter-predicate'
 import type { ListDefinition } from '../models/list-definition'
 import { byName } from './sort-order'
+import { expressionAtoms } from './filter-expression'
 
 /**
  * Unused people and tags (Settings › People, statuses & tags › Unused people
@@ -63,7 +64,12 @@ type EntityField = 'personIds' | 'tags'
  */
 function namedIds(predicate: TodoPredicate | undefined, field: EntityField): number[] {
   if (!predicate) return []
-  return [predicate, ...(predicate.orGroups ?? [])].flatMap((c) => (c[field] ?? []).filter((id) => id > 0))
+  const own = [predicate, ...(predicate.orGroups ?? [])].flatMap((c) => (c[field] ?? []).filter((id) => id > 0))
+  const kind = field === 'personIds' ? 'person' : 'tag'
+  const inExpression = predicate.expression
+    ? expressionAtoms(predicate.expression).flatMap((a) => (a.kind === kind && a.id > 0 ? [a.id] : []))
+    : []
+  return [...own, ...inExpression]
 }
 
 /** Entity id → where the filters name it; an entry no filter names is absent. */

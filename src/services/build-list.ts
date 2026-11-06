@@ -11,7 +11,10 @@ import type {
   RuntimeFilterSpec,
 } from '../models/list-definition'
 import type { WeekStart } from '../utils/effective-date'
-import type { FilterCriteria } from '../utils/filter-criteria'
+import { topLevelCriteria, type FilterCriteria } from '../utils/filter-criteria'
+import type { FilterExpr, IdAtomKind } from '../models/filter-expression'
+import { normalizeExpression } from '../utils/filter-expression'
+import { topLevelPredicate, withExpression } from '../utils/predicate-expression'
 import { startOfDay } from '../utils/date'
 import { isNegated, withIdFilter, type NegatableClauses } from '../utils/filter-negation'
 import { buildListSections, listSortComparator, type Section } from './list-sections'
@@ -78,7 +81,8 @@ export interface ListContents {
  * not" switch on the field goes with the clause it switched). Empty `values`
  * is a no-op so "user cleared all chips" doesn't short-circuit to "match
  * nothing". The pick merges into the clauses outside the or groups, which
- * stay as they are.
+ * stay as they are. An expression gets the pick as one more top-level term
+ * (`and (@a or @b)`).
  */
 export function applyRuntimeFilter(
   predicate: TodoPredicate,
@@ -86,6 +90,11 @@ export function applyRuntimeFilter(
   values: readonly number[],
 ): TodoPredicate {
   if (values.length === 0) return predicate
+  if (predicate.expression) {
+    const kind: IdAtomKind = spec.field
+    const pick: FilterExpr = { kind: 'or', items: values.map((id): FilterExpr => ({ kind, id })) }
+    return withExpression(predicate, normalizeExpression({ kind: 'and', items: [predicate.expression, pick] }))
+  }
   switch (spec.field) {
     case 'person': return withIdFilter(predicate, 'personIds', [...values], false)
     case 'status': return withIdFilter(predicate, 'statusIds', [...values], false)
@@ -171,7 +180,10 @@ export function groupRestrictions(
   screen: FilterCriteria | undefined,
 ): number[][] {
   const out: number[][] = []
-  for (const c of [predicate, screen, screen?.lens]) {
+  // An expression narrows by its top-level terms that are chips (`topLevelPredicate`).
+  const lens = screen?.lens && topLevelCriteria(screen.lens)
+  const own = predicate && 'expression' in predicate && predicate.expression ? topLevelPredicate(predicate as TodoPredicate) : predicate
+  for (const c of [own, screen, lens]) {
     const ids = c?.[field]
     if (!c || ids == null || isNegated(c, field)) continue
     const picks = [...ids]

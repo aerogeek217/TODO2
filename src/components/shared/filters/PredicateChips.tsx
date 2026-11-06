@@ -4,8 +4,8 @@ import type { DateField } from '../../../models/app-view'
 import { createScopedPendingNot, DatePendingNotContext } from './date-pending-not'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
 import {
-  chipClauses, chipKey, filterChips, heldFields, predicateLineItems, removeChip, wrapChipInOrGroup,
-  type FilterChip, type LineItem,
+  chipClauses, chipKey, filterChips, heldFields, isGraphicalItem, predicateLineItems, removeChip, wrapChipInOrGroup,
+  type FilterChip, type GraphicalLineItem,
 } from '../../../utils/filter-chips'
 import { freeDateField, offeredDateFields } from '../../../utils/date-filters'
 import {
@@ -132,7 +132,7 @@ export function PredicateChips({
     orGroups.splice(heldIndex, 0, heldClauses)
     return { ...p, orGroups }
   }, [predicate, wrap, heldIndex, heldClauses])
-  const items = useMemo(() => predicateLineItems(shown, names), [shown, names])
+  const items = useMemo(() => predicateLineItems(shown, names).filter(isGraphicalItem), [shown, names])
   const groups = shown.orGroups ?? []
   const hasGroups = items.some((item) => item.kind === 'orGroup')
   // The rows in the order they were added (`utils/filter-row-order`; the
@@ -185,7 +185,7 @@ export function PredicateChips({
   const editedFrom = useRef<TodoPredicate | null>(null)
   /** Every write: the rows `next` adds join the order last. */
   const write = (next: TodoPredicate) => {
-    const added = predicateLineItems(next, names)
+    const added = predicateLineItems(next, names).filter(isGraphicalItem)
     setOrder((o) => withRowsAdded(o, added))
     if (!predicatesEqual(next, predicate)) editedFrom.current = predicate
     onChange(next)
@@ -478,7 +478,7 @@ export function PredicateChips({
     />
   )
 
-  const renderItem = (item: LineItem): ReactNode => {
+  const renderItem = (item: GraphicalLineItem): ReactNode => {
     if (item.kind === 'chip') {
       return stack ? <div className={styles.stackRow}>{chipRow(item.chip, null)}</div> : chipRow(item.chip, null)
     }
@@ -647,7 +647,7 @@ export function PredicateChips({
 }
 
 /** How many chips or group `index` shows on the line. */
-function groupChipCount(items: readonly LineItem[], index: number): number {
+function groupChipCount(items: readonly GraphicalLineItem[], index: number): number {
   for (const item of items) if (item.kind === 'orGroup' && item.index === index) return item.chips.length
   return 0
 }

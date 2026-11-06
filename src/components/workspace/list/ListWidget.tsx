@@ -53,6 +53,7 @@ import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { hasMarkers } from '../../../utils/markers'
 import { hasOrGroups } from '../../../utils/or-groups'
+import { topLevelPredicate } from '../../../utils/predicate-expression'
 import { resolvePriorityDrop, type PriorityDrop } from '../../../utils/priority-groups'
 import { useToday } from '../../../hooks/use-today'
 import { useFilterSettings } from '../../../hooks/use-filter-settings'
@@ -180,12 +181,15 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   // / markers to seed the new task with (an "is not" field or several
   // priorities seed nothing, but keep the button — and so does an or group: which of its clauses a
   // new task should meet is ambiguous, so only the clauses outside it seed).
-  const canAddTask = mergedPredicate != null && (
-    mergedPredicate.personIds != null
-    || mergedPredicate.statusIds != null
-    || (mergedPredicate.tags != null && mergedPredicate.tags.length > 0)
-    || hasMarkers(mergedPredicate.markers)
+  // An expression keeps it too (its top-level chips seed: `topLevelPredicate`).
+  const seeding = mergedPredicate && topLevelPredicate(mergedPredicate)
+  const canAddTask = mergedPredicate != null && seeding != null && (
+    seeding.personIds != null
+    || seeding.statusIds != null
+    || (seeding.tags != null && seeding.tags.length > 0)
+    || hasMarkers(seeding.markers)
     || hasOrGroups(mergedPredicate)
+    || mergedPredicate.expression != null
   )
 
   const groupedBy = definition.grouping

@@ -535,7 +535,7 @@ describe('a filter line with or groups', () => {
 
   it('the own chips first, then each or group as its chips', () => {
     const items = predicateLineItems(grouped, names)
-    expect(items.map((i) => (i.kind === 'chip' ? i.chip.value : i.chips.map((c) => c.value)))).toEqual([
+    expect(items.map((i) => (i.kind === 'chip' ? i.chip.value : i.kind === 'orGroup' ? i.chips.map((c) => c.value) : i.text))).toEqual([
       'Waiting', ['Focus', 'Alice or Bob'], ['No tags'],
     ])
     expect(items.map((i) => (i.kind === 'orGroup' ? i.index : null))).toEqual([null, 0, 1])

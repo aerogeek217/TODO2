@@ -30,6 +30,7 @@ import { checkinEmlFileName } from './handoff'
 import { createTaskRefLookup } from './ref'
 import { checkinTaskCounts, selectCheckinTasks, type CheckinSelectContext } from './select'
 import { sendCheckinEmail, type CheckinSendResult } from './send'
+import { expressionAtoms } from '../../utils/filter-expression'
 
 /** What the email includes besides the tasks (the dialog's Include boxes). */
 export interface CheckinIncludeOptions {
@@ -200,6 +201,7 @@ export const ASSIGNMENTS_LOADING_NOTICE = 'Not every task’s people and tags ha
  */
 function assignmentsLoaded(ctx: CheckinBuildContext, filter: CheckinTaskFilter): boolean {
   const tagsNeeded = [filter, ...(filter.orGroups ?? [])].some((c) => c.tags != null || c.searchText.trim() !== '')
+    || (filter.expression != null && expressionAtoms(filter.expression).some((a) => a.kind === 'tag' || a.kind === 'text'))
   return ctx.todos.every((t) => t.isCompleted
     || (ctx.assignedPeopleMap.has(t.id) && (!tagsNeeded || ctx.assignedTagsMap?.has(t.id) === true)))
 }
