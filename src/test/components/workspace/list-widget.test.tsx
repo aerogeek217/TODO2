@@ -92,7 +92,9 @@ describe('ListWidget', () => {
   it('shows the list’s open tasks and reports the count', () => {
     const { result } = setup(def())
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    // The count is on the filter line, not reported to the tab.
     expect(screen.getByTestId('list-count')).toHaveTextContent('3')
+    expect(result()?.countLabel).toBeUndefined()
     // No filters anywhere: the filter line still shows (the way in to setting them) — No filters, + Filter,
     // the summary (`Manual` for an ungrouped manual list); no Revert · Save while saved.
     const row = screen.getByTestId('list-filter-row')
@@ -104,7 +106,7 @@ describe('ListWidget', () => {
   })
 
   it('the screen filter narrows it, with a read-only screen chip and a shown-of-total count', () => {
-    const { result } = setup(def())
+    setup(def())
     act(() => useFilterStore.getState().setPersonIds(new Set([1])))
     expect(titles()).toEqual(['Alice task', 'Shared task'])
     expect(screen.getByTestId('list-count')).toHaveTextContent('2 of 3')
@@ -131,7 +133,7 @@ describe('ListWidget', () => {
         makeTodo({ id: 5, title: 'Done today', sortOrder: 5, isCompleted: true, completedAt: new Date() }),
       ],
     })
-    const { result } = setup(def())
+    setup(def())
     const filters = useFilterStore.getState().filters
     act(() => useFilterStore.getState().setAllFilters({
       ...filters,
@@ -272,7 +274,7 @@ describe('ListWidget', () => {
   })
 
   it('shows every task: no "Showing N of M" line', () => {
-    const { result } = setup(def())
+    setup(def())
     expect(titles()).toHaveLength(3)
     expect(screen.getByTestId('list-count')).toHaveTextContent('3')
     expect(screen.queryByText(/Showing/)).toBeNull()
@@ -332,7 +334,7 @@ describe('ListWidget', () => {
   })
 
   it('a prompt shows its row; nothing picked = the pick-a-value state and a — count', () => {
-    const { result } = setup(def({ runtimeFilter: { field: 'person' } }))
+    setup(def({ runtimeFilter: { field: 'person' } }))
     expect(screen.getByText('Pick a person to show this list')).toBeInTheDocument()
     expect(screen.getByTestId('list-count')).toHaveTextContent('—')
     act(() => useListWidgetStore.getState().setPicks('t1', [2]))
@@ -712,7 +714,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
         makeTodo({ id: 3, title: 'Shared task', sortOrder: 3, important: true }),
       ],
     })
-    const { result } = setup(def({}, { markers: [{ values: ['urgent', 'focus'] }] }))
+    setup(def({}, { markers: [{ values: ['urgent', 'focus'] }] }))
     expect(titles()).toEqual(['Alice task', 'Bob task'])
     expect(screen.getByTestId('list-count')).toHaveTextContent('2')
     act(() => useSettingsStore.setState({ urgentDueWithinDays: null }))
