@@ -12,6 +12,7 @@ import type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-color
 import {
   DEFAULT_FOLLOWUP_INTERVAL,
   addFollowupInterval,
+  describeFollowupInterval,
   formatFollowupInterval,
   parseFollowupInterval,
   type FollowupInterval,
@@ -20,6 +21,7 @@ import {
   DEFAULT_URGENT_DUE_WITHIN_DAYS,
   formatUrgentDueWithinDays,
   parseUrgentDueWithinDays,
+  urgentRangeLabel,
   type UrgentDueWithinDays,
 } from '../utils/urgency'
 import {
@@ -72,6 +74,7 @@ import {
   type SettingRows,
   type SettingSpec,
   type SettingStore,
+  type SettingWriteOptions,
   type SettingWriter,
   type StoredRows,
   type StoredSetting,
@@ -177,7 +180,8 @@ interface SettingsState extends SettingsData {
   resetColors: (theme?: ThemeName) => Promise<void>
   /** No undo step. */
   setThemeMode: (mode: ThemeMode) => Promise<void>
-  setDefaultStatusId: (id: number | null) => Promise<void>
+  /** `options.record: false` — no undo step (a status delete records its own). */
+  setDefaultStatusId: (id: number | null, options?: Pick<SettingWriteOptions, 'record'>) => Promise<void>
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
@@ -419,6 +423,7 @@ export const SETTINGS = {
     rows: ({ defaultStatusId: id }) => ({ [K.defaultStatusId]: id == null ? null : String(id) }),
     label: 'the default status',
     failure: 'Couldn’t save the default status.',
+    undo: ({ defaultStatusId: id }) => (id == null ? 'No default status' : 'Changed the default status'),
   }),
   seededAssignedStatusId: stored(['seededAssignedStatusId'], (rows) => ({
     seededAssignedStatusId: rowOr(rows, K.seededAssignedStatusId, null, (v) => (v ? Number(v) : null)),
@@ -433,6 +438,8 @@ export const SETTINGS = {
     rows: ({ completedRetentionDays: days }) => ({ [K.completedRetentionDays]: days == null ? null : String(days) }),
     label: 'the completed-task retention',
     failure: 'Couldn’t save when to offer to delete completed tasks.',
+    undo: ({ completedRetentionDays: days }) =>
+      (days == null ? 'Don’t offer to delete completed tasks' : `Offer to delete completed tasks after ${days === 1 ? 'a day' : `${days} days`}`),
   }),
   weekStartsOn: setting(['weekStartsOn'], {
     read: (rows) => {
@@ -442,6 +449,7 @@ export const SETTINGS = {
     rows: ({ weekStartsOn }) => ({ [K.weekStartsOn]: String(weekStartsOn) }),
     label: 'the first day of the week',
     failure: 'Couldn’t save the first day of the week.',
+    undo: ({ weekStartsOn }) => `Weeks start on ${weekStartsOn === 0 ? 'Sunday' : 'Monday'}`,
   }),
   followupDefaultInterval: setting(['followupDefaultInterval'], {
     read: (rows) => ({
@@ -450,6 +458,7 @@ export const SETTINGS = {
     rows: ({ followupDefaultInterval: i }) => ({ [K.followupDefaultInterval]: formatFollowupInterval(i) }),
     label: 'the follow-up interval',
     failure: 'Couldn’t save the follow-up interval.',
+    undo: ({ followupDefaultInterval: i }) => `Follow-up interval ${describeFollowupInterval(i)}`,
   }),
   autoFollowup: setting(['autoFollowup'], {
     read: (rows) => ({ autoFollowup: rows.get(K.newTaskFollowup) !== 'false' }),
@@ -457,6 +466,7 @@ export const SETTINGS = {
     rows: ({ autoFollowup: on }) => rowUnlessDefault(K.newTaskFollowup, 'false', on),
     label: 'whether a next follow-up is set automatically',
     failure: 'Couldn’t save whether a next follow-up is set automatically.',
+    undo: ({ autoFollowup: on }) => (on ? 'Set a next follow-up automatically' : 'Don’t set a next follow-up automatically'),
   }),
   removeConvertedLines: setting(['removeConvertedLines'], {
     read: (rows) => ({ removeConvertedLines: rows.get(K.removeConvertedLines) === 'true' }),
@@ -464,6 +474,7 @@ export const SETTINGS = {
     rows: ({ removeConvertedLines: on }) => rowUnlessDefault(K.removeConvertedLines, 'true', !on),
     label: 'whether converted lines are removed from the note',
     failure: 'Couldn’t save what converted note lines become.',
+    undo: ({ removeConvertedLines: on }) => (on ? 'Remove note lines after converting' : 'Keep converted note lines'),
   }),
   urgentDueWithinDays: setting(['urgentDueWithinDays'], {
     read: (rows) => ({
@@ -475,6 +486,9 @@ export const SETTINGS = {
     rows: ({ urgentDueWithinDays: range }) => ({ [K.urgentDueWithinDays]: formatUrgentDueWithinDays(range) }),
     label: 'the urgent range',
     failure: 'Couldn’t save when a due date makes a task urgent.',
+    undo: ({ urgentDueWithinDays: range }) => (range == null
+      ? 'Due dates don’t make tasks urgent'
+      : range === 0 ? 'Due today makes a task urgent' : `Due within ${urgentRangeLabel(range)} makes a task urgent`),
   }),
   checkinOpenMethod: setting(['checkinOpenMethod'], {
     read: (rows) => ({ checkinOpenMethod: rowOr(rows, K.checkinOpenMethod, DEFAULT_CHECKIN_OPEN_METHOD, (v) => (isCheckinOpenMethod(v) ? v : DEFAULT_CHECKIN_OPEN_METHOD)) }),
@@ -650,8 +664,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     if (isValidThemeMode(mode)) await SETTINGS.themeMode.write({ themeMode: mode })
   },
 
-  async setDefaultStatusId(id) {
-    await SETTINGS.defaultStatusId.write({ defaultStatusId: id })
+  async setDefaultStatusId(id, options) {
+    await SETTINGS.defaultStatusId.write({ defaultStatusId: id }, options)
   },
 
   async setWeekStartsOn(day) {

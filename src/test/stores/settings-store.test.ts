@@ -133,6 +133,32 @@ describe('useSettingsStore', () => {
     vi.restoreAllMocks()
   })
 
+  it('the Task defaults and the retention are one undo step each, with the snackbar', async () => {
+    await useSettingsStore.getState().load()
+    useUndoStore.getState().clear()
+    const s = () => useSettingsStore.getState()
+    await s().setDefaultStatusId(3)
+    await s().setDefaultStatusId(null)
+    await s().setAutoFollowup(false)
+    await s().setFollowupDefaultInterval({ count: 10, unit: 'd' })
+    await s().setRemoveConvertedLines(true)
+    await s().setUrgentDueWithinDays(null)
+    await s().setUrgentDueWithinDays(0)
+    await s().setWeekStartsOn(0)
+    await s().setCompletedRetentionDays(14)
+    await s().setCompletedRetentionDays(null)
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual([
+      'Changed the default status', 'No default status',
+      'Don’t set a next follow-up automatically', 'Follow-up interval 10 days', 'Remove note lines after converting',
+      'Due dates don’t make tasks urgent', 'Due today makes a task urgent', 'Weeks start on Sunday',
+      'Offer to delete completed tasks after 14 days', 'Don’t offer to delete completed tasks',
+    ])
+    expect(useUndoStore.getState().snackbar?.description).toBe('Don’t offer to delete completed tasks')
+    await useUndoStore.getState().undo()
+    expect(s().completedRetentionDays).toBe(14)
+    expect(await db.settings.get('completedRetentionDays')).toEqual({ key: 'completedRetentionDays', value: '14' })
+  })
+
   it('the theme, colours, check-in method, shortcuts and the purge stamp add no undo step', async () => {
     await useSettingsStore.getState().load()
     useUndoStore.getState().clear()
