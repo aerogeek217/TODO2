@@ -1,8 +1,6 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../../../models'
 import type { DateField } from '../../../models/app-view'
-import { anchorAtPoint, usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { createScopedPendingNot, DatePendingNotContext } from './date-pending-not'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
 import {
@@ -20,17 +18,13 @@ import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from '../icons'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
 import { PredicateFieldPicker, PredicateFieldPickerBody } from './PredicateFieldPicker'
 import type { DateFilterHost } from './DateFilterPanel'
-import { pickerLabel } from './picker-label'
-import { DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { pointBelow } from './popover-point'
 import { ListFilterChip } from './ListFilterChip'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { predicatesEqual } from '../../../utils/list-def-equal'
 import { useAnyFilterPickerOpen, useFilterPickerOpen } from './open-pickers'
-import menuStyles from '../MenuPopover.module.css'
-import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
-import { PopoverRoot } from '../PopoverRoot'
+import { FieldPopover, GroupPanel, GroupPopover } from './PredicateChipsPopovers'
 
 /** Which clauses an edit goes to: the predicate's own (`null`) or or group `n`'s. */
 type Scope = number | null
@@ -97,8 +91,6 @@ interface PredicateChipsProps {
    */
   layout?: 'line' | 'stack'
 }
-
-const FIELD_ITEMS = new Map(ADD_FILTER_ITEMS.map((item) => [item.field, item]))
 
 /**
  * A list's own filter as chips — field name muted, then the value; one chip
@@ -654,108 +646,8 @@ export function PredicateChips({
   )
 }
 
-/**
- * An or group's panel: the fields it can still take (each opens its
- * picker, adding to the group) and Remove group — or, for a chip's "Another
- * filter (OR)", the fields alone.
- */
-function GroupPanel({ fields, count, orAnother, onAdd, onRemoveGroup }: {
-  fields: ReadonlyArray<(typeof ADD_FILTER_ITEMS)[number]>
-  count: number
-  orAnother: boolean
-  onAdd: (field: ListFilterField) => void
-  onRemoveGroup: () => void
-}) {
-  const firstRef = useRef<HTMLButtonElement>(null)
-  useEffect(() => { firstRef.current?.focus() }, [])
-  return (
-    <div className={styles.groupPanel}>
-      {fields.length > 0 && <div className={menuStyles.groupLabel}>Another filter (OR)</div>}
-      {fields.map((item, i) => (
-        <button
-          key={item.field}
-          ref={i === 0 ? firstRef : undefined}
-          type="button"
-          className={menuStyles.item}
-          onClick={() => onAdd(item.field)}
-        >
-          <span className={menuStyles.icon}>{FIELD_ITEMS.get(item.field)?.icon}</span>
-          <span className={menuStyles.label}>{item.label}</span>
-          {item.submenu && <span className={menuStyles.chevron}><ChevronRightIcon /></span>}
-        </button>
-      ))}
-      {!orAnother && (
-        <>
-          {fields.length > 0 && <div className={menuStyles.separator} role="separator" />}
-          <button
-            ref={fields.length === 0 ? firstRef : undefined}
-            type="button"
-            className={`${menuStyles.item} ${menuStyles.danger}`}
-            onClick={onRemoveGroup}
-          >
-            <span className={menuStyles.label}>Remove group</span>
-            <span className={menuStyles.note}>with its {count} {count === 1 ? 'filter' : 'filters'}</span>
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
-
 /** How many chips or group `index` shows on the line. */
 function groupChipCount(items: readonly LineItem[], index: number): number {
   for (const item of items) if (item.kind === 'orGroup' && item.index === index) return item.chips.length
   return 0
-}
-
-/** A popover at `at` for the list's filter line: a field's picker, or a group's panel. */
-function FilterPopover({ at, consumeEscape, onClose, className, label, testId, children }: {
-  at: PopoverPoint
-  consumeEscape: boolean
-  onClose: () => void
-  className: string | undefined
-  label: string
-  testId: string
-  children: ReactNode
-}) {
-  const { panelRef, style, caret } = usePopoverAnchor({
-    anchor: anchorAtPoint(at),
-    open: true,
-    placement: at.align === 'start' ? 'bottom-start' : 'bottom-end',
-    closeOnScroll: false,
-    consumeEscape,
-    onClose,
-    caret: true,
-  })
-  return createPortal(
-    <PopoverRoot
-      ref={panelRef}
-      caret={caret}
-      className={className}
-      style={{ position: style.position, left: style.left, top: style.top, maxHeight: style.maxHeight }}
-      role="dialog"
-      aria-label={label}
-      data-testid={testId}
-    >
-      {children}
-    </PopoverRoot>,
-    document.body,
-  )
-}
-
-/** A field's picker as a popover, with whatever ends it (the picker's own shell). */
-function FieldPopover({ field, ...rest }: { field: ListFilterField; at: PopoverPoint; consumeEscape: boolean; onClose: () => void; children: ReactNode }) {
-  return (
-    <FilterPopover
-      {...rest}
-      className={field === 'dates' ? DATE_FILTER_POPOVER_CLASS : `${picker.dropdownPanel} ${styles.pickerPanel}`}
-      label={pickerLabel(field)}
-      testId="list-filter-picker"
-    />
-  )
-}
-
-/** An or group's panel as a popover. */
-function GroupPopover(props: { at: PopoverPoint; consumeEscape: boolean; onClose: () => void; children: ReactNode }) {
-  return <FilterPopover {...props} className={`${picker.dropdownPanel} ${styles.groupPopover}`} label="Group" testId="or-group-panel" />
 }
