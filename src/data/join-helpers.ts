@@ -1,5 +1,6 @@
 import Dexie, { type Table } from 'dexie'
 import { db } from './database'
+import { touchTodoIds, type TaskTouch } from './touch-todos'
 
 /**
  * One row of join-table data to be captured pre-delete and restored on undo.
@@ -34,9 +35,13 @@ type JoinTableRow<AK extends string, BK extends string> =
   & { id?: number }
 
 /**
- * Create assign/unassign operations for a join table.
+ * Create assign/unassign operations for a join table whose first key is a
+ * task's (`todoPeople`, `todoTags`). An assignment is activity on its task:
+ * given a `touch`, each write stamps the `modifiedAt` of the tasks whose rows
+ * it changed (none when the row was already there / already gone), in its
+ * own transaction, and records what it stamped (`touch-todos`).
  * @param table The Dexie join table (e.g., db.todoPeople)
- * @param aKey The first foreign key field name (e.g., 'todoId')
+ * @param aKey The task's foreign key field name ('todoId')
  * @param bKey The second foreign key field name (e.g., 'personId')
  */
 export function createJoinOps<
@@ -48,53 +53,48 @@ export function createJoinOps<
   aKey: AK,
   bKey: BK,
 ) {
-  return {
-    async assign(aId: number, bId: number): Promise<void> {
-      await db.transaction('rw', table, async () => {
-        const exists = await table
-          .where(aKey).equals(aId)
-          .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
-          .first()
-        if (!exists) {
-          // Build the FK row through a typed intermediary so the assertion to T
-          // is a same-shape cast, not a force-through-unknown.
-          const row = { [aKey]: aId, [bKey]: bId } as Record<AK | BK, number>
-          await table.add(row as T)
-        }
-      })
+  const ops = {
+    async assign(aId: number, bId: number, touch?: TaskTouch): Promise<void> {
+      await ops.bulkAssign([aId], bId, touch)
     },
 
-    async unassign(aId: number, bId: number): Promise<void> {
-      await table
-        .where(aKey).equals(aId)
-        .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
-        .delete()
+    async unassign(aId: number, bId: number, touch?: TaskTouch): Promise<void> {
+      await ops.bulkUnassign([aId], bId, touch)
     },
 
     /** `assign` for each of `aIds`, in one transaction: all of them, or none. */
-    async bulkAssign(aIds: readonly number[], bId: number): Promise<void> {
+    async bulkAssign(aIds: readonly number[], bId: number, touch?: TaskTouch): Promise<void> {
       if (aIds.length === 0) return
-      await db.transaction('rw', table, async () => {
+      await db.transaction('rw', [table, db.todos], async () => {
         const existing = await table
           .where(aKey).anyOf([...aIds])
           .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
           .toArray()
         const have = new Set(existing.map((l) => (l as Record<string, unknown>)[aKey]))
-        const rows = [...new Set(aIds)].filter((aId) => !have.has(aId))
-          .map((aId) => ({ [aKey]: aId, [bKey]: bId }) as Record<AK | BK, number>)
+        const added = [...new Set(aIds)].filter((aId) => !have.has(aId))
+        // Build the FK rows through a typed intermediary so the assertion to T
+        // is a same-shape cast, not a force-through-unknown.
+        const rows = added.map((aId) => ({ [aKey]: aId, [bKey]: bId }) as Record<AK | BK, number>)
         if (rows.length > 0) await table.bulkAdd(rows as T[])
+        await touchTodoIds(added, touch)
       })
     },
 
     /** `unassign` for each of `aIds`, in one transaction. */
-    async bulkUnassign(aIds: readonly number[], bId: number): Promise<void> {
+    async bulkUnassign(aIds: readonly number[], bId: number, touch?: TaskTouch): Promise<void> {
       if (aIds.length === 0) return
-      await table
-        .where(aKey).anyOf([...aIds])
-        .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
-        .delete()
+      await db.transaction('rw', [table, db.todos], async () => {
+        const rows = await table
+          .where(aKey).anyOf([...aIds])
+          .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
+          .toArray()
+        if (rows.length === 0) return
+        await table.bulkDelete(rows.map((l) => (l as Record<string, unknown>).id as number))
+        await touchTodoIds(rows.map((l) => (l as Record<string, unknown>)[aKey] as number), touch)
+      })
     },
   }
+  return ops
 }
 
 /**
