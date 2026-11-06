@@ -3,9 +3,9 @@ import { statusUpdateRepository } from '../data/status-update-repository'
 import type { PersistedStatusUpdate, StatusUpdate } from '../models/status-update'
 import { startOfToday } from '../utils/date'
 import { compareStatusUpdates, statusUpdateDay, statusUpdateText } from '../utils/status-updates'
-import { registerModuleReset } from '../utils/module-reset'
-import { loadFresh, saveOrReport, trackWrite } from './store-helpers'
+import { saveOrReport, trackWrite } from './store-helpers'
 import { notifyTasksTouched } from './task-hooks'
+import { taskChildRows } from './task-child-rows'
 import { undoable } from './undoable'
 
 const NO_UPDATES: readonly PersistedStatusUpdate[] = []
@@ -54,63 +54,23 @@ interface StatusUpdateState {
   forgetTodos: (todoIds: readonly number[]) => void
 }
 
-/** `byTodo` with `rows` added (or replaced, by id) — each task touched sorted again. */
-function withRows(
-  byTodo: ReadonlyMap<number, readonly PersistedStatusUpdate[]>,
-  rows: readonly PersistedStatusUpdate[],
-): Map<number, readonly PersistedStatusUpdate[]> {
-  const next = new Map(byTodo)
-  const ids = new Set(rows.map((r) => r.id))
-  for (const todoId of new Set(rows.map((r) => r.todoId))) {
-    const kept = (next.get(todoId) ?? NO_UPDATES).filter((r) => !ids.has(r.id))
-    next.set(todoId, [...kept, ...rows.filter((r) => r.todoId === todoId)].sort(compareStatusUpdates))
-  }
-  return next
-}
-
-/** `byTodo` without the entries `ids`. */
-function withoutRows(
-  byTodo: ReadonlyMap<number, readonly PersistedStatusUpdate[]>,
-  ids: ReadonlySet<number>,
-): Map<number, readonly PersistedStatusUpdate[]> {
-  const next = new Map(byTodo)
-  for (const [todoId, rows] of byTodo) {
-    if (!rows.some((r) => ids.has(r.id))) continue
-    const kept = rows.filter((r) => !ids.has(r.id))
-    if (kept.length > 0) next.set(todoId, kept)
-    else next.delete(todoId)
-  }
-  return next
-}
-
-function group(rows: readonly PersistedStatusUpdate[]): Map<number, readonly PersistedStatusUpdate[]> {
-  return withRows(new Map(), rows)
-}
-
 /** The stamp for a write touching `rows`' tasks, told to the listeners once it is stored. */
 function touched(rows: readonly Pick<StatusUpdate, 'todoId'>[], at: Date): void {
   notifyTasksTouched(rows.map((r) => r.todoId), at)
 }
 
-let inflight: Promise<void> | null = null
-
-/**
- * Forgets the load in flight, for tests that share one module instance (the
- * store's state is reset separately). That load finishes on its own.
- */
-export function resetStatusUpdateLoad(): void {
-  inflight = null
-}
-registerModuleReset(resetStatusUpdateLoad)
-
 export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
-  const find = (id: number): PersistedStatusUpdate | undefined => {
-    for (const rows of get().byTodo.values()) {
-      const hit = rows.find((r) => r.id === id)
-      if (hit) return hit
-    }
-    return undefined
-  }
+  const { find, put, putBack, take, actions } = taskChildRows<StatusUpdate, PersistedStatusUpdate>({
+    repository: statusUpdateRepository,
+    compare: compareStatusUpdates,
+    normalize: (r) => {
+      const text = statusUpdateText(r.text)
+      return text === '' ? null : { ...r, text }
+    },
+    label: 'the status updates',
+    get,
+    set,
+  })
 
   /** The stored row for `todoId` and `entry`, or null for a blank text. */
   const rowOf = (todoId: number, entry: NewStatusUpdate, now: Date): StatusUpdate | null => {
@@ -125,36 +85,13 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
     }
   }
 
-  /**
-   * Puts `rows` back in the database and the store; the rows put back.
-   * `touch`: the write is activity on their tasks (an undo / redo of an
-   * entry edit), stamping their `modifiedAt`.
-   */
-  const putBack = async (rows: readonly PersistedStatusUpdate[], touch: boolean): Promise<PersistedStatusUpdate[]> => {
-    const at = new Date()
-    const restored = await statusUpdateRepository.restore(rows, touch ? at : undefined)
-    if (restored.length > 0) set({ byTodo: withRows(get().byTodo, restored) })
-    if (touch) touched(restored, at)
-    return restored
-  }
-
-  /** Deletes the entries `ids` from the database and the store, stamping their tasks' `modifiedAt`. */
-  const take = async (ids: readonly number[]): Promise<void> => {
-    const idSet = new Set(ids)
-    const rows = [...get().byTodo.values()].flatMap((list) => list.filter((r) => idSet.has(r.id)))
-    const at = new Date()
-    await statusUpdateRepository.deleteMany(ids, at)
-    set({ byTodo: withoutRows(get().byTodo, idSet) })
-    touched(rows, at)
-  }
-
   /** Adds `rows` as one undo step (`description`), stamping their tasks' `modifiedAt`; the rows written. */
   const addAsStep = (rows: readonly StatusUpdate[], description: string): Promise<PersistedStatusUpdate[]> =>
     saveOrReport(async () => {
       const at = new Date()
       const added = await statusUpdateRepository.addMany(rows, at)
       if (added.length === 0) return added
-      set({ byTodo: withRows(get().byTodo, added) })
+      put(added)
       touched(added, at)
       const ids = added.map((r) => r.id)
       undoable(
@@ -169,22 +106,7 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
     byTodo: new Map(),
     loaded: false,
 
-    async load() {
-      // Never rejects (a refresh of every store waits on it): a failed read
-      // is reported, the entries kept.
-      const rows = await loadFresh(() => statusUpdateRepository.getAll(), 'the status updates')
-      if (rows) set({ byTodo: group(rows), loaded: true })
-    },
-
-    ensureLoaded() {
-      if (get().loaded) return Promise.resolve()
-      // A failed load leaves `loaded` false: reported, and retried next time.
-      if (inflight) return inflight
-      const run: Promise<void> = get().load()
-        .finally(() => { if (inflight === run) inflight = null })
-      inflight = run
-      return run
-    },
+    ...actions,
 
     async add(todoId, entry) {
       const row = rowOf(todoId, entry, new Date())
@@ -223,7 +145,7 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
         const at = new Date()
         const saved = await statusUpdateRepository.update(id, fields, at)
         const current = find(id)
-        if (saved && current) set({ byTodo: withRows(get().byTodo, [{ ...current, ...fields }]) })
+        if (saved && current) put([{ ...current, ...fields }])
         if (saved) touched([prev], at)
         return saved
       }
@@ -253,34 +175,6 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
         )
         return true
       }, false, 'remove the status update')
-    },
-
-    async addRows(given) {
-      // The one choke point for rows written whole: every text as `add` stores it, a blank one dropped.
-      const rows = given.flatMap((r) => {
-        const text = statusUpdateText(r.text)
-        return text === '' ? [] : [{ ...r, text }]
-      })
-      if (rows.length === 0) return []
-      return trackWrite(async () => {
-        const added = await statusUpdateRepository.addMany(rows)
-        if (added.length > 0) set({ byTodo: withRows(get().byTodo, added) })
-        return added
-      })
-    },
-
-    async restoreRows(rows) {
-      if (rows.length === 0) return
-      await trackWrite(() => putBack(rows, false))
-    },
-
-    forgetTodos(todoIds) {
-      const byTodo = get().byTodo
-      const gone = todoIds.filter((id) => byTodo.has(id))
-      if (gone.length === 0) return
-      const next = new Map(byTodo)
-      for (const id of gone) next.delete(id)
-      set({ byTodo: next })
     },
   }
 })
