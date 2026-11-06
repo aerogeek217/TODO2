@@ -283,22 +283,13 @@ export function TopBar() {
           }
         }}
       >
-        <button
-          type="button"
-          className={styles.newTask}
-          onClick={() => useUIStore.getState().openQuickAdd()}
-          aria-label="New task"
-          title={`New task (${quickAddKeys})`}
-        >
-          <PlusIcon size={14} strokeWidth={2} />
-        </button>
         {isWorkspace && (
           <div className={styles.layoutSlot} data-fold-part={FOLD_PART.layout}>
             <LayoutControls mode={tabsFolded(fold) || manyLayouts ? 'menu' : 'tabs'} />
           </div>
         )}
         {/* The top bar's lens: its own part, outside the tray (never lifted
-            with it), a fixed width the fold counts like New task's. */}
+            with it), a fixed width the fold counts in its base. */}
         {isWorkspace && (
           <div className={styles.lensSlot} data-fold-part={FOLD_PART.lens}>
             <LensControl nameWidth={lensName} />
@@ -442,6 +433,15 @@ export function TopBar() {
             title={`Settings (${settingsKeys})`}
           >
             <GearIcon />
+          </button>
+          <button
+            type="button"
+            className={styles.newTask}
+            onClick={() => useUIStore.getState().openQuickAdd()}
+            aria-label="New task"
+            title={`New task (${quickAddKeys})`}
+          >
+            <PlusIcon size={14} strokeWidth={2} />
           </button>
         </div>
 

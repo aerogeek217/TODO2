@@ -41,7 +41,7 @@ export interface TrayValue {
 export interface TopBarMeasure {
   /** The bar's width. */
   bar: number
-  /** What every fold needs besides the filter tray and the layout controls (padding, gaps, New task, the lens control, the right zone). */
+  /** What every fold needs besides the filter tray and the layout controls (padding, gaps, the lens control, the right zone with New task). */
   base: number
   /** The tray with its filter buttons, at its natural width. */
   trayOpen?: number
