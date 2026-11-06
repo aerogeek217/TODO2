@@ -433,4 +433,21 @@ describe('a create that fails (the task store refuses the write)', () => {
     expect(await screen.findByRole('dialog', { name: 'Remove 3 converted lines from the note?' })).toBeInTheDocument()
     expect(titles()).toHaveLength(3)
   })
+  it('the preview: a draft checked off while the create runs stays checked when it fails (cr31)', async () => {
+    const insert = await failInserts()
+    let fail: (e: Error) => void = () => {}
+    insert.mockImplementation(() => new Promise((_, reject) => { fail = reject }))
+    setup(NOTE)
+    fireEvent.click(screen.getByRole('button', { name: /^Convert 3 / }))
+    const dialog = await screen.findByRole('dialog', { name: 'Convert to tasks' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create 3 tasks' }))
+    await waitFor(() => expect(insert).toHaveBeenCalled())
+    const box = within(dialog).getAllByRole('checkbox')[0]!
+    fireEvent.click(box)
+    expect(box).toBeChecked()
+    await act(async () => { fail(new Error('disk full')) })
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: /^Create 2 tasks/ })).not.toBeDisabled())
+    expect(within(dialog).getAllByRole('checkbox')[0]).toBeChecked()
+    expect(titles()).toEqual([])
+  })
 })

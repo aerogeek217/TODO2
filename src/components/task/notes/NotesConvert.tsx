@@ -359,7 +359,8 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast, sub
       close()
       return
     }
-    setState({ ...state, busy: true })
+    // Functional: rows may be edited or checked while the create runs.
+    setState((s) => (s?.kind === 'preview' ? { ...s, busy: true } : s))
     try {
       const created = await createTasksFromDrafts(rows.map((r) => r.draft), {
         description: `Created ${plural(rows.length, 'task', 'tasks')}`,
@@ -384,7 +385,7 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast, sub
     } catch {
       // Nothing was created: the drafts stay, no remove / keep prompt.
       onToast?.('Failed to create the tasks')
-      setState({ ...state, busy: false })
+      setState((s) => (s?.kind === 'preview' ? { ...s, busy: false } : s))
     }
   }, [state, onToast, removeLines, close])
 
