@@ -52,6 +52,20 @@ describe('Settings › Keyboard shortcuts editor', () => {
     expect(useSettingsStore.getState().shortcutOverrides).toEqual({})
   })
 
+  it('a second key pressed while the first save runs is ignored: one save (cr31)', async () => {
+    const original = useSettingsStore.getState().setShortcut
+    const setShortcut = vi.fn(original)
+    useSettingsStore.setState({ setShortcut })
+    openShortcuts()
+    const capture = startRecording('Command Palette')
+    fireEvent.keyDown(capture, { key: 'P', code: 'KeyP', ctrlKey: true, shiftKey: true })
+    fireEvent.keyDown(capture, { key: 'O', code: 'KeyO', ctrlKey: true, shiftKey: true })
+    await waitFor(() => expect(keysOf('command-palette')).toBe('Ctrl+Shift+P'))
+    expect(setShortcut).toHaveBeenCalledTimes(1)
+    expect(screen.getByRole('button', { name: 'Change keys for Command Palette' })).toHaveFocus()
+    expect((await db.settings.get('keyboardShortcuts'))?.value).toBe('{"command-palette":"Mod-Shift-p"}')
+  })
+
   it('refuses keys another shortcut uses, saying which, and keeps recording', async () => {
     openShortcuts()
     const capture = startRecording('Focus filters')
