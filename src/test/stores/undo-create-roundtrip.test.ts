@@ -15,6 +15,7 @@ import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
+import { emptyPredicate } from '../../models/filter-predicate'
 import { resetStores } from '../store-tracking'
 import { addTask } from '../add-task'
 
@@ -22,6 +23,12 @@ beforeEach(async () => {
   await resetDb()
   resetStores()
   useUndoStore.getState().clear()
+  // List 7, a manual-order list: ranks come back only for a list that exists.
+  await db.listDefinitions.add({
+    id: 7, name: 'Manual', sortOrder: 0, sort: 'manual', grouping: 'none',
+    membership: { kind: 'custom', predicate: emptyPredicate() },
+    owner: { layoutId: 1 },
+  })
 })
 
 /**
@@ -155,3 +162,18 @@ describe('undo → redo → undo of a delete', () => {
     expect(useTodoStore.getState().todos.map((t) => t.id).sort()).toEqual([a, stray].sort())
   })
 })
+
+describe('undo of a delete after its list went', () => {
+  it('writes no rank for a list deleted meanwhile (cr31 L8)', async () => {
+    const id = await addTask('Milk')
+    await useListOrderStore.getState().setRanks(7, [{ todoId: id, rank: 1 }])
+    await useTodoStore.getState().remove(id)
+    // The list goes with its layout (no undo step of its own).
+    await db.listDefinitions.delete(7)
+    await useUndoStore.getState().undo()
+    expect(await db.todos.get(id)).toBeDefined()
+    expect(await db.listOrders.count()).toBe(0)
+    expect(useListOrderStore.getState().ranks.get(7)).toBeUndefined()
+  })
+})
+
