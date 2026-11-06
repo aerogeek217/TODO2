@@ -14,6 +14,7 @@ import { subtaskRepository } from '../data/subtask-repository'
 import { onTasksTouched, registerCompleteTask, registerTaskOpen } from './task-hooks'
 import { compareSubtasks } from '../utils/subtasks'
 import { takeSafetySnapshot } from './safety-snapshot'
+import { guardTasks } from './task-undo-guard'
 import { usePersonStore } from './person-store'
 import { useTagStore } from './tag-store'
 import { resolveCompletedAt } from '../utils/completed-at'
@@ -238,8 +239,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
       'Failed to update task',
       {
         description,
-        redo: () => patchTodo(id, effective, description),
-        undo: () => patchTodo(id, before, description),
+        redo: guardTasks([id], () => patchTodo(id, effective, description)),
+        undo: guardTasks([id], () => patchTodo(id, before, description)),
       },
     )
   }
@@ -323,7 +324,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     undoable(
       description,
       () => trackWrite(async () => { if (taken) await putBackTasks(taken) }),
-      () => trackWrite(async () => { taken = await takeTasks(ids) }),
+      guardTasks(ids, () => trackWrite(async () => { taken = await takeTasks(ids) })),
       snackbar,
     )
   }
@@ -437,8 +438,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
             'Failed to advance recurring task',
             {
               description,
-              redo: () => write(nextChanges),
-              undo: () => write(prevChanges),
+              redo: guardTasks([id], () => write(nextChanges)),
+              undo: guardTasks([id], () => write(prevChanges)),
               showSnackbar: true,
             },
           )
@@ -473,8 +474,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
         // Both write the completion this toggle went from / to — never a
         // second toggle from whatever the task is by then (which would
         // advance a recurring task, or re-complete with a fresh time).
-        redo: () => writeCompletion(id, completed, completedAt),
-        undo: () => writeCompletion(id, todo.isCompleted, todo.completedAt),
+        redo: guardTasks([id], () => writeCompletion(id, completed, completedAt)),
+        undo: guardTasks([id], () => writeCompletion(id, todo.isCompleted, todo.completedAt)),
         // Every completion offers its undo (D19: the row may fold out of
         // its list); reopening a task stays quiet.
         showSnackbar: completed,
@@ -490,7 +491,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       undoable(
         `Delete "${todo.title}"`,
         // A redo captures afresh: what changed after the undo goes back with it.
-        () => trackWrite(async () => { taken = await takeTasks([id]) }),
+        guardTasks([id], () => trackWrite(async () => { taken = await takeTasks([id]) })),
         () => trackWrite(() => putBackTasks(taken)),
         true,
       )
@@ -585,8 +586,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
       `Failed to ${label.toLowerCase()} tasks`,
       {
         description,
-        redo: () => get().bulkSetCompleted(ids, completed),
-        undo: async () => {
+        redo: guardTasks(ids, (present) => get().bulkSetCompleted(present, completed)),
+        undo: guardTasks(ids, async () => {
           // One timestamp and one transaction for every write of the undo,
           // in the store and the DB: the recurring date advances go back,
           // and the completions (re-completing restores the original
@@ -619,7 +620,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
               return c ? { ...t, ...c, modifiedAt: undoNow } : t
             }),
           })
-        },
+        }),
         showSnackbar: true,
       },
     ))
@@ -716,9 +717,9 @@ export const useTodoStore = create<TodoState>((set, get) => {
       'Failed to update the priority flags',
       {
         description,
-        redo: () => get().setMarkerFlags(changes, description),
+        redo: guardTasks(byId.keys(), () => get().setMarkerFlags(changes, description)),
         // The flags this step changed back, with the earlier modifiedAt, in the database and the store.
-        undo: async () => {
+        undo: guardTasks(byId.keys(), async () => {
           const reverts = targets.flatMap((t) => {
             const c = byId.get(t.id)
             const p = prev.get(t.id)
@@ -727,7 +728,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
           await todoRepository.bulkUpdate(reverts)
           const byTodo = new Map(reverts.map((r) => [r.todoId, r.changes]))
           set({ todos: get().todos.map((t) => { const r = byTodo.get(t.id); return r ? { ...t, ...r } : t }) })
-        },
+        }),
         showSnackbar: true,
       },
     )
@@ -790,8 +791,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
         detail,
         // The same next follow-up when it was given; else the rule again, per
         // task, from the redo's now.
-        redo: () => get().markFollowedUp(targetIds, options),
-        undo: async () => {
+        redo: guardTasks(targetIds, (present) => get().markFollowedUp(present, options)),
+        undo: guardTasks(targetIds, async () => {
           const undoNow = new Date()
           const restored = (todoId: number): Partial<PersistedTodoItem> => {
             const p = prev.get(todoId)
@@ -803,7 +804,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
           set({
             todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...restored(t.id), modifiedAt: undoNow } : t)),
           })
-        },
+        }),
         showSnackbar: true,
       },
     )
@@ -825,7 +826,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       undoable(
         noBackup ? `Delete ${ids.length} tasks — no backup was taken` : `Delete ${ids.length} tasks`,
         // A redo captures afresh (and skips the backup gate: the first run took it).
-        () => trackWrite(async () => { taken = await takeTasks(ids) }),
+        guardTasks(ids, () => trackWrite(async () => { taken = await takeTasks(ids) })),
         () => trackWrite(() => putBackTasks(taken)),
         true,
       )

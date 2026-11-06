@@ -1,4 +1,5 @@
 import { optimistic } from './store-helpers'
+import { guardTasks } from './task-undo-guard'
 
 /**
  * Factory that generates assign/unassign/bulk assignment actions for
@@ -168,8 +169,8 @@ export function createAssignmentActions<T extends { id?: number }>(
         `Failed to assign ${label}`,
         {
           description: `Assign ${label} "${getName(entity)}"`,
-          redo: () => actions.assign(todoId, entityId),
-          undo: () => actions.unassign(todoId, entityId),
+          redo: guardTasks([todoId], () => actions.assign(todoId, entityId)),
+          undo: guardTasks([todoId], () => actions.unassign(todoId, entityId)),
         },
       )
     },
@@ -186,8 +187,8 @@ export function createAssignmentActions<T extends { id?: number }>(
         `Failed to unassign ${label}`,
         {
           description: `Unassign ${label} "${entity ? getName(entity) : label}"`,
-          redo: () => actions.unassign(todoId, entityId),
-          undo: () => actions.assign(todoId, entityId),
+          redo: guardTasks([todoId], () => actions.unassign(todoId, entityId)),
+          undo: guardTasks([todoId], () => actions.assign(todoId, entityId)),
         },
       )
     },
@@ -207,8 +208,8 @@ export function createAssignmentActions<T extends { id?: number }>(
         `Failed to assign ${label}`,
         {
           description: `Assign "${getName(entity)}" to ${toAssign.length} tasks`,
-          redo: () => actions.bulkAssign(todoIds, entityId),
-          undo: () => actions.bulkUnassign(toAssign, entityId),
+          redo: guardTasks(todoIds, (present) => actions.bulkAssign(present, entityId)),
+          undo: guardTasks(toAssign, (present) => actions.bulkUnassign(present, entityId)),
         },
       )
     },
@@ -238,8 +239,8 @@ export function createAssignmentActions<T extends { id?: number }>(
         `Failed to unassign ${label}`,
         {
           description: `Unassign "${entity ? getName(entity) : label}" from ${toUnassign.length} tasks`,
-          redo: () => actions.bulkUnassign(todoIds, entityId),
-          undo: () => actions.bulkAssign(toUnassign, entityId),
+          redo: guardTasks(todoIds, (present) => actions.bulkUnassign(present, entityId)),
+          undo: guardTasks(toUnassign, (present) => actions.bulkAssign(present, entityId)),
         },
       )
     },

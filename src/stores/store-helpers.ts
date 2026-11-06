@@ -22,6 +22,7 @@ import { tagRepository } from '../data/tag-repository'
 import { todoRepository } from '../data'
 import type { PersistedTodoItem } from '../models'
 import { undoable } from './undoable'
+import { guardTasks } from './task-undo-guard'
 import { useUndoStore } from './undo-store'
 import { registerModuleReset, registerModuleSettle } from '../utils/module-reset'
 import { withOrphanedRuleDropped } from '../utils/todo-changes'
@@ -343,8 +344,8 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
     label,
     {
       description: label,
-      redo: () => bulkUpdateField(ids, field, value, label, get, set, opts),
-      undo: async () => {
+      redo: guardTasks(ids, (present) => bulkUpdateField(present, field, value, label, get, set, opts)),
+      undo: guardTasks(changedIds, async () => {
         // The rows the edit changed get their value and modifiedAt back, in
         // the database and the store alike; the others are left as they are.
         await todoRepository.bulkUpdate(prevValues.map((s) => ({
@@ -352,7 +353,7 @@ export async function bulkUpdateField<K extends keyof PersistedTodoItem>(
           changes: { [field]: s.prev, ...(s.droppedRule != null ? { recurrenceRule: s.droppedRule } : {}), modifiedAt: s.modifiedAt },
         })))
         revert(false)
-      },
+      }),
       showSnackbar: opts.showSnackbar,
     },
   )

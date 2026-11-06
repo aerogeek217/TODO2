@@ -6,6 +6,7 @@ import { compareStatusUpdates, statusUpdateDay, statusUpdateText } from '../util
 import { saveOrReport, trackWrite } from './store-helpers'
 import { notifyTasksTouched } from './task-hooks'
 import { taskChildRows } from './task-child-rows'
+import { guardTasks } from './task-undo-guard'
 import { undoable } from './undoable'
 
 const NO_UPDATES: readonly PersistedStatusUpdate[] = []
@@ -94,10 +95,11 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
       put(added)
       touched(added, at)
       const ids = added.map((r) => r.id)
+      const tasks = added.map((r) => r.todoId)
       undoable(
         description,
-        async () => { await trackWrite(() => putBack(added, true)) },
-        () => trackWrite(() => take(ids)),
+        guardTasks(tasks, async () => { await trackWrite(() => putBack(added, true)) }),
+        guardTasks(tasks, () => trackWrite(() => take(ids))),
       )
       return added
     }, [], 'add the status update')
@@ -154,8 +156,8 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
         if (saved) {
           undoable(
             'Edit status update',
-            async () => { await trackWrite(() => write(patch)) },
-            async () => { await trackWrite(() => write(before)) },
+            guardTasks([prev.todoId], async () => { await trackWrite(() => write(patch)) }),
+            guardTasks([prev.todoId], async () => { await trackWrite(() => write(before)) }),
           )
         }
         return saved
@@ -169,8 +171,8 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
         await take([id])
         undoable(
           'Status update removed',
-          () => trackWrite(() => take([id])),
-          async () => { await trackWrite(() => putBack([row], true)) },
+          guardTasks([row.todoId], () => trackWrite(() => take([id]))),
+          guardTasks([row.todoId], async () => { await trackWrite(() => putBack([row], true)) }),
           true,
         )
         return true

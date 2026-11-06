@@ -94,6 +94,12 @@ export const todoRepository = {
     return rows.filter((t): t is PersistedTodoItem => t != null)
   },
 
+  /** The ids among `ids` that exist (keys only, in stored order). */
+  async existingIds(ids: readonly number[]): Promise<number[]> {
+    if (ids.length === 0) return []
+    return db.todos.where(':id').anyOf([...ids]).primaryKeys()
+  },
+
   /** The rows whose `uid` is among `uids` (unique index — at most one each). */
   async getByUids(uids: readonly string[]): Promise<PersistedTodoItem[]> {
     if (uids.length === 0) return []
