@@ -251,6 +251,10 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast, sub
         await flush?.()
       })
       if (missing > 0) onToast?.(`${plural(missing, 'line was', 'lines were')} changed meanwhile and left as ${missing === 1 ? 'it is' : 'they are'}`)
+    } catch (err) {
+      // A note save or the group itself failed (the callers don't await this).
+      console.error('Converting note lines to subtasks failed:', err)
+      onToast?.('Couldn’t convert the lines to subtasks')
     } finally {
       convertingRef.current = false
     }

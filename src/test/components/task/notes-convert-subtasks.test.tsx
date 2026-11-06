@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { useCallback } from 'react'
 import { EditorSelection } from '@codemirror/state'
@@ -126,5 +126,39 @@ describe('a task’s notes convert to subtasks', () => {
     fireEvent.click(screen.getByRole('button', { name: /^Convert 2 bullet lines to subtasks/ }))
     await waitFor(() => expect(storedNotes(id)).toBe(['# Plan', 'A thought', '- [x] Already done'].join('\n')))
     expect(checklist(id)).toHaveLength(4)
+  })
+})
+
+describe('a conversion that throws (cr31)', () => {
+  it('says so in a toast — no unhandled rejection — and leaves the note as it is; Convert works again', async () => {
+    const id = await useTodoStore.getState().add('Offsite')
+    await useTodoStore.getState().update(id, { notes: NOTE })
+    const onToast = vi.fn()
+    let calls = 0
+    const target: NoteSubtaskTarget = async (drafts, writeNote) => {
+      calls++
+      if (calls === 1) throw new Error('disk full')
+      return addSubtasksFromNote(id, drafts, writeNote)
+    }
+    function Throwing() {
+      const notes = useTaskNotesSource({ todoId: id })
+      return <NotesBody source={notes.source} subtaskTarget={target} onConvertToast={onToast} />
+    }
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      render(<Throwing />)
+      fireEvent.click(screen.getByRole('button', { name: /^Convert 2 bullet lines to subtasks/ }))
+      await waitFor(() => expect(onToast).toHaveBeenCalledWith('Couldn’t convert the lines to subtasks'))
+      await new Promise((r) => setTimeout(r, 0))
+      expect(unhandled).not.toHaveBeenCalled()
+      expect(storedNotes(id)).toBe(NOTE)
+      fireEvent.click(screen.getByRole('button', { name: /^Convert 2 bullet lines to subtasks/ }))
+      await waitFor(() => expect(checklist(id)).toHaveLength(4))
+    } finally {
+      process.off('unhandledRejection', unhandled)
+      logged.mockRestore()
+    }
   })
 })
