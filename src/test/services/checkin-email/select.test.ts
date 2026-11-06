@@ -8,7 +8,6 @@ import {
   type CheckinSelectContext,
 } from '../../../services/checkin-email/select'
 import { emptyPredicate } from '../../../models/filter-predicate'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { makePerson, makeTodo } from '../../helpers'
 
 const CHECKIN_DUE_SOON_DAYS = 14
@@ -36,7 +35,11 @@ function context(
     todos,
     today,
     assignedPeopleMap: new Map(Object.entries(assignments).map(([id, people]) => [Number(id), people])),
-    markerSettings: { urgentRange: 3, hotRule: DEFAULT_HOT_RULE },
+    assignedTagsMap: new Map(),
+    statuses: [],
+    statusUpdatesByTodo: new Map(),
+    subtasksByTodo: new Map(),
+    markerSettings: { urgentRange: 3 },
     weekStartsOn: 1,
     ...extra,
   }
@@ -101,7 +104,7 @@ describe('selectCheckinTasks', () => {
     expect(ids(out.comingUp)).toEqual([8, 2])
   })
 
-  it('Priority Hot: the Settings Hot rule, with Urgent from the flag or the due-date range', () => {
+  it('Priority of several values: any of them, with Urgent from the flag or the due-date range', () => {
     const todos = [
       makeTodo({ id: 1, urgent: true, important: true }),
       makeTodo({ id: 2, focus: true }),
@@ -110,13 +113,11 @@ describe('selectCheckinTasks', () => {
       makeTodo({ id: 5, urgent: true }),
     ]
     const people = Object.fromEntries(todos.map((t) => [t.id, [ada]]))
-    const hot = filter({ markers: 'hot' })
+    const hot = filter({ markers: [{ values: ['focus', 'urgent'] }, { values: ['focus', 'important'] }] })
     const out = selectCheckinTasks(ada, hot, context(todos, people))
     expect([...ids(out.overdue), ...ids(out.comingUp)].sort()).toEqual([1, 2, 4])
-    const narrowRange = context(todos, people, { markerSettings: { urgentRange: 1, hotRule: DEFAULT_HOT_RULE } })
+    const narrowRange = context(todos, people, { markerSettings: { urgentRange: 1 } })
     expect([...ids(selectCheckinTasks(ada, hot, narrowRange).comingUp)].sort()).toEqual([1, 2])
-    const urgentOnly = context(todos, people, { markerSettings: { urgentRange: 3, hotRule: [{ urgent: true }] } })
-    expect([...ids(selectCheckinTasks(ada, hot, urgentOnly).comingUp)].sort()).toEqual([1, 4, 5])
   })
 
   it('a filter on top of open + assigned; it never shows completed tasks', () => {
@@ -154,7 +155,7 @@ describe('selectCheckinTasks', () => {
   it('a Priority No leaves out the tasks with that marker', () => {
     const todos = [makeTodo({ id: 1, important: true }), makeTodo({ id: 2, urgent: true }), makeTodo({ id: 3, urgent: true, important: true })]
     const ctx = context(todos, { 1: [ada], 2: [ada], 3: [ada] })
-    expect(ids(selectCheckinTasks(ada, filter({ markers: { urgent: true, important: false } }), ctx).comingUp)).toEqual([2])
+    expect(ids(selectCheckinTasks(ada, filter({ markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] }), ctx).comingUp)).toEqual([2])
   })
 
   it('a person with no tasks gets empty sections', () => {

@@ -233,7 +233,7 @@ describe('classifyPanes on custom panes', () => {
   })
 
   it('an earlier pane that overlaps a later one takes the task', () => {
-    const panes = resolvePanes({ do: { name: 'Focus', filter: { ...emptyPredicate(), markers: { focus: true } } } })
+    const panes = resolvePanes({ do: { name: 'Focus', filter: { ...emptyPredicate(), markers: [{ values: ['focus'] }] } } })
     const { byPane } = classifyPanes([makeTodo({ id: 1, focus: true, important: true })], panes, ctx)
     expect(byPane.do.map((t) => t.id)).toEqual([1])
     expect(byPane.schedule).toEqual([])
@@ -246,8 +246,8 @@ describe('classifyPanes on custom panes', () => {
     expect(none.map((t) => t.id)).toEqual([1, 2])
   })
 
-  it('a Hot pane takes the hot tasks (the Hot rule from the settings) first', () => {
-    const panes = resolvePanes({ do: { name: 'Hot', filter: { ...emptyPredicate(), markers: 'hot' } } })
+  it('a pane of several priorities takes any of them first', () => {
+    const panes = resolvePanes({ do: { name: 'Hot', filter: { ...emptyPredicate(), markers: [{ values: ['focus', 'urgent'] }] } } })
     const todos = [makeTodo({ id: 1, focus: true }), makeTodo({ id: 2, urgent: true, important: true }), makeTodo({ id: 3, important: true })]
     const { byPane } = classifyPanes(todos, panes, ctx)
     expect(byPane.do.map((t) => t.id)).toEqual([1, 2])
@@ -277,8 +277,8 @@ describe('resolvePaneDrop on custom panes', () => {
 
   it('writes Focus Yes / No', () => {
     const panes = resolvePanes({
-      do: { filter: { ...emptyPredicate(), markers: { focus: true } } },
-      schedule: { filter: { ...emptyPredicate(), markers: { focus: false } } },
+      do: { filter: { ...emptyPredicate(), markers: [{ values: ['focus'] }] } },
+      schedule: { filter: { ...emptyPredicate(), markers: [{ values: ['focus'], not: true }] } },
     })
     expect(resolvePaneDrop([t({})], 'do', panes, ctx)).toEqual({ kind: 'apply', changes: [{ todoId: 1, focus: true }] })
     expect(resolvePaneDrop([t({ focus: true })], 'schedule', panes, ctx)).toEqual({ kind: 'apply', changes: [{ todoId: 1, focus: false }] })
@@ -298,7 +298,7 @@ describe('resolvePaneDrop on custom panes', () => {
   })
 
   it('refuses when an earlier pane would take the task first', () => {
-    const panes = resolvePanes({ do: { name: 'Now', filter: { ...emptyPredicate(), markers: { focus: true } } } })
+    const panes = resolvePanes({ do: { name: 'Now', filter: { ...emptyPredicate(), markers: [{ values: ['focus'] }] } } })
     const task = t({ focus: true })
     const res = resolvePaneDrop([task], 'drop', panes, ctx)
     expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'earlier', pane: 'do' } }] })
@@ -373,19 +373,19 @@ describe('resolvePaneDrop on custom panes', () => {
     expect(resolvePaneDrop([t({ statusId: 99 })], 'do', panes, ctx)).toEqual({ kind: 'none' })
   })
 
-  it('a Hot pane writes nothing: a task that isn’t hot is refused, naming Priority', () => {
-    const panes = resolvePanes({ do: { name: 'Hot', filter: { ...emptyPredicate(), markers: 'hot' } } })
+  it('a pane of several priorities writes nothing: a task with none of them is refused, naming Priority', () => {
+    const panes = resolvePanes({ do: { name: 'Hot', filter: { ...emptyPredicate(), markers: [{ values: ['focus', 'urgent'] }] } } })
     const task = t({ important: true })
     const res = resolvePaneDrop([task], 'do', panes, ctx)
     expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: 'markers' } }] })
     if (res.kind !== 'blocked') return
-    expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Priority filter (Hot).')
+    expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)[1]).toBe('Chase vendor doesn’t match its Priority filter (Focus or Urgent).')
     expect(resolvePaneDrop([t({ focus: true })], 'do', panes, ctx)).toEqual({ kind: 'none' })
   })
 
   it('a pane’s or group writes nothing: a task matching none of its filters is refused, naming the group', () => {
     const group = { ...emptyFilterClauses(), statusIds: [4], personIds: [1] }
-    const panes = resolvePanes({ do: { name: 'Chase', filter: { ...emptyPredicate(), markers: { urgent: true }, orGroups: [group] } } })
+    const panes = resolvePanes({ do: { name: 'Chase', filter: { ...emptyPredicate(), markers: [{ values: ['urgent'] }], orGroups: [group] } } })
     const task = t({})
     const res = resolvePaneDrop([task], 'do', panes, ctx)
     expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'orGroup', index: 0 } }] })

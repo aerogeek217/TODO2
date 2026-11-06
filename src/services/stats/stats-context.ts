@@ -1,7 +1,6 @@
 import type { PersistedTodoItem, Person, Status, Tag } from '../../models'
 import type { FilterCriteria } from '../../utils/filter-criteria'
 import { compareTodosByDate, type TodoDateField, type WeekStart } from '../../utils/effective-date'
-import type { HotRule } from '../../utils/hot'
 import type { UrgentDueWithinDays } from '../../utils/urgency'
 
 /**
@@ -16,7 +15,6 @@ export interface StatsContext {
   weekStartsOn: WeekStart
   /** "Due date makes a task urgent" range (`null` = off). */
   urgentRange: UrgentDueWithinDays
-  hotRule: HotRule
   /** Task id → assigned people (`person-store.assignedPeopleMap`). */
   assignedPeopleMap: ReadonlyMap<number, readonly Person[]>
   /** Task id → its tags (`tag-store.assignedTagsMap`). */

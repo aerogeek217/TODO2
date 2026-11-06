@@ -94,7 +94,7 @@ test.describe('phone', () => {
 
   test('the Settings page’s People, statuses & tags shows only Find unused…, whose dialog fits the screen and removes', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('tab', { name: 'Settings' }).tap()
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Settings' }).tap()
     await page.getByRole('button', { name: 'People, statuses & tags' }).tap()
     await expect(page.getByRole('heading', { level: 1, name: 'People, statuses & tags' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Manage people…' })).toHaveCount(0)

@@ -7,6 +7,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { addDays, startOfToday } from '../../utils/date'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 const today = () => startOfToday()
 const daysAgo = (n: number) => addDays(startOfToday(), -n)
@@ -23,7 +24,7 @@ beforeEach(async () => {
 })
 
 async function task(title = 'Q4 budget'): Promise<number> {
-  return useTodoStore.getState().add(title)
+  return addTask(title)
 }
 
 describe('status-update-store: add', () => {
@@ -114,6 +115,20 @@ describe('status-update-store: addToMany', () => {
     await useUndoStore.getState().redo()
     expect(await db.statusUpdates.count()).toBe(2)
     expect([texts(a), texts(b)]).toEqual([['Chased'], ['Chased']])
+  })
+})
+
+describe('status-update-store: addRows', () => {
+  it('stores each text as add does and drops a row left with none', async () => {
+    const id = await task()
+    const now = new Date()
+    const added = await useStatusUpdateStore.getState().addRows([
+      { todoId: id, date: daysAgo(1), text: '', createdAt: now },
+      { todoId: id, date: daysAgo(1), text: ' Asked \n again ', createdAt: now },
+      { todoId: id, date: daysAgo(1), text: 'r'.repeat(600), createdAt: now },
+    ])
+    expect(added.map((r) => r.text)).toEqual(['Asked again', 'r'.repeat(500)])
+    expect(await storedTexts(id)).toEqual(['Asked again', 'r'.repeat(500)])
   })
 })
 

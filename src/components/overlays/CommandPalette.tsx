@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo, type ReactNode } from 'react'
 import Fuse, { type FuseResult } from 'fuse.js'
 import type { Command, CommandCategory } from '../../services/command-registry'
 import { DialogFrame } from '../shared/Dialog'
@@ -52,6 +52,24 @@ function searchCommands(fuse: Fuse<Command>, query: string): FuseResult<Command>
     })
   }
   return combined.sort((a, b) => (a.score ?? 1) - (b.score ?? 1) || a.refIndex - b.refIndex)
+}
+
+/**
+ * `name` with the characters at `indices` marked. Fuse's indices are UTF-16
+ * offsets: walked by code point (an emoji is two units), a character is marked
+ * when any of its units is.
+ */
+function highlightMatches(name: string, indices: ReadonlySet<number>): ReactNode[] {
+  const parts: ReactNode[] = []
+  let offset = 0
+  for (const ch of name) {
+    const at = offset
+    offset += ch.length
+    let hit = false
+    for (let i = at; i < offset; i++) if (indices.has(i)) hit = true
+    parts.push(hit ? <mark key={at} className={styles.highlight}>{ch}</mark> : ch)
+  }
+  return parts
 }
 
 export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPaletteProps) {
@@ -151,7 +169,13 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
     activeItemRef.current?.scrollIntoView({ block: 'nearest' })
   }, [activeIndex])
 
+  // What had the focus when the palette opened (read before its field takes it).
+  const [opener] = useState(() => (typeof document !== 'undefined' ? document.activeElement as HTMLElement | null : null))
   const executeCommand = (cmd: Command) => {
+    // The focus goes back first, so a dialog the command opens takes that as
+    // its opener and returns the focus there on close — not to this field,
+    // gone by then (cr31 N5).
+    if (opener && opener !== document.body && opener.isConnected) opener.focus({ preventScroll: true })
     cmd.action()
     onClose()
   }
@@ -232,11 +256,7 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
                       {(() => {
                         const indices = matchIndicesMap.get(cmd.id)
                         if (!indices || indices.size === 0) return cmd.name
-                        return Array.from(cmd.name).map((ch, i) =>
-                          indices.has(i)
-                            ? <mark key={i} className={styles.highlight}>{ch}</mark>
-                            : ch
-                        )
+                        return highlightMatches(cmd.name, indices)
                       })()}
                     </span>
                     {cmd.hint && <span className={styles.resultHint}>{cmd.hint}</span>}

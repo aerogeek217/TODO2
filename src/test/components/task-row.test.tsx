@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
 import { FollowupPopoverHost } from '../../components/overlays/FollowupPopoverHost'
+import { RowPopoverHost } from '../../components/overlays/RowPopoverHost'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -136,32 +137,6 @@ describe('TaskRow', () => {
       fireEvent.pointerEnter(screen.getByRole('button', { name: 'Due Mon 20 Apr' }))
       act(() => { vi.advanceTimersByTime(400) })
       expect(screen.getByRole('tooltip')).toHaveTextContent('Monday, April 20, 2026In 4 daysRepeats every Monday')
-    })
-  })
-
-  describe('hot title', () => {
-    it('a hot task (the Settings rule) has its title marked hot; a completed or non-hot one not', () => {
-      const title = () => screen.getByText('Task 1').closest('[data-task-title]')
-      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, urgent: true, important: true })} />)
-      expect(title()).toHaveAttribute('data-hot', 'true')
-      unmount()
-      const focus = render(<TaskRow todo={makeTodo({ id: 1, focus: true })} />)
-      expect(title()).toHaveAttribute('data-hot', 'true')
-      focus.unmount()
-      // Urgent by its due date counts (the default range: 3 days).
-      const soon = render(<TaskRow todo={makeTodo({ id: 1, important: true, dueDate: new Date(2026, 3, 17) })} />)
-      expect(title()).toHaveAttribute('data-hot', 'true')
-      soon.unmount()
-      const one = render(<TaskRow todo={makeTodo({ id: 1, urgent: true })} />)
-      expect(title()).not.toHaveAttribute('data-hot')
-      one.unmount()
-      const done = render(<TaskRow todo={makeTodo({ id: 1, focus: true, isCompleted: true })} />)
-      expect(title()).not.toHaveAttribute('data-hot')
-      done.unmount()
-      // The rule from Settings.
-      useSettingsStore.setState({ hotRule: [{ important: true }] })
-      render(<TaskRow todo={makeTodo({ id: 1, important: true })} />)
-      expect(title()).toHaveAttribute('data-hot', 'true')
     })
   })
 
@@ -578,7 +553,7 @@ describe('TaskRow', () => {
     it('a click opens the status and notes popover; no preview while it is open', () => {
       withUpdate('50%')
       useTodoStore.setState({ todos: [makeTodo({ id: 1 })] })
-      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      render(<><TaskRow todo={makeTodo({ id: 1 })} /><RowPopoverHost /></>)
       const cell = screen.getByRole('button', { name: 'Edit status and notes' })
       fireEvent.click(cell)
       expect(screen.getByRole('dialog', { name: 'Status and notes' })).toBeInTheDocument()

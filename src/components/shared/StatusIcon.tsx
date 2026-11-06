@@ -86,10 +86,12 @@ export function StatusIcon({ icon, filled }: { icon?: string; filled?: boolean }
       )
     case 'bookmark':
       return <Svg filled={filled}><path d="M4 2h8a0.5 0.5 0 010.5 0.5V14L8 11 3.5 14V2.5A0.5 0.5 0 014 2z" /></Svg>
+    // An inbox. The key stays `snooze` (it drew a Z once): statuses store it.
     case 'snooze':
       return (
         <Svg filled={filled} strokeOnly>
-          <path d="M5 5h6L5 11h6" />
+          <path d="M3.8 3h8.4l2.3 6.2V12a1 1 0 0 1-1 1H2.5a1 1 0 0 1-1-1V9.2z" />
+          <path d="M1.5 9.2h3.6l1.2 1.8h3.4l1.2-1.8h3.6" />
         </Svg>
       )
     case 'arrow':

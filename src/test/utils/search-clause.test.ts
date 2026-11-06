@@ -26,12 +26,12 @@ describe('search-clause', () => {
     expect(next.negate?.tags).toBeUndefined()
   })
 
-  it('markers join; Hot replaces them; a marker replaces Hot', () => {
+  it('markers join as a person does: any of them; an "is not" becomes "is" this one', () => {
     const urgent = withSearchClause(empty, { field: 'markers', marker: 'urgent' })
-    expect(withSearchClause(urgent, { field: 'markers', marker: 'focus' }).markers).toEqual({ urgent: true, focus: true })
-    const hot = withSearchClause(urgent, { field: 'markers', marker: 'hot' })
-    expect(hot.markers).toBe('hot')
-    expect(withSearchClause(hot, { field: 'markers', marker: 'important' }).markers).toEqual({ important: true })
+    expect(urgent.markers).toEqual([{ values: ['urgent'] }])
+    expect(withSearchClause(urgent, { field: 'markers', marker: 'focus' }).markers).toEqual([{ values: ['focus', 'urgent'] }])
+    const not: FilterCriteria = { ...empty, markers: [{ values: ['urgent'], not: true }] }
+    expect(withSearchClause(not, { field: 'markers', marker: 'important' }).markers).toEqual([{ values: ['important'] }])
   })
 
   it('a date replaces that type\'s clause only', () => {

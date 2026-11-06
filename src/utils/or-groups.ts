@@ -1,4 +1,5 @@
-import { OR_GROUPS_MAX, emptyFilterClauses, type FilterClauses } from '../models/filter-predicate'
+import type { DateField } from '../models/app-view'
+import { MARKER_CLAUSES_MAX, NEGATABLE_FIELDS, OR_GROUPS_MAX, emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../models/filter-predicate'
 import { hasDateFilters, normalizeDateFilters } from './date-filters'
 import { withNormalizedNegation } from './filter-negation'
 import { hasMarkers, normalizeMarkersFilter } from './markers'
@@ -87,6 +88,63 @@ export function withOrGroupClauses<T extends { orGroups?: FilterClauses[] }>(
   const next = [...groups]
   next[index] = edit(current)
   return withNormalizedOrGroups({ ...p, orGroups: next })
+}
+
+/** How many clauses of `c` filter (a date type each): a chip each. */
+function clauseCount(c: FilterClauses): number {
+  return (c.personIds != null ? 1 : 0)
+    + (c.statusIds != null ? 1 : 0)
+    + (c.tags != null ? 1 : 0)
+    + ((c.searchText ?? '').trim() !== '' ? 1 : 0)
+    + (c.markers?.length ?? 0)
+    + Object.keys(normalizeDateFilters(c.dates)).length
+}
+
+/** `own` with the one clause of `group` moved in; null when `own` already filters on it. */
+function withClauseMoved<T extends FilterClauses>(own: T, group: FilterClauses): T | null {
+  const dates = normalizeDateFilters(group.dates)
+  const dateFields = Object.keys(dates) as DateField[]
+  const [dateField] = dateFields
+  if (dateField) {
+    if (normalizeDateFilters(own.dates)[dateField]) return null
+    return { ...own, dates: { ...own.dates, ...dates } }
+  }
+  if (hasMarkers(group.markers)) {
+    // Priority repeats: it joins the predicate's own conditions (they AND).
+    const markers = [...(own.markers ?? []), ...(group.markers ?? [])]
+    return markers.length > MARKER_CLAUSES_MAX ? null : { ...own, markers }
+  }
+  if ((group.searchText ?? '').trim() !== '') return (own.searchText ?? '').trim() !== '' ? null : { ...own, searchText: group.searchText }
+  for (const key of NEGATABLE_FIELDS) {
+    if (group[key] == null) continue
+    if (own[key] != null) return null
+    const moved = { ...own, [key]: group[key] }
+    return group.negate?.[key] ? withNormalizedNegation({ ...moved, negate: { ...own.negate, [key]: true } }) : moved
+  }
+  return null
+}
+
+/**
+ * `p` with each or group of one clause gone and that clause among `p`'s own:
+ * with nothing to be an alternative to, it filters the same. A group whose
+ * clause `p` already filters on stays (one clause per field; it can't move).
+ * `dissolved`: the indexes of the groups that went. Returns `p` itself when
+ * none did.
+ */
+export function dissolveSingleOrGroups<T extends TodoPredicate>(p: T): { predicate: T; dissolved: number[] } {
+  const groups = p.orGroups ?? []
+  let own: T = p
+  const dissolved: number[] = []
+  groups.forEach((group, index) => {
+    if (clauseCount(group) !== 1) return
+    const moved = withClauseMoved(own, group)
+    if (!moved) return
+    own = moved
+    dissolved.push(index)
+  })
+  if (dissolved.length === 0) return { predicate: p, dissolved }
+  const kept = groups.filter((_, index) => !dissolved.includes(index))
+  return { predicate: withNormalizedOrGroups({ ...own, orGroups: kept }), dissolved }
 }
 
 /** `p` without or group `index` (any other index leaves `p` unchanged). */

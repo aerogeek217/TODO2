@@ -5,6 +5,8 @@
  * moves on hover.
  */
 .row {
+  /* The priority glow (`utils/priority-cues`); hover and the other fills paint over it. */
+  background: var(--row-glow);
   display: grid;
   column-gap: 5px;
   align-items: center;
@@ -40,14 +42,6 @@
 .row:has(+ .row:hover)::after,
 .row:has(+ .row[data-hovered-synced="true"])::after {
   background: transparent;
-}
-
-/*
- * Ember (D19): a hot task (P1's flag on its title) glows faintly from the
- * left edge. Before the hover and synced-hover fills, which paint over it.
- */
-.row:has(> [data-hot]) {
-  background: radial-gradient(60px 28px at 0 50%, color-mix(in srgb, var(--color-danger) var(--ember-strength), transparent), transparent);
 }
 
 .row:active {
@@ -205,8 +199,8 @@
   padding-right: 4px;
 }
 
-/* A hot task (the Settings Hot rule): the title semibold. */
-.title.hot {
+/* A priority's semibold cue (`utils/priority-cues`). */
+.title.titleSemibold {
   font-weight: var(--font-weight-semibold);
 }
 

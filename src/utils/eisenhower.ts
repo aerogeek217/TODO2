@@ -1,11 +1,11 @@
 import { DATE_FIELD_VALUES, type DateField, type PersistedTodoItem, type Person, type Status, type StatusUpdate, type Subtask, type Tag, type TodoItem } from '../models'
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
-import type { TodoNameLookups } from './filter'
+import { todoNameLookups, type TodoNameLookups } from './filter'
 import { describeFilters, filterChips, type FilterChip, type FilterChipField, type FilterChipNames } from './filter-chips'
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
 import { matchesFilterWithLookups, type FilterSettings } from './filter-match'
-import { isHotFilter, MARKER_LABELS } from './markers'
+import { MARKER_LABELS, markerConditions } from './markers'
 import { normalizeOrGroups } from './or-groups'
 import { isEffectivelyUrgent, isUrgentByDate, URGENT_BY_DATE_HINT, urgentByDateSentence, type UrgentDueWithinDays } from './urgency'
 import { paneWrites, QUADRANT_ADD_HINT, QUADRANT_NAME, type EisenhowerPane, type PaneEntityField } from './eisenhower-panes'
@@ -55,7 +55,7 @@ export function insertionIndex<T extends SortFields & { id: number }>(sorted: re
 /** What pane classification and the drop rules read besides the task itself. */
 export interface PaneContext {
   today: Date
-  /** The urgent range and Hot rule (Priority clauses), the week start (date clauses). */
+  /** The urgent range (Priority clauses), the week start (date clauses). */
   settings: FilterSettings
   assignedPeopleMap: ReadonlyMap<number, readonly Person[]>
   assignedTagsMap: ReadonlyMap<number, readonly Tag[]>
@@ -63,10 +63,10 @@ export interface PaneContext {
   people: readonly Person[]
   tags: readonly Tag[]
   statuses: readonly Status[]
-  /** Each task's status updates (text clauses read them); absent = not searched. */
-  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
-  /** Each task's checklist (text clauses read its titles); absent = not searched. */
-  subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
+  /** Each task's status updates (text clauses read them). */
+  statusUpdatesByTodo: ReadonlyMap<number, readonly StatusUpdate[]>
+  /** Each task's checklist (text clauses read its titles). */
+  subtasksByTodo: ReadonlyMap<number, readonly Subtask[]>
 }
 
 /**
@@ -137,13 +137,7 @@ function hasRow(rows: readonly { id?: number }[] | undefined, id: number): boole
 function createPaneMatcher(panes: readonly EisenhowerPane[], ctx: PaneContext): PaneMatcher {
   // A pane ignores Show completed: the matrix's source decides about completed tasks.
   const criteria = new Map(panes.map((p) => [p.id, predicateToCriteria({ ...p.filter, showCompleted: true })]))
-  const lookups: TodoNameLookups = {
-    assignedPeopleMap: ctx.assignedPeopleMap,
-    assignedTagsMap: ctx.assignedTagsMap,
-    statusesById: new Map(ctx.statuses.flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
-    statusUpdatesByTodo: ctx.statusUpdatesByTodo,
-    subtasksByTodo: ctx.subtasksByTodo,
-  }
+  const lookups = todoNameLookups(ctx)
   const test = (c: FilterCriteria, v: TaskView) => matchesFilterWithLookups(c, v.todo, v.lookups, ctx.today, ctx.settings)
   const criteriaOf = (pane: EisenhowerPane) => criteria.get(pane.id) ?? predicateToCriteria({ ...pane.filter, showCompleted: true })
   return {
@@ -320,8 +314,7 @@ function missOf(
   if (typeof field === 'object' && 'orGroup' in field) return { kind: 'orGroup', index: field.orGroup }
   const gone = deleted.find((f) => f === field)
   if (gone) return { kind: 'deleted', field: gone }
-  const markers = pane.filter.markers
-  if (field === 'markers' && markers != null && !isHotFilter(markers) && markers.urgent === false
+  if (field === 'markers' && markerConditions(pane.filter.markers).urgent === false
     && isUrgentByDate(after.todo, ctx.today, ctx.settings.urgentRange)) {
     return { kind: 'urgent-date' }
   }
@@ -478,8 +471,9 @@ function missSentence(
     return status ? `${task.title} is still ${status}.` : `${task.title} has no status.`
   }
   const field = miss.kind === 'clause' ? miss.field : 'markers'
-  const chip = filterChips(pane.filter, names).find((c) => chipOfClause(c, field))
-  const value = chip ? ` (${chip.value})` : ''
+  // Priority repeats: its chips together are what the task doesn't match.
+  const chips = filterChips(pane.filter, names).filter((c) => chipOfClause(c, field))
+  const value = chips.length > 0 ? ` (${chips.map((c) => c.value).join(' and ')})` : ''
   return `${task.title} doesn’t match its ${clauseName(field)} filter${value}.`
 }
 

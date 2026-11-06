@@ -15,7 +15,6 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, STATUSES, TAGS,
@@ -79,7 +78,7 @@ describe('FilteredTasksPanel', () => {
     vi.setSystemTime(new Date(2026, 9, 10, 10))
     resetEntityStores()
     clearFilterStore()
-    useSettingsStore.setState({ urgentDueWithinDays: 3, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 })
+    useSettingsStore.setState({ urgentDueWithinDays: 3, weekStartsOn: 0 })
     useTodoStore.setState({ todos: SAMPLE_TASKS })
     usePersonStore.setState({ people: PEOPLE, assignedPeopleMap: new Map(SAMPLE_TASKS.map((t) => [t.id, ASSIGNED_PEOPLE.get(t.id) ?? []])) })
     useTagStore.setState({ tags: TAGS, assignedTagsMap: ASSIGNED_TAGS })
@@ -135,7 +134,7 @@ describe('FilteredTasksPanel', () => {
     fireEvent.change(search, { target: { value: 'q4 forecast' } })
     await vi.waitFor(() => expect(rowTitles()).toEqual(['Q4 forecast']))
     expect(document.getElementById('search-results')).toBeNull()
-    expect(search).toHaveAttribute('aria-expanded', 'false')
+    expect(search).not.toHaveAttribute('aria-controls')
   })
 
   it('Clear all keeps it open on every open task, with Show N tasks still its toggle', () => {

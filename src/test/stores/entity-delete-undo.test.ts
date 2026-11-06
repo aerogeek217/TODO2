@@ -4,6 +4,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await db.delete()
@@ -12,7 +13,7 @@ beforeEach(async () => {
 
 async function seedTask(title: string): Promise<number> {
   await useTodoStore.getState().loadAll()
-  return useTodoStore.getState().add(title)
+  return addTask(title)
 }
 
 describe('undo of an entity delete puts its assignments back on the loaded tasks', () => {

@@ -82,11 +82,11 @@
   "dark form": {
     "chip": {
       "height": "22px",
-      "padding": "0px 6px 0px 8px",
+      "padding": "3px 6px 3px 8px",
       "border-radius": "6px",
       "font-size": "12px",
       "font-weight": "600",
-      "line-height": "12px",
+      "line-height": "15px",
       "background-color": "rgba(255, 255, 255, 0.08)",
       "color": "rgb(191, 187, 182)",
       "box-shadow": "none",
@@ -94,12 +94,12 @@
       "cursor": "pointer"
     },
     "label": {
-      "height": "12px",
+      "height": "15px",
       "padding": "0px",
       "border-radius": "0px",
       "font-size": "12px",
       "font-weight": "600",
-      "line-height": "12px",
+      "line-height": "15px",
       "background-color": "rgba(0, 0, 0, 0)",
       "color": "rgb(162, 157, 150)",
       "box-shadow": "none",
@@ -296,11 +296,11 @@
   "light form": {
     "chip": {
       "height": "22px",
-      "padding": "0px 6px 0px 8px",
+      "padding": "3px 6px 3px 8px",
       "border-radius": "6px",
       "font-size": "12px",
       "font-weight": "600",
-      "line-height": "12px",
+      "line-height": "15px",
       "background-color": "rgba(0, 0, 0, 0.08)",
       "color": "rgb(93, 88, 83)",
       "box-shadow": "none",
@@ -308,12 +308,12 @@
       "cursor": "pointer"
     },
     "label": {
-      "height": "12px",
+      "height": "15px",
       "padding": "0px",
       "border-radius": "0px",
       "font-size": "12px",
       "font-weight": "600",
-      "line-height": "12px",
+      "line-height": "15px",
       "background-color": "rgba(0, 0, 0, 0)",
       "color": "rgb(111, 106, 100)",
       "box-shadow": "none",

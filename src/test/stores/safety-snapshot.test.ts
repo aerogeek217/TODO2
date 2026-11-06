@@ -15,6 +15,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useStatusStore } from '../../stores/status-store'
 import { resetDb } from '../helpers'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await resetDb()
@@ -48,7 +49,7 @@ async function answerBackupPrompt(proceed: boolean) {
 
 async function addTasks(n: number): Promise<number[]> {
   const ids: number[] = []
-  for (let i = 0; i < n; i++) ids.push(await useTodoStore.getState().add(`Task ${i + 1}`))
+  for (let i = 0; i < n; i++) ids.push(await addTask(`Task ${i + 1}`))
   return ids
 }
 

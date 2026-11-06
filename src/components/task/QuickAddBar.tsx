@@ -620,26 +620,34 @@ export function QuickAddBar({
     }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault()
-      if (submittingRef.current) return
-      // A token the popup is open on is completed to the highlighted row.
-      const text = ac.completeForSubmit(raw)
-      ac.dismiss()
-      if (text !== raw) setRaw(text)
-      if (ac.creating()) {
-        // A person / tag picked from a Create row is still being saved: submit
-        // once it is, read against the stores then (the token names it).
-        submittingRef.current = true
-        const opening = openingRef.current
-        void ac.whenCreated().then(() => {
-          submittingRef.current = false
-          if (openingRef.current !== opening) return
-          const run = runParse(text, usePersonStore.getState().people, useStatusStore.getState().statuses)
-          submit(text, { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved, ...removedPreset })
-        })
-        return
-      }
-      submit(text, draftFor(text))
+      submitTyped()
     }
+  }
+
+  /**
+   * ⏎, and the close prompt's Create task (cr31 N7): the text as ⏎ reads it
+   * — the token the popup is open on completed to the highlighted row, a
+   * person / tag still being created waited for — then submitted.
+   */
+  const submitTyped = () => {
+    if (submittingRef.current) return
+    const text = ac.completeForSubmit(raw)
+    ac.dismiss()
+    if (text !== raw) setRaw(text)
+    if (ac.creating()) {
+      // A person / tag picked from a Create row is still being saved: submit
+      // once it is, read against the stores then (the token names it).
+      submittingRef.current = true
+      const opening = openingRef.current
+      void ac.whenCreated().then(() => {
+        submittingRef.current = false
+        if (openingRef.current !== opening) return
+        const run = runParse(text, usePersonStore.getState().people, useStatusStore.getState().statuses)
+        submit(text, { ...(parse ? parse(text) : run.parsed), rawTitle: text, resolved: run.resolved, ...removedPreset })
+      })
+      return
+    }
+    submit(text, draftFor(text))
   }
 
   /** Submits `submitted` (the draft for `text`); the bar closes once the task is stored. */
@@ -685,7 +693,7 @@ export function QuickAddBar({
       }).then((picked) => {
         askingToCloseRef.current = false
         if (picked === 'discard') onClose()
-        else if (picked === 'confirm') submit(raw, draftFor(raw))
+        else if (picked === 'confirm') submitTyped()
       })
     }
   })

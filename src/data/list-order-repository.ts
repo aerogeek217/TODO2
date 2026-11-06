@@ -36,10 +36,23 @@ export const listOrderRepository = {
     })
   },
 
-  /** Puts rows back as they were (undo of a delete), keeping their ids. */
-  async restore(rows: readonly PersistedListOrder[]): Promise<void> {
-    if (rows.length === 0) return
-    await db.listOrders.bulkPut([...rows])
+  /**
+   * Puts rows back as they were (undo of a task delete), keeping their ids —
+   * those whose list and task still exist (a list deleted with its layout
+   * meanwhile gets no ranks back: they would be orphans). Returns the rows
+   * put back.
+   */
+  async restore(rows: readonly PersistedListOrder[]): Promise<PersistedListOrder[]> {
+    if (rows.length === 0) return []
+    return db.transaction('rw', [db.listOrders, db.listDefinitions, db.todos], async () => {
+      const listIds = [...new Set(rows.map((r) => r.listDefinitionId))]
+      const todoIds = [...new Set(rows.map((r) => r.todoId))]
+      const lists = new Set(await db.listDefinitions.where(':id').anyOf(listIds).primaryKeys())
+      const todos = new Set(await db.todos.where(':id').anyOf(todoIds).primaryKeys())
+      const kept = rows.filter((r) => lists.has(r.listDefinitionId) && todos.has(r.todoId))
+      if (kept.length > 0) await db.listOrders.bulkPut(kept)
+      return kept
+    })
   },
 
   /** Replaces the list's whole order with `writes` (tasks not in it become unranked). */

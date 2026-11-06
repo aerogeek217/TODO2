@@ -22,7 +22,6 @@ import {
 } from '../../services/task-dialog'
 import type { TaskDialogSource } from '../../stores/task-dialog-payload'
 import { buildTasksPlain } from '../../services/task-copy'
-import { DEFAULT_HOT_RULE } from '../../utils/hot'
 import { emptyFilterCriteria } from '../helpers'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import {
@@ -35,11 +34,13 @@ function env(over: Partial<TaskDialogEnv> = {}): TaskDialogEnv {
     todos: SAMPLE_TASKS,
     today: SAMPLE_TODAY,
     weekStartsOn: 0,
-    markerSettings: { urgentRange: 3, hotRule: DEFAULT_HOT_RULE },
+    markerSettings: { urgentRange: 3 },
     assignedPeopleMap: ASSIGNED_PEOPLE,
     assignedTagsMap: ASSIGNED_TAGS,
     people: PEOPLE,
     statuses: STATUSES,
+    statusUpdatesByTodo: new Map(),
+    subtasksByTodo: new Map(),
     listDefinitions: SAMPLE_LISTS,
     screen: { ...emptyFilterCriteria },
     listRanks: new Map(),
@@ -176,7 +177,7 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
     expect(screenTaskCounts(env({ screen: { ...emptyFilterCriteria, lens } })))
       .toEqual({ shown: priyaOpen, total: SAMPLE_OPEN_COUNT, lensKeeps: priyaOpen, withCompleted: false })
     // Chips on top: shown narrows further; the lens's own count stays.
-    const hot = { ...emptyFilterCriteria, markers: 'hot' as const, lens }
+    const hot = { ...emptyFilterCriteria, markers: [{ values: ['focus' as const] }], lens }
     const counts = screenTaskCounts(env({ screen: hot }))
     expect(counts.lensKeeps).toBe(priyaOpen)
     expect(counts.shown).toBe(screenTaskCount(env({ screen: hot })))

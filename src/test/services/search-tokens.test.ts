@@ -82,12 +82,11 @@ describe('search-tokens: the D16 spec table', () => {
     }
   })
 
-  it('/urgent /important /focus /hot → Priority', () => {
-    expect(clausesOf('/urgent /important /focus /hot ')).toEqual([
+  it('/urgent /important /focus → Priority; /hot is words', () => {
+    expect(clausesOf('/urgent /important /focus ')).toEqual([
       { field: 'markers', marker: 'urgent' },
       { field: 'markers', marker: 'important' },
       { field: 'markers', marker: 'focus' },
-      { field: 'markers', marker: 'hot' },
     ])
   })
 
@@ -237,10 +236,10 @@ describe('search-tokens: the popup', () => {
     expect(searchAutocomplete('#q', 2, ac)?.rows.map((r) => r.kind)).toEqual(['entity'])
   })
 
-  it('/ lists the commands without /repeat, then /hot — no status', () => {
+  it('/ lists the commands without /repeat — no status', () => {
     const view = searchAutocomplete('/', 1, ac)
     const labels = view?.rows.map((r) => (r.kind === 'command' ? `/${r.command.name}` : r.kind === 'value' ? r.label : r.kind))
-    expect(labels).toEqual(['/focus', '/urgent', '/important', '/due', '/followup', '/hot'])
+    expect(labels).toEqual(['/focus', '/urgent', '/important', '/due', '/followup'])
     expect(searchAutocomplete('/wa', 3, ac)).toBeNull()
   })
 
@@ -253,8 +252,8 @@ describe('search-tokens: the popup', () => {
     expect(searchAutocomplete('!zz', 3, ac)?.rows).toEqual([])
   })
 
-  it('/ho offers /hot alone', () => {
-    expect(searchAutocomplete('x /ho', 5, ac)?.rows).toEqual([expect.objectContaining({ insert: '/hot' })])
+  it('/ho offers nothing', () => {
+    expect(searchAutocomplete('x /ho', 5, ac)).toBeNull()
   })
 
   it('/status ⟨…⟩ opens nothing (no such command)', () => {

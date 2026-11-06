@@ -1,13 +1,11 @@
-import type { MarkerKey, MarkerSet } from '../../../models'
 import type { DashboardTrendRange } from '../../../models/dashboard-config'
 import type { TileStats } from '../../../services/stats/tiles'
 import { formatFollowupDate, formatFollowupDay, formatWeekdayNumeric } from '../../../utils/followup'
 import { addDays } from '../../../utils/calendar-grid'
-import { lineMarkers, type HotRule } from '../../../utils/hot'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 
 /**
- * The dashboard's words: tile sub-lines, the Hot rule in words, counts as
+ * The dashboard's words: tile sub-lines, counts as
  * `shown of total`, range labels. Pure, so the copy is testable on its own.
  */
 
@@ -45,45 +43,6 @@ export function trendRangeLabel(range: DashboardTrendRange): string {
   return RANGE_LABEL[range]
 }
 
-/** One marker as a line part: `urgent`, `important`, `Focus`. */
-function markerWord(k: MarkerKey): string {
-  return k === 'focus' ? 'Focus' : k
-}
-
-/** A Hot rule line, short: `urgent + important`, `Focus`. */
-export function hotLineLabel(line: MarkerSet): string {
-  return lineMarkers(line).map(markerWord).join(' + ')
-}
-
-/**
- * The Hot rule in words, for the Hot section: `Urgent and important, or in
- * Focus`. A Focus-only line reads `in Focus`.
- */
-export function hotRuleInWords(rule: HotRule): string {
-  const lines = rule.map((line) => {
-    const keys = lineMarkers(line)
-    if (keys.length === 1 && keys[0] === 'focus') return 'in Focus'
-    return keys.map(markerWord).join(' and ')
-  }).filter((s) => s !== '')
-  const text = lines.join(', or ')
-  return text.charAt(0).toUpperCase() + text.slice(1)
-}
-
-const MARKER_SHORT: Record<MarkerKey, string> = { urgent: 'U', important: 'I', focus: 'F' }
-const MARKER_NAME: Record<MarkerKey, string> = { urgent: 'Urgent', important: 'Important', focus: 'Focus' }
-
-/**
- * The Hot rule at a glance, for the tab menu's `Hot is` item: `U+I or Focus`
- * (a one-marker line names it; a longer line uses initials).
- */
-export function hotRuleShort(rule: HotRule): string {
-  return rule.map((line) => {
-    const keys = lineMarkers(line)
-    const only = keys.length === 1 ? keys[0] : undefined
-    return only ? MARKER_NAME[only] : keys.map((k) => MARKER_SHORT[k]).join('+')
-  }).filter((s) => s !== '').join(' or ')
-}
-
 /** What a tile's sub-line needs beyond its own stats. */
 export interface TileCopyContext {
   today: Date
@@ -99,13 +58,6 @@ export function tileSubLine(id: keyof TileStats, tiles: TileStats, ctx: TileCopy
       if (ctx.trendNet == null) return ''
       const range = RANGE_WORDS[ctx.trendRange]
       return ctx.trendNet === 0 ? `No change in ${range}` : `${signed(ctx.trendNet)} in ${range}`
-    }
-    case 'hot': {
-      const parts = tiles.hot.lines.filter((l) => l.ids.length > 0)
-      if (parts.length === 0) return 'None right now'
-      const only = parts.length === 1 ? parts[0] : undefined
-      if (only && hotLineLabel(only.line) === 'Focus') return `${only.ids.length} in Focus`
-      return parts.map((l) => `${l.ids.length} ${hotLineLabel(l.line)}`).join(' · ')
     }
     case 'urgent': {
       const { flagged, byDate } = tiles.urgent
@@ -168,21 +120,16 @@ const SETTINGS_NOTE = '(Settings › Tasks)'
 export interface TileDescriptionContext {
   today: Date
   urgentRange: UrgentDueWithinDays
-  hotRule: HotRule
 }
 
 /**
  * What a built-in tile counts, in words — the task dialog's line under its
- * title: `Hot = urgent and important, or in Focus (Settings › Tasks).`
+ * title: `Urgent = flagged urgent, or due within 3 days (Settings › Tasks).`
  */
 export function tileDescription(id: keyof TileStats, ctx: TileDescriptionContext): string {
   switch (id) {
     case 'open':
       return 'Every open task.'
-    case 'hot': {
-      const words = hotRuleInWords(ctx.hotRule)
-      return `Hot = ${words.charAt(0).toLowerCase()}${words.slice(1)} ${SETTINGS_NOTE}.`
-    }
     case 'urgent':
       if (ctx.urgentRange == null) return 'Urgent = flagged urgent. Due dates don’t make tasks urgent ' + SETTINGS_NOTE + '.'
       if (ctx.urgentRange === 0) return `Urgent = flagged urgent, or due today or earlier ${SETTINGS_NOTE}.`
@@ -206,7 +153,6 @@ export function tileDescription(id: keyof TileStats, ctx: TileDescriptionContext
 export function tileCatalogHint(id: keyof TileStats, ctx: { today: Date; urgentRange: UrgentDueWithinDays }): string {
   switch (id) {
     case 'open': return 'All open tasks'
-    case 'hot': return 'Matches the Hot setting'
     case 'urgent':
       if (ctx.urgentRange == null) return 'Flagged urgent'
       if (ctx.urgentRange === 0) return 'Flagged, or due today or earlier'

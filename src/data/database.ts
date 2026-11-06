@@ -6,6 +6,7 @@ import { SETTING_KEYS } from './setting-keys'
 import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { DATA_TABLE_NAMES, type DataTableName, type DataTableRows } from './tables'
 import { applySchemaUpgradeInTx } from './schema-upgrades'
+import { registerModuleReset } from '../utils/module-reset'
 
 export interface SettingRow {
   key: string
@@ -21,7 +22,7 @@ export interface SettingRow {
  * `db.verno === CURRENT_DB_VERSION` after open, so a `this.version(N+1)`
  * without raising this constant fails the suite.
  */
-export const CURRENT_DB_VERSION = 73
+export const CURRENT_DB_VERSION = 74
 
 /**
  * Lowest database version this build reads. A browser database whose
@@ -120,6 +121,24 @@ export function findDatabaseTooOld(error: unknown): DatabaseTooOldError | null {
   return findWrapped(error, DatabaseTooOldError)
 }
 
+/** What another tab did to the database this tab has open: opened it at a newer version (upgrading it), or deleted it. */
+export type DatabaseChangeElsewhere = 'upgraded' | 'deleted'
+
+const changeListeners = new Set<(change: DatabaseChangeElsewhere) => void>()
+registerModuleReset(() => changeListeners.clear())
+
+/**
+ * Subscribes `listener` to another tab (or window) upgrading or deleting the
+ * database while this tab has it open; returns its unsubscribe. Dexie then
+ * closes this tab's connection so the other can go on, and every later write
+ * here fails (the next open finds a newer database, `DatabaseTooNewError`):
+ * the app blocks the page and asks for a reload (`DatabaseChangedElsewhereGuard`).
+ */
+export function onDatabaseChangedElsewhere(listener: (change: DatabaseChangeElsewhere) => void): () => void {
+  changeListeners.add(listener)
+  return () => { changeListeners.delete(listener) }
+}
+
 /**
  * The floor version's `.upgrade()`: Dexie runs a version's upgrade only for a
  * database older than that version, so for the floor's declaration that is
@@ -211,6 +230,10 @@ export class Todo2Database extends Dexie {
     // refuse v73 data.
     this.version(73).stores({ subtasks: '++id, todoId' }).upgrade((tx) => applySchemaUpgradeInTx(tx, 73))
 
+    // v74: a stored Priority filter is a list of conditions (lists, lenses,
+    // Eisenhower panes, the check-in filter); no store changes.
+    this.version(74).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 74))
+
     // The next schema step N goes here, after the last one:
     //
     //   this.version(N).stores({ /* only what N adds, changes or drops (null) */ })
@@ -231,6 +254,14 @@ export class Todo2Database extends Dexie {
       const stored = Math.floor(vipDb.backendDB().version / 10)
       if (stored > vipDb.verno) throw new DatabaseTooNewError(stored)
     }, true)
+
+    // Another tab opens the database at a newer version (or deletes it):
+    // Dexie's own handler closes this connection so that one can go on; the
+    // app is told, since nothing this tab writes from now on is saved.
+    this.on('versionchange', (ev) => {
+      const change: DatabaseChangeElsewhere = ev.newVersion ? 'upgraded' : 'deleted'
+      for (const listener of [...changeListeners]) listener(change)
+    })
   }
 }
 

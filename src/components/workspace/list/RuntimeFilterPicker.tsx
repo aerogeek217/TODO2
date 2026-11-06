@@ -210,10 +210,12 @@ export function RuntimeFilterPicker({ spec, value, onChange, inputRef: outerInpu
       toggleOption(highlighted.id, true)
       return
     }
-    if (e.key === 'Backspace' && searchText === '' && ids.length > 0) {
-      // Quick-delete the most recent chip when the input is empty.
+    const last = selected.at(-1)
+    if (e.key === 'Backspace' && searchText === '' && last) {
+      // Quick-delete the most recent chip shown when the input is empty (a
+      // deleted entity's id, which shows no chip, isn't one).
       e.preventDefault()
-      onChange(ids.slice(0, -1))
+      onChange(ids.filter((id) => id !== last.id))
     }
   }
 

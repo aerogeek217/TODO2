@@ -65,3 +65,24 @@ const DATA_TABLE_ORDER: Record<DataTableName, true> = {
 
 /** The data table names, in export order. */
 export const DATA_TABLE_NAMES: readonly DataTableName[] = Object.keys(DATA_TABLE_ORDER) as DataTableName[]
+
+/** The tables whose row type belongs to one task (a `todoId`). */
+export type TaskChildTableName = {
+  [K in DataTableName]: DataTableRows[K] extends { todoId: number } ? K : never
+}[DataTableName]
+
+/**
+ * Every table of a task's own rows once (a missing or unknown name doesn't
+ * compile): a task's delete takes them with it (`todoRepository.bulkDelete`).
+ */
+const TASK_CHILD_TABLE_SET: Record<TaskChildTableName, true> = {
+  todoPeople: true,
+  todoTags: true,
+  todoEvents: true,
+  statusUpdates: true,
+  subtasks: true,
+  listOrders: true,
+}
+
+/** The tables of a task's own rows (people, tags, events, status updates, subtasks, list ranks). */
+export const TASK_CHILD_TABLE_NAMES: readonly TaskChildTableName[] = Object.keys(TASK_CHILD_TABLE_SET) as TaskChildTableName[]

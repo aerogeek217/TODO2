@@ -190,9 +190,8 @@ export function DashboardWidget({ tab, onResult, onDrill: onDrillProp, onCustomi
   const data = useDashboardData(config, isMobile ? undefined : leaving)
   const rowSections = useMemo(() => new Set(config.sections.map((s) => s.id)), [config.sections])
   useEffect(() => {
-    const { hot, followup, stale } = data.rows
+    const { followup, stale } = data.rows
     shownIdsRef.current = new Set([
-      ...(rowSections.has('hot') ? hot : []),
       ...(rowSections.has('followup') ? [...followup.late, ...followup.today, ...followup.upcoming] : []),
       ...(rowSections.has('stale') ? stale : []),
     ])

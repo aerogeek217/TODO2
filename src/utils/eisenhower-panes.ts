@@ -1,4 +1,4 @@
-import { emptyPredicate, MARKER_KEYS, type MarkerConditions, type TodoPredicate } from '../models/filter-predicate'
+import { emptyPredicate, MARKER_KEYS, type MarkerConditions, type MarkersFilter, type TodoPredicate } from '../models/filter-predicate'
 import type { EisenhowerPaneConfig, EisenhowerPanes } from '../models/eisenhower-settings'
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
 import { predicateLineItems, type FilterChip, type FilterChipNames } from './filter-chips'
@@ -16,19 +16,6 @@ import { plainLine } from './text'
  * stores only the parts that differ (`settings-store.eisenhowerPanes`).
  */
 
-/** The default quadrants' Urgent / Important. */
-export interface QuadrantFlags {
-  urgent: boolean
-  important: boolean
-}
-
-export const QUADRANT_FLAGS: Record<EisenhowerQuadrant, QuadrantFlags> = {
-  do: { urgent: true, important: true },
-  schedule: { urgent: false, important: true },
-  delegate: { urgent: true, important: false },
-  drop: { urgent: false, important: false },
-}
-
 /** The default pane names. */
 export const QUADRANT_NAME: Record<EisenhowerQuadrant, string> = {
   do: 'Do',
@@ -45,7 +32,7 @@ export const QUADRANT_COLOR: Record<EisenhowerQuadrant, string> = {
   drop: 'var(--color-text-muted)',
 }
 
-/** The plain-words subtitle of a default pane (its {@link QUADRANT_FLAGS} in words). */
+/** The plain-words subtitle of a default pane (its quadrant's filter, {@link QUADRANT_MARKERS}, in words). */
 export const QUADRANT_SUBTITLE: Record<EisenhowerQuadrant, string> = {
   do: 'Urgent and important',
   schedule: 'Important, not urgent',
@@ -53,7 +40,7 @@ export const QUADRANT_SUBTITLE: Record<EisenhowerQuadrant, string> = {
   drop: 'Neither',
 }
 
-/** A default pane's "+" hint (the Yes flags of its {@link QUADRANT_FLAGS}). */
+/** A default pane's "+" hint (the flags its quadrant's filter, {@link QUADRANT_MARKERS}, wants). */
 export const QUADRANT_ADD_HINT: Record<EisenhowerQuadrant, string> = {
   do: 'Opens Quick Add marked urgent and important.',
   schedule: 'Opens Quick Add marked important.',
@@ -61,10 +48,22 @@ export const QUADRANT_ADD_HINT: Record<EisenhowerQuadrant, string> = {
   drop: 'Opens Quick Add.',
 }
 
-/** A position's default filter: its quadrant's Urgent / Important, each Yes or No. */
+/**
+ * The default quadrants — the source of truth for each one's Urgent ×
+ * Important: its filter is what it wants, is not what it doesn't (the two
+ * together when it wants neither). The subtitle, the "+" hint and the
+ * widget's empty lines say it in words.
+ */
+const QUADRANT_MARKERS: Record<EisenhowerQuadrant, MarkersFilter> = {
+  do: [{ values: ['urgent'] }, { values: ['important'] }],
+  schedule: [{ values: ['important'] }, { values: ['urgent'], not: true }],
+  delegate: [{ values: ['urgent'] }, { values: ['important'], not: true }],
+  drop: [{ values: ['urgent', 'important'], not: true }],
+}
+
+/** A position's default filter: its quadrant's Urgent / Important. */
 export function defaultPaneFilter(q: EisenhowerQuadrant): TodoPredicate {
-  const flags = QUADRANT_FLAGS[q]
-  return { ...emptyPredicate(), markers: { urgent: flags.urgent, important: flags.important } }
+  return { ...emptyPredicate(), markers: QUADRANT_MARKERS[q] }
 }
 
 /** A pane as the matrix uses it: its stored settings over its position's defaults. */
@@ -148,7 +147,6 @@ export function withPaneConfig(
 /** A filter's clauses as short values: `Urgent`, `not Important`, `not Delegated`, `Due within the next 7 days`. */
 function chipWords(chip: FilterChip): string[] {
   switch (chip.field) {
-    case 'markers': return chip.value.split(', ')
     case 'dates': return [`${chip.label} ${chip.value}`]
     case 'text': return [`Text ${chip.value}`]
     default: return [chip.value]
@@ -175,10 +173,10 @@ export type PaneEntityField = 'status' | 'people' | 'tags'
 
 /**
  * What a pane's filter writes on a task dropped on it or added with its "+":
- * each Priority marker it tests set Yes (`true`) or No (`false`); the status
+ * each Priority marker it decides (`markerConditions`) set Yes (`true`) or No (`false`); the status
  * when it is "Status is" one status; a person when it is "People is" one
- * person; a tag when it is "Tags is" one tag — only one that exists. A Hot
- * filter, "is not", several values, "No status" / "Unassigned" /
+ * person; a tag when it is "Tags is" one tag — only one that exists. Otherwise
+ * "is not", several values, "No priority" / "No status" / "Unassigned" /
  * "No tags", dates and text imply nothing.
  */
 export interface PaneWrites {

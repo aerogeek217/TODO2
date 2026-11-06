@@ -41,14 +41,14 @@ import {
   type EisenhowerPane,
 } from '../../../utils/eisenhower-panes'
 import { getFilterDefaults, predicateToFilterDefaults } from '../../../utils/filter-defaults'
-import { isHotFilter, markerCondition } from '../../../utils/markers'
+import { markerConditions } from '../../../utils/markers'
 import { noPaneTaskDialog } from '../../../services/task-dialog'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
 import { eisenhowerQuadrantDropId, TASK_DROP_KIND } from '../../../utils/task-dnd'
 import { createValueStore, type ValueStore } from '../../../utils/value-store'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
-import { FocusIcon, HotIcon, ImportantIcon, UrgentIcon } from '../../shared/MarkerIcons'
+import { FocusIcon, ImportantIcon, UrgentIcon } from '../../shared/MarkerIcons'
 import { ChevronDownIcon, PlusIcon } from '../../shared/icons'
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
 import { useChipNames } from '../../shared/filters/filter-menu'
@@ -76,7 +76,7 @@ export interface EisenhowerResult {
   countLabel: string
 }
 
-/** The default panes' empty lines (their `QUADRANT_FLAGS` in words). */
+/** The default panes' empty lines (each quadrant's filter, `eisenhower-panes`' `QUADRANT_MARKERS`, in words). */
 const EMPTY_LINES: Record<EisenhowerQuadrant, [string, string]> = {
   do: ['Nothing urgent and important', 'Drop a task here to mark it urgent and important.'],
   schedule: ['Nothing to schedule', 'Drop a task here to mark it important.'],
@@ -159,15 +159,12 @@ function useQuadrantDrag(tabId: string, panes: readonly EisenhowerPane[], ctx: P
   return drag
 }
 
-/** The marker glyphs of a pane's header: the markers its filter wants (Yes), or the flame for Hot. */
+/** The marker glyphs of a pane's header: the markers its filter wants. */
 function PaneGlyphs({ pane }: { pane: EisenhowerPane }) {
-  const m = pane.filter.markers
-  if (isHotFilter(m)) {
-    return <span className={styles.glyphs} aria-hidden="true"><span className={styles.glyphHot}><HotIcon /></span></span>
-  }
-  const urgent = markerCondition(m, 'urgent') === true
-  const important = markerCondition(m, 'important') === true
-  const focus = markerCondition(m, 'focus') === true
+  const wants = markerConditions(pane.filter.markers)
+  const urgent = wants.urgent === true
+  const important = wants.important === true
+  const focus = wants.focus === true
   if (!urgent && !important && !focus) return null
   return (
     <span className={styles.glyphs} aria-hidden="true">

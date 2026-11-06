@@ -58,6 +58,20 @@ const openEditor = async (p: Page) => {
   await row(p).locator('span[data-task-title="Alpha"]').dblclick()
   await expect(editor(p)).toBeVisible()
 }
+/**
+ * Saves a status update `CANARY` from the editor (opened if it isn't) and
+ * waits for it in storage. Its write starts after whatever the close before
+ * it started, and the database runs them in order, so once it is stored any
+ * write that close made has landed too: what is stored then is final (a
+ * settle signal, not a timeout that a late write could outlast).
+ */
+const canaryUpdate = async (p: Page) => {
+  if (!(await editor(p).isVisible())) await openEditor(p)
+  await editor(p).getByRole('button', { name: '+ Add update' }).click()
+  await addUpdate(p).getByRole('textbox', { name: 'New status update', exact: true }).fill('CANARY')
+  await esc(p)
+  await expect.poll(async () => (await updates(p)).includes('CANARY')).toBe(true)
+}
 
 for (const [how, dismiss] of DISMISS) {
   test.describe(`${how} saves`, () => {
@@ -143,8 +157,8 @@ test('the Add update popover: Cancel drops what was typed', async ({ page }) => 
   await addUpdate(page).getByRole('textbox', { name: 'New status update', exact: true }).fill('TYPED')
   await addUpdate(page).getByRole('button', { name: 'Cancel' }).click()
   await expect(addUpdate(page)).toBeHidden()
-  await page.waitForTimeout(200)
-  expect(await updates(page)).toEqual(['old status'])
+  await canaryUpdate(page)
+  expect(await updates(page)).toEqual(['old status', 'CANARY'])
 })
 
 test('the Add update popover: a day that isn’t one holds the close, saying so', async ({ page }) => {
@@ -156,8 +170,23 @@ test('the Add update popover: a day that isn’t one holds the close, saying so'
   await expect(addUpdate(page).getByText('Fix the day, or close again to discard this update.')).toBeVisible()
   await esc(page)
   await expect(addUpdate(page)).toBeHidden()
-  await page.waitForTimeout(200)
-  expect(await updates(page)).toEqual(['old status'])
+  await canaryUpdate(page)
+  expect(await updates(page)).toEqual(['old status', 'CANARY'])
+})
+
+test('the Add update popover: a press on the editor’s × with a day that isn’t one holds — the editor stays (cr31 T6)', async ({ page }) => {
+  await openEditor(page)
+  await editor(page).getByRole('button', { name: '+ Add update' }).click()
+  await addUpdate(page).getByRole('textbox', { name: 'New status update', exact: true }).fill('TYPED')
+  await addUpdate(page).getByRole('textbox', { name: 'New status update’s day' }).fill('nonsense')
+  const close = editor(page).getByRole('button', { name: 'Close' }).first()
+  await close.click()
+  await expect(addUpdate(page).getByText('Fix the day, or close again to discard this update.')).toBeVisible()
+  await expect(editor(page)).toBeVisible()
+  // Pressed again: the update goes, and the editor closes.
+  await close.click()
+  await expect(addUpdate(page)).toBeHidden()
+  await expect(editor(page)).toBeHidden()
 })
 
 test('the task editor closing saves a typed subtask and an entry being edited; Esc on the entry cancels it', async ({ page }) => {
@@ -176,8 +205,9 @@ test('the task editor closing saves a typed subtask and an entry being edited; E
   await esc(page)
   await expect(editor(page)).toBeVisible()
   await clickOff(page)
-  await page.waitForTimeout(200)
-  expect(await updates(page)).toEqual(['EDITED'])
+  await expect(editor(page)).toHaveCount(0)
+  await canaryUpdate(page)
+  expect(await updates(page)).toEqual(['EDITED', 'CANARY'])
 })
 
 test('the date filter: an Is not with no range yet is still chosen when the panel opens again', async ({ page }) => {

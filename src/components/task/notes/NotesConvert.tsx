@@ -25,19 +25,12 @@ import {
 import { draftFromEditor, draftFromResolved, draftFromText, type DraftContext, type EditorTaskFields, type TaskDraft } from '../../../services/task-draft'
 import { createTasksFromDrafts } from '../../../services/note-tasks'
 import { createTaskFromDraft } from '../../../services/create-task'
+import { noteSubtaskDrafts, type NoteSubtaskTarget } from '../../../services/note-subtasks'
 import { QuickAddBar, type QuickAddDraft } from '../QuickAddBar'
 import { ConfirmDialog } from '../../shared/Dialog'
 import { TaskEditPopup } from '../TaskEditPopup'
 import { convertActionLabel, plural } from './convert-action-label'
 import { NotesConvertPreview, type PreviewRow } from './NotesConvertPreview'
-
-/** Marks the body while any convert dialog is open (hosts ignore outside clicks / Esc then). */
-export const NOTES_CONVERT_ATTR = 'data-notes-convert'
-
-/** Whether a notes convert dialog (preview, task popup, remove prompt) is open. */
-export function isNotesConvertOpen(): boolean {
-  return document.querySelector(`[${NOTES_CONVERT_ATTR}]`) !== null
-}
 
 interface CreatedLine {
   line: ConvertLine
@@ -47,7 +40,7 @@ interface CreatedLine {
 
 type ConvertState =
   | { kind: 'quick'; line: ConvertLine }
-  | { kind: 'single'; line: ConvertLine; draft: TaskDraft }
+  | { kind: 'single'; line: ConvertLine; draft: TaskDraft; typed?: boolean }
   | {
     kind: 'preview'
     rows: PreviewRow[]
@@ -153,6 +146,8 @@ export interface NotesConvertOptions {
    */
   flush?: () => void | Promise<void>
   onToast?: (message: string) => void
+  /** A task's notes: lines become that task's subtasks, at once, instead of tasks. */
+  subtaskTarget?: NoteSubtaskTarget
 }
 
 /**
@@ -170,8 +165,13 @@ export interface NotesConvertOptions {
  * (cr28): they go with the line on Remove, and on Keep too (their text now
  * lives in the task). The task create is its own undo step (the snackbar's
  * Undo deletes the tasks and leaves the note as it is).
+ *
+ * With a `subtaskTarget` (a task's notes) every one of those converts its lines
+ * to that task's subtasks at once: a subtask is a title and a done state, so
+ * there is nothing to fill in or preview. The lines turn `✓` (or go, with the
+ * setting) in the same undo step as the subtasks.
  */
-export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: NotesConvertOptions) {
+export function useNotesConvert({ viewRef, getText, setText, flush, onToast, subtaskTarget }: NotesConvertOptions) {
   const [state, setState] = useState<ConvertState | null>(null)
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
@@ -236,10 +236,38 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
     viewRef.current?.focus()
   }, [viewRef])
 
+  const convertingRef = useRef(false)
+  const convertToSubtasks = useCallback(async (target: NoteSubtaskTarget, lines: readonly ConvertLine[]) => {
+    if (convertingRef.current) return
+    convertingRef.current = true
+    try {
+      // What was typed is its own edit, before the group opens.
+      await flush?.()
+      let missing = 0
+      await target(noteSubtaskDrafts(lines), async () => {
+        missing = useSettingsStore.getState().removeConvertedLines
+          ? removeLines(lines)
+          : markConverted(lines.map((line) => ({ line, title: line.body })))
+        await flush?.()
+      })
+      if (missing > 0) onToast?.(`${plural(missing, 'line was', 'lines were')} changed meanwhile and left as ${missing === 1 ? 'it is' : 'they are'}`)
+    } catch (err) {
+      // A note save or the group itself failed (the callers don't await this).
+      console.error('Converting note lines to subtasks failed:', err)
+      onToast?.('Couldn’t convert the lines to subtasks')
+    } finally {
+      convertingRef.current = false
+    }
+  }, [flush, removeLines, markConverted, onToast])
+
   const openSingle = useCallback((line: ConvertLine) => {
+    if (subtaskTarget) {
+      void convertToSubtasks(subtaskTarget, [line])
+      return
+    }
     void flush?.()
     setState({ kind: 'quick', line })
-  }, [flush])
+  }, [flush, subtaskTarget, convertToSubtasks])
 
   /** Alt+T: the caret line. False when it can't be converted (blank / already `✓`). */
   const convertLine = useCallback((view: EditorView): boolean => {
@@ -272,6 +300,10 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
       return
     }
     if (lines.length === 0) return
+    if (subtaskTarget) {
+      void convertToSubtasks(subtaskTarget, lines)
+      return
+    }
     void flush?.()
     const ctx = draftContext()
     setState({
@@ -284,7 +316,7 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
       focusKey: null,
       busy: false,
     })
-  }, [state, viewRef, currentText, openSingle, flush])
+  }, [state, viewRef, currentText, openSingle, flush, subtaskTarget, convertToSubtasks])
 
   const editorCtx = useCallback(() => ({
     people: usePersonStore.getState().people,
@@ -331,7 +363,8 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
       close()
       return
     }
-    setState({ ...state, busy: true })
+    // Functional: rows may be edited or checked while the create runs.
+    setState((s) => (s?.kind === 'preview' ? { ...s, busy: true } : s))
     try {
       const created = await createTasksFromDrafts(rows.map((r) => r.draft), {
         description: `Created ${plural(rows.length, 'task', 'tasks')}`,
@@ -356,7 +389,7 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
     } catch {
       // Nothing was created: the drafts stay, no remove / keep prompt.
       onToast?.('Failed to create the tasks')
-      setState({ ...state, busy: false })
+      setState((s) => (s?.kind === 'preview' ? { ...s, busy: false } : s))
     }
   }, [state, onToast, removeLines, close])
 
@@ -416,17 +449,19 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
         onClose={close}
         onSubmit={(submitted) => createFromQuickAdd(line, submitted)}
         onOpenFullEditor={(submitted) => {
-          setState({ kind: 'single', line, draft: withLineSubtasks(draftFromText(submitted.rawTitle, draftContext()), line) })
+          // Edited in the bar: the editor asks before that is dropped.
+          setState({ kind: 'single', line, draft: withLineSubtasks(draftFromText(submitted.rawTitle, draftContext()), line), typed: submitted.rawTitle !== line.body })
         }}
       />
     )
   } else if (state?.kind === 'single') {
-    const { line, draft } = state
+    const { line, draft, typed } = state
     content = (
       <TaskEditPopup
         mode="create"
         nested
         seed={draft}
+        seedTyped={typed}
         assignedPeople={[]}
         allPeople={people}
         assignedTags={[]}
@@ -516,9 +551,7 @@ export function useNotesConvert({ viewRef, getText, setText, flush, onToast }: N
     )
   }
 
-  const layer = content
-    ? createPortal(<div {...{ [NOTES_CONVERT_ATTR]: '' }}>{content}</div>, document.body)
-    : null
+  const layer = content ? createPortal(content, document.body) : null
 
   return { convertLine, convertLineAt, convertScope, layer, open: state !== null }
 }

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
 import { seedTaskList, seedWorkspace } from './fixtures/workspace'
+import { readStore } from './fixtures/db'
 
 /**
  * D19 · completion: ticking a task draws its check and sweeps its strike,
@@ -46,34 +47,6 @@ test('under reduced motion the row leaves at once, with the snackbar', async ({ 
   await expect(snackbar(page)).toBeVisible()
 })
 
-test('a completed row lingers, then folds out of a dashboard section; the count moves at once', async ({ page }) => {
-  await seedWorkspace(page, {
-    tasks: [
-      { title: 'Fix the outage', urgent: true, important: true, dueInDays: 0 },
-      { title: 'Collect sign-offs', urgent: true, important: true, dueInDays: 1 },
-      { title: 'Plan learning time', urgent: true, important: true, dueInDays: 2 },
-    ],
-    layouts: [{
-      name: 'Dash',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'hot' }] } }] }] }],
-    }],
-  })
-  const hot = page.locator('[data-dash-section="hot"]')
-  await expect(hot.getByTestId('dash-section-count')).toHaveText('3')
-  const done = hot.locator('[data-row-todo]', { has: page.locator('span[data-task-title="Collect sign-offs"]') })
-  await done.getByRole('checkbox', { name: 'Mark complete' }).click()
-
-  // Still there, completed, lingering — the count has already moved.
-  await expect(done.getByRole('checkbox', { name: 'Mark incomplete' })).toBeChecked()
-  await expect(hot.locator('[data-leaving="stay"]')).toHaveCount(1)
-  await expect(hot.getByTestId('dash-section-count')).toHaveText('2')
-
-  // Then it folds (polled finely: the fold lasts 180 ms), and drops out.
-  await expect.poll(() => hot.locator('[data-leaving="fold"]').count(), { intervals: [20] }).toBe(1)
-  await expect.poll(() => rowTitles(hot)).toEqual(['Fix the outage', 'Plan learning time'])
-  await expect(hot.locator('[data-leaving]')).toHaveCount(0)
-})
-
 test('a stale row lingers too, though completing it moves its modified date to now', async ({ page }) => {
   await seedWorkspace(page, {
     tasks: [
@@ -94,4 +67,42 @@ test('a stale row lingers too, though completing it moves its modified date to n
   await expect(stale.locator('[data-leaving="stay"]')).toHaveCount(1)
   expect(await rowTitles(stale)).toEqual(['Plan the offsite', 'Collect sign-offs', 'Clean the garage'])
   await expect.poll(() => rowTitles(stale)).toEqual(['Plan the offsite', 'Clean the garage'])
+})
+
+test('completing a task from its editor closes the editor; the row folds with the snackbar, whose Undo brings it back', async ({ page }) => {
+  await seedTaskList(page, { tasks: TASKS })
+  const done = row(page, 'Collect sign-offs')
+  await done.locator('span[data-task-title="Collect sign-offs"]').dblclick()
+  const editor = page.getByRole('dialog', { name: 'Edit task' })
+  await editor.locator('input[type="checkbox"]').first().click()
+  await expect(editor).toHaveCount(0)
+  await expect(snackbar(page)).toBeVisible()
+  await expect(done).toHaveCount(0)
+
+  await page.getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(done).toBeVisible()
+})
+
+/**
+ * A recurring task's finished occurrence lingers shown completed while the
+ * task is open on its next date: a tick on that lingering row does nothing,
+ * never a second advance that skips an occurrence (cr31 T4).
+ */
+test('a tick on a recurring task’s lingering occurrence doesn’t advance it again', async ({ page }) => {
+  await seedTaskList(page, { tasks: [{ title: 'Weekly sync', dueInDays: 3, recurrence: 'weekly' }] })
+  const due = async () => {
+    const rows = await readStore<{ title: string; dueDate?: string | Date }>(page, 'todos')
+    const t = rows.find((r) => r.title === 'Weekly sync')
+    return t?.dueDate ? new Date(t.dueDate).getTime() : null
+  }
+  const first = await due()
+  const r = row(page, 'Weekly sync')
+  await r.getByRole('checkbox', { name: 'Mark complete' }).click()
+  await expect(page.locator('[data-leaving="stay"]')).toHaveCount(1)
+  await r.getByRole('checkbox', { name: 'Mark incomplete' }).click()
+  // The occurrence folds away and the next one takes its place.
+  await expect(page.locator('[data-leaving]')).toHaveCount(0)
+  await expect(r.getByRole('checkbox', { name: 'Mark complete' })).toBeVisible()
+  const DAY = 24 * 60 * 60 * 1000
+  await expect.poll(async () => Math.round((((await due()) ?? 0) - (first ?? 0)) / DAY)).toBe(7)
 })

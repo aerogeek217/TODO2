@@ -270,38 +270,9 @@
 }
 
 /* In a row (a marker's Any · Yes · No): sized to its labels, no margin. */
-.modeToggleInline {
-  flex-shrink: 0;
-  margin: 0;
-  grid-auto-columns: auto;
-}
-
-.modeToggleInline .modeSegment {
-  height: 22px;
-  padding: 0 8px;
-  font-size: 11px;
-}
-
-.modeToggleTouch.modeToggleInline .modeSegment {
-  height: 32px;
-  padding: 0 12px;
-  font-size: 13px;
-}
-
-/* Shown but not pickable (the markers while Hot is on). */
-.modeToggleDisabled .modeSegment {
-  cursor: default;
-}
-
-.modeToggleDisabled .modeSegment:hover:not(.modeSegmentOn) {
-  background: transparent;
-  color: var(--color-text-secondary);
-}
-
 /* A list's picker on a touch screen (Edit list's sheet, + Filter). */
 @media (pointer: coarse) {
-  .modeSegment,
-  .modeToggleInline .modeSegment {
+  .modeSegment {
     height: 32px;
   }
 }

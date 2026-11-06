@@ -8,8 +8,9 @@ import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore, type UndoGroupToken } from '../stores/undo-store'
 import { formatDateNumeric } from '../utils/date'
-import { shortTitle as short } from '../utils/text'
+import { collapseWhitespace, shortTitle as short } from '../utils/text'
 import { compareSubtasks } from '../utils/subtasks'
+import { SUBTASK_TITLE_MAX } from '../models/subtask'
 
 /**
  * Converting both ways between a task and a subtask (cr28, T3).
@@ -56,19 +57,31 @@ export function droppedFields(todoId: number): string[] {
   return out
 }
 
-/** The prompt for a conversion that drops `dropped` (and moves `ownSubtasks` subtasks). */
-export function makeSubtaskPrompt(title: string, parentTitle: string, dropped: readonly string[], ownSubtasks: number) {
+/** Whether `title` is longer than a subtask's can be, so Make subtask of… would cut it (`subtaskTitle`). */
+export function titleTooLongForSubtask(title: string): boolean {
+  return collapseWhitespace(title).length > SUBTASK_TITLE_MAX
+}
+
+/**
+ * The prompt for a conversion that drops `dropped` (and moves `ownSubtasks`
+ * subtasks); `titleCut`: the title is longer than a subtask's can be, and
+ * only its first `SUBTASK_TITLE_MAX` characters are kept.
+ */
+export function makeSubtaskPrompt(title: string, parentTitle: string, dropped: readonly string[], ownSubtasks: number, titleCut = false) {
   const moved = ownSubtasks > 0 ? ` Its ${plural(ownSubtasks, 'subtask moves', 'subtasks move')} to “${short(parentTitle)}” too.` : ''
+  const keeps = titleCut ? `the first ${SUBTASK_TITLE_MAX} characters of its title` : 'its title'
+  const goes = dropped.length > 0 ? ` These go with the task: ${dropped.join(' · ')}.` : ''
   return {
     title: `Make “${short(title)}” a subtask of “${short(parentTitle)}”?`,
-    message: `A subtask is a line of “${short(parentTitle)}”’s checklist: it keeps its title and whether it’s done. These go with the task: ${dropped.join(' · ')}.${moved}`,
+    message: `A subtask is a line of “${short(parentTitle)}”’s checklist: it keeps ${keeps} and whether it’s done.${goes}${moved}`,
     confirmLabel: 'Make subtask',
   }
 }
 
 /**
  * Makes task `todoId` a subtask of task `parentId`: asks first when the task
- * holds more than its title (`droppedFields`), then, as one undo step named
+ * holds more than its title (`droppedFields`) or its title is longer than a
+ * subtask's can be (it is cut, `titleTooLongForSubtask`), then, as one undo step named
  * `Made “X” a subtask of “Y”`: its own subtasks move to the parent (after
  * the parent's own), a subtask with its title and done state is added last,
  * and the task is deleted. Resolves whether it was done (false: cancelled,
@@ -82,8 +95,9 @@ export async function makeSubtaskOf(todoId: number, parentId: number): Promise<b
   if (!todo || !parent || todo.id === parent.id) return false
   const own = [...(useSubtaskStore.getState().byTodo.get(todo.id) ?? [])].sort(compareSubtasks)
   const dropped = droppedFields(todo.id)
-  if (dropped.length > 0) {
-    const ok = await useUIStore.getState().askConfirmation(makeSubtaskPrompt(todo.title, parent.title, dropped, own.length))
+  const titleCut = titleTooLongForSubtask(todo.title)
+  if (dropped.length > 0 || titleCut) {
+    const ok = await useUIStore.getState().askConfirmation(makeSubtaskPrompt(todo.title, parent.title, dropped, own.length, titleCut))
     if (!ok) return false
   }
   const name = `Made “${short(todo.title)}” a subtask of “${short(parent.title)}”`
@@ -159,8 +173,10 @@ export async function makeTaskFromSubtask(subtaskId: number): Promise<number | n
         await useUndoStore.getState().abortGroup(group, name)
         return null
       }
-      if (isCompleted) await useTodoStore.getState().update(created, { isCompleted: true })
-      if (!await useSubtaskStore.getState().remove(id)) {
+      // A failed completion (`update` resolves false) or removal takes the
+      // step back whole: the done subtask is never lost to an open task.
+      const done = !isCompleted || await useTodoStore.getState().update(created, { isCompleted: true })
+      if (!done || !await useSubtaskStore.getState().remove(id)) {
         const clean = await useUndoStore.getState().abortGroup(group, name)
         useUndoStore.getState().notify(clean ? 'Couldn’t make it a task. Nothing changed.' : 'Couldn’t make it a task. Undo takes back what was done.')
         return null

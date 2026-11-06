@@ -27,9 +27,10 @@ import {
  *
  * Structural invariants every reducer keeps: a column always has at least one
  * cell (a column losing its last cell is removed); a cell losing its last tab
- * is removed (cells are only empty when made by `splitCell`); a band losing
- * its last tab is removed (its key goes); ids are unique across columns,
- * cells, bands and tabs.
+ * is removed (cells are only empty when made by `splitCell`); a removal that
+ * leaves a column only collapsed cells expands one, so the column stays filled;
+ * a band losing its last tab is removed (its key goes); ids are unique across
+ * columns, cells, bands and tabs.
  */
 
 /** Mints a fresh id for a new column, cell or band. */
@@ -279,7 +280,11 @@ function isPositive(n: unknown): n is number {
   return typeof n === 'number' && Number.isFinite(n) && n > 0
 }
 
-/** Replaces one cell; a cell given as `null` is removed (and its column, when that empties). */
+/**
+ * Replaces one cell; a cell given as `null` is removed (and its column, when
+ * that empties). When the removed cell was the column's last expanded one, the
+ * cell above it (else the new first) expands: nothing else would fill the column.
+ */
 function setCell<L extends WorkspaceLayout>(layout: L, loc: CellLocation, cell: LayoutCell | null): L {
   const col = layout.columns[loc.colIdx]
   if (!col) return layout
@@ -288,7 +293,10 @@ function setCell<L extends WorkspaceLayout>(layout: L, loc: CellLocation, cell: 
   }
   const cells = removeAt(col.cells, loc.cellIdx)
   if (cells.length === 0) return withColumns(layout, removeAt(layout.columns, loc.colIdx))
-  return withColumns(layout, replaceAt(layout.columns, loc.colIdx, { ...col, cells }))
+  const next = withColumns(layout, replaceAt(layout.columns, loc.colIdx, { ...col, cells }))
+  const lostLastExpanded = col.cells[loc.cellIdx]?.collapsed !== true && cells.every((c) => c.collapsed === true)
+  const heir = cells[loc.cellIdx - 1] ?? cells[0]
+  return lostLastExpanded && heir ? setCellCollapsed(next, heir.id, false) : next
 }
 
 /** The strip part of a panel: what `setPanel` replaces. */

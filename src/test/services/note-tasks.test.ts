@@ -7,6 +7,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { createTasksFromDrafts } from '../../services/note-tasks'
 import type { TaskDraft } from '../../services/task-draft'
+import { addTask } from '../add-task'
 
 const base: TaskDraft = {
   title: 'T', urgent: false, important: false, focus: false,
@@ -32,7 +33,7 @@ async function joins(todoId: number) {
 
 describe('createTasksFromDrafts', () => {
   it('creates the tasks in draft order, last in the list, with the default follow-up', async () => {
-    await useTodoStore.getState().add('Existing')
+    await addTask('Existing')
     const created = await createTasksFromDrafts(
       [{ ...base, title: 'One' }, { ...base, title: 'Two', nextFollowupAt: null }],
       { description: 'Created 2 tasks' },

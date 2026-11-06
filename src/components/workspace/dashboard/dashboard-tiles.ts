@@ -24,7 +24,6 @@ const never = () => false
 
 export const TILES: Record<DashboardTileId, TileDef> = {
   open: { label: 'Open', title: 'Open tasks', glyph: 'open', color: 'var(--color-accent)', litWhen: never },
-  hot: { label: 'Hot', title: 'Hot tasks', glyph: 'hot', color: 'var(--color-danger)', litWhen: aboveZero },
   urgent: { label: 'Urgent', title: 'Urgent tasks', glyph: 'urgent', color: 'var(--color-danger)', litWhen: aboveZero },
   overdue: { label: 'Overdue', title: 'Overdue tasks', glyph: 'overdue', color: 'var(--color-overdue)', litWhen: aboveZero },
   followupDue: { label: 'Follow-up due', title: 'Follow-up due', glyph: 'followup', color: 'var(--color-followup)', litWhen: aboveZero },
@@ -42,7 +41,7 @@ export function tileColors(id: DashboardTileId, count: number): { lit: boolean; 
   return { lit: false, label: muted, glyph: muted, count: count === 0 ? muted : 'var(--color-text-primary)' }
 }
 
-/** A tile's tasks for the task dialog (the Hot section's count opens the Hot tile's). */
+/** A tile's tasks for the task dialog (a section's count may open a tile's). */
 export function tileDrill(id: DashboardTileId, data: DashboardData): DashboardDrill {
   const def = TILES[id]
   return {

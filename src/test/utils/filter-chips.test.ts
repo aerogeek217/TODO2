@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Person, Status, Tag } from '../../models'
 import type { ListDefinition } from '../../models/list-definition'
-import { emptyFilterClauses, emptyPredicate, OR_GROUPS_MAX, type TodoPredicate } from '../../models'
+import { MARKER_CLAUSES_MAX, emptyFilterClauses, emptyPredicate, OR_GROUPS_MAX, type TodoPredicate } from '../../models'
 import { expectWithin } from '../timing'
 import { predicateToCriteria } from '../../utils/filter-criteria'
 import {
@@ -44,12 +44,12 @@ describe('filterChips', () => {
       searchText: ' invoice ',
       statusIds: [1],
       personIds: [1, 2, 3],
-      markers: { important: true as const },
+      markers: [{ values: ['important' as const] }],
       tags: [1],
       dates: { deadline: { match: 'range' as const, start: { kind: 'relative' as const, token: 'today' as const }, end: { kind: 'offset' as const, days: 14 } } },
     }
     expect(filterChips(p, names)).toEqual([
-      { field: 'markers', label: 'Priority', value: 'Important' },
+      { field: 'markers', markerIndex: 0, label: 'Priority', value: 'Important' },
       { field: 'tags', label: 'Tags', value: '#q4' },
       { field: 'people', label: 'People', value: 'Alice, Bob or Cy', tooltip: 'People: Alice, Bob or Cy\nTasks with any of them' },
       { field: 'dates', dateField: 'deadline', label: 'Due', value: 'within the next 14 days' },
@@ -127,31 +127,28 @@ describe('filterChips', () => {
   })
 
   it('a Markers clause reads every tested marker, first among the chips', () => {
-    expect(filterChips({ ...emptyPredicate(), markers: { focus: true } }, names)).toEqual([
-      { field: 'markers', label: 'Priority', value: 'Focus' },
+    expect(filterChips({ ...emptyPredicate(), markers: [{ values: ['focus' as const] }] }, names)).toEqual([
+      { field: 'markers', markerIndex: 0, label: 'Priority', value: 'Focus' },
     ])
-    expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true }, searchText: 'x', statusIds: [1] }, names).map((c) => c.field))
-      .toEqual(['markers', 'status', 'text'])
-    // Display order is Focus › Urgent › Important, whatever the stored order.
-    expect(filterChips({ ...emptyPredicate(), markers: { focus: true, urgent: true } }, names)[0]!.value).toBe('Focus, Urgent')
-    // A No marker reads `not <marker>`, and the tooltip says what it hides.
-    expect(filterChips({ ...emptyPredicate(), markers: { important: false, urgent: true } }, names)[0]).toEqual({
-      field: 'markers', label: 'Priority', value: 'Urgent, not Important',
-      tooltip: 'Priority: Urgent, not Important\nHides tasks that are Important',
+    // A chip per condition, each with its index.
+    expect(filterChips({ ...emptyPredicate(), markers: [{ values: ['focus' as const] }, { values: ['urgent' as const] }], searchText: 'x', statusIds: [1] }, names).map((c) => [c.field, c.markerIndex]))
+      .toEqual([['markers', 0], ['markers', 1], ['status', undefined], ['text', undefined]])
+    // Several values read with "or", as a Status chip.
+    expect(filterChips({ ...emptyPredicate(), markers: [{ values: ['focus' as const, 'urgent' as const] }] }, names)[0]).toEqual({
+      field: 'markers', markerIndex: 0, label: 'Priority', value: 'Focus or Urgent',
+      tooltip: 'Priority: Focus or Urgent\nTasks with any of them',
     })
-    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: { important: false } })).toBe(true)
-    expect(describeFilters(filterChips({ ...emptyPredicate(), markers: { urgent: true, important: false } }, names))).toBe('Priority Urgent, not Important')
-    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: { important: true } })).toBe(true)
-    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: {} })).toBe(false)
-    expect(filterChips({ ...emptyPredicate(), markers: {} }, names)).toEqual([])
-  })
-
-  it('a Hot Markers clause reads Hot and narrows', () => {
-    expect(filterChips({ ...emptyPredicate(), markers: 'hot' }, names)).toEqual([
-      { field: 'markers', label: 'Priority', value: 'Hot' },
-    ])
-    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: 'hot' })).toBe(true)
-    expect(clearChipField({ ...emptyPredicate(), markers: 'hot' }, 'markers')).toMatchObject({ markers: null })
+    expect(filterChips({ ...emptyPredicate(), markers: [{ values: ['none' as const] }] }, names)[0]!.value).toBe('No priority')
+    // An "is not" reads `not <marker>`, and the tooltip says what it hides.
+    expect(filterChips({ ...emptyPredicate(), markers: [{ values: ['important' as const], not: true as const }] }, names)[0]).toEqual({
+      field: 'markers', markerIndex: 0, label: 'Priority', value: 'not Important', negated: true,
+      tooltip: 'Priority: not Important\nHides tasks that are Important',
+    })
+    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: [{ values: ['important' as const], not: true as const }] })).toBe(true)
+    expect(describeFilters(filterChips({ ...emptyPredicate(), markers: [{ values: ['urgent' as const] }, { values: ['important' as const], not: true as const }] }, names))).toBe('Priority Urgent · Priority not Important')
+    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: [{ values: ['important' as const] }] })).toBe(true)
+    expect(hasNarrowingFilters({ ...emptyPredicate(), markers: [] })).toBe(false)
+    expect(filterChips({ ...emptyPredicate(), markers: [] }, names)).toEqual([])
   })
 
   it('describeFilters joins chips in words', () => {
@@ -379,7 +376,7 @@ describe('clearChipField', () => {
       ...emptyPredicate(),
       personIds: [1], tags: [2], statusIds: [1], searchText: 'x',
       dates: { deadline: { match: 'range' as const, start: { kind: 'offset' as const, days: 0 }, end: null, includeNoDate: true }, followup: { match: 'unset' as const } },
-      markers: { urgent: true as const },
+      markers: [{ values: ['urgent' as const] }],
     }
     expect(clearChipField(p, 'people').personIds).toBeNull()
     expect(clearChipField(p, 'tags').tags).toBeNull()
@@ -387,7 +384,7 @@ describe('clearChipField', () => {
     expect(clearChipField(p, 'text').searchText).toBe('')
     expect(clearChipField(p, 'markers')).toMatchObject({ markers: null, personIds: [1] })
     const dates = clearChipField(p, 'dates')
-    expect(dates).toMatchObject({ dates: {}, personIds: [1], markers: { urgent: true } })
+    expect(dates).toMatchObject({ dates: {}, personIds: [1], markers: [{ values: ['urgent' as const] }] })
   })
 
   it('a date chip clears only its date type', () => {
@@ -529,7 +526,7 @@ describe('multi-value chips read with "or"', () => {
 })
 
 describe('a filter line with or groups', () => {
-  const hot = { ...emptyFilterClauses(), markers: 'hot' as const }
+  const hot = { ...emptyFilterClauses(), markers: [{ values: ['focus' as const] }] }
   const grouped: TodoPredicate = {
     ...emptyPredicate(),
     statusIds: [1],
@@ -539,13 +536,13 @@ describe('a filter line with or groups', () => {
   it('the own chips first, then each or group as its chips', () => {
     const items = predicateLineItems(grouped, names)
     expect(items.map((i) => (i.kind === 'chip' ? i.chip.value : i.chips.map((c) => c.value)))).toEqual([
-      'Waiting', ['Hot', 'Alice or Bob'], ['No tags'],
+      'Waiting', ['Focus', 'Alice or Bob'], ['No tags'],
     ])
     expect(items.map((i) => (i.kind === 'orGroup' ? i.index : null))).toEqual([null, 0, 1])
   })
 
   it('in words: an or group joins its chips with "or", items with " · "', () => {
-    expect(describeFilters(predicateLineItems(grouped, names))).toBe('Status Waiting · Priority Hot or People Alice or Bob · Tags No tags')
+    expect(describeFilters(predicateLineItems(grouped, names))).toBe('Status Waiting · Priority Focus or People Alice or Bob · Tags No tags')
     expect(describeFilters(filterChips(grouped, names))).toBe('Status Waiting')
   })
 
@@ -583,7 +580,9 @@ describe('a filter line with or groups', () => {
   })
 
   it('the fields a group holds', () => {
-    expect([...heldFields({ ...hot, personIds: [1], statusIds: [1] })]).toEqual(['markers', 'people', 'status'])
+    expect([...heldFields({ ...hot, personIds: [1], statusIds: [1] })]).toEqual(['people', 'status'])
+    // Priority repeats, up to the cap.
+    expect(heldFields({ ...emptyFilterClauses(), markers: Array.from({ length: MARKER_CLAUSES_MAX }, () => ({ values: ['focus' as const] })) }).has('markers')).toBe(true)
     expect(heldFields(emptyFilterClauses()).size).toBe(0)
   })
 

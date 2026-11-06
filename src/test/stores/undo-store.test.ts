@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { useUndoStore } from '../../stores/undo-store'
+import { UndoGone, useUndoStore } from '../../stores/undo-store'
 
 describe('useUndoStore', () => {
   beforeEach(() => {
@@ -543,6 +543,55 @@ describe('useUndoStore — an undo or redo that fails', () => {
       expect(secondA.undo).toHaveBeenCalledTimes(1)
     })
 
+    it('an undo pressed while a group is still writing waits, then takes back the whole step; its redo stays (cr31 L5)', async () => {
+      let release!: () => void
+      const held = new Promise<void>((r) => { release = r })
+      const before = makeEntry('Before')
+      const a = makeEntry('a')
+      const b = makeEntry('b')
+      useUndoStore.getState().push(before)
+      const run = useUndoStore.getState().runGroup('Drop', async () => {
+        useUndoStore.getState().push(a)
+        await held
+        useUndoStore.getState().push(b)
+      })
+      await Promise.resolve()
+      const undo = useUndoStore.getState().undo()
+      await Promise.resolve()
+      expect(a.undo).not.toHaveBeenCalled()
+      release()
+      await run
+      await undo
+      expect(b.undo).toHaveBeenCalledTimes(1)
+      expect(a.undo).toHaveBeenCalledTimes(1)
+      expect(before.undo).not.toHaveBeenCalled()
+      expect(useUndoStore.getState().undoStack).toEqual([before])
+      expect(useUndoStore.getState().redoStack.map((e) => e.description)).toEqual(['Drop'])
+      await useUndoStore.getState().redo()
+      expect(a.redo).toHaveBeenCalledTimes(1)
+      expect(b.redo).toHaveBeenCalledTimes(1)
+    })
+
+    it('an undo pressed before a queued group starts waits for it too, never splitting it (cr31 L5)', async () => {
+      let release!: () => void
+      const held = new Promise<void>((r) => { release = r })
+      const before = makeEntry('Before')
+      useUndoStore.getState().push(before)
+      const first = useUndoStore.getState().runGroup('First', async () => {
+        useUndoStore.getState().push(makeEntry('first'))
+        await held
+      })
+      const second = useUndoStore.getState().runGroup('Second', async () => {
+        useUndoStore.getState().push(makeEntry('second'))
+      })
+      await Promise.resolve()
+      const undo = useUndoStore.getState().undo()
+      release()
+      await Promise.all([first, second, undo])
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Before', 'First'])
+      expect(useUndoStore.getState().redoStack.map((e) => e.description)).toEqual(['Second'])
+    })
+
     it('a group that failed doesn’t stop the next', async () => {
       const failed = useUndoStore.getState().runGroup('Bad', async () => { throw new Error('boom') })
       const next = useUndoStore.getState().runGroup('Good', async () => { useUndoStore.getState().push(makeEntry('x')) })
@@ -565,3 +614,42 @@ describe('useUndoStore — an undo or redo that fails', () => {
     expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Slow', 'Later'])
   })
 })
+
+describe('useUndoStore — an entry whose subject is gone (UndoGone, cr31 L6)', () => {
+  const entry = (description: string, undo: () => Promise<void> = async () => {}) =>
+    ({ description, undo: vi.fn(undo), redo: vi.fn(async () => {}) })
+
+  beforeEach(() => { useUndoStore.getState().clear() })
+
+  it('an undo that throws it drops the entry with the notice; the next undo reaches the one before', async () => {
+    const before = entry('Before')
+    const gone = entry('Gone', async () => { throw new UndoGone('That task was deleted.') })
+    useUndoStore.getState().push(before)
+    useUndoStore.getState().push(gone)
+    await useUndoStore.getState().undo()
+    expect(useUndoStore.getState().undoStack).toEqual([before])
+    expect(useUndoStore.getState().redoStack).toEqual([])
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'That task was deleted.', notice: true })
+    await useUndoStore.getState().undo()
+    expect(before.undo).toHaveBeenCalledTimes(1)
+  })
+
+  it('a compound step skips its gone parts, and is gone only when every part is', async () => {
+    const kept = entry('kept')
+    const gone = entry('gone', async () => { throw new UndoGone('gone') })
+    await useUndoStore.getState().runGroup('Mixed', async () => {
+      useUndoStore.getState().push(kept)
+      useUndoStore.getState().push(gone)
+    })
+    await useUndoStore.getState().undo()
+    expect(kept.undo).toHaveBeenCalledTimes(1)
+    expect(useUndoStore.getState().redoStack.map((e) => e.description)).toEqual(['Mixed'])
+
+    const allGone = entry('all gone', async () => { throw new UndoGone('That task was deleted.') })
+    await useUndoStore.getState().runGroup('Gone', async () => { useUndoStore.getState().push(allGone) })
+    await useUndoStore.getState().undo()
+    expect(useUndoStore.getState().undoStack).toEqual([])
+    expect(useUndoStore.getState().snackbar?.description).toBe('That task was deleted.')
+  })
+})
+

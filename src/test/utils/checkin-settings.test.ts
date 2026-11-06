@@ -38,12 +38,12 @@ describe('the check-in filter', () => {
   })
 
   it('reading the stored filter says when people went from an or group', () => {
-    const stored = JSON.stringify({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: 'hot' }] })
+    const stored = JSON.stringify({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: [{ values: ['focus'] }] }] })
     expect(readCheckinFilterSetting(stored)).toEqual({
-      filter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: 'hot' }] },
+      filter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }] }] },
       fixes: ['people filter dropped'],
     })
-    const clean = formatCheckinFilterSetting({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: 'hot' }] })
+    const clean = formatCheckinFilterSetting({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }] }] })
     expect(readCheckinFilterSetting(clean).fixes).toEqual([])
   })
 
@@ -52,8 +52,8 @@ describe('the check-in filter', () => {
     const due = { match: 'set' as const }
     expect(checkinFilterOf({ ...emptyPredicate(), dates: { deadline: due, completed: range } }))
       .toEqual({ ...emptyPredicate(), dates: { deadline: due } })
-    expect(checkinFilterOf({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), dates: { completed: range } }, { ...emptyFilterClauses(), markers: 'hot' }] }))
-      .toEqual({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: 'hot' }] })
+    expect(checkinFilterOf({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), dates: { completed: range } }, { ...emptyFilterClauses(), markers: [{ values: ['focus'] }] }] }))
+      .toEqual({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }] }] })
     expect(isNoCheckinFilter({ ...emptyPredicate(), dates: { completed: range } })).toBe(true)
     const stored = JSON.stringify({ ...emptyPredicate(), dates: { deadline: due, completed: range } })
     expect(readCheckinFilterSetting(stored)).toEqual({
@@ -66,7 +66,7 @@ describe('the check-in filter', () => {
   it('no filter: nothing narrows (people and completed tasks don’t count)', () => {
     expect(isNoCheckinFilter(emptyPredicate())).toBe(true)
     expect(isNoCheckinFilter({ ...emptyPredicate(), personIds: [3], showCompleted: true })).toBe(true)
-    expect(isNoCheckinFilter({ ...emptyPredicate(), markers: 'hot' })).toBe(false)
+    expect(isNoCheckinFilter({ ...emptyPredicate(), markers: [{ values: ['focus'] }] })).toBe(false)
   })
 
   it('two filters are equal when they pick the same tasks (id lists as sets)', () => {

@@ -15,6 +15,7 @@ import { RecentTaskPill } from './components/overlays/RecentTaskPill'
 import { UndoSnackbar } from './components/overlays/UndoSnackbar'
 import { ConfirmPromptHost } from './components/overlays/ConfirmPromptHost'
 import { FollowupPopoverHost } from './components/overlays/FollowupPopoverHost'
+import { RowPopoverHost } from './components/overlays/RowPopoverHost'
 import { TaskPickerHost } from './components/overlays/TaskPickerHost'
 import { useKeyboardShortcuts } from './hooks/use-keyboard-shortcuts'
 import { useIsMobile } from './hooks/use-is-mobile'
@@ -35,7 +36,7 @@ import { createQuickAddTask } from './services/create-task'
 import { getFilterDefaults, markerFlags, withoutMarkers } from './utils/filter-defaults'
 import { checkTooNewDB, checkTooOldDB } from './services/migration-check'
 import type { TooNewDBInfo, TooOldDBInfo } from './services/migration-check'
-import { DatabaseTooNewDialog, DatabaseTooOldDialog } from './components/overlays/DatabaseVersionDialog'
+import { DatabaseChangedElsewhereGuard, DatabaseTooNewDialog, DatabaseTooOldDialog } from './components/overlays/DatabaseVersionDialog'
 import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
 import { StartupPurgePrompt } from './components/overlays/StartupPurgePrompt'
@@ -469,7 +470,9 @@ export default function App() {
       <FileMigrationOverlay />
       <TaskPickerHost />
       <FollowupPopoverHost />
+      <RowPopoverHost />
       <ConfirmPromptHost />
+      <DatabaseChangedElsewhereGuard />
     </ErrorBoundary>
   )
 }

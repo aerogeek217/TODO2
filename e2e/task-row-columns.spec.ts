@@ -230,7 +230,7 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
       name: 'Main',
       columns: [
         { id: 'a', weight: 1, cells: [{ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] }] },
-        { id: 'b', weight: 1, cells: [{ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', detailsWidth: 200, dashboard: { tiles: [], sections: [{ id: 'hot' }, { id: 'followup' }] } }] }] },
+        { id: 'b', weight: 1, cells: [{ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', detailsWidth: 200, dashboard: { tiles: [], sections: [{ id: 'followup' }] } }] }] },
       ],
     }],
   })
@@ -260,10 +260,9 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
   // The dashboard keeps its own.
   for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
 
-  // The dashboard's Hot and Needs follow-up sections share theirs live too.
-  const hot = page.locator('[data-dash-section="hot"]')
+  // The dashboard's Needs follow-up section shares its value live too.
   const followup = page.locator('[data-dash-section="followup"]')
-  const dFrom = await pointIn(divider(hot))
+  const dFrom = await pointIn(divider(followup))
   await page.mouse.move(dFrom.x, dFrom.y)
   await page.mouse.down()
   await page.mouse.move(dFrom.x - 20, dFrom.y, { steps: 3 })

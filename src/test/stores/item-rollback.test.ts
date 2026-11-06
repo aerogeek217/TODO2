@@ -16,6 +16,7 @@ import { todoRepository } from '../../data/todo-repository'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 interface Held {
   /** Rejects the held write. */
@@ -225,7 +226,7 @@ describe('task bulk writes', () => {
   async function oneTask() {
     vi.useFakeTimers({ toFake: ['Date'] })
     vi.setSystemTime(new Date(2026, 9, 1, 9, 0))
-    const id = await useTodoStore.getState().add('Call')
+    const id = await addTask('Call')
     vi.setSystemTime(new Date(2026, 9, 1, 10, 0))
     return id
   }
@@ -285,5 +286,33 @@ describe('task bulk writes', () => {
     held.fail()
     await expect(failing).rejects.toThrow('write failed')
     expect(mem(id)).toMatchObject({ title: 'Call back', statusId: undefined, modifiedAt: edited })
+  })
+
+  it('a failed priority-flags write keeps a flag set on the task meanwhile, in step with the database (cr31 L2)', async () => {
+    const id = await oneTask()
+    const held = holdNextWriteToFail(todoRepository, 'bulkUpdate')
+    const failing = useTodoStore.getState().setMarkerFlags([{ todoId: id, urgent: true }], 'Move to Do')
+    vi.setSystemTime(new Date(2026, 9, 1, 11, 0))
+    await useTodoStore.getState().bulkSetFocus([id], true)
+    const focused = mem(id).modifiedAt
+    held.fail()
+    await expect(failing).rejects.toThrow('write failed')
+    expect(mem(id)).toMatchObject({ urgent: undefined, focus: true, modifiedAt: focused })
+    const stored = await todoRepository.getById(id)
+    expect(stored?.focus).toBe(true)
+    expect(stored?.urgent).toBeUndefined()
+  })
+
+  it('undoing a priority-flags write puts back only the flags it changed (cr31 L2)', async () => {
+    const id = await oneTask()
+    await useTodoStore.getState().setMarkerFlags([{ todoId: id, urgent: true }], 'Move to Do')
+    // Focus set with no undo step of its own (a sync-file load).
+    await todoRepository.update(id, { focus: true })
+    await useTodoStore.getState().loadAll()
+    await useUndoStore.getState().undo()
+    expect(mem(id)).toMatchObject({ urgent: undefined, focus: true })
+    const stored = await todoRepository.getById(id)
+    expect(stored?.urgent).toBeUndefined()
+    expect(stored?.focus).toBe(true)
   })
 })

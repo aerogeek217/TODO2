@@ -8,6 +8,7 @@ import { predicateToCriteria } from '../../utils/filter-criteria'
 import { getFilterDefaults, markerFlags, predicateToFilterDefaults, withoutMarkers } from '../../utils/filter-defaults'
 import { defsEqual } from '../../utils/list-def-equal'
 import type { PersistedListDefinition } from '../../models/list-definition'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await db.delete()
@@ -20,8 +21,8 @@ const mem = (id: number) => useTodoStore.getState().todos.find((t) => t.id === i
 
 describe('bulkSetFocus', () => {
   it('puts tasks in focus and takes them out (absent, not false), undoably', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
 
     await useTodoStore.getState().bulkSetFocus([a, b], true)
     expect((await db.todos.get(a))!.focus).toBe(true)
@@ -47,8 +48,8 @@ describe('bulkSetFocus', () => {
 describe('bulkSetUrgent / bulkSetImportant', () => {
   it.each(['urgent', 'important'] as const)('sets and clears %s (absent, not false), one undo step each', async (field) => {
     const set = field === 'urgent' ? useTodoStore.getState().bulkSetUrgent : useTodoStore.getState().bulkSetImportant
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
 
     await set([a, b], true)
     expect((await db.todos.get(a))![field]).toBe(true)
@@ -72,8 +73,8 @@ describe('bulkSetUrgent / bulkSetImportant', () => {
 
 describe('bulkClearDueDate', () => {
   it('removes the due dates in one undo step and shows the undo snackbar', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
     const due = new Date(2026, 9, 12)
     await useTodoStore.getState().bulkSetDeadline([a, b], due)
 
@@ -90,7 +91,7 @@ describe('bulkClearDueDate', () => {
 
 describe('duplicate', () => {
   it('copies the urgent and important flags', async () => {
-    const a = await useTodoStore.getState().add('A')
+    const a = await addTask('A')
     await useTodoStore.getState().bulkSetUrgent([a], true)
     await useTodoStore.getState().bulkSetImportant([a], true)
     const copy = (await useTodoStore.getState().duplicate(a))!
@@ -113,21 +114,20 @@ describe('markers in import validation', () => {
     expect(IMPORT_TABLES.todos.pick({ ...todo, [field]: false })[field]).toBeUndefined()
   })
 
-  it('accepts a Markers filter on a list predicate: known markers set to true (Yes) or false (No); drops any other', () => {
+  it('accepts a Priority filter on a list predicate: conditions of known values; drops any other', () => {
     const def = (markers: unknown) => ({
       id: 1, name: 'L', sortOrder: 0, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers } },
     })
-    expect(validateRow('listDefinitions', def({ focus: true }))).toBe(true)
-    expect(validateRow('listDefinitions', def({ urgent: true, important: true, focus: true }))).toBe(true)
+    expect(validateRow('listDefinitions', def([{ values: ['focus'] }]))).toBe(true)
     expect(validateRow('listDefinitions', def(null))).toBe(true)
     expect(validateRow('listDefinitions', def(undefined))).toBe(true)
-    for (const good of [{ focus: false }, { urgent: true, important: false }, { urgent: false, important: false, focus: false }]) {
+    for (const good of [[{ values: ['focus'], not: true }], [{ values: ['urgent'] }, { values: ['important'], not: true }], [{ values: ['urgent', 'important', 'focus'] }], [{ values: ['none'] }]]) {
       expect(rowFixes('listDefinitions', def(good))).toEqual([])
       expect(IMPORT_TABLES.listDefinitions.pick(def(good)).membership.predicate.markers).toEqual(good)
     }
     // Anything else is dropped on import (no filter), not rejected.
-    for (const bad of [{ hot: true }, true, ['urgent'], { focus: 1 }, { urgent: 'no' }, { important: null }, { urgent: true, important: 0 }]) {
+    for (const bad of [{ focus: true }, true, ['urgent'], 'hot', [{ values: ['hot'] }], [{ values: 'urgent' }], [{ values: ['urgent'], not: 1 }], [5]]) {
       expect(validateRow('listDefinitions', def(bad))).toBe(true)
       expect(rowFixes('listDefinitions', def(bad))).toEqual(['priority filter dropped'])
       const picked = IMPORT_TABLES.listDefinitions.pick(def(bad))
@@ -143,7 +143,7 @@ describe('markers in import validation', () => {
 
 describe('marker filter defaults and list equality', () => {
   it('a Markers filter makes new tasks start with those markers', () => {
-    const fd = getFilterDefaults(predicateToCriteria({ ...emptyPredicate(), markers: { focus: true, urgent: true } }))
+    const fd = getFilterDefaults(predicateToCriteria({ ...emptyPredicate(), markers: [{ values: ['focus'] }, { values: ['urgent'] }] }))
     expect(fd.markers).toEqual({ urgent: true, focus: true })
     expect(markerFlags(fd)).toEqual({ urgent: true, focus: true })
     const none = predicateToFilterDefaults(emptyPredicate())
@@ -152,15 +152,15 @@ describe('marker filter defaults and list equality', () => {
   })
 
   it('a No marker seeds the flag off; Yes ones seed it on', () => {
-    const fd = predicateToFilterDefaults({ ...emptyPredicate(), markers: { urgent: true, important: false } })
+    const fd = predicateToFilterDefaults({ ...emptyPredicate(), markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] })
     expect(fd.markers).toEqual({ urgent: true, important: false })
     expect(markerFlags(fd)).toEqual({ urgent: true, important: false })
     // Only No markers: the defaults still name them (a list's Add task stays).
-    expect(markerFlags(predicateToFilterDefaults({ ...emptyPredicate(), markers: { focus: false } }))).toEqual({ focus: false })
+    expect(markerFlags(predicateToFilterDefaults({ ...emptyPredicate(), markers: [{ values: ['focus'], not: true }] }))).toEqual({ focus: false })
   })
 
   it('withoutMarkers drops the given marker seeds and keeps the rest', () => {
-    const fd = getFilterDefaults(predicateToCriteria({ ...emptyPredicate(), markers: { focus: true, urgent: true }, personIds: [3] }))
+    const fd = getFilterDefaults(predicateToCriteria({ ...emptyPredicate(), markers: [{ values: ['focus'] }, { values: ['urgent'] }], personIds: [3] }))
     expect(withoutMarkers(fd, ['urgent'])).toEqual({ personIds: [3], tagIds: [], statusId: undefined, markers: { focus: true } })
     const neither = withoutMarkers(fd, ['urgent', 'focus'])
     expect(neither.markers).toBeUndefined()
@@ -168,11 +168,10 @@ describe('marker filter defaults and list equality', () => {
     expect(withoutMarkers(fd, [])).toBe(fd)
   })
 
-  it('a Hot filter seeds no markers (no one set of flags makes a task hot under every rule)', () => {
-    const fd = getFilterDefaults(predicateToCriteria({ ...emptyPredicate(), markers: 'hot', personIds: [3] }))
+  it('several values in one chip seed no markers (no one flag is the filter), as a Status filter', () => {
+    const fd = getFilterDefaults(predicateToCriteria({ ...emptyPredicate(), markers: [{ values: ['focus', 'urgent'] }], personIds: [3] }))
     expect(fd.markers).toBeUndefined()
     expect(fd.personIds).toEqual([3])
-    expect(markerFlags(fd)).toEqual({})
   })
 
   it('list-definition equality sees markers (absent == null == {}), not their order', () => {
@@ -185,28 +184,28 @@ describe('marker filter defaults and list equality', () => {
     const withPredicate = (predicate: PersistedListDefinition['membership']['predicate']): PersistedListDefinition =>
       ({ ...base, membership: { kind: 'custom', predicate } })
     expect(defsEqual(base, withPredicate(legacyPredicate))).toBe(true)
-    expect(defsEqual(base, withPredicate({ ...emptyPredicate(), markers: {} }))).toBe(true)
-    expect(defsEqual(base, withPredicate({ ...emptyPredicate(), markers: { focus: true } }))).toBe(false)
+    expect(defsEqual(base, withPredicate({ ...emptyPredicate(), markers: [] }))).toBe(true)
+    expect(defsEqual(base, withPredicate({ ...emptyPredicate(), markers: [{ values: ['focus'] }] }))).toBe(false)
     expect(defsEqual(
-      withPredicate({ ...emptyPredicate(), markers: { focus: true, urgent: true } }),
-      withPredicate({ ...emptyPredicate(), markers: { urgent: true, focus: true } }),
+      withPredicate({ ...emptyPredicate(), markers: [{ values: ['focus'] }, { values: ['urgent'] }] }),
+      withPredicate({ ...emptyPredicate(), markers: [{ values: ['focus'] }, { values: ['urgent'] }] }),
     )).toBe(true)
     // Yes and No differ; No equals No.
     expect(defsEqual(
-      withPredicate({ ...emptyPredicate(), markers: { important: false } }),
-      withPredicate({ ...emptyPredicate(), markers: { important: true } }),
+      withPredicate({ ...emptyPredicate(), markers: [{ values: ['important'], not: true }] }),
+      withPredicate({ ...emptyPredicate(), markers: [{ values: ['important'] }] }),
     )).toBe(false)
-    expect(defsEqual(base, withPredicate({ ...emptyPredicate(), markers: { important: false } }))).toBe(false)
+    expect(defsEqual(base, withPredicate({ ...emptyPredicate(), markers: [{ values: ['important'], not: true }] }))).toBe(false)
     expect(defsEqual(
-      withPredicate({ ...emptyPredicate(), markers: { urgent: true, important: false } }),
-      withPredicate({ ...emptyPredicate(), markers: { important: false, urgent: true } }),
+      withPredicate({ ...emptyPredicate(), markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] }),
+      withPredicate({ ...emptyPredicate(), markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] }),
     )).toBe(true)
     // Hot equals only Hot.
-    expect(defsEqual(withPredicate({ ...emptyPredicate(), markers: 'hot' }), withPredicate({ ...emptyPredicate(), markers: 'hot' }))).toBe(true)
-    expect(defsEqual(base, withPredicate({ ...emptyPredicate(), markers: 'hot' }))).toBe(false)
+    expect(defsEqual(withPredicate({ ...emptyPredicate(), markers: [{ values: ['focus'] }] }), withPredicate({ ...emptyPredicate(), markers: [{ values: ['focus'] }] }))).toBe(true)
+    expect(defsEqual(base, withPredicate({ ...emptyPredicate(), markers: [{ values: ['focus'] }] }))).toBe(false)
     expect(defsEqual(
-      withPredicate({ ...emptyPredicate(), markers: 'hot' }),
-      withPredicate({ ...emptyPredicate(), markers: { urgent: true, important: true, focus: true } }),
+      withPredicate({ ...emptyPredicate(), markers: [{ values: ['focus'] }] }),
+      withPredicate({ ...emptyPredicate(), markers: [{ values: ['focus'] }, { values: ['urgent'] }, { values: ['important'] }] }),
     )).toBe(false)
   })
 })

@@ -1,3 +1,4 @@
+import { useTabBadges, type TabBadge } from '../../hooks/use-tab-badges'
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
@@ -12,7 +13,11 @@ import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type DraggedTab, type Workspace
 import { fitTabs, shownTabs, type TabFit, type TabSize } from '../../utils/tab-strip-fit'
 import styles from './CellTabStrip.module.css'
 
-/** A tab's widest (the `.tab` rule's `max-width`). */
+/**
+ * A tab's widest (the `.tab` rule's `max-width`), its close ×'s place
+ * included; a badged tab may be wider by its capsule (and the gap before it),
+ * so its title gets the room it would have without one.
+ */
 const TAB_MAX_PX = 160
 /** A shrunk tab keeps this much of its title before it is folded into `+N` (the active tab keeps all of it). */
 const MIN_TITLE_PX = 48
@@ -41,14 +46,17 @@ function measureTab(id: string, el: HTMLElement, active: boolean): TabSize {
   const parts = Array.from(el.children).filter((c): c is HTMLElement => c instanceof HTMLElement && getComputedStyle(c).display !== 'none')
   let chrome = px(cs.paddingLeft) + px(cs.paddingRight) + px(cs.borderLeftWidth) + px(cs.borderRightWidth)
     + px(cs.columnGap) * Math.max(0, parts.length - 1)
+  let badgeRoom = 0
   for (const part of parts) {
     if (part === title) continue
     const m = getComputedStyle(part)
-    chrome += part.getBoundingClientRect().width + px(m.marginLeft) + px(m.marginRight)
+    const width = part.getBoundingClientRect().width + px(m.marginLeft) + px(m.marginRight)
+    chrome += width
+    if (part.hasAttribute('data-tab-badge')) badgeRoom = width + px(cs.columnGap)
   }
   // A title that isn't cut short: its exact width (the scroll width is rounded).
   const fullTitle = title.scrollWidth > title.clientWidth ? title.scrollWidth + 1 : title.getBoundingClientRect().width
-  const natural = Math.min(TAB_MAX_PX, Math.ceil(chrome + fullTitle))
+  const natural = Math.min(Math.ceil(TAB_MAX_PX + badgeRoom), Math.ceil(chrome + fullTitle))
   const cut = Math.min(natural, Math.ceil(chrome + MIN_TITLE_PX))
   return active ? { id, natural, min: natural, least: cut } : { id, natural, min: cut }
 }
@@ -75,8 +83,20 @@ function stripRoom(strip: HTMLElement): number {
   return room - px(cs.columnGap) * Math.max(0, inFlow - 1)
 }
 
+/** A tab's badge: both counts in one capsule, each solid while any of it is overdue. */
+function TabBadgeCapsule({ badge }: { badge: TabBadge }) {
+  const { due, dueOverdue, followup, followupOverdue } = badge.counts
+  return (
+    <span className={styles.badge} role="img" aria-label={badge.summary.join(', ')} data-tab-badge="">
+      {due > 0 && <span className={`${styles.badgeDue} ${dueOverdue > 0 ? styles.badgeDueOverdue : ''}`}>{due}</span>}
+      {followup > 0 && <span className={`${styles.badgeFollowup} ${followupOverdue > 0 ? styles.badgeFollowupOverdue : ''}`}>{followup}</span>}
+    </span>
+  )
+}
+
 interface TabProps {
   tab: LayoutTab
+  badge?: TabBadge
   active: boolean
   collapsed: boolean
   count?: string
@@ -93,7 +113,7 @@ interface TabProps {
   size?: CSSProperties
 }
 
-function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef, offstage, size }: TabProps) {
+function Tab({ tab, badge, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef, offstage, size }: TabProps) {
   const title = useTabTitle(tab)
   // A list tab's list, or an Eisenhower tab's (the Eisenhower's own): its unsaved dot.
   const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
@@ -121,9 +141,10 @@ function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpen
         touch ? styles.touch : '',
         isDragging ? styles.dragSource : '',
         offstage ? styles.offstage : '',
+        badge ? styles.hasBadge : '',
       ].join(' ')}
       style={size}
-      title={title}
+      title={badge ? [title, ...badge.summary].join('\n') : title}
       onClick={onActivate}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -147,6 +168,7 @@ function Tab({ tab, active, collapsed, count, touch, onActivate, onClose, onOpen
       <span className={styles.title} data-tab-title="">{title}</span>
       {listUnsaved && <span className={styles.unsavedDot} role="img" aria-label="unsaved list changes" />}
       {count != null && <span className={styles.count}>{count}</span>}
+      {badge && <TabBadgeCapsule badge={badge} />}
       {closable && (
         <button
           type="button"
@@ -213,6 +235,7 @@ export function CellTabStrip({
   onAddTab,
 }: CellTabStripProps) {
   const active = getActiveTab(cell)
+  const badges = useTabBadges(cell.tabs)
   const stripRef = useRef<HTMLDivElement | null>(null)
   const containerRef = useRef<HTMLDivElement | null>(null)
   const addRef = useRef<HTMLButtonElement | null>(null)
@@ -235,7 +258,11 @@ export function CellTabStrip({
   const hidden = order.slice(Math.max(fitCount, 0))
   const sizeOf = useMemo(() => new Map(fit.sizes.map((s) => [s.id, s])), [fit.sizes])
 
-  const tabKey = cell.tabs.map((t) => t.id).join('|')
+  // A badge changes its tab's width: the fit is measured again.
+  const tabKey = cell.tabs.map((t) => {
+    const counts = badges.get(t.id)?.counts
+    return counts ? `${t.id}:${counts.due}:${counts.followup}` : t.id
+  }).join('|')
   const tabsRef = useLatestRef(cell.tabs)
   const activeId = active?.id
   const hasAdd = !collapsed && onAddTab != null
@@ -268,9 +295,30 @@ export function CellTabStrip({
     ro.observe(strip)
     if (strip.parentElement) ro.observe(strip.parentElement)
     for (const el of tabEls.current.values()) ro.observe(el)
-    return () => ro.disconnect()
+    // A tab's own content changing (its count, the unsaved dot, a rename): a
+    // shrunk tab's width is pinned, so no box resizes. Not attributes — the
+    // fit's own sizes are inline styles.
+    const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(measure)
+    if (containerRef.current) mo?.observe(containerRef.current, { childList: true, subtree: true, characterData: true })
+    return () => { ro.disconnect(); mo?.disconnect() }
     // Re-observe when the tabs, the active one or the header's parts change (the tabs are read through a ref).
   }, [tabKey, tabsRef, activeId, hasAdd, collapsed])
+
+  // The tab an arrow key moved to, focused once it shows: a folded one is out of
+  // sight (not focusable) until its activation renders it in place — which a
+  // view transition holds back past this task (cr31 W6).
+  const pendingFocus = useRef<string | null>(null)
+  const focusPending = () => {
+    const id = pendingFocus.current
+    if (id == null) return
+    const el = tabEls.current.get(id)
+    if (!el || el.hasAttribute('data-ws-tab-folded')) return
+    pendingFocus.current = null
+    // Only while the focus is still the strip's (or lost with a tab folded away): never taken from elsewhere.
+    const focused = document.activeElement
+    if (focused == null || focused === document.body || stripRef.current?.contains(focused)) el.focus()
+  }
+  useLayoutEffect(focusPending)
 
   const focusSibling = (fromId: string, delta: 1 | -1 | 'first' | 'last') => {
     const ids = order.map((t) => t.id)
@@ -279,8 +327,9 @@ export function CellTabStrip({
     const next = delta === 'first' ? 0 : delta === 'last' ? n - 1 : (i + delta + n) % n
     const id = ids[next]
     if (!id) return
+    pendingFocus.current = id
     onActivate(id)
-    queueMicrotask(() => tabEls.current.get(id)?.focus())
+    queueMicrotask(focusPending)
   }
 
   return (
@@ -291,11 +340,14 @@ export function CellTabStrip({
             key={tab.id}
             tab={tab}
             offstage={i >= Math.max(fitCount, 0)}
-            size={fit.shrink && i < fitCount ? shareOf(sizeOf.get(tab.id), fit.squeeze === true) : undefined}
+            size={fit.shrink && i < fitCount
+              ? shareOf(sizeOf.get(tab.id), fit.squeeze === true)
+              : badges.has(tab.id) ? badgedCap(sizeOf.get(tab.id)) : undefined}
             active={tab.id === active?.id}
             collapsed={collapsed}
             touch={touch}
             count={tab.id === active?.id ? activeCount : undefined}
+            badge={badges.get(tab.id)}
             onActivate={() => onActivate(tab.id)}
             onClose={onClose ? () => onClose(tab.id) : undefined}
             onOpenMenu={onOpenTabMenu ? (p) => onOpenTabMenu(tab.id, p) : undefined}
@@ -339,6 +391,7 @@ export function CellTabStrip({
         <OverflowMenu
           anchorRef={overflowRef}
           tabs={hidden}
+          badges={badges}
           onPick={(id) => onActivate(id)}
           onClose={() => setOverflowOpen(false)}
         />
@@ -365,19 +418,33 @@ function shareOf(size: TabSize | undefined, squeeze: boolean): CSSProperties | u
   return { flex: '1 1 0px', minWidth: squeeze ? size.least ?? size.min : size.min, maxWidth: size.natural + 1 }
 }
 
-function OverflowMenu({ anchorRef, tabs, onPick, onClose }: {
+/**
+ * A badged tab at full width: wider than the `.tab` rule's cap by its
+ * capsule (`measureTab`), so its title shows as a tab without one would.
+ */
+function badgedCap(size: TabSize | undefined): CSSProperties | undefined {
+  // 1 px over, as in `shareOf`.
+  return size ? { maxWidth: size.natural + 1 } : undefined
+}
+
+function OverflowMenu({ anchorRef, tabs, badges, onPick, onClose }: {
   anchorRef: RefObject<HTMLButtonElement | null>
   tabs: LayoutTab[]
+  badges: ReadonlyMap<string, TabBadge>
   onPick: (tabId: string) => void
   onClose: () => void
 }) {
   // The strip's own titles: a list's unsaved name included.
   const titles = useTabTitles(tabs)
-  const entries = tabs.map((tab, i) => ({
+  const entries = tabs.map((tab, i) => {
+    const badge = badges.get(tab.id)
+    return {
     kind: 'item' as const,
     label: titles[i] ?? '',
     icon: <WidgetKindIcon kind={tab.kind} />,
+    ...(badge ? { trailing: <TabBadgeCapsule badge={badge} /> } : {}),
     onSelect: () => onPick(tab.id),
-  }))
+    }
+  })
   return <MenuPopover anchorRef={anchorRef} placement="bottom-end" entries={entries} label="More tabs" onClose={onClose} />
 }

@@ -94,6 +94,15 @@ describe('CommandPalette', () => {
       expect(marked).toContain('Marc')
     })
 
+    it('highlights the matched letters after an emoji (Fuse’s offsets are UTF-16 units, cr31)', () => {
+      const commands: Command[] = [{ id: 'party', name: 'Open 🎉 Party list', category: 'navigation', action: vi.fn() }]
+      render(<CommandPalette commands={commands} onClose={vi.fn()} />)
+      type('party')
+      const row = screen.getByRole('option', { name: /Party list/ })
+      expect(row.querySelector('span')?.textContent).toBe('Open 🎉 Party list')
+      expect(Array.from(row.querySelectorAll('mark')).map((m) => m.textContent).join('')).toBe('Party')
+    })
+
     it('ranks one-word queries as before', () => {
       render(<CommandPalette commands={realCommands()} onClose={vi.fn()} />)
       type('settings')

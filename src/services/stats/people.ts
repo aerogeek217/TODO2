@@ -1,14 +1,15 @@
 import type { Person, PersistedTodoItem } from '../../models'
 import { daysUntil } from '../../utils/effective-date'
-import { isHot } from '../../utils/hot'
+import { hasMarker } from '../../utils/markers'
+import { MARKER_KEYS, type MarkerKey } from '../../models/filter-predicate'
 import { idsByDate, openTasks, type StatsContext } from './stats-context'
 
-/** One People row: open tasks, and the hot / follow-up-due ones among them. */
+/** One People row: open tasks, how many have each priority, and the follow-up-due ones. */
 export interface PeopleRowStats {
   /** Open tasks, by due date then `sortOrder`. */
   ids: number[]
-  /** Hot open tasks (Settings' Hot rule). */
-  hotIds: number[]
+  /** How many open tasks have each priority (a task with two counts in both; Urgent = effective urgent). */
+  priority: Record<MarkerKey, number>
   /** Open tasks whose next follow-up is today or earlier. */
   followupDueIds: number[]
 }
@@ -51,15 +52,19 @@ export function computePeopleStats(tasks: readonly PersistedTodoItem[], ctx: Sta
   return { rows, unassigned: openRowStats(unassigned, ctx) }
 }
 
-/** A row of open tasks (a person's, a tag's): all of them, the hot ones, the follow-up-due ones. */
+/** A row of open tasks (a person's, a tag's): all of them, the count by priority, the follow-up-due ones. */
 export function openRowStats(
   rowTasks: readonly PersistedTodoItem[],
-  ctx: Pick<StatsContext, 'today' | 'urgentRange' | 'hotRule'>,
+  ctx: Pick<StatsContext, 'today' | 'urgentRange'>,
 ): PeopleRowStats {
-  const { today, urgentRange, hotRule } = ctx
+  const { today, urgentRange } = ctx
+  const priority = Object.fromEntries(MARKER_KEYS.map((k) => [
+    k,
+    rowTasks.filter((t) => hasMarker(t, k, today, urgentRange)).length,
+  ])) as Record<MarkerKey, number>
   return {
     ids: idsByDate(rowTasks, 'deadline'),
-    hotIds: idsByDate(rowTasks.filter((t) => isHot(t, hotRule, today, urgentRange)), 'deadline'),
+    priority,
     followupDueIds: idsByDate(
       rowTasks.filter((t) => (daysUntil(t.nextFollowupAt, today) ?? 1) <= 0),
       'followup',

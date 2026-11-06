@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
+import { subtaskRepository } from '../../data/subtask-repository'
 import { droppedFields, makeSubtaskOf, makeSubtaskPrompt, makeTaskFromSubtask } from '../../services/subtask-convert'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -13,6 +14,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { addDays, startOfToday } from '../../utils/date'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await resetDb()
@@ -42,8 +44,8 @@ function answerNext(answer: boolean): { asked: () => ConfirmPrompt | undefined }
 
 describe('droppedFields', () => {
   it('names everything a task holds beyond its title and done state', async () => {
-    const id = await useTodoStore.getState().add('Book travel')
-    const other = await useTodoStore.getState().add('Other')
+    const id = await addTask('Book travel')
+    const other = await addTask('Other')
     const lena = await usePersonStore.getState().getOrCreate('Lena Vogel')
     await usePersonStore.getState().assignPerson(id, lena)
     const ops = await useTagStore.getState().add('ops')
@@ -73,9 +75,9 @@ describe('droppedFields', () => {
 
 describe('makeSubtaskOf', () => {
   it('a title-only task converts without asking: it becomes the parent’s last subtask, done as it was, as one undo step', async () => {
-    const parent = await useTodoStore.getState().add('Offsite')
+    const parent = await addTask('Offsite')
     await useSubtaskStore.getState().add(parent, 'Pick a date')
-    const task = await useTodoStore.getState().add('Book travel')
+    const task = await addTask('Book travel')
     await useTodoStore.getState().toggleComplete(task)
     useUndoStore.getState().clear()
 
@@ -96,9 +98,28 @@ describe('makeSubtaskOf', () => {
     expect(titles(parent)).toEqual([['Pick a date', false], ['Book travel', true]])
   })
 
+  it('a title longer than a subtask’s asks first, saying it is cut; Undo brings the task back whole', async () => {
+    const parent = await addTask('Offsite')
+    const long = `Book ${'travel '.repeat(100)}`.trim()
+    const task = await addTask(long)
+    useUndoStore.getState().clear()
+
+    const declined = answerNext(false)
+    expect(await makeSubtaskOf(task, parent)).toBe(false)
+    expect(declined.asked()?.message).toBe('A subtask is a line of “Offsite”’s checklist: it keeps the first 500 characters of its title and whether it’s done.')
+    expect(useTodoStore.getState().todos.some((t) => t.id === task)).toBe(true)
+    await new Promise((resolve) => { setTimeout(resolve, 0) }) // the first answerer unsubscribes
+
+    answerNext(true)
+    expect(await makeSubtaskOf(task, parent)).toBe(true)
+    expect((await db.subtasks.where('todoId').equals(parent).toArray()).map((s) => s.title)).toEqual([long.slice(0, 500).trim()])
+    await useUndoStore.getState().undo()
+    expect(useTodoStore.getState().todos.find((t) => t.id === task)?.title).toBe(long)
+  })
+
   it('a task with more asks first, listing what goes; its own subtasks move to the parent; Undo brings everything back', async () => {
-    const parent = await useTodoStore.getState().add('Offsite')
-    const task = await useTodoStore.getState().add('Book travel')
+    const parent = await addTask('Offsite')
+    const task = await addTask('Book travel')
     const lena = await usePersonStore.getState().getOrCreate('Lena')
     await usePersonStore.getState().assignPerson(task, lena)
     await useTodoStore.getState().update(task, { dueDate: new Date(2026, 10, 20), notes: 'window seat' })
@@ -126,8 +147,8 @@ describe('makeSubtaskOf', () => {
   })
 
   it('Cancel in the prompt changes nothing; the task itself or a missing task is refused', async () => {
-    const parent = await useTodoStore.getState().add('Offsite')
-    const task = await useTodoStore.getState().add('Book travel')
+    const parent = await addTask('Offsite')
+    const task = await addTask('Book travel')
     await useTodoStore.getState().update(task, { dueDate: new Date(2026, 10, 20) })
     useUndoStore.getState().clear()
     answerNext(false)
@@ -141,10 +162,62 @@ describe('makeSubtaskOf', () => {
   })
 })
 
+describe('makeSubtaskOf — a failed write takes back what was written', () => {
+  /** A task with two subtasks of its own (nothing else: no prompt) and a parent with one. */
+  async function setUp() {
+    const parent = await addTask('Offsite')
+    await useSubtaskStore.getState().add(parent, 'Pick a date')
+    const task = await addTask('Book travel')
+    await useSubtaskStore.getState().add(task, 'Flights')
+    await useSubtaskStore.getState().add(task, 'Hotel')
+    useUndoStore.getState().clear()
+    return { parent, task }
+  }
+
+  /** Nothing changed, in the store and the database, and no undo step. */
+  async function expectUnchanged({ parent, task }: { parent: number; task: number }) {
+    expect(todos().map((t) => t.title)).toEqual(['Offsite', 'Book travel'])
+    expect((await db.todos.get(task))?.title).toBe('Book travel')
+    expect(titles(parent)).toEqual([['Pick a date', false]])
+    expect(titles(task)).toEqual([['Flights', false], ['Hotel', false]])
+    const stored = await db.subtasks.toArray()
+    expect(stored.filter((r) => r.todoId === parent).map((r) => r.title)).toEqual(['Pick a date'])
+    expect(stored.filter((r) => r.todoId === task).map((r) => r.title).sort()).toEqual(['Flights', 'Hotel'])
+    expect(undoNames()).toEqual([])
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t make it a subtask. Nothing changed.')
+  }
+
+  it('moving its second subtask fails: the first moves back', async () => {
+    const ids = await setUp()
+    const real = subtaskRepository.updateMany.bind(subtaskRepository)
+    let calls = 0
+    const spy = vi.spyOn(subtaskRepository, 'updateMany').mockImplementation(async (patches, at) => (++calls === 2 ? 0 : real(patches, at)))
+    expect(await makeSubtaskOf(ids.task, ids.parent)).toBe(false)
+    spy.mockRestore()
+    await expectUnchanged(ids)
+  })
+
+  it('adding the subtask fails: its own subtasks, already on the parent, move back', async () => {
+    const ids = await setUp()
+    const spy = vi.spyOn(subtaskRepository, 'add').mockResolvedValueOnce(undefined)
+    expect(await makeSubtaskOf(ids.task, ids.parent)).toBe(false)
+    spy.mockRestore()
+    await expectUnchanged(ids)
+  })
+
+  it('deleting the task fails: the added subtask goes and the moved ones come back', async () => {
+    const ids = await setUp()
+    const spy = vi.spyOn(useTodoStore.getState(), 'remove').mockRejectedValueOnce(new Error('disk full'))
+    expect(await makeSubtaskOf(ids.task, ids.parent)).toBe(false)
+    spy.mockRestore()
+    await expectUnchanged(ids)
+  })
+})
+
 describe('makeTaskFromSubtask', () => {
   it('a subtask becomes a task with its title and done state and the parent’s people, tags, status, dates and markers; one undo step takes it back', async () => {
     useSettingsStore.setState({ autoFollowup: true, followupDefaultInterval: { count: 2, unit: 'w' } })
-    const parent = await useTodoStore.getState().add('Offsite')
+    const parent = await addTask('Offsite')
     const waiting = await useStatusStore.getState().add('Waiting', '#888')
     await useTodoStore.getState().update(parent, {
       statusId: waiting, dueDate: new Date(2026, 10, 20), nextFollowupAt: new Date(2026, 10, 10), urgent: true, focus: true, notes: 'the parent’s',
@@ -190,7 +263,7 @@ describe('makeTaskFromSubtask', () => {
 
   it('a parent without a status or next follow-up: the new task gets Settings’ defaults, as every new task', async () => {
     useSettingsStore.setState({ autoFollowup: true, followupDefaultInterval: { count: 2, unit: 'w' } })
-    const parent = await useTodoStore.getState().add('Offsite')
+    const parent = await addTask('Offsite')
     const statusId = await useStatusStore.getState().add('To do', '#888')
     useSettingsStore.setState({ defaultStatusId: statusId })
     const a = await useSubtaskStore.getState().add(parent, 'Book the venue')
@@ -206,8 +279,37 @@ describe('makeTaskFromSubtask', () => {
     expect(undoNames()).toEqual([])
   })
 
+  it('the subtask can’t be removed (deleted meanwhile): the new task goes again and it says so', async () => {
+    const parent = await addTask('Offsite')
+    const a = await useSubtaskStore.getState().add(parent, 'Book the venue')
+    useUndoStore.getState().clear()
+    const spy = vi.spyOn(useSubtaskStore.getState(), 'remove').mockResolvedValueOnce(false)
+    expect(await makeTaskFromSubtask(a!.id)).toBeNull()
+    spy.mockRestore()
+    expect(todos().map((t) => t.title)).toEqual(['Offsite'])
+    expect((await db.todos.toArray()).map((t) => t.title)).toEqual(['Offsite'])
+    expect(titles(parent)).toEqual([['Book the venue', false]])
+    expect(undoNames()).toEqual([])
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t make it a task. Nothing changed.')
+  })
+
+  it('a done subtask whose completion fails stays a done subtask: the new task goes again and it says so (cr31 L9)', async () => {
+    const parent = await addTask('Offsite')
+    const a = await useSubtaskStore.getState().add(parent, 'Book the venue')
+    await useSubtaskStore.getState().setDone(a!.id, true)
+    useUndoStore.getState().clear()
+    const spy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValueOnce(false)
+    expect(await makeTaskFromSubtask(a!.id)).toBeNull()
+    spy.mockRestore()
+    expect(todos().map((t) => t.title)).toEqual(['Offsite'])
+    expect((await db.todos.toArray()).map((t) => t.title)).toEqual(['Offsite'])
+    expect(titles(parent)).toEqual([['Book the venue', true]])
+    expect(undoNames()).toEqual([])
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t make it a task. Nothing changed.')
+  })
+
   it('a failed create takes nothing and says so', async () => {
-    const parent = await useTodoStore.getState().add('Offsite')
+    const parent = await addTask('Offsite')
     const a = await useSubtaskStore.getState().add(parent, 'Book the venue')
     useUndoStore.getState().clear()
     const spy = vi.spyOn(useTodoStore.getState(), 'addMany').mockRejectedValueOnce(new Error('disk full'))

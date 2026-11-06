@@ -52,16 +52,36 @@ const bar = (page: Page) => header(page).evaluate((el) => {
   }
 })
 
-/** The bar once it has settled (the same on two reads a few frames apart: no flicker). */
+/**
+ * The bar once it has settled: two animation frames in a row with no resize
+ * of the bar or any part of it and no change to its DOM. The fold is a
+ * ResizeObserver → re-render → re-measure loop, so it is done when a frame
+ * passes with nothing for its observer to report (cr31 tests 2.1: two equal
+ * reads 100 ms apart could catch it mid-way under load).
+ */
 async function settled(page: Page) {
-  let last = ''
-  await expect.poll(async () => {
-    const now = JSON.stringify(await bar(page))
-    const same = now === last
-    last = now
-    return same
-  }, { intervals: [100, 100, 100, 200] }).toBe(true)
-  return JSON.parse(last) as Awaited<ReturnType<typeof bar>>
+  await header(page).evaluate((el) => new Promise<void>((resolve) => {
+    let changed = true
+    let quiet = 0
+    const resized = new ResizeObserver(() => { changed = true })
+    // The bar and what its fold measures: its parts, the search, the filter values.
+    for (const node of [el, ...el.querySelectorAll('[data-fold-part], [data-fold-search], [data-fold-value], [data-filter-row], button, input')]) resized.observe(node)
+    const mutated = new MutationObserver(() => { changed = true })
+    mutated.observe(el, { attributes: true, childList: true, characterData: true, subtree: true })
+    const frame = () => {
+      quiet = changed ? 0 : quiet + 1
+      changed = false
+      if (quiet < 2) {
+        requestAnimationFrame(frame)
+        return
+      }
+      resized.disconnect()
+      mutated.disconnect()
+      resolve()
+    }
+    requestAnimationFrame(frame)
+  }))
+  return bar(page)
 }
 
 async function expectEveryFilterButton(page: Page) {
@@ -110,6 +130,8 @@ test('at 1370px one person ticked keeps every filter button: the search narrows,
 })
 
 test('narrowing: the search narrows first, then the value is cut, then the filters fold, then the tabs; never a wrap, never a flicker', async ({ page }) => {
+  // About 60 widths, each waited out: longer than the default under a parallel run.
+  test.setTimeout(90_000)
   await page.setViewportSize({ width: 1600, height: 900 })
   await seedWorkspace(page, SEED)
   await people(page).click()
@@ -118,7 +140,9 @@ test('narrowing: the search narrows first, then the value is cut, then the filte
   const wide = await settled(page)
 
   const seen = new Set<string>()
-  for (let width = 1600; width >= 760; width -= 20) {
+  // 20 px steps, 5 px across the narrow band where the value is cut (about
+  // 1375–1352 px in this seed), so each phase is seen more than once.
+  for (let width = 1600; width >= 760; width -= width <= 1400 && width > 1330 ? 5 : 20) {
     await page.setViewportSize({ width, height: 900 })
     const s = await settled(page)
     expect(s.oneLine, `at ${width}px`).toBe(true)
@@ -137,4 +161,29 @@ test('narrowing: the search narrows first, then the value is cut, then the filte
   // And back.
   await page.setViewportSize({ width: 1600, height: 900 })
   await expect.poll(() => settled(page)).toEqual(wide)
+})
+
+test('a pick that needs the fold waits for its picker to close: the button and its picker stay put mid-pick (cr31 UI F10)', async ({ page }) => {
+  // Just wide enough for every filter button with no value; a Status value folds them.
+  await page.setViewportSize({ width: 1290, height: 900 })
+  await seedWorkspace(page, SEED)
+  await expectEveryFilterButton(page)
+  expect((await settled(page)).fold).toBe('none')
+
+  const status = tray(page).getByRole('button', { name: /^Status filter/ })
+  await status.click()
+  const list = page.getByRole('listbox', { name: 'Status' })
+  await list.getByRole('option', { name: 'Assigned' }).click()
+  await list.getByRole('option', { name: 'Waiting' }).click()
+  // Still open, both picked, the bar unfolded under it.
+  await expect(list.getByRole('option', { name: 'Waiting' })).toHaveAttribute('aria-selected', 'true')
+  await expect(list.getByRole('option', { name: 'Assigned' })).toHaveAttribute('aria-selected', 'true')
+  await expect(filtersMenu(page)).toHaveCount(0)
+  await expect(status).toHaveAccessibleName('Status filter: Assigned or Waiting')
+
+  // Closed: now it folds.
+  await page.keyboard.press('Escape')
+  await expect(list).toHaveCount(0)
+  await expect(filtersMenu(page)).toHaveAccessibleName('Filters, 1 active')
+  expect(await settled(page)).toMatchObject({ fold: 'filters', oneLine: true })
 })

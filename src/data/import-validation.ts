@@ -4,10 +4,11 @@ import type { ListDefinition, ListOwner, ListSort, ListGrouping, RuntimeFilterFi
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { toDate, toOptDate } from './date-revive'
 import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
+import { parsePriorityCues } from '../utils/priority-cues'
+import { parseTabBadgeRange, pickListTabBadges } from '../utils/tab-badges'
 import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
 import { parseFollowupInterval } from '../utils/followup'
 import { parseUrgentDueWithinDays } from '../utils/urgency'
-import { formatHotRule, parseHotRule } from '../utils/hot'
 import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcut-bindings'
 import { isCheckinOpenMethod } from '../utils/checkin-settings'
 import { parseStaleAfterDays } from '../utils/stale'
@@ -408,11 +409,6 @@ function checkSetting(v: unknown): CheckResult {
       ? true
       : 'value (urgentDueWithinDays must be off or a day count 0–365)'
   }
-  if (v.key === SETTING_KEYS.hotRule) {
-    return parseHotRule(v.value as string) !== undefined
-      ? true
-      : 'value (hotRule must be a list of lines, each with at least one of urgent / important / focus)'
-  }
   if (v.key === SETTING_KEYS.checkinOpenMethod) {
     return isCheckinOpenMethod(v.value) ? true : 'value (checkinOpenMethod must be mailto or eml)'
   }
@@ -435,6 +431,13 @@ function checkSetting(v: unknown): CheckResult {
   }
   if (v.key === SETTING_KEYS.rowDensity) {
     return isRowDensity(v.value) ? true : 'value (rowDensity must be comfortable or compact)'
+  }
+  if (v.key === SETTING_KEYS.tabBadgeDue || v.key === SETTING_KEYS.tabBadgeFollowup) {
+    const range = parseTabBadgeRange(v.value)
+    return range !== undefined && range !== 'off' || v.value === 'off' ? true : 'value (a tab badge range must be off, overdue or a day count 0–365)'
+  }
+  if (v.key === SETTING_KEYS.priorityCues) {
+    return parsePriorityCues(v.value) !== undefined ? true : 'value (priorityCues must give each priority its glow and semibold)'
   }
   if (v.key === SETTING_KEYS.staleAfterDays) {
     return parseStaleAfterDays(v.value as string) !== undefined
@@ -587,9 +590,7 @@ function pickSetting(v: Raw): AllFields<SettingRow> {
     // Stored rebuilt: the readable lenses, their known filter parts, completed tasks off.
     return { key, value: formatLensesSetting(readLensesSetting(value).lenses) } satisfies AllFields<SettingRow>
   }
-  // The Hot rule is stored normalized (duplicate lines collapsed).
-  const hotRule = key === SETTING_KEYS.hotRule ? parseHotRule(value) : undefined
-  return { key, value: hotRule ? formatHotRule(hotRule) : value } satisfies AllFields<SettingRow>
+  return { key, value } satisfies AllFields<SettingRow>
 }
 
 /** What `pickSetting` drops from a valid settings row, in words. */
@@ -740,6 +741,7 @@ function listDefinitionFixes(row: Raw): string[] {
   if (dir !== undefined && dir !== null && !isTodoSortDirection(dir)) fixes.push('unknown sort direction dropped')
   if (row.owner !== undefined && row.owner !== null && pickListOwner(row.owner) === undefined) fixes.push('unknown owner dropped')
   const line = row.showFilterLine
+  if (row.tabBadges !== undefined && row.tabBadges !== null && pickListTabBadges(row.tabBadges) === undefined) fixes.push('unknown tab badges dropped')
   if (line !== undefined && line !== null && typeof line !== 'boolean') fixes.push('unknown filter line setting dropped')
   return fixes
 }
@@ -758,6 +760,7 @@ function pickListDefinition(v: Raw): AllFields<ListDefinition> {
     owner: pickListOwner(v.owner),
     // Only `false` is stored: shown is the default.
     showFilterLine: v.showFilterLine === false ? false : undefined,
+    tabBadges: pickListTabBadges(v.tabBadges),
   } satisfies AllFields<ListDefinition>
 }
 

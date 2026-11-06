@@ -19,7 +19,6 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { DEFAULT_FOLLOWUP_INTERVAL } from '../../../utils/followup'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { makePerson, makeTodo } from '../../helpers'
 
 const CHECKIN_DUE_SOON_DAYS = 14
@@ -66,7 +65,7 @@ beforeEach(async () => {
   useStatusStore.setState({ statuses: [] })
   useSettingsStore.setState({
     checkinOpenMethod: 'mailto', checkinTaskFilter: emptyPredicate(), weekStartsOn: 1,
-    urgentDueWithinDays: 0, hotRule: DEFAULT_HOT_RULE, followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
+    urgentDueWithinDays: 0, followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
   })
   useUIStore.setState({ checkinDialog: null })
   useUndoStore.getState().clear()
@@ -204,7 +203,7 @@ describe('sendPersonCheckin', () => {
   })
 
   it('no open tasks match the filter: opens the dialog for the person with the reason; nothing copied or recorded', async () => {
-    useSettingsStore.setState({ checkinTaskFilter: { ...emptyPredicate(), markers: 'hot' } })
+    useSettingsStore.setState({ checkinTaskFilter: { ...emptyPredicate(), markers: [{ values: ['focus'] }] } })
     expect(await sendPersonCheckin(1)).toBe('dialog')
     expect(events).toEqual([])
     expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: noTasksNotice('Ada Lovelace', true) })
@@ -278,7 +277,7 @@ describe('sendPersonCheckin before the tasks’ people and tags are loaded', () 
     for (const group of [{ tags: [7], negate: { tags: true as const } }, { searchText: 'home' }]) {
       useUIStore.setState({ checkinDialog: null })
       useSettingsStore.setState({
-        checkinTaskFilter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: 'hot', ...group }] },
+        checkinTaskFilter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }], ...group }] },
       })
       expect(await sendPersonCheckin(1)).toBe('dialog')
       expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: ASSIGNMENTS_LOADING_NOTICE })

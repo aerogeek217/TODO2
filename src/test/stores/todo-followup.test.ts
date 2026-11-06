@@ -5,6 +5,7 @@ import { followedUpName, useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { autoNextFollowup, newTaskDefaultFollowup, useSettingsStore } from '../../stores/settings-store'
 import { DEFAULT_FOLLOWUP_INTERVAL, nextAfterFollowup } from '../../utils/followup'
+import { addTask } from '../add-task'
 
 // Sat 10 Oct 2026, 15:30 local.
 const NOW = new Date(2026, 9, 10, 15, 30)
@@ -29,7 +30,7 @@ const mem = (id: number) => useTodoStore.getState().todos.find((t) => t.id === i
 
 describe('new tasks get the default next follow-up', () => {
   it('add(): today + 1 month (the default), at local midnight; no last follow-up', async () => {
-    const id = await useTodoStore.getState().add('A')
+    const id = await addTask('A')
     const row = (await db.todos.get(id))!
     expect(row.nextFollowupAt).toEqual(day(2026, 11, 10))
     expect(row.lastFollowupAt).toBeUndefined()
@@ -38,12 +39,12 @@ describe('new tasks get the default next follow-up', () => {
 
   it('add() follows the Settings interval', async () => {
     useSettingsStore.setState({ followupDefaultInterval: { count: 10, unit: 'd' } })
-    const id = await useTodoStore.getState().add('B')
+    const id = await addTask('B')
     expect((await db.todos.get(id))!.nextFollowupAt).toEqual(day(2026, 10, 20))
   })
 
   it('duplicate() copies the source next follow-up but not the last one', async () => {
-    const id = await useTodoStore.getState().add('C')
+    const id = await addTask('C')
     await useTodoStore.getState().update(id, { nextFollowupAt: day(2026, 12, 1), lastFollowupAt: day(2026, 10, 1) })
     const copy = (await useTodoStore.getState().duplicate(id))!
     const row = (await db.todos.get(copy))!
@@ -52,7 +53,7 @@ describe('new tasks get the default next follow-up', () => {
   })
 
   it('a recurring task advancing on completion keeps its follow-up (not a new task)', async () => {
-    const id = await useTodoStore.getState().add('R')
+    const id = await addTask('R')
     await useTodoStore.getState().update(id, { dueDate: day(2026, 10, 12), recurrenceRule: { type: 'weekly' } })
     const before = (await db.todos.get(id))!.nextFollowupAt
     await useTodoStore.getState().toggleComplete(id)
@@ -65,8 +66,8 @@ describe('new tasks get the default next follow-up', () => {
 
 describe('markFollowedUp', () => {
   it('sets last = now and next = today + default on every task; store and DB agree', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
     // A clock tick between the optimistic update and the DB write must not
     // produce two different timestamps.
     const orig = todoRepository.bulkUpdate.bind(todoRepository)
@@ -85,7 +86,7 @@ describe('markFollowedUp', () => {
   })
 
   it('is one undo step with the snackbar; undo restores the previous values in store and DB', async () => {
-    const a = await useTodoStore.getState().add('A')
+    const a = await addTask('A')
     await useTodoStore.getState().update(a, { nextFollowupAt: undefined })
     useUndoStore.getState().clear()
     await useTodoStore.getState().markFollowedUp([a])
@@ -102,7 +103,7 @@ describe('markFollowedUp', () => {
   })
 
   it('with the automatic next follow-up off, clears an overdue next follow-up (last = now); undo brings it back', async () => {
-    const a = await useTodoStore.getState().add('A')
+    const a = await addTask('A')
     await useTodoStore.getState().update(a, { nextFollowupAt: day(2026, 10, 8) })
     useSettingsStore.setState({ autoFollowup: false })
     useUndoStore.getState().clear()
@@ -118,7 +119,7 @@ describe('markFollowedUp', () => {
   })
 
   it('keeps a next follow-up after today, the setting on or off; last = now; the undo name says kept', async () => {
-    const a = await useTodoStore.getState().add('A')
+    const a = await addTask('A')
     await useTodoStore.getState().update(a, { nextFollowupAt: day(2026, 10, 15) })
     for (const autoFollowup of [false, true]) {
       useSettingsStore.setState({ autoFollowup })
@@ -134,7 +135,7 @@ describe('markFollowedUp', () => {
   })
 
   it('today’s next follow-up gets the rule (today + the interval; none while off)', async () => {
-    const a = await useTodoStore.getState().add('A')
+    const a = await addTask('A')
     await useTodoStore.getState().update(a, { nextFollowupAt: day(2026, 10, 10) })
     await useTodoStore.getState().markFollowedUp([a])
     expect((await db.todos.get(a))!.nextFollowupAt).toEqual(day(2026, 11, 10))
@@ -145,9 +146,9 @@ describe('markFollowedUp', () => {
   })
 
   it('mixed tasks in one call: each by its own date; one undo step restores what was written; redo re-applies the rule from its now', async () => {
-    const future = await useTodoStore.getState().add('Future')
-    const overdue = await useTodoStore.getState().add('Overdue')
-    const none = await useTodoStore.getState().add('None')
+    const future = await addTask('Future')
+    const overdue = await addTask('Overdue')
+    const none = await addTask('None')
     await useTodoStore.getState().update(future, { nextFollowupAt: day(2026, 10, 13) })
     await useTodoStore.getState().update(overdue, { nextFollowupAt: day(2026, 10, 1) })
     await useTodoStore.getState().update(none, { nextFollowupAt: undefined })
@@ -186,7 +187,7 @@ describe('markFollowedUp', () => {
   })
 
   it('a given next follow-up replaces a later one too', async () => {
-    const a = await useTodoStore.getState().add('A')
+    const a = await addTask('A')
     await useTodoStore.getState().update(a, { nextFollowupAt: day(2026, 10, 15) })
     await useTodoStore.getState().markFollowedUp([a], { next: null })
     expect((await db.todos.get(a))!.nextFollowupAt).toBeUndefined()
@@ -196,8 +197,8 @@ describe('markFollowedUp', () => {
   })
 
   it('a failed write rolls back per task: the written next follow-up goes back, a kept one is left alone', async () => {
-    const future = await useTodoStore.getState().add('Future')
-    const overdue = await useTodoStore.getState().add('Overdue')
+    const future = await addTask('Future')
+    const overdue = await addTask('Overdue')
     await useTodoStore.getState().update(future, { nextFollowupAt: day(2026, 10, 13) })
     await useTodoStore.getState().update(overdue, { nextFollowupAt: day(2026, 10, 1) })
     vi.spyOn(todoRepository, 'bulkUpdate').mockRejectedValueOnce(new Error('write failed'))
@@ -211,8 +212,8 @@ describe('markFollowedUp', () => {
   })
 
   it('a given next follow-up wins over the rule (a date, or null = none), and redo sets the same one', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
     useUndoStore.getState().clear()
     await useTodoStore.getState().markFollowedUp([a], { next: day(2026, 10, 24) })
     expect((await db.todos.get(a))!).toMatchObject({ lastFollowupAt: NOW, nextFollowupAt: day(2026, 10, 24) })
@@ -230,7 +231,7 @@ describe('markFollowedUp', () => {
   })
 
   it('names its undo step with a description and a detail line when given', async () => {
-    const a = await useTodoStore.getState().add('A')
+    const a = await addTask('A')
     useUndoStore.getState().clear()
     await useTodoStore.getState().markFollowedUp([a], { description: 'Sent a check-in', detail: 'to Ann' })
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Sent a check-in', detail: 'to Ann' })
@@ -272,15 +273,15 @@ describe('autoNextFollowup — the one rule for the automatic next follow-up', (
     useSettingsStore.setState({ autoFollowup: false })
     expect(autoNextFollowup(NOW)).toBeNull()
     expect(newTaskDefaultFollowup(NOW)).toBeUndefined()
-    const id = await useTodoStore.getState().add('Off')
+    const id = await addTask('Off')
     expect((await db.todos.get(id))!.nextFollowupAt).toBeUndefined()
   })
 })
 
 describe('bulkSetFollowup', () => {
   it('sets and clears nextFollowupAt on every task, undoably', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
     await useTodoStore.getState().bulkSetFollowup([a, b], null)
     expect((await db.todos.get(a))!.nextFollowupAt).toBeUndefined()
     expect((await db.todos.get(b))!.nextFollowupAt).toBeUndefined()
@@ -294,8 +295,8 @@ describe('bulkSetFollowup', () => {
 
 describe('bulkSetLastFollowup', () => {
   it('sets and clears lastFollowupAt on every task, undoably', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
     await useTodoStore.getState().bulkSetLastFollowup([a, b], day(2026, 9, 13))
     expect((await db.todos.get(a))!.lastFollowupAt).toEqual(day(2026, 9, 13))
     expect(mem(b).lastFollowupAt).toEqual(day(2026, 9, 13))

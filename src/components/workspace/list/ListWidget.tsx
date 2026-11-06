@@ -51,8 +51,7 @@ import { ListFilterRow } from './ListFilterRow'
 import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
-import { activeMarkers, isHotFilter } from '../../../utils/markers'
-import { hotSeed } from '../../../utils/hot'
+import { hasMarkers } from '../../../utils/markers'
 import { hasOrGroups } from '../../../utils/or-groups'
 import { resolvePriorityDrop, type PriorityDrop } from '../../../utils/priority-groups'
 import { useToday } from '../../../hooks/use-today'
@@ -178,16 +177,14 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const listItems = useMemo(() => predicateLineItems(predicate, names), [predicate, names])
 
   // + Add task: only when the merged predicate names people / status / tags
-  // / markers to seed the new task with (Hot seeds the Hot rule's first
-  // line, so the task lands in the list; an "is not" field seeds nothing,
-  // but keeps the button — and so does an or group: which of its clauses a
+  // / markers to seed the new task with (an "is not" field or several
+  // priorities seed nothing, but keep the button — and so does an or group: which of its clauses a
   // new task should meet is ambiguous, so only the clauses outside it seed).
   const canAddTask = mergedPredicate != null && (
     mergedPredicate.personIds != null
     || mergedPredicate.statusIds != null
     || (mergedPredicate.tags != null && mergedPredicate.tags.length > 0)
-    || activeMarkers(mergedPredicate.markers).length > 0
-    || (isHotFilter(mergedPredicate.markers) && hotSeed(filterSettings.hotRule) != null)
+    || hasMarkers(mergedPredicate.markers)
     || hasOrGroups(mergedPredicate)
   )
 
@@ -216,7 +213,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const crossKey = (key: string) => (isUngroupedSectionKey(groupedBy, key) ? UNGROUPED_GROUP_KEY : key)
   /** A Priority group's drop: the flags it writes, or why it's refused (`null`: nothing to do). */
   const priorityDrop = (todo: PersistedTodoItem, sourceKey: string, targetKey: string): PriorityDrop | null =>
-    resolvePriorityDrop(todo, sourceKey, targetKey, { today, urgentRange: filterSettings.urgentRange, hotRule: filterSettings.hotRule })
+    resolvePriorityDrop(todo, sourceKey, targetKey, { today, urgentRange: filterSettings.urgentRange })
   const crossMutation = (todo: PersistedTodoItem, sourceKey: string, targetKey: string): CrossGroupMutation | null => {
     if (groupedBy !== 'priority') return resolveCrossGroupMutation(groupedBy, crossKey(sourceKey), crossKey(targetKey), todo.id)
     const drop = priorityDrop(todo, sourceKey, targetKey)
@@ -477,7 +474,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           title="Add a task to this list"
           onClick={() => {
             if (!mergedPredicate) return
-            useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate, { hotRule: filterSettings.hotRule }) })
+            useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate) })
           }}
         >
           <span className={styles.addTaskIcon} aria-hidden="true"><PlusIcon size={12} strokeWidth={2} /></span>

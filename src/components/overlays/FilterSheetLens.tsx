@@ -6,15 +6,17 @@ import { useUIStore } from '../../stores/ui-store'
 import { GlassesIcon } from '../shared/icons'
 import { useChipNames } from '../shared/filters/filter-menu'
 import { lensSummary } from '../shared/filters/lens-text'
+import { sheetHeaderProps } from '../shared/filters/sheet-header'
 import sheet from '../shared/filters/FilterChipBarMobile.module.css'
 import styles from './FilterSheetLens.module.css'
+import { lensActions } from '../../stores/lens-actions'
 
 /**
  * The phone filter sheet's first section (D15 board F): the top bar's lens,
  * the same on every layout — a radio list (No lens with the open count,
  * each lens with its filters in a line and how many open tasks it hides) —
  * and "Lift the lens for now", as the desktop lens control's glasses. A
- * pick is saved at once (`settings-store.setActiveLens`).
+ * pick is saved at once (`lens-actions.setActiveLens`).
  */
 export function FilterSheetLens() {
   const lenses = useSettingsStore((s) => s.lenses)
@@ -26,17 +28,17 @@ export function FilterSheetLens() {
   const groupName = useId()
   const pick = (id: string | null) => {
     useUIStore.getState().setLensLifted(false)
-    void useSettingsStore.getState().setActiveLens(id)
+    void lensActions.setActiveLens(id)
   }
   return (
     <div className={sheet.entitySection} data-testid="sheet-lens">
-      <div className={sheet.entityHeader} onClick={() => setOpen(!open)}>
+      <div className={sheet.entityHeader} {...sheetHeaderProps(open, () => setOpen(!open))}>
         <span className={sheet.filterLabel}>
           <span className={`${styles.glyph} ${lens && !lifted ? styles.glyphOn : ''}`}><GlassesIcon slashed={lens != null && lifted} /></span>
           Lens
         </span>
         <span className={`${sheet.sectionValue} ${lens ? sheet.sectionValueOn : ''} ${lifted ? styles.struck : ''}`}>{lens?.name ?? 'No lens'}</span>
-        <span className={`${sheet.entityChevron} ${open ? sheet.entityChevronOpen : ''}`}>▸</span>
+        <span className={`${sheet.entityChevron} ${open ? sheet.entityChevronOpen : ''}`} aria-hidden="true">▸</span>
       </div>
       {open && (
         <div className={styles.body}>

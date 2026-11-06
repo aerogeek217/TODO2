@@ -3,6 +3,7 @@
  * two sections and ordered as the email lists them.
  */
 import type { Person, PersistedTodoItem, Status, StatusUpdate, Subtask, Tag } from '../../models'
+import { todoNameLookups } from '../../utils/filter'
 import { createPredicateEvaluator } from '../../utils/filter-match'
 import { checkinFilterOf, isNoCheckinFilter, type CheckinTaskFilter } from '../../utils/checkin-settings'
 import { startOfDay } from '../../utils/date'
@@ -18,14 +19,14 @@ export interface CheckinSelectContext {
   /** People per task id — who a task is assigned to. */
   assignedPeopleMap: ReadonlyMap<number, readonly Person[]>
   /** Tags per task id (the filter's tag clauses read it). */
-  assignedTagsMap?: ReadonlyMap<number, readonly Tag[]>
+  assignedTagsMap: ReadonlyMap<number, readonly Tag[]>
   /** Statuses (the filter's status clauses and text search read them). */
-  statuses?: readonly Status[]
+  statuses: readonly Status[]
   /** Each task's status updates (the filter's text search reads them). */
-  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
+  statusUpdatesByTodo: ReadonlyMap<number, readonly StatusUpdate[]>
   /** Each task's checklist (the filter's text search reads its titles). */
-  subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
-  /** Urgent range + Hot rule (the filter's Priority clause). */
+  subtasksByTodo: ReadonlyMap<number, readonly Subtask[]>
+  /** The urgent range (the filter's Priority clause). */
   markerSettings: MarkerSettings
   weekStartsOn: WeekStart
 }
@@ -76,13 +77,7 @@ function filterTest(filter: CheckinTaskFilter, ctx: CheckinSelectContext): (t: P
   if (isNoCheckinFilter(filter)) return () => true
   const predicate = checkinFilterOf(filter)
   const evalPredicate = createPredicateEvaluator(
-    {
-      assignedPeopleMap: ctx.assignedPeopleMap,
-      assignedTagsMap: ctx.assignedTagsMap,
-      statusesById: new Map((ctx.statuses ?? []).flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
-      statusUpdatesByTodo: ctx.statusUpdatesByTodo,
-      subtasksByTodo: ctx.subtasksByTodo,
-    },
+    todoNameLookups(ctx),
     startOfDay(ctx.today),
     { ...ctx.markerSettings, weekStartsOn: ctx.weekStartsOn },
   )

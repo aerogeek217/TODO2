@@ -219,7 +219,7 @@ test('closing the last widget of an unsaved list asks first; leaving the workspa
   const dialog = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
   await expect(dialog).toHaveCount(0)
   await page.setViewportSize({ width: 390, height: 844 })
-  await page.getByRole('tab', { name: 'Settings' }).click()
+  await page.getByRole('button', { name: 'Settings' }).click()
   await expect(dialog).toBeVisible()
   await dialog.getByRole('button', { name: /Cancel/ }).click()
   await expect(page).toHaveURL(/#\/$/)

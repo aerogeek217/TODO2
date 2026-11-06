@@ -12,7 +12,7 @@ import {
 const filter = (extra: Record<string, unknown>) => ({ showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, ...extra })
 
 const PANES = {
-  delegate: { name: 'Hand off', filter: filter({ markers: { urgent: true, important: false }, statusIds: [4], negate: { statusIds: true } }) },
+  delegate: { name: 'Hand off', filter: filter({ markers: [{ values: ['urgent'] }, { values: ['important'], not: true }], statusIds: [4], negate: { statusIds: true } }) },
   drop: { name: 'Someday' },
 }
 
@@ -35,10 +35,10 @@ describe('the eisenhowerPanes setting', () => {
 
   it('a name or filter equal to the default, a blank name and an empty pane are left out; names are one trimmed line', () => {
     const row = panesRow({
-      do: { name: ' Do ', filter: filter({ markers: { important: true, urgent: true } }) },
+      do: { name: ' Do ', filter: filter({ markers: [{ values: ['urgent'] }, { values: ['important'] }] }) },
       schedule: { name: '   ' },
       delegate: {},
-      drop: { name: '  Later\nsoon ', filter: filter({ showCompleted: true, markers: { urgent: false, important: false } }) },
+      drop: { name: '  Later\nsoon ', filter: filter({ showCompleted: true, markers: [{ values: ['urgent', 'important'], not: true }] }) },
     })
     expect(rowFixes('settings', row)).toEqual([])
     expect(sanitizeRow('settings', row)).toEqual(panesRow({ drop: { name: 'Later soon' } }))
@@ -46,10 +46,10 @@ describe('the eisenhowerPanes setting', () => {
 
   it('keeps a pane filter’s or groups; a malformed one is dropped with a warning', () => {
     const group = { personIds: [2], statusIds: null, searchText: '', dates: {}, markers: null, tags: [3] }
-    const row = panesRow({ do: { filter: filter({ markers: { urgent: true }, orGroups: [group] }) } })
+    const row = panesRow({ do: { filter: filter({ markers: [{ values: ['urgent'] }], orGroups: [group] }) } })
     expect(rowFixes('settings', row)).toEqual([])
     expect(sanitizeRow('settings', row)).toEqual(row)
-    const bad = panesRow({ do: { filter: filter({ markers: { urgent: true }, orGroups: [group, 4] }) } })
+    const bad = panesRow({ do: { filter: filter({ markers: [{ values: ['urgent'] }], orGroups: [group, 4] }) } })
     expect(rowFixes('settings', bad)).toEqual(['Eisenhower pane setting dropped'])
     expect(sanitizeRow('settings', bad)).toEqual(row)
   })
@@ -62,7 +62,7 @@ describe('the eisenhowerPanes setting', () => {
   it('drops unknown panes, unknown keys and malformed filter clauses with a warning', () => {
     const row = panesRow({
       later: { name: 'Later' },
-      do: { name: 'Now', colour: 'red', filter: filter({ personIds: ['ann'], markers: { urgent: true, important: true } }) },
+      do: { name: 'Now', colour: 'red', filter: filter({ personIds: ['ann'], markers: [{ values: ['urgent'] }, { values: ['important'] }] }) },
     })
     expect(validateRow('settings', row)).toBe(true)
     expect(rowFixes('settings', row)).toEqual(['3 Eisenhower pane settings dropped'])

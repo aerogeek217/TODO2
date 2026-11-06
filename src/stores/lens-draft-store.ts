@@ -7,6 +7,7 @@ import { useSettingsStore } from './settings-store'
 import { SETTINGS_PART_SECTION, lensFocus, registerSettingsLeaveGuard, useUIStore } from './ui-store'
 import { UndoRefused } from './undo-store'
 import { undoable } from './undoable'
+import { lensActions } from './lens-actions'
 
 /** The open lens's filter as edited, not saved yet. */
 export interface LensDraft {
@@ -107,7 +108,7 @@ export const useLensDraftStore = create<LensDraftState>((set, get) => ({
       get().discard()
       return true
     }
-    const ok = await useSettingsStore.getState().setLensPredicate(live.lens.id, live.predicate)
+    const ok = await lensActions.setLensPredicate(live.lens.id, live.predicate)
     // Edits made while it saved stay a draft.
     if (ok && get().draft === draft) set({ draft: null })
     return ok

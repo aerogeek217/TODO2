@@ -13,6 +13,7 @@ import {
 import { useFilterSettings } from './use-filter-settings'
 import { keptOf, restoreLeaving, type LeavingRows } from './use-leaving-rows'
 import { useToday } from './use-today'
+import { useTodoNameLookups } from './use-todo-name-lookups'
 import { useTrendEvents } from './use-trend-events'
 import { computeFollowupGroups, type FollowupGroups } from '../services/stats/followup-groups'
 import { computeListTileCounts, type ListTileCount } from '../services/stats/list-tiles'
@@ -39,8 +40,6 @@ import { useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
-import { useStatusUpdateStore } from '../stores/status-update-store'
-import { useSubtaskStore } from '../stores/subtask-store'
 
 /** A statistic over the screen-filtered tasks, and over every task (the `of N`). */
 export interface ShownOfTotal<T> {
@@ -80,17 +79,16 @@ export interface DashboardData {
   /** `null` until the history has been read. */
   trend: TrendStats | null
   trendRange: DashboardTrendRange
-  /** The task-row sections' rows (Hot, Needs follow-up, Stale). */
+  /** The task-row sections' rows (Needs follow-up, Stale). */
   rows: DashboardRows
 }
 
 /**
- * The rows of the task-row sections: `tiles.shown.hot`, `followup.shown` and
+ * The rows of the task-row sections: `followup.shown` and
  * `stale.shown` — plus, while a just-completed task lingers (D19), that task
  * as it was before, in its place.
  */
 export interface DashboardRows {
-  hot: number[]
   followup: FollowupGroups
   stale: number[]
   /** The leaving tasks these rows keep as they were (they show as they are now, completed). */
@@ -99,8 +97,8 @@ export interface DashboardRows {
 
 const NO_IDS: ReadonlySet<number> = new Set()
 
-function rowIds(hot: readonly number[], followup: FollowupGroups, stale: readonly number[]): number[] {
-  return [...hot, ...followup.late, ...followup.today, ...followup.upcoming, ...stale]
+function rowIds(followup: FollowupGroups, stale: readonly number[]): number[] {
+  return [...followup.late, ...followup.today, ...followup.upcoming, ...stale]
 }
 
 /** The Eisenhower settings as the dashboard's Eisenhower section uses them. */
@@ -128,8 +126,7 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
   const statuses = useStatusStore((s) => s.statuses)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
-  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
-  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
+  const lookups = useTodoNameLookups()
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const screen = useScreenFilter().filters
   const markerSettings = useFilterSettings()
@@ -149,15 +146,14 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
     today,
     weekStartsOn,
     urgentRange: markerSettings.urgentRange,
-    hotRule: markerSettings.hotRule,
     assignedPeopleMap,
     assignedTagsMap,
     statuses,
   }), [today, weekStartsOn, markerSettings, assignedPeopleMap, assignedTagsMap, statuses])
 
   const shown = useMemo(
-    () => applyFilter(statsFilter(screen), todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo),
-    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo],
+    () => applyFilter(statsFilter(screen), todos, lookups, today, markerSettings),
+    [screen, todos, lookups, today, markerSettings],
   )
   const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos])
   const filtered = countActiveFilters({ ...screen, showCompleted: false }) > 0
@@ -200,7 +196,7 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
   const eisenhower = useMemo(() => {
     const source = eisenhowerSourceTasks(todos, shown, eisenhowerList, {
       screen: statsFilter(screen),
-      lookups: { assignedPeopleMap, assignedTagsMap, statusesById: new Map(statuses.map((st) => [st.id!, st])), statusUpdatesByTodo, subtasksByTodo },
+      lookups,
       today,
       settings: markerSettings,
     })
@@ -208,7 +204,7 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
       shown: computeEisenhowerSummary(source.shown, eisenhowerPanes, paneCtx),
       total: computeEisenhowerSummary(source.total, eisenhowerPanes, paneCtx),
     }
-  }, [eisenhowerList, todos, shown, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, markerSettings, eisenhowerPanes, paneCtx])
+  }, [eisenhowerList, todos, shown, screen, lookups, today, markerSettings, eisenhowerPanes, paneCtx])
   const trend = useMemo(
     () => (events ? computeTrend(shown, events, ctx, trendRange) : null),
     [shown, events, ctx, trendRange],
@@ -224,32 +220,25 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
     })
     return computeListTileCounts(defs, todos, {
       screen,
-      lookups: {
-        assignedPeopleMap,
-        assignedTagsMap,
-        statusesById: new Map(statuses.map((s) => [s.id!, s])),
-        statusUpdatesByTodo,
-        subtasksByTodo,
-      },
+      lookups,
       today,
       weekStartsOn,
       markerSettings,
     })
-  }, [config.listTiles, listDefinitions, drafts, todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, markerSettings])
+  }, [config.listTiles, listDefinitions, drafts, todos, screen, lookups, today, weekStartsOn, markerSettings])
 
   const rows = useMemo<DashboardRows>(() => {
-    const now: DashboardRows = { hot: tiles.shown.hot.ids, followup: followup.shown, stale: stale.shown.ids, kept: NO_IDS }
+    const now: DashboardRows = { followup: followup.shown, stale: stale.shown.ids, kept: NO_IDS }
     if (!leaving || leaving.size === 0) return now
-    const asWas = applyFilter(statsFilter(screen), restoreLeaving(todos, leaving), assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo)
-    const hot = computeTiles(asWas, ctx).hot.ids
+    const asWas = applyFilter(statsFilter(screen), restoreLeaving(todos, leaving), lookups, today, markerSettings)
     const followupAsWas = computeFollowupGroups(asWas, ctx, lookAhead)
     const staleAsWas = computeStaleTasks(asWas, ctx, staleDays).ids
-    const inRows = new Set(rowIds(hot, followupAsWas, staleAsWas))
-    const kept = keptOf(leaving, new Set(rowIds(now.hot, now.followup, now.stale)))
+    const inRows = new Set(rowIds(followupAsWas, staleAsWas))
+    const kept = keptOf(leaving, new Set(rowIds(now.followup, now.stale)))
     for (const id of kept) if (!inRows.has(id)) kept.delete(id)
-    return kept.size > 0 ? { hot, followup: followupAsWas, stale: staleAsWas, kept } : now
+    return kept.size > 0 ? { followup: followupAsWas, stale: staleAsWas, kept } : now
   }, [
-    tiles, followup, stale, leaving, screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo,
+    followup, stale, leaving, screen, todos, lookups, today, markerSettings,
     ctx, lookAhead, staleDays,
   ])
 

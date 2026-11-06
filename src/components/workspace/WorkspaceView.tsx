@@ -2,7 +2,7 @@ import { Fragment, type CSSProperties } from 'react'
 import type { BandEdge, LayoutBand, LayoutColumn, WorkspaceLayout } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { columnEdgeXs, EDGE_ZONE_GUTTER_PX, freeBandEdges } from '../../utils/workspace-drop'
-import { BAND_MIN_PX, CELL_MIN_PX, COLUMN_MIN_PX } from '../../utils/workspace-resize'
+import { BAND_MIN_PX, CELL_MIN_PX, COLUMN_MIN_PX, expandedWeight } from '../../utils/workspace-resize'
 import { EmptyColumnArea, WorkspaceCell } from './WorkspaceCell'
 import { WorkspaceDivider } from './WorkspaceDivider'
 import { BandDivider } from './BandDivider'
@@ -25,19 +25,20 @@ function EmptyLayout() {
   )
 }
 
-function Column({ column }: { column: LayoutColumn }) {
+function Column({ column, widthShare }: { column: LayoutColumn; widthShare: number }) {
   const setCellWeights = useWorkspaceStore((s) => s.setCellWeights)
   const endResize = useWorkspaceStore((s) => s.endResize)
   const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
+  const cellsWeight = expandedWeight(column.cells)
   return (
     <div
       className={styles.column}
-      style={{ flexGrow: column.weight } as CSSProperties}
+      style={{ flexGrow: widthShare } as CSSProperties}
       data-ws-column={column.id}
     >
       {column.cells.map((cell, i) => {
         const prev = column.cells[i - 1]
-        const style: CSSProperties = cell.collapsed ? { flex: '0 0 auto' } : { flex: `${cell.weight} 1 0px` }
+        const style: CSSProperties = cell.collapsed ? { flex: '0 0 auto' } : { flex: `${cell.weight / cellsWeight} 1 0px` }
         return (
           <Fragment key={cell.id}>
             {prev && (prev.collapsed || cell.collapsed ? (
@@ -170,6 +171,7 @@ export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
   const endResize = useWorkspaceStore((s) => s.endResize)
   const { top, bottom } = layout
   const hasBands = top != null || bottom != null
+  const columnsWeight = expandedWeight(layout.columns)
   return (
     <div
       className={styles.area}
@@ -200,7 +202,7 @@ export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
                       label="Resize columns"
                     />
                   )}
-                  <Column column={column} />
+                  <Column column={column} widthShare={column.weight / columnsWeight} />
                 </Fragment>
               )
             })}

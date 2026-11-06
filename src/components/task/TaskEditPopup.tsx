@@ -5,7 +5,6 @@ import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { useStatusUpdateStore, useStatusUpdates } from '../../stores/status-update-store'
 import { describeFollowupInterval, nextAfterFollowup } from '../../utils/followup'
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
@@ -17,18 +16,15 @@ import { urgentMark, urgentToggleHint } from '../../utils/urgency'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { makeRecurrenceRule } from '../../utils/recurrence'
-import { addStatusUpdate } from '../../services/mark-followed-up'
 import { parseTaskInput } from '../../services/nlp-task-creator'
 import { draftEditorTitle, type EditorTaskFields, type TaskDraft } from '../../services/task-draft'
-import { compareStatusUpdates, statusUpdateDay } from '../../utils/status-updates'
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
 import { NotesBody } from './notes/NotesBody'
-import { StatusUpdatesSection, type StatusUpdateEntry, type StatusUpdateFields } from './status-updates/StatusUpdatesSection'
+import { StatusUpdatesSection } from './status-updates/StatusUpdatesSection'
+import { useEditorStatusUpdates, useEditorSubtasks } from './use-editor-entries'
 import { SubtasksSection } from './subtasks/SubtasksSection'
-import type { ChecklistItem } from './subtasks/SubtaskChecklist'
-import { useSubtasks, useSubtaskStore } from '../../stores/subtask-store'
 import { storedSubtaskMenuEntries } from './subtasks/subtask-menu'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
@@ -85,6 +81,12 @@ interface CreateModeProps extends TaskEditPopupBaseProps {
    * them. People and tags still to create show as `@` / `#` in the title.
    */
   seed?: TaskDraft
+  /**
+   * The seed's title was typed (Quick Add on a note line, its text edited,
+   * then Details): the close's "anything to lose?" counts it, as it counts
+   * the top bar's Quick Add hand-off (cr31 N3).
+   */
+  seedTyped?: boolean
   /**
    * Draft mode (editing a row of the convert preview): nothing is stored.
    * The footer's Save draft hands the fields back instead of creating, and
@@ -170,18 +172,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // each stays its own undo step, in order. A create reads the text.
   const notesSession = useTaskNotesSource({ todoId: todo?.id, initial: todo?.notes ?? seed?.notes ?? '' })
   const flushNotes = notesSession.flush
-  // Status updates: edit mode writes each at once through the store; create
-  // mode keeps them here (newest first, a local key each) until Create.
-  const storedUpdates = useStatusUpdates(todo?.id)
-  const [pendingUpdates, setPendingUpdates] = useState<(StatusUpdateEntry & { createdAt: Date })[]>(
-    () => (seed?.statusUpdates ?? []).map((u, i) => ({ ...u, id: i + 1 })).sort(compareStatusUpdates),
-  )
-  // Subtasks: edit mode writes each at once through the store; create mode
-  // keeps them here (in order, a local key each) until Create.
-  const storedSubtasks = useSubtasks(todo?.id)
-  const [pendingSubtasks, setPendingSubtasks] = useState<ChecklistItem[]>(
-    () => (seed?.subtasks ?? []).map((s, i) => ({ id: i + 1, title: s.title, isCompleted: s.isCompleted })),
-  )
+  // Status updates and subtasks: edit mode writes each at once through the
+  // store; create mode keeps them here until Create (`use-editor-entries`).
+  const entryOptions = { isEdit, todoId: todo?.id, flushNotes }
+  const statusUpdates = useEditorStatusUpdates(entryOptions, seed?.statusUpdates)
+  const pendingUpdates = statusUpdates.pending
+  const committedUpdates = statusUpdates.committed
+  const subtasks = useEditorSubtasks(entryOptions, seed?.subtasks)
+  const pendingSubtasks = subtasks.pending
   const [statusId, setStatusId] = useState<number | undefined>(
     seed ? seed.statusId : (
       todo?.statusId
@@ -373,76 +371,12 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }
 
-  // Status updates: in edit mode each is its own undo step, after the notes typed so far.
-  const handleAddUpdate = (entry: StatusUpdateFields) => {
-    if (isEdit && todo) {
-      // After the notes (once the follow-up's undo group is open, a write landing would join it).
-      void flushNotes().finally(() => addStatusUpdate(todo.id, entry))
-      return
-    }
-    const now = new Date()
-    setPendingUpdates((prev) => [
-      ...prev,
-      { id: Math.max(0, ...prev.map((u) => u.id)) + 1, date: statusUpdateDay(entry.date, now), text: entry.text, createdAt: now },
-    ].sort(compareStatusUpdates))
-  }
-
-  const handleEditUpdate = (id: number, changes: StatusUpdateFields) => {
-    if (isEdit) {
-      void flushNotes()
-      void useStatusUpdateStore.getState().update(id, changes)
-      return
-    }
-    const date = statusUpdateDay(changes.date, new Date())
-    setPendingUpdates((prev) => prev.map((u) => (u.id === id ? { ...u, date, text: changes.text } : u)).sort(compareStatusUpdates))
-  }
-
-  const handleRemoveUpdate = (id: number) => {
-    if (isEdit) {
-      void flushNotes()
-      void useStatusUpdateStore.getState().remove(id)
-      return
-    }
-    setPendingUpdates((prev) => prev.filter((u) => u.id !== id))
-  }
-
-  // Subtasks: in edit mode each write is its own undo step, after the notes typed so far.
-  const subtaskWrite = (write: () => void) => {
-    void flushNotes()
-    write()
-  }
-  const handleAddSubtask = (title: string) => {
-    if (isEdit && todo) return subtaskWrite(() => { void useSubtaskStore.getState().add(todo.id, title) })
-    setPendingSubtasks((prev) => [...prev, { id: Math.max(0, ...prev.map((s) => s.id)) + 1, title, isCompleted: false }])
-  }
-  const handleRenameSubtask = (id: number, title: string) => {
-    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().rename(id, title) })
-    setPendingSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)))
-  }
-  const handleSetSubtaskDone = (id: number, done: boolean) => {
-    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().setDone(id, done) })
-    setPendingSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, isCompleted: done } : s)))
-  }
-  const handleRemoveSubtask = (id: number) => {
-    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().remove(id) })
-    setPendingSubtasks((prev) => prev.filter((s) => s.id !== id))
-  }
-  const handleMoveSubtask = (id: number, toIndex: number) => {
-    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().move(id, toIndex) })
-    setPendingSubtasks((prev) => {
-      const from = prev.findIndex((s) => s.id === id)
-      if (from === -1) return prev
-      const next = [...prev]
-      const [moved] = next.splice(from, 1)
-      if (moved) next.splice(Math.max(0, Math.min(toIndex, next.length)), 0, moved)
-      return next
-    })
-  }
-
   const handleToggleComplete = () => {
     if (!isEdit) return
     void flushNotes()
     props.onToggleComplete()
+    // Done with it: completing closes the editor. Reopening a task stays, to go on working on it.
+    if (todo?.isCompleted !== true) onClose()
   }
 
   const handleNextFollowupChange = (next: Date | null) => {
@@ -465,11 +399,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }
 
   // A new task's status updates count as following up on their day, when newer.
-  const newestPendingDay = pendingUpdates.at(0)?.date
-  const draftLastWithUpdates = newestPendingDay
-    && (!draftLastFollowup || newestPendingDay.getTime() > startOfDay(draftLastFollowup).getTime())
-    ? newestPendingDay
-    : draftLastFollowup
+  const lastWithUpdates = (updates: typeof pendingUpdates) => {
+    const newestPendingDay = updates.at(0)?.date
+    return newestPendingDay
+      && (!draftLastFollowup || newestPendingDay.getTime() > startOfDay(draftLastFollowup).getTime())
+      ? newestPendingDay
+      : draftLastFollowup
+  }
+  const draftLastWithUpdates = lastWithUpdates(pendingUpdates)
 
   const handleFollowedUp = () => {
     if (isEdit && todo) {
@@ -532,12 +469,13 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const handleCreate = async () => {
     if (props.mode !== 'create' || !title.trim() || creatingRef.current) return
     // A person / tag picked from the title's Create row is saved first, so the token names it.
+    const updates = committedUpdates()
     if (ac.creating()) await ac.whenCreated()
     const partial: EditorTaskFields = {
       title: title.trim(),
       notes: notesSession.text() || undefined,
-      ...(pendingUpdates.length > 0
-        ? { statusUpdates: pendingUpdates.map(({ date, text, createdAt }) => ({ date, text, createdAt })) }
+      ...(updates.length > 0
+        ? { statusUpdates: updates.map(({ date, text, createdAt }) => ({ date, text, createdAt })) }
         : {}),
       ...(pendingSubtasks.length > 0
         ? { subtasks: pendingSubtasks.map(({ title, isCompleted }) => ({ title, isCompleted })) }
@@ -546,7 +484,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       dueDate: deadline ?? undefined,
       // Left out while still the default, so a `/followup` in the title applies.
       ...(nextFollowupIsDefault ? {} : { nextFollowupAt: draftNextFollowup }),
-      lastFollowupAt: draftLastWithUpdates,
+      lastFollowupAt: lastWithUpdates(updates),
       recurrenceRule: buildRule(),
       ...(draftUrgent ? { urgent: true } : {}),
       ...(draftImportant ? { important: true } : {}),
@@ -570,7 +508,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }
 
   // Create mode: what the form holds, to tell whether Esc or the backdrop would lose anything.
-  const createFormState = (formTitle: string) => JSON.stringify({
+  const createFormState = (formTitle: string, updates: typeof pendingUpdates) => JSON.stringify({
     title: formTitle.trim(),
     statusId,
     due: deadline?.getTime(),
@@ -582,16 +520,16 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     recurrenceType,
     people: [...pendingPersonIds].sort((a, b) => a - b),
     tags: [...pendingTagIds].sort((a, b) => a - b),
-    updates: pendingUpdates.map((u) => [u.date.getTime(), u.text]),
+    updates: updates.map((u) => [u.date.getTime(), u.text]),
     subtasks: pendingSubtasks.map((s) => [s.title, s.isCompleted]),
   })
   // A title handed over from Quick Add was typed; a draft's title (a note line) is where it starts.
-  const [openingForm] = useState(() => createFormState(seed ? title : ''))
+  const [openingForm] = useState(() => createFormState(seed && !(props.mode === 'create' && props.seedTyped) ? title : '', pendingUpdates))
   const askingToCloseRef = useRef(false)
   /** Esc / the backdrop. In create mode, anything to lose asks first; Cancel is the plain `onClose`. */
   const requestClose = () => {
     const dirty = !isEdit && (
-      createFormState(title) !== openingForm
+      createFormState(title, committedUpdates()) !== openingForm
       || notesSession.text() !== (seed?.notes ?? '')
     )
     if (!dirty) {
@@ -697,7 +635,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     return () => document.removeEventListener('mousedown', handler, true)
   }, [openDropdown])
 
-  // Close status menu on outside click
+  // Close status menu on outside click; Esc closes the menu only, not the
+  // editor around it (cr31 T8), and hands the focus back to its button.
   useEffect(() => {
     if (!showStatusMenu) return
     const handler = (e: MouseEvent) => {
@@ -705,8 +644,19 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
         setShowStatusMenu(false)
       }
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      e.preventDefault()
+      e.stopPropagation()
+      setShowStatusMenu(false)
+      statusMenuRef.current?.querySelector<HTMLElement>('button')?.focus()
+    }
     document.addEventListener('mousedown', handler, true)
-    return () => document.removeEventListener('mousedown', handler, true)
+    document.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', handler, true)
+      document.removeEventListener('keydown', onKey, true)
+    }
   }, [showStatusMenu])
 
   return (
@@ -854,24 +804,25 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           />
 
           <SubtasksSection
-            items={isEdit ? storedSubtasks : pendingSubtasks}
-            onAdd={handleAddSubtask}
-            onRename={handleRenameSubtask}
-            onSetDone={handleSetSubtaskDone}
-            onRemove={handleRemoveSubtask}
-            onMove={handleMoveSubtask}
+            items={subtasks.items}
+            onAdd={subtasks.add}
+            onRename={subtasks.rename}
+            onSetDone={subtasks.setDone}
+            onRemove={subtasks.remove}
+            onMove={subtasks.move}
             extraMenuEntries={isEdit ? storedSubtaskMenuEntries : undefined}
             className={styles.notesSection}
             labelClassName={styles.notesLabel}
           />
 
           <StatusUpdatesSection
-            entries={isEdit ? storedUpdates : pendingUpdates}
-            onAdd={handleAddUpdate}
-            onEdit={handleEditUpdate}
-            onRemove={handleRemoveUpdate}
+            entries={statusUpdates.entries}
+            onAdd={statusUpdates.add}
+            onEdit={statusUpdates.edit}
+            onRemove={statusUpdates.remove}
             className={styles.notesSection}
             labelClassName={styles.notesLabel}
+            commitRef={statusUpdates.commitRef}
           />
 
           {/* Notes */}
@@ -882,7 +833,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                 source={notesSession.source}
                 showToolbar
                 placeholder="Add notes..."
-                convert={!seed}
+                subtaskTarget={subtasks.noteTarget}
               />
             </div>
           </div>

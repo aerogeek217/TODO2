@@ -194,7 +194,7 @@ describe('layouts row validation', () => {
 
   it('import keeps a dashboard config’s known ids (once, in order) and options, drops the rest', () => {
     const config = {
-      tiles: ['hot', 'nope', 'open', 'hot'],
+      tiles: ['focus', 'nope', 'hot', 'open', 'focus'],
       listTiles: [3, '4', 3, 1.5, -1, 7],
       sections: [
         { id: 'people', options: { showUnassigned: false, range: '4w' } },
@@ -212,7 +212,7 @@ describe('layouts row validation', () => {
       id: 't',
       kind: 'dashboard',
       config: {
-        tiles: ['hot', 'open'],
+        tiles: ['focus', 'open'],
         listTiles: [3, 7],
         sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'trend', options: { range: '12w' } }, { id: 'followup' }],
       },
@@ -266,9 +266,9 @@ describe('layouts row validation', () => {
       id: 't',
       kind: 'dashboard',
       config: {
-        tiles: ['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'],
+        tiles: ['open', 'focus', 'urgent', 'overdue', 'followupDue'],
         listTiles: [2],
-        sections: ['hot', 'followup', 'next7', 'trend', 'status', 'people'].map((id) => ({ id })),
+        sections: ['followup', 'next7', 'trend', 'status', 'people'].map((id) => ({ id })),
       },
     })
   })

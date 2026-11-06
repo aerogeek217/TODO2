@@ -196,6 +196,8 @@ export function ChipSelector({
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     e.stopPropagation()
+    // An IME's Enter / Tab ends the composition: it toggles and creates nothing.
+    if ((e.key === 'Enter' || e.key === 'Tab') && e.nativeEvent.isComposing) return
     if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
       e.preventDefault()
       if (rows.length === 0) return

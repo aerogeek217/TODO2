@@ -26,15 +26,16 @@ import { StatusIcon } from '../../shared/StatusIcon'
 import { ListWidgetRow } from '../list/ListWidgetRow'
 import { useElementSize } from '../../../hooks/use-element-size'
 import {
-  countOf, hotRuleInWords, nextDayDialogWords, nextDayLabels, signed, sinceLabel, staleSubLine, trendBucketDialogWords, trendBucketLabel,
+  countOf, nextDayDialogWords, nextDayLabels, signed, sinceLabel, staleSubLine, trendBucketDialogWords, trendBucketLabel,
   trendRangeLabel, trendRangeWords,
 } from './dashboard-copy'
-import { tileDrill } from './dashboard-tiles'
 import { DashGlyph } from '../../shared/DashGlyph'
 import type { DashGlyphName } from '../../../utils/dash-glyphs'
 import { SECTION_META, type DashboardSectionMeta } from './section-meta'
 import type { DashboardData } from '../../../hooks/use-dashboard-data'
 import type { DashboardRowKit, OnDashboardDrill } from './types'
+import { MARKER_KEYS, type MarkerKey } from '../../../models'
+import { MARKER_COLOR, MARKER_LABELS } from '../../../utils/markers'
 import styles from './DashboardWidget.module.css'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { leavingShownAs } from '../../../hooks/use-leaving-rows'
@@ -192,28 +193,6 @@ function inSortOrder(ids: readonly number[], data: DashboardData): number[] {
     const t = data.todoById.get(id)
     return t ? [t] : []
   }).sort(bySortOrder).map((t) => t.id)
-}
-
-// ── Hot ─────────────────────────────────────────────────────────────────────
-
-
-export function HotSection({ data, rows, onDrill, style }: DashboardSectionProps) {
-  const ids = data.rows.hot
-  return (
-    <Panel
-      def={SECTION_META.hot}
-      style={style}
-      count={countOf(data.tiles.shown.hot.ids.length, data.tiles.total.hot.ids.length)}
-      onCount={onDrill ? () => onDrill(tileDrill('hot', data)) : undefined}
-      sub={hotRuleInWords(data.ctx.hotRule)}
-    >
-      <div ref={trackScrollEdges} className={styles.panelBody}>
-        {ids.length === 0
-          ? <Empty title="Nothing hot" hint="Tasks matching the Hot setting show here." />
-          : <RowsGrid kit={rows}><TaskRows sectionKey="hot" ids={ids} data={data} kit={rows} kept={data.rows.kept} /></RowsGrid>}
-      </div>
-    </Panel>
-  )
 }
 
 // ── Needs follow-up ─────────────────────────────────────────────────────────
@@ -507,6 +486,30 @@ function Count({ n, color }: { n: number; color: string }) {
   return <span className={styles.num} style={{ color: n > 0 ? color : 'var(--color-text-muted)' }}>{n > 0 ? n : '–'}</span>
 }
 
+/** A row's open tasks by priority: a badge in the marker's colour for each that has any. */
+function PriorityBadges({ counts }: { counts: Record<MarkerKey, number> }) {
+  return (
+    <span className={styles.priorityBadges} data-testid="dash-priority-badges">
+      {MARKER_KEYS.map((k) => counts[k] > 0 && (
+        <span
+          key={k}
+          className={styles.priorityBadge}
+          style={{ '--badge-color': MARKER_COLOR[k] } as CSSProperties}
+          title={`${counts[k]} ${MARKER_LABELS[k]}`}
+          data-priority={k}
+        >
+          {counts[k]}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/** The badges in words, for the row's name: `2 Focus, 1 Urgent, `. */
+function priorityWords(counts: Record<MarkerKey, number>): string {
+  return MARKER_KEYS.filter((k) => counts[k] > 0).map((k) => `${counts[k]} ${MARKER_LABELS[k]}, `).join('')
+}
+
 export function PeopleSection({ data, options, onDrill, style }: DashboardSectionProps) {
   const { rows, unassigned } = data.people
   const showUnassigned = options.showUnassigned !== false && unassigned.ids.length > 0
@@ -522,7 +525,7 @@ export function PeopleSection({ data, options, onDrill, style }: DashboardSectio
       ) : (
         <>
           <div className={`${styles.peopleGrid} ${styles.peopleHead}`}>
-            <span>Person</span><span>Open</span><span /><span className={styles.num}>Hot</span><span className={styles.num}>Follow-up</span>
+            <span>Person</span><span>Open</span><span /><span className={styles.num}>Priority</span><span className={styles.num}>Follow-up</span>
           </div>
           <div ref={trackScrollEdges} className={styles.panelBody}>
             {all.map(({ key, person, stats }) => {
@@ -548,7 +551,7 @@ export function PeopleSection({ data, options, onDrill, style }: DashboardSectio
                   </span>
                   <span className={styles.peopleBar}><span style={{ width: `${Math.round((open / max) * 100)}%` }} /></span>
                   <span className={styles.num}>{open}</span>
-                  <Count n={stats.hotIds.length} color="var(--color-danger)" />
+                  <PriorityBadges counts={stats.priority} />
                   <Count n={stats.followupDueIds.length} color="var(--color-followup)" />
                 </>
               )
@@ -559,7 +562,7 @@ export function PeopleSection({ data, options, onDrill, style }: DashboardSectio
                   type="button"
                   className={cls}
                   data-person-row={key}
-                  aria-label={`${name}: ${open} open, ${stats.hotIds.length} hot, ${stats.followupDueIds.length} follow-up due`}
+                  aria-label={`${name}: ${open} open, ${priorityWords(stats.priority)}${stats.followupDueIds.length} follow-up due`}
                   onClick={onClick}
                 >
                   {content}
@@ -604,7 +607,7 @@ export function TagsSection({ data, options, onDrill, style }: DashboardSectionP
       ) : (
         <>
           <div className={`${styles.tagsGrid} ${styles.peopleHead}`}>
-            <span>Tag</span><span>Open</span><span className={styles.tagsBarCol} /><span className={styles.num}>Hot</span><span className={styles.num}>Follow-up</span>
+            <span>Tag</span><span>Open</span><span className={styles.tagsBarCol} /><span className={styles.num}>Priority</span><span className={styles.num}>Follow-up</span>
           </div>
           <div ref={trackScrollEdges} className={styles.panelBody}>
             {all.map(({ key, tag, stats, totalOpen }) => {
@@ -619,7 +622,7 @@ export function TagsSection({ data, options, onDrill, style }: DashboardSectionP
                   </span>
                   <span className={`${styles.peopleBar} ${styles.tagsBarCol}`}><span style={{ width: `${Math.round((open / max) * 100)}%` }} /></span>
                   <span className={styles.num} data-testid="dash-tag-open">{openLabel}</span>
-                  <Count n={stats.hotIds.length} color="var(--color-danger)" />
+                  <PriorityBadges counts={stats.priority} />
                   <Count n={stats.followupDueIds.length} color="var(--color-followup)" />
                 </>
               )
@@ -630,7 +633,7 @@ export function TagsSection({ data, options, onDrill, style }: DashboardSectionP
                   type="button"
                   className={cls}
                   data-tag-row={key}
-                  aria-label={`${name}: ${openLabel} open, ${stats.hotIds.length} hot, ${stats.followupDueIds.length} follow-up due`}
+                  aria-label={`${name}: ${openLabel} open, ${priorityWords(stats.priority)}${stats.followupDueIds.length} follow-up due`}
                   onClick={() => onDrill(tagSectionDialog(tag, inSortOrder(stats.ids, data)))}
                 >
                   {content}

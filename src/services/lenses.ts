@@ -1,13 +1,14 @@
 import { findLens, type Lens } from '../utils/lens'
 import { predicateToCriteria } from '../utils/filter-criteria'
 import { matchesFilterWithLookups } from '../utils/filter-match'
-import type { TodoNameLookups } from '../utils/filter'
+import { todoNameLookups } from '../utils/filter'
 import type { ScreenCountEnv } from './task-dialog'
 import { useLensDraftStore } from '../stores/lens-draft-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
 import { useUndoStore } from '../stores/undo-store'
 import { undoable } from '../stores/undoable'
+import { lensActions } from '../stores/lens-actions'
 
 /**
  * Lens actions that reach past the lenses' settings row: the picker's
@@ -23,13 +24,7 @@ export interface LensHideCounts {
 
 /** How many open tasks each of `lenses` hides right now (`LensHideCounts`), whatever the chips. */
 export function lensHideCounts(env: Omit<ScreenCountEnv, 'screen'>, lenses: readonly Lens[]): LensHideCounts {
-  const lookups: TodoNameLookups = {
-    assignedPeopleMap: env.assignedPeopleMap,
-    assignedTagsMap: env.assignedTagsMap,
-    statusesById: new Map(env.statuses.map((s) => [s.id!, s])),
-    statusUpdatesByTodo: env.statusUpdatesByTodo,
-    subtasksByTodo: env.subtasksByTodo,
-  }
+  const lookups = todoNameLookups(env)
   const settings = { ...env.markerSettings, weekStartsOn: env.weekStartsOn }
   const open = env.todos.filter((t) => !t.isCompleted)
   const hides = new Map<string, number>()
@@ -57,7 +52,7 @@ export function cycleLens(): void {
   const at = current ? lenses.indexOf(current) : -1
   const next = lenses[at + 1] ?? null
   useUIStore.getState().setLensLifted(false)
-  void useSettingsStore.getState().setActiveLens(next?.id ?? null)
+  void lensActions.setActiveLens(next?.id ?? null)
 }
 
 /** The keyboard's Lift lens: the top bar's lens lifted for now, or put back; without one the snackbar says so. */
@@ -73,7 +68,7 @@ export function toggleLensLift(): void {
 
 /** For an undo / redo: rejects when the pick wasn't saved, so the undo store keeps the entry and says so. */
 async function mustPick(id: string | null): Promise<void> {
-  if (!(await useSettingsStore.getState().setActiveLens(id))) throw new Error('The lens pick could not be saved')
+  if (!(await lensActions.setActiveLens(id))) throw new Error('The lens pick could not be saved')
 }
 
 /**
@@ -89,11 +84,11 @@ export async function deleteLens(id: string): Promise<boolean> {
   return useUndoStore.getState().runGroup(description, async () => {
     const settings = useSettingsStore.getState()
     const picked = settings.activeLensId === id
-    if (!(await settings.setLenses(settings.lenses.filter((l) => l.id !== id), description))) return false
+    if (!(await lensActions.setLenses(settings.lenses.filter((l) => l.id !== id), description))) return false
     const drafts = useLensDraftStore.getState()
     if (drafts.draft?.lensId === id) drafts.discard()
     // A pick that fails to clear (said by the snackbar) names a lens no more: No lens all the same.
-    if (picked && await useSettingsStore.getState().setActiveLens(null)) {
+    if (picked && await lensActions.setActiveLens(null)) {
       undoable(description, () => mustPick(null), () => mustPick(id))
     }
     return true

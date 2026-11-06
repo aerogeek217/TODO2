@@ -12,6 +12,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { makeTodo, resetDb } from '../../helpers'
+import { lensActions } from '../../../stores/lens-actions'
 
 beforeEach(async () => {
   await resetDb()
@@ -117,7 +118,7 @@ describe('Settings › Tasks › Lenses', () => {
 
     fireEvent.click(within(list).getByRole('button', { name: /^Alpha/, expanded: false }))
     expect(screen.getByTestId('lens-filter')).toBeInTheDocument()
-    await useSettingsStore.getState().moveLens(0, 2)
+    await lensActions.moveLens(0, 2)
     await waitFor(() => expect(grips()).toEqual(['Move Beta', 'Move Gamma', 'Move Alpha']))
     expect(within(list).getByRole('button', { name: /^Alpha/, expanded: true })).toBeInTheDocument()
     expect(screen.getByTestId('lens-filter').closest('[data-lens-id]')).toHaveAttribute('data-lens-id', 'lens-a')
@@ -263,6 +264,8 @@ describe('Settings › Tasks › Lenses — filter edits are saved or reverted',
     await waitFor(() => expect(useSettingsStore.getState().lenses.map((l) => l.name)).toEqual(['Not waiting', 'Not waiting 2', 'Every task']))
     // The copy is of the saved lens.
     expect(useSettingsStore.getState().lenses[1]!.predicate.statusIds).toEqual([3])
+    // Shown at once, saved after: the test ends once the save's undo step is in.
+    await waitFor(() => expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Duplicated lens “Not waiting”']))
   })
 
   it('Rename keeps the draft; Delete drops it without asking', async () => {

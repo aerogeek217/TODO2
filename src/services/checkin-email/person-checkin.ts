@@ -75,7 +75,7 @@ export function prepareCheckin(
   return { email, taskIds: [...sections.overdue, ...sections.comingUp].map((t) => t.id) }
 }
 
-/** What a check-in's build context is made of: the data, plus the filter settings (urgent range, Hot rule, week start). */
+/** What a check-in's build context is made of: the data, plus the filter settings (urgent range, week start). */
 export interface CheckinContextSources {
   todos: readonly PersistedTodoItem[]
   today: Date
@@ -83,19 +83,19 @@ export interface CheckinContextSources {
   assignedTagsMap: ReadonlyMap<number, readonly Tag[]>
   statuses: readonly Status[]
   /** Each task's status updates (the filter's text search reads them). */
-  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
+  statusUpdatesByTodo: ReadonlyMap<number, readonly StatusUpdate[]>
   /** Each task's checklist (the filter's text search reads it; the email lists the open ones). */
-  subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
+  subtasksByTodo: ReadonlyMap<number, readonly Subtask[]>
   filterSettings: FilterSettings
 }
 
 /** The build context, the one way: the check-in dialog (from its hooks) and the one-click send (from the stores). */
 export function buildCheckinContext({ todos, filterSettings, ...data }: CheckinContextSources): CheckinBuildContext {
-  const { urgentRange, hotRule, weekStartsOn } = filterSettings
+  const { urgentRange, weekStartsOn } = filterSettings
   return {
     ...data,
     todos,
-    markerSettings: { urgentRange, hotRule },
+    markerSettings: { urgentRange },
     weekStartsOn,
     refOf: createTaskRefLookup(todos.map((t) => t.uid)),
   }
@@ -129,8 +129,8 @@ export function currentCheckinTaskCounts(
   filter: CheckinTaskFilter = useSettingsStore.getState().checkinTaskFilter,
 ): Map<number, number> | null {
   if (isNoCheckinFilter(filter)) return null
-  const { filterSettings: { urgentRange, hotRule, weekStartsOn }, ...data } = currentCheckinSources()
-  return checkinTaskCounts(filter, { ...data, markerSettings: { urgentRange, hotRule }, weekStartsOn })
+  const { filterSettings: { urgentRange, weekStartsOn }, ...data } = currentCheckinSources()
+  return checkinTaskCounts(filter, { ...data, markerSettings: { urgentRange }, weekStartsOn })
 }
 
 /** `Check-in for Ann opened · 5 tasks followed up` (`downloaded` for an `.eml`). */

@@ -313,7 +313,7 @@ describe('dispatchTaskDrop — Eisenhower quadrant drops', () => {
   it('a custom pane’s refusal holds at the drop (no fallback to the default rules)', async () => {
     // Delegate = Urgent, not Important, not Waiting: a Waiting task can't land there.
     const eisenhower = ops([makeTodo({ id: 4, statusId: 7 })], {
-      delegate: { filter: { ...emptyPredicate(), markers: { urgent: true, important: false }, statusIds: [7], negate: { statusIds: true } } },
+      delegate: { filter: { ...emptyPredicate(), markers: [{ values: ['urgent'] }, { values: ['important'], not: true }], statusIds: [7], negate: { statusIds: true } } },
     })
     expect(await dispatchTaskDrop(makeEvent({ activeTodoId: 4, over: quadrantOver('delegate') }), { eisenhower })).toBe(true)
     expect(eisenhower.apply).not.toHaveBeenCalled()

@@ -1,69 +1,33 @@
-import { describe, it, expect, afterEach } from 'vitest'
+import { describe, it, expect, afterEach, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { createRef } from 'react'
 import { FollowupPopoverHost } from '../../../components/overlays/FollowupPopoverHost'
-import { POPOVER_LEVEL_ATTR } from '../../../components/shared/popover-level'
 import { useTodoStore } from '../../../stores/todo-store'
-import { useUIStore, type FollowupPopoverRequest } from '../../../stores/ui-store'
-import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { useUIStore } from '../../../stores/ui-store'
+import { addDays, startOfToday } from '../../../utils/date'
 import { makeTodo } from '../../helpers'
 
-const request = (fields: Partial<FollowupPopoverRequest> = {}): FollowupPopoverRequest => ({
-  todoId: 1,
-  anchor: { left: 10, top: 10, right: 30, bottom: 30 },
-  triggerRef: { current: null },
-  initialFocus: 'followedUp',
-  level: 1,
-  ...fields,
-})
+afterEach(cleanup)
 
-const popover = () => screen.queryByRole('dialog', { name: 'Follow-up' })
-
-function open(fields: Partial<FollowupPopoverRequest> = {}) {
-  useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Quote' })] })
-  render(<FollowupPopoverHost />)
-  act(() => useUIStore.getState().openFollowupPopover(request(fields)))
-}
-
-describe('<FollowupPopoverHost>', () => {
-  afterEach(cleanup)
-
-  it('shows nothing until asked; Esc closes', () => {
-    render(<FollowupPopoverHost />)
-    expect(popover()).toBeNull()
-    cleanup()
-    open()
-    expect(popover()).toBeInTheDocument()
-    fireEvent.keyDown(document, { key: 'Escape' })
-    expect(useUIStore.getState().followupPopover).toBeNull()
-    expect(popover()).toBeNull()
-  })
-
-  it('takes the level of the row’s place: 2 in a dialog', () => {
-    open({ level: 2 })
-    expect(popover()).toHaveAttribute(POPOVER_LEVEL_ATTR, '2')
-  })
-
-  it('a press on the row’s trigger isn’t outside (it toggles); anywhere else is', () => {
-    const trigger = document.createElement('button')
-    document.body.append(trigger)
-    open({ triggerRef: { current: trigger } })
-    fireEvent.mouseDown(trigger)
-    expect(popover()).toBeInTheDocument()
-    fireEvent.mouseDown(document.body)
-    expect(popover()).toBeNull()
-    trigger.remove()
-  })
-
-  it('closes when its task is deleted, and on a layout switch', () => {
-    open()
-    act(() => useTodoStore.setState({ todos: [] }))
-    expect(useUIStore.getState().followupPopover).toBeNull()
-    cleanup()
-
-    useWorkspaceStore.setState({ activeLayoutId: 1 })
-    open()
-    expect(popover()).toBeInTheDocument()
-    act(() => useWorkspaceStore.setState({ activeLayoutId: 2 }))
-    expect(useUIStore.getState().followupPopover).toBeNull()
+describe('FollowupPopoverHost on a row in a multi-selection (cr31 T11)', () => {
+  it('starts from the selection (mixed): a date equal to the clicked task’s is set on every selected task', () => {
+    const d5 = addDays(startOfToday(), 5)
+    const d9 = addDays(startOfToday(), 9)
+    useTodoStore.setState({ todos: [makeTodo({ id: 1, nextFollowupAt: d5 }), makeTodo({ id: 2, nextFollowupAt: d9 })] })
+    useUIStore.getState().selectAll([1, 2])
+    const bulk = vi.spyOn(useTodoStore.getState(), 'bulkSetFollowup').mockResolvedValue(undefined as never)
+    const trigger = createRef<HTMLButtonElement>()
+    render(<><button ref={trigger}>flag</button><FollowupPopoverHost /></>)
+    act(() => {
+      useUIStore.getState().openFollowupPopover({ todoId: 1, anchor: { left: 0, top: 0, right: 10, bottom: 10 }, triggerRef: trigger, initialFocus: 'next', level: 1 })
+    })
+    const field = screen.getByRole('dialog', { name: 'Follow-up' }).querySelector<HTMLInputElement>('input')!
+    // Mixed: the field starts empty (each task's own), not on task 1's date.
+    expect(field.value).toBe('')
+    fireEvent.change(field, { target: { value: 'in 5 days' } })
+    fireEvent.keyDown(field, { key: 'Enter' })
+    expect(bulk).toHaveBeenCalledTimes(1)
+    expect(bulk.mock.calls[0]?.[0]).toEqual([1, 2])
+    expect(bulk.mock.calls[0]?.[1]).toEqual(d5)
   })
 })

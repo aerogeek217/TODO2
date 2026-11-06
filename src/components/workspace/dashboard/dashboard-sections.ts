@@ -3,7 +3,6 @@ import type { DashboardSectionId } from '../../../models/dashboard-config'
 import {
   EisenhowerSection,
   FollowupSection,
-  HotSection,
   NextDaysSection,
   PeopleSection,
   RecentSection,
@@ -26,7 +25,6 @@ export interface DashboardSectionDef extends DashboardSectionMeta {
 
 /** Every section, by id. */
 export const DASHBOARD_SECTIONS: Record<DashboardSectionId, DashboardSectionDef> = {
-  hot: { ...SECTION_META.hot, Component: HotSection },
   followup: { ...SECTION_META.followup, Component: FollowupSection },
   next7: { ...SECTION_META.next7, Component: NextDaysSection },
   trend: { ...SECTION_META.trend, Component: TrendSection },

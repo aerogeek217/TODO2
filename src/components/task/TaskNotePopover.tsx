@@ -11,7 +11,7 @@ import { formatDateNumeric } from '../../utils/date'
 import { statusUpdateText } from '../../utils/status-updates'
 import { NotesBody } from './notes/NotesBody'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
-import { isNotesConvertOpen } from './notes/NotesConvert'
+import { addSubtasksFromNote, type NoteSubtaskTarget } from '../../services/note-subtasks'
 import { TOAST_VISIBLE_MS } from '../../constants'
 import { hasModalAbove, isInLayerAbove } from '../../utils/dom-layers'
 import styles from './TaskNotePopover.module.css'
@@ -21,7 +21,7 @@ import { PopoverRoot } from '../shared/PopoverRoot'
 // tasks dialogs and anything opened above the popover (the popup's person /
 // tag menu, the editor or confirm it opens): presses there aren't outside.
 const isNotesLayer = (panel: Element | null, target: Element) =>
-  target.closest('[data-nlp-popup]') !== null || isNotesConvertOpen() || (panel !== null && isInLayerAbove(panel, target))
+  target.closest('[data-nlp-popup]') !== null || (panel !== null && isInLayerAbove(panel, target))
 
 interface TaskNotePopoverProps {
   todoId: number
@@ -54,6 +54,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
 
   const notes = useTaskNotesSource({ todoId })
   const flushNotes = notes.flush
+  const subtaskTarget = useCallback<NoteSubtaskTarget>((drafts, writeNote) => addSubtasksFromNote(todoId, drafts, writeNote), [todoId])
 
   // Status: the newest update, and the line that adds one dated today.
   const updates = useStatusUpdates(todoId)
@@ -126,7 +127,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
       // While a convert dialog is open, Esc belongs to it; so does an Esc in
       // a layer above (a menu, an editor, a confirm) or, with nothing
       // focused, to a modal above.
-      if (e.key !== 'Escape' || isNotesConvertOpen()) return
+      if (e.key !== 'Escape') return
       const panel = containerRef.current
       const target = e.target instanceof Node ? e.target : null
       if (panel && target && !panel.contains(target)) {
@@ -207,6 +208,7 @@ export function TaskNotePopover({ todoId, anchorRef, onClose }: TaskNotePopoverP
         showToolbar
         placeholder="Add notes…"
         onConvertToast={handleToast}
+        subtaskTarget={subtaskTarget}
       />
       {toast && <div className={styles.toast}>{toast}</div>}
     </PopoverRoot>

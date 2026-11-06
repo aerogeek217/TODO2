@@ -35,7 +35,8 @@ const ALL = ['Ann plan', 'Ann waits', 'Nobody task']
 const header = (page: Page) => page.locator('header')
 const tray = (page: Page) => header(page).getByRole('group', { name: 'Screen filters — apply to every widget' })
 const lensName = (page: Page) => header(page).getByRole('button', { name: /^Lens:/ })
-const glasses = (page: Page, name: 'Lens on. Lift it' | 'Lens lifted. Put it back') => header(page).getByRole('button', { name })
+/** The lens control's glasses: one name, `aria-pressed` while the lens applies. */
+const glasses = (page: Page) => header(page).getByRole('button', { name: 'Apply the lens' })
 const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown\. Show them$/ })
 const mainTitles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
 const otherTitles = (page: Page) => rowTitles(wsListWidget(page, 't2'))
@@ -96,8 +97,9 @@ test('the glasses lift the lens for now; a layout switch keeps the lift, a reloa
   await pickLens(page, 'Has a person')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
 
-  await glasses(page, 'Lens on. Lift it').click()
-  await expect(glasses(page, 'Lens lifted. Put it back')).toHaveAttribute('aria-pressed', 'false')
+  await expect(glasses(page)).toHaveAttribute('aria-pressed', 'true')
+  await glasses(page).click()
+  await expect(glasses(page)).toHaveAttribute('aria-pressed', 'false')
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person, lifted')
   await expect.poll(() => mainTitles(page)).toEqual(ALL)
   await expect(counter(page)).toHaveAccessibleName('3 of 3 open tasks shown. Show them')
@@ -107,12 +109,12 @@ test('the glasses lift the lens for now; a layout switch keeps the lift, a reloa
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person, lifted')
   await expect.poll(() => otherTitles(page)).toEqual(ALL)
   await switchLayout(page, 'Main')
-  await expect(glasses(page, 'Lens lifted. Put it back')).toBeVisible()
+  await expect(glasses(page)).toHaveAttribute('aria-pressed', 'false')
   await expect.poll(() => mainTitles(page)).toEqual(ALL)
 
   // A reload: on again.
   await reload(page)
-  await expect(glasses(page, 'Lens on. Lift it')).toHaveAttribute('aria-pressed', 'true')
+  await expect(glasses(page)).toHaveAttribute('aria-pressed', 'true')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
 })
 

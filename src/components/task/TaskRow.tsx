@@ -1,4 +1,4 @@
-import { useRef, useState, useCallback, useMemo, memo, type MouseEvent } from 'react'
+import { useRef, useState, useCallback, useMemo, memo, type CSSProperties, type MouseEvent } from 'react'
 import { type PersistedTodoItem, type Person, type Tag } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -6,7 +6,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { startOfToday } from '../../utils/date'
-import { isHot } from '../../utils/hot'
+import { rowCue } from '../../utils/priority-cues'
 import { isStale, staleTooltipLine } from '../../utils/stale'
 import { TagPicker } from '../shared/TagChipSelector'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
@@ -127,6 +127,9 @@ export const TaskRow = memo(function TaskRow({
   } = useInlineEdit(todo.title, handleSaveTitle)
 
   const today = startOfToday()
+  const priorityCues = useSettingsStore((s) => s.priorityCues)
+  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
+  const cue = rowCue(todo, priorityCues, today, urgentRange)
   const people = assignedPeople ?? NO_PEOPLE
   // Stale (untouched for the Settings threshold): the row faded until hovered; the title tooltip says when it was last edited.
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
@@ -138,10 +141,6 @@ export const TaskRow = memo(function TaskRow({
     const el = e.currentTarget
     if (stale || el.scrollWidth > el.clientWidth) titleTipProps.onPointerEnter?.(e)
   }
-  // Hot (the Settings rule): the title semibold — the one weight step in a list.
-  const hotRule = useSettingsStore((s) => s.hotRule)
-  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
-  const hot = isHot(todo, hotRule, today, urgentRange)
 
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
   const pickerOpen = showStatusMenu || peopleOpen || tagPickerOpen || followupOpen || notesOpen || markersOpen || subtasksOpen
@@ -167,6 +166,7 @@ export const TaskRow = memo(function TaskRow({
   return (
     <div
       ref={rowRef}
+      style={cue.glow ? ({ '--row-glow': cue.glow } as CSSProperties) : undefined}
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${pickerOpen ? styles.rowDropdownOpen : ''}`}
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-ghosted={ghost ? '' : undefined}
@@ -229,9 +229,8 @@ export const TaskRow = memo(function TaskRow({
         />
       ) : (
         <span
-          className={`${styles.title} ${hot ? styles.hot : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${count ? styles.titleWithCount : ''}`}
+          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${count ? styles.titleWithCount : ''}`}
           data-task-title={todo.title}
-          data-hot={hot || undefined}
           {...titleTipProps}
           onPointerEnter={onTitlePointerEnter}
           onClick={(e) => {

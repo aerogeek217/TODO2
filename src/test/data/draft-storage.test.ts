@@ -138,17 +138,40 @@ describe('draft storage', () => {
     expect(kept.kind === 'custom' && 'negate' in kept.predicate).toBe(false)
   })
 
-  it('a list draft keeps a Priority filter with No markers; one it cannot read is not taken back', () => {
+  it('a list draft keeps a Priority filter with an "is not"; one it cannot read is not taken back', () => {
     const base = listDef()
     const withMarkers = (markers: unknown) => ({ kind: 'custom' as const, predicate: { ...emptyPredicate(), markers } as TodoPredicate })
-    const draft = listDef({ membership: withMarkers({ urgent: true, important: false }) })
+    const draft = listDef({ membership: withMarkers([{ values: ['urgent'] }, { values: ['important'], not: true }]) })
     writeListDrafts(new Map([[4, { draft, base }]]))
     expect(readListDrafts()).toEqual(new Map([[4, { draft, base }]]))
 
     localStorage.setItem('todo2-unsaved-lists', JSON.stringify({
-      5: { draft: { ...listDef({ membership: withMarkers({ urgent: 'no' }) }), id: 5 }, base: { ...base, id: 5 }, schemaVersion: CURRENT_DB_VERSION },
+      5: { draft: { ...listDef({ membership: withMarkers([{ values: ['warm'] }]) }), id: 5 }, base: { ...base, id: 5 }, schemaVersion: CURRENT_DB_VERSION },
     }))
     expect([...readListDrafts().keys()]).toEqual([])
+  })
+
+  it('a list draft an older build kept reads in the current Priority shape', () => {
+    const base = listDef()
+    const old = { ...listDef(), membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: { urgent: true, important: false } } } }
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({ 4: { draft: old, base, schemaVersion: 73 } }))
+    const read = readListDrafts().get(4)?.draft.membership
+    expect(read?.kind === 'custom' ? read.predicate.markers : undefined).toEqual([{ values: ['urgent'] }, { values: ['important'], not: true }])
+  })
+
+  it('a layout draft an older build kept loses its dashboards’ Hot tile and section, the body and the base', () => {
+    const dash = (id: string) => createTab('dashboard', id)
+    const withHot = (id: string) => {
+      const tab = dash(id)
+      return { ...tab, config: { ...tab.config, tiles: [...tab.config.tiles, 'hot'], sections: [...tab.config.sections, { id: 'hot' }] } }
+    }
+    const cols = (tab: unknown) => [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'd', tabs: [tab] }] }]
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({
+      kind: 'saved', layoutId: 2, columns: cols(withHot('d')), baseColumns: cols(withHot('d')), top: { id: 'T', height: 100, tabs: [withHot('t')] }, schemaVersion: 73,
+    }))
+    expect(readLayoutDraft()).toEqual({
+      kind: 'saved', layoutId: 2, base: { columns: cols(dash('d')) }, body: { columns: cols(dash('d')), top: { id: 'T', height: 100, tabs: [dash('t')] } },
+    })
   })
 
   it('clearUnsavedDrafts forgets both kinds', () => {

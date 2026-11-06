@@ -479,3 +479,37 @@
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
 }
+
+/* A list's own Tab badges ranges, under the row. */
+.badgeRanges {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-left: 12px;
+}
+
+.badgeRange {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.badgeRangeName {
+  width: 64px;
+  flex-shrink: 0;
+}
+
+.badgeRange select {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+}

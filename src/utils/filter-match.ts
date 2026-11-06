@@ -1,14 +1,14 @@
-import { DATE_FIELD_VALUES, type DateAnchor, type DateField, type DateMatch, type TodoItem, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../models'
+import { DATE_FIELD_VALUES, type DateAnchor, type DateField, type DateMatch, type TodoItem, type PersistedTodoItem, type TodoPredicate } from '../models'
 import { startOfDay } from './date'
 import { isNegatableDateField } from './date-filters'
 import { resolveDateAnchor, type WeekStart } from './effective-date'
 import { matchTodoText, textMatchContextFor, type TextMatchContext, type TodoNameLookups } from './filter'
 import { admitsCompleted, composeScreenFilter, predicateToCriteria, type CriteriaClauses, type FilterCriteria } from './filter-criteria'
-import { matchesMarkers, type MarkerSettings } from './markers'
+import { matchesMarkerClause, type MarkerSettings } from './markers'
 
 /**
  * The settings a filter is evaluated with: the Markers filter's (urgent
- * range, Hot rule) and the week start that relative date anchors resolve
+ * range) and the week start that relative date anchors resolve
  * against. `settings-store.currentFilterSettings` reads them as they are now;
  * a memoized caller passes its own subscribed copy (`useFilterSettings`) so
  * a settings change re-runs it.
@@ -48,10 +48,6 @@ function matchesPeopleClause(c: CriteriaClauses, t: ClauseTask): boolean {
   return (personMatch || unassignedSentinel) !== (c.negate?.personIds === true)
 }
 
-function matchesMarkersClause(c: CriteriaClauses, t: ClauseTask): boolean {
-  return c.markers != null && matchesMarkers(t.todo, c.markers, t.today, t.settings)
-}
-
 function matchesTagsClause(c: CriteriaClauses, t: ClauseTask): boolean {
   // 0 = no tags. Is: one of the ticked tags (or untagged when No tags is
   // ticked). Is not: none of them (untagged passes unless No tags is ticked).
@@ -82,7 +78,9 @@ function scanClauses(c: CriteriaClauses, t: ClauseTask, stopAt: boolean): boolea
   if (c.statusIds != null && hit(matchesStatusClause(c, t))) return stopAt
   if (c.searchText && hit(matchesTextClause(c, t))) return stopAt
   if (c.personIds != null && hit(matchesPeopleClause(c, t))) return stopAt
-  if (c.markers != null && hit(matchesMarkersClause(c, t))) return stopAt
+  for (const clause of c.markers ?? []) {
+    if (hit(matchesMarkerClause(t.todo, clause, t.today, t.settings))) return stopAt
+  }
   if (c.tags != null && hit(matchesTagsClause(c, t))) return stopAt
   for (const field of DATE_FIELD_VALUES) {
     if (c.dates[field] && hit(matchesDateClause(c, field, t))) return stopAt
@@ -190,8 +188,8 @@ export function matchesFilterWithLookups(
   today: Date,
   settings: FilterSettings,
 ): boolean {
-  const personIds = (lookups.assignedPeopleMap?.get(todo.id) ?? []).map((p) => p.id!)
-  const tagIds = (lookups.assignedTagsMap?.get(todo.id) ?? []).map((t) => t.id!)
+  const personIds = (lookups.assignedPeopleMap.get(todo.id) ?? []).map((p) => p.id!)
+  const tagIds = (lookups.assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
   const searchCtx = readsText(filters) ? textMatchContextFor(todo, lookups) : undefined
   return matchesFilter(filters, todo, personIds, today, searchCtx, tagIds, settings)
 }
@@ -201,22 +199,11 @@ export function matchesFilterWithLookups(
  */
 export function applyFilter(
   filters: FilterCriteria,
-  todos: PersistedTodoItem[],
-  assignedPeopleMap: Map<number, Person[]> | undefined,
-  statuses: Status[] | undefined,
+  todos: readonly PersistedTodoItem[],
+  lookups: TodoNameLookups,
   today: Date,
-  assignedTagsMap: Map<number, Tag[]> | undefined,
   settings: FilterSettings,
-  statusUpdatesByTodo?: TodoNameLookups['statusUpdatesByTodo'],
-  subtasksByTodo?: TodoNameLookups['subtasksByTodo'],
 ): PersistedTodoItem[] {
-  const lookups: TodoNameLookups = {
-    assignedPeopleMap,
-    assignedTagsMap,
-    statusesById: statuses ? new Map(statuses.map((s) => [s.id!, s])) : undefined,
-    statusUpdatesByTodo,
-    subtasksByTodo,
-  }
   return todos.filter((t) => matchesFilterWithLookups(filters, t, lookups, today, settings))
 }
 
@@ -265,13 +252,16 @@ export function createScreenComposedEvaluator(
   today: Date,
   settings: FilterSettings,
 ): (predicate: TodoPredicate, todo: PersistedTodoItem) => boolean {
-  const criteriaByPredicate = new WeakMap<TodoPredicate, FilterCriteria>()
+  // Composed once per predicate, not once per task.
+  const stagesByPredicate = new WeakMap<TodoPredicate, readonly [FilterCriteria, FilterCriteria]>()
   return (predicate, todo) => {
-    let criteria = criteriaByPredicate.get(predicate)
-    if (!criteria) {
-      criteria = predicateToCriteria(predicate)
-      criteriaByPredicate.set(predicate, criteria)
+    let stages = stagesByPredicate.get(predicate)
+    if (!stages) {
+      stages = composeScreenFilter(screen, predicateToCriteria(predicate))
+      stagesByPredicate.set(predicate, stages)
     }
-    return matchesComposedFilter(screen, criteria, todo, lookups, today, settings)
+    const [screenStage, listStage] = stages
+    return matchesFilterWithLookups(listStage, todo, lookups, today, settings)
+      && matchesFilterWithLookups(screenStage, todo, lookups, today, settings)
   }
 }

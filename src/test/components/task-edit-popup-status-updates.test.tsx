@@ -77,10 +77,11 @@ describe('TaskEditPopup — Status updates (edit mode)', () => {
     fireEvent.change(addDayField(), { target: { value: 'yesterday' } })
     await act(async () => { fireEvent.keyDown(addDayField(), { key: 'Enter' }) })
     await vi.waitFor(async () => expect(await storedTexts()).toHaveLength(2))
-    expect(shownLines()).toEqual([
+    // The section follows the store, which follows the stored rows: wait on it too.
+    await vi.waitFor(() => expect(shownLines()).toEqual([
       `${formatDateNumeric(today())}waiting on legal`,
       `${formatDateNumeric(daysAgo(1))}sent the draft`,
-    ])
+    ]))
     // The count beside the label.
     expect(section().querySelector('[id]')?.textContent).toBe('Status updates2')
   })
@@ -192,6 +193,23 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
     expect(onCreate.mock.calls[0]?.[0].lastFollowupAt).toEqual(daysAgo(1))
   })
 
+  it('a Last follow-up later than the newest pending update stays: an older update doesn’t move it back', async () => {
+    const { onCreate } = renderCreate()
+    const last = () => screen.getByRole('textbox', { name: 'Last follow-up' }) as HTMLInputElement
+    fireEvent.change(screen.getByPlaceholderText(/New task/), { target: { value: 'Write the report' } })
+    fireEvent.change(last(), { target: { value: 'yesterday' } })
+    fireEvent.blur(last())
+    const shown = last().value
+    expect(shown).not.toBe('')
+    fireEvent.change(addField(), { target: { value: 'outline done' } })
+    fireEvent.change(addDayField(), { target: { value: formatDateNumeric(daysAgo(3)) } })
+    fireEvent.keyDown(addField(), { key: 'Enter' })
+    expect(shownLines()).toEqual([`${formatDateNumeric(daysAgo(3))}outline done`])
+    expect(last().value).toBe(shown)
+    await act(async () => { fireEvent.click(screen.getByText('Create task')) })
+    expect(onCreate.mock.calls[0]?.[0].lastFollowupAt).toEqual(daysAgo(1))
+  })
+
   it('updates added before Create wait in the list and go with the task; nothing is written before', async () => {
     const { onCreate } = renderCreate()
     fireEvent.change(screen.getByPlaceholderText(/New task/), { target: { value: 'Write the report' } })
@@ -214,6 +232,65 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
     const partial = onCreate.mock.calls[0]?.[0] as { statusUpdates?: { date: Date; text: string }[]; progress?: string }
     expect(partial.statusUpdates?.map((u) => [u.date, u.text])).toEqual([[daysAgo(1), 'outline done']])
     expect(partial).not.toHaveProperty('progress')
+  })
+
+  it('an entry still being edited goes with the task as edited: Create task, ⏎ in the title (cr31 T3)', async () => {
+    for (const how of ['button', 'enter'] as const) {
+      const { onCreate } = renderCreate()
+      const titleField = screen.getByPlaceholderText(/New task/)
+      fireEvent.change(titleField, { target: { value: 'Write the report' } })
+      fireEvent.change(addField(), { target: { value: 'outline done' } })
+      fireEvent.keyDown(addField(), { key: 'Enter' })
+      fireEvent.click(screen.getByRole('button', { name: /^Edit status update/ }))
+      fireEvent.change(screen.getByRole('textbox', { name: 'Status update' }), { target: { value: 'outline signed off' } })
+      // The edit is still open: no ⏎, no Save.
+      await act(async () => {
+        if (how === 'button') fireEvent.click(screen.getByText('Create task'))
+        else fireEvent.keyDown(titleField, { key: 'Enter' })
+      })
+      expect(onCreate).toHaveBeenCalledTimes(1)
+      const partial = onCreate.mock.calls[0]?.[0] as { statusUpdates?: { text: string }[] }
+      expect(partial.statusUpdates?.map((u) => u.text)).toEqual(['outline signed off'])
+      cleanup()
+    }
+  })
+
+  it('an update still being typed in the Add popover goes with the task (cr31 T3)', async () => {
+    const { onCreate } = renderCreate()
+    const titleField = screen.getByPlaceholderText(/New task/)
+    fireEvent.change(titleField, { target: { value: 'Write the report' } })
+    fireEvent.change(addField(), { target: { value: 'kicked off' } })
+    await act(async () => { fireEvent.keyDown(titleField, { key: 'Enter' }) })
+    const partial = onCreate.mock.calls[0]?.[0] as { statusUpdates?: { text: string }[] }
+    expect(partial.statusUpdates?.map((u) => u.text)).toEqual(['kicked off'])
+  })
+
+  it('an edit to a draft’s entry counts as a change: the backdrop asks before closing (cr31 T3)', async () => {
+    const update = { date: daysAgo(3), text: 'asked finance', createdAt: new Date() }
+    const onClose = vi.fn()
+    render(
+      <TaskEditPopup
+        mode="create"
+        seed={{ title: 'Budget', urgent: false, important: false, focus: false, personIds: [], newPeople: [], tagIds: [], newTags: [], statusUpdates: [update] }}
+        assignedPeople={[]}
+        allPeople={[]}
+        onClose={onClose}
+        onCreate={vi.fn().mockResolvedValue(42)}
+        onAssignPerson={vi.fn()}
+        onUnassignPerson={vi.fn()}
+      />,
+    )
+    const ask = vi.spyOn(useUIStore.getState(), 'askChoice').mockResolvedValue('cancel')
+    fireEvent.click(screen.getByRole('button', { name: /^Edit status update/ }))
+    fireEvent.change(screen.getByRole('textbox', { name: 'Status update' }), { target: { value: 'finance said yes' } })
+    // The backdrop's close, with the edit still open.
+    const backdrop = document.querySelector('[data-testid="task-edit-backdrop"], [data-modal-backdrop]')
+    expect(backdrop).not.toBeNull()
+    fireEvent.mouseDown(backdrop!)
+    fireEvent.click(backdrop!)
+    await act(async () => {})
+    expect(ask).toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
   })
 
   it('a draft’s status updates show as pending (a converted note line’s Details)', () => {

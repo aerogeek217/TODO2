@@ -8,7 +8,6 @@ import { matchPerson, matchStatus, matchTag } from './nlp-resolver'
 import { removeTextSpans, type TextEdit } from './nlp-chip-edit'
 import {
   computeAutocomplete,
-  type AutocompleteRow,
   type AutocompleteSources,
   type AutocompleteView,
 } from './nlp-autocomplete'
@@ -24,7 +23,7 @@ import type { TintSpan, TokenTint } from './nlp-token-tints'
  *  - `@name` → People, `#name` → Tags, `!name` → Status (several of a kind
  *    OR, as the pickers); a name matching nothing stays words (a search
  *    never creates);
- *  - `/urgent` `/important` `/focus` → Priority, `/hot` → Hot;
+ *  - `/urgent` `/important` `/focus` → Priority (several: any of them);
  *  - `overdue` → Due before today;
  *  - `due ⟨phrase⟩` / `followup ⟨phrase⟩`: today · tomorrow · ⟨weekday⟩ ·
  *    MM/DD (`utils/date-phrase`) · this week · next week · this month, and
@@ -149,10 +148,7 @@ export function parseSearch(text: string, sources: SearchSources, kept: readonly
     }
   }
   for (const p of parsed.problems) {
-    if (p.kind === 'unknown') {
-      // `/hot`: the search box's own command.
-      if (p.raw.slice(1).toLowerCase() === 'hot') push(p, { field: 'markers', marker: 'hot' })
-    } else if (p.kind === 'duplicate' && p.status !== undefined) {
+    if (p.kind === 'duplicate' && p.status !== undefined) {
       name({ raw: p.raw, value: p.status, start: p.start, end: p.end }, 'status')
     } else if (p.kind === 'unreadable') {
       errors.push({ start: p.start, end: p.end })
@@ -221,7 +217,7 @@ const CLAUSE_TINT: Record<SearchClause['field'], TokenTint> = {
   showCompleted: 'chip',
 }
 
-const MARKER_TINT: Record<MarkerKey | 'hot', TokenTint> = { urgent: 'urgent', important: 'followup', focus: 'accent', hot: 'urgent' }
+const MARKER_TINT: Record<MarkerKey, TokenTint> = { urgent: 'urgent', important: 'followup', focus: 'accent' }
 
 /**
  * The tinted spans of the box (Quick Add's tints): a token by what it sets,
@@ -278,7 +274,7 @@ const NOT_IN_SEARCH = new Set(['repeat'])
 
 /**
  * Quick Add's `@ # ! /` popup for the search box: no Create rows (a search
- * never creates), no `/repeat`, plus `/hot`. Null when nothing is listed.
+ * never creates), no `/repeat`. Null when nothing is listed.
  */
 export function searchAutocomplete(value: string, cursor: number, sources: AutocompleteSources): AutocompleteView | null {
   const view = computeAutocomplete(value, cursor, { ...sources, commands: true })
@@ -287,14 +283,8 @@ export function searchAutocomplete(value: string, cursor: number, sources: Autoc
   if (view && view.mode !== 'command') return view
   if (!slash) return view
   const query = slash[2] ?? ''
-  const q = query.toLowerCase()
   const anchor = (slash.index ?? 0) + (slash[1]?.length ?? 0)
-  const matchLength = q ? q.length + 1 : 0
-  const extra: AutocompleteRow[] = 'hot'.startsWith(q)
-    ? [{ kind: 'value', insert: '/hot', label: '/hot', matchLength, detail: 'Hot tasks', command: 'hot' }]
-    : []
-  const commands = (view?.rows ?? []).filter((r) => r.kind !== 'command' || !NOT_IN_SEARCH.has(r.command.name))
-  const rows = [...commands, ...extra]
+  const rows = (view?.rows ?? []).filter((r) => r.kind !== 'command' || !NOT_IN_SEARCH.has(r.command.name))
   if (rows.length === 0) return null
   return {
     trigger: '/',

@@ -57,7 +57,8 @@ for (const width of [1440, 1100]) {
     let popover = await openFromTabMenu(page, 't1')
     let cell = await box(wsCell(page, 'k1'))
     let p = await box(popover)
-    expect(Math.round(p.width)).toBe(340)
+    // 400 wide; 340 where only that fits beside the panel.
+    expect(Math.round(p.width)).toBe(width === 1440 ? 400 : 340)
     await expect(popover).toHaveAttribute('data-placement', 'right-start')
     expect(Math.round(p.x)).toBe(Math.round(cell.x + cell.width + 8))
     expect(Math.round(p.y)).toBe(Math.round(cell.y + 6))

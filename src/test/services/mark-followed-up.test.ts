@@ -10,6 +10,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { startOfDay, startOfToday } from '../../utils/date'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await resetDb()
@@ -19,7 +20,7 @@ beforeEach(async () => {
 
 async function tasks(...titles: string[]): Promise<number[]> {
   const ids: number[] = []
-  for (const t of titles) ids.push(await useTodoStore.getState().add(t))
+  for (const t of titles) ids.push(await addTask(t))
   useUndoStore.getState().clear()
   return ids
 }

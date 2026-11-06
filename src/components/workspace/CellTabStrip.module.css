@@ -24,7 +24,7 @@
   gap: 6px;
   flex-shrink: 0;
   height: var(--cell-tab-height);
-  /* TAB_MAX_PX in CellTabStrip.tsx */
+  /* TAB_MAX_PX in CellTabStrip.tsx (a badged tab adds its capsule's room, inline) */
   max-width: 160px;
   padding: 0 10px;
   border-radius: var(--radius-md) var(--radius-md) 0 0;
@@ -91,6 +91,49 @@
   color: var(--color-text-muted);
 }
 
+/* A badged tab tightens up a little around its capsule. */
+.hasBadge {
+  gap: 4px;
+  padding: 0 8px;
+}
+
+/* A list's due and follow-up counts, one capsule. Solid: some of it is overdue. */
+.badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: var(--font-weight-bold);
+  line-height: 14px;
+}
+
+.badgeDue,
+.badgeFollowup {
+  padding: 0 4px;
+}
+
+.badgeDue {
+  background: var(--color-overdue-bg-strong);
+  color: var(--color-overdue);
+}
+
+.badgeDueOverdue {
+  background: var(--cal-overdue-solid);
+  color: var(--cal-on-overdue);
+}
+
+.badgeFollowup {
+  background: var(--color-followup-bg-strong);
+  color: var(--color-followup);
+}
+
+.badgeFollowupOverdue {
+  background: var(--cal-followup-solid);
+  color: var(--cal-on-followup);
+}
+
 /* The tab's list has unsaved edits. */
 .unsavedDot {
   flex-shrink: 0;
@@ -100,8 +143,10 @@
   background: var(--color-accent);
 }
 
+/* Its place is kept while hidden: a tab's width never changes on hover. */
 .close {
-  display: none;
+  display: inline-flex;
+  visibility: hidden;
   align-items: center;
   justify-content: center;
   width: 16px;
@@ -123,7 +168,7 @@
 
 .tab:hover .close,
 .active .close {
-  display: inline-flex;
+  visibility: visible;
 }
 
 /* Collapsed cell: flat tabs (no fill, no accent bar). */

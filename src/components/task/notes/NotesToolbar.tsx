@@ -14,6 +14,8 @@ export interface NotesConvertControl {
   selection: boolean
   /** Pre-formatted platform-aware Alt+T label (e.g. "⌥T", "Alt+T"). */
   shortcutLabel: string
+  /** What the lines become. */
+  target: 'task' | 'subtask'
   onClick: () => void
   /** Hover / focus: mark (true) or unmark (false) the lines in scope. */
   onShowScope: (show: boolean) => void
@@ -32,7 +34,7 @@ function plural(n: number, one: string, many: string): string {
 }
 
 /** The button's tooltip (label + muted second line) and accessible name. */
-function convertButtonText({ count, selection, shortcutLabel }: Pick<NotesConvertControl, 'count' | 'selection' | 'shortcutLabel'>): { label: string; hint: string } {
+function convertButtonText({ count, selection, shortcutLabel, target }: Pick<NotesConvertControl, 'count' | 'selection' | 'shortcutLabel' | 'target'>): { label: string; hint: string } {
   if (count === 0) {
     return {
       label: selection ? 'No bullet lines in the selection' : 'No bullet lines to convert',
@@ -40,10 +42,10 @@ function convertButtonText({ count, selection, shortcutLabel }: Pick<NotesConver
     }
   }
   if (selection) {
-    return { label: `Convert ${plural(count, 'selected line', 'selected lines')} to tasks`, hint: 'Bullet lines in the selection only' }
+    return { label: `Convert ${plural(count, 'selected line', 'selected lines')} to ${target}s`, hint: 'Bullet lines in the selection only' }
   }
   return {
-    label: `Convert ${plural(count, 'bullet line', 'bullet lines')} to tasks`,
+    label: `Convert ${plural(count, 'bullet line', 'bullet lines')} to ${target}s`,
     hint: `Select lines to convert only those · ${shortcutLabel} converts the current line`,
   }
 }
@@ -113,7 +115,10 @@ export function NotesToolbar({ viewRef, onCopy, copying = false, convert }: Note
     const { doc, selection } = view.state
     const { from, to, empty } = selection.main
     const first = doc.lineAt(from).number
-    const last = doc.lineAt(to).number
+    // A selection of whole lines ends at the next line's start: that line
+    // isn't in it (as Indent and Convert read it, cr31 N4).
+    const end = doc.lineAt(to)
+    const last = !empty && end.number > first && end.from === to ? end.number - 1 : end.number
     const lines = Array.from({ length: last - first + 1 }, (_, i) => doc.line(first + i))
       .filter((line) => first === last || line.text.trim() !== '')
     const next = lines.every((line) => listKindOf(line.text) === kind) ? null : kind

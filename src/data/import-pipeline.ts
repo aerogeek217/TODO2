@@ -64,8 +64,9 @@ function readSchemaVersion(raw: Record<string, unknown>): number | null {
 /**
  * The single import entry point. Every path that turns an export /
  * backup snapshot / sync file into database rows goes through here:
- * Settings → Import JSON, backup restore (`parseAndRestore`), and
- * file-storage `loadFromFile`.
+ * Settings → Import JSON and the append import, backup restore
+ * (`replace-data.restoreBackup` → `prepareImportText`), and file-storage
+ * `loadFromFile`.
  *
  * 1. Reads `__schemaVersion`.
  *    - > `CURRENT_DB_VERSION` → rejected (`too-new`): a newer build wrote it.

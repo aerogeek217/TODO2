@@ -268,6 +268,20 @@ describe('buildListSections — tag grouping, visible-groups intersection', () =
     expect(sections.map((s) => s.key)).toEqual(['tag-5'])
   })
 
+  it('a tag filter that includes No tags keeps the No tags section (cr31 filters F1)', () => {
+    const todos = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
+    const assigned = new Map<number, Tag[]>([[1, [ZETA]], [3, [ALPHA]]])
+    // `Tags is #zeta or No tags`: the untagged member shows, the alpha one (not a member) drops.
+    expect(buildTagSections(todos, assigned, [5, 0]).map((s) => [s.key, s.todos.map((t) => t.id)]))
+      .toEqual([['tag-5', [1]], ['no-tag', [2]]])
+    // `Tags is No tags` (a triage list): its untagged members, not a blank body.
+    expect(buildTagSections([makeTodo({ id: 2 })], assigned, [0]).map((s) => [s.key, s.todos.map((t) => t.id)]))
+      .toEqual([['no-tag', [2]]])
+    // A tagged task never shows under No tags alone.
+    expect(buildTagSections(todos, assigned, [0]).map((s) => [s.key, s.todos.map((t) => t.id)]))
+      .toEqual([['no-tag', [2]]])
+  })
+
   it('emits a task under each filter-set tag it has, dropping non-filter tags', () => {
     // T has tags {zeta, mu, alpha}; filter is {zeta, alpha} → T appears in
     // zeta and alpha sections only, never mu.
@@ -762,7 +776,7 @@ describe('buildListSections — a list grouped by Priority', () => {
     build(todos, 'priority', { today, urgentRange: 3, ...over })
   const titles = (sections: Section[]) => sections.map((s) => [s.label, s.todos.map((t) => t.id)])
 
-  it('groups Hot, Focus, Urgent, Important, then No priority; a task shows in each of its groups', () => {
+  it('groups Focus, Urgent, Important, then No priority; a task shows in each of its groups', () => {
     const todos = [
       makeTodo({ id: 1, focus: true, urgent: true }),
       makeTodo({ id: 2, important: true }),
@@ -770,21 +784,19 @@ describe('buildListSections — a list grouped by Priority', () => {
       makeTodo({ id: 4, urgent: true, important: true }),
     ]
     expect(titles(priority(todos))).toEqual([
-      ['Hot', [1, 4]],
       ['Focus', [1]],
       ['Urgent', [1, 4]],
       ['Important', [2, 4]],
       ['No priority', [3]],
     ])
     expect(priority(todos).map((s) => s.key)).toEqual([
-      'priority-hot', 'priority-focus', 'priority-urgent', 'priority-important', 'no-priority',
+      'priority-focus', 'priority-urgent', 'priority-important', 'no-priority',
     ])
   })
 
-  it('colours each group as its marker, Hot as the flame and No priority muted', () => {
+  it('colours each group as its marker and No priority muted', () => {
     const todos = [makeTodo({ id: 1, focus: true, urgent: true, important: true }), makeTodo({ id: 2 })]
     expect(priority(todos).map((s) => s.accentColor)).toEqual([
-      'var(--color-danger)',
       'var(--color-marker-focus)',
       'var(--color-marker-urgent)',
       'var(--color-marker-important)',
@@ -797,15 +809,6 @@ describe('buildListSections — a list grouped by Priority', () => {
     expect(titles(priority(todos))).toEqual([['Urgent', [1]]])
     expect(titles(priority(todos, { urgentRange: null }))).toEqual([['No priority', [1]]])
     expect(titles(priority(todos, { urgentRange: undefined }))).toEqual([['No priority', [1]]])
-  })
-
-  it('Hot follows the Hot rule and is for open tasks only', () => {
-    const urgentOnly = makeTodo({ id: 1, urgent: true })
-    const doneFocus = makeTodo({ id: 2, focus: true, isCompleted: true })
-    expect(titles(priority([urgentOnly, doneFocus]))).toEqual([['Focus', [2]], ['Urgent', [1]]])
-    expect(titles(priority([urgentOnly, doneFocus], { hotRule: [{ urgent: true }] }))).toEqual([
-      ['Hot', [1]], ['Focus', [2]], ['Urgent', [1]],
-    ])
   })
 
   it('leaves empty groups out and keeps the sort inside each group', () => {

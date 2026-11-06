@@ -9,7 +9,6 @@ import type { DateBucketKey } from '../utils/bucket-by-date'
 import { manualOrderComparator, type ListRanks } from '../utils/list-order'
 import { priorityRank } from '../utils/markers'
 import type { UrgentDueWithinDays } from '../utils/urgency'
-import type { HotRule } from '../utils/hot'
 import { NO_PRIORITY_KEY, NO_PRIORITY_LABEL } from '../utils/priority-groups'
 
 /**
@@ -37,7 +36,10 @@ export interface ListSectionsSpec {
    * Unassigned section. `null` / empty → every person gets a section.
    */
   restrictToPersonIds?: ReadonlyArray<number> | null
-  /** Same for the tag filter when grouping by tag (no untagged section then). */
+  /**
+   * Same for the tag filter when grouping by tag: id `0` (No tags) keeps the
+   * trailing No tags section; without it there is none.
+   */
   restrictToTagIds?: ReadonlyArray<number> | null
 }
 
@@ -55,8 +57,6 @@ export interface ListSectionsContext {
   manualRanks?: ListRanks
   /** The app's "due date makes a task urgent" range, for the Priority sort and groups; absent = flags only. */
   urgentRange?: UrgentDueWithinDays
-  /** The Hot rule, for the Priority groups' Hot; absent = the default rule. */
-  hotRule?: HotRule
 }
 
 /** What a sort reads besides the tasks. */
@@ -229,10 +229,10 @@ function restrictKeys(spec: ListSectionsSpec): { keys?: string[]; keepUngrouped:
     : null
   if (!ids || ids.length === 0) return { keepUngrouped: true }
   const prefix = spec.groupBy === 'people' ? 'person-' : 'tag-'
-  return {
-    keys: ids.filter((id) => id !== 0).map((id) => `${prefix}${id}`),
-    keepUngrouped: spec.groupBy === 'people' && ids.includes(0),
-  }
+  const keys = ids.filter((id) => id !== 0).map((id) => `${prefix}${id}`)
+  // Only the none pick (Unassigned / No tags): a key no task has, so every
+  // assigned or tagged task drops out and the trailing section alone shows.
+  return { keys: keys.length > 0 ? keys : [`${prefix}0`], keepUngrouped: ids.includes(0) }
 }
 
 /**
@@ -240,8 +240,8 @@ function restrictKeys(spec: ListSectionsSpec): { keys?: string[]; keepUngrouped:
  *
  * Group order: dates Overdue → Today → This Week → Later; status by its
  * registry `sortOrder`; people and tags alphabetically (or in the
- * restrict order); Priority Hot → Focus → Urgent → Important (Hot by
- * `ctx.hotRule`, open tasks only; Urgent = effective Urgent). A task with
+ * restrict order); Priority Focus → Urgent → Important (Urgent = effective
+ * Urgent). A task with
  * several people / tags / priority markers appears in each of their
  * sections. Tasks with no value on the axis trail in one "No …" /
  * "Unassigned" section. Empty groups aren't shown. Ungrouped lists return
@@ -276,13 +276,9 @@ export function buildListSections(
     today: ctx.today,
     weekStartsOn: ctx.weekStartsOn,
     urgentRange: ctx.urgentRange,
-    hotRule: ctx.hotRule,
   }
   const restrict = restrictKeys({ ...spec, groupBy })
-  // An empty restrict set means "nothing named" (only the unassigned pick):
-  // pass a key no task has so every assigned task drops out.
-  const restrictSet = restrict.keys && restrict.keys.length === 0 ? ['person-0'] : restrict.keys
-  const { groups, ungrouped } = partitionByGroup(sorted, groupBy, groupingCtx, undefined, restrictSet)
+  const { groups, ungrouped } = partitionByGroup(sorted, groupBy, groupingCtx, undefined, restrict.keys)
   const peopleById = new Map(ctx.people.map((p) => [p.id, p] as const))
 
   const sections: Section[] = groups.map((g) => {

@@ -58,6 +58,11 @@ function filterLineShown(def: PersistedListDefinition): boolean {
   return def.showFilterLine !== false
 }
 
+/** Whether two lists' own tab badges are the same (absent = the app's). */
+function tabBadgesEqual(a: PersistedListDefinition, b: PersistedListDefinition): boolean {
+  return JSON.stringify(a.tabBadges ?? null) === JSON.stringify(b.tabBadges ?? null)
+}
+
 export function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition): boolean {
   // Ignore `sortOrder` (reorder is saved independently).
   if (a.name !== b.name) return false
@@ -65,6 +70,7 @@ export function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition
   if (JSON.stringify(a.grouping) !== JSON.stringify(b.grouping)) return false
   if (JSON.stringify(a.runtimeFilter ?? null) !== JSON.stringify(b.runtimeFilter ?? null)) return false
   if (filterLineShown(a) !== filterLineShown(b)) return false
+  if (!tabBadgesEqual(a, b)) return false
   if (a.membership.kind !== b.membership.kind) return false
   if (a.membership.kind === 'custom' && b.membership.kind === 'custom') {
     if (!predicatesEqual(a.membership.predicate, b.membership.predicate)) return false
@@ -73,7 +79,7 @@ export function defsEqual(a: PersistedListDefinition, b: PersistedListDefinition
 }
 
 /** A part of a list definition the list editor shows as one row. */
-export type ListDefField = 'name' | 'filters' | 'group' | 'sort' | 'prompt' | 'filterLine'
+export type ListDefField = 'name' | 'filters' | 'group' | 'sort' | 'prompt' | 'filterLine' | 'tabBadges'
 
 /**
  * The editor rows whose value differs between `a` and `b` (e.g. a draft and
@@ -92,5 +98,6 @@ export function changedListFields(a: PersistedListDefinition, b: PersistedListDe
   if (!sortsEqual(a, b)) out.add('sort')
   if (JSON.stringify(a.runtimeFilter ?? null) !== JSON.stringify(b.runtimeFilter ?? null)) out.add('prompt')
   if (filterLineShown(a) !== filterLineShown(b)) out.add('filterLine')
+  if (!tabBadgesEqual(a, b)) out.add('tabBadges')
   return out
 }

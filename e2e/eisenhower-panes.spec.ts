@@ -149,7 +149,7 @@ test.describe('desktop', () => {
   test('the panes are the same in every Eisenhower tab, on every layout', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
-      eisenhower: { panes: { delegate: { name: 'Hand off', filter: { markers: { urgent: true, important: false }, statusIds: [999], negate: { statusIds: true } } } } },
+      eisenhower: { panes: { delegate: { name: 'Hand off', filter: { markers: [{ values: ['urgent'] }, { values: ['important'], not: true }], statusIds: [999], negate: { statusIds: true } } } } },
       layouts: [
         SEED.layouts[0]!,
         { name: 'Second', columns: [{ id: 'colX', cells: [{ id: 'x1', tabs: [{ id: 'eis2', kind: 'eisenhower' }] }] }] },

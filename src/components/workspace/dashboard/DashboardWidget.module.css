@@ -677,7 +677,7 @@ button.personRow:hover {
 
 .peopleGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 96px 24px 40px 72px;
+  grid-template-columns: minmax(0, 1fr) 96px 24px 72px 72px;
   align-items: center;
   column-gap: 10px;
 }
@@ -758,6 +758,26 @@ button.personRow:hover {
   font-variant-numeric: tabular-nums;
 }
 
+/* A row's open tasks by priority: a tinted badge in the marker's colour. */
+.priorityBadges {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 3px;
+}
+
+.priorityBadge {
+  min-width: 18px;
+  padding: 1px 4px;
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--badge-color) 18%, transparent);
+  color: var(--badge-color);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.25;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Tags (People's rows; the open count may read `3 of 5`) ──────────────── */
 
 .tagsPanel {
@@ -766,7 +786,7 @@ button.personRow:hover {
 
 .tagsGrid {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 80px 56px 40px 72px;
+  grid-template-columns: minmax(0, 1fr) 80px 56px 72px 72px;
   align-items: center;
   column-gap: 10px;
 }
@@ -774,7 +794,7 @@ button.personRow:hover {
 /* A narrow panel (a phone) keeps the names and counts; the bar goes. */
 @container (max-width: 420px) {
   .tagsGrid {
-    grid-template-columns: minmax(0, 1fr) 56px 32px 64px;
+    grid-template-columns: minmax(0, 1fr) 56px 72px 64px;
   }
 
   .tagsBarCol {

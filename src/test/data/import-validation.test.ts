@@ -1,3 +1,4 @@
+import { OR_GROUPS_MAX } from '../../models'
 import { describe, it, expect } from 'vitest'
 import { emptyPredicate } from '../../models/filter-predicate'
 import { STATUS_ICON_KEYS } from '../../models/status'
@@ -458,7 +459,7 @@ describe('validateImportData', () => {
   })
 
   describe('check-in settings', () => {
-    const FILTER = JSON.stringify({ ...emptyPredicate(), markers: 'hot', tags: [2] })
+    const FILTER = JSON.stringify({ ...emptyPredicate(), markers: [{ values: ['focus'] }], tags: [2] })
 
     it('accepts both open methods and a check-in filter', () => {
       for (const [key, value] of [
@@ -839,7 +840,7 @@ describe('validateImportData', () => {
     expect(result.ok).toBe(false)
   })
 
-  describe('Priority filter and Hot rule', () => {
+  describe('Priority filter', () => {
     function listWithMarkers(markers: unknown) {
       return {
         id: 1, name: 'List', sortOrder: 0, 
@@ -848,7 +849,7 @@ describe('validateImportData', () => {
       }
     }
 
-    it.each([['hot', 'hot'], ['ticked markers', { urgent: true, focus: true }], ['none', null]])(
+    it.each([['one condition', [{ values: ['urgent', 'focus'] }]], ['two, one "is not"', [{ values: ['urgent'] }, { values: ['none'], not: true }]], ['none', null]])(
       'accepts a list Markers filter: %s',
       (_name, markers) => {
         const result = validateImportData(validData({ listDefinitions: [listWithMarkers(markers)] }))
@@ -857,7 +858,7 @@ describe('validateImportData', () => {
       },
     )
 
-    it.each([['an unknown string', 'warm'], ['hot as a key', { hot: true }], ['a non-true value', { urgent: 'yes' }], ['an array', ['hot']]])(
+    it.each([['an unknown string', 'warm'], ['the older Hot', 'hot'], ['the older shape', { urgent: true }], ['an unknown value', [{ values: ['hot'] }]], ['a list of strings', ['urgent']], ['a non-boolean not', [{ values: ['urgent'], not: 'yes' }]]])(
       'drops a list Markers filter with %s, with a warning',
       (_name, markers) => {
         const result = validateImportData(validData({ listDefinitions: [listWithMarkers(markers)] }))
@@ -866,30 +867,6 @@ describe('validateImportData', () => {
         expect(result.warnings).toEqual(['Fixed 1 list: "List" (priority filter dropped)'])
       },
     )
-
-    it('accepts a Hot rule and stores it with duplicate lines collapsed', () => {
-      const result = validateImportData(validData({
-        settings: [{ key: 'hotRule', value: '[{"focus":true},{"important":true,"urgent":true},{"urgent":true,"important":true}]' }],
-      }))
-      expect(result.ok).toBe(true)
-      if (result.ok) {
-        expect(result.data.settings).toEqual([{ key: 'hotRule', value: '[{"focus":true},{"urgent":true,"important":true}]' }])
-      }
-    })
-
-    it.each([
-      ['no lines', '[]'],
-      ['an empty line', '[{"urgent":true},{}]'],
-      ['an unknown key', '[{"urgent":true,"overdue":true}]'],
-      ['a non-true value', '[{"focus":false}]'],
-      ['text that is not JSON', 'urgent+important'],
-    ])('rejects a Hot rule with %s', (_name, value) => {
-      const result = validateImportData(validData({ settings: [{ key: 'hotRule', value }] }))
-      expect(result).toEqual({
-        ok: false,
-        error: expect.stringContaining('hotRule must be a list of lines'),
-      })
-    })
   })
 
   describe('list predicates: malformed filters are dropped with a warning, not rejected', () => {
@@ -982,28 +959,28 @@ describe('validateImportData', () => {
       ])
     })
 
-    it('keeps a Priority filter’s Yes and No markers; any other value drops the filter with a warning', () => {
+    it('keeps a Priority filter’s conditions; any other value drops the filter with a warning', () => {
       const result = validateImportData(validData({
         listDefinitions: [
-          list(1, 'Delegate', { markers: { urgent: true, important: false } }),
+          list(1, 'Delegate', { markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] }),
           list(2, 'Odd', { statusIds: [2], markers: { urgent: true, important: 'no' } }),
         ],
       }))
       if (!result.ok) throw new Error(result.error)
       const [delegate, odd] = result.data.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate : null)
-      expect(delegate?.markers).toEqual({ urgent: true, important: false })
+      expect(delegate?.markers).toEqual([{ values: ['urgent'] }, { values: ['important'], not: true }])
       expect(odd).toMatchObject({ statusIds: [2], markers: null })
       expect(result.warnings).toEqual(['Fixed 1 list: "Odd" (priority filter dropped)'])
     })
 
     it('keeps a list\'s or groups; a malformed one is dropped with a warning', () => {
-      const group = { personIds: [1], statusIds: null, searchText: '', dates: {}, markers: 'hot', tags: null }
+      const group = { personIds: [1], statusIds: null, searchText: '', dates: {}, markers: [{ values: ['focus'] }], tags: null }
       const result = validateImportData(validData({
         listDefinitions: [
           list(1, 'Hot or mine', { tags: [2], orGroups: [group] }),
           list(2, 'Odd', { orGroups: [group, 'x', { ...group, personIds: 'ann', markers: null }] }),
           list(3, 'Not a list', { orGroups: { 0: group } }),
-          list(4, 'Too many', { orGroups: Array.from({ length: 11 }, () => group) }),
+          list(4, 'Too many', { orGroups: Array.from({ length: OR_GROUPS_MAX + 1 }, () => group) }),
         ],
       }))
       if (!result.ok) throw new Error(result.error)
@@ -1011,7 +988,7 @@ describe('validateImportData', () => {
       expect(kept?.orGroups).toEqual([group])
       expect(odd?.orGroups).toEqual([group])
       expect(notList && 'orGroups' in notList).toBe(false)
-      expect(many?.orGroups).toHaveLength(10)
+      expect(many?.orGroups).toHaveLength(OR_GROUPS_MAX)
       expect(result.warnings).toEqual([
         'Fixed 3 lists: "Odd" (people filter dropped, 2 or groups dropped); "Not a list" (or groups dropped); "Too many" (or groups capped)',
       ])

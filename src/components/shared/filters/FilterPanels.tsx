@@ -1,12 +1,11 @@
-import { createContext, useContext, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
-import { MARKER_KEYS, type MarkerKey, type MarkersFilter } from '../../../models'
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import type { MarkerClause } from '../../../models'
 import { StatusIcon } from '../StatusIcon'
 import { ClearableField } from '../ClearableField'
 import { ESCAPE_CLEARS_ATTR } from '../../../hooks/use-popover-anchor'
 import { PickerEntityMenu } from '../EntityMenu'
 import picker from './FilterPicker.module.css'
-import { HotIcon, MarkerIcon } from '../MarkerIcons'
-import { HOT_LABEL, MARKER_COLOR, MARKER_LABELS, MARKERS_LABEL, isHotFilter, markerCondition, toggleHot, withMarkerCondition } from '../../../utils/markers'
+import { MARKER_PICKER_ROWS, markerClauseOfIds, markerPickerIds, MARKERS_LABEL, NO_PRIORITY_LABEL } from '../../../utils/markers'
 import markerStyles from './MarkersPanel.module.css'
 import { byName } from '../../../utils/sort-order'
 import { shortcutScope } from '../../../utils/dom-contract'
@@ -45,25 +44,19 @@ interface SegmentedToggleProps<T> {
   onChange: (value: T) => void
   /** The phone sheet's touch height. */
   touch?: boolean
-  /** Inline in a row (the Priority picker's markers): sized to its labels. */
-  inline?: boolean
-  /** Shown but not pickable (a marker while Hot is on). */
-  disabled?: boolean
 }
 
 /**
  * A segmented radio group: one segment per choice, arrow keys move between
- * them (wrapping). The filter pickers' Is / Is not toggle and each marker's
- * Any / Yes / No.
+ * them (wrapping). The filter pickers' Is / Is not toggle.
  */
-export function SegmentedToggle<T>({ label, choices, value, onChange, touch = false, inline = false, disabled = false }: SegmentedToggleProps<T>) {
+export function SegmentedToggle<T>({ label, choices, value, onChange, touch = false }: SegmentedToggleProps<T>) {
   const refs = useRef<Array<HTMLButtonElement | null>>([])
   const at = Math.max(0, choices.findIndex((c) => c.value === value))
   const onKeyDown = (e: KeyboardEvent) => {
     const step = e.key === 'ArrowLeft' || e.key === 'ArrowUp' ? -1 : e.key === 'ArrowRight' || e.key === 'ArrowDown' ? 1 : 0
     if (step === 0) return
     e.preventDefault()
-    if (disabled) return
     const i = (at + step + choices.length) % choices.length
     const next = choices[i]
     if (!next) return
@@ -72,10 +65,9 @@ export function SegmentedToggle<T>({ label, choices, value, onChange, touch = fa
   }
   return (
     <div
-      className={`${picker.modeToggle} ${touch ? picker.modeToggleTouch : ''} ${inline ? picker.modeToggleInline : ''} ${disabled ? picker.modeToggleDisabled : ''}`}
+      className={`${picker.modeToggle} ${touch ? picker.modeToggleTouch : ''}`}
       role="radiogroup"
       aria-label={label}
-      aria-disabled={disabled || undefined}
     >
       {choices.map((c, i) => {
         const on = i === at
@@ -88,7 +80,7 @@ export function SegmentedToggle<T>({ label, choices, value, onChange, touch = fa
             aria-checked={on}
             tabIndex={on ? 0 : -1}
             className={`${picker.modeSegment} ${on ? picker.modeSegmentOn : ''} ${on && c.accent ? picker.modeSegmentNot : ''}`}
-            onClick={() => { if (!on && !disabled) onChange(c.value) }}
+            onClick={() => { if (!on) onChange(c.value) }}
             onKeyDown={onKeyDown}
           >
             {c.label}
@@ -110,48 +102,6 @@ const MODE_CHOICES: readonly SegmentChoice<boolean>[] = [
  */
 export function FilterModeToggle({ field, negated, onChange, touch = false }: FilterModeProps) {
   return <SegmentedToggle label={`${field}: is or is not`} choices={MODE_CHOICES} value={negated} onChange={onChange} touch={touch} />
-}
-
-/** A marker's condition in a Priority filter: Any (no condition), Yes (`true`), No (`false`). */
-type MarkerChoice = 'any' | 'yes' | 'no'
-
-const MARKER_CHOICES: readonly SegmentChoice<MarkerChoice>[] = [
-  { value: 'any', label: 'Any' },
-  { value: 'yes', label: 'Yes' },
-  { value: 'no', label: 'No', accent: true },
-]
-
-function choiceOf(condition: boolean | undefined): MarkerChoice {
-  return condition === undefined ? 'any' : condition ? 'yes' : 'no'
-}
-
-function conditionOf(choice: MarkerChoice): boolean | undefined {
-  return choice === 'any' ? undefined : choice === 'yes'
-}
-
-/**
- * One marker's Any · Yes · No in a Priority filter — the one three-way
- * control every Priority picker uses (`MarkersPanelBody`, the phone sheet).
- * Named after the marker (`Urgent`).
- */
-export function MarkerConditionToggle({ marker, value, onChange, touch = false, disabled = false }: {
-  marker: MarkerKey
-  value: MarkersFilter | null | undefined
-  onChange: (v: MarkersFilter | null) => void
-  touch?: boolean
-  disabled?: boolean
-}) {
-  return (
-    <SegmentedToggle
-      label={MARKER_LABELS[marker]}
-      choices={MARKER_CHOICES}
-      value={choiceOf(markerCondition(value, marker))}
-      onChange={(choice) => onChange(withMarkerCondition(value, marker, conditionOf(choice)))}
-      touch={touch}
-      inline
-      disabled={disabled}
-    />
-  )
 }
 
 /** Marks a picker's search box: ↓ in it moves into the rows below, ↑ on the first row comes back. */
@@ -350,6 +300,8 @@ interface EntityDropdownItemsProps {
   label?: string
   /** Empties the search box above (a pick while it has text clears it). */
   onSearchClear?: () => void
+  /** The rows stay in the order given, not by name (Priority's fixed order). */
+  keepOrder?: boolean
 }
 
 /** A press on a row keeps the focus where it is (the picker's search box), as the people / tag pickers do. */
@@ -385,6 +337,7 @@ export function EntityDropdownItems({
   onShowTasks,
   label,
   onSearchClear,
+  keepOrder = false,
 }: EntityDropdownItemsProps) {
   const [menu, setMenu] = useState<{ id: number; x: number; y: number } | null>(null)
   // The row that takes the tab stop, by id (0 = None), so it survives the search narrowing.
@@ -400,7 +353,7 @@ export function EntityDropdownItems({
   const showNone = withNone && (!q || 'none'.includes(q) || noneLabel.toLowerCase().includes(q))
   const matching = (q ? entities.filter((e) => e.name.toLowerCase().includes(q)) : entities)
     .flatMap((e) => (e.id == null ? [] : [{ ...e, id: e.id }]))
-    .toSorted(byName)
+    .toSorted(keepOrder ? () => 0 : byName)
   const { top, rest } = splitOnTop(matching, (e) => order.onTop(e.id))
   const noneOnTop = showNone && order.onTop(0)
   const topIds = [...(noneOnTop ? [0] : []), ...top.map((e) => e.id)]
@@ -549,49 +502,60 @@ export function EntityDropdownItems({
   )
 }
 
-const TICK = (
-  <svg className={markerStyles.tick} width="12" height="12" viewBox="0 0 16 16" aria-hidden>
-    <path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-  </svg>
-)
-
 /**
- * The Priority filter: Hot, then Any · Yes · No for Focus / Urgent /
- * Important. A task must be hot, or meet every marker's Yes / No (strict
- * AND). Ticking Hot clears and disables the single markers. Picking keeps
- * the picker open.
+ * One Priority condition's picker: the Status picker over the markers — Is /
+ * Is not, Select all / Deselect all, a row per marker and `No priority`.
+ * Nothing ticked is no condition (`null`); "Is not" with nothing ticked is
+ * held here until the first tick. Picking keeps the picker open. Opening it
+ * focuses its rows (it has no search box).
  */
-export function MarkersPanelBody({ value, onChange }: {
-  value: MarkersFilter | null
-  onChange: (v: MarkersFilter | null) => void
+export function MarkerClausePicker({ clause, onChange }: {
+  clause: MarkerClause | null
+  onChange: (next: MarkerClause | null) => void
 }) {
-  const hot = isHotFilter(value)
+  const [pendingNot, setPendingNot] = useState(false)
+  const negated = clause ? clause.not === true : pendingNot
+  const ids = markerPickerIds(clause)
+  const write = (next: Iterable<number>, not = negated) => {
+    if (not) setPendingNot(true)
+    onChange(markerClauseOfIds(next, not))
+  }
+  const allIds = [0, ...MARKER_PICKER_ROWS.map((r) => r.id)]
+  // It has no search box: the focus goes to its rows' tab stop, so the keyboard reaches them.
+  const panelRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => {
+      panelRef.current?.querySelector<HTMLElement>('[role="option"][tabindex="0"]')?.focus({ preventScroll: true })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [])
   return (
-    <div className={markerStyles.panel} role="group" aria-label={MARKERS_LABEL}>
-      <button
-        type="button"
-        className={`${picker.dropdownItem} ${markerStyles.row} ${hot ? markerStyles.rowOn : ''}`}
-        role="checkbox"
-        aria-checked={hot}
-        onClick={() => onChange(toggleHot(value))}
+    <div ref={panelRef} className={markerStyles.panel} role="group" aria-label={MARKERS_LABEL}>
+      <SelectionPanelBody
+        mode={{
+          field: MARKERS_LABEL,
+          negated,
+          onChange: (not) => {
+            setPendingNot(not)
+            if (clause) write(ids, not)
+          },
+        }}
+        allSelected={ids.size === allIds.length}
+        noneSelected={ids.size === 0}
+        onSelectAll={() => write(allIds)}
+        onDeselectAll={() => write([])}
       >
-        <span className={markerStyles.glyph} style={{ color: 'var(--color-danger)' }}><HotIcon /></span>
-        <span className={markerStyles.label}>{HOT_LABEL}</span>
-        {hot && TICK}
-      </button>
-      <div className={markerStyles.separator} role="separator" />
-      {MARKER_KEYS.map((key) => (
-        <div key={key} className={`${markerStyles.markerRow} ${hot ? markerStyles.rowDisabled : ''}`}>
-          <span className={markerStyles.glyph} style={{ color: MARKER_COLOR[key] }}><MarkerIcon marker={key} /></span>
-          <span className={markerStyles.label} aria-hidden>{MARKER_LABELS[key]}</span>
-          <MarkerConditionToggle marker={key} value={value} onChange={onChange} disabled={hot} />
-        </div>
-      ))}
-      <p className={markerStyles.note}>
-        {hot
-          ? 'Hot already combines these. Clear Hot to pick them one by one.'
-          : 'Yes: tasks must have it. No: tasks must not. Urgent includes urgent by due date.'}
-      </p>
+        <EntityDropdownItems
+          searchText=""
+          entities={MARKER_PICKER_ROWS}
+          label={MARKERS_LABEL}
+          noneLabel={NO_PRIORITY_LABEL}
+          isChecked={(id) => ids.has(id)}
+          onToggle={(id) => write(ids.has(id) ? [...ids].filter((x) => x !== id) : [...ids, id])}
+          keepOrder
+        />
+      </SelectionPanelBody>
+      <p className={markerStyles.note}>Urgent includes urgent by due date.</p>
     </div>
   )
 }

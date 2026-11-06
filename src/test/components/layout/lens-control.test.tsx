@@ -14,7 +14,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { makeTodo } from '../../helpers'
 
 const LAYOUT: PersistedWorkspaceLayout = { id: 1, name: 'Default', sortOrder: 0, columns: [], createdAt: new Date(0), modifiedAt: new Date(0) }
-const FOCUS_LENS = { id: 'lens-f', name: 'Focus only', predicate: { ...emptyPredicate(), markers: { focus: true } } }
+const FOCUS_LENS = { id: 'lens-f', name: 'Focus only', predicate: { ...emptyPredicate(), markers: [{ values: ['focus' as const] }] } }
 const PEOPLE_LENS = { id: 'lens-p', name: 'Has a person', predicate: { ...emptyPredicate(), personIds: [0], negate: { personIds: true as const } } }
 
 function renderBar() {
@@ -85,7 +85,7 @@ describe('the lens control and the counter', () => {
     useSettingsStore.setState({ activeLensId: 'lens-f' })
     renderBar()
     expect(lens()).toHaveAttribute('data-state', 'on')
-    const toggle = within(lens()).getByRole('button', { name: 'Lens on. Lift it' })
+    const toggle = within(lens()).getByRole('button', { name: 'Apply the lens' })
     expect(toggle).toHaveAttribute('aria-pressed', 'true')
     expect(counter()).toHaveAccessibleName('2 of 3 open tasks shown. Show them')
     expect(tray().className).not.toMatch(/trayActive/)
@@ -94,9 +94,9 @@ describe('the lens control and the counter', () => {
   it('the glasses lift it for now — every open task, the pick kept — and put it back', () => {
     useSettingsStore.setState({ activeLensId: 'lens-f' })
     renderBar()
-    fireEvent.click(within(lens()).getByRole('button', { name: 'Lens on. Lift it' }))
+    fireEvent.click(within(lens()).getByRole('button', { name: 'Apply the lens' }))
     expect(useUIStore.getState().lensLifted).toBe(true)
-    const back = within(lens()).getByRole('button', { name: 'Lens lifted. Put it back' })
+    const back = within(lens()).getByRole('button', { name: 'Apply the lens' })
     expect(back).toHaveAttribute('aria-pressed', 'false')
     expect(lens()).toHaveAttribute('data-state', 'lifted')
     expect(within(lens()).getByRole('button', { name: 'Lens: Focus only, lifted' })).toBeTruthy()
@@ -109,7 +109,7 @@ describe('the lens control and the counter', () => {
   it('a chip on top narrows further and turns the tray red; Clear all leaves the lens', () => {
     useSettingsStore.setState({ activeLensId: 'lens-f' })
     renderBar()
-    act(() => useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, markers: { important: true } }))
+    act(() => useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, markers: [{ values: ['important' as const] }] }))
     expect(counter()).toHaveAccessibleName('1 of 3 open tasks shown. Show them')
     expect(tray().className).toMatch(/trayActive/)
     fireEvent.click(within(tray()).getByRole('button', { name: 'Clear all filters' }))

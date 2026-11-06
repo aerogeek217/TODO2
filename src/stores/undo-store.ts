@@ -35,30 +35,67 @@ let groupQueue: Promise<unknown> = Promise.resolve()
 registerModuleReset(() => { groupQueue = Promise.resolve() })
 
 /**
+ * Resolves once no group run through `runGroup` is open or waiting — an
+ * undo or redo pressed meanwhile then takes the whole compound step, never
+ * a part of it (cr31 stores L5). A group opened with `beginGroup` alone
+ * isn't waited for.
+ */
+async function groupsSettled(isOpen: () => boolean): Promise<void> {
+  let queue = groupQueue
+  while (isOpen()) {
+    await queue
+    if (queue === groupQueue) return
+    queue = groupQueue
+  }
+}
+
+/**
  * Thrown by an undo / redo that can't run yet for a reason the user can fix
  * (e.g. a layout that must be open first): the entry stays on its stack, and
  * the snackbar shows the error's message instead of "Couldn't undo: …".
  */
 export class UndoRefused extends Error {}
 
+/**
+ * Thrown by an undo / redo whose subject is gone for good (its task was
+ * deleted with no undo step — a purge of completed tasks): the entry is
+ * dropped, never retried, and the snackbar shows the error's message — so
+ * the next undo reaches the step before it instead of silently "undoing"
+ * nothing (cr31 stores L6).
+ */
+export class UndoGone extends Error {}
+
 /** What the snackbar says when an undo / redo throws `e`. */
 function failureMessage(e: unknown, fallback: string): string {
   return e instanceof UndoRefused ? e.message : fallback
+}
+
+/**
+ * Runs `step` over `entries` in order; a part whose subject is gone
+ * (`UndoGone`) is skipped — only when every part is gone does the whole step
+ * throw it.
+ */
+async function eachPart(entries: readonly UndoEntry[], step: (entry: UndoEntry) => void | Promise<void>): Promise<void> {
+  let gone: UndoGone | null = null
+  let ran = false
+  for (const entry of entries) {
+    try {
+      await step(entry)
+      ran = true
+    } catch (e) {
+      if (!(e instanceof UndoGone)) throw e
+      gone = e
+    }
+  }
+  if (gone && !ran) throw gone
 }
 
 /** One entry made of `grouped`: undo runs theirs newest first, redo oldest first. */
 function compoundOf(description: string, grouped: readonly UndoEntry[]): UndoEntry {
   return {
     description,
-    async undo() {
-      for (let i = grouped.length - 1; i >= 0; i--) {
-        const item = grouped[i]
-        if (item) await item.undo()
-      }
-    },
-    async redo() {
-      for (const entry of grouped) await entry.redo()
-    },
+    undo: () => eachPart([...grouped].reverse(), (entry) => entry.undo()),
+    redo: () => eachPart(grouped, (entry) => entry.redo()),
   }
 }
 
@@ -81,12 +118,14 @@ interface UndoState {
 
   push: (entry: UndoEntry, showSnackbar?: boolean) => void
   /**
-   * Undoes the newest entry and moves it to the redo stack. Never rejects:
-   * an entry whose undo throws stays where it was (the next undo tries it
-   * again) and the snackbar says it couldn't be undone.
+   * Undoes the newest entry and moves it to the redo stack — after the
+   * compound step in progress, if any, has ended (it is then the newest
+   * entry). Never rejects: an entry whose undo throws stays where it was
+   * (the next undo tries it again) and the snackbar says it couldn't be
+   * undone.
    */
   undo: () => Promise<void>
-  /** Redoes the newest undone entry; a failure is handled as in `undo`. */
+  /** Redoes the newest undone entry (after a compound step in progress, as `undo`); a failure is handled as in `undo`. */
   redo: () => Promise<void>
   /**
    * Mark the start of a compound operation. All entries pushed until
@@ -193,6 +232,7 @@ export const useUndoStore = create<UndoState>((set, get) => {
     },
 
     async undo() {
+      if (get().groupToken != null) await groupsSettled(() => get().groupToken != null)
       const { undoStack, isPerformingUndoRedo } = get()
       if (undoStack.length === 0 || isPerformingUndoRedo) return
 
@@ -208,6 +248,12 @@ export const useUndoStore = create<UndoState>((set, get) => {
       try {
         await entry.undo()
       } catch (e) {
+        if (e instanceof UndoGone) {
+          // Gone for good: dropped, and the next undo reaches the step before it.
+          set({ isPerformingUndoRedo: false })
+          get().notify(e.message)
+          return
+        }
         failed = failureMessage(e, `Couldn't undo: ${entry.description}`)
         if (!(e instanceof UndoRefused)) console.error(`Undo failed: ${entry.description}`, e)
       }
@@ -221,6 +267,7 @@ export const useUndoStore = create<UndoState>((set, get) => {
     },
 
     async redo() {
+      if (get().groupToken != null) await groupsSettled(() => get().groupToken != null)
       const { redoStack, isPerformingUndoRedo } = get()
       if (redoStack.length === 0 || isPerformingUndoRedo) return
 
@@ -236,6 +283,11 @@ export const useUndoStore = create<UndoState>((set, get) => {
       try {
         await entry.redo()
       } catch (e) {
+        if (e instanceof UndoGone) {
+          set({ isPerformingUndoRedo: false })
+          get().notify(e.message)
+          return
+        }
         failed = failureMessage(e, `Couldn't redo: ${entry.description}`)
         if (!(e instanceof UndoRefused)) console.error(`Redo failed: ${entry.description}`, e)
       }
@@ -314,6 +366,8 @@ export const useUndoStore = create<UndoState>((set, get) => {
           try {
             await entry.undo()
           } catch (e) {
+            // Its subject is gone: nothing of it is left to take back.
+            if (e instanceof UndoGone) continue
             console.error(`Couldn't take back: ${entry.description}`, e)
             set({ undoStack: [...get().undoStack, compoundOf(description, grouped.slice(0, i + 1))], redoStack: [] })
             return false

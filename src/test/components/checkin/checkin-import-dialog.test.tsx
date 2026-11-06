@@ -16,7 +16,6 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { DEFAULT_FOLLOWUP_INTERVAL } from '../../../utils/followup'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { checkinSampleStatusUpdates, checkinSampleTasks } from '../../fixtures/checkin-replies/sample-tasks'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
 import { makePerson } from '../../helpers'
@@ -415,7 +414,7 @@ describe('entry points', () => {
     useTagStore.setState({ tags: [], assignedTagsMap: new Map() })
     useStatusStore.setState({ statuses: [] })
     useListDefinitionStore.setState({ listDefinitions: [] })
-    useSettingsStore.setState({ checkinOpenMethod: 'mailto', checkinTaskFilter: emptyPredicate(), weekStartsOn: 1, urgentDueWithinDays: 0, hotRule: DEFAULT_HOT_RULE })
+    useSettingsStore.setState({ checkinOpenMethod: 'mailto', checkinTaskFilter: emptyPredicate(), weekStartsOn: 1, urgentDueWithinDays: 0 })
     render(<><CheckinDialog /><CheckinImportDialog /></>)
     act(() => useUIStore.getState().openCheckinDialog())
     fireEvent.click(within(screen.getByRole('dialog', { name: 'Email task check-ins' })).getByRole('button', { name: 'Paste a reply…' }))

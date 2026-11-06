@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeEach } from 'vitest'
-import { act, renderHook } from '@testing-library/react'
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { act, cleanup, renderHook } from '@testing-library/react'
 import { db } from '../../data/database'
 import { listDefinitionRepository } from '../../data/list-definition-repository'
 import type { PersistedListDefinition } from '../../models/list-definition'
@@ -16,9 +16,8 @@ import { statsFilter } from '../../services/stats/stats-context'
 import type { FilterCriteria } from '../../utils/filter-criteria'
 import { applyFilter } from '../../utils/filter-match'
 import { resolvePanes } from '../../utils/eisenhower-panes'
-import { DEFAULT_HOT_RULE } from '../../utils/hot'
 import { startOfDay } from '../../utils/date'
-import { emptyFilterCriteria, makeTodo, statsPaneContext } from '../helpers'
+import { emptyFilterCriteria, makeTodo, statsPaneContext, lookupsFor } from '../helpers'
 
 /**
  * Data without the Eisenhower's own list gets a new list with no filter as
@@ -53,7 +52,7 @@ const SCREENS: Array<[string, Partial<FilterCriteria>]> = [
   ['a person, with Show completed', { personIds: new Set([1]), showCompleted: true }],
   ['a status “is not”', { statusIds: new Set([2]), negate: { statusIds: true } }],
   ['search text, with Show completed', { searchText: 'report', showCompleted: true }],
-  ['a marker', { markers: { urgent: true } }],
+  ['a marker', { markers: [{ values: ['urgent'] }] }],
   ['a due date', { dates: { deadline: { match: 'set' } } }],
 ]
 
@@ -65,6 +64,9 @@ beforeEach(async () => {
   useStatusStore.setState({ statuses: [waiting] })
   useListDefinitionStore.setState({ listDefinitions: [madeList], loaded: true })
 })
+
+// The shared project cleans up only at the file's end: unmount each test's hooks.
+afterEach(() => { cleanup() })
 
 const ids = (tasks: readonly { id: number }[]) => tasks.map((t) => t.id).sort((a, b) => a - b)
 
@@ -95,15 +97,15 @@ describe('the Eisenhower’s new list (no filter) shows what All tasks showed', 
 
   it.each(SCREENS)('on the dashboard, under %s: the same counts per pane, shown and in total', (_what, screen) => {
     const criteria: FilterCriteria = { ...emptyFilterCriteria, ...screen }
-    const settings = { urgentRange: 3 as const, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 1 as const }
-    const lookups = { assignedPeopleMap, assignedTagsMap: new Map(), statusesById: new Map([[2, waiting]]) }
+    const settings = { urgentRange: 3 as const, weekStartsOn: 1 as const }
+    const lookups = lookupsFor({ assignedPeopleMap, statusesById: new Map([[2, waiting]]) })
     // The dashboard's screen-filtered tasks (completed included).
-    const shownAll = applyFilter(statsFilter(criteria), todos, assignedPeopleMap, [waiting], today, new Map(), settings)
+    const shownAll = applyFilter(statsFilter(criteria), todos, lookups, today, settings)
     const opts = { screen: statsFilter(criteria), lookups, today, settings }
     const all = eisenhowerSourceTasks(todos, shownAll, undefined, opts)
     const own = eisenhowerSourceTasks(todos, shownAll, madeList, opts)
     const panes = resolvePanes({})
-    const paneCtx = statsPaneContext({ today, weekStartsOn: 1, urgentRange: 3, hotRule: DEFAULT_HOT_RULE, assignedPeopleMap, assignedTagsMap: new Map(), statuses: [waiting] })
+    const paneCtx = statsPaneContext({ today, weekStartsOn: 1, urgentRange: 3, assignedPeopleMap, assignedTagsMap: new Map(), statuses: [waiting] })
     expect(computeEisenhowerSummary(own.shown, panes, paneCtx)).toEqual(computeEisenhowerSummary(all.shown, panes, paneCtx))
     expect(computeEisenhowerSummary(own.total, panes, paneCtx)).toEqual(computeEisenhowerSummary(all.total, panes, paneCtx))
     expect(ids(own.total.filter((t) => !t.isCompleted))).toEqual(ids(all.total.filter((t) => !t.isCompleted)))

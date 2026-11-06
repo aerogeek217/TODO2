@@ -247,6 +247,21 @@ describe('RuntimeFilterPicker', () => {
     expect(onChange).toHaveBeenLastCalledWith([1])
   })
 
+  it('Backspace pops the most recent chip shown, not a deleted person’s id (no chip) after it (cr31 UI F8)', () => {
+    usePersonStore.setState({
+      people: [makePerson({ id: 1, name: 'Alice' }), makePerson({ id: 2, name: 'Bob' })],
+      assignedPeopleMap: new Map(),
+    })
+    const onChange = vi.fn()
+    const { getByLabelText } = render(
+      <RuntimeFilterPicker spec={{ field: 'person' }} value={[1, 2, 99]} onChange={onChange} />,
+    )
+    const input = getByLabelText(/Filter tasks by person/i) as HTMLInputElement
+    fireEvent.focus(input)
+    fireEvent.keyDown(input, { key: 'Backspace' })
+    expect(onChange).toHaveBeenLastCalledWith([1, 99])
+  })
+
   describe('the keyboard', () => {
     const people = () => {
       usePersonStore.setState({

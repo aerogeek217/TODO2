@@ -3,7 +3,7 @@ import { byName } from '../../utils/sort-order'
 import { openRowStats, type PeopleRowStats } from './people'
 import { idsByDate, openTasks, type StatsContext } from './stats-context'
 
-/** One Tags row: open tasks, and the hot / follow-up-due ones among them (as a People row). */
+/** One Tags row: open tasks, the count by priority and the follow-up-due ones (as a People row). */
 export type TagRowStats = PeopleRowStats
 
 export interface TagStats {

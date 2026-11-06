@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computeTiles } from '../../../services/stats/tiles'
 import type { StatsContext } from '../../../services/stats/stats-context'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { makeTodo } from '../../helpers'
 
 const today = new Date(2026, 9, 10)
@@ -9,18 +8,15 @@ const day = (n: number) => new Date(2026, 9, 10 + n)
 const ctx: StatsContext = {
   today,
   weekStartsOn: 1,
-  urgentRange: 3,
-  hotRule: DEFAULT_HOT_RULE,
-  assignedPeopleMap: new Map(),
+  urgentRange: 3,  assignedPeopleMap: new Map(),
   assignedTagsMap: new Map(),
   statuses: [],
 }
 
 describe('computeTiles', () => {
-  it('an empty set gives empty tiles (and a line entry per Hot rule line)', () => {
+  it('an empty set gives empty tiles', () => {
     const tiles = computeTiles([], ctx)
     for (const tile of Object.values(tiles)) expect(tile.ids).toEqual([])
-    expect(tiles.hot.lines.map((l) => l.ids)).toEqual([[], []])
     expect(tiles.overdue).toMatchObject({ oldest: null, oldestDaysLate: 0 })
     expect(tiles.urgent).toMatchObject({ flagged: 0, byDate: 0 })
     expect(tiles.followupDue).toMatchObject({ late: 0, today: 0, upcoming: 0 })
@@ -35,36 +31,22 @@ describe('computeTiles', () => {
     for (const tile of Object.values(tiles)) expect(tile.ids).toEqual([])
   })
 
-  it('urgent range Off: only flags make a task urgent (and hot through U+I)', () => {
+  it('urgent range Off: only flags make a task urgent', () => {
     const byDate = makeTodo({ id: 1, important: true, dueDate: day(-1) })
     const flagged = makeTodo({ id: 2, urgent: true, important: true })
     const off = computeTiles([byDate, flagged], { ...ctx, urgentRange: null })
     expect(off.urgent).toEqual({ ids: [2], flagged: 1, byDate: 0 })
-    expect(off.hot.ids).toEqual([2])
     // Still overdue.
     expect(off.overdue.ids).toEqual([1])
 
     const on = computeTiles([byDate, flagged], ctx)
     expect(on.urgent).toEqual({ ids: [1, 2], flagged: 1, byDate: 1 })
-    expect(on.hot.ids).toEqual([1, 2])
   })
 
   it('urgent range edges: Today = due today or earlier; 3 days includes today + 3', () => {
     const tasks = [0, 1, 3, 4].map((n, i) => makeTodo({ id: i + 1, dueDate: day(n) }))
     expect(computeTiles(tasks, { ...ctx, urgentRange: 0 }).urgent.ids).toEqual([1])
     expect(computeTiles(tasks, ctx).urgent.ids).toEqual([1, 2, 3])
-  })
-
-  it('a hot task counts under the first rule line it matches', () => {
-    const both = makeTodo({ id: 1, urgent: true, important: true, focus: true })
-    const focusOnly = makeTodo({ id: 2, focus: true })
-    const importantOnly = makeTodo({ id: 3, important: true })
-    const tiles = computeTiles([both, focusOnly, importantOnly], {
-      ...ctx,
-      hotRule: [{ focus: true }, { urgent: true, important: true }, { important: true }],
-    })
-    expect(tiles.hot.ids).toEqual([1, 2, 3])
-    expect(tiles.hot.lines.map((l) => l.ids)).toEqual([[1, 2], [], [3]])
   })
 
   it('ids come in dialog order: by date, undated last, ties by sortOrder', () => {

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, memo, type RefObject } from 'react'
+import { useCallback, useRef, useState, memo, type CSSProperties, type RefObject } from 'react'
 import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -17,8 +17,8 @@ import subtaskStyles from './subtasks/Subtasks.module.css'
 import { formatDateNumeric, startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { MarkerDots } from '../shared/MarkerDots'
+import { rowCue } from '../../utils/priority-cues'
 import { markerSummary } from '../../utils/markers'
-import { isHot } from '../../utils/hot'
 import { isStale } from '../../utils/stale'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { keepRowTextUnselected } from './row-events'
@@ -99,8 +99,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const hasDefaultStatus = useStatusStore((s) => defaultStatusId != null && s.statuses.some((st) => st.id === defaultStatusId))
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const markers = markerSummary(todo, today, urgentRange)
-  const hotRule = useSettingsStore((s) => s.hotRule)
-  const hot = isHot(todo, hotRule, today, urgentRange)
+  const priorityCues = useSettingsStore((s) => s.priorityCues)
+  const cue = rowCue(todo, priorityCues, today, urgentRange)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
   const stale = isStale(todo, today, staleAfterDays)
 
@@ -128,6 +128,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
   return (
     <div
+      style={cue.glow ? ({ '--row-glow': cue.glow } as CSSProperties) : undefined}
       className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${isSelected ? styles.selected : ''}`}
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-stale={stale || undefined}
@@ -156,10 +157,9 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 
         <button
           type="button"
-          className={`${styles.title} ${hot ? styles.hot : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
+          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
           aria-pressed={!!isSelected}
           data-task-title={todo.title}
-          data-hot={hot || undefined}
           onClick={handleRowTap}
         >
           {todo.title}

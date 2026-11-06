@@ -10,6 +10,7 @@ import { tagRepository } from '../../data/tag-repository'
 import { personRepository } from '../../data/person-repository'
 import { selectExpiredCompleted } from '../../utils/completed-at'
 import { makeTodo } from '../helpers'
+import { addTask } from '../add-task'
 /** What the launch prompt / Settings cleanup delete once the user confirms. */
 const purgeExpired = async (days: number) => {
   const outcome = await useTodoStore.getState().purgeCompleted(selectExpiredCompleted(useTodoStore.getState().todos, days).map((t) => t.id))
@@ -28,7 +29,7 @@ beforeEach(async () => {
 
 describe('todoStore', () => {
   it('add creates a todo and updates the store', async () => {
-    await useTodoStore.getState().add('Buy milk')
+    await addTask('Buy milk')
     const { todos } = useTodoStore.getState()
     expect(todos).toHaveLength(1)
     expect(todos[0]!.title).toBe('Buy milk')
@@ -36,15 +37,15 @@ describe('todoStore', () => {
   })
 
   it('add places the new todo after the highest sortOrder', async () => {
-    const id1 = await useTodoStore.getState().add('First')
+    const id1 = await addTask('First')
     await db.todos.update(id1, { sortOrder: 41 })
     await useTodoStore.getState().loadAll()
-    const id2 = await useTodoStore.getState().add('Second')
+    const id2 = await addTask('Second')
     expect(useTodoStore.getState().todos.find((t) => t.id === id2)!.sortOrder).toBe(42)
   })
 
   it('toggleComplete flips isCompleted', async () => {
-    const id = await useTodoStore.getState().add('Task')
+    const id = await addTask('Task')
     await useTodoStore.getState().toggleComplete(id)
     expect(useTodoStore.getState().todos[0]!.isCompleted).toBe(true)
 
@@ -53,7 +54,7 @@ describe('todoStore', () => {
   })
 
   it('every completion shows the undo snackbar (one undo step); reopening stays quiet', async () => {
-    const id = await useTodoStore.getState().add('Task')
+    const id = await addTask('Task')
     useUndoStore.getState().dismissSnackbar()
     const before = useUndoStore.getState().undoStack.length
     await useTodoStore.getState().toggleComplete(id)
@@ -91,7 +92,7 @@ describe('todoStore', () => {
   })
 
   it('undo of completing a task restores it open; redo completes it with the same completedAt', async () => {
-    const id = await useTodoStore.getState().add('Task')
+    const id = await addTask('Task')
     await useTodoStore.getState().toggleComplete(id)
     const completedAt = useTodoStore.getState().todos[0]!.completedAt!
     await useUndoStore.getState().undo()
@@ -104,7 +105,7 @@ describe('todoStore', () => {
   })
 
   it('remove deletes a todo from store and DB', async () => {
-    const id = await useTodoStore.getState().add('Task')
+    const id = await addTask('Task')
     await useTodoStore.getState().remove(id)
     expect(useTodoStore.getState().todos).toHaveLength(0)
 
@@ -113,8 +114,8 @@ describe('todoStore', () => {
   })
 
   it('loadAll loads every todo from the DB', async () => {
-    await useTodoStore.getState().add('One')
-    await useTodoStore.getState().add('Two')
+    await addTask('One')
+    await addTask('Two')
     useTodoStore.setState({ todos: [] })
 
     await useTodoStore.getState().loadAll()
@@ -122,9 +123,9 @@ describe('todoStore', () => {
   })
 
   it('bulkSetCompleted marks multiple todos completed', async () => {
-    const id1 = await useTodoStore.getState().add('Task 1')
-    const id2 = await useTodoStore.getState().add('Task 2')
-    const id3 = await useTodoStore.getState().add('Task 3')
+    const id1 = await addTask('Task 1')
+    const id2 = await addTask('Task 2')
+    const id3 = await addTask('Task 3')
 
     await useTodoStore.getState().bulkSetCompleted([id1, id2], true)
     const todos = useTodoStore.getState().todos
@@ -134,8 +135,8 @@ describe('todoStore', () => {
   })
 
   it('bulkSetDeadline sets date and clears date', async () => {
-    const id1 = await useTodoStore.getState().add('Task 1')
-    const id2 = await useTodoStore.getState().add('Task 2')
+    const id1 = await addTask('Task 1')
+    const id2 = await addTask('Task 2')
     const date = new Date('2026-06-15')
 
     await useTodoStore.getState().bulkSetDeadline([id1, id2], date)
@@ -147,9 +148,9 @@ describe('todoStore', () => {
   })
 
   it('bulkRemove removes multiple todos from store and DB', async () => {
-    const id1 = await useTodoStore.getState().add('Task 1')
-    const id2 = await useTodoStore.getState().add('Task 2')
-    const id3 = await useTodoStore.getState().add('Task 3')
+    const id1 = await addTask('Task 1')
+    const id2 = await addTask('Task 2')
+    const id3 = await addTask('Task 3')
 
     await useTodoStore.getState().bulkRemove([id1, id3])
     expect(useTodoStore.getState().todos).toHaveLength(1)
@@ -160,7 +161,7 @@ describe('todoStore', () => {
   })
 
   it('undo → redo → undo of an add leaves no task behind', async () => {
-    const id = await useTodoStore.getState().add('Task')
+    const id = await addTask('Task')
     const undoStore = useUndoStore.getState()
     await undoStore.undo()
     await undoStore.redo()
@@ -172,7 +173,7 @@ describe('todoStore', () => {
   })
 
   it('undo → redo → undo of a duplicate leaves only the original', async () => {
-    const id = await useTodoStore.getState().add('Task')
+    const id = await addTask('Task')
     const tagId = await tagRepository.getOrCreate('ops', '#111111')
     await tagRepository.assignTag(id, tagId)
     const copyId = await useTodoStore.getState().duplicate(id)
@@ -187,7 +188,7 @@ describe('todoStore', () => {
   })
 
   it('undoing a delete brings the task back with its people and tags', async () => {
-    const id = await useTodoStore.getState().add('Task')
+    const id = await addTask('Task')
     const personId = await personRepository.insert({ name: 'Dana', initials: 'DA' })
     const tagId = await tagRepository.getOrCreate('ops', '#111111')
     await personRepository.assignPerson(id, personId)
@@ -204,8 +205,8 @@ describe('todoStore', () => {
   })
 
   it('undoing a bulk delete brings every task back with its tags', async () => {
-    const id1 = await useTodoStore.getState().add('Task 1')
-    const id2 = await useTodoStore.getState().add('Task 2')
+    const id1 = await addTask('Task 1')
+    const id2 = await addTask('Task 2')
     const tagA = await tagRepository.getOrCreate('a', '#111111')
     const tagB = await tagRepository.getOrCreate('b', '#222222')
     await tagRepository.assignTag(id1, tagA)
@@ -228,7 +229,7 @@ describe('todoStore', () => {
     // add / remove / bulkRemove / restore / purge should tick the counter,
     // update / toggleComplete / bulk-field setters should not.
     const v0 = useTodoStore.getState().todosVersion
-    const id1 = await useTodoStore.getState().add('Task 1')
+    const id1 = await addTask('Task 1')
     const vAfterAdd = useTodoStore.getState().todosVersion
     expect(vAfterAdd).toBeGreaterThan(v0)
 
@@ -239,7 +240,7 @@ describe('todoStore', () => {
     expect(useTodoStore.getState().todosVersion).toBe(vAfterAdd)
 
     // Second add bumps again.
-    const id2 = await useTodoStore.getState().add('Task 2')
+    const id2 = await addTask('Task 2')
     const vAfterSecondAdd = useTodoStore.getState().todosVersion
     expect(vAfterSecondAdd).toBeGreaterThan(vAfterAdd)
 
@@ -252,9 +253,9 @@ describe('todoStore', () => {
   })
 
   it('purgeCompleted (expired selection) removes old completed todos', async () => {
-    const id1 = await useTodoStore.getState().add('Old done')
-    const id2 = await useTodoStore.getState().add('Recent done')
-    const id3 = await useTodoStore.getState().add('Not done')
+    const id1 = await addTask('Old done')
+    const id2 = await addTask('Recent done')
+    const id3 = await addTask('Not done')
 
     // Complete both
     await useTodoStore.getState().toggleComplete(id1)
@@ -278,13 +279,13 @@ describe('todoStore', () => {
   })
 
   it('purgeCompleted (expired selection) returns 0 when nothing to purge', async () => {
-    await useTodoStore.getState().add('Active task')
+    await addTask('Active task')
     const count = await purgeExpired(30)
     expect(count).toBe(0)
   })
 
   it('duplicate copies fields, people and tags onto a new todo', async () => {
-    const id = await useTodoStore.getState().add('Original')
+    const id = await addTask('Original')
     const original = useTodoStore.getState().todos.find((t) => t.id === id)!
     const due = new Date(2026, 5, 15)
     await useTodoStore.getState().update(original.id, { dueDate: due, notes: 'n', statusId: 3 })
@@ -312,14 +313,14 @@ describe('todoStore', () => {
   describe('defaultStatusId', () => {
     it('add applies defaultStatusId from settings when set', async () => {
       useSettingsStore.setState({ defaultStatusId: 7 })
-      const id = await useTodoStore.getState().add('Task with status')
+      const id = await addTask('Task with status')
       const todo = useTodoStore.getState().todos.find(t => t.id === id)
       expect(todo!.statusId).toBe(7)
     })
 
     it('add does not set statusId when defaultStatusId is null', async () => {
       useSettingsStore.setState({ defaultStatusId: null })
-      const id = await useTodoStore.getState().add('Task without status')
+      const id = await addTask('Task without status')
       const todo = useTodoStore.getState().todos.find(t => t.id === id)
       expect(todo!.statusId).toBeUndefined()
     })
@@ -328,7 +329,7 @@ describe('todoStore', () => {
   describe('optimistic rollback', () => {
     it('toggleComplete_dbRejects_revertsIsCompletedToFalse', async () => {
       // Arrange
-      const id = await useTodoStore.getState().add('Task')
+      const id = await addTask('Task')
       const spy = vi.spyOn(todoRepository, 'complete').mockRejectedValueOnce(new Error('DB error'))
 
       // Act
@@ -343,7 +344,7 @@ describe('todoStore', () => {
 
     it('update_dbRejects_revertsToOriginalTitle', async () => {
       // Arrange
-      const id = await useTodoStore.getState().add('Original title')
+      const id = await addTask('Original title')
       const original = useTodoStore.getState().todos.find((t) => t.id === id)!
       const spy = vi.spyOn(todoRepository, 'update').mockRejectedValueOnce(new Error('DB error'))
 

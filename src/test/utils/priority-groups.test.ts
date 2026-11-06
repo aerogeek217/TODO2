@@ -11,7 +11,6 @@ import {
 
 const today = new Date(2026, 0, 12)
 const ctx: PriorityGroupContext = { today, urgentRange: 3 }
-const HOT = priorityGroupKey('hot')
 const FOCUS = priorityGroupKey('focus')
 const URGENT = priorityGroupKey('urgent')
 const IMPORTANT = priorityGroupKey('important')
@@ -22,12 +21,12 @@ function task(over: Partial<PersistedTodoItem> = {}): PersistedTodoItem {
 
 describe('priorityGroupsOf', () => {
   it('lists the groups in order; Urgent by due date counts; none = No priority', () => {
-    expect(priorityGroupsOf(task({ focus: true, urgent: true }), ctx)).toEqual(['hot', 'focus', 'urgent'])
+    expect(priorityGroupsOf(task({ focus: true, urgent: true }), ctx)).toEqual(['focus', 'urgent'])
     expect(priorityGroupsOf(task({ dueDate: new Date(2026, 0, 13) }), ctx)).toEqual(['urgent'])
     expect(priorityGroupsOf(task(), ctx)).toEqual([])
   })
 
-  it('a completed task is never Hot but keeps its flags’ groups', () => {
+  it('a completed task keeps its flags’ groups', () => {
     expect(priorityGroupsOf(task({ focus: true, isCompleted: true }), ctx)).toEqual(['focus'])
   })
 })
@@ -38,22 +37,13 @@ describe('resolvePriorityDrop', () => {
     expect(drop).toEqual({ kind: 'write', flags: { urgent: false, important: true }, description: 'Marked not urgent, important · Plan' })
   })
 
-  it('out of Hot or No priority clears nothing', () => {
-    expect(resolvePriorityDrop(task({ focus: true }), HOT, IMPORTANT, ctx)).toMatchObject({ kind: 'write', flags: { important: true } })
+  it('out of No priority clears nothing', () => {
     expect(resolvePriorityDrop(task(), NO_PRIORITY_KEY, FOCUS, ctx)).toMatchObject({ kind: 'write', flags: { focus: true } })
   })
 
   it('into No priority clears all three flags (only the ones set are written)', () => {
     const drop = resolvePriorityDrop(task({ focus: true, important: true }), FOCUS, NO_PRIORITY_KEY, ctx)
     expect(drop).toMatchObject({ kind: 'write', flags: { focus: false, important: false } })
-  })
-
-  it('into Hot is refused', () => {
-    const drop = resolvePriorityDrop(task({ focus: true }), FOCUS, HOT, ctx)
-    expect(drop).toEqual({
-      kind: 'refused',
-      lines: ['Can’t move to Hot', 'Hot comes from a task’s markers, by the Hot rule in Settings.', 'Drop it on Focus, Urgent or Important instead.'],
-    })
   })
 
   it('out of Urgent is refused while the due date keeps the task urgent, with why', () => {
@@ -89,6 +79,5 @@ describe('resolvePriorityDrop', () => {
   it('nothing to do: same group, unknown keys, flags already so', () => {
     expect(resolvePriorityDrop(task({ urgent: true }), URGENT, URGENT, ctx)).toBeNull()
     expect(resolvePriorityDrop(task(), 'tag-1', FOCUS, ctx)).toBeNull()
-    expect(resolvePriorityDrop(task({ focus: true }), HOT, FOCUS, ctx)).toBeNull()
   })
 })

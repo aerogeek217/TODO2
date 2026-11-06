@@ -52,6 +52,37 @@
   box-shadow: var(--trigger-open-ring), var(--focus-ring);
 }
 
+/* The chip's own button (its label and value; the × is its sibling, cr31
+ * F9): it fills the chip and draws nothing of its own — the chip shows its
+ * focus, the ring around the whole plate. */
+.chipEdit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  text-align: inherit;
+  white-space: inherit;
+  cursor: pointer;
+}
+
+.chipEdit:focus-visible {
+  box-shadow: none;
+}
+
+.listChip:has(> .chipEdit:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.listChipOpen:has(> .chipEdit:focus-visible) {
+  box-shadow: var(--trigger-open-ring), var(--focus-ring);
+}
+
 .chipLabel {
   color: var(--color-text-muted);
 }
@@ -231,6 +262,36 @@
   display: flex;
   align-items: center;
   max-width: 100%;
+  min-width: 0;
+}
+
+/* In the editors a chip wraps its text to the block's width, nothing cut off. */
+.stack .listChip {
+  flex-shrink: 1;
+  min-width: 0;
+  height: auto;
+  min-height: 22px;
+  padding-block: 3px;
+  line-height: 1.25;
+  text-align: left;
+  white-space: normal;
+}
+
+.stack .chipEdit {
+  flex-shrink: 1;
+}
+
+.stack .chipLabel,
+.stack .chipRemove {
+  flex-shrink: 0;
+}
+
+:global([data-touch-chips]) .stack .listChip {
+  min-height: 32px;
+}
+
+.stack .groupTail {
+  flex-shrink: 1;
   min-width: 0;
 }
 

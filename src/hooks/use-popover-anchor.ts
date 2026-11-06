@@ -33,9 +33,18 @@ const CARET_MIN_RADIUS_PX = 8
  */
 export const ESCAPE_CLEARS_ATTR = 'data-escape-clears'
 
-/** Whether an Escape on `target` belongs to a field that empties itself first (`ESCAPE_CLEARS_ATTR`). */
+/**
+ * Marks a field that always takes Escape itself — an inline edit that
+ * cancels itself (a subtask's rename), empty or not — so the popover it sits
+ * in stays open.
+ */
+export const ESCAPE_OWN_ATTR = 'data-escape-own'
+
+/** Whether an Escape on `target` belongs to the field: one that empties itself first (`ESCAPE_CLEARS_ATTR`), or keeps it (`ESCAPE_OWN_ATTR`). */
 function escapeClearsField(target: EventTarget | null): boolean {
-  return target instanceof HTMLInputElement && target.hasAttribute(ESCAPE_CLEARS_ATTR) && target.value !== ''
+  if (!(target instanceof HTMLInputElement)) return false
+  if (target.hasAttribute(ESCAPE_OWN_ATTR)) return true
+  return target.hasAttribute(ESCAPE_CLEARS_ATTR) && target.value !== ''
 }
 
 export type PopoverAnchor =

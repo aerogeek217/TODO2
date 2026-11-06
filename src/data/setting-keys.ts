@@ -36,11 +36,6 @@ export const SETTING_KEYS = {
    * Absent = the default (3 days).
    */
   urgentDueWithinDays: 'urgentDueWithinDays',
-  /**
-   * Hot rule: JSON array of lines, each an object of markers set to `true`
-   * (`[{"urgent":true,"important":true},{"focus":true}]`). Absent = that default.
-   */
-  hotRule: 'hotRule',
   /** How a check-in email opens: `mailto` (open, then paste) or `eml` (download a draft). Absent = `mailto`. */
   checkinOpenMethod: 'checkinOpenMethod',
   /**
@@ -93,6 +88,12 @@ export const SETTING_KEYS = {
    * task's row is drawn faded — a whole number 0–365, `0` = off. Absent = 30.
    */
   staleAfterDays: 'staleAfterDays',
+  /** What a list tab's due badge counts (`utils/tab-badges`): `off`, `overdue` or a day count; absent = the default. */
+  tabBadgeDue: 'tabBadgeDue',
+  /** What a list tab's follow-up badge counts, as `tabBadgeDue`. */
+  tabBadgeFollowup: 'tabBadgeFollowup',
+  /** What each priority adds to a task's row (`utils/priority-cues`): JSON; absent = the default. */
+  priorityCues: 'priorityCues',
   /** Row density of the desktop task rows: `comfortable` (titles wrap to two lines) or `compact`. Absent = `compact`. */
   rowDensity: 'rowDensity',
   /**

@@ -1,7 +1,6 @@
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import type { MarkerConditions, MarkerKey, TodoItem, TodoPredicate } from '../models'
-import { activeMarkers, isHotFilter, markerConditions } from './markers'
-import { hotSeed, lineMarkers, type HotRule } from './hot'
+import { activeMarkers, markerConditions } from './markers'
 import { isNegated } from './filter-negation'
 
 export interface FilterDefaults {
@@ -9,32 +8,24 @@ export interface FilterDefaults {
   tagIds: number[]
   statusId: number | undefined
   /**
-   * The markers the filter tests (Focus / Urgent / Important): new tasks
-   * start with each Yes flag on and each No flag off, so they show where they
-   * were added. A Hot filter seeds the Hot rule's first line (given the
-   * rule, `FilterDefaultsOptions`), else nothing: no single set of flags
-   * makes a task hot under every rule.
+   * The markers the filter decides (`markerConditions`): new tasks start
+   * with each Yes flag on and each No flag off, so they show where they were
+   * added. Several values in an "is" seed nothing, as a Status filter's.
    */
   markers?: MarkerConditions
-}
-
-export interface FilterDefaultsOptions {
-  /** The Hot rule in force: a Hot filter then seeds its first line's markers, so the new task is hot. */
-  hotRule?: HotRule
 }
 
 /**
  * Extract task creation defaults from active filter criteria.
  * Strips sentinel value 0 (None/Unaffiliated) from entity ID sets.
  * Tags use OR semantics in the filter so all picked tag ids become defaults.
- * A Markers filter makes new tasks start with its Yes markers flagged and
- * its No markers off; a Hot filter seeds the Hot rule's first line when
- * `options.hotRule` is given, else none. An "is not" People / Status / Tags filter seeds nothing
+ * A Priority filter makes new tasks start with the flags it decides
+ * (`markerConditions`). An "is not" People / Status / Tags filter seeds nothing
  * (the new task simply has none of the excluded values). Or groups seed
  * nothing, by design: which of an or group's clauses a new task should
  * meet is ambiguous, so only the clauses outside them are read.
  */
-export function getFilterDefaults(filters: FilterCriteria, options: FilterDefaultsOptions = {}): FilterDefaults {
+export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
   const seeds = (field: 'personIds' | 'tags') => {
     const ids = filters[field]
     return ids && !isNegated(filters, field) ? [...ids].filter(id => id !== 0) : []
@@ -48,19 +39,13 @@ export function getFilterDefaults(filters: FilterCriteria, options: FilterDefaul
     if (only !== 0) statusId = only
   }
 
-  if (activeMarkers(filters.markers).length > 0) return { personIds, tagIds, statusId, markers: markerConditions(filters.markers) }
-  const hot = isHotFilter(filters.markers) && options.hotRule ? hotSeed(options.hotRule) : null
-  if (hot) {
-    const markers: MarkerConditions = {}
-    for (const k of lineMarkers(hot)) markers[k] = true
-    return { personIds, tagIds, statusId, markers }
-  }
-  return { personIds, tagIds, statusId }
+  const markers = markerConditions(filters.markers)
+  return activeMarkers(markers).length > 0 ? { personIds, tagIds, statusId, markers } : { personIds, tagIds, statusId }
 }
 
 /** The task flags a filter's markers seed (`{}` when none; a No marker is `false`): spread into a new task. */
 export function markerFlags(fd: Pick<FilterDefaults, 'markers'> | null | undefined): Pick<TodoItem, 'urgent' | 'important' | 'focus'> {
-  return markerConditions(fd?.markers)
+  return { ...fd?.markers }
 }
 
 /**
@@ -81,6 +66,6 @@ export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): 
  * a "+ Add task" affordance from the predicate of a list widget,
  * post any runtime-filter merge.
  */
-export function predicateToFilterDefaults(predicate: TodoPredicate, options: FilterDefaultsOptions = {}): FilterDefaults {
-  return getFilterDefaults(predicateToCriteria(predicate), options)
+export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefaults {
+  return getFilterDefaults(predicateToCriteria(predicate))
 }

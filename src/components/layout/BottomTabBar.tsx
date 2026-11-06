@@ -5,7 +5,11 @@ import { useUIStore } from '../../stores/ui-store'
 import { ROUTE_SETTINGS, ROUTE_WORKSPACE } from '../../routes'
 import styles from './BottomTabBar.module.css'
 
-/** Mobile app navigation: Workspace, Filters (the filter sheet, with a count of active screen filters), Settings. */
+/**
+ * Mobile app navigation: Workspace, Filters (the filter sheet, with a count
+ * of active screen filters), Settings. Buttons in a nav landmark: the page
+ * shown is `aria-current`; Filters says whether its sheet is open.
+ */
 export function BottomTabBar() {
   const location = useLocation()
   const navigate = useNavigate()
@@ -20,8 +24,8 @@ export function BottomTabBar() {
     <nav className={styles.tabBar} aria-label="Main navigation">
       <button
         className={`${styles.tab} ${isWorkspaceActive && !isFilterSheetOpen ? styles.tabActive : ''}`}
-        role="tab"
-        aria-selected={isWorkspaceActive && !isFilterSheetOpen}
+        type="button"
+        aria-current={isWorkspaceActive && !isFilterSheetOpen ? 'page' : undefined}
         onClick={() => {
           if (isFilterSheetOpen) toggleFilterSheet()
           if (location.pathname !== ROUTE_WORKSPACE) navigate(ROUTE_WORKSPACE)
@@ -38,8 +42,9 @@ export function BottomTabBar() {
 
       <button
         className={`${styles.tab} ${isFilterSheetOpen ? styles.tabActive : ''}`}
-        role="tab"
-        aria-selected={isFilterSheetOpen}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={isFilterSheetOpen}
         aria-label={filterCount > 0 ? `Filters (${filterCount} active)` : 'Filters'}
         onClick={toggleFilterSheet}
       >
@@ -54,8 +59,8 @@ export function BottomTabBar() {
 
       <button
         className={`${styles.tab} ${isSettingsActive && !isFilterSheetOpen ? styles.tabActive : ''}`}
-        role="tab"
-        aria-selected={isSettingsActive && !isFilterSheetOpen}
+        type="button"
+        aria-current={isSettingsActive && !isFilterSheetOpen ? 'page' : undefined}
         onClick={() => {
           if (isFilterSheetOpen) toggleFilterSheet()
           navigate(ROUTE_SETTINGS)

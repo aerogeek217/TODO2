@@ -145,6 +145,28 @@ describe('Alt+T: one line through Quick Add', () => {
     expect(doc()).toBe(NOTE)
   })
 
+  it('text edited in Quick Add, then Details: Esc in the editor asks before dropping it; unedited, it closes (cr31 N3)', async () => {
+    for (const edited of [true, false]) {
+      const { view } = setup(NOTE)
+      act(() => view.dispatch({ selection: { anchor: lineStart(view, 3) } }))
+      pressAltT(view)
+      const input = await screen.findByDisplayValue('Random thought: maybe switch CDN?')
+      if (edited) fireEvent.change(input, { target: { value: 'Switch the CDN' } })
+      fireEvent.click(screen.getByRole('button', { name: /Details/ }))
+      const editor = await screen.findByRole('dialog', { name: 'New task' })
+      fireEvent.keyDown(editor, { key: 'Escape' })
+      if (edited) {
+        await waitFor(() => expect(useUIStore.getState().confirmPrompts).toHaveLength(1))
+        expect(screen.getByRole('dialog', { name: 'New task' })).toBeInTheDocument()
+      } else {
+        await waitFor(() => expect(screen.queryByRole('dialog', { name: 'New task' })).toBeNull())
+        expect(useUIStore.getState().confirmPrompts).toEqual([])
+      }
+      cleanup()
+      useUIStore.setState({ confirmPrompts: [] })
+    }
+  })
+
   it('does nothing on a blank or already converted line', () => {
     const { view } = setup('✓ Done\n\n- x')
     act(() => view.dispatch({ selection: { anchor: 0 } }))
@@ -410,5 +432,22 @@ describe('a create that fails (the task store refuses the write)', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Create 3 tasks' }))
     expect(await screen.findByRole('dialog', { name: 'Remove 3 converted lines from the note?' })).toBeInTheDocument()
     expect(titles()).toHaveLength(3)
+  })
+  it('the preview: a draft checked off while the create runs stays checked when it fails (cr31)', async () => {
+    const insert = await failInserts()
+    let fail: (e: Error) => void = () => {}
+    insert.mockImplementation(() => new Promise((_, reject) => { fail = reject }))
+    setup(NOTE)
+    fireEvent.click(screen.getByRole('button', { name: /^Convert 3 / }))
+    const dialog = await screen.findByRole('dialog', { name: 'Convert to tasks' })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Create 3 tasks' }))
+    await waitFor(() => expect(insert).toHaveBeenCalled())
+    const box = within(dialog).getAllByRole('checkbox')[0]!
+    fireEvent.click(box)
+    expect(box).toBeChecked()
+    await act(async () => { fail(new Error('disk full')) })
+    await waitFor(() => expect(within(dialog).getByRole('button', { name: /^Create 2 tasks/ })).not.toBeDisabled())
+    expect(within(dialog).getAllByRole('checkbox')[0]).toBeChecked()
+    expect(titles()).toEqual([])
   })
 })

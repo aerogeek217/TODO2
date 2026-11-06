@@ -13,25 +13,21 @@ import { computeTagStats } from '../../../services/stats/tags'
 import { computeStaleTasks } from '../../../services/stats/stale'
 import { computeRecentlyCompleted } from '../../../services/stats/recently-completed'
 import { computeEisenhowerSummary } from '../../../services/stats/eisenhower-summary'
-import { emptyFilterCriteria, statsPaneContext } from '../../helpers'
+import { emptyFilterCriteria, statsPaneContext, testLookups } from '../../helpers'
 import { resolvePanes } from '../../../utils/eisenhower-panes'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, DESIGN_TREND, DESIGN_TREND_Q4, Q4, SAMPLE_CTX, SAMPLE_EVENTS,
   SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
 } from '../../fixtures/dashboard-sample'
 
-const markerSettings = { urgentRange: SAMPLE_CTX.urgentRange, hotRule: SAMPLE_CTX.hotRule, weekStartsOn: SAMPLE_CTX.weekStartsOn }
-const lookups = {
-  assignedPeopleMap: ASSIGNED_PEOPLE,
-  assignedTagsMap: ASSIGNED_TAGS,
-  statusesById: new Map(STATUSES.map((s) => [s.id, s])),
-}
+const markerSettings = { urgentRange: SAMPLE_CTX.urgentRange, weekStartsOn: SAMPLE_CTX.weekStartsOn }
+const lookups = testLookups({ assignedPeopleMap: ASSIGNED_PEOPLE, assignedTagsMap: ASSIGNED_TAGS, statuses: STATUSES })
 const NO_FILTER: FilterCriteria = { ...emptyFilterCriteria, markers: null }
 const Q4_FILTER: FilterCriteria = { ...NO_FILTER, tags: new Set([Q4]) }
 
 /** The task set the dashboard computes over: the screen filter, completed tasks kept. */
 function screened(screen: FilterCriteria) {
-  return applyFilter(statsFilter(screen), SAMPLE_TASKS, ASSIGNED_PEOPLE, STATUSES, SAMPLE_TODAY, ASSIGNED_TAGS, markerSettings)
+  return applyFilter(statsFilter(screen), SAMPLE_TASKS, lookups, SAMPLE_TODAY, markerSettings)
 }
 
 const titles = (ids: readonly number[]) => ids.map((id) => SAMPLE_TASKS.find((t) => t.id === id)?.title)
@@ -42,16 +38,6 @@ describe('dashboard sample data — no screen filter', () => {
 
   it('Open 19', () => {
     expect(tiles.open.ids).toHaveLength(19)
-  })
-
-  it('Hot 4: 3 urgent + important · 1 Focus', () => {
-    expect(titles(tiles.hot.ids).sort()).toEqual(
-      ['Book venue for offsite', 'Draft homepage copy', 'Fix checkout outage', 'Headcount request'],
-    )
-    expect(tiles.hot.lines.map((l) => [l.line, l.ids.length])).toEqual([
-      [{ urgent: true, important: true }, 3],
-      [{ focus: true }, 1],
-    ])
   })
 
   it('Urgent 8 = 3 flagged + 5 by due date', () => {
@@ -129,16 +115,16 @@ describe('dashboard sample data — no screen filter', () => {
     ])
   })
 
-  it('People: open / hot / follow-up due, by open count then name, Unassigned 8 · 1 · 1', () => {
+  it('People: open / by priority / follow-up due, by open count then name, Unassigned 8 · 1', () => {
     const people = computePeopleStats(tasks, SAMPLE_CTX)
-    expect(people.rows.map((r) => [r.person.name, r.ids.length, r.hotIds.length, r.followupDueIds.length])).toEqual([
-      ['Priya Nair', 4, 1, 0],
-      ['Alice Chen', 2, 0, 0],
-      ['Ben Ortiz', 2, 0, 0],
-      ['Dana Kim', 2, 1, 1],
-      ['Sam Lee', 1, 1, 0],
+    expect(people.rows.map((r) => [r.person.name, r.ids.length, r.followupDueIds.length])).toEqual([
+      ['Priya Nair', 4, 0],
+      ['Alice Chen', 2, 0],
+      ['Ben Ortiz', 2, 0],
+      ['Dana Kim', 2, 1],
+      ['Sam Lee', 1, 0],
     ])
-    expect([people.unassigned.ids.length, people.unassigned.hotIds.length, people.unassigned.followupDueIds.length]).toEqual([8, 1, 1])
+    expect([people.unassigned.ids.length, people.unassigned.followupDueIds.length]).toEqual([8, 1])
   })
 })
 
@@ -146,10 +132,8 @@ describe('dashboard sample data — top-bar Tags filter q4 (shown of total)', ()
   const tasks = screened(Q4_FILTER)
   const tiles = computeTiles(tasks, SAMPLE_CTX)
 
-  it('tiles: Open 5 · Hot 1 (in Focus) · Urgent 1 (by date) · Overdue 0 · Follow-up due 0 (1 more) · Focus 1 (none due today)', () => {
+  it('tiles: Open 5 · Urgent 1 (by date) · Overdue 0 · Follow-up due 0 (1 more) · Focus 1 (none due today)', () => {
     expect(tiles.open.ids).toHaveLength(5)
-    expect(tiles.hot.ids).toHaveLength(1)
-    expect(tiles.hot.lines.map((l) => l.ids.length)).toEqual([0, 1])
     expect(tiles.urgent).toMatchObject({ flagged: 0, byDate: 1 })
     expect(tiles.overdue.ids).toHaveLength(0)
     expect(tiles.overdue.oldest).toBeNull()
@@ -184,11 +168,11 @@ describe('dashboard sample data — top-bar Tags filter q4 (shown of total)', ()
     expect(trend.openSeries).toEqual(DESIGN_TREND_Q4.open)
   })
 
-  it('status 3 / 2 / 0 / 0 and people Priya 2 · Unassigned 3 (1 hot)', () => {
+  it('status 3 / 2 / 0 / 0 and people Priya 2 · Unassigned 3', () => {
     expect(selectStatusBreakdown(tasks, STATUSES).map((e) => e.count)).toEqual([3, 2, 0, 0])
     const people = computePeopleStats(tasks, SAMPLE_CTX)
-    expect(people.rows.map((r) => [r.person.name, r.ids.length, r.hotIds.length])).toEqual([['Priya Nair', 2, 0]])
-    expect([people.unassigned.ids.length, people.unassigned.hotIds.length]).toEqual([3, 1])
+    expect(people.rows.map((r) => [r.person.name, r.ids.length])).toEqual([['Priya Nair', 2]])
+    expect(people.unassigned.ids).toHaveLength(3)
   })
 })
 

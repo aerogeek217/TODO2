@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { subtaskRepository } from '../../data/subtask-repository'
+import { settleWrites } from '../../stores/store-helpers'
 import { useSubtaskStore } from '../../stores/subtask-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
@@ -8,6 +9,7 @@ import { addDays, startOfToday } from '../../utils/date'
 import { subtaskCount } from '../../utils/subtasks'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 /** The titles the store holds for `todoId`, in checklist order. */
 const titles = (todoId: number) => (useSubtaskStore.getState().byTodo.get(todoId) ?? []).map((r) => r.title)
@@ -24,7 +26,7 @@ beforeEach(async () => {
 })
 
 async function task(title = 'Q4 budget'): Promise<number> {
-  return useTodoStore.getState().add(title)
+  return addTask(title)
 }
 
 /** A task with the subtasks `names`, the undo stack cleared after. */
@@ -88,6 +90,28 @@ describe('subtask-store: add', () => {
   })
 })
 
+describe('subtask-store: addRows', () => {
+  it('stores each title as add does and drops a row left with none', async () => {
+    const id = await task()
+    const now = new Date()
+    const added = await useSubtaskStore.getState().addRows([
+      { todoId: id, title: '', isCompleted: true, sortOrder: 0, createdAt: now },
+      { todoId: id, title: '  Two \n lines ', isCompleted: false, sortOrder: 1, createdAt: now },
+      { todoId: id, title: '   ', isCompleted: false, sortOrder: 2, createdAt: now },
+      { todoId: id, title: 'q'.repeat(600), isCompleted: false, sortOrder: 3, createdAt: now },
+    ])
+    expect(added.map((r) => r.title)).toEqual(['Two lines', 'q'.repeat(500)])
+    expect(await storedTitles(id)).toEqual(['Two lines', 'q'.repeat(500)])
+    expect(titles(id)).toEqual(['Two lines', 'q'.repeat(500)])
+  })
+
+  it('writes nothing when every row is blank', async () => {
+    const id = await task()
+    expect(await useSubtaskStore.getState().addRows([{ todoId: id, title: ' ', isCompleted: false, sortOrder: 0, createdAt: new Date() }])).toEqual([])
+    expect(await db.subtasks.count()).toBe(0)
+  })
+})
+
 describe('subtask-store: rename and check', () => {
   it('rename stores the new title; undo / redo swap them; no change or a blank → nothing', async () => {
     const id = await checklist(['Draft'])
@@ -133,9 +157,11 @@ describe('subtask-store: rename and check', () => {
     expect(useTodoStore.getState().todos.find((t) => t.id === id)?.isCompleted).toBe(false)
     snackbar?.action?.run()
     await vi.waitFor(() => expect(useTodoStore.getState().todos.find((t) => t.id === id)?.isCompleted).toBe(true))
-    // The offer taken again (a stale snackbar) doesn't reopen the task.
+    // The offer taken again (a stale snackbar) doesn't reopen the task: a
+    // completion would start its write in this call, so once no write is in
+    // flight nothing can still change it.
     snackbar?.action?.run()
-    await new Promise((r) => setTimeout(r, 0))
+    await settleWrites()
     expect(useTodoStore.getState().todos.find((t) => t.id === id)?.isCompleted).toBe(true)
     expect(list(id)).toEqual([['a', true], ['b', true]])
   })
@@ -340,6 +366,32 @@ describe('a recurring task’s completion starts its checklist over', () => {
     await useUndoStore.getState().redo()
     expect(list(id)).toEqual([['a', false], ['b', false]])
     expect(useTodoStore.getState().todos.find((t) => t.id === id)?.dueDate).toEqual(addDays(startOfToday(), 7))
+  })
+
+  it('the last check’s Complete task offer on a recurring task advances it and starts the checklist over, one more undo step (cr31 tests 3.5)', async () => {
+    const id = await checklist(['a', 'b'], 'Water the plants')
+    await useTodoStore.getState().update(id, { dueDate: startOfToday(), recurrenceRule: { type: 'weekly' } })
+    useUndoStore.getState().clear()
+    const [a, b] = useSubtaskStore.getState().byTodo.get(id) ?? []
+    await useSubtaskStore.getState().setDone(a!.id, true)
+    await useSubtaskStore.getState().setDone(b!.id, true)
+    const offer = useUndoStore.getState().snackbar?.action
+    expect(offer?.label).toBe('Complete task')
+    offer?.run()
+    // The one step lands once the advance and the reset after it are both done.
+    await vi.waitFor(() => expect(undoNames()).toHaveLength(3))
+    const todo = () => useTodoStore.getState().todos.find((t) => t.id === id)
+    expect(todo()).toMatchObject({ isCompleted: false, dueDate: addDays(startOfToday(), 7) })
+    expect(list(id)).toEqual([['a', false], ['b', false]])
+    expect(undoNames()).toEqual(['Check “a”', 'Check “b”', 'Advance recurring "Water the plants"'])
+    // Undo takes back the advance with the reset, then the last check.
+    await useUndoStore.getState().undo()
+    expect(todo()?.dueDate).toEqual(startOfToday())
+    expect(list(id)).toEqual([['a', true], ['b', true]])
+    await useUndoStore.getState().undo()
+    expect(list(id)).toEqual([['a', true], ['b', false]])
+    expect((await db.subtasks.get(b!.id))?.isCompleted).toBe(false)
+    expect((await db.todos.get(id))?.dueDate).toEqual(startOfToday())
   })
 
   it('bulkSetCompleted does the same for the recurring tasks among the ids, in one step', async () => {

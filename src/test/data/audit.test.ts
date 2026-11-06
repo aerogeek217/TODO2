@@ -4,6 +4,7 @@ import { db } from '../../data/database'
 import { auditData, cleanupIssues, MAX_SAMPLES_PER_ISSUE } from '../../data/audit'
 import { emptyPredicate } from '../../models'
 import { makeTodo } from '../helpers'
+import { buildJsonExport, exportImportProblem } from '../../services/data-files'
 
 beforeEach(async () => {
   await db.delete()
@@ -24,7 +25,7 @@ describe('auditData', () => {
     const layoutId = await db.layouts.add({ name: 'Main', sortOrder: 0, columns: [], createdAt: new Date(), modifiedAt: new Date() })
     const listDefinitionId = await db.listDefinitions.add({
       name: 'Focus', sortOrder: 0, sort: 'manual', grouping: 'none',
-      membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: { focus: true } } },
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: [{ values: ['focus'] }] } },
       owner: { layoutId },
     })
     await db.listOrders.add({ listDefinitionId, todoId, rank: 1 })
@@ -100,6 +101,27 @@ describe('auditData', () => {
     expect(issue.count).toBe(1)
     expect(issue.fix).toBe('delete')
     expect(issue.samples?.[0]?.badFields).toEqual(['todoId'])
+  })
+
+  it('a subtask with a long title is repaired (cut as the store cuts it), one with none deleted, and the export then imports', async () => {
+    const { todoId } = await seedBase()
+    const long = `${'a'.repeat(300)}
+${'b'.repeat(300)}`
+    const longId = await db.subtasks.add({ todoId, title: long, isCompleted: false, sortOrder: 0, createdAt: new Date() })
+    const blankId = await db.subtasks.add({ todoId, title: '', isCompleted: true, sortOrder: 1, createdAt: new Date() })
+
+    const report = await auditData()
+    const subtaskIssues = report.issues.filter((i) => i.table === 'subtasks')
+    expect(subtaskIssues).toEqual([
+      expect.objectContaining({ fix: 'delete', ids: [blankId] }),
+      expect.objectContaining({ fix: 'sanitize', ids: [longId] }),
+    ])
+    expect(subtaskIssues[1]?.samples?.[0]?.note).toBe('Schema validator rejected this row: title. Cleanup: title shortened')
+
+    await cleanupIssues(report.issues)
+    expect(await db.subtasks.toArray()).toEqual([expect.objectContaining({ id: longId, title: `${'a'.repeat(300)} ${'b'.repeat(199)}` })])
+    expect((await auditData()).issues).toEqual([])
+    expect(exportImportProblem(await buildJsonExport())).toBeNull()
   })
 
   it('detects orphaned statusUpdates (deleted todo)', async () => {
@@ -357,7 +379,7 @@ describe('sanitisable-row audit', () => {
   })
 
   it('reports a list with a malformed or group; cleanup drops it and keeps the readable one', async () => {
-    const group = { personIds: [1], statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
+    const group = { personIds: [1], statusIds: [2], searchText: '', dates: {}, markers: null, tags: null }
     const id = await db.listDefinitions.add(list('Odd', { orGroups: [group, 7] }) as any)
     await db.listDefinitions.add(list('Fine', { orGroups: [group] }) as any)
 
@@ -367,6 +389,18 @@ describe('sanitisable-row audit', () => {
     expect(issue.samples![0]!.note).toBe('Cleanup: or group dropped')
     await cleanupIssues(report.issues)
     expect((await db.listDefinitions.get(id))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ orGroups: [group] }) })
+    expect((await auditData()).issues).toEqual([])
+  })
+
+  it('a list with too many Priority conditions: cleanup caps them and the issue is gone', async () => {
+    const markers = Array.from({ length: 11 }, () => ({ values: ['urgent'] }))
+    const id = await db.listDefinitions.add(list('Many', { markers }) as any)
+
+    const report = await auditData()
+    expect(report.issues.find((i) => i.table === 'listDefinitions')).toMatchObject({ fix: 'sanitize', ids: [id] })
+    await cleanupIssues(report.issues)
+    const stored = await db.listDefinitions.get(id)
+    expect(stored?.membership.kind === 'custom' ? stored.membership.predicate.markers : undefined).toHaveLength(10)
     expect((await auditData()).issues).toEqual([])
   })
 
@@ -400,7 +434,7 @@ describe('sanitisable-row audit', () => {
 
   it('keeps a Priority filter with No markers; reports one it cannot read and cleanup drops it', async () => {
     const id = await db.listDefinitions.add(list('Odd', { statusIds: [2], markers: { urgent: false, important: 'no' } }) as any)
-    const fine = await db.listDefinitions.add(list('Delegate', { markers: { urgent: true, important: false } }) as any)
+    const fine = await db.listDefinitions.add(list('Delegate', { markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] }) as any)
 
     const report = await auditData()
     const issue = report.issues.find((i) => i.table === 'listDefinitions')!
@@ -408,7 +442,7 @@ describe('sanitisable-row audit', () => {
     expect(issue.samples![0]!.note).toBe('Cleanup: priority filter dropped')
     await cleanupIssues(report.issues)
     expect((await db.listDefinitions.get(id))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ statusIds: [2], markers: null }) })
-    expect((await db.listDefinitions.get(fine))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ markers: { urgent: true, important: false } }) })
+    expect((await db.listDefinitions.get(fine))?.membership).toEqual({ kind: 'custom', predicate: expect.objectContaining({ markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] }) })
     expect((await auditData()).issues).toEqual([])
   })
 

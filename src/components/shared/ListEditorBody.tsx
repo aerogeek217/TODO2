@@ -1,3 +1,5 @@
+import { useSettingsStore } from '../../stores/settings-store'
+import { formatTabBadgeRange, parseTabBadgeRange, TAB_BADGE_CHOICES, tabBadgeRangeLabel } from '../../utils/tab-badges'
 import { useId, useMemo, useRef, useState, type RefObject } from 'react'
 import type {
   PersistedListDefinition,
@@ -64,7 +66,15 @@ const ROW_LABEL: Record<ListDefField, string> = {
   sort: 'Sort by',
   prompt: 'Prompt for',
   filterLine: 'Filter line',
+  tabBadges: 'Tab badges',
 }
+
+/** A list's Tab badges row: the app's, off, or its own ranges. */
+const TAB_BADGE_MODES: readonly Choice<string>[] = [
+  { value: 'app', label: "Use the app's setting" },
+  { value: 'off', label: 'Off for this list' },
+  { value: 'custom', label: 'Custom ranges' },
+]
 
 /** The Show filter line control's words: what the line is, and that an unsaved list still shows it. */
 const FILTER_LINE_HINT = 'The line above the tasks: filters and group · sort. Hidden, it still shows while the list has unsaved changes.'
@@ -76,7 +86,7 @@ interface Choice<T extends string> {
   description?: string
 }
 
-type ChoiceField = 'group' | 'sort' | 'prompt'
+type ChoiceField = 'group' | 'sort' | 'prompt' | 'tabBadges'
 
 /** Copy from's control and the chooser's name. */
 const COPY_FROM_LABEL = 'Copy from…'
@@ -232,13 +242,52 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
     group: (v) => onChange({ ...draft, grouping: v as TodoGroupBy }),
     sort: (v) => onChange(withListSort(draft, v as TodoSortBy)),
     prompt: (v) => setPrompt(v as RuntimeFilterField | 'none'),
+    tabBadges: (v) => {
+      const next = { ...draft }
+      delete next.tabBadges
+      if (v === 'off') next.tabBadges = 'off'
+      else if (v === 'custom') next.tabBadges = { ...useSettingsStore.getState().tabBadges }
+      onChange(next)
+    },
   }
   // An unset Group by shows no value (a placeholder on desktop, nothing on the sheet's row).
   const choiceSpec: { [F in ChoiceField]: { value: string; choices: readonly Choice<string>[]; unset?: string } } = {
     group: { value: draft.grouping, choices: groupChoices, unset: 'none' },
     sort: { value: draft.sort, choices: sortChoices },
     prompt: { value: promptValue, choices: promptChoices },
+    tabBadges: { value: draft.tabBadges == null ? 'app' : draft.tabBadges === 'off' ? 'off' : 'custom', choices: TAB_BADGE_MODES },
   }
+
+  // A list's own ranges, under its Tab badges row.
+  const ownRanges = draft.tabBadges != null && draft.tabBadges !== 'off' ? draft.tabBadges : null
+  const rangeSelect = (key: 'due' | 'followup', name: string) => {
+    if (!ownRanges) return null
+    const value = ownRanges[key]
+    const choices = TAB_BADGE_CHOICES.includes(value) ? TAB_BADGE_CHOICES : [...TAB_BADGE_CHOICES, value]
+    return (
+      <label className={styles.badgeRange}>
+        <span className={styles.badgeRangeName}>{name}</span>
+        <select
+          aria-label={`Tab badges: ${name.toLowerCase()}`}
+          value={formatTabBadgeRange(value)}
+          onChange={(e) => {
+            const next = parseTabBadgeRange(e.target.value)
+            if (next !== undefined) onChange({ ...draft, tabBadges: { ...ownRanges, [key]: next } })
+          }}
+        >
+          {choices.map((range) => (
+            <option key={formatTabBadgeRange(range)} value={formatTabBadgeRange(range)}>{tabBadgeRangeLabel(range)}</option>
+          ))}
+        </select>
+      </label>
+    )
+  }
+  const ownRangeRows = ownRanges && (
+    <div className={styles.badgeRanges}>
+      {rangeSelect('due', 'Due')}
+      {rangeSelect('followup', 'Follow-up')}
+    </div>
+  )
 
   // Sort by's ↑ / ↓ beside it: only for a sort with a direction (never Manual).
   const directionToggle = sortHasDirection(draft.sort)
@@ -312,7 +361,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
         {nameRow}
         {filtersRow}
         <div className={styles.sheetRows}>
-          {(['group', 'sort', 'prompt'] as const).map((field) => {
+          {(['group', 'sort', 'prompt', 'tabBadges'] as const).map((field) => {
             const spec = choiceSpec[field]
             const current = spec.value === spec.unset
               ? ''
@@ -342,6 +391,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
               </div>
             )
           })}
+          {ownRangeRows}
           {showCompleted}
           {filterLineSwitch}
         </div>
@@ -360,7 +410,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
       {nameRow}
       {filtersRow}
       <div className={styles.rule} role="separator" />
-      {(['group', 'sort', 'prompt'] as const).map((field) => (
+      {(['group', 'sort', 'prompt', 'tabBadges'] as const).map((field) => (
         <div key={field} className={styles.row}>
           {label(field)}
           <ChoiceSelect
@@ -374,6 +424,7 @@ export function ListEditorBody({ draft, onChange, saved, variant = 'popover', na
           {field === 'sort' && directionToggle}
         </div>
       ))}
+      {ownRangeRows}
       {filterLineSwitch}
     </div>
   )

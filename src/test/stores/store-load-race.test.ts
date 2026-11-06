@@ -25,6 +25,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 interface Gate {
   /** Resolves once the held read has its (pre-edit) result. */
@@ -119,7 +120,7 @@ describe('load vs. edit', () => {
 
     const load = useTodoStore.getState().loadAll()
     await gate.read
-    const id = await useTodoStore.getState().add('Added meanwhile')
+    const id = await addTask('Added meanwhile')
     gate.release()
     await load
 

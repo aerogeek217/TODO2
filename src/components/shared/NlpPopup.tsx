@@ -2,7 +2,6 @@ import { useCallback, useEffect, useId, useState, type CSSProperties, type Ref }
 import type { AutocompleteRow, AutocompleteView } from '../../services/nlp-autocomplete'
 import { CalendarIcon, CommandIcon } from './CommandIcons'
 import { FollowupFlagIcon } from './FollowupIcons'
-import { HotIcon } from './MarkerIcons'
 import { StatusIcon } from './StatusIcon'
 import { DEFAULT_STATUS_ICON } from '../../models'
 import styles from './NlpPopup.module.css'
@@ -211,10 +210,9 @@ export function NlpPopup({ view, selectedIndex, onPick, onHighlight, className, 
             className={`${cls} ${row.separator ? styles.separated : ''}`}
             {...common} onMouseDown={pick(row)}
           >
-            {row.command === 'hot' && <span className={styles.icon} data-command="hot"><HotIcon /></span>}
             <span className={styles.name}><Marked text={row.label} length={row.matchLength} /></span>
             {row.note && <span className={styles.note}>{row.note}</span>}
-            {row.detail && <span className={row.command ? styles.detail : styles.value}>{row.detail}</span>}
+            {row.detail && <span className={styles.value}>{row.detail}</span>}
           </button>
         )
       case 'parsed':

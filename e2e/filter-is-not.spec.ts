@@ -139,7 +139,7 @@ test.describe('phone', () => {
     await seedWorkspace(page, SEED)
     const rows = page.locator('[data-todo-id]')
     await expect(rows).toHaveCount(3)
-    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('tab', { name: 'Filters', exact: true }).click()
+    await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Filters', exact: true }).click()
     const statusRow = page.getByText('Status', { exact: true })
     await statusRow.click()
     const mode = page.getByRole('radiogroup', { name: 'Status: is or is not' })

@@ -5,8 +5,7 @@ import { box, pointIn } from './fixtures/geometry'
 /**
  * The Dashboard tab menu and Customize dialog in a real browser: reordering
  * (grip drag and the keyboard lift) and hiding apply behind the dialog and
- * make the layout unsaved; the Hot flyout edits the app-wide rule (the Hot
- * tile follows, the layout stays saved); Copy summary writes the clipboard;
+ * make the layout unsaved; Copy summary writes the clipboard;
  * the gear → Add a list adds a tile whose dialog opens the list as a
  * tab (the dashboard itself has no add-a-list-tile button).
  */
@@ -77,14 +76,14 @@ async function dragGrip(page: Page, grip: Locator, onto: Locator, below: boolean
 test('reordering and hiding in Customize show behind the dialog and make the layout unsaved', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-  expect(await tileIds(page)).toEqual(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'])
+  expect(await tileIds(page)).toEqual(['open', 'focus', 'urgent', 'overdue', 'followupDue'])
 
   const dialog = await openCustomize(page)
   const tiles = dialog.getByRole('list', { name: 'Tiles' })
 
   // Pointer: drag Focus's grip above Open.
   await dragGrip(page, tiles.getByRole('button', { name: 'Move Focus' }), tiles.locator('[data-customize-row="tile:open"]'), false)
-  await expect.poll(() => tileIds(page)).toEqual(['focus', 'open', 'hot', 'urgent', 'overdue', 'followupDue'])
+  await expect.poll(() => tileIds(page)).toEqual(['focus', 'open', 'urgent', 'overdue', 'followupDue'])
   await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
 
   // Keyboard: lift People's grip, move it up two, drop.
@@ -93,32 +92,32 @@ test('reordering and hiding in Customize show behind the dialog and make the lay
   await peopleGrip.focus()
   await page.keyboard.press('Space')
   await expect(peopleGrip).toHaveAttribute('aria-pressed', 'true')
-  await announced(page, 'People is at position 6 of 10.')
+  await announced(page, 'People is at position 5 of 9.')
   await page.keyboard.press('ArrowUp')
-  await announced(page, 'People is at position 5 of 10.')
+  await announced(page, 'People is at position 4 of 9.')
   await page.keyboard.press('ArrowUp')
-  await announced(page, 'People is at position 4 of 10.')
+  await announced(page, 'People is at position 3 of 9.')
   await page.keyboard.press('Space')
   await expect(peopleGrip).not.toHaveAttribute('aria-pressed', 'true')
-  await expect.poll(() => sectionIds(page)).toEqual(['hot', 'followup', 'next7', 'people', 'trend', 'status'])
+  await expect.poll(() => sectionIds(page)).toEqual(['followup', 'next7', 'people', 'trend', 'status'])
 
   // Esc during a keyboard move cancels the move, not the dialog.
   await page.keyboard.press('Space')
   await expect(peopleGrip).toHaveAttribute('aria-pressed', 'true')
-  await announced(page, 'People is at position 4 of 10.')
+  await announced(page, 'People is at position 3 of 9.')
   await page.keyboard.press('ArrowUp')
-  await announced(page, 'People is at position 3 of 10.')
+  await announced(page, 'People is at position 2 of 9.')
   await page.keyboard.press('Escape')
   await announced(page, 'Moving People was cancelled.')
   await expect(dialog).toBeVisible()
-  await expect.poll(() => sectionIds(page)).toEqual(['hot', 'followup', 'next7', 'people', 'trend', 'status'])
+  await expect.poll(() => sectionIds(page)).toEqual(['followup', 'next7', 'people', 'trend', 'status'])
 
   // Hide a tile and a section; show an extra tile.
   await tiles.getByRole('checkbox', { name: 'Overdue' }).uncheck()
   await sections.getByRole('checkbox', { name: 'Status' }).uncheck()
   await tiles.getByRole('checkbox', { name: 'Due today' }).check()
-  await expect.poll(() => tileIds(page)).toEqual(['focus', 'open', 'hot', 'urgent', 'followupDue', 'dueToday'])
-  await expect.poll(() => sectionIds(page)).toEqual(['hot', 'followup', 'next7', 'people', 'trend'])
+  await expect.poll(() => tileIds(page)).toEqual(['focus', 'open', 'urgent', 'followupDue', 'dueToday'])
+  await expect.poll(() => sectionIds(page)).toEqual(['followup', 'next7', 'people', 'trend'])
 
   // An option: the trend range.
   await dialog.getByRole('button', { name: 'Range: 14 days' }).click()
@@ -128,9 +127,9 @@ test('reordering and hiding in Customize show behind the dialog and make the lay
   // Esc closes; changes stay. Discard is the undo.
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
-  expect(await tileIds(page)).toEqual(['focus', 'open', 'hot', 'urgent', 'followupDue', 'dueToday'])
+  expect(await tileIds(page)).toEqual(['focus', 'open', 'urgent', 'followupDue', 'dueToday'])
   await openLayoutAction(page, 'Discard changes')
-  await expect.poll(() => tileIds(page)).toEqual(['open', 'hot', 'focus', 'urgent', 'overdue', 'followupDue'])
+  await expect.poll(() => tileIds(page)).toEqual(['open', 'focus', 'urgent', 'overdue', 'followupDue'])
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 })
 
@@ -213,38 +212,6 @@ for (const { name, width, layout } of [
   })
 }
 
-test('the Hot flyout edits the app-wide rule: the Hot tile follows, the layout stays saved', async ({ page }) => {
-  await seedWorkspace(page, SEED)
-  await expect(tileCount(page, 'hot')).toHaveText('2')
-
-  const menu = await openTabMenu(page)
-  const hotIs = menu.getByRole('menuitem', { name: /Hot is/ })
-  await expect(hotIs).toContainText('U+I or Focus')
-  await hotIs.click()
-  const flyout = page.getByRole('dialog', { name: 'Hot rule' })
-  await expect(flyout).toBeVisible()
-  await expect(flyout).toContainText('2 hot now')
-  // Beside the menu, not over it.
-  const menuBox = await menu.boundingBox()
-  const flyoutBox = await flyout.boundingBox()
-  expect(flyoutBox!.x).toBeGreaterThanOrEqual(menuBox!.x + menuBox!.width - 1)
-  expect(Math.round(flyoutBox!.width)).toBe(316)
-
-  // Line 1 without Important: Urgent OR Focus.
-  await flyout.getByRole('group', { name: 'Hot rule line 1' }).getByRole('button', { name: /Important/ }).click()
-  await expect(flyout).toContainText('3 hot now')
-  await expect(tileCount(page, 'hot')).toHaveText('3')
-  await expect(hotIs).toContainText('Urgent or Focus')
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-
-  // Esc closes the flyout, then the menu.
-  await page.keyboard.press('Escape')
-  await expect(flyout).toHaveCount(0)
-  await expect(menu).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(menu).toHaveCount(0)
-})
-
 test('Copy summary writes the dashboard’s counts to the clipboard', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await seedWorkspace(page, { ...SEED, layouts: [{ name: 'Dash', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [0] } }] }] }] }] })
@@ -255,13 +222,13 @@ test('Copy summary writes the dashboard’s counts to the clipboard', async ({ p
   await expect(menu).toHaveCount(0)
   // (The OS clipboard may store the line break as CRLF.)
   await expect.poll(() => page.evaluate(async () => (await navigator.clipboard.readText()).replace(/\r\n/g, '\n')))
-    .toBe('Open 4 · Hot 2 · Focus 1 · Urgent 2 · Overdue 0 · Follow-up due 0\nAlice’s list 2')
+    .toBe('Open 4 · Focus 1 · Urgent 2 · Overdue 0 · Follow-up due 0\nAlice’s list 2')
   const html = await page.evaluate(async () => {
     const items = await navigator.clipboard.read()
     const blob = await items[0]!.getType('text/html')
     return blob.text()
   })
-  expect(html).toContain('<b>Hot</b> 2')
+  expect(html).toContain('<b>Focus</b> 1')
 })
 
 test('the gear → Add a list adds a tile; its dialog opens the list as a tab', async ({ page }) => {

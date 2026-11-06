@@ -6,6 +6,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { makeTodo } from '../helpers'
 import type { PersistedTodoItem } from '../../models'
+import { addTask } from '../add-task'
 
 const TITLE_PLACEHOLDER = 'New task… (@person #tag !status /command)'
 // Sat 10 Oct 2026, 15:30 local.
@@ -246,7 +247,7 @@ describe('TaskEditPopup — follow-up group', () => {
   })
 
   it('edit mode: Mark followed up from the editor shows its result in Next and Last at once (later kept; else on: today + 1 month, off: cleared)', async () => {
-    const id = await useTodoStore.getState().add('Edited')
+    const id = await addTask('Edited')
     await useTodoStore.getState().update(id, { nextFollowupAt: day(2026, 10, 13) })
     const Editor = () => {
       const todo = useTodoStore((s) => s.todos.find((t) => t.id === id))!

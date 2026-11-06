@@ -7,6 +7,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { db } from '../../../data/database'
+import { personRepository } from '../../../data/person-repository'
 import type { PersistedPerson, PersistedStatus } from '../../../models'
 
 const anna: PersistedPerson = { id: 1, name: 'Anna', initials: 'AN' }
@@ -38,6 +39,15 @@ function chipTexts() {
       return (copy.textContent ?? '').trim()
     })
     : []
+}
+
+/**
+ * Lets the `select` events jsdom queued for the helpers' setSelectionRange
+ * calls land (each from its own setTimeout(0); timers of one delay run in
+ * order). One landing after a key that closed the popup reopens it.
+ */
+async function flushSelectEvents() {
+  await act(() => new Promise<void>((resolve) => { setTimeout(resolve, 0) }))
 }
 
 function changeInput(value: string) {
@@ -332,6 +342,24 @@ describe('QuickAddBar', () => {
       expect(getInput().value).toBe('Call @Anna ')
     })
 
+    it('the close prompt’s Create task reads the text as ⏎ does: the open token completed to the highlighted row (cr31 N7)', async () => {
+      usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Annette', initials: 'AE' }] })
+      const onSubmit = vi.fn()
+      const ask = vi.spyOn(useUIStore.getState(), 'askChoice').mockResolvedValue('confirm')
+      render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
+      typeTo('Call @an')
+      fireEvent.mouseMove(option(/Annette/), { clientX: 40, clientY: 60 })
+      expect(option(/Annette/)).toHaveAttribute('aria-selected', 'true')
+      // A click on the backdrop with the popup still open: asks, then Create task.
+      const backdrop = screen.getByTestId('quickadd-backdrop')
+      fireEvent.mouseDown(backdrop)
+      fireEvent.click(backdrop)
+      expect(ask).toHaveBeenCalledTimes(1)
+      await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1))
+      const draft = onSubmit.mock.calls[0]![0] as QuickAddDraft
+      expect(draft.resolved.personIds).toEqual([3])
+    })
+
     it('moving the pointer over a row highlights it; Enter then submits with that one', () => {
       usePersonStore.setState({ people: [anna, bob, { id: 3, name: 'Annette', initials: 'AE' }] })
       const onSubmit = vi.fn()
@@ -389,13 +417,20 @@ describe('QuickAddBar', () => {
     })
 
     it('typing on never creates: a space with the Create row highlighted leaves the text as typed', async () => {
+      await db.people.clear()
+      const getOrCreate = vi.spyOn(personRepository, 'getOrCreate')
       render(<QuickAddBar open onClose={noop} onSubmit={noop} />)
       typeTo('Call @an')
       fireEvent.keyDown(getInput(), { key: 'ArrowDown' })
       typeTo('Call @an ')
       expect(getInput().value).toBe('Call @an ')
-      await act(async () => {})
+      // A pick creates at once (the store's write starts in the same call);
+      // let the queued events land, then nothing may have started one.
+      await flushSelectEvents()
+      expect(getOrCreate).not.toHaveBeenCalled()
       expect(usePersonStore.getState().people.map((p) => p.name)).toEqual(['Anna', 'Bob'])
+      expect(await db.people.count()).toBe(0)
+      getOrCreate.mockRestore()
     })
 
     it('narrowing keeps the highlighted person, not the index', () => {
@@ -621,6 +656,8 @@ describe('QuickAddBar', () => {
       const onClose = vi.fn()
       render(<QuickAddBar open onClose={onClose} onSubmit={noop} />)
       typeAtCaret('Call /ur')
+      await flushSelectEvents()
+      expect(screen.getByRole('listbox')).toBeInTheDocument()
       await act(async () => { fireEvent.keyDown(getInput(), { key: 'Escape' }) })
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
       expect(onClose).not.toHaveBeenCalled()
@@ -650,9 +687,11 @@ describe('QuickAddBar', () => {
     }
 
     it('offers "Create @Name" when nobody matches; Tab inserts the token', async () => {
+      await db.people.clear()
       const onSubmit = vi.fn()
       render(<QuickAddBar open onClose={noop} onSubmit={onSubmit} />)
       typeAtCaret('Call legal @Marco')
+      await flushSelectEvents()
       const listbox = screen.getByRole('listbox', { name: 'People' })
       const option = screen.getByRole('option', { name: 'Create @Marco' })
       expect(listbox).toContainElement(option)
@@ -663,6 +702,10 @@ describe('QuickAddBar', () => {
       expect(screen.queryByRole('listbox')).not.toBeInTheDocument()
       expect(onSubmit).not.toHaveBeenCalled()
       expect(screen.getByText('New person:')).toBeInTheDocument()
+      // The pick made Marco: the test ends once he is stored, not with the
+      // write in flight (the stores' seeded people aren't stored, so the
+      // database gives him an id the store already shows for another).
+      await vi.waitFor(async () => expect((await db.people.toArray()).map((p) => p.name)).toContain('Marco'))
     })
 
     it('⏎ on the create row adds the task with the new person', async () => {

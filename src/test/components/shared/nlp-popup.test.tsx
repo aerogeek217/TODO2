@@ -127,19 +127,15 @@ describe('useNlpAutocomplete — the open popup follows its candidates', () => {
   })
 })
 
-describe('NlpPopup — the search box’s own commands (D16)', () => {
+describe('NlpPopup — the search box’s commands (D16)', () => {
   const STATUS: AutocompleteItem = { id: 3, name: 'Waiting', color: '#a78bfa', icon: 'clock', kind: 'status' }
 
-  it('/hot draws the Hot flame, with the detail as a command’s description; / lists no status', () => {
+  it('/ lists no status', () => {
     const view = searchAutocomplete('/', 1, { people: [], tags: [], statuses: [STATUS], commands: true, followupDefault: null, today: new Date(2026, 9, 10) })
     if (!view) throw new Error('no popup')
     render(<NlpPopup view={view} selectedIndex={0} onPick={vi.fn()} />)
-    const hot = screen.getByRole('option', { name: /\/hot/ })
-    expect(hot.querySelector('[data-command="hot"] svg')).not.toBeNull()
     expect(screen.queryByRole('option', { name: /waiting/i })).toBeNull()
-    // The detail sits where a command's description does (`/focus`'s "Add to Focus").
-    const focusDetail = within(screen.getByRole('option', { name: /\/focus/ })).getByText('Add to Focus')
-    expect(within(hot).getByText('Hot tasks').className).toBe(focusDetail.className)
+    expect(screen.getByRole('option', { name: /\/focus/ })).toBeInTheDocument()
   })
 })
 

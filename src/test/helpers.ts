@@ -1,7 +1,7 @@
 import type { PersistedTodoItem, Person, Status, Tag, TodoItem } from '../models'
 import type { FilterCriteria } from '../utils/filter-criteria'
 import { applyFilter, matchesFilter, type FilterSettings } from '../utils/filter-match'
-import type { TextMatchContext } from '../utils/filter'
+import { todoNameLookups, type TextMatchContext, type TodoNameLookups, type TodoNameSources } from '../utils/filter'
 import { startOfToday } from '../utils/date'
 import { currentFilterSettings } from '../stores/settings-store'
 import { db } from '../data/database'
@@ -13,7 +13,6 @@ import { useTagStore } from '../stores/tag-store'
 import { blockedPaneLines, resolvePaneDrop, type PaneChange, type PaneContext } from '../utils/eisenhower'
 import { resolvePanes } from '../utils/eisenhower-panes'
 import type { EisenhowerQuadrant } from '../models/workspace-layout'
-import { DEFAULT_HOT_RULE } from '../utils/hot'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { StatsContext } from '../services/stats/stats-context'
 
@@ -24,12 +23,14 @@ import type { StatsContext } from '../services/stats/stats-context'
 export function makePaneContext(today: Date, range: UrgentDueWithinDays, extra: Partial<PaneContext> = {}): PaneContext {
   return {
     today,
-    settings: { urgentRange: range, hotRule: DEFAULT_HOT_RULE, weekStartsOn: 0 },
+    settings: { urgentRange: range, weekStartsOn: 0 },
     assignedPeopleMap: new Map(),
     assignedTagsMap: new Map(),
     people: [],
     tags: [],
     statuses: [],
+    statusUpdatesByTodo: new Map(),
+    subtasksByTodo: new Map(),
     ...extra,
   }
 }
@@ -40,7 +41,7 @@ export function makePaneContext(today: Date, range: UrgentDueWithinDays, extra: 
  */
 export function statsPaneContext(ctx: StatsContext, extra: Partial<PaneContext> = {}): PaneContext {
   return makePaneContext(ctx.today, ctx.urgentRange, {
-    settings: { urgentRange: ctx.urgentRange, hotRule: ctx.hotRule, weekStartsOn: ctx.weekStartsOn },
+    settings: { urgentRange: ctx.urgentRange, weekStartsOn: ctx.weekStartsOn },
     assignedPeopleMap: ctx.assignedPeopleMap,
     assignedTagsMap: ctx.assignedTagsMap,
     statuses: ctx.statuses,
@@ -163,7 +164,30 @@ export function applyFilterNow(
   assignedTagsMap?: Map<number, Tag[]>,
   settings: FilterSettings = currentFilterSettings(),
 ): PersistedTodoItem[] {
-  return applyFilter(filters, todos, assignedPeopleMap, statuses, today, assignedTagsMap, settings)
+  return applyFilter(filters, todos, testLookups({ assignedPeopleMap, statuses, assignedTagsMap }), today, settings)
+}
+
+/** The search lookups (`todoNameLookups`) over what a test gives, every other map empty. */
+export function testLookups(sources: Partial<{ [K in keyof TodoNameSources]: TodoNameSources[K] | undefined }> = {}): TodoNameLookups {
+  return todoNameLookups({
+    assignedPeopleMap: sources.assignedPeopleMap ?? new Map(),
+    assignedTagsMap: sources.assignedTagsMap ?? new Map(),
+    statuses: sources.statuses ?? [],
+    statusUpdatesByTodo: sources.statusUpdatesByTodo ?? new Map(),
+    subtasksByTodo: sources.subtasksByTodo ?? new Map(),
+  })
+}
+
+/** `TodoNameLookups` with the given maps (by id, as the evaluator reads them), every other map empty. */
+export function lookupsFor(partial: Partial<TodoNameLookups> = {}): TodoNameLookups {
+  return {
+    assignedPeopleMap: new Map(),
+    assignedTagsMap: new Map(),
+    statusesById: new Map(),
+    statusUpdatesByTodo: new Map(),
+    subtasksByTodo: new Map(),
+    ...partial,
+  }
 }
 
 /** Sets some fields of the screen filter, keeping the rest. */

@@ -12,7 +12,6 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { DEFAULT_FOLLOWUP_INTERVAL } from '../../../utils/followup'
-import { DEFAULT_HOT_RULE } from '../../../utils/hot'
 import { makePerson, makeTodo } from '../../helpers'
 
 /**
@@ -42,7 +41,7 @@ beforeEach(async () => {
   useStatusStore.setState({ statuses: [] })
   useSettingsStore.setState({
     checkinOpenMethod: 'mailto', checkinTaskFilter: emptyPredicate(), weekStartsOn: 1,
-    urgentDueWithinDays: 0, hotRule: DEFAULT_HOT_RULE, followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
+    urgentDueWithinDays: 0, followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
   })
   useUIStore.setState({ checkinDialog: null, checkinImportOpen: false })
   useUndoStore.getState().clear()

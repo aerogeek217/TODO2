@@ -12,6 +12,7 @@ import { FilterSheetLens } from './FilterSheetLens'
 import { unmatchedNote, useSearchBox } from '../../hooks/use-search-box'
 import { NlpPopup } from '../shared/NlpPopup'
 import { TintedText } from '../shared/TintedText'
+import { useBlockTouchScroll } from '../../hooks/use-block-touch-scroll'
 import styles from './FilterSheet.module.css'
 
 export function FilterSheet() {
@@ -36,6 +37,22 @@ export function FilterSheet() {
     useFilterStore.getState().setAllFilters(predicateToCriteria(next))
   }, [])
 
+  // Esc closes the sheet, as a dialog — unless something inside took it (the `@ # ! /` popup).
+  useEffect(() => {
+    if (!isOpen) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented) return
+      e.preventDefault()
+      closeSheet()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [isOpen, closeSheet])
+
+  // A touch drag on the backdrop doesn't scroll the page behind (React's onTouchMove is passive).
+  const backdropRef = useRef<HTMLDivElement>(null)
+  useBlockTouchScroll(backdropRef, isOpen)
+
   // Lock body scroll when open
   useEffect(() => {
     if (isOpen) {
@@ -57,11 +74,11 @@ export function FilterSheet() {
   return (
     <>
       <div
+        ref={backdropRef}
         className={styles.backdrop}
         onClick={closeSheet}
-        onTouchMove={(e) => e.preventDefault()}
       />
-      <div className={styles.sheet}>
+      <div className={styles.sheet} role="dialog" aria-modal="true" aria-label="Filters">
         <div className={styles.scrollBody}>
           <div className={styles.searchWrapper}>
             <span className={styles.searchIcon}>
@@ -97,7 +114,7 @@ export function FilterSheet() {
               <TintedText text={box.text} spans={box.tints} />
             </div>
             {box.text && (
-              <button className={styles.searchClear} onClick={box.clear}>
+              <button type="button" className={styles.searchClear} aria-label="Clear search" onClick={box.clear}>
                 ×
               </button>
             )}
