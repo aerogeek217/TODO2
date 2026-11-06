@@ -6,13 +6,14 @@ A todo web app with a workspace of widgets (lists, calendars, notes) in columns,
 @docs/ARCHITECTURE.md
 
 ## Build & Test Commands
-- Node: ≥ 22.13 (`engines` in package.json — the floor jsdom and Vite set on Node 22). The GitHub Pages deploy (`.github/workflows/deploy.yml`) runs on Node 22 / ubuntu-latest (UTC): `npm ci` → `npm test` (a failing vitest run blocks the deploy; Playwright is not run there) → `npm run build`.
+- Node: ≥ 22.13 (`engines` in package.json — the floor jsdom and Vite set on Node 22). The GitHub Pages deploy (`.github/workflows/deploy.yml`) runs on Node 22 / ubuntu-latest (UTC): `npm ci` → `npm test` → `npm run test:shuffle` (a failing vitest run blocks the deploy; Playwright is not run there) → `npm run build`.
 - Install: `npm install`
 - Dev: `npm run dev` → http://localhost:5180
 - Build (both): `npm run build` → runs `npm run lint` first (hard gate — any lint error or warning fails the build, incl. the GitHub Pages deploy), then `dist/index.html` (online, CDN fonts) + `dist/todo2.html` (offline, single file). Verify with this, not `tsc --noEmit`.
 - Build online only: `npm run build:online` (also lint-gated)
 - Build offline only: `npm run build:offline` (also lint-gated)
 - Test: `npm test` (vitest + JSDOM). Two projects: `isolated` (files that call `vi.mock`/`vi.doMock`, detected automatically — fresh worker per file) and `shared` (everything else, `isolate: false`; `src/test/setup-shared.ts` resets db / DOM / storage / timers / stubs / spies at each file boundary). In both, `src/test/setup.ts` resets every store and all registered module state before each test — a module with state outside its store calls `registerModuleReset` (`utils/module-reset`).
+- Test in random order: `npm run test:shuffle` (`--sequence.shuffle`; prints its seed — reproduce a failure with `npx vitest run --sequence.shuffle --sequence.seed=<seed>`). Catches a test that depends on another's leftovers; the deploy runs it after `npm test`. Run it before committing test-infra or store/module-state changes
 - Test affected only: `npx vitest related <changed src files> --run` — use while iterating; run the full `npm test` once before committing
 - Test watch: `npm run test:watch`
 - E2E: `npm run test:e2e` (Playwright, `fullyParallel`; starts its own dev server on port 5173 — separate from the 5180 dev server; `PW_PORT=<port>` picks another, so two checkouts can run their suites at once). Single spec: `npx playwright test e2e/<name>.spec.ts`
