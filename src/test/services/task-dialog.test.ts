@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyPredicate, type DateMatch, type PersistedTodoItem } from '../../models'
+import { emptyPredicate, type DateMatch, type PersistedTodoItem, type Person, type Tag } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import {
   eisenhowerQuadrantDialog,
@@ -25,7 +25,7 @@ import { buildTasksPlain } from '../../services/task-copy'
 import { emptyFilterCriteria } from '../helpers'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import {
-  ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
+  ASSIGNED_PEOPLE, ASSIGNED_TAGS, BEN, PEOPLE, PLANNING, PRIYA, Q4, SAMPLE_LISTS, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
 } from '../fixtures/dashboard-sample'
 import { useFilterStore } from '../../stores/filter-store'
 
@@ -145,6 +145,47 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
       sort: view.sort, sortDirection: view.sortDirection, grouping: view.grouping,
     }
     expect(groups).toEqual(resolveTaskDialog({ kind: 'list', listDefinitionId: 50 }, env({ screen: priya, listDefinitions: [everyOpenTask] })))
+  })
+
+  it('grouped by People or Tag, the screen filter’s "is" picks narrow the groups, as a list’s own filter does', () => {
+    const person = (id: number): Person => PEOPLE.find((p) => p.id === id)!
+    const tag = (id: number): Tag => TAGS.find((t) => t.id === id)!
+    // Q4 roadmap deck (14) is Priya's and Ben's, and tagged #q4 and #planning.
+    const assignedPeopleMap = new Map(ASSIGNED_PEOPLE).set(14, [person(PRIYA), person(BEN)])
+    const assignedTagsMap = new Map(ASSIGNED_TAGS).set(14, [tag(Q4), tag(PLANNING)])
+    const base = { assignedPeopleMap, assignedTagsMap }
+    const byPeople = { sort: 'manual', sortDirection: 'asc', grouping: 'people' } as const
+    const labelled = (groups: ReturnType<typeof resolveTaskDialog>) => groups.map((g) => [g.label, titles(g.todoIds)])
+    const priyaTasks = ['Draft homepage copy', 'Vendor contract redlines', 'Q4 roadmap deck', 'Q4 forecast']
+    expect(labelled(resolveTaskDialog(SCREEN, env({ ...base, screen: priya, newListView: byPeople })))).toEqual([['Priya Nair', priyaTasks]])
+    // The top bar's lens narrows them too; counts stay unique tasks.
+    const lensed = { ...emptyFilterCriteria, lens: priya }
+    const groups = resolveTaskDialog(SCREEN, env({ ...base, screen: lensed, newListView: byPeople }))
+    expect(labelled(groups)).toEqual([['Priya Nair', priyaTasks]])
+    expect(taskDialogCount(groups)).toBe(screenTaskCount(env({ ...base, screen: lensed })))
+    // Without a People pick, the task shows under both of its people.
+    const unpicked = resolveTaskDialog(SCREEN, env({ ...base, newListView: byPeople }))
+    expect(unpicked.filter((g) => g.todoIds.includes(14)).map((g) => g.label)).toEqual(['Ben Ortiz', 'Priya Nair'])
+    // Tags likewise, the No tags pick keeping only its trailing group.
+    const byTag = { ...byPeople, grouping: 'tag' } as const
+    const q4 = { ...emptyFilterCriteria, tags: new Set([Q4]) }
+    expect(resolveTaskDialog(SCREEN, env({ ...base, screen: q4, newListView: byTag })).map((g) => g.label)).toEqual(['#q4'])
+    const untagged = { ...emptyFilterCriteria, tags: new Set([0]) }
+    expect(resolveTaskDialog(SCREEN, env({ ...base, screen: untagged, newListView: byTag })).map((g) => g.label)).toEqual(['No Tag'])
+  })
+
+  it('a list grouped by People in the dialog: its own pick and the screen’s intersect', () => {
+    const assignedPeopleMap = new Map(ASSIGNED_PEOPLE).set(14, [PEOPLE.find((p) => p.id === PRIYA)!, PEOPLE.find((p) => p.id === BEN)!])
+    const priyaOrBen: PersistedListDefinition = {
+      id: 60, name: 'Priya or Ben', sortOrder: 0, owner: { layoutId: 1 },
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), personIds: [PRIYA, BEN] } },
+      sort: 'manual', grouping: 'people',
+    }
+    const source: TaskDialogSource = { kind: 'list', listDefinitionId: 60 }
+    const own = resolveTaskDialog(source, env({ assignedPeopleMap, listDefinitions: [priyaOrBen] }))
+    expect(own.map((g) => g.label)).toEqual(['Priya Nair', 'Ben Ortiz'])
+    const withScreen = resolveTaskDialog(source, env({ assignedPeopleMap, listDefinitions: [priyaOrBen], screen: priya }))
+    expect(withScreen.map((g) => [g.label, g.todoIds.length])).toEqual([['Priya Nair', 4]])
   })
 
   it('screenTaskCount: how many rows the dialog lists', () => {

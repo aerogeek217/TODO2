@@ -132,12 +132,13 @@ export function resolveTaskDialog(source: TaskDialogSource, env: TaskDialogEnv):
   }
 }
 
-/** What a list is built with in the dialog: the screen filter composed in. */
+/** What a list is built with in the dialog: the screen filter composed in (its People / Tags picks narrowing the groups too). */
 function listBuildContext(env: TaskDialogEnv): ListBuildContext {
   return {
     today: env.today,
     weekStartsOn: env.weekStartsOn,
     evalPredicate: createScreenComposedEvaluator(env.screen, lookupsOf(env), env.today, filterSettingsOf(env)),
+    screenFilter: env.screen,
     assignedPeopleMap: env.assignedPeopleMap,
     assignedTagsMap: env.assignedTagsMap,
     people: env.people,
