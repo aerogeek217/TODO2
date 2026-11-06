@@ -398,7 +398,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   }
 
-  // A new task's status updates count as following up on their day, when newer.
+  // A new task's status updates count as following up on their day, when newer
+  // (a new task is always created open: on a completed one they wouldn't, `addStatusUpdate`).
   const lastWithUpdates = (updates: typeof pendingUpdates) => {
     const newestPendingDay = updates.at(0)?.date
     return newestPendingDay

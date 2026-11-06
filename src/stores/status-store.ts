@@ -8,6 +8,7 @@ import { DEFAULT_ENTITY_COLOR } from '../constants'
 import { undoable } from './undoable'
 import { useSettingsStore } from './settings-store'
 import { bySortOrder } from '../utils/sort-order'
+import { stampAfter, undoStamps, type Stamp, type StampChanges } from '../utils/task-stamps'
 
 interface StatusState {
   statuses: Status[]
@@ -32,6 +33,71 @@ interface StatusState {
 
 export const useStatusStore = create<StatusState>((set, get) => {
   const statusEnsure = makeEnsureLoaded(() => get().load(), () => get().loaded)
+
+  /**
+   * `remove`: the status deleted and cleared from its tasks, stamping them
+   * now — or, given `stamp` (a redo), the step's stamp put back. Its undo
+   * puts the status back on them with their earlier `modifiedAt`
+   * (`utils/task-stamps`), each only where the task still holds this one.
+   */
+  function removeStatus(id: number, stamp?: StampChanges): Promise<void> {
+    return trackWrite(async () => {
+      const status = get().statuses.find(s => s.id === id)
+      // Capture affected todos and default setting before deletion
+      const settingsState = useSettingsStore.getState()
+      const wasDefault = settingsState.defaultStatusId === id
+      const wasSeededAssigned = settingsState.seededAssignedStatusId === id
+
+      // One stamp for the tasks it is cleared from, in the store and the DB.
+      const write: Stamp = stamp ?? new Date()
+      const holding = useTodoStore.getState().todos.filter((t) => t.statusId === id)
+      const affectedTodoIds = await statusRepository.delete(id, write)
+      set({ statuses: get().statuses.filter(s => s.id !== id) })
+
+      // Update in-memory todo store
+      const affected = new Set(affectedTodoIds)
+      const step: StampChanges = new Map(holding.filter((t) => affected.has(t.id))
+        .map((t) => [t.id, { before: t.modifiedAt, after: stampAfter(write, t.id, t.modifiedAt) }]))
+      if (affectedTodoIds.length > 0) {
+        useTodoStore.setState({
+          todos: useTodoStore.getState().todos.map(t =>
+            affected.has(t.id) ? { ...t, statusId: undefined, modifiedAt: stampAfter(write, t.id, t.modifiedAt) } : t
+          ),
+        })
+      }
+
+      if (wasDefault) {
+        // Part of the delete's undo step (its undo puts the default back).
+        await useSettingsStore.getState().setDefaultStatusId(null, { record: false })
+      }
+      if (wasSeededAssigned) {
+        await settingsRepository.delete(SETTING_KEYS.seededAssignedStatusId)
+        useSettingsStore.setState({ seededAssignedStatusId: null })
+      }
+
+      if (status) {
+        undoable(
+          `Delete status "${status.name}"`,
+          () => removeStatus(id, step),
+          async () => {
+            await statusRepository.restoreWithTodos(status, affectedTodoIds, undoStamps(step))
+            if (wasDefault) {
+              await useSettingsStore.getState().setDefaultStatusId(id)
+            }
+            if (wasSeededAssigned) {
+              await settingsRepository.put(SETTING_KEYS.seededAssignedStatusId, String(id))
+              useSettingsStore.setState({ seededAssignedStatusId: id })
+            }
+            await get().load()
+            // Reload todo store to reflect restored statusIds
+            await useTodoStore.getState().loadAll()
+          },
+          true,
+        )
+      }
+    })
+  }
+
   return {
   statuses: [],
   loaded: false,
@@ -71,58 +137,7 @@ export const useStatusStore = create<StatusState>((set, get) => {
   },
 
   remove(id: number) {
-    return trackWrite(async () => {
-      const status = get().statuses.find(s => s.id === id)
-      // Capture affected todos and default setting before deletion
-      const settingsState = useSettingsStore.getState()
-      const wasDefault = settingsState.defaultStatusId === id
-      const wasSeededAssigned = settingsState.seededAssignedStatusId === id
-
-      // One timestamp for the tasks it is cleared from, in the store and the DB.
-      const now = new Date()
-      const affectedTodoIds = await statusRepository.delete(id, now)
-      set({ statuses: get().statuses.filter(s => s.id !== id) })
-
-      // Update in-memory todo store
-      if (affectedTodoIds.length > 0) {
-        const affected = new Set(affectedTodoIds)
-        useTodoStore.setState({
-          todos: useTodoStore.getState().todos.map(t =>
-            affected.has(t.id) ? { ...t, statusId: undefined, modifiedAt: now } : t
-          ),
-        })
-      }
-
-      if (wasDefault) {
-        // Part of the delete's undo step (its undo puts the default back).
-        await useSettingsStore.getState().setDefaultStatusId(null, { record: false })
-      }
-      if (wasSeededAssigned) {
-        await settingsRepository.delete(SETTING_KEYS.seededAssignedStatusId)
-        useSettingsStore.setState({ seededAssignedStatusId: null })
-      }
-
-      if (status) {
-        undoable(
-          `Delete status "${status.name}"`,
-          () => get().remove(id),
-          async () => {
-            await statusRepository.restoreWithTodos(status, affectedTodoIds)
-            if (wasDefault) {
-              await useSettingsStore.getState().setDefaultStatusId(id)
-            }
-            if (wasSeededAssigned) {
-              await settingsRepository.put(SETTING_KEYS.seededAssignedStatusId, String(id))
-              useSettingsStore.setState({ seededAssignedStatusId: id })
-            }
-            await get().load()
-            // Reload todo store to reflect restored statusIds
-            await useTodoStore.getState().loadAll()
-          },
-          true,
-        )
-      }
-    })
+    return removeStatus(id)
   },
 
   reorder(fromIndex: number, toIndex: number) {

@@ -150,6 +150,34 @@ describe('addStatusUpdate: entering a status counts as following up on its day',
     }
   })
 
+  it('on a completed task: only the entry, its own quiet step — the follow-up dates stay', async () => {
+    const id = await taskWith({ last: new Date(2026, 8, 1), next: new Date(2026, 9, 2) })
+    await useTodoStore.getState().toggleComplete(id)
+    useUndoStore.getState().clear()
+    await addStatusUpdate(id, { date: NOW, text: 'Wrapped up' })
+    expect(task(id)?.lastFollowupAt).toEqual(new Date(2026, 8, 1))
+    expect(task(id)?.nextFollowupAt).toEqual(new Date(2026, 9, 2))
+    expect((await db.todos.get(id))?.lastFollowupAt).toEqual(new Date(2026, 8, 1))
+    expect(entries(id)).toEqual([[new Date(2026, 9, 10), 'Wrapped up', undefined]])
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Add status update'])
+  })
+
+  it('on a completed task never followed up: no last follow-up is set', async () => {
+    const id = await taskWith({})
+    await useTodoStore.getState().toggleComplete(id)
+    await addStatusUpdate(id, { date: new Date(2026, 9, 6), text: 'Closed out' })
+    expect(task(id)?.lastFollowupAt).toBeUndefined()
+    expect(entries(id)).toEqual([[new Date(2026, 9, 6), 'Closed out', undefined]])
+  })
+
+  it('reopened, the rule applies again', async () => {
+    const id = await taskWith({})
+    await useTodoStore.getState().toggleComplete(id)
+    await useTodoStore.getState().toggleComplete(id)
+    await addStatusUpdate(id, { date: NOW, text: 'Back on it' })
+    expect(task(id)?.lastFollowupAt).toEqual(NOW)
+  })
+
   it('a day after today is today', async () => {
     const id = await taskWith({})
     await addStatusUpdate(id, { date: new Date(2026, 9, 20), text: 'Sent it' })

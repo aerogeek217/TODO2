@@ -1,19 +1,29 @@
+import { taskTouch, type TaskTouch } from '../data/touch-todos'
+import { undoStamps, type StampChanges } from '../utils/task-stamps'
 import { optimistic } from './store-helpers'
+import { notifyTasksStamped } from './task-hooks'
 import { guardTasks } from './task-undo-guard'
 
 /**
  * Factory that generates assign/unassign/bulk assignment actions for
  * entity stores (tag, person). Centralizes the duplicated pattern
  * so bug fixes apply once.
+ *
+ * An assignment is activity on its task (cr32): each write stamps the
+ * tasks whose people / tags it changed (`modifiedAt`, in the join write's
+ * transaction — `TaskTouch`), and the todo store follows
+ * (`task-hooks.notifyTasksStamped`); its undo puts back each task's earlier
+ * stamp, its redo the one it wrote, each only where the task still holds
+ * the other (`utils/task-stamps`).
  */
 
 interface AssignmentRepo<T> {
-  assign(todoId: number, entityId: number): Promise<void>
-  unassign(todoId: number, entityId: number): Promise<void>
+  assign(todoId: number, entityId: number, touch?: TaskTouch): Promise<void>
+  unassign(todoId: number, entityId: number, touch?: TaskTouch): Promise<void>
   /** `assign` for several tasks in one transaction (all or none). */
-  bulkAssign(todoIds: readonly number[], entityId: number): Promise<void>
+  bulkAssign(todoIds: readonly number[], entityId: number, touch?: TaskTouch): Promise<void>
   /** `unassign` for several tasks in one transaction. */
-  bulkUnassign(todoIds: readonly number[], entityId: number): Promise<void>
+  bulkUnassign(todoIds: readonly number[], entityId: number, touch?: TaskTouch): Promise<void>
   getForTodos(todoIds: number[]): Promise<Map<number, T[]>>
 }
 
@@ -157,93 +167,113 @@ export function createAssignmentActions<T extends { id?: number }>(
       setMap(next)
     },
 
-    async assign(todoId: number, entityId: number) {
-      const entity = getEntities().find((e) => e.id === entityId)
-      if (!entity) return
-      if ((getMap().get(todoId) ?? []).some((e) => e.id === entityId)) return
+    assign: (todoId: number, entityId: number) => assign(todoId, entityId),
+    unassign: (todoId: number, entityId: number) => unassign(todoId, entityId),
+    bulkAssign: (todoIds: number[], entityId: number) => bulkAssign(todoIds, entityId),
+    bulkUnassign: (todoIds: number[], entityId: number) => bulkUnassign(todoIds, entityId),
+  }
 
-      return optimistic(
-        () => setMap(withEntity(getMap(), [todoId], entity)),
-        () => repo.assign(todoId, entityId),
-        () => setMap(withoutEntity(getMap(), [todoId], entityId)),
-        `Failed to assign ${label}`,
-        {
-          description: `Assign ${label} "${getName(entity)}"`,
-          redo: guardTasks([todoId], () => actions.assign(todoId, entityId)),
-          undo: guardTasks([todoId], () => actions.unassign(todoId, entityId)),
-        },
-      )
-    },
+  /**
+   * The database write of an assignment, stamping its tasks by `touch` and
+   * telling the todo store what it stamped.
+   */
+  async function stamped(write: (touch: TaskTouch) => Promise<void>, touch: TaskTouch): Promise<void> {
+    await write(touch)
+    notifyTasksStamped(touch.stamped)
+  }
 
-    async unassign(todoId: number, entityId: number) {
-      const entity = getEntities().find((e) => e.id === entityId)
-      const current = getMap().get(todoId) ?? []
+  // Each takes the stamp an undo / redo puts back (`stamp`); without it the write stamps now.
+
+  function assign(todoId: number, entityId: number, stamp?: StampChanges): Promise<void> {
+    const entity = getEntities().find((e) => e.id === entityId)
+    if (!entity) return Promise.resolve()
+    if ((getMap().get(todoId) ?? []).some((e) => e.id === entityId)) return Promise.resolve()
+    const touch = taskTouch(stamp ?? new Date())
+
+    return optimistic(
+      () => setMap(withEntity(getMap(), [todoId], entity)),
+      () => stamped((t) => repo.assign(todoId, entityId, t), touch),
+      () => setMap(withoutEntity(getMap(), [todoId], entityId)),
+      `Failed to assign ${label}`,
+      {
+        description: `Assign ${label} "${getName(entity)}"`,
+        redo: guardTasks([todoId], () => assign(todoId, entityId, touch.stamped)),
+        undo: guardTasks([todoId], () => unassign(todoId, entityId, undoStamps(touch.stamped))),
+      },
+    )
+  }
+
+  function unassign(todoId: number, entityId: number, stamp?: StampChanges): Promise<void> {
+    const entity = getEntities().find((e) => e.id === entityId)
+    const current = getMap().get(todoId) ?? []
+    const index = current.findIndex((e) => e.id === entityId)
+    const removed = current[index]
+    const touch = taskTouch(stamp ?? new Date())
+    return optimistic(
+      () => setMap(withoutEntity(getMap(), [todoId], entityId)),
+      () => stamped((t) => repo.unassign(todoId, entityId, t), touch),
+      () => { if (removed) setMap(withEntityAt(getMap(), todoId, removed, index)) },
+      `Failed to unassign ${label}`,
+      {
+        description: `Unassign ${label} "${entity ? getName(entity) : label}"`,
+        redo: guardTasks([todoId], () => unassign(todoId, entityId, touch.stamped)),
+        undo: guardTasks([todoId], () => assign(todoId, entityId, undoStamps(touch.stamped))),
+      },
+    )
+  }
+
+  function bulkAssign(todoIds: number[], entityId: number, stamp?: StampChanges): Promise<void> {
+    const entity = getEntities().find((e) => e.id === entityId)
+    if (!entity) return Promise.resolve()
+    const map = getMap()
+    const toAssign = todoIds.filter((todoId) => !(map.get(todoId) ?? []).some((e) => e.id === entityId))
+    if (toAssign.length === 0) return Promise.resolve()
+    const touch = taskTouch(stamp ?? new Date())
+
+    return optimistic(
+      () => setMap(withEntity(getMap(), toAssign, entity)),
+      // One transaction (all or none), so the rollback leaves the map as stored.
+      () => stamped((t) => repo.bulkAssign(toAssign, entityId, t), touch),
+      () => setMap(withoutEntity(getMap(), toAssign, entityId)),
+      `Failed to assign ${label}`,
+      {
+        description: `Assign "${getName(entity)}" to ${toAssign.length} tasks`,
+        redo: guardTasks(todoIds, (present) => bulkAssign(present, entityId, touch.stamped)),
+        undo: guardTasks(toAssign, (present) => bulkUnassign(present, entityId, undoStamps(touch.stamped))),
+      },
+    )
+  }
+
+  function bulkUnassign(todoIds: number[], entityId: number, stamp?: StampChanges): Promise<void> {
+    const entity = getEntities().find((e) => e.id === entityId)
+    const map = getMap()
+    const removed = new Map<number, { entity: T; index: number }>()
+    for (const todoId of todoIds) {
+      const current = map.get(todoId) ?? []
       const index = current.findIndex((e) => e.id === entityId)
-      const removed = current[index]
-      return optimistic(
-        () => setMap(withoutEntity(getMap(), [todoId], entityId)),
-        () => repo.unassign(todoId, entityId),
-        () => { if (removed) setMap(withEntityAt(getMap(), todoId, removed, index)) },
-        `Failed to unassign ${label}`,
-        {
-          description: `Unassign ${label} "${entity ? getName(entity) : label}"`,
-          redo: guardTasks([todoId], () => actions.unassign(todoId, entityId)),
-          undo: guardTasks([todoId], () => actions.assign(todoId, entityId)),
-        },
-      )
-    },
+      const found = current[index]
+      if (found) removed.set(todoId, { entity: found, index })
+    }
+    const toUnassign = [...removed.keys()]
+    if (toUnassign.length === 0) return Promise.resolve()
+    const touch = taskTouch(stamp ?? new Date())
 
-    async bulkAssign(todoIds: number[], entityId: number) {
-      const entity = getEntities().find((e) => e.id === entityId)
-      if (!entity) return
-      const map = getMap()
-      const toAssign = todoIds.filter((todoId) => !(map.get(todoId) ?? []).some((e) => e.id === entityId))
-      if (toAssign.length === 0) return
-
-      return optimistic(
-        () => setMap(withEntity(getMap(), toAssign, entity)),
-        // One transaction (all or none), so the rollback leaves the map as stored.
-        () => repo.bulkAssign(toAssign, entityId),
-        () => setMap(withoutEntity(getMap(), toAssign, entityId)),
-        `Failed to assign ${label}`,
-        {
-          description: `Assign "${getName(entity)}" to ${toAssign.length} tasks`,
-          redo: guardTasks(todoIds, (present) => actions.bulkAssign(present, entityId)),
-          undo: guardTasks(toAssign, (present) => actions.bulkUnassign(present, entityId)),
-        },
-      )
-    },
-
-    async bulkUnassign(todoIds: number[], entityId: number) {
-      const entity = getEntities().find((e) => e.id === entityId)
-      const map = getMap()
-      const removed = new Map<number, { entity: T; index: number }>()
-      for (const todoId of todoIds) {
-        const current = map.get(todoId) ?? []
-        const index = current.findIndex((e) => e.id === entityId)
-        const found = current[index]
-        if (found) removed.set(todoId, { entity: found, index })
-      }
-      const toUnassign = [...removed.keys()]
-      if (toUnassign.length === 0) return
-
-      return optimistic(
-        () => setMap(withoutEntity(getMap(), toUnassign, entityId)),
-        // One transaction (all or none), so the rollback leaves the map as stored.
-        () => repo.bulkUnassign(toUnassign, entityId),
-        () => {
-          let next = getMap()
-          for (const [todoId, { entity: e, index }] of removed) next = withEntityAt(next, todoId, e, index)
-          setMap(next)
-        },
-        `Failed to unassign ${label}`,
-        {
-          description: `Unassign "${entity ? getName(entity) : label}" from ${toUnassign.length} tasks`,
-          redo: guardTasks(todoIds, (present) => actions.bulkUnassign(present, entityId)),
-          undo: guardTasks(toUnassign, (present) => actions.bulkAssign(present, entityId)),
-        },
-      )
-    },
+    return optimistic(
+      () => setMap(withoutEntity(getMap(), toUnassign, entityId)),
+      // One transaction (all or none), so the rollback leaves the map as stored.
+      () => stamped((t) => repo.bulkUnassign(toUnassign, entityId, t), touch),
+      () => {
+        let next = getMap()
+        for (const [todoId, { entity: e, index }] of removed) next = withEntityAt(next, todoId, e, index)
+        setMap(next)
+      },
+      `Failed to unassign ${label}`,
+      {
+        description: `Unassign "${entity ? getName(entity) : label}" from ${toUnassign.length} tasks`,
+        redo: guardTasks(todoIds, (present) => bulkUnassign(present, entityId, touch.stamped)),
+        undo: guardTasks(toUnassign, (present) => bulkAssign(present, entityId, undoStamps(touch.stamped))),
+      },
+    )
   }
 
   return actions

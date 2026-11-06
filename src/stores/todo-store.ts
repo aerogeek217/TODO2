@@ -11,7 +11,7 @@ import { useStatusUpdateStore } from './status-update-store'
 import { statusUpdateRepository } from '../data/status-update-repository'
 import { useSubtaskStore } from './subtask-store'
 import { subtaskRepository } from '../data/subtask-repository'
-import { onTasksTouched, registerCompleteTask, registerTaskOpen } from './task-hooks'
+import { onTasksStamped, registerCompleteTask, registerTaskOpen } from './task-hooks'
 import { compareSubtasks } from '../utils/subtasks'
 import { takeSafetySnapshot } from './safety-snapshot'
 import { guardTasks } from './task-undo-guard'
@@ -21,6 +21,7 @@ import { resolveCompletedAt } from '../utils/completed-at'
 import { formatFollowupDate, nextAfterFollowup } from '../utils/followup'
 import { fieldsOf, revertChanges, todoChanges, withOrphanedRuleDropped } from '../utils/todo-changes'
 import { compareStatusUpdates } from '../utils/status-updates'
+import { stampAfter, undoStamps, type Stamp, type StampChanges } from '../utils/task-stamps'
 
 /** A task to create with the people and tags it starts with (`addMany`). */
 export interface NewTaskWithAssignments {
@@ -211,8 +212,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
    * the fields that differ from the task's current row are written — in the
    * store and in the database — so an edit never puts back an older value of
    * a field it didn't change. Undo writes back just those fields.
+   * `stamp`: an undo / redo's — the step's stamp put back
+   * (`utils/task-stamps`); without it the edit stamps now.
    */
-  function patchTodo(id: number, changes: Partial<PersistedTodoItem>, description: string): Promise<void> {
+  function patchTodo(id: number, changes: Partial<PersistedTodoItem>, description: string, stamp?: StampChanges): Promise<void> {
     const prev = get().todos.find((t) => t.id === id)
     if (!prev) return Promise.resolve()
     const edit = todoChanges(prev, { ...prev, ...changes })
@@ -220,46 +223,54 @@ export const useTodoStore = create<TodoState>((set, get) => {
     // As the repository writes it: a rule left without a due date goes (undo puts it back).
     const effective = withOrphanedRuleDropped({ ...prev, ...edit }, edit)
     const before = fieldsOf(prev, effective)
-    const now = new Date()
+    const write: Stamp = stamp ?? new Date()
+    const modifiedAt = stampAfter(write, id, prev.modifiedAt)
+    const step: StampChanges = new Map([[id, { before: prev.modifiedAt, after: modifiedAt }]])
     return optimistic(
       () => set({
-        todos: get().todos.map((t) => (t.id === id ? { ...t, ...effective, modifiedAt: now } : t)),
+        todos: get().todos.map((t) => (t.id === id ? { ...t, ...effective, modifiedAt } : t)),
       }),
-      () => todoRepository.update(id, effective, now),
+      () => todoRepository.update(id, effective, write),
       // Field by field: a field another edit changed meanwhile keeps its value.
       () => set({
         todos: get().todos.map((t) => (t.id === id
           ? {
               ...t,
               ...revertChanges(t, effective, before),
-              ...(t.modifiedAt === now ? { modifiedAt: prev.modifiedAt } : {}),
+              ...(t.modifiedAt === modifiedAt ? { modifiedAt: prev.modifiedAt } : {}),
             }
           : t)),
       }),
       'Failed to update task',
       {
         description,
-        redo: guardTasks([id], () => patchTodo(id, effective, description)),
-        undo: guardTasks([id], () => patchTodo(id, before, description)),
+        redo: guardTasks([id], () => patchTodo(id, effective, description, step)),
+        undo: guardTasks([id], () => patchTodo(id, before, description, undoStamps(step))),
       },
     )
   }
 
   /**
    * Sets one task's completion to `isCompleted` with `completedAt` (undo /
-   * redo of a toggle): no undo entry, one timestamp for the store and the
-   * database, nothing written when the task already has that completion.
+   * redo of a toggle, `stamp` the step's stamp put back): no undo entry,
+   * nothing written when the task already has that completion.
    */
-  async function writeCompletion(id: number, isCompleted: boolean, completedAt: Date | undefined): Promise<void> {
+  async function writeCompletion(id: number, isCompleted: boolean, completedAt: Date | undefined, stamp: StampChanges): Promise<void> {
     const current = get().todos.find((t) => t.id === id)
     if (!current) return
-    const at = new Date()
-    const nextAt = resolveCompletedAt(current, { isCompleted, completedAt }, at)
+    const nextAt = resolveCompletedAt(current, { isCompleted, completedAt }, new Date())
     if (current.isCompleted === isCompleted && current.completedAt?.getTime() === nextAt?.getTime()) return
-    await todoRepository.complete(id, isCompleted, nextAt, at)
+    await todoRepository.complete(id, isCompleted, nextAt, stamp)
     set({
-      todos: get().todos.map((t) => (t.id === id ? { ...t, isCompleted, completedAt: nextAt, modifiedAt: at } : t)),
+      todos: get().todos.map((t) => (t.id === id
+        ? { ...t, isCompleted, completedAt: nextAt, modifiedAt: stampAfter(stamp, id, t.modifiedAt) }
+        : t)),
     })
+  }
+
+  /** `todos` with each task in `stamp` stamped by it (an undo / redo's, as its database write does). */
+  function restamped(todos: PersistedTodoItem[], stamp: StampChanges): PersistedTodoItem[] {
+    return todos.map((t) => (stamp.has(t.id) ? { ...t, modifiedAt: stampAfter(stamp, t.id, t.modifiedAt) } : t))
   }
 
   /** Deletes `ids` and their dependent rows, in the database and the stores; resolves the deleted events. */
@@ -344,6 +355,294 @@ export const useTodoStore = create<TodoState>((set, get) => {
     }
   }
 
+  /**
+   * `bulkSetCompleted`, stamping now — or, given `stamp` (a redo), the
+   * step's stamp put back.
+   */
+  async function setCompleted(ids: number[], completed: boolean, stamp?: StampChanges): Promise<void> {
+    // Split recurring tasks (advance their due date) from normal tasks (toggle completion)
+    const allTodos = get().todos.filter((t) => ids.includes(t.id))
+    type RecurringAdvance = {
+      id: number
+      prev: Date | undefined
+      nextChanges: Pick<PersistedTodoItem, 'dueDate'>
+    }
+    const recurringAdvances: RecurringAdvance[] = []
+    if (completed) {
+      for (const t of allTodos) {
+        if (t.isCompleted || !t.recurrenceRule) continue
+        const advance = advanceRecurring(t)
+        if (!advance) continue
+        recurringAdvances.push({ id: t.id, prev: t.dueDate, nextChanges: { dueDate: advance.dueDate } })
+      }
+    }
+    const recurringIds = new Set(recurringAdvances.map((r) => r.id))
+    const normalIds = ids.filter((id) => !recurringIds.has(id))
+
+    const recurringMutations = recurringAdvances.map((r) => ({ todoId: r.id, changes: r.nextChanges }))
+    const prevStates = get().todos
+      .filter((t) => normalIds.includes(t.id))
+      .map((t) => ({ id: t.id, wasCompleted: t.isCompleted, prevCompletedAt: t.completedAt, prevRule: t.recurrenceRule }))
+    const normalIdSet = new Set(normalIds)
+    // A rule without a due date to advance from: the write drops it
+    // (`withOrphanedRuleDropped`, as the repository does), the undo puts it back.
+    const ruleDropped = new Set(prevStates
+      .filter((s) => s.prevRule != null && 'recurrenceRule' in withOrphanedRuleDropped(get().todos.find((t) => t.id === s.id) ?? {}, {}))
+      .map((s) => s.id))
+    const recurringNextMap = new Map(recurringAdvances.map((r) => [r.id, r.nextChanges]))
+    const recurringPrevMap = new Map(recurringAdvances.map((r) => [r.id, r]))
+
+    // One completedAt per task, shared by the optimistic state and the DB write.
+    const now = new Date()
+    const stampBy: Stamp = stamp ?? now
+    // Each task's stamp after the write, and the step's stamps (its undo puts back each `before`).
+    const stampOf = new Map(allTodos.map((t) => [t.id, stampAfter(stampBy, t.id, t.modifiedAt)]))
+    const step: StampChanges = new Map(allTodos.map((t) => [t.id, { before: t.modifiedAt, after: stampOf.get(t.id) ?? now }]))
+    const completedAtById = new Map(
+      allTodos
+        .filter((t) => normalIdSet.has(t.id))
+        .map((t) => [t.id, resolveCompletedAt(t, { isCompleted: completed }, now)]),
+    )
+
+    const label = completed ? 'Complete' : 'Uncomplete'
+    const description = `${label} ${ids.length} tasks`
+    const write = () => reloadOnFailure(optimistic(
+      () => {
+        set({
+          todos: get().todos.map((t) => {
+            const next = recurringNextMap.get(t.id)
+            if (next) return { ...t, ...next, modifiedAt: stampOf.get(t.id) ?? t.modifiedAt }
+            if (normalIdSet.has(t.id)) {
+              return {
+                ...t,
+                isCompleted: completed,
+                completedAt: completedAtById.get(t.id),
+                ...(ruleDropped.has(t.id) ? { recurrenceRule: undefined } : {}),
+                modifiedAt: stampOf.get(t.id) ?? t.modifiedAt,
+              }
+            }
+            return t
+          }),
+        })
+      },
+      // One transaction: every task changes, or none does.
+      () => todoRepository.bulkUpdate([
+        ...recurringMutations,
+        ...normalIds.map((id) => ({ todoId: id, changes: { isCompleted: completed, completedAt: completedAtById.get(id) } })),
+      ], stampBy),
+      () => {
+        const prevCompletedMap = new Map(prevStates.map(s => [s.id, s]))
+        const prevModified = new Map(allTodos.map((t) => [t.id, t.modifiedAt]))
+        const keepStamp = (t: PersistedTodoItem) =>
+          t.modifiedAt === stampOf.get(t.id) ? { modifiedAt: prevModified.get(t.id) ?? t.modifiedAt } : {}
+        set({
+          todos: get().todos.map((t) => {
+            const r = recurringPrevMap.get(t.id)
+            if (r) return { ...t, dueDate: r.prev, ...keepStamp(t) }
+            const prevState = prevCompletedMap.get(t.id)
+            if (prevState) {
+              const rule = ruleDropped.has(t.id) && t.recurrenceRule == null ? { recurrenceRule: prevState.prevRule } : {}
+              return { ...t, isCompleted: prevState.wasCompleted, completedAt: prevState.prevCompletedAt, ...rule, ...keepStamp(t) }
+            }
+            return t
+          }),
+        })
+      },
+      `Failed to ${label.toLowerCase()} tasks`,
+      {
+        description,
+        redo: guardTasks(ids, (present) => setCompleted(present, completed, step)),
+        undo: guardTasks(ids, async () => {
+          // One transaction for every write of the undo, in the store and
+          // the DB: the recurring date advances go back, and the completions
+          // (re-completing restores the original completion time, resolved
+          // once per task); every task written gets its earlier stamp back.
+          const undoNow = new Date()
+          const back = undoStamps(step)
+          const reverts = prevStates.map(s => {
+            const current = get().todos.find(t => t.id === s.id)
+            const changes: Partial<PersistedTodoItem> = {}
+            if (s.wasCompleted !== completed) {
+              const next = { isCompleted: s.wasCompleted, completedAt: s.prevCompletedAt }
+              changes.isCompleted = s.wasCompleted
+              changes.completedAt = resolveCompletedAt(current, next, undoNow)
+            }
+            if (ruleDropped.has(s.id)) changes.recurrenceRule = s.prevRule
+            return { id: s.id, changes }
+          })
+          if (recurringAdvances.length === 0 && reverts.length === 0) return
+          await todoRepository.bulkUpdate([
+            ...recurringAdvances.map(r => ({ todoId: r.id, changes: { dueDate: r.prev } })),
+            ...reverts.map(r => ({ todoId: r.id, changes: r.changes })),
+          ], back)
+          const revertMap = new Map(reverts.map(r => [r.id, r.changes]))
+          set({
+            todos: restamped(get().todos.map((t) => {
+              const r = recurringPrevMap.get(t.id)
+              if (r) return { ...t, dueDate: r.prev }
+              const c = revertMap.get(t.id)
+              return c ? { ...t, ...c } : t
+            }), back),
+          })
+        }),
+        showSnackbar: true,
+      },
+    ))
+    // The recurring tasks' checklists with done lines start over, in the same undo step.
+    const byTodo = useSubtaskStore.getState().byTodo
+    const resets = recurringAdvances.map((r) => r.id).filter((id) => (byTodo.get(id) ?? []).some((s) => s.isCompleted))
+    if (resets.length === 0) return write()
+    return asOneStep(description, async () => {
+      await write()
+      for (const id of resets) await useSubtaskStore.getState().resetDone(id)
+    })
+  }
+
+  /**
+   * `setMarkerFlags`, stamping now — or, given `stamp` (a redo), the step's
+   * stamp put back.
+   */
+  function writeMarkerFlags(changes: readonly MarkerFlagChange[], description: string, stamp?: StampChanges): Promise<void> {
+    const byId = new Map(changes.map((c) => [c.todoId, c]))
+    const targets = get().todos.filter((t) => byId.has(t.id))
+    if (targets.length === 0) return Promise.resolve()
+    const prev = new Map(targets.map((t) => [t.id, { urgent: t.urgent, important: t.important, focus: t.focus, modifiedAt: t.modifiedAt }]))
+    const patch = (c: MarkerFlagChange): Partial<PersistedTodoItem> => ({
+      ...(c.urgent !== undefined ? { urgent: flagValue(c.urgent) } : {}),
+      ...(c.important !== undefined ? { important: flagValue(c.important) } : {}),
+      ...(c.focus !== undefined ? { focus: flagValue(c.focus) } : {}),
+    })
+    const FLAGS = ['urgent', 'important', 'focus'] as const
+    /** The flags change `c` writes, at the values the task had before it. */
+    const before = (c: MarkerFlagChange, p: Pick<PersistedTodoItem, 'urgent' | 'important' | 'focus'>): Partial<PersistedTodoItem> =>
+      Object.fromEntries(FLAGS.filter((k) => c[k] !== undefined).map((k) => [k, p[k]]))
+    const write: Stamp = stamp ?? new Date()
+    const stampOf = new Map(targets.map((t) => [t.id, stampAfter(write, t.id, t.modifiedAt)]))
+    const step: StampChanges = new Map(targets.map((t) => [t.id, { before: t.modifiedAt, after: stampOf.get(t.id) ?? t.modifiedAt }]))
+    return optimistic(
+      () => {
+        set({
+          todos: get().todos.map((t) => {
+            const c = byId.get(t.id)
+            return c ? { ...t, ...patch(c), modifiedAt: stampOf.get(t.id) ?? t.modifiedAt } : t
+          }),
+        })
+      },
+      () => todoRepository.bulkUpdate(targets.flatMap((t) => {
+        const c = byId.get(t.id)
+        return c ? [{ todoId: t.id, changes: patch(c) }] : []
+      }), write),
+      // Only the flags this write set, and only where they still hold its
+      // value (an edit that landed meanwhile stays); the stamp only where no
+      // later write stamped the task.
+      () => set({
+        todos: get().todos.map((t) => {
+          const c = byId.get(t.id)
+          const p = prev.get(t.id)
+          if (!c || !p) return t
+          const own = patch(c)
+          const back = Object.fromEntries(FLAGS.filter((k) => k in own && t[k] === own[k]).map((k) => [k, p[k]]))
+          return { ...t, ...back, ...(t.modifiedAt === stampOf.get(t.id) ? { modifiedAt: p.modifiedAt } : {}) }
+        }),
+      }),
+      'Failed to update the priority flags',
+      {
+        description,
+        redo: guardTasks(byId.keys(), () => writeMarkerFlags(changes, description, step)),
+        // The flags this step changed back, with the earlier modifiedAt, in the database and the store.
+        undo: guardTasks(byId.keys(), async () => {
+          const back = undoStamps(step)
+          const reverts = targets.flatMap((t) => {
+            const c = byId.get(t.id)
+            const p = prev.get(t.id)
+            return c && p ? [{ todoId: t.id, changes: before(c, p) }] : []
+          })
+          await todoRepository.bulkUpdate(reverts, back)
+          const byTodo = new Map(reverts.map((r) => [r.todoId, r.changes]))
+          set({ todos: restamped(get().todos.map((t) => { const r = byTodo.get(t.id); return r ? { ...t, ...r } : t }), back) })
+        }),
+        showSnackbar: true,
+      },
+    )
+  }
+
+  /**
+   * `markFollowedUp`, stamping now — or, given `stamp` (a redo), the step's
+   * stamp put back.
+   */
+  function followUp(ids: number[], options: MarkFollowedUpOptions, stamp?: StampChanges): Promise<void> {
+    const targets = get().todos.filter((t) => ids.includes(t.id))
+    if (targets.length === 0) return Promise.resolve()
+    const { description, detail } = options
+    const now = new Date()
+    const at = options.at ?? now
+    // What every task not kept gets: the given date, else the automatic rule.
+    const given = options.next !== undefined
+    const next = given ? (options.next ?? null) : autoNextFollowup(at)
+    // Per task: a next follow-up after today is kept unless a date was given
+    // (`nextAfterFollowup`); a kept one isn't written, so an edit of it that
+    // lands meanwhile — or after, before an undo — stays.
+    const kept = new Set(given ? [] : targets
+      .filter((t) => t.nextFollowupAt && nextAfterFollowup(t.nextFollowupAt, at, next) === t.nextFollowupAt)
+      .map((t) => t.id))
+    const changesFor = (id: number): Partial<PersistedTodoItem> => (kept.has(id)
+      ? { lastFollowupAt: at }
+      : { lastFollowupAt: at, nextFollowupAt: next ?? undefined })
+    const prev = new Map(targets.map((t) => [t.id, {
+      lastFollowupAt: t.lastFollowupAt,
+      nextFollowupAt: t.nextFollowupAt,
+      modifiedAt: t.modifiedAt,
+    }]))
+    const targetIds = targets.map((t) => t.id)
+    const write: Stamp = stamp ?? now
+    const stampOf = new Map(targets.map((t) => [t.id, stampAfter(write, t.id, t.modifiedAt)]))
+    const step: StampChanges = new Map(targets.map((t) => [t.id, { before: t.modifiedAt, after: stampOf.get(t.id) ?? now }]))
+    const name = description ?? followedUpName(targets.length, kept.size, next, now)
+    return optimistic(
+      () => set({
+        todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...changesFor(t.id), modifiedAt: stampOf.get(t.id) ?? t.modifiedAt } : t)),
+      }),
+      () => todoRepository.bulkUpdate(targetIds.map((todoId) => ({ todoId, changes: changesFor(todoId) })), write),
+      // Each follow-up date back where it still holds what this write set (an
+      // edit of it that landed meanwhile stays; a kept one was never set); the
+      // modifiedAt only where no later write stamped it.
+      () => set({
+        todos: get().todos.map((t) => {
+          const p = prev.get(t.id)
+          if (!p) return t
+          return {
+            ...t,
+            ...(t.lastFollowupAt?.getTime() === at.getTime() ? { lastFollowupAt: p.lastFollowupAt } : {}),
+            ...(!kept.has(t.id) && t.nextFollowupAt?.getTime() === next?.getTime() ? { nextFollowupAt: p.nextFollowupAt } : {}),
+            ...(t.modifiedAt === stampOf.get(t.id) ? { modifiedAt: p.modifiedAt } : {}),
+          }
+        }),
+      }),
+      'Failed to mark tasks followed up',
+      {
+        description: name,
+        detail,
+        // The same next follow-up when it was given; else the rule again, per
+        // task, from the redo's now — with the step's stamp put back.
+        redo: guardTasks(targetIds, (present) => followUp(present, options, step)),
+        undo: guardTasks(targetIds, async () => {
+          const back = undoStamps(step)
+          const restored = (todoId: number): Partial<PersistedTodoItem> => {
+            const p = prev.get(todoId)
+            return kept.has(todoId)
+              ? { lastFollowupAt: p?.lastFollowupAt }
+              : { lastFollowupAt: p?.lastFollowupAt, nextFollowupAt: p?.nextFollowupAt }
+          }
+          await todoRepository.bulkUpdate(targetIds.map((todoId) => ({ todoId, changes: restored(todoId) })), back)
+          set({
+            todos: restamped(get().todos.map((t) => (prev.has(t.id) ? { ...t, ...restored(t.id) } : t)), back),
+          })
+        }),
+        showSnackbar: true,
+      },
+    )
+  }
+
   return {
   todos: [],
   todosVersion: 0,
@@ -413,13 +712,13 @@ export const useTodoStore = create<TodoState>((set, get) => {
         const description = `Advance recurring "${todo.title}"`
         const nextChanges = { dueDate: advance.dueDate }
         const prevChanges = { dueDate: todo.dueDate }
-        // Each write mints one timestamp for the store and the database.
-        const write = async (changes: Pick<PersistedTodoItem, 'dueDate'>) => {
-          const at = new Date()
-          await todoRepository.bulkUpdate([{ todoId: id, changes }], at)
-          set({ todos: get().todos.map((t) => (t.id === id ? { ...t, ...changes, modifiedAt: at } : t)) })
+        // An undo / redo: the due date, and the step's stamp put back.
+        const write = async (changes: Pick<PersistedTodoItem, 'dueDate'>, stamp: StampChanges) => {
+          await todoRepository.bulkUpdate([{ todoId: id, changes }], stamp)
+          set({ todos: restamped(get().todos.map((t) => (t.id === id ? { ...t, ...changes } : t)), stamp) })
         }
         const now = new Date()
+        const step: StampChanges = new Map([[id, { before: todo.modifiedAt, after: now }]])
         // A checklist with done lines starts over, in the same step; without one the advance is the step.
         const resets = (useSubtaskStore.getState().byTodo.get(id) ?? []).some((s) => s.isCompleted)
         const run = async () => {
@@ -438,8 +737,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
             'Failed to advance recurring task',
             {
               description,
-              redo: guardTasks([id], () => write(nextChanges)),
-              undo: guardTasks([id], () => write(prevChanges)),
+              redo: guardTasks([id], () => write(nextChanges, step)),
+              undo: guardTasks([id], () => write(prevChanges, undoStamps(step))),
               showSnackbar: true,
             },
           )
@@ -454,6 +753,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     // One completion timestamp, shared by the optimistic state and the DB write.
     const now = new Date()
     const completedAt = resolveCompletedAt(todo, { isCompleted: completed }, now)
+    const step: StampChanges = new Map([[id, { before: todo.modifiedAt, after: now }]])
     return optimistic(
       () => set({
         todos: get().todos.map((t) =>
@@ -474,8 +774,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
         // Both write the completion this toggle went from / to — never a
         // second toggle from whatever the task is by then (which would
         // advance a recurring task, or re-complete with a fresh time).
-        redo: guardTasks([id], () => writeCompletion(id, completed, completedAt)),
-        undo: guardTasks([id], () => writeCompletion(id, todo.isCompleted, todo.completedAt)),
+        redo: guardTasks([id], () => writeCompletion(id, completed, completedAt, step)),
+        undo: guardTasks([id], () => writeCompletion(id, todo.isCompleted, todo.completedAt, undoStamps(step))),
         // Every completion offers its undo (D19: the row may fold out of
         // its list); reopening a task stays quiet.
         showSnackbar: completed,
@@ -498,140 +798,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
     }, 'Failed to delete task')
   },
 
-  async bulkSetCompleted(ids: number[], completed: boolean) {
-    // Split recurring tasks (advance their due date) from normal tasks (toggle completion)
-    const allTodos = get().todos.filter((t) => ids.includes(t.id))
-    type RecurringAdvance = {
-      id: number
-      prev: Date | undefined
-      nextChanges: Pick<PersistedTodoItem, 'dueDate'>
-    }
-    const recurringAdvances: RecurringAdvance[] = []
-    if (completed) {
-      for (const t of allTodos) {
-        if (t.isCompleted || !t.recurrenceRule) continue
-        const advance = advanceRecurring(t)
-        if (!advance) continue
-        recurringAdvances.push({ id: t.id, prev: t.dueDate, nextChanges: { dueDate: advance.dueDate } })
-      }
-    }
-    const recurringIds = new Set(recurringAdvances.map((r) => r.id))
-    const normalIds = ids.filter((id) => !recurringIds.has(id))
-
-    const recurringMutations = recurringAdvances.map((r) => ({ todoId: r.id, changes: r.nextChanges }))
-    const prevStates = get().todos
-      .filter((t) => normalIds.includes(t.id))
-      .map((t) => ({ id: t.id, wasCompleted: t.isCompleted, prevCompletedAt: t.completedAt, prevRule: t.recurrenceRule }))
-    const normalIdSet = new Set(normalIds)
-    // A rule without a due date to advance from: the write drops it
-    // (`withOrphanedRuleDropped`, as the repository does), the undo puts it back.
-    const ruleDropped = new Set(prevStates
-      .filter((s) => s.prevRule != null && 'recurrenceRule' in withOrphanedRuleDropped(get().todos.find((t) => t.id === s.id) ?? {}, {}))
-      .map((s) => s.id))
-    const recurringNextMap = new Map(recurringAdvances.map((r) => [r.id, r.nextChanges]))
-    const recurringPrevMap = new Map(recurringAdvances.map((r) => [r.id, r]))
-
-    // One completedAt per task, shared by the optimistic state and the DB write.
-    const now = new Date()
-    const completedAtById = new Map(
-      allTodos
-        .filter((t) => normalIdSet.has(t.id))
-        .map((t) => [t.id, resolveCompletedAt(t, { isCompleted: completed }, now)]),
-    )
-
-    const label = completed ? 'Complete' : 'Uncomplete'
-    const description = `${label} ${ids.length} tasks`
-    const write = () => reloadOnFailure(optimistic(
-      () => {
-        set({
-          todos: get().todos.map((t) => {
-            const next = recurringNextMap.get(t.id)
-            if (next) return { ...t, ...next, modifiedAt: now }
-            if (normalIdSet.has(t.id)) {
-              return {
-                ...t,
-                isCompleted: completed,
-                completedAt: completedAtById.get(t.id),
-                ...(ruleDropped.has(t.id) ? { recurrenceRule: undefined } : {}),
-                modifiedAt: now,
-              }
-            }
-            return t
-          }),
-        })
-      },
-      // One transaction: every task changes, or none does.
-      () => todoRepository.bulkUpdate([
-        ...recurringMutations,
-        ...normalIds.map((id) => ({ todoId: id, changes: { isCompleted: completed, completedAt: completedAtById.get(id) } })),
-      ], now),
-      () => {
-        const prevCompletedMap = new Map(prevStates.map(s => [s.id, s]))
-        const prevModified = new Map(allTodos.map((t) => [t.id, t.modifiedAt]))
-        const keepStamp = (t: PersistedTodoItem) =>
-          t.modifiedAt === now ? { modifiedAt: prevModified.get(t.id) ?? t.modifiedAt } : {}
-        set({
-          todos: get().todos.map((t) => {
-            const r = recurringPrevMap.get(t.id)
-            if (r) return { ...t, dueDate: r.prev, ...keepStamp(t) }
-            const prevState = prevCompletedMap.get(t.id)
-            if (prevState) {
-              const rule = ruleDropped.has(t.id) && t.recurrenceRule == null ? { recurrenceRule: prevState.prevRule } : {}
-              return { ...t, isCompleted: prevState.wasCompleted, completedAt: prevState.prevCompletedAt, ...rule, ...keepStamp(t) }
-            }
-            return t
-          }),
-        })
-      },
-      `Failed to ${label.toLowerCase()} tasks`,
-      {
-        description,
-        redo: guardTasks(ids, (present) => get().bulkSetCompleted(present, completed)),
-        undo: guardTasks(ids, async () => {
-          // One timestamp and one transaction for every write of the undo,
-          // in the store and the DB: the recurring date advances go back,
-          // and the completions (re-completing restores the original
-          // completion time, resolved once per task).
-          const undoNow = new Date()
-          const reverts = prevStates
-            .filter(s => s.wasCompleted !== completed || ruleDropped.has(s.id))
-            .map(s => {
-              const current = get().todos.find(t => t.id === s.id)
-              const changes: Partial<PersistedTodoItem> = {}
-              if (s.wasCompleted !== completed) {
-                const next = { isCompleted: s.wasCompleted, completedAt: s.prevCompletedAt }
-                changes.isCompleted = s.wasCompleted
-                changes.completedAt = resolveCompletedAt(current, next, undoNow)
-              }
-              if (ruleDropped.has(s.id)) changes.recurrenceRule = s.prevRule
-              return { id: s.id, changes }
-            })
-          if (recurringAdvances.length === 0 && reverts.length === 0) return
-          await todoRepository.bulkUpdate([
-            ...recurringAdvances.map(r => ({ todoId: r.id, changes: { dueDate: r.prev } })),
-            ...reverts.map(r => ({ todoId: r.id, changes: r.changes })),
-          ], undoNow)
-          const revertMap = new Map(reverts.map(r => [r.id, r.changes]))
-          set({
-            todos: get().todos.map((t) => {
-              const r = recurringPrevMap.get(t.id)
-              if (r) return { ...t, dueDate: r.prev, modifiedAt: undoNow }
-              const c = revertMap.get(t.id)
-              return c ? { ...t, ...c, modifiedAt: undoNow } : t
-            }),
-          })
-        }),
-        showSnackbar: true,
-      },
-    ))
-    // The recurring tasks' checklists with done lines start over, in the same undo step.
-    const byTodo = useSubtaskStore.getState().byTodo
-    const resets = recurringAdvances.map((r) => r.id).filter((id) => (byTodo.get(id) ?? []).some((s) => s.isCompleted))
-    if (resets.length === 0) return write()
-    return asOneStep(description, async () => {
-      await write()
-      for (const id of resets) await useSubtaskStore.getState().resetDone(id)
-    })
+  bulkSetCompleted(ids: number[], completed: boolean) {
+    return setCompleted(ids, completed)
   },
 
   async bulkSetStatus(ids: number[], statusId: number | undefined) {
@@ -673,65 +841,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'important', on ? true : undefined, label, get, set)
   },
 
-  async setMarkerFlags(changes, description) {
-    const byId = new Map(changes.map((c) => [c.todoId, c]))
-    const targets = get().todos.filter((t) => byId.has(t.id))
-    if (targets.length === 0) return
-    const prev = new Map(targets.map((t) => [t.id, { urgent: t.urgent, important: t.important, focus: t.focus, modifiedAt: t.modifiedAt }]))
-    const patch = (c: MarkerFlagChange): Partial<PersistedTodoItem> => ({
-      ...(c.urgent !== undefined ? { urgent: flagValue(c.urgent) } : {}),
-      ...(c.important !== undefined ? { important: flagValue(c.important) } : {}),
-      ...(c.focus !== undefined ? { focus: flagValue(c.focus) } : {}),
-    })
-    const FLAGS = ['urgent', 'important', 'focus'] as const
-    /** The flags change `c` writes, at the values the task had before it. */
-    const before = (c: MarkerFlagChange, p: Pick<PersistedTodoItem, 'urgent' | 'important' | 'focus'>): Partial<PersistedTodoItem> =>
-      Object.fromEntries(FLAGS.filter((k) => c[k] !== undefined).map((k) => [k, p[k]]))
-    const now = new Date()
-    return optimistic(
-      () => {
-        set({
-          todos: get().todos.map((t) => {
-            const c = byId.get(t.id)
-            return c ? { ...t, ...patch(c), modifiedAt: now } : t
-          }),
-        })
-      },
-      () => todoRepository.bulkUpdate(targets.flatMap((t) => {
-        const c = byId.get(t.id)
-        return c ? [{ todoId: t.id, changes: patch(c) }] : []
-      }), now),
-      // Only the flags this write set, and only where they still hold its
-      // value (an edit that landed meanwhile stays); the stamp only where no
-      // later write stamped the task.
-      () => set({
-        todos: get().todos.map((t) => {
-          const c = byId.get(t.id)
-          const p = prev.get(t.id)
-          if (!c || !p) return t
-          const own = patch(c)
-          const back = Object.fromEntries(FLAGS.filter((k) => k in own && t[k] === own[k]).map((k) => [k, p[k]]))
-          return { ...t, ...back, ...(t.modifiedAt === now ? { modifiedAt: p.modifiedAt } : {}) }
-        }),
-      }),
-      'Failed to update the priority flags',
-      {
-        description,
-        redo: guardTasks(byId.keys(), () => get().setMarkerFlags(changes, description)),
-        // The flags this step changed back, with the earlier modifiedAt, in the database and the store.
-        undo: guardTasks(byId.keys(), async () => {
-          const reverts = targets.flatMap((t) => {
-            const c = byId.get(t.id)
-            const p = prev.get(t.id)
-            return c && p ? [{ todoId: t.id, changes: { ...before(c, p), modifiedAt: p.modifiedAt } }] : []
-          })
-          await todoRepository.bulkUpdate(reverts)
-          const byTodo = new Map(reverts.map((r) => [r.todoId, r.changes]))
-          set({ todos: get().todos.map((t) => { const r = byTodo.get(t.id); return r ? { ...t, ...r } : t }) })
-        }),
-        showSnackbar: true,
-      },
-    )
+  setMarkerFlags(changes, description) {
+    return writeMarkerFlags(changes, description)
   },
 
   async bulkClearDueDate(ids: number[]) {
@@ -740,74 +851,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'dueDate', undefined, label, get, set, { showSnackbar: true })
   },
 
-  async markFollowedUp(ids: number[], options: MarkFollowedUpOptions = {}) {
-    const targets = get().todos.filter((t) => ids.includes(t.id))
-    if (targets.length === 0) return
-    const { description, detail } = options
-    const now = new Date()
-    const at = options.at ?? now
-    // What every task not kept gets: the given date, else the automatic rule.
-    const given = options.next !== undefined
-    const next = given ? (options.next ?? null) : autoNextFollowup(at)
-    // Per task: a next follow-up after today is kept unless a date was given
-    // (`nextAfterFollowup`); a kept one isn't written, so an edit of it that
-    // lands meanwhile — or after, before an undo — stays.
-    const kept = new Set(given ? [] : targets
-      .filter((t) => t.nextFollowupAt && nextAfterFollowup(t.nextFollowupAt, at, next) === t.nextFollowupAt)
-      .map((t) => t.id))
-    const changesFor = (id: number): Partial<PersistedTodoItem> => (kept.has(id)
-      ? { lastFollowupAt: at }
-      : { lastFollowupAt: at, nextFollowupAt: next ?? undefined })
-    const prev = new Map(targets.map((t) => [t.id, {
-      lastFollowupAt: t.lastFollowupAt,
-      nextFollowupAt: t.nextFollowupAt,
-      modifiedAt: t.modifiedAt,
-    }]))
-    const targetIds = targets.map((t) => t.id)
-    const name = description ?? followedUpName(targets.length, kept.size, next, now)
-    return optimistic(
-      () => set({
-        todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...changesFor(t.id), modifiedAt: now } : t)),
-      }),
-      () => todoRepository.bulkUpdate(targetIds.map((todoId) => ({ todoId, changes: changesFor(todoId) })), now),
-      // Each follow-up date back where it still holds what this write set (an
-      // edit of it that landed meanwhile stays; a kept one was never set); the
-      // modifiedAt only where no later write stamped it.
-      () => set({
-        todos: get().todos.map((t) => {
-          const p = prev.get(t.id)
-          if (!p) return t
-          return {
-            ...t,
-            ...(t.lastFollowupAt?.getTime() === at.getTime() ? { lastFollowupAt: p.lastFollowupAt } : {}),
-            ...(!kept.has(t.id) && t.nextFollowupAt?.getTime() === next?.getTime() ? { nextFollowupAt: p.nextFollowupAt } : {}),
-            ...(t.modifiedAt === now ? { modifiedAt: p.modifiedAt } : {}),
-          }
-        }),
-      }),
-      'Failed to mark tasks followed up',
-      {
-        description: name,
-        detail,
-        // The same next follow-up when it was given; else the rule again, per
-        // task, from the redo's now.
-        redo: guardTasks(targetIds, (present) => get().markFollowedUp(present, options)),
-        undo: guardTasks(targetIds, async () => {
-          const undoNow = new Date()
-          const restored = (todoId: number): Partial<PersistedTodoItem> => {
-            const p = prev.get(todoId)
-            return kept.has(todoId)
-              ? { lastFollowupAt: p?.lastFollowupAt }
-              : { lastFollowupAt: p?.lastFollowupAt, nextFollowupAt: p?.nextFollowupAt }
-          }
-          await todoRepository.bulkUpdate(targetIds.map((todoId) => ({ todoId, changes: restored(todoId) })), undoNow)
-          set({
-            todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...restored(t.id), modifiedAt: undoNow } : t)),
-          })
-        }),
-        showSnackbar: true,
-      },
-    )
+  markFollowedUp(ids: number[], options: MarkFollowedUpOptions = {}) {
+    return followUp(ids, options)
   },
 
   async bulkRemove(ids: number[], opts?: { beforeDelete?: () => void }) {
@@ -915,12 +960,16 @@ export const useTodoStore = create<TodoState>((set, get) => {
   }
 })
 
-// A status update or subtask write stamped these tasks' `modifiedAt` in the
-// database (each counts as activity on its task): the copies here follow.
-onTasksTouched((todoIds, at) => {
-  const ids = new Set(todoIds)
+// A write outside this store (a status update, a subtask, a person or tag
+// assigned) stamped these tasks' `modifiedAt` in the database — each counts
+// as activity on its task, and its undo / redo puts a step's stamp back: the
+// copies here follow.
+onTasksStamped((stamped) => {
   useTodoStore.setState((s) => ({
-    todos: s.todos.map((t) => (ids.has(t.id) ? { ...t, modifiedAt: at } : t)),
+    todos: s.todos.map((t) => {
+      const change = stamped.get(t.id)
+      return change ? { ...t, modifiedAt: change.after } : t
+    }),
   }))
 })
 

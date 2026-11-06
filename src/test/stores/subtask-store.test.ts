@@ -456,16 +456,51 @@ describe('a subtask write is activity on its task', () => {
     expect(shown).toEqual(stored)
   }
 
-  it('add, rename, check, move, remove and their undo stamp the task’s Modified date, stored and in the store', async () => {
+  it('add, rename, check, move, remove stamp the task’s Modified date; undo puts back the one before, redo the one written', async () => {
     const id = await checklist(['first'])
     let subId = 0
-    await expectStamped(id, async () => { subId = (await useSubtaskStore.getState().add(id, 'second'))!.id })
-    await expectStamped(id, () => useSubtaskStore.getState().rename(subId, 'second, renamed'))
-    await expectStamped(id, () => useSubtaskStore.getState().setDone(subId, true))
-    await expectStamped(id, () => useSubtaskStore.getState().move(subId, 0))
-    await expectStamped(id, () => useSubtaskStore.getState().remove(subId))
-    await expectStamped(id, () => useUndoStore.getState().undo())
-    await expectStamped(id, () => useUndoStore.getState().redo())
+    const writes: Array<() => Promise<unknown>> = [
+      async () => { subId = (await useSubtaskStore.getState().add(id, 'second'))!.id },
+      () => useSubtaskStore.getState().rename(subId, 'second, renamed'),
+      () => useSubtaskStore.getState().setDone(subId, true),
+      () => useSubtaskStore.getState().move(subId, 0),
+      () => useSubtaskStore.getState().remove(subId),
+    ]
+    for (const write of writes) {
+      await expectStamped(id, write)
+      const wrote = (await modifiedAt(id)).stored
+      await useUndoStore.getState().undo()
+      expect(await modifiedAt(id)).toEqual({ stored: longAgo, shown: longAgo })
+      await useUndoStore.getState().redo()
+      expect(await modifiedAt(id)).toEqual({ stored: wrote, shown: wrote })
+    }
+  })
+
+  it('a move to another task: undo puts back both tasks’ earlier Modified dates', async () => {
+    const from = await checklist(['moving'])
+    const to = await checklist(['staying'])
+    await stale(from)
+    await stale(to)
+    const [moving] = useSubtaskStore.getState().byTodo.get(from) ?? []
+    await useSubtaskStore.getState().moveToTask(moving!.id, to)
+    expect((await modifiedAt(from)).stored?.getTime()).toBeGreaterThan(longAgo.getTime())
+    expect((await modifiedAt(to)).stored?.getTime()).toBeGreaterThan(longAgo.getTime())
+    await useUndoStore.getState().undo()
+    expect(await modifiedAt(from)).toEqual({ stored: longAgo, shown: longAgo })
+    expect(await modifiedAt(to)).toEqual({ stored: longAgo, shown: longAgo })
+  })
+
+  it('a task touched since the write keeps its newer Modified date through undo and redo', async () => {
+    const id = await checklist(['a'])
+    await stale(id)
+    await useSubtaskStore.getState().add(id, 'b')
+    const later = new Date(Date.now() + 60_000)
+    await db.todos.update(id, { modifiedAt: later })
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, modifiedAt: later } : t)) })
+    await useUndoStore.getState().undo()
+    expect(await modifiedAt(id)).toEqual({ stored: later, shown: later })
+    await useUndoStore.getState().redo()
+    expect(await modifiedAt(id)).toEqual({ stored: later, shown: later })
   })
 
   it('a write that changes nothing stamps nothing; a task delete’s undo and a duplicate’s copies don’t stamp', async () => {
