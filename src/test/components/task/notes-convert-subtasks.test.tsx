@@ -132,7 +132,7 @@ describe('a task’s notes convert to subtasks', () => {
 
 describe('a conversion that throws (cr31)', () => {
   it('says so in a toast — no unhandled rejection — and leaves the note as it is; Convert works again', async () => {
-    const id = await useTodoStore.getState().add('Offsite')
+    const id = await addTask('Offsite')
     await useTodoStore.getState().update(id, { notes: NOTE })
     const onToast = vi.fn()
     let calls = 0
