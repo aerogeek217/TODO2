@@ -5,6 +5,7 @@ import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { addTask } from '../add-task'
 
 /**
  * A bulk write that fails part-way leaves the store as the database has it:
@@ -42,9 +43,9 @@ function refuseJoinCreate(table: typeof db.todoPeople | typeof db.todoTags, todo
 
 async function threeTasks() {
   const ids = [
-    await useTodoStore.getState().add('One'),
-    await useTodoStore.getState().add('Two'),
-    await useTodoStore.getState().add('Three'),
+    await addTask('One'),
+    await addTask('Two'),
+    await addTask('Three'),
   ]
   useUndoStore.setState(useUndoStore.getInitialState(), true)
   return ids as [number, number, number]

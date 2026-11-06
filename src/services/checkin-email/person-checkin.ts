@@ -83,9 +83,9 @@ export interface CheckinContextSources {
   assignedTagsMap: ReadonlyMap<number, readonly Tag[]>
   statuses: readonly Status[]
   /** Each task's status updates (the filter's text search reads them). */
-  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
+  statusUpdatesByTodo: ReadonlyMap<number, readonly StatusUpdate[]>
   /** Each task's checklist (the filter's text search reads it; the email lists the open ones). */
-  subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
+  subtasksByTodo: ReadonlyMap<number, readonly Subtask[]>
   filterSettings: FilterSettings
 }
 

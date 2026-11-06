@@ -29,6 +29,7 @@ import { useTooltip } from '../../shared/use-tooltip'
 import { useStackedLayer } from './settings-layer'
 import sectionStyles from './sections.module.css'
 import styles from './LensesSection.module.css'
+import { lensActions } from '../../../stores/lens-actions'
 
 /**
  * Settings › Tasks › Lenses: the lenses — named screen filters picked in
@@ -78,7 +79,7 @@ export function LensesSection() {
   )
   const ids = useMemo(() => lenses.map((l) => l.id), [lenses])
   const lensId = useCallback((l: Lens) => l.id, [])
-  const moveLens = useCallback((from: number, to: number) => void useSettingsStore.getState().moveLens(from, to), [])
+  const moveLens = useCallback((from: number, to: number) => void lensActions.moveLens(from, to), [])
   const onDragEnd = useSortableReorderHandler(lenses, lensId, moveLens)
   const announcements = useMemo((): Announcements => {
     const name = (id: UniqueIdentifier) => lenses.find((l) => l.id === id)?.name ?? 'lens'
@@ -97,11 +98,11 @@ export function LensesSection() {
 
   // The presets, once: Not waiting needs the statuses read.
   useEffect(() => {
-    if (!seeded && statusesLoaded) void useSettingsStore.getState().seedLensPresets(waitingStatusId(statuses))
+    if (!seeded && statusesLoaded) void lensActions.seedLensPresets(waitingStatusId(statuses))
   }, [seeded, statusesLoaded, statuses])
 
   const addLens = () => afterLensDraft(async () => {
-    const id = await useSettingsStore.getState().addLens('New lens')
+    const id = await lensActions.addLens('New lens')
     if (id) {
       setOpenId(id)
       setRenaming(id)
@@ -244,7 +245,7 @@ function LensRow({ lens, unsaved, names, inUse, keeps, open, expanded, renaming,
                 type="button"
                 className={styles.link}
                 onClick={() => afterLensDraft(async () => {
-                  const id = await useSettingsStore.getState().duplicateLens(lens.id)
+                  const id = await lensActions.duplicateLens(lens.id)
                   if (id) onDuplicated(id)
                 })}
               >
@@ -311,7 +312,7 @@ function RenameField({ lens, onDone }: { lens: Lens; onDone: () => void }) {
   const finish = (save: boolean) => {
     if (done.current) return
     done.current = true
-    if (save) void useSettingsStore.getState().renameLens(lens.id, value)
+    if (save) void lensActions.renameLens(lens.id, value)
     onDone()
   }
   return (

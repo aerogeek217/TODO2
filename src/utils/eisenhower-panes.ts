@@ -16,19 +16,6 @@ import { plainLine } from './text'
  * stores only the parts that differ (`settings-store.eisenhowerPanes`).
  */
 
-/** The default quadrants' Urgent / Important. */
-export interface QuadrantFlags {
-  urgent: boolean
-  important: boolean
-}
-
-export const QUADRANT_FLAGS: Record<EisenhowerQuadrant, QuadrantFlags> = {
-  do: { urgent: true, important: true },
-  schedule: { urgent: false, important: true },
-  delegate: { urgent: true, important: false },
-  drop: { urgent: false, important: false },
-}
-
 /** The default pane names. */
 export const QUADRANT_NAME: Record<EisenhowerQuadrant, string> = {
   do: 'Do',
@@ -45,7 +32,7 @@ export const QUADRANT_COLOR: Record<EisenhowerQuadrant, string> = {
   drop: 'var(--color-text-muted)',
 }
 
-/** The plain-words subtitle of a default pane (its {@link QUADRANT_FLAGS} in words). */
+/** The plain-words subtitle of a default pane (its quadrant's filter, {@link QUADRANT_MARKERS}, in words). */
 export const QUADRANT_SUBTITLE: Record<EisenhowerQuadrant, string> = {
   do: 'Urgent and important',
   schedule: 'Important, not urgent',
@@ -53,7 +40,7 @@ export const QUADRANT_SUBTITLE: Record<EisenhowerQuadrant, string> = {
   drop: 'Neither',
 }
 
-/** A default pane's "+" hint (the Yes flags of its {@link QUADRANT_FLAGS}). */
+/** A default pane's "+" hint (the flags its quadrant's filter, {@link QUADRANT_MARKERS}, wants). */
 export const QUADRANT_ADD_HINT: Record<EisenhowerQuadrant, string> = {
   do: 'Opens Quick Add marked urgent and important.',
   schedule: 'Opens Quick Add marked important.',
@@ -61,7 +48,12 @@ export const QUADRANT_ADD_HINT: Record<EisenhowerQuadrant, string> = {
   drop: 'Opens Quick Add.',
 }
 
-/** A quadrant's filter: is what it wants, is not what it doesn't (the two together when it wants neither). */
+/**
+ * The default quadrants — the source of truth for each one's Urgent ×
+ * Important: its filter is what it wants, is not what it doesn't (the two
+ * together when it wants neither). The subtitle, the "+" hint and the
+ * widget's empty lines say it in words.
+ */
 const QUADRANT_MARKERS: Record<EisenhowerQuadrant, MarkersFilter> = {
   do: [{ values: ['urgent'] }, { values: ['important'] }],
   schedule: [{ values: ['important'] }, { values: ['urgent'], not: true }],

@@ -7,6 +7,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { addDays, startOfToday } from '../../utils/date'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 const today = () => startOfToday()
 const daysAgo = (n: number) => addDays(startOfToday(), -n)
@@ -23,7 +24,7 @@ beforeEach(async () => {
 })
 
 async function task(title = 'Q4 budget'): Promise<number> {
-  return useTodoStore.getState().add(title)
+  return addTask(title)
 }
 
 describe('status-update-store: add', () => {

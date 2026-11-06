@@ -5,6 +5,9 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import { settingsRepository } from '../../data'
 import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
 import { useUndoStore } from '../../stores/undo-store'
+import { lensActions } from '../../stores/lens-actions'
+import { DEFAULT_TAB_BADGES } from '../../utils/tab-badges'
+import { DEFAULT_PRIORITY_CUES } from '../../utils/priority-cues'
 
 beforeEach(async () => {
   await db.delete()
@@ -301,18 +304,18 @@ describe('useSettingsStore', () => {
     useUndoStore.getState().clear()
     const s = () => useSettingsStore.getState()
 
-    const id = await s().addLens('  Fresh ')
+    const id = await lensActions.addLens('  Fresh ')
     expect(id).not.toBeNull()
     expect(s().lenses).toEqual([{ id, name: 'Fresh', predicate: emptyPredicate() }])
     expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('New lens “Fresh”')
-    expect(await s().addLens('   ')).toBeNull()
+    expect(await lensActions.addLens('   ')).toBeNull()
 
-    expect(await s().renameLens(id!, 'Recent')).toBe(true)
+    expect(await lensActions.renameLens(id!, 'Recent')).toBe(true)
     expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Renamed lens “Fresh” to “Recent”')
-    await s().setLensPredicate(id!, { ...emptyPredicate(), showCompleted: true, personIds: [0], negate: { personIds: true } })
+    await lensActions.setLensPredicate(id!, { ...emptyPredicate(), showCompleted: true, personIds: [0], negate: { personIds: true } })
     expect(s().lenses[0]!.predicate).toEqual({ ...emptyPredicate(), personIds: [0], negate: { personIds: true } })
     expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Changed lens “Recent”')
-    const copy = await s().duplicateLens(id!)
+    const copy = await lensActions.duplicateLens(id!)
     expect(s().lenses.map((l) => [l.id, l.name])).toEqual([[id, 'Recent'], [copy, 'Recent 2']])
     expect(useUndoStore.getState().undoStack).toHaveLength(4)
 
@@ -322,20 +325,20 @@ describe('useSettingsStore', () => {
 
     await useUndoStore.getState().undo()
     expect(s().lenses.map((l) => l.name)).toEqual(['Recent'])
-    await s().setLenses([], 'Deleted lens “Recent”')
+    await lensActions.setLenses([], 'Deleted lens “Recent”')
     expect(await db.settings.get('lenses')).toBeUndefined()
   })
 
   it('moveLens: one undo step, saved at once and read back on load; out of range or in place changes nothing; a failed save puts the order back', async () => {
     await useSettingsStore.getState().load()
     const s = () => useSettingsStore.getState()
-    const a = await s().addLens('A')
-    await s().addLens('B')
-    await s().addLens('C')
+    const a = await lensActions.addLens('A')
+    await lensActions.addLens('B')
+    await lensActions.addLens('C')
     useUndoStore.getState().clear()
     const names = () => s().lenses.map((l) => l.name)
 
-    expect(await s().moveLens(0, 2)).toBe(true)
+    expect(await lensActions.moveLens(0, 2)).toBe(true)
     expect(names()).toEqual(['B', 'C', 'A'])
     expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Moved lens “A”'])
     useSettingsStore.setState({ lenses: [] })
@@ -343,7 +346,7 @@ describe('useSettingsStore', () => {
     expect(names()).toEqual(['B', 'C', 'A'])
     expect(s().lenses[2]!.id).toBe(a)
 
-    expect(await s().moveLens(2, 0)).toBe(true)
+    expect(await lensActions.moveLens(2, 0)).toBe(true)
     expect(names()).toEqual(['A', 'B', 'C'])
     await useUndoStore.getState().undo()
     expect(names()).toEqual(['B', 'C', 'A'])
@@ -352,14 +355,14 @@ describe('useSettingsStore', () => {
     expect(names()).toEqual(['B', 'C', 'A'])
 
     useUndoStore.getState().clear()
-    expect(await s().moveLens(1, 1)).toBe(true)
-    for (const [from, to] of [[-1, 0], [3, 0], [0, 3], [0, -1], [0.5, 1]] as const) expect(await s().moveLens(from, to)).toBe(false)
+    expect(await lensActions.moveLens(1, 1)).toBe(true)
+    for (const [from, to] of [[-1, 0], [3, 0], [0, 3], [0, -1], [0.5, 1]] as const) expect(await lensActions.moveLens(from, to)).toBe(false)
     expect(names()).toEqual(['B', 'C', 'A'])
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
 
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('quota'))
-    expect(await s().moveLens(0, 1)).toBe(false)
+    expect(await lensActions.moveLens(0, 1)).toBe(false)
     expect(names()).toEqual(['B', 'C', 'A'])
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save the lenses.', notice: true })
@@ -370,18 +373,18 @@ describe('useSettingsStore', () => {
     await useSettingsStore.getState().load()
     useUndoStore.getState().clear()
     const s = () => useSettingsStore.getState()
-    await s().addLens('Fresh')
+    await lensActions.addLens('Fresh')
     useUndoStore.getState().clear()
 
-    await s().seedLensPresets(null)
+    await lensActions.seedLensPresets(null)
     expect(s().lenses.map((l) => l.name)).toEqual(['Fresh', 'This month', 'Has a person', 'Fresh 2'])
     expect(new Set(s().lenses.map((l) => l.id)).size).toBe(4)
     expect(s().lensPresetsSeeded).toBe(true)
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
     expect(await db.settings.get('lensPresetsSeeded')).toEqual({ key: 'lensPresetsSeeded', value: 'true' })
 
-    await s().setLenses([], 'Deleted every lens')
-    await s().seedLensPresets(3)
+    await lensActions.setLenses([], 'Deleted every lens')
+    await lensActions.seedLensPresets(3)
     expect(s().lenses).toEqual([])
     useSettingsStore.setState({ lensPresetsSeeded: false })
     await s().load()
@@ -394,7 +397,7 @@ describe('useSettingsStore', () => {
     expect(s().activeLensId).toBeNull()
     useUndoStore.getState().clear()
 
-    expect(await s().setActiveLens('lens-a')).toBe(true)
+    expect(await lensActions.setActiveLens('lens-a')).toBe(true)
     expect(s().activeLensId).toBe('lens-a')
     expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'lens-a' })
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
@@ -404,7 +407,7 @@ describe('useSettingsStore', () => {
     await s().load()
     expect(s().activeLensId).toBe('lens-a')
 
-    expect(await s().setActiveLens(null)).toBe(true)
+    expect(await lensActions.setActiveLens(null)).toBe(true)
     expect(s().activeLensId).toBeNull()
     expect(await db.settings.get('activeLensId')).toBeUndefined()
     await s().load()
@@ -420,7 +423,7 @@ describe('useSettingsStore', () => {
     await db.settings.put({ key: 'activeLensId', value: 'x'.repeat(101) })
     await s().load()
     expect(s().activeLensId).toBeNull()
-    expect(await s().setActiveLens('')).toBe(false)
+    expect(await lensActions.setActiveLens('')).toBe(false)
     expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'x'.repeat(101) })
   })
 
@@ -429,7 +432,7 @@ describe('useSettingsStore', () => {
     await s().load()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('quota'))
-    expect(await s().setActiveLens('lens-a')).toBe(false)
+    expect(await lensActions.setActiveLens('lens-a')).toBe(false)
     expect(s().activeLensId).toBeNull()
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save the lens pick.', notice: true })
   })
@@ -440,8 +443,8 @@ describe('useSettingsStore', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {})
     let failFirst: (e: Error) => void = () => {}
     vi.spyOn(settingsRepository, 'put').mockImplementationOnce(() => new Promise((_, reject) => { failFirst = reject }))
-    const first = s().setActiveLens('lens-a')
-    const second = s().setActiveLens('lens-b')
+    const first = lensActions.setActiveLens('lens-a')
+    const second = lensActions.setActiveLens('lens-b')
     expect(await second).toBe(true)
     failFirst(new Error('quota'))
     expect(await first).toBe(false)
@@ -510,6 +513,8 @@ describe('useSettingsStore', () => {
     useUndoStore.getState().clear()
     vi.spyOn(console, 'error').mockImplementation(() => {})
     const put = vi.spyOn(settingsRepository, 'put').mockRejectedValue(new Error('disk full'))
+    // The sort and its direction are written together in one transaction.
+    vi.spyOn(settingsRepository, 'writeMany').mockRejectedValue(new Error('disk full'))
 
     await useSettingsStore.getState().setNewListSort('name')
     expect(useSettingsStore.getState().newListSort).toBe('manual')
@@ -521,6 +526,62 @@ describe('useSettingsStore', () => {
     expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t save how often to ask about old completed tasks.')
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
     put.mockRestore()
+    vi.restoreAllMocks()
+  })
+
+  it('tab badges and priority cues: one undo step each with the snackbar; the same value again writes nothing (cr31 A5)', async () => {
+    await useSettingsStore.getState().load()
+    useUndoStore.getState().clear()
+    await useSettingsStore.getState().setTabBadges({ due: 7, followup: 'off' })
+    expect(useSettingsStore.getState().tabBadges).toEqual({ due: 7, followup: 'off' })
+    expect((await db.settings.get('tabBadgeDue'))?.value).toBe('7')
+    expect((await db.settings.get('tabBadgeFollowup'))?.value).toBe('off')
+    expect(useUndoStore.getState().snackbar?.description).toBe('Changed the tab badges')
+    await useSettingsStore.getState().setTabBadges({ due: 7, followup: 'off' })
+    expect(useUndoStore.getState().undoStack).toHaveLength(1)
+
+    const cues = { focus: { glow: true, semibold: true }, urgent: { glow: false, semibold: false }, important: { glow: false, semibold: false } }
+    await useSettingsStore.getState().setPriorityCues(cues)
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Changed the tab badges', 'Changed the priority cues'])
+
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().priorityCues).toEqual(DEFAULT_PRIORITY_CUES)
+    await useUndoStore.getState().undo()
+    expect(useSettingsStore.getState().tabBadges).toEqual(DEFAULT_TAB_BADGES)
+    expect((await db.settings.get('tabBadgeDue'))?.value).toBe('3')
+    expect((await db.settings.get('tabBadgeFollowup'))?.value).toBe('0')
+  })
+
+  it('a failed tab-badge save stores neither range, puts both back and says so (cr31 A5)', async () => {
+    await useSettingsStore.getState().load()
+    useUndoStore.getState().clear()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    // The first row's write goes through, the second fails: the transaction takes both back.
+    const realPut = db.settings.put.bind(db.settings)
+    let calls = 0
+    const put = vi.spyOn(db.settings, 'put').mockImplementation(((row: { key: string; value: string }) => {
+      calls++
+      return calls === 1 ? realPut(row) : Promise.reject(new Error('disk full'))
+    }) as never)
+    await useSettingsStore.getState().setTabBadges({ due: 7, followup: 'off' })
+    put.mockRestore()
+    expect(calls).toBe(2)
+    expect(await db.settings.get('tabBadgeDue')).toBeUndefined()
+    expect(await db.settings.get('tabBadgeFollowup')).toBeUndefined()
+    expect(useSettingsStore.getState().tabBadges).toEqual(DEFAULT_TAB_BADGES)
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save the tab badges.', notice: true })
+  })
+
+  it('a failed priority-cue save puts them back, adds no step and says so (cr31 A5)', async () => {
+    await useSettingsStore.getState().load()
+    useUndoStore.getState().clear()
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    vi.spyOn(settingsRepository, 'put').mockRejectedValue(new Error('disk full'))
+    await useSettingsStore.getState().setPriorityCues({ ...DEFAULT_PRIORITY_CUES, focus: { glow: true, semibold: false } })
+    expect(useSettingsStore.getState().priorityCues).toEqual(DEFAULT_PRIORITY_CUES)
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save the priority cues.', notice: true })
     vi.restoreAllMocks()
   })
 

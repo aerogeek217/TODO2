@@ -27,7 +27,7 @@ import { predicateToFilterDefaults } from '../../utils/filter-defaults'
 import { applyRuntimeFilter } from '../../services/build-list'
 import { currentFilterSettings } from '../../stores/settings-store'
 import type { TodoNameLookups } from '../../utils/filter'
-import { makeTodo } from '../helpers'
+import { makeTodo, testLookups } from '../helpers'
 
 const today = new Date(2026, 9, 14)
 
@@ -54,11 +54,11 @@ const todos: PersistedTodoItem[] = [
 const people = new Map([[1, [ann]], [2, [bob]], [3, [ann, bob]], [5, [ann]]])
 const tags = new Map([[1, [work]], [2, [home]], [3, [work, home]]])
 const statuses = [doing, waiting, done]
-const lookups: TodoNameLookups = { assignedPeopleMap: people, assignedTagsMap: tags, statusesById: new Map(statuses.map((s) => [s.id!, s])) }
+const lookups: TodoNameLookups = testLookups({ assignedPeopleMap: people, assignedTagsMap: tags, statuses })
 
 const clauses = (patch: Partial<FilterClauses>): FilterClauses => ({ ...emptyFilterClauses(), ...patch })
 const predicate = (patch: Partial<TodoPredicate>): TodoPredicate => ({ ...emptyPredicate(), ...patch })
-const ids = (f: FilterCriteria) => applyFilter(f, todos, people, statuses, today, tags, currentFilterSettings()).map((t) => t.id)
+const ids = (f: FilterCriteria) => applyFilter(f, todos, lookups, today, currentFilterSettings()).map((t) => t.id)
 const idsOf = (p: TodoPredicate) => ids(predicateToCriteria(p))
 
 /** One clause per field, as a chip makes it. */

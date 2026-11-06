@@ -22,12 +22,6 @@
   to { transform: none; opacity: 1; }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .slideIn {
-    animation: none;
-  }
-}
-
 .header {
   display: flex;
   align-items: center;

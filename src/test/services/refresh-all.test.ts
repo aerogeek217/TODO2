@@ -14,6 +14,8 @@ import { useFilterStore } from '../../stores/filter-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
+import { lensActions } from '../../stores/lens-actions'
 
 beforeEach(async () => {
   await db.delete()
@@ -26,7 +28,7 @@ beforeEach(async () => {
 describe('refreshAllStores', () => {
   it('invokes load on every store that has one + parity loadAssignments', async () => {
     // Need at least one todo so the post-todos assignment loaders fire.
-    await useTodoStore.getState().add('seed task')
+    await addTask('seed task')
 
     const spies = {
       // Pre-Promise.all
@@ -84,15 +86,15 @@ describe('refreshAllStores', () => {
   })
 
   it('re-reads people and tag assignments that the replaced tables changed under a cached todo id', async () => {
-    const todoId = await useTodoStore.getState().add('kept id')
+    const todoId = await addTask('kept id')
     const aliceId = await usePersonStore.getState().add('Alice', 'AL')
     const bobId = await usePersonStore.getState().add('Bob', 'BO')
     const homeId = await useTagStore.getState().add('home')
     const workId = await useTagStore.getState().add('work')
     await db.todoPeople.add({ todoId, personId: aliceId })
     await db.todoTags.add({ todoId, tagId: homeId })
-    await usePersonStore.getState().loadAssignments([todoId])
-    await useTagStore.getState().loadAssignments([todoId])
+    await usePersonStore.getState().loadAssignments([todoId], { refetch: true })
+    await useTagStore.getState().loadAssignments([todoId], { refetch: true })
     expect(usePersonStore.getState().assignedPeopleMap.get(todoId)?.map((p) => p.name)).toEqual(['Alice'])
 
     // A restore swaps the join rows but keeps the todo's id.
@@ -152,7 +154,7 @@ describe('refreshAllStores', () => {
   })
 
   it('a lifted lens: the replaced data picking another lens puts it on, not lifted; the same pick keeps the lift', async () => {
-    await useSettingsStore.getState().setActiveLens('lens-a')
+    await lensActions.setActiveLens('lens-a')
     useUIStore.getState().setLensLifted(true)
 
     // The same pick in the replaced data: still the lens the user lifted.

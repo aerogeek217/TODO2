@@ -10,6 +10,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { resetDb } from '../helpers'
+import { lensActions } from '../../stores/lens-actions'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 const layout = (name: string): Omit<WorkspaceLayout, 'id' | 'sortOrder'> => ({ name, columns: [], createdAt: T0, modifiedAt: T0 })
@@ -28,12 +29,12 @@ beforeEach(async () => {
   ids = [await layoutRepository.insert(layout('Default')), await layoutRepository.insert(layout('Planning'))]
   await layoutRepository.setActiveId(ids[0]!)
   await useWorkspaceStore.getState().init()
-  await settings().setLenses([
+  await lensActions.setLenses([
     { id: 'lens-a', name: 'This month', predicate: emptyPredicate() },
     { id: 'lens-b', name: 'Fresh', predicate: emptyPredicate() },
     { id: 'lens-c', name: 'Unused', predicate: emptyPredicate() },
   ], 'Seed')
-  await settings().setActiveLens('lens-a')
+  await lensActions.setActiveLens('lens-a')
   useUndoStore.getState().clear()
 })
 
@@ -94,7 +95,7 @@ describe('the keyboard actions', () => {
 
   it('Cycle lens follows a reorder in Settings', async () => {
     // lens-a (picked) moved last: the next one is lens-b, then lens-c, then lens-a.
-    expect(await settings().moveLens(0, 2)).toBe(true)
+    expect(await lensActions.moveLens(0, 2)).toBe(true)
     cycleLens()
     await vi.waitFor(() => expect(settings().activeLensId).toBeNull())
     cycleLens()
@@ -116,7 +117,7 @@ describe('the keyboard actions', () => {
     expect(useUIStore.getState().lensLifted).toBe(true)
     toggleLensLift()
     expect(useUIStore.getState().lensLifted).toBe(false)
-    await settings().setActiveLens(null)
+    await lensActions.setActiveLens(null)
     toggleLensLift()
     expect(useUIStore.getState().lensLifted).toBe(false)
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'No lens to lift.' })

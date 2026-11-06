@@ -3,10 +3,10 @@ import { db } from '../../data/database'
 import { addSubtasksFromNote, noteSubtaskDrafts } from '../../services/note-subtasks'
 import { convertCandidates, singleLineCandidateAt } from '../../services/note-lines'
 import { useSubtaskStore } from '../../stores/subtask-store'
-import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await resetDb()
@@ -44,7 +44,7 @@ describe('noteSubtaskDrafts', () => {
 
 describe('addSubtasksFromNote', () => {
   it('adds last on the checklist, then writes the note, as one undo step', async () => {
-    const id = await useTodoStore.getState().add('Offsite')
+    const id = await addTask('Offsite')
     await useSubtaskStore.getState().add(id, 'Existing')
     useUndoStore.getState().clear()
     const seen: string[][] = []
@@ -60,14 +60,14 @@ describe('addSubtasksFromNote', () => {
   })
 
   it('names a single subtask', async () => {
-    const id = await useTodoStore.getState().add('Offsite')
+    const id = await addTask('Offsite')
     useUndoStore.getState().clear()
     await addSubtasksFromNote(id, [{ title: 'One', done: false }], async () => {})
     expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Added subtask “One”'])
   })
 
   it('a draft with no title is skipped, not a failure: the rest go in and the note is written', async () => {
-    const id = await useTodoStore.getState().add('Offsite')
+    const id = await addTask('Offsite')
     useUndoStore.getState().clear()
     const writeNote = vi.fn(async () => {})
     const ok = await addSubtasksFromNote(id, [{ title: 'One', done: false }, { title: '  ', done: true }, { title: 'Two', done: false }], writeNote)
@@ -78,7 +78,7 @@ describe('addSubtasksFromNote', () => {
   })
 
   it('drafts with no title at all add nothing and leave the note alone', async () => {
-    const id = await useTodoStore.getState().add('Offsite')
+    const id = await addTask('Offsite')
     useUndoStore.getState().clear()
     const writeNote = vi.fn(async () => {})
     expect(await addSubtasksFromNote(id, [{ title: '', done: true }], writeNote)).toBe(false)
@@ -87,7 +87,7 @@ describe('addSubtasksFromNote', () => {
   })
 
   it('a failed write takes back what went in, leaves the note alone and leaves no step', async () => {
-    const id = await useTodoStore.getState().add('Offsite')
+    const id = await addTask('Offsite')
     useUndoStore.getState().clear()
     const realAdd = useSubtaskStore.getState().add
     let calls = 0

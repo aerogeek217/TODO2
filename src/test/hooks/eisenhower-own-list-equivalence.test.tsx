@@ -17,7 +17,7 @@ import type { FilterCriteria } from '../../utils/filter-criteria'
 import { applyFilter } from '../../utils/filter-match'
 import { resolvePanes } from '../../utils/eisenhower-panes'
 import { startOfDay } from '../../utils/date'
-import { emptyFilterCriteria, makeTodo, statsPaneContext } from '../helpers'
+import { emptyFilterCriteria, makeTodo, statsPaneContext, lookupsFor } from '../helpers'
 
 /**
  * Data without the Eisenhower's own list gets a new list with no filter as
@@ -98,9 +98,9 @@ describe('the Eisenhower’s new list (no filter) shows what All tasks showed', 
   it.each(SCREENS)('on the dashboard, under %s: the same counts per pane, shown and in total', (_what, screen) => {
     const criteria: FilterCriteria = { ...emptyFilterCriteria, ...screen }
     const settings = { urgentRange: 3 as const, weekStartsOn: 1 as const }
-    const lookups = { assignedPeopleMap, assignedTagsMap: new Map(), statusesById: new Map([[2, waiting]]) }
+    const lookups = lookupsFor({ assignedPeopleMap, statusesById: new Map([[2, waiting]]) })
     // The dashboard's screen-filtered tasks (completed included).
-    const shownAll = applyFilter(statsFilter(criteria), todos, assignedPeopleMap, [waiting], today, new Map(), settings)
+    const shownAll = applyFilter(statsFilter(criteria), todos, lookups, today, settings)
     const opts = { screen: statsFilter(criteria), lookups, today, settings }
     const all = eisenhowerSourceTasks(todos, shownAll, undefined, opts)
     const own = eisenhowerSourceTasks(todos, shownAll, madeList, opts)

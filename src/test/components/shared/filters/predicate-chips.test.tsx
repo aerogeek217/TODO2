@@ -56,7 +56,7 @@ describe('PredicateChips — date chips', () => {
 
   it('clicking a chip opens the date panel on that chip’s type, and shows the chip open', () => {
     render(<Harness initial={twoDates} log={[]} />)
-    const created = screen.getAllByTestId('list-filter-chip')[1]!
+    const created = within(screen.getAllByTestId('list-filter-chip')[1]!).getByRole('button', { name: /Created/ })
     fireEvent.click(created)
     const dialog = screen.getByRole('dialog', { name: 'Date filters' })
     expect(within(dialog).getByRole('tab', { name: 'Created, filtering' })).toHaveAttribute('aria-selected', 'true')

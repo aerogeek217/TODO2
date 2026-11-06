@@ -32,9 +32,6 @@ export interface TileStats {
   noFollowup: { ids: number[] }
 }
 
-/** A built-in tile's id. */
-export type TileId = keyof TileStats
-
 /** Every tile's stats over `tasks` (completed tasks are skipped). */
 export function computeTiles(tasks: readonly PersistedTodoItem[], ctx: StatsContext): TileStats {
   const { today, urgentRange } = ctx

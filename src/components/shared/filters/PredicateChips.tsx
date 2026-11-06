@@ -1,8 +1,6 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { createPortal } from 'react-dom'
 import { emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../../../models'
 import type { DateField } from '../../../models/app-view'
-import { anchorAtPoint, usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { createScopedPendingNot, DatePendingNotContext } from './date-pending-not'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
 import {
@@ -10,29 +8,27 @@ import {
   type FilterChip, type LineItem,
 } from '../../../utils/filter-chips'
 import { freeDateField, offeredDateFields } from '../../../utils/date-filters'
+import {
+  rowOrderOf, sortedRows, withGroupsDissolved, withoutChipRow, withoutGroupRow, withoutPriorityRow, withRowRenamed, withRowsAdded,
+  type ChipRef, type RowOrder,
+} from '../../../utils/filter-row-order'
 import { dissolveSingleOrGroups, hasFilterClause, withOrGroupClauses, withoutOrGroup } from '../../../utils/or-groups'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
-import { ChevronDownIcon, ChevronRightIcon, CloseIcon, PlusIcon } from '../icons'
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from '../icons'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
 import { PredicateFieldPicker, PredicateFieldPickerBody } from './PredicateFieldPicker'
 import type { DateFilterHost } from './DateFilterPanel'
-import { pickerLabel } from './picker-label'
-import { DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { pointBelow } from './popover-point'
-import { useTooltip } from '../use-tooltip'
+import { ListFilterChip } from './ListFilterChip'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { predicatesEqual } from '../../../utils/list-def-equal'
 import { useAnyFilterPickerOpen, useFilterPickerOpen } from './open-pickers'
-import menuStyles from '../MenuPopover.module.css'
-import picker from './FilterPicker.module.css'
 import styles from './ListFilterChips.module.css'
-import { PopoverRoot } from '../PopoverRoot'
+import { FieldPopover, GroupPanel, GroupPopover } from './PredicateChipsPopovers'
 
 /** Which clauses an edit goes to: the predicate's own (`null`) or or group `n`'s. */
 type Scope = number | null
 
-/** A chip by what it filters: its field, a date chip's date type, a Priority chip's condition. */
-type ChipRef = Pick<FilterChip, 'field' | 'dateField' | 'markerIndex'>
 
 /**
  * One of the predicate's own chips shown moved into a new or group (at
@@ -57,29 +53,6 @@ interface Wrap {
 type Open =
   | { kind: 'field'; scope: Scope; field: ListFilterField; dateField?: DateField; markerIndex?: number; adding: boolean; wrap?: Wrap; held?: FilterClauses; at: PopoverPoint }
   | { kind: 'group'; index: number; orAnother: boolean; wrap?: Wrap; at: PopoverPoint }
-
-/** A row's key in the rows' order: a chip's `chipKey`, a group's `group:<index>`. */
-const groupKey = (index: number) => `group:${index}`
-const itemKey = (item: LineItem) => (item.kind === 'chip' ? chipKey(item.chip) : groupKey(item.index))
-const refKey = (chip: ChipRef) => chipKey(chip)
-/** The order without Priority chip `index`'s key, the later Priority chips' keys moved down. */
-function withoutMarkerKey(order: readonly string[], index: number): string[] {
-  return order.flatMap((k) => {
-    if (!k.startsWith('markers:')) return [k]
-    const n = Number(k.slice('markers:'.length))
-    if (n === index) return []
-    return [n > index ? `markers:${n - 1}` : k]
-  })
-}
-/** The order without or group `index`'s key, the later groups' keys moved down. */
-function withoutGroupKey(order: readonly string[], index: number): string[] {
-  return order.flatMap((k) => {
-    if (!k.startsWith('group:')) return [k]
-    const n = Number(k.slice('group:'.length))
-    if (n === index) return []
-    return [n > index ? groupKey(n - 1) : k]
-  })
-}
 
 /**
  * A + Filter pick: that field's picker as a popover, adding to the
@@ -118,8 +91,6 @@ interface PredicateChipsProps {
    */
   layout?: 'line' | 'stack'
 }
-
-const FIELD_ITEMS = new Map(ADD_FILTER_ITEMS.map((item) => [item.field, item]))
 
 /**
  * A list's own filter as chips — field name muted, then the value; one chip
@@ -164,25 +135,24 @@ export function PredicateChips({
   const items = useMemo(() => predicateLineItems(shown, names), [shown, names])
   const groups = shown.orGroups ?? []
   const hasGroups = items.some((item) => item.kind === 'orGroup')
-  // The rows in the order they were added (the stored order at mount): a
-  // row keeps its place, a new one goes last (its key joins the order once
-  // it shows). A chip shown wrapped in a new group (not written yet) keeps
-  // its place as the group's (`alias`); once written, the group takes it. A
-  // removed chip's key goes, so the chip added again goes last; a removed
-  // group's key goes and the later groups' keys move down.
-  const [order, setOrder] = useState<string[]>(() => items.map(itemKey))
-  // (The keys spelled here, not through `refKey`: the compiler reads a call
-  // on `wrap` as a possible mutation and stops memoizing `shown`.)
-  const wrapFrom = wrap ? (wrap.chip.markerIndex !== undefined ? `${wrap.chip.field}:${wrap.chip.markerIndex}` : wrap.chip.dateField ? `${wrap.chip.field}:${wrap.chip.dateField}` : wrap.chip.field) : null
-  const wrapTo = wrap ? `group:${wrap.index}` : null
-  const rows = useMemo((): LineItem[] => {
-    const position = (k: string) => {
-      const i = order.indexOf(k === wrapTo && wrapFrom != null ? wrapFrom : k)
-      // A row not in the order (the predicate replaced from outside): after the others, in the stored order.
-      return i < 0 ? order.length : i
-    }
-    return [...items].sort((a, b) => position(itemKey(a)) - position(itemKey(b)))
-  }, [items, order, wrapFrom, wrapTo])
+  // The rows in the order they were added (`utils/filter-row-order`; the
+  // stored order at mount). A chip shown wrapped in a new group (not written
+  // yet) keeps its place as the group's (the alias); once written, the group
+  // takes it.
+  const [order, setOrder] = useState<RowOrder>(() => rowOrderOf(items))
+  // The wrap's rows from its parts (a call on `wrap` itself would read to the
+  // compiler as a possible mutation and stop it memoizing `shown`).
+  const wrapField = wrap?.chip.field
+  const wrapDate = wrap?.chip.dateField
+  const wrapMarker = wrap?.chip.markerIndex
+  const wrapIndex = wrap?.index
+  const wrapRows = useMemo(
+    () => (wrapField != null && wrapIndex != null
+      ? { row: { kind: 'group', index: wrapIndex } as const, as: { kind: 'chip', chip: { field: wrapField, dateField: wrapDate, markerIndex: wrapMarker } } as const }
+      : undefined),
+    [wrapField, wrapDate, wrapMarker, wrapIndex],
+  )
+  const rows = useMemo(() => sortedRows(items, order, wrapRows), [items, order, wrapRows])
   // A chip that goes (× / Delete, or drawn anew when its group dissolves)
   // takes the focus with it: the chip now at its place gets it, else the
   // last chip, else + Filter — never <body>, where Esc would close Edit list.
@@ -205,7 +175,9 @@ export function PredicateChips({
     refocus.current = null
     if (active && active !== document.body && active.isConnected) return
     const chips = Array.from(document.querySelectorAll<HTMLElement>(`[data-chips-owner="${owner}"][data-testid="list-filter-chip"]`))
-    ;(chips[Math.min(pending.index, chips.length - 1)] ?? addFilterRef.current)?.focus()
+    const next = chips[Math.min(pending.index, chips.length - 1)]
+    // The chip's own button (`ListFilterChip`), else + Filter.
+    ;(next?.querySelector<HTMLElement>('[data-chip-edit]') ?? addFilterRef.current)?.focus()
   })
 
   // The filter as it was before this row's last edit (null: no edit here
@@ -213,20 +185,18 @@ export function PredicateChips({
   const editedFrom = useRef<TodoPredicate | null>(null)
   /** Every write: the rows `next` adds join the order last. */
   const write = (next: TodoPredicate) => {
-    const added = predicateLineItems(next, names).map(itemKey)
-    setOrder((o) => [...o, ...added.filter((k) => !o.includes(k))])
+    const added = predicateLineItems(next, names)
+    setOrder((o) => withRowsAdded(o, added))
     if (!predicatesEqual(next, predicate)) editedFrom.current = predicate
     onChange(next)
   }
   /** Or group `index` is going: its key goes from the order, the later groups' keys move down. */
   const dropGroupKey = (index: number) => {
     pendingNot.clearGroups()
-    setOrder((o) => withoutGroupKey(o, index))
+    setOrder((o) => withoutGroupRow(o, index))
   }
-  /** A chip of the predicate's own is going: its key goes, so the chip added again goes last. */
-  const dropChipKey = (chip: ChipRef) => setOrder((o) => (chip.markerIndex !== undefined ? withoutMarkerKey(o, chip.markerIndex) : o.filter((k) => k !== refKey(chip))))
-  /** The wrap is written: its group takes the chip's place. */
-  const wrapWritten = (from: string, to: string) => setOrder((o) => o.map((k) => (k === from ? to : k)))
+  /** A chip of the predicate's own is going: its row goes, so the chip added again goes last. */
+  const dropChipKey = (chip: ChipRef) => setOrder((o) => withoutChipRow(o, chip))
 
   const offered = (field: ListFilterField) => !omitFields?.includes(field)
   /** The date types this host's date panel offers, in its tabs' order. */
@@ -255,14 +225,15 @@ export function PredicateChips({
    * what is open on a later group follows that group down.
    */
   const commit = (next: TodoPredicate, edited?: { index: number; clauses?: FilterClauses }) => {
-    if (open?.wrap && wrapFrom != null && wrapTo != null) wrapWritten(wrapFrom, wrapTo)
+    // The wrap is written: its group takes the chip's place.
+    if (open?.wrap && wrapRows) setOrder((o) => withRowRenamed(o, wrapRows.as, wrapRows.row))
     // A Priority chip of the predicate's own emptied in its picker with later
     // ones behind it: it goes and they move up (the picker closes), so its key
     // goes too, or each later chip would take the place of the one before it.
     const markerIndex = open?.kind === 'field' && open.scope == null && open.field === 'markers' ? open.markerIndex : undefined
     const markersLeft = next.markers?.length ?? 0
     if (markerIndex !== undefined && markersLeft < (shown.markers?.length ?? 0) && markerIndex < markersLeft) {
-      setOrder((o) => withoutMarkerKey(o, markerIndex))
+      setOrder((o) => withoutPriorityRow(o, markerIndex))
     }
     write(next)
     const index = open == null ? null : open.kind === 'group' ? open.index : open.scope
@@ -305,21 +276,17 @@ export function PredicateChips({
     const chipOf = (index: number) => {
       const group = predicate.orGroups?.[index]
       const [chip] = group ? filterChips(group, namesRef.current) : []
-      return chip ? chipKey(chip) : null
+      return chip ?? null
     }
     pendingNot.clearGroups()
     // The dissolved group's chip is drawn anew in its place: the focus follows it.
     keepFocusOnChip()
-    setOrder((o) => [...dissolved].reverse().reduce((keys, index) => {
-      // A Priority chip joins the predicate's own, after those it holds.
-      const chip = chipOf(index)
-      const key = chip === 'markers:0' ? `markers:${predicate.markers?.length ?? 0}` : chip
-      return withoutGroupKey(key ? keys.map((k) => (k === groupKey(index) ? key : k)) : keys, index)
-    }, o))
+    // A Priority chip joins the predicate's own, after those it holds.
+    setOrder((o) => withGroupsDissolved(o, dissolved, chipOf, predicate.markers?.length ?? 0))
     onChangeRef.current(next)
   }, [settled, predicate, namesRef, onChangeRef, pendingNot, keepFocusOnChip])
 
-  const rowKey = (scope: Scope, chip: ChipRef) => `${scope ?? 'root'}:${refKey(chip)}`
+  const rowKey = (scope: Scope, chip: ChipRef) => `${scope ?? 'root'}:${chipKey(chip)}`
   // What a close already handled: Esc can reach `close` twice (the popover's
   // own handler and the field's), which would drop a second group's key.
   const closedRef = useRef<Open | null>(null)
@@ -495,7 +462,7 @@ export function PredicateChips({
   }
 
   const chipRow = (chip: FilterChip, scope: Scope) => (
-    <ListChip
+    <ListFilterChip
       key={chipKey(chip)}
       chip={chip}
       open={isChipOpen(chip, scope)}
@@ -679,183 +646,8 @@ export function PredicateChips({
   )
 }
 
-/**
- * An or group's panel: the fields it can still take (each opens its
- * picker, adding to the group) and Remove group — or, for a chip's "Another
- * filter (OR)", the fields alone.
- */
-function GroupPanel({ fields, count, orAnother, onAdd, onRemoveGroup }: {
-  fields: ReadonlyArray<(typeof ADD_FILTER_ITEMS)[number]>
-  count: number
-  orAnother: boolean
-  onAdd: (field: ListFilterField) => void
-  onRemoveGroup: () => void
-}) {
-  const firstRef = useRef<HTMLButtonElement>(null)
-  useEffect(() => { firstRef.current?.focus() }, [])
-  return (
-    <div className={styles.groupPanel}>
-      {fields.length > 0 && <div className={menuStyles.groupLabel}>Another filter (OR)</div>}
-      {fields.map((item, i) => (
-        <button
-          key={item.field}
-          ref={i === 0 ? firstRef : undefined}
-          type="button"
-          className={menuStyles.item}
-          onClick={() => onAdd(item.field)}
-        >
-          <span className={menuStyles.icon}>{FIELD_ITEMS.get(item.field)?.icon}</span>
-          <span className={menuStyles.label}>{item.label}</span>
-          {item.submenu && <span className={menuStyles.chevron}><ChevronRightIcon /></span>}
-        </button>
-      ))}
-      {!orAnother && (
-        <>
-          {fields.length > 0 && <div className={menuStyles.separator} role="separator" />}
-          <button
-            ref={fields.length === 0 ? firstRef : undefined}
-            type="button"
-            className={`${menuStyles.item} ${menuStyles.danger}`}
-            onClick={onRemoveGroup}
-          >
-            <span className={menuStyles.label}>Remove group</span>
-            <span className={menuStyles.note}>with its {count} {count === 1 ? 'filter' : 'filters'}</span>
-          </button>
-        </>
-      )}
-    </div>
-  )
-}
-
 /** How many chips or group `index` shows on the line. */
 function groupChipCount(items: readonly LineItem[], index: number): number {
   for (const item of items) if (item.kind === 'orGroup' && item.index === index) return item.chips.length
   return 0
-}
-
-/** A popover at `at` for the list's filter line: a field's picker, or a group's panel. */
-function FilterPopover({ at, consumeEscape, onClose, className, label, testId, children }: {
-  at: PopoverPoint
-  consumeEscape: boolean
-  onClose: () => void
-  className: string | undefined
-  label: string
-  testId: string
-  children: ReactNode
-}) {
-  const { panelRef, style, caret } = usePopoverAnchor({
-    anchor: anchorAtPoint(at),
-    open: true,
-    placement: at.align === 'start' ? 'bottom-start' : 'bottom-end',
-    closeOnScroll: false,
-    consumeEscape,
-    onClose,
-    caret: true,
-  })
-  return createPortal(
-    <PopoverRoot
-      ref={panelRef}
-      caret={caret}
-      className={className}
-      style={{ position: style.position, left: style.left, top: style.top, maxHeight: style.maxHeight }}
-      role="dialog"
-      aria-label={label}
-      data-testid={testId}
-    >
-      {children}
-    </PopoverRoot>,
-    document.body,
-  )
-}
-
-/** A field's picker as a popover, with whatever ends it (the picker's own shell). */
-function FieldPopover({ field, ...rest }: { field: ListFilterField; at: PopoverPoint; consumeEscape: boolean; onClose: () => void; children: ReactNode }) {
-  return (
-    <FilterPopover
-      {...rest}
-      className={field === 'dates' ? DATE_FILTER_POPOVER_CLASS : `${picker.dropdownPanel} ${styles.pickerPanel}`}
-      label={pickerLabel(field)}
-      testId="list-filter-picker"
-    />
-  )
-}
-
-/** An or group's panel as a popover. */
-function GroupPopover(props: { at: PopoverPoint; consumeEscape: boolean; onClose: () => void; children: ReactNode }) {
-  return <FilterPopover {...props} className={`${picker.dropdownPanel} ${styles.groupPopover}`} label="Group" testId="or-group-panel" />
-}
-
-/**
- * One list filter chip: click (or Enter / Space) opens its picker under it
- * (a second click closes it), Delete / Backspace or its × removes it. In
- * the editors it is a disclosure: a chevron at its end. A chip with several
- * values or an "is not" spells itself out in a tooltip.
- */
-function ListChip({ chip, open, disclosure, rowKey, owner, onPress, onEdit, onRemove }: {
-  chip: FilterChip
-  open: boolean
-  disclosure: boolean
-  rowKey: string
-  /** The chip row it belongs to (`data-chips-owner`): where the focus goes when a chip does. */
-  owner: string
-  onPress: () => void
-  onEdit: (el: Element) => void
-  /** `el`: the chip. */
-  onRemove: (el: HTMLElement) => void
-}) {
-  const { triggerProps, tooltip } = useTooltip(open ? null : chip.tooltip, { labelLines: 1 })
-  return (
-    <>
-      <span
-        role="button"
-        tabIndex={0}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        className={`${styles.listChip} ${open ? styles.listChipOpen : ''}`}
-        data-testid="list-filter-chip"
-        data-filter-row={rowKey}
-        data-chips-owner={owner}
-        data-date-field={chip.dateField}
-        data-negated={chip.negated ? '' : undefined}
-        {...triggerProps}
-        onMouseDown={(e) => { if (!(e.target instanceof Element && e.target.closest('button'))) onPress() }}
-        onClick={(e) => {
-          e.stopPropagation()
-          onEdit(e.currentTarget)
-        }}
-        onKeyDown={(e) => {
-          if (e.target !== e.currentTarget) return
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onEdit(e.currentTarget)
-          } else if (e.key === 'Delete' || e.key === 'Backspace') {
-            e.preventDefault()
-            onRemove(e.currentTarget)
-          }
-        }}
-      >
-        <span className={styles.chipLabel}>{chip.label}</span>
-        {chip.value}
-        <button
-          type="button"
-          className={styles.chipRemove}
-          aria-label="Remove filter"
-          title="Remove filter"
-          onClick={(e) => {
-            e.stopPropagation()
-            const el = e.currentTarget.closest<HTMLElement>('[data-testid="list-filter-chip"]')
-            if (el) onRemove(el)
-          }}
-        >
-          <CloseIcon size={9} />
-        </button>
-        {disclosure && (
-          <span className={`${styles.chipChevron} ${open ? styles.chipChevronOpen : ''}`} aria-hidden="true">
-            <ChevronDownIcon />
-          </span>
-        )}
-      </span>
-      {tooltip}
-    </>
-  )
 }

@@ -6,6 +6,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { defaultPaneFilter, paneWrites, withPaneSeed } from '../../utils/eisenhower-panes'
 import { dragTasks } from '../../components/workspace/eisenhower/eisenhower-drag'
 import { makeTodo } from '../helpers'
+import { addTask } from '../add-task'
 
 beforeEach(async () => {
   await db.delete()
@@ -19,8 +20,8 @@ const mem = (id: number) => useTodoStore.getState().todos.find((t) => t.id === i
 
 describe('setMarkerFlags', () => {
   it('writes per-task flag changes as one undo step with the snackbar', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
     await useTodoStore.getState().bulkSetImportant([a], true)
 
     await useTodoStore.getState().setMarkerFlags(

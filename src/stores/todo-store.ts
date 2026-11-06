@@ -1,13 +1,12 @@
 import { create } from 'zustand'
-import type { NewTodoItem, PersistedListOrder, PersistedStatusUpdate, PersistedSubtask, PersistedTodoItem, TodoChanges, TodoEvent } from '../models'
+import type { NewTodoItem, PersistedTodoItem, TodoChanges, TodoEvent } from '../models'
 import { todoRepository } from '../data'
 import { undoable } from './undoable'
 import { useUndoStore } from './undo-store'
 import { advanceRecurring } from '../utils/recurrence'
-import { loadFresh, mutate, optimistic, captureAssignments, captureAssignmentsBulk, bulkUpdateField, makeEnsureLoaded, trackWrite, type CapturedAssignments } from './store-helpers'
-import { autoNextFollowup, newTaskDefaultFollowup, useSettingsStore } from './settings-store'
-import { useListOrderStore } from './list-order-store'
-import { listOrderRepository } from '../data/list-order-repository'
+import { loadFresh, mutate, optimistic, captureAssignments, bulkUpdateField, makeEnsureLoaded, trackWrite, type CapturedAssignments } from './store-helpers'
+import { autoNextFollowup } from './settings-store'
+import { captureDependents, forgetDependents, restoreDependents, type TaskDependents } from './task-dependents'
 import { useStatusUpdateStore } from './status-update-store'
 import { statusUpdateRepository } from '../data/status-update-repository'
 import { useSubtaskStore } from './subtask-store'
@@ -15,6 +14,7 @@ import { subtaskRepository } from '../data/subtask-repository'
 import { onTasksTouched, registerCompleteTask, registerTaskOpen } from './task-hooks'
 import { compareSubtasks } from '../utils/subtasks'
 import { takeSafetySnapshot } from './safety-snapshot'
+import { guardTasks } from './task-undo-guard'
 import { usePersonStore } from './person-store'
 import { useTagStore } from './tag-store'
 import { resolveCompletedAt } from '../utils/completed-at'
@@ -85,6 +85,15 @@ export const BULK_DELETE_SNAPSHOT_MIN = 5
 const NO_ASSIGNMENTS: CapturedAssignments = { personIds: [], tagIds: [] }
 
 /**
+ * Tasks taken out (`takeTasks`) with everything that puts them back as they
+ * were: each row with its people, tags and events, and their dependent rows.
+ */
+interface TakenTasks {
+  rows: { todo: PersistedTodoItem; personIds: readonly number[]; tagIds: readonly number[]; events: readonly TodoEvent[] }[]
+  dependents: TaskDependents
+}
+
+/**
  * Runs `fn` as one undo step named `description` — a group, unless one is
  * already open (a check-in reply, an Eisenhower drop: its group takes the
  * writes; a second group would wait on it and never start) or an undo /
@@ -124,7 +133,6 @@ interface TodoState {
 
   loadAll: () => Promise<void>
   ensureAllLoaded: () => Promise<void>
-  add: (title: string) => Promise<number>
   /**
    * Creates several tasks, with their people and tags, in one transaction
    * and as one undo step (`description`; `snackbar` shows the undo
@@ -193,10 +201,6 @@ interface TodoState {
    */
   purgeCompleted: (ids: number[]) => Promise<PurgeOutcome>
   duplicate: (id: number) => Promise<number | undefined>
-  /** Internal: restore a deleted todo with its people, tags and events (for undo). */
-  _restore: (todo: PersistedTodoItem, assignments: CapturedAssignments, events?: readonly TodoEvent[]) => Promise<void>
-  /** Internal: remove without undo registration (for undo of add); returns the deleted events. */
-  _removeNoUndo: (id: number) => Promise<TodoEvent[]>
 }
 
 export const useTodoStore = create<TodoState>((set, get) => {
@@ -235,8 +239,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
       'Failed to update task',
       {
         description,
-        redo: () => patchTodo(id, effective, description),
-        undo: () => patchTodo(id, before, description),
+        redo: guardTasks([id], () => patchTodo(id, effective, description)),
+        undo: guardTasks([id], () => patchTodo(id, before, description)),
       },
     )
   }
@@ -258,39 +262,70 @@ export const useTodoStore = create<TodoState>((set, get) => {
     })
   }
 
+  /** Deletes `ids` and their dependent rows, in the database and the stores; resolves the deleted events. */
+  async function dropTasks(ids: readonly number[]): Promise<TodoEvent[]> {
+    const events = await todoRepository.bulkDelete(ids)
+    forgetDependents(ids)
+    const idSet = new Set(ids)
+    set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
+    return events
+  }
+
   /**
-   * The undo step of a task just created (`row`, with `assignments`): undo
-   * deletes it, redo puts it back as it was when undone — its row, people,
-   * tags, list ranks, status updates, subtasks and events read at that moment (as a
-   * delete's undo does), so a change made after the create without an undo
-   * step of its own (a manual-order move, a sync-file load) survives the
-   * round trip.
+   * Deletes `ids` (those that exist) and resolves what puts them back as
+   * they are now: each row (the store's copy, the database's for a task not
+   * loaded) with its people, tags and events, and their dependent rows
+   * (`task-dependents`). Every delete, a delete's redo and a create's undo
+   * run through here, so each captures afresh: a change made meanwhile
+   * without an undo step of its own (a manual-order move, a sync-file load)
+   * survives the round trip.
    */
-  function registerCreated(description: string, row: PersistedTodoItem, assignments: CapturedAssignments): void {
-    const id = row.id
-    let snapshot = row
-    let captured = assignments
-    let ranks: PersistedListOrder[] = []
-    let updates: PersistedStatusUpdate[] = []
-    let subtasks: PersistedSubtask[] = []
-    let events: TodoEvent[] = []
+  async function takeTasks(ids: readonly number[]): Promise<TakenTasks> {
+    const loaded = new Map(get().todos.map((t) => [t.id, t]))
+    const missing = ids.filter((id) => !loaded.has(id))
+    const stored = new Map((missing.length > 0 ? await todoRepository.getByIds(missing) : []).map((t) => [t.id, t]))
+    const todos = [...new Set(ids)].flatMap((id) => {
+      const todo = loaded.get(id) ?? stored.get(id)
+      return todo ? [{ ...todo }] : []
+    })
+    const present = todos.map((t) => t.id)
+    const dependents = await captureDependents(present)
+    const events = await dropTasks(present)
+    return {
+      rows: todos.map((todo) => ({
+        todo,
+        ...(dependents.assignments.get(todo.id) ?? NO_ASSIGNMENTS),
+        events: events.filter((e) => e.todoId === todo.id),
+      })),
+      dependents,
+    }
+  }
+
+  /** Puts tasks taken by `takeTasks` back: rows, people, tags and events in one transaction, then their dependent rows. */
+  async function putBackTasks(taken: TakenTasks): Promise<void> {
+    if (taken.rows.length === 0) return
+    await todoRepository.restoreManyWithAssignments(taken.rows)
+    const ids = new Set(taken.rows.map((r) => r.todo.id))
+    set({
+      todos: [...get().todos.filter((t) => !ids.has(t.id)), ...taken.rows.map((r) => r.todo)],
+      todosVersion: get().todosVersion + 1,
+    })
+    // Refresh assignment caches (they keep the entries the delete left).
+    await reloadAssignments(get().todos.map((t) => t.id))
+    await restoreDependents(taken.dependents)
+  }
+
+  /**
+   * The undo step of tasks just created (`ids`): undo takes them out
+   * (`takeTasks`), redo puts them back as they were when undone.
+   */
+  function registerCreated(description: string, ids: readonly number[], snackbar = false): void {
+    let taken: TakenTasks | null = null
     undoable(
       description,
-      async () => {
-        await get()._restore(snapshot, captured, events)
-        await useListOrderStore.getState().restoreRows(ranks)
-        await useStatusUpdateStore.getState().restoreRows(updates)
-        await useSubtaskStore.getState().restoreRows(subtasks)
-      },
-      async () => {
-        const current = get().todos.find((t) => t.id === id)
-        if (current) snapshot = { ...current }
-        captured = await captureAssignments(id)
-        ranks = await listOrderRepository.getByTodos([id])
-        updates = await statusUpdateRepository.getByTodos([id])
-        subtasks = await subtaskRepository.getByTodos([id])
-        events = await get()._removeNoUndo(id)
-      },
+      () => trackWrite(async () => { if (taken) await putBackTasks(taken) }),
+      guardTasks(ids, () => trackWrite(async () => { taken = await takeTasks(ids) })),
+      snackbar,
     )
   }
 
@@ -320,33 +355,6 @@ export const useTodoStore = create<TodoState>((set, get) => {
   },
   ensureAllLoaded: allEnsure,
 
-  async add(title: string) {
-    return mutate(async () => {
-      const now = new Date()
-      const defaultStatusId = useSettingsStore.getState().defaultStatusId
-      const nextFollowupAt = newTaskDefaultFollowup(now)
-      // Goes last (the repository picks the sort order in its transaction);
-      // the row comes back from the insert itself, so nothing after it can
-      // fail once the task exists.
-      const [todo] = await todoRepository.insertManyWithAssignments([{
-        todo: {
-          title,
-          isCompleted: false,
-          createdAt: now,
-          modifiedAt: now,
-          ...(nextFollowupAt && { nextFollowupAt }),
-          ...(defaultStatusId != null && { statusId: defaultStatusId }),
-        },
-        personIds: [],
-        tagIds: [],
-      }])
-      if (!todo) throw new Error('The new task was not stored')
-      set({ todos: [...get().todos, todo], todosVersion: get().todosVersion + 1 })
-      registerCreated(`Add "${title}"`, todo, NO_ASSIGNMENTS)
-      return todo.id
-    }, 'Failed to add task')
-  },
-
   async addMany(items, { description, snackbar = false }) {
     if (items.length === 0) return []
     return mutate(async () => {
@@ -356,20 +364,12 @@ export const useTodoStore = create<TodoState>((set, get) => {
       // add the tasks twice). The rows come back from the insert itself.
       const created = await todoRepository.insertManyWithAssignments(items)
       const ids = created.map((t) => t.id)
-      const snapshots = created.flatMap((todo, i) => {
-        const item = items[i]
-        return item ? [{ todo, personIds: [...item.personIds], tagIds: [...item.tagIds] }] : []
-      })
       const show = () => {
         const present = new Set(get().todos.map((t) => t.id))
         set({
-          todos: [...get().todos, ...snapshots.map((s) => s.todo).filter((t) => !present.has(t.id))],
+          todos: [...get().todos, ...created.filter((t) => !present.has(t.id))],
           todosVersion: get().todosVersion + 1,
         })
-      }
-      const put = async () => {
-        show()
-        await reloadAssignments(get().todos.map((t) => t.id))
       }
       show()
       // Best effort: a failed cache reload leaves rows without their chips
@@ -377,31 +377,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
       await reloadAssignments(get().todos.map((t) => t.id)).catch((e: unknown) => {
         console.warn('[todo-store] reloading assignments after adding tasks failed', e)
       })
-      let removedEvents: TodoEvent[] = []
-      let removedUpdates: PersistedStatusUpdate[] = []
-      let removedSubtasks: PersistedSubtask[] = []
-      undoable(
-        description,
-        async () => {
-          await todoRepository.restoreManyWithAssignments(
-            snapshots.map((s) => ({ ...s, events: removedEvents.filter((e) => e.todoId === s.todo.id) })),
-          )
-          await put()
-          await useStatusUpdateStore.getState().restoreRows(removedUpdates)
-          await useSubtaskStore.getState().restoreRows(removedSubtasks)
-        },
-        async () => {
-          removedUpdates = await statusUpdateRepository.getByTodos(ids)
-          removedSubtasks = await subtaskRepository.getByTodos(ids)
-          removedEvents = await todoRepository.bulkDelete(ids)
-          useListOrderStore.getState().forgetTodos(ids)
-          useStatusUpdateStore.getState().forgetTodos(ids)
-          useSubtaskStore.getState().forgetTodos(ids)
-          const idSet = new Set(ids)
-          set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
-        },
-        snackbar,
-      )
+      registerCreated(description, ids, snackbar)
       return ids
     }, 'Failed to add tasks')
   },
@@ -462,8 +438,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
             'Failed to advance recurring task',
             {
               description,
-              redo: () => write(nextChanges),
-              undo: () => write(prevChanges),
+              redo: guardTasks([id], () => write(nextChanges)),
+              undo: guardTasks([id], () => write(prevChanges)),
               showSnackbar: true,
             },
           )
@@ -498,8 +474,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
         // Both write the completion this toggle went from / to — never a
         // second toggle from whatever the task is by then (which would
         // advance a recurring task, or re-complete with a fresh time).
-        redo: () => writeCompletion(id, completed, completedAt),
-        undo: () => writeCompletion(id, todo.isCompleted, todo.completedAt),
+        redo: guardTasks([id], () => writeCompletion(id, completed, completedAt)),
+        undo: guardTasks([id], () => writeCompletion(id, todo.isCompleted, todo.completedAt)),
         // Every completion offers its undo (D19: the row may fold out of
         // its list); reopening a task stays quiet.
         showSnackbar: completed,
@@ -511,27 +487,12 @@ export const useTodoStore = create<TodoState>((set, get) => {
     return mutate(async () => {
       const todo = get().todos.find((t) => t.id === id)
       if (!todo) return
-      const snapshot = { ...todo }
-      const assignments = await captureAssignments(id)
-      const ranks = await listOrderRepository.getByTodos([id])
-      const updates = await statusUpdateRepository.getByTodos([id])
-      const subtasks = await subtaskRepository.getByTodos([id])
-
-      const events = await todoRepository.delete(id)
-      useListOrderStore.getState().forgetTodos([id])
-      useStatusUpdateStore.getState().forgetTodos([id])
-      useSubtaskStore.getState().forgetTodos([id])
-      set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
-
+      let taken = await takeTasks([id])
       undoable(
         `Delete "${todo.title}"`,
-        async () => { await get()._removeNoUndo(id) },
-        async () => {
-          await get()._restore(snapshot, assignments, events)
-          await useListOrderStore.getState().restoreRows(ranks)
-          await useStatusUpdateStore.getState().restoreRows(updates)
-          await useSubtaskStore.getState().restoreRows(subtasks)
-        },
+        // A redo captures afresh: what changed after the undo goes back with it.
+        guardTasks([id], () => trackWrite(async () => { taken = await takeTasks([id]) })),
+        () => trackWrite(() => putBackTasks(taken)),
         true,
       )
     }, 'Failed to delete task')
@@ -625,8 +586,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
       `Failed to ${label.toLowerCase()} tasks`,
       {
         description,
-        redo: () => get().bulkSetCompleted(ids, completed),
-        undo: async () => {
+        redo: guardTasks(ids, (present) => get().bulkSetCompleted(present, completed)),
+        undo: guardTasks(ids, async () => {
           // One timestamp and one transaction for every write of the undo,
           // in the store and the DB: the recurring date advances go back,
           // and the completions (re-completing restores the original
@@ -659,7 +620,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
               return c ? { ...t, ...c, modifiedAt: undoNow } : t
             }),
           })
-        },
+        }),
         showSnackbar: true,
       },
     ))
@@ -722,22 +683,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
       ...(c.important !== undefined ? { important: flagValue(c.important) } : {}),
       ...(c.focus !== undefined ? { focus: flagValue(c.focus) } : {}),
     })
-    const ids = targets.map((t) => t.id)
-    const restore = async (persist: boolean) => {
-      if (persist) {
-        // The earlier modifiedAt goes back too, as in the store below.
-        await todoRepository.bulkUpdate(ids.map((todoId) => {
-          const p = prev.get(todoId)
-          return { todoId, changes: { urgent: p?.urgent, important: p?.important, focus: p?.focus, modifiedAt: p?.modifiedAt } }
-        }))
-      }
-      set({
-        todos: get().todos.map((t) => {
-          const p = prev.get(t.id)
-          return p ? { ...t, urgent: p.urgent, important: p.important, focus: p.focus, modifiedAt: p.modifiedAt } : t
-        }),
-      })
-    }
+    const FLAGS = ['urgent', 'important', 'focus'] as const
+    /** The flags change `c` writes, at the values the task had before it. */
+    const before = (c: MarkerFlagChange, p: Pick<PersistedTodoItem, 'urgent' | 'important' | 'focus'>): Partial<PersistedTodoItem> =>
+      Object.fromEntries(FLAGS.filter((k) => c[k] !== undefined).map((k) => [k, p[k]]))
     const now = new Date()
     return optimistic(
       () => {
@@ -752,12 +701,34 @@ export const useTodoStore = create<TodoState>((set, get) => {
         const c = byId.get(t.id)
         return c ? [{ todoId: t.id, changes: patch(c) }] : []
       }), now),
-      () => { void restore(false) },
+      // Only the flags this write set, and only where they still hold its
+      // value (an edit that landed meanwhile stays); the stamp only where no
+      // later write stamped the task.
+      () => set({
+        todos: get().todos.map((t) => {
+          const c = byId.get(t.id)
+          const p = prev.get(t.id)
+          if (!c || !p) return t
+          const own = patch(c)
+          const back = Object.fromEntries(FLAGS.filter((k) => k in own && t[k] === own[k]).map((k) => [k, p[k]]))
+          return { ...t, ...back, ...(t.modifiedAt === now ? { modifiedAt: p.modifiedAt } : {}) }
+        }),
+      }),
       'Failed to update the priority flags',
       {
         description,
-        redo: () => get().setMarkerFlags(changes, description),
-        undo: () => restore(true),
+        redo: guardTasks(byId.keys(), () => get().setMarkerFlags(changes, description)),
+        // The flags this step changed back, with the earlier modifiedAt, in the database and the store.
+        undo: guardTasks(byId.keys(), async () => {
+          const reverts = targets.flatMap((t) => {
+            const c = byId.get(t.id)
+            const p = prev.get(t.id)
+            return c && p ? [{ todoId: t.id, changes: { ...before(c, p), modifiedAt: p.modifiedAt } }] : []
+          })
+          await todoRepository.bulkUpdate(reverts)
+          const byTodo = new Map(reverts.map((r) => [r.todoId, r.changes]))
+          set({ todos: get().todos.map((t) => { const r = byTodo.get(t.id); return r ? { ...t, ...r } : t }) })
+        }),
         showSnackbar: true,
       },
     )
@@ -820,8 +791,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
         detail,
         // The same next follow-up when it was given; else the rule again, per
         // task, from the redo's now.
-        redo: () => get().markFollowedUp(targetIds, options),
-        undo: async () => {
+        redo: guardTasks(targetIds, (present) => get().markFollowedUp(present, options)),
+        undo: guardTasks(targetIds, async () => {
           const undoNow = new Date()
           const restored = (todoId: number): Partial<PersistedTodoItem> => {
             const p = prev.get(todoId)
@@ -833,7 +804,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
           set({
             todos: get().todos.map((t) => (prev.has(t.id) ? { ...t, ...restored(t.id), modifiedAt: undoNow } : t)),
           })
-        },
+        }),
         showSnackbar: true,
       },
     )
@@ -851,35 +822,12 @@ export const useTodoStore = create<TodoState>((set, get) => {
     }
     opts?.beforeDelete?.()
     return mutate(async () => {
-      const snapshots = get().todos.filter((t) => ids.includes(t.id)).map(t => ({ ...t }))
-      const assignments = await captureAssignmentsBulk(ids)
-      const assignmentData = snapshots.map(t => {
-        const a = assignments.find(a => a.todoId === t.id)
-        return { todo: t, personIds: a?.personIds ?? [], tagIds: a?.tagIds ?? [] }
-      })
-
-      const ranks = await listOrderRepository.getByTodos(ids)
-      const updates = await statusUpdateRepository.getByTodos(ids)
-      const subtasks = await subtaskRepository.getByTodos(ids)
-
-      const events = await todoRepository.bulkDelete(ids)
-      useListOrderStore.getState().forgetTodos(ids)
-      useStatusUpdateStore.getState().forgetTodos(ids)
-      useSubtaskStore.getState().forgetTodos(ids)
-      const idSet = new Set(ids)
-      set({ todos: get().todos.filter((t) => !idSet.has(t.id)), todosVersion: get().todosVersion + 1 })
-
+      let taken = await takeTasks(ids)
       undoable(
         noBackup ? `Delete ${ids.length} tasks — no backup was taken` : `Delete ${ids.length} tasks`,
-        () => get().bulkRemove(ids),
-        async () => {
-          for (const { todo, personIds, tagIds } of assignmentData) {
-            await get()._restore(todo, { personIds, tagIds }, events.filter((e) => e.todoId === todo.id))
-          }
-          await useListOrderStore.getState().restoreRows(ranks)
-          await useStatusUpdateStore.getState().restoreRows(updates)
-          await useSubtaskStore.getState().restoreRows(subtasks)
-        },
+        // A redo captures afresh (and skips the backup gate: the first run took it).
+        guardTasks(ids, () => trackWrite(async () => { taken = await takeTasks(ids) })),
+        () => trackWrite(() => putBackTasks(taken)),
         true,
       )
     }, 'Failed to delete tasks')
@@ -938,32 +886,9 @@ export const useTodoStore = create<TodoState>((set, get) => {
           console.warn('[todo-store] reloading assignments after duplicating a task failed', e)
         })
       }
-      registerCreated(`Duplicate "${todo.title}"`, newTodo, assignments)
+      registerCreated(`Duplicate "${todo.title}"`, [newTodo.id])
       return newTodo.id
     }, 'Failed to duplicate task')
-  },
-
-  _restore(todo: PersistedTodoItem, { personIds, tagIds }: CapturedAssignments, events: readonly TodoEvent[] = []) {
-    return trackWrite(async () => {
-      await todoRepository.restoreManyWithAssignments([{ todo, personIds, tagIds, events }])
-      set({
-        todos: [...get().todos.filter((t) => t.id !== todo.id), todo],
-        todosVersion: get().todosVersion + 1,
-      })
-      // Refresh assignment caches (they keep the entries the delete left).
-      await reloadAssignments(get().todos.map((t) => t.id))
-    })
-  },
-
-  _removeNoUndo(id: number) {
-    return trackWrite(async () => {
-      const events = await todoRepository.delete(id)
-      useListOrderStore.getState().forgetTodos([id])
-      useStatusUpdateStore.getState().forgetTodos([id])
-      useSubtaskStore.getState().forgetTodos([id])
-      set({ todos: get().todos.filter((t) => t.id !== id), todosVersion: get().todosVersion + 1 })
-      return events
-    })
   },
 
   async purgeCompleted(ids: number[]): Promise<PurgeOutcome> {
@@ -982,14 +907,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
     return trackWrite(async () => {
       // Read again: a task may have been reopened while the backup ran.
       const doomed = await stillCompleted()
-      if (doomed.length > 0) {
-        await todoRepository.bulkDelete(doomed)
-        useListOrderStore.getState().forgetTodos(doomed)
-        useStatusUpdateStore.getState().forgetTodos(doomed)
-        useSubtaskStore.getState().forgetTodos(doomed)
-        const doomedSet = new Set(doomed)
-        set({ todos: get().todos.filter((t) => !doomedSet.has(t.id)), todosVersion: get().todosVersion + 1 })
-      }
+      if (doomed.length > 0) await dropTasks(doomed)
       return { status: 'done', deleted: doomed.length, noBackup: snapshot === 'without-backup' } as const
     })
   },

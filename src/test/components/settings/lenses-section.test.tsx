@@ -12,6 +12,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { makeTodo, resetDb } from '../../helpers'
+import { lensActions } from '../../../stores/lens-actions'
 
 beforeEach(async () => {
   await resetDb()
@@ -117,7 +118,7 @@ describe('Settings › Tasks › Lenses', () => {
 
     fireEvent.click(within(list).getByRole('button', { name: /^Alpha/, expanded: false }))
     expect(screen.getByTestId('lens-filter')).toBeInTheDocument()
-    await useSettingsStore.getState().moveLens(0, 2)
+    await lensActions.moveLens(0, 2)
     await waitFor(() => expect(grips()).toEqual(['Move Beta', 'Move Gamma', 'Move Alpha']))
     expect(within(list).getByRole('button', { name: /^Alpha/, expanded: true })).toBeInTheDocument()
     expect(screen.getByTestId('lens-filter').closest('[data-lens-id]')).toHaveAttribute('data-lens-id', 'lens-a')

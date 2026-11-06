@@ -1,6 +1,6 @@
 // Task marker glyphs (16×16 viewBox, the icon family's 1.6 stroke, round, currentColor), sized in `em` so they
 // follow the surrounding font size. Decorative: the element that shows one
-// carries the accessible name and the tooltip (`TaskMarkers`).
+// carries the accessible name and the tooltip (the row's marker gutter, `row-cells`' `MarkerGutter`).
 
 import type { MarkerKey } from '../../models'
 

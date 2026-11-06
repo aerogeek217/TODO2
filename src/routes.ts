@@ -10,10 +10,6 @@ export const ROUTE_SETTINGS = '/settings'
 /** Former page routes; each redirects to the workspace. */
 export const LEGACY_ROUTES: readonly string[] = ['/workspace', '/list', '/calendar', '/dashboard']
 
-export type AppRoute =
-  | typeof ROUTE_WORKSPACE
-  | typeof ROUTE_SETTINGS
-
 /**
  * Route state for `/settings`: the mobile Settings page opens on `section`,
  * scrolled to `part` (e.g. File storage, from the phone's storage status sheet).

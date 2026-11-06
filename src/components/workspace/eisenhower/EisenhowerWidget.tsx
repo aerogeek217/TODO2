@@ -76,7 +76,7 @@ export interface EisenhowerResult {
   countLabel: string
 }
 
-/** The default panes' empty lines (their `QUADRANT_FLAGS` in words). */
+/** The default panes' empty lines (each quadrant's filter, `eisenhower-panes`' `QUADRANT_MARKERS`, in words). */
 const EMPTY_LINES: Record<EisenhowerQuadrant, [string, string]> = {
   do: ['Nothing urgent and important', 'Drop a task here to mark it urgent and important.'],
   schedule: ['Nothing to schedule', 'Drop a task here to mark it important.'],

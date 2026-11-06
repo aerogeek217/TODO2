@@ -196,8 +196,6 @@ export function useSearchBox({ inputRef, debounce = true }: SearchBoxOptions) {
   return { text, parse, words, tints, unmatched, ac, onChange, onCaretMove, onKeyDown, clear }
 }
 
-export type SearchBox = ReturnType<typeof useSearchBox>
-
 /** The one-line note under the box for an `@` / `#` / `!` name that matches nothing. */
 export function unmatchedNote(name: SearchName): { lead: string; name: string; rest: string; hint: string } {
   switch (name.kind) {

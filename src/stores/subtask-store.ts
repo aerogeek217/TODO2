@@ -3,9 +3,10 @@ import { subtaskRepository, type SubtaskPatch } from '../data/subtask-repository
 import type { PersistedSubtask, Subtask } from '../models/subtask'
 import { compareSubtasks, nextSubtaskOrder, subtaskTitle } from '../utils/subtasks'
 import { shortTitle as short } from '../utils/text'
-import { registerModuleReset } from '../utils/module-reset'
-import { loadFresh, saveOrReport, trackWrite } from './store-helpers'
+import { saveOrReport, trackWrite } from './store-helpers'
 import { completeTask, isTaskOpen, notifyTasksTouched } from './task-hooks'
+import { taskChildRows } from './task-child-rows'
+import { guardTasks } from './task-undo-guard'
 import { undoable } from './undoable'
 
 const NO_SUBTASKS: readonly PersistedSubtask[] = []
@@ -62,71 +63,18 @@ interface SubtaskState {
   forgetTodos: (todoIds: readonly number[]) => void
 }
 
-/** `byTodo` with `rows` added (or replaced, by id) — each task touched sorted again. */
-function withRows(byTodo: ByTodo, rows: readonly PersistedSubtask[]): Map<number, readonly PersistedSubtask[]> {
-  const next = new Map(byTodo)
-  const ids = new Set(rows.map((r) => r.id))
-  // A row moved to another task leaves its old one.
-  for (const [todoId, list] of byTodo) {
-    if (!list.some((r) => ids.has(r.id))) continue
-    const kept = list.filter((r) => !ids.has(r.id))
-    if (kept.length > 0) next.set(todoId, kept)
-    else next.delete(todoId)
-  }
-  for (const todoId of new Set(rows.map((r) => r.todoId))) {
-    const kept = next.get(todoId) ?? NO_SUBTASKS
-    next.set(todoId, [...kept, ...rows.filter((r) => r.todoId === todoId)].sort(compareSubtasks))
-  }
-  return next
-}
-
-/** `byTodo` without the subtasks `ids`. */
-function withoutRows(byTodo: ByTodo, ids: ReadonlySet<number>): Map<number, readonly PersistedSubtask[]> {
-  const next = new Map(byTodo)
-  for (const [todoId, rows] of byTodo) {
-    if (!rows.some((r) => ids.has(r.id))) continue
-    const kept = rows.filter((r) => !ids.has(r.id))
-    if (kept.length > 0) next.set(todoId, kept)
-    else next.delete(todoId)
-  }
-  return next
-}
-
-let inflight: Promise<void> | null = null
-
-/** Forgets the load in flight, for tests that share one module instance (the store's state is reset separately). */
-export function resetSubtaskLoad(): void {
-  inflight = null
-}
-registerModuleReset(resetSubtaskLoad)
-
 export const useSubtaskStore = create<SubtaskState>((set, get) => {
-  const find = (id: number): PersistedSubtask | undefined => {
-    for (const rows of get().byTodo.values()) {
-      const hit = rows.find((r) => r.id === id)
-      if (hit) return hit
-    }
-    return undefined
-  }
-
-  /** Puts `rows` back in the database and the store; `touch`: stamp their tasks (an undo / redo of a write). */
-  const putBack = async (rows: readonly PersistedSubtask[], touch: boolean): Promise<PersistedSubtask[]> => {
-    const at = new Date()
-    const restored = await subtaskRepository.restore(rows, touch ? at : undefined)
-    if (restored.length > 0) set({ byTodo: withRows(get().byTodo, restored) })
-    if (touch) notifyTasksTouched(restored.map((r) => r.todoId), at)
-    return restored
-  }
-
-  /** Deletes the subtasks `ids` from the database and the store, stamping their tasks. */
-  const take = async (ids: readonly number[]): Promise<void> => {
-    const idSet = new Set(ids)
-    const rows = [...get().byTodo.values()].flatMap((list) => list.filter((r) => idSet.has(r.id)))
-    const at = new Date()
-    await subtaskRepository.deleteMany(ids, at)
-    set({ byTodo: withoutRows(get().byTodo, idSet) })
-    notifyTasksTouched(rows.map((r) => r.todoId), at)
-  }
+  const { find, put, putBack, take, actions } = taskChildRows<Subtask, PersistedSubtask>({
+    repository: subtaskRepository,
+    compare: compareSubtasks,
+    normalize: (r) => {
+      const title = subtaskTitle(r.title)
+      return title === '' ? null : { ...r, title }
+    },
+    label: 'the subtasks',
+    get,
+    set,
+  })
 
   /**
    * Writes `patches` to the database and the store, stamping every task
@@ -145,7 +93,7 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
       if (p.changes.todoId != null) touched.push(p.changes.todoId)
       return [{ ...current, ...p.changes }]
     })
-    set({ byTodo: withRows(get().byTodo, next) })
+    put(next)
     notifyTasksTouched(touched, at)
     return written
   }
@@ -157,12 +105,14 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
   /** An edit as one undo step: `patches` now, `before` on undo. False when nothing was written. */
   const editAsStep = (description: string, patches: readonly SubtaskPatch[], before: readonly SubtaskPatch[], label: string, snackbar = false): Promise<boolean> =>
     saveOrReport(async () => {
+      // The tasks the edit touches: each row's, and a move's target.
+      const tasks = patches.flatMap((p) => [find(p.id)?.todoId ?? [], p.changes.todoId ?? []].flat())
       const written = await write(patches)
       if (written === 0) return false
       undoable(
         description,
-        async () => { await trackWrite(() => write(patches)) },
-        async () => { await trackWrite(() => write(before)) },
+        guardTasks(tasks, async () => { await trackWrite(() => write(patches)) }),
+        guardTasks(tasks, async () => { await trackWrite(() => write(before)) }),
         snackbar,
       )
       return true
@@ -172,21 +122,7 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
     byTodo: new Map(),
     loaded: false,
 
-    async load() {
-      // Never rejects (a refresh of every store waits on it): a failed read is reported, the checklists kept.
-      const rows = await loadFresh(() => subtaskRepository.getAll(), 'the subtasks')
-      if (rows) set({ byTodo: withRows(new Map(), rows), loaded: true })
-    },
-
-    ensureLoaded() {
-      if (get().loaded) return Promise.resolve()
-      // A failed load leaves `loaded` false: reported, and retried next time.
-      if (inflight) return inflight
-      const run: Promise<void> = get().load()
-        .finally(() => { if (inflight === run) inflight = null })
-      inflight = run
-      return run
-    },
+    ...actions,
 
     async add(todoId, title, opts = {}) {
       const clean = subtaskTitle(title)
@@ -202,12 +138,12 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
         const at = new Date()
         const added = await subtaskRepository.add(row, at)
         if (!added) return undefined
-        set({ byTodo: withRows(get().byTodo, [added]) })
+        put([added])
         notifyTasksTouched([todoId], at)
         undoable(
           `Add subtask “${short(clean)}”`,
-          async () => { await trackWrite(() => putBack([added], true)) },
-          () => trackWrite(() => take([added.id])),
+          guardTasks([todoId], async () => { await trackWrite(() => putBack([added], true)) }),
+          guardTasks([todoId], () => trackWrite(() => take([added.id]))),
         )
         return added
       }, undefined, 'add the subtask')
@@ -238,8 +174,8 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
         if (written === 0) return false
         undoable(
           description,
-          async () => { await trackWrite(() => write([{ id, changes: { isCompleted: done } }])) },
-          async () => { await trackWrite(() => write([{ id, changes: { isCompleted: prev.isCompleted } }])) },
+          guardTasks([prev.todoId], async () => { await trackWrite(() => write([{ id, changes: { isCompleted: done } }])) }),
+          guardTasks([prev.todoId], async () => { await trackWrite(() => write([{ id, changes: { isCompleted: prev.isCompleted } }])) }),
           last,
           last ? `All ${siblings.length === 1 ? 'its subtasks are' : `${siblings.length} subtasks are`} done` : undefined,
           last ? { label: 'Complete task', run: () => { void completeTask(prev.todoId) } } : undefined,
@@ -288,8 +224,8 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
         await take([id])
         undoable(
           'Subtask removed',
-          () => trackWrite(() => take([id])),
-          async () => { await trackWrite(() => putBack([row], true)) },
+          guardTasks([row.todoId], () => trackWrite(() => take([id]))),
+          guardTasks([row.todoId], async () => { await trackWrite(() => putBack([row], true)) }),
           true,
         )
         return true
@@ -305,34 +241,6 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
         revert(done, ['isCompleted']),
         'uncheck the subtasks',
       )
-    },
-
-    async addRows(given) {
-      // The one choke point for rows written whole: every title as `add` stores it, a blank one dropped.
-      const rows = given.flatMap((r) => {
-        const title = subtaskTitle(r.title)
-        return title === '' ? [] : [{ ...r, title }]
-      })
-      if (rows.length === 0) return []
-      return trackWrite(async () => {
-        const added = await subtaskRepository.addMany(rows)
-        if (added.length > 0) set({ byTodo: withRows(get().byTodo, added) })
-        return added
-      })
-    },
-
-    async restoreRows(rows) {
-      if (rows.length === 0) return
-      await trackWrite(() => putBack(rows, false))
-    },
-
-    forgetTodos(todoIds) {
-      const byTodo = get().byTodo
-      const gone = todoIds.filter((id) => byTodo.has(id))
-      if (gone.length === 0) return
-      const next = new Map(byTodo)
-      for (const id of gone) next.delete(id)
-      set({ byTodo: next })
     },
   }
 })

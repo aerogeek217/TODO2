@@ -7,7 +7,7 @@ import { urgentRangeLabel, type UrgentDueWithinDays } from '../utils/urgency'
 import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
 import { createPredicateEvaluator, createScreenComposedEvaluator, type FilterSettings } from '../utils/filter-match'
 import type { WeekStart } from '../utils/effective-date'
-import type { TodoNameLookups } from '../utils/filter'
+import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import type { ListRanks } from '../utils/list-order'
 import type { MarkerSettings } from '../utils/markers'
 import { bySortOrder } from '../utils/sort-order'
@@ -55,10 +55,10 @@ export interface TaskDialogEnv {
   assignedTagsMap: Map<number, Tag[]>
   people: Person[]
   statuses: Status[]
-  /** Each task's status updates (text search reads them); absent = not searched. */
-  statusUpdatesByTodo?: ReadonlyMap<number, readonly PersistedStatusUpdate[]>
-  /** Each task's checklist (text search reads its titles); absent = not searched. */
-  subtasksByTodo?: ReadonlyMap<number, readonly PersistedSubtask[]>
+  /** Each task's status updates (text search reads them). */
+  statusUpdatesByTodo: ReadonlyMap<number, readonly PersistedStatusUpdate[]>
+  /** Each task's checklist (text search reads its titles). */
+  subtasksByTodo: ReadonlyMap<number, readonly PersistedSubtask[]>
   /** List definitions as shown (unsaved drafts over the stored ones). */
   listDefinitions: readonly PersistedListDefinition[]
   /** The top-bar filter (list and screen sources compose it in). */
@@ -100,13 +100,7 @@ export function currentTaskDialogEnv(): TaskDialogEnv {
 }
 
 function lookupsOf(env: Pick<TaskDialogEnv, 'assignedPeopleMap' | 'assignedTagsMap' | 'statuses' | 'statusUpdatesByTodo' | 'subtasksByTodo'>): TodoNameLookups {
-  return {
-    assignedPeopleMap: env.assignedPeopleMap,
-    assignedTagsMap: env.assignedTagsMap,
-    statusesById: new Map(env.statuses.map((s) => [s.id!, s])),
-    statusUpdatesByTodo: env.statusUpdatesByTodo,
-    subtasksByTodo: env.subtasksByTodo,
-  }
+  return todoNameLookups(env)
 }
 
 function filterSettingsOf(env: Pick<TaskDialogEnv, 'markerSettings' | 'weekStartsOn'>): FilterSettings {

@@ -26,7 +26,7 @@ interface ListOrderState {
   forgetTodos: (todoIds: readonly number[]) => void
   /** Drops a deleted list's ranks from memory (the repository deletes the rows). */
   forgetList: (listDefinitionId: number) => void
-  /** Puts deleted rows back (undo). */
+  /** Puts deleted rows back (undo) — those whose list and task still exist. */
   restoreRows: (rows: readonly PersistedListOrder[]) => Promise<void>
 }
 
@@ -146,9 +146,10 @@ export const useListOrderStore = create<ListOrderState>((set, get) => {
     async restoreRows(rows) {
       if (rows.length === 0) return
       await trackWrite(async () => {
-        await listOrderRepository.restore(rows)
+        const kept = await listOrderRepository.restore(rows)
+        if (kept.length === 0) return
         const next = new Map(get().ranks)
-        for (const [listId, restored] of group(rows)) {
+        for (const [listId, restored] of group(kept)) {
           next.set(listId, new Map([...(next.get(listId) ?? NO_RANKS), ...restored]))
         }
         set({ ranks: next })

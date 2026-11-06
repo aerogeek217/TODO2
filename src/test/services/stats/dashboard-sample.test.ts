@@ -13,7 +13,7 @@ import { computeTagStats } from '../../../services/stats/tags'
 import { computeStaleTasks } from '../../../services/stats/stale'
 import { computeRecentlyCompleted } from '../../../services/stats/recently-completed'
 import { computeEisenhowerSummary } from '../../../services/stats/eisenhower-summary'
-import { emptyFilterCriteria, statsPaneContext } from '../../helpers'
+import { emptyFilterCriteria, statsPaneContext, testLookups } from '../../helpers'
 import { resolvePanes } from '../../../utils/eisenhower-panes'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, DESIGN_TREND, DESIGN_TREND_Q4, Q4, SAMPLE_CTX, SAMPLE_EVENTS,
@@ -21,17 +21,13 @@ import {
 } from '../../fixtures/dashboard-sample'
 
 const markerSettings = { urgentRange: SAMPLE_CTX.urgentRange, weekStartsOn: SAMPLE_CTX.weekStartsOn }
-const lookups = {
-  assignedPeopleMap: ASSIGNED_PEOPLE,
-  assignedTagsMap: ASSIGNED_TAGS,
-  statusesById: new Map(STATUSES.map((s) => [s.id, s])),
-}
+const lookups = testLookups({ assignedPeopleMap: ASSIGNED_PEOPLE, assignedTagsMap: ASSIGNED_TAGS, statuses: STATUSES })
 const NO_FILTER: FilterCriteria = { ...emptyFilterCriteria, markers: null }
 const Q4_FILTER: FilterCriteria = { ...NO_FILTER, tags: new Set([Q4]) }
 
 /** The task set the dashboard computes over: the screen filter, completed tasks kept. */
 function screened(screen: FilterCriteria) {
-  return applyFilter(statsFilter(screen), SAMPLE_TASKS, ASSIGNED_PEOPLE, STATUSES, SAMPLE_TODAY, ASSIGNED_TAGS, markerSettings)
+  return applyFilter(statsFilter(screen), SAMPLE_TASKS, lookups, SAMPLE_TODAY, markerSettings)
 }
 
 const titles = (ids: readonly number[]) => ids.map((id) => SAMPLE_TASKS.find((t) => t.id === id)?.title)

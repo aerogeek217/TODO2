@@ -5,7 +5,6 @@ import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useTodoStore } from '../../stores/todo-store'
-import { useStatusUpdateStore, useStatusUpdates } from '../../stores/status-update-store'
 import { describeFollowupInterval, nextAfterFollowup } from '../../utils/followup'
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
@@ -17,22 +16,17 @@ import { urgentMark, urgentToggleHint } from '../../utils/urgency'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
 import { makeRecurrenceRule } from '../../utils/recurrence'
-import { addStatusUpdate } from '../../services/mark-followed-up'
 import { parseTaskInput } from '../../services/nlp-task-creator'
 import { draftEditorTitle, type EditorTaskFields, type TaskDraft } from '../../services/task-draft'
-import { compareStatusUpdates, statusUpdateDay } from '../../utils/status-updates'
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
 import { NotesBody } from './notes/NotesBody'
-import { StatusUpdatesSection, type StatusUpdateEntry, type StatusUpdateFields } from './status-updates/StatusUpdatesSection'
+import { StatusUpdatesSection } from './status-updates/StatusUpdatesSection'
+import { useEditorStatusUpdates, useEditorSubtasks } from './use-editor-entries'
 import { SubtasksSection } from './subtasks/SubtasksSection'
-import type { ChecklistItem } from './subtasks/SubtaskChecklist'
-import { useSubtasks, useSubtaskStore } from '../../stores/subtask-store'
 import { storedSubtaskMenuEntries } from './subtasks/subtask-menu'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
-import { addSubtasksFromNote, type NoteSubtaskTarget } from '../../services/note-subtasks'
-import { subtaskTitle } from '../../utils/subtasks'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { isInLayerAbove } from '../../utils/dom-layers'
@@ -178,32 +172,14 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   // each stays its own undo step, in order. A create reads the text.
   const notesSession = useTaskNotesSource({ todoId: todo?.id, initial: todo?.notes ?? seed?.notes ?? '' })
   const flushNotes = notesSession.flush
-  // Status updates: edit mode writes each at once through the store; create
-  // mode keeps them here (newest first, a local key each) until Create.
-  const storedUpdates = useStatusUpdates(todo?.id)
-  const [pendingUpdates, setPendingUpdates] = useState<(StatusUpdateEntry & { createdAt: Date })[]>(
-    () => (seed?.statusUpdates ?? []).map((u, i) => ({ ...u, id: i + 1 })).sort(compareStatusUpdates),
-  )
-  // The pending entries as written so far, for Create and the close check —
-  // which first commit an entry still being edited (`updatesCommitRef`), in
-  // the same handler, before a re-render could show it.
-  const pendingUpdatesRef = useRef(pendingUpdates)
-  const updatePending = (next: (prev: typeof pendingUpdates) => typeof pendingUpdates) => {
-    pendingUpdatesRef.current = next(pendingUpdatesRef.current)
-    setPendingUpdates(pendingUpdatesRef.current)
-  }
-  const updatesCommitRef = useRef<(() => void) | null>(null)
-  /** The pending entries with an open edit or add written first. */
-  const committedUpdates = () => {
-    updatesCommitRef.current?.()
-    return pendingUpdatesRef.current
-  }
-  // Subtasks: edit mode writes each at once through the store; create mode
-  // keeps them here (in order, a local key each) until Create.
-  const storedSubtasks = useSubtasks(todo?.id)
-  const [pendingSubtasks, setPendingSubtasks] = useState<ChecklistItem[]>(
-    () => (seed?.subtasks ?? []).map((s, i) => ({ id: i + 1, title: s.title, isCompleted: s.isCompleted })),
-  )
+  // Status updates and subtasks: edit mode writes each at once through the
+  // store; create mode keeps them here until Create (`use-editor-entries`).
+  const entryOptions = { isEdit, todoId: todo?.id, flushNotes }
+  const statusUpdates = useEditorStatusUpdates(entryOptions, seed?.statusUpdates)
+  const pendingUpdates = statusUpdates.pending
+  const committedUpdates = statusUpdates.committed
+  const subtasks = useEditorSubtasks(entryOptions, seed?.subtasks)
+  const pendingSubtasks = subtasks.pending
   const [statusId, setStatusId] = useState<number | undefined>(
     seed ? seed.statusId : (
       todo?.statusId
@@ -393,83 +369,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       void flushNotes()
       props.onUpdate({ recurrenceRule: nextRule })
     }
-  }
-
-  // Status updates: in edit mode each is its own undo step, after the notes typed so far.
-  const handleAddUpdate = (entry: StatusUpdateFields) => {
-    if (isEdit && todo) {
-      // After the notes (once the follow-up's undo group is open, a write landing would join it).
-      void flushNotes().finally(() => addStatusUpdate(todo.id, entry))
-      return
-    }
-    const now = new Date()
-    updatePending((prev) => [
-      ...prev,
-      { id: Math.max(0, ...prev.map((u) => u.id)) + 1, date: statusUpdateDay(entry.date, now), text: entry.text, createdAt: now },
-    ].sort(compareStatusUpdates))
-  }
-
-  const handleEditUpdate = (id: number, changes: StatusUpdateFields) => {
-    if (isEdit) {
-      void flushNotes()
-      void useStatusUpdateStore.getState().update(id, changes)
-      return
-    }
-    const date = statusUpdateDay(changes.date, new Date())
-    updatePending((prev) => prev.map((u) => (u.id === id ? { ...u, date, text: changes.text } : u)).sort(compareStatusUpdates))
-  }
-
-  const handleRemoveUpdate = (id: number) => {
-    if (isEdit) {
-      void flushNotes()
-      void useStatusUpdateStore.getState().remove(id)
-      return
-    }
-    updatePending((prev) => prev.filter((u) => u.id !== id))
-  }
-
-  // Subtasks: in edit mode each write is its own undo step, after the notes typed so far.
-  const subtaskWrite = (write: () => void) => {
-    void flushNotes()
-    write()
-  }
-  const handleAddSubtask = (title: string) => {
-    if (isEdit && todo) return subtaskWrite(() => { void useSubtaskStore.getState().add(todo.id, title) })
-    setPendingSubtasks((prev) => [...prev, { id: Math.max(0, ...prev.map((s) => s.id)) + 1, title, isCompleted: false }])
-  }
-  // Notes → this task's subtasks: stored at once, or (create mode) pending with the rest.
-  // Stable, so the notes editor doesn't reconfigure its keymap on every keystroke (cr31 N6).
-  const noteSubtaskTarget = useCallback<NoteSubtaskTarget>(async (drafts, writeNote) => {
-    if (isEdit && todoId !== undefined) return addSubtasksFromNote(todoId, drafts, writeNote)
-    setPendingSubtasks((prev) => {
-      const first = Math.max(0, ...prev.map((s) => s.id)) + 1
-      return [...prev, ...drafts.map((d, i) => ({ id: first + i, title: subtaskTitle(d.title), isCompleted: d.done }))]
-    })
-    await writeNote()
-    return true
-  }, [isEdit, todoId])
-  const handleRenameSubtask = (id: number, title: string) => {
-    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().rename(id, title) })
-    setPendingSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)))
-  }
-  const handleSetSubtaskDone = (id: number, done: boolean) => {
-    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().setDone(id, done) })
-    setPendingSubtasks((prev) => prev.map((s) => (s.id === id ? { ...s, isCompleted: done } : s)))
-  }
-  const handleRemoveSubtask = (id: number) => {
-    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().remove(id) })
-    setPendingSubtasks((prev) => prev.filter((s) => s.id !== id))
-  }
-  const handleMoveSubtask = (id: number, toIndex: number) => {
-    if (isEdit) return subtaskWrite(() => { void useSubtaskStore.getState().move(id, toIndex) })
-    setPendingSubtasks((prev) => {
-      const from = prev.findIndex((s) => s.id === id)
-      if (from === -1) return prev
-      const next = [...prev]
-      const [moved] = next.splice(from, 1)
-      if (moved) next.splice(Math.max(0, Math.min(toIndex, next.length)), 0, moved)
-      return next
-    })
   }
 
   const handleToggleComplete = () => {
@@ -905,25 +804,25 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           />
 
           <SubtasksSection
-            items={isEdit ? storedSubtasks : pendingSubtasks}
-            onAdd={handleAddSubtask}
-            onRename={handleRenameSubtask}
-            onSetDone={handleSetSubtaskDone}
-            onRemove={handleRemoveSubtask}
-            onMove={handleMoveSubtask}
+            items={subtasks.items}
+            onAdd={subtasks.add}
+            onRename={subtasks.rename}
+            onSetDone={subtasks.setDone}
+            onRemove={subtasks.remove}
+            onMove={subtasks.move}
             extraMenuEntries={isEdit ? storedSubtaskMenuEntries : undefined}
             className={styles.notesSection}
             labelClassName={styles.notesLabel}
           />
 
           <StatusUpdatesSection
-            entries={isEdit ? storedUpdates : pendingUpdates}
-            onAdd={handleAddUpdate}
-            onEdit={handleEditUpdate}
-            onRemove={handleRemoveUpdate}
+            entries={statusUpdates.entries}
+            onAdd={statusUpdates.add}
+            onEdit={statusUpdates.edit}
+            onRemove={statusUpdates.remove}
             className={styles.notesSection}
             labelClassName={styles.notesLabel}
-            commitRef={isEdit ? undefined : updatesCommitRef}
+            commitRef={statusUpdates.commitRef}
           />
 
           {/* Notes */}
@@ -934,7 +833,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
                 source={notesSession.source}
                 showToolbar
                 placeholder="Add notes..."
-                subtaskTarget={noteSubtaskTarget}
+                subtaskTarget={subtasks.noteTarget}
               />
             </div>
           </div>

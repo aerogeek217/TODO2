@@ -45,6 +45,8 @@ const grouped: TodoPredicate = {
 }
 
 const chip = (text: RegExp) => screen.getAllByTestId('list-filter-chip').find((c) => text.test(c.textContent ?? ''))!
+/** A chip's own button (its picker's trigger; the × is its sibling — cr31 UI F9). */
+const edit = (text: RegExp) => within(chip(text)).getByRole('button', { name: text })
 const words = (root: HTMLElement) => Array.from(root.querySelectorAll('*'))
   .filter((el) => el.children.length === 0 && /^(and|or)$/.test(el.textContent ?? ''))
   .map((el) => el.textContent)
@@ -116,9 +118,19 @@ describe('PredicateChips — or groups on the filter line', () => {
     expect(log.at(-1)?.tags).toBeNull()
   })
 
-  it('a chip says it opens a popover (cr31 UI F9)', () => {
+  it('a chip is two sibling controls: its button says it opens a popover, its × removes it (cr31 UI F9)', () => {
     render(<Harness initial={grouped} log={[]} />)
-    for (const c of screen.getAllByTestId('list-filter-chip')) expect(c).toHaveAttribute('aria-haspopup', 'dialog')
+    for (const c of screen.getAllByTestId('list-filter-chip')) {
+      expect(c).not.toHaveAttribute('role')
+      expect(c.querySelector('button button')).toBeNull()
+      const [own, remove, ...rest] = within(c).getAllByRole('button')
+      expect(rest).toEqual([])
+      expect(own).toHaveAttribute('aria-haspopup', 'dialog')
+      expect(own).toHaveAttribute('aria-expanded', 'false')
+      expect(own).toHaveAccessibleName(c.textContent ?? '')
+      expect(remove).toHaveAccessibleName('Remove filter')
+      expect(remove).not.toHaveAttribute('aria-haspopup')
+    }
   })
 
   it('a chip in a group: × takes it out; the group left with one item goes, the item staying', () => {
@@ -127,7 +139,7 @@ describe('PredicateChips — or groups on the filter line', () => {
     fireEvent.click(within(chip(/Priority/)).getByRole('button', { name: 'Remove filter' }))
     expect(log.at(-1)).toEqual({ ...waiting, personIds: [1] })
     expect(screen.queryByTestId('or-group')).toBeNull()
-    fireEvent.keyDown(chip(/People/), { key: 'Delete' })
+    fireEvent.keyDown(edit(/People/), { key: 'Delete' })
     expect(log.at(-1)).toEqual(waiting)
   })
 
@@ -266,7 +278,7 @@ describe('PredicateChips — a group emptied while its picker is open', () => {
 describe('PredicateChips — the editors: a column of rows, popovers under them', () => {
   it('a chip row opens its picker as a popover (no in-place expansion); a second click closes it', () => {
     render(<Harness initial={waiting} log={[]} layout="stack" />)
-    const status = chip(/Status/)
+    const status = edit(/Status/)
     fireEvent.click(status)
     expect(status).toHaveAttribute('aria-expanded', 'true')
     const picker = screen.getByTestId('list-filter-picker')
@@ -275,6 +287,9 @@ describe('PredicateChips — the editors: a column of rows, popovers under them'
     fireEvent.click(status)
     expect(screen.queryByTestId('list-filter-picker')).toBeNull()
     expect(status).toHaveAttribute('aria-expanded', 'false')
+    // A click on the chip's plate (its padding, the chevron) is the button's.
+    fireEvent.click(chip(/Status/))
+    expect(status).toHaveAttribute('aria-expanded', 'true')
   })
 
   it('a press on the open chip closes its popover (the outside click), and the click then leaves it closed', () => {
@@ -293,7 +308,7 @@ describe('PredicateChips — the editors: a column of rows, popovers under them'
     fireEvent.click(chip(/Status/))
     fireEvent.keyDown(screen.getByTestId('list-filter-picker'), { key: 'Escape' })
     expect(screen.queryByTestId('list-filter-picker')).toBeNull()
-    expect(chip(/Status/)).toHaveAttribute('aria-expanded', 'false')
+    expect(edit(/Status/)).toHaveAttribute('aria-expanded', 'false')
   })
 
   it('Another filter (OR) turns the chip into a group in its place, then the field’s picker on the group', () => {
@@ -569,10 +584,10 @@ describe('PredicateChips — where the focus goes when a chip does (cr31 UI F4)'
 
   it('Delete on a focused chip: the chip now in its place takes the focus; the last one gone, + Filter', () => {
     render(<Harness initial={{ ...waiting, personIds: [1] }} log={[]} layout="stack" />)
-    chip(/Status/).focus()
-    fireEvent.keyDown(chip(/Status/), { key: 'Delete' })
-    expect(document.activeElement).toBe(chip(/People/))
-    fireEvent.keyDown(chip(/People/), { key: 'Backspace' })
+    edit(/Status/).focus()
+    fireEvent.keyDown(edit(/Status/), { key: 'Delete' })
+    expect(document.activeElement).toBe(edit(/People/))
+    fireEvent.keyDown(edit(/People/), { key: 'Backspace' })
     expect(screen.queryAllByTestId('list-filter-chip')).toHaveLength(0)
     expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Filter' }))
   })
@@ -582,16 +597,16 @@ describe('PredicateChips — where the focus goes when a chip does (cr31 UI F4)'
     const remove = within(chip(/People/)).getByRole('button', { name: 'Remove filter' })
     remove.focus()
     fireEvent.click(remove)
-    expect(document.activeElement).toBe(chip(/Status/))
+    expect(document.activeElement).toBe(edit(/Status/))
   })
 
   it('a group dissolving under the focused chip: the chip, drawn in its place, keeps the focus', () => {
     render(<Harness initial={grouped} log={[]} layout="stack" />)
-    chip(/Priority/).focus()
-    fireEvent.keyDown(chip(/Priority/), { key: 'Delete' })
+    edit(/Priority/).focus()
+    fireEvent.keyDown(edit(/Priority/), { key: 'Delete' })
     expect(screen.queryByTestId('or-group')).toBeNull()
     expect(chips().map((c) => c.textContent)).toEqual(['StatusWaiting', 'PeopleAlice'])
-    expect(document.activeElement).toBe(chip(/People/))
+    expect(document.activeElement).toBe(edit(/People/))
   })
 })
 

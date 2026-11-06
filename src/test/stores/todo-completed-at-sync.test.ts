@@ -3,6 +3,7 @@ import { db } from '../../data/database'
 import { todoRepository } from '../../data/todo-repository'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
+import { addTask } from '../add-task'
 
 /**
  * Regression: the store's optimistic `completedAt` and the stored one
@@ -42,7 +43,7 @@ async function expectInSync(id: number, label: string) {
 
 describe('store and DB agree on completedAt', () => {
   it('toggleComplete', async () => {
-    const id = await useTodoStore.getState().add('T')
+    const id = await addTask('T')
     await useTodoStore.getState().toggleComplete(id)
     await expectInSync(id, 'complete')
     await useTodoStore.getState().toggleComplete(id)
@@ -50,7 +51,7 @@ describe('store and DB agree on completedAt', () => {
   })
 
   it('update() completing, then an unrelated edit keeps the stored time', async () => {
-    const id = await useTodoStore.getState().add('U')
+    const id = await addTask('U')
     await useTodoStore.getState().update(id, { isCompleted: true })
     await expectInSync(id, 'update complete')
     const at = (await db.todos.get(id))!.completedAt
@@ -60,8 +61,8 @@ describe('store and DB agree on completedAt', () => {
   })
 
   it('bulkSetCompleted and its undo', async () => {
-    const a = await useTodoStore.getState().add('A')
-    const b = await useTodoStore.getState().add('B')
+    const a = await addTask('A')
+    const b = await addTask('B')
     await useTodoStore.getState().bulkSetCompleted([a, b], true)
     await expectInSync(a, 'bulk complete a')
     await expectInSync(b, 'bulk complete b')

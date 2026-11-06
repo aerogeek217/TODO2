@@ -199,12 +199,40 @@ test('Delete on a focused chip in Edit list: the focus goes to the next chip, th
   const editor = page.getByTestId('edit-list')
   const chips = editor.getByTestId('list-filter-chip')
   await expect(chips).toHaveCount(2)
-  await chips.first().focus()
+  // A chip's own button takes the focus (its × is a sibling button, cr31 F9).
+  const own = (chip: typeof chips) => chip.getByRole('button').first()
+  await own(chips.first()).focus()
   await page.keyboard.press('Delete')
   await expect(chips).toHaveCount(1)
-  await expect(chips.first()).toBeFocused()
+  await expect(own(chips.first())).toBeFocused()
   await page.keyboard.press('Delete')
   await expect(chips).toHaveCount(0)
   await expect(editor.getByRole('button', { name: 'Filter', exact: true })).toBeFocused()
   await expect(editor).toBeVisible()
 })
+
+test('a chip is two controls: Shift+Tab reaches its × then its own button, and the focus rings the whole chip (cr31 UI F9)', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...SEED,
+    listDefinitions: [{ name: 'Team', people: ['Ann'], predicate: { searchText: 'task' } }],
+  })
+  await expect.poll(() => titles(page)).toEqual(['Ann task'])
+  await page.getByRole('tab').filter({ hasText: 'Team' }).first().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Edit list…' }).click()
+  const editor = page.getByTestId('edit-list')
+  const last = editor.getByTestId('list-filter-chip').last()
+  await editor.getByRole('button', { name: 'Another filter (AND)' }).focus()
+  await page.keyboard.press('Shift+Tab')
+  await expect(last.getByRole('button', { name: 'Remove filter' })).toBeFocused()
+  await page.keyboard.press('Shift+Tab')
+  const own = last.getByRole('button').first()
+  await expect(own).toBeFocused()
+  await expect(own).toHaveAttribute('aria-haspopup', 'dialog')
+  expect(await own.evaluate((el) => getComputedStyle(el).boxShadow)).toBe('none')
+  expect(await last.evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe('none')
+  // Enter on it opens its picker.
+  await page.keyboard.press('Enter')
+  await expect(own).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByTestId('list-filter-picker')).toBeVisible()
+})
+

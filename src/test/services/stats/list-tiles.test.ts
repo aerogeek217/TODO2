@@ -3,7 +3,7 @@ import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { TodoPredicate } from '../../../models'
 import type { FilterCriteria } from '../../../utils/filter-criteria'
 import { computeListTileCounts, isListTileEligible } from '../../../services/stats/list-tiles'
-import { emptyFilterCriteria, makePerson, makeTodo } from '../../helpers'
+import { emptyFilterCriteria, makePerson, makeTodo, lookupsFor } from '../../helpers'
 
 const today = new Date(2026, 9, 10)
 const alice = makePerson({ id: 1, name: 'Alice' })
@@ -28,7 +28,7 @@ const tasks = [
   makeTodo({ id: 3, isCompleted: true }),
   makeTodo({ id: 4, dueDate: new Date(2026, 9, 11), important: true }),
 ]
-const lookups = { assignedPeopleMap: new Map([[1, [alice, bob]], [2, [alice]], [3, [alice]]]) }
+const lookups = lookupsFor({ assignedPeopleMap: new Map([[1, [alice, bob]], [2, [alice]], [3, [alice]]]) })
 const opts = (screen?: FilterCriteria, urgentRange: number | null = 3) => ({
   screen, lookups, today, weekStartsOn: 1 as const, markerSettings: { urgentRange },
 })

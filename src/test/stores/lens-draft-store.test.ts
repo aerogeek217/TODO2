@@ -8,6 +8,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
+import { lensActions } from '../../stores/lens-actions'
 
 const drafts = () => useLensDraftStore.getState()
 const ui = () => useUIStore.getState()
@@ -19,7 +20,7 @@ const settle = () => new Promise((r) => setTimeout(r, 0))
 
 beforeEach(async () => {
   await resetDb()
-  await useSettingsStore.getState().setLenses([
+  await lensActions.setLenses([
     { id: 'lens-a', name: 'Alpha', predicate: emptyPredicate() },
     { id: 'lens-b', name: 'Beta', predicate: emptyPredicate() },
   ], 'seed')

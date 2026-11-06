@@ -7,6 +7,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 const WEEKLY = { type: 'weekly' as const }
 
@@ -21,7 +22,7 @@ const stored = async (id: number) => (await todoRepository.getById(id))!
 
 /** A task with a weekly rule and no due date (as an older file can hold). */
 async function orphanTask(): Promise<number> {
-  const id = await useTodoStore.getState().add('Water plants')
+  const id = await addTask('Water plants')
   await useTodoStore.getState().update(id, { recurrenceRule: WEEKLY })
   expect((await stored(id)).recurrenceRule).toEqual(WEEKLY)
   useUndoStore.getState().clear()
@@ -54,7 +55,7 @@ describe('a rule without a due date', () => {
   })
 
   it('clearing the due dates drops their rules in the store too; Undo brings both back', async () => {
-    const id = await useTodoStore.getState().add('Report')
+    const id = await addTask('Report')
     const due = new Date(2026, 9, 30)
     await useTodoStore.getState().update(id, { dueDate: due, recurrenceRule: WEEKLY })
     useUndoStore.getState().clear()

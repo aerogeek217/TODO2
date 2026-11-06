@@ -18,7 +18,7 @@ import { useFilterStore } from '../../stores/filter-store'
 import { applyRuntimeFilter, buildList } from '../../services/build-list'
 import { currentFilterSettings } from '../../stores/settings-store'
 import type { TodoNameLookups } from '../../utils/filter'
-import { makeTodo } from '../helpers'
+import { makeTodo, lookupsFor } from '../helpers'
 
 const today = new Date(2026, 9, 14)
 
@@ -39,12 +39,12 @@ const todos: PersistedTodoItem[] = [
 ]
 const people = new Map([[1, [ann]], [2, [bob]], [3, [ann, bob]]])
 const tags = new Map([[1, [work]], [2, [home]], [3, [work, home]]])
-const lookups: TodoNameLookups = { assignedPeopleMap: people, assignedTagsMap: tags, statusesById: new Map([[1, doing], [2, waiting], [3, done]]) }
+const lookups: TodoNameLookups = lookupsFor({ assignedPeopleMap: people, assignedTagsMap: tags, statusesById: new Map([[1, doing], [2, waiting], [3, done]]) })
 const names = { people: [ann, bob], tags: [work, home], statuses: [doing, waiting, done] }
 
 const none = (): FilterCriteria => predicateToCriteria(emptyPredicate())
 const crit = (patch: Partial<FilterCriteria>): FilterCriteria => ({ ...none(), ...patch })
-const ids = (f: FilterCriteria) => applyFilter(f, todos, people, [doing, waiting, done], today, tags, currentFilterSettings()).map((t) => t.id)
+const ids = (f: FilterCriteria) => applyFilter(f, todos, lookups, today, currentFilterSettings()).map((t) => t.id)
 
 describe('matching an "is not" filter', () => {
   it.each([

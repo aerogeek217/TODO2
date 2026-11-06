@@ -10,7 +10,7 @@ import { currentFilterSettings } from '../../stores/settings-store'
 import { emptyPredicate } from '../../models'
 import { applyRuntimeFilter, buildList } from '../../services/build-list'
 import { buildListSections, type ListSectionsContext, type Section } from '../../services/list-sections'
-import { makeTodo } from '../helpers'
+import { makeTodo, testLookups } from '../helpers'
 import { useSettingsStore } from '../../stores/settings-store'
 
 // A list widget runs its definition through `buildList` with the predicate
@@ -74,11 +74,7 @@ function def(over: Partial<PersistedListDefinition>): PersistedListDefinition {
 }
 
 function widgetSections(d: PersistedListDefinition, pick: number[] | undefined, screen?: FilterCriteria): Section[] {
-  const lookups = {
-    assignedPeopleMap,
-    assignedTagsMap,
-    statusesById: new Map(statuses.map((s) => [s.id!, s])),
-  }
+  const lookups = testLookups({ assignedPeopleMap, assignedTagsMap, statuses })
   const evalPredicate = screen ? createScreenComposedEvaluator(screen, lookups, today, currentFilterSettings()) : createPredicateEvaluator(lookups, today, currentFilterSettings())
   const list = buildList(d, todos, {
     ...ctx,
@@ -99,7 +95,7 @@ function filterPathSections(d: PersistedListDefinition, pick: number[] | undefin
     : predicateToCriteria(applyRuntimeFilter(criteriaToPredicate(manualFilters), spec, pick))
   const members = spec && pick == null
     ? []
-    : applyFilter(effective, todos, assignedPeopleMap, statuses, today, assignedTagsMap, currentFilterSettings())
+    : applyFilter(effective, todos, testLookups({ assignedPeopleMap, assignedTagsMap, statuses }), today, currentFilterSettings())
   return buildListSections(members, {
     groupBy: d.grouping,
     sortBy: d.sort,

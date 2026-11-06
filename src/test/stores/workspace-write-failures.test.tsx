@@ -105,6 +105,46 @@ describe('workspace layout writes that fail', () => {
   })
 })
 
+describe('switching or deleting a layout when a write fails (cr31 L10)', () => {
+  async function second(): Promise<number> {
+    return layoutRepository.insert({ name: 'Second', createdAt: T0, modifiedAt: T0, columns: [] })
+  }
+
+  it('a switch that fails does not reject, says so, and keeps the open layout', async () => {
+    const plain = await openPlain()
+    const other = await second()
+    await ws().init()
+    failWrites()
+    vi.spyOn(layoutRepository, 'touch').mockRejectedValue(new Error('full'))
+    await expect(ws().load(other)).resolves.toBeUndefined()
+    expect(ws().activeLayoutId).toBe(plain)
+    expect(notice()).toBe('Couldn\'t open layout "Second".')
+  })
+
+  it('a delete that fails does not reject, resolves false and says so', async () => {
+    const plain = await openPlain()
+    await second()
+    await ws().init()
+    failWrites()
+    vi.spyOn(layoutRepository, 'deleteUnlessLast').mockRejectedValue(new Error('full'))
+    await expect(ws().delete(plain)).resolves.toBe(false)
+    expect(ws().layouts.map((l) => l.id)).toContain(plain)
+    expect(notice()).toBe('Couldn\'t delete layout "Plain".')
+  })
+
+  it('a delete of the open layout whose next layout won’t open still drops its tab and says so', async () => {
+    const plain = await openPlain()
+    await second()
+    await ws().init()
+    failWrites()
+    vi.spyOn(layoutRepository, 'touch').mockRejectedValue(new Error('full'))
+    await expect(ws().delete(plain)).resolves.toBe(true)
+    expect(await db.layouts.get(plain)).toBeUndefined()
+    expect(ws().layouts.map((l) => l.id)).not.toContain(plain)
+    expect(notice()).toBe('Deleted layout "Plain", but couldn\'t open another. Reload the page.')
+  })
+})
+
 describe('the unsaved-changes prompt when Save fails', () => {
   it('stays open instead of carrying on (which would drop the layout)', async () => {
     const { render, screen, fireEvent, waitFor } = await import('@testing-library/react')

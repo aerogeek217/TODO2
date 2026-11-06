@@ -9,6 +9,7 @@ import { addDays, startOfToday } from '../../utils/date'
 import { subtaskCount } from '../../utils/subtasks'
 import { resetDb } from '../helpers'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 /** The titles the store holds for `todoId`, in checklist order. */
 const titles = (todoId: number) => (useSubtaskStore.getState().byTodo.get(todoId) ?? []).map((r) => r.title)
@@ -25,7 +26,7 @@ beforeEach(async () => {
 })
 
 async function task(title = 'Q4 budget'): Promise<number> {
-  return useTodoStore.getState().add(title)
+  return addTask(title)
 }
 
 /** A task with the subtasks `names`, the undo stack cleared after. */

@@ -34,7 +34,8 @@ test('Edit list: a chip opens its picker as a popover under it, outside the dial
   const chip = editList.getByTestId('list-filter-chip')
   const dialogBefore = (await editList.boundingBox())!
   await chip.click()
-  await expect(chip).toHaveAttribute('aria-expanded', 'true')
+  // The chip's own button (the × is its sibling, cr31 F9).
+  await expect(chip.getByRole('button').first()).toHaveAttribute('aria-expanded', 'true')
   const picker = page.getByTestId('list-filter-picker')
   await expect(picker).toBeVisible()
   await expect(editList.getByTestId('list-filter-picker')).toHaveCount(0)
@@ -50,7 +51,7 @@ test('Edit list: a chip opens its picker as a popover under it, outside the dial
 
   await page.keyboard.press('Escape')
   await expect(picker).toHaveCount(0)
-  await expect(chip).toHaveAttribute('aria-expanded', 'false')
+  await expect(chip.getByRole('button').first()).toHaveAttribute('aria-expanded', 'false')
   await expect(editList).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(editList).toHaveCount(0)

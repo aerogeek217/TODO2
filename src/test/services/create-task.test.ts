@@ -20,6 +20,7 @@ import { addDays, startOfToday } from '../../utils/date'
 import type { FilterDefaults } from '../../utils/filter-defaults'
 import type { PersistedTodoItem } from '../../models'
 import { resetStores } from '../store-tracking'
+import { addTask } from '../add-task'
 
 // The three ways a task is created — Quick Add, a note's drafts, and the
 // task editor's create mode — side by side: the same text gives the same
@@ -180,7 +181,7 @@ describe('create a task — next follow-up', () => {
     expect((await viaEditor({ title: 'C /followup 2w' })).todo.nextFollowupAt).toEqual(twoWeeks)
     expect((await viaQuickAdd('D /followup none')).todo.nextFollowupAt).toBeUndefined()
     // The store's own add (no draft) follows the setting too.
-    const id = await useTodoStore.getState().add('E')
+    const id = await addTask('E')
     expect((await todoRepository.getById(id))!.nextFollowupAt).toBeUndefined()
   })
 })
