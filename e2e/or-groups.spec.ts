@@ -83,7 +83,7 @@ test.describe('desktop', () => {
     await page.locator('header').getByRole('button', { name: /^Lens:/ }).click()
     await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Triage/ }).click()
     await expect.poll(() => titles(page)).toEqual(['Hot one'])
-    const counter = tray.getByRole('button', { name: /tasks shown\. Show them$/ })
+    const counter = tray.getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
     await expect(counter).toHaveAccessibleName('1 of 4 open tasks shown. Show them')
 
     const settings = await openSettings(page, 'Tasks')

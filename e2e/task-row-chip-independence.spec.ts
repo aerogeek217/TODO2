@@ -34,7 +34,7 @@ test.describe('TaskRow chip independence', () => {
     // in that window on every `todos` change, and pre-fix its post-fetch
     // `setMap` clobbered the optimistic assign.
     await page.getByRole('button', { name: 'New task' }).click()
-    const input = page.locator('input[placeholder="New task…"]')
+    const input = page.getByRole('dialog', { name: 'Quick add task' }).getByPlaceholder('New task…')
     await input.waitFor({ state: 'visible' })
     await input.fill('Race regression @Alice')
     // Trailing space closes the autocomplete popup that intercepts Enter

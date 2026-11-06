@@ -28,7 +28,7 @@ const KEPT = ['Lately, next overdue', 'Long ago, next soon', 'Never followed up'
 
 const header = (page: Page) => page.locator('header')
 const tray = (page: Page) => header(page).getByRole('group', { name: 'Screen filters — apply to every widget' })
-const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown\. Show them$/ })
+const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
 const titles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
 const datePanel = (page: Page) => page.getByTestId('list-filter-picker')
 
@@ -99,11 +99,11 @@ test('the user\'s lens: hides only the tasks followed up lately with a next foll
   await settings.getByRole('button', { name: 'Close settings' }).click()
 
   await expect.poll(() => titles(page)).toEqual(KEPT)
-  await expect(counter(page)).toHaveAccessibleName('3 of 4 open tasks shown. Show them')
+  await expect(counter(page)).toHaveAccessibleName('3 of 4 open tasks shown, 1 follow-up: overdue. Show them')
 
   // Kept across a reload.
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect.poll(() => titles(page)).toEqual(KEPT)
-  await expect(counter(page)).toHaveAccessibleName('3 of 4 open tasks shown. Show them')
+  await expect(counter(page)).toHaveAccessibleName('3 of 4 open tasks shown, 1 follow-up: overdue. Show them')
 })

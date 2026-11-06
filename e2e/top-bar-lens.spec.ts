@@ -184,7 +184,7 @@ async function settled(page: Page) {
 }
 
 const panel = (page: Page) => page.locator('[data-filter-panel]')
-const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown\. Show them$/ })
+const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
 const expanded = (page: Page) => header(page).locator('[data-expanded]')
 
 /** The panel's left edge against the tray's, px (0: lined up). */
@@ -223,7 +223,7 @@ test('it sits after the layout tabs and before the tray, outside it, as tall as 
     expect(await inTray(page, control(page))).toBe(false)
   }
   // The counter stays the tray's.
-  await expect(tray(page).getByRole('button', { name: /tasks shown\. Show them$/ })).toBeVisible()
+  await expect(tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })).toBeVisible()
 })
 
 for (const mode of ['dark', 'light'] as const) {
@@ -307,7 +307,7 @@ test('over folded filters the tray expands without it; a press on it closes the 
   await expect(tray(page).getByRole('button', { name: /^Filters/ })).toBeVisible()
   const closed = await settled(page)
 
-  await tray(page).getByRole('button', { name: /tasks shown\. Show them$/ }).click()
+  await tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ }).click()
   const panel = page.locator('[data-filter-panel]')
   await expect(panel).toBeVisible()
   await expect(header(page).locator('[data-expanded]')).toHaveCount(1)
