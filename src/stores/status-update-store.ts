@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import { statusUpdateRepository } from '../data/status-update-repository'
+import { taskTouch } from '../data/touch-todos'
 import type { PersistedStatusUpdate, StatusUpdate } from '../models/status-update'
 import { startOfToday } from '../utils/date'
 import { compareStatusUpdates, statusUpdateDay, statusUpdateText } from '../utils/status-updates'
+import { undoStamps, type Stamp } from '../utils/task-stamps'
 import { saveOrReport, trackWrite } from './store-helpers'
-import { notifyTasksTouched } from './task-hooks'
+import { notifyTasksStamped } from './task-hooks'
 import { taskChildRows } from './task-child-rows'
 import { guardTasks } from './task-undo-guard'
 import { undoable } from './undoable'
@@ -22,7 +24,10 @@ export interface NewStatusUpdate {
  * Every task's status updates (`statusUpdates`), loaded once, each task's
  * newest first (`compareStatusUpdates`). Every write saves at once and is
  * its own undo step, and counts as activity on its task: it stamps the
- * task's `modifiedAt` (the task store follows through `task-hooks.onTasksTouched`). A write never rejects: a failure is logged, the
+ * task's `modifiedAt` (the task store follows through
+ * `task-hooks.onTasksStamped`); its undo puts back the stamp the task had
+ * before, its redo the one it wrote — each only while the task still holds
+ * the other (`utils/task-stamps`). A write never rejects: a failure is logged, the
  * snackbar says so, and it resolves as "nothing written" (`undefined` /
  * `false`). Text is stored as one trimmed line (`statusUpdateText`) — a
  * blank one is refused (no write) — and a date after today as today.
@@ -55,11 +60,6 @@ interface StatusUpdateState {
   forgetTodos: (todoIds: readonly number[]) => void
 }
 
-/** The stamp for a write touching `rows`' tasks, told to the listeners once it is stored. */
-function touched(rows: readonly Pick<StatusUpdate, 'todoId'>[], at: Date): void {
-  notifyTasksTouched(rows.map((r) => r.todoId), at)
-}
-
 export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
   const { find, put, putBack, take, actions } = taskChildRows<StatusUpdate, PersistedStatusUpdate>({
     repository: statusUpdateRepository,
@@ -89,17 +89,18 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
   /** Adds `rows` as one undo step (`description`), stamping their tasks' `modifiedAt`; the rows written. */
   const addAsStep = (rows: readonly StatusUpdate[], description: string): Promise<PersistedStatusUpdate[]> =>
     saveOrReport(async () => {
-      const at = new Date()
-      const added = await statusUpdateRepository.addMany(rows, at)
+      const touch = taskTouch(new Date())
+      const added = await statusUpdateRepository.addMany(rows, touch)
       if (added.length === 0) return added
       put(added)
-      touched(added, at)
+      notifyTasksStamped(touch.stamped)
+      const step = touch.stamped
       const ids = added.map((r) => r.id)
       const tasks = added.map((r) => r.todoId)
       undoable(
         description,
-        guardTasks(tasks, async () => { await trackWrite(() => putBack(added, true)) }),
-        guardTasks(tasks, () => trackWrite(() => take(ids))),
+        guardTasks(tasks, async () => { await trackWrite(() => putBack(added, step)) }),
+        guardTasks(tasks, async () => { await trackWrite(() => take(ids, undoStamps(step))) }),
       )
       return added
     }, [], 'add the status update')
@@ -142,25 +143,25 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
         ...(patch.text !== undefined ? { text: prev.text } : {}),
         ...(patch.date !== undefined ? { date: prev.date } : {}),
       }
-      /** Writes `fields` to the entry (stamping its task), in the database and the store; false when it is gone. */
-      const write = async (fields: Partial<Pick<StatusUpdate, 'date' | 'text'>>): Promise<boolean> => {
-        const at = new Date()
-        const saved = await statusUpdateRepository.update(id, fields, at)
+      /** Writes `fields` to the entry, stamping its task by `stamp`, in the database and the store; what it stamped, or null when the entry is gone. */
+      const write = async (fields: Partial<Pick<StatusUpdate, 'date' | 'text'>>, stamp: Stamp) => {
+        const touch = taskTouch(stamp)
+        const saved = await statusUpdateRepository.update(id, fields, touch)
         const current = find(id)
         if (saved && current) put([{ ...current, ...fields }])
-        if (saved) touched([prev], at)
-        return saved
+        if (saved) notifyTasksStamped(touch.stamped)
+        return saved ? touch.stamped : null
       }
       return saveOrReport(async () => {
-        const saved = await write(patch)
-        if (saved) {
+        const step = await write(patch, new Date())
+        if (step) {
           undoable(
             'Edit status update',
-            guardTasks([prev.todoId], async () => { await trackWrite(() => write(patch)) }),
-            guardTasks([prev.todoId], async () => { await trackWrite(() => write(before)) }),
+            guardTasks([prev.todoId], async () => { await trackWrite(() => write(patch, step)) }),
+            guardTasks([prev.todoId], async () => { await trackWrite(() => write(before, undoStamps(step))) }),
           )
         }
-        return saved
+        return step != null
       }, false, 'save the status update')
     },
 
@@ -168,11 +169,11 @@ export const useStatusUpdateStore = create<StatusUpdateState>((set, get) => {
       const row = find(id)
       if (!row) return false
       return saveOrReport(async () => {
-        await take([id])
+        const step = await take([id], new Date())
         undoable(
           'Status update removed',
-          guardTasks([row.todoId], () => trackWrite(() => take([id]))),
-          guardTasks([row.todoId], async () => { await trackWrite(() => putBack([row], true)) }),
+          guardTasks([row.todoId], async () => { await trackWrite(() => take([id], step)) }),
+          guardTasks([row.todoId], async () => { await trackWrite(() => putBack([row], undoStamps(step))) }),
           true,
         )
         return true

@@ -1,10 +1,12 @@
 import { create } from 'zustand'
 import { subtaskRepository, type SubtaskPatch } from '../data/subtask-repository'
+import { taskTouch } from '../data/touch-todos'
 import type { PersistedSubtask, Subtask } from '../models/subtask'
 import { compareSubtasks, nextSubtaskOrder, subtaskTitle } from '../utils/subtasks'
 import { shortTitle as short } from '../utils/text'
+import { undoStamps, type Stamp, type StampChanges } from '../utils/task-stamps'
 import { saveOrReport, trackWrite } from './store-helpers'
-import { completeTask, isTaskOpen, notifyTasksTouched } from './task-hooks'
+import { completeTask, isTaskOpen, notifyTasksStamped } from './task-hooks'
 import { taskChildRows } from './task-child-rows'
 import { guardTasks } from './task-undo-guard'
 import { undoable } from './undoable'
@@ -17,7 +19,9 @@ type ByTodo = ReadonlyMap<number, readonly PersistedSubtask[]>
  * Every task's checklist (`subtasks`), loaded once, each task's in order
  * (`compareSubtasks`). Every write saves at once, is its own undo step and
  * counts as activity on its task: it stamps the task's `modifiedAt` (the
- * task store follows through `onTasksTouched`). A write never rejects: a
+ * task store follows through `onTasksStamped`); its undo puts back the stamp
+ * the task had before, its redo the one it wrote — each only while the task
+ * still holds the other (`utils/task-stamps`). A write never rejects: a
  * failure is logged, the snackbar says so, and it resolves as "nothing
  * written". A title is stored as one trimmed line (`subtaskTitle`) — a
  * blank one is refused (no write).
@@ -78,24 +82,20 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
 
   /**
    * Writes `patches` to the database and the store, stamping every task
-   * touched (a move: the one left and the one joined). Resolves how many
-   * rows were written.
+   * touched by `stamp` (a move: the one left and the one joined). Resolves
+   * what it stamped, or null when no row was written.
    */
-  const write = async (patches: readonly SubtaskPatch[]): Promise<number> => {
-    const at = new Date()
-    const written = await subtaskRepository.updateMany(patches, at)
-    if (written === 0) return 0
-    const touched: number[] = []
+  const write = async (patches: readonly SubtaskPatch[], stamp: Stamp): Promise<StampChanges | null> => {
+    const touch = taskTouch(stamp)
+    const written = await subtaskRepository.updateMany(patches, touch)
+    if (written === 0) return null
     const next = patches.flatMap((p) => {
       const current = find(p.id)
-      if (!current) return []
-      touched.push(current.todoId)
-      if (p.changes.todoId != null) touched.push(p.changes.todoId)
-      return [{ ...current, ...p.changes }]
+      return current ? [{ ...current, ...p.changes }] : []
     })
     put(next)
-    notifyTasksTouched(touched, at)
-    return written
+    notifyTasksStamped(touch.stamped)
+    return touch.stamped
   }
 
   /** The patches that put each row of `rows` back to its own values of `fields`. */
@@ -107,12 +107,12 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
     saveOrReport(async () => {
       // The tasks the edit touches: each row's, and a move's target.
       const tasks = patches.flatMap((p) => [find(p.id)?.todoId ?? [], p.changes.todoId ?? []].flat())
-      const written = await write(patches)
-      if (written === 0) return false
+      const step = await write(patches, new Date())
+      if (!step) return false
       undoable(
         description,
-        guardTasks(tasks, async () => { await trackWrite(() => write(patches)) }),
-        guardTasks(tasks, async () => { await trackWrite(() => write(before)) }),
+        guardTasks(tasks, async () => { await trackWrite(() => write(patches, step)) }),
+        guardTasks(tasks, async () => { await trackWrite(() => write(before, undoStamps(step))) }),
         snackbar,
       )
       return true
@@ -135,15 +135,16 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
         createdAt: new Date(),
       }
       return saveOrReport(async () => {
-        const at = new Date()
-        const added = await subtaskRepository.add(row, at)
+        const touch = taskTouch(new Date())
+        const added = await subtaskRepository.add(row, touch)
         if (!added) return undefined
         put([added])
-        notifyTasksTouched([todoId], at)
+        notifyTasksStamped(touch.stamped)
+        const step = touch.stamped
         undoable(
           `Add subtask “${short(clean)}”`,
-          guardTasks([todoId], async () => { await trackWrite(() => putBack([added], true)) }),
-          guardTasks([todoId], () => trackWrite(() => take([added.id]))),
+          guardTasks([todoId], async () => { await trackWrite(() => putBack([added], step)) }),
+          guardTasks([todoId], async () => { await trackWrite(() => take([added.id], undoStamps(step))) }),
         )
         return added
       }, undefined, 'add the subtask')
@@ -170,12 +171,12 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
       const last = done && isTaskOpen(prev.todoId) && siblings.every((s) => s.id === id || s.isCompleted)
       const description = done ? `Check “${short(prev.title)}”` : `Uncheck “${short(prev.title)}”`
       return saveOrReport(async () => {
-        const written = await write([{ id, changes: { isCompleted: done } }])
-        if (written === 0) return false
+        const step = await write([{ id, changes: { isCompleted: done } }], new Date())
+        if (!step) return false
         undoable(
           description,
-          guardTasks([prev.todoId], async () => { await trackWrite(() => write([{ id, changes: { isCompleted: done } }])) }),
-          guardTasks([prev.todoId], async () => { await trackWrite(() => write([{ id, changes: { isCompleted: prev.isCompleted } }])) }),
+          guardTasks([prev.todoId], async () => { await trackWrite(() => write([{ id, changes: { isCompleted: done } }], step)) }),
+          guardTasks([prev.todoId], async () => { await trackWrite(() => write([{ id, changes: { isCompleted: prev.isCompleted } }], undoStamps(step))) }),
           last,
           last ? `All ${siblings.length === 1 ? 'its subtasks are' : `${siblings.length} subtasks are`} done` : undefined,
           last ? { label: 'Complete task', run: () => { void completeTask(prev.todoId) } } : undefined,
@@ -221,11 +222,11 @@ export const useSubtaskStore = create<SubtaskState>((set, get) => {
       const row = find(id)
       if (!row) return false
       return saveOrReport(async () => {
-        await take([id])
+        const step = await take([id], new Date())
         undoable(
           'Subtask removed',
-          guardTasks([row.todoId], () => trackWrite(() => take([id]))),
-          guardTasks([row.todoId], async () => { await trackWrite(() => putBack([row], true)) }),
+          guardTasks([row.todoId], async () => { await trackWrite(() => take([id], step)) }),
+          guardTasks([row.todoId], async () => { await trackWrite(() => putBack([row], undoStamps(step))) }),
           true,
         )
         return true

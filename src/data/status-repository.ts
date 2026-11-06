@@ -2,6 +2,7 @@ import { db } from './database'
 import type { Status } from '../models'
 import { createRepository, insertLast, reorderBySortOrder } from './create-repository'
 import { todoRepository } from './todo-repository'
+import type { Stamp } from '../utils/task-stamps'
 
 const base = createRepository<Status>(db.statuses, 'sortOrder')
 
@@ -29,10 +30,10 @@ export const statusRepository = {
    * (`todoRepository.bulkUpdate`: one `modifiedAt`, a `status` event per
    * task) — in one transaction. Returns the tasks it was cleared from.
    */
-  async delete(id: number, now: Date = new Date()): Promise<number[]> {
+  async delete(id: number, stamp: Stamp = new Date()): Promise<number[]> {
     return db.transaction('rw', [db.statuses, db.todos, db.todoEvents], async () => {
       const todoIds = (await db.todos.where('statusId').equals(id).primaryKeys()) as number[]
-      await todoRepository.bulkUpdate(todoIds.map((todoId) => ({ todoId, changes: { statusId: undefined } })), now)
+      await todoRepository.bulkUpdate(todoIds.map((todoId) => ({ todoId, changes: { statusId: undefined } })), stamp)
       await db.statuses.delete(id)
       return todoIds
     })
@@ -45,14 +46,15 @@ export const statusRepository = {
   /**
    * Undo-restore for `delete`: re-insert the status row (preserving its id) and
    * re-assign `statusId` on every todo that previously pointed to it (as
-   * `delete`, through `todoRepository.bulkUpdate`). One
+   * `delete`, through `todoRepository.bulkUpdate`; `stamp`: the undo's — the
+   * tasks' earlier `modifiedAt` put back, `utils/task-stamps`). One
    * transaction so the file-storage debounce-save sees a single completed unit
    * of work rather than two interleaved batches.
    */
-  async restoreWithTodos(status: Status, affectedTodoIds: number[], now: Date = new Date()): Promise<void> {
+  async restoreWithTodos(status: Status, affectedTodoIds: number[], stamp: Stamp = new Date()): Promise<void> {
     await db.transaction('rw', [db.statuses, db.todos, db.todoEvents], async () => {
       await db.statuses.add(status)
-      await todoRepository.bulkUpdate(affectedTodoIds.map((todoId) => ({ todoId, changes: { statusId: status.id } })), now)
+      await todoRepository.bulkUpdate(affectedTodoIds.map((todoId) => ({ todoId, changes: { statusId: status.id } })), stamp)
     })
   },
 

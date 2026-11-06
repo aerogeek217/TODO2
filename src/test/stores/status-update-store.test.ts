@@ -328,11 +328,36 @@ describe('an entry write is activity on its task', () => {
     await expectStamped(id, () => useStatusUpdateStore.getState().remove(entryId))
   })
 
-  it('undo and redo of an entry write stamp it too', async () => {
+  it('undo puts back the Modified date the task had before an entry write, redo the one it wrote — stored and shown', async () => {
+    const id = await staleTask()
+    let entryId = 0
+    const writes: Array<() => Promise<unknown>> = [
+      async () => { entryId = (await useStatusUpdateStore.getState().add(id, { date: today(), text: 'Pinged' }))!.id },
+      () => useStatusUpdateStore.getState().update(entryId, { text: 'Pinged twice' }),
+      () => useStatusUpdateStore.getState().remove(entryId),
+    ]
+    for (const write of writes) {
+      await expectStamped(id, write)
+      const wrote = (await modifiedAt(id)).stored
+      await useUndoStore.getState().undo()
+      expect(await modifiedAt(id)).toEqual({ stored: longAgo, shown: longAgo })
+      await useUndoStore.getState().redo()
+      expect(await modifiedAt(id)).toEqual({ stored: wrote, shown: wrote })
+    }
+  })
+
+  it('a task touched since the write keeps its newer Modified date through undo and redo', async () => {
     const id = await staleTask()
     await useStatusUpdateStore.getState().add(id, { date: today(), text: 'Pinged' })
-    await expectStamped(id, () => useUndoStore.getState().undo())
-    await expectStamped(id, () => useUndoStore.getState().redo())
+    const later = new Date(Date.now() + 60_000)
+    await db.todos.update(id, { modifiedAt: later })
+    useTodoStore.setState({ todos: useTodoStore.getState().todos.map((t) => (t.id === id ? { ...t, modifiedAt: later } : t)) })
+    await useUndoStore.getState().undo()
+    expect(await storedTexts(id)).toEqual([])
+    expect(await modifiedAt(id)).toEqual({ stored: later, shown: later })
+    await useUndoStore.getState().redo()
+    expect(await storedTexts(id)).toEqual(['Pinged'])
+    expect(await modifiedAt(id)).toEqual({ stored: later, shown: later })
   })
 
   it('a write that changes nothing stamps nothing', async () => {
