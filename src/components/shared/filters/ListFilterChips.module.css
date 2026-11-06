@@ -417,3 +417,146 @@
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-muted);
 }
+
+/* ─── Graphical | Expression (the editors' filter block) ─────────── */
+
+.modeBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.modeRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.modeSwitch {
+  display: inline-flex;
+  padding: 2px;
+  border-radius: 7px;
+  background: var(--color-tint-6);
+}
+
+.mode,
+.modeOn {
+  height: 22px;
+  padding: 0 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.mode:hover {
+  color: var(--color-text-primary);
+}
+
+.modeOn {
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+}
+
+.modeHelp {
+  display: inline-flex;
+  padding: 2px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  cursor: help;
+}
+
+.modeHelp:hover {
+  color: var(--color-text-primary);
+}
+
+/* Graphical over an expression no chips say. */
+.expressionLocked {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-4);
+}
+
+.expressionLockedTitle {
+  font-size: 13px;
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.expressionLockedText {
+  overflow: hidden;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.expressionLockedButtons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.expressionPrimary,
+.expressionSecondary {
+  height: 28px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-md);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.expressionPrimary {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.expressionPrimary:hover {
+  background: var(--color-accent-dim);
+}
+
+.expressionSecondary {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.expressionSecondary:hover {
+  background: var(--color-tint-12);
+}
+
+/* A filter written as an expression on the list's filter line: one chip. */
+.expressionChip {
+  composes: chip;
+  min-width: 0;
+  max-width: 100%;
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+  cursor: default;
+}
+
+button.expressionChip {
+  cursor: pointer;
+}
+
+button.expressionChip:hover {
+  background: var(--color-tint-12);
+}
+
+.expressionChipText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}

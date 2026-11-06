@@ -1,0 +1,183 @@
+/* A filter typed as an expression: a textarea over its tint mirror (Quick
+ * Add's pattern — the same font, size, line height and wrapping on both, so
+ * the tints sit under their characters), the error and Syntax… under it,
+ * then the Reads as preview. */
+
+.root {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.field {
+  position: relative;
+  padding: 6px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.field:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-accent), var(--focus-ring);
+}
+
+.fieldError,
+.fieldError:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
+.mirror,
+.input {
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 20px;
+  letter-spacing: normal;
+  margin: 0;
+  padding: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.mirror {
+  position: absolute;
+  inset: 6px 10px;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  pointer-events: none;
+}
+
+.input {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 20px;
+  box-sizing: border-box;
+  border: none;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--color-text-primary);
+  outline: none;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* No scrollbar: it would narrow the text against the mirror's. */
+  scrollbar-width: none;
+}
+
+.input:focus-visible {
+  box-shadow: none;
+}
+
+.input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.input::selection {
+  color: transparent;
+  background: var(--color-accent-bg);
+}
+
+.under {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 16px;
+}
+
+.error {
+  font-size: var(--font-size-meta);
+  color: var(--color-danger-text);
+}
+
+.syntax {
+  flex-shrink: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  cursor: pointer;
+}
+
+.syntax:hover {
+  text-decoration: underline;
+}
+
+.readsAs {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-4);
+}
+
+.readsRow {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.keep,
+.drop {
+  flex-shrink: 0;
+  width: 34px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+}
+
+.keep {
+  color: var(--color-text-muted);
+}
+
+.drop {
+  color: var(--color-danger-text);
+}
+
+.pieces {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  min-width: 0;
+}
+
+.word {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: 6px;
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  overflow-wrap: anywhere;
+}
+
+.chipValue {
+  color: var(--color-text-primary);
+}
+
+.done {
+  margin: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+/* Above the dialogs this field sits in (Edit list, Settings). */
+.popup {
+  position: fixed;
+  z-index: var(--z-dialog-nested);
+}

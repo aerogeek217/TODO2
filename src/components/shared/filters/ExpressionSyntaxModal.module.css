@@ -1,0 +1,88 @@
+/* The filter expression cheat sheet: the Settings editors' modal look (EntityEditor), its own copy. */
+
+.modal {
+  display: flex;
+  flex-direction: column;
+  width: 620px;
+  max-width: 90vw;
+  max-height: 80vh;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-modal);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.title {
+  font-size: var(--font-size-nav);
+  font-weight: var(--font-weight-semibold);
+}
+
+.close {
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: none;
+  color: var(--color-text-muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.close:hover {
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.lead {
+  margin: 0 0 4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.lead b {
+  color: var(--color-text-primary);
+}
+
+.section {
+  margin: 14px 0 6px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  align-items: baseline;
+}
+
+.syntax {
+  padding: 2px 8px;
+  border-radius: 3px;
+  background: var(--color-surface-high);
+  color: var(--color-text-primary);
+  font-family: monospace;
+  font-size: var(--font-size-meta);
+  white-space: pre;
+}
+
+.meaning {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}

@@ -85,6 +85,7 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, co
           predicate={predicate}
           onChange={(next) => useListDraftStore.getState().edit(id, (d) => ({ ...d, membership: { kind: 'custom', predicate: next } }))}
           inDialog={inDialog}
+          onOpenExpression={tabId != null ? () => openEditList(tabId, id) : undefined}
           before={(
             <>
               {screenChips.map((chip) => (

@@ -9,10 +9,11 @@ import type { SlashCommandName } from './slash-commands'
  *  - `due` / `urgent` / `followup` (`/important`, `/followup …`) /
  *    `accent` (`/focus`, `/repeat …`) — the command's marker / pill colour;
  *  - `error` — an argument that can't be read, or a `!name` naming no status;
- *  - `ignored` — recognised but ignored (`/repeat` without `/due`, a repeat).
+ *  - `ignored` — recognised but ignored (`/repeat` without `/due`, a repeat);
+ *  - `operator` — a filter expression's `and` / `or` / `not` and parentheses.
  * Unknown commands get no tint: they are plain title text.
  */
-export type TokenTint = 'chip' | 'new' | 'due' | 'urgent' | 'followup' | 'accent' | 'error' | 'ignored'
+export type TokenTint = 'chip' | 'new' | 'due' | 'urgent' | 'followup' | 'accent' | 'error' | 'ignored' | 'operator'
 
 export interface TintSpan { start: number; end: number; tint: TokenTint }
 

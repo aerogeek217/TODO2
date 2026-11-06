@@ -14,7 +14,11 @@ import {
 } from '../../../utils/filter-row-order'
 import { dissolveSingleOrGroups, hasFilterClause, withOrGroupClauses, withoutOrGroup } from '../../../utils/or-groups'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
-import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from '../icons'
+import { ChevronDownIcon, ChevronRightIcon, FunnelIcon, InfoIcon, PlusIcon } from '../icons'
+import { useTooltip } from '../use-tooltip'
+import { expressionText } from '../../../utils/filter-chips'
+import { asExpression, asGraphical, withExpression } from '../../../utils/predicate-expression'
+import { ExpressionField } from './ExpressionField'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
 import { PredicateFieldPicker, PredicateFieldPickerBody } from './PredicateFieldPicker'
 import type { DateFilterHost } from './DateFilterPanel'
@@ -90,6 +94,12 @@ interface PredicateChipsProps {
    * popovers under their row.
    */
   layout?: 'line' | 'stack'
+  /**
+   * The line layout, for a filter written as an expression (shown as one
+   * chip holding its text): opens where it is edited (Edit list). Absent:
+   * the chip only shows it.
+   */
+  onOpenExpression?: () => void
 }
 
 /**
@@ -103,7 +113,125 @@ interface PredicateChipsProps {
  * the order they were added in: a new chip goes last, a group takes the
  * place of the chip it was made from.
  */
-export function PredicateChips({
+export function PredicateChips(props: PredicateChipsProps) {
+  const { predicate, onChange, before, layout = 'line', omitFields, onOpenExpression } = props
+  const isExpression = predicate.expression != null
+  const [mode, setMode] = useState<FilterMode>(isExpression ? 'expression' : 'graphical')
+  // A filter that became an expression elsewhere (undo, a reload) shows as one.
+  const [seenExpression, setSeenExpression] = useState(isExpression)
+  if (isExpression !== seenExpression) {
+    setSeenExpression(isExpression)
+    if (isExpression) setMode('expression')
+  }
+  const names = useChipNames()
+  const text = useMemo(() => expressionText(predicate, names), [predicate, names])
+
+  if (layout !== 'stack') {
+    if (!isExpression) return <GraphicalChips {...props} />
+    return (
+      <>
+        {before}
+        <ExpressionChip text={text} onOpen={onOpenExpression} />
+      </>
+    )
+  }
+
+  const toGraphical = () => {
+    setMode('graphical')
+    const graphical = asGraphical(predicate)
+    if (graphical && graphical !== predicate) onChange(graphical)
+  }
+  const toExpression = () => {
+    setMode('expression')
+    if (!isExpression) {
+      const next = asExpression(predicate)
+      if (next.expression) onChange(next)
+    }
+  }
+  const allowPeople = !(omitFields ?? []).includes('people')
+  let body: ReactNode
+  if (mode === 'expression') {
+    body = <ExpressionField predicate={predicate} onChange={onChange} allowPeople={allowPeople} autoFocus={!isExpression} />
+  } else if (isExpression) {
+    // Graphical over an expression no chips say.
+    body = (
+      <div className={styles.expressionLocked} data-testid="expression-locked">
+        <span className={styles.expressionLockedTitle}>This filter is an expression</span>
+        <span className={styles.expressionLockedText} title={text}>{text}</span>
+        <div className={styles.expressionLockedButtons}>
+          <button type="button" className={styles.expressionPrimary} onClick={() => setMode('expression')}>Edit expression</button>
+          <button
+            type="button"
+            className={styles.expressionSecondary}
+            onClick={() => onChange(withExpression(predicate, null))}
+          >
+            Clear and use Graphical
+          </button>
+        </div>
+      </div>
+    )
+  } else {
+    body = <GraphicalChips {...props} />
+  }
+  return (
+    <div className={styles.modeBlock}>
+      <FilterModeSwitch mode={mode} onGraphical={toGraphical} onExpression={toExpression} />
+      {body}
+    </div>
+  )
+}
+
+type FilterMode = 'graphical' | 'expression'
+
+const MODE_HELP = 'Graphical: a chip per field; every chip must match\nSeveral values in a chip: any of them\nExpression: or / not across fields, nested groups'
+
+/** Graphical | Expression, with what each is in a tooltip. */
+function FilterModeSwitch({ mode, onGraphical, onExpression }: { mode: FilterMode; onGraphical: () => void; onExpression: () => void }) {
+  const help = useTooltip(MODE_HELP)
+  return (
+    <div className={styles.modeRow}>
+      <div className={styles.modeSwitch} role="radiogroup" aria-label="Filter mode">
+        <button type="button" role="radio" aria-checked={mode === 'graphical'} className={mode === 'graphical' ? styles.modeOn : styles.mode} onClick={onGraphical}>
+          Graphical
+        </button>
+        <button type="button" role="radio" aria-checked={mode === 'expression'} className={mode === 'expression' ? styles.modeOn : styles.mode} onClick={onExpression}>
+          Expression
+        </button>
+      </div>
+      <button type="button" className={styles.modeHelp} aria-label="About filter modes" {...help.triggerProps}>
+        <InfoIcon size={14} />
+      </button>
+      {help.tooltip}
+    </div>
+  )
+}
+
+/** A filter written as an expression on the list's filter line: one chip, its text cut to fit, the whole in its tooltip. */
+function ExpressionChip({ text, onOpen }: { text: string; onOpen?: () => void }) {
+  const tip = useTooltip(onOpen ? `${text}\nClick to edit` : text, { labelLines: 1 })
+  const content = (
+    <>
+      <FunnelIcon />
+      <span className={styles.expressionChipText}>{text}</span>
+    </>
+  )
+  return onOpen ? (
+    <button type="button" className={styles.expressionChip} data-testid="list-filter-expression" onClick={onOpen} {...tip.triggerProps}>
+      {content}
+      {tip.tooltip}
+    </button>
+  ) : (
+    <span className={styles.expressionChip} data-testid="list-filter-expression" tabIndex={0} {...tip.triggerProps}>
+      {content}
+      {tip.tooltip}
+    </span>
+  )
+}
+
+/**
+ * The Graphical filter (`PredicateChips` in Graphical mode, and the line layout).
+ */
+function GraphicalChips({
   predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false, omitFields, dateHost, layout = 'line',
 }: PredicateChipsProps) {
   const stack = layout === 'stack'

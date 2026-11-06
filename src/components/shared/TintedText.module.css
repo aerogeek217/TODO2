@@ -48,3 +48,8 @@
   box-shadow: 0 0 0 1px var(--color-border);
   color: var(--color-text-muted);
 }
+
+/* A filter expression's and / or / not and parentheses: muted, same weight (no character may move). */
+.tint[data-tint="operator"] {
+  color: var(--color-text-muted);
+}
