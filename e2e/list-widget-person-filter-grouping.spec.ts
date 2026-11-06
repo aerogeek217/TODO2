@@ -15,6 +15,9 @@ import { seedTaskList } from './fixtures/workspace'
  * Without the restriction, Charlie's group leaked through even though the
  * list filtered it out, and T1 rendered twice (once under Alice, once under
  * Charlie).
+ *
+ * The top bar's People "is" pick restricts the groups the same way, on a
+ * list with no People filter of its own.
  */
 
 test.describe('list widget — visible-groups intersection', () => {
@@ -48,5 +51,34 @@ test.describe('list widget — visible-groups intersection', () => {
     expect(t1Y).toBeGreaterThan(aliceY)
     expect(t1Y).toBeLessThan(bobY)
     expect(t2Y).toBeGreaterThan(bobY)
+  })
+
+  // The top bar's People pick narrows the groups as the list's own does.
+  test('a top-bar @Alice on a list without a People filter: the Alice section only', async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 })
+    const widget = await seedTaskList(page, {
+      people: ['Alice', 'Bob', 'Charlie'],
+      tasks: [
+        { title: 'T1 Alice and Bob', people: ['Alice', 'Bob'] },
+        { title: 'T2 Bob only', people: ['Bob'] },
+        { title: 'T3 Alice only', people: ['Alice'] },
+      ],
+      list: { name: 'People grouping', grouping: 'people' },
+    })
+    const rows = (title: string) => widget.locator('[data-todo-id]').filter({ hasText: title })
+    await expect(widget.getByTestId('list-group-name')).toHaveText(['Alice', 'Bob'])
+    await expect(rows('T1 Alice and Bob'), 'unfiltered, T1 shows under both of its people').toHaveCount(2)
+
+    const tray = page.locator('header').getByRole('group', { name: 'Screen filters — apply to every widget' })
+    await tray.getByRole('textbox', { name: 'Search tasks' }).click()
+    await page.keyboard.type('@Alice', { delay: 20 })
+    await page.getByRole('listbox', { name: 'People' }).getByRole('option', { name: 'Alice' }).waitFor()
+    await page.keyboard.press('Enter')
+    await expect(tray).toContainText('Alice')
+
+    await expect(widget.getByTestId('list-group-name')).toHaveText(['Alice'])
+    await expect(rows('T1 Alice and Bob'), 'T1 shows once, under Alice').toHaveCount(1)
+    await expect(rows('T3 Alice only')).toHaveCount(1)
+    await expect(rows('T2 Bob only')).toHaveCount(0)
   })
 })

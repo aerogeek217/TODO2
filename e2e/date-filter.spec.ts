@@ -358,7 +358,8 @@ test('a list with Completed this week shows the tasks completed this week, witho
   await panel.getByRole('tab', { name: 'Completed' }).click()
   await pickRelative(page, 'From', 'start of week')
   await expect(rows(page, 't1')).toHaveText([/Done today/])
-  await expect(page.getByRole('button', { name: /^1 of 3 tasks shown/ })).toBeVisible()
+  // The counter's total: the open task and the completed one the range admits, not the month-old one.
+  await expect(page.getByRole('button', { name: /^1 of 2 tasks shown/ })).toBeVisible()
 })
 
 test('Last follow-up "14+ days ago, or never": in a list, and as a lens in the top bar', async ({ page }) => {

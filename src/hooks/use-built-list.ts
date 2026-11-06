@@ -129,6 +129,7 @@ export function useBuiltList(
       today,
       weekStartsOn,
       evalPredicate,
+      screenFilter,
       assignedTagsMap,
       assignedPeopleMap,
       people,

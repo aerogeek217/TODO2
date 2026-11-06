@@ -99,8 +99,8 @@ function filterPathSections(d: PersistedListDefinition, pick: number[] | undefin
   return buildListSections(members, {
     groupBy: d.grouping,
     sortBy: d.sort,
-    restrictToPersonIds: effective.personIds ? [...effective.personIds] : null,
-    restrictToTagIds: effective.tags ? [...effective.tags] : null,
+    personRestrictions: effective.personIds ? [[...effective.personIds]] : [],
+    tagRestrictions: effective.tags ? [[...effective.tags]] : [],
   }, ctx)
 }
 

@@ -9,7 +9,9 @@ import { MS_PER_DAY, startOfDay } from '../../utils/date'
 import type { Person, PersistedTodoItem, Tag, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { emptyPredicate } from '../../models'
-import { makeTodo, matchesFilterNow as matchesFilter } from '../helpers'
+import type { FilterCriteria } from '../../utils/filter-criteria'
+import { createPredicateEvaluator, createScreenComposedEvaluator } from '../../utils/filter-match'
+import { emptyFilterCriteria, makeTodo, matchesFilterNow as matchesFilter, testLookups } from '../helpers'
 
 const today = startOfDay(new Date('2026-04-13T12:00:00'))
 
@@ -662,5 +664,93 @@ describe('buildList — restrict-mode grouping', () => {
     expect(groups.map((g) => g.key)).toEqual(['tag-10'])
     expect(groups[0]!.label).toBe('#urgent')
     expect(groups.find((g) => g.key === 'no-tag')).toBeUndefined()
+  })
+})
+
+// The screen filter's People / Tags "is" picks — the chips and the top
+// bar's lens — narrow a list's groups as the list's own filter does.
+describe('buildList — the screen filter narrows the groups', () => {
+  const ALICE: Person = { id: 1, name: 'Alice', initials: 'A' }
+  const BOB: Person = { id: 2, name: 'Bob', initials: 'B' }
+  const CAROL: Person = { id: 3, name: 'Carol', initials: 'C' }
+  const WORK: Tag = { id: 10, name: 'work', color: '#999' }
+  const HOME: Tag = { id: 20, name: 'home', color: '#999' }
+  const people = [ALICE, BOB, CAROL]
+  // 101 Alice+Bob · 102 Alice · 103 Bob · 104 nobody · 105 Alice+Carol · 106 Bob+Carol
+  const assignedPeopleMap = new Map<number, Person[]>([
+    [101, [ALICE, BOB]], [102, [ALICE]], [103, [BOB]], [105, [ALICE, CAROL]], [106, [BOB, CAROL]],
+  ])
+  // 101 work+home · 102 work · the rest untagged
+  const assignedTagsMap = new Map<number, Tag[]>([[101, [WORK, HOME]], [102, [WORK]]])
+  const todos = [101, 102, 103, 104, 105, 106].map((id) => makeTodo({ id }))
+  const settings = { urgentRange: null, weekStartsOn: 1 as const }
+
+  function sections(
+    grouping: 'people' | 'tag',
+    screen: FilterCriteria | undefined,
+    predicate: TodoPredicate = emptyPredicate(),
+  ): Array<[string, number[]]> {
+    const lookups = testLookups({ assignedPeopleMap, assignedTagsMap })
+    const evalPredicate = screen
+      ? createScreenComposedEvaluator(screen, lookups, today, settings)
+      : createPredicateEvaluator(lookups, today, settings)
+    const def = customDef({ grouping, sort: 'manual', membership: { kind: 'custom', predicate } })
+    const list = buildList(def, todos, makeCtx({
+      evalPredicate, ...(screen ? { screenFilter: screen } : {}), people, assignedPeopleMap, assignedTagsMap,
+    }))
+    return list.sections.map((s) => [s.label, s.todos.map((t) => t.id)])
+  }
+  const chips = (over: Partial<FilterCriteria>): FilterCriteria => ({ ...emptyFilterCriteria, ...over })
+  const alice = new Set([ALICE.id!])
+
+  it('a chip @Alice shows the Alice group alone, as the list’s own People is Alice does', () => {
+    const expected: Array<[string, number[]]> = [['Alice', [101, 102, 105]]]
+    expect(sections('people', chips({ personIds: alice }))).toEqual(expected)
+    expect(sections('people', undefined, { ...emptyPredicate(), personIds: [ALICE.id!] })).toEqual(expected)
+  })
+
+  it('the top bar’s lens narrows them too; a pick in its or groups doesn’t', () => {
+    expect(sections('people', chips({ lens: chips({ personIds: alice }) }))).toEqual([['Alice', [101, 102, 105]]])
+    // People is Alice OR Status is none: the group may keep a task by its status, so no group narrows.
+    const grouped = chips({ lens: chips({ orGroups: [chips({ personIds: alice, statusIds: new Set([0]) })] }) })
+    expect(sections('people', grouped).map(([label]) => label)).toEqual(['Alice', 'Bob', 'Carol', 'Unassigned'])
+  })
+
+  it('an "is not" chip narrows no group', () => {
+    const notBob = chips({ personIds: new Set([BOB.id!]), negate: { personIds: true } })
+    expect(sections('people', notBob)).toEqual([['Alice', [102, 105]], ['Carol', [105]], ['Unassigned', [104]]])
+  })
+
+  it('the Unassigned pick keeps the trailing section, alone or with a person', () => {
+    expect(sections('people', chips({ personIds: new Set([0]) }))).toEqual([['Unassigned', [104]]])
+    expect(sections('people', chips({ personIds: new Set([ALICE.id!, 0]) })))
+      .toEqual([['Alice', [101, 102, 105]], ['Unassigned', [104]]])
+  })
+
+  it('the list and the screen both picking: a task shows under the people both pick', () => {
+    const listAliceBob = { ...emptyPredicate(), personIds: [ALICE.id!, BOB.id!] }
+    expect(sections('people', chips({ personIds: alice }), listAliceBob)).toEqual([['Alice', [101, 102, 105]]])
+    // The chips and the lens intersect the same way.
+    expect(sections('people', chips({ personIds: new Set([ALICE.id!, BOB.id!]), lens: chips({ personIds: alice }) })))
+      .toEqual([['Alice', [101, 102, 105]]])
+  })
+
+  it('a task none of whose people every pick has shows under each one any picks — no member drops out', () => {
+    // List Alice or Bob, screen Bob or Carol: 105 (Alice + Carol) passes both but has no Bob.
+    const listAliceBob = { ...emptyPredicate(), personIds: [ALICE.id!, BOB.id!] }
+    const screen = chips({ personIds: new Set([BOB.id!, CAROL.id!]) })
+    expect(sections('people', screen, listAliceBob)).toEqual([['Alice', [105]], ['Bob', [101, 103, 106]], ['Carol', [105]]])
+  })
+
+  it('the Unassigned section stays only while every pick has it', () => {
+    const listNoneOrAlice = { ...emptyPredicate(), personIds: [0, ALICE.id!] }
+    expect(sections('people', chips({ personIds: new Set([0]) }), listNoneOrAlice)).toEqual([['Unassigned', [104]]])
+    expect(sections('people', chips({ personIds: alice }), listNoneOrAlice)).toEqual([['Alice', [101, 102, 105]]])
+  })
+
+  it('tags: a chip #work shows the work group alone; No tags keeps only the trailing one', () => {
+    expect(sections('tag', chips({ tags: new Set([WORK.id!]) }))).toEqual([['#work', [101, 102]]])
+    expect(sections('tag', chips({ tags: new Set([0]) }))).toEqual([['No Tag', [103, 104, 105, 106]]])
+    expect(sections('tag', undefined).map(([label]) => label)).toEqual(['#home', '#work', 'No Tag'])
   })
 })
