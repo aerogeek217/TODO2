@@ -271,7 +271,8 @@ test('list chips: one per date type; a chip opens the panel under it on its type
   const panel = dialog(page)
   await expect(panel.getByRole('tab', { name: 'Next follow-up, filtering' })).toHaveAttribute('aria-selected', 'true')
   await expect(panel.getByRole('radio', { name: 'None' })).toHaveAttribute('aria-checked', 'true')
-  await expect(followupChip).toHaveAttribute('aria-expanded', 'true')
+  // The chip's own button says it is open (its × is a sibling button, cr31 F9).
+  await expect(followupChip.getByRole('button', { name: /Next follow-up/ })).toHaveAttribute('aria-expanded', 'true')
   await expectInsideViewport(page, panel)
   const chipBox = await box(followupChip)
   const panelBox = await box(panel)

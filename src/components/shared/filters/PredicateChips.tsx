@@ -16,14 +16,14 @@ import {
 } from '../../../utils/filter-row-order'
 import { dissolveSingleOrGroups, hasFilterClause, withOrGroupClauses, withoutOrGroup } from '../../../utils/or-groups'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
-import { ChevronDownIcon, ChevronRightIcon, CloseIcon, PlusIcon } from '../icons'
+import { ChevronDownIcon, ChevronRightIcon, PlusIcon } from '../icons'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
 import { PredicateFieldPicker, PredicateFieldPickerBody } from './PredicateFieldPicker'
 import type { DateFilterHost } from './DateFilterPanel'
 import { pickerLabel } from './picker-label'
 import { DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { pointBelow } from './popover-point'
-import { useTooltip } from '../use-tooltip'
+import { ListFilterChip } from './ListFilterChip'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { predicatesEqual } from '../../../utils/list-def-equal'
 import { useAnyFilterPickerOpen, useFilterPickerOpen } from './open-pickers'
@@ -183,7 +183,9 @@ export function PredicateChips({
     refocus.current = null
     if (active && active !== document.body && active.isConnected) return
     const chips = Array.from(document.querySelectorAll<HTMLElement>(`[data-chips-owner="${owner}"][data-testid="list-filter-chip"]`))
-    ;(chips[Math.min(pending.index, chips.length - 1)] ?? addFilterRef.current)?.focus()
+    const next = chips[Math.min(pending.index, chips.length - 1)]
+    // The chip's own button (`ListFilterChip`), else + Filter.
+    ;(next?.querySelector<HTMLElement>('[data-chip-edit]') ?? addFilterRef.current)?.focus()
   })
 
   // The filter as it was before this row's last edit (null: no edit here
@@ -468,7 +470,7 @@ export function PredicateChips({
   }
 
   const chipRow = (chip: FilterChip, scope: Scope) => (
-    <ListChip
+    <ListFilterChip
       key={chipKey(chip)}
       chip={chip}
       open={isChipOpen(chip, scope)}
@@ -756,79 +758,4 @@ function FieldPopover({ field, ...rest }: { field: ListFilterField; at: PopoverP
 /** An or group's panel as a popover. */
 function GroupPopover(props: { at: PopoverPoint; consumeEscape: boolean; onClose: () => void; children: ReactNode }) {
   return <FilterPopover {...props} className={`${picker.dropdownPanel} ${styles.groupPopover}`} label="Group" testId="or-group-panel" />
-}
-
-/**
- * One list filter chip: click (or Enter / Space) opens its picker under it
- * (a second click closes it), Delete / Backspace or its × removes it. In
- * the editors it is a disclosure: a chevron at its end. A chip with several
- * values or an "is not" spells itself out in a tooltip.
- */
-function ListChip({ chip, open, disclosure, rowKey, owner, onPress, onEdit, onRemove }: {
-  chip: FilterChip
-  open: boolean
-  disclosure: boolean
-  rowKey: string
-  /** The chip row it belongs to (`data-chips-owner`): where the focus goes when a chip does. */
-  owner: string
-  onPress: () => void
-  onEdit: (el: Element) => void
-  /** `el`: the chip. */
-  onRemove: (el: HTMLElement) => void
-}) {
-  const { triggerProps, tooltip } = useTooltip(open ? null : chip.tooltip, { labelLines: 1 })
-  return (
-    <>
-      <span
-        role="button"
-        tabIndex={0}
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        className={`${styles.listChip} ${open ? styles.listChipOpen : ''}`}
-        data-testid="list-filter-chip"
-        data-filter-row={rowKey}
-        data-chips-owner={owner}
-        data-date-field={chip.dateField}
-        data-negated={chip.negated ? '' : undefined}
-        {...triggerProps}
-        onMouseDown={(e) => { if (!(e.target instanceof Element && e.target.closest('button'))) onPress() }}
-        onClick={(e) => {
-          e.stopPropagation()
-          onEdit(e.currentTarget)
-        }}
-        onKeyDown={(e) => {
-          if (e.target !== e.currentTarget) return
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onEdit(e.currentTarget)
-          } else if (e.key === 'Delete' || e.key === 'Backspace') {
-            e.preventDefault()
-            onRemove(e.currentTarget)
-          }
-        }}
-      >
-        <span className={styles.chipLabel}>{chip.label}</span>
-        {chip.value}
-        <button
-          type="button"
-          className={styles.chipRemove}
-          aria-label="Remove filter"
-          title="Remove filter"
-          onClick={(e) => {
-            e.stopPropagation()
-            const el = e.currentTarget.closest<HTMLElement>('[data-testid="list-filter-chip"]')
-            if (el) onRemove(el)
-          }}
-        >
-          <CloseIcon size={9} />
-        </button>
-        {disclosure && (
-          <span className={`${styles.chipChevron} ${open ? styles.chipChevronOpen : ''}`} aria-hidden="true">
-            <ChevronDownIcon />
-          </span>
-        )}
-      </span>
-      {tooltip}
-    </>
-  )
 }
