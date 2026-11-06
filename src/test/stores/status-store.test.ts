@@ -3,6 +3,7 @@ import { db } from '../../data/database'
 import { useStatusStore } from '../../stores/status-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useTodoStore } from '../../stores/todo-store'
+import { useSettingsStore } from '../../stores/settings-store'
 
 const now = new Date()
 
@@ -180,6 +181,23 @@ describe('useStatusStore', () => {
       await useStatusStore.getState().remove(id)
 
       expect(useUndoStore.getState().undoStack.length).toBeGreaterThan(0)
+    })
+
+    it('deleting the default status clears the default within its own undo step; its undo puts the default back', async () => {
+      await useStatusStore.getState().add('Open', '#00ff00')
+      const id = useStatusStore.getState().statuses[0]!.id!
+      await useSettingsStore.getState().setDefaultStatusId(id)
+      useUndoStore.getState().clear()
+
+      await useStatusStore.getState().remove(id)
+      expect(useSettingsStore.getState().defaultStatusId).toBeNull()
+      expect(await db.settings.get('defaultStatusId')).toBeUndefined()
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Delete status "Open"'])
+
+      await useUndoStore.getState().undo()
+      expect(useSettingsStore.getState().defaultStatusId).toBe(id)
+      expect(await db.settings.get('defaultStatusId')).toEqual({ key: 'defaultStatusId', value: String(id) })
+      expect(useUndoStore.getState().undoStack).toHaveLength(0)
     })
   })
 

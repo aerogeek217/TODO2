@@ -112,6 +112,67 @@ describe('useSettingsStore', () => {
     expect(document.documentElement.style.getPropertyValue('--color-app-bg')).toBe('#ddeeff')
   })
 
+  it('a failed theme or colour save puts the page back too', async () => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await useSettingsStore.getState().load()
+    vi.spyOn(settingsRepository, 'put').mockRejectedValueOnce(new Error('disk full'))
+    const saving = useSettingsStore.getState().setThemeMode('light')
+    // Shown at once.
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
+    await saving
+    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Couldn’t save the theme.', notice: true })
+
+    vi.spyOn(settingsRepository, 'writeMany').mockRejectedValueOnce(new Error('disk full'))
+    const coloring = useSettingsStore.getState().setColor('dark', 'accent', '#123456')
+    expect(document.documentElement.style.getPropertyValue('--color-accent')).toBe('#123456')
+    await coloring
+    expect(document.documentElement.style.getPropertyValue('--color-accent')).toBe('')
+    expect(useSettingsStore.getState().customizedColors.dark).toEqual([])
+    expect(useUndoStore.getState().snackbar).toEqual({ description: 'Couldn’t save the theme colors.', notice: true })
+    vi.restoreAllMocks()
+  })
+
+  it('the Task defaults and the retention are one undo step each, with the snackbar', async () => {
+    await useSettingsStore.getState().load()
+    useUndoStore.getState().clear()
+    const s = () => useSettingsStore.getState()
+    await s().setDefaultStatusId(3)
+    await s().setDefaultStatusId(null)
+    await s().setAutoFollowup(false)
+    await s().setFollowupDefaultInterval({ count: 10, unit: 'd' })
+    await s().setRemoveConvertedLines(true)
+    await s().setUrgentDueWithinDays(null)
+    await s().setUrgentDueWithinDays(0)
+    await s().setWeekStartsOn(0)
+    await s().setCompletedRetentionDays(14)
+    await s().setCompletedRetentionDays(null)
+    expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual([
+      'Changed the default status', 'No default status',
+      'Don’t set a next follow-up automatically', 'Follow-up interval 10 days', 'Remove note lines after converting',
+      'Due dates don’t make tasks urgent', 'Due today makes a task urgent', 'Weeks start on Sunday',
+      'Offer to delete completed tasks after 14 days', 'Don’t offer to delete completed tasks',
+    ])
+    expect(useUndoStore.getState().snackbar?.description).toBe('Don’t offer to delete completed tasks')
+    await useUndoStore.getState().undo()
+    expect(s().completedRetentionDays).toBe(14)
+    expect(await db.settings.get('completedRetentionDays')).toEqual({ key: 'completedRetentionDays', value: '14' })
+  })
+
+  it('the theme, colours, check-in method, shortcuts and the purge stamp add no undo step', async () => {
+    await useSettingsStore.getState().load()
+    useUndoStore.getState().clear()
+    const s = () => useSettingsStore.getState()
+    await s().setThemeMode('light')
+    await s().setColor('dark', 'accent', '#123456')
+    await s().resetColors()
+    await s().setCheckinOpenMethod('eml')
+    await s().setShortcut('command-palette', [{ key: 'p', mod: true, shift: true }])
+    await s().resetAllShortcuts()
+    await s().setPurgePromptLastAt(new Date())
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
+  })
+
   it('setCompletedRetentionDays validates range', async () => {
     await useSettingsStore.getState().setCompletedRetentionDays(30)
     expect(useSettingsStore.getState().completedRetentionDays).toBe(30)
@@ -437,17 +498,20 @@ describe('useSettingsStore', () => {
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Couldn’t save the lens pick.', notice: true })
   })
 
-  it('quick picks: an earlier pick’s save failing after a later pick saved keeps the later pick (on screen and stored)', async () => {
+  it('quick picks are saved one after another: an earlier pick’s save failing keeps the later pick (on screen and stored)', async () => {
     const s = () => useSettingsStore.getState()
     await s().load()
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    let failFirst: (e: Error) => void = () => {}
+    let failFirst: ((e: Error) => void) | undefined
     vi.spyOn(settingsRepository, 'put').mockImplementationOnce(() => new Promise((_, reject) => { failFirst = reject }))
     const first = lensActions.setActiveLens('lens-a')
     const second = lensActions.setActiveLens('lens-b')
-    expect(await second).toBe(true)
-    failFirst(new Error('quota'))
+    // The second shows at once and waits for the first's save.
+    expect(s().activeLensId).toBe('lens-b')
+    await vi.waitFor(() => expect(failFirst).toBeDefined())
+    failFirst?.(new Error('quota'))
     expect(await first).toBe(false)
+    expect(await second).toBe(true)
     expect(s().activeLensId).toBe('lens-b')
     expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'lens-b' })
   })

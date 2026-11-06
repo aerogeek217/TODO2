@@ -94,7 +94,8 @@ export const useStatusStore = create<StatusState>((set, get) => {
       }
 
       if (wasDefault) {
-        await useSettingsStore.getState().setDefaultStatusId(null)
+        // Part of the delete's undo step (its undo puts the default back).
+        await useSettingsStore.getState().setDefaultStatusId(null, { record: false })
       }
       if (wasSeededAssigned) {
         await settingsRepository.delete(SETTING_KEYS.seededAssignedStatusId)
