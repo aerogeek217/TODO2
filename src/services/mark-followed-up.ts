@@ -53,12 +53,13 @@ export async function markFollowedUpWithUpdate(
 
 /**
  * A status update as the user enters it (the editor's section, the notes
- * popover's Status line): it counts as following up on its day. When that day
- * is after the task's last follow-up, this is Mark followed up for that day —
- * `lastFollowupAt` is the day (today: now), the next follow-up moves by its
- * rule — with the entry `followedUp`, as one undo step with the snackbar.
- * A day no later than the last follow-up only adds the entry (its own quiet
- * undo step). Never rejects; a failure is said as the stores say it.
+ * popover's Status line): on an open task it counts as following up on its
+ * day. When that day is after the task's last follow-up, this is Mark
+ * followed up for that day — `lastFollowupAt` is the day (today: now), the
+ * next follow-up moves by its rule — with the entry `followedUp`, as one undo
+ * step with the snackbar. A day no later than the last follow-up, or a
+ * completed task (nothing is chased on it any more), only adds the entry (its
+ * own quiet undo step). Never rejects; a failure is said as the stores say it.
  */
 export async function addStatusUpdate(todoId: number, entry: { date: Date; text: string }): Promise<void> {
   if (statusUpdateText(entry.text) === '') return
@@ -66,7 +67,7 @@ export async function addStatusUpdate(todoId: number, entry: { date: Date; text:
   const day = statusUpdateDay(entry.date, today)
   const todo = useTodoStore.getState().todos.find((t) => t.id === todoId)
   const last = todo?.lastFollowupAt
-  if (!todo || (last && day.getTime() <= startOfDay(last).getTime())) {
+  if (!todo || todo.isCompleted || (last && day.getTime() <= startOfDay(last).getTime())) {
     await useStatusUpdateStore.getState().add(todoId, entry)
     return
   }
