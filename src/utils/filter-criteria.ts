@@ -97,6 +97,23 @@ export function admitsCompleted(f: Pick<FilterCriteria, 'showCompleted' | 'dates
     || (f.lens != null && admitsCompleted({ ...f.lens, showCompleted: false }))
 }
 
+/**
+ * The clauses of `f` itself (not its lens) that let completed tasks through
+ * (`admitsCompleted`), each as clauses of its own: its Completed range
+ * outside the or groups, and each or group whose only alternative is one.
+ * A completed task one of them keeps is one these clauses admit. Show
+ * completed isn't among them: it admits every completed task.
+ */
+export function completedAdmitters(f: Pick<FilterCriteria, 'dates' | 'orGroups'>): CriteriaClauses[] {
+  const out: CriteriaClauses[] = []
+  const completed = f.dates.completed
+  if (isDateMatchOn(completed)) {
+    out.push({ personIds: null, statusIds: null, tags: null, searchText: '', dates: { completed }, markers: null })
+  }
+  for (const g of f.orGroups ?? []) if (isCompletedOnlyGroup(g)) out.push(g)
+  return out
+}
+
 /** Wraps a Date as a fixed-ISO `DateAnchor`. */
 export function fixedAnchor(d: Date): DateAnchor {
   return { kind: 'fixed', iso: d.toISOString() }

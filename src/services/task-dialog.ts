@@ -4,8 +4,8 @@ import type { TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models/todo-
 import type { EisenhowerQuadrant } from '../models/workspace-layout'
 import { QUADRANT_COLOR, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../utils/urgency'
-import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
-import { createPredicateEvaluator, createScreenComposedEvaluator, type FilterSettings } from '../utils/filter-match'
+import { admitsCompleted, completedAdmitters, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
+import { createPredicateEvaluator, createScreenComposedEvaluator, matchesFilterWithLookups, type FilterSettings } from '../utils/filter-match'
 import type { WeekStart } from '../utils/effective-date'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import type { ListRanks } from '../utils/list-order'
@@ -198,9 +198,19 @@ export function screenTaskCount(env: ScreenCountEnv): number {
 export interface ScreenTaskCounts {
   /** What the dialog lists (`screenTaskCount`). */
   shown: number
-  /** Every open task (completed too while the filter lets them through — `withCompleted`): the `of N`. */
+  /**
+   * The `of N`: every open task, and — while the filter lets completed
+   * tasks through (`withCompleted`) — the completed ones it admits
+   * (`admitsCompletedTask`), not every completed task there is.
+   */
   total: number
-  /** What the lens alone keeps of `total` (`total` without a lens). */
+  /**
+   * What the lens alone keeps of `total` (`total` without a lens), so
+   * `total - lensKeeps` is what the lens hides. A lens that admits completed
+   * tasks by its own Completed range admits only those it keeps, so it hides
+   * open tasks alone — the same number the lens picker shows
+   * (`lenses.lensHideCounts`).
+   */
   lensKeeps: number
   /**
    * Whether completed tasks count: the chips' Show completed, or a Completed
@@ -208,6 +218,30 @@ export interface ScreenTaskCounts {
    * rather than `open tasks`.
    */
   withCompleted: boolean
+}
+
+/**
+ * Whether the screen filter admits completed task `t` — counts it in the
+ * counter's total: the chips' Show completed admits every completed task; a
+ * Completed range of the chips (outside the or groups, or an or group of
+ * only that) the ones it keeps, whatever the other chips (they are what the
+ * count narrows by); the lens, when a Completed range of its own lets
+ * completed tasks through, the ones the whole lens keeps — so it never
+ * hides a completed task it admitted, and its hide count is the picker's.
+ */
+function admitsCompletedTask(
+  screen: FilterCriteria,
+  lookups: TodoNameLookups,
+  today: Date,
+  settings: FilterSettings,
+): (t: PersistedTodoItem) => boolean {
+  if (screen.showCompleted) return () => true
+  const open = predicateToCriteria(OPEN_TASKS)
+  const stages: FilterCriteria[] = completedAdmitters(screen).map((c) => ({ ...open, ...c, showCompleted: true }))
+  if (screen.lens && admitsCompleted({ ...screen.lens, showCompleted: false })) {
+    stages.push({ ...open, showCompleted: true, lens: screen.lens })
+  }
+  return (t) => stages.some((s) => matchesFilterWithLookups(s, t, lookups, today, settings))
 }
 
 /** The screen filter's counts (`ScreenTaskCounts`). */
@@ -218,11 +252,11 @@ export function screenTaskCounts(env: ScreenCountEnv): ScreenTaskCounts {
   const withCompleted = admitsCompleted(screen)
   const everything: FilterCriteria = { ...predicateToCriteria(OPEN_TASKS), showCompleted: withCompleted }
   const shown = createScreenComposedEvaluator(screen, lookups, env.today, settings)
-  const all = createScreenComposedEvaluator(everything, lookups, env.today, settings)
   const lens = screen.lens ? createScreenComposedEvaluator({ ...everything, lens: screen.lens }, lookups, env.today, settings) : null
+  const admitted = withCompleted ? admitsCompletedTask(screen, lookups, env.today, settings) : null
   const counts = { shown: 0, total: 0, lensKeeps: 0, withCompleted }
   for (const t of env.todos) {
-    if (!all(OPEN_TASKS, t)) continue
+    if (t.isCompleted && !admitted?.(t)) continue
     counts.total++
     if (!lens || lens(OPEN_TASKS, t)) counts.lensKeeps++
     if (shown(OPEN_TASKS, t)) counts.shown++
