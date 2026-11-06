@@ -457,7 +457,9 @@
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
-  --priority-glow-strength: 7%;
+  /* Stronger than the dark theme's 11 %: on a light surface a tint shows
+     less, and at 7 % it didn't show at all (cr31 M5). As visible as dark's. */
+  --priority-glow-strength: 12%;
 
   /* Layout hues: the light twins, each ≥ 3:1 on every light surface. */
   --hue-teal: #2f9a8f;

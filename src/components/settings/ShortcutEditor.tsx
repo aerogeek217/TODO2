@@ -62,6 +62,8 @@ function ShortcutRow({ row, recording, onRecord }: ShortcutRowProps) {
   const changeRef = useRef<HTMLButtonElement>(null)
   /** Focus goes back to Change once the recording ends by a save or Esc (not by a click elsewhere). */
   const refocusRef = useRef(false)
+  /** A save is running: a second one never starts over it. */
+  const savingRef = useRef(false)
   const isRecording = recording !== null
   const id = row.id
 
@@ -94,9 +96,15 @@ function ShortcutRow({ row, recording, onRecord }: ShortcutRowProps) {
   }
 
   const save = async (chord: ShortcutChord) => {
-    const refusal = await setShortcut(id, chord)
-    if (refusal) onRecord({ id, pending: null, error: refusal })
-    else finish()
+    if (savingRef.current) return
+    savingRef.current = true
+    try {
+      const refusal = await setShortcut(id, chord)
+      if (refusal) onRecord({ id, pending: null, error: refusal })
+      else finish()
+    } finally {
+      savingRef.current = false
+    }
   }
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -105,6 +113,8 @@ function ShortcutRow({ row, recording, onRecord }: ShortcutRowProps) {
     if (e.key === 'Tab' && !e.ctrlKey && !e.metaKey && !e.altKey) return
     e.preventDefault()
     e.stopPropagation()
+    // A key pressed while a save runs (a quick second key, a key repeat): the save's answer decides.
+    if (savingRef.current) return
     if (e.key === 'Escape' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
       finish()
       return

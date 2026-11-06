@@ -3,8 +3,26 @@ import { EditorView, ViewPlugin, type ViewUpdate } from '@codemirror/view'
 import { singleLineCandidate } from '../../../services/note-lines'
 import { showConvertScope } from './notes-convert-highlight'
 
-/** The toolbar's Convert glyph. A fixed string, no note text in it. */
-const CONVERT_ICON = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 4h6M2.5 7.5h4"/><rect x="8.5" y="8" width="5.5" height="5.5" rx="1.4"/><path d="M9.9 10.8l1.1 1.1 1.8-2"/></svg>'
+const SVG_NS = 'http://www.w3.org/2000/svg'
+
+/** The toolbar's Convert glyph, built as elements (no markup parsed). */
+function convertIcon(): SVGSVGElement {
+  const el = <K extends keyof SVGElementTagNameMap>(tag: K, attrs: Record<string, string>): SVGElementTagNameMap[K] => {
+    const node = document.createElementNS(SVG_NS, tag)
+    for (const [name, value] of Object.entries(attrs)) node.setAttribute(name, value)
+    return node
+  }
+  const svg = el('svg', {
+    width: '14', height: '14', viewBox: '0 0 16 16', fill: 'none', stroke: 'currentColor',
+    'stroke-width': '1.4', 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true',
+  })
+  svg.append(
+    el('path', { d: 'M2.5 4h6M2.5 7.5h4' }),
+    el('rect', { x: '8.5', y: '8', width: '5.5', height: '5.5', rx: '1.4' }),
+    el('path', { d: 'M9.9 10.8l1.1 1.1 1.8-2' }),
+  )
+  return svg
+}
 
 const BUTTON_SIZE_PX = 20
 
@@ -27,7 +45,7 @@ export function lineConvert(onConvert: (view: EditorView, line: number) => void,
       button.tabIndex = -1
       button.title = label
       button.setAttribute('aria-label', label)
-      button.innerHTML = CONVERT_ICON
+      button.append(convertIcon())
       button.addEventListener('mousedown', this.onPress)
       button.addEventListener('click', this.onClick)
       button.addEventListener('pointerenter', this.onButtonEnter)

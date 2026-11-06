@@ -235,3 +235,24 @@ test('with tabs folded into +N, a tab dropped on the gap right after itself stay
   await expect(wsTab(page, 'n1')).toHaveAttribute('aria-selected', 'true')
   expect(await k1Tabs(page)).toEqual(['n1', 'c1', 'd1', 'e1', 'c2'])
 })
+
+test('an arrow key to a tab folded into +N shows it and moves focus to it (under a view transition)', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' })
+  await seedFolded(page)
+  expect(await page.evaluate(() => typeof document.startViewTransition)).toBe('function')
+  const folded = (await page.locator('[data-ws-cell="k1"] [data-ws-tab][data-ws-tab-folded]').first().getAttribute('data-ws-tab')) ?? ''
+  expect(folded).not.toBe('')
+  await wsTab(page, 'c2').focus()
+  // The strip's order: the shown tabs (c2 last), then the folded ones — ArrowRight from c2 goes to the first folded tab.
+  await page.keyboard.press('ArrowRight')
+  const target = wsCell(page, 'k1').locator(`[data-ws-tab="${folded}"]`)
+  await expect(target).toHaveAttribute('aria-selected', 'true')
+  await expect(target).not.toHaveAttribute('data-ws-tab-folded')
+  await expect(target).toBeFocused()
+
+  // And End: the last tab in the strip's order (folded too).
+  await page.keyboard.press('End')
+  const last = page.locator('[data-ws-cell="k1"] [role="tab"][aria-selected="true"]')
+  await expect(last).not.toHaveAttribute('data-ws-tab-folded')
+  await expect(last).toBeFocused()
+})
