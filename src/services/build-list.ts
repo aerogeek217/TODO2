@@ -11,8 +11,9 @@ import type {
   RuntimeFilterSpec,
 } from '../models/list-definition'
 import type { WeekStart } from '../utils/effective-date'
+import type { FilterCriteria } from '../utils/filter-criteria'
 import { startOfDay } from '../utils/date'
-import { isNegated, withIdFilter } from '../utils/filter-negation'
+import { isNegated, withIdFilter, type NegatableClauses } from '../utils/filter-negation'
 import { buildListSections, listSortComparator, type Section } from './list-sections'
 import type { ListRanks } from '../utils/list-order'
 import type { UrgentDueWithinDays } from '../utils/urgency'
@@ -26,6 +27,12 @@ export interface ListBuildContext {
   weekStartsOn: WeekStart
   /** Decides membership: the list's predicate (prompt picks merged in) against each task. */
   evalPredicate: PredicateEvaluator
+  /**
+   * The screen filter `evalPredicate` composes in, if any (the chips with
+   * the top bar's lens): its People / Tags "is" picks narrow the groups as
+   * the list's own do (`groupRestrictions`).
+   */
+  screenFilter?: FilterCriteria
   /** For tag grouping. Missing → every task lands in "No Tag". */
   assignedTagsMap?: Map<number, Tag[]>
   /** For people grouping. Missing → "Unassigned". */
@@ -108,11 +115,6 @@ export function buildList(
   const members = runtimeFilterUnset
     ? []
     : todos.filter((t) => matchesMembership(membership, t, ctx.evalPredicate))
-  // The effective predicate's person / tag picks narrow the visible groups
-  // so a multi-assignee task doesn't emit sections for non-picked people.
-  // An "is not" pick doesn't: its members have none of the picked people /
-  // tags, so their groups never show anyway. Only the clauses outside the
-  // or groups narrow them: an or group's pick may not be what a member has.
   const predicate = membership.kind === 'custom' ? membership.predicate : undefined
   const sections = buildListSections(
     members,
@@ -120,8 +122,8 @@ export function buildList(
       groupBy: def.grouping,
       sortBy: def.sort,
       sortDirection: def.sortDirection,
-      restrictToPersonIds: predicate && !isNegated(predicate, 'personIds') ? predicate.personIds : null,
-      restrictToTagIds: predicate && !isNegated(predicate, 'tags') ? predicate.tags : null,
+      personRestrictions: groupRestrictions('personIds', predicate, ctx.screenFilter),
+      tagRestrictions: groupRestrictions('tags', predicate, ctx.screenFilter),
     },
     {
       today: startOfDay(ctx.today),
@@ -150,6 +152,32 @@ export function buildList(
     sections,
     ...(runtimeFilterUnset ? { runtimeFilterUnset } : {}),
   }
+}
+
+/**
+ * The person / tag picks that narrow a list's groups, so a multi-assignee
+ * task doesn't emit sections for people nothing picked: the "is" pick of
+ * the list's effective predicate (prompt pick merged in), of the screen
+ * filter's chips and of its lens — every filter a member passes. An "is
+ * not" pick doesn't narrow: its members have none of the picked people /
+ * tags, so their groups never show anyway. Only the clauses outside the or
+ * groups narrow them: an or group's pick may not be what a member has. The
+ * 0 pick (Unassigned / No tags) keeps the trailing section, as in
+ * `buildListSections`, which intersects several.
+ */
+export function groupRestrictions(
+  field: 'personIds' | 'tags',
+  predicate: NegatableClauses | undefined,
+  screen: FilterCriteria | undefined,
+): number[][] {
+  const out: number[][] = []
+  for (const c of [predicate, screen, screen?.lens]) {
+    const ids = c?.[field]
+    if (!c || ids == null || isNegated(c, field)) continue
+    const picks = [...ids]
+    if (picks.length > 0) out.push(picks)
+  }
+  return out
 }
 
 /** Whether `t` is a member of a list with `membership`. */

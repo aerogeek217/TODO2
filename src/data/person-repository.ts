@@ -1,6 +1,7 @@
 import { db } from './database'
 import type { Person } from '../models'
 import { createRepository } from './create-repository'
+import type { TaskTouch } from './touch-todos'
 import { createJoinOps, buildAssignmentMap, restoreNamedEntityWithJoins, type JoinCapture } from './join-helpers'
 
 const base = createRepository<Person>(db.people, 'name')
@@ -41,22 +42,22 @@ export const personRepository = {
     return buildAssignmentMap(db.todoPeople, db.people, 'todoId', 'personId', todoIds)
   },
 
-  async assignPerson(todoId: number, personId: number): Promise<void> {
-    await todoPeopleOps.assign(todoId, personId)
+  async assignPerson(todoId: number, personId: number, touch?: TaskTouch): Promise<void> {
+    await todoPeopleOps.assign(todoId, personId, touch)
   },
 
-  async unassignPerson(todoId: number, personId: number): Promise<void> {
-    await todoPeopleOps.unassign(todoId, personId)
+  async unassignPerson(todoId: number, personId: number, touch?: TaskTouch): Promise<void> {
+    await todoPeopleOps.unassign(todoId, personId, touch)
   },
 
   /** Assigns the person to each of `todoIds` that doesn't have it, in one transaction. */
-  async bulkAssignPerson(todoIds: readonly number[], personId: number): Promise<void> {
-    await todoPeopleOps.bulkAssign(todoIds, personId)
+  async bulkAssignPerson(todoIds: readonly number[], personId: number, touch?: TaskTouch): Promise<void> {
+    await todoPeopleOps.bulkAssign(todoIds, personId, touch)
   },
 
   /** Unassigns the person from each of `todoIds`, in one transaction. */
-  async bulkUnassignPerson(todoIds: readonly number[], personId: number): Promise<void> {
-    await todoPeopleOps.bulkUnassign(todoIds, personId)
+  async bulkUnassignPerson(todoIds: readonly number[], personId: number, touch?: TaskTouch): Promise<void> {
+    await todoPeopleOps.bulkUnassign(todoIds, personId, touch)
   },
 
   async getTodoCountForPerson(personId: number): Promise<number> {

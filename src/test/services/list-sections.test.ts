@@ -40,12 +40,12 @@ const buildPeopleSections = (
   people: Person[],
   assignedPeopleMap: Map<number, Person[]>,
   restrictToPersonIds?: number[] | null,
-) => build(todos, 'people', { people, assignedPeopleMap }, { restrictToPersonIds })
+) => build(todos, 'people', { people, assignedPeopleMap }, { personRestrictions: restrictToPersonIds ? [restrictToPersonIds] : [] })
 const buildTagSections = (
   todos: PersistedTodoItem[],
   assignedTagsMap: Map<number, Tag[]>,
   restrictToTagIds?: number[] | null,
-) => build(todos, 'tag', { assignedTagsMap }, { restrictToTagIds })
+) => build(todos, 'tag', { assignedTagsMap }, { tagRestrictions: restrictToTagIds ? [restrictToTagIds] : [] })
 const buildFlatSection = (todos: PersistedTodoItem[]) => build(todos, 'none')
 
 describe('buildListSections — due and follow-up grouping', () => {

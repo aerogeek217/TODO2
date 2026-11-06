@@ -9,7 +9,8 @@ import styles from './TopBar.module.css'
 /**
  * The end of the top bar's filter tray while a chip or the top bar's lens
  * hides tasks (and while its panel is open): what they keep of every open
- * task (completed ones too while the filter lets them through), `61 of 109` — red with the
+ * task (and of the completed ones the filter admits while it lets them
+ * through — `screenTaskCounts`), `61 of 109` — red with the
  * tray while a chip is on, neutral with the lens alone. A click opens or
  * closes the filtered-tasks panel under the tray, whose filter the tray
  * edits. Its own component, so only it renders for a task write.

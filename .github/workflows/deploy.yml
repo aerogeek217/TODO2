@@ -26,6 +26,9 @@ jobs:
       - run: npm ci
       # The unit / JSDOM suite gates the deploy (Playwright stays local).
       - run: npm test
+      # Again in a random order (the seed is printed): catches a test that
+      # passes only after, or before, another one.
+      - run: npm run test:shuffle
       - run: npm run build
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:

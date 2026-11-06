@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyPredicate, type DateMatch, type PersistedTodoItem } from '../../models'
+import { emptyPredicate, type DateMatch, type PersistedTodoItem, type Person, type Tag, type TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import {
   eisenhowerQuadrantDialog,
@@ -25,9 +25,11 @@ import { buildTasksPlain } from '../../services/task-copy'
 import { emptyFilterCriteria } from '../helpers'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import {
-  ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
+  ASSIGNED_PEOPLE, ASSIGNED_TAGS, BEN, PEOPLE, PLANNING, PRIYA, Q4, SAMPLE_LISTS, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
 } from '../fixtures/dashboard-sample'
 import { useFilterStore } from '../../stores/filter-store'
+import { lensHideCounts } from '../../services/lenses'
+import { withLens, type Lens } from '../../utils/lens'
 
 function env(over: Partial<TaskDialogEnv> = {}): TaskDialogEnv {
   return {
@@ -147,6 +149,47 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
     expect(groups).toEqual(resolveTaskDialog({ kind: 'list', listDefinitionId: 50 }, env({ screen: priya, listDefinitions: [everyOpenTask] })))
   })
 
+  it('grouped by People or Tag, the screen filter’s "is" picks narrow the groups, as a list’s own filter does', () => {
+    const person = (id: number): Person => PEOPLE.find((p) => p.id === id)!
+    const tag = (id: number): Tag => TAGS.find((t) => t.id === id)!
+    // Q4 roadmap deck (14) is Priya's and Ben's, and tagged #q4 and #planning.
+    const assignedPeopleMap = new Map(ASSIGNED_PEOPLE).set(14, [person(PRIYA), person(BEN)])
+    const assignedTagsMap = new Map(ASSIGNED_TAGS).set(14, [tag(Q4), tag(PLANNING)])
+    const base = { assignedPeopleMap, assignedTagsMap }
+    const byPeople = { sort: 'manual', sortDirection: 'asc', grouping: 'people' } as const
+    const labelled = (groups: ReturnType<typeof resolveTaskDialog>) => groups.map((g) => [g.label, titles(g.todoIds)])
+    const priyaTasks = ['Draft homepage copy', 'Vendor contract redlines', 'Q4 roadmap deck', 'Q4 forecast']
+    expect(labelled(resolveTaskDialog(SCREEN, env({ ...base, screen: priya, newListView: byPeople })))).toEqual([['Priya Nair', priyaTasks]])
+    // The top bar's lens narrows them too; counts stay unique tasks.
+    const lensed = { ...emptyFilterCriteria, lens: priya }
+    const groups = resolveTaskDialog(SCREEN, env({ ...base, screen: lensed, newListView: byPeople }))
+    expect(labelled(groups)).toEqual([['Priya Nair', priyaTasks]])
+    expect(taskDialogCount(groups)).toBe(screenTaskCount(env({ ...base, screen: lensed })))
+    // Without a People pick, the task shows under both of its people.
+    const unpicked = resolveTaskDialog(SCREEN, env({ ...base, newListView: byPeople }))
+    expect(unpicked.filter((g) => g.todoIds.includes(14)).map((g) => g.label)).toEqual(['Ben Ortiz', 'Priya Nair'])
+    // Tags likewise, the No tags pick keeping only its trailing group.
+    const byTag = { ...byPeople, grouping: 'tag' } as const
+    const q4 = { ...emptyFilterCriteria, tags: new Set([Q4]) }
+    expect(resolveTaskDialog(SCREEN, env({ ...base, screen: q4, newListView: byTag })).map((g) => g.label)).toEqual(['#q4'])
+    const untagged = { ...emptyFilterCriteria, tags: new Set([0]) }
+    expect(resolveTaskDialog(SCREEN, env({ ...base, screen: untagged, newListView: byTag })).map((g) => g.label)).toEqual(['No Tag'])
+  })
+
+  it('a list grouped by People in the dialog: its own pick and the screen’s intersect', () => {
+    const assignedPeopleMap = new Map(ASSIGNED_PEOPLE).set(14, [PEOPLE.find((p) => p.id === PRIYA)!, PEOPLE.find((p) => p.id === BEN)!])
+    const priyaOrBen: PersistedListDefinition = {
+      id: 60, name: 'Priya or Ben', sortOrder: 0, owner: { layoutId: 1 },
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), personIds: [PRIYA, BEN] } },
+      sort: 'manual', grouping: 'people',
+    }
+    const source: TaskDialogSource = { kind: 'list', listDefinitionId: 60 }
+    const own = resolveTaskDialog(source, env({ assignedPeopleMap, listDefinitions: [priyaOrBen] }))
+    expect(own.map((g) => g.label)).toEqual(['Priya Nair', 'Ben Ortiz'])
+    const withScreen = resolveTaskDialog(source, env({ assignedPeopleMap, listDefinitions: [priyaOrBen], screen: priya }))
+    expect(withScreen.map((g) => [g.label, g.todoIds.length])).toEqual([['Priya Nair', 4]])
+  })
+
   it('screenTaskCount: how many rows the dialog lists', () => {
     for (const screen of [emptyFilterCriteria, priya, { ...priya, showCompleted: true }, { ...emptyFilterCriteria, showCompleted: true }]) {
       expect(screenTaskCount(env({ screen }))).toBe(taskDialogCount(resolveTaskDialog(SCREEN, env({ screen }))))
@@ -195,6 +238,63 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
     const lensed = { ...emptyFilterCriteria, lens: chips }
     expect(screenTaskCounts(env({ screen: lensed }))).toEqual({ shown: doneCount, total: SAMPLE_TASKS.length, lensKeeps: doneCount, withCompleted: true })
     expect(screenTaskDialogDescription(chips)).toBe('Tasks matching the screen filter, completed ones included. A change here applies to every widget.')
+  })
+
+  describe('the total under a Completed range: open tasks and the completed ones the filter admits', () => {
+    // Done this week: Sun 4 Oct … today (Sat 10 Oct).
+    const thisWeek: DateMatch = { match: 'range', start: { kind: 'offset', days: -6 }, end: { kind: 'offset', days: 0 } }
+    const weekStart = new Date(2026, 9, 4)
+    const doneThisWeek = SAMPLE_TASKS.filter((t) => t.isCompleted && t.completedAt != null && t.completedAt >= weekStart)
+    const lensOf = (id: string, predicate: Partial<TodoPredicate>): Lens => ({ id, name: id, predicate: { ...emptyPredicate(), ...predicate } })
+    const DONE_WEEK = lensOf('done-week', { dates: { completed: thisWeek } })
+    const PRIYA_DONE_WEEK = lensOf('priya-done-week', { dates: { completed: thisWeek }, personIds: [PRIYA] })
+    const PRIYA_LENS = lensOf('priya', { personIds: [PRIYA] })
+    /** The counter's "lens hides N" and the lens picker's number for the same lens. */
+    function hides(lens: Lens): { counter: number; picker: number } {
+      const counts = screenTaskCounts(env({ screen: withLens(emptyFilterCriteria, lens) }))
+      const picker = lensHideCounts(env(), [lens]).hides.get(lens.id)
+      return { counter: counts.total - counts.lensKeeps, picker: picker ?? -1 }
+    }
+
+    it('the fixture has completed tasks both inside and outside the week', () => {
+      expect(doneThisWeek.length).toBeGreaterThan(0)
+      expect(doneThisWeek.length).toBeLessThan(SAMPLE_TASKS.length - SAMPLE_OPEN_COUNT)
+    })
+
+    it('chips: the completed tasks in their range, not every completed task', () => {
+      const chips = { ...emptyFilterCriteria, dates: { completed: thisWeek } }
+      expect(screenTaskCounts(env({ screen: chips }))).toEqual({
+        shown: doneThisWeek.length, total: SAMPLE_OPEN_COUNT + doneThisWeek.length, lensKeeps: SAMPLE_OPEN_COUNT + doneThisWeek.length, withCompleted: true,
+      })
+      // Another chip narrows what is shown, not the total.
+      const priyaToo = { ...chips, personIds: new Set([PRIYA]) }
+      expect(screenTaskCounts(env({ screen: priyaToo })).total).toBe(SAMPLE_OPEN_COUNT + doneThisWeek.length)
+    })
+
+    it('a lens: the completed tasks it keeps, so it hides as many as the picker says', () => {
+      const counts = screenTaskCounts(env({ screen: withLens(emptyFilterCriteria, DONE_WEEK) }))
+      expect(counts).toEqual({
+        shown: doneThisWeek.length, total: SAMPLE_OPEN_COUNT + doneThisWeek.length, lensKeeps: doneThisWeek.length, withCompleted: true,
+      })
+      expect(hides(DONE_WEEK)).toEqual({ counter: SAMPLE_OPEN_COUNT, picker: SAMPLE_OPEN_COUNT })
+      // With a clause beside its range, the lens admits only the completed tasks it keeps whole.
+      const priyaDone = doneThisWeek.filter((t) => ASSIGNED_PEOPLE.get(t.id)?.some((p) => p.id === PRIYA)).length
+      expect(priyaDone).toBe(1)
+      expect(screenTaskCounts(env({ screen: withLens(emptyFilterCriteria, PRIYA_DONE_WEEK) })))
+        .toEqual({ shown: priyaDone, total: SAMPLE_OPEN_COUNT + priyaDone, lensKeeps: priyaDone, withCompleted: true })
+      expect(hides(PRIYA_DONE_WEEK)).toEqual({ counter: SAMPLE_OPEN_COUNT, picker: SAMPLE_OPEN_COUNT })
+    })
+
+    it('a lens without a Completed range hides as many as the picker says too', () => {
+      expect(hides(PRIYA_LENS)).toEqual({ counter: SAMPLE_OPEN_COUNT - 4, picker: SAMPLE_OPEN_COUNT - 4 })
+    })
+
+    it('the description’s "hides N" is the same number', () => {
+      const counts = screenTaskCounts(env({ screen: withLens(emptyFilterCriteria, DONE_WEEK) }))
+      const total = SAMPLE_OPEN_COUNT + doneThisWeek.length
+      expect(screenTaskDialogDescription(emptyFilterCriteria, { name: 'Done this week', counts }))
+        .toBe(`${doneThisWeek.length} of ${total} tasks shown: the lens “Done this week” hides ${SAMPLE_OPEN_COUNT}. A filter set here applies to every widget, on top of the lens.`)
+    })
   })
 
   it('the description names the lens and what it hides; with chips too, the filter under it', () => {

@@ -30,17 +30,23 @@ export interface ListSectionsSpec {
   /** `desc` reverses the sort (see {@link listSortComparator}); absent = natural order. */
   sortDirection?: TodoSortDirection
   /**
-   * The list's effective person filter. When grouping by people, only these
-   * people's sections are shown, in this order; a task assigned only to other
-   * people is left out. Id `0` (the "unassigned" pick) keeps the trailing
-   * Unassigned section. `null` / empty → every person gets a section.
+   * The person "is" picks that narrow the People groups, each one filter's
+   * (the list's own, the screen's chips, the top bar's lens — all of which a
+   * member passes). With one, only its people's sections show, in its
+   * order, and a task assigned only to other people is left out; with
+   * several, a task shows under each of its people every one of them picks,
+   * or — when none of its people is picked by all of them — under each one
+   * any of them picks (so no member drops out), the sections in the
+   * picks' order. Id `0` (the "unassigned" pick) keeps the trailing
+   * Unassigned section when every restriction has it. Absent / empty →
+   * every person gets a section.
    */
-  restrictToPersonIds?: ReadonlyArray<number> | null
+  personRestrictions?: ReadonlyArray<ReadonlyArray<number>>
   /**
-   * Same for the tag filter when grouping by tag: id `0` (No tags) keeps the
+   * Same for the tag picks when grouping by tag: id `0` (No tags) keeps the
    * trailing No tags section; without it there is none.
    */
-  restrictToTagIds?: ReadonlyArray<number> | null
+  tagRestrictions?: ReadonlyArray<ReadonlyArray<number>>
 }
 
 export interface ListSectionsContext {
@@ -222,17 +228,38 @@ export function isUngroupedSectionKey(groupBy: TodoGroupBy, key: string): boolea
   return groupBy !== 'none' && UNGROUPED_SECTION[groupBy]?.key === key
 }
 
-function restrictKeys(spec: ListSectionsSpec): { keys?: string[]; keepUngrouped: boolean } {
-  const ids =
-    spec.groupBy === 'people' ? spec.restrictToPersonIds
-    : spec.groupBy === 'tag' ? spec.restrictToTagIds
-    : null
-  if (!ids || ids.length === 0) return { keepUngrouped: true }
+/**
+ * The groups `spec`'s restrictions leave: `keys` the sections allowed, in
+ * order (absent = every group); `preferred` (several restrictions) the ones
+ * every restriction picks, where a task that has one of them shows only;
+ * whether the trailing "No …" section stays.
+ */
+function restrictKeys(spec: ListSectionsSpec): { keys?: string[]; preferred?: ReadonlySet<string>; keepUngrouped: boolean } {
+  const restrictions = (
+    spec.groupBy === 'people' ? spec.personRestrictions
+    : spec.groupBy === 'tag' ? spec.tagRestrictions
+    : undefined
+  )?.filter((ids) => ids.length > 0) ?? []
+  if (restrictions.length === 0) return { keepUngrouped: true }
   const prefix = spec.groupBy === 'people' ? 'person-' : 'tag-'
-  const keys = ids.filter((id) => id !== 0).map((id) => `${prefix}${id}`)
+  const keysOf = restrictions.map((ids) => new Set(ids.filter((id) => id !== 0).map((id) => `${prefix}${id}`)))
+  const union = [...new Set(keysOf.flatMap((keys) => [...keys]))]
+  const keepUngrouped = restrictions.every((ids) => ids.includes(0))
   // Only the none pick (Unassigned / No tags): a key no task has, so every
   // assigned or tagged task drops out and the trailing section alone shows.
-  return { keys: keys.length > 0 ? keys : [`${prefix}0`], keepUngrouped: ids.includes(0) }
+  const keys = union.length > 0 ? union : [`${prefix}0`]
+  if (restrictions.length === 1) return { keys, keepUngrouped }
+  return { keys, preferred: new Set(union.filter((k) => keysOf.every((ks) => ks.has(k)))), keepUngrouped }
+}
+
+/** `groups` with a task that is in a `preferred` group taken out of the others (emptied ones dropped). */
+function preferGroups<G extends { key: string; todos: PersistedTodoItem[] }>(groups: G[], preferred: ReadonlySet<string>): G[] {
+  const placed = new Set<number>()
+  for (const g of groups) if (preferred.has(g.key)) for (const t of g.todos) placed.add(t.id)
+  if (placed.size === 0) return groups
+  return groups
+    .map((g) => (preferred.has(g.key) ? g : { ...g, todos: g.todos.filter((t) => !placed.has(t.id)) }))
+    .filter((g) => g.todos.length > 0)
 }
 
 /**
@@ -278,7 +305,9 @@ export function buildListSections(
     urgentRange: ctx.urgentRange,
   }
   const restrict = restrictKeys({ ...spec, groupBy })
-  const { groups, ungrouped } = partitionByGroup(sorted, groupBy, groupingCtx, undefined, restrict.keys)
+  const partition = partitionByGroup(sorted, groupBy, groupingCtx, undefined, restrict.keys)
+  const groups = restrict.preferred ? preferGroups(partition.groups, restrict.preferred) : partition.groups
+  const { ungrouped } = partition
   const peopleById = new Map(ctx.people.map((p) => [p.id, p] as const))
 
   const sections: Section[] = groups.map((g) => {

@@ -1,6 +1,7 @@
 import { db } from './database'
 import type { Tag } from '../models'
 import { createRepository } from './create-repository'
+import type { TaskTouch } from './touch-todos'
 import { createJoinOps, buildAssignmentMap, restoreNamedEntityWithJoins, type JoinCapture } from './join-helpers'
 
 const base = createRepository<Tag>(db.tags, 'name')
@@ -62,22 +63,22 @@ export const tagRepository = {
     return counts
   },
 
-  async assignTag(todoId: number, tagId: number): Promise<void> {
-    await todoTagOps.assign(todoId, tagId)
+  async assignTag(todoId: number, tagId: number, touch?: TaskTouch): Promise<void> {
+    await todoTagOps.assign(todoId, tagId, touch)
   },
 
-  async unassignTag(todoId: number, tagId: number): Promise<void> {
-    await todoTagOps.unassign(todoId, tagId)
+  async unassignTag(todoId: number, tagId: number, touch?: TaskTouch): Promise<void> {
+    await todoTagOps.unassign(todoId, tagId, touch)
   },
 
   /** Assigns the tag to each of `todoIds` that doesn't have it, in one transaction. */
-  async bulkAssignTag(todoIds: readonly number[], tagId: number): Promise<void> {
-    await todoTagOps.bulkAssign(todoIds, tagId)
+  async bulkAssignTag(todoIds: readonly number[], tagId: number, touch?: TaskTouch): Promise<void> {
+    await todoTagOps.bulkAssign(todoIds, tagId, touch)
   },
 
   /** Unassigns the tag from each of `todoIds`, in one transaction. */
-  async bulkUnassignTag(todoIds: readonly number[], tagId: number): Promise<void> {
-    await todoTagOps.bulkUnassign(todoIds, tagId)
+  async bulkUnassignTag(todoIds: readonly number[], tagId: number, touch?: TaskTouch): Promise<void> {
+    await todoTagOps.bulkUnassign(todoIds, tagId, touch)
   },
 
   /**

@@ -1,7 +1,7 @@
 import { db } from './database'
 import type { PersistedSubtask, Subtask } from '../models/subtask'
 import { createTaskChildRepository } from './task-child-repository'
-import { presentTodoIds, touchTodoIds } from './touch-todos'
+import { presentTodoIds, touchTodoIds, type TaskTouch } from './touch-todos'
 
 /** The fields a subtask write may change. */
 export type SubtaskChanges = Partial<Pick<Subtask, 'title' | 'isCompleted' | 'sortOrder' | 'todoId'>>
@@ -26,7 +26,7 @@ export const subtaskRepository = Object.assign(createTaskChildRepository<Subtask
    * Stamps every task touched — a move stamps the one left and the one
    * joined. Returns how many rows were written.
    */
-  async updateMany(patches: readonly SubtaskPatch[], touchedAt?: Date): Promise<number> {
+  async updateMany(patches: readonly SubtaskPatch[], touch?: TaskTouch): Promise<number> {
     if (patches.length === 0) return 0
     return db.transaction('rw', [db.todos, db.subtasks], async () => {
       const rows = await db.subtasks.bulkGet(patches.map((p) => p.id))
@@ -43,13 +43,13 @@ export const subtaskRepository = Object.assign(createTaskChildRepository<Subtask
         if (patch.changes.todoId != null) touched.add(patch.changes.todoId)
         written++
       }
-      await touchTodoIds(touched, touchedAt)
+      await touchTodoIds(touched, touch)
       return written
     })
   },
 
   /** `updateMany` for one subtask; false when it is gone. */
-  async update(id: number, changes: SubtaskChanges, touchedAt?: Date): Promise<boolean> {
-    return (await subtaskRepository.updateMany([{ id, changes }], touchedAt)) === 1
+  async update(id: number, changes: SubtaskChanges, touch?: TaskTouch): Promise<boolean> {
+    return (await subtaskRepository.updateMany([{ id, changes }], touch)) === 1
   },
 })

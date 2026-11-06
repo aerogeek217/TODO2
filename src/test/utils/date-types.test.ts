@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import type { DateMatch, PersistedTodoItem } from '../../models'
 import { emptyPredicate } from '../../models'
 import { pickPredicate } from '../../data/predicate-shape'
-import { admitsCompleted, composeScreenFilter, predicateToCriteria, type FilterCriteria } from '../../utils/filter-criteria'
+import { admitsCompleted, completedAdmitters, composeScreenFilter, predicateToCriteria, type FilterCriteria } from '../../utils/filter-criteria'
 import { applyFilter, createScreenComposedEvaluator, matchesComposedFilter, matchesDateMatch } from '../../utils/filter-match'
 import { isOptionalDateField, normalizeDateFilters } from '../../utils/date-filters'
 import { currentFilterSettings } from '../../stores/settings-store'
@@ -116,6 +116,17 @@ describe('Completed', () => {
     expect(admitsCompleted(withMarkers)).toBe(false)
     // Show completed opens the gate; the group then keeps the completed ones too.
     expect(ids({ ...either, showCompleted: true })).toEqual([3, 4, 5, 6, 7])
+  })
+
+  it('completedAdmitters: the clauses that open the gate, each on its own (the counter’s total)', () => {
+    const group = { ...none(), dates: { completed: todayOnly } }
+    const f = crit({ personIds: new Set([9]), dates: { completed: thisWeek, lastFollowup: { match: 'set' } }, orGroups: [group] })
+    const range = { personIds: null, statusIds: null, tags: null, searchText: '', dates: { completed: thisWeek }, markers: null }
+    expect(completedAdmitters(f)).toEqual([range, group])
+    // A mixed group, a lens and Show completed aren't among them.
+    const either = crit({ showCompleted: true, orGroups: [{ ...none(), dates: { completed: thisWeek, lastFollowup: { match: 'unset' } } }] })
+    const lensed: FilterCriteria = { ...either, lens: crit({ dates: { completed: thisWeek } }) }
+    expect(completedAdmitters(lensed)).toEqual([])
   })
 
   describe('the gate wherever the screen filter applies', () => {

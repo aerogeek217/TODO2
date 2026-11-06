@@ -1,7 +1,9 @@
 import type { TaskChildRepository } from '../data/task-child-repository'
+import { taskTouch } from '../data/touch-todos'
 import { registerModuleReset } from '../utils/module-reset'
+import type { Stamp, StampChanges } from '../utils/task-stamps'
 import { loadFresh, trackWrite } from './store-helpers'
-import { notifyTasksTouched } from './task-hooks'
+import { notifyTasksStamped } from './task-hooks'
 
 /** Task id → its rows, in the store's order. */
 export type RowsByTodo<Stored> = ReadonlyMap<number, readonly Stored[]>
@@ -72,7 +74,8 @@ export interface TaskChildRowsConfig<Row extends { todoId: number }, Stored exte
  * tests), rows written whole (`addRows`, through `normalize`), put back
  * (`restoreRows` / `putBack`), taken out (`take`) and forgotten with their
  * task (`forgetTodos`). Every write is a tracked write; one that is activity
- * on a task stamps it (`notifyTasksTouched`). Each store adds its own
+ * on a task stamps it (`notifyTasksStamped`; an undo / redo puts a step's
+ * stamps back, `utils/task-stamps`). Each store adds its own
  * actions over `find` / `put` / `putBack` / `take`.
  */
 export function taskChildRows<Row extends { todoId: number }, Stored extends Row & { id: number }>(
@@ -90,23 +93,26 @@ export function taskChildRows<Row extends { todoId: number }, Stored extends Row
     if (rows.length > 0) set({ byTodo: withRows(get().byTodo, rows, compare) })
   }
 
-  /** Puts `rows` back in the database and the store; `touch`: stamp their tasks (an undo / redo of a write). The rows put back. */
-  const putBack = async (rows: readonly Stored[], touch: boolean): Promise<Stored[]> => {
-    const at = new Date()
-    const restored = await repository.restore(rows, touch ? at : undefined)
+  /**
+   * Puts `rows` back in the database and the store; given a `stamp`, stamps
+   * their tasks by it (an undo / redo of a write: a step's stamps put back).
+   * The rows put back.
+   */
+  const putBack = async (rows: readonly Stored[], stamp?: Stamp): Promise<Stored[]> => {
+    const touch = stamp ? taskTouch(stamp) : undefined
+    const restored = await repository.restore(rows, touch)
     put(restored)
-    if (touch) notifyTasksTouched(restored.map((r) => r.todoId), at)
+    if (touch) notifyTasksStamped(touch.stamped)
     return restored
   }
 
-  /** Deletes the rows `ids` from the database and the store, stamping their tasks. */
-  const take = async (ids: readonly number[]): Promise<void> => {
-    const idSet = new Set(ids)
-    const rows = [...get().byTodo.values()].flatMap((list) => list.filter((r) => idSet.has(r.id)))
-    const at = new Date()
-    await repository.deleteMany(ids, at)
-    set({ byTodo: withoutRows(get().byTodo, idSet) })
-    notifyTasksTouched(rows.map((r) => r.todoId), at)
+  /** Deletes the rows `ids` from the database and the store, stamping their tasks by `stamp`; resolves what it stamped. */
+  const take = async (ids: readonly number[], stamp: Stamp): Promise<StampChanges> => {
+    const touch = taskTouch(stamp)
+    await repository.deleteMany(ids, touch)
+    set({ byTodo: withoutRows(get().byTodo, new Set(ids)) })
+    notifyTasksStamped(touch.stamped)
+    return touch.stamped
   }
 
   const actions = {
@@ -139,7 +145,7 @@ export function taskChildRows<Row extends { todoId: number }, Stored extends Row
 
     async restoreRows(rows: readonly Stored[]): Promise<void> {
       if (rows.length === 0) return
-      await trackWrite(() => putBack(rows, false))
+      await trackWrite(() => putBack(rows))
     },
 
     forgetTodos(todoIds: readonly number[]): void {

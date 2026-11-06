@@ -7,6 +7,7 @@ import { encodeDateValue } from './todo-event-repository'
 import { resolveCompletedAt } from '../utils/completed-at'
 import { newTodoUid } from '../utils/todo-uid'
 import { withOrphanedRuleDropped } from '../utils/todo-changes'
+import { stampAfter, type Stamp } from '../utils/task-stamps'
 
 /**
  * `completedAt` bookkeeping for a write that may touch `isCompleted`:
@@ -202,24 +203,26 @@ export const todoRepository = {
    * Writes `changes` to one task — only those fields, so a concurrent write
    * to its other fields survives. A field set to `undefined` is removed. No-op
    * when the task doesn't exist (a save racing a delete doesn't bring it back).
-   * `now` stamps `modifiedAt` (the caller's timestamp, so its copy matches).
+   * `stamp` sets `modifiedAt` as `bulkUpdate`'s does.
    */
-  async update(id: number, changes: Partial<TodoItem>, now: Date = new Date()): Promise<void> {
-    await todoRepository.bulkUpdate([{ todoId: id, changes }], now)
+  async update(id: number, changes: Partial<TodoItem>, stamp: Stamp = new Date()): Promise<void> {
+    await todoRepository.bulkUpdate([{ todoId: id, changes }], stamp)
   },
 
   /**
    * Completes / reopens a task, keeping `completedAt` in step (set on
    * completion, cleared on reopen). `completedAt` overrides the completion
    * time — undo passes the original one back when it re-completes a task.
-   * `now` stamps `modifiedAt` (the caller's timestamp, so its copy matches).
+   * `stamp` sets `modifiedAt` as `bulkUpdate`'s does.
    */
-  async complete(id: number, completed: boolean, completedAt?: Date, now: Date = new Date()): Promise<void> {
+  async complete(id: number, completed: boolean, completedAt?: Date, stamp: Stamp = new Date()): Promise<void> {
+    const now = stamp instanceof Date ? stamp : new Date()
     await db.transaction('rw', [db.todos, db.todoEvents], async () => {
       const prior = await db.todos.get(id) as PersistedTodoItem | undefined
       // Deleted meanwhile: no row to change, and no event (as `bulkUpdate`).
       if (!prior) return
-      await db.todos.update(id, withCompletedAt(prior, { isCompleted: completed, completedAt, modifiedAt: now }, now))
+      const modifiedAt = stampAfter(stamp, id, prior.modifiedAt)
+      await db.todos.update(id, withCompletedAt(prior, { isCompleted: completed, completedAt, modifiedAt }, now))
       const events = buildFieldChangeEvents(id, prior, { isCompleted: completed }, now.toISOString())
       if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])
     })
@@ -251,12 +254,15 @@ export const todoRepository = {
 
   /**
    * Writes each mutation's fields to its task in one transaction, with their
-   * events. `modifiedAt` is `now` (the caller's timestamp, so its copy
-   * matches), or the mutation's own `modifiedAt` when it carries one (an undo
-   * putting the earlier value back).
+   * events. `stamp` sets `modifiedAt` (`utils/task-stamps`): a `Date` — the
+   * caller's timestamp, so its copy matches — on every task; an undo / redo's
+   * `StampChanges` — a step's stamps put back, each only where the task
+   * still holds the one the other left (events and a completion time then
+   * take the time of the write).
    */
-  async bulkUpdate(mutations: Array<{ todoId: number; changes: Partial<TodoItem> }>, now: Date = new Date()): Promise<void> {
+  async bulkUpdate(mutations: Array<{ todoId: number; changes: Partial<TodoItem> }>, stamp: Stamp = new Date()): Promise<void> {
     if (mutations.length === 0) return
+    const now = stamp instanceof Date ? stamp : new Date()
     const ts = now.toISOString()
     await db.transaction('rw', [db.todos, db.todoEvents], async () => {
       const events: Omit<TodoEvent, 'id'>[] = []
@@ -266,7 +272,7 @@ export const todoRepository = {
         const merged = { ...prior, ...changes }
         // A rule left without a due date to advance from goes (the stores mirror it).
         const cleaned = withCompletedAt(prior, withOrphanedRuleDropped(merged, changes), now)
-        await db.todos.update(todoId, { ...cleaned, modifiedAt: changes.modifiedAt ?? now })
+        await db.todos.update(todoId, { ...cleaned, modifiedAt: stampAfter(stamp, todoId, prior.modifiedAt) })
         events.push(...buildFieldChangeEvents(todoId, prior, cleaned, ts))
       }
       if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])
