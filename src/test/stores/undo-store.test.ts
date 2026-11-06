@@ -543,6 +543,55 @@ describe('useUndoStore — an undo or redo that fails', () => {
       expect(secondA.undo).toHaveBeenCalledTimes(1)
     })
 
+    it('an undo pressed while a group is still writing waits, then takes back the whole step; its redo stays (cr31 L5)', async () => {
+      let release!: () => void
+      const held = new Promise<void>((r) => { release = r })
+      const before = makeEntry('Before')
+      const a = makeEntry('a')
+      const b = makeEntry('b')
+      useUndoStore.getState().push(before)
+      const run = useUndoStore.getState().runGroup('Drop', async () => {
+        useUndoStore.getState().push(a)
+        await held
+        useUndoStore.getState().push(b)
+      })
+      await Promise.resolve()
+      const undo = useUndoStore.getState().undo()
+      await Promise.resolve()
+      expect(a.undo).not.toHaveBeenCalled()
+      release()
+      await run
+      await undo
+      expect(b.undo).toHaveBeenCalledTimes(1)
+      expect(a.undo).toHaveBeenCalledTimes(1)
+      expect(before.undo).not.toHaveBeenCalled()
+      expect(useUndoStore.getState().undoStack).toEqual([before])
+      expect(useUndoStore.getState().redoStack.map((e) => e.description)).toEqual(['Drop'])
+      await useUndoStore.getState().redo()
+      expect(a.redo).toHaveBeenCalledTimes(1)
+      expect(b.redo).toHaveBeenCalledTimes(1)
+    })
+
+    it('an undo pressed before a queued group starts waits for it too, never splitting it (cr31 L5)', async () => {
+      let release!: () => void
+      const held = new Promise<void>((r) => { release = r })
+      const before = makeEntry('Before')
+      useUndoStore.getState().push(before)
+      const first = useUndoStore.getState().runGroup('First', async () => {
+        useUndoStore.getState().push(makeEntry('first'))
+        await held
+      })
+      const second = useUndoStore.getState().runGroup('Second', async () => {
+        useUndoStore.getState().push(makeEntry('second'))
+      })
+      await Promise.resolve()
+      const undo = useUndoStore.getState().undo()
+      release()
+      await Promise.all([first, second, undo])
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Before', 'First'])
+      expect(useUndoStore.getState().redoStack.map((e) => e.description)).toEqual(['Second'])
+    })
+
     it('a group that failed doesn’t stop the next', async () => {
       const failed = useUndoStore.getState().runGroup('Bad', async () => { throw new Error('boom') })
       const next = useUndoStore.getState().runGroup('Good', async () => { useUndoStore.getState().push(makeEntry('x')) })
