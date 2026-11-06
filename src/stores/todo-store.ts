@@ -682,22 +682,10 @@ export const useTodoStore = create<TodoState>((set, get) => {
       ...(c.important !== undefined ? { important: flagValue(c.important) } : {}),
       ...(c.focus !== undefined ? { focus: flagValue(c.focus) } : {}),
     })
-    const ids = targets.map((t) => t.id)
-    const restore = async (persist: boolean) => {
-      if (persist) {
-        // The earlier modifiedAt goes back too, as in the store below.
-        await todoRepository.bulkUpdate(ids.map((todoId) => {
-          const p = prev.get(todoId)
-          return { todoId, changes: { urgent: p?.urgent, important: p?.important, focus: p?.focus, modifiedAt: p?.modifiedAt } }
-        }))
-      }
-      set({
-        todos: get().todos.map((t) => {
-          const p = prev.get(t.id)
-          return p ? { ...t, urgent: p.urgent, important: p.important, focus: p.focus, modifiedAt: p.modifiedAt } : t
-        }),
-      })
-    }
+    const FLAGS = ['urgent', 'important', 'focus'] as const
+    /** The flags change `c` writes, at the values the task had before it. */
+    const before = (c: MarkerFlagChange, p: Pick<PersistedTodoItem, 'urgent' | 'important' | 'focus'>): Partial<PersistedTodoItem> =>
+      Object.fromEntries(FLAGS.filter((k) => c[k] !== undefined).map((k) => [k, p[k]]))
     const now = new Date()
     return optimistic(
       () => {
@@ -712,12 +700,34 @@ export const useTodoStore = create<TodoState>((set, get) => {
         const c = byId.get(t.id)
         return c ? [{ todoId: t.id, changes: patch(c) }] : []
       }), now),
-      () => { void restore(false) },
+      // Only the flags this write set, and only where they still hold its
+      // value (an edit that landed meanwhile stays); the stamp only where no
+      // later write stamped the task.
+      () => set({
+        todos: get().todos.map((t) => {
+          const c = byId.get(t.id)
+          const p = prev.get(t.id)
+          if (!c || !p) return t
+          const own = patch(c)
+          const back = Object.fromEntries(FLAGS.filter((k) => k in own && t[k] === own[k]).map((k) => [k, p[k]]))
+          return { ...t, ...back, ...(t.modifiedAt === now ? { modifiedAt: p.modifiedAt } : {}) }
+        }),
+      }),
       'Failed to update the priority flags',
       {
         description,
         redo: () => get().setMarkerFlags(changes, description),
-        undo: () => restore(true),
+        // The flags this step changed back, with the earlier modifiedAt, in the database and the store.
+        undo: async () => {
+          const reverts = targets.flatMap((t) => {
+            const c = byId.get(t.id)
+            const p = prev.get(t.id)
+            return c && p ? [{ todoId: t.id, changes: { ...before(c, p), modifiedAt: p.modifiedAt } }] : []
+          })
+          await todoRepository.bulkUpdate(reverts)
+          const byTodo = new Map(reverts.map((r) => [r.todoId, r.changes]))
+          set({ todos: get().todos.map((t) => { const r = byTodo.get(t.id); return r ? { ...t, ...r } : t }) })
+        },
         showSnackbar: true,
       },
     )
