@@ -9,13 +9,14 @@ import { lensSummary } from '../shared/filters/lens-text'
 import { sheetHeaderProps } from '../shared/filters/sheet-header'
 import sheet from '../shared/filters/FilterChipBarMobile.module.css'
 import styles from './FilterSheetLens.module.css'
+import { lensActions } from '../../stores/lens-actions'
 
 /**
  * The phone filter sheet's first section (D15 board F): the top bar's lens,
  * the same on every layout — a radio list (No lens with the open count,
  * each lens with its filters in a line and how many open tasks it hides) —
  * and "Lift the lens for now", as the desktop lens control's glasses. A
- * pick is saved at once (`settings-store.setActiveLens`).
+ * pick is saved at once (`lens-actions.setActiveLens`).
  */
 export function FilterSheetLens() {
   const lenses = useSettingsStore((s) => s.lenses)
@@ -27,7 +28,7 @@ export function FilterSheetLens() {
   const groupName = useId()
   const pick = (id: string | null) => {
     useUIStore.getState().setLensLifted(false)
-    void useSettingsStore.getState().setActiveLens(id)
+    void lensActions.setActiveLens(id)
   }
   return (
     <div className={sheet.entitySection} data-testid="sheet-lens">

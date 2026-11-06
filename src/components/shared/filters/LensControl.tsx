@@ -11,6 +11,7 @@ import { useChipNames } from './filter-menu'
 import { LENS_NAME_ATTR } from './lens-fold'
 import { lensSummary } from './lens-text'
 import styles from './LensControl.module.css'
+import { lensActions } from '../../../stores/lens-actions'
 
 /**
  * The top bar's lens control, its own part of the bar between the layout
@@ -21,7 +22,7 @@ import styles from './LensControl.module.css'
  * name struck through and the control neutral while lifted; the pick stays
  * — and the name opens the picker (No lens, each lens with its filters in a
  * line and how many open tasks it hides, Edit lenses…). A pick is saved at
- * once (`settings-store.setActiveLens`): no unsaved state, no undo step.
+ * once (`lens-actions.setActiveLens`): no unsaved state, no undo step.
  * The name is cut at 160px; the top bar cuts it further (`nameWidth`) only
  * when even its most folded state is short of room — the whole name then in
  * the name's tooltip.
@@ -99,7 +100,7 @@ function LensMenu({ lenses, lensId, anchorRef, onClose }: {
   const counts = useLensHideCounts(lenses)
   const pick = (id: string | null) => {
     useUIStore.getState().setLensLifted(false)
-    void useSettingsStore.getState().setActiveLens(id)
+    void lensActions.setActiveLens(id)
   }
   const entries = useMemo<MenuEntry[]>(() => [
     { kind: 'label', text: 'Lens · hides tasks on every widget' },

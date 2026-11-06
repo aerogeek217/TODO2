@@ -15,6 +15,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
 import { resetStores } from '../store-tracking'
 import { addTask } from '../add-task'
+import { lensActions } from '../../stores/lens-actions'
 
 beforeEach(async () => {
   await db.delete()
@@ -153,7 +154,7 @@ describe('refreshAllStores', () => {
   })
 
   it('a lifted lens: the replaced data picking another lens puts it on, not lifted; the same pick keeps the lift', async () => {
-    await useSettingsStore.getState().setActiveLens('lens-a')
+    await lensActions.setActiveLens('lens-a')
     useUIStore.getState().setLensLifted(true)
 
     // The same pick in the replaced data: still the lens the user lifted.
