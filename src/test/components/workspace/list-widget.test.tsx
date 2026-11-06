@@ -92,7 +92,7 @@ describe('ListWidget', () => {
   it('shows the list’s open tasks and reports the count', () => {
     const { result } = setup(def())
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
-    expect(result()?.countLabel).toBe('3')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('3')
     // No filters anywhere: the filter line still shows (the way in to setting them) — No filters, + Filter,
     // the summary (`Manual` for an ungrouped manual list); no Revert · Save while saved.
     const row = screen.getByTestId('list-filter-row')
@@ -107,7 +107,7 @@ describe('ListWidget', () => {
     const { result } = setup(def())
     act(() => useFilterStore.getState().setPersonIds(new Set([1])))
     expect(titles()).toEqual(['Alice task', 'Shared task'])
-    expect(result()?.countLabel).toBe('2 of 3')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('2 of 3')
     expect(screen.getByTestId('screen-filter-chip').textContent).toContain('Alice')
   })
 
@@ -139,7 +139,7 @@ describe('ListWidget', () => {
     }))
     expect(titles()).toEqual(['Done today'])
     // Of the list's 3 open tasks and its 2 completed ones (the range opens its gate too): 1 shown.
-    expect(result()?.countLabel).toBe('1 of 5')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('1 of 5')
   })
 
   it('screen filters hiding everything: says so and offers to clear them', () => {
@@ -274,7 +274,7 @@ describe('ListWidget', () => {
   it('shows every task: no "Showing N of M" line', () => {
     const { result } = setup(def())
     expect(titles()).toHaveLength(3)
-    expect(result()?.countLabel).toBe('3')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('3')
     expect(screen.queryByText(/Showing/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'switch to scroll' })).toBeNull()
   })
@@ -334,10 +334,10 @@ describe('ListWidget', () => {
   it('a prompt shows its row; nothing picked = the pick-a-value state and a — count', () => {
     const { result } = setup(def({ runtimeFilter: { field: 'person' } }))
     expect(screen.getByText('Pick a person to show this list')).toBeInTheDocument()
-    expect(result()?.countLabel).toBe('—')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('—')
     act(() => useListWidgetStore.getState().setPicks('t1', [2]))
     expect(titles()).toEqual(['Bob task', 'Shared task'])
-    expect(result()?.countLabel).toBe('2')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('2')
   })
 
   it('the pick-a-value state’s one action puts the focus in the prompt’s field', () => {
@@ -714,7 +714,7 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     })
     const { result } = setup(def({}, { markers: [{ values: ['urgent', 'focus'] }] }))
     expect(titles()).toEqual(['Alice task', 'Bob task'])
-    expect(result()?.countLabel).toBe('2')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('2')
     act(() => useSettingsStore.setState({ urgentDueWithinDays: null }))
     expect(titles()).toEqual(['Bob task'])
   })

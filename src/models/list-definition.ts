@@ -71,6 +71,13 @@ export interface ListDefinition {
   showFilterLine?: false
   /** Its tab's badges, when not the app's (Settings › Tasks); absent = the app's. */
   tabBadges?: ListTabBadges
+  /**
+   * `true`: the top bar's lens doesn't apply to this list (its chips still
+   * do); absent = it applies (only `true` is stored). Toggled from the
+   * list's filter line or its tab menu and saved at once, never a draft
+   * edit: a list's Save keeps the saved list's value (`list-draft-store`).
+   */
+  ignoreLens?: true
 }
 
 /**

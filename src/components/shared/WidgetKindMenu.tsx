@@ -31,10 +31,11 @@ export interface WidgetSetting {
   footnote?: string
 }
 
-/** A widget action in the tab menu: runs and closes. */
+/** A widget action in the tab menu: runs and closes. With `checked`, a checkbox row (a switch of the widget's). */
 export interface WidgetMenuAction {
   label: string
   icon?: ReactNode
+  checked?: boolean
   onSelect: () => void
 }
 
@@ -127,7 +128,13 @@ export function WidgetKindMenu({
     childrenWidth: CHANGE_LIST_WIDTH_PX,
     childrenMaxHeight: CHANGE_LIST_MAX_HEIGHT_PX,
   }
-  const actions: MenuItemEntry[] = (widgetActions ?? []).map((a) => ({ kind: 'item', label: a.label, icon: listFirst ? undefined : a.icon, onSelect: a.onSelect }))
+  const actions: MenuItemEntry[] = (widgetActions ?? []).map((a) => ({
+    kind: 'item',
+    label: a.label,
+    icon: listFirst ? undefined : a.icon,
+    ...(a.checked !== undefined ? { checkbox: true, checked: a.checked } : {}),
+    onSelect: a.onSelect,
+  }))
   const kinds: MenuItemEntry[] = WIDGET_KINDS.map((k) => ({
     kind: 'item',
     label: widgetKindLabel(k),

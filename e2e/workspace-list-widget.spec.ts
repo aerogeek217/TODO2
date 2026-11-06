@@ -77,7 +77,7 @@ test('a screen filter narrows every list widget and shows the count as shown of 
     await expect(rows(page, tabId)).toHaveCount(1)
     await expect(rows(page, tabId)).toContainText('Alice task')
   }
-  await expect(wsTab(page, 't1')).toContainText('1 of 2')
+  await expect(wsListWidget(page, 't1').getByTestId('list-count')).toHaveText('1 of 2')
 })
 
 test('adding a filter from the filter row makes the list unsaved; saving keeps it across a reload', async ({ page }) => {
@@ -239,7 +239,7 @@ test('prompt picks are temporary: empty again after a reload', async ({ page }) 
   })
   const widget = wsListWidget(page, 't1')
   await expect(widget).toContainText('Pick a person to show this list')
-  await expect(wsTab(page, 't1')).toContainText('—')
+  await expect(widget.getByTestId('list-count')).toHaveText('—')
   await widget.getByLabel('Filter tasks by person').click()
   await page.getByRole('option', { name: 'Bob', exact: true }).click()
   await page.keyboard.press('Escape')

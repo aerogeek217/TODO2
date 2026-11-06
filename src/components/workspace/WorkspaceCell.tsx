@@ -16,7 +16,7 @@ import { getUnsavedListIds } from '../../stores/list-draft-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useListWidgetStore } from '../../stores/list-widget-store'
 import { copyTasks } from '../../services/task-copy'
-import { WidgetKindMenu } from '../shared/WidgetKindMenu'
+import { WidgetKindMenu, type WidgetMenuAction } from '../shared/WidgetKindMenu'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetButtons, AddWidgetFlow } from './AddWidgetFlow'
@@ -166,6 +166,15 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
  * `tabIds` of the open layout — closing or re-pointing those tabs would leave
  * the edits nowhere to be saved from.
  */
+/** A list tab's menu switch for the top bar's lens on its list: checked while it applies; saved at once. */
+function lensSwitchAction(lens: NonNullable<WidgetResult['lens']>): WidgetMenuAction {
+  return {
+    label: `Apply lens “${lens.name}” here`,
+    checked: !lens.ignored,
+    onSelect: () => void useListDefinitionStore.getState().setIgnoreLens(lens.listId, !lens.ignored),
+  }
+}
+
 function listsLosingLastWidget(tabIds: readonly string[]): number[] {
   const state = useWorkspaceStore.getState()
   const unsaved = new Set(getUnsavedListIds())
@@ -214,7 +223,8 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   const [customize, setCustomize] = useState<string | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
 
-  const activeCount = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result.countLabel : undefined
+  const activeResult = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result : undefined
+  const activeCount = activeResult?.countLabel
 
   /** Runs `run`, first asking about unsaved lists that would lose their last widget with `tabIds`. */
   const guarded = (tabIds: readonly string[], lead: string, run: () => void) => {
@@ -349,6 +359,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           cell={cell}
           collapsed={collapsed}
           activeCount={activeCount}
+          activeLens={activeCount != null ? activeResult?.lens : undefined}
           ghosts={ghosts}
           onActivate={(tabId) => {
             withViewTransition(() => {
@@ -461,6 +472,8 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
           widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
             ? [
+                // The top bar's lens on this list, while one applies there: on / off here (saved at once).
+                ...(widgetResult.result.lens ? [lensSwitchAction(widgetResult.result.lens)] : []),
                 {
                   label: 'Copy tasks',
                   icon: '⧉',

@@ -743,6 +743,8 @@ function listDefinitionFixes(row: Raw): string[] {
   const line = row.showFilterLine
   if (row.tabBadges !== undefined && row.tabBadges !== null && pickListTabBadges(row.tabBadges) === undefined) fixes.push('unknown tab badges dropped')
   if (line !== undefined && line !== null && typeof line !== 'boolean') fixes.push('unknown filter line setting dropped')
+  const lens = row.ignoreLens
+  if (lens !== undefined && lens !== null && typeof lens !== 'boolean') fixes.push('unknown lens setting dropped')
   return fixes
 }
 
@@ -761,6 +763,8 @@ function pickListDefinition(v: Raw): AllFields<ListDefinition> {
     // Only `false` is stored: shown is the default.
     showFilterLine: v.showFilterLine === false ? false : undefined,
     tabBadges: pickListTabBadges(v.tabBadges),
+    // Only `true` is stored: the lens applies by default.
+    ignoreLens: v.ignoreLens === true ? true : undefined,
   } satisfies AllFields<ListDefinition>
 }
 

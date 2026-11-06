@@ -8,7 +8,8 @@ import { useIsListDirty } from '../../hooks/use-list-draft'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useTabTitle, useTabTitles } from './widget-hooks'
-import { ChevronDownIcon, CloseIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
+import { ChevronDownIcon, CloseIcon, GlassesIcon, PlusIcon, WidgetKindIcon } from '../shared/icons'
+import type { ListLensMark } from './list/ListWidget'
 import { MenuPopover } from '../shared/MenuPopover'
 import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type DraggedTab, type WorkspaceTabDragData } from './workspace-drag'
 import { fitTabs, shownTabs, type TabFit, type TabSize } from '../../utils/tab-strip-fit'
@@ -95,6 +96,8 @@ interface TabProps {
   active: boolean
   collapsed: boolean
   count?: string
+  /** The top bar's lens on the tab's list, beside its count (while the list's filter line is hidden). */
+  lens?: ListLensMark
   /** Touch layout: taller tabs, no close ×, not draggable. */
   touch: boolean
   onActivate: () => void
@@ -108,7 +111,7 @@ interface TabProps {
   size?: CSSProperties
 }
 
-function Tab({ tab, badge, active, collapsed, count, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef, offstage, size }: TabProps) {
+function Tab({ tab, badge, active, collapsed, count, lens, touch, onActivate, onClose, onOpenMenu, onFocusSibling, setRef, offstage, size }: TabProps) {
   const title = useTabTitle(tab)
   // A list tab's list, or an Eisenhower tab's (the Eisenhower's own): its unsaved dot.
   const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
@@ -139,7 +142,7 @@ function Tab({ tab, badge, active, collapsed, count, touch, onActivate, onClose,
         badge ? styles.hasBadge : '',
       ].join(' ')}
       style={size}
-      title={badge ? [title, ...badge.summary].join('\n') : title}
+      title={[title, ...(lens ? [lensLine(lens)] : []), ...(badge?.summary ?? [])].join('\n')}
       onClick={onActivate}
       onContextMenu={(e) => {
         e.preventDefault()
@@ -162,6 +165,11 @@ function Tab({ tab, badge, active, collapsed, count, touch, onActivate, onClose,
       <span className={styles.kindIcon}><WidgetKindIcon kind={tab.kind} size={12} /></span>
       <span className={styles.title} data-tab-title="">{title}</span>
       {listUnsaved && <span className={styles.unsavedDot} role="img" aria-label="unsaved list changes" />}
+      {lens && (
+        <span className={`${styles.lensMark} ${lens.ignored ? styles.lensMarkOff : ''}`} role="img" aria-label={lensLine(lens)} data-tab-lens="">
+          <GlassesIcon size={12} slashed={lens.ignored} />
+        </span>
+      )}
       {count != null && <span className={styles.count}>{count}</span>}
       {badge && <TabBadgeCapsule badge={badge} />}
       {closable && (
@@ -181,6 +189,11 @@ function Tab({ tab, badge, active, collapsed, count, touch, onActivate, onClose,
   )
 }
 
+/** The lens on a tab's list, in words: `“This month” hides 8 here` / `Ignores the lens “This month”`. */
+function lensLine(lens: ListLensMark): string {
+  return lens.ignored ? `Ignores the lens “${lens.name}”` : `“${lens.name}” hides ${lens.hides} here`
+}
+
 /** Ghost tab previewing where a dragged widget lands (end of the strip). */
 function GhostTab({ kind, title }: { kind: WidgetKind; title: string }) {
   return (
@@ -197,6 +210,8 @@ interface CellTabStripProps {
   collapsed: boolean
   /** Task count of the active tab (list / Eisenhower: `N`, `shown of total`, or `—`). */
   activeCount?: string
+  /** The top bar's lens on the active tab's list, beside its count (a list whose filter line is hidden). */
+  activeLens?: ListLensMark
   /** While a tab or a panel is dragged over this panel's middle: the ghost tab(s), at the end of the strip. */
   ghosts?: readonly DraggedTab[] | null
   /**
@@ -222,6 +237,7 @@ export function CellTabStrip({
   cell,
   collapsed,
   activeCount,
+  activeLens,
   ghosts,
   touch = false,
   onActivate,
@@ -342,6 +358,7 @@ export function CellTabStrip({
             collapsed={collapsed}
             touch={touch}
             count={tab.id === active?.id ? activeCount : undefined}
+            lens={tab.id === active?.id ? activeLens : undefined}
             badge={badges.get(tab.id)}
             onActivate={() => onActivate(tab.id)}
             onClose={onClose ? () => onClose(tab.id) : undefined}

@@ -1,12 +1,13 @@
 import { useEffect, useMemo } from 'react'
 import type { PersistedTodoItem } from '../models'
-import type { TabBadgeRanges } from '../models/list-definition'
+import type { PersistedListDefinition, TabBadgeRanges } from '../models/list-definition'
 import type { LayoutTab } from '../models/workspace-layout'
 import { applyRuntimeFilter } from '../services/build-list'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListDraftStore } from '../stores/list-draft-store'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useScreenFilter } from '../stores/screen-filter'
+import { useFilterStore } from '../stores/filter-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
@@ -27,7 +28,8 @@ const NO_BADGES: ReadonlyMap<string, TabBadge> = new Map()
 /**
  * The badges of a strip's list tabs (by tab id; a tab with nothing to count
  * has none): the open tasks the tab shows on opening — the list as edited,
- * its prompt pick and the screen filter — inside the list's ranges or the
+ * its prompt pick and the screen filter (without the lens for a list that
+ * ignores it) — inside the list's ranges or the
  * app's. A list still waiting on its prompt has none.
  */
 export function useTabBadges(tabs: readonly LayoutTab[]): ReadonlyMap<string, TabBadge> {
@@ -38,6 +40,8 @@ export function useTabBadges(tabs: readonly LayoutTab[]): ReadonlyMap<string, Ta
   const todos = useTodoStore((s) => s.todos)
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const { filters: screen, active: screenActive } = useScreenFilter()
+  const chips = useFilterStore((s) => s.filters)
+  const chipsActive = useFilterStore((s) => s.isActive)
   const settings = useFilterSettings()
   const today = useToday()
   const hasListTab = tabs.some((tab) => tab.kind === 'lens')
@@ -52,6 +56,15 @@ export function useTabBadges(tabs: readonly LayoutTab[]): ReadonlyMap<string, Ta
     const matches = screenActive
       ? createScreenComposedEvaluator(screen, lookups, today, settings)
       : createPredicateEvaluator(lookups, today, settings)
+    // A list that ignores the lens counts under the chips alone (as it shows).
+    let chipsOnly: typeof matches | null = null
+    const matcherFor = (def: PersistedListDefinition) => {
+      if (def.ignoreLens !== true || !screen.lens) return matches
+      chipsOnly ??= chipsActive
+        ? createScreenComposedEvaluator(chips, lookups, today, settings)
+        : createPredicateEvaluator(lookups, today, settings)
+      return chipsOnly
+    }
     // Only a task inside a badge range can count: each list's filter runs on
     // those alone (a few of every open task), once per set of ranges.
     const candidatesByRanges = new Map<string, PersistedTodoItem[]>()
@@ -79,9 +92,10 @@ export function useTabBadges(tabs: readonly LayoutTab[]): ReadonlyMap<string, Ta
       const predicate = def.runtimeFilter && pick && pick.length > 0
         ? applyRuntimeFilter(def.membership.predicate, def.runtimeFilter, pick)
         : def.membership.predicate
-      const counts = countTabBadges(candidatesFor(ranges).filter((t) => matches(predicate, t)), ranges, today)
+      const match = matcherFor(saved)
+      const counts = countTabBadges(candidatesFor(ranges).filter((t) => match(predicate, t)), ranges, today)
       if (counts.due + counts.followup > 0) badges.set(tab.id, { counts, summary: tabBadgeSummary(counts, ranges) })
     }
     return badges
-  }, [hasListTab, tabs, defs, drafts, picks, appRanges, todos, lookups, screen, screenActive, settings, today])
+  }, [hasListTab, tabs, defs, drafts, picks, appRanges, todos, lookups, screen, screenActive, chips, chipsActive, settings, today])
 }

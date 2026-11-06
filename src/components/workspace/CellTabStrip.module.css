@@ -91,6 +91,18 @@
   color: var(--color-text-muted);
 }
 
+/* The top bar's lens on the tab's list (its filter line hidden): accent while
+ * it hides rows here, muted and slashed while the list ignores it. */
+.lensMark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-accent-text);
+}
+
+.lensMarkOff {
+  color: var(--color-text-muted);
+}
+
 /* A badged tab tightens up a little around its capsule. */
 .hasBadge {
   gap: 4px;

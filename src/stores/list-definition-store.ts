@@ -43,6 +43,12 @@ interface ListDefinitionState {
   add: (input: AddInput) => Promise<number>
   update: (def: PersistedListDefinition) => Promise<void>
   /**
+   * Whether the top bar's lens applies to list `id` (`ListDefinition.ignoreLens`),
+   * saved at once on the saved list — never a draft edit, so it neither
+   * makes the list unsaved nor waits for its Save.
+   */
+  setIgnoreLens: (id: number, ignore: boolean) => Promise<void>
+  /**
    * The Eisenhower's own list (made when there is none —
    * `listDefinitionRepository.ensureEisenhowerList`), with the lists and
    * `settings-store.eisenhowerListId` reloaded to name it. Returns its id.
@@ -107,6 +113,14 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       () => { if (prev && get().listDefinitions.find(d => d.id === def.id) === applied) put(prev) },
       'Failed to update list',
     )
+  },
+
+  async setIgnoreLens(id, ignore) {
+    const saved = get().listDefinitions.find((d) => d.id === id)
+    if (!saved || (saved.ignoreLens === true) === ignore) return
+    const { ignoreLens: _was, ...rest } = saved
+    void _was
+    await get().update(ignore ? { ...rest, ignoreLens: true } : rest)
   },
 
   async ensureEisenhowerList() {

@@ -130,7 +130,7 @@ function buildSeed(): Seed {
       id: 2, name: 'Follow-ups', sortOrder: 1,
       membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: [{ values: ['focus'] }] } },
       sort: 'followup', grouping: 'followup',
-      owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' },
+      owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' }, ignoreLens: true,
     }, {
       id: 3, name: 'Eisenhower', sortOrder: 2,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
