@@ -143,8 +143,10 @@
   background: var(--color-accent);
 }
 
+/* Its place is kept while hidden: a tab's width never changes on hover. */
 .close {
-  display: none;
+  display: inline-flex;
+  visibility: hidden;
   align-items: center;
   justify-content: center;
   width: 16px;
@@ -166,7 +168,7 @@
 
 .tab:hover .close,
 .active .close {
-  display: inline-flex;
+  visibility: visible;
 }
 
 /* Collapsed cell: flat tabs (no fill, no accent bar). */
