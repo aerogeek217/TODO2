@@ -55,6 +55,10 @@ export const RELATIVE_TOKEN_LABELS: Record<RelativeDateToken, string> = {
   'start-of-next-month': 'Start of next month',
   'end-of-next-month': 'End of next month',
   'end-of-month-plus-3': 'End of (month + 3)',
+  'start-of-last-week': 'Start of last week',
+  'end-of-last-week': 'End of last week',
+  'start-of-last-month': 'Start of last month',
+  'end-of-last-month': 'End of last month',
 }
 
 /** A rolling day as the words and the Relative list say it: `today`, `end of week`. */

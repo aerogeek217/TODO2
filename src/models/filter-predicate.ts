@@ -19,6 +19,10 @@ export type RelativeDateToken =
   | 'start-of-next-month'
   | 'end-of-next-month'
   | 'end-of-month-plus-3'
+  | 'start-of-last-week'
+  | 'end-of-last-week'
+  | 'start-of-last-month'
+  | 'end-of-last-month'
 
 export const RELATIVE_DATE_TOKENS: readonly RelativeDateToken[] = [
   'yesterday',
@@ -33,6 +37,10 @@ export const RELATIVE_DATE_TOKENS: readonly RelativeDateToken[] = [
   'start-of-next-month',
   'end-of-next-month',
   'end-of-month-plus-3',
+  'start-of-last-week',
+  'end-of-last-week',
+  'start-of-last-month',
+  'end-of-last-month',
 ]
 
 /**

@@ -10,6 +10,8 @@ import {
 } from './slash-commands'
 import { collapseWhitespace } from '../utils/text'
 
+export { BARE_MENTION_NAME, BARE_TAG_NAME, mentionToken, statusToken, tagToken } from '../utils/name-tokens'
+
 /**
  * Task-text parser. Only explicit tokens set metadata:
  *  - `@name` / `@"First Last"` — people (looked up by `nlp-resolver`);
@@ -93,36 +95,18 @@ export interface ParsedInput {
 // looks the names up.
 const MENTION_PATTERN = /(^|\s)@(?:"([^"]+)"|([\p{L}\p{M}\p{N}_]+))/gu
 
-/** A name `@` takes bare, without quotes (`@José`). */
-export const BARE_MENTION_NAME = /^[\p{L}\p{M}\p{N}_]+$/u
-
-/** The token that names a person: `@Name`, or `@"First Last"` for a name that isn't bare. */
-export function mentionToken(name: string): string {
-  return BARE_MENTION_NAME.test(name) ? `@${name}` : `@"${name}"`
-}
 
 // `!` names the status: `@`'s bare names and quoting (`!Waiting`,
 // `!"On Hold"`), whitespace-anchored the same way, so `Hi!`, `!!!` or `a!b`
 // are plain text. Group 1 = the separator, 2 = a quoted name, 3 = a bare one.
 const STATUS_PATTERN = /(^|\s)!(?:"([^"]+)"|([\p{L}\p{M}\p{N}_]+))/gu
 
-/** The token that names a status: `!Name`, or `!"On Hold"` for a name that isn't bare. */
-export function statusToken(name: string): string {
-  return BARE_MENTION_NAME.test(name) ? `!${name}` : `!"${name}"`
-}
 // Whitespace-anchored #tag — group 1 is the leading separator (empty at start
 // of input); group 2 a quoted name (`#"R&D"`, `#"Q4 plan"` — any tag name a
 // bare slug can't spell), group 3 the bare slug (ASCII). Separator stays in
 // the remaining title after token removal.
 const TAG_PATTERN = /(^|\s)#(?:"([^"]+)"|([A-Za-z0-9_-]+))/g
 
-/** A tag name `#` takes bare, without quotes (`#q4`): the ASCII slug characters. */
-export const BARE_TAG_NAME = /^[A-Za-z0-9_-]+$/
-
-/** The token that names a tag: `#name`, or `#"name"` for a name that isn't a bare slug (`#"R&D"`). */
-export function tagToken(name: string): string {
-  return BARE_TAG_NAME.test(name) ? `#${name}` : `#"${name}"`
-}
 // Whitespace-anchored `/word` (group 2) running to whitespace or the end.
 const SLASH_PATTERN = /(^|\s)\/(\S+)/g
 
