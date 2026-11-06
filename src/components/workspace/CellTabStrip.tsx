@@ -288,7 +288,12 @@ export function CellTabStrip({
     ro.observe(strip)
     if (strip.parentElement) ro.observe(strip.parentElement)
     for (const el of tabEls.current.values()) ro.observe(el)
-    return () => ro.disconnect()
+    // A tab's own content changing (its count, the unsaved dot, a rename): a
+    // shrunk tab's width is pinned, so no box resizes. Not attributes — the
+    // fit's own sizes are inline styles.
+    const mo = typeof MutationObserver === 'undefined' ? null : new MutationObserver(measure)
+    if (containerRef.current) mo?.observe(containerRef.current, { childList: true, subtree: true, characterData: true })
+    return () => { ro.disconnect(); mo?.disconnect() }
     // Re-observe when the tabs, the active one or the header's parts change (the tabs are read through a ref).
   }, [tabKey, tabsRef, activeId, hasAdd, collapsed])
 
