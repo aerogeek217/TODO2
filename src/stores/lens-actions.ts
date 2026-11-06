@@ -3,17 +3,16 @@ import { SETTING_KEYS } from '../data/setting-keys'
 import { formatLensesSetting, isLensId } from '../data/lens-shape'
 import { emptyPredicate, type TodoPredicate } from '../models/filter-predicate'
 import { cleanLensName, findLens, lensPredicate, newLensId, presetLenses, uniqueLensName, type Lens } from '../utils/lens'
-import { useSettingsStore } from './settings-store'
-import { recordSettingWrite, writeSetting } from './setting-writes'
+import { SETTINGS, useSettingsStore } from './settings-store'
 import { trackWrite } from './store-helpers'
-import { useUndoStore } from './undo-store'
 
 /**
  * The lenses' writes (D15; cr31 A5 moved them out of `settings-store`,
  * which keeps their state — `lenses`, `lensPresetsSeeded`, `activeLensId` —
  * loads it with the other settings rows and resets it on a data replace).
- * Every lens edit is one undo step with the snackbar (`recordSettingWrite`);
- * the top bar's pick saves at once with no undo step.
+ * Both go through their settings' writers (`settings-store.SETTINGS`): every
+ * lens edit is one undo step with the snackbar, named for the edit; the top
+ * bar's pick saves at once with no undo step.
  */
 
 /** The lenses as kept: completed tasks off; a lens without a usable name, or with an id an earlier one has, dropped. */
@@ -29,14 +28,6 @@ function normalizeLenses(lenses: readonly Lens[]): Lens[] {
   return out
 }
 
-/** The lenses; the row goes when none is left. */
-function writeLenses(lenses: readonly Lens[]): Promise<boolean> {
-  return writeSetting(useSettingsStore, { lenses }, async () => {
-    if (lenses.length === 0) await settingsRepository.delete(SETTING_KEYS.lenses)
-    else await settingsRepository.put(SETTING_KEYS.lenses, formatLensesSetting(lenses))
-  }, 'the lenses')
-}
-
 const lenses = () => useSettingsStore.getState().lenses
 
 export const lensActions = {
@@ -49,14 +40,8 @@ export const lensActions = {
    */
   async setLenses(next: readonly Lens[], description: string): Promise<boolean> {
     const kept = normalizeLenses(next)
-    const before = lenses()
-    if (formatLensesSetting(before) === formatLensesSetting(kept)) return true
-    return recordSettingWrite(
-      description,
-      () => writeLenses(kept),
-      () => writeLenses(before),
-      'Couldn’t save the lenses.',
-    )
+    if (formatLensesSetting(lenses()) === formatLensesSetting(kept)) return true
+    return SETTINGS.lenses.write({ lenses: kept }, { description })
   },
 
   /**
@@ -166,12 +151,6 @@ export const lensActions = {
    */
   async setActiveLens(id: string | null): Promise<boolean> {
     if (id !== null && !isLensId(id)) return false
-    if (useSettingsStore.getState().activeLensId === id) return true
-    const saved = await writeSetting(useSettingsStore, { activeLensId: id }, async () => {
-      if (id === null) await settingsRepository.delete(SETTING_KEYS.activeLensId)
-      else await settingsRepository.put(SETTING_KEYS.activeLensId, id)
-    }, 'the lens pick')
-    if (!saved) useUndoStore.getState().notify('Couldn’t save the lens pick.')
-    return saved
+    return SETTINGS.activeLensId.write({ activeLensId: id })
   },
 }

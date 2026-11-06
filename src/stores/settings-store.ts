@@ -51,7 +51,7 @@ import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../data/ch
 import { DEFAULT_STALE_AFTER_DAYS, isStaleAfterDays, parseStaleAfterDays } from '../utils/stale'
 import { DEFAULT_ROW_DENSITY, isRowDensity, type RowDensity } from '../utils/row-density'
 import type { Lens } from '../utils/lens'
-import { isLensId, readLensesSetting } from '../data/lens-shape'
+import { formatLensesSetting, isLensId, readLensesSetting } from '../data/lens-shape'
 import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import {
   formatShortcutOverrides,
@@ -66,9 +66,16 @@ import {
   pickPanes,
   readPanesSetting,
 } from '../data/eisenhower-shape'
-import { readFresh, reportLoadFailure, trackWrite } from './store-helpers'
-import { useUndoStore, type UndoEntry } from './undo-store'
-import { recordSettingWrite, writeSetting as writeStoreSetting } from './setting-writes'
+import { readFresh, reportLoadFailure } from './store-helpers'
+import {
+  settingWriter,
+  type SettingRows,
+  type SettingSpec,
+  type SettingStore,
+  type SettingWriter,
+  type StoredRows,
+  type StoredSetting,
+} from './setting-writes'
 import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
@@ -78,8 +85,14 @@ export type { RowDensity } from '../utils/row-density'
 export type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 export { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
 
-interface SettingsState {
+/** The colours the user set per theme (their `color.<theme>.<key>` rows exist); the rest fall through to `tokens.css`. */
+export type CustomizedColors = Readonly<Record<ThemeName, readonly (keyof ThemeColors)[]>>
+
+/** The settings as the store holds them — each one entry of {@link SETTINGS}. */
+interface SettingsData {
   colors: ThemedColors
+  /** Which of `colors` are overrides (kept with them: a rollback or reset restores both). */
+  customizedColors: CustomizedColors
   themeMode: ThemeMode
   defaultStatusId: number | null
   seededAssignedStatusId: number | null
@@ -151,40 +164,45 @@ interface SettingsState {
    * (none): the Eisenhower reads all tasks, as the new, empty list would.
    */
   eisenhowerListId: number | null
+}
 
+// Every setter below shows its value at once and saves it through the
+// setting's writer (`stores/setting-writes`): a failed save puts back the
+// value saved before and says so; the ones with an undo step say so.
+interface SettingsState extends SettingsData {
   load: () => Promise<void>
+  /** No undo step (a colour picker writes on every move). */
   setColor: (theme: ThemeName, key: keyof ThemeColors, value: string) => Promise<void>
   /** When `theme` is omitted, both bags reset; otherwise only the specified bag. */
   resetColors: (theme?: ThemeName) => Promise<void>
+  /** No undo step. */
   setThemeMode: (mode: ThemeMode) => Promise<void>
   setDefaultStatusId: (id: number | null) => Promise<void>
   setCompletedRetentionDays: (days: number | null) => Promise<void>
   setWeekStartsOn: (day: WeekStart) => Promise<void>
   setFollowupDefaultInterval: (interval: FollowupInterval) => Promise<void>
-  /** "Set a next follow-up automatically"; shown at once, put back when the save fails. */
+  /** "Set a next follow-up automatically". */
   setAutoFollowup: (on: boolean) => Promise<void>
   setRemoveConvertedLines: (on: boolean) => Promise<void>
   setUrgentDueWithinDays: (range: UrgentDueWithinDays) => Promise<void>
-  /** Saves the rule normalized (empty lines dropped, duplicates collapsed); ignores a rule with no marker. */
+  /** No undo step (also picked in the check-in dialog). */
   setCheckinOpenMethod: (method: CheckinOpenMethod) => Promise<void>
   /**
    * Remembers the check-in filter (kept without people; no filter = the row
-   * removed); shown at once, put back when the save fails (the snackbar says
-   * so). The same filter again writes nothing.
+   * removed); no undo step (the check-in dialog's filter line writes on
+   * every edit). The same filter again writes nothing.
    */
   setCheckinTaskFilter: (filter: CheckinTaskFilter) => Promise<void>
   /**
    * What new blank lists sort by, and which way (`desc` is kept only for a
    * sort with a direction); stored only when not the default (Manual, `asc`).
-   * Shown at once; one undo step with the snackbar (a failed save adds none,
-   * puts the value back and says so) — as the two setters below.
    */
   setNewListSort: (sort: TodoSortBy, direction?: TodoSortDirection) => Promise<void>
   /** What new blank lists group by; stored only when not the default (none). */
   setNewListGroup: (group: TodoGroupBy) => Promise<void>
   /** The fewest days between two purge prompts (1–365; anything else is ignored); stored only when not 7. */
   setPurgePromptIntervalDays: (days: number) => Promise<void>
-  /** Records that the purge prompt showed at `at` (an internal stamp: no undo step, no notice). */
+  /** Records that the purge prompt showed at `at` (an internal stamp: no undo step, no notice — a failure is only logged). */
   setPurgePromptLastAt: (at: Date) => Promise<void>
   /** Fade tasks untouched for `days` (0–365 whole days, 0 = off; anything else is ignored); stored only when not 30. */
   setStaleAfterDays: (days: number) => Promise<void>
@@ -194,8 +212,9 @@ interface SettingsState {
   setRowDensity: (density: RowDensity) => Promise<void>
   // The lens edits and the top bar's pick are `stores/lens-actions`' (cr31 A5).
   /**
-   * Gives `id` new keys. Resolves the reason when they are refused (a
-   * reserved key, or another binding's — nothing is written), else null.
+   * Gives `id` new keys (no undo step). Resolves the reason when they are
+   * refused (a reserved key, or another binding's — nothing is written),
+   * else null.
    */
   setShortcut: (id: ShortcutId, chord: ShortcutChord) => Promise<string | null>
   /** Puts `id` back on its default keys. */
@@ -204,12 +223,9 @@ interface SettingsState {
   resetAllShortcuts: () => Promise<void>
   /**
    * Shows the Eisenhower panes at once (normalised; `{}` / `undefined` =
-   * the defaults) and saves them — after the Eisenhower writes before it —
-   * as one undo step named `description`, with the undo snackbar. Writes
-   * passing the same `mergeKey` one after another (e.g. a pane name typed
-   * letter by letter) stay one undo step, without the snackbar. A failed
-   * save adds no step and says so (the snackbar's notice); the panes saved
-   * last show again.
+   * the defaults) and saves them as one undo step named `description`.
+   * Writes passing the same `mergeKey` one after another (e.g. a pane name
+   * typed letter by letter) stay one undo step, without the snackbar.
    */
   setEisenhowerPanes: (panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) => Promise<void>
 }
@@ -236,34 +252,27 @@ function dimColor(hex: string): string {
   return `#${dr.toString(16).padStart(2, '0')}${dg.toString(16).padStart(2, '0')}${db.toString(16).padStart(2, '0')}`
 }
 
-interface CustomizedColorKeys {
-  dark: Set<string>
-  light: Set<string>
-}
-
 /**
  * Apply only user-customized color overrides for the resolved theme as inline
  * styles. Non-customized colors fall through to the CSS theme (dark/light).
  * The `light` and `dark` overrides are stored separately and only the bag for
  * the resolved theme is written to the document — switching themes flips
- * which bag wins (see setThemeMode + setupMediaQueryListener).
+ * which bag wins (the theme mode's writer + setupMediaQueryListener).
  */
-function applyThemeOverrides(
-  customizedKeys: CustomizedColorKeys,
-  themed: ThemedColors,
-  resolvedTheme: ThemeName,
-) {
+function applyColorOverrides(): void {
+  const { colors: themed, customizedColors, themeMode } = useSettingsStore.getState()
+  const resolvedTheme = resolveTheme(themeMode)
   const root = document.documentElement
   const colors = themed[resolvedTheme]
-  const bag = customizedKeys[resolvedTheme]
-  for (const [key, varName] of Object.entries(THEME_COLOR_VARS)) {
-    if (bag.has(key)) {
-      root.style.setProperty(varName, colors[key as keyof ThemeColors])
+  const bag = customizedColors[resolvedTheme]
+  for (const [key, varName] of Object.entries(THEME_COLOR_VARS) as [keyof ThemeColors, string][]) {
+    if (bag.includes(key)) {
+      root.style.setProperty(varName, colors[key])
     } else {
       root.style.removeProperty(varName)
     }
   }
-  if (bag.has('accent')) {
+  if (bag.includes('accent')) {
     root.style.setProperty('--color-accent-dim', dimColor(colors.accent))
   } else {
     root.style.removeProperty('--color-accent-dim')
@@ -294,23 +303,29 @@ function setupMediaQueryListener(mode: ThemeMode) {
     const handler = () => {
       applyThemeMode('system')
       // OS theme flipped under mode='system' — flip the override bag too.
-      const state = useSettingsStore.getState()
-      applyThemeOverrides(customizedColorKeys, state.colors, resolveTheme(state.themeMode))
+      applyColorOverrides()
     }
     mq.addEventListener('change', handler)
     mediaQueryCleanup = () => mq.removeEventListener('change', handler)
   }
 }
 
+/** The page shows the store's theme: `data-theme`, following the OS under System, and the resolved theme's colour overrides. */
+function applyTheme(): void {
+  const mode = useSettingsStore.getState().themeMode
+  applyThemeMode(mode)
+  setupMediaQueryListener(mode)
+  applyColorOverrides()
+}
+
 /**
- * Stops following the OS theme and forgets the customised colour keys, for
- * tests that share one module instance (the store's state is reset
+ * Stops following the OS theme, for tests that share one module instance
+ * (the store's state — the colours customised among it — is reset
  * separately).
  */
 export function resetSettingsModuleState(): void {
   mediaQueryCleanup?.()
   mediaQueryCleanup = null
-  customizedColorKeys = { dark: new Set(), light: new Set() }
 }
 registerModuleReset(resetSettingsModuleState)
 
@@ -326,160 +341,283 @@ function isValidWeekStart(n: unknown): n is WeekStart {
   return n === 0 || n === 1
 }
 
-/** Track which color keys have user-customized values in IndexedDB. Keyed by
- * theme so a "set in dark" override does not leak into light (and vice
- * versa); the bag for the resolved theme drives which inline styles are
- * written. */
-let customizedColorKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
-
 /** The default panes (no pane customized). */
 const NO_PANES: EisenhowerPanes = {}
 
+const THEMES: readonly ThemeName[] = ['dark', 'light']
+
+// The writers reach the store only when they write (the table is built before it).
+const store: SettingStore<SettingsState> = {
+  getState: () => useSettingsStore.getState(),
+  setState: (partial) => useSettingsStore.setState(partial),
+}
+
+/** A setting this store writes: its spec and its writer. */
+function setting<K extends keyof SettingsData>(
+  fields: readonly K[],
+  def: Omit<SettingSpec<SettingsState, K>, 'fields'>,
+): SettingSpec<SettingsState, K> & SettingWriter<SettingsState, K> {
+  const spec = { fields, ...def }
+  return { ...spec, ...settingWriter(store, spec) }
+}
+
+/** A setting only read here (written elsewhere: the status seed, the Eisenhower list, the lens seed). */
+function stored<K extends keyof SettingsData>(fields: readonly K[], read: (rows: StoredRows) => Pick<SettingsState, K>): StoredSetting<SettingsState, K> {
+  return { fields, read }
+}
+
+/** One row's value as stored, or what an absent row reads as. */
+function rowOr<T>(rows: StoredRows, key: string, absent: T, parse: (value: string) => T): T {
+  const value = rows.get(key)
+  return value === undefined ? absent : parse(value)
+}
+
+/** A setting stored as one row that goes at its default (absent = the default). */
+function rowUnlessDefault(key: string, value: string, isDefault: boolean): SettingRows {
+  return { [key]: isDefault ? null : value }
+}
+
+const K = SETTING_KEYS
+
+/**
+ * Every setting, one entry each: the store fields it shows, how they are
+ * read from the `settings` rows (`read`; an absent or unreadable row reads
+ * as the default) and written (`rows`), its undo step's name (`undo`;
+ * omitted: none) and its failure notice (`failure`). A new setting is a new
+ * entry (plus its key in `data/setting-keys` and its import validation).
+ */
+export const SETTINGS = {
+  colors: setting(['colors', 'customizedColors'], {
+    read(rows) {
+      const colors: ThemedColors = { dark: { ...DEFAULT_THEMED_COLORS.dark }, light: { ...DEFAULT_THEMED_COLORS.light } }
+      const customized: Record<ThemeName, (keyof ThemeColors)[]> = { dark: [], light: [] }
+      for (const [key, value] of rows) {
+        const color = key.startsWith('color.') ? parseColorSettingKey(key) : null
+        if (!color || !isValidCssColor(value)) continue
+        colors[color.theme][color.name] = value
+        if (!customized[color.theme].includes(color.name)) customized[color.theme].push(color.name)
+      }
+      return { colors, customizedColors: customized }
+    },
+    // Every colour's row: an override's value, or none.
+    rows: ({ colors, customizedColors }) => Object.fromEntries(THEMES.flatMap((theme) =>
+      (Object.keys(DEFAULT_THEMED_COLORS[theme]) as (keyof ThemeColors)[]).map((key) =>
+        [`color.${theme}.${key}`, customizedColors[theme].includes(key) ? colors[theme][key] : null]))),
+    label: 'the theme colors',
+    failure: 'Couldn’t save the theme colors.',
+    shown: applyColorOverrides,
+  }),
+  themeMode: setting(['themeMode'], {
+    read: (rows) => ({ themeMode: rowOr<ThemeMode>(rows, K.themeMode, 'dark', (v) => (isValidThemeMode(v) ? v : 'dark')) }),
+    rows: ({ themeMode }) => ({ [K.themeMode]: themeMode }),
+    label: 'the theme',
+    failure: 'Couldn’t save the theme.',
+    shown: applyTheme,
+  }),
+  defaultStatusId: setting(['defaultStatusId'], {
+    read: (rows) => ({ defaultStatusId: rowOr(rows, K.defaultStatusId, null, (v) => (v ? Number(v) : null)) }),
+    rows: ({ defaultStatusId: id }) => ({ [K.defaultStatusId]: id == null ? null : String(id) }),
+    label: 'the default status',
+    failure: 'Couldn’t save the default status.',
+  }),
+  seededAssignedStatusId: stored(['seededAssignedStatusId'], (rows) => ({
+    seededAssignedStatusId: rowOr(rows, K.seededAssignedStatusId, null, (v) => (v ? Number(v) : null)),
+  })),
+  completedRetentionDays: setting(['completedRetentionDays'], {
+    read: (rows) => ({
+      completedRetentionDays: rowOr(rows, K.completedRetentionDays, null, (v) => {
+        const parsed = v ? Number(v) : null
+        return parsed != null && isValidRetentionDays(parsed) ? parsed : null
+      }),
+    }),
+    rows: ({ completedRetentionDays: days }) => ({ [K.completedRetentionDays]: days == null ? null : String(days) }),
+    label: 'the completed-task retention',
+    failure: 'Couldn’t save when to offer to delete completed tasks.',
+  }),
+  weekStartsOn: setting(['weekStartsOn'], {
+    read: (rows) => {
+      const parsed = Number(rows.get(K.weekStartsOn))
+      return { weekStartsOn: isValidWeekStart(parsed) ? parsed : 1 }
+    },
+    rows: ({ weekStartsOn }) => ({ [K.weekStartsOn]: String(weekStartsOn) }),
+    label: 'the first day of the week',
+    failure: 'Couldn’t save the first day of the week.',
+  }),
+  followupDefaultInterval: setting(['followupDefaultInterval'], {
+    read: (rows) => ({
+      followupDefaultInterval: rowOr(rows, K.followupDefaultInterval, DEFAULT_FOLLOWUP_INTERVAL, (v) => parseFollowupInterval(v) ?? DEFAULT_FOLLOWUP_INTERVAL),
+    }),
+    rows: ({ followupDefaultInterval: i }) => ({ [K.followupDefaultInterval]: formatFollowupInterval(i) }),
+    label: 'the follow-up interval',
+    failure: 'Couldn’t save the follow-up interval.',
+  }),
+  autoFollowup: setting(['autoFollowup'], {
+    read: (rows) => ({ autoFollowup: rows.get(K.newTaskFollowup) !== 'false' }),
+    // Stored only when off: absent = on.
+    rows: ({ autoFollowup: on }) => rowUnlessDefault(K.newTaskFollowup, 'false', on),
+    label: 'whether a next follow-up is set automatically',
+    failure: 'Couldn’t save whether a next follow-up is set automatically.',
+  }),
+  removeConvertedLines: setting(['removeConvertedLines'], {
+    read: (rows) => ({ removeConvertedLines: rows.get(K.removeConvertedLines) === 'true' }),
+    // Stored only when on: absent = off.
+    rows: ({ removeConvertedLines: on }) => rowUnlessDefault(K.removeConvertedLines, 'true', !on),
+    label: 'whether converted lines are removed from the note',
+    failure: 'Couldn’t save what converted note lines become.',
+  }),
+  urgentDueWithinDays: setting(['urgentDueWithinDays'], {
+    read: (rows) => ({
+      urgentDueWithinDays: rowOr(rows, K.urgentDueWithinDays, DEFAULT_URGENT_DUE_WITHIN_DAYS, (v) => {
+        const parsed = parseUrgentDueWithinDays(v)
+        return parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
+      }),
+    }),
+    rows: ({ urgentDueWithinDays: range }) => ({ [K.urgentDueWithinDays]: formatUrgentDueWithinDays(range) }),
+    label: 'the urgent range',
+    failure: 'Couldn’t save when a due date makes a task urgent.',
+  }),
+  checkinOpenMethod: setting(['checkinOpenMethod'], {
+    read: (rows) => ({ checkinOpenMethod: rowOr(rows, K.checkinOpenMethod, DEFAULT_CHECKIN_OPEN_METHOD, (v) => (isCheckinOpenMethod(v) ? v : DEFAULT_CHECKIN_OPEN_METHOD)) }),
+    rows: ({ checkinOpenMethod }) => ({ [K.checkinOpenMethod]: checkinOpenMethod }),
+    label: 'the check-in open method',
+    failure: 'Couldn’t save how check-ins open.',
+  }),
+  checkinTaskFilter: setting(['checkinTaskFilter'], {
+    read: (rows) => ({ checkinTaskFilter: rowOr(rows, K.checkinTaskFilter, emptyPredicate(), (v) => readCheckinFilterSetting(v).filter) }),
+    // Stored only when it narrows: absent = all open tasks.
+    rows: ({ checkinTaskFilter: f }) => ({ [K.checkinTaskFilter]: isNoCheckinFilter(f) ? null : formatCheckinFilterSetting(f) }),
+    label: 'the check-in filter',
+    failure: 'Couldn’t save the check-in filter.',
+  }),
+  newListSort: setting(['newListSort', 'newListSortDirection'], {
+    read(rows) {
+      const newListSort = rowOr<TodoSortBy>(rows, K.newListSort, 'manual', (v) => (isTodoSortBy(v) ? v : 'manual'))
+      // A direction only for a sort that has one.
+      const desc = rows.get(K.newListSortDirection) === 'desc' && sortHasDirection(newListSort)
+      return { newListSort, newListSortDirection: desc ? 'desc' : 'asc' }
+    },
+    // Both rows in one transaction; they go at the defaults (Manual, `asc`).
+    rows: ({ newListSort: sort, newListSortDirection: dir }) => ({
+      [K.newListSort]: sort === 'manual' ? null : sort,
+      [K.newListSortDirection]: dir === 'asc' ? null : dir,
+    }),
+    label: 'the new-list sort',
+    failure: 'Couldn’t save how new lists sort.',
+    undo: ({ newListSort: sort, newListSortDirection: dir }) => `New lists sort by ${sortSummary(sort, dir)}`,
+  }),
+  newListGroup: setting(['newListGroup'], {
+    read: (rows) => ({ newListGroup: rowOr<TodoGroupBy>(rows, K.newListGroup, 'none', (v) => (isTodoGroupBy(v) ? v : 'none')) }),
+    rows: ({ newListGroup: group }) => rowUnlessDefault(K.newListGroup, group, group === 'none'),
+    label: 'the new-list grouping',
+    failure: 'Couldn’t save how new lists group.',
+    undo: ({ newListGroup: group }) => (group === 'none' ? 'New lists aren’t grouped' : `New lists group by ${GROUP_LABEL[group]}`),
+  }),
+  purgePromptIntervalDays: setting(['purgePromptIntervalDays'], {
+    read: (rows) => ({
+      purgePromptIntervalDays: rowOr(rows, K.purgePromptIntervalDays, DEFAULT_PURGE_PROMPT_INTERVAL_DAYS, (v) => parsePurgePromptIntervalDays(v) ?? DEFAULT_PURGE_PROMPT_INTERVAL_DAYS),
+    }),
+    rows: ({ purgePromptIntervalDays: days }) => rowUnlessDefault(K.purgePromptIntervalDays, String(days), days === DEFAULT_PURGE_PROMPT_INTERVAL_DAYS),
+    label: 'the purge prompt interval',
+    failure: 'Couldn’t save how often to ask about old completed tasks.',
+    undo: ({ purgePromptIntervalDays: days }) => `Ask about old completed tasks at most every ${days === 1 ? 'day' : `${days} days`}`,
+  }),
+  // An internal stamp: no undo step, no notice (the next launch may ask again sooner).
+  purgePromptLastAt: setting(['purgePromptLastAt'], {
+    read: (rows) => ({
+      purgePromptLastAt: rowOr(rows, K.purgePromptLastAt, null, (v) => {
+        const at = new Date(v)
+        return Number.isNaN(at.getTime()) ? null : at
+      }),
+    }),
+    rows: ({ purgePromptLastAt: at }) => ({ [K.purgePromptLastAt]: at ? at.toISOString() : null }),
+    label: 'when the purge prompt showed',
+  }),
+  staleAfterDays: setting(['staleAfterDays'], {
+    read: (rows) => ({ staleAfterDays: rowOr(rows, K.staleAfterDays, DEFAULT_STALE_AFTER_DAYS, (v) => parseStaleAfterDays(v) ?? DEFAULT_STALE_AFTER_DAYS) }),
+    rows: ({ staleAfterDays: days }) => rowUnlessDefault(K.staleAfterDays, String(days), days === DEFAULT_STALE_AFTER_DAYS),
+    label: 'the stale threshold',
+    failure: 'Couldn’t save when to fade untouched tasks.',
+    undo: ({ staleAfterDays: days }) => (days === 0 ? 'Don’t fade untouched tasks' : `Fade tasks untouched for ${days === 1 ? 'a day' : `${days} days`}`),
+  }),
+  tabBadges: setting(['tabBadges'], {
+    read: (rows) => {
+      const due = rows.get(K.tabBadgeDue)
+      const followup = rows.get(K.tabBadgeFollowup)
+      if (due === undefined && followup === undefined) return { tabBadges: DEFAULT_TAB_BADGES }
+      return {
+        tabBadges: {
+          due: (due === undefined ? undefined : parseTabBadgeRange(due)) ?? DEFAULT_TAB_BADGES.due,
+          followup: (followup === undefined ? undefined : parseTabBadgeRange(followup)) ?? DEFAULT_TAB_BADGES.followup,
+        },
+      }
+    },
+    // Both rows in one transaction (cr31 A5: a failure never leaves one range saved).
+    rows: ({ tabBadges: { due, followup } }) => ({ [K.tabBadgeDue]: formatTabBadgeRange(due), [K.tabBadgeFollowup]: formatTabBadgeRange(followup) }),
+    label: 'the tab badge ranges',
+    failure: 'Couldn’t save the tab badges.',
+    undo: () => 'Changed the tab badges',
+  }),
+  priorityCues: setting(['priorityCues'], {
+    read: (rows) => ({ priorityCues: rowOr(rows, K.priorityCues, DEFAULT_PRIORITY_CUES, (v) => parsePriorityCues(v) ?? DEFAULT_PRIORITY_CUES) }),
+    rows: ({ priorityCues }) => ({ [K.priorityCues]: JSON.stringify(priorityCues) }),
+    label: 'the priority cues',
+    failure: 'Couldn’t save the priority cues.',
+    undo: () => 'Changed the priority cues',
+  }),
+  rowDensity: setting(['rowDensity'], {
+    read: (rows) => ({ rowDensity: rowOr(rows, K.rowDensity, DEFAULT_ROW_DENSITY, (v) => (isRowDensity(v) ? v : DEFAULT_ROW_DENSITY)) }),
+    rows: ({ rowDensity }) => rowUnlessDefault(K.rowDensity, rowDensity, rowDensity === DEFAULT_ROW_DENSITY),
+    label: 'the row density',
+    failure: 'Couldn’t save the row density.',
+    undo: ({ rowDensity }) => (rowDensity === 'comfortable' ? 'Comfortable rows' : 'Compact rows'),
+  }),
+  // The lenses and the pick are written by `stores/lens-actions` (its undo names are the edit's).
+  lenses: setting(['lenses'], {
+    read: (rows) => ({ lenses: rowOr<readonly Lens[]>(rows, K.lenses, [], (v) => readLensesSetting(v).lenses) }),
+    rows: ({ lenses }) => ({ [K.lenses]: lenses.length === 0 ? null : formatLensesSetting(lenses) }),
+    label: 'the lenses',
+    failure: 'Couldn’t save the lenses.',
+  }),
+  lensPresetsSeeded: stored(['lensPresetsSeeded'], (rows) => ({ lensPresetsSeeded: rows.get(K.lensPresetsSeeded) === 'true' })),
+  activeLensId: setting(['activeLensId'], {
+    read: (rows) => ({ activeLensId: rowOr(rows, K.activeLensId, null, (v) => (isLensId(v) ? v : null)) }),
+    rows: ({ activeLensId: id }) => ({ [K.activeLensId]: id }),
+    label: 'the lens pick',
+    failure: 'Couldn’t save the lens pick.',
+  }),
+  shortcutOverrides: setting(['shortcutOverrides'], {
+    read: (rows) => ({ shortcutOverrides: rowOr<ShortcutOverrides>(rows, K.keyboardShortcuts, {}, (v) => readShortcutOverrides(v).overrides) }),
+    // The row goes when no override is left.
+    rows: ({ shortcutOverrides: o }) => ({ [K.keyboardShortcuts]: Object.keys(o).length === 0 ? null : formatShortcutOverrides(o) }),
+    label: 'the keyboard shortcuts',
+    failure: 'Couldn’t save the keyboard shortcuts.',
+  }),
+  // Its undo names are the edit's (`setEisenhowerPanes`' description).
+  eisenhowerPanes: setting(['eisenhowerPanes'], {
+    read: (rows) => ({ eisenhowerPanes: rowOr(rows, K.eisenhowerPanes, NO_PANES, (v) => readPanesSetting(v).panes) }),
+    // The row goes when every pane is its default.
+    rows: ({ eisenhowerPanes: p }) => ({ [K.eisenhowerPanes]: Object.keys(p).length === 0 ? null : formatPanesSetting(p) }),
+    label: 'the Eisenhower panes',
+    failure: 'Couldn’t save the Eisenhower panes.',
+  }),
+  eisenhowerListId: stored(['eisenhowerListId'], (rows) => ({
+    eisenhowerListId: rowOr(rows, K.eisenhowerSource, null, (v) => parseEisenhowerSource(v) ?? null),
+  })),
+}
+
+/** Every setting's value from the stored rows (no rows: the defaults). */
+function readSettings(rows: StoredRows): SettingsData {
+  return Object.assign({}, ...Object.values(SETTINGS).map((s) => s.read(rows))) as SettingsData
+}
+
 export const useSettingsStore = create<SettingsState>((set, get) => ({
-  colors: {
-    dark: { ...DEFAULT_THEMED_COLORS.dark },
-    light: { ...DEFAULT_THEMED_COLORS.light },
-  },
-  themeMode: 'dark' as ThemeMode,
-  defaultStatusId: null,
-  seededAssignedStatusId: null,
-  completedRetentionDays: null,
-  weekStartsOn: 1 as WeekStart,
-  followupDefaultInterval: DEFAULT_FOLLOWUP_INTERVAL,
-  autoFollowup: true,
-  removeConvertedLines: false,
-  urgentDueWithinDays: DEFAULT_URGENT_DUE_WITHIN_DAYS,
-  checkinOpenMethod: DEFAULT_CHECKIN_OPEN_METHOD,
-  checkinTaskFilter: emptyPredicate(),
-  newListSort: 'manual' as TodoSortBy,
-  newListSortDirection: 'asc' as TodoSortDirection,
-  newListGroup: 'none' as TodoGroupBy,
-  purgePromptIntervalDays: DEFAULT_PURGE_PROMPT_INTERVAL_DAYS,
-  purgePromptLastAt: null,
-  staleAfterDays: DEFAULT_STALE_AFTER_DAYS,
-  tabBadges: DEFAULT_TAB_BADGES,
-  priorityCues: DEFAULT_PRIORITY_CUES,
-  rowDensity: DEFAULT_ROW_DENSITY,
-  lenses: [],
-  lensPresetsSeeded: false,
-  activeLensId: null,
-  shortcutOverrides: {},
-  eisenhowerPanes: NO_PANES,
-  eisenhowerListId: null,
+  ...readSettings(new Map()),
 
   async load() {
     try {
       const rows = await readFresh(() => settingsRepository.getAll())
-      const colors: ThemedColors = {
-        dark: { ...DEFAULT_THEMED_COLORS.dark },
-        light: { ...DEFAULT_THEMED_COLORS.light },
-      }
-      const customKeys: CustomizedColorKeys = { dark: new Set(), light: new Set() }
-      let defaultStatusId: number | null = null
-      let seededAssignedStatusId: number | null = null
-      let completedRetentionDays: number | null = null
-      let themeMode: ThemeMode = 'dark'
-      let weekStartsOn: WeekStart = 1
-      let followupDefaultInterval: FollowupInterval = DEFAULT_FOLLOWUP_INTERVAL
-      let autoFollowup = true
-      let removeConvertedLines = false
-      let urgentDueWithinDays: UrgentDueWithinDays = DEFAULT_URGENT_DUE_WITHIN_DAYS
-      let checkinOpenMethod: CheckinOpenMethod = DEFAULT_CHECKIN_OPEN_METHOD
-      let checkinTaskFilter: CheckinTaskFilter = emptyPredicate()
-      let newListSort: TodoSortBy = 'manual'
-      let newListSortDirection: TodoSortDirection = 'asc'
-      let newListGroup: TodoGroupBy = 'none'
-      let purgePromptIntervalDays = DEFAULT_PURGE_PROMPT_INTERVAL_DAYS
-      let purgePromptLastAt: Date | null = null
-      let staleAfterDays = DEFAULT_STALE_AFTER_DAYS
-      let tabBadges = DEFAULT_TAB_BADGES
-      let priorityCues = DEFAULT_PRIORITY_CUES
-      let rowDensity: RowDensity = DEFAULT_ROW_DENSITY
-      let lenses: readonly Lens[] = []
-      let lensPresetsSeeded = false
-      let activeLensId: string | null = null
-      let shortcutOverrides: ShortcutOverrides = {}
-      let eisenhowerPanes: EisenhowerPanes = NO_PANES
-      let eisenhowerListId: number | null = null
-      for (const row of rows) {
-        if (row.key.startsWith('color.')) {
-          const color = parseColorSettingKey(row.key)
-          if (color && isValidCssColor(row.value)) {
-            colors[color.theme][color.name] = row.value
-            customKeys[color.theme].add(color.name)
-          }
-        } else if (row.key === SETTING_KEYS.defaultStatusId) {
-          defaultStatusId = row.value ? Number(row.value) : null
-        } else if (row.key === SETTING_KEYS.seededAssignedStatusId) {
-          seededAssignedStatusId = row.value ? Number(row.value) : null
-        } else if (row.key === SETTING_KEYS.completedRetentionDays) {
-          const parsed = row.value ? Number(row.value) : null
-          completedRetentionDays = parsed != null && isValidRetentionDays(parsed) ? parsed : null
-        } else if (row.key === SETTING_KEYS.themeMode) {
-          if (isValidThemeMode(row.value)) themeMode = row.value
-        } else if (row.key === SETTING_KEYS.weekStartsOn) {
-          const parsed = Number(row.value)
-          if (isValidWeekStart(parsed)) weekStartsOn = parsed
-        } else if (row.key === SETTING_KEYS.followupDefaultInterval) {
-          followupDefaultInterval = parseFollowupInterval(row.value) ?? DEFAULT_FOLLOWUP_INTERVAL
-        } else if (row.key === SETTING_KEYS.newTaskFollowup) {
-          autoFollowup = row.value !== 'false'
-        } else if (row.key === SETTING_KEYS.removeConvertedLines) {
-          removeConvertedLines = row.value === 'true'
-        } else if (row.key === SETTING_KEYS.urgentDueWithinDays) {
-          const parsed = parseUrgentDueWithinDays(row.value)
-          urgentDueWithinDays = parsed === undefined ? DEFAULT_URGENT_DUE_WITHIN_DAYS : parsed
-        } else if (row.key === SETTING_KEYS.checkinOpenMethod) {
-          if (isCheckinOpenMethod(row.value)) checkinOpenMethod = row.value
-        } else if (row.key === SETTING_KEYS.checkinTaskFilter) {
-          checkinTaskFilter = readCheckinFilterSetting(row.value).filter
-        } else if (row.key === SETTING_KEYS.newListSort) {
-          if (isTodoSortBy(row.value)) newListSort = row.value
-        } else if (row.key === SETTING_KEYS.newListSortDirection) {
-          if (row.value === 'desc') newListSortDirection = 'desc'
-        } else if (row.key === SETTING_KEYS.newListGroup) {
-          if (isTodoGroupBy(row.value)) newListGroup = row.value
-        } else if (row.key === SETTING_KEYS.purgePromptIntervalDays) {
-          purgePromptIntervalDays = parsePurgePromptIntervalDays(row.value) ?? DEFAULT_PURGE_PROMPT_INTERVAL_DAYS
-        } else if (row.key === SETTING_KEYS.purgePromptLastAt) {
-          const at = new Date(row.value)
-          purgePromptLastAt = Number.isNaN(at.getTime()) ? null : at
-        } else if (row.key === SETTING_KEYS.tabBadgeDue) {
-          tabBadges = { ...tabBadges, due: parseTabBadgeRange(row.value) ?? DEFAULT_TAB_BADGES.due }
-        } else if (row.key === SETTING_KEYS.tabBadgeFollowup) {
-          tabBadges = { ...tabBadges, followup: parseTabBadgeRange(row.value) ?? DEFAULT_TAB_BADGES.followup }
-        } else if (row.key === SETTING_KEYS.priorityCues) {
-          priorityCues = parsePriorityCues(row.value) ?? DEFAULT_PRIORITY_CUES
-        } else if (row.key === SETTING_KEYS.staleAfterDays) {
-          staleAfterDays = parseStaleAfterDays(row.value) ?? DEFAULT_STALE_AFTER_DAYS
-        } else if (row.key === SETTING_KEYS.rowDensity) {
-          if (isRowDensity(row.value)) rowDensity = row.value
-        } else if (row.key === SETTING_KEYS.lenses) {
-          lenses = readLensesSetting(row.value).lenses
-        } else if (row.key === SETTING_KEYS.lensPresetsSeeded) {
-          lensPresetsSeeded = row.value === 'true'
-        } else if (row.key === SETTING_KEYS.activeLensId) {
-          if (isLensId(row.value)) activeLensId = row.value
-        } else if (row.key === SETTING_KEYS.keyboardShortcuts) {
-          shortcutOverrides = readShortcutOverrides(row.value).overrides
-        } else if (row.key === SETTING_KEYS.eisenhowerPanes) {
-          eisenhowerPanes = readPanesSetting(row.value).panes
-        } else if (row.key === SETTING_KEYS.eisenhowerSource) {
-          eisenhowerListId = parseEisenhowerSource(row.value) ?? null
-        }
-      }
-      customizedColorKeys = customKeys
-      // A direction only for a sort that has one.
-      if (!sortHasDirection(newListSort)) newListSortDirection = 'asc'
-      set({
-        colors, defaultStatusId, seededAssignedStatusId, completedRetentionDays, themeMode, weekStartsOn,
-        followupDefaultInterval, autoFollowup, removeConvertedLines, urgentDueWithinDays, checkinOpenMethod, checkinTaskFilter,
-        newListSort, newListSortDirection, newListGroup, purgePromptIntervalDays, purgePromptLastAt, tabBadges, priorityCues, staleAfterDays,
-        rowDensity, lenses, lensPresetsSeeded, activeLensId, shortcutOverrides, eisenhowerPanes, eisenhowerListId,
-      })
-      applyThemeMode(themeMode)
-      setupMediaQueryListener(themeMode)
-      applyThemeOverrides(customizedColorKeys, colors, resolveTheme(themeMode))
+      set(readSettings(new Map(rows.map((r) => [r.key, r.value]))))
+      applyTheme()
     } catch (e) {
       // The app runs on the defaults: say so, as every store's failed load does.
       reportLoadFailure('settings', e)
@@ -488,486 +626,125 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     }
   },
 
-  setColor(theme: ThemeName, key: keyof ThemeColors, value: string) {
-    return trackWrite(async () => {
-      if (!isValidCssColor(value)) return
-      await settingsRepository.put(`color.${theme}.${key}`, value)
-      customizedColorKeys[theme].add(key)
-      const current = get().colors
-      const colors: ThemedColors = {
-        ...current,
-        [theme]: { ...current[theme], [key]: value },
-      }
-      set({ colors })
-      if (theme === resolveTheme(get().themeMode)) {
-        applyThemeOverrides(customizedColorKeys, colors, theme)
-      }
+  async setColor(theme, key, value) {
+    if (!isValidCssColor(value)) return
+    const { colors, customizedColors: custom } = get()
+    await SETTINGS.colors.write({
+      colors: { ...colors, [theme]: { ...colors[theme], [key]: value } },
+      customizedColors: { ...custom, [theme]: custom[theme].includes(key) ? custom[theme] : [...custom[theme], key] },
     })
   },
 
-  resetColors(theme?: ThemeName) {
-    return trackWrite(async () => {
-      const targets: ReadonlyArray<ThemeName> = theme == null ? ['dark', 'light'] : [theme]
-      for (const t of targets) {
-        const keys = Object.keys(DEFAULT_THEMED_COLORS[t]).map((k) => `color.${t}.${k}`)
-        await settingsRepository.bulkDelete(keys)
-        customizedColorKeys[t] = new Set()
-      }
-      const current = get().colors
-      const colors: ThemedColors = { ...current }
-      for (const t of targets) colors[t] = { ...DEFAULT_THEMED_COLORS[t] }
-      set({ colors })
-      applyThemeOverrides(customizedColorKeys, colors, resolveTheme(get().themeMode))
-    })
+  async resetColors(theme) {
+    const targets = theme == null ? THEMES : [theme]
+    const colors = { ...get().colors }
+    const customizedColors = { ...get().customizedColors }
+    for (const t of targets) {
+      colors[t] = { ...DEFAULT_THEMED_COLORS[t] }
+      customizedColors[t] = []
+    }
+    await SETTINGS.colors.write({ colors, customizedColors })
   },
 
-  setThemeMode(mode: ThemeMode) {
-    return trackWrite(async () => {
-      await settingsRepository.put(SETTING_KEYS.themeMode, mode)
-      set({ themeMode: mode })
-      applyThemeMode(mode)
-      setupMediaQueryListener(mode)
-      // Switching mode flips which `colors[theme]` bag drives the inline
-      // overrides — re-apply against the newly-resolved theme.
-      applyThemeOverrides(customizedColorKeys, get().colors, resolveTheme(mode))
-    })
+  async setThemeMode(mode) {
+    if (isValidThemeMode(mode)) await SETTINGS.themeMode.write({ themeMode: mode })
   },
 
-  setDefaultStatusId(id: number | null) {
-    return trackWrite(async () => {
-      if (id == null) {
-        await settingsRepository.delete(SETTING_KEYS.defaultStatusId)
-      } else {
-        await settingsRepository.put(SETTING_KEYS.defaultStatusId, String(id))
-      }
-      set({ defaultStatusId: id })
-    })
+  async setDefaultStatusId(id) {
+    await SETTINGS.defaultStatusId.write({ defaultStatusId: id })
   },
 
-  setWeekStartsOn(day: WeekStart) {
-    return trackWrite(async () => {
-      if (!isValidWeekStart(day)) return
-      await settingsRepository.put(SETTING_KEYS.weekStartsOn, String(day))
-      set({ weekStartsOn: day })
-    })
+  async setWeekStartsOn(day) {
+    if (isValidWeekStart(day)) await SETTINGS.weekStartsOn.write({ weekStartsOn: day })
   },
 
-  setCompletedRetentionDays(days: number | null) {
-    return trackWrite(async () => {
-      if (days == null) {
-        await settingsRepository.delete(SETTING_KEYS.completedRetentionDays)
-      } else if (!isValidRetentionDays(days)) {
-        return
-      } else {
-        await settingsRepository.put(SETTING_KEYS.completedRetentionDays, String(days))
-      }
-      set({ completedRetentionDays: days })
-    })
+  async setCompletedRetentionDays(days) {
+    if (days == null || isValidRetentionDays(days)) await SETTINGS.completedRetentionDays.write({ completedRetentionDays: days })
   },
 
-  setFollowupDefaultInterval(interval: FollowupInterval) {
-    return trackWrite(async () => {
-      const value = formatFollowupInterval(interval)
-      if (!parseFollowupInterval(value)) return
-      await settingsRepository.put(SETTING_KEYS.followupDefaultInterval, value)
-      set({ followupDefaultInterval: { ...interval } })
-    })
+  async setFollowupDefaultInterval(interval) {
+    if (!parseFollowupInterval(formatFollowupInterval(interval))) return
+    await SETTINGS.followupDefaultInterval.write({ followupDefaultInterval: { ...interval } })
   },
 
-  setAutoFollowup(on: boolean) {
-    return trackWrite(async () => {
-      const prev = get().autoFollowup
-      set({ autoFollowup: on })
-      try {
-        // Stored only when off: absent = on.
-        if (on) await settingsRepository.delete(SETTING_KEYS.newTaskFollowup)
-        else await settingsRepository.put(SETTING_KEYS.newTaskFollowup, 'false')
-      } catch (e) {
-        console.error('Failed to save whether a next follow-up is set automatically:', e)
-        set({ autoFollowup: prev })
-      }
-    })
+  async setAutoFollowup(on) {
+    await SETTINGS.autoFollowup.write({ autoFollowup: on })
   },
 
-  setRemoveConvertedLines(on: boolean) {
-    return trackWrite(async () => {
-      const prev = get().removeConvertedLines
-      set({ removeConvertedLines: on })
-      try {
-        // Stored only when on: absent = off.
-        if (on) await settingsRepository.put(SETTING_KEYS.removeConvertedLines, 'true')
-        else await settingsRepository.delete(SETTING_KEYS.removeConvertedLines)
-      } catch (e) {
-        console.error('Failed to save whether converted lines are removed from the note:', e)
-        set({ removeConvertedLines: prev })
-      }
-    })
+  async setRemoveConvertedLines(on) {
+    await SETTINGS.removeConvertedLines.write({ removeConvertedLines: on })
   },
 
-  setUrgentDueWithinDays(range: UrgentDueWithinDays) {
-    return trackWrite(async () => {
-      const value = formatUrgentDueWithinDays(range)
-      if (parseUrgentDueWithinDays(value) === undefined) return
-      await settingsRepository.put(SETTING_KEYS.urgentDueWithinDays, value)
-      set({ urgentDueWithinDays: range })
-    })
+  async setUrgentDueWithinDays(range) {
+    if (parseUrgentDueWithinDays(formatUrgentDueWithinDays(range)) === undefined) return
+    await SETTINGS.urgentDueWithinDays.write({ urgentDueWithinDays: range })
   },
 
-  // The check-in choices are radios: the state is set before the write so a
-  // controlled radio doesn't snap back while it is saved.
-  setCheckinOpenMethod(method: CheckinOpenMethod) {
-    return trackWrite(async () => {
-      if (!isCheckinOpenMethod(method)) return
-      const prev = get().checkinOpenMethod
-      set({ checkinOpenMethod: method })
-      try {
-        await settingsRepository.put(SETTING_KEYS.checkinOpenMethod, method)
-      } catch (e) {
-        console.error('Failed to save the check-in open method:', e)
-        set({ checkinOpenMethod: prev })
-      }
-    })
+  async setCheckinOpenMethod(method) {
+    if (isCheckinOpenMethod(method)) await SETTINGS.checkinOpenMethod.write({ checkinOpenMethod: method })
   },
 
-  setCheckinTaskFilter(filter: CheckinTaskFilter) {
-    return trackWrite(async () => {
-      const next = checkinFilterOf(filter)
-      const prev = get().checkinTaskFilter
-      if (checkinFiltersEqual(next, prev)) return
-      set({ checkinTaskFilter: next })
-      try {
-        // Stored only when it narrows: absent = all open tasks.
-        if (isNoCheckinFilter(next)) await settingsRepository.delete(SETTING_KEYS.checkinTaskFilter)
-        else await settingsRepository.put(SETTING_KEYS.checkinTaskFilter, formatCheckinFilterSetting(next))
-      } catch (e) {
-        console.error('Failed to save the check-in filter:', e)
-        set({ checkinTaskFilter: prev })
-        useUndoStore.getState().notify('Couldn’t save the check-in filter.')
-      }
-    })
+  async setCheckinTaskFilter(filter) {
+    const next = checkinFilterOf(filter)
+    if (checkinFiltersEqual(next, get().checkinTaskFilter)) return
+    await SETTINGS.checkinTaskFilter.write({ checkinTaskFilter: next })
   },
 
-  async setNewListSort(sort: TodoSortBy, direction: TodoSortDirection = 'asc') {
+  async setNewListSort(sort, direction = 'asc') {
     if (!isTodoSortBy(sort)) return
-    const dir = effectiveSortDirection(sort, direction)
-    const before = { sort: get().newListSort, dir: get().newListSortDirection }
-    if (before.sort === sort && before.dir === dir) return
-    await recordSettingWrite(
-      `New lists sort by ${sortSummary(sort, dir)}`,
-      () => writeNewListSort(sort, dir),
-      () => writeNewListSort(before.sort, before.dir),
-      'Couldn’t save how new lists sort.',
-    )
+    await SETTINGS.newListSort.write({ newListSort: sort, newListSortDirection: effectiveSortDirection(sort, direction) })
   },
 
-  async setNewListGroup(group: TodoGroupBy) {
-    if (!isTodoGroupBy(group)) return
-    const before = get().newListGroup
-    if (before === group) return
-    await recordSettingWrite(
-      group === 'none' ? 'New lists aren’t grouped' : `New lists group by ${GROUP_LABEL[group]}`,
-      () => writeNewListGroup(group),
-      () => writeNewListGroup(before),
-      'Couldn’t save how new lists group.',
-    )
+  async setNewListGroup(group) {
+    if (isTodoGroupBy(group)) await SETTINGS.newListGroup.write({ newListGroup: group })
   },
 
-  async setPurgePromptIntervalDays(days: number) {
-    if (!isPurgePromptIntervalDays(days)) return
-    const before = get().purgePromptIntervalDays
-    if (before === days) return
-    await recordSettingWrite(
-      `Ask about old completed tasks at most every ${days === 1 ? 'day' : `${days} days`}`,
-      () => writePurgePromptInterval(days),
-      () => writePurgePromptInterval(before),
-      'Couldn’t save how often to ask about old completed tasks.',
-    )
+  async setPurgePromptIntervalDays(days) {
+    if (isPurgePromptIntervalDays(days)) await SETTINGS.purgePromptIntervalDays.write({ purgePromptIntervalDays: days })
   },
 
-  async setTabBadges(ranges: TabBadgeRanges) {
-    const before = get().tabBadges
-    if (sameTabBadges(before, ranges)) return
-    await recordSettingWrite(
-      'Changed the tab badges',
-      () => writeTabBadges(ranges),
-      () => writeTabBadges(before),
-      'Couldn’t save the tab badges.',
-    )
+  async setPurgePromptLastAt(at) {
+    if (!Number.isNaN(at.getTime())) await SETTINGS.purgePromptLastAt.write({ purgePromptLastAt: new Date(at.getTime()) })
   },
 
-  async setPriorityCues(cues: PriorityCues) {
-    const before = get().priorityCues
-    if (JSON.stringify(before) === JSON.stringify(cues)) return
-    await recordSettingWrite(
-      'Changed the priority cues',
-      () => writePriorityCues(cues),
-      () => writePriorityCues(before),
-      'Couldn’t save the priority cues.',
-    )
+  async setStaleAfterDays(days) {
+    if (isStaleAfterDays(days)) await SETTINGS.staleAfterDays.write({ staleAfterDays: days })
   },
 
-  async setStaleAfterDays(days: number) {
-    if (!isStaleAfterDays(days)) return
-    const before = get().staleAfterDays
-    if (before === days) return
-    await recordSettingWrite(
-      days === 0 ? 'Don’t fade untouched tasks' : `Fade tasks untouched for ${days === 1 ? 'a day' : `${days} days`}`,
-      () => writeStaleAfterDays(days),
-      () => writeStaleAfterDays(before),
-      'Couldn’t save when to fade untouched tasks.',
-    )
+  async setTabBadges(ranges) {
+    await SETTINGS.tabBadges.write({ tabBadges: ranges })
   },
 
-  async setRowDensity(density: RowDensity) {
-    if (!isRowDensity(density)) return
-    const before = get().rowDensity
-    if (before === density) return
-    await recordSettingWrite(
-      density === 'comfortable' ? 'Comfortable rows' : 'Compact rows',
-      () => writeRowDensity(density),
-      () => writeRowDensity(before),
-      'Couldn’t save the row density.',
-    )
+  async setPriorityCues(cues) {
+    await SETTINGS.priorityCues.write({ priorityCues: cues })
   },
 
-  setPurgePromptLastAt(at: Date) {
-    return trackWrite(async () => {
-      if (Number.isNaN(at.getTime())) return
-      set({ purgePromptLastAt: new Date(at.getTime()) })
-      try {
-        await settingsRepository.put(SETTING_KEYS.purgePromptLastAt, at.toISOString())
-      } catch (e) {
-        // Only the stamp: the next launch may ask again sooner.
-        console.error('Failed to record when the purge prompt showed:', e)
-      }
-    })
+  async setRowDensity(density) {
+    if (isRowDensity(density)) await SETTINGS.rowDensity.write({ rowDensity: density })
   },
 
-  async setShortcut(id: ShortcutId, chord: ShortcutChord) {
+  async setShortcut(id, chord) {
     const refusal = shortcutRefusal(id, chord, get().shortcutOverrides)
     if (refusal) return refusal
-    await writeShortcuts(withShortcut(get().shortcutOverrides, id, chord))
+    await SETTINGS.shortcutOverrides.write({ shortcutOverrides: withShortcut(get().shortcutOverrides, id, chord) })
     return null
   },
 
-  resetShortcut(id: ShortcutId) {
-    return writeShortcuts(withShortcut(get().shortcutOverrides, id, null))
+  async resetShortcut(id) {
+    await SETTINGS.shortcutOverrides.write({ shortcutOverrides: withShortcut(get().shortcutOverrides, id, null) })
   },
 
-  resetAllShortcuts() {
-    return writeShortcuts({})
+  async resetAllShortcuts() {
+    await SETTINGS.shortcutOverrides.write({ shortcutOverrides: {} })
   },
 
-  async setEisenhowerPanes(panes: EisenhowerPanes | undefined, description: string, mergeKey?: string) {
-    // A group of one stays: the pane's filter row dissolves it once no picker is open on it.
-    const keep = { keepSingleGroups: true }
-    const next = pickPanes(panes ?? {}, keep).panes
-    const now = get().eisenhowerPanes
-    if (JSON.stringify(pickPanes(now, keep).panes) === JSON.stringify(next)) return
-    // Only a group of one dissolved (the stored text reads the same): no undo step of its own.
-    const sameStored = formatPanesSetting(now) === formatPanesSetting(next)
-    const saved = await writeEisenhowerPanes(next)
-    if (saved.stale) return
-    if (!saved.ok) {
-      useUndoStore.getState().notify('Couldn’t save the Eisenhower panes.')
-      return
-    }
-    if (!sameStored) recordPanesUndo(saved.before, next, description, mergeKey)
+  async setEisenhowerPanes(panes, description, mergeKey) {
+    // A group of one stays: the pane's filter row dissolves it once no picker
+    // is open on it — that dissolve stores the same text, so adds no undo step.
+    const next = pickPanes(panes ?? {}, { keepSingleGroups: true }).panes
+    await SETTINGS.eisenhowerPanes.write({ eisenhowerPanes: next }, { description, mergeKey })
   },
-
 }))
-
-/**
- * The newest pane write's undo entry and its merge key, so the next write
- * with the same key updates that entry instead of adding one (while the
- * entry is still the newest on the stack).
- */
-let lastPanesUndo: { mergeKey: string; entry: UndoEntry; prev: EisenhowerPanes; setNext: (panes: EisenhowerPanes) => void } | null = null
-registerModuleReset(() => { lastPanesUndo = null })
-
-/**
- * Registers a saved pane write (`prev` -> `next`) as an undo step, merged
- * into the last one with the same `mergeKey`. A step without a merge key
- * (a filter change, Reset pane, Reset all panes) shows the undo snackbar —
- * Settings, where the panes are edited, takes no Ctrl+Z; a name typed in
- * one go stays one silent step (the field's own undo covers typing).
- */
-function recordPanesUndo(prev: EisenhowerPanes, next: EisenhowerPanes, description: string, mergeKey: string | undefined): void {
-  const undo = useUndoStore.getState()
-  if (undo.isPerformingUndoRedo) return
-  const last = lastPanesUndo
-  if (mergeKey !== undefined && last?.mergeKey === mergeKey && undo.undoStack.at(-1) === last.entry && undo.groupStartIndex == null) {
-    if (formatPanesSetting(last.prev) === formatPanesSetting(next)) {
-      // Typed back to where it started (a letter typed, then erased): no step left to undo.
-      useUndoStore.setState({ undoStack: undo.undoStack.slice(0, -1) })
-      lastPanesUndo = null
-      return
-    }
-    last.setNext(next)
-    return
-  }
-  let target = next
-  const entry: UndoEntry = {
-    description,
-    undo: () => mustSave(writeEisenhowerPanes(prev)),
-    redo: () => mustSave(writeEisenhowerPanes(target)),
-  }
-  undo.push(entry, mergeKey === undefined)
-  lastPanesUndo = mergeKey === undefined ? null : { mergeKey, entry, prev, setNext: (p) => { target = p } }
-}
-
-/** A setting write's outcome: whether it was saved, and the value saved before it (what its undo puts back). */
-interface SettingSave<T> {
-  ok: boolean
-  before: T
-  /** The store was put back to its initial state meanwhile (tests): nothing more to record. */
-  stale?: true
-}
-
-/** For an undo / redo: rejects when the write wasn't saved, so the undo store keeps the entry and says so. */
-async function mustSave<T>(write: Promise<SettingSave<T>>): Promise<void> {
-  if (!(await write).ok) throw new Error('The setting could not be saved')
-}
-
-/**
- * Writes for one settings field, one after another: each shows its value
- * at once, then saves it once the writes before it have settled. A failed
- * save logs and resolves `ok: false`; once no write is left the field shows
- * the value last saved — so a write that fails after a later one was shown
- * never leaves the screen and the database apart. `before` is the value
- * saved before the write (the database's, not the one shown).
- */
-function serialSettingWriter<K extends 'eisenhowerPanes'>(
-  field: K,
-  persist: (value: SettingsState[K]) => Promise<void>,
-  label: string,
-): (value: SettingsState[K]) => Promise<SettingSave<SettingsState[K]>> {
-  let queue: Promise<unknown> = Promise.resolve()
-  let pending = 0
-  let saved: SettingsState[K] = useSettingsStore.getState()[field]
-  // A write left in flight by the reset settles without touching the new state.
-  let generation = 0
-  registerModuleReset(() => {
-    queue = Promise.resolve()
-    pending = 0
-    generation++
-  })
-  return (value) => trackWrite(() => {
-    // Nothing in flight: what is shown is what is saved.
-    if (pending === 0) saved = useSettingsStore.getState()[field]
-    pending++
-    const gen = generation
-    useSettingsStore.setState({ [field]: value } as Pick<SettingsState, K>)
-    const run = queue.then(async (): Promise<SettingSave<SettingsState[K]>> => {
-      const before = saved
-      let ok = true
-      try {
-        await persist(value)
-        if (gen === generation) saved = value
-      } catch (e) {
-        ok = false
-        console.error(`Failed to save ${label}:`, e)
-      }
-      if (gen !== generation) return { ok, before, stale: true }
-      pending--
-      if (pending === 0 && useSettingsStore.getState()[field] !== saved) {
-        useSettingsStore.setState({ [field]: saved } as Pick<SettingsState, K>)
-      }
-      return { ok, before }
-    })
-    queue = run
-    return run
-  })
-}
-
-/** Shows the Eisenhower panes at once, then saves them (the row goes when every pane is its default). */
-const writeEisenhowerPanes = serialSettingWriter(
-  'eisenhowerPanes',
-  async (panes) => {
-    if (Object.keys(panes).length === 0) await settingsRepository.delete(SETTING_KEYS.eisenhowerPanes)
-    else await settingsRepository.put(SETTING_KEYS.eisenhowerPanes, formatPanesSetting(panes))
-  },
-  'the Eisenhower panes',
-)
-
-/** Saves the keyboard shortcut overrides (the row goes when none are left), then shows them. */
-function writeShortcuts(overrides: ShortcutOverrides): Promise<void> {
-  return trackWrite(async () => {
-    if (Object.keys(overrides).length === 0) {
-      await settingsRepository.delete(SETTING_KEYS.keyboardShortcuts)
-    } else {
-      await settingsRepository.put(SETTING_KEYS.keyboardShortcuts, formatShortcutOverrides(overrides))
-    }
-    useSettingsStore.setState({ shortcutOverrides: overrides })
-  })
-}
-
-/** `setting-writes.writeSetting` over this store. */
-function writeSetting<K extends keyof SettingsState>(
-  patch: Pick<SettingsState, K>,
-  persist: () => Promise<void>,
-  label: string,
-): Promise<boolean> {
-  return writeStoreSetting(useSettingsStore, patch, persist, label)
-}
-
-/** The tab badge ranges, both rows in one transaction (cr31 A5: a failure never leaves one range saved). */
-function writeTabBadges(ranges: TabBadgeRanges): Promise<boolean> {
-  return writeSetting({ tabBadges: ranges }, () => settingsRepository.writeMany({
-    [SETTING_KEYS.tabBadgeDue]: formatTabBadgeRange(ranges.due),
-    [SETTING_KEYS.tabBadgeFollowup]: formatTabBadgeRange(ranges.followup),
-  }), 'the tab badge ranges')
-}
-
-function sameTabBadges(a: TabBadgeRanges, b: TabBadgeRanges): boolean {
-  return formatTabBadgeRange(a.due) === formatTabBadgeRange(b.due) && formatTabBadgeRange(a.followup) === formatTabBadgeRange(b.followup)
-}
-
-/** The priority cues. */
-function writePriorityCues(cues: PriorityCues): Promise<boolean> {
-  return writeSetting({ priorityCues: cues }, () => settingsRepository.put(SETTING_KEYS.priorityCues, JSON.stringify(cues)), 'the priority cues')
-}
-
-/** What new blank lists sort by and which way; the rows go at the defaults (Manual, `asc`). */
-function writeNewListSort(sort: TodoSortBy, dir: TodoSortDirection): Promise<boolean> {
-  // Both rows in one transaction.
-  return writeSetting({ newListSort: sort, newListSortDirection: dir }, () => settingsRepository.writeMany({
-    [SETTING_KEYS.newListSort]: sort === 'manual' ? null : sort,
-    [SETTING_KEYS.newListSortDirection]: dir === 'asc' ? null : dir,
-  }), 'the new-list sort')
-}
-
-/** What new blank lists group by; the row goes at the default (none). */
-function writeNewListGroup(group: TodoGroupBy): Promise<boolean> {
-  return writeSetting({ newListGroup: group }, async () => {
-    if (group === 'none') await settingsRepository.delete(SETTING_KEYS.newListGroup)
-    else await settingsRepository.put(SETTING_KEYS.newListGroup, group)
-  }, 'the new-list grouping')
-}
-
-/** The purge prompt's interval; the row goes at the default (7 days). */
-function writePurgePromptInterval(days: number): Promise<boolean> {
-  return writeSetting({ purgePromptIntervalDays: days }, async () => {
-    if (days === DEFAULT_PURGE_PROMPT_INTERVAL_DAYS) await settingsRepository.delete(SETTING_KEYS.purgePromptIntervalDays)
-    else await settingsRepository.put(SETTING_KEYS.purgePromptIntervalDays, String(days))
-  }, 'the purge prompt interval')
-}
-
-/** The row density; the row goes at the default (compact). */
-function writeRowDensity(density: RowDensity): Promise<boolean> {
-  return writeSetting({ rowDensity: density }, async () => {
-    if (density === DEFAULT_ROW_DENSITY) await settingsRepository.delete(SETTING_KEYS.rowDensity)
-    else await settingsRepository.put(SETTING_KEYS.rowDensity, density)
-  }, 'the row density')
-}
-
-/** The stale threshold; the row goes at the default (30 days). */
-function writeStaleAfterDays(days: number): Promise<boolean> {
-  return writeSetting({ staleAfterDays: days }, async () => {
-    if (days === DEFAULT_STALE_AFTER_DAYS) await settingsRepository.delete(SETTING_KEYS.staleAfterDays)
-    else await settingsRepository.put(SETTING_KEYS.staleAfterDays, String(days))
-  }, 'the stale threshold')
-}
 
 /**
  * The settings filters are evaluated with (urgent range, week
