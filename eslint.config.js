@@ -12,6 +12,16 @@ import { defineConfig, globalIgnores } from 'eslint/config'
 const LOCAL_FIRST = 'TODO2 is local-first and makes no network request (CLAUDE.md › Constraints): keep data in IndexedDB, the sync file, imports and downloads.'
 const NETWORK_GLOBALS = ['fetch', 'XMLHttpRequest', 'WebSocket', 'EventSource', 'RTCPeerConnection', 'webkitRTCPeerConnection', 'WebTransport', 'Worker', 'SharedWorker', 'importScripts', 'open']
 const GLOBAL_OBJECTS = ['window', 'globalThis', 'self']
+// No markup is parsed from a string in the app: text renders as React text,
+// a node is built as elements (cr31 security I2). The check-in preview's
+// sandboxed `srcDoc` is the one HTML document, built with `escapeHtml`.
+const NO_HTML_SINK = 'Build the nodes (React, or createElement / createElementNS) instead of parsing markup from a string.'
+const HTML_SINKS = [
+  { selector: "AssignmentExpression > MemberExpression.left[property.name=/^(innerHTML|outerHTML)$/]", message: NO_HTML_SINK },
+  { selector: "CallExpression[callee.property.name=/^(insertAdjacentHTML|createContextualFragment|setHTMLUnsafe)$/]", message: NO_HTML_SINK },
+  { selector: "CallExpression[callee.object.name='document'][callee.property.name=/^write(ln)?$/]", message: NO_HTML_SINK },
+  { selector: "JSXAttribute[name.name='dangerouslySetInnerHTML']", message: NO_HTML_SINK },
+]
 
 export default defineConfig([
   // `.claude/` is gitignored tooling (agent worktrees hold whole checkouts of
@@ -53,6 +63,7 @@ export default defineConfig([
         ...GLOBAL_OBJECTS.flatMap((object) => NETWORK_GLOBALS.map((property) => ({ object, property, message: LOCAL_FIRST }))),
         ...['sendBeacon', 'serviceWorker'].map((property) => ({ object: 'navigator', property, message: LOCAL_FIRST })),
       ],
+      'no-restricted-syntax': ['error', ...HTML_SINKS],
     },
   },
 ])
