@@ -293,6 +293,21 @@ describe('makeTaskFromSubtask', () => {
     expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t make it a task. Nothing changed.')
   })
 
+  it('a done subtask whose completion fails stays a done subtask: the new task goes again and it says so (cr31 L9)', async () => {
+    const parent = await addTask('Offsite')
+    const a = await useSubtaskStore.getState().add(parent, 'Book the venue')
+    await useSubtaskStore.getState().setDone(a!.id, true)
+    useUndoStore.getState().clear()
+    const spy = vi.spyOn(useTodoStore.getState(), 'update').mockResolvedValueOnce(false)
+    expect(await makeTaskFromSubtask(a!.id)).toBeNull()
+    spy.mockRestore()
+    expect(todos().map((t) => t.title)).toEqual(['Offsite'])
+    expect((await db.todos.toArray()).map((t) => t.title)).toEqual(['Offsite'])
+    expect(titles(parent)).toEqual([['Book the venue', true]])
+    expect(undoNames()).toEqual([])
+    expect(useUndoStore.getState().snackbar?.description).toBe('Couldn’t make it a task. Nothing changed.')
+  })
+
   it('a failed create takes nothing and says so', async () => {
     const parent = await addTask('Offsite')
     const a = await useSubtaskStore.getState().add(parent, 'Book the venue')

@@ -173,8 +173,10 @@ export async function makeTaskFromSubtask(subtaskId: number): Promise<number | n
         await useUndoStore.getState().abortGroup(group, name)
         return null
       }
-      if (isCompleted) await useTodoStore.getState().update(created, { isCompleted: true })
-      if (!await useSubtaskStore.getState().remove(id)) {
+      // A failed completion (`update` resolves false) or removal takes the
+      // step back whole: the done subtask is never lost to an open task.
+      const done = !isCompleted || await useTodoStore.getState().update(created, { isCompleted: true })
+      if (!done || !await useSubtaskStore.getState().remove(id)) {
         const clean = await useUndoStore.getState().abortGroup(group, name)
         useUndoStore.getState().notify(clean ? 'Couldn’t make it a task. Nothing changed.' : 'Couldn’t make it a task. Undo takes back what was done.')
         return null
