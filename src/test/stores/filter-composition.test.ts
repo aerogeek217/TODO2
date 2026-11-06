@@ -4,7 +4,7 @@ import { composeScreenFilter, countActiveFilters, predicateToCriteria, type Filt
 import { createScreenComposedEvaluator, matchesComposedFilter } from '../../utils/filter-match'
 import { emptyPredicate } from '../../models'
 import type { TodoNameLookups } from '../../utils/filter'
-import { makeTodo } from '../helpers'
+import { makeTodo, lookupsFor } from '../helpers'
 import { currentFilterSettings, useSettingsStore } from '../../stores/settings-store'
 
 // The screen (top-bar) filter composed with a list's own filter: narrowing
@@ -33,11 +33,11 @@ const todos: PersistedTodoItem[] = [
   makeTodo({ id: 6, title: 'Nobody done', isCompleted: true }),
 ]
 
-const lookups: TodoNameLookups = {
+const lookups: TodoNameLookups = lookupsFor({
   assignedPeopleMap: new Map([[1, [alice]], [2, [bob]], [3, [alice, bob]], [5, [alice]]]),
   assignedTagsMap: new Map([[1, [work]], [2, [home]], [3, [work, home]], [5, [work]]]),
   statusesById: new Map([[1, doing], [2, waiting]]),
-}
+})
 
 const none = (): FilterCriteria => predicateToCriteria(emptyPredicate())
 const crit = (patch: Partial<FilterCriteria>): FilterCriteria => ({ ...none(), ...patch })

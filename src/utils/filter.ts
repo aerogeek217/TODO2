@@ -47,15 +47,38 @@ export interface TextMatchContext {
  * Per-todo name lookups for {@link textMatchContextFor}. Every surface that
  * searches tasks resolves names from these same maps, so a query hits the
  * same tasks in list widgets, the calendar widget and the top-bar search.
+ * Every field is required — a surface that left out the status updates or
+ * the subtasks would silently stop searching them — and the object is built
+ * by {@link todoNameLookups} (in a component, `hooks/use-todo-name-lookups`).
  */
 export interface TodoNameLookups {
-  assignedPeopleMap?: ReadonlyMap<number, readonly Person[]>
-  assignedTagsMap?: ReadonlyMap<number, readonly Tag[]>
-  statusesById?: ReadonlyMap<number, Status>
-  /** Each task's status updates (`status-update-store.byTodo`); absent = their texts aren't searched. */
-  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
-  /** Each task's checklist (`subtask-store.byTodo`); absent = its titles aren't searched. */
-  subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
+  assignedPeopleMap: ReadonlyMap<number, readonly Person[]>
+  assignedTagsMap: ReadonlyMap<number, readonly Tag[]>
+  statusesById: ReadonlyMap<number, Status>
+  /** Each task's status updates (`status-update-store.byTodo`). */
+  statusUpdatesByTodo: ReadonlyMap<number, readonly StatusUpdate[]>
+  /** Each task's checklist (`subtask-store.byTodo`). */
+  subtasksByTodo: ReadonlyMap<number, readonly Subtask[]>
+}
+
+/** What {@link todoNameLookups} builds the lookups from: the stores' maps and the statuses. */
+export interface TodoNameSources {
+  assignedPeopleMap: ReadonlyMap<number, readonly Person[]>
+  assignedTagsMap: ReadonlyMap<number, readonly Tag[]>
+  statuses: readonly Status[]
+  statusUpdatesByTodo: ReadonlyMap<number, readonly StatusUpdate[]>
+  subtasksByTodo: ReadonlyMap<number, readonly Subtask[]>
+}
+
+/** The search's lookups over `sources` — the one place they are built (a status without an id is skipped). */
+export function todoNameLookups(sources: TodoNameSources): TodoNameLookups {
+  return {
+    assignedPeopleMap: sources.assignedPeopleMap,
+    assignedTagsMap: sources.assignedTagsMap,
+    statusesById: new Map(sources.statuses.flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
+    statusUpdatesByTodo: sources.statusUpdatesByTodo,
+    subtasksByTodo: sources.subtasksByTodo,
+  }
 }
 
 /** Resolve the person / status / tag names, the status update texts and the subtask titles a text search can hit. */
@@ -64,11 +87,11 @@ export function textMatchContextFor(
   lookups: TodoNameLookups,
 ): TextMatchContext {
   return {
-    personNames: (lookups.assignedPeopleMap?.get(todo.id) ?? []).map((p) => p.name),
-    statusName: todo.statusId != null ? lookups.statusesById?.get(todo.statusId)?.name : undefined,
-    tagNames: (lookups.assignedTagsMap?.get(todo.id) ?? []).map((t) => t.name),
-    statusUpdateTexts: (lookups.statusUpdatesByTodo?.get(todo.id) ?? []).map((u) => u.text),
-    subtaskTitles: (lookups.subtasksByTodo?.get(todo.id) ?? []).map((s) => s.title),
+    personNames: (lookups.assignedPeopleMap.get(todo.id) ?? []).map((p) => p.name),
+    statusName: todo.statusId != null ? lookups.statusesById.get(todo.statusId)?.name : undefined,
+    tagNames: (lookups.assignedTagsMap.get(todo.id) ?? []).map((t) => t.name),
+    statusUpdateTexts: (lookups.statusUpdatesByTodo.get(todo.id) ?? []).map((u) => u.text),
+    subtaskTitles: (lookups.subtasksByTodo.get(todo.id) ?? []).map((s) => s.title),
   }
 }
 

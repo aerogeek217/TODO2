@@ -1,4 +1,4 @@
-import { DATE_FIELD_VALUES, type DateAnchor, type DateField, type DateMatch, type TodoItem, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../models'
+import { DATE_FIELD_VALUES, type DateAnchor, type DateField, type DateMatch, type TodoItem, type PersistedTodoItem, type TodoPredicate } from '../models'
 import { startOfDay } from './date'
 import { isNegatableDateField } from './date-filters'
 import { resolveDateAnchor, type WeekStart } from './effective-date'
@@ -188,8 +188,8 @@ export function matchesFilterWithLookups(
   today: Date,
   settings: FilterSettings,
 ): boolean {
-  const personIds = (lookups.assignedPeopleMap?.get(todo.id) ?? []).map((p) => p.id!)
-  const tagIds = (lookups.assignedTagsMap?.get(todo.id) ?? []).map((t) => t.id!)
+  const personIds = (lookups.assignedPeopleMap.get(todo.id) ?? []).map((p) => p.id!)
+  const tagIds = (lookups.assignedTagsMap.get(todo.id) ?? []).map((t) => t.id!)
   const searchCtx = readsText(filters) ? textMatchContextFor(todo, lookups) : undefined
   return matchesFilter(filters, todo, personIds, today, searchCtx, tagIds, settings)
 }
@@ -199,22 +199,11 @@ export function matchesFilterWithLookups(
  */
 export function applyFilter(
   filters: FilterCriteria,
-  todos: PersistedTodoItem[],
-  assignedPeopleMap: Map<number, Person[]> | undefined,
-  statuses: Status[] | undefined,
+  todos: readonly PersistedTodoItem[],
+  lookups: TodoNameLookups,
   today: Date,
-  assignedTagsMap: Map<number, Tag[]> | undefined,
   settings: FilterSettings,
-  statusUpdatesByTodo?: TodoNameLookups['statusUpdatesByTodo'],
-  subtasksByTodo?: TodoNameLookups['subtasksByTodo'],
 ): PersistedTodoItem[] {
-  const lookups: TodoNameLookups = {
-    assignedPeopleMap,
-    assignedTagsMap,
-    statusesById: statuses ? new Map(statuses.map((s) => [s.id!, s])) : undefined,
-    statusUpdatesByTodo,
-    subtasksByTodo,
-  }
   return todos.filter((t) => matchesFilterWithLookups(filters, t, lookups, today, settings))
 }
 

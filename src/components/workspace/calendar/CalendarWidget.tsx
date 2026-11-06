@@ -9,10 +9,8 @@ import {
   type CalendarView,
 } from '../../../models/workspace-layout'
 import { useTodoStore } from '../../../stores/todo-store'
-import { useStatusUpdateStore } from '../../../stores/status-update-store'
-import { useSubtaskStore } from '../../../stores/subtask-store'
+import { useTodoNameLookups } from '../../../hooks/use-todo-name-lookups'
 import { usePersonStore } from '../../../stores/person-store'
-import { useTagStore } from '../../../stores/tag-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -631,9 +629,7 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const todos = useTodoStore((s) => s.todos)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
-  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
-  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
+  const lookups = useTodoNameLookups()
   const statuses = useStatusStore((s) => s.statuses)
   const { filters: screen, active: screenActive } = useScreenFilter()
   const lens = useAppliedLens()
@@ -661,8 +657,8 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const month = range.start.getMonth()
 
   const shownTodos = useMemo(
-    () => applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo),
-    [screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, markerSettings, statusUpdatesByTodo, subtasksByTodo],
+    () => applyFilter(screen, todos, lookups, today, markerSettings),
+    [screen, todos, lookups, today, markerSettings],
   )
 
   const entriesByDay = useMemo(

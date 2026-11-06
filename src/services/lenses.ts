@@ -1,7 +1,7 @@
 import { findLens, type Lens } from '../utils/lens'
 import { predicateToCriteria } from '../utils/filter-criteria'
 import { matchesFilterWithLookups } from '../utils/filter-match'
-import type { TodoNameLookups } from '../utils/filter'
+import { todoNameLookups } from '../utils/filter'
 import type { ScreenCountEnv } from './task-dialog'
 import { useLensDraftStore } from '../stores/lens-draft-store'
 import { useSettingsStore } from '../stores/settings-store'
@@ -23,13 +23,7 @@ export interface LensHideCounts {
 
 /** How many open tasks each of `lenses` hides right now (`LensHideCounts`), whatever the chips. */
 export function lensHideCounts(env: Omit<ScreenCountEnv, 'screen'>, lenses: readonly Lens[]): LensHideCounts {
-  const lookups: TodoNameLookups = {
-    assignedPeopleMap: env.assignedPeopleMap,
-    assignedTagsMap: env.assignedTagsMap,
-    statusesById: new Map(env.statuses.map((s) => [s.id!, s])),
-    statusUpdatesByTodo: env.statusUpdatesByTodo,
-    subtasksByTodo: env.subtasksByTodo,
-  }
+  const lookups = todoNameLookups(env)
   const settings = { ...env.markerSettings, weekStartsOn: env.weekStartsOn }
   const open = env.todos.filter((t) => !t.isCompleted)
   const hides = new Map<string, number>()

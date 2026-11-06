@@ -4,19 +4,15 @@ import { useLocation } from 'react-router'
 import { ROUTE_WORKSPACE } from '../../routes'
 import { useFilterStore } from '../../stores/filter-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
-import type { PersistedStatusUpdate, PersistedSubtask, Person, PersistedTodoItem, Status, Tag, TodoPredicate } from '../../models'
-import { usePersonStore } from '../../stores/person-store'
-import { useStatusStore } from '../../stores/status-store'
-import { useTagStore } from '../../stores/tag-store'
+import type { Person, PersistedTodoItem, Status, StatusUpdate, Subtask, TodoPredicate } from '../../models'
 import { useTodoStore } from '../../stores/todo-store'
-import { useStatusUpdateStore } from '../../stores/status-update-store'
-import { useSubtaskStore } from '../../stores/subtask-store'
 import { useUIStore } from '../../stores/ui-store'
 import { formatDateNumeric, startOfToday } from '../../utils/date'
 import { groupTodosByTextMatch, textMatchContextFor, type TextMatchField } from '../../utils/filter'
 import { TaskPillBar } from '../shared/TaskPillBar'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
 import { useTaskRowActions } from '../../hooks/use-task-row-actions'
+import { useTodoNameLookups } from '../../hooks/use-todo-name-lookups'
 import { TaskMenu } from '../task/TaskMenu'
 import { searchMenuHandlers } from './top-bar-search-menu'
 import { LayoutControls } from '../workspace/LayoutControls'
@@ -140,23 +136,23 @@ function SearchFieldIcon({ field }: { field: TextMatchField }) {
  * to the assigned-people / status / status update stores.
  */
 interface SearchResultPillContext {
-  peopleByTodoId: Map<number, Person[]>
-  statusesById: Map<number, Status>
+  peopleByTodoId: ReadonlyMap<number, readonly Person[]>
+  statusesById: ReadonlyMap<number, Status>
   /** Each task's status updates, newest first (a Status updates hit's snippet). */
-  statusUpdatesByTodo: ReadonlyMap<number, readonly PersistedStatusUpdate[]>
+  statusUpdatesByTodo: ReadonlyMap<number, readonly StatusUpdate[]>
   /** Each task's checklist, in order (a Subtasks hit's snippet). */
-  subtasksByTodo: ReadonlyMap<number, readonly PersistedSubtask[]>
+  subtasksByTodo: ReadonlyMap<number, readonly Subtask[]>
 }
 
 /** A Subtasks hit's snippet: the first subtask the query hits, `☐ title` (`☑` when done). */
-function subtaskSnippet(subtasks: readonly PersistedSubtask[] | undefined, query: string): string | undefined {
+function subtaskSnippet(subtasks: readonly Subtask[] | undefined, query: string): string | undefined {
   const q = query.toLowerCase().trim()
   const hit = subtasks?.find((s) => s.title.toLowerCase().includes(q))
   return hit ? `${hit.isCompleted ? '☑' : '☐'} ${hit.title}` : undefined
 }
 
 /** A Status updates hit's snippet: the newest entry the query hits, `MM/DD · text`. */
-function statusUpdateSnippet(updates: readonly PersistedStatusUpdate[] | undefined, query: string): string | undefined {
+function statusUpdateSnippet(updates: readonly StatusUpdate[] | undefined, query: string): string | undefined {
   const q = query.toLowerCase().trim()
   const hit = updates?.find((u) => u.text.toLowerCase().includes(q))
   return hit ? `${formatDateNumeric(hit.date)} · ${hit.text}` : undefined
@@ -267,10 +263,6 @@ function SearchResultContextMenu({ x, y, todo, onOpen, onClose }: {
 
 const NO_EXPANDED_FIELDS: ReadonlySet<TextMatchField> = new Set()
 const NO_TODOS: PersistedTodoItem[] = []
-const NO_PEOPLE_MAP = new Map<number, Person[]>()
-const NO_TAGS_MAP = new Map<number, Tag[]>()
-const NO_STATUS_UPDATES = new Map<number, readonly PersistedStatusUpdate[]>()
-const NO_SUBTASKS = new Map<number, readonly PersistedSubtask[]>()
 
 const SearchResultsGroups = forwardRef<HTMLDivElement, {
   groups: Record<TextMatchField, PersistedTodoItem[]>
@@ -389,14 +381,10 @@ export function TopBar() {
   // result's menu) can show: otherwise a task write doesn't render the bar.
   const searching = !panelOpen && ((searchWords.length > 0 && searchFocused) || searchContextMenu !== null)
   const todos = useTodoStore((s) => (searching ? s.todos : NO_TODOS))
-  const statuses = useStatusStore((s) => s.statuses)
-  const assignedPeopleMap = usePersonStore((s) => (searching ? s.assignedPeopleMap : NO_PEOPLE_MAP))
-  const assignedTagsMap = useTagStore((s) => (searching ? s.assignedTagsMap : NO_TAGS_MAP))
-  const statusUpdatesByTodo = useStatusUpdateStore((s) => (searching ? s.byTodo : NO_STATUS_UPDATES))
-  const subtasksByTodo = useSubtaskStore((s) => (searching ? s.byTodo : NO_SUBTASKS))
+  const lookups = useTodoNameLookups({ active: searching })
+  const { assignedPeopleMap, statusesById, statusUpdatesByTodo, subtasksByTodo } = lookups
   const openEditPopup = useUIStore((s) => s.openEditPopup)
 
-  const statusesById = useMemo(() => new Map(statuses.map(s => [s.id!, s])), [statuses])
 
   const filterPredicate = useMemo<TodoPredicate>(() => criteriaToPredicate(filters), [filters])
   const handleFilterChange = useCallback((next: TodoPredicate) => {
@@ -416,14 +404,13 @@ export function TopBar() {
   const filterSettings = useFilterSettings()
   const miniListGroups = useMemo(() => {
     if (!searchWords || !searchFocused) return null
-    const lookups = { assignedPeopleMap, assignedTagsMap, statusesById, statusUpdatesByTodo, subtasksByTodo }
     const narrowing = { ...screenFilter.filters, searchText: '', showCompleted: true }
     const today = startOfToday()
     const kept = screenFilter.active
       ? todos.filter((t) => matchesFilterWithLookups(narrowing, t, lookups, today, filterSettings))
       : todos
     return groupTodosByTextMatch(kept, searchWords, (t) => textMatchContextFor(t, lookups))
-  }, [searchWords, searchFocused, todos, assignedPeopleMap, assignedTagsMap, statusesById, statusUpdatesByTodo, subtasksByTodo, screenFilter.filters, screenFilter.active, filterSettings])
+  }, [searchWords, searchFocused, todos, lookups, screenFilter.filters, screenFilter.active, filterSettings])
 
   const totalMatchCount = miniListGroups
     ? (Object.values(miniListGroups) as PersistedTodoItem[][]).reduce((n, arr) => n + arr.length, 0)

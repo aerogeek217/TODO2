@@ -7,6 +7,7 @@ import { SCHEMA_UPGRADES, type DataRow } from '../../data/schema-upgrades'
 import { emptyFilterClauses, emptyPredicate, OR_GROUPS_MAX, type TodoPredicate } from '../../models'
 import { matchesFilterWithLookups } from '../../utils/filter-match'
 import { predicateToCriteria } from '../../utils/filter-criteria'
+import { lookupsFor } from '../helpers'
 
 const list = (predicate: unknown): DataRow => ({ id: 1, name: 'L', membership: { kind: 'custom', predicate } })
 const upgraded = (predicate: unknown, settings?: DataRow[]) => {
@@ -196,7 +197,7 @@ describe('upgradeV74 — a stored Priority filter as conditions', () => {
     const legacyHot = (t: { focus: boolean; urgent: boolean; important: boolean }) => t.focus || (t.urgent && t.important)
     const keeps = (predicate: TodoPredicate) => {
       const criteria = predicateToCriteria(pickPredicate(predicate).predicate)
-      return tasks.map((t, i) => matchesFilterWithLookups(criteria, { id: i + 1, title: 't', isCompleted: false, ...t } as never, {}, new Date(2026, 0, 1), settings))
+      return tasks.map((t, i) => matchesFilterWithLookups(criteria, { id: i + 1, title: 't', isCompleted: false, ...t } as never, lookupsFor(), new Date(2026, 0, 1), settings))
     }
     expect(keeps(upgraded(legacy('hot')))).toEqual(tasks.map(legacyHot))
     expect(keeps(upgraded(legacy({ urgent: true, important: false })))).toEqual(tasks.map((t) => t.urgent && !t.important))

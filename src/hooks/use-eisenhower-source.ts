@@ -6,15 +6,11 @@ import { useFilterSettings } from './use-filter-settings'
 import type { LeavingRows } from './use-leaving-rows'
 import { useEffectiveListDefinition } from './use-list-draft'
 import { useToday } from './use-today'
+import { useTodoNameLookups } from './use-todo-name-lookups'
 import { useScreenFilter } from '../stores/screen-filter'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
-import { usePersonStore } from '../stores/person-store'
-import { useStatusStore } from '../stores/status-store'
-import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
-import { useStatusUpdateStore } from '../stores/status-update-store'
-import { useSubtaskStore } from '../stores/subtask-store'
 import { applyFilter } from '../utils/filter-match'
 import { hasNarrowingFilters } from '../utils/filter-chips'
 
@@ -68,11 +64,7 @@ export function useEisenhowerSource(leaving?: LeavingRows): EisenhowerSource {
   const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
   const today = useToday()
   const todos = useTodoStore((s) => s.todos)
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
-  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
-  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
-  const statuses = useStatusStore((s) => s.statuses)
+  const lookups = useTodoNameLookups()
   const { filters: screen, active: screenActive } = useScreenFilter()
   const settings = useFilterSettings()
 
@@ -97,8 +89,8 @@ export function useEisenhowerSource(leaving?: LeavingRows): EisenhowerSource {
 
   // Not loaded yet: all tasks, through the screen filter.
   const allShown = useMemo(
-    () => (definition ? NO_TASKS : applyFilter(screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, settings, statusUpdatesByTodo, subtasksByTodo)),
-    [definition, screen, todos, assignedPeopleMap, statuses, today, assignedTagsMap, settings, statusUpdatesByTodo, subtasksByTodo],
+    () => (definition ? NO_TASKS : applyFilter(screen, todos, lookups, today, settings)),
+    [definition, screen, todos, lookups, today, settings],
   )
 
   return useMemo<EisenhowerSource>(

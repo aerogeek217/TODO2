@@ -9,10 +9,8 @@ import { usePersonStore } from '../stores/person-store'
 import { useTagStore } from '../stores/tag-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useListOrderStore, useListRanks } from '../stores/list-order-store'
-import { useStatusUpdateStore } from '../stores/status-update-store'
-import { useSubtaskStore } from '../stores/subtask-store'
 import { applyRuntimeFilter, buildList, type ListContents } from '../services/build-list'
-import type { TodoNameLookups } from '../utils/filter'
+import { useTodoNameLookups } from './use-todo-name-lookups'
 import { useToday } from './use-today'
 import { useFilterSettings } from './use-filter-settings'
 import { keptOf, restoreLeaving, type LeavingRows } from './use-leaving-rows'
@@ -94,9 +92,8 @@ export function useBuiltList(
   const people = usePersonStore((s) => s.people)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
-  // Text clauses search the tasks' status updates and subtasks too.
-  const statusUpdatesByTodo = useStatusUpdateStore((s) => s.byTodo)
-  const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
+  // Text clauses search the tasks' status updates and subtasks too (loaded here: a list may be their only reader).
+  const lookups = useTodoNameLookups({ ensureLoaded: true })
   const loadTagAssignments = useTagStore((s) => s.loadAssignments)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   // Priority clauses (Urgent by date) read these settings.
@@ -107,8 +104,6 @@ export function useBuiltList(
 
   useEffect(() => {
     void useListOrderStore.getState().ensureLoaded()
-    void useStatusUpdateStore.getState().ensureLoaded()
-    void useSubtaskStore.getState().ensureLoaded()
   }, [])
 
   // Tag filter clauses read `assignedTagsMap`; keep it populated for the
@@ -128,13 +123,6 @@ export function useBuiltList(
         : definition.membership.predicate
     if (runtimeFilterPending) return { ...NO_BUILT, runtimeFilterPending }
 
-    const lookups: TodoNameLookups = {
-      assignedPeopleMap,
-      assignedTagsMap,
-      statusesById: new Map(statuses.map((st) => [st.id!, st])),
-      statusUpdatesByTodo,
-      subtasksByTodo,
-    }
     const listOnly = createPredicateEvaluator(lookups, today, markerSettings)
     const evalPredicate = screenFilter ? createScreenComposedEvaluator(screenFilter, lookups, today, markerSettings) : listOnly
     const build = (from: readonly PersistedTodoItem[]) => buildList(definition, from, {
@@ -174,7 +162,7 @@ export function useBuiltList(
     return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, countOpenBase, kept }
   }, [
     definition, todos, people, assignedPeopleMap,
-    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings, leaving, statusUpdatesByTodo, subtasksByTodo,
+    assignedTagsMap, statuses, today, weekStartsOn, runtimeFilterValue, screenFilter, ranks, markerSettings, leaving, lookups,
   ])
 }
 

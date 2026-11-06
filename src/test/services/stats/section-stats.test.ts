@@ -7,7 +7,7 @@ import { computeRecentlyCompleted } from '../../../services/stats/recently-compl
 import { computeStaleTasks } from '../../../services/stats/stale'
 import type { StatsContext } from '../../../services/stats/stats-context'
 import { computeTagStats } from '../../../services/stats/tags'
-import { emptyFilterCriteria, makeTodo, statsPaneContext } from '../../helpers'
+import { emptyFilterCriteria, makeTodo, statsPaneContext, lookupsFor } from '../../helpers'
 import { defaultPaneFilter, resolvePanes } from '../../../utils/eisenhower-panes'
 
 const today = new Date(2026, 9, 10)
@@ -157,7 +157,7 @@ describe('eisenhowerSourceTasks', () => {
   ]
   const opts = (screen: FilterCriteria) => ({
     screen,
-    lookups: { assignedPeopleMap: new Map(), assignedTagsMap: new Map(), statusesById: new Map() },
+    lookups: lookupsFor(),
     today,
     settings: { urgentRange: 3, weekStartsOn: 1 as const },
   })

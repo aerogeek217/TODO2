@@ -7,7 +7,7 @@ import { applyFilter, createScreenComposedEvaluator, matchesComposedFilter, matc
 import { isOptionalDateField, normalizeDateFilters } from '../../utils/date-filters'
 import { currentFilterSettings } from '../../stores/settings-store'
 import type { TodoNameLookups } from '../../utils/filter'
-import { makeTodo } from '../helpers'
+import { makeTodo, lookupsFor } from '../helpers'
 
 /**
  * The Last followed up and Completed date types (cr24 P4, D22): matching by
@@ -30,7 +30,7 @@ const todos: PersistedTodoItem[] = [
   makeTodo({ id: 7, title: 'Reopened', completedAt: at(3) }),
 ]
 
-const lookups: TodoNameLookups = { assignedPeopleMap: new Map(), assignedTagsMap: new Map(), statusesById: new Map() }
+const lookups: TodoNameLookups = lookupsFor()
 const settings = () => ({ ...currentFilterSettings(), weekStartsOn: 1 as const })
 const none = (): FilterCriteria => predicateToCriteria(emptyPredicate())
 const crit = (patch: Partial<FilterCriteria>): FilterCriteria => ({ ...none(), ...patch })
@@ -39,7 +39,7 @@ const thisWeek: DateMatch = { match: 'range', start: { kind: 'relative', token: 
 const todayOnly: DateMatch = { match: 'range', start: { kind: 'offset', days: 0 }, end: { kind: 'offset', days: 0 } }
 const upTo14DaysAgoOrNone: DateMatch = { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true }
 
-const ids = (f: FilterCriteria) => applyFilter(f, todos, undefined, undefined, today, undefined, settings()).map((t) => t.id)
+const ids = (f: FilterCriteria) => applyFilter(f, todos, lookups, today, settings()).map((t) => t.id)
 const composedIds = (screen: FilterCriteria, list: FilterCriteria) =>
   todos.filter((t) => matchesComposedFilter(screen, list, t, lookups, today, settings())).map((t) => t.id)
 

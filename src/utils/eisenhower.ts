@@ -1,6 +1,6 @@
 import { DATE_FIELD_VALUES, type DateField, type PersistedTodoItem, type Person, type Status, type StatusUpdate, type Subtask, type Tag, type TodoItem } from '../models'
 import { EISENHOWER_QUADRANTS, type EisenhowerQuadrant } from '../models/workspace-layout'
-import type { TodoNameLookups } from './filter'
+import { todoNameLookups, type TodoNameLookups } from './filter'
 import { describeFilters, filterChips, type FilterChip, type FilterChipField, type FilterChipNames } from './filter-chips'
 import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import { DATE_FIELD_LABELS_SHORT } from './filter-labels'
@@ -63,10 +63,10 @@ export interface PaneContext {
   people: readonly Person[]
   tags: readonly Tag[]
   statuses: readonly Status[]
-  /** Each task's status updates (text clauses read them); absent = not searched. */
-  statusUpdatesByTodo?: ReadonlyMap<number, readonly StatusUpdate[]>
-  /** Each task's checklist (text clauses read its titles); absent = not searched. */
-  subtasksByTodo?: ReadonlyMap<number, readonly Subtask[]>
+  /** Each task's status updates (text clauses read them). */
+  statusUpdatesByTodo: ReadonlyMap<number, readonly StatusUpdate[]>
+  /** Each task's checklist (text clauses read its titles). */
+  subtasksByTodo: ReadonlyMap<number, readonly Subtask[]>
 }
 
 /**
@@ -137,13 +137,7 @@ function hasRow(rows: readonly { id?: number }[] | undefined, id: number): boole
 function createPaneMatcher(panes: readonly EisenhowerPane[], ctx: PaneContext): PaneMatcher {
   // A pane ignores Show completed: the matrix's source decides about completed tasks.
   const criteria = new Map(panes.map((p) => [p.id, predicateToCriteria({ ...p.filter, showCompleted: true })]))
-  const lookups: TodoNameLookups = {
-    assignedPeopleMap: ctx.assignedPeopleMap,
-    assignedTagsMap: ctx.assignedTagsMap,
-    statusesById: new Map(ctx.statuses.flatMap((s) => (s.id != null ? [[s.id, s] as const] : []))),
-    statusUpdatesByTodo: ctx.statusUpdatesByTodo,
-    subtasksByTodo: ctx.subtasksByTodo,
-  }
+  const lookups = todoNameLookups(ctx)
   const test = (c: FilterCriteria, v: TaskView) => matchesFilterWithLookups(c, v.todo, v.lookups, ctx.today, ctx.settings)
   const criteriaOf = (pane: EisenhowerPane) => criteria.get(pane.id) ?? predicateToCriteria({ ...pane.filter, showCompleted: true })
   return {

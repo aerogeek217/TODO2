@@ -6,7 +6,7 @@ import { admitsCompleted, criteriaToPredicate, predicateToCriteria, type FilterC
 import { applyFilter, matchesDateMatch } from '../../utils/filter-match'
 import { dateFiltersEqual, dateRangeOf, isNegatableDateField, normalizeDateMatch, readDateFilters, withDateMatch } from '../../utils/date-filters'
 import { currentFilterSettings } from '../../stores/settings-store'
-import { makeTodo } from '../helpers'
+import { makeTodo, lookupsFor } from '../helpers'
 
 /**
  * "Is not" on a date range (cr25 P4, schema v71): the date, as a day, is
@@ -179,7 +179,7 @@ describe('the user\'s lens: last follow-up not in the past week OR next follow-u
   ]
 
   it('hides only the tasks followed up lately with a follow-up soon', () => {
-    const shown = applyFilter(lens as FilterCriteria, todos, undefined, undefined, today, undefined, settings()).map((t) => t.id)
+    const shown = applyFilter(lens as FilterCriteria, todos, lookupsFor(), today, settings()).map((t) => t.id)
     expect(shown).toEqual([2, 3, 4, 5, 6])
   })
 })

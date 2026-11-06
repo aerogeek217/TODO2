@@ -39,6 +39,8 @@ function env(over: Partial<TaskDialogEnv> = {}): TaskDialogEnv {
     assignedTagsMap: ASSIGNED_TAGS,
     people: PEOPLE,
     statuses: STATUSES,
+    statusUpdatesByTodo: new Map(),
+    subtasksByTodo: new Map(),
     listDefinitions: SAMPLE_LISTS,
     screen: { ...emptyFilterCriteria },
     listRanks: new Map(),
