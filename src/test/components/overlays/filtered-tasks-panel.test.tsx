@@ -58,7 +58,7 @@ describe('FilteredTasksPanel', () => {
   const rowTitles = () => Array.from(panel()!.querySelectorAll<HTMLElement>('[data-todo-id]'))
     .map((r) => SAMPLE_TASKS.find((t) => t.id === Number(r.dataset.todoId))?.title)
   const tray = () => document.querySelector<HTMLElement>('header [data-filter-row]')!
-  const showButton = () => within(tray()).getByRole('button', { name: /tasks shown\. Show them$/ })
+  const showButton = () => within(tray()).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
 
   function renderBar() {
     return render(
@@ -146,7 +146,7 @@ describe('FilteredTasksPanel', () => {
     expect(showButton()).toHaveTextContent(`${SAMPLE_OPEN_COUNT}of ${SAMPLE_OPEN_COUNT}`)
     fireEvent.click(showButton())
     expect(panel()).toBeNull()
-    expect(within(tray()).queryByRole('button', { name: /tasks shown\. Show them$/ })).toBeNull()
+    expect(within(tray()).queryByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })).toBeNull()
   })
 
   it('Esc closes it from the panel and gives the focus back to Show N tasks — not while the editor is open', () => {

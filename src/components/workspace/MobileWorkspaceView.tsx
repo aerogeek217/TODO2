@@ -31,6 +31,8 @@ import { usePickedLens } from '../../stores/screen-filter'
 import { useScreenTaskCounts } from '../../hooks/use-screen-task-count'
 import { screenTaskDialog } from '../../services/task-dialog'
 import { shownOfTotalText } from '../shared/filters/lens-text'
+import { BadgeCapsule } from '../shared/BadgeCapsule'
+import { tabBadgeSummary } from '../../utils/tab-badges'
 import styles from './MobileWorkspaceView.module.css'
 import { withViewTransition } from '../shared/view-transition'
 
@@ -199,16 +201,18 @@ function ShownOfTotalPill() {
 }
 
 function ShownOfTotalCount({ chipsOn }: { chipsOn: boolean }) {
-  const { shown, total, withCompleted } = useScreenTaskCounts()
+  const { shown, total, withCompleted, badges } = useScreenTaskCounts()
+  const badgeLines = tabBadgeSummary(badges, useSettingsStore((s) => s.tabBadges))
   return (
     <button
       type="button"
       className={`${styles.shownPill} ${chipsOn ? styles.shownPillFiltered : ''}`}
-      aria-label={`${shownOfTotalText(shown, total, withCompleted)}. Show them`}
+      aria-label={`${[shownOfTotalText(shown, total, withCompleted), ...badgeLines].join(', ')}. Show them`}
       data-testid="shown-of-total"
       onClick={() => useUIStore.getState().showTaskDialog(screenTaskDialog())}
     >
       <b>{shown}</b> of {total}
+      {badgeLines.length > 0 && <BadgeCapsule counts={badges} data-counter-badge="" />}
     </button>
   )
 }

@@ -1,4 +1,5 @@
 import { useTabBadges, type TabBadge } from '../../hooks/use-tab-badges'
+import { BadgeCapsule } from '../shared/BadgeCapsule'
 import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import type { LayoutCell, LayoutTab, WidgetKind } from '../../models/workspace-layout'
@@ -85,13 +86,7 @@ function stripRoom(strip: HTMLElement): number {
 
 /** A tab's badge: both counts in one capsule, each solid while any of it is overdue. */
 function TabBadgeCapsule({ badge }: { badge: TabBadge }) {
-  const { due, dueOverdue, followup, followupOverdue } = badge.counts
-  return (
-    <span className={styles.badge} role="img" aria-label={badge.summary.join(', ')} data-tab-badge="">
-      {due > 0 && <span className={`${styles.badgeDue} ${dueOverdue > 0 ? styles.badgeDueOverdue : ''}`}>{due}</span>}
-      {followup > 0 && <span className={`${styles.badgeFollowup} ${followupOverdue > 0 ? styles.badgeFollowupOverdue : ''}`}>{followup}</span>}
-    </span>
-  )
+  return <BadgeCapsule counts={badge.counts} label={badge.summary.join(', ')} data-tab-badge="" />
 }
 
 interface TabProps {

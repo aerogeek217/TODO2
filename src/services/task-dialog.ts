@@ -12,6 +12,8 @@ import type { ListRanks } from '../utils/list-order'
 import type { MarkerSettings } from '../utils/markers'
 import { bySortOrder } from '../utils/sort-order'
 import { startOfToday } from '../utils/date'
+import { countTabBadges, inTabBadgeRange, type TabBadgeCounts } from '../utils/tab-badges'
+import type { TabBadgeRanges } from '../models/list-definition'
 import { buildList, type ListBuildContext, type ListContents } from './build-list'
 import type { CopyTaskSection } from './task-copy'
 import type { TaskDialogPayload, TaskDialogSource } from '../stores/task-dialog-payload'
@@ -218,7 +220,15 @@ export interface ScreenTaskCounts {
    * rather than `open tasks`.
    */
   withCompleted: boolean
+  /**
+   * The counter's badge: of the open tasks it shows, how many are due and
+   * how many due for a follow-up inside `badgeRanges` (a list tab's badge
+   * over the screen filter's tasks); all zero without ranges.
+   */
+  badges: TabBadgeCounts
 }
+
+const NO_BADGE_COUNTS: TabBadgeCounts = { due: 0, dueOverdue: 0, followup: 0, followupOverdue: 0 }
 
 /**
  * Whether the screen filter admits completed task `t` — counts it in the
@@ -244,8 +254,11 @@ function admitsCompletedTask(
   return (t) => stages.some((s) => matchesFilterWithLookups(s, t, lookups, today, settings))
 }
 
-/** The screen filter's counts (`ScreenTaskCounts`). */
-export function screenTaskCounts(env: ScreenCountEnv): ScreenTaskCounts {
+/**
+ * The screen filter's counts (`ScreenTaskCounts`); with `badgeRanges` (the
+ * app's tab badge ranges, Settings › Tasks) its badge counts too.
+ */
+export function screenTaskCounts(env: ScreenCountEnv, badgeRanges?: TabBadgeRanges): ScreenTaskCounts {
   const { screen } = env
   const settings = filterSettingsOf(env)
   const lookups = lookupsOf(env)
@@ -255,13 +268,17 @@ export function screenTaskCounts(env: ScreenCountEnv): ScreenTaskCounts {
   const lens = screen.lens ? createScreenComposedEvaluator({ ...everything, lens: screen.lens }, lookups, env.today, settings) : null
   const admitted = withCompleted ? admitsCompletedTask(screen, lookups, env.today, settings) : null
   const counts = { shown: 0, total: 0, lensKeeps: 0, withCompleted }
+  const badged: PersistedTodoItem[] = []
   for (const t of env.todos) {
     if (t.isCompleted && !admitted?.(t)) continue
     counts.total++
     if (!lens || lens(OPEN_TASKS, t)) counts.lensKeeps++
-    if (shown(OPEN_TASKS, t)) counts.shown++
+    if (shown(OPEN_TASKS, t)) {
+      counts.shown++
+      if (badgeRanges && inTabBadgeRange(t, badgeRanges, env.today)) badged.push(t)
+    }
   }
-  return counts
+  return { ...counts, badges: badgeRanges ? countTabBadges(badged, badgeRanges, env.today) : NO_BADGE_COUNTS }
 }
 
 /** How many tasks the dialog shows (a task under two headings counts once). */
