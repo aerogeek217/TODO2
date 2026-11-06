@@ -1,10 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsTab } from './fixtures/workspace'
+import { openSettings, seedWorkspace, wsTab } from './fixtures/workspace'
 
 /**
  * A tab's width (cr31 UI M4, the user's call: "Tabs can grow to fit
- * contents. But I don't like them to change size on mouseover."): no tab
- * changes width on hover — its close × has its place whether it shows or not.
+ * contents. But I don't like them to change size on mouseover."): a list tab
+ * with a badge grows to show its title as a tab without one would, plus the
+ * capsule; and no tab changes width on hover — its close × has its place
+ * whether it shows or not.
  */
 
 const SEED = {
@@ -41,6 +43,11 @@ const widthOf = (tab: Locator) => tab.evaluate(async (el) => {
   return el.getBoundingClientRect().width
 })
 
+const titleCut = (tab: Locator) => tab.locator('[data-tab-title]').evaluate(async (el) => {
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+  return el.scrollWidth > el.clientWidth
+})
+
 /** Moves the pointer off every tab. */
 const pointerAway = (page: Page) => page.mouse.move(5, 790)
 
@@ -59,5 +66,22 @@ test.describe('tab width', () => {
       const during = await widthOf(tab)
       expect(during, `${id}: width during hover`).toBe(before)
     }
+  })
+
+  test('a badged tab shows its whole short title, as it would without the badge', async ({ page }) => {
+    await seedWorkspace(page, SEED)
+    const ann = wsTab(page, 'ann')
+    await expect(badge(ann).locator('span')).toHaveText(['2', '1'])
+    expect(await titleCut(ann), 'with the badge').toBe(false)
+    const [tab, capsule] = await Promise.all([ann.boundingBox(), badge(ann).boundingBox()])
+    if (!tab || !capsule) throw new Error('no boxes')
+    expect(capsule.x + capsule.width).toBeLessThanOrEqual(tab.x + tab.width)
+
+    // Without its badge the same title shows whole too: the badge only adds.
+    const settings = await openSettings(page, 'Tasks')
+    await settings.getByRole('combobox', { name: 'Tab badges: due' }).selectOption('off')
+    await settings.getByRole('combobox', { name: 'Tab badges: follow-up' }).selectOption('off')
+    await expect(badge(ann)).toHaveCount(0)
+    expect(await titleCut(ann), 'without the badge').toBe(false)
   })
 })

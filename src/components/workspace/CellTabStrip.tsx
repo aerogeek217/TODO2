@@ -13,7 +13,11 @@ import { WORKSPACE_TAB_DRAG, workspaceTabDragId, type DraggedTab, type Workspace
 import { fitTabs, shownTabs, type TabFit, type TabSize } from '../../utils/tab-strip-fit'
 import styles from './CellTabStrip.module.css'
 
-/** A tab's widest (the `.tab` rule's `max-width`). */
+/**
+ * A tab's widest (the `.tab` rule's `max-width`), its close ×'s place
+ * included; a badged tab may be wider by its capsule (and the gap before it),
+ * so its title gets the room it would have without one.
+ */
 const TAB_MAX_PX = 160
 /** A shrunk tab keeps this much of its title before it is folded into `+N` (the active tab keeps all of it). */
 const MIN_TITLE_PX = 48
@@ -42,14 +46,17 @@ function measureTab(id: string, el: HTMLElement, active: boolean): TabSize {
   const parts = Array.from(el.children).filter((c): c is HTMLElement => c instanceof HTMLElement && getComputedStyle(c).display !== 'none')
   let chrome = px(cs.paddingLeft) + px(cs.paddingRight) + px(cs.borderLeftWidth) + px(cs.borderRightWidth)
     + px(cs.columnGap) * Math.max(0, parts.length - 1)
+  let badgeRoom = 0
   for (const part of parts) {
     if (part === title) continue
     const m = getComputedStyle(part)
-    chrome += part.getBoundingClientRect().width + px(m.marginLeft) + px(m.marginRight)
+    const width = part.getBoundingClientRect().width + px(m.marginLeft) + px(m.marginRight)
+    chrome += width
+    if (part.hasAttribute('data-tab-badge')) badgeRoom = width + px(cs.columnGap)
   }
   // A title that isn't cut short: its exact width (the scroll width is rounded).
   const fullTitle = title.scrollWidth > title.clientWidth ? title.scrollWidth + 1 : title.getBoundingClientRect().width
-  const natural = Math.min(TAB_MAX_PX, Math.ceil(chrome + fullTitle))
+  const natural = Math.min(Math.ceil(TAB_MAX_PX + badgeRoom), Math.ceil(chrome + fullTitle))
   const cut = Math.min(natural, Math.ceil(chrome + MIN_TITLE_PX))
   return active ? { id, natural, min: natural, least: cut } : { id, natural, min: cut }
 }
@@ -333,7 +340,9 @@ export function CellTabStrip({
             key={tab.id}
             tab={tab}
             offstage={i >= Math.max(fitCount, 0)}
-            size={fit.shrink && i < fitCount ? shareOf(sizeOf.get(tab.id), fit.squeeze === true) : undefined}
+            size={fit.shrink && i < fitCount
+              ? shareOf(sizeOf.get(tab.id), fit.squeeze === true)
+              : badges.has(tab.id) ? badgedCap(sizeOf.get(tab.id)) : undefined}
             active={tab.id === active?.id}
             collapsed={collapsed}
             touch={touch}
@@ -407,6 +416,15 @@ function shareOf(size: TabSize | undefined, squeeze: boolean): CSSProperties | u
   if (!size) return undefined
   // 1 px over the measured full width, so rounding never cuts a title that fits.
   return { flex: '1 1 0px', minWidth: squeeze ? size.least ?? size.min : size.min, maxWidth: size.natural + 1 }
+}
+
+/**
+ * A badged tab at full width: wider than the `.tab` rule's cap by its
+ * capsule (`measureTab`), so its title shows as a tab without one would.
+ */
+function badgedCap(size: TabSize | undefined): CSSProperties | undefined {
+  // 1 px over, as in `shareOf`.
+  return size ? { maxWidth: size.natural + 1 } : undefined
 }
 
 function OverflowMenu({ anchorRef, tabs, badges, onPick, onClose }: {
