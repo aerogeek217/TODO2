@@ -17,7 +17,7 @@ Layers, lowest first — a module imports only from its own layer or lower, and 
 ```
 main.tsx                  → mounts App
 ├── App.tsx               → hash data router (`/` workspace, `/settings` the phone Settings page — a deep link to the Settings modal on desktop; old page routes redirect to `/`); the shell: top bar, launch (`services/app-startup`), the Settings modal, the command palette (`AppCommandPalette`), keyboard shortcuts, global dialogs
-├── styles/tokens.css     → design tokens (dark / light via `[data-theme]` — the only place a rule forks per theme) + global base rules, incl. the one focus ring (a layered `:focus-visible` box-shadow), the scroll-edge fades, the view transitions and the one reduced-motion rule
+├── styles/tokens.css     → design tokens (dark / light via `[data-theme]` — the only place a rule forks per theme) + global base rules, incl. the one focus ring (a layered `:focus-visible` box-shadow), the scroll-edge fades, the view transitions and the one reduced-motion rule (every animation and transition at 1 ms; only the recent-task pill keeps its length, deliberately, in its own stylesheet)
 ├── views/                → WorkspacePage (`/`: opens the workspace store, loads the tasks and entities, owns the workspace DndContext, guards unsaved changes) · SettingsPage (phone)
 ├── components/
 │   ├── layout/           → TopBar (New task, layout tabs, the lens control (its own part, lit in the accent while a lens is on), the screen-filter tray — search, the filter chips, the `61 of 109` counter (the filtered-tasks panel's toggle) —, StoragePill, gear; the measured fold), StoragePill + sync-status (every sync / backup warning), the phone's SyncStatusButton and BottomTabBar
