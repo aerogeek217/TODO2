@@ -380,7 +380,16 @@ button.listTile:focus-visible {
   color: var(--color-text-muted);
 }
 
-/* Group headers (Needs follow-up): an 8px dot, `Name · n`. */
+/*
+ * Group headers (Needs follow-up), as a list's (D25 A1): open space above
+ * every one but the first, an 8px dot, the name in bold primary text, the
+ * count, and a rule to the end of the line. The rows under them draw no
+ * hairlines (`data-row-group`).
+ */
+.group + .group {
+  margin-top: var(--list-group-gap);
+}
+
 .groupHeader {
   display: flex;
   align-items: center;
@@ -389,8 +398,6 @@ button.listTile:focus-visible {
   height: 26px;
   padding: 0 6px;
   font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
 }
 
 .groupDot {
@@ -400,8 +407,30 @@ button.listTile:focus-visible {
   border-radius: var(--radius-pill);
 }
 
+.groupName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-group-name);
+  font-weight: var(--font-weight-bold);
+}
+
 .groupCount {
+  flex: none;
   color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The rule filling the rest of the header line. */
+.groupRule {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 1px;
+  margin-left: var(--space-1);
+  background: var(--color-border);
 }
 
 /* ── Next 7 days ────────────────────────────────────────────────────────── */

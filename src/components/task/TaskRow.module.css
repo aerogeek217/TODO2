@@ -30,6 +30,11 @@
   pointer-events: none;
 }
 
+/* A grouped list (`data-row-group` on each group) has no row hairlines: its groups' space and header rules separate it (D25 A1). */
+[data-row-group] .row::after {
+  content: none;
+}
+
 /*
  * Suppress the separator at the hover/highlight boundary so the hover fill
  * and the synced-hover outline paint uninterrupted. Clear on the hovered

@@ -174,11 +174,12 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
           {groups.map((g) => (g.label == null
             ? <div key={g.key}>{rowsOf(g)}</div>
             : (
-              <div key={g.key} role="group" aria-label={g.label} data-task-dialog-group={g.key}>
+              <div key={g.key} className={styles.group} role="group" aria-label={g.label} data-task-dialog-group={g.key} data-row-group="">
                 <div className={styles.groupHeader}>
                   <i className={styles.groupDot} style={{ background: g.color ?? 'var(--color-text-muted)' }} />
-                  <span>{g.label}</span>
-                  <span className={styles.groupCount}>· {g.todoIds.length}</span>
+                  <span className={styles.groupName}>{g.label}</span>
+                  <span className={styles.groupCount}>{g.todoIds.length}</span>
+                  <span className={styles.groupRule} aria-hidden="true" />
                 </div>
                 {rowsOf(g)}
               </div>

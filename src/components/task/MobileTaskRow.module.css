@@ -24,6 +24,11 @@
   pointer-events: none;
 }
 
+/* A grouped list (`data-row-group` on each group) has no row hairlines (D25 A1). */
+[data-row-group] .row::after {
+  content: none;
+}
+
 .row:active {
   background: var(--color-surface-high);
 }

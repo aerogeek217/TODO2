@@ -233,11 +233,12 @@ export function FollowupSection({ data, options, rows, onDrill, style }: Dashboa
         ) : (
           <RowsGrid kit={rows}>
             {rowGroups.map((g) => (
-              <div key={g.key} role="group" aria-label={g.name}>
+              <div key={g.key} className={styles.group} role="group" aria-label={g.name} data-row-group="">
                 <div className={styles.groupHeader}>
                   <i className={styles.groupDot} style={{ background: g.dot }} />
-                  <span>{g.name}</span>
-                  <span className={styles.groupCount}>· {g.ids.length}</span>
+                  <span className={styles.groupName}>{g.name}</span>
+                  <span className={styles.groupCount}>{g.ids.length}</span>
+                  <span className={styles.groupRule} aria-hidden="true" />
                 </div>
                 <TaskRows sectionKey={g.key} ids={g.ids} data={data} kit={rows} kept={data.rows.kept} />
               </div>

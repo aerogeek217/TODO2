@@ -443,6 +443,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             <span className={styles.swatch} style={{ background: section.accentColor ?? 'var(--color-text-muted)' }} aria-hidden="true" />
             <span className={styles.groupName} data-testid="list-group-name">{section.label}</span>
             <span className={styles.groupCount}>{section.todos.length}</span>
+            <span className={styles.groupRule} aria-hidden="true" />
             {crossTarget && sourceLabel != null && (
               <span className={styles.groupDropPreview} data-testid="cross-group-preview">{sourceLabel} → {section.label}</span>
             )}
@@ -453,6 +454,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             key={section.key}
             className={`${styles.group} ${isCollapsed ? styles.groupCollapsed : ''} ${crossTarget ? styles.groupDropTarget : ''}`}
             data-list-group={section.key}
+            // A grouped body's rows draw no hairline (D25 A1; TaskRow / MobileTaskRow styles).
+            data-row-group=""
             style={isMobile ? undefined : { viewTransitionName: transitionName('ws-group', tab.id, section.key) }}
             {...{ [LIST_SECTION_ATTR]: section.key }}
           >

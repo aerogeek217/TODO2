@@ -58,6 +58,8 @@
   --list-filter-row-height: 36px;
   --list-prompt-row-height: 40px;
   --list-group-header-height: 28px;
+  /* The open space above every task-list group header but the first (D25 A1). */
+  --list-group-gap: 18px;
 
   /* Calendar widget (compact month below 480px of widget width, week rows
      below 560px, icon-only date-type toggles below 620px — measured in JS) */
@@ -107,6 +109,8 @@
   /* Dashboard tile counts — the one size outside the 24 / 14 / 12 scale
      (700, -0.02em, line-height 40px, tabular figures). */
   --font-size-display: 36px;
+  /* A task-list group header's name (D25 A1: 13px bold over the 12px count). */
+  --font-size-group-name: 13px;
   --font-weight-regular: 400;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;

@@ -30,7 +30,16 @@
 }
 
 .group {
-  padding-top: 4px;
+  padding-top: var(--space-1);
+}
+
+/*
+ * Open space above every group header but the first (D25 A1): outside the
+ * group's box, so a cross-group drop's outline and the sticky header's
+ * containing block stay the group itself. The phone keeps its tight groups.
+ */
+.widget:not(.touch) .group + .group {
+  margin-top: calc(var(--list-group-gap) - var(--space-1));
 }
 
 .groupHeader {
@@ -48,6 +57,15 @@
   font-weight: var(--font-weight-semibold);
   text-align: left;
   cursor: pointer;
+}
+
+/* The rule filling the rest of the header line (D25 A1), up to the envelope's room in a People group. */
+.groupRule {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 1px;
+  margin-left: var(--space-1);
+  background: var(--color-border);
 }
 
 .groupHeader:hover,
@@ -116,11 +134,11 @@
   transform: rotate(-90deg);
 }
 
-/* The group's colour lives in the 6px swatch alone (the colour budget); the name is plain secondary text. */
+/* The group's colour lives in the 8px swatch alone (the colour budget); the name is bold primary text (D25 A1). */
 .swatch {
   flex-shrink: 0;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
 }
 
@@ -129,7 +147,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-group-name);
+  font-weight: var(--font-weight-bold);
 }
 
 .groupCount {

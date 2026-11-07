@@ -128,7 +128,8 @@ describe('TaskDialog', () => {
     })
     const groups = within(dialog()!).getAllByRole('group').filter((g) => g.dataset.taskDialogGroup)
     expect(groups.map((g) => g.getAttribute('aria-label'))).toEqual(['Due', 'Follow-up'])
-    expect(groups[0]!.textContent).toContain('· 3')
+    // Each heading: the name, then the count (D25 A1: no `·` between them).
+    expect(groups.map((g) => g.firstElementChild?.textContent)).toEqual(['Due3', 'Follow-up1'])
     expect(within(dialog()!).getByTestId('task-dialog-count').textContent).toBe('4')
   })
 
