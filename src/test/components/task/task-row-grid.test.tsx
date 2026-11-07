@@ -29,7 +29,7 @@ describe('TaskRowGrid zoom', () => {
   it('draws the divider at rows only', () => {
     const { queryByRole, rerender } = render(<TaskRowGrid onDetailsWidthChange={() => {}} zoom="rows"><div /></TaskRowGrid>)
     expect(queryByRole('separator')).not.toBeNull()
-    for (const zoom of ['stacked', 'lines', 'strips'] as const) {
+    for (const zoom of ['stacked', 'lines'] as const) {
       rerender(<TaskRowGrid onDetailsWidthChange={() => {}} zoom={zoom}><div /></TaskRowGrid>)
       expect(queryByRole('separator')).toBeNull()
     }

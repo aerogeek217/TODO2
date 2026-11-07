@@ -353,7 +353,7 @@
 
 /*
  * Marker gutter (D25 B): the priority menu's trigger before the checkbox —
- * empty at rest (the Focus dot when Focus sits under another ring), a small
+ * empty at rest, a small
  * flag while the row is hovered or focused or the menu is open. Its hit area
  * reaches into the row's left padding (10px from the row's edge).
  */
@@ -404,38 +404,21 @@
   box-shadow: var(--focus-ring);
 }
 
-/* The flag and the Focus dot share the column's centre. */
-.gutterFlag,
-.gutterDot {
+/* The flag, at the column's centre. */
+.gutterFlag {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
-  transition: opacity var(--transition-fast);
-}
-
-.gutterFlag {
   display: inline-flex;
+  transform: translate(-50%, -50%);
   opacity: 0;
-}
-
-.gutterDot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--color-marker-focus);
+  transition: opacity var(--transition-fast);
 }
 
 .row:hover .gutterFlag,
 .row:focus-within .gutterFlag,
 .rowDropdownOpen .gutterFlag {
   opacity: 1;
-}
-
-.row:hover .gutterDot,
-.row:focus-within .gutterDot,
-.rowDropdownOpen .gutterDot {
-  opacity: 0;
 }
 
 /*

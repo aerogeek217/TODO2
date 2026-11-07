@@ -1,7 +1,7 @@
 /*
  * A dragged task row, lifted (D25 E4): it sits on the row it was picked up
  * from (no padding or border, so the ghost row lines up with it), and on grab
- * it tilts, grows a little and takes the drag shadow, on the spring curve.
+ * it grows a little and takes the drag shadow, on the spring curve — no tilt.
  * The drop's settle back to rest is scripted (`task-drop-animation.ts`). The
  * accent ring is an inset shadow, so it takes no room.
  */
@@ -11,12 +11,12 @@
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-drag-overlay), inset 0 0 0 1px var(--color-accent);
   min-width: 240px;
-  transform: scale(1.02) rotate(-1.2deg);
+  transform: scale(1.02);
   animation: lift var(--drag-lift-duration) var(--spring-easing) backwards;
   pointer-events: none;
 }
 
-/* From the row's resting look: no tilt, no scale, no shadow. */
+/* From the row's resting look: no scale, no shadow. */
 @keyframes lift {
   from {
     transform: none;
@@ -24,8 +24,8 @@
   }
 }
 
-/* Reduced motion: lifted without the tilt or the scale (the global rule only
- * shortens the animation, which would still end tilted). */
+/* Reduced motion: lifted without the scale (the global rule only shortens
+ * the animation, which would still end scaled). */
 @media (prefers-reduced-motion: reduce) {
   .overlay {
     transform: none;

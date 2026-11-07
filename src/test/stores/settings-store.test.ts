@@ -526,8 +526,8 @@ describe('useSettingsStore', () => {
     expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Default list zoom: Stacked')
     await useSettingsStore.getState().setListZoom('cosy' as never)
     expect(useSettingsStore.getState().listZoom).toBe('stacked')
-    await useSettingsStore.getState().setListZoom('strips')
-    expect(await db.settings.get('rowDensity')).toEqual({ key: 'rowDensity', value: 'strips' })
+    await useSettingsStore.getState().setListZoom('lines')
+    expect(await db.settings.get('rowDensity')).toEqual({ key: 'rowDensity', value: 'lines' })
     await useSettingsStore.getState().setListZoom('rows')
     expect(await db.settings.get('rowDensity')).toBeUndefined()
 

@@ -918,9 +918,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       top: band('band-cal', 220, [cell('cell-month', [calendar('tab-month', 'month', 0, false)])]),
       columns: [
         column('col-horizon', [
-          // A list tab at each zoom (D25 C + I1): Stacked, Rows, Lines, and Strips below.
+          // A list tab at each zoom (D25 C + I1): Stacked, Rows and Lines.
           row('row-horizon', cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], { activeTabId: 'tab-rest' })),
-          row('row-someday', cell('cell-someday', [lens('tab-someday', L.someday, 'strips')])),
+          row('row-someday', cell('cell-someday', [lens('tab-someday', L.someday)])),
         ]),
         column('col-people', [
           row('row-followups', cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]), { weight: 2 }),

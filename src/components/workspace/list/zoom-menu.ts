@@ -6,7 +6,7 @@ import type { MenuEntry } from '../../shared/MenuPopover'
 
 /**
  * A list tab's menu item for its zoom (D25 C + I1): **Zoom − Rows +** — −
- * zooms out (towards Strips), + in (towards Stacked), each disabled at its
+ * zooms out (towards Lines), + in (towards Stacked), each disabled at its
  * end; the menu stays open. Saved at once (view state).
  */
 export function useListZoomMenuEntries(tab: LensTab | undefined): MenuEntry[] {

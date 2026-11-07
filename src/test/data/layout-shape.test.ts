@@ -412,7 +412,7 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
 
   it('a list tab’s zoom round-trips with its details width; an unknown one is dropped (the tab opens at the Settings default)', () => {
     const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.rows[0]!.cells[0]!.tabs[0]
-    for (const zoom of ['stacked', 'rows', 'lines', 'strips']) {
+    for (const zoom of ['stacked', 'rows', 'lines']) {
       const row = layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 280, zoom } }))
       expect(validateRow('layouts', row), zoom).toBe(true)
       expect(rowFixes('layouts', row)).toEqual([])
@@ -421,8 +421,13 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
       expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 280, zoom })
     }
     // A zoom alone is view state enough.
-    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } }))))
-      .toEqual({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } })
+    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'lines' } }))))
+      .toEqual({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'lines' } })
+    // Strips, a level once, opens at Lines: valid, no repair (view state).
+    const strips = layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } }))
+    expect(validateRow('layouts', strips)).toBe(true)
+    expect(rowFixes('layouts', strips)).toEqual([])
+    expect(tabOf(strips)).toEqual({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'lines' } })
     // Repaired: an unknown level dropped, the details width kept; with nothing left, no view state.
     const bad = layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 300, zoom: 'mosaic' } }))
     expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])

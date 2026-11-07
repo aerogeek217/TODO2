@@ -13,10 +13,10 @@ beforeEach(async () => {
 afterEach(cleanup)
 
 describe('AppearanceSection — default list zoom', () => {
-  it('offers Stacked | Rows | Lines | Strips under the theme, Rows checked by default; a pick is saved and Rows removes the row', async () => {
+  it('offers Stacked | Rows | Lines under the theme, Rows checked by default; a pick is saved and Rows removes the row', async () => {
     render(<AppearanceSection />)
     const group = screen.getByRole('radiogroup', { name: 'Default list zoom' })
-    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Stacked', 'Rows', 'Lines', 'Strips'])
+    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Stacked', 'Rows', 'Lines'])
     expect(within(group).getByRole('radio', { name: 'Rows' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByText(/How a list tab draws its tasks until you zoom it/)).toBeInTheDocument()
 

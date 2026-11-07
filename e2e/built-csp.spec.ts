@@ -264,7 +264,7 @@ test('the offline file requests nothing but itself through its main flows', asyn
 
   // Every Settings section.
   const settings = await openSettings(page)
-  for (const section of ['Appearance', 'Tasks', 'People, statuses & tags', 'Database', 'Keyboard shortcuts', 'About']) {
+  for (const section of ['Database', 'Appearance', 'Tasks', 'People, statuses & tags', 'Keyboard shortcuts', 'About']) {
     await settings.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: section, exact: true }).click()
     await expect(settings.getByRole('heading', { level: 2, name: section })).toBeVisible()
   }

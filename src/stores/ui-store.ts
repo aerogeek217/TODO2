@@ -462,7 +462,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   quickAddDraft: null,
   recentlyCreated: null,
   settingsOpen: false,
-  settingsSection: 'appearance',
+  settingsSection: 'database',
   settingsPart: null,
   settingsFocus: null,
   checkinDialog: null,

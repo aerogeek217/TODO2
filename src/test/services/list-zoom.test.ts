@@ -35,7 +35,7 @@ describe('a list tab’s zoom (D25 C + I1)', () => {
   it('without its own, a tab shows the Settings default', () => {
     useSettingsStore.setState({ listZoom: 'lines' })
     expect(listTabZoom({})).toBe('lines')
-    expect(listTabZoom({ viewState: { zoom: 'strips' } })).toBe('strips')
+    expect(listTabZoom({ viewState: { zoom: 'stacked' } })).toBe('stacked')
   })
 
   it('is view state: saved at once on the stored layout, never an unsaved edit', async () => {
@@ -51,8 +51,7 @@ describe('a list tab’s zoom (D25 C + I1)', () => {
     await stepListTabZoom('l1', 'out')
     expect((await storedTab(id)).viewState?.zoom).toBe('lines')
     await stepListTabZoom('l1', 'out')
-    await stepListTabZoom('l1', 'out')
-    expect((await storedTab(id)).viewState?.zoom).toBe('strips')
+    expect((await storedTab(id)).viewState?.zoom).toBe('lines')
     await stepListTabZoom('n1', 'in')
     expect(ws().isDirty).toBe(false)
   })

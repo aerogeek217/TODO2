@@ -76,6 +76,18 @@ describe('PriorityRing (D25 B)', () => {
     expect(parts.map((p) => [p.part, p.dash])).toEqual([['urgent', '2 1.5'], ['important', null]])
   })
 
+  it('Focus under another ring: a halo in the Focus colour just outside the box; Focus alone has none', () => {
+    const { svg } = ring({ focus: true, urgent: 'flag' })
+    expect(svg).toHaveAttribute('data-priority-ring', 'urgent')
+    const halo = svg!.querySelector('[data-focus-halo]')!
+    expect(halo.getAttribute('style')).toContain('var(--color-marker-focus)')
+    // Outside the 18px box: it starts left of and above it.
+    expect(Number(halo.getAttribute('x'))).toBeLessThan(0)
+    expect(Number(halo.getAttribute('width'))).toBeGreaterThan(18)
+    expect(ring({ focus: true }).svg!.querySelector('[data-focus-halo]')).toBeNull()
+    expect(ring({ urgent: 'flag' }).svg!.querySelector('[data-focus-halo]')).toBeNull()
+  })
+
   it('named only when given a label (the phone row); else hidden', () => {
     render(<PriorityRing summary={{ ...NONE, focus: true }} completed={false} size={20} label="Priority: Focus" />)
     expect(screen.getByRole('img', { name: 'Priority: Focus' })).toHaveAttribute('viewBox', '0 0 20 20')
@@ -84,14 +96,14 @@ describe('PriorityRing (D25 B)', () => {
 })
 
 describe('priorityRing', () => {
-  it('Focus under another ring adds the gutter dot; alone it is the ring', () => {
-    expect(priorityRing({ focus: true, urgent: null, important: false }, false)).toEqual({ kind: 'focus', urgentDashed: false, focusDot: false })
-    expect(priorityRing({ focus: true, urgent: 'flag', important: false }, false)).toEqual({ kind: 'urgent', urgentDashed: false, focusDot: true })
-    expect(priorityRing({ focus: true, urgent: 'date', important: true }, false)).toEqual({ kind: 'split', urgentDashed: true, focusDot: true })
-    expect(priorityRing({ focus: true, urgent: null, important: true }, false)).toEqual({ kind: 'important', urgentDashed: false, focusDot: true })
+  it('Focus under another ring adds the halo; alone it is the ring', () => {
+    expect(priorityRing({ focus: true, urgent: null, important: false }, false)).toEqual({ kind: 'focus', urgentDashed: false, focusHalo: false })
+    expect(priorityRing({ focus: true, urgent: 'flag', important: false }, false)).toEqual({ kind: 'urgent', urgentDashed: false, focusHalo: true })
+    expect(priorityRing({ focus: true, urgent: 'date', important: true }, false)).toEqual({ kind: 'split', urgentDashed: true, focusHalo: true })
+    expect(priorityRing({ focus: true, urgent: null, important: true }, false)).toEqual({ kind: 'important', urgentDashed: false, focusHalo: true })
   })
 
-  it('completed: none, no dot', () => {
-    expect(priorityRing({ focus: true, urgent: 'flag', important: true }, true)).toEqual({ kind: 'none', urgentDashed: false, focusDot: false })
+  it('completed: none, no halo', () => {
+    expect(priorityRing({ focus: true, urgent: 'flag', important: true }, true)).toEqual({ kind: 'none', urgentDashed: false, focusHalo: false })
   })
 })

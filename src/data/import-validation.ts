@@ -433,7 +433,7 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === SETTING_KEYS.rowDensity) {
     return parseListZoomSetting(v.value) !== undefined
       ? true
-      : 'value (rowDensity must be stacked, rows, lines or strips — or comfortable or compact)'
+      : 'value (rowDensity must be stacked, rows or lines — or strips, comfortable or compact)'
   }
   if (v.key === SETTING_KEYS.rowDates) {
     return isRowDates(v.value) ? true : 'value (rowDates must be relative or numeric)'

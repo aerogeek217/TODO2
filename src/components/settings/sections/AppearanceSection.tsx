@@ -53,7 +53,7 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="Default list zoom"
-        help="How a list tab draws its tasks until you zoom it (Ctrl + scroll over the list, or its tab menu): Stacked puts the details under the name, Rows one row per task, Lines the names alone, Strips a bar per task."
+        help="How a list tab draws its tasks until you zoom it (Ctrl + scroll over the list, or its tab menu): Stacked puts the details under the name, Rows one row per task, Lines the names alone."
       >
         <div className={styles.segmented} role="radiogroup" aria-label="Default list zoom">
           {LIST_ZOOMS.map((zoom) => (
@@ -70,7 +70,7 @@ export function AppearanceSection() {
           ))}
         </div>
       </SettingRow>
-      <SettingRow label="Dates" help="How task rows show due and follow-up dates. Relative says Today, the weekday for the next six days, else Nov 20; MM/DD always says 11/20.">
+      <SettingRow label="Dates" help="How task rows show due and follow-up dates. Relative says Today, the weekday for the next six days, else 11/20; MM/DD always says 11/20.">
         <div className={styles.segmented} role="radiogroup" aria-label="Dates">
           {DATES_OPTIONS.map(({ dates, label }) => (
             <button

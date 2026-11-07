@@ -85,11 +85,11 @@ async function rowOverflow(page: Page): Promise<{ rows: number; widths: number[]
 
 /**
  * A row's due and follow-up parts in `tier`: a shown date is its text alone
- * (`Today`, a weekday, `Nov 20`, `MM/DD/YY` — D25 D1), a dropped one its
+ * (`Today`, a weekday, `11/20`, `MM/DD/YY` — D25 D1), a dropped one its
  * icon (the clock, the flag) — in view either way.
  */
 async function expectDateParts(row: Locator, tier: string): Promise<void> {
-  const date = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|[A-Z][a-z]{2} \d{1,2}|\d\d\/\d\d\/\d\d)$/
+  const date = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|\d\d\/\d\d|\d\d\/\d\d\/\d\d)$/
   const due = row.locator('[data-row-cell="due"]')
   const followup = row.locator('[data-row-cell="followup"]')
   await expect(due).toBeInViewport()

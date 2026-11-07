@@ -10,6 +10,9 @@ const RADIUS = 4
 /** Urgent only by its due date: a fine dash, px (finer than `border: dashed` can draw). */
 const DASH = 2
 const GAP = 1.5
+/** Focus under another ring: the halo's stroke, and its gap from the box's edge, px. */
+const HALO_STROKE = 1.5
+const HALO_GAP = 1.5
 
 /** The fills under a lone Urgent / Important ring (about 10% / 8% of its colour). */
 const FILL: Partial<Record<MarkerKey, string>> = {
@@ -27,7 +30,8 @@ function dashedLength(length: number): number {
  * `size` px square — one 2px ring in the marker's colour (Urgent and
  * Important with a faint fill, Focus without), or Urgent + Important as a
  * split ring (top-right urgent, bottom-left important); urgent only by its
- * due date is finely dashed. Nothing for no priority or a completed task
+ * due date is finely dashed; Focus under another ring adds a halo in the
+ * Focus colour just outside the box. Nothing for no priority or a completed task
  * (the checked box as it is). Decorative unless `label` names it — the
  * desktop row's marker gutter carries the name.
  */
@@ -88,6 +92,18 @@ export function PriorityRing({ summary, completed, size, label }: {
       focusable="false"
     >
       {body}
+      {ring.focusHalo && (
+        <rect
+          x={-(HALO_GAP + HALO_STROKE / 2)}
+          y={-(HALO_GAP + HALO_STROKE / 2)}
+          width={size + 2 * HALO_GAP + HALO_STROKE}
+          height={size + 2 * HALO_GAP + HALO_STROKE}
+          rx={RADIUS + STROKE / 2 + HALO_GAP + HALO_STROKE / 2}
+          style={{ stroke: MARKER_COLOR.focus, fill: 'none' }}
+          strokeWidth={HALO_STROKE}
+          data-focus-halo=""
+        />
+      )}
     </svg>
   )
 }

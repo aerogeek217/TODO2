@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import type { LensTab, ListZoom } from '../../../models/workspace-layout'
 import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
@@ -42,7 +42,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { ReassignDialog } from '../../overlays/ReassignDialog'
 import { ChevronDownIcon, PlusIcon, SortIcon } from '../../shared/icons'
 import { useChipNames } from '../../shared/filters/filter-menu'
-import { ListWidgetRow, type ListRowDragLook } from './ListWidgetRow'
+import { DropSlot, ListWidgetRow, type ListRowDragLook } from './ListWidgetRow'
 import { ListBulkBar } from './ListBulkBar'
 import { MenuPopover } from '../../shared/MenuPopover'
 import { ListGroupHeader } from './ListGroupHeader'
@@ -62,7 +62,7 @@ import { RefusalTooltip } from '../../shared/RefusalTooltip'
 import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
-import { attrSelector, LIST_SECTION_ATTR, LIST_WIDGET_ATTR, ROW_KEY_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
+import { LIST_SECTION_ATTR, LIST_WIDGET_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 import { listTabZoom, setListTabZoom } from '../../../services/list-zoom'
 import { zoomOnCtrlWheel } from './zoom-wheel'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
@@ -260,24 +260,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   )
   const { inScope, selectedIds, cursorKey, onSelect: onRowSelect } = useWidgetSelection(tab.id, () => rows)
 
-  // A strip's click (D25 I1): the list zooms to Rows on that task — selected,
-  // scrolled into view and focused once the rows are drawn.
-  const pendingRowFocus = useRef<string | null>(null)
-  const zoomToRow = useCallback((key: string, todoId: number) => {
-    pendingRowFocus.current = key
-    onRowSelect(key, todoId, { shift: false, ctrl: false })
-    void setListTabZoom(tab.id, 'rows')
-  }, [onRowSelect, tab.id])
-  useLayoutEffect(() => {
-    const key = pendingRowFocus.current
-    if (key == null || zoom === 'strips') return
-    pendingRowFocus.current = null
-    const row = Array.from(scrollRef.current?.querySelectorAll<HTMLElement>(attrSelector(ROW_KEY_ATTR)) ?? [])
-      .find((el) => el.getAttribute(ROW_KEY_ATTR) === key)
-    row?.scrollIntoView?.({ block: 'center' })
-    row?.focus({ preventScroll: true })
-  }, [zoom])
-
   // ── Drag: reorder (manual / switch to manual) and cross-group reassign ──
   const listId = definition.id
   const manualOrder = () => orderCandidates().sort(manualOrderComparator(ranks)).map((t) => t.id)
@@ -366,19 +348,20 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     const target = dropTarget?.sectionKey === section.key ? dropTarget : null
     const out: React.ReactNode[] = []
     let j = 0
+    // Where the row would land: a blank slot, whatever the drop (D25 E4).
     const indicator = () => {
       if (!target || !drag) return
       if (target.cross) {
-        out.push(<div key="drop-line" className={styles.dropLine} data-drop-line="" />)
+        out.push(<DropSlot key="drop-slot" />)
       } else if (manual) {
-        if (target.index !== drag.source.index) out.push(<div key="drop-slot" className={styles.dropSlot} data-drop-slot="" />)
+        if (target.index !== drag.source.index) out.push(<DropSlot key="drop-slot" />)
       } else {
         out.push(
-          <div key="drop-line" className={`${styles.dropLine} ${styles.dropLineSorted}`} data-drop-line="">
+          <DropSlot key="drop-slot" sorted>
             <span className={styles.dropHint} data-testid="sorted-drop-hint">
               <SortIcon size={12} /> Sorted by {sortSummary(definition.sort, definition.sortDirection).toLowerCase()} · drop to switch to manual
             </span>
-          </div>,
+          </DropSlot>,
         )
       }
     }
@@ -413,7 +396,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           zoom={zoom}
           onSelect={onRowSelect}
           onOpenDetail={openEditPopup}
-          onZoomTo={zoomToRow}
         />,
       )
     })
@@ -523,8 +505,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   }
 
   const footerHeight = canAddTask ? 32 : 0
-  // Strips select nothing by click (a click zooms in): no bulk bar there.
-  const showBulkBar = !isMobile && inScope && selectedIds.size >= 2 && zoom !== 'strips'
+  const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
 
   return (
     <div
