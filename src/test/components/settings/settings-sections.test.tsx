@@ -22,12 +22,12 @@ describe('Settings sections', () => {
     expect(resolveSettingsTarget('task-defaults' satisfies SettingsPartId)).toEqual({ section: 'tasks', part: 'task-defaults' })
   })
 
-  it('the phone lists Appearance, People statuses & tags, Database and About; Database shows only File storage and Import / Export', () => {
-    expect(MOBILE_SETTINGS_SECTIONS.map((s) => s.label)).toEqual(['Appearance', 'People, statuses & tags', 'Database', 'About'])
+  it('the phone lists Database, Appearance, People statuses & tags and About; Database shows only Import / Export and File storage', () => {
+    expect(MOBILE_SETTINGS_SECTIONS.map((s) => s.label)).toEqual(['Database', 'Appearance', 'People, statuses & tags', 'About'])
     render(<MemoryRouter><SettingsPage /></MemoryRouter>)
     fireEvent.click(screen.getByRole('button', { name: 'Database' }))
     const headings = Array.from(document.querySelectorAll('h3')).map((h) => h.textContent)
-    expect(headings).toEqual(['File storage', 'Import / Export'])
+    expect(headings).toEqual(['Import / Export', 'File storage'])
   })
 
   it('People, statuses & tags is one part, on the phone too, where it shows only the Unused people & tags row', () => {
@@ -47,14 +47,14 @@ describe('Settings sections', () => {
     expect(screen.getByRole('button', { name: 'Back to Settings' })).toBeInTheDocument()
   })
 
-  it('a part in the route state scrolls the phone page to it (Import / Export sits below File storage)', () => {
+  it('a part in the route state scrolls the phone page to it (File storage sits below Import / Export)', () => {
     // JSDOM has no layout: place the part 300px below the page's top.
     const rect = (top: number) => ({ top, bottom: top, left: 0, right: 0, width: 0, height: 0, x: 0, y: top, toJSON: () => ({}) })
     const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
-      return rect(this.getAttribute('data-settings-part') === 'import-export' ? 340 : 40)
+      return rect(this.getAttribute('data-settings-part') === 'file-storage' ? 340 : 40)
     })
     try {
-      render(<MemoryRouter initialEntries={[{ pathname: '/settings', state: { section: 'database', part: 'import-export' } }]}><SettingsPage /></MemoryRouter>)
+      render(<MemoryRouter initialEntries={[{ pathname: '/settings', state: { section: 'database', part: 'file-storage' } }]}><SettingsPage /></MemoryRouter>)
       const page = screen.getByRole('heading', { level: 1 }).closest('[data-settings-page]')
       expect(page).not.toBeNull()
       expect((page as HTMLElement).scrollTop).toBe(292)

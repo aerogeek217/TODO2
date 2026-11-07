@@ -30,24 +30,24 @@ describe('SettingsModal', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('opens on Appearance, with the theme control', () => {
+  it('opens on Database, Import / Export first (exporting is the common errand)', () => {
     render(<SettingsModal />)
     open()
-    expect(sectionHeading()).toBe('Appearance')
-    expect(screen.getByRole('radiogroup', { name: 'Theme' })).toBeInTheDocument()
+    expect(sectionHeading()).toBe('Database')
+    expect(screen.getByRole('dialog', { name: 'Settings' }).querySelector('h3')?.textContent).toBe('Import / Export')
     const nav = screen.getByRole('navigation', { name: 'Settings sections' })
-    expect(within(nav).getByRole('button', { name: 'Appearance' })).toHaveAttribute('aria-current', 'true')
+    expect(within(nav).getByRole('button', { name: 'Database' })).toHaveAttribute('aria-current', 'true')
   })
 
-  it('lists Appearance, Tasks, People statuses & tags, Database, Keyboard shortcuts, About — a merged section’s parts under it', () => {
+  it('lists Database, Appearance, Tasks, People statuses & tags, Keyboard shortcuts, About — a merged section’s parts under it', () => {
     render(<SettingsModal />)
     open()
     const nav = screen.getByRole('navigation', { name: 'Settings sections' })
     expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'Database', 'Import / Export', 'File storage', 'Backups', 'Data integrity',
       'Appearance',
       'Tasks', 'Task defaults', 'Lenses', 'Eisenhower', 'Completed tasks',
       'People, statuses & tags',
-      'Database', 'File storage', 'Backups', 'Import / Export', 'Data integrity',
       'Keyboard shortcuts',
       'About',
     ])
@@ -55,7 +55,7 @@ describe('SettingsModal', () => {
 
   it('a part in the nav opens its section scrolled to it, and is marked while in view', () => {
     // JSDOM has no layout: the content is 600px high, the Database parts 200px apart, none scrolled.
-    const tops: Record<string, number> = { 'file-storage': 0, backups: 200, 'import-export': 400, 'data-integrity': 580 }
+    const tops: Record<string, number> = { 'import-export': 0, 'file-storage': 200, backups: 400, 'data-integrity': 580 }
     const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
       const part = this.getAttribute('data-settings-part')
       const top = part ? (tops[part] ?? 0) : 0
@@ -64,13 +64,13 @@ describe('SettingsModal', () => {
     })
     try {
       render(<SettingsModal />)
-      open()
+      open('appearance')
       const nav = screen.getByRole('navigation', { name: 'Settings sections' })
       const navPart = (id: string) => nav.querySelector<HTMLElement>(`[data-settings-nav-part="${id}"]`) as HTMLElement
       expect(nav.querySelectorAll('[aria-current="location"]')).toHaveLength(0)
       fireEvent.click(within(nav).getByRole('button', { name: 'Database' }))
       // The section opens at its top: its first part is the one in view.
-      expect(navPart('file-storage')).toHaveAttribute('aria-current', 'location')
+      expect(navPart('import-export')).toHaveAttribute('aria-current', 'location')
       fireEvent.click(navPart('backups'))
       expect(sectionHeading()).toBe('Database')
       expect(within(nav).getByRole('button', { name: 'Database' })).toHaveAttribute('aria-current', 'true')
@@ -87,7 +87,7 @@ describe('SettingsModal', () => {
 
   it('a description sits behind an ⓘ: hidden from view, read as the button’s description, shown on click', () => {
     render(<SettingsModal />)
-    open()
+    open('appearance')
     const info = screen.getByRole('button', { name: 'About Theme' })
     expect(info).toHaveAccessibleDescription('System follows your OS setting.')
     expect(screen.queryByRole('tooltip')).toBeNull()
@@ -111,14 +111,14 @@ describe('SettingsModal', () => {
     expect(sectionHeading()).toBe('Database')
   })
 
-  it('Tasks holds Task defaults, Lenses, Eisenhower, then Completed tasks; Database File storage, Backups, Import / Export, Data integrity — each headed', () => {
+  it('Tasks holds Task defaults, Lenses, Eisenhower, then Completed tasks; Database Import / Export, File storage, Backups, Data integrity — each headed', () => {
     render(<SettingsModal />)
     open('tasks')
     const parts = () => Array.from(screen.getByRole('dialog', { name: 'Settings' }).querySelectorAll('h3')).map((h) => h.textContent)
     expect(parts()).toEqual(['Task defaults', 'Lenses', 'Eisenhower', 'Completed tasks'])
     expect(screen.getByRole('region', { name: 'Completed tasks' })).toHaveAttribute('data-settings-part', 'completed')
     fireEvent.click(screen.getByRole('button', { name: 'Database' }))
-    expect(parts()).toEqual(['File storage', 'Backups', 'Import / Export', 'Data integrity'])
+    expect(parts()).toEqual(['Import / Export', 'File storage', 'Backups', 'Data integrity'])
   })
 
   it('a deep link to a part opens its section (the old section ids still work)', () => {
@@ -181,7 +181,7 @@ describe('SettingsModal', () => {
 
   it('the theme control sets the theme mode', async () => {
     render(<SettingsModal />)
-    open()
+    open('appearance')
     fireEvent.click(screen.getByRole('radio', { name: 'Light' }))
     await waitFor(() => expect(useSettingsStore.getState().themeMode).toBe('light'))
     expect(screen.getByRole('radio', { name: 'Light' })).toHaveAttribute('aria-checked', 'true')

@@ -59,8 +59,23 @@ const BACKUPS_HELP = 'Taken automatically every day, before destructive operatio
 
 const APPEARANCE = single('appearance', 'Appearance', AppearanceIcon, AppearanceSection, true)
 
-/** The Settings sections, in list order. The modal and the mobile page both render from this. */
+/**
+ * The Settings sections, in list order. The modal and the mobile page both
+ * render from this. Database leads (Settings opens on it), Import / Export
+ * first in it: exporting is the most common errand here.
+ */
 export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
+  {
+    id: 'database',
+    label: 'Database',
+    Icon: DatabaseIcon,
+    parts: [
+      { id: 'import-export', label: 'Import / Export', Body: ImportExportSection, mobile: true },
+      { id: 'file-storage', label: 'File storage', Body: FileStorageSection, mobile: true },
+      { id: 'backups', label: 'Backups', Body: BackupsSection, mobile: false, help: BACKUPS_HELP },
+      { id: 'data-integrity', label: 'Data integrity', Body: DataIntegritySection, mobile: false },
+    ],
+  },
   APPEARANCE,
   {
     id: 'tasks',
@@ -75,17 +90,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
   },
   // The phone shows only its Unused people & tags row (`EntitiesSection`).
   single('entities', 'People, statuses & tags', EntitiesIcon, EntitiesSection, true),
-  {
-    id: 'database',
-    label: 'Database',
-    Icon: DatabaseIcon,
-    parts: [
-      { id: 'file-storage', label: 'File storage', Body: FileStorageSection, mobile: true },
-      { id: 'backups', label: 'Backups', Body: BackupsSection, mobile: false, help: BACKUPS_HELP },
-      { id: 'import-export', label: 'Import / Export', Body: ImportExportSection, mobile: true },
-      { id: 'data-integrity', label: 'Data integrity', Body: DataIntegritySection, mobile: false },
-    ],
-  },
   single('shortcuts', 'Keyboard shortcuts', KeyboardIcon, ShortcutsSection, false),
   single('about', 'About', AboutIcon, AboutSection, true),
 ]

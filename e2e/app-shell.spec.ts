@@ -32,12 +32,14 @@ test('the gear opens Settings over the workspace; Esc closes it', async ({ page 
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   const settings = page.getByRole('dialog', { name: 'Settings' })
   await expect(settings).toBeVisible()
-  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Appearance')
-  await expect(settings.getByRole('radiogroup', { name: 'Theme' })).toBeVisible()
+  // It opens on Database, Import / Export first (exporting is the common errand).
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
+  await expect(settings.getByRole('heading', { level: 3 }).first()).toHaveText('Import / Export')
   await expect(page).toHaveURL(/#\/$/)
 
-  await settings.getByRole('button', { name: 'Database', exact: true }).click()
-  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
+  await settings.getByRole('button', { name: 'Appearance', exact: true }).click()
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Appearance')
+  await expect(settings.getByRole('radiogroup', { name: 'Theme' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
   await expect(page.locator('[data-ws-area]')).toBeVisible()
@@ -45,7 +47,7 @@ test('the gear opens Settings over the workspace; Esc closes it', async ({ page 
   // Reopens on the last section viewed; G then S opens it too.
   await page.keyboard.press('g')
   await page.keyboard.press('s')
-  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Appearance')
   await settings.getByRole('button', { name: 'Close settings' }).click()
   await expect(settings).toBeHidden()
 })
@@ -154,7 +156,7 @@ test('the storage pill’s popover opens Settings on Database, at File storage',
   await expect(popover).toBeHidden()
   const settings = page.getByRole('dialog', { name: 'Settings' })
   await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
-  await expect(settings.getByRole('heading', { level: 3 })).toHaveText(['File storage', 'Backups', 'Import / Export', 'Data integrity'])
+  await expect(settings.getByRole('heading', { level: 3 })).toHaveText(['Import / Export', 'File storage', 'Backups', 'Data integrity'])
   await expect(settings.getByRole('heading', { level: 3, name: 'File storage' })).toBeInViewport()
   await expect(settings.getByRole('button', { name: 'Attach to File' })).toBeInViewport()
   // The old "stored locally" strip is gone.
