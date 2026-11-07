@@ -5,7 +5,7 @@ import { rowTitles } from './fixtures/seed'
 /**
  * Urgent / Important markers and app-wide Urgent: a task due within the
  * "Due date makes a task urgent" range (default 3 days, overdue included)
- * counts as urgent and shows a ring instead of the urgent mark. The Urgent
+ * counts as urgent and its checkbox's ring is dashed (D25 B). The Urgent
  * toggles show and flip the flag only — the due date is a hint beside them,
  * never a prompt. The Markers filter (top bar and a list's own filter)
  * keeps tasks with every ticked marker.
@@ -20,7 +20,7 @@ async function openEditor(page: Page, widget: Locator, title: string): Promise<v
   await expect(page.getByRole('button', { name: 'Urgent', exact: true })).toBeVisible()
 }
 
-test('the marker gutter: Focus · Urgent · Important dots; urgent by due date is a ring', async ({ page }) => {
+test('the marker gutter names the priority the checkbox ring draws; urgent by due date is the dashed ring', async ({ page }) => {
   const widget = await seedTaskList(page, {
     tasks: [
       { title: 'Flagged', urgent: true, important: true, focus: true },
@@ -30,19 +30,21 @@ test('the marker gutter: Focus · Urgent · Important dots; urgent by due date i
     ],
   })
   const gutter = (title: string) => row(widget, title).locator('[data-row-cell="markers"]')
-  const dots = (title: string) => gutter(title).locator('[data-dot]').evaluateAll((els) => els.map((el) => [el.getAttribute('data-dot'), el.getAttribute('data-on')]))
+  const ring = (title: string) => row(widget, title).locator('[data-priority-ring]')
   await expect(gutter('Flagged')).toHaveAccessibleName('Priority: Focus, Urgent, Important')
-  expect(await dots('Flagged')).toEqual([['focus', 'true'], ['urgent', 'flag'], ['important', 'true']])
+  // Urgent + Important: the split ring; Focus under it, the gutter's dot.
+  await expect(ring('Flagged')).toHaveAttribute('data-priority-ring', 'split')
+  await expect(gutter('Flagged').locator('[data-gutter-dot="focus"]')).toBeVisible()
   await expect(gutter('Due soon')).toHaveAccessibleName('Priority: Urgent (due soon)')
   await expect(gutter('Overdue')).toHaveAccessibleName('Priority: Urgent (due soon)')
-  // The ring: no fill, an inset ring in the urgent colour.
-  const ring = await gutter('Due soon').locator('[data-dot="urgent"]').evaluate((el) => {
+  // Urgent by date: the urgent ring, finely dashed, no fill.
+  const dashed = await ring('Due soon').locator('[data-ring-part="urgent"]').evaluate((el) => {
     const cs = getComputedStyle(el)
-    return { bg: cs.backgroundColor, shadow: cs.boxShadow }
+    return { fill: cs.fill, dash: cs.strokeDasharray }
   })
-  expect(ring.bg).toBe('rgba(0, 0, 0, 0)')
-  expect(ring.shadow).toContain('inset')
+  expect(dashed).toEqual({ fill: 'none', dash: '2px, 1.5px' })
   await expect(gutter('Later')).toHaveAccessibleName('No priority')
+  await expect(ring('Later')).toHaveCount(0)
 
   // Settings › Task defaults: range Off → the clocks go; the flag stays.
   const settings = await openSettings(page, 'Task defaults')
@@ -50,6 +52,7 @@ test('the marker gutter: Focus · Urgent · Important dots; urgent by due date i
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
   await expect(gutter('Due soon')).toHaveAccessibleName('No priority')
+  await expect(ring('Due soon')).toHaveCount(0)
   await expect(gutter('Flagged')).toHaveAccessibleName('Priority: Focus, Urgent, Important')
 })
 

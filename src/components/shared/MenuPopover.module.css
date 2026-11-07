@@ -211,3 +211,56 @@
   color: var(--color-text-muted);
 }
 
+
+/* A stepper row (e.g. a list tab's Zoom): its label, then − · the value · +; the menu stays open. */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  height: 28px;
+  padding: 0 4px 0 8px;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-task);
+  flex-shrink: 0;
+}
+
+.stepper .label {
+  margin-right: 4px;
+}
+
+.stepButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+
+.stepButton:hover:not(:disabled),
+.stepButton:focus-visible {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.stepButton:focus-visible {
+  box-shadow: var(--focus-ring-inset);
+}
+
+.stepButton:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.stepValue {
+  min-width: 52px;
+  text-align: center;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}

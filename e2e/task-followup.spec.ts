@@ -212,7 +212,8 @@ test.describe('Task follow-up', () => {
     await setNextFollowup(page, 'alpha', 2026, 10, 8)
     const cell = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Thu 8, late', exact: true })
     await expect(cell).toHaveAttribute('data-followup', 'late')
-    await expect(cell).toHaveText('10/08')
+    // An overdue date keeps its month and day (D25 D1).
+    await expect(cell).toHaveText('Oct 8')
     // A shown date has no flag beside it (the flag, glowing, stays for the icon-only tier).
     await expect(cell.locator('svg')).toHaveCount(0)
     // Dark theme `--color-followup` (#f5c842).

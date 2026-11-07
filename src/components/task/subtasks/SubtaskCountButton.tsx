@@ -1,11 +1,27 @@
-import type { MouseEvent, RefObject } from 'react'
+import type { CSSProperties, MouseEvent, RefObject } from 'react'
 import { describeSubtaskCount, formatSubtaskCount, type SubtaskCount } from '../../../utils/subtasks'
 import styles from './Subtasks.module.css'
 
 /**
- * The `2/5` after a row's title (cr28, T2): muted like the rest of a quiet
- * row, the accent when every subtask is done, the open-trigger ring while
- * its popover is open. A click opens the checklist popover (the first click
+ * The count's pie (D25 D2): a 12px ring filled by the share done, in the
+ * count's colour — the accent once every subtask is done.
+ */
+function SubtaskPie({ count }: { count: SubtaskCount }) {
+  const share = count.total > 0 ? Math.round((count.done / count.total) * 100) : 0
+  return (
+    <span
+      className={styles.pie}
+      style={{ '--subtask-share': `${share}%` } as CSSProperties}
+      data-subtask-pie={share}
+      aria-hidden="true"
+    />
+  )
+}
+
+/**
+ * The `2/5` after a row's title (cr28, T2), its pie before it (D25 D2):
+ * muted like the rest of a quiet row, the accent when every subtask is done,
+ * the open-trigger ring while its popover is open. A click opens the checklist popover (the first click
  * of a run only, so a double-click opens it once); it is a row cell, so the
  * row's double-click leaves it alone.
  */
@@ -34,6 +50,7 @@ export function SubtaskCountButton({ count, open, buttonRef, onClick }: {
       }}
       onPointerDown={(e) => e.stopPropagation()}
     >
+      <SubtaskPie count={count} />
       {formatSubtaskCount(count)}
     </button>
   )
@@ -48,6 +65,7 @@ export function SubtaskCountStatic({ count }: { count: SubtaskCount }) {
       data-all-done={count.total > 0 && count.done === count.total ? '' : undefined}
       aria-label={describeSubtaskCount(count)}
     >
+      <SubtaskPie count={count} />
       {formatSubtaskCount(count)}
     </span>
   )

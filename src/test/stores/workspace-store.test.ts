@@ -8,6 +8,7 @@ import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { writeLayoutDraft } from '../../data/draft-storage'
 import { useUndoStore } from '../../stores/undo-store'
+import { useTagStore } from '../../stores/tag-store'
 import type { LayoutBody } from '../../models/workspace-layout'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
@@ -113,6 +114,23 @@ describe('structural edits and dirty state', () => {
     ws().discard()
     expect(ws().isDirty).toBe(false)
     expect(ws().working!.columns).toHaveLength(3)
+  })
+
+  it('a new Neglect map — added, or a tab changed to one — colours by the `Project: …` tags', async () => {
+    useTagStore.setState({ tags: [
+      { id: 4, name: 'Project: Alpha', color: '#111111' },
+      { id: 5, name: 'home', color: '#222222' },
+      { id: 6, name: 'Project: Beta', color: '#333333' },
+    ] })
+    await seedAndInit(twoColumns())
+    const tabId = ws().addWidget('neglect', { kind: 'cell', cellId: 'kb' })
+    const tabs = () => ws().working!.columns.flatMap((c) => c.cells.flatMap((k) => k.tabs))
+    expect(tabs().find((t) => t.id === tabId)).toEqual({ id: tabId, kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 6] }, untouchedDays: 14 } })
+    ws().changeTabKind('a1', 'neglect')
+    expect(tabs().find((t) => t.id === 'a1')?.config).toEqual({ colourBy: { kind: 'tags', tagIds: [4, 6] }, untouchedDays: 14 })
+    // A seed's own tags win.
+    const seeded = ws().addWidget('neglect', { kind: 'cell', cellId: 'kb' }, { neglectTagIds: [5] })
+    expect(tabs().find((t) => t.id === seeded)?.config).toEqual({ colourBy: { kind: 'tags', tagIds: [5] }, untouchedDays: 14 })
   })
 
   it('a stored layout’s bands open with it and survive column edits, save and save as', async () => {

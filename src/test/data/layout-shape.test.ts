@@ -38,6 +38,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].cells[0].tabs[0].id'],
   ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
   ['negative details width', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { detailsWidth: -1 } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
+  ['unknown list zoom', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'huge' } })), 'columns[0].cells[0].tabs[0].viewState.zoom'],
   ['band not an object', layoutRow([], { bottom: 'yes' }), 'bottom'],
   ['band with no tabs', layoutRow([], { top: { id: 'b', height: 160, tabs: [] } }), 'top.tabs'],
   ['band tabs not a list', layoutRow([], { top: { id: 'b', height: 160, tabs: {} } }), 'top.tabs'],
@@ -49,6 +50,11 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['unknown band tab kind', layoutRow([], { bottom: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'status', config: {} }] } }), 'bottom.tabs[0].kind'],
   ['bad band collapsed', layoutRow([], { top: { id: 'b', height: 160, collapsed: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'top.collapsed'],
   ['bad band tab settings', layoutRow([], { top: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'calendar', config: {} }] } }), 'top.tabs[0].config.dateTypes'],
+  ['Neglect map without colourBy', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { untouchedDays: 14 } })), 'columns[0].cells[0].tabs[0].config.colourBy'],
+  ['Neglect map colouring by an unknown kind', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'status' }, untouchedDays: 14 } })), 'columns[0].cells[0].tabs[0].config.colourBy'],
+  ['Neglect map tags not a list', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: 3 }, untouchedDays: 14 } })), 'columns[0].cells[0].tabs[0].config.colourBy'],
+  ['Neglect map threshold past the cap', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 60 } })), 'columns[0].cells[0].tabs[0].config.untouchedDays'],
+  ['Neglect map threshold not whole', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 2.5 } })), 'columns[0].cells[0].tabs[0].config.untouchedDays'],
 ]
 
 /** A top band (dashboard + a list) and a bottom band (a week calendar), as the layout row stores them. */
@@ -74,7 +80,10 @@ const EVERY_KIND = [
     ] },
     { id: 'k2', weight: 0.5, tabs: [] },
   ] },
-  { id: 'c2', weight: 2, cells: [{ id: 'k3', weight: 1, tabs: [{ id: 't6', kind: 'notes', config: {} }] }] },
+  { id: 'c2', weight: 2, cells: [{ id: 'k3', weight: 1, tabs: [
+    { id: 't6', kind: 'notes', config: {} },
+    { id: 't7', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 9] }, untouchedDays: 21 } },
+  ] }] },
 ]
 
 describe('layouts row validation', () => {
@@ -376,6 +385,46 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do'] } })
     // Not an object: the tab's settings reset, as for any kind.
     expect(rowFixes('layouts', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: 7 })))).toEqual(['tab or cell settings reset'])
+  })
+
+  it('a list tab’s zoom round-trips with its details width; an unknown one is dropped (the tab opens at the Settings default)', () => {
+    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.cells[0]!.tabs[0]
+    for (const zoom of ['stacked', 'rows', 'lines', 'strips']) {
+      const row = layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 280, zoom } }))
+      expect(validateRow('layouts', row), zoom).toBe(true)
+      expect(rowFixes('layouts', row)).toEqual([])
+      const res = validateImportData({ todos: [], settings: [], layouts: [row] })
+      if (!res.ok) throw new Error(res.error)
+      expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 280, zoom })
+    }
+    // A zoom alone is view state enough.
+    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } }))))
+      .toEqual({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } })
+    // Repaired: an unknown level dropped, the details width kept; with nothing left, no view state.
+    const bad = layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 300, zoom: 'mosaic' } }))
+    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(bad)).toEqual({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 300 } })
+    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 2 } }))))
+      .toEqual({ id: 't', kind: 'lens', config: {} })
+  })
+
+  it('a Neglect map’s config keeps only its keys; a bad part falls back to its default', () => {
+    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.cells[0]!.tabs[0]
+    // Valid: kept as is, a repeated tag once, stray keys and view state dropped (no fix).
+    const valid = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [3, 3, 5], extra: 1 }, untouchedDays: 7, x: 1 }, viewState: { detailsWidth: 300 } }))
+    expect(rowFixes('layouts', valid)).toEqual([])
+    expect(tabOf(valid)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [3, 5] }, untouchedDays: 7 } })
+    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'people' }, untouchedDays: 59 } }))))
+      .toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'people' }, untouchedDays: 59 } })
+    // Repaired: an unknown colourBy → none, a bad threshold → 14 days, tag ids that aren't numbers dropped.
+    const bad = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'rainbow' }, untouchedDays: 0 } }))
+    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(bad)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } })
+    const badIds = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [2, '4', null] }, untouchedDays: 30 } }))
+    expect(rowFixes('layouts', badIds)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(badIds)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [2] }, untouchedDays: 30 } })
+    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'neglect', config: 'x' }))))
+      .toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } })
   })
 
   it('a bad band is dropped, a band left without tabs too; a bad height becomes the default', () => {

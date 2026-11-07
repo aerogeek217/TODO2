@@ -131,9 +131,23 @@ describe('MobileTaskRow', () => {
   // ── Date chips ────────────────────────────────────────────────────
 
   describe('date chips', () => {
-    it('shows the due date as MM/DD', () => {
-      const year = new Date().getFullYear()
-      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11) })} />)
+    it('shows the due date in words (D25 D1): Today, the next days’ weekday, then the month and day', () => {
+      const due = (d: Date) => {
+        const { container, unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: d })} />)
+        const text = container.querySelector('[data-pill="due"]')?.textContent
+        unmount()
+        return text
+      }
+      expect(due(new Date(2026, 3, 11))).toBe('Today')
+      expect(due(new Date(2026, 3, 12))).toBe('Sun')
+      expect(due(new Date(2026, 3, 18))).toBe('Apr 18')
+      expect(due(new Date(2026, 3, 2))).toBe('Apr 2')
+      expect(due(new Date(2027, 1, 3))).toBe('02/03/27')
+    })
+
+    it('shows the due date as MM/DD under Settings’ MM/DD', () => {
+      useSettingsStore.setState({ rowDates: 'numeric' })
+      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 11) })} />)
       expect(screen.getByText(/04\/11$/)).toBeInTheDocument()
     })
 
@@ -144,9 +158,8 @@ describe('MobileTaskRow', () => {
     })
 
     it('shows recurrence indicator inside deadline chip when recurrenceRule is set', () => {
-      const year = new Date().getFullYear()
-      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11), recurrenceRule: { type: 'weekly' } })} />)
-      const chip = screen.getByText(/04\/11/)
+      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 11), recurrenceRule: { type: 'weekly' } })} />)
+      const chip = screen.getByText(/Today/)
       expect(chip.textContent).toContain('\u21bb')
     })
   })
@@ -326,12 +339,23 @@ describe('MobileTaskRow', () => {
       expect(mockSetFocus).toHaveBeenCalledWith(42, true)
     })
 
-    it('shows the markers as the three dots, named (Focus lit only for a task in focus)', () => {
+    it('shows the priority as the ring on the checkbox, named (none without one or once completed)', () => {
       const { unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} />)
-      expect(screen.getByRole('img', { name: 'No priority' }).querySelector('[data-dot="focus"]')).not.toHaveAttribute('data-on')
+      expect(document.querySelector('[data-priority-ring]')).toBeNull()
       unmount()
-      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true })} />)
-      expect(screen.getByRole('img', { name: 'Priority: Focus' }).querySelector('[data-dot="focus"]')).toHaveAttribute('data-on', 'true')
+      const second = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true })} />)
+      const ring = screen.getByRole('img', { name: 'Priority: Focus' })
+      expect(ring).toHaveAttribute('data-priority-ring', 'focus')
+      expect(ring.parentElement).toContainElement(screen.getByRole('checkbox'))
+      expect(document.querySelector('[data-gutter-dot]')).toBeNull()
+      second.unmount()
+      // Focus under another ring: the dot on the box's corner.
+      const third = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true, important: true })} />)
+      expect(screen.getByRole('img', { name: 'Priority: Focus, Important' })).toHaveAttribute('data-priority-ring', 'important')
+      expect(document.querySelector('[data-gutter-dot="focus"]')).not.toBeNull()
+      third.unmount()
+      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', urgent: true, isCompleted: true })} />)
+      expect(document.querySelector('[data-priority-ring]')).toBeNull()
     })
 
     it('shows a set follow-up as its flag only (the day in its name)', () => {

@@ -534,6 +534,8 @@ describe('validateImportData', () => {
         ['purgePromptLastAt', '2026-10-20T08:00:00.000Z'],
         ['staleAfterDays', '0'], ['staleAfterDays', '30'], ['staleAfterDays', '365'],
         ['rowDensity', 'comfortable'], ['rowDensity', 'compact'],
+        ['rowDensity', 'stacked'], ['rowDensity', 'rows'], ['rowDensity', 'lines'], ['rowDensity', 'strips'],
+        ['rowDates', 'relative'], ['rowDates', 'numeric'],
       ]) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
         expect(result.ok, `${key}=${value}`).toBe(true)
@@ -555,7 +557,10 @@ describe('validateImportData', () => {
         ['staleAfterDays', '-1', 'staleAfterDays must be a day count 0–365'],
         ['staleAfterDays', '07', 'staleAfterDays must be a day count 0–365'],
         ['staleAfterDays', '', 'staleAfterDays must be a day count 0–365'],
-        ['rowDensity', 'cosy', 'rowDensity must be comfortable or compact'],
+        ['rowDensity', 'cosy', 'rowDensity must be stacked, rows, lines or strips'],
+        ['rowDensity', 'Rows', 'rowDensity must be stacked, rows, lines or strips'],
+        ['rowDates', 'short', 'rowDates must be relative or numeric'],
+        ['rowDates', '', 'rowDates must be relative or numeric'],
       ] as const) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
         expect(result, `${key}=${value}`).toEqual({ ok: false, error: expect.stringContaining(message) })

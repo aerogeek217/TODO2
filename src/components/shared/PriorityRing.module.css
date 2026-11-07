@@ -1,0 +1,15 @@
+/*
+ * The priority ring over a checkbox (D25 B): it fills the box's wrapper
+ * (which has `position: relative`) and lets clicks through to the box. The
+ * wrapper hides the box's own muted border under it (`:has`, in the row's
+ * stylesheet), so a dashed ring's gaps show the surface.
+ */
+.ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  stroke-linecap: butt;
+}

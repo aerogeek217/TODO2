@@ -25,9 +25,9 @@ describe('WidgetKindMenu', () => {
     expect(screen.queryByRole('menuitemradio', { name: /Taskboard/ })).toBeNull()
     // The Status widget is retired (its bar lives on in the Dashboard).
     expect(screen.queryByRole('menuitemradio', { name: /status/i })).toBeNull()
-    // List · Calendar · Notes · Eisenhower · Dashboard.
+    // List · Calendar · Notes · Eisenhower · Dashboard · Neglect map.
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim()))
-      .toEqual(['List', 'Calendar', 'Notes', 'Eisenhower', 'Dashboard'])
+      .toEqual(['List', 'Calendar', 'Notes', 'Eisenhower', 'Dashboard', 'Neglect map'])
     expect(screen.queryAllByRole('menuitem')).toHaveLength(0)
   })
 
@@ -114,7 +114,7 @@ describe('WidgetKindMenu', () => {
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Calendar/ }))
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Dashboard/ }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Neglect map/ }))
     // Type-ahead: the next item starting with the key.
     fireEvent.keyDown(menu, { key: 'n' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Notes/ }))
@@ -403,5 +403,28 @@ describe('WidgetKindMenu — an Eisenhower tab', () => {
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit list…' }))
     expect(onEditList).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalled()
+  })
+})
+
+describe('WidgetKindMenu on a tab with setting entries (a Neglect map)', () => {
+  it('lists the entries first, their submenus as given, then Change widget', () => {
+    const onPick = vi.fn()
+    render(
+      <WidgetKindMenu
+        anchor={ANCHOR}
+        currentKind="neglect"
+        onChangeKind={() => {}}
+        settingEntries={[
+          { kind: 'item', label: 'Colour by', note: 'People', children: [{ kind: 'item', label: 'None', radio: true, onSelect: onPick }] },
+          { kind: 'item', label: 'Untouched after', note: '14 days', children: [] },
+        ]}
+        onClose={() => {}}
+      />,
+    )
+    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Colour by', 'Untouched after'])
+    expect(screen.getByRole('menuitemradio', { name: /Neglect map/ })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(screen.getByRole('menuitem', { name: /Colour by/ }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'None' }))
+    expect(onPick).toHaveBeenCalledTimes(1)
   })
 })

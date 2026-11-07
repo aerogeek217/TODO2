@@ -1,7 +1,7 @@
 import { memo } from 'react'
 import type { CSSProperties, MouseEvent, Ref } from 'react'
 import { type PersistedTodoItem, type Person, type Status, DEFAULT_STATUS_ICON } from '../../models'
-import { formatDateNumeric, formatDateShort } from '../../utils/date'
+import { formatDateNumeric, formatDateShort, formatRowDate } from '../../utils/date'
 import { isDeadlinePast } from '../../utils/effective-date'
 import { followupPillLabel, followupTooltip, isFollowupOverdue } from '../../utils/followup'
 import { startOfDay } from '../../utils/date'
@@ -53,8 +53,12 @@ interface TaskPillPeopleProps extends PillCommon {
 interface TaskPillDatesProps extends PillCommon {
   todo: PersistedTodoItem
   today: Date
-  /** `'short'` = `Oct 20` (default), `'numeric'` = `10/20` (the phone row). */
-  dateFormat?: 'short' | 'numeric'
+  /**
+   * `'short'` = `Oct 20` (default), `'numeric'` = `10/20`, `'relative'` =
+   * `Today` / `Sat` / `Nov 20` (`formatRowDate` — the phone row, by
+   * Settings › Appearance › Dates).
+   */
+  dateFormat?: PillDateFormat
   deadlineIntensity?: number
   onDeadlineClick?: (e: MouseEvent) => void
   /** When provided AND interactive=true, the due-date chip shows an
@@ -80,6 +84,14 @@ interface TaskPillStatusProps extends PillCommon {
   status?: Status
   anchorRef?: Ref<HTMLDivElement>
   onStatusClick?: (e: MouseEvent) => void
+}
+
+/** How a pill writes its due date (`TaskPillDates.dateFormat`). */
+type PillDateFormat = 'short' | 'numeric' | 'relative'
+
+function pillDueText(due: Date, today: Date, format: PillDateFormat): string {
+  if (format === 'relative') return formatRowDate(due, today, 'relative')
+  return format === 'numeric' ? formatDateNumeric(due) : formatDateShort(due)
 }
 
 // ─── People ───────────────────────────────────────────────────────────────────
@@ -155,7 +167,7 @@ export const TaskPillDates = memo(function TaskPillDates({
         aria-label="Edit due date"
       >
         <StatusIcon icon="clock" />
-        {dateFormat === 'numeric' ? formatDateNumeric(todo.dueDate!) : formatDateShort(todo.dueDate!)}
+        {pillDueText(todo.dueDate!, today, dateFormat)}
         {todo.recurrenceRule && (
           <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>
             &#x21bb;
@@ -182,7 +194,7 @@ export const TaskPillDates = memo(function TaskPillDates({
         title={deadlinePast ? 'Due date passed' : 'Due'}
       >
         <StatusIcon icon="clock" />
-        {dateFormat === 'numeric' ? formatDateNumeric(todo.dueDate!) : formatDateShort(todo.dueDate!)}
+        {pillDueText(todo.dueDate!, today, dateFormat)}
         {todo.recurrenceRule && (
           <span className={styles.recurrenceIndicator} title={`Repeats ${todo.recurrenceRule.type}`}>
             &#x21bb;
@@ -312,7 +324,7 @@ interface TaskPillBarProps extends PillCommon {
   today: Date
 
   /** The due date as `Oct 20` (default) or `10/20`. */
-  dateFormat?: 'short' | 'numeric'
+  dateFormat?: PillDateFormat
   /** The follow-up pill as just its flag. */
   followupFlagOnly?: boolean
   /** Hide the status indicator entirely — `MobileTaskRow` renders status

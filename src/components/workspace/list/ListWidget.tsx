@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { PersistedTodoItem } from '../../../models'
-import type { LensTab } from '../../../models/workspace-layout'
+import type { LensTab, ListZoom } from '../../../models/workspace-layout'
 import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
@@ -52,6 +52,7 @@ import { ListFilterRow } from './ListFilterRow'
 import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
+import { TaskDropLandingContext } from '../../task/dnd/task-drop-landing'
 import { hasMarkers } from '../../../utils/markers'
 import { topLevelPredicate } from '../../../utils/predicate-expression'
 import { resolvePriorityDrop, type PriorityDrop } from '../../../utils/priority-groups'
@@ -61,7 +62,9 @@ import { RefusalTooltip } from '../../shared/RefusalTooltip'
 import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
-import { LIST_SECTION_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
+import { attrSelector, LIST_SECTION_ATTR, LIST_WIDGET_ATTR, ROW_KEY_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
+import { listTabZoom, setListTabZoom } from '../../../services/list-zoom'
+import { zoomOnCtrlWheel } from './zoom-wheel'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { transitionName, withViewTransition } from '../../shared/view-transition'
 
@@ -143,6 +146,11 @@ interface PendingSwitch {
 
 function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definition: PersistedListDefinition; onResult?: (r: ListWidgetResult) => void }) {
   const isMobile = useIsMobile()
+  // The tab's zoom (D25 C + I1): its own, else the Settings default. The phone has one density.
+  const defaultZoom = useSettingsStore((s) => s.listZoom)
+  const zoom: ListZoom = isMobile ? 'rows' : listTabZoom(tab, defaultZoom)
+  const zoomRef = useLatestRef(isMobile ? null : zoom)
+  const tabIdRef = useLatestRef(tab.id)
   const picks = useListWidgetStore((s) => s.picks[tab.id])
   const setPicks = useListWidgetStore((s) => s.setPicks)
   const collapsed = useListWidgetStore((s) => s.collapsed[tab.id])
@@ -161,15 +169,17 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const filterSettings = useFilterSettings()
   const scrollRef = useRef<HTMLDivElement>(null)
   const runtimeInputRef = useRef<HTMLInputElement>(null)
-  // The drag hook reads the scroller through `scrollRef`; the edge fades track it.
+  // The drag hook reads the scroller through `scrollRef`; the edge fades track it; Ctrl + wheel over it zooms.
   const setScrollEl = useCallback((el: HTMLDivElement | null) => {
     scrollRef.current = el
     const stop = trackScrollEdges(el)
+    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current, (z) => void setListTabZoom(tabIdRef.current, z)) : undefined
     return () => {
       scrollRef.current = null
       stop?.()
+      stopWheel?.()
     }
-  }, [])
+  }, [zoomRef, tabIdRef])
   const widgetRef = useRef<HTMLDivElement>(null)
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
@@ -250,6 +260,24 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   )
   const { inScope, selectedIds, cursorKey, onSelect: onRowSelect } = useWidgetSelection(tab.id, () => rows)
 
+  // A strip's click (D25 I1): the list zooms to Rows on that task — selected,
+  // scrolled into view and focused once the rows are drawn.
+  const pendingRowFocus = useRef<string | null>(null)
+  const zoomToRow = useCallback((key: string, todoId: number) => {
+    pendingRowFocus.current = key
+    onRowSelect(key, todoId, { shift: false, ctrl: false })
+    void setListTabZoom(tab.id, 'rows')
+  }, [onRowSelect, tab.id])
+  useLayoutEffect(() => {
+    const key = pendingRowFocus.current
+    if (key == null || zoom === 'strips') return
+    pendingRowFocus.current = null
+    const row = Array.from(scrollRef.current?.querySelectorAll<HTMLElement>(attrSelector(ROW_KEY_ATTR)) ?? [])
+      .find((el) => el.getAttribute(ROW_KEY_ATTR) === key)
+    row?.scrollIntoView?.({ block: 'center' })
+    row?.focus({ preventScroll: true })
+  }, [zoom])
+
   // ── Drag: reorder (manual / switch to manual) and cross-group reassign ──
   const listId = definition.id
   const manualOrder = () => orderCandidates().sort(manualOrderComparator(ranks)).map((t) => t.id)
@@ -263,6 +291,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     // A refused drop writes nothing (its tooltip said why during the drag).
     return drop?.kind === 'write' ? { kind: 'priority', todoId: todo.id, flags: drop.flags, description: drop.description } : null
   }
+  const landDrop = useContext(TaskDropLandingContext)
   const handleDrop = (source: ListRowDragSource, target: ListRowDropTarget) => {
     const section = sections.find((s) => s.key === target.sectionKey)
     const todo = list?.todos.find((t) => t.id === source.todoId)
@@ -276,6 +305,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     if (target.cross) {
       const mutation = crossMutation(todo, source.sectionKey, target.sectionKey)
       if (!mutation) return
+      // The row moves to its new group once the write lands (or after the question).
+      landDrop('in-place')
       const rankWrites = manual ? planMove(manualOrder(), ranks, move) : []
       if (mutation.kind === 'people') {
         const label = (key: string) => sections.find((s) => s.key === key)?.label ?? key
@@ -379,8 +410,10 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           cursor={cursorKey === key}
           look={rowLook(drag, key, manual)}
           leaving={keptTodos?.has(todo.id) ? leaving.get(todo.id)?.phase : undefined}
+          zoom={zoom}
           onSelect={onRowSelect}
           onOpenDetail={openEditPopup}
+          onZoomTo={zoomToRow}
         />,
       )
     })
@@ -443,6 +476,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             <span className={styles.swatch} style={{ background: section.accentColor ?? 'var(--color-text-muted)' }} aria-hidden="true" />
             <span className={styles.groupName} data-testid="list-group-name">{section.label}</span>
             <span className={styles.groupCount}>{section.todos.length}</span>
+            <span className={styles.groupRule} aria-hidden="true" />
             {crossTarget && sourceLabel != null && (
               <span className={styles.groupDropPreview} data-testid="cross-group-preview">{sourceLabel} → {section.label}</span>
             )}
@@ -453,6 +487,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
             key={section.key}
             className={`${styles.group} ${isCollapsed ? styles.groupCollapsed : ''} ${crossTarget ? styles.groupDropTarget : ''}`}
             data-list-group={section.key}
+            // A grouped body's rows draw no hairline (D25 A1; TaskRow / MobileTaskRow styles).
+            data-row-group=""
             style={isMobile ? undefined : { viewTransitionName: transitionName('ws-group', tab.id, section.key) }}
             {...{ [LIST_SECTION_ATTR]: section.key }}
           >
@@ -477,6 +513,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     body = isMobile ? <div className={styles.body}>{groups}</div> : (
       <TaskRowGrid
         className={styles.body}
+        zoom={zoom}
         detailsWidth={tab.viewState?.detailsWidth}
         onDetailsWidthChange={(detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, 'lens', { detailsWidth })}
       >
@@ -486,15 +523,20 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   }
 
   const footerHeight = canAddTask ? 32 : 0
-  const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
+  // Strips select nothing by click (a click zooms in): no bulk bar there.
+  const showBulkBar = !isMobile && inScope && selectedIds.size >= 2 && zoom !== 'strips'
 
   return (
     <div
       ref={widgetRef}
       className={`${styles.widget} ${isMobile ? styles.touch : ''}`}
-      data-list-widget={tab.id}
+      {...{ [LIST_WIDGET_ATTR]: tab.id }}
       data-list-host={tab.id}
+      data-zoom={isMobile ? undefined : zoom}
       {...{ [SELECTION_SCOPE_ATTR]: isMobile ? undefined : tab.id }}
+      // The list the palette's Zoom List In / Out act on: the one last pressed or focused in.
+      onPointerDownCapture={() => useUIStore.getState().setActiveListTab(tab.id)}
+      onFocusCapture={() => useUIStore.getState().setActiveListTab(tab.id)}
       // Phones: the filter chips (a shared stylesheet) get their touch height.
       data-touch-chips={isMobile ? '' : undefined}
     >

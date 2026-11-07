@@ -7,6 +7,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { startOfToday } from '../../utils/date'
 import { rowCue } from '../../utils/priority-cues'
+import { markerSummary } from '../../utils/markers'
 import { isStale, staleTooltipLine } from '../../utils/stale'
 import { TagPicker } from '../shared/TagChipSelector'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
@@ -22,8 +23,9 @@ import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-up
 import { useSubtaskStore } from '../../stores/subtask-store'
 import { subtaskCount } from '../../utils/subtasks'
 import { SubtaskCountButton, SubtaskCountStatic } from './subtasks/SubtaskCountButton'
+import { StackedDetails } from './StackedDetails'
 import {
-  DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell, StatusMenu } from './row-cells'
+  DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, RowCheckbox, StatusCell, TagsCell, StatusMenu } from './row-cells'
 import styles from './TaskRow.module.css'
 import { TODO_ID_ATTR } from '../../utils/dom-contract'
 
@@ -33,6 +35,11 @@ interface TaskRowProps {
   isSelected?: boolean
   /** The drag overlay's copy of the row: no triggers or pickers, no hover sync. */
   ghost?: boolean
+  /**
+   * Stacked (a list tab's zoom, D25 C): the title on its own line (up to
+   * two), the details on a line under it — no columns.
+   */
+  stacked?: boolean
   onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
   onOpenDetail?: (todoId: number) => void
 }
@@ -55,9 +62,14 @@ const NO_PEOPLE: Person[] = []
  * space opens the editor, right-click opens the task menu at the pointer and
  * Shift+F10 / the context-menu key under the focused cell (there is no ⋯
  * button); the whole row is the drag source (its list wraps it).
+ *
+ * `stacked` (D25 C) lays it out on two lines instead: the gutter, the
+ * checkbox and the title (wrapping to two lines), then under the title
+ * `StackedDetails` — due · follow-up · checklist · people · tags; no notes
+ * or status cell (the editor and the task menu keep them).
  */
 export const TaskRow = memo(function TaskRow({
-  todo, assignedPeople, isSelected, ghost,
+  todo, assignedPeople, isSelected, ghost, stacked = false,
   onSelect, onOpenDetail,
 }: TaskRowProps) {
   // Whether the people / tags columns are there: a row re-renders when one comes or goes, not on every
@@ -80,7 +92,7 @@ export const TaskRow = memo(function TaskRow({
   const rowRef = useRef<HTMLDivElement>(null)
   const statusRef = useRef<HTMLButtonElement>(null)
   const markersRef = useRef<HTMLButtonElement>(null)
-  useTaskRowTracks(rowRef)
+  useTaskRowTracks(rowRef, !stacked)
   const tagsRef = useRef<HTMLButtonElement>(null)
   // The checklist's `2/5` after the title (cr28): the row re-renders when the task's checklist changes.
   const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
@@ -99,7 +111,8 @@ export const TaskRow = memo(function TaskRow({
     peoplePickerClassName: styles.chipDropdown,
     // With its column removed, the people picker (Assign people…) opens at the row.
     fallbackPeopleAnchorRef: rowRef,
-    useFallbackPeopleAnchor: !hasPeople,
+    // A stacked row always has its people part.
+    useFallbackPeopleAnchor: !stacked && !hasPeople,
     // Without a checklist there is no count: the popover (Add subtask…) opens at the row.
     fallbackSubtasksAnchorRef: rowRef,
     useFallbackSubtasksAnchor: count === null,
@@ -130,6 +143,8 @@ export const TaskRow = memo(function TaskRow({
   const priorityCues = useSettingsStore((s) => s.priorityCues)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const cue = rowCue(todo, priorityCues, today, urgentRange)
+  // The priority: the ring on the checkbox, named by the marker gutter (D25 B).
+  const markers = markerSummary(todo, today, urgentRange)
   const people = assignedPeople ?? NO_PEOPLE
   // Stale (untouched for the Settings threshold): the row faded until hovered; the title tooltip says when it was last edited.
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
@@ -139,7 +154,8 @@ export const TaskRow = memo(function TaskRow({
   const { triggerProps: titleTipProps, tooltip: titleTip } = useTooltip(stale ? `${todo.title}\n${staleTooltipLine(todo, today)}` : todo.title)
   const onTitlePointerEnter = (e: React.PointerEvent<HTMLElement>) => {
     const el = e.currentTarget
-    if (stale || el.scrollWidth > el.clientWidth) titleTipProps.onPointerEnter?.(e)
+    // Cut off: past its end, or (stacked) past its second line.
+    if (stale || el.scrollWidth > el.clientWidth || el.scrollHeight > el.clientHeight + 1) titleTipProps.onPointerEnter?.(e)
   }
 
   const closeStatus = useCallback(() => setShowStatusMenu(false), [])
@@ -167,7 +183,7 @@ export const TaskRow = memo(function TaskRow({
     <div
       ref={rowRef}
       style={cue.glow ? ({ '--row-glow': cue.glow } as CSSProperties) : undefined}
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${pickerOpen ? styles.rowDropdownOpen : ''}`}
+      className={`${styles.row} ${stacked ? styles.rowStacked : ''} ${todo.isCompleted ? styles.completed : ''} ${pickerOpen ? styles.rowDropdownOpen : ''}`}
       {...{ [TODO_ID_ATTR]: todo.id }}
       data-ghosted={ghost ? '' : undefined}
       data-stale={stale || undefined}
@@ -196,24 +212,16 @@ export const TaskRow = memo(function TaskRow({
       }}
     >
       {ghost
-        ? <MarkerGutterStatic todo={todo} today={today} />
-        : <MarkerGutter todo={todo} today={today} anchorRef={markersRef} open={markersOpen} onToggle={() => setMarkersOpen((v) => !v)} />}
+        ? <MarkerGutterStatic todo={todo} summary={markers} />
+        : <MarkerGutter todo={todo} summary={markers} anchorRef={markersRef} open={markersOpen} onToggle={() => setMarkersOpen((v) => !v)} />}
 
-      <span className={styles.checkWrap}>
-        <input
-          type="checkbox"
-          className={styles.checkbox}
-          checked={todo.isCompleted}
-          onChange={handleToggleComplete}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
-          data-row-cell="checkbox"
-        />
-        {/* The check, drawn over the box: it draws itself when the task is completed (D19). */}
-        <svg className={styles.checkMark} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M3.5 8.5l3 3 6-7" pathLength={1} />
-        </svg>
-      </span>
+      <RowCheckbox
+        summary={markers}
+        checked={todo.isCompleted}
+        onChange={handleToggleComplete}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+      />
 
       {isEditing ? (
         <input
@@ -229,7 +237,7 @@ export const TaskRow = memo(function TaskRow({
         />
       ) : (
         <span
-          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${count ? styles.titleWithCount : ''}`}
+          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${count && !stacked ? styles.titleWithCount : ''}`}
           data-task-title={todo.title}
           {...titleTipProps}
           onPointerEnter={onTitlePointerEnter}
@@ -245,14 +253,42 @@ export const TaskRow = memo(function TaskRow({
           }}
         >
           <span className={styles.titleText} data-title-text="">{todo.title}</span>
-          {count && (ghost
+          {count && !stacked && (ghost
             ? <SubtaskCountStatic count={count} />
             : <SubtaskCountButton count={count} open={subtasksOpen} buttonRef={subtasksRef} onClick={toggleSubtasks} />)}
           {titleTip}
         </span>
       )}
 
-      {ghost ? (
+      {stacked ? (
+        <StackedDetails
+          todo={todo}
+          today={today}
+          people={people}
+          tags={assignedTags}
+          count={count}
+          ghost={ghost}
+          deadlineInputRef={deadlineInputRef}
+          onOpenDue={openDeadlinePicker}
+          onDueInputChange={onDeadlineInputChange}
+          followupAnchorRef={followupAnchorRef}
+          followupOpen={followupOpen}
+          onToggleFollowup={toggleFollowup}
+          subtasksRef={subtasksRef}
+          subtasksOpen={subtasksOpen}
+          onToggleSubtasks={toggleSubtasks}
+          peopleRef={peopleRef}
+          peopleOpen={peopleOpen}
+          onTogglePeople={togglePeople}
+          onPersonContextMenu={onPersonContextMenu}
+          onPeopleContextMenu={onCellContextMenu('people', people.map((p) => ({ kind: 'person', entity: p })))}
+          tagsRef={tagsRef}
+          tagsOpen={tagPickerOpen}
+          onToggleTags={toggleTagPicker}
+          onTagContextMenu={onTagContextMenu}
+          onTagsContextMenu={onCellContextMenu('tags', assignedTags.map((t) => ({ kind: 'tag', entity: t })))}
+        />
+      ) : ghost ? (
         // The drag overlay's copy: the title and a notes mark only.
         statusNotesPreview(newestUpdate, todo.notes)
           ? <span className={`${styles.cell} ${styles.cellCenter}`} title="Has a status or notes"><NotesGlyph /></span>
@@ -302,8 +338,8 @@ export const TaskRow = memo(function TaskRow({
       {!ghost && tagPickerOpen && (
         <TagPicker
           // With its column removed, the tag picker (Add tag…) opens at the row.
-          anchorRef={hasTags ? tagsRef : rowRef}
-          anchorIsInside={hasTags}
+          anchorRef={hasTags || stacked ? tagsRef : rowRef}
+          anchorIsInside={hasTags || stacked}
           assignedTags={assignedTags}
           allTags={allTags}
           onToggle={toggleTag}

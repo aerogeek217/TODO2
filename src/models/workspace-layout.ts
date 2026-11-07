@@ -24,7 +24,7 @@ import { defaultDashboardConfig, type DashboardTabConfig } from './dashboard-con
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
  * list widget (its old name; renaming it would need a migration).
  */
-export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard'
+export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard' | 'neglect'
 
 export type CalendarView = 'week' | 'month'
 
@@ -107,6 +107,31 @@ export interface TaskRowsViewState {
 }
 
 /**
+ * How a list tab draws its tasks (D25 C + I1), most detail first:
+ * `stacked` — the title on its own line (up to two), the details on a line
+ * under it; `rows` — one row per task, its cells in columns (the default);
+ * `lines` — 15px lines, a state tick and the title only; `strips` — a 3px
+ * bar per task in the tick's colours.
+ */
+export type ListZoom = 'stacked' | 'rows' | 'lines' | 'strips'
+
+/** The zoom levels, most detail first: zooming out steps right, zooming in steps left. */
+export const LIST_ZOOMS: readonly ListZoom[] = ['stacked', 'rows', 'lines', 'strips']
+
+export function isListZoom(v: unknown): v is ListZoom {
+  return typeof v === 'string' && (LIST_ZOOMS as readonly string[]).includes(v)
+}
+
+/** A list tab's view state: the rows' details width and its zoom. */
+export interface ListTabViewState extends TaskRowsViewState {
+  /**
+   * The tab's zoom (D25 C + I1), saved at once like the details width;
+   * absent = Settings › Appearance › Default list zoom.
+   */
+  zoom?: ListZoom
+}
+
+/**
  * An Eisenhower tab has no settings of its own: its panes and its source are
  * app-wide settings (`models/eisenhower-settings`).
  */
@@ -120,6 +145,42 @@ export interface EisenhowerTabViewState extends TaskRowsViewState {
 /** Config / view state of a kind that has none. */
 export type NoTabSettings = Record<string, never>
 
+/**
+ * What colours a Neglect map's dots: the picked tags (a task with several
+ * takes the first of the picks it has, in pick order), the task's first
+ * person, or nothing (every dot neutral).
+ */
+export type NeglectColourBy =
+  | { kind: 'tags'; tagIds: number[] }
+  | { kind: 'people' }
+  | { kind: 'none' }
+
+/** A Neglect map tab's settings (layout config, saved with the layout). */
+export interface NeglectTabConfig {
+  colourBy: NeglectColourBy
+  /** A task untouched (`modifiedAt`) this many days or more counts as neglected. */
+  untouchedDays: number
+}
+
+/** Untouched after this many days, by default. */
+export const DEFAULT_NEGLECT_UNTOUCHED_DAYS = 14
+
+/** The thresholds the tab menu offers. */
+export const NEGLECT_UNTOUCHED_CHOICES: readonly number[] = [7, 14, 21, 30, 45]
+
+/** The largest threshold kept: below the map's 60-day cap, so its line stays on the plot. */
+export const NEGLECT_UNTOUCHED_MAX = 59
+
+/** A threshold the tab keeps: a whole number of days, 1 – `NEGLECT_UNTOUCHED_MAX`. */
+export function isNeglectUntouchedDays(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 1 && v <= NEGLECT_UNTOUCHED_MAX
+}
+
+/** A new Neglect map's config: colour by `tagIds` (the `Project: …` tags, which the caller picks), 14 days. */
+export function defaultNeglectConfig(tagIds: readonly number[] = []): NeglectTabConfig {
+  return { colourBy: { kind: 'tags', tagIds: [...tagIds] }, untouchedDays: DEFAULT_NEGLECT_UNTOUCHED_DAYS }
+}
+
 interface TabOf<K extends WidgetKind, C, V> {
   /** Unique within the layout. */
   id: string
@@ -128,14 +189,15 @@ interface TabOf<K extends WidgetKind, C, V> {
   viewState?: V
 }
 
-/** A list tab's view state: the rows' details width (its prompt picks are temporary, not saved). */
-export type LensTab = TabOf<'lens', LensTabConfig, TaskRowsViewState>
+/** A list tab's view state: the rows' details width and its zoom (its prompt picks are temporary, not saved). */
+export type LensTab = TabOf<'lens', LensTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
 export type DashboardTab = TabOf<'dashboard', DashboardTabConfig, TaskRowsViewState>
+export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | DashboardTab
+export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | DashboardTab | NeglectTab
 
 export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -297,6 +359,8 @@ export const DEFAULT_CALENDAR_DATE_TYPES: CalendarDateTypes = { due: true, follo
 export interface TabSeed {
   /** The list a new list tab shows. */
   listDefinitionId?: number
+  /** The tags a new Neglect map colours by (the workspace store passes the `Project: …` tags). */
+  neglectTagIds?: readonly number[]
 }
 
 /** What the app knows about one widget kind. */
@@ -332,6 +396,11 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     newTab: (id) => ({ id, kind: 'eisenhower', config: {} }),
   },
   dashboard: { label: 'Dashboard', showsList: false, newTab: (id) => ({ id, kind: 'dashboard', config: defaultDashboardConfig() }) },
+  neglect: {
+    label: 'Neglect map',
+    showsList: false,
+    newTab: (id, seed) => ({ id, kind: 'neglect', config: defaultNeglectConfig(seed.neglectTagIds) }),
+  },
 }
 
 /** Every widget kind, in menu order. */

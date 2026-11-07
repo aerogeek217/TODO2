@@ -10,6 +10,8 @@ import { useSelectAllOnFocus } from '../../../hooks/use-select-all-on-focus'
 import type { ConvertLine } from '../../../services/note-lines'
 import { draftToTodo, type TaskDraft } from '../../../services/task-draft'
 import { startOfDay } from '../../../utils/date'
+import { markerSummary } from '../../../utils/markers'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { addFollowupInterval, QUICK_FOLLOWUP_INTERVALS } from '../../../utils/followup'
 import { generateInitials, personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../../utils/person'
 import { AnchoredPicker } from '../../shared/AnchoredPicker'
@@ -21,7 +23,7 @@ import { PopoverRoot } from '../../shared/PopoverRoot'
 import { TagPicker } from '../../shared/TagChipSelector'
 import { useTooltip } from '../../shared/use-tooltip'
 import { PriorityMenu } from '../PriorityMenu'
-import { DatesCell, MarkerGutter, NotesCell, PeopleCell, StatusCell, StatusMenu, TagsCell } from '../row-cells'
+import { DatesCell, MarkerGutter, NotesCell, PeopleCell, RowCheckbox, StatusCell, StatusMenu, TagsCell } from '../row-cells'
 import { keepRowTextUnselected } from '../row-events'
 import { useTaskRowColumn, useTaskRowTracks } from '../task-row-grid-context'
 import rowStyles from '../TaskRow.module.css'
@@ -207,6 +209,9 @@ export function DraftTaskRow({ row, lookups, onChange, onCheck, onEdit, onRemove
     sortOrder: row.key,
     isCompleted: checked,
   }), [draft, today, defaultFollowup, row.key, checked])
+  // Its priority: the ring on the checkbox, named by the marker gutter (D25 B).
+  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
+  const markers = markerSummary(todo, today, urgentRange)
 
   const newPeople = useMemo<Person[]>(() => draft.newPeople.map((name, i) => ({
     id: newEntityId(i),
@@ -264,23 +269,17 @@ export function DraftTaskRow({ row, lookups, onChange, onCheck, onEdit, onRemove
           if (!isEditing) onEdit()
         }}
       >
-        <MarkerGutter todo={todo} today={today} anchorRef={markersRef} open={open === 'markers'} onToggle={() => toggle('markers')} />
+        <MarkerGutter todo={todo} summary={markers} anchorRef={markersRef} open={open === 'markers'} onToggle={() => toggle('markers')} />
 
-        <span className={rowStyles.checkWrap}>
-          <input
-            type="checkbox"
-            className={`${rowStyles.checkbox} ${styles.draftCheck}`}
-            checked={checked}
-            onChange={(e) => onCheck(e.target.checked)}
-            onClick={(e) => e.stopPropagation()}
-            aria-label={checked ? `Keep "${draft.title}"` : `Done: remove "${draft.title}" from the note`}
-            title={checked ? 'Keep this draft' : 'Done: no task, the line goes from the note when you confirm'}
-            data-row-cell="checkbox"
-          />
-          <svg className={rowStyles.checkMark} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-            <path d="M3.5 8.5l3 3 6-7" pathLength={1} />
-          </svg>
-        </span>
+        <RowCheckbox
+          summary={markers}
+          className={styles.draftCheck}
+          checked={checked}
+          onChange={(e) => onCheck(e.target.checked)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={checked ? `Keep "${draft.title}"` : `Done: remove "${draft.title}" from the note`}
+          title={checked ? 'Keep this draft' : 'Done: no task, the line goes from the note when you confirm'}
+        />
 
         {isEditing ? (
           <input

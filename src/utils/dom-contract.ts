@@ -21,6 +21,8 @@ export const SELECTION_SCOPE_ATTR = 'data-selection-scope'
 export const ROW_KEY_ATTR = 'data-row-key'
 /** A list widget row: the task it shows. */
 export const ROW_TODO_ATTR = 'data-row-todo'
+/** A list widget (a list tab's body): its tab id — the palette's Zoom List In / Out find the list on screen by it. */
+export const LIST_WIDGET_ATTR = 'data-list-widget'
 /** A list widget section (a group): its key. */
 export const LIST_SECTION_ATTR = 'data-list-section'
 /** An area where a click keeps the row selection (the bulk bar, the snackbar, the row grid). */

@@ -341,6 +341,16 @@ export function tagsSectionDialog(rows: ReadonlyArray<{ tag: Tag | null; todoIds
   }
 }
 
+/** A Neglect map's Slipping tasks (latest first), untouched for `days` or more. */
+export function slippingTasksDialog(todoIds: readonly number[], days: number): TaskDialogPayload {
+  return {
+    title: 'Slipping',
+    glyph: 'stale',
+    description: `Open tasks due soon or late and not changed in ${days} days or more, latest first.`,
+    source: { kind: 'todos', todoIds },
+  }
+}
+
 export function staleTasksDialog(todoIds: readonly number[], days: number): TaskDialogPayload {
   return {
     title: 'Stale tasks',

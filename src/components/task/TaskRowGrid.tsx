@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { taskRowColumns, TASK_ROW } from '../../utils/task-row-columns'
-import { useSettingsStore } from '../../stores/settings-store'
+import type { ListZoom } from '../../models/workspace-layout'
 import { createValueStore, type ValueStore } from '../../utils/value-store'
 import { TaskRowColumnsContext, UNMEASURED_LIST_WIDTH } from './task-row-grid-context'
 import styles from './TaskRow.module.css'
@@ -26,6 +26,12 @@ interface TaskRowGridProps {
    * follow the drag live. Without it the list keeps its own.
    */
   liveDetailsWidth?: ValueStore<number | null>
+  /**
+   * How the rows are drawn (`data-zoom`; a list tab's zoom, D25 C + I1);
+   * default `rows`. The divider shows at `rows` only: the other levels have
+   * no details columns.
+   */
+  zoom?: ListZoom
   className?: string
   style?: CSSProperties
   children: ReactNode
@@ -42,14 +48,13 @@ interface TaskRowGridProps {
  * only the dates cells); the rest is layout. With
  * `onDetailsWidthChange` it draws the draggable divider between the titles
  * and the details, spanning the rows; the width is written on release only.
- * Carries the Settings row density (`data-density`): comfortable rows let
- * the title wrap to two lines.
+ * Carries the rows' zoom (`data-zoom`): only a list tab picks one; every
+ * other list of rows is at `rows`.
  */
 export function TaskRowGrid({
-  detailsWidth, onDetailsWidthChange, liveDetailsWidth, className, style, children,
+  detailsWidth, onDetailsWidthChange, liveDetailsWidth, zoom = 'rows', className, style, children,
 }: TaskRowGridProps) {
   const ref = useRef<HTMLDivElement>(null)
-  const density = useSettingsStore((s) => s.rowDensity)
   const [box, setBox] = useState<{ width: number; padRight: number }>({ width: 0, padRight: 0 })
   /** The width while a divider is dragged (not stored yet): the tab's shared one, or this list's own. */
   const [ownLive] = useState(() => createValueStore<number | null>(null))
@@ -96,7 +101,7 @@ export function TaskRowGrid({
     setLive(null)
   }
 
-  const divider = onDetailsWidthChange && (
+  const divider = onDetailsWidthChange && zoom === 'rows' && (
     <div
       className={`${styles.divider} ${dragging ? styles.dividerDragging : ''}`}
       style={{ right: box.padRight + TASK_ROW.padRight + cols.laidOut + TASK_ROW.gap / 2 - HIT / 2 }}
@@ -169,7 +174,7 @@ export function TaskRowGrid({
 
   return (
     <TaskRowColumnsContext.Provider value={columns}>
-      <div ref={ref} className={`${styles.grid} ${className ?? ''}`} style={style} data-task-row-grid="" data-density={density}>
+      <div ref={ref} className={`${styles.grid} ${className ?? ''}`} style={style} data-task-row-grid="" data-zoom={zoom}>
         {children}
         {divider}
       </div>

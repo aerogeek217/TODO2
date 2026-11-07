@@ -56,6 +56,15 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   dashboard: (
     <path d="M3.5 2.5h3a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1zM9.5 2.5h3a1 1 0 0 1 1 1v1.5a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1zM3.5 10.5h3a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1zM9.5 8h3a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
   ),
+  // A scatter plot: two axes and three dots, the largest top right (Slipping).
+  neglect: (
+    <>
+      <path d="M2.5 2.5v11h11" />
+      <circle cx="6" cy="10" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8.75" cy="6.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="4.5" r="1.5" fill="currentColor" stroke="none" />
+    </>
+  ),
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {
@@ -142,6 +151,11 @@ export function TodayIcon({ size = 14 }: { size?: number }) {
 
 export function PlusIcon({ size = 14, strokeWidth = 1.6 }: { size?: number; strokeWidth?: number }) {
   return <Svg size={size} strokeWidth={strokeWidth}><path d="M8 3v10M3 8h10" /></Svg>
+}
+
+/** The plus's bar alone: a step down (a list tab menu's Zoom out). */
+export function MinusIcon({ size = 14, strokeWidth = 1.6 }: { size?: number; strokeWidth?: number }) {
+  return <Svg size={size} strokeWidth={strokeWidth}><path d="M3 8h10" /></Svg>
 }
 
 /** The Settings gear (stroke ≈ 1.9 at 16px): Settings, Customize dashboard. */

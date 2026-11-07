@@ -20,8 +20,9 @@
  * with `completed` events, one with no event, one reopened (with the 30-day
  * retention setting the old ones trigger the purge prompt); notes and
  * status updates (a few per task, one added with a follow-up); the global note; two layouts — Default (columns plus a
- * dashboard band) and Planning (a calendar band, lists, the Eisenhower, a
- * dashboard) — each owning its lists, with list prompts, an "is not"
+ * dashboard band) and Planning (a calendar band, lists — a tab at each
+ * zoom —, the Eisenhower, a Neglect map by project, a dashboard) — each
+ * owning its lists, with list prompts, an "is not"
  * filter, a descending sort, Priority filters (several values, "is not") and manual orders; the
  * Eisenhower's own list with one renamed pane; a check-in filter.
  *
@@ -48,7 +49,7 @@ import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { DashboardTabConfig } from '../src/models/dashboard-config'
 import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
-import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, WorkspaceLayout } from '../src/models/workspace-layout'
+import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
@@ -870,7 +871,8 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   ]
 
   // ── Layouts ──
-  const lens = (id: string, listDefinitionId: number): TabRow => ({ id, kind: 'lens', config: { listDefinitionId } })
+  const lens = (id: string, listDefinitionId: number, zoom?: ListZoom): TabRow =>
+    ({ id, kind: 'lens', config: { listDefinitionId }, ...(zoom ? { viewState: { zoom } } : {}) })
   const calendar = (id: string, view: 'week' | 'month', offset: number, followup = true): TabRow =>
     ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup } }, viewState: { view, offset } })
   const notes = (id: string): TabRow => ({ id, kind: 'notes', config: {} })
@@ -913,11 +915,18 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       top: band('band-cal', 220, [calendar('tab-month', 'month', 0, false)]),
       columns: [
         column('col-horizon', [
-          cell('cell-horizon', [lens('tab-next', L.nextWeek), lens('tab-rest', L.restOfMonth), lens('tab-later', L.later)], { activeTabId: 'tab-rest' }),
-          cell('cell-someday', [lens('tab-someday', L.someday)]),
+          // A list tab at each zoom (D25 C + I1): Stacked, Rows, Lines, and Strips below.
+          cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], { activeTabId: 'tab-rest' }),
+          cell('cell-someday', [lens('tab-someday', L.someday, 'strips')]),
         ]),
         column('col-people', [
           cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)], { weight: 2 }),
+          // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is.
+          cell('cell-neglect', [{
+            id: 'tab-neglect',
+            kind: 'neglect',
+            config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
+          }], { weight: 2 }),
           cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
         ]),
         column('col-matrix', [

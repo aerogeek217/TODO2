@@ -58,6 +58,25 @@
   --list-filter-row-height: 36px;
   --list-prompt-row-height: 40px;
   --list-group-header-height: 28px;
+  /* The open space above every task-list group header but the first (D25 A1). */
+  --list-group-gap: 18px;
+  /* A list tab's zoom (D25 C + I1): a Stacked row's least height, a Lines
+     row's height, a Strips bar's height (each bar a 1px gap below it), and
+     the group headers and their gap at Lines and at Strips (Stacked and Rows
+     keep the ones above). */
+  --task-row-stacked-height: 44px;
+  --task-line-height: 15px;
+  --task-strip-height: 3px;
+  --list-group-header-height-lines: 20px;
+  --list-group-gap-lines: 12px;
+  --list-group-header-height-strips: 14px;
+  --list-group-gap-strips: 6px;
+  /* Where a desktop task row's title starts, from the row's left edge: padding
+     2 + gutter 8 + gap 5 + checkbox 18 + gap 5 (`TASK_ROW`,
+     `utils/task-row-columns`). The row's hairline and the lists' drop line
+     start here — at Stacked and Lines too (a Lines tick sits in the
+     checkbox's track); a list at Strips sets its bars' start. */
+  --row-title-start: 38px;
 
   /* Calendar widget (compact month below 480px of widget width, week rows
      below 560px, icon-only date-type toggles below 620px — measured in JS) */
@@ -89,6 +108,10 @@
   --spring-duration: 220ms;
   --spring-easing: cubic-bezier(0.22, 0.61, 0.36, 1);
   --transition-spring: var(--spring-duration) var(--spring-easing);
+  /* A dragged task row (D25 E4) lifts on grab and settles on drop, on the
+     spring curve (the settle is scripted: `task-drop-animation` reads them). */
+  --drag-lift-duration: 160ms;
+  --drag-settle-duration: 200ms;
 
   /* The phone breakpoint is 640px. CSS @media queries cannot read custom
      properties, so the literal is written in each `@media (max-width:
@@ -107,7 +130,16 @@
   /* Dashboard tile counts — the one size outside the 24 / 14 / 12 scale
      (700, -0.02em, line-height 40px, tabular figures). */
   --font-size-display: 36px;
+  /* A task-list group header's name (D25 A1: 13px bold over the 12px count). */
+  --font-size-group-name: 13px;
+  /* A task row's dates, tags and counts (D25 B: tabular figures, in the muted text). */
+  --font-size-row-meta: 11.5px;
+  /* A Lines row's title and a Lines group header's name (D25 I1); a Strips group header's name. */
+  --font-size-task-line: 10.5px;
+  --font-size-strips-group: 10px;
   --font-weight-regular: 400;
+  /* A task row's title (D25 B); a priority's semibold cue is 600. */
+  --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
   /* The colour wheel a colour picker's custom swatch shows (any colour, not a
@@ -219,10 +251,13 @@
   /* A calendar day cell. */
   --cal-day-fill: var(--color-tint-5);
 
-  /* Task markers (shown before the title when set). */
+  /* Task markers: a task row's priority ring on its checkbox (D25 B), the editor's toggles, the menus. */
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+  /* The fill inside a lone Urgent / Important ring. */
+  --color-marker-urgent-fill: color-mix(in srgb, var(--color-marker-urgent) 10%, transparent);
+  --color-marker-important-fill: color-mix(in srgb, var(--color-marker-important) 8%, transparent);
   /* A priority's row glow (D19's Ember, `utils/priority-cues`). */
   --priority-glow-strength: 11%;
 
@@ -308,6 +343,13 @@
   /* Due-date chip colors */
   --color-deadline: #e86bf0;
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 12%, transparent);
+  /* A Lines tick's / Strips bar's due-soon state (D25 I1): the deadline colour at 45%. */
+  --color-deadline-soon: color-mix(in srgb, var(--color-deadline) 45%, transparent);
+  /* A Lines tick's / Strips bar's other states (D25 I1): a plain task in the
+     muted text at 80% (3.7 : 1 on the surface, a non-text graphic's 3 : 1),
+     a stale one at 35% (1.7 : 1) — still there, plainly dimmer. */
+  --color-row-tone-plain: color-mix(in srgb, var(--color-text-muted) 80%, transparent);
+  --color-row-tone-stale: color-mix(in srgb, var(--color-text-muted) 35%, transparent);
 
   /* Text */
   --color-text-primary: #ece9e6;
@@ -448,10 +490,13 @@
   --notes-text-cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='16'><path d='M2 1 H6 M4 1 V15 M2 15 H6' stroke='black' stroke-width='1' fill='none'/></svg>") 4 8, text;
   --cal-day-fill: var(--color-tint-4);
 
-  /* Task markers (shown before the title when set). */
+  /* Task markers: a task row's priority ring on its checkbox (D25 B), the editor's toggles, the menus. */
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+  /* The fill inside a lone Urgent / Important ring. */
+  --color-marker-urgent-fill: color-mix(in srgb, var(--color-marker-urgent) 10%, transparent);
+  --color-marker-important-fill: color-mix(in srgb, var(--color-marker-important) 8%, transparent);
   /* Stronger than the dark theme's 11 %: on a light surface a tint shows
      less, and at 7 % it didn't show at all (cr31 M5). As visible as dark's. */
   --priority-glow-strength: 12%;
@@ -534,6 +579,10 @@
   /* Due-date chip colors (the overdue colour) */
   --color-deadline: #a32cab;
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 10%, transparent);
+  --color-deadline-soon: color-mix(in srgb, var(--color-deadline) 45%, transparent);
+  /* 3.4 : 1 and 1.6 : 1 on the surface. */
+  --color-row-tone-plain: color-mix(in srgb, var(--color-text-muted) 80%, transparent);
+  --color-row-tone-stale: color-mix(in srgb, var(--color-text-muted) 35%, transparent);
 
   /* Text */
   --color-text-primary: #1f1d1a;

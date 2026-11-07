@@ -16,9 +16,9 @@ import { describeSubtaskCount, formatSubtaskCount, subtaskCount } from '../../ut
 import subtaskStyles from './subtasks/Subtasks.module.css'
 import { formatDateNumeric, startOfToday, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
-import { MarkerDots } from '../shared/MarkerDots'
+import { PriorityRing } from '../shared/PriorityRing'
 import { rowCue } from '../../utils/priority-cues'
-import { markerSummary } from '../../utils/markers'
+import { markerSummary, priorityRing } from '../../utils/markers'
 import { isStale } from '../../utils/stale'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { keepRowTextUnselected } from './row-events'
@@ -41,6 +41,8 @@ interface MobileTaskRowProps {
 // menu (right-click on a person chip to show a filtered list) — that
 // gesture has no touch analogue.
 const NO_PEOPLE: Person[] = []
+/** The checkbox's drawn box, px (its touch target is larger: `.checkbox`). */
+const CHECKBOX_BOX = 20
 
 export const MobileTaskRow = memo(function MobileTaskRow({
   todo, assignedPeople, isSelected,
@@ -102,6 +104,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const priorityCues = useSettingsStore((s) => s.priorityCues)
   const cue = rowCue(todo, priorityCues, today, urgentRange)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
+  // The due chip's date as Settings › Appearance › Dates says (`formatRowDate`).
+  const rowDates = useSettingsStore((s) => s.rowDates)
   const stale = isStale(todo, today, staleAfterDays)
 
   const hasPeople = people.length > 0
@@ -142,17 +146,19 @@ export const MobileTaskRow = memo(function MobileTaskRow({
     >
       {/* Line 1 */}
       <div className={styles.primaryRow} ref={primaryRowRef}>
-        <input
-          type="checkbox"
-          className={styles.checkbox}
-          checked={todo.isCompleted}
-          onChange={handleToggleComplete}
-          onClick={(e) => e.stopPropagation()}
-          aria-label="Toggle complete"
-        />
-
-        <span className={styles.markers} role="img" aria-label={markers.label}>
-          <MarkerDots summary={markers} dim={todo.isCompleted} />
+        {/* The priority is the ring on the box (D25 B), named; the task menu (long-press) sets it. */}
+        <span className={styles.checkWrap}>
+          <input
+            type="checkbox"
+            className={styles.checkbox}
+            checked={todo.isCompleted}
+            onChange={handleToggleComplete}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Toggle complete"
+          />
+          <PriorityRing summary={markers} completed={todo.isCompleted} size={CHECKBOX_BOX} label={markers.label} />
+          {/* Focus under another ring: the desktop gutter's dot, here on the box's corner (the row has no gutter). */}
+          {priorityRing(markers, todo.isCompleted).focusDot && <span className={styles.focusDot} data-gutter-dot="focus" aria-hidden="true" />}
         </span>
 
         <button
@@ -213,7 +219,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             people={people}
             today={today}
             density="small"
-            dateFormat="numeric"
+            dateFormat={rowDates === 'relative' ? 'relative' : 'numeric'}
             followupFlagOnly
             deadlineIntensity={deadlineIntensity}
             peopleAnchorRef={peopleRef as RefObject<HTMLDivElement | null>}

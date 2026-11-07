@@ -20,6 +20,7 @@ function body(cell: Locator, kind: WidgetKind): Locator {
     case 'notes': return cell.locator('.cm-content')
     case 'eisenhower': return cell.locator('[data-eisenhower]')
     case 'dashboard': return cell.locator('[data-dashboard]')
+    case 'neglect': return cell.locator('[data-neglect-map]')
   }
 }
 

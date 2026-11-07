@@ -8,6 +8,8 @@ import { undoable } from './undoable'
 import { useListDefinitionStore } from './list-definition-store'
 import { useListDraftStore } from './list-draft-store'
 import { useListOrderStore } from './list-order-store'
+import { useTagStore } from './tag-store'
+import { projectTagIds } from '../utils/neglect-map'
 import { registerModuleReset } from '../utils/module-reset'
 import {
   LAYOUT_NAME_MAX,
@@ -222,6 +224,12 @@ export interface WorkspaceState {
 
 function randomId(): string {
   return `w-${Math.random().toString(36).slice(2, 10)}`
+}
+
+/** A new tab's seed: a Neglect map with no tags given colours by the `Project: …` tags. */
+function seedFor(kind: WidgetKind, seed: TabSeed | undefined): TabSeed | undefined {
+  if (kind !== 'neglect' || seed?.neglectTagIds) return seed
+  return { ...seed, neglectTagIds: projectTagIds(useTagStore.getState().tags) }
 }
 
 /** Id generator that never returns an id already in `layout` (or one it handed out). */
@@ -988,7 +996,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     addWidget(kind, target, seed) {
       let tabId: string | null = null
       const changed = edit((layout, genId) => {
-        const tab = createTab(kind, genId(), seed)
+        const tab = createTab(kind, genId(), seedFor(kind, seed))
         tabId = tab.id
         return addTab(layout, tab, target, genId)
       })
@@ -1042,7 +1050,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     changeTabKind(tabId, kind, seed) {
-      edit((layout) => replaceTab(layout, tabId, createTab(kind, tabId, seed)))
+      edit((layout) => replaceTab(layout, tabId, createTab(kind, tabId, seedFor(kind, seed))))
     },
 
     setActiveTab(tabId) {

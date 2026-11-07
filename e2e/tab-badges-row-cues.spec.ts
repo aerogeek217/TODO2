@@ -137,7 +137,7 @@ const titleWeight = (page: Page, title: string) => page.locator(`[data-task-titl
 test.describe('priority row cues', () => {
   test.use({ viewport: { width: 1200, height: 800 } })
 
-  test('the default cues: Focus nothing, Urgent a glow, Important a glow and semibold, both a blend; the dots stay', async ({ page }) => {
+  test('the default cues: Focus nothing, Urgent a glow, Important a glow and semibold, both a blend; the ring stays', async ({ page }) => {
     await seedWorkspace(page, CUE_SEED)
     await expect(taskRowByTitle(page, 'Plain')).toBeVisible()
     expect(await backgroundImage(rowOf(page, 'Plain'))).toBe('none')
@@ -148,7 +148,7 @@ test.describe('priority row cues', () => {
     expect(await titleWeight(page, 'Important one')).toBe('600')
     expect(await titleWeight(page, 'Urgent one')).not.toBe('600')
     expect(await titleWeight(page, 'Both')).toBe('600')
-    await expect(taskRowByTitle(page, 'Both').locator('[data-marker-dots]')).toBeVisible()
+    await expect(taskRowByTitle(page, 'Both').locator('[data-priority-ring="split"]')).toBeVisible()
   })
 
   test('hover paints over the glow', async ({ page }) => {

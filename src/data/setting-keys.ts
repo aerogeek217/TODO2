@@ -94,8 +94,13 @@ export const SETTING_KEYS = {
   tabBadgeFollowup: 'tabBadgeFollowup',
   /** What each priority adds to a task's row (`utils/priority-cues`): JSON; absent = the default. */
   priorityCues: 'priorityCues',
-  /** Row density of the desktop task rows: `comfortable` (titles wrap to two lines) or `compact`. Absent = `compact`. */
+  /**
+   * The default list zoom (Settings › Appearance; a list tab that hasn't picked one): `stacked`, `rows`, `lines` or
+   * `strips`; the densities before it read as levels (`comfortable` → `stacked`, `compact` → `rows`). Absent = `rows`.
+   */
   rowDensity: 'rowDensity',
+  /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `Nov 20`) or `numeric` (`MM/DD`). Absent = `relative`. */
+  rowDates: 'rowDates',
   /**
    * The lenses (named screen filters, picked in the top bar — `activeLensId`): JSON array of
    * `{ id, name, predicate }`, the predicate a list predicate with

@@ -19,12 +19,20 @@ export interface WsTabSeed {
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
   /** List / Eisenhower / dashboard tabs: the task rows' details width (view state). */
   detailsWidth?: number
+  /** List tabs: the zoom (view state; absent = the Settings default). */
+  zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
   /** Dashboard tabs: the config (defaults: the app's — `createTab`). */
   dashboard?: {
     tiles?: string[]
     /** List tiles as indexes into `listDefinitions`. */
     listTileIdxs?: number[]
     sections?: Array<{ id: string; options?: Record<string, unknown> }>
+  }
+  /** Neglect map tabs: the config (defaults: colour by no tags, 14 days). */
+  neglect?: {
+    /** Colour by these tags (names from `tags`), by people, or not at all. */
+    colourBy?: { tags: string[] } | 'people' | 'none'
+    untouchedDays?: number
   }
 }
 
@@ -79,9 +87,12 @@ export interface WorkspaceSeed {
    * added): each predicate merged over the empty one.
    */
   lenses?: Array<{ id: string; name: string; predicate?: Record<string, unknown> }>
+  /** Settings rows to store as they are (`key` → stored `value`), e.g. `{ rowDensity: 'lines' }`. */
+  settings?: Record<string, string>
   /** Names, or a name with initials / colour / email. */
   people?: Array<string | { name: string; initials?: string; color?: string; email?: string }>
-  tags?: string[]
+  /** Names, or a name with its colour (default `#7ec4bc`). */
+  tags?: Array<string | { name: string; color: string }>
   /** Status names, added after the app's own. */
   statuses?: string[]
   listDefinitions?: Array<{
@@ -192,8 +203,9 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       personIds.set(p.name, await add(tx.objectStore('people'), row))
     }
     const tagIds = new Map<string, number>()
-    for (const name of seed.tags ?? []) {
-      tagIds.set(name, await add(tx.objectStore('tags'), { name, color: '#7ec4bc' }))
+    for (const entry of seed.tags ?? []) {
+      const { name, color } = typeof entry === 'string' ? { name: entry, color: '#7ec4bc' } : entry
+      tagIds.set(name, await add(tx.objectStore('tags'), { name, color }))
     }
     const statusIds = new Map<string, number>()
     let statusOrder = 100
@@ -284,7 +296,14 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         if (d.sections) config.sections = d.sections
       }
       if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
+      if (tab.kind === 'neglect' && tab.neglect) {
+        const n = tab.neglect
+        if (n.colourBy === 'people' || n.colourBy === 'none') config.colourBy = { kind: n.colourBy }
+        else if (n.colourBy) config.colourBy = { kind: 'tags', tagIds: n.colourBy.tags.map((name) => tagIds.get(name)).filter((id) => id != null) }
+        if (n.untouchedDays != null) config.untouchedDays = n.untouchedDays
+      }
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
+      if (tab.zoom != null) out.viewState = { ...(out.viewState as object | undefined), zoom: tab.zoom }
       out.config = config
       return out
     }
@@ -341,6 +360,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       }]))
       tx.objectStore('settings').put({ key: 'eisenhowerPanes', value: JSON.stringify(panes) })
     }
+    for (const [key, value] of Object.entries(seed.settings ?? {})) tx.objectStore('settings').put({ key, value })
     if (seed.lenses) {
       const lenses = seed.lenses.map((l) => ({ id: l.id, name: l.name, predicate: { ...seed.predicate, ...(l.predicate ?? {}) } }))
       tx.objectStore('settings').put({ key: 'lenses', value: JSON.stringify(lenses) })

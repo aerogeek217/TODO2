@@ -84,11 +84,12 @@ async function rowOverflow(page: Page): Promise<{ rows: number; widths: number[]
 }
 
 /**
- * A row's due and follow-up parts in `tier`: a shown date is its `MM/DD`
- * text alone, a dropped one its icon (the clock, the flag) — in view either way.
+ * A row's due and follow-up parts in `tier`: a shown date is its text alone
+ * (`Today`, a weekday, `Nov 20`, `MM/DD/YY` — D25 D1), a dropped one its
+ * icon (the clock, the flag) — in view either way.
  */
 async function expectDateParts(row: Locator, tier: string): Promise<void> {
-  const date = /^\d\d\/\d\d$/
+  const date = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|[A-Z][a-z]{2} \d{1,2}|\d\d\/\d\d\/\d\d)$/
   const due = row.locator('[data-row-cell="due"]')
   const followup = row.locator('[data-row-cell="followup"]')
   await expect(due).toBeInViewport()
@@ -100,10 +101,10 @@ async function expectDateParts(row: Locator, tier: string): Promise<void> {
 }
 
 /** Which dates the rows show, per column width: the narrower, the fewer. */
-const DATES_TIER: Record<number, string> = { 300: 'icons', 330: 'due', 345: 'due', 380: 'both', 455: 'both', 560: 'both' }
+const DATES_TIER: Record<number, string> = { 300: 'icons', 340: 'due', 360: 'due', 380: 'both', 455: 'both', 560: 'both' }
 
 test.describe('task rows fit their container', () => {
-  for (const width of [300, 330, 345, 380, 455, 560]) {
+  for (const width of [300, 340, 360, 380, 455, 560]) {
     test(`list widget column ${width}px`, async ({ page }) => {
       await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, width))
       await expect(page.locator('[data-todo-id]')).toHaveCount(TASKS.length)

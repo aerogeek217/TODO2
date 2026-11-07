@@ -10,24 +10,33 @@
   display: grid;
   column-gap: 5px;
   align-items: center;
-  padding: 1px 8px 1px 6px;
+  /* The left padding, gutter, gap and checkbox: `TASK_ROW` (`utils/task-row-columns`). */
+  padding: 1px 8px 1px 2px;
   border-radius: var(--radius-chip);
   transition: background 0.1s, opacity 0.3s ease;
   position: relative;
   cursor: grab;
-  min-height: 28px;
+  min-height: 30px;
+  /* Where the title starts: `--row-title-start` (tokens.css), which the
+   * lists' drop line, outside the row, reads too. */
 }
 
-/* Separator line between list rows, inset from the rounded corners. */
+/* A flat list's separator: a faint hairline from the title's start to the
+ * row's rounded corner (D25 B), so the checkboxes' column stays clear. */
 .row::after {
   content: '';
   position: absolute;
-  left: var(--space-4);
+  left: var(--row-title-start);
   right: var(--space-4);
   bottom: 0;
   height: 1px;
-  background: var(--color-border);
+  background: var(--color-border-muted);
   pointer-events: none;
+}
+
+/* A grouped list (`data-row-group` on each group) has no row hairlines: its groups' space and header rules separate it (D25 A1). */
+[data-row-group] .row::after {
+  content: none;
 }
 
 /*
@@ -106,6 +115,11 @@
 
 .checkbox:hover {
   border-color: var(--color-text-secondary);
+}
+
+/* A priority ring over the box (`PriorityRing`) replaces its border. */
+.checkWrap:has([data-priority-ring]) .checkbox:not(:checked) {
+  border-color: transparent;
 }
 
 .checkbox:checked {
@@ -191,6 +205,7 @@
 .title {
   display: block;
   font-size: var(--font-size-task);
+  font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
   min-width: 0;
   overflow: hidden;
@@ -280,7 +295,8 @@
   background: transparent;
   color: var(--color-text-muted);
   font-family: inherit;
-  font-size: var(--font-size-meta);
+  /* The row's meta type (D25 B): dates, tags, counts — tabular, muted. */
+  font-size: var(--font-size-row-meta);
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
@@ -335,28 +351,38 @@
   color: var(--color-text-secondary);
 }
 
-/* Marker gutter: three dots; the hit area reaches into the row's left padding. */
+/*
+ * Marker gutter (D25 B): the priority menu's trigger before the checkbox —
+ * empty at rest (the Focus dot when Focus sits under another ring), a small
+ * flag while the row is hovered or focused or the menu is open. Its hit area
+ * reaches into the row's left padding (10px from the row's edge).
+ */
 .gutter {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 5px;
+  width: 8px;
   height: 24px;
   padding: 0;
   border: none;
   background: transparent;
+  color: var(--color-text-muted);
   cursor: pointer;
 }
 
 .gutter::before {
   content: '';
   position: absolute;
-  left: -6px;
-  right: -2px;
+  left: -2px;
+  right: 0;
   top: 0;
   bottom: 0;
   border-radius: var(--radius-sm);
+}
+
+.gutter:hover {
+  color: var(--color-text-secondary);
 }
 
 .gutter:hover::before,
@@ -366,15 +392,50 @@
 
 .gutter.cellOpen {
   background: transparent;
+  color: var(--color-accent-text);
 }
 
-/* The focus ring goes round the hit area (4px radius), not the 5px dot column. */
+/* The focus ring goes round the hit area (4px radius), not the 8px column. */
 .gutter:focus-visible {
   box-shadow: none;
 }
 
 .gutter:focus-visible::before {
   box-shadow: var(--focus-ring);
+}
+
+/* The flag and the Focus dot share the column's centre. */
+.gutterFlag,
+.gutterDot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: opacity var(--transition-fast);
+}
+
+.gutterFlag {
+  display: inline-flex;
+  opacity: 0;
+}
+
+.gutterDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-marker-focus);
+}
+
+.row:hover .gutterFlag,
+.row:focus-within .gutterFlag,
+.rowDropdownOpen .gutterFlag {
+  opacity: 1;
+}
+
+.row:hover .gutterDot,
+.row:focus-within .gutterDot,
+.rowDropdownOpen .gutterDot {
+  opacity: 0;
 }
 
 /*
@@ -456,7 +517,8 @@
 }
 
 /*
- * Dates: the due part and the follow-up part (each its `MM/DD` alone) side
+ * Dates: the due part and the follow-up part (each its date's text alone —
+ * `Today`, `Sat`, `Nov 20` or `MM/DD`, D25 D1) side
  * by side, each part its own button with its own width (set inline per
  * tier); a narrow list shows a part as its icon alone, as an absent date's
  * placeholder is.
@@ -483,10 +545,20 @@
   min-width: 0;
 }
 
-/* A repeating task's due part with its date: the repeat glyph takes the padding's room (10 + 2 + 34 = 46). */
+/* A repeating task's due part with its date: the repeat glyph takes the padding's room (10 + 2 + 40 = 52). */
 .dueRepeat {
   gap: 2px;
   padding: 0;
+}
+
+/* Another year's `MM/DD/YY` (D25 D1): the text takes the padding's room, at 11px (50.7 bold in 52). */
+.dateLong {
+  justify-content: center;
+  padding: 0;
+}
+
+.dateLong .dateText {
+  font-size: 11px;
 }
 
 /*
@@ -583,27 +655,39 @@
   box-sizing: border-box;
 }
 
-/* Touch screens have no hover: placeholders stay visible. */
+/* Touch screens have no hover: placeholders and the gutter's flag stay visible. */
 @media (hover: none) {
-  .ph {
+  .ph,
+  .gutterFlag {
     opacity: 1;
+  }
+
+  .gutterDot {
+    opacity: 0;
   }
 }
 
-/* ── Comfortable density (Settings › Appearance; the row list's `data-density`) ── */
+/* ── Stacked (a list tab's zoom, D25 C: `TaskRow stacked`) ────────────────── */
 
 /*
- * The title wraps to two lines (18px each, then an ellipsis); the row grows
- * to fit, at least 44px, and its cells sit on the first line.
+ * Two lines: the gutter, the checkbox and the title (18px lines, up to two,
+ * then an ellipsis), then the details under the title (`StackedDetails`).
+ * The tracks are the row's own, not its list's.
  */
-[data-density="comfortable"] .row {
+.row.rowStacked {
+  grid-template-columns: 8px 18px minmax(0, 1fr);
+  row-gap: 2px;
   align-items: start;
-  min-height: 44px;
-  padding-top: 5px;
-  padding-bottom: 5px;
+  min-height: var(--task-row-stacked-height);
+  padding-top: 3px;
+  padding-bottom: 3px;
 }
 
-[data-density="comfortable"] .title {
+.rowStacked .gutter {
+  height: 18px;
+}
+
+.rowStacked .title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -613,34 +697,78 @@
   line-height: 18px;
 }
 
-[data-density="comfortable"] .titleInput {
+.rowStacked .titleInput {
   height: 18px;
   line-height: 18px;
 }
 
-/* With a count the text clamps on its own, the count beside its first line. */
-[data-density="comfortable"] .title.titleWithCount {
+/* The details line, under the title; a narrow list clips it from the right (the tags ellipsize first). */
+.stackedDetails {
+  grid-column: 3;
+  grid-row: 2;
   display: flex;
-  align-items: flex-start;
-}
-
-[data-density="comfortable"] .titleWithCount .titleText {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-[data-density="comfortable"] .checkbox,
-[data-density="comfortable"] .gutter,
-[data-density="comfortable"] .cell {
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
   height: 18px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-row-meta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-[data-density="comfortable"] .checkbox {
-  width: 18px;
+.stackedPart {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* A part: its glyph and text, a picker's trigger; its hover fill reaches 3px past it. */
+.stackedButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  height: 18px;
+  margin: 0 -3px;
+  padding: 0 3px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.stackedButton:hover {
+  background: var(--color-tint-7);
+}
+
+/* A plain part brightens on hover; a coloured date keeps its colour. */
+.stackedButton:hover:not([data-due-soon], [data-due-past], [data-followup="today"], [data-followup="late"]) {
+  color: var(--color-text-secondary);
+}
+
+.stackedButton.cellOpen,
+.stackedButton.cellOpen:hover {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
+}
+
+/* The tags: the last part, giving way first (an ellipsis). */
+.stackedTags {
+  display: block;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 18px;
+}
+
+.stackedTags .tag + .tag {
+  margin-left: 5px;
 }
 
 /* ── The row list and its divider ──────────────────────────────────────── */

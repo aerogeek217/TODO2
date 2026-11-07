@@ -18,6 +18,69 @@
   scrollbar-color: var(--color-tint-8) transparent;
 }
 
+/*
+ * A list tab's zoom (D25 C + I1; `data-zoom` on the widget): the group
+ * headers, their gap and the manual-order drop slot follow the level — at
+ * Lines and Strips they shrink, P1's rhythm scaled; the sticky header and the
+ * top fade under it read the same height.
+ */
+.widget {
+  --list-drop-slot-height: 32px;
+}
+
+.widget[data-zoom="stacked"] {
+  --list-drop-slot-height: var(--task-row-stacked-height);
+}
+
+.widget[data-zoom="lines"] {
+  --list-group-header-height: var(--list-group-header-height-lines);
+  --list-group-gap: var(--list-group-gap-lines);
+  --font-size-group-name: var(--font-size-task-line);
+  --list-drop-slot-height: var(--task-line-height);
+}
+
+.widget[data-zoom="strips"] {
+  --list-group-header-height: var(--list-group-header-height-strips);
+  --list-group-gap: var(--list-group-gap-strips);
+  --font-size-group-name: var(--font-size-strips-group);
+  --list-drop-slot-height: calc(var(--task-strip-height) + 1px);
+  /* No title here: the drop line starts where the bars do (`.strip`'s padding). */
+  --row-title-start: 2px;
+}
+
+/* The header's other parts at the compact levels: the count at the name's size, a smaller swatch and chevron. */
+.widget[data-zoom="lines"] .groupHeader,
+.widget[data-zoom="strips"] .groupHeader {
+  gap: 4px;
+  font-size: var(--font-size-group-name);
+}
+
+.widget[data-zoom="lines"] .swatch {
+  width: 6px;
+  height: 6px;
+}
+
+.widget[data-zoom="strips"] .swatch {
+  width: 5px;
+  height: 5px;
+}
+
+.widget[data-zoom="lines"] .groupChevron,
+.widget[data-zoom="strips"] .groupChevron {
+  transform: scale(0.75);
+}
+
+.widget[data-zoom="lines"] .groupCollapsed .groupChevron,
+.widget[data-zoom="strips"] .groupCollapsed .groupChevron {
+  transform: scale(0.75) rotate(-90deg);
+}
+
+/* At Strips the header's envelope would overflow its 14px line: it keeps the header's height. */
+.widget[data-zoom="strips"] .groupAction,
+.widget[data-zoom="lines"] .groupAction {
+  height: calc(var(--list-group-header-height) - 2px);
+}
+
 /* A grouped list's header sticks at the top: the top fade starts under it. */
 .scroll:has(.groupHeaderRow) {
   --scroll-fade-inset: var(--list-group-header-height);
@@ -30,7 +93,16 @@
 }
 
 .group {
-  padding-top: 4px;
+  padding-top: var(--space-1);
+}
+
+/*
+ * Open space above every group header but the first (D25 A1): outside the
+ * group's box, so a cross-group drop's outline and the sticky header's
+ * containing block stay the group itself. The phone keeps its tight groups.
+ */
+.widget:not(.touch) .group + .group {
+  margin-top: calc(var(--list-group-gap) - var(--space-1));
 }
 
 .groupHeader {
@@ -50,6 +122,15 @@
   cursor: pointer;
 }
 
+/* The rule filling the rest of the header line (D25 A1), up to the envelope's room in a People group. */
+.groupRule {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 1px;
+  margin-left: var(--space-1);
+  background: var(--color-border);
+}
+
 .groupHeader:hover,
 .groupHeaderRow:hover .groupHeader {
   background: var(--color-surface-hover);
@@ -57,16 +138,35 @@
 
 /*
  * The header row sticks to the top of the scrolling body while its group
- * scrolls under it (the surface fill with a hairline below; above the rows,
- * under the drop line). A People group's header keeps its full width; the
- * envelope sits over its end.
+ * scrolls under it (the surface fill; above the rows, under the drop line).
+ * A People group's header keeps its full width; the envelope sits over its
+ * end. It is a scroll-state container: the hairline below it shows only
+ * while it is stuck, so at rest its rule is the list's only line (D25 A1).
  */
 .groupHeaderRow {
   position: sticky;
   top: 0;
   z-index: var(--z-above-2);
   background: var(--color-surface);
-  box-shadow: 0 1px 0 var(--color-border-muted);
+  container-type: scroll-state;
+}
+
+.groupHeaderRow::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: var(--color-border-muted);
+  opacity: 0;
+  pointer-events: none;
+}
+
+@container scroll-state(stuck: top) {
+  .groupHeaderRow::after {
+    opacity: 1;
+  }
 }
 
 .groupHeaderWithAction {
@@ -116,11 +216,11 @@
   transform: rotate(-90deg);
 }
 
-/* The group's colour lives in the 6px swatch alone (the colour budget); the name is plain secondary text. */
+/* The group's colour lives in the 8px swatch alone (the colour budget); the name is bold primary text (D25 A1). */
 .swatch {
   flex-shrink: 0;
-  width: 6px;
-  height: 6px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
 }
 
@@ -129,7 +229,9 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--color-text-secondary);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-group-name);
+  font-weight: var(--font-weight-bold);
 }
 
 .groupCount {
@@ -203,6 +305,17 @@
   border-radius: 6px;
 }
 
+/* A Strips bar's cursor: the ring outside its 4px line, so it reads (keyboard navigation; D25 I1). */
+.widget[data-zoom="strips"] .rowCursor::before {
+  inset: -2px 0;
+  border-radius: 3px;
+}
+
+.widget[data-zoom="lines"] .rowCursor::before,
+.widget[data-zoom="lines"] .rowCursor:not(.rowSelected) {
+  border-radius: var(--radius-sm);
+}
+
 /* A selected or cursor row draws no separator line under itself. */
 .rowSelected > [data-todo-id]::after,
 .rowCursor > [data-todo-id]::after {
@@ -219,15 +332,15 @@
   overflow: hidden;
 }
 
-/* Where the dragged row lands (manual order: rows make room). */
+/* Where the dragged row lands (manual order: rows make room) — a row's height at the list's zoom. */
 .dropSlot {
-  height: 32px;
+  height: var(--list-drop-slot-height);
   border-radius: 6px;
   background: var(--color-inset);
   box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
-/* Drop line between rows: a 2px bar with a ring at its start. */
+/* Drop line between rows: a 2px bar from the rows' title (D25 E4) with a ring at its start. */
 .dropLine {
   position: relative;
   height: 0;
@@ -237,7 +350,7 @@
 .dropLine::before {
   content: '';
   position: absolute;
-  left: 6px;
+  left: var(--row-title-start);
   right: 6px;
   top: -1px;
   height: 2px;
@@ -248,7 +361,8 @@
 .dropLine::after {
   content: '';
   position: absolute;
-  left: 2px;
+  /* Kept inside the list at Strips, where the line starts 2px in. */
+  left: max(0px, calc(var(--row-title-start) - 4px));
   top: -4px;
   width: 8px;
   height: 8px;

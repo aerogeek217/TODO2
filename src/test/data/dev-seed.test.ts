@@ -7,6 +7,7 @@ import { auditData } from '../../data/audit'
 import { readCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import { readPanesSetting } from '../../data/eisenhower-shape'
 import { isEisenhowerOwner, ownerLayoutId } from '../../models/list-definition'
+import { pickLayoutBody, type RawLayoutBody } from '../../data/layout-shape'
 import { resetDb } from '../helpers'
 
 /**
@@ -133,7 +134,25 @@ describe('dev seed generator', () => {
     expect(seed.layouts.some((l) => l.top) && seed.layouts.some((l) => l.bottom), 'bands').toBe(true)
     const kinds = new Set(seed.layouts.flatMap((l) => [...l.columns.flatMap((c) => c.cells), ...(l.top ? [l.top] : []), ...(l.bottom ? [l.bottom] : [])])
       .flatMap((p) => p.tabs.map((t) => t.kind)))
-    expect([...kinds].sort()).toEqual(['calendar', 'dashboard', 'eisenhower', 'lens', 'notes'])
+    expect([...kinds].sort()).toEqual(['calendar', 'dashboard', 'eisenhower', 'lens', 'neglect', 'notes'])
+  })
+
+  it('shows a list tab at each zoom and a Neglect map by project, kept whole by the layout repair (D25)', () => {
+    const seed = seedFor()
+    const tabsOf = (l: DevSeed['layouts'][number]) => [...l.columns.flatMap((c) => c.cells), ...(l.top ? [l.top] : []), ...(l.bottom ? [l.bottom] : [])]
+      .flatMap((p) => p.tabs)
+    const tabs = seed.layouts.flatMap(tabsOf)
+    const zooms = tabs.flatMap((t) => (t.kind === 'lens' && t.viewState?.zoom ? [t.viewState.zoom] : []))
+    expect([...new Set(zooms)].sort()).toEqual(['lines', 'rows', 'stacked', 'strips'])
+    const neglect = tabs.filter((t) => t.kind === 'neglect')
+    expect(neglect).toHaveLength(1)
+    const projectTagIds = seed.tags.filter((t) => t.name.startsWith('Project: ')).map((t) => t.id)
+    expect(neglect[0]?.config).toEqual({ colourBy: { kind: 'tags', tagIds: projectTagIds }, untouchedDays: 14 })
+    for (const layout of seed.layouts) {
+      const picked = pickLayoutBody(JSON.parse(JSON.stringify(layout)) as RawLayoutBody)
+      expect(picked.fixes, layout.name).toEqual([])
+      expect(tabsOf(picked as unknown as DevSeed['layouts'][number]).map((t) => t.id), layout.name).toEqual(tabsOf(layout).map((t) => t.id))
+    }
   })
 
   it('stores a check-in filter and Eisenhower panes the app reads unchanged', () => {

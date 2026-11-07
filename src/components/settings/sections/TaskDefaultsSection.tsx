@@ -20,7 +20,8 @@ import {
 import { TODO_SORT_DIRECTIONS, isTodoGroupBy, isTodoSortBy, sortDirectionOnPick, sortHasDirection } from '../../../models/todo-sort-group'
 import { STALE_AFTER_MAX_DAYS, isStaleAfterDays } from '../../../utils/stale'
 import { MARKER_KEYS } from '../../../models'
-import { MARKER_COLOR, MARKER_LABELS } from '../../../utils/markers'
+import { MARKER_LABELS } from '../../../utils/markers'
+import { PriorityRing } from '../../shared/PriorityRing'
 import { formatTabBadgeRange, parseTabBadgeRange, TAB_BADGE_CHOICES, tabBadgeRangeLabel } from '../../../utils/tab-badges'
 import type { TabBadgeRange } from '../../../models/list-definition'
 import { SettingRow } from './SettingRow'
@@ -51,7 +52,10 @@ function TabBadgeRangeSelect({ label, value, onChange }: { label: string; value:
   )
 }
 
-/** What each priority adds to a task's row, beside its dot. */
+/** The sample checkbox beside each priority's name, px. */
+const CUE_RING_SIZE = 16
+
+/** What each priority adds to a task's row, beside its ring on the checkbox (D25 B; each name shows its ring). */
 function PriorityCuesSetting() {
   const cues = useSettingsStore((s) => s.priorityCues)
   const setCues = useSettingsStore((s) => s.setPriorityCues)
@@ -66,7 +70,7 @@ function PriorityCuesSetting() {
     />
   )
   return (
-    <SettingRow label="Priority cues" help="Beside each task's dots. Several glows blend along the row." column>
+    <SettingRow label="Priority cues" help="Beside the ring on each task's checkbox. Several glows blend along the row." column>
       <div className={styles.cueGrid}>
         <span />
         <span className={styles.cueHead}>Glow</span>
@@ -74,7 +78,13 @@ function PriorityCuesSetting() {
         {MARKER_KEYS.map((key) => (
           <Fragment key={key}>
             <span className={styles.cueName}>
-              <span className={styles.cueDot} style={{ background: MARKER_COLOR[key] }} aria-hidden="true" />
+              <span className={styles.cueRing} aria-hidden="true" data-cue-ring={key}>
+                <PriorityRing
+                  summary={{ focus: key === 'focus', urgent: key === 'urgent' ? 'flag' : null, important: key === 'important' }}
+                  completed={false}
+                  size={CUE_RING_SIZE}
+                />
+              </span>
               {MARKER_LABELS[key]}
             </span>
             {toggle(`${MARKER_LABELS[key]} glow`, cues[key].glow, () => void setCues({ ...cues, [key]: { ...cues[key], glow: !cues[key].glow } }))}
@@ -139,7 +149,7 @@ export function TaskDefaultsSection() {
       </SettingRow>
       <SettingRow
         label="Due date makes a task urgent"
-        help="Overdue tasks count too. They show a clock instead of the urgent mark."
+        help="Overdue tasks count too. A task urgent by its due date gets a dashed ring."
       >
         <select
           className={styles.select}
