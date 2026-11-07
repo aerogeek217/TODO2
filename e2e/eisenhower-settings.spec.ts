@@ -5,7 +5,7 @@ import { readStore } from './fixtures/db'
 /**
  * Settings › Tasks › Eisenhower in a real browser: the app-wide panes and
  * source are edited there — Delegate gets `Status is not Delegated` and
- * every Eisenhower tab (on two layouts) and the dashboard's Eisenhower
+ * every Eisenhower tab (on two layouts) and the Eisenhower summary
  * section follow; Esc in a pane's filter picker closes only the picker; each
  * change is one undo step and is kept across a reload. The Eisenhower's own
  * list's filter is edited there too — the same unsaved draft as every
@@ -29,7 +29,7 @@ const SEED: WorkspaceSeed = {
       name: 'Main',
       columns: [
         { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] },
-        { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'eisenhower' }] } }] })] },
+        { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'dash', kind: 'eisenhowerSummary' }] })] },
       ],
     },
     { name: 'Second', columns: [{ id: 'colX', rows: [wsRow({ id: 'x1', tabs: [{ id: 'eis2', kind: 'eisenhower' }] })] }] },
@@ -39,7 +39,7 @@ const SEED: WorkspaceSeed = {
 const quadrant = (page: Page, tabId: string, q: string) => page.locator(`[data-eisenhower="${tabId}"] [data-eis-quadrant="${q}"]`)
 const row = (scope: Locator, title: string) => scope.locator('[data-row-key]').filter({ hasText: title })
 const dashQuadrantCount = (page: Page, q: string) =>
-  page.locator('[data-dashboard="dash"] [data-dash-section="eisenhower"]').locator(`[data-eis-cell="${q}"]`).getByTestId('dash-eis-count')
+  page.locator('[data-glance-tab="dash"] [data-dash-section="eisenhower"]').locator(`[data-eis-cell="${q}"]`).getByTestId('dash-eis-count')
 const settingsDialog = (page: Page) => page.getByRole('dialog', { name: 'Settings', exact: true })
 const part = (page: Page) => settingsDialog(page).getByRole('region', { name: 'Eisenhower', exact: true })
 const card = (page: Page, q: string) => part(page).locator(`[data-pane-card="${q}"]`)
@@ -61,7 +61,7 @@ async function closeSettings(page: Page): Promise<void> {
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1600, height: 900 } })
 
-  test('Delegate gets Status is not Delegated: every Eisenhower and the dashboard follow; Esc closes the picker only; Undo; reload', async ({ page }) => {
+  test('Delegate gets Status is not Delegated: every Eisenhower and the summary follow; Esc closes the picker only; Undo; reload', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toBeVisible()
     await expect(dashQuadrantCount(page, 'delegate')).toHaveText('2')
@@ -83,7 +83,7 @@ test.describe('desktop', () => {
     await expect.poll(() => storedPanes(page)).toMatchObject({ delegate: { filter: { negate: { statusIds: true } } } })
     await closeSettings(page)
 
-    // This layout's Eisenhower and the dashboard section; a setting — the layout stays saved.
+    // This layout's Eisenhower and the summary; a setting — the layout stays saved.
     await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toHaveCount(0)
     await expect(quadrant(page, 'eisTab', 'delegate').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent · not Important · not Delegated')
     await expect(dashQuadrantCount(page, 'delegate')).toHaveText('1')
@@ -112,7 +112,7 @@ test.describe('desktop', () => {
     await expect(dashQuadrantCount(page, 'delegate')).toHaveText('1')
   })
 
-  test('its list’s filter: Settings edits the same draft as every Eisenhower’s filter line; Save; the dashboard follows; reload', async ({ page }) => {
+  test('its list’s filter: Settings edits the same draft as every Eisenhower’s filter line; Save; the summary follows; reload', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await expect(dashQuadrantCount(page, 'delegate')).toHaveText('2')
     await openSettings(page, 'Eisenhower')
@@ -134,7 +134,7 @@ test.describe('desktop', () => {
     await expect(card(page, 'delegate').getByTestId('customize-pane-count')).toHaveText('1 now')
     await closeSettings(page)
 
-    // The widget's filter line shows the same draft, unsaved; the dashboard counts it too.
+    // The widget's filter line shows the same draft, unsaved; the summary counts it too.
     const widgetLine = wsCell(page, 'a1').getByTestId('list-filter-row')
     await expect(widgetLine).toContainText('not Delegated')
     await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()

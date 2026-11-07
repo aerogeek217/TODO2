@@ -13,7 +13,7 @@ import { pointIn } from './fixtures/geometry'
 const TABS: WsTabSeed[] = [
   { id: 'n1', kind: 'notes' },
   { id: 'c1', kind: 'calendar' },
-  { id: 'd1', kind: 'dashboard' },
+  { id: 'd1', kind: 'trend' },
   { id: 'e1', kind: 'eisenhower' },
   { id: 'c2', kind: 'calendar' },
 ]

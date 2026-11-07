@@ -5,7 +5,7 @@ import { readStore } from './fixtures/db'
 /**
  * Every list belongs to one layout, in a real browser: the list picker's
  * Create new list… makes a list of the open layout — offered by its Change
- * list and its dashboards' Add a list ›, not by another layout's; Settings
+ * list, not by another layout's; Settings
  * has no Lists; Save as gives the new layout copies that edit on their own;
  * Delete layout takes its lists with it (the confirm says so); a closed
  * tab's list goes when the layout is saved, Discard keeps it.
@@ -19,12 +19,12 @@ const SEED: WorkspaceSeed = {
       name: 'Main',
       columns: [
         { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'sharedTab', kind: 'lens', listDefIdx: 0 }, { id: 'mineTab', kind: 'lens', listDefIdx: 1 }] })] },
-        { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'dashTab', kind: 'dashboard' }] })] },
+        { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
       ],
     },
     {
       name: 'Second',
-      columns: [{ id: 'colX', rows: [wsRow({ id: 'x1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 2 }, { id: 'otherDash', kind: 'dashboard' }] })] }],
+      columns: [{ id: 'colX', rows: [wsRow({ id: 'x1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 2 }] })] }],
     },
   ],
 }
@@ -55,26 +55,11 @@ async function changeListChoices(page: Page, tabId: string): Promise<string[]> {
   return names
 }
 
-/** A dashboard tab's Customize › Add a list › choices. */
-async function addListTileChoices(page: Page, tabId: string): Promise<string[]> {
-  await wsTab(page, tabId).click({ button: 'right' })
-  await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Customize dashboard…' }).click()
-  const dialog = page.getByRole('dialog', { name: 'Customize dashboard' })
-  await dialog.getByRole('button', { name: 'Add a list' }).click()
-  const menu = page.getByRole('menu', { name: 'Lists' })
-  await expect(menu).toBeVisible()
-  const names = await menu.getByRole('menuitem').evaluateAll((els) => els.map((el) => el.getAttribute('data-menu-label') ?? ''))
-  await page.keyboard.press('Escape')
-  await dialog.getByRole('button', { name: 'Done' }).click()
-  await expect(dialog).toHaveCount(0)
-  return names
-}
-
 const filterLine = (scope: Locator) => scope.getByTestId('list-filter-row')
 
 test.use({ viewport: { width: 1600, height: 900 } })
 
-test('a new list widget’s list is the open layout’s, offered only there (Change list, Add a list ›); Settings has no Lists', async ({ page }) => {
+test('a new list widget’s list is the open layout’s, offered only there (Change list); Settings has no Lists', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await wsCell(page, 'b1').getByRole('button', { name: 'Add widget as tab' }).click()
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
@@ -89,12 +74,8 @@ test('a new list widget’s list is the open layout’s, offered only there (Cha
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 
   expect(await changeListChoices(page, 'sharedTab')).toEqual(['Shared', 'Mine', 'Errands'])
-  await wsTab(page, 'dashTab').click()
-  expect(await addListTileChoices(page, 'dashTab')).toEqual(['Shared', 'Mine', 'Errands'])
   await switchLayout(page, 'Second')
   expect(await changeListChoices(page, 'otherTab')).toEqual(['Theirs'])
-  await wsTab(page, 'otherDash').click()
-  expect(await addListTileChoices(page, 'otherDash')).toEqual(['Theirs'])
 
   const settings = await openSettings(page, 'People, statuses & tags')
   await expect(settings.getByRole('button', { name: 'Manage people…' })).toBeVisible()

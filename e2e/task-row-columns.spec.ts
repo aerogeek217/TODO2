@@ -223,7 +223,7 @@ test('a 280px column: the title keeps 80px and nothing passes the row edge', asy
   expect(await storedTabView(page, 'tab')).toEqual({ detailsWidth: 4000 })
 })
 
-test('Eisenhower quadrants and dashboard sections use their tab’s value', async ({ page }) => {
+test('Eisenhower quadrants and a Needs follow-up widget use their tab’s value', async ({ page }) => {
   await seedWorkspace(page, {
     people: PEOPLE,
     tags: TAGS,
@@ -233,7 +233,7 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
       name: 'Main',
       columns: [
         { id: 'a', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] })] },
-        { id: 'b', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', detailsWidth: 200, dashboard: { tiles: [], sections: [{ id: 'followup' }] } }] })] },
+        { id: 'b', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'dash', kind: 'followup', detailsWidth: 200 }] })] },
       ],
     }],
   })
@@ -260,10 +260,10 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
   await expect.poll(() => storedTabView(page, 'eis')).toEqual({ detailsWidth: 148 })
   for (const d of await eis.locator('[data-task-row-divider]').all()) expect(Number(await d.getAttribute('aria-valuenow'))).toBe(148)
   for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(148)
-  // The dashboard keeps its own.
+  // The Needs follow-up widget keeps its own.
   for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
 
-  // The dashboard's Needs follow-up section shares its value live too.
+  // Its rows share its value live too.
   const followup = page.locator('[data-dash-section="followup"]')
   const dFrom = await pointIn(divider(followup))
   await page.mouse.move(dFrom.x, dFrom.y)

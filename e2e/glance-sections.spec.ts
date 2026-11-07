@@ -1,21 +1,19 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
- * The dashboard's Tags, Stale tasks, Recently completed and Eisenhower
- * sections in a real browser: they render from the tab's config with
+ * The Tags, Stale tasks, Recently completed and Eisenhower summary widgets
+ * (the Dashboard's sections, before v77) in a real browser: they render with
  * `shown of total` counts under the top-bar filter; their numbers open the
- * task dialog; Customize shows / hides them and changes their options (a
- * layout change); the Stale / Recently completed rows are real task rows
- * (selection, drag out, complete / reopen); a phone shows them in one column.
+ * task dialog; a tab menu's setting changes its widget (a layout change);
+ * the Stale / Recently completed rows are real task rows (selection, drag
+ * out, complete / reopen); a phone stacks them.
  */
 
 test.use({ viewport: { width: 1440, height: 900 } })
 
-const NEW_SECTIONS = [{ id: 'tags' }, { id: 'stale' }, { id: 'recent' }, { id: 'eisenhower' }]
-
-function seedWith(tab: Partial<WsTabSeed> = {}, extraColumns: WorkspaceSeed['layouts'][number]['columns'] = []): WorkspaceSeed {
+function seedWith(extraColumns: WorkspaceSeed['layouts'][number]['columns'] = []): WorkspaceSeed {
   return {
     people: ['Alice Chen'],
     tags: ['q4', 'home'],
@@ -31,15 +29,18 @@ function seedWith(tab: Partial<WsTabSeed> = {}, extraColumns: WorkspaceSeed['lay
     layouts: [{
       name: 'Dash',
       columns: [
-        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: NEW_SECTIONS }, ...tab }] })] },
+        // Tags beside the Eisenhower summary, Stale tasks beside Recently completed.
+        { id: 'c1', rows: [
+          { id: 'r1', cells: [{ id: 'k-tags', tabs: [{ id: 'tags', kind: 'tags' }] }, { id: 'k-eis', tabs: [{ id: 'eis', kind: 'eisenhowerSummary' }] }] },
+          { id: 'r2', cells: [{ id: 'k-stale', tabs: [{ id: 'stale', kind: 'stale' }] }, { id: 'k-recent', tabs: [{ id: 'recent', kind: 'recent' }] }] },
+        ] },
         ...extraColumns,
       ],
     }],
   }
 }
 
-const dash = (page: Page) => page.locator('[data-dashboard="dash"]')
-const section = (page: Page, id: string) => dash(page).locator(`[data-dash-section="${id}"]`)
+const section = (page: Page, id: string) => page.locator(`[data-dash-section="${id}"]`)
 const sectionCount = (page: Page, id: string) => section(page, id).getByTestId('dash-section-count')
 const tagRow = (page: Page, key: string) => section(page, 'tags').locator(`[data-tag-row="${key}"]`)
 const quadrant = (page: Page, q: string) => section(page, 'eisenhower').locator(`[data-eis-cell="${q}"]`)
@@ -49,12 +50,10 @@ const rowTitles = (root: Locator) => root.locator('[data-row-todo]').evaluateAll
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
 const dialogTitles = (page: Page) => dialog(page).locator('[data-todo-id]').evaluateAll((rows) =>
   rows.map((r) => r.querySelector('[data-task-title]')?.textContent ?? ''))
-const customize = (page: Page) => page.getByRole('dialog', { name: 'Customize dashboard' })
 const saveButton = (page: Page) => page.getByTestId('layout-save')
 
-test('the four sections render their counts and rows; the top-bar filter makes them shown of total', async ({ page }) => {
+test('the four widgets render their counts and rows; the top-bar filter makes them shown of total', async ({ page }) => {
   await seedWorkspace(page, seedWith())
-  await expect(dash(page)).toHaveAttribute('data-layout', 'grid')
 
   // Tags: open tasks per tag, then No tag.
   await expect(sectionCount(page, 'tags')).toHaveText('3 tagged')
@@ -123,51 +122,31 @@ test('their numbers open the task dialog with the tasks they count', async ({ pa
   expect(await dialogTitles(page)).toEqual(['Done today', 'Ship release notes'])
 })
 
-test('Customize shows a section, changes its option and hides it again, as layout changes', async ({ page }) => {
-  // A dashboard with the default config: none of the four.
-  await seedWorkspace(page, seedWith({ dashboard: { tiles: ['open'] } }))
-  await expect(section(page, 'followup')).toBeVisible()
-  for (const { id } of NEW_SECTIONS) await expect(section(page, id)).toHaveCount(0)
+test('a tab menu’s setting changes its widget, as a layout change', async ({ page }) => {
+  await seedWorkspace(page, seedWith())
+  await expect(section(page, 'stale')).toContainText('Not changed in 14 days or more')
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-
-  await wsTab(page, 'dash').click({ button: 'right' })
-  await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Customize dashboard…' }).click()
-  const dialogEl = customize(page)
-  const sections = dialogEl.getByRole('list', { name: 'Sections' })
-  await expect(dialogEl.getByRole('button', { name: 'Older than: 14 days' })).toBeDisabled()
-
-  await sections.getByRole('checkbox', { name: 'Stale tasks' }).check()
-  // Shows behind the dialog at once, after the default sections; the layout is unsaved.
-  await expect(section(page, 'stale')).toBeVisible()
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   expect(await rowTitles(section(page, 'stale'))).toEqual(['Call the plumber', 'Plan the offsite'])
 
-  await dialogEl.getByRole('button', { name: 'Older than: 14 days' }).click()
-  await page.getByRole('menuitemradio', { name: '30 days' }).click()
+  const pick = async (from: string, to: string) => {
+    await wsCell(page, 'k-stale').hover()
+    await wsTab(page, 'stale').click({ button: 'right' })
+    const item = page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: /^Older than/ })
+    await expect(item).toContainText(from)
+    await item.click()
+    await page.getByRole('menuitemradio', { name: to, exact: true }).click()
+  }
+  await pick('14 days', '30 days')
   await expect(section(page, 'stale')).toContainText('Not changed in 30 days or more')
   await expect(section(page, 'stale').locator('[data-row-todo]')).toHaveCount(1)
-  await dialogEl.getByRole('button', { name: 'Older than: 30 days' }).click()
-  await page.getByRole('menuitemradio', { name: '7 days' }).click()
+  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+  await pick('30 days', '7 days')
   await expect(section(page, 'stale').locator('[data-row-todo]')).toHaveCount(3)
-
-  await sections.getByRole('checkbox', { name: 'Eisenhower' }).check()
-  await expect(section(page, 'eisenhower')).toBeVisible()
-  await sections.getByRole('checkbox', { name: 'Stale tasks' }).uncheck()
-  await expect(section(page, 'stale')).toHaveCount(0)
-  // The hidden section keeps its option for when it's shown again.
-  await sections.getByRole('checkbox', { name: 'Stale tasks' }).check()
-  await expect(section(page, 'stale')).toContainText('Not changed in 7 days or more')
-
-  await dialogEl.getByRole('button', { name: 'Done' }).click()
-  await expect(customize(page)).toHaveCount(0)
-  // A ticked section takes its place in the dialog's order.
-  const ids = await dash(page).locator('[data-dash-section]').evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.dashSection))
-  expect(ids).toEqual(['followup', 'next7', 'trend', 'status', 'people', 'stale', 'eisenhower'])
 })
 
 test('Stale and Recently completed rows are task rows: select, drag out, reopen', async ({ page }) => {
-  await seedWorkspace(page, seedWith({}, [
-    { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] })] },
+  await seedWorkspace(page, seedWith([
+    { id: 'c2', rows: [{ cells: [{ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] }] }] },
   ]))
   const stale = section(page, 'stale')
   const title = (root: Locator, t: string) => root.locator('[data-row-todo]').filter({ hasText: t }).locator(`span[data-task-title="${t}"]`)
@@ -204,9 +183,8 @@ test('Stale and Recently completed rows are task rows: select, drag out, reopen'
 test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('the sections stack in one column with touch rows', async ({ page }) => {
+  test('the widgets stack in one column with touch rows', async ({ page }) => {
     await seedWorkspace(page, seedWith())
-    await expect(dash(page)).toHaveAttribute('data-layout', 'column')
     await expect(sectionCount(page, 'tags')).toHaveText('3 tagged')
     // The bar gives way, so a tag's name fits beside its counts.
     const names = section(page, 'tags').locator('[data-tag-row] [class*="tagName"]')
@@ -214,7 +192,7 @@ test.describe('on a phone', () => {
     expect(await names.evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth).length)).toBe(0)
     await expect(section(page, 'stale').getByText('Call the plumber')).toBeVisible()
     await expect(quadrantCount(page, 'drop')).toHaveText('1')
-    // One column: each section as wide as the dashboard's content.
+    // One column: each widget as wide as the page.
     const tags = await box(section(page, 'tags'))
     const eis = await box(section(page, 'eisenhower'))
     expect(Math.abs(tags.width - eis.width)).toBeLessThan(1)

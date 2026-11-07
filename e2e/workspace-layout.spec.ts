@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
-  drag, dragTab, expectOpenLayout, pickSplit, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, withSpareLayouts, wsCell, wsShape, wsTab,
+  drag, dragTab, expectOpenLayout, pickSplit, pickWidgetKind, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, withSpareLayouts, wsCell, wsShape, wsTab,
   type WsLayoutSeed,
   wsRow,
 } from './fixtures/workspace'
@@ -293,7 +293,7 @@ test.describe('a pane that goes leaves no void', () => {
           { id: 'colA', rows: [
             wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { weight: 0.25, collapsed: true }),
             wsRow({ id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }, { weight: 0.25 }),
-            wsRow({ id: 'a3', tabs: [{ id: 'dashTab', kind: 'dashboard' }] }, { weight: 0.5 }),
+            wsRow({ id: 'a3', tabs: [{ id: 'dashTab', kind: 'notes' }] }, { weight: 0.5 }),
           ] },
           { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
         ],
@@ -503,8 +503,9 @@ test.describe('adding and changing widgets', () => {
     await page.getByRole('tab', { name: 'Calendar' }).click({ button: 'right' })
     const changeWidget = page.getByRole('menu', { name: 'Change widget' })
     await expect(changeWidget.getByRole('menuitemradio', { name: 'Calendar' })).toHaveAttribute('aria-checked', 'true')
-    await changeWidget.getByRole('menuitemradio', { name: 'Dashboard' }).click()
-    await expect(page.getByRole('tab', { name: /Dashboard/ })).toBeVisible()
+    // A Numbers & charts kind, from its submenu.
+    await pickWidgetKind(page, 'Change widget', 'Created vs completed')
+    await expect(page.getByRole('tab', { name: /Created vs completed/ })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveCount(0)
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   })

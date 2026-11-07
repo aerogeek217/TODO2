@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test'
-import { createTab, WIDGET_KINDS, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
+import { createTab, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
 import { DB_NAME, readStore } from './db'
 import { box, pointIn, type Point } from './geometry'
 
@@ -17,17 +17,10 @@ export interface WsTabSeed {
   titles?: boolean
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
-  /** List / Eisenhower / dashboard tabs: the task rows' details width (view state). */
+  /** List / Eisenhower / row widget tabs: the task rows' details width (view state). */
   detailsWidth?: number
   /** List tabs: the zoom (view state; absent = the Settings default; `strips`, a removed level, opens as `lines`). */
   zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
-  /** Dashboard tabs: the config (defaults: the app's — `createTab`). */
-  dashboard?: {
-    tiles?: string[]
-    /** List tiles as indexes into `listDefinitions`. */
-    listTileIdxs?: number[]
-    sections?: Array<{ id: string; options?: Record<string, unknown> }>
-  }
   /** Glance tabs (Number, the sections): config fields over the kind's defaults, e.g. `{ metric: 'open' }`. */
   glance?: Record<string, unknown>
   /** What changed / Project pulse tabs: the picked tags (names from `tags`; default none). */
@@ -95,8 +88,8 @@ export interface WorkspaceSeed {
   /** The first layout is opened. */
   layouts: WsLayoutSeed[]
   /**
-   * The app-wide Eisenhower settings (every Eisenhower tab and the dashboard
-   * section): its own list (index into `listDefinitions` — that list is
+   * The app-wide Eisenhower settings (every Eisenhower tab and Eisenhower
+   * summary): its own list (index into `listDefinitions` — that list is
    * made the Eisenhower's, a hidden list; none = the one the app made, with
    * no filter) and its custom panes.
    */
@@ -309,12 +302,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         if (tab.view != null || tab.offset != null) out.viewState = { view: tab.view ?? 'month', offset: tab.offset ?? 0 }
         if (tab.titles != null) out.viewState = { ...(out.viewState as object | undefined), titles: tab.titles }
       }
-      if (tab.kind === 'dashboard' && tab.dashboard) {
-        const d = tab.dashboard
-        if (d.tiles) config.tiles = d.tiles
-        if (d.listTileIdxs) config.listTiles = d.listTileIdxs.map((i) => defIds[i]).filter((id) => id != null)
-        if (d.sections) config.sections = d.sections
-      }
       if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
       if (tab.kind === 'neglect' && tab.neglect) {
         const n = tab.neglect
@@ -365,10 +352,10 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       layoutIds.push(id)
     }
     // Every list belongs to a layout (now that it has an id): `layoutIdx`'s,
-    // else the first layout whose tabs or tiles show it, else the first one.
+    // else the first layout whose tabs show it, else the first one.
     const shownBy = (i: number) => seed.layouts.findIndex((layout) => {
       const panels = [...layout.columns.flatMap((col) => col.rows.flatMap((row) => row.cells)), ...(layout.top?.cells ?? []), ...(layout.bottom?.cells ?? [])]
-      return panels.some((p) => p.tabs.some((t) => t.listDefIdx === i || (t.dashboard?.listTileIdxs ?? []).includes(i)))
+      return panels.some((p) => p.tabs.some((t) => t.listDefIdx === i))
     })
     for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
       const listId = defIds[i]
@@ -569,6 +556,24 @@ export function wsBand(page: Page, edge: 'top' | 'bottom'): Locator {
 export async function pickSplit(page: Page, item: 'Right' | 'Below' | 'New column'): Promise<void> {
   await page.getByRole('menuitem', { name: 'Split', exact: true }).click()
   await page.getByRole('menuitem', { name: item, exact: true }).click()
+}
+
+/** The Numbers & charts kinds' names: the add-widget and Change widget menus list them in a submenu. */
+const GLANCE_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('glance').map(widgetKindLabel))
+
+/**
+ * Picks the kind named `label` in the open add-widget (`Add widget`) or tab
+ * (`Change widget`) menu: a task kind from the menu itself, a Numbers &
+ * charts kind from its submenu.
+ */
+export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Change widget', label: string): Promise<void> {
+  const role = menuName === 'Add widget' ? 'menuitem' : 'menuitemradio'
+  let menu = page.getByRole('menu', { name: menuName })
+  if (GLANCE_LABELS.has(label)) {
+    await menu.getByRole('menuitem', { name: /^Numbers & charts/ }).click()
+    menu = page.getByRole('menu', { name: 'Numbers & charts' })
+  }
+  await menu.getByRole(role, { name: label, exact: true }).click()
 }
 
 /** Tab ids of the band at `edge` (empty when there is none). */

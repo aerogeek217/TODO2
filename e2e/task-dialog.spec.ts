@@ -1,11 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedTaskList, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { seedTaskList, seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * The task dialog in a real browser: a dashboard number opens the tasks it
- * counts; completing one keeps its row (struck through) while the number
- * behind drops; a row opens the editor on top, whose Esc closes only the
- * editor; a list tile's dialog opens the list as a tab (a layout change);
+ * The task dialog in a real browser: a Number opens the tasks it counts;
+ * completing one keeps its row (struck through) while the number behind
+ * drops; a row opens the editor on top, whose Esc closes only the editor;
  * the person chip on a task row opens that person's tasks.
  */
 
@@ -14,7 +13,6 @@ test.use({ viewport: { width: 1440, height: 900 } })
 const SEED: WorkspaceSeed = {
   people: [{ name: 'Alice Chen', initials: 'AC', color: '#e8a25c' }, 'Ben Ortiz'],
   tags: ['q4'],
-  listDefinitions: [{ name: 'Alice’s list', people: ['Alice Chen'] }],
   tasks: [
     { title: 'Fix checkout outage', urgent: true, important: true, dueInDays: 0, people: ['Alice Chen'], tags: ['q4'] },
     { title: 'Plan the offsite', focus: true, dueInDays: 3 },
@@ -22,24 +20,29 @@ const SEED: WorkspaceSeed = {
     { title: 'Vendor contract', followupInDays: -1, people: ['Alice Chen', 'Ben Ortiz'] },
   ],
   layouts: [{
-    name: 'Dash',
-    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [0] } }] })] }],
+    name: 'Numbers',
+    // A fit row of two Numbers: Urgent and Open.
+    columns: [{ id: 'c1', rows: [{ cells: [
+      { id: 'k1', tabs: [{ id: 'urgent', kind: 'number', glance: { metric: 'urgent' } }] },
+      { id: 'k2', tabs: [{ id: 'open', kind: 'number', glance: { metric: 'open' } }] },
+    ] }] }],
   }],
 }
 
-const dash = (page: Page) => page.locator('[data-dashboard="dash"]')
-const tileCount = (page: Page, id: string) => dash(page).locator(`[data-dash-tile="${id}"]`).getByTestId('dash-tile-count')
+/** The Number of `metric` (its tab's id). */
+const tile = (page: Page, metric: string) => page.locator(`[data-glance-tab="${metric}"] [data-number-metric]`)
+const tileCount = (page: Page, metric: string) => tile(page, metric).getByTestId('number-count')
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
 const dialogRow = (page: Page, title: string) => dialog(page).locator('[data-todo-id]').filter({ hasText: title })
 const editor = (page: Page) => page.getByRole('textbox', { name: 'Task title' })
 const dialogTitles = (page: Page) => dialog(page).locator('[data-todo-id]').evaluateAll((rows) =>
   rows.map((r) => r.querySelector('[data-task-title]')?.textContent ?? ''))
 
-test('a tile opens its tasks; a completed row stays, struck through, while the count drops', async ({ page }) => {
+test('a Number opens its tasks; a completed row stays, struck through, while the count drops', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(tileCount(page, 'urgent')).toHaveText('3')
 
-  await dash(page).locator('[data-dash-tile="urgent"]').click()
+  await tile(page, 'urgent').click()
   await expect(dialog(page)).toBeVisible()
   await expect(dialog(page).getByRole('heading')).toHaveText('Urgent tasks')
   await expect(dialog(page).getByTestId('task-dialog-count')).toHaveText('3')
@@ -58,13 +61,13 @@ test('a tile opens its tasks; a completed row stays, struck through, while the c
   await page.keyboard.press('Escape')
   await expect(dialog(page)).toHaveCount(0)
   // Reopened, the completed task is gone.
-  await dash(page).locator('[data-dash-tile="urgent"]').click()
+  await tile(page, 'urgent').click()
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
 })
 
 test('a row opens the editor on top; Esc in the editor closes only the editor', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await dash(page).locator('[data-dash-tile="open"]').click()
+  await tile(page, 'open').click()
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(4)
   // Overdue first, then by due date, undated last.
   expect(await dialogTitles(page)).toEqual(['Call the plumber', 'Fix checkout outage', 'Plan the offsite', 'Vendor contract'])
@@ -95,24 +98,6 @@ test('a row opens the editor on top; Esc in the editor closes only the editor', 
   await expect(dialog(page)).toHaveCount(0)
 })
 
-test('a list tile’s dialog opens the list as a tab of the cell, a layout change', async ({ page }) => {
-  await seedWorkspace(page, SEED)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
-
-  await dash(page).locator('[data-dash-list-tile]').click()
-  await expect(dialog(page).getByRole('heading')).toHaveText('Alice’s list')
-  await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
-
-  await dialog(page).getByRole('button', { name: 'Open as tab' }).click()
-  await expect(dialog(page)).toHaveCount(0)
-  const tabs = wsCell(page, 'k1').getByRole('tab')
-  await expect(tabs).toHaveCount(2)
-  await expect(tabs.nth(1)).toContainText('Alice’s list')
-  await expect(tabs.nth(1)).toHaveAttribute('aria-selected', 'true')
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
-  await expect(wsTab(page, 'dash')).toBeVisible()
-})
-
 test('the person chip on a task row opens that person’s open tasks', async ({ page }) => {
   const widget = await seedTaskList(page, {
     people: ['Alice Chen', 'Ben Ortiz'],
@@ -141,7 +126,7 @@ test('a row’s status menu and notes popover open above the task dialog', async
     tasks: [{ title: 'Call the plumber', notes: 'Ask about the boiler' }],
     layouts: SEED.layouts,
   })
-  await dash(page).locator('[data-dash-tile="open"]').click()
+  await tile(page, 'open').click()
   const row = dialogRow(page, 'Call the plumber')
 
   // A click is refused if anything covers the target, so these prove the
@@ -166,7 +151,7 @@ test('Esc in a row’s status menu or people picker over the task dialog closes 
     tasks: [{ title: 'Call the plumber', people: ['Alice Chen'] }],
     layouts: SEED.layouts,
   })
-  await dash(page).locator('[data-dash-tile="open"]').click()
+  await tile(page, 'open').click()
   const row = dialogRow(page, 'Call the plumber')
 
   await row.getByRole('button', { name: 'Set status' }).click()
@@ -189,7 +174,7 @@ test('Esc in a row’s status menu or people picker over the task dialog closes 
 
 test('a row’s follow-up popover sits over the dialog at level 2, works there, and Esc closes only it', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await dash(page).locator('[data-dash-tile="urgent"]').click()
+  await tile(page, 'urgent').click()
   const row = dialogRow(page, 'Plan the offsite')
   await row.hover()
   await row.getByRole('button', { name: 'Set follow-up', exact: true }).click()
