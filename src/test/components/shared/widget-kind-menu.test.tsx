@@ -23,11 +23,14 @@ describe('WidgetKindMenu', () => {
     expect(screen.getByRole('menuitemradio', { name: /List/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /Notes/ })).toHaveAttribute('aria-checked', 'true')
     expect(screen.queryByRole('menuitemradio', { name: /Taskboard/ })).toBeNull()
-    // The Status widget is retired (its bar lives on in the Dashboard).
-    expect(screen.queryByRole('menuitemradio', { name: /status/i })).toBeNull()
-    // List · Calendar · Notes · Eisenhower · Dashboard · Neglect map.
-    expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim()))
-      .toEqual(['List', 'Calendar', 'Notes', 'Eisenhower', 'Dashboard', 'Neglect map'])
+    // By group: the task widgets under the heading, then Numbers & charts (the Dashboard, then the glance widgets).
+    expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
+      'List', 'Calendar', 'Notes', 'Eisenhower', 'Neglect map',
+      'Dashboard', 'Number', 'Needs follow-up', 'Next 7 days', 'Created vs completed', 'Status', 'People', 'Tags',
+      'Stale tasks', 'Recently completed', 'Eisenhower summary',
+    ])
+    expect(screen.getByText('Numbers & charts')).toBeInTheDocument()
+    expect(screen.queryByText('Tasks')).toBeNull()
     expect(screen.queryAllByRole('menuitem')).toHaveLength(0)
   })
 
@@ -114,7 +117,7 @@ describe('WidgetKindMenu', () => {
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Calendar/ }))
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Neglect map/ }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Eisenhower summary/ }))
     // Type-ahead: the next item starting with the key.
     fireEvent.keyDown(menu, { key: 'n' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Notes/ }))
@@ -193,7 +196,10 @@ describe('WidgetKindMenu', () => {
       )
       // Adding: plain items, nothing checked.
       expect(screen.getByRole('menuitem', { name: /Dashboard/ })).not.toHaveAttribute('aria-checked')
-      expect(screen.getByText('Add widget')).toBeInTheDocument()
+      // Adding: the groups' headings (the menu is named Add widget).
+      expect(screen.getByRole('menu', { name: 'Add widget' })).toBeInTheDocument()
+      expect(screen.getByText('Tasks')).toBeInTheDocument()
+      expect(screen.getByText('Numbers & charts')).toBeInTheDocument()
     })
 
     it('is marked active when the current kind is dashboard', () => {
@@ -280,7 +286,7 @@ describe('WidgetKindMenu — widget setting submenu', () => {
     render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={() => {}} widgetSetting={setting} />)
     const items = screen.getAllByRole('menuitem')
     expect(items[0]).toHaveTextContent('Due date makes a task urgent3 days')
-    expect(screen.getByRole('menuitemradio', { name: /Eisenhower/ })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitemradio', { name: /^Eisenhower$/ })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('→ opens the submenu on the checked choice; picking one runs it and closes the menu', () => {

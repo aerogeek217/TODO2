@@ -1,23 +1,25 @@
 import type { ComponentType } from 'react'
 import type { DashboardSectionId } from '../../../models/dashboard-config'
-import {
-  EisenhowerSection,
-  FollowupSection,
-  NextDaysSection,
-  PeopleSection,
-  RecentSection,
-  StaleSection,
-  StatusSection,
-  TagsSection,
-  TrendSection,
-  type DashboardSectionProps,
-} from './DashboardSections'
-import { SECTION_META, type DashboardSectionMeta } from './section-meta'
+import type { DashboardData } from '../../../hooks/use-dashboard-data'
+import { EisenhowerSection } from '../glance/EisenhowerSummaryWidget'
+import { FollowupSection } from '../glance/FollowupWidget'
+import { NextDaysSection } from '../glance/NextDaysWidget'
+import { PeopleSection } from '../glance/PeopleWidget'
+import { RecentSection } from '../glance/RecentWidget'
+import type { RowSectionProps } from '../glance/section-parts'
+import { StaleSection } from '../glance/StaleWidget'
+import { StatusSection } from '../glance/StatusWidget'
+import { TagsSection } from '../glance/TagsWidget'
+import { TrendSection } from '../glance/TrendWidget'
+import { SECTION_META, type DashboardSectionMeta } from '../glance/section-meta'
+
+/** What every section is rendered with on the Dashboard: the whole dashboard data, and the rows' kit. */
+export type DashboardSectionProps = RowSectionProps<DashboardData>
 
 /**
  * One dashboard section: a self-contained part (title, glyph, default width,
- * its own options) rendered from the shared dashboard data — so a section
- * could later become a widget kind of its own.
+ * its own options) rendered from the shared dashboard data — each is also a
+ * glance widget of its own (`components/workspace/glance`).
  */
 export interface DashboardSectionDef extends DashboardSectionMeta {
   Component: ComponentType<DashboardSectionProps>

@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
-import { WIDGET_KINDS, widgetKindLabel, type WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { listChoiceEntries } from './list-choice-entries'
 import { WidgetKindIcon } from './icons'
@@ -142,7 +142,7 @@ export function WidgetKindMenu({
     ...(a.checked !== undefined ? { checkbox: true, checked: a.checked } : {}),
     onSelect: a.onSelect,
   }))
-  const kinds: MenuItemEntry[] = WIDGET_KINDS.map((k) => ({
+  const kindItem = (k: WidgetKind): MenuItemEntry => ({
     kind: 'item',
     label: widgetKindLabel(k),
     icon: <WidgetKindIcon kind={k} />,
@@ -152,7 +152,14 @@ export function WidgetKindMenu({
     disabled: k !== currentKind && unavailableKinds?.[k] != null ? true : undefined,
     description: k !== currentKind ? unavailableKinds?.[k] : undefined,
     onSelect: () => onChangeKind(k),
-  }))
+  })
+  // The kinds by group (Tasks, Numbers & charts). Changing a widget, the
+  // first group sits under the menu's heading, which says what a pick does.
+  const kinds: MenuEntry[] = WIDGET_KIND_GROUPS.flatMap(({ group, label }, i): MenuEntry[] => [
+    ...(i > 0 ? [{ kind: 'separator' } as const] : []),
+    { kind: 'label', text: i === 0 && currentKind != null ? heading : label },
+    ...widgetKindsOf(group).map(kindItem),
+  ])
 
   if (listFirst) {
     entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList?.() })
@@ -160,7 +167,7 @@ export function WidgetKindMenu({
     entries.push({ kind: 'separator' })
     if (settingEntries && settingEntries.length > 0) entries.push(...settingEntries, { kind: 'separator' })
     if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
-    entries.push({ kind: 'label', text: heading }, ...kinds)
+    entries.push(...kinds)
   } else {
     if (onEditList || (sourceActions?.length ?? 0) > 0) {
       if (onEditList) entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList() })
@@ -190,7 +197,7 @@ export function WidgetKindMenu({
       }, { kind: 'separator' })
     }
     if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
-    entries.push({ kind: 'label', text: heading }, ...kinds)
+    entries.push(...kinds)
     if (showChangeList) entries.push({ kind: 'separator' }, changeList)
   }
 

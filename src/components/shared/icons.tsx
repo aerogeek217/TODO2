@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { WidgetKind } from '../../models/workspace-layout'
 import { hueColor } from '../../utils/layout-hue'
+import { DASH_GLYPH } from '../../utils/dash-glyphs'
 
 /**
  * Inline stroke icons for the workspace chrome: 16×16 viewBox, stroke 1.6,
@@ -65,6 +66,17 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <circle cx="12" cy="4.5" r="1.5" fill="currentColor" stroke="none" />
     </>
   ),
+  // The glance widgets: a Number is a tile holding a 1; each section, its dashboard glyph.
+  number: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
+  followup: <path d={DASH_GLYPH.followup} />,
+  next7: <path d={DASH_GLYPH.calendar} />,
+  trend: <path d={DASH_GLYPH.chart} />,
+  status: <path d={DASH_GLYPH.status} />,
+  people: <path d={DASH_GLYPH.people} />,
+  tags: <path d={DASH_GLYPH.tag} />,
+  stale: <path d={DASH_GLYPH.stale} />,
+  recent: <path d={DASH_GLYPH.done} />,
+  eisenhowerSummary: <path d={DASH_GLYPH.matrix} />,
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {

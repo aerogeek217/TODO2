@@ -26,6 +26,17 @@ import {
   type NeglectTabConfig,
 } from '../models/workspace-layout'
 import { normalizeDashboardConfig } from '../models/dashboard-config'
+import {
+  GLANCE_CONFIG_FIELDS,
+  pickFollowupConfig,
+  pickNumberConfig,
+  pickPeopleConfig,
+  pickRecentConfig,
+  pickStaleConfig,
+  pickTagsConfig,
+  pickTrendConfig,
+  type PickedConfig,
+} from '../models/glance-widgets'
 import { isRecord } from '../utils/is-record'
 
 /**
@@ -107,6 +118,9 @@ export function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixe
   return { config: { colourBy, untouchedDays }, fixed }
 }
 
+/** The kinds whose tabs show task rows: they keep a details width (`TaskRowsViewState`). */
+const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens', 'eisenhower', 'dashboard', 'followup', 'stale', 'recent'])
+
 /** A tab's config / view state for its kind (a case per kind: a new kind doesn't compile without one). */
 function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | string {
   const config = tab.config
@@ -114,7 +128,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   const view = tab.viewState
   if (view !== undefined && !isRecord(view)) return `${path}.viewState`
   // Tabs showing task rows: the details width, a number in range.
-  if ((kind === 'lens' || kind === 'eisenhower' || kind === 'dashboard')
+  if (ROWS_KINDS.has(kind)
     && view?.detailsWidth !== undefined && pickDetailsWidth(view.detailsWidth) === undefined) {
     return `${path}.viewState.detailsWidth`
   }
@@ -151,7 +165,21 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (!isNeglectColourBy(config.colourBy)) return `${path}.config.colourBy`
       if (!isNeglectUntouchedDays(config.untouchedDays)) return `${path}.config.untouchedDays`
       return true
+    case 'number':
+    case 'followup':
+    case 'trend':
+    case 'people':
+    case 'tags':
+    case 'stale':
+    case 'recent': {
+      // One config field, a known value.
+      const field = GLANCE_CONFIG_FIELDS[kind]
+      return field.ok(config[field.key]) ? true : `${path}.config.${field.key}`
+    }
     case 'notes':
+    case 'next7':
+    case 'status':
+    case 'eisenhowerSummary':
       return true
   }
 }
@@ -341,6 +369,16 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       if (width === undefined && view?.detailsWidth !== undefined) fix('settings')
       return width === undefined ? undefined : { detailsWidth: width }
     }
+    /** A glance config as picked, a reset reported. */
+    const glance = <C,>(picked: PickedConfig<C>): C => {
+      if (picked.fixed) fix('settings')
+      return picked.config
+    }
+    /** `t` with the task rows' view state, when there is one. */
+    const withRowsView = <T extends LayoutTab>(t: T): T => {
+      const v = rowsView()
+      return v ? { ...t, viewState: v } : t
+    }
     switch (tab.kind) {
       case 'lens': {
         const lensConfig: LensTabConfig = {}
@@ -412,6 +450,26 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
+      // The glance kinds: a bad or missing setting is reset to its default;
+      // the row widgets keep a details width; no other view state.
+      case 'number':
+        return { id, kind: 'number', config: glance(pickNumberConfig(config)) }
+      case 'followup':
+        return withRowsView({ id, kind: 'followup', config: glance(pickFollowupConfig(config)) })
+      case 'trend':
+        return { id, kind: 'trend', config: glance(pickTrendConfig(config)) }
+      case 'people':
+        return { id, kind: 'people', config: glance(pickPeopleConfig(config)) }
+      case 'tags':
+        return { id, kind: 'tags', config: glance(pickTagsConfig(config)) }
+      case 'stale':
+        return withRowsView({ id, kind: 'stale', config: glance(pickStaleConfig(config)) })
+      case 'recent':
+        return withRowsView({ id, kind: 'recent', config: glance(pickRecentConfig(config)) })
+      case 'next7':
+      case 'status':
+      case 'eisenhowerSummary':
+        return { id, kind: tab.kind, config: {} }
     }
   }
 

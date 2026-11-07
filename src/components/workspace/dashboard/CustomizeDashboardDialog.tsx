@@ -38,7 +38,7 @@ import { DragHandle } from '../../shared/DragHandle'
 import { DialogFrame } from '../../shared/Dialog'
 import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
 import { ChevronDownIcon, CloseIcon } from '../../shared/icons'
-import { tileCatalogHint, trendRangeLabel } from './dashboard-copy'
+import { tileCatalogHint, trendRangeLabel } from '../glance/glance-copy'
 import {
   customizeStateFrom,
   syncCustomizeState,
@@ -51,9 +51,9 @@ import {
   withSectionOption,
   type CustomizeState,
 } from './dashboard-customize'
-import { TILES } from './dashboard-tiles'
+import { TILES } from '../glance/tiles'
 import { DashGlyph } from '../../shared/DashGlyph'
-import { SECTION_META } from './section-meta'
+import { SECTION_META } from '../glance/section-meta'
 import { useListTileHints } from './use-list-tile-hints'
 import styles from './CustomizeDashboardDialog.module.css'
 

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { packSections, sectionRowTracks } from '../../../components/workspace/dashboard/dashboard-layout'
 import {
   countOf, nextDayLabels, signed, tileSubLine, trendBucketLabel,
-} from '../../../components/workspace/dashboard/dashboard-copy'
+} from '../../../components/workspace/glance/glance-copy'
 import { computeTiles } from '../../../services/stats/tiles'
 import { SAMPLE_CTX } from '../../fixtures/dashboard-sample'
 import { makeTodo } from '../../helpers'

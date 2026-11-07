@@ -2,7 +2,7 @@ import { wrapClipboardHtml, writeRichClipboard } from '../../../services/rich-cl
 import { COPY_REFUSED_NOTICE } from '../../../services/task-copy'
 import { useUndoStore } from '../../../stores/undo-store'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
-import type { DashboardSummary } from './dashboard-summary'
+import type { DashboardSummary } from '../glance/glance-summary'
 import { DashGlyph } from '../../shared/DashGlyph'
 
 /**

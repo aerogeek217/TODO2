@@ -486,7 +486,7 @@ describe('layouts audit', () => {
 
   it('reports a layout the schema cannot read for repair, naming what cleanup drops', async () => {
     const id = await db.layouts.add(layout('Broken', [
-      { id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, tabs: [notes('t1'), { id: 't2', kind: 'status', config: {} }] }, { weight: -1 })] },
+      { id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, tabs: [notes('t1'), { id: 't2', kind: 'taskboard', config: {} }] }, { weight: -1 })] },
     ]) as any)
     await db.layouts.add(layout('Daily', good()) as any)
 

@@ -4,15 +4,16 @@ import { useUIStore } from '../../stores/ui-store'
 import { NotesWidget } from './NotesWidget'
 import { CalendarWidget } from './calendar/CalendarWidget'
 import { DashboardWidget } from './dashboard/DashboardWidget'
-import type { DashboardSummary } from './dashboard/dashboard-summary'
+import type { DashboardSummary } from './glance/glance-summary'
 import { EisenhowerWidget } from './eisenhower/EisenhowerWidget'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 import { NeglectMapWidget } from './neglect/NeglectMapWidget'
+import { GlanceWidget } from './glance/GlanceWidget'
 import styles from './WidgetBody.module.css'
 
 /** What a widget reports to its cell (tab count, and what its menu's copy items copy). */
 export interface WidgetResult extends ListWidgetResult {
-  /** Dashboard: its counts, for "Copy summary". */
+  /** Dashboard: its counts, for "Copy summary"; a glance widget: its lines, for "Copy". */
   summary?: DashboardSummary
 }
 
@@ -57,6 +58,23 @@ export function WidgetBody({ tab, onResult, onCustomize }: WidgetBodyProps): Rea
       )
     case 'neglect':
       return <NeglectMapWidget tab={tab} />
+    case 'number':
+    case 'followup':
+    case 'next7':
+    case 'trend':
+    case 'status':
+    case 'people':
+    case 'tags':
+    case 'stale':
+    case 'recent':
+    case 'eisenhowerSummary':
+      return (
+        <GlanceWidget
+          tab={tab}
+          onResult={onResult ? (r) => onResult({ sections: NO_SECTIONS, summary: r.summary }) : undefined}
+          onDrill={(drill) => useUIStore.getState().showTaskDialog({ ...drill, fromTabId: tab.id })}
+        />
+      )
     default: {
       // Every kind has its case above (`never` here), but stored data isn't
       // typed: a kind this build doesn't know (the layout load repair drops

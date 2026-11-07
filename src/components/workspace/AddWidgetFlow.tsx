@@ -1,8 +1,9 @@
-import { WIDGET_KIND_SPECS, WIDGET_KINDS, widgetKindLabel, type WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import { WidgetKindIcon } from '../shared/icons'
 import { createListThenEdit, NO_LIST_LAYOUT_REASON, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
+import styles from './AddWidgetFlow.module.css'
 
 /**
  * Adds a widget of `kind` at `target`. A list widget gets a new blank list
@@ -58,26 +59,34 @@ interface AddWidgetButtonsProps {
 }
 
 /**
- * One button per widget kind (an empty layout's tiles, an empty cell's row):
- * adds that widget at `target` (`useAddKind` — a list opens its Edit list).
+ * One button per widget kind (an empty layout's tiles, an empty cell's row),
+ * by group under its caption (Tasks, Numbers & charts): adds that widget at
+ * `target` (`useAddKind` — a list opens its Edit list).
  */
 export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconSize }: AddWidgetButtonsProps) {
   const addKind = useAddKind(target)
   const unavailable = useUnavailableKinds()
   return (
     <>
-      {WIDGET_KINDS.map((kind) => (
-        <button
-          key={kind}
-          type="button"
-          className={buttonClassName}
-          disabled={unavailable?.[kind] != null}
-          title={unavailable?.[kind]}
-          onClick={() => addKind(kind)}
-        >
-          <span className={iconClassName}><WidgetKindIcon kind={kind} size={iconSize} /></span>
-          {widgetKindLabel(kind)}
-        </button>
+      {WIDGET_KIND_GROUPS.map(({ group, label }) => (
+        <div key={group} className={styles.group} role="group" aria-label={label} data-widget-group={group}>
+          <span className={styles.caption} aria-hidden="true">{label}</span>
+          <div className={styles.buttons}>
+            {widgetKindsOf(group).map((kind) => (
+              <button
+                key={kind}
+                type="button"
+                className={buttonClassName}
+                disabled={unavailable?.[kind] != null}
+                title={unavailable?.[kind]}
+                onClick={() => addKind(kind)}
+              >
+                <span className={iconClassName}><WidgetKindIcon kind={kind} size={iconSize} /></span>
+                {widgetKindLabel(kind)}
+              </button>
+            ))}
+          </div>
+        </div>
       ))}
     </>
   )
