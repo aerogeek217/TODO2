@@ -45,8 +45,9 @@ describe('upgradeV71 (pure): a version marker, no data change', () => {
     const data: DataSet = { listDefinitions: [v70List(), notList(), { membership: 5 }], todos: [] }
     expect(upgradeV71(data)).toBe(data)
     expect(upgradeV71({})).toEqual({})
-    expect(upgradeDataSet(data, 70, CURRENT_DB_VERSION)).toBe(data)
-    expect(upgradeDataSet(data, 68, CURRENT_DB_VERSION)).toBe(data)
+    // Up to v74: v75 turns or groups into expressions.
+    expect(upgradeDataSet(data, 70, 74)).toBe(data)
+    expect(upgradeDataSet(data, 68, 74)).toBe(data)
   })
 })
 

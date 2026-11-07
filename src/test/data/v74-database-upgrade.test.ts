@@ -94,12 +94,22 @@ describe('the browser database’s v74 upgrade', () => {
     await db.open()
     expect(db.verno).toBe(CURRENT_DB_VERSION)
     expect(await db.settings.get('hotRule')).toBeUndefined()
+    // v74 made each Priority filter conditions; v75 then wrote the ones Graphical can't hold as expressions.
+    const hot = { kind: 'and', items: [
+      { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'priority', value: 'urgent' }] },
+      { kind: 'or', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'priority', value: 'important' }] },
+    ] }
     const list = await db.listDefinitions.get(1)
-    expect(list?.membership).toMatchObject({ predicate: { markers: [{ values: ['focus', 'urgent'] }, { values: ['urgent', 'important'] }] } })
-    const lenses = JSON.parse(String((await db.settings.get('lenses'))?.value)) as { predicate: { orGroups: { markers: unknown }[] } }[]
-    expect(lenses[0]?.predicate.orGroups.map((g) => g.markers)).toEqual([[{ values: ['urgent'] }], [{ values: ['important'] }]])
-    const panes = JSON.parse(String((await db.settings.get('eisenhowerPanes'))?.value)) as { do: { filter: { markers: unknown } } }
-    expect(panes.do.filter.markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['urgent', 'important'] }])
+    expect(list?.membership).toMatchObject({ predicate: { markers: null, expression: hot } })
+    const lenses = JSON.parse(String((await db.settings.get('lenses'))?.value)) as { predicate: { orGroups?: unknown; expression: unknown } }[]
+    expect(lenses[0]?.predicate.orGroups).toBeUndefined()
+    // `Ann or (Urgent and Important)` as v74 distributed it: (Urgent or Ann) and (Important or Ann).
+    expect(lenses[0]?.predicate.expression).toEqual({ kind: 'and', items: [
+      { kind: 'or', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'person', id: 1 }] },
+      { kind: 'or', items: [{ kind: 'priority', value: 'important' }, { kind: 'person', id: 1 }] },
+    ] })
+    const panes = JSON.parse(String((await db.settings.get('eisenhowerPanes'))?.value)) as { do: { filter: { expression: unknown } } }
+    expect(panes.do.filter.expression).toEqual(hot)
     const checkin = JSON.parse(String((await db.settings.get('checkinTaskFilter'))?.value)) as { markers: unknown }
     expect(checkin.markers).toEqual([{ values: ['focus'], not: true }])
     const tab = (await db.layouts.get(1))?.columns[0]?.cells[0]?.tabs[0]
