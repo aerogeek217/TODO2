@@ -30,16 +30,23 @@ export function useTaskRowColumn<T>(select: (columns: TaskRowColumns) => T): T {
  * Keeps the row element's `grid-template-columns` on its list's tracks,
  * written to the element straight from the store — no render per change.
  * (Per row, not one custom property on the list: changing an inherited
- * property restyles every element of every row.)
+ * property restyles every element of every row.) With `enabled` false the
+ * row keeps its stylesheet's columns.
  */
-export function useTaskRowTracks(ref: RefObject<HTMLElement | null>): void {
+export function useTaskRowTracks(ref: RefObject<HTMLElement | null>, enabled = true): void {
   const store = useContext(TaskRowColumnsContext)
   useLayoutEffect(() => {
+    const el = ref.current
+    // A row laid out by its own stylesheet (a stacked row): no tracks.
+    if (!enabled) {
+      if (el) el.style.gridTemplateColumns = ''
+      return
+    }
     const apply = () => {
-      const el = ref.current
-      if (el) el.style.gridTemplateColumns = store.get().template
+      const node = ref.current
+      if (node) node.style.gridTemplateColumns = store.get().template
     }
     apply()
     return store.subscribe(apply)
-  }, [ref, store])
+  }, [ref, store, enabled])
 }

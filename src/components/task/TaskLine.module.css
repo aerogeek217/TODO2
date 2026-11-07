@@ -1,0 +1,112 @@
+/*
+ * A list tab's compact zoom levels (D25 I1): a Lines row (a 15px line, a
+ * state tick and the title) and a Strips bar. Both colour a task by its
+ * state (`data-tone`, `utils/list-zoom.rowTone`).
+ */
+.line,
+.strip {
+  --row-tone: var(--color-border);
+}
+
+[data-tone="late"] {
+  --row-tone: var(--color-deadline);
+}
+
+[data-tone="soon"] {
+  --row-tone: var(--color-deadline-soon);
+}
+
+[data-tone="followup"] {
+  --row-tone: var(--color-followup);
+}
+
+[data-tone="stale"] {
+  --row-tone: var(--color-surface-bright);
+}
+
+/* ── Lines ─────────────────────────────────────────────────────────────── */
+
+/* The row's tracks (`TASK_ROW`: padding 2, gutter 8, gap 5, checkbox 18, gap 5): the title starts where a row's does. */
+.line {
+  display: grid;
+  grid-template-columns: 8px 18px minmax(0, 1fr);
+  column-gap: 5px;
+  align-items: center;
+  /* A least height, not a height: a completed line folds away (`.rowFolding`). */
+  min-height: var(--task-line-height);
+  padding: 0 8px 0 2px;
+  border-radius: var(--radius-sm);
+  cursor: grab;
+  transition: background 0.1s, opacity 0.3s ease;
+}
+
+.line:active {
+  cursor: grabbing;
+}
+
+.line:hover,
+.line[data-hovered-synced="true"] {
+  background: var(--color-surface-high);
+}
+
+.line[data-hovered-synced="true"] {
+  outline: 1px solid var(--color-accent-dim);
+  outline-offset: -1px;
+}
+
+/* The state tick, centred where the checkbox was. */
+.tick {
+  grid-column: 2;
+  justify-self: center;
+  width: 3px;
+  height: 11px;
+  border-radius: 2px;
+  background: var(--row-tone);
+}
+
+.title {
+  grid-column: 3;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-task-line);
+  line-height: var(--task-line-height);
+  font-weight: var(--font-weight-medium);
+}
+
+.line[data-stale] .title {
+  color: var(--color-text-muted);
+}
+
+.line.completed .title {
+  color: var(--color-text-completed);
+  text-decoration: line-through;
+}
+
+/* ── Strips ────────────────────────────────────────────────────────────── */
+
+/* The bar and the 1px gap under it: the whole width is the bar's hit area. */
+.strip {
+  display: flex;
+  align-items: flex-start;
+  min-height: calc(var(--task-strip-height) + 1px);
+  padding-left: 2px;
+  cursor: zoom-in;
+}
+
+.bar {
+  height: var(--task-strip-height);
+  border-radius: calc(var(--task-strip-height) / 2);
+  background: var(--row-tone);
+  transition: filter var(--transition-fast);
+}
+
+.strip:hover .bar {
+  filter: brightness(1.4);
+}
+
+.strip.completed .bar {
+  opacity: 0.4;
+}

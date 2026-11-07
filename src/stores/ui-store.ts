@@ -203,6 +203,11 @@ interface UIState {
   selectionCursorKey: string | null
   /** Todo currently hovered on any surface — drives cross-surface hover highlighting. */
   hoveredTodoId: number | null
+  /**
+   * The list tab (tab id) last pressed or focused in, if any: the palette's
+   * Zoom List In / Out act on it (`services/list-zoom`).
+   */
+  activeListTabId: string | null
   editPopupMode: EditPopupMode
   bulkConfirmation: BulkConfirmation | null
   /**
@@ -314,6 +319,7 @@ interface UIState {
   selectOneTodo: (id: number) => void
   rangeSelectTodo: (id: number, orderedIds: number[]) => void
   setHoveredTodoId: (id: number | null) => void
+  setActiveListTab: (tabId: string | null) => void
   selectAll: (ids: number[]) => void
   /** Sets a list widget's selection (computed by `nextScopedSelection`). */
   setScopedSelection: (scope: string, selection: ScopedSelection) => void
@@ -438,6 +444,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   selectionAnchorKey: null,
   selectionCursorKey: null,
   hoveredTodoId: null,
+  activeListTabId: null,
   editPopupMode: null,
   bulkConfirmation: null,
   confirmPrompts: [],
@@ -488,6 +495,11 @@ export const useUIStore = create<UIState>((set, get) => ({
   setHoveredTodoId(id: number | null) {
     if (get().hoveredTodoId === id) return
     set({ hoveredTodoId: id })
+  },
+
+  setActiveListTab(tabId: string | null) {
+    if (get().activeListTabId === tabId) return
+    set({ activeListTabId: tabId })
   },
 
   selectAll(ids: number[]) {

@@ -18,6 +18,67 @@
   scrollbar-color: var(--color-tint-8) transparent;
 }
 
+/*
+ * A list tab's zoom (D25 C + I1; `data-zoom` on the widget): the group
+ * headers, their gap and the manual-order drop slot follow the level — at
+ * Lines and Strips they shrink, P1's rhythm scaled; the sticky header and the
+ * top fade under it read the same height.
+ */
+.widget {
+  --list-drop-slot-height: 32px;
+}
+
+.widget[data-zoom="stacked"] {
+  --list-drop-slot-height: var(--task-row-stacked-height);
+}
+
+.widget[data-zoom="lines"] {
+  --list-group-header-height: var(--list-group-header-height-lines);
+  --list-group-gap: var(--list-group-gap-lines);
+  --font-size-group-name: var(--font-size-task-line);
+  --list-drop-slot-height: var(--task-line-height);
+}
+
+.widget[data-zoom="strips"] {
+  --list-group-header-height: var(--list-group-header-height-strips);
+  --list-group-gap: var(--list-group-gap-strips);
+  --font-size-group-name: var(--font-size-strips-group);
+  --list-drop-slot-height: calc(var(--task-strip-height) + 1px);
+}
+
+/* The header's other parts at the compact levels: the count at the name's size, a smaller swatch and chevron. */
+.widget[data-zoom="lines"] .groupHeader,
+.widget[data-zoom="strips"] .groupHeader {
+  gap: 4px;
+  font-size: var(--font-size-group-name);
+}
+
+.widget[data-zoom="lines"] .swatch {
+  width: 6px;
+  height: 6px;
+}
+
+.widget[data-zoom="strips"] .swatch {
+  width: 5px;
+  height: 5px;
+}
+
+.widget[data-zoom="lines"] .groupChevron,
+.widget[data-zoom="strips"] .groupChevron {
+  transform: scale(0.75);
+}
+
+.widget[data-zoom="lines"] .groupCollapsed .groupChevron,
+.widget[data-zoom="strips"] .groupCollapsed .groupChevron {
+  transform: scale(0.75) rotate(-90deg);
+}
+
+/* At Strips the header's envelope would overflow its 14px line: it keeps the header's height. */
+.widget[data-zoom="strips"] .groupAction,
+.widget[data-zoom="lines"] .groupAction {
+  height: calc(var(--list-group-header-height) - 2px);
+}
+
 /* A grouped list's header sticks at the top: the top fade starts under it. */
 .scroll:has(.groupHeaderRow) {
   --scroll-fade-inset: var(--list-group-header-height);
@@ -242,6 +303,17 @@
   border-radius: 6px;
 }
 
+/* A Strips bar's cursor: the ring outside its 4px line, so it reads (keyboard navigation; D25 I1). */
+.widget[data-zoom="strips"] .rowCursor::before {
+  inset: -2px 0;
+  border-radius: 3px;
+}
+
+.widget[data-zoom="lines"] .rowCursor::before,
+.widget[data-zoom="lines"] .rowCursor:not(.rowSelected) {
+  border-radius: var(--radius-sm);
+}
+
 /* A selected or cursor row draws no separator line under itself. */
 .rowSelected > [data-todo-id]::after,
 .rowCursor > [data-todo-id]::after {
@@ -258,9 +330,9 @@
   overflow: hidden;
 }
 
-/* Where the dragged row lands (manual order: rows make room). */
+/* Where the dragged row lands (manual order: rows make room) — a row's height at the list's zoom. */
 .dropSlot {
-  height: 32px;
+  height: var(--list-drop-slot-height);
   border-radius: 6px;
   background: var(--color-inset);
   box-shadow: inset 0 0 0 1px var(--color-border);

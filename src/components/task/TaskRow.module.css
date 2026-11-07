@@ -667,20 +667,27 @@
   }
 }
 
-/* ── Comfortable density (Settings › Appearance; the row list's `data-density`) ── */
+/* ── Stacked (a list tab's zoom, D25 C: `TaskRow stacked`) ────────────────── */
 
 /*
- * The title wraps to two lines (18px each, then an ellipsis); the row grows
- * to fit, at least 44px, and its cells sit on the first line.
+ * Two lines: the gutter, the checkbox and the title (18px lines, up to two,
+ * then an ellipsis), then the details under the title (`StackedDetails`).
+ * The tracks are the row's own, not its list's.
  */
-[data-density="comfortable"] .row {
+.row.rowStacked {
+  grid-template-columns: 8px 18px minmax(0, 1fr);
+  row-gap: 2px;
   align-items: start;
-  min-height: 44px;
-  padding-top: 5px;
-  padding-bottom: 5px;
+  min-height: var(--task-row-stacked-height);
+  padding-top: 3px;
+  padding-bottom: 3px;
 }
 
-[data-density="comfortable"] .title {
+.rowStacked .gutter {
+  height: 18px;
+}
+
+.rowStacked .title {
   display: -webkit-box;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
@@ -690,34 +697,78 @@
   line-height: 18px;
 }
 
-[data-density="comfortable"] .titleInput {
+.rowStacked .titleInput {
   height: 18px;
   line-height: 18px;
 }
 
-/* With a count the text clamps on its own, the count beside its first line. */
-[data-density="comfortable"] .title.titleWithCount {
+/* The details line, under the title; a narrow list clips it from the right (the tags ellipsize first). */
+.stackedDetails {
+  grid-column: 3;
+  grid-row: 2;
   display: flex;
-  align-items: flex-start;
-}
-
-[data-density="comfortable"] .titleWithCount .titleText {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
-  line-clamp: 2;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
-[data-density="comfortable"] .checkbox,
-[data-density="comfortable"] .gutter,
-[data-density="comfortable"] .cell {
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
   height: 18px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-row-meta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-[data-density="comfortable"] .checkbox {
-  width: 18px;
+.stackedPart {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+/* A part: its glyph and text, a picker's trigger; its hover fill reaches 3px past it. */
+.stackedButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  height: 18px;
+  margin: 0 -3px;
+  padding: 0 3px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.stackedButton:hover {
+  background: var(--color-tint-7);
+}
+
+/* A plain part brightens on hover; a coloured date keeps its colour. */
+.stackedButton:hover:not([data-due-soon], [data-due-past], [data-followup="today"], [data-followup="late"]) {
+  color: var(--color-text-secondary);
+}
+
+.stackedButton.cellOpen,
+.stackedButton.cellOpen:hover {
+  background: var(--color-trigger-open-fill);
+  box-shadow: var(--trigger-open-ring);
+  color: var(--color-accent-text);
+}
+
+/* The tags: the last part, giving way first (an ellipsis). */
+.stackedTags {
+  display: block;
+  flex-shrink: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 18px;
+}
+
+.stackedTags .tag + .tag {
+  margin-left: 5px;
 }
 
 /* ── The row list and its divider ──────────────────────────────────────── */

@@ -1,6 +1,8 @@
 import { memo, useCallback } from 'react'
 import type { PersistedTodoItem, Person } from '../../../models'
+import type { ListZoom } from '../../../models/workspace-layout'
 import { TaskRow } from '../../task/TaskRow'
+import { TaskLine, TaskStrip } from '../../task/TaskLine'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
 import { taskDragId } from '../../../utils/task-dnd'
 import styles from './ListWidget.module.css'
@@ -48,23 +50,30 @@ interface ListWidgetRowProps {
   look: ListRowDragLook
   /** Just completed in a list that hides completed tasks: it lingers, then folds away (D19). */
   leaving?: LeavingPhase
+  /** The list tab's zoom (D25 C + I1): a stacked or plain row, a line or a strip. */
+  zoom?: ListZoom
   onSelect: (rowKey: string, todoId: number, mods: ListRowSelectMods) => void
   onOpenDetail: (todoId: number) => void
+  /** A strip's click: the list zooms to Rows on this occurrence. */
+  onZoomTo?: (rowKey: string, todoId: number) => void
 }
 
 /**
  * One occurrence of a task in a list widget: draggable (one drag id per
  * occurrence), selectable, addressed by `rowKey` (`data-row-key`) for the
- * widget's selection and keyboard cursor.
+ * widget's selection and keyboard cursor. Drawn at the list's zoom: a
+ * `TaskRow` (stacked at Stacked), a `TaskLine` at Lines, a `TaskStrip` at
+ * Strips — the same draggable occurrence at every level.
  */
 export const ListWidgetRow = memo(function ListWidgetRow({
   todo, assignedPeople, tabId, sectionKey, rowKey,
-  selected, selFirst, selLast, cursor, look, leaving, onSelect, onOpenDetail,
+  selected, selFirst, selLast, cursor, look, leaving, zoom = 'rows', onSelect, onOpenDetail, onZoomTo,
 }: ListWidgetRowProps) {
   const handleSelect = useCallback(
     (todoId: number, mods: ListRowSelectMods) => onSelect(rowKey, todoId, mods),
     [onSelect, rowKey],
   )
+  const handleZoomTo = useCallback((todoId: number) => onZoomTo?.(rowKey, todoId), [onZoomTo, rowKey])
   const dragData: ListRowDragData = { listTabId: tabId, sectionKey, rowKey }
   const cls = [
     styles.row,
@@ -100,11 +109,16 @@ export const ListWidgetRow = memo(function ListWidgetRow({
         >
           {look === 'slot' ? (
             <div className={styles.dropSlot} data-drop-slot="" />
+          ) : zoom === 'lines' ? (
+            <TaskLine todo={todo} assignedPeople={assignedPeople} onSelect={handleSelect} onOpenDetail={onOpenDetail} />
+          ) : zoom === 'strips' ? (
+            <TaskStrip todo={todo} onZoomTo={handleZoomTo} />
           ) : (
             <TaskRow
               todo={todo}
               assignedPeople={assignedPeople}
               isSelected={selected}
+              stacked={zoom === 'stacked'}
               onSelect={handleSelect}
               onOpenDetail={onOpenDetail}
             />
