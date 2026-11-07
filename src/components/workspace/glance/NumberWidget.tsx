@@ -6,13 +6,13 @@ import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { hasHistory, historyDelta } from '../../../services/stats/metric-history'
 import { numberBreakdown, type BreakdownEntry } from '../../../services/stats/number-breakdown'
 import { DashGlyph } from '../../shared/DashGlyph'
-import { closedSubLine, countOf, deltaLabel, tileSubLine } from './glance-copy'
+import { closedSubLine, countOf, deltaLabel, metricSubLine } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { numberLines } from './glance-summary'
-import type { DashboardDrill, OnDashboardDrill } from './glance-types'
+import type { GlanceDrill, OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { Sparkline } from './Sparkline'
-import { closedThisWeekDrill, NUMBER_DEFS, tileColors, tileDrill } from './tiles'
+import { closedThisWeekDrill, NUMBER_DEFS, numberColors, metricDrill } from './number-defs'
 import styles from './NumberWidget.module.css'
 
 /** The large face's breakdown lists this many people / tags; the rest fold into one line. */
@@ -27,7 +27,7 @@ function Breakdown({ entries, by, total, title, onDrill }: {
   by: 'people' | 'tags'
   total: number
   title: string
-  onDrill?: OnDashboardDrill
+  onDrill?: OnGlanceDrill
 }) {
   if (entries.length === 0) return null
   const shown = entries.slice(0, BREAKDOWN_SHOWN)
@@ -67,7 +67,7 @@ function Breakdown({ entries, by, total, title, onDrill }: {
 }
 
 /** One breakdown line's tasks for the task dialog. */
-function breakdownDrill(title: string, by: 'people' | 'tags', entry: BreakdownEntry): DashboardDrill {
+function breakdownDrill(title: string, by: 'people' | 'tags', entry: BreakdownEntry): GlanceDrill {
   const which = entry.key === 'none'
     ? (by === 'tags' ? 'with no tag' : 'with nobody assigned')
     : (by === 'tags' ? `tagged ${entry.label}` : `assigned to ${entry.label}`)
@@ -80,7 +80,7 @@ function breakdownDrill(title: string, by: 'people' | 'tags', entry: BreakdownEn
 }
 
 /**
- * The Number widget (D25 N): one count — a Dashboard tile's, or Closed
+ * The Number widget (D25 N): one count — a tile metric's, or Closed
  * this week — over the screen filter (`shown of total`). By its face (D25
  * R): small is the label and the count (a fit row's, ~76px); medium adds
  * its sub-line and, for Open, Overdue, Due today and Closed this week, a
@@ -104,11 +104,11 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
   const shown = shownIds.length
   const total = isTileMetric(metric) ? tiles.total[metric].ids.length : closed.total.ids.length
   const sub = isTileMetric(metric)
-    ? tileSubLine(metric, tiles.shown, { today: base.ctx.today, trendNet: history?.trend.net ?? null, trendRange: '14d' })
+    ? metricSubLine(metric, tiles.shown, { today: base.ctx.today, trendNet: history?.trend.net ?? null, trendRange: '14d' })
     : closedSubLine(closed.shown.weekStart, base.ctx.today)
   const series = history && hasHistory(metric) ? history.history.series[metric] : null
   const delta = series ? historyDelta(series) : null
-  const colors = tileColors(metric, shown)
+  const colors = numberColors(metric, shown)
   const count = countOf(shown, total)
   const large = face === 'large'
   const small = face === 'small'
@@ -150,7 +150,7 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
   const open = (e: MouseEvent) => {
     // Its own drill: not the cell's full-widget popover.
     e.preventDefault()
-    drill?.(isTileMetric(metric) ? tileDrill(metric, { tiles, ctx: base.ctx }) : closedThisWeekDrill(closed.shown, base.ctx.today))
+    drill?.(isTileMetric(metric) ? metricDrill(metric, { tiles, ctx: base.ctx }) : closedThisWeekDrill(closed.shown, base.ctx.today))
   }
   return (
     <GlanceFrame tab={tab} faceRef={faceRef} face={face}>

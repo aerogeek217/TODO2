@@ -4,7 +4,7 @@ import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import type { GlanceResult } from '../../../components/workspace/glance/glance-hooks'
 import { glanceMenu } from '../../../components/workspace/glance/glance-menu'
-import type { DashboardDrill } from '../../../components/workspace/glance/glance-types'
+import type { GlanceDrill } from '../../../components/workspace/glance/glance-types'
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import { createTab, isGlanceKind, WIDGET_KINDS, type GlanceTab, type GlanceWidgetKind } from '../../../models/workspace-layout'
 import { useFilterStore } from '../../../stores/filter-store'
@@ -23,11 +23,11 @@ import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { WidgetFace } from '../../../utils/widget-face'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, Q4, SAMPLE_EVENTS, SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
-} from '../../fixtures/dashboard-sample'
+} from '../../fixtures/glance-sample'
 
 let lastResult: GlanceResult | null = null
 
-function setup(tab: GlanceTab, onDrill?: (d: DashboardDrill) => void, face?: WidgetFace) {
+function setup(tab: GlanceTab, onDrill?: (d: GlanceDrill) => void, face?: WidgetFace) {
   return render(
     <DndContext>
       <WidgetFaceContext.Provider value={face ? { forced: face } : {}}>
@@ -112,7 +112,7 @@ describe('Number widget', () => {
     setup(createTab('number', 'n'), onDrill)
     fireEvent.click(number())
     expect(onDrill).toHaveBeenCalledTimes(1)
-    const drill = onDrill.mock.calls[0]![0] as DashboardDrill
+    const drill = onDrill.mock.calls[0]![0] as GlanceDrill
     expect(drill.title).toBe('Overdue tasks')
     if (drill.source.kind !== 'todos') throw new Error('a tile opens its tasks')
     expect(drill.source.todoIds).toHaveLength(2)
@@ -131,7 +131,7 @@ describe('Number widget', () => {
     expect(number().textContent).toContain('Since Sun 4')
     expect(number().dataset.lit).toBeUndefined()
     fireEvent.click(number())
-    expect((onDrill.mock.calls[0]![0] as DashboardDrill).description).toBe('Tasks completed since Sun 4.')
+    expect((onDrill.mock.calls[0]![0] as GlanceDrill).description).toBe('Tasks completed since Sun 4.')
   })
 
   it('under the screen filter: shown of total, and the dialog says so', () => {
@@ -140,7 +140,7 @@ describe('Number widget', () => {
     setup({ id: 'n', kind: 'number', config: { metric: 'open' } }, onDrill)
     expect(numberCount()).toMatch(/^\d+of 19$/)
     fireEvent.click(number())
-    expect((onDrill.mock.calls[0]![0] as DashboardDrill).description).toMatch(/Only tasks the top-bar filter shows\.$/)
+    expect((onDrill.mock.calls[0]![0] as GlanceDrill).description).toMatch(/Only tasks the top-bar filter shows\.$/)
   })
 
   it('reports its lines for Copy', () => {
@@ -284,7 +284,7 @@ describe('faces (D25 R)', () => {
     expect(named).toEqual([...named].sort((a, b) => b - a))
     expect(rows.findIndex((r) => r.dataset.breakdown === 'none')).toBeOneOf([-1, rows.length - 1])
     fireEvent.click(rows[0]!)
-    const drill = onDrill.mock.calls[0]![0] as DashboardDrill
+    const drill = onDrill.mock.calls[0]![0] as GlanceDrill
     expect(drill.title).toMatch(/^Open tasks · /)
     if (drill.source.kind !== 'todos') throw new Error('a line opens its tasks')
     expect(drill.source.todoIds).toHaveLength(count(rows[0]!))

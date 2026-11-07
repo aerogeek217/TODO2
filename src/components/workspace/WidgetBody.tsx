@@ -3,8 +3,7 @@ import type { LayoutTab } from '../../models/workspace-layout'
 import { useUIStore } from '../../stores/ui-store'
 import { NotesWidget } from './NotesWidget'
 import { CalendarWidget } from './calendar/CalendarWidget'
-import { DashboardWidget } from './dashboard/DashboardWidget'
-import type { DashboardSummary } from './glance/glance-summary'
+import type { GlanceSummary } from './glance/glance-summary'
 import { EisenhowerWidget } from './eisenhower/EisenhowerWidget'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 import { NeglectMapWidget } from './neglect/NeglectMapWidget'
@@ -13,26 +12,24 @@ import styles from './WidgetBody.module.css'
 
 /** What a widget reports to its cell (tab count, and what its menu's copy items copy). */
 export interface WidgetResult extends ListWidgetResult {
-  /** Dashboard: its counts, for "Copy summary"; a glance widget: its lines, for "Copy". */
-  summary?: DashboardSummary
+  /** A glance widget: its lines, for "Copy". */
+  summary?: GlanceSummary
 }
 
 interface WidgetBodyProps {
   tab: LayoutTab
   /**
-   * List, Eisenhower and Dashboard tabs report their count label (for the
-   * tab); list tabs also their shown sections (for "Copy tasks"), a
-   * dashboard its summary (for "Copy summary").
+   * List and Eisenhower tabs report their count label (for the tab); list
+   * tabs also their shown sections (for "Copy tasks"), a glance widget its
+   * lines (for "Copy").
    */
   onResult?: (result: WidgetResult) => void
-  /** Dashboard: its gear opens Customize; absent = no gear. */
-  onCustomize?: () => void
 }
 
 const NO_SECTIONS: ListWidgetResult['sections'] = []
 
 /** The body of a cell's active tab, by widget kind (a case per kind: a new kind doesn't compile without one; an unknown stored kind gets a note). */
-export function WidgetBody({ tab, onResult, onCustomize }: WidgetBodyProps): ReactElement {
+export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
   switch (tab.kind) {
     case 'lens':
       return <ListWidget tab={tab} onResult={onResult} />
@@ -45,15 +42,6 @@ export function WidgetBody({ tab, onResult, onCustomize }: WidgetBodyProps): Rea
         <EisenhowerWidget
           tab={tab}
           onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS }) : undefined}
-        />
-      )
-    case 'dashboard':
-      return (
-        <DashboardWidget
-          tab={tab}
-          onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS, summary: r.summary }) : undefined}
-          onDrill={(drill) => useUIStore.getState().showTaskDialog({ ...drill, fromTabId: tab.id })}
-          onCustomize={onCustomize}
         />
       )
     case 'neglect':

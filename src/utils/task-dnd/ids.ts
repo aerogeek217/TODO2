@@ -6,7 +6,7 @@
  *
  * | surface key       | emitted id              | notes                          |
  * |-------------------|-------------------------|--------------------------------|
- * | list-widget       | `lw|<tab>|<section>|<id>` | workspace list widget row — one id per occurrence (a task with two people shows in both people's groups); Eisenhower quadrant and Dashboard section rows use it too |
+ * | list-widget       | `lw|<tab>|<section>|<id>` | workspace list widget row — one id per occurrence (a task with two people shows in both people's groups); Eisenhower quadrant and glance widget rows use it too |
  * | calendar-widget   | `cw|<tab>|<slot>|<id>`  | workspace calendar entry — `slot` = the entry's date type (`due` / `followup`), prefixed `pop-` inside the day popover; drops via dispatchTaskDrop → reschedule |
  */
 

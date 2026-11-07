@@ -263,7 +263,7 @@ describe('v77 — the Dashboard as widgets', () => {
     expect(upgradeV77(plain)).toBe(plain)
     const none = { todos: [] }
     expect(upgradeV77(none)).toBe(none)
-    const odd = layout({ columns: ['not a column', { id: 'A', weight: 1, rows: ['nope', { id: 'R', weight: 1, cells: 'x' }, one('k-r', 'k', [dash('d', 'bad config')])] }], top: 7 })
+    const odd = layout({ columns: ['not a column', { id: 'A', weight: 1, rows: ['nope', { id: 'R', weight: 1, cells: 'x' }, one('k-r', 'k', [dash('d', 'bad config' as unknown as Obj)])] }], top: 7 })
     const out = upgraded(odd)
     const cols = out.columns as unknown[]
     expect(cols[0]).toBe('not a column')

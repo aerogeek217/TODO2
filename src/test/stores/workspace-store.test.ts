@@ -153,7 +153,7 @@ describe('structural edits and dirty state', () => {
   })
 
   it('a stored layout’s bands open with it and survive column edits, save and save as', async () => {
-    const top = { id: 'TB', height: 140, cells: [{ id: 'tb', weight: 1, activeTabId: 'top2', tabs: [createTab('dashboard', 'top1'), createTab('notes', 'top2')] }] }
+    const top = { id: 'TB', height: 140, cells: [{ id: 'tb', weight: 1, activeTabId: 'top2', tabs: [createTab('number', 'top1'), createTab('notes', 'top2')] }] }
     const bottom = { id: 'BB', height: 160, collapsed: true, cells: [{ id: 'bb', weight: 1, tabs: [createTab('calendar', 'bot1')] }] }
     const [id] = await seedAndInit(twoColumns('Daily', { top, bottom }))
     expect(ws().working).toMatchObject({ top, bottom })
@@ -176,7 +176,7 @@ describe('structural edits and dirty state', () => {
     ws().discard()
     expect(ws().working!.top).toBeUndefined()
 
-    const top = { id: 'TB', height: 140, cells: [{ id: 'tb', weight: 1, tabs: [createTab('dashboard', 'top1'), createTab('notes', 'top2')] }] }
+    const top = { id: 'TB', height: 140, cells: [{ id: 'tb', weight: 1, tabs: [createTab('number', 'top1'), createTab('notes', 'top2')] }] }
     await db.layouts.update(id!, { top })
     await ws().load(id!)
     expect(ws().isDirty).toBe(false)
@@ -210,15 +210,15 @@ describe('structural edits and dirty state', () => {
     expect(ws().isDirty).toBe(true)
   })
 
-  it('a dashboard tab: changing to it and editing its config are layout changes', async () => {
+  it('a glance tab: changing to it and editing its config are layout changes', async () => {
     await seedAndInit(twoColumns())
-    ws().changeTabKind('b1', 'dashboard')
-    expect(ws().working!.columns[1]!.rows[0]!.cells[0]!.tabs[0]).toEqual(createTab('dashboard', 'b1'))
+    ws().changeTabKind('b1', 'stale')
+    expect(ws().working!.columns[1]!.rows[0]!.cells[0]!.tabs[0]).toEqual(createTab('stale', 'b1'))
     expect(ws().isDirty).toBe(true)
     await ws().save()
     expect(ws().isDirty).toBe(false)
-    // Hiding a section (what Customize writes).
-    ws().patchTabConfig('b1', 'dashboard', { sections: [{ id: 'stale' }, { id: 'people' }] })
+    // A setting from its tab menu.
+    ws().patchTabConfig('b1', 'stale', { staleDays: 30 })
     expect(ws().isDirty).toBe(true)
   })
 
@@ -708,7 +708,7 @@ describe('unsaved changes kept for a reload', () => {
   })
 
   it('band edits come back after a reload, still unsaved; a band changed in the stored layout drops the draft', async () => {
-    const top = { id: 'TB', height: 140, cells: [{ id: 'tb', weight: 1, tabs: [createTab('dashboard', 'top1')] }] }
+    const top = { id: 'TB', height: 140, cells: [{ id: 'tb', weight: 1, tabs: [createTab('number', 'top1')] }] }
     const [id] = await seedAndInit(twoColumns('Daily', { top }))
     ws().movePanel('kb', { kind: 'new-band', edge: 'bottom' })
     await ws().setBandHeight('top', 200)

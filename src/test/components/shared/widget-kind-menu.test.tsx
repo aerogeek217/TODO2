@@ -23,10 +23,11 @@ describe('WidgetKindMenu', () => {
     expect(screen.getByRole('menuitemradio', { name: /List/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /Notes/ })).toHaveAttribute('aria-checked', 'true')
     expect(screen.queryByRole('menuitemradio', { name: /Taskboard/ })).toBeNull()
-    // By group: the task widgets under the heading, then Numbers & charts (the Dashboard, then the glance widgets).
+    expect(screen.queryByRole('menuitemradio', { name: /Dashboard/ })).toBeNull()
+    // By group: the task widgets under the heading, then Numbers & charts.
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
       'List', 'Calendar', 'Notes', 'Eisenhower', 'Neglect map',
-      'Dashboard', 'Number', 'Needs follow-up', 'Next 7 days', 'Created vs completed', 'Status', 'People', 'Tags',
+      'Number', 'Needs follow-up', 'Next 7 days', 'Created vs completed', 'Status', 'People', 'Tags',
       'Stale tasks', 'Recently completed', 'Eisenhower summary', 'What changed', 'Today', 'Project pulse',
     ])
     expect(screen.getByText('Numbers & charts')).toBeInTheDocument()
@@ -78,7 +79,7 @@ describe('WidgetKindMenu', () => {
     render(
       <WidgetKindMenu
         anchor={ANCHOR}
-        currentKind="dashboard"
+        currentKind="trend"
         onChangeKind={() => {}}
         pickListForLens={() => {}}
         onClose={() => {}}
@@ -174,62 +175,7 @@ describe('WidgetKindMenu', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  describe('Dashboard', () => {
-    it('is a top-level kind in both change and add mode (no Stats submenu)', () => {
-      const { rerender } = render(
-        <WidgetKindMenu
-          anchor={ANCHOR}
-          currentKind="notes"
-          onChangeKind={() => {}}
-          onClose={() => {}}
-        />,
-      )
-      expect(screen.getByRole('menuitemradio', { name: /Dashboard/ })).toBeInTheDocument()
-      expect(screen.queryByRole('menuitemradio', { name: /^Stats/ })).toBeNull()
-      rerender(
-        <WidgetKindMenu
-          anchor={ANCHOR}
-          onChangeKind={() => {}}
-          onClose={() => {}}
-          heading="Add widget"
-        />,
-      )
-      // Adding: plain items, nothing checked.
-      expect(screen.getByRole('menuitem', { name: /Dashboard/ })).not.toHaveAttribute('aria-checked')
-      // Adding: the groups' headings (the menu is named Add widget).
-      expect(screen.getByRole('menu', { name: 'Add widget' })).toBeInTheDocument()
-      expect(screen.getByText('Tasks')).toBeInTheDocument()
-      expect(screen.getByText('Numbers & charts')).toBeInTheDocument()
-    })
-
-    it('is marked active when the current kind is dashboard', () => {
-      render(
-        <WidgetKindMenu
-          anchor={ANCHOR}
-          currentKind="dashboard"
-          onChangeKind={() => {}}
-          onClose={() => {}}
-        />,
-      )
-      expect(screen.getByRole('menuitemradio', { name: /Dashboard/ })).toHaveAttribute('aria-checked', 'true')
-    })
-
-    it('picking it fires onChangeKind("dashboard") and closes the menu', () => {
-      const onChangeKind = vi.fn()
-      const onClose = vi.fn()
-      render(
-        <WidgetKindMenu
-          anchor={ANCHOR}
-          currentKind="notes"
-          onChangeKind={onChangeKind}
-          onClose={onClose}
-        />,
-      )
-      fireEvent.click(screen.getByRole('menuitemradio', { name: /Dashboard/ }))
-      expect(onChangeKind).toHaveBeenCalledWith('dashboard')
-      expect(onClose).toHaveBeenCalled()
-    })
-
+  describe('removed kinds', () => {
     it('offers none of the removed date-based widgets', () => {
       render(
         <WidgetKindMenu

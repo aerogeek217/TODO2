@@ -54,7 +54,7 @@ function single(id: SettingsSectionId, label: string, Icon: ComponentType, Body:
 
 const LENSES_HELP = 'A lens is a saved filter with a name, picked in the top bar: every widget shows only what it keeps, on every layout. Edit it like a list’s filters — the same pickers, with their “is not” switch for what to leave out. Filters set in the top bar apply on top of it.'
 
-const EISENHOWER_HELP = 'A task shows in the first pane whose filter it matches, checked in order: top left, top right, bottom left, bottom right. Dropping a task on a pane gives it what the filter sets. The panes are the same in every Eisenhower and on the dashboard; changes are saved at once.'
+const EISENHOWER_HELP = 'A task shows in the first pane whose filter it matches, checked in order: top left, top right, bottom left, bottom right. Dropping a task on a pane gives it what the filter sets. The panes are the same in every Eisenhower and Eisenhower summary; changes are saved at once.'
 
 const BACKUPS_HELP = 'Taken automatically every day, before destructive operations, and before the sync file is rewritten. Restoring one backs up the data it replaces first.'
 

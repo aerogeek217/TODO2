@@ -4,7 +4,7 @@ import { compareTodosByDate, type TodoDateField, type WeekStart } from '../../ut
 import type { UrgentDueWithinDays } from '../../utils/urgency'
 
 /**
- * What every dashboard statistic is computed with. The functions under
+ * What every glance statistic is computed with. The functions under
  * `services/stats/` are pure `(tasks, ctx) → plain data`: the caller passes
  * the task set (usually the screen-filtered one, see `statsFilter`) and this
  * context, and gets numbers and task ids back.
@@ -26,7 +26,7 @@ export interface StatsContext {
 export const NEXT_DAYS = 7
 
 /**
- * The screen filter as the dashboard applies it: every narrowing clause, but
+ * The screen filter as the glance widgets apply it: every narrowing clause, but
  * completed tasks always included. Counts only ever look at open tasks; the
  * trend needs the completed ones too, so `Show completed` changes nothing.
  */

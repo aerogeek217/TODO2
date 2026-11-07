@@ -1,5 +1,5 @@
 /**
- * Rich clipboard writes: what rich copy (notes, task lists, the dashboard
+ * Rich clipboard writes: what rich copy (notes, task lists, a glance widget's lines
  * summary, check-in emails) puts on the clipboard for OneNote / Word /
  * Outlook / Gmail — `text/html` and `text/plain` together.
  */

@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import {
   getActiveTab,
@@ -47,9 +47,7 @@ import {
   type WorkspacePanelDragData,
 } from './workspace-drag'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
-import { CustomizeDashboardDialog } from './dashboard/CustomizeDashboardDialog'
 import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from './eisenhower/eisenhower-settings-link'
-import { useDashboardMenuActions } from './dashboard/dashboard-menu'
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
 import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
@@ -264,7 +262,6 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = f
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
   const [cellMenuOpen, setCellMenuOpen] = useState(false)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number } } | null>(null)
-  const [customize, setCustomize] = useState<string | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
   /** A menu of the cell is open: a headless cell keeps its strip in while it is. */
   const stripPinned = cellMenuOpen || tabMenu != null || addFlow != null
@@ -280,7 +277,6 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = f
   }
   const closeTabGuarded = (tabId: string) => guarded([tabId], 'You’re closing the last widget that shows it.', () => closeTab(tabId))
   const closeCellGuarded = () => guarded(cell.tabs.map((t) => t.id), 'You’re closing the last widget that shows them.', () => closeCell(cell.id))
-  const closeCustomize = useCallback(() => setCustomize(null), [])
 
   const hit = drag?.hit
   const bodyHit = !band && hit?.kind === 'cell-body' && hit.cellId === cell.id ? hit : null
@@ -334,10 +330,6 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = f
 
   const neglectEntries = useNeglectMenuEntries(menuTab?.kind === 'neglect' ? menuTab : undefined)
   const zoomEntries = useListZoomMenuEntries(menuTab?.kind === 'lens' ? menuTab : undefined)
-  const dashboardActions = useDashboardMenuActions({
-    onCustomize: () => { if (menuTab) setCustomize(menuTab.id) },
-    summary: menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result.summary : undefined,
-  })
   // A glance widget's settings and Copy (its lines, while it is the cell's active tab).
   const glance = glanceMenu(
     menuTab && isGlanceTab(menuTab) ? menuTab : undefined,
@@ -346,15 +338,6 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = f
 
   const cellMenuEntries: MenuEntry[] = [
     // The active widget's own setup, when it has one.
-    ...(active?.kind === 'dashboard' ? [
-      {
-        kind: 'item' as const,
-        label: 'Customize dashboard…',
-        icon: <DashGlyph name="sliders" />,
-        onSelect: () => setCustomize(active.id),
-      },
-      { kind: 'separator' as const },
-    ] : []),
     ...(active?.kind === 'eisenhower' ? [
       {
         kind: 'item' as const,
@@ -517,7 +500,6 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = f
               key={active.id}
               tab={active}
               onResult={(result) => setWidgetResult({ tabId: active.id, result })}
-              onCustomize={active.kind === 'dashboard' ? () => setCustomize(active.id) : undefined}
             />
           </WidgetFaceContext.Provider>
           {bodyHit && <DropZones zone={bodyHit.zone} multi={bodyHit.multi} accepts={drag?.accepts === true} join={join} />}
@@ -564,7 +546,7 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = f
             : undefined}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
           settingEntries={menuTab.kind === 'neglect' ? neglectEntries : menuTab.kind === 'lens' ? zoomEntries : glance?.settingEntries}
-          widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : glance ? glance.actions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
+          widgetActions={glance ? glance.actions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
             ? [
                 // The top bar's lens on this list, while one applies there: on / off here (saved at once).
                 ...(widgetResult.result.lens ? [lensSwitchAction(widgetResult.result.lens)] : []),
@@ -604,7 +586,6 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = f
           onCancel={() => setGuard(null)}
         />
       )}
-      {customize && <CustomizeDashboardDialog tabId={customize} onClose={closeCustomize} />}
       {cellFace.fullOpen && active && !collapsed && (
         <WidgetFacePopover tab={active} anchorRef={cellRef} onClose={cellFace.closeFull} />
       )}

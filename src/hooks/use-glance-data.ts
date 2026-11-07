@@ -42,7 +42,7 @@ import { useToday } from './use-today'
 import { useTrendEvents } from './use-trend-events'
 
 /**
- * The glance widgets' data (and the Dashboard's), a hook per part over one
+ * The glance widgets' data, a hook per part over one
  * shared base: the screen-filtered tasks are filtered once for every widget
  * on screen, and each statistic computed once per set of inputs, however
  * many widgets show it (`utils/shared-memo` — each part's inputs are store

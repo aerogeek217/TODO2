@@ -1,4 +1,4 @@
-// The dashboard design's sample workspace, as data: today Sat 10 Oct 2026,
+// The glance widgets' sample workspace (the old Dashboard design's), as data: today Sat 10 Oct 2026,
 // urgent range 3 days, the default Hot rule, weeks starting Sunday. 19 open
 // tasks + 14 completed ones, with the created / completed / reopened history
 // of the last 14 days (27 Sep … 10 Oct). The design's numbers (Open 19, Hot

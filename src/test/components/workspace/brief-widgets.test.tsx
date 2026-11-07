@@ -4,7 +4,7 @@ import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import type { GlanceResult } from '../../../components/workspace/glance/glance-hooks'
 import { glanceMenu } from '../../../components/workspace/glance/glance-menu'
-import type { DashboardDrill } from '../../../components/workspace/glance/glance-types'
+import type { GlanceDrill } from '../../../components/workspace/glance/glance-types'
 import type { MenuItemEntry } from '../../../components/shared/MenuPopover'
 import type { PersistedTodoItem, Tag } from '../../../models'
 import { createTab, type GlanceTab } from '../../../models/workspace-layout'
@@ -46,7 +46,7 @@ const TASKS: PersistedTodoItem[] = [
 
 let lastResult: GlanceResult | null = null
 
-function setup(tab: GlanceTab, onDrill?: (d: DashboardDrill) => void) {
+function setup(tab: GlanceTab, onDrill?: (d: GlanceDrill) => void) {
   return render(
     <DndContext>
       <GlanceWidget tab={tab} onResult={(r) => { lastResult = r }} onDrill={onDrill} />
@@ -111,7 +111,7 @@ describe('What changed', () => {
     const onDrill = vi.fn()
     setup(createTab('changes', 'c', { tagIds: [1] }), onDrill)
     fireEvent.click(root('changes').querySelector('[data-change="tag"]')!)
-    const drill = onDrill.mock.calls[0]![0] as DashboardDrill
+    const drill = onDrill.mock.calls[0]![0] as GlanceDrill
     expect(drill.title).toBe('Late in #Project: Atlas')
     expect(drill.source).toEqual({ kind: 'todos', todoIds: [4, 1] })
   })
@@ -161,7 +161,7 @@ describe('Today', () => {
     setup(createTab('today', 't'), onDrill)
     expect(within(root('today')).getByTestId('today-count').textContent).toBe('2')
     fireEvent.click(within(root('today')).getByRole('button', { name: 'Today: 2. Show tasks' }))
-    expect((onDrill.mock.calls[0]![0] as DashboardDrill).source).toEqual({ kind: 'todos', todoIds: [1, 2] })
+    expect((onDrill.mock.calls[0]![0] as GlanceDrill).source).toEqual({ kind: 'todos', todoIds: [1, 2] })
     cleanup()
     faceState.face = 'medium'
     setup(createTab('today', 't'))

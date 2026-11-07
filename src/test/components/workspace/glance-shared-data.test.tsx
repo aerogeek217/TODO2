@@ -10,7 +10,7 @@ import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { applyFilter } from '../../../utils/filter-match'
 import { resetEntityStores, clearFilterStore } from '../../helpers'
-import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_TASKS, STATUSES, TAGS } from '../../fixtures/dashboard-sample'
+import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_TASKS, STATUSES, TAGS } from '../../fixtures/glance-sample'
 
 // Count the screen filter's runs: every glance widget reads the one shared base.
 vi.mock('../../../utils/filter-match', async (importOriginal) => {

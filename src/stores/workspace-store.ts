@@ -211,7 +211,7 @@ export interface WorkspaceState {
   endResize: () => Promise<void>
   /**
    * Layout config of a tab (e.g. a lens tab's list, a calendar's date types).
-   * A list tab's list or a dashboard's list tiles must be this layout's own
+   * A list tab's list must be this layout's own
    * lists: a patch naming another's changes nothing.
    */
   patchTabConfig: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabConfigOf<K>>) => void
@@ -310,8 +310,8 @@ function draftRecord(working: Layout | null, saved: Layout | null): LayoutDraftR
 }
 
 /**
- * Whether a kept new layout can open again: it shows no list (no list tab,
- * no dashboard list tile) — every list
+ * Whether a kept new layout can open again: it shows no list (no list
+ * tab) — every list
  * belongs to a stored layout (or the Eisenhower), so a layout not stored
  * yet can't show one.
  */
@@ -587,7 +587,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   /**
    * Applies a structural edit to the working copy. Returns whether it
    * changed. An edit that would show a list the layout doesn't own (a tab's
-   * list, a dashboard's list tile — `foreignListRefs`) is refused: nothing
+   * list — `foreignListRefs`) is refused: nothing
    * changes. An edit that brings the structure back to the saved layout's
    * takes the saved sizes too (e.g. a column added and closed again leaves
    * its neighbours as they were).

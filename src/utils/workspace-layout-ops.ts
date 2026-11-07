@@ -197,15 +197,13 @@ export function countListTabs(
 }
 
 /**
- * The ids of the lists a layout itself names: its list tabs' lists and its
- * dashboard tabs' list tiles (an Eisenhower tab's list is the Eisenhower's,
- * not the layout's).
+ * The ids of the lists a layout itself names: its list tabs' lists (an
+ * Eisenhower tab's list is the Eisenhower's, not the layout's).
  */
 export function layoutListRefs(layout: LayoutBody): Set<number> {
   const ids = new Set<number>()
   for (const tab of layoutTabs(layout)) {
     if (tab.kind === 'lens' && tab.config.listDefinitionId != null) ids.add(tab.config.listDefinitionId)
-    else if (tab.kind === 'dashboard') for (const id of tab.config.listTiles) ids.add(id)
   }
   return ids
 }
@@ -256,9 +254,6 @@ export function repointLayoutLists<B extends LayoutBody>(layout: B, ids: Readonl
       const to = tab.config.listDefinitionId != null ? ids.get(tab.config.listDefinitionId) : undefined
       return to == null ? tab : { ...tab, config: { ...tab.config, listDefinitionId: to } }
     }
-    if (tab.kind === 'dashboard' && tab.config.listTiles.some((id) => ids.has(id))) {
-      return { ...tab, config: { ...tab.config, listTiles: tab.config.listTiles.map((id) => ids.get(id) ?? id) } }
-    }
     return tab
   }
   return mapLayoutCells(layout, (cell) => {
@@ -269,8 +264,7 @@ export function repointLayoutLists<B extends LayoutBody>(layout: B, ids: Readonl
 
 /**
  * The lists `after` shows where `before` showed other ones at the same tab
- * (matched by tab id; a dashboard's list tiles by position, when the tab
- * has as many): old id → new id, e.g. a layout given its own copies of the
+ * (matched by tab id): old id → new id, e.g. a layout given its own copies of the
  * lists it shared with another one. `null` when an old id would become two
  * different ones.
  */
@@ -288,8 +282,6 @@ export function listIdChanges(before: LayoutBody, after: LayoutBody): Map<number
     const other = afterTabs.get(tab.id)
     if (tab.kind === 'lens' && other?.kind === 'lens') {
       if (!note(tab.config.listDefinitionId, other.config.listDefinitionId)) return null
-    } else if (tab.kind === 'dashboard' && other?.kind === 'dashboard' && tab.config.listTiles.length === other.config.listTiles.length) {
-      for (const [i, id] of tab.config.listTiles.entries()) if (!note(id, other.config.listTiles[i])) return null
     }
   }
   return changes

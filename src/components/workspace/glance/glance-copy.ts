@@ -1,11 +1,11 @@
-import type { DashboardTrendRange } from '../../../models/dashboard-config'
+import type { TrendRange } from '../../../models/glance-widgets'
 import type { TileStats } from '../../../services/stats/tiles'
 import { formatFollowupDate, formatFollowupDay, formatWeekdayNumeric } from '../../../utils/followup'
 import { addDays } from '../../../utils/calendar-grid'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 
 /**
- * The dashboard's words: tile sub-lines, counts as
+ * The glance widgets' words: a Number's sub-line, counts as
  * `shown of total`, range labels. Pure, so the copy is testable on its own.
  */
 
@@ -21,38 +21,38 @@ export function signed(n: number): string {
   return '0'
 }
 
-const RANGE_WORDS: Record<DashboardTrendRange, string> = {
+const RANGE_WORDS: Record<TrendRange, string> = {
   '14d': 'the last 14 days',
   '4w': 'the last 4 weeks',
   '12w': 'the last 12 weeks',
 }
 
-const RANGE_LABEL: Record<DashboardTrendRange, string> = {
+const RANGE_LABEL: Record<TrendRange, string> = {
   '14d': 'Last 14 days',
   '4w': 'Last 4 weeks',
   '12w': 'Last 12 weeks',
 }
 
 /** `the last 14 days` — the range inside a sentence. */
-export function trendRangeWords(range: DashboardTrendRange): string {
+export function trendRangeWords(range: TrendRange): string {
   return RANGE_WORDS[range]
 }
 
 /** `Last 14 days` — the Created vs completed header. */
-export function trendRangeLabel(range: DashboardTrendRange): string {
+export function trendRangeLabel(range: TrendRange): string {
   return RANGE_LABEL[range]
 }
 
-/** What a tile's sub-line needs beyond its own stats. */
-export interface TileCopyContext {
+/** What a Number's sub-line needs beyond its metric's stats. */
+export interface MetricCopyContext {
   today: Date
   /** The trend's net change over its range (Open). */
   trendNet: number | null
-  trendRange: DashboardTrendRange
+  trendRange: TrendRange
 }
 
-/** The sub-line under a tile's count. Empty = none. */
-export function tileSubLine(id: keyof TileStats, tiles: TileStats, ctx: TileCopyContext): string {
+/** The sub-line under a Number's count. Empty = none. */
+export function metricSubLine(id: keyof TileStats, tiles: TileStats, ctx: MetricCopyContext): string {
   switch (id) {
     case 'open': {
       if (ctx.trendNet == null) return ''
@@ -116,17 +116,17 @@ export function nextDayLabels(date: Date | null, index: number): [string, string
 
 const SETTINGS_NOTE = '(Settings › Tasks)'
 
-/** What a tile's dialog needs to say what the tile counts. */
-export interface TileDescriptionContext {
+/** What a Number's dialog needs to say what it counts. */
+export interface MetricDescriptionContext {
   today: Date
   urgentRange: UrgentDueWithinDays
 }
 
 /**
- * What a built-in tile counts, in words — the task dialog's line under its
+ * What a metric counts, in words — the task dialog's line under its
  * title: `Urgent = flagged urgent, or due within 3 days (Settings › Tasks).`
  */
-export function tileDescription(id: keyof TileStats, ctx: TileDescriptionContext): string {
+export function metricDescription(id: keyof TileStats, ctx: MetricDescriptionContext): string {
   switch (id) {
     case 'open':
       return 'Every open task.'
@@ -146,23 +146,6 @@ export function tileDescription(id: keyof TileStats, ctx: TileDescriptionContext
       return `Open tasks due today through ${formatFollowupDay(addDays(ctx.today, 6), ctx.today)}.`
     case 'noFollowup':
       return 'Open tasks with no next follow-up date.'
-  }
-}
-
-/** What a tile counts, in a few words — the Customize dialog's line beside it. */
-export function tileCatalogHint(id: keyof TileStats, ctx: { today: Date; urgentRange: UrgentDueWithinDays }): string {
-  switch (id) {
-    case 'open': return 'All open tasks'
-    case 'urgent':
-      if (ctx.urgentRange == null) return 'Flagged urgent'
-      if (ctx.urgentRange === 0) return 'Flagged, or due today or earlier'
-      return `Flagged, or due within ${urgentRangeLabel(ctx.urgentRange)}`
-    case 'overdue': return 'Due before today'
-    case 'followupDue': return 'Next follow-up today or earlier'
-    case 'focus': return 'Marked Focus'
-    case 'dueToday': return 'Due today'
-    case 'dueNext7': return `Today through ${formatFollowupDay(addDays(ctx.today, 6), ctx.today)}`
-    case 'noFollowup': return 'Open, no next follow-up'
   }
 }
 

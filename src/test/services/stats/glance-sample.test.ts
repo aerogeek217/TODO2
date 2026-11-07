@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest'
 import type { FilterCriteria } from '../../../utils/filter-criteria'
 import { applyFilter } from '../../../utils/filter-match'
 import { computeTiles } from '../../../services/stats/tiles'
-import { computeListTileCounts } from '../../../services/stats/list-tiles'
 import { computeFollowupGroups } from '../../../services/stats/followup-groups'
 import { computeNextSevenDays } from '../../../services/stats/next-seven-days'
 import { computeTrend } from '../../../services/stats/trend'
@@ -17,22 +16,22 @@ import { emptyFilterCriteria, statsPaneContext, testLookups } from '../../helper
 import { resolvePanes } from '../../../utils/eisenhower-panes'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, DESIGN_TREND, DESIGN_TREND_Q4, Q4, SAMPLE_CTX, SAMPLE_EVENTS,
-  SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
-} from '../../fixtures/dashboard-sample'
+  SAMPLE_TASKS, SAMPLE_TODAY, STATUSES,
+} from '../../fixtures/glance-sample'
 
 const markerSettings = { urgentRange: SAMPLE_CTX.urgentRange, weekStartsOn: SAMPLE_CTX.weekStartsOn }
 const lookups = testLookups({ assignedPeopleMap: ASSIGNED_PEOPLE, assignedTagsMap: ASSIGNED_TAGS, statuses: STATUSES })
 const NO_FILTER: FilterCriteria = { ...emptyFilterCriteria, markers: null }
 const Q4_FILTER: FilterCriteria = { ...NO_FILTER, tags: new Set([Q4]) }
 
-/** The task set the dashboard computes over: the screen filter, completed tasks kept. */
+/** The task set the glance widgets compute over: the screen filter, completed tasks kept. */
 function screened(screen: FilterCriteria) {
   return applyFilter(statsFilter(screen), SAMPLE_TASKS, lookups, SAMPLE_TODAY, markerSettings)
 }
 
 const titles = (ids: readonly number[]) => ids.map((id) => SAMPLE_TASKS.find((t) => t.id === id)?.title)
 
-describe('dashboard sample data — no screen filter', () => {
+describe('glance sample data — no screen filter', () => {
   const tasks = screened(NO_FILTER)
   const tiles = computeTiles(tasks, SAMPLE_CTX)
 
@@ -71,15 +70,6 @@ describe('dashboard sample data — no screen filter', () => {
     expect(tiles.dueToday.upcoming).toBe(7)
     expect(tiles.dueNext7.ids).toHaveLength(10)
     expect(tiles.noFollowup.ids).toHaveLength(14)
-  })
-
-  it('list tiles: Waiting on 2 · Priya 1:1 agenda 4 · #q4 planning 5 · Errands 2 (the prompted list is skipped)', () => {
-    const counts = computeListTileCounts(SAMPLE_LISTS, SAMPLE_TASKS, {
-      lookups, today: SAMPLE_TODAY, weekStartsOn: 0, markerSettings,
-    })
-    expect(counts.map((c) => [c.name, c.shown, c.total])).toEqual([
-      ['Waiting on', 2, 2], ['Priya 1:1 agenda', 4, 4], ['#q4 planning', 5, 5], ['Errands', 2, 2],
-    ])
   })
 
   it('Needs follow-up 5: Late (Vendor contract) · Today (Chase venue deposit invoice) · Next 7 days (3)', () => {
@@ -128,7 +118,7 @@ describe('dashboard sample data — no screen filter', () => {
   })
 })
 
-describe('dashboard sample data — top-bar Tags filter q4 (shown of total)', () => {
+describe('glance sample data — top-bar Tags filter q4 (shown of total)', () => {
   const tasks = screened(Q4_FILTER)
   const tiles = computeTiles(tasks, SAMPLE_CTX)
 
@@ -141,15 +131,6 @@ describe('dashboard sample data — top-bar Tags filter q4 (shown of total)', ()
     expect(tiles.followupDue.upcoming).toBe(1)
     expect(tiles.focus.ids).toHaveLength(1)
     expect(tiles.focus.dueToday).toBe(0)
-  })
-
-  it('list tiles: Waiting on 0 of 2 · Priya 1:1 agenda 2 of 4 · #q4 planning 5 · Errands 0 of 2', () => {
-    const counts = computeListTileCounts(SAMPLE_LISTS, SAMPLE_TASKS, {
-      screen: Q4_FILTER, lookups, today: SAMPLE_TODAY, weekStartsOn: 0, markerSettings,
-    })
-    expect(counts.map((c) => [c.name, c.shown, c.total])).toEqual([
-      ['Waiting on', 0, 2], ['Priya 1:1 agenda', 2, 4], ['#q4 planning', 5, 5], ['Errands', 0, 2],
-    ])
   })
 
   it('Needs follow-up 1 (Next 7 days); Next 7 days Sun 11 · Wed 14 · Thu 15', () => {
@@ -176,7 +157,7 @@ describe('dashboard sample data — top-bar Tags filter q4 (shown of total)', ()
   })
 })
 
-describe('dashboard sample data — the Tags, Stale tasks, Recently completed and Eisenhower sections', () => {
+describe('glance sample data — the Tags, Stale tasks, Recently completed and Eisenhower sections', () => {
   const all = screened(NO_FILTER)
   const q4 = screened(Q4_FILTER)
 

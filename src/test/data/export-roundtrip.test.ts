@@ -192,13 +192,7 @@ function buildSeed(): Seed {
           {
             id: 'c2', weight: 0.75, rows: [
               rowOf({ id: 'k3', weight: 1, tabs: [
-                {
-                  id: 't5', kind: 'dashboard', config: {
-                    tiles: ['focus', 'open', 'noFollowup'],
-                    listTiles: [2, 1],
-                    sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'trend', options: { range: '4w' } }, { id: 'followup', options: { lookAhead: 14 } }, { id: 'status' }],
-                  },
-                },
+                { id: 't5', kind: 'number', config: { metric: 'noFollowup', breakdown: 'tags' } },
                 { id: 't6', kind: 'lens', config: {} },
                 { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
                 { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
@@ -353,8 +347,7 @@ describe('export → JSON → import round-trip', () => {
     expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers?.some((c) => c.not === true))).toBe(true)
     expect(panes.some((p) => p?.filter?.expression !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
-    const dashboard = tabs.find((t) => t.kind === 'dashboard')
-    expect(dashboard?.kind === 'dashboard' && dashboard.config.listTiles.length > 0 && dashboard.config.sections.some((sec) => sec.options !== undefined)).toBe(true)
+    expect(tabs.some((t) => t.kind === 'number' && t.config.breakdown !== undefined)).toBe(true)
   })
 
   it('restores every table deep-equal to the seed, with real Dates', async () => {

@@ -22,7 +22,7 @@ interface TaskRowGridProps {
   onDetailsWidthChange?: (width: number | undefined) => void
   /**
    * The width while a divider is dragged (`null` = no drag), shared by every
-   * list of one tab (Eisenhower quadrants, dashboard sections) so they all
+   * list of one tab (Eisenhower quadrants, a glance widget's groups) so they all
    * follow the drag live. Without it the list keeps its own.
    */
   liveDetailsWidth?: ValueStore<number | null>

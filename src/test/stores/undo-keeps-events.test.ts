@@ -1,5 +1,5 @@
 // Undoing a delete puts the task's event history back, and redoing a create
-// that was undone keeps its `created` event — so the dashboard trend reads
+// that was undone keeps its `created` event — so Created vs completed reads
 // the same as before the delete / undo.
 import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'

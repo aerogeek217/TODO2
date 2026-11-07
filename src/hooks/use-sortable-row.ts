@@ -14,7 +14,7 @@ export interface SortableRowProps {
 /**
  * Bundles dnd-kit's `useSortable` with the `transform` + `transition` style
  * computation every sortable row in this app needs. Used by
- * `StatusEditor`, Customize dashboard and Settings › Lenses — reorderable
+ * `StatusEditor` and Settings › Lenses — reorderable
  * editors that each previously inlined the same five-line glue. The rows
  * only move (`CSS.Translate`): dnd-kit's scale would squash a tall row (an
  * open lens) held over a short one's place.

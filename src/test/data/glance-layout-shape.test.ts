@@ -4,6 +4,7 @@ import { checkLayoutBody, pickLayoutBody } from '../../data/layout-shape'
 import {
   createTab,
   isGlanceKind,
+  isWidgetKind,
   WIDGET_KIND_SPECS,
   WIDGET_KINDS,
   type GlanceWidgetKind,
@@ -45,8 +46,9 @@ describe('glance widget kinds', () => {
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'notes', 'eisenhower', 'neglect'])
-    // The Dashboard stays (P6 retires it): with the numbers and charts, not a glance widget itself.
-    expect(WIDGET_KIND_SPECS.dashboard).toMatchObject({ group: 'glance', glance: false, fitHeight: false })
+    // The Dashboard is gone (v77 made its tabs these widgets): every Numbers & charts kind is a glance widget.
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'glance')).toEqual(glance)
+    expect(isWidgetKind('dashboard')).toBe(false)
   })
 
   it('a new tab has its defaults; a Number counts Overdue', () => {

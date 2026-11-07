@@ -25,7 +25,6 @@ import {
   type NeglectColourBy,
   type NeglectTabConfig,
 } from '../models/workspace-layout'
-import { normalizeDashboardConfig } from '../models/dashboard-config'
 import {
   GLANCE_CONFIG_FIELDS,
   isNumberBreakdown,
@@ -66,7 +65,7 @@ const MAX_ID_LEN = 100
 
 /**
  * The most columns, rows, cells and tabs a layout keeps (each counted over the
- * whole layout, bands included), and list tiles a dashboard tab keeps. Far
+ * whole layout, bands included). Far
  * past anything one builds by hand, so nothing the app makes is cut; a file
  * holding more (one a hand edit or a hostile file made, which would leave
  * the app unable to show the workspace on every launch) still loads — the
@@ -121,7 +120,7 @@ export function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixe
 }
 
 /** The kinds whose tabs show task rows: they keep a details width (`TaskRowsViewState`). */
-const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens', 'eisenhower', 'dashboard', 'followup', 'stale', 'recent', 'today'])
+const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens', 'eisenhower', 'followup', 'stale', 'recent', 'today'])
 
 /** A tab's config / view state for its kind (a case per kind: a new kind doesn't compile without one). */
 function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | string {
@@ -157,12 +156,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       }
       return true
     }
-    case 'dashboard':
-      // Unknown ids / options inside are dropped by the pick, not rejected.
-      for (const key of ['tiles', 'listTiles', 'sections'] as const) {
-        if (config[key] !== undefined && !Array.isArray(config[key])) return `${path}.config.${key}`
-      }
-      return true
     case 'neglect':
       if (!isNeglectColourBy(config.colourBy)) return `${path}.config.colourBy`
       if (!isNeglectUntouchedDays(config.untouchedDays)) return `${path}.config.untouchedDays`
@@ -290,7 +283,7 @@ export function checkLayoutBody(body: RawLayoutBody): true | string {
 
 /** A part `pickLayoutBody` dropped or reset, counted. */
 type LayoutFix = 'columns' | 'column' | 'row' | 'cell' | 'band' | 'tab' | 'size' | 'settings' | 'eisenhower'
-  | 'columnLimit' | 'rowLimit' | 'cellLimit' | 'tabLimit' | 'listTileLimit'
+  | 'columnLimit' | 'rowLimit' | 'cellLimit' | 'tabLimit'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   columns: ['columns reset', 'columns reset'],
@@ -306,7 +299,6 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   rowLimit: ['row past the limit of 1,000 dropped', 'rows past the limit of 1,000 dropped'],
   cellLimit: ['cell past the limit of 1,000 dropped', 'cells past the limit of 1,000 dropped'],
   tabLimit: ['tab past the limit of 1,000 dropped', 'tabs past the limit of 1,000 dropped'],
-  listTileLimit: ['list tile past the limit of 1,000 dropped', 'list tiles past the limit of 1,000 dropped'],
 }
 
 export interface PickedLayoutBody extends LayoutBody {
@@ -321,13 +313,14 @@ export interface PickedLayoutBody extends LayoutBody {
 /**
  * Rebuilds a layout body (columns + bands) with only the model's keys. For a
  * body that passes `checkLayoutBody` (all import ever picks) nothing is
- * dropped but a stale `activeTabId` (= first tab), unknown dashboard ids /
- * options, duplicate collapsed quadrants, an out-of-range calendar offset
- * (clamped), and any key of an Eisenhower tab's config (it has none —
- * reported in `fixes`); a details width is rounded.
+ * dropped but a stale `activeTabId` (= first tab), duplicate collapsed
+ * quadrants, an out-of-range calendar offset (clamped), and any key of an
+ * Eisenhower tab's config (it has none — reported in `fixes`); a details
+ * width is rounded. A `dashboard` tab (the retired kind: v77 converted every
+ * one) is an unknown kind, dropped like one.
  *
- * Past `LAYOUT_PART_LIMIT` columns, rows, cells or tabs in the layout (or list
- * tiles in a dashboard tab), the rest are dropped and reported in `fixes`.
+ * Past `LAYOUT_PART_LIMIT` columns, rows, cells or tabs in the layout, the
+ * rest are dropped and reported in `fixes`.
  *
  * Anything else becomes a valid body, its bad parts reported in `fixes`, so
  * the audit can repair a stored layout instead of deleting it: a column /
@@ -435,20 +428,6 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const eisenhowerView = { ...rowsView(), ...(quadrants.length > 0 ? { collapsed: quadrants } : {}) }
         if (Object.keys(eisenhowerView).length > 0) eisenhower.viewState = eisenhowerView
         return eisenhower
-      }
-      case 'dashboard': {
-        // Unknown ids / options inside are dropped, missing parts defaulted.
-        for (const key of ['tiles', 'listTiles', 'sections'] as const) {
-          if (config[key] !== undefined && !Array.isArray(config[key])) fix('settings')
-        }
-        const dashboardView = rowsView()
-        const dashboardConfig = normalizeDashboardConfig(config)
-        const extraTiles = dashboardConfig.listTiles.length - LAYOUT_PART_LIMIT
-        for (let i = 0; i < extraTiles; i++) fix('listTileLimit')
-        if (extraTiles > 0) dashboardConfig.listTiles = dashboardConfig.listTiles.slice(0, LAYOUT_PART_LIMIT)
-        const dashboard: LayoutTab = { id, kind: 'dashboard', config: dashboardConfig }
-        if (dashboardView) dashboard.viewState = dashboardView
-        return dashboard
       }
       case 'neglect': {
         // No view state of its own: any is dropped.

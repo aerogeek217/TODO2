@@ -26,7 +26,7 @@ import { emptyFilterCriteria } from '../helpers'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, BEN, PEOPLE, PLANNING, PRIYA, Q4, SAMPLE_LISTS, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
-} from '../fixtures/dashboard-sample'
+} from '../fixtures/glance-sample'
 import { useFilterStore } from '../../stores/filter-store'
 import { lensHideCounts } from '../../services/lenses'
 import { withLens, type Lens } from '../../utils/lens'
@@ -360,7 +360,7 @@ describe('taskDialogCount / taskDialogCopySections', () => {
   })
 })
 
-describe('dashboard section payloads', () => {
+describe('glance section payloads', () => {
   it('a tag row: that tag’s open tasks; the untagged row; the Tags count: a heading per tag', () => {
     expect(tagSectionDialog({ id: 4, name: 'q4' }, [3, 1])).toEqual({
       title: '#q4', glyph: 'tag', description: 'Open tasks tagged #q4.', source: { kind: 'todos', todoIds: [3, 1] },

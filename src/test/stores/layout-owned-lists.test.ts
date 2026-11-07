@@ -222,7 +222,6 @@ describe('layout Save', () => {
 })
 
 describe('a layout shows only its own lists', () => {
-  const dashboard = (id: string) => createTab('dashboard', id)
   const tabsOf = () => ws().working!.columns.flatMap((c) => c.rows.flatMap((r) => r.cells.flatMap((k) => k.tabs)))
 
   it('a new tab on another layout’s or the Eisenhower’s list is refused; on its own, added', async () => {
@@ -244,16 +243,6 @@ describe('a layout shows only its own lists', () => {
     expect(ws().isDirty).toBe(false)
     ws().patchTabConfig('s', 'lens', { listDefinitionId: w.mine2 })
     expect(tabsOf().find((t) => t.id === 's')?.config).toMatchObject({ listDefinitionId: w.mine2 })
-  })
-
-  it('a dashboard’s list tiles: another layout’s list is refused, its own added', async () => {
-    const w = await world()
-    await db.layouts.update(w.a, layoutWith('A', [lens('s', w.saved), dashboard('d')]))
-    await ws().init()
-    ws().patchTabConfig('d', 'dashboard', { listTiles: [w.saved, w.theirs] })
-    expect(tabsOf().find((t) => t.id === 'd')?.config).toMatchObject({ listTiles: [] })
-    ws().patchTabConfig('d', 'dashboard', { listTiles: [w.saved] })
-    expect(tabsOf().find((t) => t.id === 'd')?.config).toMatchObject({ listTiles: [w.saved] })
   })
 
   it('a list that no longer exists is no one’s: a tab may still name it (it shows as deleted)', async () => {
@@ -279,16 +268,6 @@ describe('page load', () => {
     expect(layoutListRefs(ws().working!).has(kept)).toBe(true)
     expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower, kept])
     expect(storeListIds()).not.toContain(unshown)
-  })
-
-  it('a kept new layout whose dashboard tile names a list is not taken back either', async () => {
-    const w = await world()
-    const dash = createTab('dashboard', 'd')
-    const withTile = { ...dash, config: { ...dash.config, listTiles: [w.theirs] } } as LayoutTab
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [withTile])) })
-    await reload()
-    expect(ws().saved?.id).toBe(w.a)
-    expect(useUndoStore.getState().snackbar?.description).toBe('The unsaved new layout “Untitled layout” was dropped: a layout shows only its own lists, and it wasn’t stored yet.')
   })
 
   it('a kept new layout (an older build’s) that shows a list is not taken back (every list is a stored layout’s), and says so', async () => {

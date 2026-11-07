@@ -124,7 +124,7 @@ describe('Save-as-preset round-trip', () => {
     expect(reloaded!.sort).toBe('deadline')
     expect(reloaded!.grouping).toBe('deadline')
 
-    // Round-trip predicate evaluation: matchesFilter via the dashboard interpreter.
+    // Round-trip predicate evaluation: matchesFilter via the stats interpreter.
     const todos: PersistedTodoItem[] = [
       makeTodo({ id: 1 }),                                  // unassigned
       makeTodo({ id: 2 }),                                  // person=7
