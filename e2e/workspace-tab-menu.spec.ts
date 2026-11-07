@@ -90,6 +90,8 @@ async function rect(locator: Locator): Promise<{ x: number; y: number; width: nu
 }
 
 test('Shift+F10 on a tab opens its menu under the tab; type-ahead moves; Esc returns focus to the tab', async ({ page }) => {
+  // The menu lists every widget kind: tall enough that it fits under the tab only on a taller window.
+  await page.setViewportSize({ width: 1280, height: 1000 })
   await seedWorkspace(page, twoLists)
   const tab = wsTab(page, 'listTab')
   await tab.focus()
