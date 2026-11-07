@@ -371,7 +371,11 @@ test.describe('band height, collapse and menus', () => {
     const header = wsBand(page, 'top').locator('[data-ws-cell-header]')
     await header.hover()
     await header.getByRole('button', { name: 'Band options' }).click()
-    await expect(page.getByRole('menuitem', { name: 'Split right' })).toHaveCount(0)
+    // A band splits beside only: Split ▸ Right, no Below or New column.
+    await page.getByRole('menuitem', { name: 'Split', exact: true }).hover()
+    await expect(page.getByRole('menuitem', { name: 'Right', exact: true })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Below', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('menuitem', { name: 'New column', exact: true })).toHaveCount(0)
     await page.getByRole('menuitem', { name: 'Move to bottom band' }).click()
     await expect(wsBand(page, 'top')).toHaveCount(0)
     await expect.poll(() => wsBandTabs(page, 'bottom')).toEqual(['topNotes'])

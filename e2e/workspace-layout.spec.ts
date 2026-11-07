@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
-  drag, dragTab, expectOpenLayout, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, withSpareLayouts, wsCell, wsShape, wsTab,
+  drag, dragTab, expectOpenLayout, pickSplit, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, withSpareLayouts, wsCell, wsShape, wsTab,
   type WsLayoutSeed,
   wsRow,
 } from './fixtures/workspace'
@@ -146,7 +146,7 @@ test.describe('resize and collapse', () => {
         ] }],
       }],
     })
-    const divider = page.getByRole('separator', { name: 'Resize cells' })
+    const divider = page.getByRole('separator', { name: 'Resize rows' })
     const top = await wsCell(page, 'a1').boundingBox()
     const d = await divider.boundingBox()
     if (!top || !d) throw new Error('no geometry')
@@ -184,7 +184,7 @@ test.describe('resize and collapse', () => {
 
     await header.hover()
     await header.getByRole('button', { name: 'Cell options' }).click()
-    await page.getByRole('menuitem', { name: 'Split below' }).click()
+    await pickSplit(page, 'Below')
     await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page))[1]?.length).toBe(2)
@@ -196,7 +196,7 @@ test.describe('resize and collapse', () => {
     const header = wsCell(page, 'b1').locator('[data-ws-cell-header]')
     await header.hover()
     await header.getByRole('button', { name: 'Cell options' }).click()
-    await page.getByRole('menuitem', { name: 'Split right' }).click()
+    await pickSplit(page, 'New column')
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
