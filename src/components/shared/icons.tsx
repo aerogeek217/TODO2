@@ -242,6 +242,26 @@ export function SplitBelowIcon({ size = 14 }: { size?: number }) {
   )
 }
 
+/** A new column: a card with a second, separate one to its right. */
+export function NewColumnIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <rect x="1.5" y="2.5" width="8" height="11" rx="2" />
+      <rect x="11.5" y="2.5" width="3" height="11" rx="1.5" />
+    </Svg>
+  )
+}
+
+/** A cell's tab strip: a card with a bar across its top and a tab on it. */
+export function TabStripIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <rect x="2" y="2.5" width="12" height="11" rx="2" />
+      <path d="M2 6.5h12M6 2.5v4" />
+    </Svg>
+  )
+}
+
 /** A full-width band: a rounded rect with a thick bar along its top (or bottom) edge. */
 export function BandIcon({ edge, size = 14 }: { edge: 'top' | 'bottom'; size?: number }) {
   return (
