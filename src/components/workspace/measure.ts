@@ -1,16 +1,20 @@
 import type { BandEdge } from '../../models/workspace-layout'
-import type { BandGeometry, CellGeometry, ColumnGeometry, Rect, WorkspaceGeometry } from '../../utils/workspace-drop'
+import type { BandGeometry, CellGeometry, ColumnGeometry, Rect, RowGeometry, WorkspaceGeometry } from '../../utils/workspace-drop'
 
 function rectOf(el: Element): Rect {
   const r = el.getBoundingClientRect()
   return { left: r.left, top: r.top, right: r.right, bottom: r.bottom }
 }
 
-/** A cell or band card (`[data-ws-cell]`): its header, body and visible tabs. */
-function measurePanel(cellEl: HTMLElement): CellGeometry {
+/**
+ * A cell card (`[data-ws-cell]`): its header, body and visible tabs. A
+ * headless cell's strip (`[data-strip-hidden]`) counts as no header, so its
+ * body — the whole card — takes every drop but a tab-strip one.
+ */
+function measureCell(cellEl: HTMLElement): CellGeometry {
   const id = cellEl.dataset.wsCell ?? ''
   const empty = cellEl.dataset.empty === 'true'
-  const headerEl = cellEl.querySelector('[data-ws-cell-header]')
+  const headerEl = cellEl.querySelector('[data-ws-cell-header]:not([data-strip-hidden])')
   const bodyEl = cellEl.querySelector('[data-ws-cell-body]')
   const header = headerEl ? rectOf(headerEl) : null
   const listEl = headerEl?.querySelector('[role="tablist"]')
@@ -23,22 +27,29 @@ function measurePanel(cellEl: HTMLElement): CellGeometry {
   return { id, rect: rectOf(cellEl), header, body: bodyEl ? rectOf(bodyEl) : null, empty, tabs }
 }
 
+/** A row of cells (`[data-ws-row]`, a column's or a band's): its box and its cells. */
+function measureRow(rowEl: HTMLElement): RowGeometry {
+  const cells = Array.from(rowEl.querySelectorAll<HTMLElement>('[data-ws-cell]')).map(measureCell)
+  return { id: rowEl.dataset.wsRow ?? '', rect: rectOf(rowEl), cells }
+}
+
 /**
  * Measures the rendered workspace (`[data-ws-area]`) into the geometry the
- * drag hit test works on: the bands (`[data-ws-band]`), the column area
- * between them (`[data-ws-columns]`, its visible box) and its columns. Tabs
- * clipped by a full strip are left out.
+ * drag hit test works on: the bands (`[data-ws-band-row]`, each a row of
+ * cells), the column area between them (`[data-ws-columns]`, its visible
+ * box) and its columns' rows (`[data-ws-row]`). Tabs clipped by a full strip
+ * are left out.
  */
 export function measureWorkspace(area: HTMLElement): WorkspaceGeometry {
   const bands: BandGeometry[] = []
-  for (const bandEl of Array.from(area.querySelectorAll<HTMLElement>('[data-ws-band]'))) {
-    const edge = bandEl.dataset.wsBand as BandEdge
-    bands.push({ ...measurePanel(bandEl), edge })
+  for (const bandEl of Array.from(area.querySelectorAll<HTMLElement>('[data-ws-band-row]'))) {
+    const edge = bandEl.dataset.wsBandRow as BandEdge
+    bands.push({ ...measureRow(bandEl), edge })
   }
   const columns: ColumnGeometry[] = []
   for (const colEl of Array.from(area.querySelectorAll<HTMLElement>('[data-ws-column]'))) {
-    const cells = Array.from(colEl.querySelectorAll<HTMLElement>('[data-ws-cell]')).map(measurePanel)
-    columns.push({ id: colEl.dataset.wsColumn ?? '', rect: rectOf(colEl), cells })
+    const rows = Array.from(colEl.querySelectorAll<HTMLElement>('[data-ws-row]')).map(measureRow)
+    columns.push({ id: colEl.dataset.wsColumn ?? '', rect: rectOf(colEl), rows })
   }
   const areaRect = rectOf(area)
   const columnAreaEl = area.querySelector('[data-ws-columns]')
