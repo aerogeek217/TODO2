@@ -108,7 +108,7 @@ describe('the browser database’s v74 upgrade', () => {
     expect(panes.do.filter.markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['urgent', 'important'] }])
     const checkin = JSON.parse(String((await db.settings.get('checkinTaskFilter'))?.value)) as { markers: unknown }
     expect(checkin.markers).toEqual([{ values: ['focus'], not: true }])
-    const tab = (await db.layouts.get(1))?.columns[0]?.cells[0]?.tabs[0]
+    const tab = (await db.layouts.get(1))?.columns[0]?.rows[0]?.cells[0]?.tabs[0]
     expect(tab?.config).toEqual({ tiles: ['open'], listTiles: [], sections: [{ id: 'people', options: { showUnassigned: false } }] })
     // The subtasks a v73 build stored as they were: the empty one gone, the long one cut, each one line.
     expect((await db.subtasks.toArray()).map((s) => [s.id, s.title])).toEqual([[2, 'k'.repeat(500)], [3, 'Book flights']])

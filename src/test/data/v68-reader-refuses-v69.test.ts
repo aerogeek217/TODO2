@@ -4,6 +4,7 @@ import { readLayoutDraft, readListDrafts } from '../../data/draft-storage'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { db } from '../../data/database'
 import { checkTooNewDB } from '../../services/migration-check'
+import { rowOf } from '../helpers/layout-builders'
 
 /**
  * A build whose schema is v68 — the last one without or groups in stored
@@ -19,7 +20,7 @@ vi.mock('../../data/database', async (importOriginal) => ({
 }))
 
 const group = { personIds: null, statusIds: null, searchText: '', dates: {}, markers: [{ values: ['focus'] }], tags: [0] }
-const columns = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'l', kind: 'lens', config: { listDefinitionId: 4 } }] }] }]
+const columns = [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 'l', kind: 'lens', config: { listDefinitionId: 4 } }] })] }]
 const list = {
   id: 4, name: 'Hot or untagged', sortOrder: 0, sort: 'manual', grouping: 'none', owner: { layoutId: 1 },
   membership: { kind: 'custom', predicate: { showCompleted: false, personIds: null, statusIds: [1], searchText: '', dates: {}, markers: null, tags: null, orGroups: [group] } },

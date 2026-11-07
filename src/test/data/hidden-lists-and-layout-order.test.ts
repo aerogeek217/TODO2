@@ -9,6 +9,7 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import type { ListDefinition, PersistedListDefinition } from '../../models/list-definition'
 import type { WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
+import { rowOf } from '../helpers/layout-builders'
 
 const AT = new Date('2026-10-01T09:00:00.000Z')
 const LATER = new Date('2026-10-05T09:00:00.000Z')
@@ -162,7 +163,7 @@ describe('listDefinitionRepository.ensureEisenhowerList', () => {
 
 describe('audit: lists that belong to no layout', () => {
   it('reports them; cleanup gives each the first layout that shows it, the rest a new layout “Recovered lists” (never deletes one); a live layout’s and the Eisenhower’s are fine', async () => {
-    const shows4 = [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 't', kind: 'lens', config: { listDefinitionId: 4 } }] }] }]
+    const shows4 = [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 't', kind: 'lens', config: { listDefinitionId: 4 } }] })] }]
     await db.layouts.bulkAdd([layoutRow(1), layoutRow(2, { sortOrder: 1, columns: shows4 }), layoutRow(3, { sortOrder: 2, columns: shows4 })] as unknown as WorkspaceLayout[])
     await db.listDefinitions.bulkAdd([
       list(1, { owner: { layoutId: 1 } }), list(2, { owner: { layoutId: 9 }, sortOrder: 3 }), list(3, { owner: { eisenhower: true } }),
@@ -179,7 +180,7 @@ describe('audit: lists that belong to no layout', () => {
     const recovered = await db.layouts.get(4)
     expect(recovered).toMatchObject({ name: 'Recovered lists', sortOrder: 3 })
     // One cell of list tabs, in the list order.
-    expect(recovered!.columns[0]!.cells[0]!.tabs).toEqual([
+    expect(recovered!.columns[0]!.rows[0]!.cells[0]!.tabs).toEqual([
       { id: 'tab-1', kind: 'lens', config: { listDefinitionId: 5 } },
       { id: 'tab-2', kind: 'lens', config: { listDefinitionId: 2 } },
     ])

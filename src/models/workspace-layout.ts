@@ -1,8 +1,9 @@
 /**
- * Workspace layouts: a row of columns, each a vertical stack of cells, each
- * cell a strip of widget tabs — plus at most one full-width band above the
- * columns and one below (`top` / `bottom`), each a cell spanning the
- * workspace. Two levels only — no recursive splits, no other rows.
+ * Workspace layouts: three levels — a row of **columns**, each a vertical
+ * stack of **rows**, each row one or more **cells** side by side, each cell a
+ * strip of widget tabs — plus at most one full-width band above the columns
+ * and one below (`top` / `bottom`), each one fixed-height row of cells
+ * spanning the workspace. No deeper: a cell in a row never splits again.
  *
  * Every tab carries its own settings, split in two by how they are saved:
  *
@@ -11,8 +12,8 @@
  *   the saved layout, i.e. "unsaved changes".
  * - `viewState` — **view state**: written straight onto the stored layout
  *   (last write wins) and never counts as an unsaved change. Same for a cell's
- *   (and a band's) `activeTabId` and `collapsed`, and for the sizes (a
- *   column's or cell's `weight`, a band's `height`).
+ *   `activeTabId`, a row's (and a band's) `collapsed`, and for the sizes (a
+ *   column's, row's or cell's `weight`, a band's `height`).
  *
  * A layout stores structure only; what a widget shows (list definitions,
  * tasks, the note) lives in its own tables.
@@ -206,7 +207,7 @@ export type TabViewStateOf<K extends WidgetKind> = NonNullable<TabOfKind<K>['vie
 export interface LayoutCell {
   /** Unique within the layout. */
   id: string
-  /** Share of the column's height among its cells (any positive number). */
+  /** Share of its row's width among the row's cells (any positive number). */
   weight: number
   /**
    * Tabs in strip order. Empty only for a cell just made by "split" that has
@@ -215,8 +216,27 @@ export interface LayoutCell {
   tabs: LayoutTab[]
   /** View state. Absent (or stale) = the first tab. */
   activeTabId?: string
-  /** View state. Collapsed cells show only their header. */
+  /**
+   * Layout config: whether the cell shows its tab strip — `true` always,
+   * `false` never (headless: the strip slides in on hover or focus);
+   * absent = by its widget.
+   */
+  stripShown?: boolean
+}
+
+/**
+ * A row of a column: its cells side by side. A row whose last cell goes is
+ * removed; collapsing it folds every cell of it to its header.
+ */
+export interface LayoutRow {
+  /** Unique within the layout. */
+  id: string
+  /** Share of the column's height among its rows (any positive number). */
+  weight: number
+  /** View state. A collapsed row shows only its cells' headers. */
   collapsed?: boolean
+  /** Never empty — a row whose last cell goes is removed. */
+  cells: LayoutCell[]
 }
 
 export interface LayoutColumn {
@@ -224,8 +244,8 @@ export interface LayoutColumn {
   id: string
   /** Share of the workspace width among the columns (any positive number). */
   weight: number
-  /** Never empty — a column whose last cell goes is removed. */
-  cells: LayoutCell[]
+  /** Never empty — a column whose last row goes is removed. */
+  rows: LayoutRow[]
 }
 
 /** Which band: the one above the columns or the one below. */
@@ -237,12 +257,12 @@ export const BAND_EDGES: readonly BandEdge[] = ['top', 'bottom']
 export const BAND_DEFAULT_HEIGHT = 160
 
 /**
- * A full-width band above or below the columns: a cell that spans the
- * workspace. It never splits and never holds more than one panel; a band
- * whose last tab goes is removed (the layout's key is then absent).
+ * A full-width band above or below the columns: one fixed-height row of
+ * cells spanning the workspace. It never holds another row; a band whose
+ * last cell goes is removed (the layout's key is then absent).
  */
 export interface LayoutBand {
-  /** Unique within the layout (columns, cells, tabs and bands share the id space). */
+  /** Unique within the layout (columns, rows, cells, tabs and bands share the id space). */
   id: string
   /**
    * Height in px (header included) when expanded: any positive number. It
@@ -250,16 +270,17 @@ export interface LayoutBand {
    * drawn, and the stored value is kept.
    */
   height: number
-  /** Tabs in strip order; never empty. */
-  tabs: LayoutTab[]
-  /** View state. Absent (or stale) = the first tab. */
-  activeTabId?: string
-  /** View state. A collapsed band shows only its header. */
+  /** View state. A collapsed band shows only its cells' headers. */
   collapsed?: boolean
+  /** Its cells, side by side; never empty. */
+  cells: LayoutCell[]
 }
 
-/** A panel: a cell or a band — what holds a tab strip. */
-export type LayoutPanel = LayoutCell | LayoutBand
+/** A row of cells: a column's row, or a band (one row). */
+export type LayoutCellRow = LayoutRow | LayoutBand
+
+/** A panel: what holds a tab strip — a cell, in a column's row or in a band. */
+export type LayoutPanel = LayoutCell
 
 /**
  * The parts of a layout that Save writes and an edit can leave unsaved: its
@@ -349,7 +370,7 @@ export const LAYOUT_NAME_MAX = 200
  */
 export const UNSAVED_LAYOUT_ID = 0
 
-/** Default weight of a new column / cell. */
+/** Default weight of a new column / row / cell. */
 export const DEFAULT_WEIGHT = 1
 
 /** Default calendar date types: both. */
@@ -434,7 +455,7 @@ export function tabListId(tab: LayoutTab, eisenhowerListId: number | null): numb
   return tab.kind === 'eisenhower' ? (eisenhowerListId ?? undefined) : undefined
 }
 
-/** A cell's (or band's) active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */
+/** A cell's active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */
 export function getActiveTab(cell: Pick<LayoutCell, 'tabs' | 'activeTabId'>): LayoutTab | undefined {
   return cell.tabs.find((t) => t.id === cell.activeTabId) ?? cell.tabs[0]
 }

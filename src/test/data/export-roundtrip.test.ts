@@ -16,6 +16,7 @@ import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import { formatLensesSetting } from '../../data/lens-shape'
 import type { EisenhowerPanes } from '../../models/eisenhower-settings'
 import { makeTodo, resetDb } from '../helpers'
+import { rowOf } from '../helpers/layout-builders'
 
 /**
  * Export → JSON → import round-trip guarantee.
@@ -177,19 +178,19 @@ function buildSeed(): Seed {
         createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'), activeColumnId: 'c1', hue: 'violet',
         columns: [
           {
-            id: 'c1', weight: 1.5, cells: [
-              {
-                id: 'k1', weight: 2, activeTabId: 't2', tabs: [
+            id: 'c1', weight: 1.5, rows: [
+              rowOf({
+                id: 'k1', weight: 1, activeTabId: 't2', tabs: [
                   { id: 't1', kind: 'lens', config: { listDefinitionId: 1 } },
                   { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'month', offset: -2 } },
                 ],
-              },
-              { id: 'k2', weight: 1, collapsed: true, tabs: [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }] },
+              }, { weight: 2 }),
+              rowOf({ id: 'k2', weight: 1, tabs: [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }] }, { collapsed: true }),
             ],
           },
           {
-            id: 'c2', weight: 0.75, cells: [
-              { id: 'k3', weight: 1, tabs: [
+            id: 'c2', weight: 0.75, rows: [
+              rowOf({ id: 'k3', weight: 1, tabs: [
                 {
                   id: 't5', kind: 'dashboard', config: {
                     tiles: ['focus', 'open', 'noFollowup'],
@@ -200,13 +201,20 @@ function buildSeed(): Seed {
                 { id: 't6', kind: 'lens', config: {} },
                 { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
                 { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
+              ] }),
+              // Two cells side by side: an empty one (after a split) and a headless one.
+              { id: 'r2', weight: 0.5, cells: [
+                { id: 'k4', weight: 0.4, tabs: [] },
+                { id: 'k5', weight: 0.6, stripShown: false, tabs: [{ id: 't12', kind: 'notes', config: {} }] },
               ] },
-              { id: 'k4', weight: 1, tabs: [] },
             ],
           },
         ],
-        top: { id: 'b1', height: 112, activeTabId: 't9', collapsed: true, tabs: [{ id: 't8', kind: 'notes', config: {} }, { id: 't9', kind: 'lens', config: { listDefinitionId: 1 } }] },
-        bottom: { id: 'b2', height: 150, tabs: [{ id: 't10', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'week' } }] },
+        top: { id: 'b1', height: 112, collapsed: true, cells: [{ id: 'b1-c', weight: 1, activeTabId: 't9', tabs: [{ id: 't8', kind: 'notes', config: {} }, { id: 't9', kind: 'lens', config: { listDefinitionId: 1 } }] }] },
+        bottom: { id: 'b2', height: 150, cells: [
+          { id: 'b2-c', weight: 1, tabs: [{ id: 't10', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'week' } }] },
+          { id: 'b2-d', weight: 2, stripShown: true, tabs: [{ id: 't13', kind: 'notes', config: {} }] },
+        ] },
       },
     ],
     listOrders: [
@@ -308,14 +316,18 @@ describe('export → JSON → import round-trip', () => {
     expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset']))
     expect(clauses.some(([, m]) => m.match === 'range' && m.includeNoDate === true)).toBe(true)
     expect(clauses.some(([, m]) => m.match === 'range' && m.not === true)).toBe(true)
-    const cells = seed.layouts.flatMap((l) => l.columns.flatMap((c) => c.cells))
+    const rows = seed.layouts.flatMap((l) => l.columns.flatMap((c) => c.rows))
+    const bands = seed.layouts.flatMap((l) => [l.top, l.bottom]).filter((b) => b !== undefined)
+    const cells = [...rows, ...bands].flatMap((r) => r.cells)
     const tabs = cells.flatMap((c) => c.tabs)
     expect(cells.some((c) => c.activeTabId !== undefined)).toBe(true)
-    expect(cells.some((c) => c.collapsed === true)).toBe(true)
+    expect(rows.some((r) => r.collapsed === true)).toBe(true)
+    expect(rows.some((r) => r.weight !== 1)).toBe(true)
     expect(cells.some((c) => c.tabs.length === 0)).toBe(true)
-    const bands = seed.layouts.flatMap((l) => [l.top, l.bottom]).filter((b) => b !== undefined)
+    expect(cells.some((c) => c.stripShown !== undefined)).toBe(true)
+    expect(rows.some((r) => r.cells.length > 1)).toBe(true)
     expect(bands).toHaveLength(2)
-    expect(bands.some((b) => b.activeTabId !== undefined && b.collapsed === true)).toBe(true)
+    expect(bands.some((b) => b.collapsed === true && b.cells.some((c) => c.activeTabId !== undefined))).toBe(true)
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
     expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)

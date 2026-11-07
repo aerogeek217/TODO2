@@ -6,6 +6,7 @@ import { upgradeV72 } from './upgrades/v72-status-updates'
 import { upgradeV73 } from './upgrades/v73-subtasks'
 import { upgradeV74 } from './upgrades/v74-priority-filter'
 import { upgradeV75 } from './upgrades/v75-filter-expressions'
+import { upgradeV76 } from './upgrades/v76-layout-rows'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -86,7 +87,8 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * `subtasks` table (`upgrades/v73-subtasks.ts`), and v74, stored Priority
  * filters as lists of conditions and subtask titles as the store writes them
  * (`upgrades/v74-priority-filter.ts`), and v75, a filter's or groups as an expression
- * (`upgrades/v75-filter-expressions.ts`). Each transform lives in
+ * (`upgrades/v75-filter-expressions.ts`), and v76, a layout's cells in rows
+ * and its bands as rows of cells (`upgrades/v76-layout-rows.ts`). Each transform lives in
  * `data/upgrades/v<N>-*.ts`.
  */
 export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([
@@ -97,6 +99,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [73, upgradeV73],
   [74, upgradeV74],
   [75, upgradeV75],
+  [76, upgradeV76],
 ])
 
 /**
