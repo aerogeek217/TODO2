@@ -40,6 +40,8 @@ test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
   test('every kind can be added as a tab, switched to and closed', async ({ page }) => {
+    // Every kind added, switched through and closed (fourteen since the glance kinds): ~25s alone, past 30s on a busy machine.
+    test.slow()
     // (A layout's lists are the ones it shows: the list tab makes its own.)
     await seedWorkspace(page, {
       tasks: [{ title: 'A task' }],
