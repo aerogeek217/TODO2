@@ -20,8 +20,9 @@
  * with `completed` events, one with no event, one reopened (with the 30-day
  * retention setting the old ones trigger the purge prompt); notes and
  * status updates (a few per task, one added with a follow-up); the global note; two layouts — Default (columns plus a
- * dashboard band) and Planning (a calendar band, lists, the Eisenhower, a
- * dashboard) — each owning its lists, with list prompts, an "is not"
+ * dashboard band) and Planning (a calendar band, lists — a tab at each
+ * zoom —, the Eisenhower, a Neglect map by project, a dashboard) — each
+ * owning its lists, with list prompts, an "is not"
  * filter, a descending sort, Priority filters (several values, "is not") and manual orders; the
  * Eisenhower's own list with one renamed pane; a check-in filter.
  *
@@ -920,6 +921,12 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         ]),
         column('col-people', [
           cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)], { weight: 2 }),
+          // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is.
+          cell('cell-neglect', [{
+            id: 'tab-neglect',
+            kind: 'neglect',
+            config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
+          }], { weight: 2 }),
           cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
         ]),
         column('col-matrix', [
