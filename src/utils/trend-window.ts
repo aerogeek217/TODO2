@@ -1,5 +1,5 @@
 import type { TodoEventType } from '../models'
-import type { DashboardTrendRange } from '../models/dashboard-config'
+import type { TrendRange as DashboardTrendRange } from '../models/glance-widgets'
 import { addDays, weekStartOf } from './calendar-grid'
 import { daysUntil, type WeekStart } from './effective-date'
 
@@ -28,4 +28,34 @@ export function trendWindow(range: DashboardTrendRange, today: Date, weekStartsO
   const days = Array.from({ length: dayCount }, (_, i) => addDays(start, i))
   const bucketStarts = weeks === 0 ? days : Array.from({ length: weeks }, (_, i) => addDays(start, 7 * i))
   return { range, granularity: weeks === 0 ? 'day' : 'week', start, days, bucketStarts }
+}
+
+/** Days in a Number's history line: today and the 13 before. */
+export const METRIC_HISTORY_DAYS = 14
+
+/**
+ * The event types a Number's history reads: the trend's (each day's open /
+ * done state) and `deadline` (each day's due date).
+ */
+export const HISTORY_EVENT_TYPES: readonly TodoEventType[] = [...TREND_EVENT_TYPES, 'deadline']
+
+/**
+ * The first day a Number's history needs events from: its first day's week
+ * start (Closed this week counts from the week's start), else the first day.
+ */
+export function historyEventsStart(today: Date, weekStartsOn: WeekStart): Date {
+  const first = addDays(today, -(METRIC_HISTORY_DAYS - 1))
+  return weekStartOf(first, weekStartsOn)
+}
+
+/**
+ * What the history cache reads (`trend-events-store`): a trend range's
+ * window, or `history` — a Number's 14 days.
+ */
+export type EventsWindow = DashboardTrendRange | 'history'
+
+/** The first day and the event types `window` reads. */
+export function eventsWindowRead(window: EventsWindow, today: Date, weekStartsOn: WeekStart): { start: Date; types: readonly TodoEventType[] } {
+  if (window === 'history') return { start: historyEventsStart(today, weekStartsOn), types: HISTORY_EVENT_TYPES }
+  return { start: trendWindow(window, today, weekStartsOn).start, types: TREND_EVENT_TYPES }
 }

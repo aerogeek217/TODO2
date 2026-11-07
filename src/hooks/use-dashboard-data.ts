@@ -10,48 +10,46 @@ import {
   type DashboardTabConfig,
   type DashboardTrendRange,
 } from '../models/dashboard-config'
-import { useFilterSettings } from './use-filter-settings'
-import { keptOf, restoreLeaving, type LeavingRows } from './use-leaving-rows'
-import { useToday } from './use-today'
-import { useTodoNameLookups } from './use-todo-name-lookups'
-import { useTrendEvents } from './use-trend-events'
 import { computeFollowupGroups, type FollowupGroups } from '../services/stats/followup-groups'
 import { computeListTileCounts, type ListTileCount } from '../services/stats/list-tiles'
-import { computeNextSevenDays, type NextDaysColumn } from '../services/stats/next-seven-days'
-import { computePeopleStats, type PeopleStats } from '../services/stats/people'
-import { statsFilter, type StatsContext } from '../services/stats/stats-context'
-import { selectStatusBreakdown, type StatusBreakdownEntry } from '../services/stats/status-breakdown'
-import { computeTiles, type TileStats } from '../services/stats/tiles'
-import { computeTrend, type TrendStats } from '../services/stats/trend'
-import { computeTagStats, type TagStats } from '../services/stats/tags'
+import type { NextDaysColumn } from '../services/stats/next-seven-days'
+import type { PeopleStats } from '../services/stats/people'
+import type { RecentlyCompleted } from '../services/stats/recently-completed'
 import { computeStaleTasks, type StaleTasks } from '../services/stats/stale'
-import { computeRecentlyCompleted, type RecentlyCompleted } from '../services/stats/recently-completed'
-import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
-import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
-import { usePaneContext } from './use-pane-context'
-import { useScreenFilter } from '../stores/screen-filter'
-import { countActiveFilters } from '../utils/filter-criteria'
-import { hasNarrowingFilters } from '../utils/filter-chips'
-import { applyFilter } from '../utils/filter-match'
+import type { StatsContext } from '../services/stats/stats-context'
+import type { StatusBreakdownEntry } from '../services/stats/status-breakdown'
+import type { TagStats } from '../services/stats/tags'
+import type { TileStats } from '../services/stats/tiles'
+import type { TrendStats } from '../services/stats/trend'
+import type { EisenhowerSummary } from '../services/stats/eisenhower-summary'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListDraftStore } from '../stores/list-draft-store'
-import { usePersonStore } from '../stores/person-store'
-import { useSettingsStore } from '../stores/settings-store'
-import { useStatusStore } from '../stores/status-store'
-import { useTagStore } from '../stores/tag-store'
-import { useTodoStore } from '../stores/todo-store'
+import type { LeavingRows } from './use-leaving-rows'
+import {
+  followupRowIds,
+  lingeringRows,
+  useEisenhowerStats,
+  useFollowupStats,
+  useNextDays,
+  usePeopleStats,
+  useRecentStats,
+  useStaleStats,
+  useStatsBase,
+  useStatusStats,
+  useTagStats,
+  useTileStats,
+  useTrendStats,
+  type EisenhowerSetup,
+  type ShownOfTotal,
+} from './use-glance-data'
 
-/** A statistic over the screen-filtered tasks, and over every task (the `of N`). */
-export interface ShownOfTotal<T> {
-  shown: T
-  total: T
-}
+export type { EisenhowerSetup, ShownOfTotal } from './use-glance-data'
 
 /**
- * Everything a dashboard shows, computed once per change from the stores:
- * each statistic over the tasks passing the screen filter (completed ones
- * included, for the trend) and over all tasks, so counts can read
- * `shown of total`.
+ * Everything a dashboard shows, from the glance widgets' shared parts
+ * (`use-glance-data`): each statistic over the tasks passing the screen
+ * filter (completed ones included, for the trend) and over all tasks, so
+ * counts can read `shown of total`.
  */
 export interface DashboardData {
   ctx: StatsContext
@@ -95,120 +93,39 @@ export interface DashboardRows {
   kept: ReadonlySet<number>
 }
 
-const NO_IDS: ReadonlySet<number> = new Set()
-
-function rowIds(followup: FollowupGroups, stale: readonly number[]): number[] {
-  return [...followup.late, ...followup.today, ...followup.upcoming, ...stale]
-}
-
-/** The Eisenhower settings as the dashboard's Eisenhower section uses them. */
-export interface EisenhowerSetup {
-  /** The four panes, in position order. */
-  panes: readonly EisenhowerPane[]
-  /**
-   * The Eisenhower's list's name (as edited) when its filter narrows the
-   * tasks; `null` while it holds every task.
-   */
-  listName: string | null
-}
-
 function sectionOption<K extends keyof DashboardSectionOptions>(config: DashboardTabConfig, id: DashboardSectionId, key: K) {
   return config.sections.find((s) => s.id === id)?.options?.[key]
 }
+
+type SectionRows = Omit<DashboardRows, 'kept'>
+
+const sectionRowIds = (r: SectionRows): number[] => [...followupRowIds(r.followup), ...r.stale]
 
 /**
  * `leaving` (a widget's `useLeavingRows`): just-completed tasks the task-row
  * sections keep in place, as they were, until they have folded away.
  */
 export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRows): DashboardData {
-  const today = useToday()
-  const todos = useTodoStore((s) => s.todos)
-  const statuses = useStatusStore((s) => s.statuses)
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
-  const lookups = useTodoNameLookups()
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  const screen = useScreenFilter().filters
-  const markerSettings = useFilterSettings()
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const drafts = useListDraftStore((s) => s.drafts)
-  const storedPanes = useSettingsStore((s) => s.eisenhowerPanes)
-  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
-  const paneCtx = usePaneContext()
 
   const trendRange = sectionOption(config, 'trend', 'range') ?? DEFAULT_DASHBOARD_TREND_RANGE
   const lookAhead = sectionOption(config, 'followup', 'lookAhead') ?? DEFAULT_DASHBOARD_LOOK_AHEAD
   const staleDays = sectionOption(config, 'stale', 'staleDays') ?? DEFAULT_DASHBOARD_STALE_DAYS
   const recentDays = sectionOption(config, 'recent', 'recentDays') ?? DEFAULT_DASHBOARD_RECENT_DAYS
-  const events = useTrendEvents(trendRange)
 
-  const ctx = useMemo<StatsContext>(() => ({
-    today,
-    weekStartsOn,
-    urgentRange: markerSettings.urgentRange,
-    assignedPeopleMap,
-    assignedTagsMap,
-    statuses,
-  }), [today, weekStartsOn, markerSettings, assignedPeopleMap, assignedTagsMap, statuses])
-
-  const shown = useMemo(
-    () => applyFilter(statsFilter(screen), todos, lookups, today, markerSettings),
-    [screen, todos, lookups, today, markerSettings],
-  )
-  const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos])
-  const filtered = countActiveFilters({ ...screen, showCompleted: false }) > 0
-
-  const tiles = useMemo(() => ({ shown: computeTiles(shown, ctx), total: computeTiles(todos, ctx) }), [shown, todos, ctx])
-  const followup = useMemo(
-    () => ({ shown: computeFollowupGroups(shown, ctx, lookAhead), total: computeFollowupGroups(todos, ctx, lookAhead) }),
-    [shown, todos, ctx, lookAhead],
-  )
-  const nextDays = useMemo(() => computeNextSevenDays(shown, ctx), [shown, ctx])
-  const status = useMemo(
-    () => ({ shown: selectStatusBreakdown(shown, statuses), total: selectStatusBreakdown(todos, statuses) }),
-    [shown, todos, statuses],
-  )
-  const people = useMemo(() => computePeopleStats(shown, ctx), [shown, ctx])
-  const tags = useMemo(() => ({ shown: computeTagStats(shown, ctx), total: computeTagStats(todos, ctx) }), [shown, todos, ctx])
-  const stale = useMemo(
-    () => ({ shown: computeStaleTasks(shown, ctx, staleDays), total: computeStaleTasks(todos, ctx, staleDays) }),
-    [shown, todos, ctx, staleDays],
-  )
-  const recent = useMemo(
-    () => ({ shown: computeRecentlyCompleted(shown, ctx, recentDays), total: computeRecentlyCompleted(todos, ctx, recentDays) }),
-    [shown, todos, ctx, recentDays],
-  )
-  // The Eisenhower section: the Eisenhower's own list's members (its unsaved
-  // draft included; every task until it is loaded) sorted by the app-wide panes.
-  const eisenhowerPanes = useMemo(() => resolvePanes(storedPanes), [storedPanes])
-  const eisenhowerList = useMemo(() => {
-    const saved = eisenhowerListId != null ? listDefinitions.find((d) => d.id === eisenhowerListId) : undefined
-    return saved ? (drafts[saved.id] ?? saved) : undefined
-  }, [eisenhowerListId, listDefinitions, drafts])
-  const eisenhowerSetup = useMemo<EisenhowerSetup>(() => {
-    const savedName = listDefinitions.find((d) => d.id === eisenhowerListId)?.name
-    const narrows = eisenhowerList != null && hasNarrowingFilters(eisenhowerList.membership.predicate)
-    return {
-      panes: eisenhowerPanes,
-      listName: narrows ? (eisenhowerList.name.trim() || savedName || '') : null,
-    }
-  }, [eisenhowerPanes, eisenhowerList, eisenhowerListId, listDefinitions])
-  const eisenhower = useMemo(() => {
-    const source = eisenhowerSourceTasks(todos, shown, eisenhowerList, {
-      screen: statsFilter(screen),
-      lookups,
-      today,
-      settings: markerSettings,
-    })
-    return {
-      shown: computeEisenhowerSummary(source.shown, eisenhowerPanes, paneCtx),
-      total: computeEisenhowerSummary(source.total, eisenhowerPanes, paneCtx),
-    }
-  }, [eisenhowerList, todos, shown, screen, lookups, today, markerSettings, eisenhowerPanes, paneCtx])
-  const trend = useMemo(
-    () => (events ? computeTrend(shown, events, ctx, trendRange) : null),
-    [shown, events, ctx, trendRange],
-  )
+  const base = useStatsBase()
+  const { ctx, shown, filtered, todoById, todos, screen, lookups, markerSettings } = base
+  const tiles = useTileStats(base)
+  const followup = useFollowupStats(base, lookAhead)
+  const nextDays = useNextDays(base)
+  const status = useStatusStats(base)
+  const people = usePeopleStats(base)
+  const tags = useTagStats(base)
+  const stale = useStaleStats(base, staleDays)
+  const recent = useRecentStats(base, recentDays)
+  const { eisenhower, eisenhowerSetup } = useEisenhowerStats(base)
+  const trend = useTrendStats(base, trendRange)
 
   const listTiles = useMemo(() => {
     if (config.listTiles.length === 0) return []
@@ -221,26 +138,22 @@ export function useDashboardData(config: DashboardTabConfig, leaving?: LeavingRo
     return computeListTileCounts(defs, todos, {
       screen,
       lookups,
-      today,
-      weekStartsOn,
+      today: ctx.today,
+      weekStartsOn: ctx.weekStartsOn,
       markerSettings,
     })
-  }, [config.listTiles, listDefinitions, drafts, todos, screen, lookups, today, weekStartsOn, markerSettings])
+  }, [config.listTiles, listDefinitions, drafts, todos, screen, lookups, ctx, markerSettings])
 
+  // Both task-row sections linger together: one rebuild as they were.
   const rows = useMemo<DashboardRows>(() => {
-    const now: DashboardRows = { followup: followup.shown, stale: stale.shown.ids, kept: NO_IDS }
-    if (!leaving || leaving.size === 0) return now
-    const asWas = applyFilter(statsFilter(screen), restoreLeaving(todos, leaving), lookups, today, markerSettings)
-    const followupAsWas = computeFollowupGroups(asWas, ctx, lookAhead)
-    const staleAsWas = computeStaleTasks(asWas, ctx, staleDays).ids
-    const inRows = new Set(rowIds(followupAsWas, staleAsWas))
-    const kept = keptOf(leaving, new Set(rowIds(now.followup, now.stale)))
-    for (const id of kept) if (!inRows.has(id)) kept.delete(id)
-    return kept.size > 0 ? { followup: followupAsWas, stale: staleAsWas, kept } : now
-  }, [
-    followup, stale, leaving, screen, todos, lookups, today, markerSettings,
-    ctx, lookAhead, staleDays,
-  ])
+    const now: SectionRows = { followup: followup.shown, stale: stale.shown.ids }
+    const asWas = (tasks: PersistedTodoItem[]): SectionRows => ({
+      followup: computeFollowupGroups(tasks, ctx, lookAhead),
+      stale: computeStaleTasks(tasks, ctx, staleDays).ids,
+    })
+    const { rows: r, kept } = lingeringRows(base, now, sectionRowIds, asWas, leaving)
+    return { ...r, kept }
+  }, [base, followup, stale, leaving, ctx, lookAhead, staleDays])
 
   return {
     ctx, shown, filtered, todoById, tiles, listTiles, followup, nextDays, status, people,
