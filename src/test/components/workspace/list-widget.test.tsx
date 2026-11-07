@@ -4,7 +4,7 @@ import { DndContext } from '@dnd-kit/core'
 import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
 import { EditListHost } from '../../../components/workspace/list/EditList'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
-import { emptyFilterClauses, emptyPredicate } from '../../../models'
+import { emptyPredicate } from '../../../models'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useTodoStore } from '../../../stores/todo-store'
@@ -691,14 +691,15 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: false })
   })
 
-  it('a list whose only filter is an or group offers + Add task and seeds nothing; the clauses outside a group seed', () => {
-    setup(def({}, { orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: [{ values: ['focus'] }] }] }))
+  it('a list written as an expression offers + Add task; only its top-level chips seed', () => {
+    const either = { kind: 'or' as const, items: [{ kind: 'person' as const, id: 1 }, { kind: 'priority' as const, value: 'focus' as const }] }
+    setup(def({}, { expression: either }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     const defaults = useUIStore.getState().quickAddDraft?.defaults
     expect(defaults?.personIds).toEqual([])
     expect(defaults?.markers).toBeUndefined()
     cleanup()
-    setup(def({}, { statusIds: [2], orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: [{ values: ['focus'] }] }] }))
+    setup(def({}, { expression: { kind: 'and', items: [{ kind: 'status', id: 2 }, either] } }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     expect(useUIStore.getState().quickAddDraft?.defaults).toMatchObject({ statusId: 2, personIds: [] })
   })

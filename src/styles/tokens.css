@@ -350,11 +350,6 @@
   --color-inset: rgba(0, 0, 0, 0.18);
   --color-inset-light: rgba(0, 0, 0, 0.14);
 
-  /* A filter's or group: its plate, the chips set into it, a filter row expanded in place */
-  --color-or-group-ring: rgba(255, 255, 255, 0.18);
-  --color-or-group-fill: rgba(255, 255, 255, 0.055);
-  --color-or-group-chip: rgba(0, 0, 0, 0.28);
-
   /* Segmented control (the date filter's type tabs and Show choice, a
      picker's Is / Is not): the selected segment lighter than either
      popover level it sits in (D21). */
@@ -580,11 +575,6 @@
   /* Inset backgrounds */
   --color-inset: rgba(0, 0, 0, 0.04);
   --color-inset-light: rgba(0, 0, 0, 0.025);
-
-  /* A filter's or group */
-  --color-or-group-ring: rgba(0, 0, 0, 0.16);
-  --color-or-group-fill: rgba(0, 0, 0, 0.04);
-  --color-or-group-chip: rgba(255, 255, 255, 0.6);
 
   /* Segmented control */
   --color-seg-track: rgba(0, 0, 0, 0.06);

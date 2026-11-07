@@ -42,7 +42,6 @@ export {
   type FilterNegation,
   NEGATABLE_FIELDS,
   type FilterClauses,
-  OR_GROUPS_MAX,
   emptyPredicate,
   emptyFilterClauses,
 } from './filter-predicate'

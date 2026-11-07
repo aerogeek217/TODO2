@@ -1,5 +1,4 @@
 import { emptyPredicate, type FilterClauses, type TodoPredicate } from '../models/filter-predicate'
-import { withNormalizedOrGroups } from './or-groups'
 import type { FilterExpr } from '../models/filter-expression'
 import { expressionAtoms, topLevelTerms } from './filter-expression'
 import { withExpression } from './predicate-expression'
@@ -61,9 +60,9 @@ function checkinDrops(term: FilterExpr): boolean {
   return expressionAtoms(term).some((a) => a.kind === 'person' || (a.kind === 'date' && a.field === 'completed'))
 }
 
-/** Whether `predicate` (or one of its or groups, or its expression) has a Completed date clause, which a check-in drops. */
+/** Whether `predicate` (or its expression) has a Completed date clause, which a check-in drops. */
 export function hasCompletedDateClause(predicate: TodoPredicate): boolean {
-  return [predicate, ...(predicate.orGroups ?? [])].some((c) => c.dates.completed !== undefined)
+  return predicate.dates.completed !== undefined
     || (predicate.expression != null && expressionAtoms(predicate.expression).some((a) => a.kind === 'date' && a.field === 'completed'))
 }
 
@@ -80,8 +79,7 @@ export function checkinFilterOf(predicate: TodoPredicate): CheckinTaskFilter {
     const kept: FilterExpr | null = terms.length === 0 ? null : terms.length === 1 ? (terms[0] ?? null) : { kind: 'and', items: [...terms] }
     return withExpression(predicate, kept, false)
   }
-  const out: TodoPredicate = { ...checkinClauses(predicate), showCompleted: false }
-  return out.orGroups ? withNormalizedOrGroups({ ...out, orGroups: out.orGroups.map(checkinClauses) }) : out
+  return { ...checkinClauses(predicate), showCompleted: false }
 }
 
 /** Whether the check-in filter narrows nothing (all open tasks). */

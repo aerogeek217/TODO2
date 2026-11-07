@@ -4,7 +4,7 @@ import { pickPredicate } from '../../data/predicate-shape'
 import { prepareImport } from '../../data/import-pipeline'
 import { CURRENT_DB_VERSION } from '../../data/database'
 import { SCHEMA_UPGRADES, type DataRow } from '../../data/schema-upgrades'
-import { emptyFilterClauses, emptyPredicate, OR_GROUPS_MAX, type TodoPredicate } from '../../models'
+import { emptyFilterClauses, emptyPredicate, type FilterClauses, type TodoPredicate } from '../../models'
 import { matchesFilterWithLookups } from '../../utils/filter-match'
 import { predicateToCriteria } from '../../utils/filter-criteria'
 import { lookupsFor } from '../helpers'
@@ -12,7 +12,8 @@ import { lookupsFor } from '../helpers'
 const list = (predicate: unknown): DataRow => ({ id: 1, name: 'L', membership: { kind: 'custom', predicate } })
 const upgraded = (predicate: unknown, settings?: DataRow[]) => {
   const out = upgradeV74({ listDefinitions: [list(predicate)], ...(settings ? { settings } : {}) })
-  return (out.listDefinitions?.[0]?.membership as { predicate: TodoPredicate }).predicate
+  // v74's output, as v74 stored it: or groups were still part of a predicate.
+  return (out.listDefinitions?.[0]?.membership as { predicate: TodoPredicate & { orGroups?: FilterClauses[] } }).predicate
 }
 const legacy = (markers: unknown) => ({ ...emptyPredicate(), markers })
 
@@ -91,13 +92,13 @@ describe('upgradeV74 — a stored Priority filter as conditions', () => {
     ])
   })
 
-  it('the most a v73 filter can need fits the cap, so nothing is lost when read', () => {
+  it('the most a v73 filter can need is read whole (as an expression of its 30 groups)', () => {
     const groups = Array.from({ length: 10 }, (_, i) => ({ ...emptyFilterClauses(), tags: [i], markers: { focus: true, urgent: true, important: true } }))
     const up = upgraded({ ...emptyPredicate(), orGroups: groups })
     expect(up.orGroups).toHaveLength(30)
-    expect(OR_GROUPS_MAX).toBeGreaterThanOrEqual(30)
     expect(pickPredicate(up).fixes).toEqual([])
-    expect(pickPredicate(up).predicate.orGroups).toHaveLength(30)
+    const read = pickPredicate(up).predicate.expression
+    expect(read?.kind === 'and' ? read.items : []).toHaveLength(30)
   })
 
   it('converts lenses, Eisenhower panes and the check-in filter', () => {

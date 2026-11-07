@@ -10,7 +10,7 @@ import {
   noTasksNotice,
   sendPersonCheckin,
 } from '../../../services/checkin-email/person-checkin'
-import { emptyFilterClauses, emptyPredicate } from '../../../models/filter-predicate'
+import { emptyPredicate } from '../../../models/filter-predicate'
 import { usePersonStore } from '../../../stores/person-store'
 import { autoNextFollowup, useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -271,13 +271,13 @@ describe('sendPersonCheckin before the tasks’ people and tags are loaded', () 
     expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: ASSIGNMENTS_LOADING_NOTICE })
   })
 
-  it('a Tags or Text clause inside an or group with tags not loaded opens the dialog instead', async () => {
-    // "Hot, or Tags is not #home" ("or Text home"): read as untagged, every task would pass.
+  it('a Tags or Text term inside an expression with tags not loaded opens the dialog instead', async () => {
+    // "Focus, or not #home" ("or home"): read as untagged, every task would pass.
     useTagStore.setState({ tags: [home], assignedTagsMap: new Map([[1, []]]) })
-    for (const group of [{ tags: [7], negate: { tags: true as const } }, { searchText: 'home' }]) {
+    for (const term of [{ kind: 'not' as const, item: { kind: 'tag' as const, id: 7 } }, { kind: 'text' as const, text: 'home' }]) {
       useUIStore.setState({ checkinDialog: null })
       useSettingsStore.setState({
-        checkinTaskFilter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }], ...group }] },
+        checkinTaskFilter: { ...emptyPredicate(), expression: { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, term] } },
       })
       expect(await sendPersonCheckin(1)).toBe('dialog')
       expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: ASSIGNMENTS_LOADING_NOTICE })

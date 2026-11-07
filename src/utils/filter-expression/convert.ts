@@ -21,7 +21,7 @@ import { normalizeExpression, topLevelTerms } from './tree'
  *   the same — Graphical → Expression always converts.
  * - `splitTopLevel`: an expression's top-level `and` terms read as chips
  *   where a term is one (`clauses`), the others kept as terms (`rest`) —
- *   what the readers of "the clauses outside the or groups" read (new
+ *   what the readers of a filter's top level read (new
  *   tasks' seeds, a Prompt for pick, People / Tag group narrowing, a pane
  *   drop).
  * - `expressionToClauses`: the clauses when every term is a chip (Expression
@@ -179,9 +179,9 @@ export function splitTopLevel(e: FilterExpr | null | undefined, { markerChips = 
   return { clauses, rest }
 }
 
-/** `e` as Graphical clauses (one Priority chip at most), or null when a term isn't a chip. */
+/** `e` as Graphical clauses, or null when a term isn't a chip. */
 export function expressionToClauses(e: FilterExpr | null | undefined): FilterClauses | null {
-  const { clauses, rest } = splitTopLevel(e, { markerChips: 1 })
+  const { clauses, rest } = splitTopLevel(e)
   return rest.length === 0 ? clauses : null
 }
 
@@ -194,14 +194,18 @@ export function orGroupTerm(group: FilterClauses): FilterExpr | null {
 
 /**
  * Everything `p` narrows by as one expression — its own clauses, each or
- * group as an `or` of its clauses and its expression, ANDed — or null when
- * it narrows by nothing. Show completed is not part of it.
+ * group (a stored predicate from before v75, read defensively) as an `or`
+ * of its clauses, and its expression, ANDed — or null when it narrows by
+ * nothing. Show completed is not part of it.
  */
-export function wholeExpression(p: Pick<TodoPredicate, 'personIds' | 'statusIds' | 'tags' | 'searchText' | 'dates' | 'markers' | 'negate' | 'orGroups' | 'expression'>): FilterExpr | null {
+export function wholeExpression(
+  p: Pick<TodoPredicate, 'personIds' | 'statusIds' | 'tags' | 'searchText' | 'dates' | 'markers' | 'negate' | 'expression'>,
+  orGroups: readonly FilterClauses[] = [],
+): FilterExpr | null {
   const terms: FilterExpr[] = []
   const own = clausesToExpression(p)
   if (own) terms.push(own)
-  for (const group of p.orGroups ?? []) {
+  for (const group of orGroups) {
     const t = orGroupTerm(group)
     if (t) terms.push(t)
   }

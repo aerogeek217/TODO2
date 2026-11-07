@@ -753,9 +753,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async setEisenhowerPanes(panes, description, mergeKey) {
-    // A group of one stays: the pane's filter row dissolves it once no picker
-    // is open on it — that dissolve stores the same text, so adds no undo step.
-    const next = pickPanes(panes ?? {}, { keepSingleGroups: true }).panes
+    const next = pickPanes(panes ?? {}).panes
     await SETTINGS.eisenhowerPanes.write({ eisenhowerPanes: next }, { description, mergeKey })
   },
 }))

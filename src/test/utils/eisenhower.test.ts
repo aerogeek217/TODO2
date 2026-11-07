@@ -11,7 +11,7 @@ import {
 } from '../../utils/eisenhower'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import { isEffectivelyUrgent, isUrgentByDate, type UrgentDueWithinDays } from '../../utils/urgency'
-import { emptyFilterClauses, emptyPredicate, type TodoItem, type TodoPredicate } from '../../models'
+import { emptyPredicate, type TodoItem, type TodoPredicate } from '../../models'
 import type { EisenhowerQuadrant } from '../../models/workspace-layout'
 import { blockedDropLines, makePaneContext, makeTodo, resolveQuadrantDrop } from '../helpers'
 
@@ -383,24 +383,24 @@ describe('resolvePaneDrop on custom panes', () => {
     expect(resolvePaneDrop([t({ focus: true })], 'do', panes, ctx)).toEqual({ kind: 'none' })
   })
 
-  it('a pane’s or group writes nothing: a task matching none of its filters is refused, naming the group', () => {
-    const group = { ...emptyFilterClauses(), statusIds: [4], personIds: [1] }
-    const panes = resolvePanes({ do: { name: 'Chase', filter: { ...emptyPredicate(), markers: [{ values: ['urgent'] }], orGroups: [group] } } })
+  it('a pane expression’s or writes nothing: a task matching none of it is refused, naming the term', () => {
+    const either = { kind: 'or' as const, items: [{ kind: 'status' as const, id: 4 }, { kind: 'person' as const, id: 1 }] }
+    const panes = resolvePanes({ do: { name: 'Chase', filter: { ...emptyPredicate(), expression: { kind: 'and', items: [{ kind: 'priority', value: 'urgent' }, either] } } } })
     const task = t({})
     const res = resolvePaneDrop([task], 'do', panes, ctx)
-    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'orGroup', index: 0 } }] })
+    expect(res).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'term', index: 0 } }] })
     if (res.kind !== 'blocked') return
     expect(blockedPaneLines(panes[0]!, res.blocked, 1, panes, ctx, ctx)).toEqual([
       'Can’t move to Chase',
-      'Chase vendor doesn’t match any filter in its group (People Ann or Status Waiting).',
+      'Chase vendor doesn’t match “!Waiting or @Ann”.',
       'Change the task first, or edit the panes.',
     ])
     // One of the group's filters is enough: the drop writes the flag and lands.
     expect(resolvePaneDrop([t({ statusId: 4 })], 'do', panes, ctx)).toEqual({ kind: 'apply', changes: [{ todoId: 1, urgent: true }] })
   })
 
-  it('a clause outside the or groups that fails is named before the group', () => {
-    const panes = resolvePanes({ do: { filter: { ...emptyPredicate(), dates: { deadline: { match: 'set' } }, orGroups: [{ ...emptyFilterClauses(), statusIds: [4] }] } } })
+  it('a top-level chip that fails is named before the other terms', () => {
+    const panes = resolvePanes({ do: { filter: { ...emptyPredicate(), expression: { kind: 'and', items: [{ kind: 'date', field: 'deadline', match: { match: 'set' } }, { kind: 'or', items: [{ kind: 'status', id: 4 }, { kind: 'tag', id: 1 }] }] } } } })
     const task = t({})
     expect(resolvePaneDrop([task], 'do', panes, ctx)).toEqual({ kind: 'blocked', blocked: [{ task, miss: { kind: 'clause', field: { date: 'deadline' } } }] })
   })

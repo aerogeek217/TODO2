@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyFilterClauses, emptyPredicate, type FilterExpr, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../../models'
+import { emptyPredicate, type FilterExpr, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../../models'
 import type { ListDefinition } from '../../models/list-definition'
 import { admitsCompleted, predicateToCriteria } from '../../utils/filter-criteria'
 import { applyFilter, createPredicateEvaluator } from '../../utils/filter-match'
@@ -60,12 +60,13 @@ const RULE: FilterExpr = {
 describe('matching an expression', () => {
   it('keeps what the user’s rule says, as its hand-written rewrite does', () => {
     expect(ids(expr(RULE))).toEqual([2, 3])
-    const rewritten: TodoPredicate = {
-      ...emptyPredicate(),
-      markers: [{ values: ['focus', 'important'] }, { values: ['focus', 'urgent'] }],
-      orGroups: [{ ...emptyFilterClauses(), statusIds: [1], negate: { statusIds: true }, dates: { followup: { match: 'unset' } } }],
-    }
-    expect(ids(rewritten)).toEqual([2, 3])
+    // Its hand-written rewrite, distributed and by De Morgan: (F or I) and (F or U) and (not Assigned or no followup).
+    const rewritten: FilterExpr = { kind: 'and', items: [
+      { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'priority', value: 'important' }] },
+      { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'priority', value: 'urgent' }] },
+      { kind: 'or', items: [{ kind: 'not', item: { kind: 'status', id: 1 } }, { kind: 'date', field: 'followup', match: { match: 'unset' } }] },
+    ] }
+    expect(ids(expr(rewritten))).toEqual([2, 3])
   })
 
   it('reads each atom as its chip does', () => {
@@ -122,7 +123,7 @@ describe('reading a stored expression', () => {
       expression: { kind: 'priority', value: 'focus' },
     })
     expect(predicate.personIds).toBeNull()
-    expect(predicate.orGroups).toBeUndefined()
+    expect('orGroups' in predicate).toBe(false)
     expect(predicate.expression).toEqual({
       kind: 'and',
       items: [{ kind: 'person', id: 1 }, { kind: 'or', items: [{ kind: 'tag', id: 1 }, { kind: 'status', id: 2 }] }, { kind: 'priority', value: 'focus' }],

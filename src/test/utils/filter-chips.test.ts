@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Person, Status, Tag } from '../../models'
 import type { ListDefinition } from '../../models/list-definition'
-import { MARKER_CLAUSES_MAX, emptyFilterClauses, emptyPredicate, OR_GROUPS_MAX, type TodoPredicate } from '../../models'
+import { emptyPredicate, type TodoPredicate } from '../../models'
 import { expectWithin } from '../timing'
 import { predicateToCriteria } from '../../utils/filter-criteria'
 import {
@@ -14,14 +14,11 @@ import {
   describeFilters,
   describeDateMatch,
   describeRange,
-  chipClauses,
   filterChips,
   hasNarrowingFilters,
-  heldFields,
   orValue,
   predicateLineItems,
   removeChip,
-  wrapChipInOrGroup,
   type FilterChipNames,
 } from '../../utils/filter-chips'
 import { choicesWith, groupSortSummary, sortOrderWords, withListSort, withSortDirection } from '../../utils/list-options'
@@ -360,8 +357,8 @@ describe('an "is not" date range in words (cr25 P4)', () => {
   })
 
   it('every summary built from the chips says it: the line, the hint, the Dates button', () => {
-    const p: TodoPredicate = { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), dates: { lastFollowup: notLastWeek, followup: notNext2Weeks } }] }
-    expect(describeFilters(predicateLineItems(p, names))).toBe('Next follow-up not within the next 14 days or Last follow-up not within the last 7 days')
+    const p: TodoPredicate = { ...emptyPredicate(), dates: { lastFollowup: notLastWeek, followup: notNext2Weeks } }
+    expect(describeFilters(predicateLineItems(p, names))).toBe('Next follow-up not within the next 14 days · Last follow-up not within the last 7 days')
     expect(datesValue({ followup: notNext2Weeks })).toBe('Next follow-up not within the next 14 days')
     expect(datesTooltip({ lastFollowup: notLastWeek, followup: notNext2Weeks })).toBe(
       'Next follow-up: not within the next 14 days\nLast follow-up: not within the last 7 days\nTasks must match both · × clears both',
@@ -525,76 +522,19 @@ describe('multi-value chips read with "or"', () => {
   })
 })
 
-describe('a filter line with or groups', () => {
-  const hot = { ...emptyFilterClauses(), markers: [{ values: ['focus' as const] }] }
-  const grouped: TodoPredicate = {
+describe('a filter line written as an expression', () => {
+  const p: TodoPredicate = {
     ...emptyPredicate(),
-    statusIds: [1],
-    orGroups: [{ ...hot, personIds: [1, 2] }, { ...emptyFilterClauses(), tags: [0] }],
+    expression: { kind: 'and', items: [{ kind: 'status', id: 1 }, { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'person', id: 1 }] }] },
   }
 
-  it('the own chips first, then each or group as its chips', () => {
-    const items = predicateLineItems(grouped, names)
-    expect(items.map((i) => (i.kind === 'chip' ? i.chip.value : i.kind === 'orGroup' ? i.chips.map((c) => c.value) : i.text))).toEqual([
-      'Waiting', ['Focus', 'Alice or Bob'], ['No tags'],
-    ])
-    expect(items.map((i) => (i.kind === 'orGroup' ? i.index : null))).toEqual([null, 0, 1])
+  it('is one item, its text', () => {
+    expect(predicateLineItems(p, names)).toEqual([{ kind: 'expression', text: '!Waiting and (/focus or @Alice)' }])
+    expect(describeFilters(predicateLineItems(p, names))).toBe('!Waiting and (/focus or @Alice)')
+    expect(hasNarrowingFilters(p)).toBe(true)
   })
 
-  it('in words: an or group joins its chips with "or", items with " · "', () => {
-    expect(describeFilters(predicateLineItems(grouped, names))).toBe('Status Waiting · Priority Focus or People Alice or Bob · Tags No tags')
-    expect(describeFilters(filterChips(grouped, names))).toBe('Status Waiting')
-  })
-
-  it('a list whose only filter is an or group narrows', () => {
-    expect(hasNarrowingFilters({ ...emptyPredicate(), orGroups: [hot] })).toBe(true)
-  })
-
-  it('removing a chip from an or group; its last chip takes the group', () => {
-    const fewer = removeChip(grouped, { field: 'markers' }, 0)
-    expect(fewer.orGroups?.[0]?.markers).toBeNull()
-    expect(fewer.orGroups?.[0]?.personIds).toEqual([1, 2])
-    const gone = removeChip(grouped, { field: 'tags' }, 1)
-    expect(gone.orGroups).toHaveLength(1)
-    expect(removeChip(grouped, { field: 'status' }).statusIds).toBeNull()
-  })
-
-  it('a chip of its own moves into a new or group as its first alternative; refused at the cap', () => {
-    const p: TodoPredicate = { ...emptyPredicate(), statusIds: [1], negate: { statusIds: true }, personIds: [2] }
-    const wrapped = wrapChipInOrGroup(p, { field: 'status' })!
-    expect(wrapped.statusIds).toBeNull()
-    expect(wrapped.negate).toBeUndefined()
-    expect(wrapped.personIds).toEqual([2])
-    expect(wrapped.orGroups).toEqual([{ ...emptyFilterClauses(), statusIds: [1], negate: { statusIds: true } }])
-    const full: TodoPredicate = { ...p, orGroups: Array.from({ length: OR_GROUPS_MAX }, () => hot) }
-    expect(wrapChipInOrGroup(full, { field: 'status' })).toBeNull()
-  })
-
-  it('a date chip moves its date type alone', () => {
-    const due = { match: 'set' as const }
-    const created = { match: 'range' as const, start: { kind: 'offset' as const, days: -7 }, end: null }
-    const wrapped = wrapChipInOrGroup({ ...emptyPredicate(), dates: { deadline: due, created } }, { field: 'dates', dateField: 'created' })!
-    expect(wrapped.dates).toEqual({ deadline: due })
-    expect(chipClauses({ ...emptyPredicate(), dates: { deadline: due, created } }, { field: 'dates', dateField: 'created' }).dates).toEqual({ created })
-    expect(wrapped.orGroups?.[0]?.dates).toEqual({ created })
-  })
-
-  it('the fields a group holds', () => {
-    expect([...heldFields({ ...hot, personIds: [1], statusIds: [1] })]).toEqual(['people', 'status'])
-    // Priority repeats, up to the cap.
-    expect(heldFields({ ...emptyFilterClauses(), markers: Array.from({ length: MARKER_CLAUSES_MAX }, () => ({ values: ['focus' as const] })) }).has('markers')).toBe(true)
-    expect(heldFields(emptyFilterClauses()).size).toBe(0)
-  })
-
-  it('Dates is held only once every offered date type filters there — each type is its own chip (cr25 P4b)', () => {
-    const set = { match: 'set' as const }
-    const one = { ...emptyFilterClauses(), dates: { lastFollowup: { match: 'range' as const, start: { kind: 'offset' as const, days: -7 }, end: null, not: true as const } } }
-    expect(heldFields(one).has('dates')).toBe(false)
-    const allButCompleted = { ...emptyFilterClauses(), dates: { deadline: set, followup: set, lastFollowup: set, created: { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } }, modified: { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } } } }
-    expect(heldFields(allButCompleted).has('dates')).toBe(false)
-    // A host that leaves Completed out (the check-in): every type it offers filters.
-    expect(heldFields(allButCompleted, ['deadline', 'followup', 'lastFollowup', 'created', 'modified']).has('dates')).toBe(true)
-    const all = { ...allButCompleted, dates: { ...allButCompleted.dates, completed: { match: 'range' as const, start: null, end: { kind: 'offset' as const, days: 0 } } } }
-    expect(heldFields(all).has('dates')).toBe(true)
+  it('removing a chip clears its field', () => {
+    expect(removeChip({ ...emptyPredicate(), statusIds: [1], personIds: [2] }, { field: 'status' })).toMatchObject({ statusIds: null, personIds: [2] })
   })
 })

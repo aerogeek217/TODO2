@@ -157,18 +157,11 @@ function chipWords(chip: FilterChip): string[] {
 /**
  * A pane's subtitle: a default pane's plain words (`Urgent and important`),
  * else its filter in words — `Urgent · not Important · not Delegated`, an
- * or group as its chips joined with "or" (`Waiting or Ann`) — or `Every
- * task` for a pane with no filter.
+ * expression as its text — or `Every task` for a pane with no filter.
  */
 export function paneSubtitle(pane: EisenhowerPane, names: FilterChipNames): string {
   if (!pane.customFilter) return QUADRANT_SUBTITLE[pane.id]
-  const words = predicateLineItems(pane.filter, names).flatMap((item) => {
-    if (item.kind === 'expression') return [item.text]
-    return item.kind === 'chip'
-      ? chipWords(item.chip)
-      // A chip of a group stays whole (`Urgent, not Important or Ann`).
-      : [item.chips.map((c) => chipWords(c).join(', ')).join(' or ')]
-  })
+  const words = predicateLineItems(pane.filter, names).flatMap((item) => (item.kind === 'expression' ? [item.text] : chipWords(item.chip)))
   return words.length > 0 ? words.join(' · ') : 'Every task'
 }
 
@@ -206,8 +199,8 @@ function singleId(filter: TodoPredicate, field: 'personIds' | 'statusIds' | 'tag
 
 /**
  * `filter`'s writes, against the statuses / people / tags there are now
- * (`known`). Only the clauses outside the or groups write (`singleId` reads
- * those too): which of an or group's clauses a drop should meet is ambiguous.
+ * (`known`). An expression writes from its top-level chips only: which of an
+ * `or`'s alternatives a drop should meet is ambiguous.
  */
 export function paneWrites(paneFilter: TodoPredicate, known: FilterChipNames): PaneWrites {
   // An expression writes from its top-level terms that are chips.

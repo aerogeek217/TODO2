@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyFilterClauses, emptyPredicate, type TodoPredicate } from '../../models'
+import { emptyPredicate, type TodoPredicate } from '../../models'
 import {
   defaultPaneFilter,
   normalizePaneConfig,
@@ -89,12 +89,9 @@ describe('paneSubtitle of a custom filter', () => {
     expect(paneSubtitle(empty!, NAMES)).toBe('Every task')
   })
 
-  it('spells an or group as its chips joined with "or", each chip whole; a group-only filter is no longer every task', () => {
-    const group = { ...emptyFilterClauses(), statusIds: [4], markers: [{ values: ['urgent' as const] }, { values: ['important' as const], not: true as const }] }
-    const [pane] = resolvePanes({ do: { filter: p({ tags: [5], orGroups: [group] }) } })
-    expect(paneSubtitle(pane!, NAMES)).toBe('#home · Urgent or not Important or Waiting')
-    const [only] = resolvePanes({ do: { filter: p({ orGroups: [{ ...emptyFilterClauses(), personIds: [1, 2] }] }) } })
-    expect(paneSubtitle(only!, NAMES)).toBe('Ann or Bob')
+  it('spells an expression as its text', () => {
+    const [pane] = resolvePanes({ do: { filter: p({ expression: { kind: 'and', items: [{ kind: 'tag', id: 5 }, { kind: 'or', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'status', id: 4 }] }] } }) } })
+    expect(paneSubtitle(pane!, NAMES)).toBe('#home and (/urgent or !Waiting)')
   })
 })
 
@@ -140,9 +137,9 @@ describe('withPaneSeed — a pane "+"’s new-task defaults', () => {
   })
 })
 
-describe('paneWrites and or groups', () => {
-  it('writes the clauses outside the or groups only (which of a group’s clauses to meet is ambiguous)', () => {
-    const filter = p({ markers: [{ values: ['urgent' as const] }], orGroups: [{ ...emptyFilterClauses(), statusIds: [4], personIds: [1] }] })
+describe('paneWrites and expressions', () => {
+  it('writes the top-level chips only (which of an or’s alternatives to meet is ambiguous)', () => {
+    const filter = p({ expression: { kind: 'and', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'or', items: [{ kind: 'status', id: 4 }, { kind: 'person', id: 1 }] }] } })
     expect(paneWrites(filter, NAMES)).toEqual({ markers: { urgent: true } })
   })
 })

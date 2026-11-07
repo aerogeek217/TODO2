@@ -97,34 +97,34 @@ describe('Completed', () => {
     expect(ids(crit({ dates: { completed: open } }))).toEqual([1, 2, 3, 7])
   })
 
-  it('an or group whose only alternative is a Completed range opens the gate (it keeps completed tasks only)', () => {
-    const grouped = crit({ orGroups: [{ ...none(), dates: { completed: thisWeek } }] })
-    expect(admitsCompleted(grouped)).toBe(true)
-    expect(ids(grouped)).toEqual([4, 6])
-    // Next to another or group: both must hold, so still completed tasks only.
-    const two = crit({ orGroups: [{ ...none(), dates: { lastFollowup: { match: 'set' } } }, { ...none(), dates: { completed: thisWeek } }] })
+  it('a Completed range among an expression’s top-level terms opens the gate (it keeps completed tasks only)', () => {
+    const doneThisWeek = { kind: 'date' as const, field: 'completed' as const, match: thisWeek }
+    const alone = crit({ expression: doneThisWeek })
+    expect(admitsCompleted(alone)).toBe(true)
+    expect(ids(alone)).toEqual([4, 6])
+    // Beside another term: both must hold, so still completed tasks only.
+    const two = crit({ expression: { kind: 'and', items: [{ kind: 'date', field: 'lastFollowup', match: { match: 'set' } }, doneThisWeek] } })
     expect(admitsCompleted(two)).toBe(true)
     expect(ids(two)).toEqual([6])
   })
 
-  it('in a mixed or group it is a plain date clause: it doesn’t open the gate', () => {
-    // One or group "Completed this week or never followed up": open tasks by the second clause only.
-    const either = crit({ orGroups: [{ ...none(), dates: { completed: thisWeek, lastFollowup: { match: 'unset' } } }] })
+  it('inside an or it is a plain date term: it doesn’t open the gate', () => {
+    // "Completed this week or never followed up": open tasks by the second term only.
+    const either = crit({ expression: { kind: 'or', items: [{ kind: 'date', field: 'completed', match: thisWeek }, { kind: 'date', field: 'lastFollowup', match: { match: 'unset' } }] } })
     expect(admitsCompleted(either)).toBe(false)
     expect(ids(either)).toEqual([3, 7])
-    const withMarkers = crit({ orGroups: [{ ...none(), markers: [{ values: ['focus'] }], dates: { completed: thisWeek } }] })
-    expect(admitsCompleted(withMarkers)).toBe(false)
-    // Show completed opens the gate; the group then keeps the completed ones too.
+    // Show completed opens the gate; the or then keeps the completed ones too.
     expect(ids({ ...either, showCompleted: true })).toEqual([3, 4, 5, 6, 7])
   })
 
   it('completedAdmitters: the clauses that open the gate, each on its own (the counter’s total)', () => {
-    const group = { ...none(), dates: { completed: todayOnly } }
-    const f = crit({ personIds: new Set([9]), dates: { completed: thisWeek, lastFollowup: { match: 'set' } }, orGroups: [group] })
-    const range = { personIds: null, statusIds: null, tags: null, searchText: '', dates: { completed: thisWeek }, markers: null }
-    expect(completedAdmitters(f)).toEqual([range, group])
-    // A mixed group, a lens and Show completed aren't among them.
-    const either = crit({ showCompleted: true, orGroups: [{ ...none(), dates: { completed: thisWeek, lastFollowup: { match: 'unset' } } }] })
+    const range = (completed: DateMatch) => ({ personIds: null, statusIds: null, tags: null, searchText: '', dates: { completed }, markers: null })
+    const f = crit({ personIds: new Set([9]), dates: { completed: thisWeek, lastFollowup: { match: 'set' } } })
+    expect(completedAdmitters(f)).toEqual([range(thisWeek)])
+    const e = crit({ expression: { kind: 'and', items: [{ kind: 'person', id: 9 }, { kind: 'date', field: 'completed', match: todayOnly }] } })
+    expect(completedAdmitters(e)).toEqual([range(todayOnly)])
+    // An or, a lens and Show completed aren't among them.
+    const either = crit({ showCompleted: true, expression: { kind: 'or', items: [{ kind: 'date', field: 'completed', match: thisWeek }, { kind: 'date', field: 'lastFollowup', match: { match: 'unset' } }] } })
     const lensed: FilterCriteria = { ...either, lens: crit({ dates: { completed: thisWeek } }) }
     expect(completedAdmitters(lensed)).toEqual([])
   })
@@ -152,9 +152,9 @@ describe('Completed', () => {
       expect(admitsCompleted(lensed)).toBe(true)
       expect(ids(lensed)).toEqual([4, 6])
       expect(composedIds(lensed, crit({ dates: { lastFollowup: { match: 'set' } } }))).toEqual([6])
-      // A lens's or group opens it only when its every alternative is a Completed range.
-      expect(admitsCompleted(crit({ lens: crit({ orGroups: [{ ...none(), dates: { completed: thisWeek } }] }) }))).toBe(true)
-      expect(admitsCompleted(crit({ lens: crit({ orGroups: [{ ...none(), statusIds: new Set([1]), dates: { completed: thisWeek } }] }) }))).toBe(false)
+      // A lens's expression opens it with a top-level Completed range, not one inside an or.
+      expect(admitsCompleted(crit({ lens: crit({ expression: { kind: 'date', field: 'completed', match: thisWeek } }) }))).toBe(true)
+      expect(admitsCompleted(crit({ lens: crit({ expression: { kind: 'or', items: [{ kind: 'status', id: 1 }, { kind: 'date', field: 'completed', match: thisWeek }] } }) }))).toBe(false)
     })
 
     it('without a Completed range anywhere, completed tasks stay hidden', () => {

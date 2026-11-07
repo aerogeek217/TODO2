@@ -151,15 +151,12 @@ describe('draft storage', () => {
     expect([...readListDrafts().keys()]).toEqual([])
   })
 
-  it('a list draft an older build kept reads in the current shape (v74 Priority conditions, v75 expression)', () => {
+  it('a list draft an older build kept reads in the current Priority shape', () => {
     const base = listDef()
     const old = { ...listDef(), membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: { urgent: true, important: false } } } }
     localStorage.setItem('todo2-unsaved-lists', JSON.stringify({ 4: { draft: old, base, schemaVersion: 73 } }))
     const read = readListDrafts().get(4)?.draft.membership
-    // Two Priority conditions are more than Graphical holds: an expression since v75.
-    expect(read?.kind === 'custom' ? read.predicate.expression : undefined).toEqual({
-      kind: 'and', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'not', item: { kind: 'priority', value: 'important' } }],
-    })
+    expect(read?.kind === 'custom' ? read.predicate.markers : undefined).toEqual([{ values: ['urgent'] }, { values: ['important'], not: true }])
   })
 
   it('a layout draft an older build kept loses its dashboards’ Hot tile and section, the body and the base', () => {

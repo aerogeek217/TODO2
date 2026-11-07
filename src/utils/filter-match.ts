@@ -115,11 +115,6 @@ function matchesExpression(e: FilterExpr, t: ClauseTask): boolean {
   }
 }
 
-/** Whether the task passes an or group: at least one of its clauses (one with no clause filters nothing). */
-function passesOrGroup(group: CriteriaClauses, t: ClauseTask): boolean {
-  return scanClauses(group, t, true) !== false
-}
-
 /**
  * Canonical evaluator. Takes runtime filter state (`FilterCriteria`) and a
  * single todo; returns whether the todo passes the filter: its completion
@@ -147,14 +142,12 @@ export function matchesFilter(
   }
   const t: ClauseTask = { todo, personIds: assignedPersonIds, tagIds: assignedTagIds, today, searchCtx, settings }
   if (!passesEveryClause(filters, t)) return false
-  if (!(filters.orGroups ?? []).every((group) => passesOrGroup(group, t))) return false
   return filters.expression == null || matchesExpression(filters.expression, t)
 }
 
-/** Whether evaluating `f` reads a text filter — its own, an or group's or its lens's — so needs the task's names. */
+/** Whether evaluating `f` reads a text filter — its own, its expression's or its lens's — so needs the task's names. */
 function readsText(f: FilterCriteria): boolean {
   return !!f.searchText
-    || (f.orGroups ?? []).some((group) => !!group.searchText)
     || (f.expression != null && expressionAtoms(f.expression).some((a) => a.kind === 'text'))
     || (f.lens != null && readsText(f.lens))
 }

@@ -53,7 +53,6 @@ import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { hasMarkers } from '../../../utils/markers'
-import { hasOrGroups } from '../../../utils/or-groups'
 import { topLevelPredicate } from '../../../utils/predicate-expression'
 import { resolvePriorityDrop, type PriorityDrop } from '../../../utils/priority-groups'
 import { useToday } from '../../../hooks/use-today'
@@ -209,7 +208,6 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     || seeding.statusIds != null
     || (seeding.tags != null && seeding.tags.length > 0)
     || hasMarkers(seeding.markers)
-    || hasOrGroups(mergedPredicate)
     || mergedPredicate.expression != null
   )
 

@@ -251,12 +251,12 @@ describe('filter expressions — Graphical ↔ expression', () => {
     expect(split.rest).toHaveLength(2)
   })
 
-  it('takes one chip per field; a second goes to the rest', () => {
+  it('takes one chip per field (Priority repeats); a second goes to the rest', () => {
     const split = splitTopLevel(tree('@Aisha and @Ben'))
     expect(split.clauses.personIds).toEqual([1])
     expect(split.rest).toEqual([{ kind: 'person', id: 2 }])
-    expect(expressionToClauses(tree('/urgent and /important'))).toBeNull()
-    expect(splitTopLevel(tree('/urgent and /important')).clauses.markers).toEqual([{ values: ['urgent'] }, { values: ['important'] }])
+    expect(expressionToClauses(tree('@Aisha and @Ben'))).toBeNull()
+    expect(expressionToClauses(tree('/urgent and /important'))?.markers).toEqual([{ values: ['urgent'] }, { values: ['important'] }])
   })
 
   it('normalises nested and / or and double not', () => {

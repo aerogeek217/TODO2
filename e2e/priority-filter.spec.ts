@@ -118,20 +118,6 @@ test.describe('desktop', () => {
     await expect.poll(() => sorted(page)).toEqual(['Both', 'Due tomorrow', 'Flagged urgent'])
   })
 
-  test('in an or group two Priority chips are OR: made with Another filter (OR)', async ({ page }) => {
-    await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', predicate: { markers: [{ values: ['focus'] }] } }], tasks: [...SEED.tasks ?? [], { title: 'In focus', focus: true }] })
-    await expect.poll(() => titles(page)).toEqual(['In focus'])
-    const widget = wsListWidget(page, 't1')
-    await widget.getByTestId('list-filter-chip').click()
-    const picker = page.getByTestId('list-filter-picker')
-    await picker.getByRole('button', { name: /Another filter \(OR\)/ }).click()
-    await page.getByTestId('or-group-panel').getByRole('button', { name: 'Priority' }).click()
-    await picker.getByRole('option', { name: 'Important' }).click()
-    await expect.poll(() => sorted(page)).toEqual(['Both', 'Important only', 'In focus'])
-    await page.keyboard.press('Escape')
-    await expect(widget.getByTestId('or-group')).toHaveText(/Priority\s*Focus\s*or\s*Priority\s*Important/)
-  })
-
   test('the Eisenhower\'s default panes sort as before; a lens holds the AND the top bar can\'t', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,

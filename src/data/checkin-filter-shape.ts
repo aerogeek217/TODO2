@@ -44,7 +44,7 @@ export function readCheckinFilterSetting(value: string): ReadCheckinFilter {
   if (parsed === undefined || checkPredicateShape(parsed) !== true) return { filter: emptyPredicate(), fixes: [`${LABEL} reset`] }
   const { predicate, fixes } = pickPredicate(parsed)
   const out = [...fixes]
-  if (predicate.personIds != null || (predicate.orGroups ?? []).some((group) => group.personIds != null)) out.push('people filter dropped')
+  if (predicate.personIds != null) out.push('people filter dropped')
   if (hasCompletedDateClause(predicate)) out.push('completed date filter dropped')
   if (predicate.showCompleted) out.push('show completed dropped')
   return { filter: checkinFilterOf(predicate), fixes: out }

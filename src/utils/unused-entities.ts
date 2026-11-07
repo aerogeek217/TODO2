@@ -64,7 +64,7 @@ type EntityField = 'personIds' | 'tags'
  */
 function namedIds(predicate: TodoPredicate | undefined, field: EntityField): number[] {
   if (!predicate) return []
-  const own = [predicate, ...(predicate.orGroups ?? [])].flatMap((c) => (c[field] ?? []).filter((id) => id > 0))
+  const own = (predicate[field] ?? []).filter((id) => id > 0)
   const kind = field === 'personIds' ? 'person' : 'tag'
   const inExpression = predicate.expression
     ? expressionAtoms(predicate.expression).flatMap((a) => (a.kind === kind && a.id > 0 ? [a.id] : []))

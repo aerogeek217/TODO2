@@ -182,9 +182,9 @@ export type FilterNegation = { [K in NegatableField]?: true }
  */
 export interface TodoPredicate {
   /**
-   * Completed tasks pass too. A Completed date range among the clauses
-   * outside the or groups, or an or group's only alternative, lets them
-   * through as well — the ones it keeps (`utils/filter-criteria.admitsCompleted`).
+   * Completed tasks pass too. A Completed date range among the clauses (or
+   * a top-level term of the expression) lets them through as well — the ones
+   * it keeps (`utils/filter-criteria.admitsCompleted`).
    */
   showCompleted: boolean
   /**
@@ -219,21 +219,13 @@ export interface TodoPredicate {
    */
   negate?: FilterNegation
   /**
-   * The or groups: a task must pass every or group as well as the clauses
-   * above, and passes an or group when it passes at least one of its
-   * clauses (each read exactly as the same clause outside an or group, its "is
-   * not" included; a Completed range in one is a plain date clause, it never
-   * lets completed tasks through). Absent
-   * or empty = no or group; one with no clause filters nothing and isn't
-   * stored; at most `OR_GROUPS_MAX`. Optional on read: older predicates have none.
-   */
-  orGroups?: FilterClauses[]
-  /**
    * The filter as an expression (`models/filter-expression`): a task must
-   * pass it as well. A predicate is Graphical (its clauses) or an
-   * expression: while this is present its own clauses are empty and it has
-   * no or groups (`pickPredicate` folds any into it). Show completed stays
-   * the predicate's (`and done` in the text). Absent = Graphical.
+   * pass it as well. A predicate is Graphical (its clauses: a chip per
+   * field, one Priority condition) or an expression: while this is present
+   * its own clauses are empty (`pickPredicate` folds any into it; schema v75
+   * made each stored filter with or groups or several Priority conditions
+   * one). Show completed stays the predicate's (`and done` in the text).
+   * Absent = Graphical.
    */
   expression?: FilterExpr
 }
@@ -241,13 +233,9 @@ export interface TodoPredicate {
 /**
  * The narrowing clauses of a predicate — what a chip can be: one clause per
  * field, "is not" per id field, no Show completed. The predicate's own
- * clauses have this shape (a `TodoPredicate` is one), and so does each of
- * its or groups.
+ * clauses have this shape (a `TodoPredicate` is one).
  */
 export type FilterClauses = Pick<TodoPredicate, 'personIds' | 'statusIds' | 'tags' | 'searchText' | 'dates' | 'markers' | 'negate'>
-
-/** Most or groups a predicate holds. */
-export const OR_GROUPS_MAX = 30
 
 /** Empty predicate — matches every open task (completed tasks need `showCompleted`). */
 export function emptyPredicate(): TodoPredicate {
@@ -262,7 +250,7 @@ export function emptyPredicate(): TodoPredicate {
   }
 }
 
-/** Clauses that filter nothing (an or group before its first chip). */
+/** Clauses that filter nothing. */
 export function emptyFilterClauses(): FilterClauses {
   return {
     personIds: null,

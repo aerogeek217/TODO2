@@ -38,16 +38,22 @@ describe('v75 — filters Graphical can’t say become expressions', () => {
     })
   })
 
-  it('several Priority conditions: one term each', () => {
-    const out = predicateOf(upgradeV75({ listDefinitions: [list({ ...EMPTY, markers: [{ values: ['urgent', 'focus'] }, { values: ['important'], not: true }] })] }).listDefinitions)
+  it('several Priority conditions beside an or group: one term each', () => {
+    const out = predicateOf(upgradeV75({ listDefinitions: [list({ ...EMPTY, markers: [{ values: ['urgent', 'focus'] }, { values: ['important'], not: true }], orGroups: [{ ...EMPTY, tags: [1] }] })] }).listDefinitions)
     expect(out.markers).toBeNull()
     expect(out.expression).toEqual({
       kind: 'and',
       items: [
         { kind: 'or', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'priority', value: 'focus' }] },
         { kind: 'not', item: { kind: 'priority', value: 'important' } },
+        { kind: 'tag', id: 1 },
       ],
     })
+  })
+
+  it('several Priority conditions alone stay chips (Graphical repeats Priority)', () => {
+    const data = { listDefinitions: [list({ ...EMPTY, markers: [{ values: ['urgent'] }, { values: ['important'], not: true }] })] }
+    expect(upgradeV75(data)).toBe(data)
   })
 
   it('an "is not" date range in a group is a not', () => {
@@ -91,7 +97,7 @@ describe('v75 — filters Graphical can’t say become expressions', () => {
   })
 
   it('runs as the registry’s step 75', () => {
-    const out = upgradeDataSet({ listDefinitions: [list({ ...EMPTY, markers: [{ values: ['urgent'] }, { values: ['focus'] }] })] }, 74, 75)
-    expect(predicateOf(out.listDefinitions).expression).toEqual({ kind: 'and', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'priority', value: 'focus' }] })
+    const out = upgradeDataSet({ listDefinitions: [list({ ...EMPTY, markers: [{ values: ['urgent'] }], orGroups: [{ ...EMPTY, personIds: [1] }] })] }, 74, 75)
+    expect(predicateOf(out.listDefinitions).expression).toEqual({ kind: 'and', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'person', id: 1 }] })
   })
 })

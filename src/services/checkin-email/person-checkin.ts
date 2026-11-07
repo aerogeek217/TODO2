@@ -200,7 +200,7 @@ export const ASSIGNMENTS_LOADING_NOTICE = 'Not every task’s people and tags ha
  * loaded, so selecting the person's tasks reads complete data.
  */
 function assignmentsLoaded(ctx: CheckinBuildContext, filter: CheckinTaskFilter): boolean {
-  const tagsNeeded = [filter, ...(filter.orGroups ?? [])].some((c) => c.tags != null || c.searchText.trim() !== '')
+  const tagsNeeded = filter.tags != null || filter.searchText.trim() !== ''
     || (filter.expression != null && expressionAtoms(filter.expression).some((a) => a.kind === 'tag' || a.kind === 'text'))
   return ctx.todos.every((t) => t.isCompleted
     || (ctx.assignedPeopleMap.has(t.id) && (!tagsNeeded || ctx.assignedTagsMap?.has(t.id) === true)))

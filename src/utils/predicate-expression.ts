@@ -10,7 +10,7 @@ import { withNormalizedNegation } from './filter-negation'
  * - `topLevelPredicate` — the predicate's own clauses, or an expression's
  *   top-level `and` terms that are chips (`splitTopLevel`): what a new
  *   task's seeds, a Prompt for pick, the People / Tag group narrowing and a
- *   pane drop read (an or group, or any other term, seeds nothing: which of
+ *   pane drop read (an `or`, or any other term, seeds nothing: which of
  *   its alternatives a new task should meet is ambiguous);
  * - `expressionRest` — the other terms;
  * - `asExpression` / `asGraphical` — the editor's switch.
@@ -21,10 +21,9 @@ export function isExpressionPredicate(p: Pick<TodoPredicate, 'expression'>): boo
   return p.expression != null
 }
 
-/** `p` with no clause of its own and no or group (Show completed and the rest kept). */
+/** `p` with no clause of its own (Show completed and the rest kept). */
 function withoutClauses<T extends TodoPredicate>(p: T): T {
-  const { orGroups: _orGroups, negate: _negate, ...rest } = p
-  void _orGroups
+  const { negate: _negate, ...rest } = p
   void _negate
   return { ...rest, ...emptyFilterClauses() } as T
 }
@@ -44,8 +43,8 @@ export function expressionRest(p: Pick<TodoPredicate, 'expression'>): FilterExpr
 }
 
 /**
- * `p` written as an expression: everything it narrows by — its clauses, or
- * groups and expression — as one tree; Show completed kept. A predicate
+ * `p` written as an expression: everything it narrows by — its clauses and
+ * expression — as one tree; Show completed kept. A predicate
  * that narrows by nothing has no expression (it is "every task" either way).
  */
 export function asExpression<T extends TodoPredicate>(p: T): T {
@@ -57,7 +56,7 @@ export function asExpression<T extends TodoPredicate>(p: T): T {
   return plain as T
 }
 
-/** `p` with `expression` as its filter (null: no filter), its clauses and or groups gone. */
+/** `p` with `expression` as its filter (null: no filter), its clauses gone. */
 export function withExpression<T extends TodoPredicate>(p: T, expression: FilterExpr | null, showCompleted = p.showCompleted): T {
   const out = { ...withoutClauses(p), showCompleted }
   if (expression) return { ...out, expression }

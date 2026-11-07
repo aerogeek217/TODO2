@@ -1,11 +1,10 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
 
 /**
- * v75 — a filter is Graphical (a chip per field, ANDed; one Priority chip)
- * or an expression (`TodoPredicate.expression`). A stored filter Graphical
- * can no longer say — one with or groups, or with more than one Priority
- * condition — becomes the expression that filters the same, its clauses
- * emptied and its or groups gone:
+ * v75 — a filter is Graphical (its chips, ANDed) or an expression
+ * (`TodoPredicate.expression`). A stored filter with or groups, which
+ * Graphical no longer says, becomes the expression that filters the same,
+ * its clauses emptied and its or groups gone:
  *
  * - each clause outside the or groups is one `and` term: an id filter `@a or
  *   @b` (its "is not" a `not`), each Priority condition likewise, text a
@@ -95,9 +94,9 @@ function clauseTerms(c: Record<string, unknown>): Expr[] {
   ]
 }
 
-/** Whether Graphical can't say `p`: it has an or group, or more than one Priority condition. */
+/** Whether Graphical can't say `p`: it has an or group. */
 function needsExpression(p: Record<string, unknown>): boolean {
-  return (Array.isArray(p.orGroups) && p.orGroups.length > 0) || (Array.isArray(p.markers) && p.markers.length > 1)
+  return Array.isArray(p.orGroups) && p.orGroups.length > 0
 }
 
 function upgradePredicate(p: unknown): unknown {

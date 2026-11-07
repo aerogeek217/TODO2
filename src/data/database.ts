@@ -234,9 +234,8 @@ export class Todo2Database extends Dexie {
     // Eisenhower panes, the check-in filter); no store changes.
     this.version(74).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 74))
 
-    // v75: a filter Graphical can't say (or groups, several Priority
-    // conditions) becomes an expression (lists, lenses, Eisenhower panes, the
-    // check-in filter); no store changes.
+    // v75: a filter with or groups becomes an expression (lists, lenses,
+    // Eisenhower panes, the check-in filter); no store changes.
     this.version(75).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 75))
 
     // The next schema step N goes here, after the last one:

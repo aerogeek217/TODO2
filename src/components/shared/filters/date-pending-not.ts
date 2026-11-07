@@ -20,35 +20,6 @@ export function createPendingNotMemory(): PendingNotMemory {
 }
 
 /**
- * One memory per place a filter's chips edit — the predicate's own clauses
- * (`null`) and each or group (its index) — so an Is not pending on the
- * predicate's own Due never opens a group's Due panel on Is not.
- */
-export interface ScopedPendingNot {
-  of: (scope: number | null) => PendingNotMemory
-  /** Forgets the groups' (their indexes moved: a group went). */
-  clearGroups: () => void
-}
-
-export function createScopedPendingNot(): ScopedPendingNot {
-  const memories = new Map<string, PendingNotMemory>()
-  return {
-    of: (scope) => {
-      const key = scope == null ? 'own' : `group:${scope}`
-      let memory = memories.get(key)
-      if (!memory) {
-        memory = createPendingNotMemory()
-        memories.set(key, memory)
-      }
-      return memory
-    },
-    clearGroups: () => {
-      for (const key of [...memories.keys()]) if (key !== 'own') memories.delete(key)
-    },
-  }
-}
-
-/**
  * The memory of the filter a date panel edits: a filter's chips provide one
  * (`PredicateChips`, which outlive the popover); none = kept while open only.
  */

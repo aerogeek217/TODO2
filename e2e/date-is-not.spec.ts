@@ -5,9 +5,9 @@ import { openSettings, seedWorkspace, wsListWidget } from './fixtures/workspace'
 /**
  * "Is not" on a date range (cr25 P4, schema v71), as the user asked for it:
  * a lens that hides the tasks followed up lately that also have a next
- * follow-up soon. Built in Settings › Lenses as one or group — Last
- * follow-up is not 1 week ago – Today, or Next follow-up is not Today – In
- * 2 weeks — and saved (a lens's filter edits wait for Save, cr25 P3) before
+ * follow-up soon. Built in Settings › Lenses — Last follow-up is not 1 week
+ * ago – Today as a chip, then in Expression mode `or` Next follow-up is not
+ * Today – In 2 weeks — and saved (a lens's filter edits wait for Save, cr25 P3) before
  * the top bar uses it. A task without the date passes an "is not" range.
  */
 
@@ -76,21 +76,16 @@ test('the user\'s lens: hides only the tasks followed up lately with a next foll
   await expect(chip).toHaveText(/Last follow-up\s*not within the last 7 days/)
   await expect(chip).toHaveAttribute('data-negated', '')
 
-  // The group is made from the chip's Another filter (OR), which offers
-  // Dates while a date type is free (cr25 P4b): it opens on the first free
-  // type (Due — never the chip's own), and the Next follow-up tab takes the
-  // second range. The chip and the new range become the group at once.
-  await chip.click()
-  await datePanel(page).getByRole('button', { name: /Another filter \(OR\)/ }).click()
-  await page.getByTestId('or-group-panel').getByRole('button', { name: 'Dates' }).click()
-  await expect(datePanel(page).getByRole('tab', { name: 'Due', exact: true })).toHaveAttribute('aria-selected', 'true')
-  await setNotRange(page, 'Next follow-up', 'today', 'In 2 weeks')
-  await page.keyboard.press('Escape')
-  const group = editor.getByTestId('or-group')
-  await expect(group.getByTestId('list-filter-chip')).toHaveCount(2)
-  await expect(group).toHaveText(/Next follow-up\s*not within the next 14 days\s*or\s*Last follow-up\s*not within the last 7 days/)
+  // The OR goes in an expression (schema v75): Expression mode reads the
+  // chip as its text, and the second range is typed after it.
+  await editor.getByRole('radiogroup', { name: 'Filter mode' }).getByRole('radio', { name: 'Expression' }).click()
+  const field = editor.getByRole('textbox', { name: 'Filter expression' })
+  await expect(field).toHaveValue(/^not followed /)
+  await field.press('End')
+  await field.pressSequentially(' or not followup within next 14 days')
+  await field.blur()
   await expect(settings.getByTestId('lens-keeps')).toContainText('Keeps 3 of 4 open tasks')
-  await expect(lenses.getByRole('button', { name: /^Chase/ })).toContainText('Next follow-up not within the next 14 days or Last follow-up not within the last 7 days')
+  await expect(lenses.getByRole('button', { name: /^Chase/ })).toContainText(/not followed .+ or not followup /)
 
   // Unsaved: the top bar keeps the saved lens (every task).
   await expect.poll(() => titles(page)).toEqual(ALL)
