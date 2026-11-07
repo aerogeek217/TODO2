@@ -3,12 +3,15 @@ import type { PersistedTodoItem } from '../../../models'
 import type { StatusTab } from '../../../models/workspace-layout'
 import { useStatsBase, useStatusStats, type ShownOfTotal } from '../../../hooks/use-glance-data'
 import type { StatusBreakdownEntry } from '../../../services/stats/status-breakdown'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { countOf } from './glance-copy'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { statusLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
+import { topStatus } from './glance-face'
+import { GlanceSmallFace } from './GlanceSmallFace'
 import { openIds } from './section-data'
 import { SECTION_META } from './section-meta'
 import { Clickable, Empty, Panel, type SectionProps } from './section-parts'
@@ -90,16 +93,28 @@ export function StatusSection({ data, onDrill, style, className }: SectionProps<
 export function StatusWidget({ tab, onResult, onDrill }: GlanceWidgetProps<StatusTab>) {
   const base = useStatsBase()
   const status = useStatusStats(base)
+  const [faceRef, face] = useWidgetFace()
   const lines = useMemo(() => statusLines(status), [status])
   useReportLines(onResult, lines)
+  const top = topStatus(status.shown)
   return (
-    <GlanceFrame tab={tab}>
-      <StatusSection
+    <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
+      {face === 'small' ? (
+        <GlanceSmallFace
+          glyph={SECTION_META.status.glyph}
+          glyphColor={SECTION_META.status.glyphColor}
+          title={SECTION_META.status.title}
+          entry={top?.label}
+          value={String(top?.count ?? 0)}
+          valueColor={top ? top.color : 'var(--color-text-muted)'}
+          caption={top ? undefined : 'open'}
+        />
+      ) : <StatusSection
         data={{ status, shown: base.shown }}
         options={{}}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
-      />
+      />}
     </GlanceFrame>
   )
 }

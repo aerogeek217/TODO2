@@ -1,5 +1,8 @@
 import {
+  DEFAULT_NUMBER_BREAKDOWN,
   LOOK_AHEAD_CHOICES,
+  NUMBER_BREAKDOWN_LABELS,
+  NUMBER_BREAKDOWNS,
   NUMBER_METRIC_LABELS,
   NUMBER_METRICS,
   RECENT_DAYS_CHOICES,
@@ -105,9 +108,15 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
   const ws = useWorkspaceStore.getState
   switch (tab.kind) {
     case 'number':
-      return [settingEntry('Metric', NUMBER_METRICS.map((m) => ({ value: m, label: NUMBER_METRIC_LABELS[m] })), tab.config.metric,
-        (metric) => ws().patchTabConfig(tab.id, 'number', { metric }),
-        'Open, Overdue, Due today and Closed this week show their last 14 days.')]
+      return [
+        settingEntry('Metric', NUMBER_METRICS.map((m) => ({ value: m, label: NUMBER_METRIC_LABELS[m] })), tab.config.metric,
+          (metric) => ws().patchTabConfig(tab.id, 'number', { metric }),
+          'Open, Overdue, Due today and Closed this week show their last 14 days.'),
+        settingEntry('Breakdown', NUMBER_BREAKDOWNS.map((b) => ({ value: b, label: NUMBER_BREAKDOWN_LABELS[b] })),
+          tab.config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN,
+          (breakdown) => ws().patchTabConfig(tab.id, 'number', { breakdown }),
+          'Shown under the count when the cell has room for the whole widget.'),
+      ]
     case 'followup':
       return [settingEntry('Look ahead', LOOK_AHEAD_CHOICES.map(days), tab.config.lookAhead,
         (lookAhead) => ws().patchTabConfig(tab.id, 'followup', { lookAhead }))]

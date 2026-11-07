@@ -28,6 +28,7 @@ import {
 import { normalizeDashboardConfig } from '../models/dashboard-config'
 import {
   GLANCE_CONFIG_FIELDS,
+  isNumberBreakdown,
   pickFollowupConfig,
   pickNumberConfig,
   pickPeopleConfig,
@@ -167,6 +168,9 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (!isNeglectUntouchedDays(config.untouchedDays)) return `${path}.config.untouchedDays`
       return true
     case 'number':
+      // Its breakdown: absent (none) or a known one; then its metric, as below.
+      if (config.breakdown !== undefined && !isNumberBreakdown(config.breakdown)) return `${path}.config.breakdown`
+      return GLANCE_CONFIG_FIELDS.number.ok(config.metric) ? true : `${path}.config.metric`
     case 'followup':
     case 'trend':
     case 'people':

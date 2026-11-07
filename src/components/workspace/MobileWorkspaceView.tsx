@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import {
   getActiveTab,
+  isGlanceKind,
   type BandEdge,
   type EisenhowerTab,
   type LayoutBand,
@@ -16,6 +17,9 @@ import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { isFitRow } from '../../utils/workspace-rows'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
+import { smallFaceClick, useCellFace } from './cell-face'
+import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
+import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { UnsavedPrompt } from './UnsavedPrompt'
@@ -347,12 +351,14 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
  * only collapses (its row), a list tab's long-press opens its list sheet. No
  * layout editing.
  */
-function MobileCell({ cell, rowId, collapsed, fill, band = false }: {
+function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false }: {
   cell: LayoutCell
   /** Its row's id (a column's row, or the band): what collapses. */
   rowId: string
   collapsed: boolean
   fill: boolean
+  /** Its row fits its content (glance numbers two up): the widget shows its small face. */
+  fitRow?: boolean
   band?: boolean
 }) {
   const noun = band ? 'band' : 'cell'
@@ -365,6 +371,12 @@ function MobileCell({ cell, rowId, collapsed, fill, band = false }: {
   const [eisenhowerSheet, setEisenhowerSheet] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const moreRef = useRef<HTMLButtonElement | null>(null)
+  const cellRef = useRef<HTMLElement | null>(null)
+  // Its widget's face (D25 R): a page's cell by its size; a cell sized to its
+  // content (the column scrolls) by its width alone; a fit row's small.
+  const cellFace = useCellFace(active, { forced: fitRow ? 'small' : undefined, heightFree: !fill })
+  /** A glance cell (a glance widget, or any at its small face): a slim header. */
+  const compact = active != null && (isGlanceKind(active.kind) || cellFace.face === 'small')
 
   if (cell.tabs.length === 0) {
     return (
@@ -384,8 +396,11 @@ function MobileCell({ cell, rowId, collapsed, fill, band = false }: {
 
   return (
     <section
-      className={[styles.cell, fill && !collapsed ? styles.cellFill : '', collapsed ? styles.cellCollapsed : ''].join(' ')}
+      ref={cellRef}
+      className={[styles.cell, fill && !collapsed ? styles.cellFill : '', collapsed ? styles.cellCollapsed : '', compact ? styles.cellCompact : ''].join(' ')}
       data-ws-cell={cell.id}
+      data-compact={compact ? 'true' : undefined}
+      data-face={!collapsed && active ? cellFace.face : undefined}
       aria-label={`${activeTitle} ${noun}`}
     >
       <div className={styles.cellHeader} data-ws-cell-header={cell.id}>
@@ -437,13 +452,20 @@ function MobileCell({ cell, rowId, collapsed, fill, band = false }: {
           aria-labelledby={`ws-tab-${active.id}`}
           data-ws-cell-body={cell.id}
           data-kind={active.kind}
+          onClick={smallFaceClick(cellFace)}
         >
-          <WidgetBody
-            key={active.id}
-            tab={active}
-            onResult={(result) => setLens({ tabId: active.id, result })}
-          />
+          {cellFace.face === 'small' && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
+          <WidgetFaceContext.Provider value={cellFace.host}>
+            <WidgetBody
+              key={active.id}
+              tab={active}
+              onResult={(result) => setLens({ tabId: active.id, result })}
+            />
+          </WidgetFaceContext.Provider>
         </div>
+      )}
+      {cellFace.fullOpen && active && !collapsed && (
+        <WidgetFacePopover tab={active} anchorRef={cellRef} onClose={cellFace.closeFull} />
       )}
       {eisenhowerTab && <EisenhowerSheet tab={eisenhowerTab} onClose={() => setEisenhowerSheet(null)} />}
       {tabSheet && (
@@ -499,11 +521,12 @@ function MobilePage({ page, index }: { page: PagerPage; index: number }) {
       data-ws-column={column.id}
     >
       {column.rows.map((row) => {
+        const fit = isFitRow(row)
         const cells = row.cells.map((cell) => (
-          <MobileCell key={cell.id} cell={cell} rowId={row.id} collapsed={row.collapsed === true} fill={fill} />
+          <MobileCell key={cell.id} cell={cell} rowId={row.id} collapsed={row.collapsed === true} fill={fill} fitRow={fit} />
         ))
         // A fit row (glance numbers) stays side by side, two up while two fit; any other row's cells stack.
-        return isFitRow(row)
+        return fit
           ? <div key={row.id} className={styles.fitRow} data-ws-row={row.id} data-fit="true">{cells}</div>
           : <Fragment key={row.id}>{cells}</Fragment>
       })}

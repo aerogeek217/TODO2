@@ -30,6 +30,8 @@ import { MonthGrid } from './CalendarMonth'
 import { WeekRows, WeekColumn } from './CalendarWeek'
 import { CompactDay, DayList } from './CalendarCompact'
 import { TypeToggle, TitlesToggle } from './CalendarToggles'
+import { CalendarFace } from './CalendarFace'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 /** Width assumed before the widget is measured. */
 const UNMEASURED_WIDTH = 1000
 
@@ -46,6 +48,15 @@ interface MoreState {
  * move their own date; recurring occurrences don't drag.
  */
 export function CalendarWidget({ tab }: { tab: CalendarTab }) {
+  // Its face (D25 R): today and the week's heat when small, the week's days when medium, the calendar when large.
+  const [faceRef, face] = useWidgetFace()
+  return face === 'large'
+    ? <CalendarFull tab={tab} faceRef={faceRef} />
+    : <CalendarFace tab={tab} face={face} faceRef={faceRef} />
+}
+
+/** The full calendar (its large face). */
+function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLElement | null) => void }) {
   const isMobile = useIsMobile()
   const today = useToday()
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
@@ -60,7 +71,11 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const pending = useContext(PendingCalendarDropContext)
   const drag = useTaskDrag()
-  const [rootRef, rootSize] = useElementSize()
+  const [sizeRef, rootSize] = useElementSize()
+  const rootRef = useCallback((el: HTMLElement | null) => {
+    sizeRef(el)
+    faceRef(el)
+  }, [sizeRef, faceRef])
   const [selectedMs, setSelectedMs] = useState<number | null>(null)
   const [more, setMore] = useState<MoreState | null>(null)
 

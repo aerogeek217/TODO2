@@ -23,6 +23,7 @@ import type { LensTab } from '../../../models/workspace-layout'
 import type { Person, TodoPredicate } from '../../../models'
 import { db } from '../../../data/database'
 import { clearFilterStore, makeTodo, resetEntityStores, stubClipboard } from '../../helpers'
+import { WidgetFaceContext, type WidgetFaceHost } from '../../../hooks/use-widget-face'
 
 const alice: Person = { id: 1, name: 'Alice', initials: 'AL', color: '#c33' }
 const bob: Person = { id: 2, name: 'Bob', initials: 'BO' }
@@ -1018,5 +1019,103 @@ describe('ListWidget — a completed row leaves (D19)', () => {
     expect(leavingOf('Bob task')).toBe('stay')
     act(() => { vi.advanceTimersByTime(680) })
     expect(titles()).toEqual(['Alice task', 'Shared task'])
+  })
+})
+
+describe('ListWidget faces (D25 R)', () => {
+  const TODAY = new Date(2026, 9, 14, 10)
+  const day = (d: number) => new Date(2026, 9, d)
+
+  function renderFace(host: WidgetFaceHost, d: PersistedListDefinition = def()) {
+    useListDefinitionStore.setState({ listDefinitions: [d] })
+    let result: ListWidgetResult | undefined
+    render(
+      <DndContext>
+        <WidgetFaceContext.Provider value={host}>
+          <ListWidget tab={tab} onResult={(r) => { result = r }} />
+        </WidgetFaceContext.Provider>
+      </DndContext>,
+    )
+    return { result: () => result }
+  }
+  const face = () => document.querySelector<HTMLElement>('[data-list-face]')
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(TODAY)
+    useSettingsStore.setState({ rowDates: 'numeric', tabBadges: { due: 3, followup: 0 } })
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Alice task', sortOrder: 1, dueDate: day(16) }),
+        makeTodo({ id: 2, title: 'Bob task', sortOrder: 2, dueDate: day(12) }),
+        makeTodo({ id: 3, title: 'Shared task', sortOrder: 3 }),
+        makeTodo({ id: 4, title: 'Done task', sortOrder: 4, isCompleted: true, dueDate: day(1) }),
+      ],
+    })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('small: the name, the count in the tab badge’s colour, the badge and the oldest due date (late: marked); no rows', () => {
+    const { result } = renderFace({ forced: 'small' })
+    expect(face()!.dataset.listFace).toBe('small')
+    expect(face()!.textContent).toContain('Team')
+    const count = screen.getByTestId('list-face-count')
+    expect(count).toHaveTextContent('3')
+    // Two due inside the badge's range (one overdue): the due colour.
+    expect(count.style.color).toBe('var(--color-overdue)')
+    expect(face()!.querySelector('[data-list-face-badge]')).not.toBeNull()
+    expect(screen.getByTestId('list-face-oldest')).toHaveTextContent('Oldest due 10/12')
+    expect(screen.getByTestId('list-face-oldest').className).toMatch(/late/)
+    expect(face()!.querySelectorAll('[data-todo-id]')).toHaveLength(0)
+    // Not a list widget's root (no selection, keyboard or zoom target), no tab count; Copy tasks still has its sections.
+    expect(document.querySelector('[data-list-widget]')).toBeNull()
+    expect(face()!.hasAttribute('data-selection-scope')).toBe(false)
+    expect(result()?.countLabel).toBeUndefined()
+    expect(result()?.sections.flatMap((sec) => sec.todos.map((t) => t.id))).toEqual([1, 2, 3])
+  })
+
+  it('small under the screen filter: shown of total, as the tab counts', () => {
+    renderFace({ forced: 'small' })
+    act(() => useFilterStore.getState().setPersonIds(new Set([1])))
+    expect(screen.getByTestId('list-face-count')).toHaveTextContent('2')
+    expect(face()!.textContent).toContain('of 3')
+  })
+
+  it('a count with nothing due in range takes the text colour; no oldest date without a due date', () => {
+    useTodoStore.setState({ todos: [makeTodo({ id: 3, title: 'Shared task', sortOrder: 3 })] })
+    renderFace({ forced: 'small' })
+    expect(screen.getByTestId('list-face-count').style.color).toBe('')
+    expect(screen.queryByTestId('list-face-oldest')).toBeNull()
+  })
+
+  it('medium: the line over as many quick rows as fit, `+N more` opening the full list; a row opens its editor', () => {
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(400)
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(48)
+    const openFull = vi.fn()
+    renderFace({ forced: 'medium', openFull })
+    expect(face()!.dataset.listFace).toBe('medium')
+    const rows = [...face()!.querySelectorAll<HTMLElement>('[data-todo-id]')]
+    expect(rows.map((r) => r.textContent)).toEqual(['Alice task10/16', 'Bob task10/12'])
+    fireEvent.click(screen.getByTestId('list-face-more'))
+    expect(screen.getByTestId('list-face-more')).toHaveTextContent('+1 more')
+    expect(openFull).toHaveBeenCalledTimes(1)
+    fireEvent.click(rows[1]!)
+    expect(useUIStore.getState().selectedTodoId).toBe(2)
+  })
+
+  it('large: the list itself', () => {
+    renderFace({ forced: 'large' })
+    expect(face()).toBeNull()
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+  })
+
+  it('a prompt list waiting on its pick: a dash and what to pick', () => {
+    renderFace({ forced: 'small' }, def({ runtimeFilter: { field: 'person' } }))
+    expect(screen.getByTestId('list-face-count')).toHaveTextContent('—')
+    expect(face()!.textContent).toContain('Pick a person')
   })
 })

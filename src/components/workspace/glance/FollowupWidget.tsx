@@ -3,11 +3,13 @@ import { DEFAULT_LOOK_AHEAD } from '../../../models/glance-widgets'
 import type { FollowupTab } from '../../../models/workspace-layout'
 import { followupRowIds, useFollowupRows, useFollowupStats, useStatsBase, type ShownOfTotal } from '../../../hooks/use-glance-data'
 import type { FollowupGroups } from '../../../services/stats/followup-groups'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { countOf } from './glance-copy'
 import { GLANCE_PANEL_CLASS, glanceDrill, useGlanceRows, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { followupLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
+import { GlanceSmallFace } from './GlanceSmallFace'
 import type { TodoLookup } from './section-data'
 import { SECTION_META } from './section-meta'
 import { Empty, Panel, RowsGrid, TaskRows, type RowSectionProps } from './section-parts'
@@ -78,6 +80,7 @@ export function FollowupWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Fol
   const { lookAhead } = tab.config
   const base = useStatsBase()
   const rows = useGlanceRows(tab)
+  const [faceRef, face] = useWidgetFace()
   const followup = useFollowupStats(base, lookAhead)
   const lingering = useFollowupRows(base, followup, lookAhead, rows.leaving)
   const { setShown } = rows
@@ -85,15 +88,25 @@ export function FollowupWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Fol
   const lines = useMemo(() => followupLines(followup, lookAhead), [followup, lookAhead])
   useReportLines(onResult, lines)
   const data: FollowupSectionData = { followup, rows: { followup: lingering.rows, kept: lingering.kept }, todoById: base.todoById }
+  const late = followup.shown.late.length
   return (
-    <GlanceFrame tab={tab} rows={rows}>
-      <FollowupSection
+    <GlanceFrame tab={tab} rows={rows} faceRef={faceRef} face={face}>
+      {face === 'small' ? (
+        <GlanceSmallFace
+          glyph={SECTION_META.followup.glyph}
+          glyphColor={SECTION_META.followup.glyphColor}
+          title={SECTION_META.followup.title}
+          value={String(late)}
+          valueColor={late > 0 ? 'var(--color-followup)' : 'var(--color-text-muted)'}
+          caption="late"
+        />
+      ) : <FollowupSection
         data={data}
         options={{ lookAhead }}
         rows={rows.kit}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
-      />
+      />}
     </GlanceFrame>
   )
 }

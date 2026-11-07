@@ -1,40 +1,107 @@
-import { useMemo } from 'react'
-import { isTileMetric, type NumberMetric } from '../../../models/glance-widgets'
+import { useMemo, type MouseEvent } from 'react'
+import { DEFAULT_NUMBER_BREAKDOWN, isTileMetric, type NumberMetric } from '../../../models/glance-widgets'
 import type { NumberTab } from '../../../models/workspace-layout'
-import { useElementSize } from '../../../hooks/use-element-size'
 import { useClosedThisWeek, useMetricHistory, useStatsBase, useTileStats } from '../../../hooks/use-glance-data'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { hasHistory, historyDelta } from '../../../services/stats/metric-history'
+import { numberBreakdown, type BreakdownEntry } from '../../../services/stats/number-breakdown'
 import { DashGlyph } from '../../shared/DashGlyph'
 import { closedSubLine, countOf, deltaLabel, tileSubLine } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { numberLines } from './glance-summary'
+import type { DashboardDrill, OnDashboardDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { Sparkline } from './Sparkline'
 import { closedThisWeekDrill, NUMBER_DEFS, tileColors, tileDrill } from './tiles'
 import styles from './NumberWidget.module.css'
 
-/** From this body height (and width) the Number draws large: a bigger count and line. */
-const LARGE_MIN_HEIGHT_PX = 140
-const LARGE_MIN_WIDTH_PX = 200
+/** The large face's breakdown lists this many people / tags; the rest fold into one line. */
+export const BREAKDOWN_SHOWN = 5
+
+/**
+ * The large face's breakdown: a line per person / tag with a bar of its
+ * share and its count (each opens its tasks), the rest as `N more`.
+ */
+function Breakdown({ entries, by, total, title, onDrill }: {
+  entries: readonly BreakdownEntry[]
+  by: 'people' | 'tags'
+  total: number
+  title: string
+  onDrill?: OnDashboardDrill
+}) {
+  if (entries.length === 0) return null
+  const shown = entries.slice(0, BREAKDOWN_SHOWN)
+  const rest = entries.length - shown.length
+  const max = Math.max(1, ...shown.map((e) => e.ids.length))
+  return (
+    <div className={styles.breakdown} role="list" aria-label={`${title} by ${by === 'tags' ? 'tag' : 'person'}`} data-testid="number-breakdown">
+      {shown.map((e) => {
+        const content = (
+          <>
+            <i className={styles.breakdownDot} style={{ background: e.color ?? 'var(--color-text-muted)' }} aria-hidden="true" />
+            <span className={styles.breakdownName}>{e.label}</span>
+            <span className={styles.breakdownBar} aria-hidden="true"><span style={{ width: `${Math.round((e.ids.length / max) * 100)}%` }} /></span>
+            <span className={styles.breakdownCount}>{e.ids.length}</span>
+          </>
+        )
+        const label = `${e.label}: ${e.ids.length} of ${total}`
+        return onDrill ? (
+          <button
+            key={e.key}
+            type="button"
+            role="listitem"
+            className={styles.breakdownRow}
+            data-breakdown={e.key}
+            aria-label={`${label}. Show tasks`}
+            onClick={() => onDrill(breakdownDrill(title, by, e))}
+          >
+            {content}
+          </button>
+        ) : (
+          <div key={e.key} role="listitem" className={styles.breakdownRow} data-breakdown={e.key} aria-label={label}>{content}</div>
+        )
+      })}
+      {rest > 0 && <span className={styles.breakdownMore}>{rest} more</span>}
+    </div>
+  )
+}
+
+/** One breakdown line's tasks for the task dialog. */
+function breakdownDrill(title: string, by: 'people' | 'tags', entry: BreakdownEntry): DashboardDrill {
+  const which = entry.key === 'none'
+    ? (by === 'tags' ? 'with no tag' : 'with nobody assigned')
+    : (by === 'tags' ? `tagged ${entry.label}` : `assigned to ${entry.label}`)
+  return {
+    title: `${title} · ${entry.label}`,
+    glyph: by === 'tags' ? 'tag' : 'people',
+    description: `${title}: the ones ${which}.`,
+    source: { kind: 'todos', todoIds: entry.ids },
+  }
+}
 
 /**
  * The Number widget (D25 N): one count — a Dashboard tile's, or Closed
- * this week — over the screen filter (`shown of total`), its sub-line, and
- * for Open, Overdue, Due today and Closed this week a 14-day line with the
- * change since yesterday. Lit in its colour when the count asks for
- * action (D18). A click opens its tasks, as the tile does. Centred in its
- * cell, it reads in a fit-height row (~76px) and grows in a bigger cell.
+ * this week — over the screen filter (`shown of total`). By its face (D25
+ * R): small is the label and the count (a fit row's, ~76px); medium adds
+ * its sub-line and, for Open, Overdue, Due today and Closed this week, a
+ * 14-day line with the change since yesterday; large draws it bigger and
+ * adds the breakdown its config picks (by person or tag). Lit in its
+ * colour when the count asks for action (D18). A click opens its tasks,
+ * as the tile does — at the small face too (the cell's full-widget
+ * popover stays for the keyboard).
  */
 export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
   const metric: NumberMetric = tab.config.metric
+  const breakdownBy = tab.config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN
   const base = useStatsBase()
   const tiles = useTileStats(base)
   const closed = useClosedThisWeek(base)
   const history = useMetricHistory(base)
-  const [sizeRef, size] = useElementSize()
+  const [faceRef, face] = useWidgetFace()
 
   const def = NUMBER_DEFS[metric]
-  const shown = isTileMetric(metric) ? tiles.shown[metric].ids.length : closed.shown.ids.length
+  const shownIds = isTileMetric(metric) ? tiles.shown[metric].ids : closed.shown.ids
+  const shown = shownIds.length
   const total = isTileMetric(metric) ? tiles.total[metric].ids.length : closed.total.ids.length
   const sub = isTileMetric(metric)
     ? tileSubLine(metric, tiles.shown, { today: base.ctx.today, trendNet: history?.trend.net ?? null, trendRange: '14d' })
@@ -43,12 +110,17 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
   const delta = series ? historyDelta(series) : null
   const colors = tileColors(metric, shown)
   const count = countOf(shown, total)
+  const large = face === 'large'
+  const small = face === 'small'
+  const breakdown = useMemo(
+    () => (large ? numberBreakdown(shownIds, breakdownBy, base.ctx) : []),
+    [large, shownIds, breakdownBy, base.ctx],
+  )
 
   const lines = useMemo(() => numberLines(def.label, count, sub), [def.label, count, sub])
   useReportLines(onResult, lines)
 
   const drill = glanceDrill(onDrill, base.filtered)
-  const large = size.height >= LARGE_MIN_HEIGHT_PX && size.width >= LARGE_MIN_WIDTH_PX
   const content = (
     <>
       <span className={styles.label} style={{ color: colors.label }}>
@@ -59,37 +131,38 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
           {shown}
           {shown !== total && <span className={styles.of}>of {total}</span>}
         </span>
-        {series && (
+        {series && !small && (
           <span className={styles.history}>
             <Sparkline series={series} width={large ? 120 : 64} height={large ? 36 : 22} className={styles.spark} />
             {delta != null && <span className={styles.delta} data-testid="number-delta">{deltaLabel(delta)}</span>}
           </span>
         )}
       </span>
-      {sub && <span className={styles.sub}>{sub}</span>}
+      {sub && !small && <span className={styles.sub}>{sub}</span>}
     </>
   )
-  const name = `${def.label}: ${count}.${sub ? ` ${sub}.` : ''}${delta != null ? ` ${deltaLabel(delta)}.` : ''}`
+  const name = `${def.label}: ${count}.${sub && !small ? ` ${sub}.` : ''}${delta != null && !small ? ` ${deltaLabel(delta)}.` : ''}`
   const common = {
     className: `${styles.number}${large ? ` ${styles.large}` : ''}`,
     'data-number-metric': metric,
     'data-lit': colors.lit ? 'true' : undefined,
   }
+  const open = (e: MouseEvent) => {
+    // Its own drill: not the cell's full-widget popover.
+    e.preventDefault()
+    drill?.(isTileMetric(metric) ? tileDrill(metric, { tiles, ctx: base.ctx }) : closedThisWeekDrill(closed.shown, base.ctx.today))
+  }
   return (
-    <GlanceFrame tab={tab}>
-      <div ref={sizeRef} className={styles.body}>
+    <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
+      <div className={`${styles.body}${large && breakdown.length > 0 ? ` ${styles.bodyWithBreakdown}` : ''}`}>
         {drill ? (
-          <button
-            type="button"
-            {...common}
-            aria-label={`${name} Show tasks`}
-            onClick={() => drill(isTileMetric(metric) ? tileDrill(metric, { tiles, ctx: base.ctx }) : closedThisWeekDrill(closed.shown, base.ctx.today))}
-          >
+          <button type="button" {...common} aria-label={`${name} Show tasks`} onClick={open}>
             {content}
           </button>
         ) : (
           <div {...common} role="group" aria-label={name}>{content}</div>
         )}
+        {large && breakdownBy !== 'none' && <Breakdown entries={breakdown} by={breakdownBy} total={shown} title={def.title} onDrill={drill} />}
       </div>
     </GlanceFrame>
   )

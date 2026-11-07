@@ -93,6 +93,28 @@ describe('glance widget kinds', () => {
     expect(tabOf(layoutRow({ id: 't', kind, config: 'x' }))).toEqual({ id: 't', kind, config: { [key]: fallback } })
   })
 
+  it('a Number’s breakdown (D25 R): a known one round-trips, none absent; a bad one is dropped (reads as none)', () => {
+    for (const breakdown of ['none', 'people', 'tags']) {
+      const good = layoutRow({ id: 't', kind: 'number', config: { metric: 'open', breakdown } })
+      expect(validateRow('layouts', good)).toBe(true)
+      expect(rowFixes('layouts', good)).toEqual([])
+      expect(tabOf(good)).toEqual({ id: 't', kind: 'number', config: { metric: 'open', breakdown } })
+    }
+    // A Number from before P4: no breakdown, nothing to fix.
+    const old = layoutRow({ id: 't', kind: 'number', config: { metric: 'open' } })
+    expect(rowFixes('layouts', old)).toEqual([])
+    expect(tabOf(old)).toEqual({ id: 't', kind: 'number', config: { metric: 'open' } })
+    for (const breakdown of ['status', 1, null]) {
+      const bad = layoutRow({ id: 't', kind: 'number', config: { metric: 'open', breakdown } })
+      expect(checkLayoutBody({ columns: bad.columns })).toBe('columns[0].rows[0].cells[0].tabs[0].config.breakdown')
+      expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
+      expect(tabOf(bad)).toEqual({ id: 't', kind: 'number', config: { metric: 'open' } })
+    }
+    // A bad metric beside a good breakdown: the metric resets, the breakdown stays.
+    expect(tabOf(layoutRow({ id: 't', kind: 'number', config: { metric: 'late', breakdown: 'tags' } })))
+      .toEqual({ id: 't', kind: 'number', config: { metric: 'overdue', breakdown: 'tags' } })
+  })
+
   it('the kinds without settings keep an empty config, any key dropped', () => {
     for (const kind of ['next7', 'status', 'eisenhowerSummary'] as const) {
       const row = layoutRow({ id: 't', kind, config: { stray: 1 }, viewState: { detailsWidth: 300 } })

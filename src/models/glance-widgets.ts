@@ -48,6 +48,24 @@ export function isTileMetric(v: unknown): v is TileMetricId {
   return includes(TILE_METRIC_IDS, v)
 }
 
+/** What a Number's large face breaks its tasks down by (D25 R): their people, their tags, or nothing. */
+export const NUMBER_BREAKDOWNS = ['none', 'people', 'tags'] as const
+export type NumberBreakdown = (typeof NUMBER_BREAKDOWNS)[number]
+
+/** A Number shows no breakdown until one is picked (a config without one reads as this). */
+export const DEFAULT_NUMBER_BREAKDOWN: NumberBreakdown = 'none'
+
+/** Each breakdown's menu choice. */
+export const NUMBER_BREAKDOWN_LABELS: Record<NumberBreakdown, string> = {
+  none: 'None',
+  people: 'By person',
+  tags: 'By tag',
+}
+
+export function isNumberBreakdown(v: unknown): v is NumberBreakdown {
+  return includes(NUMBER_BREAKDOWNS, v)
+}
+
 // ── Section options ─────────────────────────────────────────────────────────
 
 /** Needs follow-up: how many days ahead (starting today) it looks. */
@@ -111,6 +129,8 @@ export function pickSectionOptions(id: SectionId, raw: unknown): SectionOptions 
 
 export interface NumberTabConfig {
   metric: NumberMetric
+  /** Its large face's breakdown; absent = `none` (a tab from before P4 has none). */
+  breakdown?: NumberBreakdown
 }
 
 export interface FollowupTabConfig {
@@ -166,10 +186,14 @@ function pickOne<V>(v: unknown, ok: (v: unknown) => v is V, fallback: V): { valu
   return ok(v) ? { value: v, fixed: false } : { value: fallback, fixed: true }
 }
 
-/** A Number's config: a known metric, else Overdue (`fixed`). */
+/**
+ * A Number's config: a known metric, else Overdue (`fixed`); a known
+ * breakdown kept, an unknown one dropped (`fixed`: it reads as none).
+ */
 export function pickNumberConfig(raw: Obj): PickedConfig<NumberTabConfig> {
   const { value, fixed } = pickOne(raw.metric, isNumberMetric, DEFAULT_NUMBER_METRIC)
-  return { config: { metric: value }, fixed }
+  if (isNumberBreakdown(raw.breakdown)) return { config: { metric: value, breakdown: raw.breakdown }, fixed }
+  return { config: { metric: value }, fixed: fixed || raw.breakdown !== undefined }
 }
 
 /** A Needs follow-up's config: a known look-ahead, else 7 days (`fixed`). */

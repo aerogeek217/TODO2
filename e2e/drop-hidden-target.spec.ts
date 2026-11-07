@@ -27,7 +27,8 @@ test('a calendar day scrolled out of view takes no drop from the list over it', 
     layouts: [{
       name: 'Main',
       columns: [{ id: 'c1', rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] }],
-      top: { id: 'band-band', height: 160, cells: [{ id: 'band', tabs: [{ id: 'calTab', kind: 'calendar', titles: true }] }] },
+      // The shortest band that shows the full calendar (a body over 260px, D25 R): its titled month scrolls.
+      top: { id: 'band-band', height: 300, cells: [{ id: 'band', tabs: [{ id: 'calTab', kind: 'calendar', titles: true }] }] },
     }],
   })
   const grid = page.locator('[data-calendar-widget="calTab"] [data-cal-grid="month"]')
@@ -43,7 +44,8 @@ test('a calendar day scrolled out of view takes no drop from the list over it', 
     for (const d of Array.from(g.querySelectorAll<HTMLElement>('[data-day]'))) {
       const r = d.getBoundingClientRect()
       const cy = r.top + r.height / 2
-      if (r.top >= visibleBottom && cy > lb.y + 40 && cy < lb.y + lb.height - 10) {
+      // (Over the list cell; with the band as short as the full calendar allows, over its header.)
+      if (r.top >= visibleBottom && cy > lb.y + 4 && cy < lb.y + lb.height - 10) {
         return { key: d.dataset.day ?? '', x: r.left + r.width / 2, y: cy }
       }
     }

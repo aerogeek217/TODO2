@@ -58,6 +58,9 @@ import styles from './WorkspaceCell.module.css'
 import { trackScrollEdges } from '../../utils/scroll-edges'
 import type { BandZone, CellZone } from '../../utils/workspace-drop'
 import { isHeadlessCell, stripShownChoice } from '../../utils/workspace-rows'
+import { WidgetFaceContext } from '../../hooks/use-widget-face'
+import { CELL_HEADER_PX, smallFaceClick, useCellFace } from './cell-face'
+import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
 import { transitionName, withViewTransition } from '../shared/view-transition'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
@@ -76,6 +79,8 @@ interface WorkspaceCellProps {
   collapsed: boolean
   /** Its row holds other cells too: collapsing folds the whole row. */
   multiRow?: boolean
+  /** Its row fits its content (`isFitRow`): the widget shows its small face (D25 R). */
+  fitRow?: boolean
   style?: CSSProperties
 }
 
@@ -222,7 +227,7 @@ export function WorkspaceCell(props: WorkspaceCellProps) {
   return <FilledCell {...props} />
 }
 
-function FilledCell({ cell, band, rowId, collapsed, multiRow = false, style }: WorkspaceCellProps) {
+function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = false, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const closeTab = useWorkspaceStore((s) => s.closeTab)
   const closeCell = useWorkspaceStore((s) => s.closeCell)
@@ -239,11 +244,20 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, style }: W
   const noun = band ? 'band' : 'cell'
   /** What collapses with this cell: its band, its row (shared with other cells) or just it. */
   const rowNoun = band ? 'band' : multiRow ? 'row' : 'cell'
-  /** Headless: the strip is hidden until hover / focus (never while collapsed: the header is all it shows). */
-  const headless = !collapsed && isHeadlessCell(cell)
-
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
+  /** Headless whatever its face (one glance tab, or its strip hidden in the menu). */
+  const headlessByWidget = isHeadlessCell(cell)
+  // The active widget's face (D25 R): a fit row's is small; a cell headless
+  // only at its small face lends the body its header's room (measured as if headed).
+  const cellFace = useCellFace(active, {
+    forced: fitRow ? 'small' : undefined,
+    smallAllowancePx: !headlessByWidget && cell.tabs.length === 1 && cell.stripShown !== true ? CELL_HEADER_PX : undefined,
+  })
+  const smallFace = cellFace.face === 'small'
+  /** Headless: the strip is hidden until hover / focus (never while collapsed: the header is all it shows). */
+  const headless = !collapsed && isHeadlessCell(cell, undefined, smallFace)
+  const cellRef = useRef<HTMLElement | null>(null)
   /** What the active tab's widget last reported (any kind): its count label, shown sections or summary. */
   const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
   const [guard, setGuard] = useState<{ listIds: number[]; lead: string; run: () => void } | null>(null)
@@ -382,7 +396,7 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, style }: W
       kind: 'item' as const,
       label: headless ? 'Show tab strip' : 'Hide tab strip',
       icon: <TabStripIcon />,
-      onSelect: () => setCellStripShown(cell.id, stripShownChoice(cell, headless)),
+      onSelect: () => setCellStripShown(cell.id, stripShownChoice(cell, headless, undefined, smallFace)),
     }] : []),
     {
       kind: 'item',
@@ -402,6 +416,7 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, style }: W
 
   return (
     <section
+      ref={cellRef}
       className={[
         styles.cell,
         collapsed ? styles.collapsed : '',
@@ -413,10 +428,12 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, style }: W
       data-ws-cell={cell.id}
       data-ws-band={band}
       data-headless={headless ? 'true' : undefined}
+      data-face={!collapsed && active ? cellFace.face : undefined}
       aria-label={`${activeTitle} ${noun}`}
       onContextMenu={headless ? (e) => {
         // A headless cell's right-click is its tab's menu (a widget's own menu, e.g. a row's, goes first).
-        if (e.defaultPrevented || !active) return
+        // Not one from the full widget's popover (portaled, but in this React tree).
+        if (e.defaultPrevented || !active || !(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return
         e.preventDefault()
         setTabMenu({ tabId: active.id, x: e.clientX, y: e.clientY })
       } : undefined}
@@ -487,17 +504,22 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, style }: W
       {!collapsed && active && (
         <div
           ref={trackScrollEdges}
-          className={styles.body}
+          className={`${styles.body} ${smallFace ? styles.bodySmall : ''}`}
           role="tabpanel"
           aria-labelledby={`ws-tab-${active.id}`}
           data-ws-cell-body={cell.id}
+          // A small face opens its full widget (a widget's own click goes first).
+          onClick={drag ? undefined : smallFaceClick(cellFace)}
         >
-          <WidgetBody
-            key={active.id}
-            tab={active}
-            onResult={(result) => setWidgetResult({ tabId: active.id, result })}
-            onCustomize={active.kind === 'dashboard' ? () => setCustomize(active.id) : undefined}
-          />
+          {smallFace && !drag && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
+          <WidgetFaceContext.Provider value={cellFace.host}>
+            <WidgetBody
+              key={active.id}
+              tab={active}
+              onResult={(result) => setWidgetResult({ tabId: active.id, result })}
+              onCustomize={active.kind === 'dashboard' ? () => setCustomize(active.id) : undefined}
+            />
+          </WidgetFaceContext.Provider>
           {bodyHit && <DropZones zone={bodyHit.zone} multi={bodyHit.multi} accepts={drag?.accepts === true} join={join} />}
           {bandHit && <BandDropZone zone={bandHit.zone} accepts={drag?.accepts === true} join={join} />}
         </div>
@@ -583,6 +605,9 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, style }: W
         />
       )}
       {customize && <CustomizeDashboardDialog tabId={customize} onClose={closeCustomize} />}
+      {cellFace.fullOpen && active && !collapsed && (
+        <WidgetFacePopover tab={active} anchorRef={cellRef} onClose={cellFace.closeFull} />
+      )}
     </section>
   )
 }

@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { Next7Tab } from '../../../models/workspace-layout'
 import { useElementSize } from '../../../hooks/use-element-size'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useNextDays, useStatsBase } from '../../../hooks/use-glance-data'
 import type { NextDaysColumn } from '../../../services/stats/next-seven-days'
 import type { StatsContext } from '../../../services/stats/stats-context'
@@ -9,6 +10,8 @@ import { nextDayDialogWords, nextDayLabels } from './glance-copy'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { nextDaysLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
+import { nextDaysCount } from './glance-face'
+import { GlanceSmallFace } from './GlanceSmallFace'
 import { SECTION_META } from './section-meta'
 import { Clickable, Legend, Panel, type SectionProps } from './section-parts'
 import styles from './GlanceSections.module.css'
@@ -97,16 +100,25 @@ function columnLabel(date: Date | null, i: number): string {
 export function NextDaysWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Next7Tab>) {
   const base = useStatsBase()
   const nextDays = useNextDays(base)
+  const [faceRef, face] = useWidgetFace()
   const lines = useMemo(() => nextDaysLines(nextDays, columnLabel), [nextDays])
   useReportLines(onResult, lines)
   return (
-    <GlanceFrame tab={tab}>
-      <NextDaysSection
+    <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
+      {face === 'small' ? (
+        <GlanceSmallFace
+          glyph={SECTION_META.next7.glyph}
+          glyphColor={SECTION_META.next7.glyphColor}
+          title={SECTION_META.next7.title}
+          value={String(nextDaysCount(nextDays))}
+          caption="due or follow-up"
+        />
+      ) : <NextDaysSection
         data={{ nextDays, ctx: base.ctx }}
         options={{}}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
-      />
+      />}
     </GlanceFrame>
   )
 }

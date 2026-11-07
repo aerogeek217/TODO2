@@ -3,10 +3,12 @@ import type { PeopleTab } from '../../../models/workspace-layout'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { usePeopleStats, useStatsBase } from '../../../hooks/use-glance-data'
 import type { PeopleStats } from '../../../services/stats/people'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { peopleLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
+import { GlanceSmallFace } from './GlanceSmallFace'
 import { inSortOrder, priorityWords, type TodoLookup } from './section-data'
 import { SECTION_META } from './section-meta'
 import { Count, Empty, Panel, PriorityBadges, type SectionProps } from './section-parts'
@@ -91,16 +93,30 @@ export function PeopleWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Peopl
   const { showUnassigned } = tab.config
   const base = useStatsBase()
   const people = usePeopleStats(base)
+  const [faceRef, face] = useWidgetFace()
   const lines = useMemo(() => peopleLines(people, showUnassigned), [people, showUnassigned])
   useReportLines(onResult, lines)
+  const top = people.rows.at(0)
+  // Nobody with a task: Unassigned's, when the widget shows it.
+  const topName = top ? top.person.name : showUnassigned && people.unassigned.ids.length > 0 ? 'Unassigned' : undefined
+  const topCount = top ? top.ids.length : topName ? people.unassigned.ids.length : 0
   return (
-    <GlanceFrame tab={tab}>
-      <PeopleSection
+    <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
+      {face === 'small' ? (
+        <GlanceSmallFace
+          glyph={SECTION_META.people.glyph}
+          glyphColor={SECTION_META.people.glyphColor}
+          title={SECTION_META.people.title}
+          entry={topName}
+          value={String(topCount)}
+          caption="open"
+        />
+      ) : <PeopleSection
         data={{ people, todoById: base.todoById }}
         options={{ showUnassigned }}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
-      />
+      />}
     </GlanceFrame>
   )
 }

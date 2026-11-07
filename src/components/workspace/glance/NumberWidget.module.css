@@ -1,6 +1,7 @@
-/* The Number widget: one count centred in its cell — the label, the count
- * with its history line, the sub-line. 76px tall at its smallest (a fit
- * row); a bigger cell draws it large (`.large`), never stretched. */
+/* The Number widget: one count centred in its cell, by its face (D25 R) —
+ * small: the label and the count (a fit row, ~76px); medium: with its
+ * history line and sub-line; large (`.large`): bigger, never stretched,
+ * with its breakdown under it. */
 
 .body {
   display: flex;
@@ -117,4 +118,84 @@ button.number:hover {
 .large .history {
   flex-direction: column;
   gap: 2px;
+}
+
+/* The large face with a breakdown: the number above it. */
+.bodyWithBreakdown {
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 12px;
+  box-sizing: border-box;
+}
+
+.breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  width: min(100%, 320px);
+  min-height: 0;
+  overflow: hidden;
+}
+
+.breakdownRow {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) 72px 28px;
+  align-items: center;
+  gap: 8px;
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  text-align: left;
+}
+
+button.breakdownRow {
+  cursor: pointer;
+}
+
+button.breakdownRow:hover {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+.breakdownDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.breakdownName {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breakdownBar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--color-tint-8);
+  overflow: hidden;
+}
+
+.breakdownBar > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--color-text-muted);
+}
+
+.breakdownCount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
+.breakdownMore {
+  padding: 2px 6px 0 22px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
 }

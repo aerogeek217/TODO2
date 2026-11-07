@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { DEFAULT_TREND_RANGE, type TrendRange } from '../../../models/glance-widgets'
 import type { TrendTab } from '../../../models/workspace-layout'
 import { useElementSize } from '../../../hooks/use-element-size'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useStatsBase, useTrendStats } from '../../../hooks/use-glance-data'
 import type { StatsContext } from '../../../services/stats/stats-context'
 import type { TrendStats } from '../../../services/stats/trend'
@@ -11,6 +12,7 @@ import {
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { trendLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
+import { GlanceSmallFace } from './GlanceSmallFace'
 import { SECTION_META } from './section-meta'
 import { Clickable, Legend, Panel, type SectionProps } from './section-parts'
 import styles from './GlanceSections.module.css'
@@ -121,16 +123,25 @@ export function TrendWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TrendT
   const range = tab.config.range ?? DEFAULT_TREND_RANGE
   const base = useStatsBase()
   const trend = useTrendStats(base, range)
+  const [faceRef, face] = useWidgetFace()
   const lines = useMemo(() => trendLines(trend, trendRangeLabel(range), signed), [trend, range])
   useReportLines(onResult, lines)
   return (
-    <GlanceFrame tab={tab}>
-      <TrendSection
+    <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
+      {face === 'small' ? (
+        <GlanceSmallFace
+          glyph={SECTION_META.trend.glyph}
+          glyphColor={SECTION_META.trend.glyphColor}
+          title={SECTION_META.trend.title}
+          value={trend ? signed(trend.net) : '–'}
+          caption={`net · ${trendRangeLabel(range).replace(/^Last /, '')}`}
+        />
+      ) : <TrendSection
         data={{ trend, trendRange: range, ctx: base.ctx }}
         options={{ range }}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
-      />
+      />}
     </GlanceFrame>
   )
 }

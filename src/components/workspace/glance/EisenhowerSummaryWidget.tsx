@@ -4,12 +4,14 @@ import { useEisenhowerStats, useStatsBase, type EisenhowerSetup, type ShownOfTot
 import type { EisenhowerSummary } from '../../../services/stats/eisenhower-summary'
 import type { StatsContext } from '../../../services/stats/stats-context'
 import { eisenhowerQuadrantDialog, eisenhowerSummaryDialog } from '../../../services/task-dialog'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { paneSubtitle, QUADRANT_COLOR } from '../../../utils/eisenhower-panes'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { countOf } from './glance-copy'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { eisenhowerLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
+import { GlanceSmallFace } from './GlanceSmallFace'
 import { SECTION_META } from './section-meta'
 import { Clickable, Panel, type SectionProps } from './section-parts'
 import styles from './GlanceSections.module.css'
@@ -77,16 +79,28 @@ export function EisenhowerSection({ data, onDrill, style, className }: SectionPr
 export function EisenhowerSummaryWidget({ tab, onResult, onDrill }: GlanceWidgetProps<EisenhowerSummaryTab>) {
   const base = useStatsBase()
   const { eisenhower, eisenhowerSetup } = useEisenhowerStats(base)
+  const [faceRef, face] = useWidgetFace()
   const lines = useMemo(() => eisenhowerLines({ eisenhower, eisenhowerSetup }), [eisenhower, eisenhowerSetup])
   useReportLines(onResult, lines)
+  const doPane = eisenhowerSetup.panes.find((p) => p.id === 'do')
+  const doCount = eisenhower.shown.do.ids.length
   return (
-    <GlanceFrame tab={tab}>
-      <EisenhowerSection
+    <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
+      {face === 'small' ? (
+        <GlanceSmallFace
+          glyph={SECTION_META.eisenhower.glyph}
+          glyphColor={SECTION_META.eisenhower.glyphColor}
+          title={SECTION_META.eisenhower.title}
+          entry={doPane?.name ?? 'Do'}
+          value={countOf(doCount, eisenhower.total.do.ids.length)}
+          valueColor={doCount > 0 ? QUADRANT_COLOR.do : 'var(--color-text-muted)'}
+        />
+      ) : <EisenhowerSection
         data={{ eisenhower, eisenhowerSetup, ctx: base.ctx }}
         options={{}}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
-      />
+      />}
     </GlanceFrame>
   )
 }

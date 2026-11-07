@@ -4,11 +4,13 @@ import type { StaleTab } from '../../../models/workspace-layout'
 import { useStaleRows, useStaleStats, useStatsBase, type ShownOfTotal } from '../../../hooks/use-glance-data'
 import { staleTasksDialog } from '../../../services/task-dialog'
 import type { StaleTasks } from '../../../services/stats/stale'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { countOf, staleSubLine } from './glance-copy'
 import { glanceDrill, GLANCE_PANEL_CLASS, useGlanceRows, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { staleLine } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
+import { GlanceSmallFace } from './GlanceSmallFace'
 import type { TodoLookup } from './section-data'
 import { SECTION_META } from './section-meta'
 import { Empty, Panel, RowsGrid, TaskRows, type RowSectionProps } from './section-parts'
@@ -49,6 +51,7 @@ export function StaleWidget({ tab, onResult, onDrill }: GlanceWidgetProps<StaleT
   const staleDays = tab.config.staleDays ?? DEFAULT_STALE_DAYS
   const base = useStatsBase()
   const rows = useGlanceRows(tab)
+  const [faceRef, face] = useWidgetFace()
   const stale = useStaleStats(base, staleDays)
   const lingering = useStaleRows(base, stale, staleDays, rows.leaving)
   const { setShown } = rows
@@ -57,14 +60,22 @@ export function StaleWidget({ tab, onResult, onDrill }: GlanceWidgetProps<StaleT
   useReportLines(onResult, lines)
   const data: StaleSectionData = { stale, staleDays, rows: { stale: lingering.rows, kept: lingering.kept }, todoById: base.todoById }
   return (
-    <GlanceFrame tab={tab} rows={rows}>
-      <StaleSection
+    <GlanceFrame tab={tab} rows={rows} faceRef={faceRef} face={face}>
+      {face === 'small' ? (
+        <GlanceSmallFace
+          glyph={SECTION_META.stale.glyph}
+          glyphColor={SECTION_META.stale.glyphColor}
+          title={SECTION_META.stale.title}
+          value={countOf(stale.shown.ids.length, stale.total.ids.length)}
+          caption={`${staleDays}d+ untouched`}
+        />
+      ) : <StaleSection
         data={data}
         options={{ staleDays }}
         rows={rows.kit}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
-      />
+      />}
     </GlanceFrame>
   )
 }

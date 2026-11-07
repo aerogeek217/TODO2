@@ -456,7 +456,8 @@ test.describe('narrow windows, reload, phone', () => {
     await seedWorkspace(page, {
       listDefinitions: [{ name: 'Team', predicate: { searchText: 'a' } }],
       tasks: [{ title: 'Alpha' }],
-      layouts: [{ ...threeCells, top: { id: 'tb-band', height: 220, cells: [{ id: 'tb', tabs: [{ id: 'bandList', kind: 'lens', listDefIdx: 0 }] }] } }],
+      // Tall enough for the full list (a body over 260px; shorter shows its face, D25 R).
+      layouts: [{ ...threeCells, top: { id: 'tb-band', height: 300, cells: [{ id: 'tb', tabs: [{ id: 'bandList', kind: 'lens', listDefIdx: 0 }] }] } }],
     })
     await expect(wsListWidget(page, 'bandList')).toBeVisible()
     await wsTab(page, 'bandList').click({ button: 'right' })

@@ -58,6 +58,24 @@ describe('isHeadlessCell', () => {
   })
 })
 
+describe('isHeadlessCell at the small face (D25 R)', () => {
+  it('a one-tab cell whose widget shows its small face is headless, whatever its kind', () => {
+    expect(isHeadlessCell(cell('a', [notes('t')]), calendarOnly, true)).toBe(true)
+    expect(isHeadlessCell(cell('a', [notes('t')]), calendarOnly, false)).toBe(false)
+  })
+
+  it('`stripShown: true` still shows it; several tabs still never hide it', () => {
+    expect(isHeadlessCell(cell('a', [notes('t')], { stripShown: true }), calendarOnly, true)).toBe(false)
+    expect(isHeadlessCell(cell('a', [notes('t1'), notes('t2')]), calendarOnly, true)).toBe(false)
+  })
+
+  it('the toggle at the small face: Show writes `true` (the widget would hide it), Hide writes `null`', () => {
+    expect(stripShownByWidget(cell('a', [notes('t')]), calendarOnly, true)).toBe(false)
+    expect(stripShownChoice(cell('a', [notes('t')]), true, calendarOnly, true)).toBe(true)
+    expect(stripShownChoice(cell('a', [notes('t')]), false, calendarOnly, true)).toBeNull()
+  })
+})
+
 describe('the strip toggle', () => {
   it('by widget: a glance tab hides it, any other shows it', () => {
     expect(stripShownByWidget(cell('a', [calendar('t')]), calendarOnly)).toBe(false)

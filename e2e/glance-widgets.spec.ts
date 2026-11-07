@@ -64,8 +64,15 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await expect(number(page)).toHaveAttribute('data-number-metric', 'open')
   await expect(number(page).getByTestId('number-count')).toHaveText('4')
   await expect(numberTab).toContainText('Open')
-  // Open has its 14 days.
-  await expect(number(page).locator('[data-sparkline]')).toBeVisible()
+  // In its fit row it shows its small face (label and count, D25 R); its full widget,
+  // opened from the keyboard, has Open's 14 days.
+  await expect(number(page)).not.toContainText('in the last 14 days')
+  await numberCell.getByRole('button', { name: 'Open Open' }).focus()
+  await page.keyboard.press('Enter')
+  const full = page.getByTestId('widget-face-popover')
+  await expect(full.locator('[data-sparkline]')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(full).toHaveCount(0)
 
   // A click opens its tasks.
   await number(page).click()
