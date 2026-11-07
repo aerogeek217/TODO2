@@ -30,7 +30,8 @@ describe('upgradeV69 (pure): a version marker, no data change', () => {
     const data: DataSet = { listDefinitions: [v68List(), groupedList(), { membership: 5 }], todos: [] }
     expect(upgradeV69(data)).toBe(data)
     expect(upgradeV69({})).toEqual({})
-    expect(upgradeDataSet(data, 68, CURRENT_DB_VERSION)).toBe(data)
+    // Up to v74: v75 turns or groups into expressions.
+    expect(upgradeDataSet(data, 68, 74)).toBe(data)
     expect(upgradeDataSet(data, CURRENT_DB_VERSION, CURRENT_DB_VERSION)).toBe(data)
   })
 })
@@ -49,7 +50,7 @@ describe('v69 files', () => {
     expect(prepared.data.listDefinitions[0]!.membership).toEqual(v68List().membership)
   })
 
-  it('an export holding or groups is stamped v69 or later, so a v68 build refuses it as too new', async () => {
+  it('an export holding or groups is stamped v69 or later, so a v68 build refuses it as too new (read back since v75 as an expression)', async () => {
     await db.listDefinitions.add(groupedList() as never)
     const exported = await buildExportData()
     expect(exported[SCHEMA_VERSION_KEY]).toBe(CURRENT_DB_VERSION)
@@ -57,6 +58,9 @@ describe('v69 files', () => {
     const prepared = prepareImport(JSON.parse(JSON.stringify(exported)) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.warnings).toEqual([])
-    expect(prepared.data.listDefinitions[0]!.membership).toEqual(groupedList().membership)
+    expect(prepared.data.listDefinitions[0]!.membership).toEqual({
+      kind: 'custom',
+      predicate: { ...emptyPredicate(), expression: { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'tag', id: 0 }] } },
+    })
   })
 })

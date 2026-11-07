@@ -43,15 +43,16 @@
   padding: var(--space-4) var(--space-5);
 }
 
-/* The input sits over a mirror of its text that carries the token tints:
- * the input's own text is transparent (caret and selection stay visible). The
- * mirror and the input share font, size and zero padding so characters line
- * up; tints use box-shadow, not padding, so they never shift a character. */
+/* The field (a textarea that wraps and grows with its text, up to
+ * `TITLE_MAX_LINES` lines, then scrolls) sits over a mirror of its text that
+ * carries the token tints: the field's own text is transparent (caret and
+ * selection stay visible). The mirror and the field share font, size, zero
+ * padding and wrapping so characters line up; tints use box-shadow, not
+ * padding, so they never shift a character. */
 .field {
   position: relative;
   flex: 1;
   min-width: 0;
-  height: 28px;
 }
 
 .mirror,
@@ -62,13 +63,15 @@
   letter-spacing: normal;
   padding: 0;
   margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
 }
 
 .mirror {
   position: absolute;
   inset: 0;
   overflow: hidden;
-  white-space: pre;
   color: var(--color-text-primary);
   pointer-events: none;
 }
@@ -84,6 +87,11 @@
   color: transparent;
   caret-color: var(--color-text-primary);
   outline: none;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  /* No scrollbar: it would narrow the text against the mirror's. */
+  scrollbar-width: none;
 }
 
 /* The surface's rounded accent border is the focus ring; no square ring of

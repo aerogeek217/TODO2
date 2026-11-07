@@ -33,11 +33,11 @@ describe('the stored lenses', () => {
     expect(fixes).toEqual(['lens fixed'])
   })
 
-  it('keeps a lens’s or groups; a malformed one fixes the lens', () => {
-    const group = { ...emptyFilterClauses(), markers: [{ values: ['focus' as const] }], tags: [0] }
-    const triage = { id: 'a', name: 'Triage', predicate: { ...emptyPredicate(), statusIds: [1], orGroups: [group] } }
+  it('keeps a lens’s expression; reads old or groups into one, a malformed one fixing the lens', () => {
+    const triage = { id: 'a', name: 'Triage', predicate: { ...emptyPredicate(), expression: { kind: 'and' as const, items: [{ kind: 'status' as const, id: 1 }, { kind: 'or' as const, items: [{ kind: 'priority' as const, value: 'focus' as const }, { kind: 'tag' as const, id: 0 }] }] } } }
     expect(readLensesSetting(formatLensesSetting([triage]))).toEqual({ lenses: [triage], fixes: [] })
-    const { lenses, fixes } = pickLenses([{ ...triage, predicate: { ...triage.predicate, orGroups: [group, 'x'] } }])
+    const group = { ...emptyFilterClauses(), markers: [{ values: ['focus' as const] }], tags: [0] }
+    const { lenses, fixes } = pickLenses([{ ...triage, predicate: { ...emptyPredicate(), statusIds: [1], orGroups: [group, 'x'] } }])
     expect(lenses).toEqual([triage])
     expect(fixes).toEqual(['lens fixed'])
   })

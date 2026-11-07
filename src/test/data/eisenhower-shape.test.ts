@@ -44,14 +44,16 @@ describe('the eisenhowerPanes setting', () => {
     expect(sanitizeRow('settings', row)).toEqual(panesRow({ drop: { name: 'Later soon' } }))
   })
 
-  it('keeps a pane filter’s or groups; a malformed one is dropped with a warning', () => {
+  it('reads a pane filter’s old or groups into an expression; a malformed one is dropped with a warning', () => {
     const group = { personIds: [2], statusIds: null, searchText: '', dates: {}, markers: null, tags: [3] }
     const row = panesRow({ do: { filter: filter({ markers: [{ values: ['urgent'] }], orGroups: [group] }) } })
+    const asExpression = panesRow({ do: { filter: filter({ markers: null, tags: null, expression: { kind: 'and', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'or', items: [{ kind: 'tag', id: 3 }, { kind: 'person', id: 2 }] }] } }) } })
     expect(rowFixes('settings', row)).toEqual([])
-    expect(sanitizeRow('settings', row)).toEqual(row)
+    expect(sanitizeRow('settings', row)).toEqual(asExpression)
+    expect(sanitizeRow('settings', asExpression)).toEqual(asExpression)
     const bad = panesRow({ do: { filter: filter({ markers: [{ values: ['urgent'] }], orGroups: [group, 4] }) } })
     expect(rowFixes('settings', bad)).toEqual(['Eisenhower pane setting dropped'])
-    expect(sanitizeRow('settings', bad)).toEqual(row)
+    expect(sanitizeRow('settings', bad)).toEqual(asExpression)
   })
 
   it('has no length limit (names and filters have none)', () => {

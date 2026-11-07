@@ -36,7 +36,7 @@ const panelTitles = (page: Page) => rowTitles(panel(page))
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
 const header = (page: Page) => page.locator('header')
 const tray = (page: Page) => header(page).getByRole('group', { name: 'Screen filters — apply to every widget' })
-const showTasks = (page: Page) => tray(page).getByRole('button', { name: /^\d+ of \d+ (open )?tasks shown\. Show them$/ })
+const showTasks = (page: Page) => tray(page).getByRole('button', { name: /^\d+ of \d+ (open )?tasks shown(, .+)?\. Show them$/ })
 
 /** Whether the element on top at `locator`'s centre is inside it (nothing covers it). */
 async function onTop(locator: Locator): Promise<boolean> {
@@ -190,7 +190,7 @@ test.describe('desktop', () => {
   })
 
   test('a filter changed in the expanded tray: on close the bar folds as it would for the new filter', async ({ page }) => {
-    await page.setViewportSize({ width: 1335, height: 800 })
+    await page.setViewportSize({ width: 1333, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     // No filter: every button fits beside the tabs.
     await expectEveryFilterButton(page)
@@ -226,7 +226,7 @@ test.describe('desktop', () => {
   })
 
   test('a filter set and cleared without the panel: the filters fold, then unfold again', async ({ page }) => {
-    await page.setViewportSize({ width: 1335, height: 800 })
+    await page.setViewportSize({ width: 1333, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await expectEveryFilterButton(page)
     const none = await bar(page)

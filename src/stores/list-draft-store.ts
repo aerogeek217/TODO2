@@ -49,13 +49,20 @@ function savedDef(id: number): PersistedListDefinition | undefined {
 
 /**
  * The draft as Save writes it: its name trimmed (a blank one keeps the
- * saved name) and the saved list's owner — an edit never changes who a list
- * belongs to (a draft kept from before the list had one has none).
+ * saved name), the saved list's owner — an edit never changes who a list
+ * belongs to (a draft kept from before the list had one has none) — and the
+ * saved list's lens switch (`ignoreLens`: saved at once, never a draft edit).
  */
 function toSave(draft: PersistedListDefinition, saved: PersistedListDefinition): PersistedListDefinition {
-  const { owner: _draftOwner, ...rest } = draft
+  const { owner: _draftOwner, ignoreLens: _draftLens, ...rest } = draft
   void _draftOwner
-  return { ...rest, name: draft.name.trim() || saved.name, ...(saved.owner ? { owner: saved.owner } : {}) }
+  void _draftLens
+  return {
+    ...rest,
+    name: draft.name.trim() || saved.name,
+    ...(saved.owner ? { owner: saved.owner } : {}),
+    ...(saved.ignoreLens ? { ignoreLens: true as const } : {}),
+  }
 }
 
 function without(drafts: Readonly<Record<number, PersistedListDefinition>>, id: number): Record<number, PersistedListDefinition> {

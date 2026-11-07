@@ -9,6 +9,13 @@ import { createContext, useContext, useEffect } from 'react'
  */
 export const SettingsLayerContext = createContext<((delta: 1 | -1) => void) | null>(null)
 
+/**
+ * Whether the rows are on the phone's Settings page (`SettingsSectionBody`
+ * provides it): there a description shows under its label, since touch
+ * opens no tooltip; in the desktop modal (the default) it sits behind an ⓘ.
+ */
+export const SettingsMobileContext = createContext(false)
+
 /** Registers a stacked layer with the Settings modal while `open` is true. */
 export function useStackedLayer(open: boolean): void {
   const register = useContext(SettingsLayerContext)

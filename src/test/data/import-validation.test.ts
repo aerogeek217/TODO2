@@ -1,4 +1,3 @@
-import { OR_GROUPS_MAX } from '../../models'
 import { describe, it, expect } from 'vitest'
 import { emptyPredicate } from '../../models/filter-predicate'
 import { STATUS_ICON_KEYS } from '../../models/status'
@@ -973,22 +972,23 @@ describe('validateImportData', () => {
       expect(result.warnings).toEqual(['Fixed 1 list: "Odd" (priority filter dropped)'])
     })
 
-    it('keeps a list\'s or groups; a malformed one is dropped with a warning', () => {
+    it('reads a list\'s or groups (stored before v75) into its expression; a malformed one is dropped with a warning', () => {
       const group = { personIds: [1], statusIds: null, searchText: '', dates: {}, markers: [{ values: ['focus'] }], tags: null }
       const result = validateImportData(validData({
         listDefinitions: [
           list(1, 'Hot or mine', { tags: [2], orGroups: [group] }),
           list(2, 'Odd', { orGroups: [group, 'x', { ...group, personIds: 'ann', markers: null }] }),
           list(3, 'Not a list', { orGroups: { 0: group } }),
-          list(4, 'Too many', { orGroups: Array.from({ length: OR_GROUPS_MAX + 1 }, () => group) }),
+          list(4, 'Too many', { orGroups: Array.from({ length: 31 }, () => group) }),
         ],
       }))
       if (!result.ok) throw new Error(result.error)
       const [kept, odd, notList, many] = result.data.listDefinitions.map((d) => d.membership.kind === 'custom' ? d.membership.predicate : null)
-      expect(kept?.orGroups).toEqual([group])
-      expect(odd?.orGroups).toEqual([group])
-      expect(notList && 'orGroups' in notList).toBe(false)
-      expect(many?.orGroups).toHaveLength(OR_GROUPS_MAX)
+      const groupTerm = { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'person', id: 1 }] }
+      expect(kept?.expression).toEqual({ kind: 'and', items: [{ kind: 'tag', id: 2 }, groupTerm] })
+      expect(odd?.expression).toEqual(groupTerm)
+      expect(notList?.expression).toBeUndefined()
+      expect(many?.expression?.kind === 'and' ? many.expression.items : []).toHaveLength(30)
       expect(result.warnings).toEqual([
         'Fixed 3 lists: "Odd" (people filter dropped, 2 or groups dropped); "Not a list" (or groups dropped); "Too many" (or groups capped)',
       ])

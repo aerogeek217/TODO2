@@ -1,14 +1,14 @@
-import { emptyFilterClauses, MARKER_CLAUSES_MAX, OR_GROUPS_MAX, type DateAnchor, type DateFilters, type DateMatch, type FilterClauses, type FilterNegation, type MarkersFilter, type NegatableField, type Person, type Status, type Tag, type TodoPredicate } from '../models'
-import { DATE_FIELD_VALUES, type DateField } from '../models/app-view'
+import { type DateAnchor, type DateFilters, type DateMatch, type FilterClauses, type FilterNegation, type MarkersFilter, type NegatableField, type Person, type Status, type Tag, type TodoPredicate } from '../models'
+import type { DateField } from '../models/app-view'
 import { startOfDay } from './date'
 import { rollingDayLabel } from './date-anchor'
-import { activeDateFields, freeDateField, hasDateFilters, withDateMatch } from './date-filters'
+import { activeDateFields, hasDateFilters, withDateMatch } from './date-filters'
 import { resolveDateAnchor, type WeekStart } from './effective-date'
 import { isNegated, withIdFilter, type IdList } from './filter-negation'
 import { DATE_FIELD_LABELS_SHORT, NO_STATUS_LABEL, NO_TAGS_LABEL, UNASSIGNED_LABEL } from './filter-labels'
 import { formatFollowupDate } from './followup'
 import { hasMarkers, MARKERS_LABEL, markerClauseNames, markersHideLine, withMarkerClause } from './markers'
-import { hasOrGroups, withOrGroupClauses } from './or-groups'
+import { printExpression, type ExpressionNames } from './filter-expression'
 
 /** The filter fields a chip stands for. */
 export type FilterChipField = 'people' | 'tags' | 'dates' | 'status' | 'markers' | 'text' | 'completed'
@@ -50,8 +50,8 @@ export interface FilterChipNames {
 }
 
 /**
- * Narrowing clauses of a filter, in the shape predicates, their or groups
- * and screen criteria share (an or group has no Show completed).
+ * Narrowing clauses of a filter, in the shape predicates and screen
+ * criteria share.
  */
 export interface ChipClauses {
   showCompleted?: boolean
@@ -408,7 +408,7 @@ export function filterChips(c: ChipClauses, names: FilterChipNames, includeCompl
   return chips
 }
 
-/** Whether a list predicate narrows anything (`showCompleted` doesn't; an or group that filters does). */
+/** Whether a list predicate narrows anything (`showCompleted` doesn't; an expression does). */
 export function hasNarrowingFilters(p: TodoPredicate): boolean {
   return p.personIds != null
     || p.statusIds != null
@@ -416,28 +416,44 @@ export function hasNarrowingFilters(p: TodoPredicate): boolean {
     || (p.searchText ?? '').trim() !== ''
     || hasDateFilters(p.dates)
     || hasMarkers(p.markers)
-    || hasOrGroups(p)
+    || p.expression != null
+}
+
+/** The names an expression prints with (`printExpression`), read from the chips' names. */
+export function expressionNamesOf(names: Pick<FilterChipNames, 'people' | 'tags' | 'statuses'>): ExpressionNames {
+  const nameOf = (rows: readonly { id?: number; name: string }[], id: number) => rows.find((r) => r.id === id)?.name
+  return {
+    person: (id) => nameOf(names.people, id),
+    tag: (id) => nameOf(names.tags, id),
+    status: (id) => nameOf(names.statuses, id),
+  }
+}
+
+/** A predicate's expression as text (`(/focus or /urgent) and @Aisha`), Show completed left out; `''` without one. */
+export function expressionText(p: Pick<TodoPredicate, 'expression'>, names: Pick<FilterChipNames, 'people' | 'tags' | 'statuses'>): string {
+  return p.expression ? printExpression(p.expression, false, expressionNamesOf(names)) : ''
 }
 
 /**
- * One item of a filter line: a chip of the predicate's own clauses, or one
- * of its or groups (`index` into `orGroups`) as its chips.
+ * One item of a filter line: a chip of a Graphical filter, or a filter
+ * written as an expression, as its text (a single item).
  */
 export type LineItem =
   | { kind: 'chip'; chip: FilterChip }
-  | { kind: 'orGroup'; index: number; chips: FilterChip[] }
+  | { kind: 'expression'; text: string }
 
-/**
- * A predicate's filter line: its own chips in `FILTER_FIELD_ORDER`, then
- * each or group that has a chip, in order.
- */
+/** A line item of a Graphical filter: a chip. */
+export type GraphicalLineItem = Exclude<LineItem, { kind: 'expression' }>
+
+/** Whether `item` is a chip (not an expression). */
+export function isGraphicalItem(item: LineItem): item is GraphicalLineItem {
+  return item.kind !== 'expression'
+}
+
+/** A predicate's filter line: its chips in `FILTER_FIELD_ORDER`, or its expression. */
 export function predicateLineItems(p: TodoPredicate, names: FilterChipNames): LineItem[] {
-  const items: LineItem[] = filterChips(p, names).map((chip) => ({ kind: 'chip', chip }))
-  ;(p.orGroups ?? []).forEach((group, index) => {
-    const chips = filterChips(group, names)
-    if (chips.length > 0) items.push({ kind: 'orGroup', index, chips })
-  })
-  return items
+  if (p.expression) return [{ kind: 'expression', text: expressionText(p, names) }]
+  return filterChips(p, names).map((chip) => ({ kind: 'chip', chip }))
 }
 
 /** One chip in words: `Status Waiting`. */
@@ -445,14 +461,11 @@ function chipWords(c: FilterChip): string {
   return `${c.label} ${c.value}`
 }
 
-/**
- * The filters in words, e.g. `Status Waiting · Due within the next 14 days`; an or
- * group as its chips joined with "or" (`Priority Focus or People Aisha`).
- */
+/** The filters in words, e.g. `Status Waiting · Due within the next 14 days`; an expression as its text. */
 export function describeFilters(items: readonly (FilterChip | LineItem)[]): string {
   return items.map((item) => {
     if (!('kind' in item)) return chipWords(item)
-    return item.kind === 'chip' ? chipWords(item.chip) : item.chips.map(chipWords).join(' or ')
+    return item.kind === 'expression' ? item.text : chipWords(item.chip)
   }).join(' · ')
 }
 /** One chip in a few words: `@Priya`, `#q4`, `Status: Waiting`. */
@@ -464,15 +477,14 @@ function chipHint(c: FilterChip): string {
 
 /**
  * A list's filters in a few words, for a hint under its name (a dashboard
- * list tile, Copy from's rows): `Status: Waiting`, `@Priya`, `#q4`, an or
- * group as its chips joined with "or" (`Priority: Focus or @Aisha`); `All
- * tasks` with none.
+ * list tile, Copy from's rows): `Status: Waiting`, `@Priya`, `#q4`, an
+ * expression as its text; `All tasks` with none.
  */
 export function listFilterHint(items: readonly (FilterChip | LineItem)[]): string {
   if (items.length === 0) return 'All tasks'
   return items.map((item) => {
     if (!('kind' in item)) return chipHint(item)
-    return item.kind === 'chip' ? chipHint(item.chip) : item.chips.map(chipHint).join(' or ')
+    return item.kind === 'expression' ? item.text : chipHint(item.chip)
   }).join(' · ')
 }
 
@@ -495,61 +507,7 @@ export function clearChipField<T extends ChipClauses & FilterClauses>(p: T, fiel
   }
 }
 
-/**
- * The predicate without one chip's clause — of its own clauses, or of or
- * group `orGroup`'s (the or group goes when that was its last clause).
- */
-export function removeChip(p: TodoPredicate, chip: Pick<FilterChip, 'field' | 'dateField' | 'markerIndex'>, orGroup?: number): TodoPredicate {
-  if (orGroup == null) return clearChipField(p, chip.field, chip.dateField, chip.markerIndex)
-  return withOrGroupClauses(p, orGroup, (c) => clearChipField(c, chip.field, chip.dateField, chip.markerIndex))
-}
-
-/**
- * The fields `c` can't take again: those whose clauses filter there — and
- * `dates` only when every date type of `dateTypes` (the types the host's
- * date panel offers) filters, since each date type is its own chip (one
- * clause per type): while a type is free, Dates adds a chip for it; `markers`
- * only at `MARKER_CLAUSES_MAX`, since Priority repeats.
- */
-export function heldFields(c: FilterClauses, dateTypes: readonly DateField[] = DATE_FIELD_VALUES): Set<FilterChipField> {
-  const held = new Set<FilterChipField>()
-  if ((c.markers?.length ?? 0) >= MARKER_CLAUSES_MAX) held.add('markers')
-  if (c.tags != null) held.add('tags')
-  if (c.personIds != null) held.add('people')
-  if (freeDateField(c.dates, dateTypes) == null) held.add('dates')
-  if (c.statusIds != null) held.add('status')
-  if ((c.searchText ?? '').trim() !== '') held.add('text')
-  return held
-}
-
-/** Only one chip's clause of `c` (its "is not" switch with it; a date chip's date type alone). */
-export function chipClauses(c: FilterClauses, chip: Pick<FilterChip, 'field' | 'dateField' | 'markerIndex'>): FilterClauses {
-  const out = emptyFilterClauses()
-  const negated = (key: NegatableField) => (isNegated(c, key) ? { negate: { [key]: true } } : {})
-  switch (chip.field) {
-    case 'people': return { ...out, personIds: c.personIds, ...negated('personIds') }
-    case 'tags': return { ...out, tags: c.tags ?? null, ...negated('tags') }
-    case 'status': return { ...out, statusIds: c.statusIds, ...negated('statusIds') }
-    case 'markers': {
-      const one = chip.markerIndex === undefined ? c.markers : c.markers?.slice(chip.markerIndex, chip.markerIndex + 1)
-      return { ...out, markers: one ?? null }
-    }
-    case 'text': return { ...out, searchText: c.searchText }
-    case 'dates': {
-      const m = chip.dateField ? c.dates[chip.dateField] : undefined
-      return { ...out, dates: chip.dateField ? (m ? { [chip.dateField]: m } : {}) : c.dates }
-    }
-    case 'completed': return out
-  }
-}
-
-/**
- * The predicate with one of its own chips moved into a new or group, the
- * group's first alternative (it then filters exactly as the chip did);
- * `null` when `OR_GROUPS_MAX` or groups are there.
- */
-export function wrapChipInOrGroup(p: TodoPredicate, chip: Pick<FilterChip, 'field' | 'dateField' | 'markerIndex'>): TodoPredicate | null {
-  const count = p.orGroups?.length ?? 0
-  if (count >= OR_GROUPS_MAX) return null
-  return withOrGroupClauses(clearChipField(p, chip.field, chip.dateField, chip.markerIndex), count, () => chipClauses(p, chip))
+/** The predicate without one chip's clause. */
+export function removeChip(p: TodoPredicate, chip: Pick<FilterChip, 'field' | 'dateField' | 'markerIndex'>): TodoPredicate {
+  return clearChipField(p, chip.field, chip.dateField, chip.markerIndex)
 }

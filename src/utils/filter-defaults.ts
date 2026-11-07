@@ -2,6 +2,7 @@ import { predicateToCriteria, type FilterCriteria } from './filter-criteria'
 import type { MarkerConditions, MarkerKey, TodoItem, TodoPredicate } from '../models'
 import { activeMarkers, markerConditions } from './markers'
 import { isNegated } from './filter-negation'
+import { topLevelPredicate } from './predicate-expression'
 
 export interface FilterDefaults {
   personIds: number[]
@@ -21,9 +22,7 @@ export interface FilterDefaults {
  * Tags use OR semantics in the filter so all picked tag ids become defaults.
  * A Priority filter makes new tasks start with the flags it decides
  * (`markerConditions`). An "is not" People / Status / Tags filter seeds nothing
- * (the new task simply has none of the excluded values). Or groups seed
- * nothing, by design: which of an or group's clauses a new task should
- * meet is ambiguous, so only the clauses outside them are read.
+ * (the new task simply has none of the excluded values).
  */
 export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
   const seeds = (field: 'personIds' | 'tags') => {
@@ -64,8 +63,9 @@ export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): 
  * Same shape as `getFilterDefaults` but reads from a serializable
  * `TodoPredicate` — the form a `ListDefinition` stores on disk. Used to seed
  * a "+ Add task" affordance from the predicate of a list widget,
- * post any runtime-filter merge.
+ * post any runtime-filter merge. An expression seeds from its top-level
+ * terms that are chips (`topLevelPredicate`): which side of an `or` a new task should meet is ambiguous.
  */
 export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefaults {
-  return getFilterDefaults(predicateToCriteria(predicate))
+  return getFilterDefaults(predicateToCriteria(topLevelPredicate(predicate)))
 }

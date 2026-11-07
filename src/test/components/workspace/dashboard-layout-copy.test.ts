@@ -7,7 +7,7 @@ import { computeTiles } from '../../../services/stats/tiles'
 import { SAMPLE_CTX } from '../../fixtures/dashboard-sample'
 import { makeTodo } from '../../helpers'
 import { filterChips, listFilterHint, predicateLineItems } from '../../../utils/filter-chips'
-import { emptyFilterClauses, emptyPredicate } from '../../../models'
+import { emptyPredicate } from '../../../models'
 
 const spans = (rows: ReturnType<typeof packSections>) => rows.map((r) => r.map((s) => `${s.id}:${s.span}`))
 
@@ -98,14 +98,12 @@ describe('dashboard copy', () => {
     expect(listFilterHint(chips)).toBe('Due: any date · Created: on or after start of month')
   })
 
-  it('a list tile hint spells an or group as its chips joined with "or"', () => {
+  it('a list tile hint spells an expression as its text', () => {
     const names = { people: [{ id: 1, name: 'Aisha', initials: 'AI' }], tags: [], statuses: [] }
     const items = predicateLineItems({
       ...emptyPredicate(),
-      statusIds: [0],
-      orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }], personIds: [1] }],
+      expression: { kind: 'and', items: [{ kind: 'status', id: 0 }, { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'person', id: 1 }] }] },
     }, names)
-    expect(listFilterHint(items)).toBe('Status: No status · Priority: Focus or @Aisha')
-    expect(listFilterHint(predicateLineItems({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), personIds: [1] }] }, names))).toBe('@Aisha')
+    expect(listFilterHint(items)).toBe('no status and (/focus or @Aisha)')
   })
 })

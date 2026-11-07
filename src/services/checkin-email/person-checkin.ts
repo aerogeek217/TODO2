@@ -30,6 +30,7 @@ import { checkinEmlFileName } from './handoff'
 import { createTaskRefLookup } from './ref'
 import { checkinTaskCounts, selectCheckinTasks, type CheckinSelectContext } from './select'
 import { sendCheckinEmail, type CheckinSendResult } from './send'
+import { expressionAtoms } from '../../utils/filter-expression'
 
 /** What the email includes besides the tasks (the dialog's Include boxes). */
 export interface CheckinIncludeOptions {
@@ -193,13 +194,14 @@ export const COPY_FAILED_NOTICE = 'Couldn’t copy the email to the clipboard, s
 export const ASSIGNMENTS_LOADING_NOTICE = 'Not every task’s people and tags have loaded yet, so nothing was sent. Check the tasks here, then send.'
 
 /**
- * Whether every open task's people — and, for a filter on tags or text, of
- * its own or in an or group (an "is not" tag clause lets a task with no
+ * Whether every open task's people — and, for a filter on tags or text, as
+ * a clause or in its expression (an "is not" tag clause lets a task with no
  * entry through; Text contains matches tag names too), its tags — are
  * loaded, so selecting the person's tasks reads complete data.
  */
 function assignmentsLoaded(ctx: CheckinBuildContext, filter: CheckinTaskFilter): boolean {
-  const tagsNeeded = [filter, ...(filter.orGroups ?? [])].some((c) => c.tags != null || c.searchText.trim() !== '')
+  const tagsNeeded = filter.tags != null || filter.searchText.trim() !== ''
+    || (filter.expression != null && expressionAtoms(filter.expression).some((a) => a.kind === 'tag' || a.kind === 'text'))
   return ctx.todos.every((t) => t.isCompleted
     || (ctx.assignedPeopleMap.has(t.id) && (!tagsNeeded || ctx.assignedTagsMap?.has(t.id) === true)))
 }

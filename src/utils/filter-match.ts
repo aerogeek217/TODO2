@@ -1,4 +1,5 @@
-import { DATE_FIELD_VALUES, type DateAnchor, type DateField, type DateMatch, type TodoItem, type PersistedTodoItem, type TodoPredicate } from '../models'
+import { DATE_FIELD_VALUES, type DateAnchor, type DateField, type DateMatch, type FilterExpr, type TodoItem, type PersistedTodoItem, type TodoPredicate } from '../models'
+import { expressionAtoms } from './filter-expression'
 import { startOfDay } from './date'
 import { isNegatableDateField } from './date-filters'
 import { resolveDateAnchor, type WeekStart } from './effective-date'
@@ -93,21 +94,36 @@ function passesEveryClause(c: CriteriaClauses, t: ClauseTask): boolean {
   return scanClauses(c, t, false) !== false
 }
 
-/** Whether the task passes an or group: at least one of its clauses (one with no clause filters nothing). */
-function passesOrGroup(group: CriteriaClauses, t: ClauseTask): boolean {
-  return scanClauses(group, t, true) !== false
+/** Whether the task passes an expression (`TodoPredicate.expression`): each atom read as the chip that says it. */
+function matchesExpression(e: FilterExpr, t: ClauseTask): boolean {
+  switch (e.kind) {
+    case 'and': return e.items.every((item) => matchesExpression(item, t))
+    case 'or': return e.items.some((item) => matchesExpression(item, t))
+    case 'not': return !matchesExpression(e.item, t)
+    case 'person': {
+      const people = t.personIds ?? []
+      return e.id === 0 ? people.length === 0 : people.includes(e.id)
+    }
+    case 'tag': {
+      const tags = t.tagIds ?? []
+      return e.id === 0 ? tags.length === 0 : tags.includes(e.id)
+    }
+    case 'status': return (t.todo.statusId ?? 0) === e.id
+    case 'priority': return matchesMarkerClause(t.todo, { values: [e.value] }, t.today, t.settings)
+    case 'text': return matchTodoText(t.todo, e.text, t.searchCtx).matched
+    case 'date': return matchesDateMatch(t.todo, e.field, e.match, t.today, t.settings.weekStartsOn)
+  }
 }
 
 /**
  * Canonical evaluator. Takes runtime filter state (`FilterCriteria`) and a
  * single todo; returns whether the todo passes the filter: its completion
- * (`admitsCompleted`: Show completed, or a Completed range outside the or
- * groups or as an or group's only alternative, its own or its lens's), the
- * lens, every clause and every or group (at least one clause of each). A People / Status / Tags clause with its "is not"
- * switch passes the tasks the clause without it would fail
- * (`FilterNegation`), and an "is not" date range the dated tasks outside
- * it and every task without the date (`matchesDateMatch`) — inside an or
- * group as outside.
+ * (`admitsCompleted`: Show completed, or a Completed range among the clauses
+ * or the expression's top-level terms, its own or its lens's), the lens,
+ * every clause and the expression (`matchesExpression`). A People / Status /
+ * Tags clause with its "is not" switch passes the tasks the clause without
+ * it would fail (`FilterNegation`), and an "is not" date range the dated
+ * tasks outside it and every task without the date (`matchesDateMatch`).
  */
 export function matchesFilter(
   filters: FilterCriteria,
@@ -125,12 +141,14 @@ export function matchesFilter(
   }
   const t: ClauseTask = { todo, personIds: assignedPersonIds, tagIds: assignedTagIds, today, searchCtx, settings }
   if (!passesEveryClause(filters, t)) return false
-  return (filters.orGroups ?? []).every((group) => passesOrGroup(group, t))
+  return filters.expression == null || matchesExpression(filters.expression, t)
 }
 
-/** Whether evaluating `f` reads a text filter — its own, an or group's or its lens's — so needs the task's names. */
+/** Whether evaluating `f` reads a text filter — its own, its expression's or its lens's — so needs the task's names. */
 function readsText(f: FilterCriteria): boolean {
-  return !!f.searchText || (f.orGroups ?? []).some((group) => !!group.searchText) || (f.lens != null && readsText(f.lens))
+  return !!f.searchText
+    || (f.expression != null && expressionAtoms(f.expression).some((a) => a.kind === 'text'))
+    || (f.lens != null && readsText(f.lens))
 }
 
 /** The task's date of one date type, or null when it has none. */

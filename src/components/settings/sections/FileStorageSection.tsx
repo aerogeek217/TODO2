@@ -44,7 +44,7 @@ export function FileStorageSection() {
     body = (
       <SettingRow
         label="Sync file"
-        help="Permission needed to sync to this file. TODO2 asks for it at every start until you grant it or disconnect the file."
+        status="Permission needed to sync to this file. TODO2 asks for it at every start until you grant it or disconnect the file."
         column
       >
         <span className={styles.fileName}>{fileStorage.fileName}</span>
@@ -60,7 +60,7 @@ export function FileStorageSection() {
     )
   } else if (fileStorage.paused) {
     body = (
-      <SettingRow label="Sync file" help={fileStorage.paused.message} column>
+      <SettingRow label="Sync file" status={fileStorage.paused.message} column>
         <span className={styles.fileName}>{fileStorage.fileName}</span>
         <div className={styles.buttonRow}>
           <FileSyncPausedControls buttonClassName={secondary} primaryButtonClassName={primary} />
@@ -74,7 +74,8 @@ export function FileStorageSection() {
     body = (
       <SettingRow
         label="Sync file"
-        help={fileStorage.lastSavedAt ? `Last saved ${fileStorage.lastSavedAt.toLocaleTimeString()}` : 'Every change is written to the file a moment after you make it.'}
+        help="Every change is written to the file a moment after you make it."
+        status={fileStorage.lastSavedAt ? `Last saved ${fileStorage.lastSavedAt.toLocaleTimeString()}` : undefined}
         column
       >
         <span className={styles.fileName}>{fileStorage.fileName}</span>
@@ -87,13 +88,7 @@ export function FileStorageSection() {
     body = (
       <SettingRow
         label="Sync file"
-        help={(
-          <>
-            Your tasks live in this browser’s storage. Attach a file to keep a copy you can back up or move to another machine.
-            <br />
-            An existing file you replace is emptied by the browser before TODO2 can back it up.
-          </>
-        )}
+        help="Your tasks live in this browser’s storage. Attach a file to keep a copy you can back up or move to another machine. An existing file you replace is emptied by the browser before TODO2 can back it up."
       >
         <button type="button" className={primary} onClick={fileStorage.openFile} disabled={fileStorage.isLoading}>
           Attach to File

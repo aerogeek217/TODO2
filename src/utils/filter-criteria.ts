@@ -1,6 +1,6 @@
-import type { DateAnchor, DateFilters, FilterClauses, FilterNegation, MarkersFilter, TodoPredicate } from '../models'
-import { activeDateFields, hasDateFilters, isDateMatchOn, normalizeDateFilters, readDateFilters } from './date-filters'
-import { normalizeOrGroups } from './or-groups'
+import type { DateAnchor, DateFilters, DateMatch, FilterClauses, FilterExpr, FilterNegation, MarkersFilter, TodoPredicate } from '../models'
+import { splitTopLevel, topLevelTerms } from './filter-expression'
+import { hasDateFilters, isDateMatchOn, normalizeDateFilters, readDateFilters } from './date-filters'
 import { withNormalizedNegation } from './filter-negation'
 import { hasMarkers, normalizeMarkersFilter } from './markers'
 
@@ -51,11 +51,11 @@ export interface FilterCriteria {
   /** The "is not" switches of people / status / tags (`utils/filter-negation`); absent = every field "is". */
   negate?: FilterNegation
   /**
-   * The or groups (`TodoPredicate.orGroups`), each with Sets as above: a
-   * task must pass at least one clause of each. Absent = none (the
-   * top bar's chips never have one; a list's, a lens's or a pane's may).
+   * The filter as an expression (`TodoPredicate.expression`): a task must
+   * pass it too. Absent = none (the top bar's chips never have one; a list's,
+   * a lens's, a pane's or the check-in's may).
    */
-  orGroups?: CriteriaClauses[]
+  expression?: FilterExpr
   /**
    * The screen filter only: the top bar's lens (`utils/lens.withLens`),
    * a stage a task must pass as well — its own clauses and "is not"
@@ -67,50 +67,44 @@ export interface FilterCriteria {
   lens?: FilterCriteria
 }
 
-/** The narrowing clauses of the runtime filter (the runtime `FilterClauses`): the shape of the root's and of each or group. */
+/** The narrowing clauses of the runtime filter (the runtime `FilterClauses`). */
 export type CriteriaClauses = Pick<FilterCriteria, 'personIds' | 'statusIds' | 'tags' | 'searchText' | 'dates' | 'markers' | 'negate'>
 
-/**
- * Whether or group `g`'s only alternative is a Completed range: every task
- * it keeps is completed (an open task never has the date).
- */
-function isCompletedOnlyGroup(g: CriteriaClauses): boolean {
-  const dates = activeDateFields(g.dates)
-  return dates.length === 1 && dates[0] === 'completed'
-    && g.personIds == null && g.statusIds == null && g.tags == null
-    && g.searchText.trim() === '' && !hasMarkers(g.markers)
+/** The Completed ranges among an expression's top-level `and` terms: they let completed tasks through. */
+function expressionCompletedRanges(e: FilterExpr | undefined): DateMatch[] {
+  if (!e) return []
+  return topLevelTerms(e).flatMap((t) => (t.kind === 'date' && t.field === 'completed' && isDateMatchOn(t.match) ? [t.match] : []))
 }
 
 /**
  * Whether completed tasks get past the completion gate: Show completed is
- * on, or a Completed date range is among the clauses outside the or groups,
- * or an or group's every alternative is one — its own or its lens's. The
- * range then keeps only the tasks completed in it (an open task never has
- * the date), so "Done this week" needs no Show completed. A Completed
- * clause in an or group with other alternatives is a plain date clause: it
- * doesn't open the gate (the group would keep open tasks by the others).
+ * on, or a Completed date range is among the clauses or the expression's
+ * top-level `and` terms — its own or its lens's. The range then keeps only
+ * the tasks completed in it (an open task never has the date), so "Done
+ * this week" needs no Show completed. A Completed range inside an `or` is a
+ * plain date clause: it doesn't open the gate (the `or` would keep open
+ * tasks by its other terms).
  */
-export function admitsCompleted(f: Pick<FilterCriteria, 'showCompleted' | 'dates' | 'orGroups' | 'lens'>): boolean {
+export function admitsCompleted(f: Pick<FilterCriteria, 'showCompleted' | 'dates' | 'lens' | 'expression'>): boolean {
   return f.showCompleted
     || isDateMatchOn(f.dates.completed)
-    || (f.orGroups ?? []).some(isCompletedOnlyGroup)
+    || expressionCompletedRanges(f.expression).length > 0
     || (f.lens != null && admitsCompleted({ ...f.lens, showCompleted: false }))
 }
 
 /**
  * The clauses of `f` itself (not its lens) that let completed tasks through
- * (`admitsCompleted`), each as clauses of its own: its Completed range
- * outside the or groups, and each or group whose only alternative is one.
- * A completed task one of them keeps is one these clauses admit. Show
- * completed isn't among them: it admits every completed task.
+ * (`admitsCompleted`), each as clauses of its own: its Completed range and
+ * each top-level Completed range of its expression. A completed task one of
+ * them keeps is one these clauses admit. Show completed isn't among them: it
+ * admits every completed task.
  */
-export function completedAdmitters(f: Pick<FilterCriteria, 'dates' | 'orGroups'>): CriteriaClauses[] {
+export function completedAdmitters(f: Pick<FilterCriteria, 'dates' | 'expression'>): CriteriaClauses[] {
   const out: CriteriaClauses[] = []
+  const only = (completed: DateMatch): CriteriaClauses => ({ personIds: null, statusIds: null, tags: null, searchText: '', dates: { completed }, markers: null })
   const completed = f.dates.completed
-  if (isDateMatchOn(completed)) {
-    out.push({ personIds: null, statusIds: null, tags: null, searchText: '', dates: { completed }, markers: null })
-  }
-  for (const g of f.orGroups ?? []) if (isCompletedOnlyGroup(g)) out.push(g)
+  if (isDateMatchOn(completed)) out.push(only(completed))
+  for (const m of expressionCompletedRanges(f.expression)) out.push(only(m))
   return out
 }
 
@@ -123,8 +117,8 @@ export function fixedAnchor(d: Date): DateAnchor {
  * Number of active screen filters, one per control: people, status,
  * tags, dates (however many date types filter), markers, show completed,
  * search — and the lens, when the filter carries one (the composed screen
- * filter; the top bar's chips alone never do). Or groups aren't
- * counted: the screen filter never has one.
+ * filter; the top bar's chips alone never do). The chips never hold an
+ * expression.
  */
 export function countActiveFilters(f: FilterCriteria): number {
   const dates = hasDateFilters(f.dates)
@@ -192,19 +186,27 @@ function clausesToCriteria(c: FilterClauses): CriteriaClauses {
 /**
  * Runtime (Sets) → serializable (arrays) for saved views / list definitions.
  * The "is not" switches are normalised (`withNormalizedNegation`): `negate`
- * is present only while some field reads "is not"; the or groups are in
- * their stored form (`normalizeOrGroups`): `orGroups` is present only while
- * one filters. The lens isn't part of it.
+ * is present only while some field reads "is not"; `expression` only while
+ * there is one. The lens isn't part of it.
  */
 export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
   const p: TodoPredicate = withNormalizedNegation({ showCompleted: f.showCompleted, ...clausesToPredicate(f) })
-  const orGroups = normalizeOrGroups(f.orGroups?.map(clausesToPredicate))
-  return orGroups.length > 0 ? { ...p, orGroups } : p
+  return f.expression ? { ...p, expression: f.expression } : p
 }
 
-/** Serializable → runtime. Inverse of `criteriaToPredicate` (or groups that filter nothing are left out). */
+/** Serializable → runtime. Inverse of `criteriaToPredicate`. */
 export function predicateToCriteria(p: TodoPredicate): FilterCriteria {
   const f: FilterCriteria = { showCompleted: p.showCompleted, ...clausesToCriteria(p) }
-  const orGroups = normalizeOrGroups(p.orGroups).map(clausesToCriteria)
-  return orGroups.length > 0 ? { ...f, orGroups } : f
+  return p.expression ? { ...f, expression: p.expression } : f
+}
+
+/**
+ * `f` as a reader of its top level reads it: an expression's top-level
+ * terms that are chips as its clauses, the expression itself gone (`f`
+ * itself when it has none). See `utils/predicate-expression.topLevelPredicate`.
+ */
+export function topLevelCriteria(f: FilterCriteria): FilterCriteria {
+  if (!f.expression) return f
+  const { expression, ...rest } = f
+  return { ...rest, ...clausesToCriteria(splitTopLevel(expression).clauses) }
 }

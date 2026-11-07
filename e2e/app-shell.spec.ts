@@ -154,7 +154,7 @@ test('the storage pill’s popover opens Settings on Database, at File storage',
   await expect(popover).toBeHidden()
   const settings = page.getByRole('dialog', { name: 'Settings' })
   await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
-  await expect(settings.getByRole('heading', { level: 3 })).toHaveText(['Import / Export', 'Data integrity', 'File storage', 'Backups'])
+  await expect(settings.getByRole('heading', { level: 3 })).toHaveText(['File storage', 'Backups', 'Import / Export', 'Data integrity'])
   await expect(settings.getByRole('heading', { level: 3, name: 'File storage' })).toBeInViewport()
   await expect(settings.getByRole('button', { name: 'Attach to File' })).toBeInViewport()
   // The old "stored locally" strip is gone.
@@ -173,7 +173,10 @@ test('without file sync, the pill’s Import / Export… opens Database scrolled
   await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
   const part = settings.getByRole('heading', { level: 3, name: 'Import / Export' })
   await expect(part).toBeInViewport()
-  // The content scrolled to it: as far as it goes, or until the part is at the top.
+  // The nav marks it as the part in view.
+  await expect(settings.getByRole('navigation', { name: 'Settings sections' }).getByRole('button', { name: 'Import / Export' }))
+    .toHaveAttribute('aria-current', 'location')
+  // The content scrolled to it: as far as it goes (Database may fit, not scrolling at all), or until the part is at the top.
   const scroll = await part.evaluate((h) => {
     const content = h.closest('section[aria-labelledby]')?.parentElement?.closest('section') as HTMLElement
     return {
@@ -182,7 +185,6 @@ test('without file sync, the pill’s Import / Export… opens Database scrolled
       offset: h.getBoundingClientRect().top - content.getBoundingClientRect().top,
     }
   })
-  expect(scroll.top).toBeGreaterThan(0)
   expect(scroll.top >= scroll.max - 1 || scroll.offset < 40).toBe(true)
 })
 

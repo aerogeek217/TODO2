@@ -3,7 +3,8 @@ import { editListDraft, seedWorkspace, wsTab, type WsTabSeed } from './fixtures/
 
 /**
  * A shrunk tab strip fits again when a tab's own content changes, not only
- * when a box resizes: the active list's count (`5` → `1 of 5`), its unsaved
+ * when a box resizes: the active list's count (`5` → `1 of 5`; on the tab while
+ * the list's filter line is hidden), its unsaved
  * dot. The shrunk tabs' widths are pinned, so no ResizeObserver fires for
  * these (cr31 UI W5).
  */
@@ -20,7 +21,8 @@ const OTHERS: WsTabSeed[] = [
 async function seed(page: Page, width: number) {
   await page.setViewportSize({ width, height: 800 })
   await seedWorkspace(page, {
-    listDefinitions: [{ name: 'Inbox' }],
+    // The filter line hidden: the tab carries the list's count.
+    listDefinitions: [{ name: 'Inbox', showFilterLine: false }],
     tasks: [1, 2, 3, 4, 5].map((i) => ({ title: `Task ${i}` })),
     layouts: [{
       name: 'Main',

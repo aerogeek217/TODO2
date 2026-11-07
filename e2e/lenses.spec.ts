@@ -37,7 +37,7 @@ const tray = (page: Page) => header(page).getByRole('group', { name: 'Screen fil
 const lensName = (page: Page) => header(page).getByRole('button', { name: /^Lens:/ })
 /** The lens control's glasses: one name, `aria-pressed` while the lens applies. */
 const glasses = (page: Page) => header(page).getByRole('button', { name: 'Apply the lens' })
-const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown\. Show them$/ })
+const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
 const mainTitles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
 const otherTitles = (page: Page) => rowTitles(wsListWidget(page, 't2'))
 const saveButton = (page: Page) => page.getByTestId('layout-save')

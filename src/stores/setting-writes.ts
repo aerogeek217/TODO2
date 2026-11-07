@@ -197,7 +197,7 @@ export function settingWriter<S, K extends keyof S>(store: SettingStore<S>, spec
         return false
       }
       const description = options.description ?? spec.undo?.(value)
-      // Only what shows changed (e.g. a group of one dissolved, stored the same): no step of its own.
+      // Only what shows changed (the same rows stored again): no step of its own.
       if (description !== undefined && options.record !== false && !sameRows(spec.rows(result.before), nextRows)) {
         record(result.before, value, description, options.mergeKey)
       }

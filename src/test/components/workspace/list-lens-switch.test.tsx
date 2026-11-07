@@ -1,0 +1,152 @@
+import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { render, cleanup, screen, fireEvent, act, within, waitFor } from '@testing-library/react'
+import { DndContext } from '@dnd-kit/core'
+import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
+import { useListDefinitionStore } from '../../../stores/list-definition-store'
+import { emptyPredicate } from '../../../models'
+import { useListDraftStore } from '../../../stores/list-draft-store'
+import { useListWidgetStore } from '../../../stores/list-widget-store'
+import { useTodoStore } from '../../../stores/todo-store'
+import { usePersonStore } from '../../../stores/person-store'
+import { useListOrderStore } from '../../../stores/list-order-store'
+import { useSettingsStore } from '../../../stores/settings-store'
+import { useFilterStore } from '../../../stores/filter-store'
+import type { PersistedListDefinition } from '../../../models/list-definition'
+import type { LensTab } from '../../../models/workspace-layout'
+import type { Person } from '../../../models'
+import { db } from '../../../data/database'
+import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
+
+/**
+ * A list's switch for the top bar's lens (its filter line's glasses and
+ * `−N`, then the list's count): what the lens hides here, turned off and on
+ * for this list alone, saved at once on the saved list — never a draft
+ * edit. With the line hidden, the tab carries the count and the lens.
+ */
+
+const alice: Person = { id: 1, name: 'Alice', initials: 'AL' }
+const bob: Person = { id: 2, name: 'Bob', initials: 'BO' }
+
+function def(over: Partial<PersistedListDefinition> = {}): PersistedListDefinition {
+  return {
+    id: 7, name: 'Team', sortOrder: 0,
+    membership: { kind: 'custom', predicate: emptyPredicate() },
+    sort: 'manual', grouping: 'none',
+    ...over,
+  }
+}
+
+const tab: LensTab = { id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }
+
+async function setup(d: PersistedListDefinition) {
+  await db.listDefinitions.put(d)
+  useListDefinitionStore.setState({ listDefinitions: [d] })
+  let result: ListWidgetResult | undefined
+  render(
+    <DndContext>
+      <ListWidget tab={tab} onResult={(r) => { result = r }} />
+    </DndContext>,
+  )
+  return { result: () => result }
+}
+
+const titles = () => Array.from(document.querySelectorAll('[data-todo-id]')).map((el) => el.querySelector('[data-task-title]')?.getAttribute('data-task-title'))
+const lensSwitch = () => screen.queryByTestId('list-lens-switch')
+const count = () => screen.getByTestId('list-count').textContent
+
+/** Picks a lens keeping Alice's tasks (it hides Bob's). */
+function pickAliceLens(predicate = { ...emptyPredicate(), personIds: [1] }) {
+  useSettingsStore.setState({ lenses: [{ id: 'lens-a', name: 'Alice only', predicate }], activeLensId: 'lens-a' })
+}
+
+beforeEach(() => {
+  resetEntityStores()
+  clearFilterStore()
+  useListDraftStore.setState({ drafts: {} })
+  useListWidgetStore.setState({ picks: {}, collapsed: {} })
+  useListOrderStore.setState({ ranks: new Map(), loaded: true })
+  usePersonStore.setState({ people: [alice, bob], assignedPeopleMap: new Map([[1, [alice]], [2, [bob]], [3, [alice, bob]]]) })
+  useTodoStore.setState({
+    todos: [
+      makeTodo({ id: 1, title: 'Alice task', sortOrder: 1 }),
+      makeTodo({ id: 2, title: 'Bob task', sortOrder: 2 }),
+      makeTodo({ id: 3, title: 'Shared task', sortOrder: 3 }),
+    ],
+  })
+})
+
+afterEach(async () => {
+  cleanup()
+  await db.listDefinitions.clear()
+})
+
+describe('a list’s lens switch', () => {
+  it('no lens, or a lens that hides nothing here: no switch; the count is on the line, not the tab', async () => {
+    const { result } = await setup(def())
+    expect(lensSwitch()).toBeNull()
+    expect(count()).toBe('3')
+    expect(result()?.countLabel).toBeUndefined()
+    act(() => pickAliceLens({ ...emptyPredicate(), personIds: [1, 2] }))
+    expect(lensSwitch()).toBeNull()
+  })
+
+  it('shows what the lens hides here; a click turns it off for this list, saved at once — and back on', async () => {
+    pickAliceLens()
+    await setup(def())
+    expect(titles()).toEqual(['Alice task', 'Shared task'])
+    expect(count()).toBe('2 of 3')
+    const on = lensSwitch()!
+    expect(on).toHaveAttribute('aria-pressed', 'true')
+    expect(on).toHaveTextContent('−1')
+    expect(on).toHaveAccessibleName('The lens “Alice only” hides 1 here. Ignore it in this list')
+
+    fireEvent.click(on)
+    await waitFor(() => expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task']))
+    expect(count()).toBe('3')
+    const off = lensSwitch()!
+    expect(off).toHaveAttribute('aria-pressed', 'false')
+    expect(off).toHaveAccessibleName('This list ignores the lens “Alice only”. Apply it here')
+    expect(off).not.toHaveTextContent('−')
+    // Saved, not a draft: the list isn't unsaved, and the row is stored.
+    expect(useListDraftStore.getState().drafts[7]).toBeUndefined()
+    expect(within(screen.getByTestId('list-filter-row')).queryByRole('button', { name: /Save/ })).toBeNull()
+    expect(useListDefinitionStore.getState().listDefinitions[0]?.ignoreLens).toBe(true)
+    await waitFor(async () => expect((await db.listDefinitions.get(7))?.ignoreLens).toBe(true))
+
+    fireEvent.click(lensSwitch()!)
+    await waitFor(() => expect(titles()).toEqual(['Alice task', 'Shared task']))
+    await waitFor(async () => expect('ignoreLens' in ((await db.listDefinitions.get(7)) ?? {})).toBe(false))
+  })
+
+  it('off, the chips still apply; the lens lifted at the top bar shows no switch', async () => {
+    pickAliceLens()
+    await setup(def({ ignoreLens: true }))
+    act(() => useFilterStore.getState().setPersonIds(new Set([2])))
+    expect(titles()).toEqual(['Bob task', 'Shared task'])
+    expect(lensSwitch()).toHaveAttribute('aria-pressed', 'false')
+    act(() => useFilterStore.getState().clearAll())
+    act(() => useSettingsStore.setState({ activeLensId: null }))
+    expect(lensSwitch()).toBeNull()
+  })
+
+  it('a draft’s Save keeps the saved list’s switch', async () => {
+    pickAliceLens()
+    await setup(def())
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, name: 'Team renamed' })))
+    fireEvent.click(lensSwitch()!)
+    await waitFor(() => expect(useListDefinitionStore.getState().listDefinitions[0]?.ignoreLens).toBe(true))
+    // Still the draft's list, still unsaved by its name alone.
+    expect(useListDraftStore.getState().drafts[7]?.name).toBe('Team renamed')
+    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
+    await act(() => useListDraftStore.getState().save(7))
+    const saved = useListDefinitionStore.getState().listDefinitions[0]
+    expect(saved).toMatchObject({ name: 'Team renamed', ignoreLens: true })
+  })
+
+  it('with the filter line hidden, the tab gets the count and the lens (its menu switch)', async () => {
+    pickAliceLens()
+    const { result } = await setup(def({ showFilterLine: false }))
+    expect(screen.queryByTestId('list-filter-row')).toBeNull()
+    expect(result()).toMatchObject({ countLabel: '2 of 3', lens: { name: 'Alice only', ignored: false, hides: 1, listId: 7 } })
+  })
+})

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyFilterClauses, emptyPredicate, type FilterClauses } from '../../models/filter-predicate'
+import { emptyPredicate } from '../../models/filter-predicate'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import {
   DEFAULT_CHECKIN_OPEN_METHOD,
@@ -28,32 +28,22 @@ describe('the check-in filter', () => {
     expect(checkinFilterOf({ ...emptyPredicate(), personIds: [1], negate: { personIds: true } })).toEqual(emptyPredicate())
   })
 
-  it('drops people inside or groups too; an or group left with nothing goes', () => {
-    const kept: FilterClauses = { ...emptyFilterClauses(), tags: [2], negate: { tags: true } }
+  it('drops an expression’s top-level terms that name a person, whole', () => {
+    const kept = { kind: 'not' as const, item: { kind: 'tag' as const, id: 2 } }
     expect(checkinFilterOf({
       ...emptyPredicate(),
-      orGroups: [{ ...emptyFilterClauses(), personIds: [1], negate: { personIds: true } }, { ...kept, personIds: [3] }],
-    })).toEqual({ ...emptyPredicate(), orGroups: [kept] })
-    expect(checkinFilterOf({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), personIds: [1] }] })).toEqual(emptyPredicate())
+      expression: { kind: 'and', items: [{ kind: 'not', item: { kind: 'person', id: 1 } }, { kind: 'or', items: [kept, { kind: 'person', id: 3 }] }, kept] },
+    })).toEqual({ ...emptyPredicate(), expression: kept })
+    expect(checkinFilterOf({ ...emptyPredicate(), expression: { kind: 'person', id: 1 } })).toEqual(emptyPredicate())
   })
 
-  it('reading the stored filter says when people went from an or group', () => {
-    const stored = JSON.stringify({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: [{ values: ['focus'] }] }] })
-    expect(readCheckinFilterSetting(stored)).toEqual({
-      filter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }] }] },
-      fixes: ['people filter dropped'],
-    })
-    const clean = formatCheckinFilterSetting({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }] }] })
-    expect(readCheckinFilterSetting(clean).fixes).toEqual([])
-  })
-
-  it('drops a Completed date range (a check-in takes open tasks only), in an or group too; reading the stored filter says so', () => {
+  it('drops a Completed date range (a check-in takes open tasks only), in an expression too; reading the stored filter says so', () => {
     const range = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-week' as const }, end: null }
     const due = { match: 'set' as const }
     expect(checkinFilterOf({ ...emptyPredicate(), dates: { deadline: due, completed: range } }))
       .toEqual({ ...emptyPredicate(), dates: { deadline: due } })
-    expect(checkinFilterOf({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), dates: { completed: range } }, { ...emptyFilterClauses(), markers: [{ values: ['focus'] }] }] }))
-      .toEqual({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), markers: [{ values: ['focus'] }] }] })
+    expect(checkinFilterOf({ ...emptyPredicate(), expression: { kind: 'and', items: [{ kind: 'date', field: 'completed', match: range }, { kind: 'priority', value: 'focus' }] } }))
+      .toEqual({ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } })
     expect(isNoCheckinFilter({ ...emptyPredicate(), dates: { completed: range } })).toBe(true)
     const stored = JSON.stringify({ ...emptyPredicate(), dates: { deadline: due, completed: range } })
     expect(readCheckinFilterSetting(stored)).toEqual({

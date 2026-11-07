@@ -8,6 +8,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { useFileStorageStore } from '../../../services/file-storage-store'
 import { makeTodo } from '../../helpers'
 
@@ -117,5 +118,35 @@ describe('TopBar — app shell', () => {
     expect(useUIStore.getState().filterPanelOpen).toBe(false)
     // Closed with no filter: it goes.
     expect(within(tray).queryByRole('button', { name: /tasks shown\. Show them$/ })).toBeNull()
+  })
+
+  it('the counter carries a list tab’s badge: the open tasks it shows due / due for a follow-up in the tab badge ranges', () => {
+    const day = (offset: number) => {
+      const d = new Date()
+      d.setHours(12, 0, 0, 0)
+      d.setDate(d.getDate() + offset)
+      return d
+    }
+    useTodoStore.setState({ todos: [
+      makeTodo({ id: 1, title: 'Alpha late', dueDate: day(-1) }),
+      makeTodo({ id: 2, title: 'Alpha soon', dueDate: day(2) }),
+      makeTodo({ id: 3, title: 'Alpha chase', nextFollowupAt: day(0) }),
+      makeTodo({ id: 4, title: 'Alpha done', dueDate: day(-1), isCompleted: true }),
+      makeTodo({ id: 5, title: 'Beta late', dueDate: day(-1) }),
+    ] })
+    // The defaults: due overdue and within 3 days; follow-ups overdue and today.
+    renderBar()
+    const tray = screen.getByRole('group', { name: 'Screen filters — apply to every widget' })
+    act(() => useFilterStore.getState().setSearchText('alpha'))
+    const button = within(tray).getByRole('button', {
+      name: '3 of 4 open tasks shown, 2 due: 1 overdue, 1 within 3 days, 1 follow-up: today. Show them',
+    })
+    const capsule = button.querySelector('[data-counter-badge]')
+    expect(capsule).toHaveAttribute('aria-hidden', 'true')
+    expect(capsule?.querySelector('[data-badge-part="due"]')).toHaveTextContent('2')
+    expect(capsule?.querySelector('[data-badge-part="followup"]')).toHaveTextContent('1')
+    // Ranges off (Settings › Tasks): no badge.
+    act(() => useSettingsStore.setState({ tabBadges: { due: 'off', followup: 'off' } }))
+    expect(within(tray).getByRole('button', { name: '3 of 4 open tasks shown. Show them' }).querySelector('[data-counter-badge]')).toBeNull()
   })
 })

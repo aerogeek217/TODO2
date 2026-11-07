@@ -2,7 +2,6 @@
  * the head that opens into its editor (the list filter chips) — then
  * + New lens. */
 
-.intro,
 .empty {
   margin: 0;
   font-size: var(--font-size-meta);

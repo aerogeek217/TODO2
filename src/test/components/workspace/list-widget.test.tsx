@@ -4,7 +4,7 @@ import { DndContext } from '@dnd-kit/core'
 import { ListWidget, type ListWidgetResult } from '../../../components/workspace/list/ListWidget'
 import { EditListHost } from '../../../components/workspace/list/EditList'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
-import { emptyFilterClauses, emptyPredicate } from '../../../models'
+import { emptyPredicate } from '../../../models'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useTodoStore } from '../../../stores/todo-store'
@@ -92,7 +92,9 @@ describe('ListWidget', () => {
   it('shows the list’s open tasks and reports the count', () => {
     const { result } = setup(def())
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
-    expect(result()?.countLabel).toBe('3')
+    // The count is on the filter line, not reported to the tab.
+    expect(screen.getByTestId('list-count')).toHaveTextContent('3')
+    expect(result()?.countLabel).toBeUndefined()
     // No filters anywhere: the filter line still shows (the way in to setting them) — No filters, + Filter,
     // the summary (`Manual` for an ungrouped manual list); no Revert · Save while saved.
     const row = screen.getByTestId('list-filter-row')
@@ -104,10 +106,10 @@ describe('ListWidget', () => {
   })
 
   it('the screen filter narrows it, with a read-only screen chip and a shown-of-total count', () => {
-    const { result } = setup(def())
+    setup(def())
     act(() => useFilterStore.getState().setPersonIds(new Set([1])))
     expect(titles()).toEqual(['Alice task', 'Shared task'])
-    expect(result()?.countLabel).toBe('2 of 3')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('2 of 3')
     expect(screen.getByTestId('screen-filter-chip').textContent).toContain('Alice')
   })
 
@@ -131,7 +133,7 @@ describe('ListWidget', () => {
         makeTodo({ id: 5, title: 'Done today', sortOrder: 5, isCompleted: true, completedAt: new Date() }),
       ],
     })
-    const { result } = setup(def())
+    setup(def())
     const filters = useFilterStore.getState().filters
     act(() => useFilterStore.getState().setAllFilters({
       ...filters,
@@ -139,7 +141,7 @@ describe('ListWidget', () => {
     }))
     expect(titles()).toEqual(['Done today'])
     // Of the list's 3 open tasks and its 2 completed ones (the range opens its gate too): 1 shown.
-    expect(result()?.countLabel).toBe('1 of 5')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('1 of 5')
   })
 
   it('screen filters hiding everything: says so and offers to clear them', () => {
@@ -272,9 +274,9 @@ describe('ListWidget', () => {
   })
 
   it('shows every task: no "Showing N of M" line', () => {
-    const { result } = setup(def())
+    setup(def())
     expect(titles()).toHaveLength(3)
-    expect(result()?.countLabel).toBe('3')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('3')
     expect(screen.queryByText(/Showing/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'switch to scroll' })).toBeNull()
   })
@@ -332,12 +334,12 @@ describe('ListWidget', () => {
   })
 
   it('a prompt shows its row; nothing picked = the pick-a-value state and a — count', () => {
-    const { result } = setup(def({ runtimeFilter: { field: 'person' } }))
+    setup(def({ runtimeFilter: { field: 'person' } }))
     expect(screen.getByText('Pick a person to show this list')).toBeInTheDocument()
-    expect(result()?.countLabel).toBe('—')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('—')
     act(() => useListWidgetStore.getState().setPicks('t1', [2]))
     expect(titles()).toEqual(['Bob task', 'Shared task'])
-    expect(result()?.countLabel).toBe('2')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('2')
   })
 
   it('the pick-a-value state’s one action puts the focus in the prompt’s field', () => {
@@ -689,14 +691,15 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     expect(useUIStore.getState().quickAddDraft?.defaults?.markers).toEqual({ urgent: false })
   })
 
-  it('a list whose only filter is an or group offers + Add task and seeds nothing; the clauses outside a group seed', () => {
-    setup(def({}, { orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: [{ values: ['focus'] }] }] }))
+  it('a list written as an expression offers + Add task; only its top-level chips seed', () => {
+    const either = { kind: 'or' as const, items: [{ kind: 'person' as const, id: 1 }, { kind: 'priority' as const, value: 'focus' as const }] }
+    setup(def({}, { expression: either }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     const defaults = useUIStore.getState().quickAddDraft?.defaults
     expect(defaults?.personIds).toEqual([])
     expect(defaults?.markers).toBeUndefined()
     cleanup()
-    setup(def({}, { statusIds: [2], orGroups: [{ ...emptyFilterClauses(), personIds: [1], markers: [{ values: ['focus'] }] }] }))
+    setup(def({}, { expression: { kind: 'and', items: [{ kind: 'status', id: 2 }, either] } }))
     fireEvent.click(screen.getByRole('button', { name: /Add task/ }))
     expect(useUIStore.getState().quickAddDraft?.defaults).toMatchObject({ statusId: 2, personIds: [] })
   })
@@ -712,9 +715,9 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
         makeTodo({ id: 3, title: 'Shared task', sortOrder: 3, important: true }),
       ],
     })
-    const { result } = setup(def({}, { markers: [{ values: ['urgent', 'focus'] }] }))
+    setup(def({}, { markers: [{ values: ['urgent', 'focus'] }] }))
     expect(titles()).toEqual(['Alice task', 'Bob task'])
-    expect(result()?.countLabel).toBe('2')
+    expect(screen.getByTestId('list-count')).toHaveTextContent('2')
     act(() => useSettingsStore.setState({ urgentDueWithinDays: null }))
     expect(titles()).toEqual(['Bob task'])
   })

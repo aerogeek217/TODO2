@@ -28,6 +28,15 @@
   padding: 6px 10px;
 }
 
+/* A description (`HelpTip`): sentences, wider, regular weight. */
+.prose {
+  max-width: 300px;
+  padding: 7px 10px;
+  font-weight: var(--font-weight-regular);
+  line-height: 18px;
+  overflow-wrap: normal;
+}
+
 .shortcut,
 .line {
   color: var(--color-tooltip-muted);

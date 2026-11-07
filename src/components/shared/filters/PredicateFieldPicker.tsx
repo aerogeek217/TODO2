@@ -24,7 +24,7 @@ type EntityField = 'people' | 'tags' | 'status'
 
 interface PickerBodyProps<T extends FilterClauses> {
   field: ListFilterField
-  /** The clauses edited: a predicate's own, or one of its or groups'. */
+  /** The clauses edited. */
   predicate: T
   onChange: (next: T) => void
   /** Adding this filter: an entity picker starts with nothing ticked (the first pick narrows to it). */
@@ -46,8 +46,7 @@ export interface PredicateFieldPickerProps<T extends FilterClauses> extends Pick
 }
 
 /**
- * The picker for one filter field of a list's predicate (or of one of its
- * or groups) in a popover — the same pickers the top bar's filter buttons
+ * The picker for one filter field of a list's predicate in a popover — the same pickers the top bar's filter buttons
  * open (entity checklist, date range, text).
  */
 export function PredicateFieldPicker<T extends FilterClauses>({ at, consumeEscape = false, ...body }: PredicateFieldPickerProps<T>) {

@@ -62,6 +62,14 @@ export function resolveRelativeToken(
       return new Date(base.getFullYear(), base.getMonth() + 2, 0)
     case 'end-of-month-plus-3':
       return new Date(base.getFullYear(), base.getMonth() + 4, 0)
+    case 'start-of-last-week':
+      return addDays(startOfWeek(today, weekStartsOn), -7)
+    case 'end-of-last-week':
+      return addDays(endOfWeek(), -7)
+    case 'start-of-last-month':
+      return new Date(base.getFullYear(), base.getMonth() - 1, 1)
+    case 'end-of-last-month':
+      return new Date(base.getFullYear(), base.getMonth(), 0)
   }
 }
 

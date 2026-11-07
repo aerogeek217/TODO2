@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, cleanup, act, within, waitFor } from '@testing-library/react'
 import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
 import { SettingsModal } from '../../../components/settings/SettingsModal'
@@ -39,12 +39,64 @@ describe('SettingsModal', () => {
     expect(within(nav).getByRole('button', { name: 'Appearance' })).toHaveAttribute('aria-current', 'true')
   })
 
-  it('lists Appearance, Tasks, People statuses & tags, Database, Keyboard shortcuts, About', () => {
+  it('lists Appearance, Tasks, People statuses & tags, Database, Keyboard shortcuts, About — a merged section’s parts under it', () => {
     render(<SettingsModal />)
     open()
     const nav = screen.getByRole('navigation', { name: 'Settings sections' })
-    expect(within(nav).getAllByRole('button').map((b) => b.textContent))
-      .toEqual(['Appearance', 'Tasks', 'People, statuses & tags', 'Database', 'Keyboard shortcuts', 'About'])
+    expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual([
+      'Appearance',
+      'Tasks', 'Task defaults', 'Lenses', 'Eisenhower', 'Completed tasks',
+      'People, statuses & tags',
+      'Database', 'File storage', 'Backups', 'Import / Export', 'Data integrity',
+      'Keyboard shortcuts',
+      'About',
+    ])
+  })
+
+  it('a part in the nav opens its section scrolled to it, and is marked while in view', () => {
+    // JSDOM has no layout: the content is 600px high, the Database parts 200px apart, none scrolled.
+    const tops: Record<string, number> = { 'file-storage': 0, backups: 200, 'import-export': 400, 'data-integrity': 580 }
+    const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+      const part = this.getAttribute('data-settings-part')
+      const top = part ? (tops[part] ?? 0) : 0
+      const bottom = this.matches('section[aria-labelledby]') && !part ? 600 : top
+      return { top, bottom, left: 0, right: 0, width: 0, height: bottom - top, x: 0, y: top, toJSON: () => ({}) }
+    })
+    try {
+      render(<SettingsModal />)
+      open()
+      const nav = screen.getByRole('navigation', { name: 'Settings sections' })
+      const navPart = (id: string) => nav.querySelector<HTMLElement>(`[data-settings-nav-part="${id}"]`) as HTMLElement
+      expect(nav.querySelectorAll('[aria-current="location"]')).toHaveLength(0)
+      fireEvent.click(within(nav).getByRole('button', { name: 'Database' }))
+      // The section opens at its top: its first part is the one in view.
+      expect(navPart('file-storage')).toHaveAttribute('aria-current', 'location')
+      fireEvent.click(navPart('backups'))
+      expect(sectionHeading()).toBe('Database')
+      expect(within(nav).getByRole('button', { name: 'Database' })).toHaveAttribute('aria-current', 'true')
+      // Jumped to and still in view (it can't scroll to the top): marked.
+      expect(navPart('backups')).toHaveAttribute('aria-current', 'location')
+      expect(nav.querySelectorAll('[aria-current="location"]')).toHaveLength(1)
+      expect(useUIStore.getState().settingsPart).toBeNull()
+      // Another section's parts are never marked.
+      expect(navPart('lenses')).not.toHaveAttribute('aria-current')
+    } finally {
+      spy.mockRestore()
+    }
+  })
+
+  it('a description sits behind an ⓘ: hidden from view, read as the button’s description, shown on click', () => {
+    render(<SettingsModal />)
+    open()
+    const info = screen.getByRole('button', { name: 'About Theme' })
+    expect(info).toHaveAccessibleDescription('System follows your OS setting.')
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.click(info)
+    expect(screen.getByRole('tooltip')).toHaveTextContent('System follows your OS setting.')
+    // Escape closes the tip, not Settings.
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    expect(screen.getByRole('dialog', { name: 'Settings' })).toBeInTheDocument()
   })
 
   it('shows one section at a time and reopens on the last one viewed', () => {
@@ -59,14 +111,14 @@ describe('SettingsModal', () => {
     expect(sectionHeading()).toBe('Database')
   })
 
-  it('Tasks holds Task defaults, Lenses, Eisenhower, then Completed tasks; Database Import / Export, Data integrity, File storage, Backups — each headed', () => {
+  it('Tasks holds Task defaults, Lenses, Eisenhower, then Completed tasks; Database File storage, Backups, Import / Export, Data integrity — each headed', () => {
     render(<SettingsModal />)
     open('tasks')
     const parts = () => Array.from(screen.getByRole('dialog', { name: 'Settings' }).querySelectorAll('h3')).map((h) => h.textContent)
     expect(parts()).toEqual(['Task defaults', 'Lenses', 'Eisenhower', 'Completed tasks'])
     expect(screen.getByRole('region', { name: 'Completed tasks' })).toHaveAttribute('data-settings-part', 'completed')
     fireEvent.click(screen.getByRole('button', { name: 'Database' }))
-    expect(parts()).toEqual(['Import / Export', 'Data integrity', 'File storage', 'Backups'])
+    expect(parts()).toEqual(['File storage', 'Backups', 'Import / Export', 'Data integrity'])
   })
 
   it('a deep link to a part opens its section (the old section ids still work)', () => {

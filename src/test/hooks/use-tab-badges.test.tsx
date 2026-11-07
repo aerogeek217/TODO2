@@ -114,4 +114,17 @@ describe('useTabBadges', () => {
     rerender()
     expect(result.current.get('a')?.counts).toEqual({ due: 1, dueOverdue: 1, followup: 1, followupOverdue: 0 })
   })
+
+  it('the top bar’s lens narrows a tab, unless its saved list ignores the lens (a draft can’t say otherwise)', () => {
+    useSettingsStore.setState({
+      lenses: [{ id: 'lens-a', name: 'Alice', predicate: { ...emptyPredicate(), personIds: [1] } }],
+      activeLensId: 'lens-a',
+    })
+    useListDefinitionStore.setState({ listDefinitions: [list(7), list(9, {}, { ignoreLens: true })] })
+    // A draft of list 9 made before the switch: the saved list's switch still decides.
+    useListDraftStore.setState({ drafts: { 9: list(9) } })
+    const { result } = badges([tab('a', 7), tab('b', 9)])
+    expect(result.current.get('a')?.counts).toEqual({ due: 1, dueOverdue: 1, followup: 1, followupOverdue: 0 })
+    expect(result.current.get('b')?.counts).toEqual({ due: 2, dueOverdue: 1, followup: 1, followupOverdue: 0 })
+  })
 })

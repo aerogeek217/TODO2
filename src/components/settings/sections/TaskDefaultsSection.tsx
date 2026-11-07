@@ -158,11 +158,19 @@ export function TaskDefaultsSection() {
         </select>
       </SettingRow>
       <StaleAfterDaysSetting />
-      <SettingRow label="Tab badges: due" help="A list's tab counts its open tasks due in this range. Edit list can change it for one list.">
-        <TabBadgeRangeSelect label="Tab badges: due" value={tabBadges.due} onChange={(due) => void setTabBadges({ ...tabBadges, due })} />
-      </SettingRow>
-      <SettingRow label="Tab badges: follow-up" help="Its open tasks due for a follow-up in this range.">
-        <TabBadgeRangeSelect label="Tab badges: follow-up" value={tabBadges.followup} onChange={(followup) => void setTabBadges({ ...tabBadges, followup })} />
+      <SettingRow
+        label="Tab badges"
+        help="A list's tab counts its open tasks due, and due for a follow-up, in these ranges. Edit list can change them for one list."
+        column
+      >
+        <span className={styles.subControl}>
+          <span className={styles.subLabel} aria-hidden="true">Due</span>
+          <TabBadgeRangeSelect label="Tab badges: due" value={tabBadges.due} onChange={(due) => void setTabBadges({ ...tabBadges, due })} />
+        </span>
+        <span className={styles.subControl}>
+          <span className={styles.subLabel} aria-hidden="true">Follow-up</span>
+          <TabBadgeRangeSelect label="Tab badges: follow-up" value={tabBadges.followup} onChange={(followup) => void setTabBadges({ ...tabBadges, followup })} />
+        </span>
       </SettingRow>
       <PriorityCuesSetting />
       <SettingRow label="Week starts on" help="Calendars and the This Week group.">

@@ -123,6 +123,47 @@
   color: var(--color-accent-text);
 }
 
+/* A merged section's part (Tasks › Lenses, …): a jump link under the
+   section, indented past its icon; the part in view gets a bar. */
+.navPart {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 10px 0 36px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.navPart:hover {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+.navPartInView {
+  color: var(--color-text-primary);
+}
+
+.navPartInView::before {
+  content: '';
+  position: absolute;
+  left: 26px;
+  top: 6px;
+  bottom: 6px;
+  width: 2px;
+  border-radius: 1px;
+  background: var(--color-accent);
+}
+
 .content {
   display: flex;
   flex-direction: column;

@@ -4,7 +4,7 @@ import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHos
 import { SettingsModal } from '../../../components/settings/SettingsModal'
 import { LensesSection } from '../../../components/settings/sections/LensesSection'
 import { SettingsLayerContext } from '../../../components/settings/sections/settings-layer'
-import { emptyFilterClauses, emptyPredicate } from '../../../models/filter-predicate'
+import { emptyPredicate } from '../../../models/filter-predicate'
 import { useLensDraftStore } from '../../../stores/lens-draft-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -65,15 +65,15 @@ describe('Settings › Tasks › Lenses', () => {
     expect(screen.queryByTestId('save-lens')).toBeNull()
   })
 
-  it('a lens whose only filter is a group reads the group in words and keeps what any of its filters keeps', () => {
+  it('a lens written as an expression reads as its text and keeps what the expression keeps', () => {
     useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 4, title: 'Other' })] })
     useSettingsStore.setState({
       lensPresetsSeeded: true,
-      lenses: [{ id: 'lens-g', name: 'Either', predicate: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), statusIds: [3], searchText: 'goes' }] } }],
+      lenses: [{ id: 'lens-g', name: 'Either', predicate: { ...emptyPredicate(), expression: { kind: 'or', items: [{ kind: 'status', id: 3 }, { kind: 'text', text: 'goes' }] } } }],
     })
     render(<LensesSection />)
     const [row] = rows()
-    expect(row).toHaveTextContent('Status Waiting or Text “goes”')
+    expect(row).toHaveTextContent('!Waiting or "goes"')
     fireEvent.click(row!)
     expect(screen.queryByText('No filter — every task')).toBeNull()
     expect(screen.getByTestId('lens-keeps')).toHaveTextContent('Keeps 2 of 3 open tasks right now')

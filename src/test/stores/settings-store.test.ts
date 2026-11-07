@@ -717,17 +717,12 @@ describe('the Eisenhower settings', () => {
     expect(await db.settings.get('eisenhowerPanes')).toEqual({ key: 'eisenhowerPanes', value: JSON.stringify(HAND_OFF) })
   })
 
-  it('a pane filter’s group of one stays as written (the filter row dissolves it); its dissolve adds no undo step', async () => {
-    const base = { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null }
-    const single = { ...base, orGroups: [{ ...base, statusIds: [3] }] }
-    // An open picker may still be on the group: it isn't dissolved under it.
-    await useSettingsStore.getState().setEisenhowerPanes({ drop: { filter: single } }, 'Changed pane “Drop”')
-    expect(useSettingsStore.getState().eisenhowerPanes.drop?.filter?.orGroups).toHaveLength(1)
-    // Stored as read: the group as its item.
-    expect(JSON.parse((await db.settings.get('eisenhowerPanes'))!.value).drop.filter).toMatchObject({ statusIds: [3] })
-    await useSettingsStore.getState().setEisenhowerPanes({ drop: { filter: { ...base, statusIds: [3] } } }, 'Changed pane “Drop”')
-    expect(useSettingsStore.getState().eisenhowerPanes.drop?.filter).toMatchObject({ statusIds: [3] })
-    expect(useSettingsStore.getState().eisenhowerPanes.drop?.filter?.orGroups).toBeUndefined()
+  it('a pane filter written as an expression is stored as one', async () => {
+    const base = { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
+    const expression = { kind: 'or' as const, items: [{ kind: 'status' as const, id: 3 }, { kind: 'priority' as const, value: 'focus' as const }] }
+    await useSettingsStore.getState().setEisenhowerPanes({ drop: { filter: { ...base, expression } } }, 'Changed pane “Drop”')
+    expect(useSettingsStore.getState().eisenhowerPanes.drop?.filter?.expression).toEqual(expression)
+    expect(JSON.parse((await db.settings.get('eisenhowerPanes'))!.value).drop.filter).toMatchObject({ expression })
     expect(undoNames()).toEqual(['Changed pane “Drop”'])
   })
 

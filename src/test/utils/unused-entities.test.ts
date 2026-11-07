@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyFilterClauses, emptyPredicate, type ListDefinition, type Person, type TodoPredicate } from '../../models'
+import { emptyPredicate, type ListDefinition, type Person, type TodoPredicate } from '../../models'
 import {
   entityTaskUse,
   filterReferences,
@@ -99,15 +99,17 @@ describe('filterReferences', () => {
     expect(refs.get(11)).toEqual({ lists: 0, panes: 0, checkin: true })
   })
 
-  it('finds people and tags named only inside an or group, a list counting once', () => {
-    const groups = (personIds: number[], tags: number[]): Partial<TodoPredicate> => ({
-      personIds: [1],
-      orGroups: [{ ...emptyFilterClauses(), personIds, negate: { personIds: true } }, { ...emptyFilterClauses(), personIds: [1], tags }],
+  it('finds people and tags named only inside an expression, a list counting once', () => {
+    const terms = (person: number, tag: number): Partial<TodoPredicate> => ({
+      expression: { kind: 'and', items: [
+        { kind: 'person', id: 1 },
+        { kind: 'or', items: [{ kind: 'not', item: { kind: 'person', id: person } }, { kind: 'and', items: [{ kind: 'person', id: 1 }, { kind: 'tag', id: tag }] }] },
+      ] },
     })
     const s = sources({
-      lists: [list(1, groups([2], [10]))],
-      panes: { do: { filter: { ...emptyPredicate(), ...groups([3], [11]) } } },
-      checkinFilter: { ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), tags: [12, 0] }] },
+      lists: [list(1, terms(2, 10))],
+      panes: { do: { filter: { ...emptyPredicate(), ...terms(3, 11) } } },
+      checkinFilter: { ...emptyPredicate(), expression: { kind: 'or', items: [{ kind: 'tag', id: 12 }, { kind: 'tag', id: 0 }] } },
     })
     const people = filterReferences(s, 'person')
     expect(people.get(1)).toEqual({ lists: 1, panes: 1, checkin: false })

@@ -7,7 +7,9 @@ import { ALL_SETTING_KEYS } from '../../data/setting-keys'
 import { prepareImportText } from '../../data/import-pipeline'
 import { restoreFromImportData } from '../../data/restore'
 import { buildExportData } from '../../data/export-data'
-import { NEGATABLE_FIELDS, type FilterClauses, type TodoPredicate } from '../../models/filter-predicate'
+import { NEGATABLE_FIELDS, emptyPredicate, type TodoPredicate } from '../../models/filter-predicate'
+import type { FilterExpr } from '../../models/filter-expression'
+import { expressionAtoms } from '../../utils/filter-expression'
 import { DATE_FIELD_VALUES } from '../../models/app-view'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
@@ -48,18 +50,28 @@ const FULL_PREDICATE: TodoPredicate = {
     created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null },
     modified: { match: 'range', start: { kind: 'offset', days: -7 }, end: { kind: 'relative', token: 'today' }, not: true },
   },
-  markers: [{ values: ['urgent'] }, { values: ['important'], not: true }],
+  markers: [{ values: ['urgent', 'important'] }],
   tags: [1],
 }
 
-/** Two or groups, in their stored form: every field kind inside one, an "is not" in the other. */
-const OR_GROUPS: FilterClauses[] = [
-  {
-    personIds: [2], statusIds: null, searchText: 'call',
-    dates: { followup: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null } }, markers: [{ values: ['focus', 'urgent'] }], tags: [0],
-  },
-  { personIds: null, statusIds: [1, 0], searchText: '', dates: {}, markers: [{ values: ['urgent'], not: true }], tags: null, negate: { statusIds: true } },
-]
+/** An expression in its stored form: every kind of atom, an `or`, `not`s (of an atom and of an `or`). */
+const EXPRESSION: FilterExpr = {
+  kind: 'and',
+  items: [
+    { kind: 'or', items: [
+      { kind: 'person', id: 2 },
+      { kind: 'text', text: 'call' },
+      { kind: 'date', field: 'followup', match: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null } },
+      { kind: 'priority', value: 'focus' },
+      { kind: 'tag', id: 0 },
+    ] },
+    { kind: 'not', item: { kind: 'or', items: [{ kind: 'status', id: 1 }, { kind: 'status', id: 0 }] } },
+    { kind: 'not', item: { kind: 'priority', value: 'urgent' } },
+  ],
+}
+
+/** The check-in's: no person, no Completed range (a check-in drops them). */
+const CHECKIN_EXPRESSION: FilterExpr = { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'not', item: { kind: 'tag', id: 1 } }] }
 
 function buildSeed(): Seed {
   return {
@@ -99,7 +111,7 @@ function buildSeed(): Seed {
       { key: 'priorityCues', value: JSON.stringify({ focus: { glow: true, semibold: false }, urgent: { glow: false, semibold: false }, important: { glow: true, semibold: true } }) },
       { key: 'urgentDueWithinDays', value: 'off' },
       { key: 'checkinOpenMethod', value: 'eml' },
-      { key: 'checkinTaskFilter', value: formatCheckinFilterSetting({ ...FULL_PREDICATE, personIds: null, markers: [{ values: ['focus'] }], negate: { tags: true }, orGroups: [OR_GROUPS[1]!] }) },
+      { key: 'checkinTaskFilter', value: formatCheckinFilterSetting({ ...emptyPredicate(), expression: CHECKIN_EXPRESSION }) },
       { key: 'newListSort', value: 'deadline' },
       { key: 'newListSortDirection', value: 'desc' },
       { key: 'newListGroup', value: 'tag' },
@@ -107,7 +119,7 @@ function buildSeed(): Seed {
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
       { key: 'rowDensity', value: 'comfortable' },
-      { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...FULL_PREDICATE, showCompleted: false, markers: [{ values: ['focus'] }], negate: { statusIds: true }, orGroups: OR_GROUPS } }]) },
+      { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...emptyPredicate(), expression: EXPRESSION } }]) },
       { key: 'lensPresetsSeeded', value: 'true' },
       { key: 'activeLensId', value: 'lens-a' },
       { key: 'themeMode', value: 'dark' },
@@ -128,9 +140,9 @@ function buildSeed(): Seed {
     ],
     listDefinitions: [{
       id: 2, name: 'Follow-ups', sortOrder: 1,
-      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: [{ values: ['focus'] }] } },
+      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, dates: { deadline: { match: 'set' }, followup: { match: 'range', start: null, end: { kind: 'offset', days: 7 }, includeNoDate: true } }, markers: [{ values: ['focus'], not: true }], negate: { personIds: true, statusIds: true, tags: true } } },
       sort: 'followup', grouping: 'followup',
-      owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' },
+      owner: { layoutId: 2 }, showFilterLine: false, tabBadges: { due: 7, followup: 'overdue' }, ignoreLens: true,
     }, {
       id: 3, name: 'Eisenhower', sortOrder: 2,
       membership: { kind: 'custom', predicate: FULL_PREDICATE },
@@ -138,7 +150,7 @@ function buildSeed(): Seed {
       owner: { eisenhower: true },
     }, {
       id: 1, name: 'By person', sortOrder: 0,
-      membership: { kind: 'custom', predicate: { ...FULL_PREDICATE, negate: { personIds: true, statusIds: true, tags: true }, orGroups: OR_GROUPS } },
+      membership: { kind: 'custom', predicate: { ...emptyPredicate(), showCompleted: true, expression: EXPRESSION } },
       sort: 'deadline', sortDirection: 'desc', grouping: 'people',
       runtimeFilter: { field: 'person' },
       owner: { layoutId: 2 },
@@ -205,7 +217,7 @@ function buildSeed(): Seed {
 /** The seed's Eisenhower panes, in their stored form (what import keeps unchanged). */
 const SEED_PANES: EisenhowerPanes = {
   do: { name: 'Now', filter: { showCompleted: false, personIds: [1], statusIds: null, searchText: 'call', dates: { deadline: { match: 'set' } }, markers: [{ values: ['focus'] }, { values: ['urgent'], not: true }], tags: [2], negate: { tags: true } } },
-  delegate: { filter: { showCompleted: false, personIds: null, statusIds: [3], searchText: '', dates: {}, markers: [{ values: ['urgent'] }, { values: ['important'], not: true }], tags: null, negate: { statusIds: true }, orGroups: [OR_GROUPS[0]!] } },
+  delegate: { filter: { ...emptyPredicate(), expression: { kind: 'and', items: [{ kind: 'not', item: { kind: 'status', id: 3 } }, { kind: 'priority', value: 'urgent' }, { kind: 'not', item: { kind: 'priority', value: 'important' } }] } } },
   drop: { name: 'Someday' },
 }
 
@@ -275,20 +287,18 @@ describe('export → JSON → import round-trip', () => {
     expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'layoutId' in d.owner)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.owner !== undefined && 'eisenhower' in d.owner)).toBe(true)
     // A Priority filter's forms: "is" with several values, and "is not".
-    const markers = seed.listDefinitions.flatMap((d) => (d.membership.kind === 'custom'
-      ? [d.membership.predicate, ...(d.membership.predicate.orGroups ?? [])].flatMap((c) => c.markers ?? [])
-      : []))
+    const markers = seed.listDefinitions.flatMap((d) => (d.membership.kind === 'custom' ? d.membership.predicate.markers ?? [] : []))
     expect(markers.some((c) => c.values.length > 1)).toBe(true)
     expect(markers.some((c) => c.not === true)).toBe(true)
     // Every "is not" switch.
     const negations = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.keys(d.membership.predicate.negate ?? {}) : [])
     expect(new Set(negations)).toEqual(new Set(NEGATABLE_FIELDS))
-    // Or groups: on a list, with every kind of clause and an "is not" inside; in a lens, a pane and the check-in filter.
-    const groups = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? d.membership.predicate.orGroups ?? [] : [])
-    expect(groups.some((g) => g.negate !== undefined)).toBe(true)
-    expect(groups.some((g) => g.personIds && g.tags && g.markers && g.searchText && Object.keys(g.dates).length > 0)).toBe(true)
+    // Expressions: on a list, with every kind of atom and a `not`; in a lens, a pane and the check-in filter.
+    const expressions = seed.listDefinitions.flatMap((d) => (d.membership.kind === 'custom' && d.membership.predicate.expression ? [d.membership.predicate.expression] : []))
+    expect(new Set(expressions.flatMap((e) => expressionAtoms(e).map((a) => a.kind)))).toEqual(new Set(['person', 'tag', 'status', 'priority', 'text', 'date']))
+    expect(JSON.stringify(expressions)).toContain('"kind":"not"')
     for (const key of ['lenses', 'eisenhowerPanes', 'checkinTaskFilter']) {
-      expect(seed.settings.find((r) => r.key === key)?.value, `${key} holds an or group`).toContain('"orGroups"')
+      expect(seed.settings.find((r) => r.key === key)?.value, `${key} holds an expression`).toContain('"expression"')
     }
     // Every date type and every kind of date clause.
     const clauses = seed.listDefinitions.flatMap((d) => d.membership.kind === 'custom' ? Object.entries(d.membership.predicate.dates) : [])
@@ -307,11 +317,12 @@ describe('export → JSON → import round-trip', () => {
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
     expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
-    // The Eisenhower panes (a setting): a pane with a name and a filter, a "not" switch and a Priority No.
+    // The Eisenhower panes (a setting): a pane with a name and a filter, a "not" switch, a Priority No, an expression.
     const panesRow = seed.settings.find((r) => r.key === 'eisenhowerPanes')
     const panes = Object.values(JSON.parse(panesRow?.value ?? '{}') as EisenhowerPanes)
     expect(panes.some((p) => p?.name !== undefined && p.filter !== undefined)).toBe(true)
-    expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers?.some((c) => c.not === true && c.values.includes('important')))).toBe(true)
+    expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers?.some((c) => c.not === true))).toBe(true)
+    expect(panes.some((p) => p?.filter?.expression !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
     const dashboard = tabs.find((t) => t.kind === 'dashboard')
     expect(dashboard?.kind === 'dashboard' && dashboard.config.listTiles.length > 0 && dashboard.config.sections.some((sec) => sec.options !== undefined)).toBe(true)

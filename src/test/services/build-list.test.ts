@@ -709,11 +709,11 @@ describe('buildList — the screen filter narrows the groups', () => {
     expect(sections('people', undefined, { ...emptyPredicate(), personIds: [ALICE.id!] })).toEqual(expected)
   })
 
-  it('the top bar’s lens narrows them too; a pick in its or groups doesn’t', () => {
+  it('the top bar’s lens narrows them too; a pick inside an or of its expression doesn’t', () => {
     expect(sections('people', chips({ lens: chips({ personIds: alice }) }))).toEqual([['Alice', [101, 102, 105]]])
-    // People is Alice OR Status is none: the group may keep a task by its status, so no group narrows.
-    const grouped = chips({ lens: chips({ orGroups: [chips({ personIds: alice, statusIds: new Set([0]) })] }) })
-    expect(sections('people', grouped).map(([label]) => label)).toEqual(['Alice', 'Bob', 'Carol', 'Unassigned'])
+    // People is Alice OR Status is none: the or may keep a task by its status, so no group narrows.
+    const either = chips({ lens: chips({ expression: { kind: 'or', items: [{ kind: 'person', id: ALICE.id! }, { kind: 'status', id: 0 }] } }) })
+    expect(sections('people', either).map(([label]) => label)).toEqual(['Alice', 'Bob', 'Carol', 'Unassigned'])
   })
 
   it('an "is not" chip narrows no group', () => {

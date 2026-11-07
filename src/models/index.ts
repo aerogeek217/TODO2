@@ -42,10 +42,18 @@ export {
   type FilterNegation,
   NEGATABLE_FIELDS,
   type FilterClauses,
-  OR_GROUPS_MAX,
   emptyPredicate,
   emptyFilterClauses,
 } from './filter-predicate'
+export {
+  type FilterExpr,
+  type FilterAtom,
+  type FilterAtomKind,
+  type IdAtomKind,
+  EXPRESSION_NODES_MAX,
+  EXPRESSION_DEPTH_MAX,
+  EXPRESSION_TEXT_MAX,
+} from './filter-expression'
 export { type Note, type PersistedNote } from './note'
 export { type TodoEvent, type TodoEventType } from './todo-event'
 export { type StatusUpdate, type PersistedStatusUpdate, type StatusUpdateDraft, STATUS_UPDATE_TEXT_MAX } from './status-update'

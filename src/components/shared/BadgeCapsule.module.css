@@ -1,0 +1,37 @@
+/* Due and follow-up counts, one capsule. Solid: some of it is overdue. */
+.badge {
+  display: inline-flex;
+  flex-shrink: 0;
+  height: 14px;
+  border-radius: 7px;
+  overflow: hidden;
+  font-size: 10.5px;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  line-height: 14px;
+}
+
+.due,
+.followup {
+  padding: 0 4px;
+}
+
+.due {
+  background: var(--color-overdue-bg-strong);
+  color: var(--color-overdue);
+}
+
+.dueOverdue {
+  background: var(--cal-overdue-solid);
+  color: var(--cal-on-overdue);
+}
+
+.followup {
+  background: var(--color-followup-bg-strong);
+  color: var(--color-followup);
+}
+
+.followupOverdue {
+  background: var(--cal-followup-solid);
+  color: var(--cal-on-followup);
+}

@@ -111,11 +111,6 @@ export function LensesSection() {
 
   return (
     <div className={sectionStyles.section}>
-      <p className={styles.intro}>
-        A lens is a saved filter with a name, picked in the top bar: every widget shows only what it keeps, on every
-        layout. Edit it like a list’s filters — the same pickers, with their “is not” switch for what to
-        leave out. Filters set in the top bar apply on top of it.
-      </p>
       {lenses.length === 0 && <p className={styles.empty}>No lenses yet.</p>}
       <DndContext
         sensors={sensors}

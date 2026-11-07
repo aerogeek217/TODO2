@@ -113,15 +113,11 @@ describe('the stored form (date-filters)', () => {
     expect(dateFiltersEqual({ completed: notLastWeek }, { completed: { ...notLastWeek, not: undefined } })).toBe(true)
   })
 
-  it('predicate ↔ criteria round-trips it, outside and inside or groups', () => {
-    const p: TodoPredicate = {
-      ...emptyPredicate(),
-      dates: { created: notLastWeek },
-      orGroups: [{ ...emptyFilterClauses(), dates: { lastFollowup: notLastWeek } }, { ...emptyFilterClauses(), dates: { followup: notNext2Weeks } }],
-    }
+  it('predicate ↔ criteria round-trips it', () => {
+    const p: TodoPredicate = { ...emptyPredicate(), dates: { created: notLastWeek, followup: notNext2Weeks } }
     const c = predicateToCriteria(p)
     expect(c.dates.created).toEqual(notLastWeek)
-    expect(c.orGroups?.[1]?.dates.followup).toEqual(notNext2Weeks)
+    expect(c.dates.followup).toEqual(notNext2Weeks)
     expect(criteriaToPredicate(c)).toEqual(p)
   })
 
@@ -156,18 +152,24 @@ describe('pickPredicate reads `not`', () => {
     expect(pick({ followup: { match: 'range', start: null, end: null, not: true } })).toEqual({ predicate: { ...emptyPredicate(), dates: {} }, fixes: [] })
   })
 
-  it('reads it inside or groups', () => {
+  it('reads it inside an old or group as a `not` of the range', () => {
     const p = pickPredicate({ ...emptyPredicate(), orGroups: [{ ...emptyFilterClauses(), tags: [1], dates: { followup: notNext2Weeks } }] })
     expect(p.fixes).toEqual([])
-    expect(p.predicate.orGroups?.[0]?.dates.followup).toEqual(notNext2Weeks)
+    expect(p.predicate.expression).toEqual({ kind: 'or', items: [
+      { kind: 'tag', id: 1 },
+      { kind: 'not', item: { kind: 'date', field: 'followup', match: { match: 'range', start: notNext2Weeks.start, end: notNext2Weeks.end } } },
+    ] })
   })
 })
 
 describe('the user\'s lens: last follow-up not in the past week OR next follow-up not in the next two weeks', () => {
-  // One or group, its two alternatives.
+  // `not followed within last 7 days or not followup within 14 days`.
   const lens = predicateToCriteria({
     ...emptyPredicate(),
-    orGroups: [{ ...emptyFilterClauses(), dates: { lastFollowup: notLastWeek, followup: notNext2Weeks } }],
+    expression: { kind: 'or', items: [
+      { kind: 'not', item: { kind: 'date', field: 'lastFollowup', match: { match: 'range', start: notLastWeek.start, end: notLastWeek.end } } },
+      { kind: 'not', item: { kind: 'date', field: 'followup', match: { match: 'range', start: notNext2Weeks.start, end: notNext2Weeks.end } } },
+    ] },
   })
   const todos: PersistedTodoItem[] = [
     makeTodo({ id: 1, title: 'Followed up 2 days ago, next in 5 days', lastFollowupAt: at(2), nextFollowupAt: at(9) }),

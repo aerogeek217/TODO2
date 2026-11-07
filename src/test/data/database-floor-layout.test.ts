@@ -90,12 +90,12 @@ afterEach(async () => {
 })
 
 describe('the floor’s store layout', () => {
-  it('the floor is v68, the current version v74', () => {
+  it('the floor is v68, the current version v75', () => {
     expect(OLDEST_SUPPORTED_DB_VERSION).toBe(68)
-    expect(CURRENT_DB_VERSION).toBe(74)
+    expect(CURRENT_DB_VERSION).toBe(75)
   })
 
-  it('a v68 database as the full version chain left it opens at v74 with its stores, indexes and rows kept, statusUpdates and subtasks added: no patch', async () => {
+  it('a v68 database as the full version chain left it opens at v75 with its stores, indexes and rows kept, statusUpdates and subtasks added: no patch', async () => {
     db.close()
     await db.delete()
     await createRawDb(680, V68_LAYOUT)
@@ -104,16 +104,16 @@ describe('the floor’s store layout', () => {
     expect(await db.todos.toArray()).toEqual([task])
     db.close()
     expect(warn).not.toHaveBeenCalledWith(expect.stringContaining('SchemaDiff'))
-    expect(await readRawDb()).toEqual({ version: 740, layout: V73_LAYOUT, todos: [task] })
+    expect(await readRawDb()).toEqual({ version: 750, layout: V73_LAYOUT, todos: [task] })
   })
 
-  it('a new database gets exactly the v68 layout plus statusUpdates and subtasks, at v74 (v69, v70, v71 and v74 changed no store)', async () => {
+  it('a new database gets exactly the v68 layout plus statusUpdates and subtasks, at v75 (v69, v70, v71, v74 and v75 changed no store)', async () => {
     db.close()
     await db.delete()
     await db.open()
     db.close()
     const raw = await readRawDb()
-    expect(raw.version).toBe(740)
+    expect(raw.version).toBe(750)
     expect(raw.layout).toEqual(V73_LAYOUT)
   })
 })

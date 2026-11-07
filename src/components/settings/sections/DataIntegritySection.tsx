@@ -54,7 +54,7 @@ export function DataIntegritySection() {
           </button>
         </SettingRow>
       ) : auditReport.totalOrphans === 0 ? (
-        <SettingRow label="Audit" help="No issues found.">
+        <SettingRow label="Audit" help="Looks for records that point at missing data, and data this version doesn’t recognize." status="No issues found.">
           <button type="button" className={secondary} onClick={() => setAuditReport(null)}>Dismiss</button>
         </SettingRow>
       ) : (

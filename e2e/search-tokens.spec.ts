@@ -29,7 +29,7 @@ const SEED: WorkspaceSeed = {
 const tray = (page: Page) => page.locator('header').getByRole('group', { name: 'Screen filters — apply to every widget' })
 const search = (page: Page) => tray(page).getByRole('textbox', { name: 'Search tasks' })
 const results = (page: Page) => page.getByRole('listbox', { name: 'Search results' })
-const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown\. Show them$/ })
+const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
 const listTitles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -45,7 +45,7 @@ test('overdue #northwind budget: two chips, the word in the box, the dropdown na
   await expect(search(page)).toHaveValue('budget')
   await expect(tray(page)).toContainText('before today')
   await expect(tray(page)).toContainText('northwind')
-  await expect(counter(page)).toHaveAccessibleName('1 of 4 open tasks shown. Show them')
+  await expect(counter(page)).toHaveAccessibleName('1 of 4 open tasks shown, 1 due: overdue. Show them')
 
   // The dropdown: "budget" among the overdue #northwind tasks only.
   const options = results(page).getByRole('option')

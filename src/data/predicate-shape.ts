@@ -11,7 +11,6 @@ import {
   type DateAnchor,
   type DateFilters,
   type DateMatch,
-  OR_GROUPS_MAX,
   type FilterClauses,
   type FilterNegation,
   type MarkerClause,
@@ -20,7 +19,10 @@ import {
   type RelativeDateToken,
   type TodoPredicate,
 } from '../models/filter-predicate'
-import { dissolveSingleOrGroups, hasFilterClause, normalizeClauses } from '../utils/or-groups'
+import { hasFilterClause, normalizeClauses } from '../utils/filter-clauses'
+import { EXPRESSION_DEPTH_MAX, EXPRESSION_NODES_MAX, type FilterExpr } from '../models/filter-expression'
+import { expressionDepth, expressionSize, normalizeExpression, wholeExpression } from '../utils/filter-expression'
+import { withExpression } from '../utils/predicate-expression'
 import { withNormalizedNegation } from '../utils/filter-negation'
 import { isRecord } from '../utils/is-record'
 
@@ -37,9 +39,11 @@ import { isRecord } from '../utils/is-record'
  *   import can warn and the audit can report. An "is not" switch this build
  *   can't read drops the filter it switched (which way it filtered is
  *   unknown, so the filter goes rather than turning round); an unknown
- *   switch is dropped. Each or group is read the same way (its own
- *   clauses, their own fixes); a malformed or group — or `orGroups` that isn't an
- *   array — is dropped, and or groups past `OR_GROUPS_MAX` go. The
+ *   switch is dropped. Or groups (stored before v75, which made each filter
+ *   with them an expression) are read the same way (their own clauses,
+ *   their own fixes) and folded into the expression; a malformed or group —
+ *   or `orGroups` that isn't an array — is dropped, and or groups past
+ *   `OR_GROUPS_READ_MAX` go. The
  *   core fields fall back to their defaults when malformed (only reachable
  *   for rows already in the database: import rejects those), so a bad stored
  *   predicate can't crash the lists showing it.
@@ -201,7 +205,7 @@ export interface PickedPredicate {
 }
 
 /**
- * The narrowing clauses of a stored predicate or of an or group, rebuilt from
+ * The narrowing clauses of a stored predicate (or of an old or group), rebuilt from
  * their known keys (see the module comment for what is dropped and
  * reported). Optional fields (`markers`, `tags`) stay absent when absent;
  * a malformed text filter or date filters map is reset to no filter —
@@ -256,14 +260,18 @@ function pickClauses(v: Obj, fixes: PredicateFix[], reportReset: boolean): Filte
   return withNormalizedNegation(clauses)
 }
 
+/** Most or groups read from a predicate stored before v75 (what a v74 build held). */
+const OR_GROUPS_READ_MAX = 30
+
 /**
- * The stored or groups: `undefined` when absent (or `null`); an array of
+ * The or groups of a predicate stored before v75 (absent since: v75 made
+ * them an expression; a file or draft past the pipeline has none): `undefined` when absent (or `null`); an array of
  * records, each read with `pickClauses` (its fixes reported once each) into
  * its stored form (`normalizeClauses`). An `orGroups` that isn't an array is
  * dropped (`or groups dropped`); an item that isn't a record, or whose every
  * clause was malformed, is dropped (`or group dropped` / `N or groups dropped`);
  * an or group with no clause filters nothing and goes silently; or groups past
- * `OR_GROUPS_MAX` go (`or groups capped`, not read).
+ * `OR_GROUPS_READ_MAX` go (`or groups capped`, not read).
  */
 function pickOrGroups(raw: unknown, fixes: PredicateFix[]): FilterClauses[] | undefined {
   if (raw === undefined || raw === null) return undefined
@@ -276,7 +284,7 @@ function pickOrGroups(raw: unknown, fixes: PredicateFix[]): FilterClauses[] | un
   let dropped = 0
   let capped = false
   for (const item of raw as unknown[]) {
-    if (orGroups.length >= OR_GROUPS_MAX) {
+    if (orGroups.length >= OR_GROUPS_READ_MAX) {
       capped = true
       break
     }
@@ -298,14 +306,13 @@ function pickOrGroups(raw: unknown, fixes: PredicateFix[]): FilterClauses[] | un
 
 /**
  * Rebuilds a stored predicate from its known keys (unknown keys go): its
- * clauses (`pickClauses`), Show completed, and its or groups
- * (`pickOrGroups`; the key only while one is left). A required field that is
- * missing gets its default. See the module comment for what is dropped and
- * reported. A group of one item is read as that item (`dissolveSingleOrGroups`)
- * unless `keepSingleGroups`: an in-app write, whose filter row dissolves it
- * itself once no picker is open on it.
+ * clauses (`pickClauses`), Show completed and its expression
+ * (`readExpression`). A required field that is missing gets its default.
+ * An expression, or old or groups, make the whole filter an expression
+ * (`wholeExpression`): the clauses fold into it. See the module comment for
+ * what is dropped and reported.
  */
-export function pickPredicate(raw: unknown, { keepSingleGroups = false }: { keepSingleGroups?: boolean } = {}): PickedPredicate {
+export function pickPredicate(raw: unknown): PickedPredicate {
   const fixes: PredicateFix[] = []
   const v: Obj = isRecord(raw) ? raw : {}
   if (!isRecord(raw)) fixes.push('filters reset')
@@ -315,10 +322,86 @@ export function pickPredicate(raw: unknown, { keepSingleGroups = false }: { keep
   if (typeof v.showCompleted === 'boolean') showCompleted = v.showCompleted
   else if (isRecord(raw)) fixes.push('show completed reset')
   const predicate: TodoPredicate = { showCompleted, ...clauses }
-  const orGroups = pickOrGroups(v.orGroups, fixes)
-  if (orGroups && orGroups.length > 0) predicate.orGroups = orGroups
-  // A group of one filters as its clause does: read as that clause, not a fix.
-  return { predicate: keepSingleGroups ? predicate : dissolveSingleOrGroups(predicate).predicate, fixes }
+  const orGroups = pickOrGroups(v.orGroups, fixes) ?? []
+  const expression = readExpression(v.expression, fixes)
+  if (expression || orGroups.length > 0) {
+    return { predicate: withExpression(predicate, wholeExpression({ ...predicate, ...(expression ? { expression } : {}) }, orGroups)), fixes }
+  }
+  return { predicate, fixes }
+}
+
+/** An expression this build can't read: the whole expression goes (which way it filtered is unknown). */
+class BadExpression extends Error {}
+
+/**
+ * One node of a stored expression (`TodoPredicate.expression`), rebuilt from
+ * its known keys; throws `BadExpression` on anything it can't read. A date
+ * atom's "is not" and "or none" become `not` / `or … none` nodes; a text
+ * longer than the cap is shortened (one fix).
+ */
+function readExpressionNode(v: unknown, fixes: PredicateFix[]): FilterExpr {
+  if (!isRecord(v)) throw new BadExpression()
+  switch (v.kind) {
+    case 'and':
+    case 'or': {
+      if (!Array.isArray(v.items) || v.items.length === 0 || v.items.length > EXPRESSION_NODES_MAX) throw new BadExpression()
+      return { kind: v.kind, items: (v.items as unknown[]).map((item) => readExpressionNode(item, fixes)) }
+    }
+    case 'not':
+      return { kind: 'not', item: readExpressionNode(v.item, fixes) }
+    case 'person':
+    case 'tag':
+    case 'status': {
+      const id = v.id
+      if (typeof id !== 'number' || !Number.isInteger(id) || id < 0) throw new BadExpression()
+      return { kind: v.kind, id }
+    }
+    case 'priority': {
+      const value = v.value
+      if (value !== NO_PRIORITY && !(MARKER_KEYS as readonly unknown[]).includes(value)) throw new BadExpression()
+      return { kind: 'priority', value: value as MarkerClause['values'][number] }
+    }
+    case 'text': {
+      if (typeof v.text !== 'string' || v.text.trim() === '') throw new BadExpression()
+      const text = v.text.trim()
+      if (text.length <= PREDICATE_SEARCH_TEXT_MAX) return { kind: 'text', text }
+      fixes.push('text filter shortened')
+      return { kind: 'text', text: text.slice(0, PREDICATE_SEARCH_TEXT_MAX) }
+    }
+    case 'date': {
+      if (!isDateField(v.field)) throw new BadExpression()
+      const field = v.field
+      const m = readDateMatch(field, v.match, fixes)
+      if (!m) throw new BadExpression()
+      if (m.match !== 'range') return { kind: 'date', field, match: m }
+      const atom: FilterExpr = { kind: 'date', field, match: { match: 'range', start: m.start, end: m.end } }
+      if (m.not === true) return { kind: 'not', item: atom }
+      if (m.includeNoDate === true) return { kind: 'or', items: [atom, { kind: 'date', field, match: { match: 'unset' } }] }
+      return atom
+    }
+    default:
+      throw new BadExpression()
+  }
+}
+
+/**
+ * The stored expression in its normal form; `undefined` when absent (or
+ * `null`) or dropped — anything it can't read, or past the caps
+ * (`EXPRESSION_NODES_MAX`, `EXPRESSION_DEPTH_MAX`), drops it with a fix.
+ */
+function readExpression(raw: unknown, fixes: PredicateFix[]): FilterExpr | undefined {
+  if (raw === undefined || raw === null) return undefined
+  const own: PredicateFix[] = []
+  try {
+    const e = normalizeExpression(readExpressionNode(raw, own))
+    if (expressionSize(e) > EXPRESSION_NODES_MAX || expressionDepth(e) > EXPRESSION_DEPTH_MAX) throw new BadExpression()
+    fixes.push(...own)
+    return e
+  } catch (err) {
+    if (!(err instanceof BadExpression)) throw err
+    fixes.push('expression dropped')
+    return undefined
+  }
 }
 
 /** An id filter's name in a fix (`people filter dropped`). */

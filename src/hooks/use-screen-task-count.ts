@@ -7,6 +7,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useTodoStore } from '../stores/todo-store'
 import { useStatusUpdateStore } from '../stores/status-update-store'
 import { useSubtaskStore } from '../stores/subtask-store'
+import { useSettingsStore } from '../stores/settings-store'
 import { useFilterSettings } from './use-filter-settings'
 import { useToday } from './use-today'
 
@@ -14,7 +15,8 @@ import { useToday } from './use-today'
  * What the screen filter (the chips with the top bar's lens) keeps —
  * what its task dialog lists (open ones, completed too under Show
  * completed) — of every such task, and what the lens alone keeps
- * (`screenTaskCounts`), kept current.
+ * (`screenTaskCounts`), and its badge — the open tasks it shows that are
+ * due / due for a follow-up inside the tab badge ranges — kept current.
  */
 export function useScreenTaskCounts(): ScreenTaskCounts {
   const todos = useTodoStore((s) => s.todos)
@@ -26,12 +28,13 @@ export function useScreenTaskCounts(): ScreenTaskCounts {
   const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
   const { urgentRange, weekStartsOn } = useFilterSettings()
   const today = useToday()
+  const badgeRanges = useSettingsStore((s) => s.tabBadges)
   return useMemo(
     () => screenTaskCounts({
       todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn,
       markerSettings: { urgentRange },
-    }),
-    [todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, urgentRange],
+    }, badgeRanges),
+    [todos, screen, assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo, today, weekStartsOn, urgentRange, badgeRanges],
   )
 }
 

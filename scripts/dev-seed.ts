@@ -44,7 +44,7 @@ import type { Subtask } from '../src/models/subtask'
 import type { ListOrder } from '../src/models/list-order'
 import type { RecurrenceType } from '../src/models/recurrence'
 import type { ListDefinition } from '../src/models/list-definition'
-import type { DateAnchor, DateMatch, FilterClauses, TodoPredicate } from '../src/models/filter-predicate'
+import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-predicate'
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { DashboardTabConfig } from '../src/models/dashboard-config'
 import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
@@ -52,7 +52,7 @@ import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, WorkspaceLayout }
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 74
+export const DEV_SEED_SCHEMA_VERSION = 75
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -811,10 +811,6 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     tags: null,
     ...over,
   })
-  // An or group's clauses (the script runs under type stripping: no runtime imports from src/).
-  const clauses = (over: Partial<FilterClauses>): FilterClauses => ({
-    personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null, ...over,
-  })
   const rel = (token: 'start-of-week' | 'end-of-week' | 'start-of-next-week' | 'end-of-next-week' | 'tomorrow'
     | 'end-of-month' | 'start-of-next-month' | 'end-of-month-plus-3') => ({ kind: 'relative', token }) as const
   const range = (start: DateAnchor | null, end: DateAnchor | null, includeNoDate = false): DateMatch =>
@@ -859,15 +855,17 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       personIds: [0], negate: { personIds: true },
       dates: { lastFollowup: range(null, { kind: 'offset', days: -14 }, true) },
     }), 'lastFollowup', 'people', plan),
-    // "Is not" ranges as one or group's alternatives: hides the tasks followed
-    // up this past week that also have a next follow-up in the coming two weeks.
+    // An expression: hides the tasks followed up this past week that also
+    // have a next follow-up in the coming two weeks —
+    // `not followed within last 7 days or not followup within 14 days`.
     list(L.followupsToChase, 'Follow-ups to chase', filter({
-      orGroups: [clauses({
-        dates: {
-          lastFollowup: { match: 'range', start: { kind: 'offset', days: -7 }, end: { kind: 'relative', token: 'today' }, not: true },
-          followup: { match: 'range', start: { kind: 'relative', token: 'today' }, end: { kind: 'offset', days: 14 }, not: true },
-        },
-      })],
+      expression: {
+        kind: 'or',
+        items: [
+          { kind: 'not', item: { kind: 'date', field: 'lastFollowup', match: { match: 'range', start: { kind: 'offset', days: -7 }, end: { kind: 'relative', token: 'today' } } } },
+          { kind: 'not', item: { kind: 'date', field: 'followup', match: { match: 'range', start: { kind: 'relative', token: 'today' }, end: { kind: 'offset', days: 14 } } } },
+        ],
+      },
     }), 'followup', 'people', plan),
   ]
 

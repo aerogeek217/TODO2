@@ -45,8 +45,9 @@ describe('upgradeV71 (pure): a version marker, no data change', () => {
     const data: DataSet = { listDefinitions: [v70List(), notList(), { membership: 5 }], todos: [] }
     expect(upgradeV71(data)).toBe(data)
     expect(upgradeV71({})).toEqual({})
-    expect(upgradeDataSet(data, 70, CURRENT_DB_VERSION)).toBe(data)
-    expect(upgradeDataSet(data, 68, CURRENT_DB_VERSION)).toBe(data)
+    // Up to v74: v75 turns or groups into expressions.
+    expect(upgradeDataSet(data, 70, 74)).toBe(data)
+    expect(upgradeDataSet(data, 68, 74)).toBe(data)
   })
 })
 
@@ -64,7 +65,7 @@ describe('v71 files', () => {
     expect(prepared.data.listDefinitions[0]!.membership).toEqual(v70List().membership)
   })
 
-  it('an export holding "is not" ranges is stamped v71 or later, so a v70 build refuses it as too new', async () => {
+  it('an export holding "is not" ranges is stamped v71 or later, so a v70 build refuses it as too new (its or group read back since v75 as an expression)', async () => {
     await db.listDefinitions.add(notList() as never)
     const exported = await buildExportData()
     expect(exported[SCHEMA_VERSION_KEY]).toBe(CURRENT_DB_VERSION)
@@ -72,6 +73,13 @@ describe('v71 files', () => {
     const prepared = prepareImport(JSON.parse(JSON.stringify(exported)) as unknown)
     if (!prepared.ok) throw new Error(prepared.error)
     expect(prepared.warnings).toEqual([])
-    expect(prepared.data.listDefinitions[0]!.membership).toEqual(notList().membership)
+    const notRange = (field: string, start: unknown, end: unknown) => ({ kind: 'not', item: { kind: 'date', field, match: { match: 'range', start, end } } })
+    expect(prepared.data.listDefinitions[0]!.membership).toEqual({
+      kind: 'custom',
+      predicate: { ...emptyPredicate(), expression: { kind: 'or', items: [
+        notRange('followup', { kind: 'relative', token: 'today' }, { kind: 'offset', days: 14 }),
+        notRange('lastFollowup', { kind: 'offset', days: -7 }, { kind: 'relative', token: 'today' }),
+      ] } },
+    })
   })
 })

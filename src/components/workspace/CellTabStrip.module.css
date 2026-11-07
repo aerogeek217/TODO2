@@ -91,47 +91,22 @@
   color: var(--color-text-muted);
 }
 
+/* The top bar's lens on the tab's list (its filter line hidden): accent while
+ * it hides rows here, muted and slashed while the list ignores it. */
+.lensMark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-accent-text);
+}
+
+.lensMarkOff {
+  color: var(--color-text-muted);
+}
+
 /* A badged tab tightens up a little around its capsule. */
 .hasBadge {
   gap: 4px;
   padding: 0 8px;
-}
-
-/* A list's due and follow-up counts, one capsule. Solid: some of it is overdue. */
-.badge {
-  display: inline-flex;
-  flex-shrink: 0;
-  height: 14px;
-  border-radius: 7px;
-  overflow: hidden;
-  font-size: 10.5px;
-  font-weight: var(--font-weight-bold);
-  line-height: 14px;
-}
-
-.badgeDue,
-.badgeFollowup {
-  padding: 0 4px;
-}
-
-.badgeDue {
-  background: var(--color-overdue-bg-strong);
-  color: var(--color-overdue);
-}
-
-.badgeDueOverdue {
-  background: var(--cal-overdue-solid);
-  color: var(--cal-on-overdue);
-}
-
-.badgeFollowup {
-  background: var(--color-followup-bg-strong);
-  color: var(--color-followup);
-}
-
-.badgeFollowupOverdue {
-  background: var(--cal-followup-solid);
-  color: var(--cal-on-followup);
 }
 
 /* The tab's list has unsaved edits. */

@@ -63,14 +63,14 @@ export function EntitiesSection({ mobile }: SettingsBodyProps) {
     <div className={styles.section}>
       {!mobile && (
         <>
-          <SettingRow label="People" help={count(peopleCount, 'person', 'people')}>
+          <SettingRow label="People" status={count(peopleCount, 'person', 'people')}>
             <button type="button" className={button} onClick={() => setEditor('people')}>Manage people…</button>
           </SettingRow>
           <CheckinOpenMethodSetting />
-          <SettingRow label="Statuses" help={count(statusCount, 'status', 'statuses')}>
+          <SettingRow label="Statuses" status={count(statusCount, 'status', 'statuses')}>
             <button type="button" className={button} onClick={() => setEditor('statuses')}>Manage statuses…</button>
           </SettingRow>
-          <SettingRow label="Tags" help={count(tagCount, 'tag', 'tags')}>
+          <SettingRow label="Tags" status={count(tagCount, 'tag', 'tags')}>
             <button type="button" className={button} onClick={() => setEditor('tags')}>Manage tags…</button>
           </SettingRow>
         </>

@@ -1,6 +1,6 @@
-/* The app's one top bar (desktop): New task, the layout tabs (or picker) +
- * save, the lens control, the screen-filter tray, then the storage pill and
- * the Settings gear.
+/* The app's one top bar (desktop): the layout tabs (or picker) + save, the
+ * lens control, the screen-filter tray, then the storage pill, the Settings
+ * gear and New task.
  * It never wraps; when it runs out of room (measured) the tray shrinks (the
  * search, then long filter values), then the filters fold into a menu, then
  * the layout tabs into the picker. The filtered-tasks panel
@@ -46,7 +46,7 @@
   pointer-events: none;
 }
 
-/* ═══ New task (the + alone; the name is its tooltip) ═══ */
+/* ═══ New task (the + alone, last in the right zone after the gear; the name is its tooltip) ═══ */
 
 .newTask {
   display: inline-flex;
@@ -55,7 +55,6 @@
   width: 28px;
   height: 28px;
   padding: 0;
-  margin-right: 4px;
   border: none;
   border-radius: var(--radius-md);
   background: var(--color-accent);

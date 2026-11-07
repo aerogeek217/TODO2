@@ -10,7 +10,7 @@
 
 .row {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
+  grid-template-columns: 240px minmax(0, 1fr);
   gap: 16px;
   align-items: start;
 }
@@ -20,6 +20,17 @@
   flex-direction: column;
   gap: 2px;
   padding-top: 5px;
+}
+
+/* The label and its ⓘ (`HelpTip`), the icon kept beside the label's last word. */
+.labelLine {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.labelLine > [data-help-tip] {
+  margin-top: -1px;
 }
 
 .label {
@@ -41,6 +52,19 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+}
+
+/* A labelled control on its own line in a column row (Tab badges: Due / Follow-up). */
+.subControl {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.subLabel {
+  min-width: 64px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
 }
 
 .controlColumn {
@@ -516,6 +540,19 @@
   margin-top: 10px;
   padding-top: 20px;
   border-top: 1px solid var(--color-border-muted);
+}
+
+.partHead {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.partHelp {
+  margin: -6px 0 0;
+  font-size: var(--font-size-meta);
+  line-height: 1.5;
+  color: var(--color-text-muted);
 }
 
 .partTitle {

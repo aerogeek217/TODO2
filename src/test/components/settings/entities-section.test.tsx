@@ -47,7 +47,9 @@ describe('EntitiesSection — Email check-ins open as', () => {
 describe('EntitiesSection — Unused people & tags', () => {
   it('desktop: the row comes after Tags; Find unused… opens the dialog, × closes it', async () => {
     render(<EntitiesSection mobile={false} />)
-    expect(screen.getAllByRole('button').map((b) => b.textContent)).toEqual(['Manage people…', 'Manage statuses…', 'Manage tags…', 'Find unused…'])
+    // Each ⓘ is an `About …` button; the actions are the rest.
+    const actions = screen.getAllByRole('button').filter((b) => !b.hasAttribute('data-help-tip'))
+    expect(actions.map((b) => b.textContent)).toEqual(['Manage people…', 'Manage statuses…', 'Manage tags…', 'Find unused…'])
     expect(screen.getByText('Unused people & tags')).toBeInTheDocument()
     expect(screen.getByText('People and tags no task has.')).toBeInTheDocument()
     expect(screen.queryByTestId('unused-entities')).toBeNull()

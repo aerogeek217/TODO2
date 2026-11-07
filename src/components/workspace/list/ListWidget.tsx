@@ -6,10 +6,11 @@ import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
 import { useKeptTodos, useLeavingRows } from '../../../hooks/use-leaving-rows'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
+import { useListScreenFilter } from '../../../hooks/use-list-screen-filter'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useListDraftStore } from '../../../stores/list-draft-store'
-import { useEffectiveListDefinition } from '../../../hooks/use-list-draft'
+import { useEffectiveListDefinition, useIsListDirty } from '../../../hooks/use-list-draft'
+import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListWidgetStore } from '../../../stores/list-widget-store'
 import { useListOrderStore, useListRanks } from '../../../stores/list-order-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -52,7 +53,7 @@ import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { hasMarkers } from '../../../utils/markers'
-import { hasOrGroups } from '../../../utils/or-groups'
+import { topLevelPredicate } from '../../../utils/predicate-expression'
 import { resolvePriorityDrop, type PriorityDrop } from '../../../utils/priority-groups'
 import { useToday } from '../../../hooks/use-today'
 import { useFilterSettings } from '../../../hooks/use-filter-settings'
@@ -64,10 +65,26 @@ import { LIST_SECTION_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-cont
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { transitionName, withViewTransition } from '../../shared/view-transition'
 
-/** What a list widget reports to its cell (tab count, Copy tasks). */
+/** The top bar's lens on one list, as its tab shows it while the list's filter line is hidden. */
+export interface ListLensMark {
+  /** The lens's name. */
+  name: string
+  /** The list ignores the lens (`ListDefinition.ignoreLens`). */
+  ignored: boolean
+  /** What the lens hides (or would hide) here. */
+  hides: number
+}
+
+/** What a list widget reports to its cell (tab count, its menu's lens switch, Copy tasks). */
 export interface ListWidgetResult {
-  /** `N`, `shown of total` when screen filters hide tasks, or `—` while the prompt is unanswered. */
-  countLabel: string
+  /**
+   * The tab's count — `N`, `shown of total` when screen filters hide tasks,
+   * or `—` while the prompt is unanswered — only while the list's filter
+   * line is hidden; the line shows it otherwise.
+   */
+  countLabel?: string
+  /** The top bar's lens on this list, while one applies there: the tab menu's switch; on the tab while the line is hidden. */
+  lens?: ListLensMark & { listId: number }
   /** The sections shown, for Copy tasks. */
   sections: readonly Section[]
   /** The list shows group headers (Collapse all / Expand all groups apply). */
@@ -130,8 +147,11 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const setPicks = useListWidgetStore((s) => s.setPicks)
   const collapsed = useListWidgetStore((s) => s.collapsed[tab.id])
   const toggleGroup = useListWidgetStore((s) => s.toggleGroup)
-  const { filters: screen, active: screenActive } = useScreenFilter()
-  const lens = useAppliedLens()
+  const screenFor = useListScreenFilter(definition.id)
+  // The lens as it applies to this list (none while the list ignores it).
+  const lens = screenFor.ignoresLens ? undefined : screenFor.lens
+  const unsaved = useIsListDirty(definition.id)
+  const filterLineShown = definition.showFilterLine !== false || unsaved
   const screenChips = useScreenChips()
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -158,11 +178,12 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   // A row completed here lingers, then folds, before it drops out (D19; desktop rows).
   const shownIdsRef = useRef<ReadonlySet<number>>(new Set())
   const leaving = useLeavingRows((id) => shownIdsRef.current.has(id))
-  const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, kept } = useBuiltList(
+  const { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, kept, lensHides } = useBuiltList(
     definition,
     picks,
-    screenActive ? screen : undefined,
+    screenFor.filters,
     isMobile ? undefined : leaving,
+    screenFor.probe,
   )
   useEffect(() => { shownIdsRef.current = new Set(list?.todos.map((t) => t.id)) })
   // A kept row is built as it was (open); it shows as it is now (completed).
@@ -178,14 +199,16 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
 
   // + Add task: only when the merged predicate names people / status / tags
   // / markers to seed the new task with (an "is not" field or several
-  // priorities seed nothing, but keep the button — and so does an or group: which of its clauses a
-  // new task should meet is ambiguous, so only the clauses outside it seed).
-  const canAddTask = mergedPredicate != null && (
-    mergedPredicate.personIds != null
-    || mergedPredicate.statusIds != null
-    || (mergedPredicate.tags != null && mergedPredicate.tags.length > 0)
-    || hasMarkers(mergedPredicate.markers)
-    || hasOrGroups(mergedPredicate)
+  // priorities seed nothing, but keep the button). An expression keeps it
+  // too: only its top-level terms a chip could say seed (`topLevelPredicate`);
+  // which side of an `or` a new task should meet is ambiguous.
+  const seeding = mergedPredicate && topLevelPredicate(mergedPredicate)
+  const canAddTask = mergedPredicate != null && seeding != null && (
+    seeding.personIds != null
+    || seeding.statusIds != null
+    || (seeding.tags != null && seeding.tags.length > 0)
+    || hasMarkers(seeding.markers)
+    || mergedPredicate.expression != null
   )
 
   const groupedBy = definition.grouping
@@ -193,10 +216,30 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
   const manual = definition.sort === 'manual'
   const collapsedKeys = useMemo(() => new Set(collapsed ?? []), [collapsed])
 
+  // The lens on this list, while one applies at the top bar: shown while
+  // it hides something here, or while the list ignores it (so it can be
+  // turned back on).
+  const lensName = screenFor.lens?.name
+  const lensMark = useMemo<ListLensMark | undefined>(
+    () => (lensName != null && !runtimeFilterPending && (screenFor.ignoresLens || lensHides > 0)
+      ? { name: lensName, ignored: screenFor.ignoresLens, hides: lensHides }
+      : undefined),
+    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides],
+  )
+  const toggleLens = useCallback(() => {
+    void useListDefinitionStore.getState().setIgnoreLens(definition.id, !screenFor.ignoresLens)
+  }, [definition.id, screenFor.ignoresLens])
+
   const onResultRef = useLatestRef(onResult)
+  const tabCount = filterLineShown ? undefined : countLabel
   useEffect(() => {
-    onResultRef.current?.({ countLabel, sections: sections, grouped })
-  }, [countLabel, sections, grouped, onResultRef])
+    onResultRef.current?.({
+      ...(tabCount != null ? { countLabel: tabCount } : {}),
+      ...(lensMark ? { lens: { ...lensMark, listId: definition.id } } : {}),
+      sections,
+      grouped,
+    })
+  }, [tabCount, lensMark, definition.id, sections, grouped, onResultRef])
 
   // ── Selection: one widget at a time, rows addressed by occurrence ──
   const rows = useMemo<ScopedRow[]>(
@@ -463,7 +506,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
           onChange={(ids) => setPicks(tab.id, ids)}
         />
       )}
-      <ListFilterRow tabId={tab.id} definition={definition} />
+      <ListFilterRow tabId={tab.id} definition={definition} count={countLabel} lens={lensMark} onToggleLens={toggleLens} />
       <div ref={setScrollEl} className={styles.scroll}>
         {body}
       </div>

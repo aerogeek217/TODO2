@@ -1,6 +1,6 @@
-import { useCallback, useId, useLayoutEffect, useRef } from 'react'
-import { useUIStore } from '../../stores/ui-store'
-import { SETTINGS_SECTIONS, scrollToSettingsPart, settingsSection } from './sections/settings-sections'
+import { Fragment, useCallback, useId, useLayoutEffect, useRef, useState } from 'react'
+import { useUIStore, type SettingsPartId } from '../../stores/ui-store'
+import { SETTINGS_SECTIONS, partInView, scrollToSettingsPart, settingsSection } from './sections/settings-sections'
 import { SettingsLayerContext } from './sections/settings-layer'
 import { SettingsSectionBody } from './sections/SettingsSectionBody'
 import { DialogFrame } from '../shared/Dialog'
@@ -9,7 +9,9 @@ import styles from './SettingsModal.module.css'
 /**
  * Desktop Settings: a large modal over the workspace, one section at a time
  * with the section list on the left; a merged section shows its parts under
- * headings, and a deep link to a part opens the section scrolled to it. Opening or closing it never changes
+ * headings, listed under it in the nav as jump links (the part in view
+ * marked as the content scrolls), and a deep link to a part opens the
+ * section scrolled to it. Opening or closing it never changes
  * the route, so it never triggers the unsaved-layout prompt. Esc, × or a
  * backdrop click closes it — unless an editor or dialog a section opened is
  * on top (that layer owns Esc). With a lens's unsaved filter edits, closing
@@ -43,6 +45,18 @@ function SettingsModalFrame() {
   const layers = useRef(0)
   const registerLayer = useCallback((delta: 1 | -1) => { layers.current += delta }, [])
   const section = settingsSection(sectionId)
+  // The merged section's part in view (marked in the nav); kept per section.
+  // The part last jumped to stays marked while its heading is in view.
+  const [inView, setInView] = useState<{ section: string; part: string | null }>({ section: sectionId, part: null })
+  const jumpedRef = useRef<SettingsPartId | null>(null)
+  const updateInView = useCallback(() => {
+    const content = contentRef.current
+    if (!content) return
+    const part = partInView(content, jumpedRef.current)
+    if (part !== jumpedRef.current) jumpedRef.current = null
+    setInView((prev) => (prev.section === sectionId && prev.part === part ? prev : { section: sectionId, part }))
+  }, [sectionId])
+  useLayoutEffect(updateInView, [updateInView])
 
   // A deep link to a part: show the section scrolled to it (and focus the
   // control it names, before the frame takes the focus), then forget it.
@@ -50,11 +64,13 @@ function SettingsModalFrame() {
     if (!part) return
     const content = contentRef.current
     if (content) {
+      jumpedRef.current = part
       scrollToSettingsPart(content, part)
       if (focus) content.querySelector<HTMLElement>(`[data-settings-focus="${focus}"]`)?.focus()
     }
     useUIStore.getState().clearSettingsPart()
-  }, [part, focus, sectionId])
+    updateInView()
+  }, [part, focus, sectionId, updateInView])
 
   // A section's editor or dialog, or another overlay, owns Esc while open.
   const escapeBelongsElsewhere = useCallback(() => layers.current > 0 || anotherLayerIsOpen(), [])
@@ -81,20 +97,36 @@ function SettingsModalFrame() {
       </div>
       <div className={styles.body}>
         <nav className={styles.nav} aria-label="Settings sections">
-          {SETTINGS_SECTIONS.map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              type="button"
-              className={`${styles.navItem} ${id === section.id ? styles.navItemActive : ''}`}
-              aria-current={id === section.id ? 'true' : undefined}
-              onClick={() => setSection(id)}
-            >
-              <span className={styles.navIcon}><Icon /></span>
-              {label}
-            </button>
+          {SETTINGS_SECTIONS.map(({ id, label, Icon, parts }) => (
+            <Fragment key={id}>
+              <button
+                type="button"
+                className={`${styles.navItem} ${id === section.id ? styles.navItemActive : ''}`}
+                aria-current={id === section.id ? 'true' : undefined}
+                onClick={() => setSection(id)}
+              >
+                <span className={styles.navIcon}><Icon /></span>
+                {label}
+              </button>
+              {parts.length > 1 && parts.map((p) => {
+                const marked = id === section.id && inView.section === section.id && inView.part === p.id
+                return (
+                  <button
+                    key={p.id}
+                    type="button"
+                    className={`${styles.navPart} ${marked ? styles.navPartInView : ''}`}
+                    aria-current={marked ? 'location' : undefined}
+                    data-settings-nav-part={p.id}
+                    onClick={() => setSection(p.id)}
+                  >
+                    {p.label}
+                  </button>
+                )
+              })}
+            </Fragment>
           ))}
         </nav>
-        <section ref={contentRef} className={styles.content} aria-labelledby={sectionTitleId}>
+        <section ref={contentRef} className={styles.content} aria-labelledby={sectionTitleId} onScroll={updateInView}>
           <h2 id={sectionTitleId} className={styles.sectionTitle}>{section.label}</h2>
           <div className={styles.rule} />
           <SettingsLayerContext.Provider value={registerLayer}>
