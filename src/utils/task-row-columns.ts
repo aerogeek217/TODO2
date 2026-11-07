@@ -18,8 +18,9 @@
  */
 
 /**
- * The `MM/DD` text's width in the row's meta font (12px, tabular figures),
- * px: measured in the app font (34; the system fallbacks are narrower).
+ * The `MM/DD` text's width in the row's meta font, px: measured in the app
+ * font at 12px, tabular figures (34; the system fallbacks are narrower).
+ * The 11.5px meta (D25 B) draws it narrower; the part keeps this width.
  */
 const DATE_TEXT = 34
 /** A date part's icon (1em of the meta font), px — the placeholder, or the repeat glyph before a repeating task's date. */
@@ -64,16 +65,21 @@ export function datesParts(tier: DatesTier): { due: number; followup: number; ga
   return { due: datePart(tier !== 'icons'), followup: datePart(tier === 'both'), gap: DATE_PARTS_GAP }
 }
 
-/** Track widths and spacing, px. */
+/**
+ * Track widths and spacing, px. The marker gutter (D25 B: the priority
+ * menu's trigger, a flag on row hover; the priority itself is the ring on
+ * the checkbox) is 8px, its hit area reaching into the 2px left padding:
+ * 10px from the row's edge.
+ */
 export const TASK_ROW = {
-  gutter: 5,
+  gutter: 8,
   checkbox: 18,
   /** The title never gets narrower than this while the details can give way. */
   titleMin: 80,
   notes: 16,
   status: 20,
   gap: 5,
-  padLeft: 6,
+  padLeft: 2,
   padRight: 8,
 } as const
 

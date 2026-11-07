@@ -68,6 +68,35 @@ export function markerSummary(
 }
 
 /**
+ * How a task row's checkbox draws its priority (D25 B): one ring — Urgent,
+ * Important or Focus —, or Urgent and Important as a split ring (top-right
+ * urgent, bottom-left important). Urgent only by its due date is dashed.
+ * Focus under another ring adds an accent dot in the marker gutter. A
+ * completed task has none.
+ */
+export interface PriorityRingSpec {
+  kind: 'none' | 'urgent' | 'important' | 'focus' | 'split'
+  /** The urgent ring (or the split's urgent half) is dashed: urgent only by the due date. */
+  urgentDashed: boolean
+  /** Focus sits under another ring: the gutter's accent dot. */
+  focusDot: boolean
+}
+
+const NO_RING: PriorityRingSpec = { kind: 'none', urgentDashed: false, focusDot: false }
+
+/** The ring for a task's markers (`markerSummary`); `completed` = the checked box, no ring. */
+export function priorityRing(summary: Pick<MarkerSummary, 'focus' | 'urgent' | 'important'>, completed: boolean): PriorityRingSpec {
+  if (completed) return NO_RING
+  const urgent = summary.urgent !== null
+  const kind = urgent && summary.important ? 'split'
+    : urgent ? 'urgent'
+      : summary.important ? 'important'
+        : summary.focus ? 'focus'
+          : 'none'
+  return { kind, urgentDashed: summary.urgent === 'date', focusDot: summary.focus && kind !== 'focus' && kind !== 'none' }
+}
+
+/**
  * A task's place in the Priority sort, first to last: Focus, then Urgent and
  * Important, Urgent, Important, none. Urgent is effective urgent (flagged or
  * due within `range`, overdue included).

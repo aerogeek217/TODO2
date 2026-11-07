@@ -16,14 +16,14 @@ function titleWidth(width: number, laidOut: number): number {
 }
 
 describe('taskRowColumns', () => {
-  it('splits the default details width in a 540px list: people 60, tags 90, the dates 94, title 176', () => {
+  it('splits the default details width in a 540px list: people 60, tags 90, the dates 94, title 177', () => {
     const cols = taskRowColumns(528)
     expect(cols.details).toBe(DEFAULT_DETAILS_WIDTH)
     expect(cols.laidOut).toBe(DEFAULT_DETAILS_WIDTH)
     expect([cols.people, cols.tags, cols.dates, cols.datesTier]).toEqual([60, 90, 94, 'both'])
     // Status is the last track (the task menu is right-click / Shift+F10 only).
-    expect(cols.template).toBe('5px 18px minmax(0, 1fr) 16px 60px 90px 94px 20px')
-    expect(titleWidth(528, cols.laidOut)).toBe(176)
+    expect(cols.template).toBe('8px 18px minmax(0, 1fr) 16px 60px 90px 94px 20px')
+    expect(titleWidth(528, cols.laidOut)).toBe(177)
   })
 
   it('people take 40% of F, within 22 … 64; tags the rest', () => {
@@ -44,18 +44,18 @@ describe('taskRowColumns', () => {
     // Then tags go (people take their gap), then people.
     const noTags = taskRowColumns(2000, 149)
     expect(noTags).toMatchObject({ datesTier: 'icons', people: 60, tags: 0 })
-    expect(noTags.template).toBe('5px 18px minmax(0, 1fr) 16px 60px 38px 20px')
+    expect(noTags.template).toBe('8px 18px minmax(0, 1fr) 16px 60px 38px 20px')
     expect(noTags.laidOut).toBe(149)
     expect(taskRowColumns(2000, 111)).toMatchObject({ people: 22, tags: 0 })
     const neither = taskRowColumns(2000, 110)
     expect(neither).toMatchObject({ people: 0, tags: 0, datesTier: 'icons' })
-    expect(neither.template).toBe('5px 18px minmax(0, 1fr) 16px 38px 20px')
+    expect(neither.template).toBe('8px 18px minmax(0, 1fr) 16px 38px 20px')
     expect(neither.laidOut).toBe(84)
   })
 
   it('clamps a stored width to min (notes, the dates as icons, status) … max (title keeps 80px); the bounds follow the width', () => {
     const wide = taskRowColumns(528, 4000)
-    expect(wide.maxDetails).toBe(528 - 14 - 38 - 80)
+    expect(wide.maxDetails).toBe(528 - 10 - 41 - 80)
     expect(wide.details).toBe(wide.maxDetails)
     expect(titleWidth(528, wide.laidOut)).toBe(80)
     const tight = taskRowColumns(528, 0)
@@ -64,17 +64,17 @@ describe('taskRowColumns', () => {
     expect(tight.datesTier).toBe('icons')
     // The same stored value in a wider list: no longer clamped.
     expect(taskRowColumns(1200, 600).details).toBe(600)
-    expect(taskRowColumns(700, 600).details).toBe(700 - 14 - 38 - 80)
+    expect(taskRowColumns(700, 600).details).toBe(700 - 10 - 41 - 80)
   })
 
   it('the list width caps the details, and so the dates: the follow-up date goes first, then the due date', () => {
     // Both dates while people and tags keep their split at the widest details.
-    expect(taskRowColumns(338)).toMatchObject({ datesTier: 'both', dates: 94 })
-    expect(taskRowColumns(337)).toMatchObject({ datesTier: 'due', dates: 66 })
-    expect(taskRowColumns(310)).toMatchObject({ datesTier: 'due', dates: 66 })
-    expect(taskRowColumns(309)).toMatchObject({ datesTier: 'icons', dates: 38 })
+    expect(taskRowColumns(337)).toMatchObject({ datesTier: 'both', dates: 94 })
+    expect(taskRowColumns(336)).toMatchObject({ datesTier: 'due', dates: 66 })
+    expect(taskRowColumns(309)).toMatchObject({ datesTier: 'due', dates: 66 })
+    expect(taskRowColumns(308)).toMatchObject({ datesTier: 'icons', dates: 38 })
     // A wider stored width can't widen them past what the list gives.
-    expect(taskRowColumns(308, 4000).datesTier).toBe('icons')
+    expect(taskRowColumns(307, 4000).datesTier).toBe('icons')
     // In a wide list the details width sets them.
     expect(taskRowColumns(1200, 300).datesTier).toBe('both')
     expect(taskRowColumns(1200, 200).datesTier).toBe('due')
@@ -82,9 +82,9 @@ describe('taskRowColumns', () => {
   })
 
   it('a 320px list shows the dates as icons and keeps people and tags', () => {
-    const cols = taskRowColumns(308)
+    const cols = taskRowColumns(307)
     expect(cols.minDetails).toBe(84)
-    expect(cols.details).toBe(308 - 14 - 38 - 80)
+    expect(cols.details).toBe(307 - 10 - 41 - 80)
     // F = 176 − 74 − 20 = 82.
     expect([cols.people, cols.tags]).toEqual([33, 49])
   })

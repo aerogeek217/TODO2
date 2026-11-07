@@ -111,7 +111,11 @@
   --font-size-display: 36px;
   /* A task-list group header's name (D25 A1: 13px bold over the 12px count). */
   --font-size-group-name: 13px;
+  /* A task row's dates, tags and counts (D25 B: tabular figures, in the muted text). */
+  --font-size-row-meta: 11.5px;
   --font-weight-regular: 400;
+  /* A task row's title (D25 B); a priority's semibold cue is 600. */
+  --font-weight-medium: 500;
   --font-weight-semibold: 600;
   --font-weight-bold: 700;
   /* The colour wheel a colour picker's custom swatch shows (any colour, not a
@@ -223,10 +227,13 @@
   /* A calendar day cell. */
   --cal-day-fill: var(--color-tint-5);
 
-  /* Task markers (shown before the title when set). */
+  /* Task markers: a task row's priority ring on its checkbox (D25 B), the editor's toggles, the menus. */
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+  /* The fill inside a lone Urgent / Important ring. */
+  --color-marker-urgent-fill: color-mix(in srgb, var(--color-marker-urgent) 10%, transparent);
+  --color-marker-important-fill: color-mix(in srgb, var(--color-marker-important) 8%, transparent);
   /* A priority's row glow (D19's Ember, `utils/priority-cues`). */
   --priority-glow-strength: 11%;
 
@@ -452,10 +459,13 @@
   --notes-text-cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='8' height='16'><path d='M2 1 H6 M4 1 V15 M2 15 H6' stroke='black' stroke-width='1' fill='none'/></svg>") 4 8, text;
   --cal-day-fill: var(--color-tint-4);
 
-  /* Task markers (shown before the title when set). */
+  /* Task markers: a task row's priority ring on its checkbox (D25 B), the editor's toggles, the menus. */
   --color-marker-urgent: var(--color-danger);
   --color-marker-important: var(--color-followup);
   --color-marker-focus: var(--color-accent);
+  /* The fill inside a lone Urgent / Important ring. */
+  --color-marker-urgent-fill: color-mix(in srgb, var(--color-marker-urgent) 10%, transparent);
+  --color-marker-important-fill: color-mix(in srgb, var(--color-marker-important) 8%, transparent);
   /* Stronger than the dark theme's 11 %: on a light surface a tint shows
      less, and at 7 % it didn't show at all (cr31 M5). As visible as dark's. */
   --priority-glow-strength: 12%;

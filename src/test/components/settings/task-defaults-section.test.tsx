@@ -56,6 +56,18 @@ describe('TaskDefaultsSection — Remove note lines after converting', () => {
   })
 })
 
+describe('TaskDefaultsSection — Priority cues', () => {
+  it('each priority shows its checkbox ring as the rows draw it (D25 B)', () => {
+    render(<TaskDefaultsSection />)
+    const rings = Array.from(document.querySelectorAll('[data-cue-ring]')).map((el) => [
+      el.getAttribute('data-cue-ring'),
+      el.querySelector('[data-priority-ring]')?.getAttribute('data-priority-ring'),
+    ])
+    expect(rings).toEqual([['focus', 'focus'], ['urgent', 'urgent'], ['important', 'important']])
+    expect(screen.getByText("Beside the ring on each task's checkbox. Several glows blend along the row.")).toBeInTheDocument()
+  })
+})
+
 describe('TaskDefaultsSection — Due date makes a task urgent', () => {
   it('shows the range (default Within 3 days) with its help line and offers Off · Today · 1 · 2 · 3 days · 1 · 2 weeks', () => {
     render(<TaskDefaultsSection />)
@@ -64,7 +76,7 @@ describe('TaskDefaultsSection — Due date makes a task urgent', () => {
     expect([...select.options].map((o) => o.textContent)).toEqual([
       'Off', 'Today', 'Within 1 day', 'Within 2 days', 'Within 3 days', 'Within 1 week', 'Within 2 weeks',
     ])
-    expect(screen.getByText('Overdue tasks count too. They show a clock instead of the urgent mark.')).toBeInTheDocument()
+    expect(screen.getByText('Overdue tasks count too. A task urgent by its due date gets a dashed ring.')).toBeInTheDocument()
   })
 
   it('picking a choice saves the setting', async () => {

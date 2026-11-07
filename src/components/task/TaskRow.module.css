@@ -10,23 +10,27 @@
   display: grid;
   column-gap: 5px;
   align-items: center;
-  padding: 1px 8px 1px 6px;
+  /* The left padding, gutter, gap and checkbox: `TASK_ROW` (`utils/task-row-columns`). */
+  padding: 1px 8px 1px 2px;
   border-radius: var(--radius-chip);
   transition: background 0.1s, opacity 0.3s ease;
   position: relative;
   cursor: grab;
-  min-height: 28px;
+  min-height: 30px;
+  /* Where the title starts: padding 2 + gutter 8 + gap 5 + checkbox 18 + gap 5. */
+  --row-title-start: 38px;
 }
 
-/* Separator line between list rows, inset from the rounded corners. */
+/* A flat list's separator: a faint hairline from the title's start to the
+ * row's rounded corner (D25 B), so the checkboxes' column stays clear. */
 .row::after {
   content: '';
   position: absolute;
-  left: var(--space-4);
+  left: var(--row-title-start);
   right: var(--space-4);
   bottom: 0;
   height: 1px;
-  background: var(--color-border);
+  background: var(--color-border-muted);
   pointer-events: none;
 }
 
@@ -113,6 +117,11 @@
   border-color: var(--color-text-secondary);
 }
 
+/* A priority ring over the box (`PriorityRing`) replaces its border. */
+.checkWrap:has([data-priority-ring]) .checkbox:not(:checked) {
+  border-color: transparent;
+}
+
 .checkbox:checked {
   background: var(--color-accent);
   border-color: var(--color-accent);
@@ -196,6 +205,7 @@
 .title {
   display: block;
   font-size: var(--font-size-task);
+  font-weight: var(--font-weight-medium);
   color: var(--color-text-primary);
   min-width: 0;
   overflow: hidden;
@@ -285,7 +295,8 @@
   background: transparent;
   color: var(--color-text-muted);
   font-family: inherit;
-  font-size: var(--font-size-meta);
+  /* The row's meta type (D25 B): dates, tags, counts — tabular, muted. */
+  font-size: var(--font-size-row-meta);
   white-space: nowrap;
   overflow: hidden;
   cursor: pointer;
@@ -340,28 +351,38 @@
   color: var(--color-text-secondary);
 }
 
-/* Marker gutter: three dots; the hit area reaches into the row's left padding. */
+/*
+ * Marker gutter (D25 B): the priority menu's trigger before the checkbox —
+ * empty at rest (the Focus dot when Focus sits under another ring), a small
+ * flag while the row is hovered or focused or the menu is open. Its hit area
+ * reaches into the row's left padding (10px from the row's edge).
+ */
 .gutter {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 5px;
+  width: 8px;
   height: 24px;
   padding: 0;
   border: none;
   background: transparent;
+  color: var(--color-text-muted);
   cursor: pointer;
 }
 
 .gutter::before {
   content: '';
   position: absolute;
-  left: -6px;
-  right: -2px;
+  left: -2px;
+  right: 0;
   top: 0;
   bottom: 0;
   border-radius: var(--radius-sm);
+}
+
+.gutter:hover {
+  color: var(--color-text-secondary);
 }
 
 .gutter:hover::before,
@@ -371,15 +392,50 @@
 
 .gutter.cellOpen {
   background: transparent;
+  color: var(--color-accent-text);
 }
 
-/* The focus ring goes round the hit area (4px radius), not the 5px dot column. */
+/* The focus ring goes round the hit area (4px radius), not the 8px column. */
 .gutter:focus-visible {
   box-shadow: none;
 }
 
 .gutter:focus-visible::before {
   box-shadow: var(--focus-ring);
+}
+
+/* The flag and the Focus dot share the column's centre. */
+.gutterFlag,
+.gutterDot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  transition: opacity var(--transition-fast);
+}
+
+.gutterFlag {
+  display: inline-flex;
+  opacity: 0;
+}
+
+.gutterDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--color-marker-focus);
+}
+
+.row:hover .gutterFlag,
+.row:focus-within .gutterFlag,
+.rowDropdownOpen .gutterFlag {
+  opacity: 1;
+}
+
+.row:hover .gutterDot,
+.row:focus-within .gutterDot,
+.rowDropdownOpen .gutterDot {
+  opacity: 0;
 }
 
 /*
@@ -588,10 +644,15 @@
   box-sizing: border-box;
 }
 
-/* Touch screens have no hover: placeholders stay visible. */
+/* Touch screens have no hover: placeholders and the gutter's flag stay visible. */
 @media (hover: none) {
-  .ph {
+  .ph,
+  .gutterFlag {
     opacity: 1;
+  }
+
+  .gutterDot {
+    opacity: 0;
   }
 }
 

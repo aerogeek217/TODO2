@@ -403,20 +403,32 @@ describe('TaskRow', () => {
       useSettingsStore.setState({ urgentDueWithinDays: 3 })
     })
 
-    it('three dots Focus · Urgent · Important in one button named by the markers, before the checkbox', () => {
+    it('one button named by the markers before the checkbox: a flag (shown on hover), the ring on the checkbox, the Focus dot under another ring', () => {
       render(<TaskRow todo={makeTodo({ id: 1, title: 'All three', urgent: true, important: true, focus: true })} />)
       const gutter = screen.getByRole('button', { name: 'Priority: Focus, Urgent, Important' })
-      const dots = Array.from(gutter.querySelectorAll('[data-dot]'))
-      expect(dots.map((d) => [d.getAttribute('data-dot'), d.getAttribute('data-on')])).toEqual([
-        ['focus', 'true'], ['urgent', 'flag'], ['important', 'true'],
-      ])
+      expect(gutter.querySelector('[data-gutter-flag]')).not.toBeNull()
+      expect(gutter.querySelector('[data-gutter-dot="focus"]')).not.toBeNull()
       expect(gutter.compareDocumentPosition(screen.getByRole('checkbox')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+      // The ring is drawn over the checkbox, decorative (the gutter names it).
+      const ring = screen.getByRole('checkbox').parentElement!.querySelector('[data-priority-ring]')
+      expect(ring).toHaveAttribute('data-priority-ring', 'split')
+      expect(ring).toHaveAttribute('aria-hidden', 'true')
     })
 
-    it('urgent only by its due date is the ring, named and explained in the tooltip', () => {
+    it('Focus alone: its ring, no gutter dot; no priority: no ring, an empty gutter', () => {
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, focus: true })} />)
+      expect(document.querySelector('[data-priority-ring]')).toHaveAttribute('data-priority-ring', 'focus')
+      expect(document.querySelector('[data-gutter-dot]')).toBeNull()
+      unmount()
+      render(<TaskRow todo={makeTodo({ id: 1 })} />)
+      expect(document.querySelector('[data-priority-ring]')).toBeNull()
+      expect(document.querySelector('[data-gutter-dot]')).toBeNull()
+    })
+
+    it('urgent only by its due date is the dashed ring, named and explained in the tooltip', () => {
       render(<TaskRow todo={makeTodo({ id: 1, title: 'Soon', dueDate: new Date(2026, 3, 18) })} />)
       const gutter = screen.getByRole('button', { name: 'Priority: Urgent (due soon)' })
-      expect(gutter.querySelector('[data-dot="urgent"]')).toHaveAttribute('data-on', 'date')
+      expect(document.querySelector('[data-ring-part="urgent"]')).toHaveAttribute('data-dashed')
       fireEvent.pointerEnter(gutter)
       act(() => { vi.advanceTimersByTime(400) })
       expect(screen.getByRole('tooltip')).toHaveTextContent('Priority: Urgent (due soon)Due Sat 18, within 3 days.')

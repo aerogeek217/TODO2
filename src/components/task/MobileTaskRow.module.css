@@ -281,12 +281,36 @@
   box-shadow: inset 0 0 0 1px var(--color-followup);
 }
 
-/* Markers (Focus › Urgent › Important) between the checkbox and the title; never hidden. */
-/* The marker dots (Focus · Urgent · Important) before the title. */
-.markers {
-  display: inline-flex;
-  align-items: center;
+/* The checkbox's drawn box and the priority ring over it (D25 B; `PriorityRing`, above the target's box). */
+.checkWrap {
+  position: relative;
+  display: flex;
   flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+}
+
+.checkWrap > svg {
+  z-index: var(--z-above-2);
+}
+
+/* Focus under another ring: an accent dot on the box's top-left corner, ringed in the row's surface. */
+.focusDot {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  z-index: var(--z-above-3);
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-marker-focus);
+  box-shadow: 0 0 0 1.5px var(--color-surface);
+  pointer-events: none;
+}
+
+/* The ring replaces the box's own border. */
+.checkWrap:has([data-priority-ring]) .checkbox:not(:checked)::before {
+  border-color: transparent;
 }
 
 /* Portaled person picker panel. */

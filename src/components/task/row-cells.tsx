@@ -1,4 +1,4 @@
-import { useMemo, type CSSProperties, type MouseEvent, type ReactNode, type RefObject } from 'react'
+import { useMemo, type CSSProperties, type InputHTMLAttributes, type MouseEvent, type ReactNode, type RefObject } from 'react'
 import { type PersistedTodoItem, type Person, type Status, type StatusUpdate, type Tag, DEFAULT_STATUS_ICON } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -6,13 +6,13 @@ import { formatDateNumeric, startOfDay, toDateInputValue } from '../../utils/dat
 import { dueTooltip, isDeadlinePast } from '../../utils/effective-date'
 import { isUrgentByDate } from '../../utils/urgency'
 import { followupPillLabel, followupTooltip, formatFollowupDate, isFollowupOverdue } from '../../utils/followup'
-import { markerSummary } from '../../utils/markers'
+import { priorityRing, type MarkerSummary } from '../../utils/markers'
 import { statusNotesPreview } from '../../utils/notes-preview'
-import { datesParts, peopleFit, tagsFit, type PeopleFit } from '../../utils/task-row-columns'
+import { datesParts, peopleFit, tagsFit, TASK_ROW, type PeopleFit } from '../../utils/task-row-columns'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
-import { NotesIcon, RepeatIcon } from '../shared/icons'
+import { FlagIcon, NotesIcon, RepeatIcon } from '../shared/icons'
 import { ClockIcon } from '../shared/MarkerIcons'
-import { MarkerDots } from '../shared/MarkerDots'
+import { PriorityRing } from '../shared/PriorityRing'
 import { StatusIcon } from '../shared/StatusIcon'
 import { useTooltip } from '../shared/use-tooltip'
 import { tagTextWidth } from './text-width'
@@ -53,16 +53,31 @@ function Placeholder({ children }: { children: ReactNode }) {
 
 // ── Marker gutter ───────────────────────────────────────────────────────────
 
-/** Focus · Urgent · Important as three dots; one button that opens the markers menu. */
-export function MarkerGutter({ todo, today, anchorRef, open, onToggle }: {
+/** The gutter's at-rest mark: the accent dot when Focus sits under another ring (D25 B), else nothing. */
+function GutterMarks({ summary, completed }: { summary: MarkerSummary; completed: boolean }) {
+  const { focusDot } = priorityRing(summary, completed)
+  return (
+    <>
+      {focusDot && <span className={styles.gutterDot} data-gutter-dot="focus" aria-hidden="true" />}
+      <span className={styles.gutterFlag} aria-hidden="true" data-gutter-flag=""><FlagIcon size={10} /></span>
+    </>
+  )
+}
+
+/**
+ * The priority menu's trigger (D25 B): a slim gutter before the checkbox,
+ * empty at rest (an accent dot when Focus sits under another ring) and a
+ * small flag while the row is hovered or focused or the menu is open. The
+ * priority itself is the ring on the checkbox (`RowCheckbox`); the gutter
+ * carries its name and tooltip.
+ */
+export function MarkerGutter({ todo, summary, anchorRef, open, onToggle }: {
   todo: PersistedTodoItem
-  today: Date
+  summary: MarkerSummary
   anchorRef: RefObject<HTMLButtonElement | null>
   open: boolean
   onToggle: () => void
 }) {
-  const range = useSettingsStore((s) => s.urgentDueWithinDays)
-  const summary = markerSummary(todo, today, range)
   const { triggerProps, tooltip } = useTooltip(summary.tooltip)
   return (
     <button
@@ -76,19 +91,39 @@ export function MarkerGutter({ todo, today, anchorRef, open, onToggle }: {
       onClick={cellClick(onToggle)}
       {...triggerProps}
     >
-      <MarkerDots summary={summary} dim={todo.isCompleted} />
+      <GutterMarks summary={summary} completed={todo.isCompleted} />
       {tooltip}
     </button>
   )
 }
 
-/** The gutter's look on a row that can't open the menu (the drag overlay's copy). */
-export function MarkerGutterStatic({ todo, today }: { todo: PersistedTodoItem; today: Date }) {
-  const range = useSettingsStore((s) => s.urgentDueWithinDays)
-  const summary = markerSummary(todo, today, range)
+/** The gutter on a row that can't open the menu (the drag overlay's copy): its at-rest look, named. */
+export function MarkerGutterStatic({ todo, summary }: { todo: PersistedTodoItem; summary: MarkerSummary }) {
+  const { focusDot } = priorityRing(summary, todo.isCompleted)
   return (
     <span className={styles.gutter} role="img" aria-label={summary.label}>
-      <MarkerDots summary={summary} dim={todo.isCompleted} />
+      {focusDot && <span className={styles.gutterDot} data-gutter-dot="focus" aria-hidden="true" />}
+    </span>
+  )
+}
+
+/**
+ * A row's checkbox with its check and its priority ring (D25 B), drawn over
+ * the box: the check draws itself when the task is completed (D19); the ring
+ * hides the box's own border while it shows.
+ */
+export function RowCheckbox({ summary, checked, className, ...input }: {
+  summary: MarkerSummary
+  checked: boolean
+  className?: string
+} & Omit<InputHTMLAttributes<HTMLInputElement>, 'type' | 'checked' | 'className'>) {
+  return (
+    <span className={styles.checkWrap}>
+      <input type="checkbox" className={`${styles.checkbox} ${className ?? ''}`} checked={checked} data-row-cell="checkbox" {...input} />
+      <svg className={styles.checkMark} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+        <path d="M3.5 8.5l3 3 6-7" pathLength={1} />
+      </svg>
+      <PriorityRing summary={summary} completed={checked} size={TASK_ROW.checkbox} />
     </span>
   )
 }

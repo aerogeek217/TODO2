@@ -7,6 +7,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
 import { startOfToday } from '../../utils/date'
 import { rowCue } from '../../utils/priority-cues'
+import { markerSummary } from '../../utils/markers'
 import { isStale, staleTooltipLine } from '../../utils/stale'
 import { TagPicker } from '../shared/TagChipSelector'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
@@ -23,7 +24,7 @@ import { useSubtaskStore } from '../../stores/subtask-store'
 import { subtaskCount } from '../../utils/subtasks'
 import { SubtaskCountButton, SubtaskCountStatic } from './subtasks/SubtaskCountButton'
 import {
-  DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, StatusCell, TagsCell, StatusMenu } from './row-cells'
+  DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, RowCheckbox, StatusCell, TagsCell, StatusMenu } from './row-cells'
 import styles from './TaskRow.module.css'
 import { TODO_ID_ATTR } from '../../utils/dom-contract'
 
@@ -130,6 +131,8 @@ export const TaskRow = memo(function TaskRow({
   const priorityCues = useSettingsStore((s) => s.priorityCues)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const cue = rowCue(todo, priorityCues, today, urgentRange)
+  // The priority: the ring on the checkbox, named by the marker gutter (D25 B).
+  const markers = markerSummary(todo, today, urgentRange)
   const people = assignedPeople ?? NO_PEOPLE
   // Stale (untouched for the Settings threshold): the row faded until hovered; the title tooltip says when it was last edited.
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
@@ -196,24 +199,16 @@ export const TaskRow = memo(function TaskRow({
       }}
     >
       {ghost
-        ? <MarkerGutterStatic todo={todo} today={today} />
-        : <MarkerGutter todo={todo} today={today} anchorRef={markersRef} open={markersOpen} onToggle={() => setMarkersOpen((v) => !v)} />}
+        ? <MarkerGutterStatic todo={todo} summary={markers} />
+        : <MarkerGutter todo={todo} summary={markers} anchorRef={markersRef} open={markersOpen} onToggle={() => setMarkersOpen((v) => !v)} />}
 
-      <span className={styles.checkWrap}>
-        <input
-          type="checkbox"
-          className={styles.checkbox}
-          checked={todo.isCompleted}
-          onChange={handleToggleComplete}
-          onClick={(e) => e.stopPropagation()}
-          aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
-          data-row-cell="checkbox"
-        />
-        {/* The check, drawn over the box: it draws itself when the task is completed (D19). */}
-        <svg className={styles.checkMark} viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-          <path d="M3.5 8.5l3 3 6-7" pathLength={1} />
-        </svg>
-      </span>
+      <RowCheckbox
+        summary={markers}
+        checked={todo.isCompleted}
+        onChange={handleToggleComplete}
+        onClick={(e) => e.stopPropagation()}
+        aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+      />
 
       {isEditing ? (
         <input

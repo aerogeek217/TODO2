@@ -326,12 +326,23 @@ describe('MobileTaskRow', () => {
       expect(mockSetFocus).toHaveBeenCalledWith(42, true)
     })
 
-    it('shows the markers as the three dots, named (Focus lit only for a task in focus)', () => {
+    it('shows the priority as the ring on the checkbox, named (none without one or once completed)', () => {
       const { unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} />)
-      expect(screen.getByRole('img', { name: 'No priority' }).querySelector('[data-dot="focus"]')).not.toHaveAttribute('data-on')
+      expect(document.querySelector('[data-priority-ring]')).toBeNull()
       unmount()
-      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true })} />)
-      expect(screen.getByRole('img', { name: 'Priority: Focus' }).querySelector('[data-dot="focus"]')).toHaveAttribute('data-on', 'true')
+      const second = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true })} />)
+      const ring = screen.getByRole('img', { name: 'Priority: Focus' })
+      expect(ring).toHaveAttribute('data-priority-ring', 'focus')
+      expect(ring.parentElement).toContainElement(screen.getByRole('checkbox'))
+      expect(document.querySelector('[data-gutter-dot]')).toBeNull()
+      second.unmount()
+      // Focus under another ring: the dot on the box's corner.
+      const third = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true, important: true })} />)
+      expect(screen.getByRole('img', { name: 'Priority: Focus, Important' })).toHaveAttribute('data-priority-ring', 'important')
+      expect(document.querySelector('[data-gutter-dot="focus"]')).not.toBeNull()
+      third.unmount()
+      render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', urgent: true, isCompleted: true })} />)
+      expect(document.querySelector('[data-priority-ring]')).toBeNull()
     })
 
     it('shows a set follow-up as its flag only (the day in its name)', () => {

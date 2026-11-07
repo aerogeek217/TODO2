@@ -180,13 +180,13 @@ test('Eisenhower: every quadrant follows the drag without the widget or its rows
   await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
   await dragDivider(page, eis.locator('[data-eis-quadrant="do"]'), 65, 10, async () => {
-    // Every quadrant follows (each clamped to its own room — the default 300 is 295 in Do; these all have 230).
-    await expectDetails(eis, '[data-eis-quadrant]', 230)
+    // Every quadrant follows (each clamped to its own room — the default 300 is 296 in Do; these all have 231).
+    await expectDetails(eis, '[data-eis-quadrant]', 231)
     const counts = await readRenderCounts(page)
     expect(counts.TaskRow).toBe(0)
     expect(counts.EisenhowerWidget).toBe(0)
   })
-  await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 230 })
+  await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 231 })
   // The release writes the view state: the widget re-renders once, its (memoised) rows don't.
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
 })
