@@ -117,11 +117,20 @@ test('a flat list keeps its row hairlines', async ({ page }) => {
   expect(new Set(await rowAfterContents(widget))).toEqual(new Set(['""']))
 })
 
-test('the header still sticks over its scrolling group, as tall as the scroll fade’s inset', async ({ page }) => {
+/** Each group header's hairline (its `::after`): opacity, colour, and its top against the header's bottom. */
+const hairlines = (widget: Locator) => widget.locator('[data-list-group] > div:first-child').evaluateAll((headers) => headers.map((h) => {
+  const cs = getComputedStyle(h, '::after')
+  return { opacity: cs.opacity, color: cs.backgroundColor, height: cs.height, bottom: cs.bottom }
+}))
+
+test('the header still sticks over its scrolling group, as tall as the scroll fade’s inset; its hairline shows only while stuck', async ({ page }) => {
   const widget = await seedTaskList(page, { people: PEOPLE, tasks: TASKS, list: { grouping: 'people', sort: 'title' } })
   const scroll = scroller(widget)
   const second = headerRow(groups(widget).nth(1))
   await expect(second).toBeVisible()
+
+  // At rest no header is stuck: the rule is the only line, no hairline under any header.
+  await expect.poll(async () => (await hairlines(widget)).map((h) => h.opacity)).toEqual(['0', '0', '0'])
 
   // Scroll a few rows into the second group: its header stays at the top.
   const into = await scroll.evaluate((s) => {
@@ -150,7 +159,12 @@ test('the header still sticks over its scrolling group, as tall as the scroll fa
   expect(stuck.position).toBe('sticky')
   expect(stuck.offset).toBeCloseTo(0, 0)
   expect(stuck.background).toBe(await tokenColor(page, '--color-surface'))
-  expect(stuck.shadow).toContain('0px 1px 0px')
+  expect(stuck.shadow).toBe('none')
+  // Stuck, the second header draws its hairline (1px of the muted border, just under it); the third, at
+  // rest below, doesn't. (The first, pushed out above with its group, still counts as stuck: off screen.)
+  await expect.poll(async () => (await hairlines(widget)).slice(1).map((h) => h.opacity)).toEqual(['1', '0'])
+  const line = (await hairlines(widget))[1]
+  expect([line?.height, line?.bottom, line?.color]).toEqual(['1px', '-1px', await tokenColor(page, '--color-border-muted')])
   // The fade starts under the header: its inset is the header's height.
   expect(stuck.token).toBe('28px')
   expect(stuck.inset).toBe(stuck.token)
