@@ -44,6 +44,8 @@
   --list-group-gap: var(--list-group-gap-strips);
   --font-size-group-name: var(--font-size-strips-group);
   --list-drop-slot-height: calc(var(--task-strip-height) + 1px);
+  /* No title here: the drop line starts where the bars do (`.strip`'s padding). */
+  --row-title-start: 2px;
 }
 
 /* The header's other parts at the compact levels: the count at the name's size, a smaller swatch and chevron. */
@@ -359,7 +361,8 @@
 .dropLine::after {
   content: '';
   position: absolute;
-  left: calc(var(--row-title-start) - 4px);
+  /* Kept inside the list at Strips, where the line starts 2px in. */
+  left: max(0px, calc(var(--row-title-start) - 4px));
   top: -4px;
   width: 8px;
   height: 8px;

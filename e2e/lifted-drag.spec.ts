@@ -10,7 +10,8 @@ import { box, type Point } from './fixtures/geometry'
  * where it came from (a cancel) — and goes. Reduced motion: no tilt, no
  * scale, gone at once. A drop the row follows later (another group, a
  * calendar day, an Eisenhower pane) untilts and fades where it was let go.
- * The list's drop line starts at the rows' title.
+ * The list's drop line starts at the rows' title at every zoom (at Strips,
+ * where the bars start).
  * Real-browser because computed transforms, CSS / Web Animations and pseudo-
  * element geometry are.
  */
@@ -205,21 +206,31 @@ test('a drop into another group untilts and fades where it was let go', async ({
   expect(await row(page, 'Bravo').evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
 })
 
-test('the drop line starts at the rows’ title', async ({ page }) => {
-  // A sorted list: the line (dashed) shows where the row would go.
-  await seedWorkspace(page, seed({ name: 'Sorted', sort: 'name' }))
-  await expect(row(page, 'Delta')).toBeVisible()
-  const alpha = await box(row(page, 'Alpha'))
-  await lift(page, row(page, 'Delta'), { x: alpha.x + 12, y: alpha.y + 4 })
-  const line = wsListWidget(page, 't1').locator('[data-drop-line]')
-  await expect(line).toHaveCount(1)
-  const lineStart = await line.evaluate((el) => el.getBoundingClientRect().left + parseFloat(getComputedStyle(el, '::before').left))
-  const titleStart = (await box(row(page, 'Alpha').locator('span[data-task-title]'))).x
-  expect(Math.abs(lineStart - titleStart)).toBeLessThanOrEqual(1)
+for (const zoom of ['stacked', 'rows', 'lines', 'strips'] as const) {
+  test(`${zoom}: the drop line starts at the rows’ title (a Strips bar’s start)`, async ({ page }) => {
+    // A sorted list: the line (dashed) shows where the row would go.
+    const s = seed({ name: 'Sorted', sort: 'name' })
+    const tab = s.layouts?.[0]?.columns[0]?.cells[0]?.tabs[0]
+    if (tab) tab.zoom = zoom
+    await seedWorkspace(page, s)
+    const occurrence = (title: string) => zoom === 'strips'
+      ? wsListWidget(page, 't1').locator(`[data-row-key]:has([data-task-strip][aria-label="${title}"])`)
+      : row(page, title)
+    await expect(occurrence('Delta')).toBeVisible()
+    const alpha = await box(occurrence('Alpha'))
+    await lift(page, occurrence('Delta'), { x: alpha.x + 12, y: alpha.y + Math.min(4, alpha.height / 2) })
+    const line = wsListWidget(page, 't1').locator('[data-drop-line]')
+    await expect(line).toHaveCount(1)
+    const lineStart = await line.evaluate((el) => el.getBoundingClientRect().left + parseFloat(getComputedStyle(el, '::before').left))
+    const start = zoom === 'strips'
+      ? (await box(occurrence('Alpha').locator('[data-task-strip] > span').first())).x
+      : (await box(row(page, 'Alpha').locator('span[data-task-title]'))).x
+    expect(Math.abs(lineStart - start)).toBeLessThanOrEqual(1)
 
-  await page.keyboard.press('Escape')
-  await page.mouse.up()
-})
+    await page.keyboard.press('Escape')
+    await page.mouse.up()
+  })
+}
 
 test.describe('reduced motion', () => {
   test.use({ reducedMotion: 'reduce' })
