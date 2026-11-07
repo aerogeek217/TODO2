@@ -149,7 +149,7 @@ describe('dev seed generator', () => {
     const projectTagIds = seed.tags.filter((t) => t.name.startsWith('Project: ')).map((t) => t.id)
     expect(neglect[0]?.config).toEqual({ colourBy: { kind: 'tags', tagIds: projectTagIds }, untouchedDays: 14 })
     for (const layout of seed.layouts) {
-      const picked = pickLayoutBody(asFile(layout) as RawLayoutBody)
+      const picked = pickLayoutBody(JSON.parse(JSON.stringify(layout)) as RawLayoutBody)
       expect(picked.fixes, layout.name).toEqual([])
       expect(tabsOf(picked as unknown as DevSeed['layouts'][number]).map((t) => t.id), layout.name).toEqual(tabsOf(layout).map((t) => t.id))
     }
