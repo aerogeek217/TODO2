@@ -48,7 +48,7 @@ import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { DashboardTabConfig } from '../src/models/dashboard-config'
 import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
-import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, WorkspaceLayout } from '../src/models/workspace-layout'
+import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
@@ -870,7 +870,8 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   ]
 
   // ── Layouts ──
-  const lens = (id: string, listDefinitionId: number): TabRow => ({ id, kind: 'lens', config: { listDefinitionId } })
+  const lens = (id: string, listDefinitionId: number, zoom?: ListZoom): TabRow =>
+    ({ id, kind: 'lens', config: { listDefinitionId }, ...(zoom ? { viewState: { zoom } } : {}) })
   const calendar = (id: string, view: 'week' | 'month', offset: number, followup = true): TabRow =>
     ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup } }, viewState: { view, offset } })
   const notes = (id: string): TabRow => ({ id, kind: 'notes', config: {} })
@@ -913,8 +914,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       top: band('band-cal', 220, [calendar('tab-month', 'month', 0, false)]),
       columns: [
         column('col-horizon', [
-          cell('cell-horizon', [lens('tab-next', L.nextWeek), lens('tab-rest', L.restOfMonth), lens('tab-later', L.later)], { activeTabId: 'tab-rest' }),
-          cell('cell-someday', [lens('tab-someday', L.someday)]),
+          // A list tab at each zoom (D25 C + I1): Stacked, Rows, Lines, and Strips below.
+          cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], { activeTabId: 'tab-rest' }),
+          cell('cell-someday', [lens('tab-someday', L.someday, 'strips')]),
         ]),
         column('col-people', [
           cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)], { weight: 2 }),

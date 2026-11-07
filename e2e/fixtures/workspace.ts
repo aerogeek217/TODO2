@@ -19,6 +19,8 @@ export interface WsTabSeed {
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
   /** List / Eisenhower / dashboard tabs: the task rows' details width (view state). */
   detailsWidth?: number
+  /** List tabs: the zoom (view state; absent = the Settings default). */
+  zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
   /** Dashboard tabs: the config (defaults: the app's — `createTab`). */
   dashboard?: {
     tiles?: string[]
@@ -85,6 +87,8 @@ export interface WorkspaceSeed {
    * added): each predicate merged over the empty one.
    */
   lenses?: Array<{ id: string; name: string; predicate?: Record<string, unknown> }>
+  /** Settings rows to store as they are (`key` → stored `value`), e.g. `{ rowDensity: 'lines' }`. */
+  settings?: Record<string, string>
   /** Names, or a name with initials / colour / email. */
   people?: Array<string | { name: string; initials?: string; color?: string; email?: string }>
   /** Names, or a name with its colour (default `#7ec4bc`). */
@@ -299,6 +303,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         if (n.untouchedDays != null) config.untouchedDays = n.untouchedDays
       }
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
+      if (tab.zoom != null) out.viewState = { ...(out.viewState as object | undefined), zoom: tab.zoom }
       out.config = config
       return out
     }
@@ -355,6 +360,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       }]))
       tx.objectStore('settings').put({ key: 'eisenhowerPanes', value: JSON.stringify(panes) })
     }
+    for (const [key, value] of Object.entries(seed.settings ?? {})) tx.objectStore('settings').put({ key, value })
     if (seed.lenses) {
       const lenses = seed.lenses.map((l) => ({ id: l.id, name: l.name, predicate: { ...seed.predicate, ...(l.predicate ?? {}) } }))
       tx.objectStore('settings').put({ key: 'lenses', value: JSON.stringify(lenses) })
