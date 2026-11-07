@@ -153,3 +153,29 @@ test('narrow section cells keep their parts inside: People keeps the names, Crea
   const names = await people.locator('[data-person-row]').evaluateAll((rows) => rows.map((r) => r.firstElementChild!.getBoundingClientRect().width))
   for (const w of names) expect(w).toBeGreaterThan(60)
 })
+
+test.describe('on a phone', () => {
+  test.use({ viewport: { width: 375, height: 812 }, hasTouch: true, isMobile: true })
+
+  test('Next 7 days and Created vs completed keep a set height in a stacked column, however many tasks', async ({ page }) => {
+    const many = Array.from({ length: 30 }, (_, i) => ({ title: `Due today ${i + 1}`, dueInDays: 0 }))
+    await seedWorkspace(page, {
+      tasks: many,
+      layouts: [{
+        name: 'Glance',
+        columns: [{ id: 'c1', rows: [
+          { id: 'charts', cells: [{ id: 'k-next7', tabs: [{ id: 'next7', kind: 'next7' }] }, { id: 'k-trend', tabs: [{ id: 'trend', kind: 'trend' }] }] },
+          { id: 'more', cells: [{ id: 'k-status', tabs: [{ id: 'status', kind: 'status' }] }] },
+        ] }],
+      }],
+    })
+    await expect(section(page, 'next7')).toBeVisible()
+    await expect(section(page, 'trend')).toBeVisible()
+    // Sized to their content, the bars (22px / 36px a task) would run past 600px.
+    for (const id of ['next7', 'trend']) {
+      const h = (await box(page.locator(`[data-ws-cell-body][data-kind="${id}"]`))).height
+      expect(h, id).toBeGreaterThan(200)
+      expect(h, id).toBeLessThan(360)
+    }
+  })
+})

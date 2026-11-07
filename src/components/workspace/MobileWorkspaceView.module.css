@@ -305,6 +305,14 @@
   height: 50dvh;
 }
 
+/* Next 7 days' and Created vs completed's bars scale to the height they are
+   given: sized to their content they would grow with every task. They take
+   the old Dashboard's one-column section height. */
+.cellBody[data-kind='next7'],
+.cellBody[data-kind='trend'] {
+  height: 320px;
+}
+
 .cellFill .cellBody {
   flex: 1 1 auto;
   min-height: 0;
