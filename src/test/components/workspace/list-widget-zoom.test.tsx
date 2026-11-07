@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, fireEvent, act, screen } from '@testing-library/react'
+import { render, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { ListWidget } from '../../../components/workspace/list/ListWidget'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -20,7 +20,7 @@ import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 
 /**
  * A list tab at each zoom (D25 C + I1), as far as JSDOM shows it: what each
- * level draws for a task, Strips' click, Ctrl + wheel's step and the
+ * level draws for a task, Ctrl + wheel's step and the
  * palette's commands. Heights, the wheel's page zoom and focus are the real
  * browser's (`e2e/list-zoom.spec.ts`).
  */
@@ -115,17 +115,23 @@ describe('a list tab’s zoom', () => {
     expect(useUIStore.getState().selectedTodoIds).toEqual(new Set([1, 2]))
   })
 
-  it('Strips: a bar per task in its tone; a click zooms the tab to Rows on that task, selected', async () => {
-    const patch = vi.fn().mockResolvedValue(undefined)
-    useWorkspaceStore.setState({ patchTabViewState: patch })
-    show('strips')
-    const bar = document.querySelector('[data-task-strip][data-todo-id="1"]')!
-    expect(bar).toHaveAttribute('data-tone', 'late')
-    expect(bar).toHaveAttribute('aria-label', 'Late one')
-    await act(async () => { fireEvent.click(bar) })
-    expect(patch).toHaveBeenCalledWith('t1', 'lens', { zoom: 'rows' })
-    expect(useUIStore.getState().selectedTodoIds).toEqual(new Set([1]))
-    expect(useUIStore.getState().selectionScope).toBe('t1')
+  it('Lines: a right-click opens the task menu, as a row’s does; its pickers open at the line, and a click in them is not the line’s', () => {
+    const open = vi.fn()
+    useUIStore.setState({ openEditPopup: open })
+    show('lines')
+    const line = document.querySelector<HTMLElement>('[data-row-key] [data-todo-id="2"]')!
+    fireEvent.contextMenu(line, { button: 2, clientX: 40, clientY: 50 })
+    const menu = screen.getByRole('menu', { name: 'Task actions' })
+    for (const name of ['Open', 'Mark complete', 'Set due date…', 'Assign people…', 'Add tag…', 'Delete']) {
+      expect(within(menu).getByRole('menuitem', { name })).toBeInTheDocument()
+    }
+    expect(open).not.toHaveBeenCalled()
+    // Assign people…: the picker opens (at the line); clicking in it neither opens the editor nor selects.
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Assign people…' }))
+    const picker = screen.getByPlaceholderText('Search or create people…')
+    fireEvent.click(picker)
+    expect(open).not.toHaveBeenCalled()
+    expect(useUIStore.getState().selectedTodoIds.size).toBe(0)
   })
 
   it('Ctrl + wheel over the body steps the zoom, its default prevented; a plain wheel is left alone', () => {

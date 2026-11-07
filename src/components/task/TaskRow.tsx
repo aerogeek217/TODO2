@@ -212,8 +212,8 @@ export const TaskRow = memo(function TaskRow({
       }}
     >
       {ghost
-        ? <MarkerGutterStatic todo={todo} summary={markers} />
-        : <MarkerGutter todo={todo} summary={markers} anchorRef={markersRef} open={markersOpen} onToggle={() => setMarkersOpen((v) => !v)} />}
+        ? <MarkerGutterStatic summary={markers} />
+        : <MarkerGutter summary={markers} anchorRef={markersRef} open={markersOpen} onToggle={() => setMarkersOpen((v) => !v)} />}
 
       <RowCheckbox
         summary={markers}

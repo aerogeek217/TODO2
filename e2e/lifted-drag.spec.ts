@@ -5,13 +5,12 @@ import { box, type Point } from './fixtures/geometry'
 
 /**
  * A dragged task row is lifted (D25 E4): on grab its overlay animates from
- * the row's resting look to a −1.2° tilt at 1.02 scale; on drop it settles —
- * untilting while it moves onto the row's new spot (a reorder) or back to
- * where it came from (a cancel) — and goes. Reduced motion: no tilt, no
- * scale, gone at once. A drop the row follows later (another group, a
- * calendar day, an Eisenhower pane) untilts and fades where it was let go.
- * The list's drop line starts at the rows' title at every zoom (at Strips,
- * where the bars start).
+ * the row's resting look to 1.02 scale — no tilt; on drop it settles —
+ * shrinking back while it moves onto the row's new spot (a reorder) or back
+ * to where it came from (a cancel) — and goes. Reduced motion: no scale,
+ * gone at once. A drop the row follows later (another group, a calendar day,
+ * an Eisenhower pane) settles and fades where it was let go. Where it would
+ * land is a blank slot a row high, at every zoom and in a sorted list too.
  * Real-browser because computed transforms, CSS / Web Animations and pseudo-
  * element geometry are.
  */
@@ -59,13 +58,14 @@ interface Frame {
   overlay: { x: number; y: number } | null
   overlayOpacity: number | null
   angle: number | null
+  scale: number | null
   rowOpacity: string | null
 }
 
 /**
  * Records, once a frame from now until the lifted row is gone, the
- * overlay's box (dnd-kit's wrapper, not the tilted row) and the lifted row's
- * rotation, and the opacity of `title`'s list row.
+ * overlay's box (dnd-kit's wrapper, not the scaled row) and the lifted row's
+ * rotation and scale, and the opacity of `title`'s list row.
  */
 async function recordFrames(page: Page, title: string): Promise<void> {
   await page.evaluate(([sel, title]) => {
@@ -83,6 +83,7 @@ async function recordFrames(page: Page, title: string): Promise<void> {
           overlay: wrap ? { x: wrap.left, y: wrap.top } : null,
           overlayOpacity: wrapper ? Number(getComputedStyle(wrapper).opacity) : null,
           angle: m ? (Math.atan2(m.b, m.a) * 180) / Math.PI : null,
+          scale: m ? Math.hypot(m.a, m.b) : null,
           rowOpacity: listRow ? getComputedStyle(listRow).opacity : null,
         })
         if (lifted) requestAnimationFrame(tick)
@@ -101,29 +102,30 @@ async function recordedFrames(page: Page): Promise<Frame[]> {
   })
 }
 
-/** The settle as recorded: it untilted while it moved (not snapped), and its last box was on `at`. */
+/** The settle as recorded: it shrank back while it moved (not snapped), never tilted, and its last box was on `at`. */
 function expectSettledOnto(frames: Frame[], at: Point): void {
   const shown = frames.filter((f) => f.overlay)
   const log = JSON.stringify(shown)
-  // Part way: tilted less than lifted, not yet flat.
-  const settling = shown.filter((f) => f.angle != null && f.angle < -0.01 && f.angle > -1.19)
+  expect(shown.every((f) => f.angle == null || Math.abs(f.angle) < 0.01), log).toBe(true)
+  // Part way: smaller than lifted, not yet at rest.
+  const settling = shown.filter((f) => f.scale != null && f.scale > 1.0005 && f.scale < 1.0195)
   expect(settling.length, log).toBeGreaterThan(0)
   const last = shown.at(-1)!
   expect(Math.abs(last.overlay!.x - at.x), log).toBeLessThanOrEqual(1.5)
   expect(Math.abs(last.overlay!.y - at.y), log).toBeLessThanOrEqual(1.5)
-  expect(Math.abs(last.angle ?? 1), log).toBeLessThan(0.05)
+  expect(Math.abs((last.scale ?? 2) - 1), log).toBeLessThan(0.002)
   // The row stays hidden under the overlay while it settles, and shows again.
   expect(settling.every((f) => f.rowOpacity === '0'), log).toBe(true)
   expect(frames.at(-1)!.rowOpacity).toBe('1')
 }
 
-test('grabbing a row lifts it: tilted and scaled once the grab animation has run, from the resting look', async ({ page }) => {
+test('grabbing a row lifts it: scaled, not tilted, once the grab animation has run, from the resting look', async ({ page }) => {
   await seedWorkspace(page, seed({ name: 'Order' }))
   await expect(row(page, 'Delta')).toBeVisible()
   const alpha = await box(row(page, 'Alpha'))
   await lift(page, row(page, 'Delta'), { x: alpha.x + 200, y: alpha.y + 4 })
 
-  // The lift animates (from no tilt, no scale), on the spring curve.
+  // The lift animates (from no scale), on the spring curve.
   const lifted = page.locator(LIFTED)
   const animation = await lifted.evaluate((el) => {
     const cs = getComputedStyle(el)
@@ -133,7 +135,7 @@ test('grabbing a row lifts it: tilted and scaled once the grab animation has run
   expect(animation.duration).toBe('0.16s')
   expect(animation.timing).toBe('cubic-bezier(0.22, 0.61, 0.36, 1)')
   // Done: the lifted pose.
-  await expect.poll(() => pose(page)).toEqual({ scale: 1.02, angle: -1.2 })
+  await expect.poll(() => pose(page)).toEqual({ scale: 1.02, angle: 0 })
   // No opacity on the lifted row; no nudge off the row it was picked up from.
   expect(await lifted.evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
 
@@ -141,13 +143,13 @@ test('grabbing a row lifts it: tilted and scaled once the grab animation has run
   await page.mouse.up()
 })
 
-test('a reorder settles onto the row’s new spot, untilting as it goes', async ({ page }) => {
+test('a reorder settles onto the row’s new spot, shrinking back as it goes', async ({ page }) => {
   await seedWorkspace(page, seed({ name: 'Order' }))
   await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta'])
   const bravo = await box(row(page, 'Bravo'))
   await lift(page, row(page, 'Delta'), { x: bravo.x + 12, y: bravo.y + 4 })
   await expect(wsListWidget(page, 't1').locator('[data-drop-slot]')).toHaveCount(1)
-  await expect.poll(() => pose(page)).toEqual({ scale: 1.02, angle: -1.2 })
+  await expect.poll(() => pose(page)).toEqual({ scale: 1.02, angle: 0 })
 
   await recordFrames(page, 'Delta')
   await releaseDrag(page)
@@ -164,7 +166,7 @@ test('a cancelled drag (Esc) settles back where it was picked up', async ({ page
   const origin = await box(row(page, 'Delta'))
   const alpha = await box(row(page, 'Alpha'))
   await lift(page, row(page, 'Delta'), { x: alpha.x + 240, y: alpha.y + 4 })
-  await expect.poll(() => pose(page)).toEqual({ scale: 1.02, angle: -1.2 })
+  await expect.poll(() => pose(page)).toEqual({ scale: 1.02, angle: 0 })
 
   await recordFrames(page, 'Delta')
   await page.keyboard.press('Escape')
@@ -175,7 +177,7 @@ test('a cancelled drag (Esc) settles back where it was picked up', async ({ page
   expect(await box(row(page, 'Delta'))).toEqual(origin)
 })
 
-test('a drop into another group untilts and fades where it was let go', async ({ page }) => {
+test('a drop into another group shows a blank slot there, then settles and fades where it was let go', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Priority', grouping: 'priority' }],
     tasks: [{ title: 'Alpha', urgent: true }, { title: 'Bravo' }],
@@ -185,8 +187,9 @@ test('a drop into another group untilts and fades where it was let go', async ({
   const alpha = await box(row(page, 'Alpha'))
   const at = { x: alpha.x + 12, y: alpha.y + 4 }
   await lift(page, row(page, 'Bravo'), at)
-  await expect(wsListWidget(page, 't1').locator('[data-drop-line]')).toHaveCount(1)
-  await expect.poll(() => pose(page)).toEqual({ scale: 1.02, angle: -1.2 })
+  await expect(wsListWidget(page, 't1').locator('[data-drop-slot]')).toHaveCount(1)
+  await expect(wsListWidget(page, 't1').locator('[data-drop-line]')).toHaveCount(0)
+  await expect.poll(() => pose(page)).toEqual({ scale: 1.02, angle: 0 })
   const dropped = await page.locator(LIFTED).evaluate((el) => {
     const r = el.parentElement!.getBoundingClientRect()
     return { x: r.left, y: r.top }
@@ -196,8 +199,8 @@ test('a drop into another group untilts and fades where it was let go', async ({
   await releaseDrag(page)
   const frames = (await recordedFrames(page)).filter((f) => f.overlay)
   const log = JSON.stringify(frames)
-  // Fading and untilting, without moving.
-  expect(frames.some((f) => f.overlayOpacity! > 0.05 && f.overlayOpacity! < 0.95 && f.angle! > -1.19), log).toBe(true)
+  // Fading and shrinking back, without moving.
+  expect(frames.some((f) => f.overlayOpacity! > 0.05 && f.overlayOpacity! < 0.95 && f.scale! < 1.0195), log).toBe(true)
   expect(frames.every((f) => Math.abs(f.overlay!.x - dropped.x) < 0.5 && Math.abs(f.overlay!.y - dropped.y) < 0.5), log).toBe(true)
   await expect(page.locator(LIFTED)).toHaveCount(0)
   // The row moved to Alpha's (Urgent) group.
@@ -206,26 +209,20 @@ test('a drop into another group untilts and fades where it was let go', async ({
   expect(await row(page, 'Bravo').evaluate((el) => getComputedStyle(el).opacity)).toBe('1')
 })
 
-for (const zoom of ['stacked', 'rows', 'lines', 'strips'] as const) {
-  test(`${zoom}: the drop line starts at the rows’ title (a Strips bar’s start)`, async ({ page }) => {
-    // A sorted list: the line (dashed) shows where the row would go.
+for (const zoom of ['stacked', 'rows', 'lines'] as const) {
+  test(`${zoom}: a sorted list's drop is a blank slot a row high, dashed, saying the drop switches it to manual`, async ({ page }) => {
     const s = seed({ name: 'Sorted', sort: 'name' })
     const tab = s.layouts?.[0]?.columns[0]?.cells[0]?.tabs[0]
     if (tab) tab.zoom = zoom
     await seedWorkspace(page, s)
-    const occurrence = (title: string) => zoom === 'strips'
-      ? wsListWidget(page, 't1').locator(`[data-row-key]:has([data-task-strip][aria-label="${title}"])`)
-      : row(page, title)
-    await expect(occurrence('Delta')).toBeVisible()
-    const alpha = await box(occurrence('Alpha'))
-    await lift(page, occurrence('Delta'), { x: alpha.x + 12, y: alpha.y + Math.min(4, alpha.height / 2) })
-    const line = wsListWidget(page, 't1').locator('[data-drop-line]')
-    await expect(line).toHaveCount(1)
-    const lineStart = await line.evaluate((el) => el.getBoundingClientRect().left + parseFloat(getComputedStyle(el, '::before').left))
-    const start = zoom === 'strips'
-      ? (await box(occurrence('Alpha').locator('[data-task-strip] > span').first())).x
-      : (await box(row(page, 'Alpha').locator('span[data-task-title]'))).x
-    expect(Math.abs(lineStart - start)).toBeLessThanOrEqual(1)
+    await expect(row(page, 'Delta')).toBeVisible()
+    const alpha = await box(row(page, 'Alpha'))
+    await lift(page, row(page, 'Delta'), { x: alpha.x + 12, y: alpha.y + Math.min(4, alpha.height / 2) })
+    const slot = wsListWidget(page, 't1').locator('[data-drop-slot="sorted"]')
+    await expect(slot).toHaveCount(1)
+    await expect(wsListWidget(page, 't1').locator('[data-drop-line]')).toHaveCount(0)
+    await expect(slot.getByTestId('sorted-drop-hint')).toContainText('drop to switch to manual')
+    expect(Math.abs((await box(slot)).height - alpha.height)).toBeLessThanOrEqual(1)
 
     await page.keyboard.press('Escape')
     await page.mouse.up()
@@ -235,7 +232,7 @@ for (const zoom of ['stacked', 'rows', 'lines', 'strips'] as const) {
 test.describe('reduced motion', () => {
   test.use({ reducedMotion: 'reduce' })
 
-  test('no tilt, no scale, and the drop lets go at once', async ({ page }) => {
+  test('no scale, and the drop lets go at once', async ({ page }) => {
     await seedWorkspace(page, seed({ name: 'Order' }))
     await expect(row(page, 'Delta')).toBeVisible()
     const bravo = await box(row(page, 'Bravo'))
@@ -249,7 +246,7 @@ test.describe('reduced motion', () => {
     await releaseDrag(page)
     const frames = await recordedFrames(page)
     // No settle: gone by the first frame after the drop renders.
-    expect(frames.filter((f) => f.overlay).every((f) => f.angle === 0)).toBe(true)
+    expect(frames.filter((f) => f.overlay).every((f) => f.angle === 0 && f.scale === 1)).toBe(true)
     await expect(page.locator(LIFTED)).toHaveCount(0)
     await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(['Alpha', 'Delta', 'Bravo', 'Charlie'])
   })

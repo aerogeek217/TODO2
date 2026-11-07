@@ -294,37 +294,6 @@
   color: var(--color-text-muted);
 }
 
-/* Where the dragged task lands in the hovered quadrant's due-date order: from the rows' title, as a list's line. */
-.dropLine {
-  position: relative;
-  height: 0;
-  z-index: 3;
-}
-
-.dropLine::before {
-  content: '';
-  position: absolute;
-  left: var(--row-title-start);
-  right: 6px;
-  top: -1px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--color-accent);
-}
-
-.dropLine::after {
-  content: '';
-  position: absolute;
-  left: calc(var(--row-title-start) - 4px);
-  top: -4px;
-  width: 8px;
-  height: 8px;
-  box-sizing: border-box;
-  border: 2px solid var(--color-accent);
-  border-radius: 50%;
-  background: var(--color-surface);
-}
-
 /* ── Screen filter hides everything ─────────────────────────────────────── */
 
 /* The panes' shared note, in the flow under them (the 2×2's last row,

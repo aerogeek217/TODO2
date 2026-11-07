@@ -143,7 +143,7 @@ describe('dev seed generator', () => {
       .flatMap((p) => p.tabs)
     const tabs = seed.layouts.flatMap(tabsOf)
     const zooms = tabs.flatMap((t) => (t.kind === 'lens' && t.viewState?.zoom ? [t.viewState.zoom] : []))
-    expect([...new Set(zooms)].sort()).toEqual(['lines', 'rows', 'stacked', 'strips'])
+    expect([...new Set(zooms)].sort()).toEqual(['lines', 'rows', 'stacked'])
     const neglect = tabs.filter((t) => t.kind === 'neglect')
     expect(neglect).toHaveLength(1)
     const projectTagIds = seed.tags.filter((t) => t.name.startsWith('Project: ')).map((t) => t.id)

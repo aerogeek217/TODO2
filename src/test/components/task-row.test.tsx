@@ -86,13 +86,13 @@ describe('TaskRow', () => {
       expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent(/^04\/20$/)
     })
 
-    it('relative words: Today, the next six days’ weekday, then the month and day; overdue keeps its month and day; another year MM/DD/YY', () => {
+    it('relative words: Today, the next six days’ weekday, then MM/DD; overdue keeps its MM/DD; another year MM/DD/YY', () => {
       const cases: Array<[Date, string, string]> = [
         [new Date(2026, 3, 16), 'Due Thu 16 Apr', 'Today'],
         [new Date(2026, 3, 17), 'Due Fri 17 Apr', 'Fri'],
         [new Date(2026, 3, 22), 'Due Wed 22 Apr', 'Wed'],
-        [new Date(2026, 3, 23), 'Due Thu 23 Apr', 'Apr 23'],
-        [new Date(2026, 3, 10), 'Due Fri 10 Apr', 'Apr 10'],
+        [new Date(2026, 3, 23), 'Due Thu 23 Apr', '04/23'],
+        [new Date(2026, 3, 10), 'Due Fri 10 Apr', '04/10'],
         [new Date(2027, 0, 15), 'Due Fri 15 Jan 2027', '01/15/27'],
       ]
       for (const [dueDate, name, text] of cases) {
@@ -247,7 +247,7 @@ describe('TaskRow', () => {
     it('shows both dates beside their icons, each part its own button', () => {
       render(inList(528))
       expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('Mon')
-      expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' })).toHaveTextContent('Apr 24')
+      expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' })).toHaveTextContent('04/24')
       expect(document.querySelector('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'both')
     })
 
@@ -429,26 +429,25 @@ describe('TaskRow', () => {
       useSettingsStore.setState({ urgentDueWithinDays: 3 })
     })
 
-    it('one button named by the markers before the checkbox: a flag (shown on hover), the ring on the checkbox, the Focus dot under another ring', () => {
+    it('one button named by the markers before the checkbox: a flag (shown on hover), the ring on the checkbox, Focus under another ring its halo', () => {
       render(<TaskRow todo={makeTodo({ id: 1, title: 'All three', urgent: true, important: true, focus: true })} />)
       const gutter = screen.getByRole('button', { name: 'Priority: Focus, Urgent, Important' })
       expect(gutter.querySelector('[data-gutter-flag]')).not.toBeNull()
-      expect(gutter.querySelector('[data-gutter-dot="focus"]')).not.toBeNull()
       expect(gutter.compareDocumentPosition(screen.getByRole('checkbox')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       // The ring is drawn over the checkbox, decorative (the gutter names it).
       const ring = screen.getByRole('checkbox').parentElement!.querySelector('[data-priority-ring]')
       expect(ring).toHaveAttribute('data-priority-ring', 'split')
       expect(ring).toHaveAttribute('aria-hidden', 'true')
+      expect(ring!.querySelector('[data-focus-halo]')).not.toBeNull()
     })
 
-    it('Focus alone: its ring, no gutter dot; no priority: no ring, an empty gutter', () => {
+    it('Focus alone: its ring, no halo; no priority: no ring, an empty gutter', () => {
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, focus: true })} />)
       expect(document.querySelector('[data-priority-ring]')).toHaveAttribute('data-priority-ring', 'focus')
-      expect(document.querySelector('[data-gutter-dot]')).toBeNull()
+      expect(document.querySelector('[data-focus-halo]')).toBeNull()
       unmount()
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
       expect(document.querySelector('[data-priority-ring]')).toBeNull()
-      expect(document.querySelector('[data-gutter-dot]')).toBeNull()
     })
 
     it('urgent only by its due date is the dashed ring, named and explained in the tooltip', () => {

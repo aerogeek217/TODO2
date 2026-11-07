@@ -131,7 +131,7 @@ describe('MobileTaskRow', () => {
   // ── Date chips ────────────────────────────────────────────────────
 
   describe('date chips', () => {
-    it('shows the due date in words (D25 D1): Today, the next days’ weekday, then the month and day', () => {
+    it('shows the due date in words (D25 D1): Today, the next days’ weekday, then MM/DD', () => {
       const due = (d: Date) => {
         const { container, unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: d })} />)
         const text = container.querySelector('[data-pill="due"]')?.textContent
@@ -140,8 +140,8 @@ describe('MobileTaskRow', () => {
       }
       expect(due(new Date(2026, 3, 11))).toBe('Today')
       expect(due(new Date(2026, 3, 12))).toBe('Sun')
-      expect(due(new Date(2026, 3, 18))).toBe('Apr 18')
-      expect(due(new Date(2026, 3, 2))).toBe('Apr 2')
+      expect(due(new Date(2026, 3, 18))).toBe('04/18')
+      expect(due(new Date(2026, 3, 2))).toBe('04/02')
       expect(due(new Date(2027, 1, 3))).toBe('02/03/27')
     })
 
@@ -347,12 +347,12 @@ describe('MobileTaskRow', () => {
       const ring = screen.getByRole('img', { name: 'Priority: Focus' })
       expect(ring).toHaveAttribute('data-priority-ring', 'focus')
       expect(ring.parentElement).toContainElement(screen.getByRole('checkbox'))
-      expect(document.querySelector('[data-gutter-dot]')).toBeNull()
+      expect(document.querySelector('[data-focus-halo]')).toBeNull()
       second.unmount()
-      // Focus under another ring: the dot on the box's corner.
+      // Focus under another ring: its halo outside the box.
       const third = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true, important: true })} />)
       expect(screen.getByRole('img', { name: 'Priority: Focus, Important' })).toHaveAttribute('data-priority-ring', 'important')
-      expect(document.querySelector('[data-gutter-dot="focus"]')).not.toBeNull()
+      expect(document.querySelector('[data-focus-halo]')).not.toBeNull()
       third.unmount()
       render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', urgent: true, isCompleted: true })} />)
       expect(document.querySelector('[data-priority-ring]')).toBeNull()

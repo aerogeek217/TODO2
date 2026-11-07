@@ -1,4 +1,4 @@
-import { isListZoom, LIST_ZOOMS, type ListZoom } from '../models/workspace-layout'
+import { LIST_ZOOMS, readListZoom, type ListZoom } from '../models/workspace-layout'
 import type { TodoItem } from '../models/todo-item'
 import { formatRowDate } from './date'
 import { isDeadlinePast } from './effective-date'
@@ -27,22 +27,22 @@ export const LIST_ZOOM_LABELS: Readonly<Record<ListZoom, string>> = {
   stacked: 'Stacked',
   rows: 'Rows',
   lines: 'Lines',
-  strips: 'Strips',
 }
 
 /** The stored densities before the zoom levels, read as levels. */
 const LEGACY_DENSITY: Readonly<Record<string, ListZoom>> = { comfortable: 'stacked', compact: 'rows' }
 
-/** The `rowDensity` row's value as a level: a level, or an old density; `undefined` for anything else. */
+/** The `rowDensity` row's value as a level: a level (`strips` as `lines`), or an old density; `undefined` for anything else. */
 export function parseListZoomSetting(value: unknown): ListZoom | undefined {
-  if (isListZoom(value)) return value
+  const zoom = readListZoom(value)
+  if (zoom) return zoom
   return typeof value === 'string' ? LEGACY_DENSITY[value] : undefined
 }
 
-/** Zooming in shows more of each task (towards Stacked); zooming out shows more tasks (towards Strips). */
+/** Zooming in shows more of each task (towards Stacked); zooming out shows more tasks (towards Lines). */
 export type ZoomDirection = 'in' | 'out'
 
-/** The level one step `dir` from `zoom`, clamped at the ends (`stacked` in, `strips` out). */
+/** The level one step `dir` from `zoom`, clamped at the ends (`stacked` in, `lines` out). */
 export function stepListZoom(zoom: ListZoom, dir: ZoomDirection): ListZoom {
   const i = LIST_ZOOMS.indexOf(zoom)
   const next = dir === 'in' ? i - 1 : i + 1
@@ -55,8 +55,7 @@ export function canStepListZoom(zoom: ListZoom, dir: ZoomDirection): boolean {
 }
 
 /**
- * A task's state as the compact levels draw it — a Lines row's tick, a
- * Strips bar —, the first that holds: `late` (due date past), `soon` (due
+ * A task's state as a Lines row's tick draws it, the first that holds: `late` (due date past), `soon` (due
  * inside the Settings "due soon" range), `followup` (the follow-up late),
  * `stale` (untouched for the Settings threshold), else `none` (a completed
  * task too).
@@ -81,22 +80,6 @@ export function rowTone(
   return 'none'
 }
 
-/** A Strips bar's width bounds, % of the row. */
-const STRIP_MIN_PCT = 24
-const STRIP_MAX_PCT = 100
-/** The share of the row each character of the title adds, %. */
-const STRIP_PCT_PER_CHAR = 1.6
-
-/**
- * A Strips bar's width, % of the row: longer titles draw longer bars, so a
- * group's bars read as a texture rather than a block (the same title always
- * draws the same bar).
- */
-export function stripWidthPct(title: string): number {
-  const len = title.trim().length
-  return Math.round(Math.min(STRIP_MAX_PCT, Math.max(STRIP_MIN_PCT, STRIP_MIN_PCT + len * STRIP_PCT_PER_CHAR)))
-}
-
 /** What a Lines row's tooltip says beside the title. */
 export interface RowSummaryParts {
   rowDates: RowDates
@@ -108,7 +91,7 @@ export interface RowSummaryParts {
 
 /**
  * A Lines row's tooltip (it has no cells): the title, then what the Rows
- * cells would show — `Due Nov 20 (late) · Follow-up Mon · 2 of 5 subtasks
+ * cells would show — `Due 11/20 (late) · Follow-up Mon · 2 of 5 subtasks
  * done · Aisha, Ben · #docs` —, then a stale task's last-edited line.
  */
 export function rowSummaryText(

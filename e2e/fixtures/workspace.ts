@@ -19,7 +19,7 @@ export interface WsTabSeed {
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
   /** List / Eisenhower / dashboard tabs: the task rows' details width (view state). */
   detailsWidth?: number
-  /** List tabs: the zoom (view state; absent = the Settings default). */
+  /** List tabs: the zoom (view state; absent = the Settings default; `strips`, a removed level, opens as `lines`). */
   zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
   /** Dashboard tabs: the config (defaults: the app's — `createTab`). */
   dashboard?: {

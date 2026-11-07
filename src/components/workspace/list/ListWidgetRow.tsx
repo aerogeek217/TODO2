@@ -1,8 +1,8 @@
-import { memo, useCallback } from 'react'
+import { memo, useCallback, type ReactNode } from 'react'
 import type { PersistedTodoItem, Person } from '../../../models'
 import type { ListZoom } from '../../../models/workspace-layout'
 import { TaskRow } from '../../task/TaskRow'
-import { TaskLine, TaskStrip } from '../../task/TaskLine'
+import { TaskLine } from '../../task/TaskLine'
 import { TaskDraggable } from '../../task/dnd/TaskDraggable'
 import { taskDragId } from '../../../utils/task-dnd'
 import styles from './ListWidget.module.css'
@@ -29,6 +29,20 @@ export type ListRowDragLook =
   /** Another row of the list while rows make room (manual order). */
   | 'dim'
 
+/**
+ * Where a dragged task would land (D25 E4): a blank, inset space a row
+ * high — the one look of every task drop between rows (a reorder, another
+ * group, a sorted list, an Eisenhower pane). In a sorted list it is dashed
+ * and holds `children`, the hint that the drop switches it to manual.
+ */
+export function DropSlot({ sorted, children }: { sorted?: boolean; children?: ReactNode }) {
+  return (
+    <div className={`${styles.dropSlot} ${sorted ? styles.dropSlotSorted : ''}`} data-drop-slot={sorted ? 'sorted' : ''}>
+      {children}
+    </div>
+  )
+}
+
 export interface ListRowSelectMods {
   shift: boolean
   ctrl: boolean
@@ -50,30 +64,27 @@ interface ListWidgetRowProps {
   look: ListRowDragLook
   /** Just completed in a list that hides completed tasks: it lingers, then folds away (D19). */
   leaving?: LeavingPhase
-  /** The list tab's zoom (D25 C + I1): a stacked or plain row, a line or a strip. */
+  /** The list tab's zoom (D25 C + I1): a stacked or plain row, or a line. */
   zoom?: ListZoom
   onSelect: (rowKey: string, todoId: number, mods: ListRowSelectMods) => void
   onOpenDetail: (todoId: number) => void
-  /** A strip's click: the list zooms to Rows on this occurrence. */
-  onZoomTo?: (rowKey: string, todoId: number) => void
 }
 
 /**
  * One occurrence of a task in a list widget: draggable (one drag id per
  * occurrence), selectable, addressed by `rowKey` (`data-row-key`) for the
  * widget's selection and keyboard cursor. Drawn at the list's zoom: a
- * `TaskRow` (stacked at Stacked), a `TaskLine` at Lines, a `TaskStrip` at
- * Strips — the same draggable occurrence at every level.
+ * `TaskRow` (stacked at Stacked) or a `TaskLine` at Lines — the same
+ * draggable occurrence at every level.
  */
 export const ListWidgetRow = memo(function ListWidgetRow({
   todo, assignedPeople, tabId, sectionKey, rowKey,
-  selected, selFirst, selLast, cursor, look, leaving, zoom = 'rows', onSelect, onOpenDetail, onZoomTo,
+  selected, selFirst, selLast, cursor, look, leaving, zoom = 'rows', onSelect, onOpenDetail,
 }: ListWidgetRowProps) {
   const handleSelect = useCallback(
     (todoId: number, mods: ListRowSelectMods) => onSelect(rowKey, todoId, mods),
     [onSelect, rowKey],
   )
-  const handleZoomTo = useCallback((todoId: number) => onZoomTo?.(rowKey, todoId), [onZoomTo, rowKey])
   const dragData: ListRowDragData = { listTabId: tabId, sectionKey, rowKey }
   const cls = [
     styles.row,
@@ -108,11 +119,9 @@ export const ListWidgetRow = memo(function ListWidgetRow({
           onMouseDown={(e) => { if (e.shiftKey || e.ctrlKey || e.metaKey) e.preventDefault() }}
         >
           {look === 'slot' ? (
-            <div className={styles.dropSlot} data-drop-slot="" />
+            <DropSlot />
           ) : zoom === 'lines' ? (
             <TaskLine todo={todo} assignedPeople={assignedPeople} onSelect={handleSelect} onOpenDetail={onOpenDetail} />
-          ) : zoom === 'strips' ? (
-            <TaskStrip todo={todo} onZoomTo={handleZoomTo} />
           ) : (
             <TaskRow
               todo={todo}

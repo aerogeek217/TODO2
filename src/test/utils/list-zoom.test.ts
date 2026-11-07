@@ -1,12 +1,11 @@
 import { describe, it, expect } from 'vitest'
-import { LIST_ZOOMS, isListZoom } from '../../models/workspace-layout'
+import { LIST_ZOOMS, isListZoom, readListZoom } from '../../models/workspace-layout'
 import {
   canStepListZoom,
   parseListZoomSetting,
   rowSummaryText,
   rowTone,
   stepListZoom,
-  stripWidthPct,
 } from '../../utils/list-zoom'
 
 const TODAY = new Date(2026, 10, 6)
@@ -18,24 +17,24 @@ const task = (fields: Partial<{ dueDate: Date; nextFollowupAt: Date; isCompleted
 
 describe('the zoom step (D25 C + I1)', () => {
   it('orders the levels most detail first', () => {
-    expect(LIST_ZOOMS).toEqual(['stacked', 'rows', 'lines', 'strips'])
+    expect(LIST_ZOOMS).toEqual(['stacked', 'rows', 'lines'])
     expect(isListZoom('lines')).toBe(true)
     expect(isListZoom('compact')).toBe(false)
+    expect(isListZoom('strips')).toBe(false)
   })
 
-  it('steps one level, in towards Stacked and out towards Strips', () => {
+  it('steps one level, in towards Stacked and out towards Lines', () => {
     expect(stepListZoom('rows', 'in')).toBe('stacked')
     expect(stepListZoom('rows', 'out')).toBe('lines')
-    expect(stepListZoom('lines', 'out')).toBe('strips')
-    expect(stepListZoom('strips', 'in')).toBe('lines')
+    expect(stepListZoom('lines', 'in')).toBe('rows')
   })
 
   it('is clamped at the ends', () => {
     expect(stepListZoom('stacked', 'in')).toBe('stacked')
-    expect(stepListZoom('strips', 'out')).toBe('strips')
+    expect(stepListZoom('lines', 'out')).toBe('lines')
     expect(canStepListZoom('stacked', 'in')).toBe(false)
     expect(canStepListZoom('stacked', 'out')).toBe(true)
-    expect(canStepListZoom('strips', 'out')).toBe(false)
+    expect(canStepListZoom('lines', 'out')).toBe(false)
   })
 })
 
@@ -44,13 +43,15 @@ describe('the Default list zoom row', () => {
     for (const z of LIST_ZOOMS) expect(parseListZoomSetting(z)).toBe(z)
     expect(parseListZoomSetting('comfortable')).toBe('stacked')
     expect(parseListZoomSetting('compact')).toBe('rows')
+    // Strips, removed, reads as the nearest level.
+    expect(parseListZoomSetting('strips')).toBe('lines')
     expect(parseListZoomSetting('Rows')).toBeUndefined()
     expect(parseListZoomSetting('')).toBeUndefined()
     expect(parseListZoomSetting(3)).toBeUndefined()
   })
 })
 
-describe('a task’s tone at Lines and Strips', () => {
+describe('a task’s tone at Lines', () => {
   it('takes the first that holds: late, due soon, follow-up late, stale, none', () => {
     expect(rowTone(task({ dueDate: day(-1), nextFollowupAt: day(-2) }), TODAY, SETTINGS)).toBe('late')
     expect(rowTone(task({ dueDate: day(2), nextFollowupAt: day(-2) }), TODAY, SETTINGS)).toBe('soon')
@@ -70,16 +71,6 @@ describe('a task’s tone at Lines and Strips', () => {
   })
 })
 
-describe('a strip’s width', () => {
-  it('grows with the title, between 24% and 100%, the same for the same title', () => {
-    expect(stripWidthPct('')).toBe(24)
-    expect(stripWidthPct('Q4')).toBe(27)
-    expect(stripWidthPct('Migrate billing jobs')).toBeGreaterThan(stripWidthPct('Q4 budget'))
-    expect(stripWidthPct('x'.repeat(200))).toBe(100)
-    expect(stripWidthPct('Send interview feedback')).toBe(stripWidthPct('Send interview feedback'))
-  })
-})
-
 describe('a line’s tooltip', () => {
   it('the title, then what the cells would say, then a stale task’s last edit', () => {
     const text = rowSummaryText(task({ title: 'Ship it', dueDate: day(-2), nextFollowupAt: day(1), modifiedAt: day(-40) }), TODAY, {
@@ -87,11 +78,20 @@ describe('a line’s tooltip', () => {
     })
     const [title, meta, stale] = text.split('\n')
     expect(title).toBe('Ship it')
-    expect(meta).toBe('Due Nov 4 (late) · Follow-up Sat · 1 of 3 subtasks done · Ann, Bob · #docs')
+    expect(meta).toBe('Due 11/04 (late) · Follow-up Sat · 1 of 3 subtasks done · Ann, Bob · #docs')
     expect(stale).toMatch(/^Last edited 40 days ago/)
   })
 
   it('a task with nothing set is its title alone', () => {
     expect(rowSummaryText(task({ title: 'Bare' }), TODAY, { rowDates: 'numeric', people: [], tags: [], count: null, stale: false })).toBe('Bare')
+  })
+})
+
+describe('a stored zoom', () => {
+  it('reads a level as it is, the removed Strips as Lines, anything else as nothing', () => {
+    for (const z of LIST_ZOOMS) expect(readListZoom(z)).toBe(z)
+    expect(readListZoom('strips')).toBe('lines')
+    expect(readListZoom('compact')).toBeUndefined()
+    expect(readListZoom(undefined)).toBeUndefined()
   })
 })

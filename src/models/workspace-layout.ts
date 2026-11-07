@@ -110,16 +110,24 @@ export interface TaskRowsViewState {
  * How a list tab draws its tasks (D25 C + I1), most detail first:
  * `stacked` — the title on its own line (up to two), the details on a line
  * under it; `rows` — one row per task, its cells in columns (the default);
- * `lines` — 15px lines, a state tick and the title only; `strips` — a 3px
- * bar per task in the tick's colours.
+ * `lines` — 15px lines, a state tick and the title only.
  */
-export type ListZoom = 'stacked' | 'rows' | 'lines' | 'strips'
+export type ListZoom = 'stacked' | 'rows' | 'lines'
 
 /** The zoom levels, most detail first: zooming out steps right, zooming in steps left. */
-export const LIST_ZOOMS: readonly ListZoom[] = ['stacked', 'rows', 'lines', 'strips']
+export const LIST_ZOOMS: readonly ListZoom[] = ['stacked', 'rows', 'lines']
 
 export function isListZoom(v: unknown): v is ListZoom {
   return typeof v === 'string' && (LIST_ZOOMS as readonly string[]).includes(v)
+}
+
+/**
+ * A stored zoom as a level: a level, or `strips` — a level once, a bar per
+ * task, removed — as `lines`, the nearest; `undefined` for anything else.
+ */
+export function readListZoom(v: unknown): ListZoom | undefined {
+  if (isListZoom(v)) return v
+  return v === 'strips' ? 'lines' : undefined
 }
 
 /** A list tab's view state: the rows' details width and its zoom. */

@@ -95,11 +95,12 @@ export const SETTING_KEYS = {
   /** What each priority adds to a task's row (`utils/priority-cues`): JSON; absent = the default. */
   priorityCues: 'priorityCues',
   /**
-   * The default list zoom (Settings › Appearance; a list tab that hasn't picked one): `stacked`, `rows`, `lines` or
-   * `strips`; the densities before it read as levels (`comfortable` → `stacked`, `compact` → `rows`). Absent = `rows`.
+   * The default list zoom (Settings › Appearance; a list tab that hasn't picked one): `stacked`, `rows` or `lines`;
+   * the removed `strips` reads as `lines`, the densities before it as levels (`comfortable` → `stacked`,
+   * `compact` → `rows`). Absent = `rows`.
    */
   rowDensity: 'rowDensity',
-  /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `Nov 20`) or `numeric` (`MM/DD`). Absent = `relative`. */
+  /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `11/20`) or `numeric` (`MM/DD`). Absent = `relative`. */
   rowDates: 'rowDates',
   /**
    * The lenses (named screen filters, picked in the top bar — `activeLensId`): JSON array of

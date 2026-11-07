@@ -64,7 +64,7 @@ async function ringContrasts(widget: Locator): Promise<Record<string, number>> {
 test.describe('the priority ring and the row spine (D25 B)', () => {
   test.use({ viewport: { width: 1100, height: 800 } })
 
-  test('each priority is its ring on the checkbox: solid, dashed for urgent by date, split for both, the Focus dot under another', async ({ page }) => {
+  test('each priority is its ring on the checkbox: solid, dashed for urgent by date, split for both, Focus under another its halo', async ({ page }) => {
     const widget = await seedTaskList(page, { tasks: TASKS })
     await expect(row(widget, 'Plain')).toBeVisible()
     await expect(ringOf(widget, 'Plain')).toHaveCount(0)
@@ -93,10 +93,20 @@ test.describe('the priority ring and the row spine (D25 B)', () => {
     expect(fit.dw).toBeLessThan(0.5)
     expect(fit.border).toBe('rgba(0, 0, 0, 0)')
 
-    // Focus under another ring: the accent dot in the gutter at rest, gone on hover (the flag shows).
-    const dot = row(widget, 'Focus and urgent').locator('[data-gutter-dot="focus"]')
-    await expect(dot).toBeVisible()
-    await expect(row(widget, 'Focus').locator('[data-gutter-dot]')).toHaveCount(0)
+    // Focus under another ring: a halo in the Focus colour just outside the box; Focus alone has none.
+    const halo = row(widget, 'Focus and urgent').locator('[data-focus-halo]')
+    await expect(halo).toHaveCount(1)
+    const around = await row(widget, 'Focus and urgent').locator('[data-row-cell="checkbox"]').evaluate((box) => {
+      const h = box.parentElement!.querySelector('[data-focus-halo]')!.getBoundingClientRect()
+      const b = box.getBoundingClientRect()
+      return { left: b.x - h.x, right: h.right - b.right, top: b.y - h.y, bottom: h.bottom - b.bottom, stroke: getComputedStyle(box.parentElement!.querySelector('[data-focus-halo]')!).stroke }
+    })
+    for (const gap of [around.left, around.right, around.top, around.bottom]) {
+      expect(gap).toBeGreaterThan(1.5)
+      expect(gap).toBeLessThan(4)
+    }
+    expect(around.stroke).not.toBe('none')
+    await expect(row(widget, 'Focus').locator('[data-focus-halo]')).toHaveCount(0)
   })
 
   test('the gutter: empty at rest, a flag on row hover, and a click opens the priority menu', async ({ page }) => {

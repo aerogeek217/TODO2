@@ -71,7 +71,7 @@ test.describe('dragging between quadrants', () => {
     // Schedule → Delegate (diagonal): + Urgent · − Important.
     await dragOnto(page, row(quadrant(page, 'schedule'), 'Send board update'), quadrant(page, 'delegate'), async () => {
       await expect(quadrant(page, 'delegate').getByTestId('eisenhower-drop-preview')).toHaveText('+ Urgent · − Important')
-      await expect(quadrant(page, 'delegate').locator('[data-drop-line]')).toHaveCount(1)
+      await expect(quadrant(page, 'delegate').locator('[data-drop-slot]')).toHaveCount(1)
     })
     await expect(row(quadrant(page, 'delegate'), 'Send board update')).toBeVisible()
     expect(await readFlags(page, 'Send board update')).toEqual({ urgent: true })

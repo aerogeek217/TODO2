@@ -40,8 +40,8 @@ function seed(tab: Omit<WsTabSeed, 'id'>, width: number, tasks = TASKS): Workspa
   }
 }
 
-/** A row date's text (D25 D1): `Today`, a weekday, `Nov 20` or another year's `MM/DD/YY`. */
-const ROW_DATE = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|[A-Z][a-z]{2} \d{1,2}|\d\d\/\d\d\/\d\d)$/
+/** A row date's text (D25 D1): `Today`, a weekday, `11/20` or another year's `MM/DD/YY`. */
+const ROW_DATE = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|\d\d\/\d\d|\d\d\/\d\d\/\d\d)$/
 
 const CELLS = ['markers', 'checkbox', 'notes', 'people', 'tags', 'dates', 'due', 'followup', 'status'] as const
 

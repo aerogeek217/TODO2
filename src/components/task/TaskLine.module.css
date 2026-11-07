@@ -1,10 +1,9 @@
 /*
- * A list tab's compact zoom levels (D25 I1): a Lines row (a 15px line, a
- * state tick and the title) and a Strips bar. Both colour a task by its
+ * A list tab's compact zoom level (D25 I1): a Lines row (a 15px line, a
+ * state tick and the title). The tick colours a task by its
  * state (`data-tone`, `utils/list-zoom.rowTone`).
  */
-.line,
-.strip {
+.line {
   --row-tone: var(--color-row-tone-plain);
 }
 
@@ -28,6 +27,7 @@
 
 /* The row's tracks (`TASK_ROW`: padding 2, gutter 8, gap 5, checkbox 18, gap 5): the title starts where a row's does. */
 .line {
+  position: relative;
   display: grid;
   grid-template-columns: 8px 18px minmax(0, 1fr);
   column-gap: 5px;
@@ -85,28 +85,15 @@
   text-decoration: line-through;
 }
 
-/* ── Strips ────────────────────────────────────────────────────────────── */
-
-/* The bar and the 1px gap under it: the whole width is the bar's hit area. */
-.strip {
-  display: flex;
-  align-items: flex-start;
-  min-height: calc(var(--task-strip-height) + 1px);
-  padding-left: 2px;
-  cursor: zoom-in;
-}
-
-.bar {
-  height: var(--task-strip-height);
-  border-radius: calc(var(--task-strip-height) / 2);
-  background: var(--row-tone);
-  transition: filter var(--transition-fast);
-}
-
-.strip:hover .bar {
-  filter: brightness(1.4);
-}
-
-.strip.completed .bar {
-  opacity: 0.4;
+/* The menu's hidden anchors (`LineActions`): the follow-up popover and the due date's picker open at the title's start. */
+.anchor {
+  position: absolute;
+  left: var(--row-title-start);
+  top: 0;
+  width: 1px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }

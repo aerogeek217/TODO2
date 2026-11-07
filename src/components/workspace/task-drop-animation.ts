@@ -33,7 +33,7 @@ function poses(style: CSSStyleDeclaration): { pose: Keyframe; rest: Keyframe } {
 }
 
 /**
- * Untilts and fades the lifted row where it is, on a copy of the overlay
+ * Settles and fades the lifted row where it is, on a copy of the overlay
  * beside it: the drop lets the overlay go at once (dnd-kit has nothing to
  * animate once the dragged row has left — a row moved to another group
  * renders under a new drag id), and the copy outlives it.
@@ -70,7 +70,7 @@ export interface TaskDropAnimation {
 }
 
 /**
- * The task row's drop (D25 E4): the lifted row untilts back to the row's
+ * The task row's drop (D25 E4): the lifted row settles back to the row's
  * resting look over `--drag-settle-duration` on the spring curve, from
  * whatever pose it has (a drop mid-lift too), and goes where the drop's
  * handlers said (`land`; `settle` unless told) — onto the dragged row (its
@@ -99,7 +99,7 @@ export function createTaskDropAnimation(): TaskDropAnimation {
     const { pose, rest } = poses(style)
     const timing = settleTiming(style)
     // Onto the row: the overlay moves by how far it is from it now — its own
-    // box (dnd-kit measures the tilted row's, a wider and taller one).
+    // box (dnd-kit measures the scaled row's, a wider and taller one).
     const at = dragOverlay.node.getBoundingClientRect()
     const to = { ...transform, x: transform.x - (at.left - active.rect.left), y: transform.y - (at.top - active.rect.top) }
     const animations = [

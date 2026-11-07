@@ -269,7 +269,7 @@ export function DraftTaskRow({ row, lookups, onChange, onCheck, onEdit, onRemove
           if (!isEditing) onEdit()
         }}
       >
-        <MarkerGutter todo={todo} summary={markers} anchorRef={markersRef} open={open === 'markers'} onToggle={() => toggle('markers')} />
+        <MarkerGutter summary={markers} anchorRef={markersRef} open={open === 'markers'} onToggle={() => toggle('markers')} />
 
         <RowCheckbox
           summary={markers}

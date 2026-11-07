@@ -54,7 +54,7 @@ import { MenuPopover, type MenuEntry } from '../../shared/MenuPopover'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { ListBulkBar } from '../list/ListBulkBar'
-import { ListWidgetRow, type ListRowDragLook, type ListRowSelectMods } from '../list/ListWidgetRow'
+import { DropSlot, ListWidgetRow, type ListRowDragLook, type ListRowSelectMods } from '../list/ListWidgetRow'
 import { dragTasks } from './eisenhower-drag'
 import { RefusalTooltip } from '../../shared/RefusalTooltip'
 import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
@@ -259,7 +259,7 @@ function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, co
     const todo = ctx.keptTodos?.get(built.id) ?? built
     const key = rowKey(q, todo.id)
     if (key !== drag?.sourceKey) {
-      if (j === lineAt) rows.push(<div key="drop-line" className={styles.dropLine} data-drop-line="" />)
+      if (j === lineAt) rows.push(<DropSlot key="drop-slot" />)
       j++
     }
     const people = assignedPeopleMap.get(todo.id)
@@ -288,7 +288,7 @@ function Quadrant({ pane, subtitle, addHint: hint, tasks, openCount, stacked, co
       />,
     )
   })
-  if (lineAt >= 0 && j === lineAt) rows.push(<div key="drop-line" className={styles.dropLine} data-drop-line="" />)
+  if (lineAt >= 0 && j === lineAt) rows.push(<DropSlot key="drop-slot" />)
 
   const showBody = !stacked || !collapsed
   const [emptyTitle, emptyHint] = emptyLines(pane)

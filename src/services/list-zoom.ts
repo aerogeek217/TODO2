@@ -1,4 +1,4 @@
-import type { LensTab, ListZoom } from '../models/workspace-layout'
+import { readListZoom, type LensTab, type ListZoom } from '../models/workspace-layout'
 import { useSettingsStore } from '../stores/settings-store'
 import { useUIStore } from '../stores/ui-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
@@ -12,9 +12,9 @@ import { getTab } from '../utils/workspace-layout-ops'
  * A tab's zoom is view state: saved at once, never an unsaved layout edit.
  */
 
-/** The level `tab` shows: its own pick, else Settings › Appearance › Default list zoom. */
+/** The level `tab` shows: its own pick (a stored `strips` as `lines`), else Settings › Appearance › Default list zoom. */
 export function listTabZoom(tab: Pick<LensTab, 'viewState'>, fallback: ListZoom = useSettingsStore.getState().listZoom): ListZoom {
-  return tab.viewState?.zoom ?? fallback
+  return readListZoom(tab.viewState?.zoom) ?? fallback
 }
 
 /** Saves `zoom` as list tab `tabId`'s (view state: saved at once). */

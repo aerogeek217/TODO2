@@ -18,11 +18,12 @@
  */
 
 /**
- * A row date's text width, px (`formatRowDate`, D25 D1): the widest month
- * and day in the app font at the 11.5px meta, tabular figures, bold as an
- * overdue date is (`May 28` 39.5; `Today` 34, `Wed` 26, `MM/DD` 33.4; the
- * system fallbacks are narrower). Another year's `MM/DD/YY` (51–53) takes
- * the padding's room at 11px instead (`.dateLong`: 50.7 bold in 52).
+ * A row date's text width, px (`formatRowDate`, D25 D1), in the app font at
+ * the 11.5px meta, tabular figures, bold as an overdue date is (`Today` 34,
+ * `MM/DD` 33.4, `Wed` 26 — sized when the words included `May 28`, 39.5,
+ * so it now has room to spare; the system fallbacks are narrower). Another
+ * year's `MM/DD/YY` (51–53) takes the padding's room at 11px instead
+ * (`.dateLong`: 50.7 bold in 52).
  */
 const DATE_TEXT = 40
 /** A date part's icon (1em of the meta font), px — the placeholder, or the repeat glyph before a repeating task's date. */

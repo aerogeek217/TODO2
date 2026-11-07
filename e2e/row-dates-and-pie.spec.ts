@@ -3,7 +3,7 @@ import { openSettings, seedTaskList } from './fixtures/workspace'
 
 /**
  * D25 D1 · a task row's dates in words — `Today`, the next six days'
- * weekday (tomorrow too), `Nov 20` in this calendar year (an overdue date
+ * weekday (tomorrow too), `11/20` in this calendar year (an overdue date
  * too, bold), `01/15/27` in another — or `MM/DD` under Settings ›
  * Appearance › Dates; each word fits its date part at the 11.5px meta.
  * D2 · the checklist pie before a row's `2/5`: a 12px ring filled by the
@@ -55,12 +55,12 @@ test.describe('row dates in words and the checklist pie (D25 D1, D2)', () => {
     await expect(due(widget, 'Due today')).toHaveText('Today')
     await expect(due(widget, 'Due tomorrow')).toHaveText('Sat')
     await expect(followup(widget, 'Follow up Tuesday')).toHaveText('Tue')
-    await expect(due(widget, 'Due in two weeks')).toHaveText('Nov 20')
-    await expect(due(widget, 'Overdue')).toHaveText('Oct 27')
-    await expect(followup(widget, 'Follow-up late')).toHaveText('Nov 3')
+    await expect(due(widget, 'Due in two weeks')).toHaveText('11/20')
+    await expect(due(widget, 'Overdue')).toHaveText('10/27')
+    await expect(followup(widget, 'Follow-up late')).toHaveText('11/03')
     await expect(due(widget, 'Due next year')).toHaveText('01/15/27')
     await expect(due(widget, 'Wide words')).toHaveText('Wed')
-    await expect(followup(widget, 'Wide words')).toHaveText('Dec 4')
+    await expect(followup(widget, 'Wide words')).toHaveText('12/04')
 
     // The names keep the full date; overdue stays bold in the deadline colour.
     await expect(due(widget, 'Due tomorrow')).toHaveAccessibleName('Due Sat 7 Nov')
