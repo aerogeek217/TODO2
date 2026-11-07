@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import type { SettingsPartId, SettingsSectionId } from '../../../stores/ui-store'
 import { AppearanceSection } from './AppearanceSection'
+import { AmbienceSection } from './AmbienceSection'
 import { TaskDefaultsSection } from './TaskDefaultsSection'
 import { EntitiesSection } from './EntitiesSection'
 import { CompletedTasksSection } from './CompletedTasksSection'
@@ -57,7 +58,18 @@ const EISENHOWER_HELP = 'A task shows in the first pane whose filter it matches,
 
 const BACKUPS_HELP = 'Taken automatically every day, before destructive operations, and before the sync file is rewritten. Restoring one backs up the data it replaces first.'
 
-const APPEARANCE = single('appearance', 'Appearance', AppearanceIcon, AppearanceSection, true)
+const AMBIENCE_HELP = 'Quiet signs of the time of day and the season in the top bar and the space around your lists: the sky, the sun and the moon, weather. Nothing changes on your tasks. Desktop only.'
+
+// Theme and lists on every surface; Ambience on desktop only (a phone sees the first part, without its heading).
+const APPEARANCE: SettingsSectionDef = {
+  id: 'appearance',
+  label: 'Appearance',
+  Icon: AppearanceIcon,
+  parts: [
+    { id: 'theme-and-lists', label: 'Theme and lists', Body: AppearanceSection, mobile: true },
+    { id: 'ambience', label: 'Ambience', Body: AmbienceSection, mobile: false, help: AMBIENCE_HELP },
+  ],
+}
 
 /**
  * The Settings sections, in list order. The modal and the mobile page both

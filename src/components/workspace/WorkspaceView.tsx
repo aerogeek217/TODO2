@@ -10,6 +10,7 @@ import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { useWorkspaceDrag } from './workspace-drag'
+import { AmbienceBackdrop, AmbienceLamp } from '../ambience/AmbienceWorkspace'
 import styles from './WorkspaceView.module.css'
 
 function EmptyLayout() {
@@ -208,6 +209,7 @@ export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
       style={{ '--layout-hue': hueColor(layout.hue) } as CSSProperties}
     >
       <Grain />
+      <AmbienceBackdrop />
       {top && <Band edge="top" band={top} />}
       {top && <BandGutter edge="top" band={top} />}
       <div className={styles.columnArea} data-ws-columns>
@@ -237,6 +239,7 @@ export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
       </div>
       {bottom && <BandGutter edge="bottom" band={bottom} />}
       {bottom && <Band edge="bottom" band={bottom} />}
+      <AmbienceLamp />
       <DragOverlayLayer />
     </div>
   )

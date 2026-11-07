@@ -121,6 +121,7 @@ function buildSeed(): Seed {
       { key: 'staleAfterDays', value: '45' },
       { key: 'rowDensity', value: 'comfortable' },
       { key: 'rowDates', value: 'numeric' },
+      { key: 'ambience', value: JSON.stringify({ enabled: false, place: { lat: 41.88, lon: -87.63 }, sky: 'subtle', motion: 60, seasons: false }) },
       { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...emptyPredicate(), expression: EXPRESSION } }]) },
       { key: 'lensPresetsSeeded', value: 'true' },
       { key: 'activeLensId', value: 'lens-a' },

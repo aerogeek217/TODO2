@@ -13,7 +13,8 @@ import styles from './sections.module.css'
  */
 export function SettingsSectionBody({ section, mobile }: { section: SettingsSectionDef; mobile: boolean }) {
   const parts = visibleParts(section, mobile)
-  const only = section.parts.length === 1 ? parts[0] : undefined
+  // One part shown (a one-part section, or a merged one the phone shows one part of): no heading.
+  const only = parts.length === 1 ? parts[0] : undefined
   let body
   if (only) {
     const Body = only.Body

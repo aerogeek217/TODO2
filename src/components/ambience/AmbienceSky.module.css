@@ -1,0 +1,201 @@
+/*
+ * Ambience in the top bar. The bar is no stacking context: its glass is a
+ * `::before` at z-index −1, its hairline an `::after`. The sky layer comes
+ * right after the glass (z −1, later in the tree) and under the bar's
+ * content; drawn at the share of the sky the 72 % glass would let through, it
+ * gives the colours the sky would have under the glass. The hairline layer
+ * (z 1) draws over the bar's own hairline.
+ */
+
+.layer {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sky {
+  position: absolute;
+  inset: 0;
+  transition: opacity 600ms ease;
+}
+
+/* The sun: a soft glow (blurred, as the glass would blur it) and a soft disc. */
+.sunGlow,
+.sunDisc {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.sunGlow {
+  width: 64px;
+  height: 64px;
+  filter: blur(6px);
+}
+
+.sunDisc {
+  width: 24px;
+  height: 24px;
+  filter: blur(2.5px);
+}
+
+.moon {
+  position: absolute;
+  width: 20px;
+  height: 20px;
+  transform: translate(-50%, -50%);
+  filter: blur(1.4px);
+  overflow: visible;
+}
+
+.stars {
+  position: absolute;
+  inset: 0;
+}
+
+.star {
+  position: absolute;
+  width: 1.5px;
+  height: 1.5px;
+  border-radius: 50%;
+  /* A cool star-white; the stars show in the dark theme only (`utils/sky`). */
+  background: #f2f5fb;
+  animation: twinkle 4s ease-in-out infinite;
+}
+
+.starBig {
+  width: 2px;
+  height: 2px;
+}
+
+@keyframes twinkle {
+  0%, 100% { opacity: 0.9; }
+  50% { opacity: 0.25; }
+}
+
+/* Cumulus drifting across: each crossing from just off the left to just off the right. */
+.clouds {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+}
+
+.cloud {
+  position: absolute;
+  left: 0;
+  filter: blur(2.4px);
+  mask: linear-gradient(to bottom, #000 80%, transparent 94%);
+  animation: cloud-drift var(--dur, 300s) linear var(--delay, 0s) infinite;
+}
+
+@keyframes cloud-drift {
+  from { transform: translateX(-15cqw); }
+  to { transform: translateX(115cqw); }
+}
+
+/* Winter nights: a faint green and violet ribbon. */
+.aurora {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  top: -8px;
+  height: 34px;
+  filter: blur(6px);
+  background: linear-gradient(to right, transparent 4%, rgba(80, 230, 170, 0.9) 22%, rgba(110, 200, 255, 0.55) 42%, rgba(170, 120, 240, 0.8) 62%, rgba(80, 230, 170, 0.6) 78%, transparent 94%);
+  mask: linear-gradient(to bottom, #000 20%, transparent);
+  animation: aurora 16s ease-in-out infinite alternate;
+}
+
+@keyframes aurora {
+  from { transform: translateX(-5%) skewX(-14deg) scaleY(0.8); }
+  to { transform: translateX(5%) skewX(12deg) scaleY(1.15); }
+}
+
+/* The morning mist on the hairline, drifting slowly. */
+.mist {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 24px;
+  background-image:
+    radial-gradient(ellipse 70px 9px at 50% 100%, var(--mist, rgba(215, 225, 240, 0.5)), transparent),
+    linear-gradient(to top, var(--mist, rgba(215, 225, 240, 0.5)), transparent);
+  background-size: 140px 100%, 100% 100%;
+  background-repeat: repeat-x, no-repeat;
+  animation: mist-drift 28s linear infinite;
+}
+
+@keyframes mist-drift {
+  from { background-position: 0 0, 0 0; }
+  to { background-position: 140px 0, 0 0; }
+}
+
+/* Under reduced motion: nothing twinkles, drifts or wavers (the clouds hold where they are). */
+.still .star,
+.still .cloud,
+.still .aurora,
+.still .mist {
+  animation-play-state: paused;
+}
+
+/* Over the bar's bottom edge: the sun's or moon's point on the hairline, its glow, the ripples. */
+.hairline {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 15px;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hairlineGlow {
+  position: absolute;
+  inset: 0 0 1px;
+}
+
+.hairlineLine {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+}
+
+/* A completed task's pulse along the hairline, from above the task outward. */
+.ripple {
+  position: absolute;
+  bottom: 0;
+  width: 420px;
+  height: 2px;
+  margin-left: -210px;
+  background: radial-gradient(ellipse 50% 100% at 50% 100%, var(--color-accent), transparent 70%);
+  animation: ripple 1.5s ease-out forwards;
+}
+
+@keyframes ripple {
+  from { transform: scaleX(0.04); opacity: 1; }
+  to { transform: scaleX(1); opacity: 0; }
+}
+
+/* The season in the checkmark: a few particles from the box, gone in two seconds. */
+.bursts {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  pointer-events: none;
+}
+
+.bursts .burst {
+  margin: calc(var(--size, 4px) / -2) 0 0 calc(var(--size, 4px) / -2);
+  animation: burst 1.9s ease-out forwards;
+}
+
+@keyframes burst {
+  from { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  70% { opacity: 0.9; }
+  to { transform: translate(var(--dx, 0), var(--dy, 20px)) rotate(var(--spin, 0deg)); opacity: 0; }
+}

@@ -118,6 +118,13 @@ export const SETTING_KEYS = {
    * id (`lenses`). Absent = No lens; an id no lens has reads as No lens.
    */
   activeLensId: 'activeLensId',
+  /**
+   * Ambience (Settings › Appearance › Ambience): JSON
+   * `{ enabled, place: { lat, lon } | null, sky, motion, seasons }` (`utils/ambience-settings`);
+   * a field missing or out of range reads as its default. Absent = all defaults (on, place
+   * guessed from the time zone, Whisper, 40 %, seasons on).
+   */
+  ambience: 'ambience',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

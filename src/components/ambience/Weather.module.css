@@ -1,0 +1,108 @@
+/*
+ * The ambience's weather: each particle loops on its own path, length
+ * and delay (`weather.ts` sets them as custom properties). The field is a
+ * size container, so a path crosses it whatever its size (cqw / cqh).
+ */
+
+.field {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  container-type: size;
+}
+
+.p {
+  position: absolute;
+  width: var(--size, 2px);
+  height: var(--size, 2px);
+  border-radius: 50%;
+  will-change: transform;
+  animation-duration: var(--dur, 6s);
+  animation-delay: var(--delay, 0s);
+  animation-iteration-count: infinite;
+  animation-timing-function: linear;
+}
+
+/* Snow: falls with a sway. */
+.flake {
+  top: 0;
+  background: var(--flake, #eef3fa);
+  animation-name: fall;
+}
+
+@keyframes fall {
+  0% { transform: translate(0, -8px); }
+  50% { transform: translate(var(--sway, 6px), 50cqh); }
+  100% { transform: translate(0, calc(100cqh + 8px)); }
+}
+
+/* An autumn leaf: blown across from the right, tumbling. */
+.leaf {
+  left: 0;
+  height: calc(var(--size, 7px) * 0.47);
+  background: var(--color, #c8743a);
+  animation-name: blow;
+}
+
+@keyframes blow {
+  from { transform: translate(calc(100cqw + 12px), 0) rotate(0deg); }
+  to { transform: translate(-16px, var(--drop, 10px)) rotate(var(--spin, 360deg)); }
+}
+
+/* A spring petal: drifts across from the left. */
+.petal {
+  left: 0;
+  height: calc(var(--size, 4px) * 0.57);
+  background: var(--color, #f2b6c6);
+  animation-name: drift;
+}
+
+@keyframes drift {
+  from { transform: translate(-12px, 0) rotate(0deg); }
+  to { transform: translate(calc(100cqw + 12px), var(--drop, 14px)) rotate(var(--spin, 360deg)); }
+}
+
+/* A summer day's seed: rises slowly, drifting. */
+.seed {
+  top: 0;
+  background: var(--seed, rgba(255, 255, 255, 0.8));
+  animation-name: rise;
+}
+
+@keyframes rise {
+  from { transform: translate(0, calc(100cqh + 6px)); }
+  to { transform: translate(var(--sway, 20px), -8px); }
+}
+
+/* A summer night's firefly: wanders and blinks. */
+.firefly {
+  background: #fbef9a;
+  box-shadow: 0 0 6px 1px rgba(246, 226, 122, 0.8);
+  animation:
+    wander var(--dur, 12s) ease-in-out var(--delay, 0s) infinite alternate,
+    blink var(--blink, 2.4s) ease-in-out infinite alternate;
+}
+
+@keyframes wander {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(var(--dx1, 10px), var(--dy1, 4px)); }
+  100% { transform: translate(var(--dx2, -10px), var(--dy2, -4px)); }
+}
+
+@keyframes blink {
+  from { opacity: 0.15; }
+  to { opacity: 1; }
+}
+
+/* A night completion's burst: a four-point star. */
+.star {
+  border-radius: 0;
+  background: #fff6d0;
+  clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
+}
+
+/* The script leaves the weather out under reduced motion; this is the backstop. */
+@media (prefers-reduced-motion: reduce) {
+  .field { display: none; }
+}
