@@ -96,6 +96,10 @@
   --spring-duration: 220ms;
   --spring-easing: cubic-bezier(0.22, 0.61, 0.36, 1);
   --transition-spring: var(--spring-duration) var(--spring-easing);
+  /* A dragged task row (D25 E4) lifts on grab and settles on drop, on the
+     spring curve (the settle is scripted: `task-drop-animation` reads them). */
+  --drag-lift-duration: 160ms;
+  --drag-settle-duration: 200ms;
 
   /* The phone breakpoint is 640px. CSS @media queries cannot read custom
      properties, so the literal is written in each `@media (max-width:

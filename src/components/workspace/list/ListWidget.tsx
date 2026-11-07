@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import type { LensTab } from '../../../models/workspace-layout'
 import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
@@ -52,6 +52,7 @@ import { ListFilterRow } from './ListFilterRow'
 import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
+import { TaskDropLandingContext } from '../../task/dnd/task-drop-landing'
 import { hasMarkers } from '../../../utils/markers'
 import { topLevelPredicate } from '../../../utils/predicate-expression'
 import { resolvePriorityDrop, type PriorityDrop } from '../../../utils/priority-groups'
@@ -263,6 +264,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     // A refused drop writes nothing (its tooltip said why during the drag).
     return drop?.kind === 'write' ? { kind: 'priority', todoId: todo.id, flags: drop.flags, description: drop.description } : null
   }
+  const landDrop = useContext(TaskDropLandingContext)
   const handleDrop = (source: ListRowDragSource, target: ListRowDropTarget) => {
     const section = sections.find((s) => s.key === target.sectionKey)
     const todo = list?.todos.find((t) => t.id === source.todoId)
@@ -276,6 +278,8 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
     if (target.cross) {
       const mutation = crossMutation(todo, source.sectionKey, target.sectionKey)
       if (!mutation) return
+      // The row moves to its new group once the write lands (or after the question).
+      landDrop('in-place')
       const rankWrites = manual ? planMove(manualOrder(), ranks, move) : []
       if (mutation.kind === 'people') {
         const label = (key: string) => sections.find((s) => s.key === key)?.label ?? key

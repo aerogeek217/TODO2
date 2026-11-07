@@ -50,7 +50,6 @@ import {
   WorkspaceDragContext,
   type WorkspaceDragState,
 } from '../components/workspace/workspace-drag'
-import { TaskRow } from '../components/task/TaskRow'
 import { CalendarEntryButton } from '../components/workspace/calendar/CalendarEntryButton'
 import { CalendarDropChooser } from '../components/workspace/calendar/CalendarDropChooser'
 import {
@@ -65,7 +64,9 @@ import { EntityActionHost } from '../components/settings/EntityActionHost'
 import { CheckinDialog } from '../components/checkin/CheckinDialog'
 import { CheckinImportDialog } from '../components/checkin/CheckinImportDialog'
 import { TaskDialog } from '../components/overlays/TaskDialog'
-import overlayStyles from '../components/workspace/DragOverlayTask.module.css'
+import { DragOverlayTask } from '../components/workspace/DragOverlayTask'
+import { createTaskDropAnimation } from '../components/workspace/task-drop-animation'
+import { TaskDropLandingContext } from '../components/task/dnd/task-drop-landing'
 import styles from './WorkspacePage.module.css'
 
 /**
@@ -376,6 +377,14 @@ export function WorkspacePage() {
   const working = useWorkspaceStore((s) => s.working)
   const hydrated = useWorkspaceStore((s) => s.hydrated)
   const [activeDrag, setActiveDrag] = useState<ActiveTaskDrag | null>(null)
+  /**
+   * The last drag was a task row's (the lifted overlay): its drop animates
+   * (D25 E4). Kept past the drop — the animation runs after it — and set at
+   * the next drag's start; tab, panel and calendar-entry ghosts just go.
+   */
+  const [liftedDrag, setLiftedDrag] = useState(false)
+  const [taskDrop] = useState(createTaskDropAnimation)
+  const landDrop = taskDrop.land
   const calendarChoice = useCalendarDropChoice()
   const autoScroll = useAutoScrollUnderPointer()
   const tabDrag = useWorkspaceDragState()
@@ -403,11 +412,17 @@ export function WorkspacePage() {
   ]), [])
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
-    if (tabDrag.start(event)) return
+    landDrop('settle')
+    if (tabDrag.start(event)) {
+      setLiftedDrag(false)
+      return
+    }
     const data = event.active.data.current
     const todo = data?.todo as PersistedTodoItem | undefined
-    if (todo) setActiveDrag({ todo, calendarEntry: isCalendarEntryDragData(data) ? data.calendarEntry : undefined })
-  }, [tabDrag])
+    const calendarEntry = isCalendarEntryDragData(data) ? data.calendarEntry : undefined
+    setLiftedDrag(todo != null && !calendarEntry)
+    if (todo) setActiveDrag({ todo, calendarEntry })
+  }, [tabDrag, landDrop])
 
   const chooseType = calendarChoice.choose
   const handleDragEnd = useCallback(async (event: DragEndEvent) => {
@@ -416,6 +431,8 @@ export function WorkspacePage() {
       return
     }
     setActiveDrag(null)
+    // A calendar day or an Eisenhower pane: the row changes there, later.
+    if (event.over) landDrop('in-place')
     await dispatchTaskDrop(event, {
       calendar: {
         reschedule: async (todoId, date, type) => {
@@ -432,7 +449,7 @@ export function WorkspacePage() {
         apply: applyPaneDrop,
       },
     })
-  }, [tabDrag, chooseType])
+  }, [tabDrag, chooseType, landDrop])
 
   const handleDragCancel = useCallback(() => {
     tabDrag.end(false)
@@ -452,15 +469,17 @@ export function WorkspacePage() {
     >
       <WorkspaceDragContext.Provider value={drag}>
         <PendingCalendarDropContext.Provider value={calendarChoice.pending}>
-          <div className={styles.page} data-dragging-tab={drag ? 'true' : undefined}>
-            {working
-              ? (isMobile ? <MobileWorkspaceView layout={working} status={<SyncStatusButton />} /> : <WorkspaceView layout={working} />)
-              : hydrated ? null : <div className={styles.loading}>Loading…</div>}
-          </div>
+          <TaskDropLandingContext.Provider value={landDrop}>
+            <div className={styles.page} data-dragging-tab={drag ? 'true' : undefined}>
+              {working
+                ? (isMobile ? <MobileWorkspaceView layout={working} status={<SyncStatusButton />} /> : <WorkspaceView layout={working} />)
+                : hydrated ? null : <div className={styles.loading}>Loading…</div>}
+            </div>
+          </TaskDropLandingContext.Provider>
         </PendingCalendarDropContext.Provider>
       </WorkspaceDragContext.Provider>
 
-      <DragOverlay dropAnimation={null} modifiers={[followPointer]}>
+      <DragOverlay dropAnimation={liftedDrag ? taskDrop.animation : null} modifiers={[followPointer]}>
         {drag ? (
           <div className={styles.ghostWrap}>
             {drag.source.type === 'panel' ? <PanelGhost tabs={drag.tabs} /> : (
@@ -484,9 +503,7 @@ export function WorkspacePage() {
             />
           </div>
         ) : activeDrag ? (
-          <div className={overlayStyles.overlay} data-drag-overlay>
-            <TaskRow todo={activeDrag.todo} ghost />
-          </div>
+          <DragOverlayTask todo={activeDrag.todo} />
         ) : null}
       </DragOverlay>
       {calendarChoice.request && (
