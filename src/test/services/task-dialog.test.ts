@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest'
 import { emptyPredicate, type DateMatch, type PersistedTodoItem, type Person, type Tag, type TodoPredicate } from '../../models'
-import type { PersistedListDefinition } from '../../models/list-definition'
 import {
   eisenhowerQuadrantDialog,
   eisenhowerSummaryDialog,
@@ -25,7 +24,7 @@ import { buildTasksPlain } from '../../services/task-copy'
 import { emptyFilterCriteria } from '../helpers'
 import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import {
-  ASSIGNED_PEOPLE, ASSIGNED_TAGS, BEN, PEOPLE, PLANNING, PRIYA, Q4, SAMPLE_LISTS, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
+  ASSIGNED_PEOPLE, ASSIGNED_TAGS, BEN, PEOPLE, PLANNING, PRIYA, Q4, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
 } from '../fixtures/glance-sample'
 import { useFilterStore } from '../../stores/filter-store'
 import { lensHideCounts } from '../../services/lenses'
@@ -44,9 +43,7 @@ function env(over: Partial<TaskDialogEnv> = {}): TaskDialogEnv {
     statuses: STATUSES,
     statusUpdatesByTodo: new Map(),
     subtasksByTodo: new Map(),
-    listDefinitions: SAMPLE_LISTS,
     screen: { ...emptyFilterCriteria },
-    listRanks: new Map(),
     newListView: { sort: 'manual', sortDirection: 'asc', grouping: 'none' },
     ...over,
   }
@@ -85,36 +82,6 @@ describe('resolveTaskDialog', () => {
     expect(titles(group?.todoIds ?? [])).toEqual(['Draft homepage copy', 'Vendor contract redlines', 'Q4 roadmap deck', 'Q4 forecast'])
   })
 
-  it('list: the members with the list’s own sort, flat when ungrouped', () => {
-    // "#q4 planning": tag q4, sorted by due date (undated last).
-    expect(resolveTaskDialog({ kind: 'list', listDefinitionId: 3 }, env())).toEqual([
-      { key: 'all', label: null, todoIds: [7, 14, 15, 4, 17] },
-    ])
-  })
-
-  it('list: the list’s grouping through the shared section builder, unsaved drafts included', () => {
-    const grouped = SAMPLE_LISTS.map((d) => (d.id === 3 ? { ...d, grouping: 'status' as const } : d))
-    const groups = resolveTaskDialog({ kind: 'list', listDefinitionId: 3 }, env({ listDefinitions: grouped }))
-    expect(groups.map((g) => [g.label, g.todoIds])).toEqual([['To do', [7, 4, 17]], ['In progress', [14, 15]]])
-    expect(groups[0]?.color).toBeTruthy()
-  })
-
-  it('list: the screen filter narrows it, as on the list tile', () => {
-    const screen = { ...emptyFilterCriteria, personIds: new Set([PRIYA]) }
-    const [group] = resolveTaskDialog({ kind: 'list', listDefinitionId: 3 }, env({ screen }))
-    expect(titles(group?.todoIds ?? [])).toEqual(['Q4 roadmap deck', 'Q4 forecast'])
-  })
-
-  it('list: follows the list’s sort direction (latest due first, undated still last)', () => {
-    const desc = SAMPLE_LISTS.map((d) => (d.id === 3 ? { ...d, sortDirection: 'desc' as const } : d))
-    expect(resolveTaskDialog({ kind: 'list', listDefinitionId: 3 }, env({ listDefinitions: desc }))).toEqual([
-      { key: 'all', label: null, todoIds: [15, 14, 7, 4, 17] },
-    ])
-  })
-
-  it('list: a deleted list has no rows', () => {
-    expect(resolveTaskDialog({ kind: 'list', listDefinitionId: 99 }, env())).toEqual([])
-  })
 })
 
 describe('resolveTaskDialog — the screen filter’s tasks', () => {
@@ -145,12 +112,12 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
     const groups = resolveTaskDialog(SCREEN, env({ screen: priya, newListView: view }))
     expect(groups.length).toBeGreaterThan(1)
     expect(groups.every((g) => g.label != null)).toBe(true)
-    const everyOpenTask: PersistedListDefinition = {
-      id: 50, name: 'All', sortOrder: 0, owner: { layoutId: 1 },
-      membership: { kind: 'custom', predicate: emptyPredicate() },
-      sort: view.sort, sortDirection: view.sortDirection, grouping: view.grouping,
+    // Every one of Priya's open tasks once, each group latest due first (undated last).
+    expect(groups.flatMap((g) => g.todoIds).sort()).toEqual([...(resolveTaskDialog(SCREEN, env({ screen: priya }))[0]?.todoIds ?? [])].sort())
+    for (const g of groups) {
+      const due = g.todoIds.map((id) => byId.get(id)?.dueDate?.getTime() ?? -Infinity)
+      expect(due).toEqual([...due].sort((a, b) => b - a))
     }
-    expect(groups).toEqual(resolveTaskDialog({ kind: 'list', listDefinitionId: 50 }, env({ screen: priya, listDefinitions: [everyOpenTask] })))
   })
 
   it('grouped by People or Tag, the screen filter’s "is" picks narrow the groups, as a list’s own filter does', () => {
@@ -178,20 +145,6 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
     expect(resolveTaskDialog(SCREEN, env({ ...base, screen: q4, newListView: byTag })).map((g) => g.label)).toEqual(['#q4'])
     const untagged = { ...emptyFilterCriteria, tags: new Set([0]) }
     expect(resolveTaskDialog(SCREEN, env({ ...base, screen: untagged, newListView: byTag })).map((g) => g.label)).toEqual(['No Tag'])
-  })
-
-  it('a list grouped by People in the dialog: its own pick and the screen’s intersect', () => {
-    const assignedPeopleMap = new Map(ASSIGNED_PEOPLE).set(14, [PEOPLE.find((p) => p.id === PRIYA)!, PEOPLE.find((p) => p.id === BEN)!])
-    const priyaOrBen: PersistedListDefinition = {
-      id: 60, name: 'Priya or Ben', sortOrder: 0, owner: { layoutId: 1 },
-      membership: { kind: 'custom', predicate: { ...emptyPredicate(), personIds: [PRIYA, BEN] } },
-      sort: 'manual', grouping: 'people',
-    }
-    const source: TaskDialogSource = { kind: 'list', listDefinitionId: 60 }
-    const own = resolveTaskDialog(source, env({ assignedPeopleMap, listDefinitions: [priyaOrBen] }))
-    expect(own.map((g) => g.label)).toEqual(['Priya Nair', 'Ben Ortiz'])
-    const withScreen = resolveTaskDialog(source, env({ assignedPeopleMap, listDefinitions: [priyaOrBen], screen: priya }))
-    expect(withScreen.map((g) => [g.label, g.todoIds.length])).toEqual([['Priya Nair', 4]])
   })
 
   it('screenTaskCount: how many rows the dialog lists', () => {

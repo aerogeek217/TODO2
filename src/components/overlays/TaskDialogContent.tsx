@@ -18,11 +18,8 @@ import { usePersonStore } from '../../stores/person-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
 import type { FilterCriteria } from '../../utils/filter-criteria'
-import type { WorkspaceLayout } from '../../models/workspace-layout'
 import { useUIStore } from '../../stores/ui-store'
-import { useWorkspaceStore } from '../../stores/workspace-store'
 import { startOfToday } from '../../utils/date'
-import { findTab } from '../../utils/workspace-layout-ops'
 import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
 import { TaskRowGrid } from '../task/TaskRowGrid'
@@ -42,13 +39,6 @@ interface Resolved {
 function resolve(payload: TaskDialogPayload): Resolved {
   const env = currentTaskDialogEnv()
   return { payload, screen: env.screen, groups: resolveTaskDialog(payload.source, env) }
-}
-
-/** The panel (cell or band) holding tab `tabId`, and the tab's index there. */
-function cellOfTab(layout: WorkspaceLayout, tabId: string | undefined): { cellId: string; index: number } | null {
-  if (tabId == null) return null
-  const loc = findTab(layout, tabId)
-  return loc ? { cellId: loc.cellId, index: loc.tabIdx } : null
 }
 
 export interface TaskDialogContentProps {
@@ -71,8 +61,7 @@ export interface TaskDialogContentProps {
  * behind update. The screen filter's tasks resolve again on every change of
  * that filter — fixed between changes — and their description follows it.
  * Footer: Copy tasks, Email check-in (a person's tasks: a menu to send the
- * person's check-in or paste their reply — `PersonCheckinMenu`), Open as tab
- * (a list's dialog opened from a widget), Close.
+ * person's check-in or paste their reply — `PersonCheckinMenu`), Close.
  */
 export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterBar }: TaskDialogContentProps) {
   const [resolved, setResolved] = useState<Resolved>(() => resolve(payload))
@@ -99,13 +88,6 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
   const count = taskDialogCount(groups)
   const { personId } = payload
 
-  // Open as tab: a list's dialog opened from a widget whose tab is still there.
-  const workingLayout = useWorkspaceStore((s) => s.working)
-  const tabTarget = useMemo(
-    () => (payload.source.kind === 'list' && workingLayout ? cellOfTab(workingLayout, payload.fromTabId) : null),
-    [payload, workingLayout],
-  )
-
   // The editor closed: focus comes back here, so the next Esc closes this.
   const editorWasOpen = useRef(false)
   useEffect(() => {
@@ -126,16 +108,6 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
     if (!ok) return
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1500)
-  }
-
-  const openAsTab = () => {
-    if (payload.source.kind !== 'list' || !tabTarget) return
-    useWorkspaceStore.getState().addWidget(
-      'lens',
-      { kind: 'cell', cellId: tabTarget.cellId, index: tabTarget.index + 1 },
-      { listDefinitionId: payload.source.listDefinitionId },
-    )
-    onClose()
   }
 
   const rowsOf = (group: TaskDialogRowGroup) => group.todoIds.flatMap((id) => {
@@ -193,9 +165,6 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
         </button>
         {personId != null && <CheckinButton personId={personId} fallbackName={payload.title} />}
         <span className={styles.spacer} />
-        {tabTarget && (
-          <button type="button" className={styles.ghostBtn} onClick={openAsTab}>Open as tab</button>
-        )}
         <button type="button" className={styles.closeTextBtn} onClick={onClose}>
           Close<kbd className={styles.kbd}>Esc</kbd>
         </button>

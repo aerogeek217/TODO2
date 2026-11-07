@@ -5,11 +5,9 @@ import type { LeavingRows } from '../../../hooks/use-leaving-rows'
 
 /**
  * The tasks a glance widget's number stands for — what clicking it opens in the
- * task dialog. Built-in counts name their tasks (ids in dialog order, or
- * under headings); a list tile names its list (the list's own sort and
- * grouping apply). The widget's host adds where it was opened from.
+ * task dialog: the counted tasks, by id in dialog order or under headings.
  */
-export type GlanceDrill = Omit<TaskDialogPayload, 'fromTabId'>
+export type GlanceDrill = TaskDialogPayload
 
 /** Opens the tasks behind a number; absent = numbers aren't clickable. */
 export type OnGlanceDrill = (drill: GlanceDrill) => void

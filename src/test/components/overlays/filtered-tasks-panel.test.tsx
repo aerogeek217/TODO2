@@ -112,7 +112,6 @@ describe('FilteredTasksPanel', () => {
     expect(within(tray()).queryByRole('button', { name: /^Filters/ })).toBeNull()
     // Footer: Copy tasks and Close.
     expect(within(panel()!).getByRole('button', { name: /Copy tasks/ })).toBeTruthy()
-    expect(within(panel()!).queryByRole('button', { name: 'Open as tab' })).toBeNull()
   })
 
   it('a filter change in the tray re-resolves the rows; between changes they stay fixed (a completed one struck through)', () => {

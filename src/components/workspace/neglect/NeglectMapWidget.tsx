@@ -268,7 +268,7 @@ function NeglectFace({ tab, face }: { tab: NeglectTab; face: Exclude<WidgetFace,
   if (face === 'medium') {
     return (
       <div className={`${styles.widget} ${styles.stacked} ${styles.face}`} data-neglect-face="medium" data-neglect-face-tab={tab.id}>
-        <SlippingList map={map} untouchedDays={untouchedDays} tabId={tab.id} />
+        <SlippingList map={map} untouchedDays={untouchedDays} />
       </div>
     )
   }
@@ -431,7 +431,6 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
       <SlippingList
         map={map}
         untouchedDays={untouchedDays}
-        tabId={tab.id}
         selectedIds={inScope ? selectedIds : undefined}
       />
       {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
@@ -444,10 +443,9 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
  * numbered as their dots are badged (each opens its task), the rest in the
  * task dialog. The map's own list, and its medium face (D25 R) alone.
  */
-function SlippingList({ map, untouchedDays, tabId, selectedIds }: {
+function SlippingList({ map, untouchedDays, selectedIds }: {
   map: NeglectMap<PersistedTodoItem>
   untouchedDays: number
-  tabId: string
   /** The widget's selection, while it owns it (the full map's). */
   selectedIds?: ReadonlySet<number>
 }) {
@@ -489,10 +487,9 @@ function SlippingList({ map, untouchedDays, tabId, selectedIds }: {
         <button
           type="button"
           className={styles.slipMore}
-          onClick={() => useUIStore.getState().showTaskDialog({
-            ...slippingTasksDialog(map.slipping.map((p) => p.todo.id), untouchedDays),
-            fromTabId: tabId,
-          })}
+          onClick={() => useUIStore.getState().showTaskDialog(
+            slippingTasksDialog(map.slipping.map((p) => p.todo.id), untouchedDays),
+          )}
         >
           {map.slipping.length - listed.length} more
         </button>

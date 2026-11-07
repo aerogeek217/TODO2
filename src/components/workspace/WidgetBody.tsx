@@ -63,7 +63,7 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
         <GlanceWidget
           tab={tab}
           onResult={onResult ? (r) => onResult({ sections: NO_SECTIONS, summary: r.summary }) : undefined}
-          onDrill={(drill) => useUIStore.getState().showTaskDialog({ ...drill, fromTabId: tab.id })}
+          onDrill={(drill) => useUIStore.getState().showTaskDialog(drill)}
         />
       )
     default: {

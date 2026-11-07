@@ -1,12 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, act, fireEvent, screen, within } from '@testing-library/react'
 import { TaskDialog } from '../../../components/overlays/TaskDialog'
-import { createTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { personTaskDialog, screenTaskDialog } from '../../../services/task-dialog'
 import { useFilterStore } from '../../../stores/filter-store'
 import type { TaskDialogPayload } from '../../../stores/task-dialog-payload'
-import { useListDefinitionStore } from '../../../stores/list-definition-store'
-import { useListDraftStore } from '../../../stores/list-draft-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -14,28 +11,18 @@ import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
-import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import {
-  ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_TASKS, STATUSES, TAGS,
+  ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_TASKS, STATUSES, TAGS,
 } from '../../fixtures/glance-sample'
-import { rowOf } from '../../helpers/layout-builders'
 
 const HOT: TaskDialogPayload = {
   title: 'Hot tasks',
   glyph: 'urgent',
   description: 'Hot = urgent and important, or in Focus (Settings › Tasks).',
   source: { kind: 'todos', todoIds: [1, 2, 3, 4] },
-  fromTabId: 'dash',
 }
 
-function layout(): PersistedWorkspaceLayout {
-  const now = new Date(2026, 0, 1)
-  return {
-    id: 1, sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now,
-    columns: [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, tabs: [createTab('number', 'dash')] })] }],
-  }
-}
 
 const dialog = () => document.querySelector<HTMLElement>('[data-task-dialog]')
 const rowTitles = () => Array.from(dialog()!.querySelectorAll<HTMLElement>('[data-todo-id]'))
@@ -58,11 +45,7 @@ beforeEach(() => {
   usePersonStore.setState({ people: PEOPLE, assignedPeopleMap: new Map(SAMPLE_TASKS.map((t) => [t.id, ASSIGNED_PEOPLE.get(t.id) ?? []])) })
   useTagStore.setState({ tags: TAGS, assignedTagsMap: ASSIGNED_TAGS })
   useStatusStore.setState({ statuses: STATUSES })
-  useListDefinitionStore.setState({ listDefinitions: SAMPLE_LISTS })
-  useListDraftStore.setState({ drafts: {} })
   useUIStore.setState({ taskDialog: null, checkinDialog: null, editPopupMode: null, selectedTodoId: null })
-  const l = layout()
-  useWorkspaceStore.setState({ layouts: [l], activeLayoutId: 1, working: l, saved: l, isDirty: false, hydrated: true })
 })
 
 afterEach(() => {
@@ -70,7 +53,6 @@ afterEach(() => {
   vi.useRealTimers()
   vi.unstubAllGlobals()
   vi.restoreAllMocks()
-  useWorkspaceStore.setState({ layouts: [], activeLayoutId: null, working: null, saved: null, isDirty: false, hydrated: false })
 })
 
 describe('TaskDialog', () => {
@@ -80,8 +62,6 @@ describe('TaskDialog', () => {
     expect(within(dialog()!).getByTestId('task-dialog-count').textContent).toBe('4')
     expect(dialog()!.textContent).toContain('Hot = urgent and important, or in Focus (Settings › Tasks).')
     expect(rowTitles()).toEqual(['Fix checkout outage', 'Headcount request', 'Draft homepage copy', 'Book venue for offsite'])
-    // Not a list widget: no Open as tab.
-    expect(within(dialog()!).queryByRole('button', { name: 'Open as tab' })).toBeNull()
   })
 
   it('a completed row stays, struck through, until the dialog closes; a deleted one goes', () => {
@@ -163,23 +143,6 @@ describe('TaskDialog', () => {
     expect(within(dialog()!).queryByRole('button', { name: /Copied/ })).toBeNull()
   })
 
-  it('a list’s dialog: the list’s rows, and Open as tab adds its List tab beside the Number it came from (layout unsaved)', () => {
-    open({ title: '#q4 planning', glyph: 'list', description: 'List · #q4', source: { kind: 'list', listDefinitionId: 3 }, fromTabId: 'dash' })
-    expect(rowTitles()).toEqual(['Budget review with finance', 'Q4 roadmap deck', 'Q4 forecast', 'Book venue for offsite', 'Offsite agenda'])
-    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Open as tab' }))
-    const cell = useWorkspaceStore.getState().working!.columns[0]!.rows[0]!.cells[0]!
-    expect(cell.tabs.map((t) => t.kind)).toEqual(['number', 'lens'])
-    expect(cell.tabs[1]).toMatchObject({ kind: 'lens', config: { listDefinitionId: 3 } })
-    expect(cell.activeTabId).toBe(cell.tabs[1]!.id)
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
-    expect(dialog()).toBeNull()
-  })
-
-  it('no Open as tab when the tab it came from is gone', () => {
-    open({ title: 'L', glyph: 'list', description: '', source: { kind: 'list', listDefinitionId: 3 }, fromTabId: 'gone' })
-    expect(within(dialog()!).queryByRole('button', { name: 'Open as tab' })).toBeNull()
-  })
-
   it('an empty source says so', () => {
     open({ ...HOT, source: { kind: 'todos', todoIds: [] } })
     expect(dialog()!.textContent).toContain('No tasks')
@@ -242,7 +205,6 @@ describe('TaskDialog — the screen filter’s tasks (a phone)', () => {
     fireEvent.click(filters)
     expect(filters).toHaveAttribute('aria-expanded', 'true')
     // Footer: Copy tasks and Close only.
-    expect(within(dialog()!).queryByRole('button', { name: 'Open as tab' })).toBeNull()
     expect(within(dialog()!).queryByRole('button', { name: 'Email check-in' })).toBeNull()
   })
 
@@ -325,7 +287,7 @@ describe('TaskDialog — the screen filter’s tasks (a phone)', () => {
   })
 
   it('other dialogs have no filter bar, and their rows don’t follow the screen filter', () => {
-    open({ title: 'L', glyph: 'list', description: '', source: { kind: 'list', listDefinitionId: 3 } })
+    open(HOT)
     expect(dialog()!.querySelector('[data-task-dialog-filters]')).toBeNull()
     const before = rowTitles()
     act(() => useFilterStore.getState().setPersonIds(new Set([PRIYA])))

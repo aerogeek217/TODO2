@@ -26,7 +26,7 @@ export type ChangeId = 'late' | 'followups' | 'tag' | 'status' | 'dueToday' | 'c
 export interface Change {
   id: ChangeId
   text: string
-  drill: Omit<TaskDialogPayload, 'fromTabId'> | null
+  drill: TaskDialogPayload | null
 }
 
 /** Weeks the closed sentence averages over, at most. */
