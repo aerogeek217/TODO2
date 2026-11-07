@@ -1,10 +1,13 @@
 /*
- * A list tab's compact zoom level (D25 I1): a Lines row (a 15px line, a
- * state tick and the title). The tick colours a task by its
- * state (`data-tone`, `utils/list-zoom.rowTone`).
+ * A list tab's compact zoom level (D25 I1): a Lines row — a 15px line, a
+ * small box where the checkbox was, the title and a date at its end. The
+ * box's ring is the task's priority (`PriorityRing`, as on a row's
+ * checkbox); its fill is the task's date state (`data-tone`,
+ * `utils/list-zoom.rowTone`); without a priority its own border is the
+ * neutral the plain tick was.
  */
 .line {
-  --row-tone: var(--color-row-tone-plain);
+  --row-tone: transparent;
 }
 
 [data-tone="late"] {
@@ -25,11 +28,11 @@
 
 /* ── Lines ─────────────────────────────────────────────────────────────── */
 
-/* The row's tracks (`TASK_ROW`: padding 2, gutter 8, gap 5, checkbox 18, gap 5): the title starts where a row's does. */
+/* The row's tracks (`TASK_ROW`: padding 2, gutter 8, gap 5, checkbox 18, gap 5): the title starts where a row's does; the date ends the line. */
 .line {
   position: relative;
   display: grid;
-  grid-template-columns: 8px 18px minmax(0, 1fr);
+  grid-template-columns: 8px 18px minmax(0, 1fr) auto;
   column-gap: 5px;
   align-items: center;
   /* A least height, not a height: a completed line folds away (`.rowFolding`). */
@@ -54,14 +57,25 @@
   outline-offset: -1px;
 }
 
-/* The state tick, centred where the checkbox was. */
-.tick {
+/* The box, centred where the checkbox was: filled by the date state; a priority ring (over it) replaces its border. */
+.box {
   grid-column: 2;
   justify-self: center;
-  width: 3px;
+  position: relative;
+  box-sizing: border-box;
+  width: 11px;
   height: 11px;
-  border-radius: 2px;
+  border-radius: 4px;
   background: var(--row-tone);
+  box-shadow: inset 0 0 0 1.5px var(--color-row-tone-plain);
+}
+
+.box:has([data-priority-ring]) {
+  box-shadow: none;
+}
+
+.line.completed .box {
+  opacity: 0.5;
 }
 
 .title {
@@ -83,6 +97,32 @@
 .line.completed .title {
   color: var(--color-text-completed);
   text-decoration: line-through;
+}
+
+/* The date at the line's end, coloured as the Rows date cells: muted; due soon and late in the deadline colour (late bold); a follow-up today or late in the follow-up colour, after its flag. */
+.date {
+  grid-column: 4;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-task-line);
+  line-height: var(--task-line-height);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.date[data-date-tone="soon"] {
+  color: var(--color-deadline);
+}
+
+.date[data-date-tone="late"] {
+  color: var(--color-deadline);
+  font-weight: 700;
+}
+
+.date[data-date-tone="followup"] {
+  color: var(--color-followup);
 }
 
 /* The menu's hidden anchors (`LineActions`): the follow-up popover and the due date's picker open at the title's start. */

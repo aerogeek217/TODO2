@@ -142,7 +142,7 @@ describe('MobileTaskRow', () => {
       expect(due(new Date(2026, 3, 12))).toBe('Sun')
       expect(due(new Date(2026, 3, 18))).toBe('04/18')
       expect(due(new Date(2026, 3, 2))).toBe('04/02')
-      expect(due(new Date(2027, 1, 3))).toBe('02/03/27')
+      expect(due(new Date(2027, 1, 3))).toBe('02/03')
     })
 
     it('shows the due date as MM/DD under Settings’ MM/DD', () => {
@@ -344,15 +344,16 @@ describe('MobileTaskRow', () => {
       expect(document.querySelector('[data-priority-ring]')).toBeNull()
       unmount()
       const second = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true })} />)
-      const ring = screen.getByRole('img', { name: 'Priority: Focus' })
-      expect(ring).toHaveAttribute('data-priority-ring', 'focus')
-      expect(ring.parentElement).toContainElement(screen.getByRole('checkbox'))
-      expect(document.querySelector('[data-focus-halo]')).toBeNull()
+      // Focus alone: the glow (named), no ring.
+      const glow = screen.getByRole('img', { name: 'Priority: Focus' })
+      expect(glow).toHaveAttribute('data-focus-glow')
+      expect(glow.parentElement).toContainElement(screen.getByRole('checkbox'))
+      expect(document.querySelector('[data-priority-ring]')).toBeNull()
       second.unmount()
-      // Focus under another ring: its halo outside the box.
+      // Focus with another priority: that ring, and the glow around it.
       const third = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true, important: true })} />)
       expect(screen.getByRole('img', { name: 'Priority: Focus, Important' })).toHaveAttribute('data-priority-ring', 'important')
-      expect(document.querySelector('[data-focus-halo]')).not.toBeNull()
+      expect(document.querySelector('[data-focus-glow]')).not.toBeNull()
       third.unmount()
       render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', urgent: true, isCompleted: true })} />)
       expect(document.querySelector('[data-priority-ring]')).toBeNull()

@@ -13,3 +13,10 @@
   pointer-events: none;
   stroke-linecap: butt;
 }
+
+/* Focus's glow (`PriorityRing`): the box's shape, lit from outside; under the ring, clicks through to the box. */
+.glow {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}

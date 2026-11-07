@@ -590,4 +590,10 @@
   flex-shrink: 0;
   width: 16px;
   height: 16px;
+  border-radius: var(--radius-checkbox);
+}
+
+/* Focus's sample has no ring, only its glow: the plain box a task's checkbox is under it. */
+.cueRing:not(:has([data-priority-ring])) {
+  box-shadow: inset 0 0 0 1.5px var(--color-text-muted);
 }

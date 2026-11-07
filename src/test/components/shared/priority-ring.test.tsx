@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import { PriorityRing } from '../../../components/shared/PriorityRing'
 import { priorityRing, type MarkerSummary } from '../../../utils/markers'
 
@@ -36,13 +36,11 @@ describe('PriorityRing (D25 B)', () => {
     }])
   })
 
-  it('Important: the important colour with its fill; Focus: the accent ring, no fill', () => {
+  it('Important: the important colour with its fill; Focus alone draws no ring', () => {
     expect(ring({ important: true }).parts).toEqual([{
       part: 'important', tag: 'rect', stroke: 'var(--color-marker-important)', fill: 'var(--color-marker-important-fill)', dash: null, pathLength: null,
     }])
-    expect(ring({ focus: true }).parts).toEqual([{
-      part: 'focus', tag: 'rect', stroke: 'var(--color-marker-focus)', fill: 'none', dash: null, pathLength: null,
-    }])
+    expect(ring({ focus: true }).parts).toEqual([])
   })
 
   it('urgent only by its due date: finely dashed (2 / 1.5), a whole number of dashes round the box, no fill', () => {
@@ -76,34 +74,43 @@ describe('PriorityRing (D25 B)', () => {
     expect(parts.map((p) => [p.part, p.dash])).toEqual([['urgent', '2 1.5'], ['important', null]])
   })
 
-  it('Focus under another ring: a halo in the Focus colour just outside the box; Focus alone has none', () => {
-    const { svg } = ring({ focus: true, urgent: 'flag' })
-    expect(svg).toHaveAttribute('data-priority-ring', 'urgent')
-    const halo = svg!.querySelector('[data-focus-halo]')!
-    expect(halo.getAttribute('style')).toContain('var(--color-marker-focus)')
-    // Outside the 18px box: it starts left of and above it.
-    expect(Number(halo.getAttribute('x'))).toBeLessThan(0)
-    expect(Number(halo.getAttribute('width'))).toBeGreaterThan(18)
-    expect(ring({ focus: true }).svg!.querySelector('[data-focus-halo]')).toBeNull()
-    expect(ring({ urgent: 'flag' }).svg!.querySelector('[data-focus-halo]')).toBeNull()
+  it('Focus is a tight glow around the box, never an outline: with a ring, or alone around the plain box', () => {
+    const { container } = render(<PriorityRing summary={{ ...NONE, focus: true, urgent: 'flag' }} completed={false} size={18} />)
+    expect(container.querySelector('svg')).toHaveAttribute('data-priority-ring', 'urgent')
+    const glow = container.querySelector<HTMLElement>('[data-focus-glow]')!
+    // 4px blur, 1px spread at a row's 18px box, the box's 5px corner.
+    expect(glow.style.boxShadow).toBe('0 0 4px 1px var(--color-marker-focus-glow)')
+    expect(glow.style.borderRadius).toBe('5px')
+    cleanup()
+    // Focus alone: no ring at all (the box keeps its border), only the glow.
+    const alone = render(<PriorityRing summary={{ ...NONE, focus: true }} completed={false} size={11} />)
+    expect(alone.container.querySelector('[data-priority-ring]')).toBeNull()
+    expect(alone.container.querySelector<HTMLElement>('[data-focus-glow]')!.style.boxShadow).toBe('0 0 2.5px 0.5px var(--color-marker-focus-glow)')
+    cleanup()
+    expect(ring({ urgent: 'flag' }).svg!.parentElement!.querySelector('[data-focus-glow]')).toBeNull()
   })
 
-  it('named only when given a label (the phone row); else hidden', () => {
+  it('named only when given a label (the phone row) — the ring, or the glow when Focus has no ring; else hidden', () => {
     render(<PriorityRing summary={{ ...NONE, focus: true }} completed={false} size={20} label="Priority: Focus" />)
-    expect(screen.getByRole('img', { name: 'Priority: Focus' })).toHaveAttribute('viewBox', '0 0 20 20')
-    expect(ring({ focus: true }).svg).toHaveAttribute('aria-hidden', 'true')
+    expect(screen.getByRole('img', { name: 'Priority: Focus' })).toHaveAttribute('data-focus-glow')
+    cleanup()
+    render(<PriorityRing summary={{ ...NONE, focus: true, important: true }} completed={false} size={20} label="Priority: Focus, Important" />)
+    expect(screen.getByRole('img', { name: 'Priority: Focus, Important' })).toHaveAttribute('viewBox', '0 0 20 20')
+    expect(document.querySelector('[data-focus-glow]')).toHaveAttribute('aria-hidden', 'true')
+    cleanup()
+    expect(ring({ urgent: 'flag' }).svg).toHaveAttribute('aria-hidden', 'true')
   })
 })
 
 describe('priorityRing', () => {
-  it('Focus under another ring adds the halo; alone it is the ring', () => {
-    expect(priorityRing({ focus: true, urgent: null, important: false }, false)).toEqual({ kind: 'focus', urgentDashed: false, focusHalo: false })
-    expect(priorityRing({ focus: true, urgent: 'flag', important: false }, false)).toEqual({ kind: 'urgent', urgentDashed: false, focusHalo: true })
-    expect(priorityRing({ focus: true, urgent: 'date', important: true }, false)).toEqual({ kind: 'split', urgentDashed: true, focusHalo: true })
-    expect(priorityRing({ focus: true, urgent: null, important: true }, false)).toEqual({ kind: 'important', urgentDashed: false, focusHalo: true })
+  it('Focus is the glow, never a ring: alone it draws no ring', () => {
+    expect(priorityRing({ focus: true, urgent: null, important: false }, false)).toEqual({ kind: 'none', urgentDashed: false, focusGlow: true })
+    expect(priorityRing({ focus: true, urgent: 'flag', important: false }, false)).toEqual({ kind: 'urgent', urgentDashed: false, focusGlow: true })
+    expect(priorityRing({ focus: true, urgent: 'date', important: true }, false)).toEqual({ kind: 'split', urgentDashed: true, focusGlow: true })
+    expect(priorityRing({ focus: false, urgent: null, important: true }, false)).toEqual({ kind: 'important', urgentDashed: false, focusGlow: false })
   })
 
-  it('completed: none, no halo', () => {
-    expect(priorityRing({ focus: true, urgent: 'flag', important: true }, true)).toEqual({ kind: 'none', urgentDashed: false, focusHalo: false })
+  it('completed: neither ring nor glow', () => {
+    expect(priorityRing({ focus: true, urgent: 'flag', important: true }, true)).toEqual({ kind: 'none', urgentDashed: false, focusGlow: false })
   })
 })

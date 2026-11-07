@@ -253,6 +253,8 @@
   /* The fill inside a lone Urgent / Important ring. */
   --color-marker-urgent-fill: color-mix(in srgb, var(--color-marker-urgent) 10%, transparent);
   --color-marker-important-fill: color-mix(in srgb, var(--color-marker-important) 8%, transparent);
+  /* Focus's glow around a task's checkbox (D25 B; `PriorityRing`): the Focus colour at 80 %. */
+  --color-marker-focus-glow: color-mix(in srgb, var(--color-marker-focus) 80%, transparent);
   /* A priority's row glow (D19's Ember, `utils/priority-cues`). */
   --priority-glow-strength: 11%;
 
@@ -492,6 +494,8 @@
   /* The fill inside a lone Urgent / Important ring. */
   --color-marker-urgent-fill: color-mix(in srgb, var(--color-marker-urgent) 10%, transparent);
   --color-marker-important-fill: color-mix(in srgb, var(--color-marker-important) 8%, transparent);
+  /* Focus's glow around a task's checkbox (D25 B; `PriorityRing`): the Focus colour at 80 %. */
+  --color-marker-focus-glow: color-mix(in srgb, var(--color-marker-focus) 80%, transparent);
   /* Stronger than the dark theme's 11 %: on a light surface a tint shows
      less, and at 7 % it didn't show at all (cr31 M5). As visible as dark's. */
   --priority-glow-strength: 12%;

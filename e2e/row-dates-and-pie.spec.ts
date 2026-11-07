@@ -4,7 +4,7 @@ import { openSettings, seedTaskList } from './fixtures/workspace'
 /**
  * D25 D1 · a task row's dates in words — `Today`, the next six days'
  * weekday (tomorrow too), `11/20` in this calendar year (an overdue date
- * too, bold), `01/15/27` in another — or `MM/DD` under Settings ›
+ * too, bold) and in another year (no year) — or `MM/DD` under Settings ›
  * Appearance › Dates; each word fits its date part at the 11.5px meta.
  * D2 · the checklist pie before a row's `2/5`: a 12px ring filled by the
  * share done, the accent once every subtask is done. Fit and paint are the
@@ -58,7 +58,7 @@ test.describe('row dates in words and the checklist pie (D25 D1, D2)', () => {
     await expect(due(widget, 'Due in two weeks')).toHaveText('11/20')
     await expect(due(widget, 'Overdue')).toHaveText('10/27')
     await expect(followup(widget, 'Follow-up late')).toHaveText('11/03')
-    await expect(due(widget, 'Due next year')).toHaveText('01/15/27')
+    await expect(due(widget, 'Due next year')).toHaveText('01/15')
     await expect(due(widget, 'Wide words')).toHaveText('Wed')
     await expect(followup(widget, 'Wide words')).toHaveText('12/04')
 
@@ -68,7 +68,7 @@ test.describe('row dates in words and the checklist pie (D25 D1, D2)', () => {
     await expect(followup(widget, 'Follow up Tuesday')).toHaveAccessibleName('Follow-up: Tue 10')
     expect(await due(widget, 'Overdue').evaluate((el) => getComputedStyle(el).fontWeight)).toBe('700')
 
-    // Every word fits its part at the 11.5px meta — the overdue bold and another year's MM/DD/YY too.
+    // Every word fits its part at the 11.5px meta — the overdue bold too.
     for (const [title, part] of [
       ['Due today', due], ['Due tomorrow', due], ['Due in two weeks', due], ['Overdue', due],
       ['Due next year', due], ['Wide words', due], ['Wide words', followup], ['Follow-up late', followup],
