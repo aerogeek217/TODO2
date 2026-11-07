@@ -10,21 +10,21 @@ import { DashGlyph } from '../../shared/DashGlyph'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { ListWidgetRow } from '../list/ListWidgetRow'
-import type { DashboardRowKit, OnDashboardDrill } from './glance-types'
-import type { DashboardSectionMeta } from './section-meta'
+import type { GlanceRowKit, OnGlanceDrill } from './glance-types'
+import type { SectionMeta } from './section-meta'
 import type { TodoLookup } from './section-data'
 import styles from './GlanceSections.module.css'
 
 /**
- * What every section is rendered with — on the Dashboard, or as a glance
- * widget of its own. `D` is the part of the dashboard data it reads.
+ * What every section is rendered with, as its glance widget. `D` is the
+ * part of the glance data it reads.
  */
 export interface SectionProps<D> {
   data: D
-  /** The section's options (the Dashboard tab's entry, or the widget's config). */
+  /** The section's options (the widget's config). */
   options: SectionOptions
-  onDrill?: OnDashboardDrill
-  /** Its place in the Dashboard's grid (column span). */
+  onDrill?: OnGlanceDrill
+  /** Extra style for its panel. */
   style?: CSSProperties
   /** A glance widget's look for the panel (no card: it fills the cell). */
   className?: string
@@ -32,11 +32,11 @@ export interface SectionProps<D> {
 
 /** A section that shows task rows: the rows' selection and columns. */
 export interface RowSectionProps<D> extends SectionProps<D> {
-  rows: DashboardRowKit
+  rows: GlanceRowKit
 }
 
 /** What a panel's header names: a section's meta, or a glance widget's own (What changed, Today, Project pulse). */
-export type PanelDef = Pick<DashboardSectionMeta, 'title' | 'glyph' | 'glyphColor'> & { id: string }
+export type PanelDef = Pick<SectionMeta, 'title' | 'glyph' | 'glyphColor'> & { id: string }
 
 export function Panel({ def, count, onCount, sub, extras, style, className, children }: {
   def: PanelDef
@@ -112,7 +112,7 @@ export function TaskRows({ sectionKey, ids, data, kit, kept }: {
   sectionKey: string
   ids: readonly number[]
   data: TodoLookup
-  kit: DashboardRowKit
+  kit: GlanceRowKit
   kept?: ReadonlySet<number>
 }) {
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
@@ -154,7 +154,7 @@ export function TaskRows({ sectionKey, ids, data, kit, kept }: {
 }
 
 /** Task rows sharing the tab's columns and divider (phones: a plain list). */
-export function RowsGrid({ kit, children }: { kit: DashboardRowKit; children: ReactNode }) {
+export function RowsGrid({ kit, children }: { kit: GlanceRowKit; children: ReactNode }) {
   if (kit.isMobile) return <>{children}</>
   return (
     <TaskRowGrid

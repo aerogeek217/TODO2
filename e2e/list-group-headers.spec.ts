@@ -8,7 +8,7 @@ import { seedTaskList, seedWorkspace, type WorkspaceSeed, wsRow } from './fixtur
  * rest of the header line, and no hairline under the rows of a grouped list
  * (a flat list keeps its hairline). The list's header still sticks over its
  * scrolling group, at the height the top scroll-edge fade starts under.
- * The dashboard's grouped section and the task dialog's groups follow it.
+ * The Needs follow-up widget's groups and the task dialog's groups follow it.
  */
 
 test.use({ viewport: { width: 1100, height: 520 } })
@@ -184,7 +184,7 @@ const DASH: WorkspaceSeed = {
   ],
   layouts: [{
     name: 'Dash',
-    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'followup' }] } }] })] }],
+    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'followup' }] })] }],
   }],
 }
 
@@ -208,7 +208,7 @@ function groupLooks(root: Locator, groupSelector: string) {
   }), groupSelector)
 }
 
-test('the dashboard’s Needs follow-up groups and the task dialog’s groups take the same headers, rows without hairlines', async ({ page }) => {
+test('the Needs follow-up widget’s groups and the task dialog’s groups take the same headers, rows without hairlines', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, DASH)
   const section = page.locator('[data-dash-section="followup"]')

@@ -1,9 +1,7 @@
 /**
  * The glance widgets' settings (D25 N): a Number's metric and each section
- * widget's options — the choices a tab menu (and the Dashboard's Customize)
- * offers, their defaults, and the pickers that read them from untrusted
- * input (a stored layout, an import). Shared by the glance widget kinds and
- * the Dashboard's sections, which read the same options.
+ * widget's options — the choices a tab menu offers, their defaults, and the
+ * pickers that read them from untrusted input (a stored layout, an import).
  */
 
 type Obj = Record<string, unknown>
@@ -14,7 +12,7 @@ function includes<T extends string | number>(list: readonly T[], v: unknown): v 
 
 // ── Numbers ─────────────────────────────────────────────────────────────────
 
-/** The Dashboard's built-in tiles, in catalog order: every one is a Number metric too. */
+/** The tile metrics (`services/stats/tiles`), in catalog order: every one is a Number metric. */
 export const TILE_METRIC_IDS = [
   'open', 'focus', 'urgent', 'overdue', 'followupDue', 'dueToday', 'dueNext7', 'noFollowup',
 ] as const
@@ -89,7 +87,7 @@ export const DEFAULT_TREND_RANGE: TrendRange = '14d'
 export const DEFAULT_STALE_DAYS: StaleDays = 14
 export const DEFAULT_RECENT_DAYS: RecentDays = 7
 
-/** The sections, in catalog order (a Dashboard's section ids). */
+/** The sections, in catalog order (each a glance kind; `eisenhower` is `eisenhowerSummary`). */
 export const SECTION_IDS = [
   'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhower',
 ] as const

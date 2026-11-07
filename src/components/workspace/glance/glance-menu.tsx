@@ -21,7 +21,7 @@ import type { MenuEntry } from '../../shared/MenuPopover'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
 import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from '../eisenhower/eisenhower-settings-link'
 import { trendRangeLabel } from './glance-copy'
-import type { DashboardSummary } from './glance-summary'
+import type { GlanceSummary } from './glance-summary'
 import styles from './BriefWidgets.module.css'
 
 const SETTING_WIDTH_PX = 220
@@ -162,11 +162,10 @@ export interface GlanceMenu {
 
 /**
  * A glance tab's menu items: its settings, then **Copy** — the widget's
- * lines (its title and counts) through the rich clipboard, as the
- * Dashboard's Copy summary — while the widget has reported them (it is
+ * lines (its title and counts) through the rich clipboard — while the widget has reported them (it is
  * its cell's active tab). `undefined` for any other tab.
  */
-export function glanceMenu(tab: GlanceTab | undefined, summary: DashboardSummary | undefined): GlanceMenu | undefined {
+export function glanceMenu(tab: GlanceTab | undefined, summary: GlanceSummary | undefined): GlanceMenu | undefined {
   if (!tab) return undefined
   const actions: WidgetMenuAction[] = [...kindActions(tab), ...(summary ? [{
     label: 'Copy',

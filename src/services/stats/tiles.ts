@@ -4,7 +4,7 @@ import { isEffectivelyUrgent } from '../../utils/urgency'
 import { idsByDate, NEXT_DAYS, openTasks, type StatsContext } from './stats-context'
 
 /**
- * The dashboard's built-in tiles. Every tile counts open tasks only; its
+ * The tile metrics (each a Number). Every tile counts open tasks only; its
  * `ids` are the tasks it counts, in dialog order (by due date, or by next
  * follow-up for follow-up tiles; overdue first, undated last, ties by
  * `sortOrder`). A tile's count is `ids.length`.

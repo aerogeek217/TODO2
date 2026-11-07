@@ -13,7 +13,7 @@ import type { SummaryPart } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
 import type { TodoLookup } from './section-data'
 import { Empty, Panel, RowsGrid, TaskRows, type PanelDef } from './section-parts'
-import { tileDrill } from './tiles'
+import { metricDrill } from './number-defs'
 import styles from './BriefWidgets.module.css'
 import sectionStyles from './GlanceSections.module.css'
 
@@ -80,7 +80,7 @@ export function TodayWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TodayT
 
   const drill = glanceDrill(onDrill, base.filtered)
   const count = picks.focusIds.length
-  const openFocus = drill ? () => drill({ ...tileDrill('focus', { tiles, ctx: base.ctx }), title: 'Today' }) : undefined
+  const openFocus = drill ? () => drill({ ...metricDrill('focus', { tiles, ctx: base.ctx }), title: 'Today' }) : undefined
 
   if (face === 'small') {
     const content = (

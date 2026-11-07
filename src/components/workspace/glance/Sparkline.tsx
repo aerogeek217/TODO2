@@ -1,5 +1,5 @@
 /**
- * A count's line over its days (the Dashboard's Open tile, a Number's
+ * A count's line over its days (a Number's
  * history): the last point dotted. Decorative — the number beside it
  * carries the meaning. Nothing for fewer than two points.
  */

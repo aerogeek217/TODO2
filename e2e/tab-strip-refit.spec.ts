@@ -12,7 +12,7 @@ import { editListDraft, seedWorkspace, wsTab, type WsTabSeed, wsRow } from './fi
 const OTHERS: WsTabSeed[] = [
   { id: 'n1', kind: 'notes' },
   { id: 'c1', kind: 'calendar' },
-  { id: 'd1', kind: 'dashboard' },
+  { id: 'd1', kind: 'trend' },
   { id: 'e1', kind: 'eisenhower' },
   { id: 'c2', kind: 'calendar' },
   { id: 'n3', kind: 'notes' },

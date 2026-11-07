@@ -38,12 +38,12 @@ test('switching tabs drops the hidden list selection', async ({ page }) => {
 })
 
 /**
- * The list, Eisenhower and dashboard widgets select rows the same way (one
+ * The list, Eisenhower and glance row widgets select rows the same way (one
  * hook): a click selects one task, Ctrl+click adds, Shift+click takes the
  * range, a click on the widget's empty space clears it, and only one widget
  * holds a selection at a time.
  */
-test('list, Eisenhower and dashboard rows select alike; one widget at a time', async ({ page }) => {
+test('list, Eisenhower and Needs follow-up rows select alike; one widget at a time', async ({ page }) => {
   const due = { urgent: true, important: true, followupInDays: 0 }
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Tasks' }],
@@ -53,14 +53,14 @@ test('list, Eisenhower and dashboard rows select alike; one widget at a time', a
       columns: [
         { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
         { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] })] },
-        { id: 'c3', rows: [wsRow({ id: 'k3', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: [], sections: [{ id: 'followup' }] } }] })] },
+        { id: 'c3', rows: [wsRow({ id: 'k3', tabs: [{ id: 'dash', kind: 'followup' }] })] },
       ],
     }],
   })
   const widgets = [
     { name: 'list', root: wsListWidget(page, 'list') },
     { name: 'eisenhower', root: page.locator('[data-eisenhower="eis"]') },
-    { name: 'dashboard', root: page.locator('[data-dashboard="dash"]') },
+    { name: 'Needs follow-up', root: page.locator('[data-glance-tab="dash"]') },
   ]
   const selected = page.locator('[data-selected="true"]')
   const bulkBar = page.getByTestId('list-bulk-bar')
@@ -99,7 +99,7 @@ test('list, Eisenhower and dashboard rows select alike; one widget at a time', a
     await title('alpha').click()
     await expect(w.root.locator('[data-selected="true"]')).toHaveCount(1)
   }
-  // The dashboard's click took the selection from the Eisenhower widget.
+  // The Needs follow-up click took the selection from the Eisenhower widget.
   await expect(selected).toHaveCount(1)
   await expect(widgets[2]!.root.locator('[data-selected="true"]')).toHaveCount(1)
 })

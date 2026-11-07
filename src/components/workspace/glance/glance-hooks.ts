@@ -9,27 +9,27 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { readScopeRows } from '../../../utils/scoped-selection'
 import { createValueStore } from '../../../utils/value-store'
 import { withScreenNote } from './glance-copy'
-import { summaryOf, type DashboardSummary, type SummaryPart } from './glance-summary'
-import type { DashboardRowKit, OnDashboardDrill } from './glance-types'
+import { summaryOf, type GlanceSummary, type SummaryPart } from './glance-summary'
+import type { GlanceRowKit, OnGlanceDrill } from './glance-types'
 import styles from './GlanceWidget.module.css'
 
 /** What a glance widget reports to its cell: its lines, for the tab menu's Copy. */
 export interface GlanceResult {
-  summary: DashboardSummary
+  summary: GlanceSummary
 }
 
 export interface GlanceWidgetProps<T extends GlanceTab> {
   tab: T
   onResult?: (result: GlanceResult) => void
   /** Opens the tasks behind a clicked number; absent = numbers aren't clickable. */
-  onDrill?: OnDashboardDrill
+  onDrill?: OnGlanceDrill
 }
 
 /** The class a section panel takes as a glance widget: no card, filling the cell. */
 export const GLANCE_PANEL_CLASS = styles.panel
 
 /** `onDrill`, its dialogs saying they count only what the top bar shows while the screen filter narrows. */
-export function glanceDrill(onDrill: OnDashboardDrill | undefined, filtered: boolean): OnDashboardDrill | undefined {
+export function glanceDrill(onDrill: OnGlanceDrill | undefined, filtered: boolean): OnGlanceDrill | undefined {
   return onDrill && ((d) => onDrill(filtered ? { ...d, description: withScreenNote(d.description) } : d))
 }
 
@@ -46,7 +46,7 @@ type RowsTab = FollowupTab | StaleTab | RecentTab | TodayTab
 
 /** A row widget's rows: their selection scope, columns, lingering completions and bulk bar. */
 export interface GlanceRows {
-  kit: DashboardRowKit
+  kit: GlanceRowKit
   /** Just-completed rows lingering before they fold (D19; desktop), for the rows' data. */
   leaving: LeavingRows | undefined
   /** Call with the task ids the widget shows, each render: a completion among them lingers. */
@@ -60,8 +60,8 @@ export interface GlanceRows {
 
 /**
  * The task rows of a row widget (Needs follow-up, Stale tasks, Recently
- * completed, Today): its own selection scope (its tab id) and bulk bar, as the
- * Dashboard's; the rows' details width is the tab's view state.
+ * completed, Today): its own selection scope (its tab id) and bulk bar; the
+ * rows' details width is the tab's view state.
  */
 export function useGlanceRows(tab: RowsTab): GlanceRows {
   const isMobile = useIsMobile()
@@ -77,7 +77,7 @@ export function useGlanceRows(tab: RowsTab): GlanceRows {
     tab.id,
     () => (elRef.current ? readScopeRows(elRef.current) : []),
   )
-  const kit: DashboardRowKit = {
+  const kit: GlanceRowKit = {
     tabId: tab.id, isMobile, inScope, selectedIds, cursorKey, onSelect, onOpen: openEditPopup,
     detailsWidth: tab.viewState?.detailsWidth,
     onDetailsWidthChange: (detailsWidth) => void useWorkspaceStore.getState().patchTabViewState(tab.id, tab.kind, { detailsWidth }),

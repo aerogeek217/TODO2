@@ -31,7 +31,7 @@ import { useStatusUpdateStore } from '../stores/status-update-store'
 import { useSubtaskStore } from '../stores/subtask-store'
 
 /**
- * The task dialog: the tasks behind a number (a dashboard count) or an
+ * The task dialog: the tasks behind a number (a glance widget's count) or an
  * attribute (a person chip), as a modal list. A payload says what to show
  * and in words what was counted; its source is resolved to rows once, when
  * the dialog opens, so rows stay in place (a completed one struck through)
@@ -313,7 +313,7 @@ export function personTaskDialog(person: Pick<Person, 'id' | 'name'>): TaskDialo
   }
 }
 
-// ── Dashboard sections ──────────────────────────────────────────────────────
+// ── Glance sections ─────────────────────────────────────────────────────────────
 // The tasks are the ones the section counted (screen-filtered), in its order.
 
 /** A Tags row: that tag's open tasks; `null` = the No tag row. */

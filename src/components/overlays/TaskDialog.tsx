@@ -7,7 +7,7 @@ import { TaskDialogFilterBar } from './TaskDialogFilterBar'
 import styles from './TaskDialog.module.css'
 
 /**
- * The task dialog: the tasks behind a dashboard number or a person chip
+ * The task dialog: the tasks behind a glance widget's number or a person chip
  * (`ui-store.taskDialog`), or — on a phone — the screen filter's tasks
  * (desktop shows those in the top bar's filtered-tasks panel). What it
  * shows is `TaskDialogContent`; the screen filter's dialog adds that

@@ -54,9 +54,6 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M8 2.5v11M2.5 8h11" />
     </>
   ),
-  dashboard: (
-    <path d="M3.5 2.5h3a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1zM9.5 2.5h3a1 1 0 0 1 1 1v1.5a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1zM3.5 10.5h3a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1zM9.5 8h3a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
-  ),
   // A scatter plot: two axes and three dots, the largest top right (Slipping).
   neglect: (
     <>
@@ -66,7 +63,7 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <circle cx="12" cy="4.5" r="1.5" fill="currentColor" stroke="none" />
     </>
   ),
-  // The glance widgets: a Number is a tile holding a 1; each section, its dashboard glyph.
+  // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`DASH_GLYPH`).
   number: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
   followup: <path d={DASH_GLYPH.followup} />,
   next7: <path d={DASH_GLYPH.calendar} />,
@@ -175,7 +172,7 @@ export function MinusIcon({ size = 14, strokeWidth = 1.6 }: { size?: number; str
   return <Svg size={size} strokeWidth={strokeWidth}><path d="M3 8h10" /></Svg>
 }
 
-/** The Settings gear (stroke ≈ 1.9 at 16px): Settings, Customize dashboard. */
+/** The Settings gear (stroke ≈ 1.9 at 16px): Settings, Customize panes…. */
 export function GearIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

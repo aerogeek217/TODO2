@@ -483,7 +483,7 @@ describe('copySizes', () => {
 describe('bands', () => {
   const withBands = (): WorkspaceLayout => ({
     ...base(),
-    top: { id: 'TB', height: 160, cells: [{ id: 'tb', weight: 1, tabs: [createTab('dashboard', 'top1')] }] },
+    top: { id: 'TB', height: 160, cells: [{ id: 'tb', weight: 1, tabs: [createTab('number', 'top1')] }] },
     bottom: { id: 'BB', height: 120, cells: [{ id: 'bb', weight: 1, tabs: [createTab('calendar', 'bot1'), createTab('notes', 'bot2')] }] },
   })
 
@@ -594,7 +594,7 @@ describe('bands', () => {
 describe('movePanel', () => {
   const withBands = (): WorkspaceLayout => ({
     ...base(),
-    top: { id: 'TB', height: 160, cells: [{ id: 'tb', weight: 1, tabs: [createTab('dashboard', 'top1'), createTab('notes', 'top2')], activeTabId: 'top2' }] },
+    top: { id: 'TB', height: 160, cells: [{ id: 'tb', weight: 1, tabs: [createTab('number', 'top1'), createTab('notes', 'top2')], activeTabId: 'top2' }] },
   })
 
   it('merging into another cell appends every tab in order; the first moved tab is active', () => {
@@ -714,7 +714,7 @@ describe('movePanel', () => {
 describe('bands, unchanged by column edits', () => {
   const withBands = (): WorkspaceLayout => ({
     ...base(),
-    top: { id: 'TB', height: 160, cells: [{ id: 'tb', weight: 1, tabs: [createTab('dashboard', 'top1')] }] },
+    top: { id: 'TB', height: 160, cells: [{ id: 'tb', weight: 1, tabs: [createTab('number', 'top1')] }] },
     bottom: { id: 'BB', height: 120, cells: [{ id: 'bb', weight: 1, tabs: [createTab('calendar', 'bot1'), createTab('notes', 'bot2')] }] },
   })
 

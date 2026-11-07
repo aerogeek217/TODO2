@@ -3,7 +3,7 @@ import { seedWorkspace, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixt
 
 /**
  * Task rows fit their container at every width: a row is never wider than
- * the list widget, Eisenhower quadrant or dashboard panel it sits in, and its
+ * the list widget, Eisenhower quadrant or glance row widget it sits in, and its
  * cells and status stay inside it — the people / tags, the dates (to icons)
  * and the title give way instead. Layout-dependent, so a real browser is the
  * authoritative surface.
@@ -127,8 +127,8 @@ test.describe('task rows fit their container', () => {
     expect(problems).toEqual([])
   })
 
-  test('dashboard panels', async ({ page }) => {
-    await seedWorkspace(page, seed({ kind: 'dashboard', dashboard: { sections: [{ id: 'followup' }, { id: 'stale' }] } }, 380))
+  test('a Needs follow-up widget', async ({ page }) => {
+    await seedWorkspace(page, seed({ kind: 'followup' }, 380))
     await expect(page.locator('[data-todo-id]').first()).toBeVisible()
     const { rows, problems } = await rowOverflow(page)
     expect(rows).toBeGreaterThan(0)

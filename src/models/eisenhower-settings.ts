@@ -1,6 +1,6 @@
 /**
  * The Eisenhower settings: one set of four panes and one source, app-wide —
- * every Eisenhower tab, on every layout, and the dashboard's Eisenhower
+ * every Eisenhower tab, on every layout, and every Eisenhower summary
  * section use them. Stored in the `settings` table (`eisenhowerPanes`,
  * `eisenhowerSource`), not with a layout.
  */

@@ -8,7 +8,7 @@ import { readStore } from './fixtures/db'
  * filter line (`No filters` = every task); editing it makes the list
  * unsaved — the tab's dot, Revert · Save — and Save writes it, still the
  * Eisenhower's; Edit list… from the tab menu
- * opens beside the panel and its Save is what the dashboard's Eisenhower
+ * opens beside the panel and its Save is what the Eisenhower summary
  * section counts; drags between quadrants still set the flags and "+" adds
  * with the list's defaults; an Eisenhower switched to List picks a list —
  * never the Eisenhower's; closing the last widget on its unsaved list asks
@@ -122,18 +122,18 @@ test.describe('desktop', () => {
     await expect(filterLine(page)).toContainText('not Waiting')
   })
 
-  test('Edit list… → a filter → Save list: the dashboard’s Eisenhower section counts what the widget shows', async ({ page }) => {
+  test('Edit list… → a filter → Save list: the Eisenhower summary counts what the widget shows', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
       layouts: [{
         name: 'Main',
         columns: [
           { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] },
-          { id: 'colC', rows: [wsRow({ id: 'c1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'eisenhower' }] } }] })] },
+          { id: 'colC', rows: [wsRow({ id: 'c1', tabs: [{ id: 'dash', kind: 'eisenhowerSummary' }] })] },
         ],
       }],
     })
-    const dashDo = page.locator('[data-dashboard="dash"] [data-dash-section="eisenhower"] [data-eis-cell="do"]').getByTestId('dash-eis-count')
+    const dashDo = page.locator('[data-glance-tab="dash"] [data-dash-section="eisenhower"] [data-eis-cell="do"]').getByTestId('dash-eis-count')
     await expect(dashDo).toHaveText('2')
     await (await openTabMenu(page, 'eisTab')).getByRole('menuitem', { name: 'Edit list…' }).click()
     const editList = page.getByTestId('edit-list')

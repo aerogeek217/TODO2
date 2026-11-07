@@ -8,7 +8,6 @@ import {
   WIDGET_KINDS,
   widgetKindLabel,
 } from '../../models/workspace-layout'
-import { defaultDashboardConfig } from '../../models/dashboard-config'
 import { checkLayoutBody, pickLayoutBody } from '../../data/layout-shape'
 import { tabTitle } from '../../components/workspace/widget-hooks'
 import { rowOf } from '../helpers/layout-builders'
@@ -17,12 +16,12 @@ import { rowOf } from '../helpers/layout-builders'
 describe('widget kinds', () => {
   it('lists the kinds in menu order, with their names', () => {
     expect(WIDGET_KINDS).toEqual([
-      'lens', 'calendar', 'notes', 'eisenhower', 'dashboard', 'neglect',
+      'lens', 'calendar', 'notes', 'eisenhower', 'neglect',
       'number', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhowerSummary',
       'changes', 'today', 'pulse',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
-      'List', 'Calendar', 'Notes', 'Eisenhower', 'Dashboard', 'Neglect map',
+      'List', 'Calendar', 'Notes', 'Eisenhower', 'Neglect map',
       'Number', 'Needs follow-up', 'Next 7 days', 'Created vs completed', 'Status', 'People', 'Tags', 'Stale tasks',
       'Recently completed', 'Eisenhower summary', 'What changed', 'Today', 'Project pulse',
     ])
@@ -48,7 +47,7 @@ describe('widget kinds', () => {
     expect(createTab('eisenhower', 'd')).toEqual({ id: 'd', kind: 'eisenhower', config: {} })
     // An Eisenhower tab has no config: its panes and source are app-wide settings.
     expect(createTab('eisenhower', 'd', { listDefinitionId: 4 })).toEqual({ id: 'd', kind: 'eisenhower', config: {} })
-    expect(createTab('dashboard', 'e')).toEqual({ id: 'e', kind: 'dashboard', config: defaultDashboardConfig() })
+    expect(createTab('number', 'e')).toEqual({ id: 'e', kind: 'number', config: { metric: 'overdue' } })
     // A Neglect map colours by the tags it is given (the store passes the `Project: …` ones), 14 days.
     expect(createTab('neglect', 'f')).toEqual({ id: 'f', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [] }, untouchedDays: 14 } })
     expect(createTab('neglect', 'f', { neglectTagIds: [3, 8] }).config).toEqual({ colourBy: { kind: 'tags', tagIds: [3, 8] }, untouchedDays: 14 })
@@ -82,7 +81,7 @@ describe('widget kinds', () => {
     expect(tabListId(createTab('eisenhower', 'b'), 5)).toBe(5)
     expect(tabListId(createTab('eisenhower', 'b'), null)).toBeUndefined()
     expect(tabListId(createTab('calendar', 'c'), 5)).toBeUndefined()
-    expect(tabListId(createTab('dashboard', 'd'), 5)).toBeUndefined()
+    expect(tabListId(createTab('number', 'd'), 5)).toBeUndefined()
   })
 })
 

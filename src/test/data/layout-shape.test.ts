@@ -33,9 +33,8 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['zero weight', layoutRow([{ id: 'c', weight: 0, rows: [] }]), 'columns[0].weight'],
   ['unknown kind', layoutRow(oneTab({ id: 't', kind: 'horizons', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
   ['retired Taskboard widget', layoutRow(oneTab({ id: 't', kind: 'taskboard', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
-  ['dashboard tiles not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { tiles: 'open' } })), 'columns[0].rows[0].cells[0].tabs[0].config.tiles'],
-  ['dashboard list tiles not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles: 3 } })), 'columns[0].rows[0].cells[0].tabs[0].config.listTiles'],
-  ['dashboard sections not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { sections: {} } })), 'columns[0].rows[0].cells[0].tabs[0].config.sections'],
+  // Retired in v77 (its tabs became glance widgets): past v77 an unknown kind.
+  ['retired Dashboard widget', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { tiles: ['open'], listTiles: [], sections: [] } })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
   ['missing config', layoutRow(oneTab({ id: 't', kind: 'notes' })), 'columns[0].rows[0].cells[0].tabs[0].config'],
   ['calendar date types not booleans', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: 1, followup: false } } })), 'columns[0].rows[0].cells[0].tabs[0].config.dateTypes'],
   ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.view'],
@@ -67,10 +66,10 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['Neglect map threshold not whole', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 2.5 } })), 'columns[0].rows[0].cells[0].tabs[0].config.untouchedDays'],
 ]
 
-/** A top band (dashboard + a list) and a bottom band (a week calendar), as the layout row stores them. */
+/** A top band (a Number + a list) and a bottom band (a week calendar), as the layout row stores them. */
 const BANDS = {
   top: { id: 'b1', height: 112, cells: [{ id: 'b1-c', weight: 1, activeTabId: 'bt2', tabs: [
-    { id: 'bt1', kind: 'dashboard', config: { tiles: ['open'], listTiles: [], sections: [] } },
+    { id: 'bt1', kind: 'number', config: { metric: 'open' } },
     { id: 'bt2', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 280 } },
   ] }] },
   bottom: { id: 'b2', height: 150, collapsed: true, cells: [{ id: 'b2-c', weight: 1, tabs: [
@@ -86,7 +85,7 @@ const EVERY_KIND = [
       { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2, titles: true } },
       { id: 't3', kind: 'notes', config: {} },
       { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'], detailsWidth: 0 } },
-      { id: 't5', kind: 'dashboard', config: { tiles: ['open'], listTiles: [2], sections: [{ id: 'trend', options: { range: '4w' } }] }, viewState: { detailsWidth: 4000 } },
+      { id: 't5', kind: 'stale', config: { staleDays: 30 }, viewState: { detailsWidth: 4000 } },
     ] }, { collapsed: true }),
     rowOf({ id: 'k2', weight: 1, tabs: [] }, { weight: 0.5 }),
     // Two cells side by side, one headless.
@@ -133,7 +132,7 @@ describe('layouts row validation', () => {
           { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2 } },
           { id: 't3', kind: 'notes', config: {} },
           { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
-          { id: 't5', kind: 'dashboard', config: { tiles: ['open'], listTiles: [2], sections: [{ id: 'trend', options: { range: '4w' } }] } },
+          { id: 't5', kind: 'trend', config: { range: '4w' } },
         ] }, { collapsed: true }),
         rowOf({ id: 'k2', weight: 1, tabs: [] }, { weight: 0.5 }),
       ] },
@@ -193,11 +192,11 @@ describe('layouts row validation', () => {
     }])
   })
 
-  it('import keeps a list, Eisenhower or dashboard tab’s details width, rounded', () => {
+  it('import keeps a list, Eisenhower or row widget tab’s details width, rounded', () => {
     const columns = [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [
       { id: 't1', kind: 'lens', config: {}, viewState: { detailsWidth: 262.6 } },
       { id: 't2', kind: 'eisenhower', config: {}, viewState: { detailsWidth: 180 } },
-      { id: 't3', kind: 'dashboard', config: { tiles: [], listTiles: [], sections: [] }, viewState: { detailsWidth: 0.4 } },
+      { id: 't3', kind: 'recent', config: { recentDays: 7 }, viewState: { detailsWidth: 0.4 } },
       // Only tabs that show task rows keep it.
       { id: 't4', kind: 'notes', config: {}, viewState: { detailsWidth: 200 } },
     ] })] }]
@@ -216,87 +215,6 @@ describe('layouts row validation', () => {
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })
     if (!res.ok) throw new Error(res.error)
     expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 4000 })
-  })
-
-  it('import keeps a dashboard config’s known ids (once, in order) and options, drops the rest', () => {
-    const config = {
-      tiles: ['focus', 'nope', 'hot', 'open', 'focus'],
-      listTiles: [3, '4', 3, 1.5, -1, 7],
-      sections: [
-        { id: 'people', options: { showUnassigned: false, range: '4w' } },
-        { id: 'gone' },
-        'junk',
-        { id: 'trend', options: { range: '12w' } },
-        { id: 'followup', options: { lookAhead: 5 } },
-        { id: 'trend' },
-      ],
-      stray: true,
-    }
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config, viewState: { x: 1 } }))] })
-    if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]).toEqual({
-      id: 't',
-      kind: 'dashboard',
-      config: {
-        tiles: ['focus', 'open'],
-        listTiles: [3, 7],
-        sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'trend', options: { range: '12w' } }, { id: 'followup' }],
-      },
-    })
-  })
-
-  it('import keeps the Tags / Stale tasks / Recently completed / Eisenhower sections and their own options only', () => {
-    const config = {
-      tiles: ['open'],
-      listTiles: [],
-      sections: [
-        { id: 'eisenhower', options: { staleDays: 30 } },
-        { id: 'stale', options: { staleDays: 30, recentDays: 14 } },
-        { id: 'recent', options: { recentDays: 14, staleDays: 7 } },
-        { id: 'tags', options: { showUntagged: false, showUnassigned: false } },
-        { id: 'stale' },
-      ],
-    }
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config }))] })
-    if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]).toEqual({
-      id: 't',
-      kind: 'dashboard',
-      config: {
-        tiles: ['open'],
-        listTiles: [],
-        sections: [
-          { id: 'eisenhower' },
-          { id: 'stale', options: { staleDays: 30 } },
-          { id: 'recent', options: { recentDays: 14 } },
-          { id: 'tags', options: { showUntagged: false } },
-        ],
-      },
-    })
-  })
-
-  it('import drops option values a section doesn’t offer', () => {
-    const config = {
-      sections: [{ id: 'stale', options: { staleDays: 15 } }, { id: 'recent', options: { recentDays: '7' } }, { id: 'tags', options: { showUntagged: 'no' } }],
-    }
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config }))] })
-    if (!res.ok) throw new Error(res.error)
-    const tab = res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]!
-    expect(tab.kind === 'dashboard' && tab.config.sections).toEqual([{ id: 'stale' }, { id: 'recent' }, { id: 'tags' }])
-  })
-
-  it('import fills a dashboard config’s missing parts with the defaults', () => {
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles: [2] } }))] })
-    if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]).toEqual({
-      id: 't',
-      kind: 'dashboard',
-      config: {
-        tiles: ['open', 'focus', 'urgent', 'overdue', 'followupDue'],
-        listTiles: [2],
-        sections: ['followup', 'next7', 'trend', 'status', 'people'].map((id) => ({ id })),
-      },
-    })
   })
 
   it('validates the activeLayoutId setting as a number', () => {
@@ -342,14 +260,6 @@ describe('a layout past the limit of 1,000 columns, rows, cells or tabs', () => 
       .toEqual(['2 rows past the limit of 1,000 dropped', 'column past the limit of 1,000 dropped'])
   })
 
-  it('a dashboard tab keeps its first 1,000 list tiles', () => {
-    const listTiles = Array.from({ length: 1005 }, (_, i) => i + 1)
-    const row = layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles } }))
-    expect(validateRow('layouts', row)).toBe(true)
-    expect(rowFixes('layouts', row)).toEqual(['5 list tiles past the limit of 1,000 dropped'])
-    const tab = (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.rows[0]!.cells[0]!.tabs[0]!
-    expect(tab.kind === 'dashboard' && tab.config.listTiles).toEqual(listTiles.slice(0, 1000))
-  })
 })
 
 describe('repairing a layout row the schema rejects (audit cleanup)', () => {

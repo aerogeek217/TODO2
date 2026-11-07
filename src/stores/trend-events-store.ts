@@ -6,7 +6,7 @@ import type { WeekStart } from '../utils/effective-date'
 import { dayKey } from '../utils/date'
 
 /**
- * The `todoEvents` the dashboard trend and the Numbers' history read, cached
+ * The `todoEvents` Created vs completed and the Numbers' history read, cached
  * per (window, day): one indexed read of every created / completed /
  * reopened event (and, for a Number's history, `deadline`) since the
  * window's first day. `invalidate` (on any event write, or after a restore)
@@ -81,8 +81,8 @@ export const useTrendEventsStore = create<TrendEventsState>((set, get) => {
   }
 })
 
-// Every event write invalidates, whether or not a dashboard is mounted: a
-// dashboard tab that isn't the active one is unmounted, and the next mount
+// Every event write invalidates, whether or not a glance widget is mounted: a
+// tab that isn't the active one is unmounted, and the next mount
 // must not show bars cached before the write. (Dexie table hooks, so this
 // lasts for the module's lifetime, like the database.)
 const stopInvalidating = todoEventRepository.onChange(() => useTrendEventsStore.getState().invalidate())

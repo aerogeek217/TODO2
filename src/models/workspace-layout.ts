@@ -19,7 +19,6 @@
  * tasks, the note) lives in its own tables.
  */
 
-import { defaultDashboardConfig, type DashboardTabConfig } from './dashboard-config'
 import {
   DEFAULT_LOOK_AHEAD,
   DEFAULT_NUMBER_METRIC,
@@ -40,16 +39,17 @@ import {
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
  * list widget (its old name; renaming it would need a migration). The glance
- * kinds (D25 N) are the Dashboard's pieces as widgets of their own: `number`
- * (one count), one per section (`followup` … `eisenhowerSummary`), and the
- * morning brief's parts (D25 L): `changes` (What changed), `today` (the
- * Focus tasks and suggestions) and `pulse` (Project pulse).
+ * kinds (D25 N) are the retired Dashboard's pieces as widgets of their own
+ * (v77 made every Dashboard tab these): `number` (one count), one per section
+ * (`followup` … `eisenhowerSummary`), and the morning brief's parts (D25 L):
+ * `changes` (What changed), `today` (the Focus tasks and suggestions) and
+ * `pulse` (Project pulse).
  */
 export type WidgetKind =
-  | 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard' | 'neglect'
+  | 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'neglect'
   | GlanceWidgetKind
 
-/** The glance widget kinds (D25 N): a Number, the Dashboard's sections and the brief's parts, each a widget. */
+/** The glance widget kinds (D25 N): a Number, the old Dashboard's sections and the brief's parts, each a widget. */
 export type GlanceWidgetKind =
   | 'number' | 'followup' | 'next7' | 'trend' | 'status' | 'people' | 'tags' | 'stale' | 'recent' | 'eisenhowerSummary'
   | 'changes' | 'today' | 'pulse'
@@ -233,7 +233,6 @@ export type LensTab = TabOf<'lens', LensTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
-export type DashboardTab = TabOf<'dashboard', DashboardTabConfig, TaskRowsViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
 export type NumberTab = TabOf<'number', NumberTabConfig, NoTabSettings>
 export type FollowupTab = TabOf<'followup', FollowupTabConfig, TaskRowsViewState>
@@ -254,7 +253,7 @@ export type GlanceTab =
   | NumberTab | FollowupTab | Next7Tab | TrendTab | StatusTab | PeopleTab | TagsTab | StaleTab | RecentTab | EisenhowerSummaryTab
   | ChangesTab | TodayTab | PulseTab
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | DashboardTab | NeglectTab | GlanceTab
+export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | NeglectTab | GlanceTab
 
 export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -511,14 +510,6 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     glance: false,
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'eisenhower', config: {} }),
-  },
-  dashboard: {
-    label: 'Dashboard',
-    showsList: false,
-    group: 'glance',
-    glance: false,
-    fitHeight: false,
-    newTab: (id) => ({ id, kind: 'dashboard', config: defaultDashboardConfig() }),
   },
   neglect: {
     label: 'Neglect map',

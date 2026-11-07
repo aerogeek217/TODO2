@@ -7,7 +7,7 @@ import { formatDateWith } from '../../../utils/date'
 import type { WidgetFace } from '../../../utils/widget-face'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { SummaryPart } from './glance-summary'
-import type { OnDashboardDrill } from './glance-types'
+import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import styles from './BriefWidgets.module.css'
 
@@ -21,7 +21,7 @@ function changeLines(changes: readonly Change[] | null): SummaryPart[][] {
   return changes.map((c) => [{ label: c.text, count: '' }])
 }
 
-function Sentence({ change, headline, onDrill }: { change: Change; headline: boolean; onDrill: OnDashboardDrill | undefined }) {
+function Sentence({ change, headline, onDrill }: { change: Change; headline: boolean; onDrill: OnGlanceDrill | undefined }) {
   const className = `${styles.sentence}${headline ? ` ${styles.headline}` : ''}`
   const { drill } = change
   if (drill && onDrill) {

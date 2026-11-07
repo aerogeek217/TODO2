@@ -1,7 +1,7 @@
-/* The dashboard's sections — each a glance widget of its own (D25 N) and a
- * part of the Dashboard widget: a panel with its header, its body. */
+/* The sections — each a glance widget of its own (D25 N): a panel with its
+ * header, its body. */
 
-/* A section's card (on the Dashboard; a glance widget drops it). */
+/* A section's card (a glance widget drops it: it fills its cell). */
 .surface {
   border-radius: var(--radius-card);
   background: var(--color-dash-panel);

@@ -4,18 +4,18 @@ import type { ValueStore } from '../../../utils/value-store'
 import type { LeavingRows } from '../../../hooks/use-leaving-rows'
 
 /**
- * The tasks a dashboard number stands for — what clicking it opens in the
+ * The tasks a glance widget's number stands for — what clicking it opens in the
  * task dialog. Built-in counts name their tasks (ids in dialog order, or
  * under headings); a list tile names its list (the list's own sort and
  * grouping apply). The widget's host adds where it was opened from.
  */
-export type DashboardDrill = Omit<TaskDialogPayload, 'fromTabId'>
+export type GlanceDrill = Omit<TaskDialogPayload, 'fromTabId'>
 
 /** Opens the tasks behind a number; absent = numbers aren't clickable. */
-export type OnDashboardDrill = (drill: DashboardDrill) => void
+export type OnGlanceDrill = (drill: GlanceDrill) => void
 
 /** What the task-row sections (Needs follow-up, Stale) share. */
-export interface DashboardRowKit {
+export interface GlanceRowKit {
   tabId: string
   isMobile: boolean
   inScope: boolean

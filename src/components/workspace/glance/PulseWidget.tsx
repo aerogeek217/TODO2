@@ -6,7 +6,7 @@ import { cumulative, lateShareText, momentumText, worstPulseCard, type PulseCard
 import { tagSectionDialog } from '../../../services/task-dialog'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { SummaryPart } from './glance-summary'
-import type { OnDashboardDrill } from './glance-types'
+import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { Empty, Panel, type PanelDef } from './section-parts'
 import styles from './BriefWidgets.module.css'
@@ -46,7 +46,7 @@ function PulseLines({ card }: { card: PulseCard }) {
   )
 }
 
-function PulseCardView({ card, onDrill }: { card: PulseCard; onDrill: OnDashboardDrill | undefined }) {
+function PulseCardView({ card, onDrill }: { card: PulseCard; onDrill: OnGlanceDrill | undefined }) {
   const name = card.tag.name
   const content = (
     <>

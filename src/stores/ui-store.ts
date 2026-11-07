@@ -221,7 +221,7 @@ interface UIState {
    */
   confirmPrompts: PendingConfirmPrompt[]
   /**
-   * The task dialog (`TaskDialog`): the tasks behind a dashboard number or a
+   * The task dialog (`TaskDialog`): the tasks behind a glance widget's number or a
    * person chip. `null` = closed.
    */
   taskDialog: TaskDialogPayload | null

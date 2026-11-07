@@ -37,7 +37,7 @@ const threeCells: WsLayoutSeed = {
   name: 'Main',
   columns: [
     { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] })] },
-    { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }), wsRow({ id: 'b2', tabs: [{ id: 'dashTab', kind: 'dashboard' }] })] },
+    { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }), wsRow({ id: 'b2', tabs: [{ id: 'dashTab', kind: 'notes' }] })] },
   ],
 }
 
@@ -475,12 +475,12 @@ test.describe('phone', () => {
     await seedWorkspace(page, {
       layouts: [{
         ...threeCells,
-        top: { id: 'tb-band', cells: [{ id: 'tb', tabs: [{ id: 'topDash', kind: 'dashboard' }] }] },
+        top: { id: 'tb-band', cells: [{ id: 'tb', tabs: [{ id: 'topDash', kind: 'trend' }] }] },
         bottom: { id: 'bb-band', cells: [{ id: 'bb', tabs: [{ id: 'botCal', kind: 'calendar' }] }] },
       }],
     })
     const names = page.getByRole('tablist', { name: 'Columns' }).getByRole('tab')
-    await expect(names).toHaveText(['Dashboard', 'Notes', 'Calendar', 'Calendar'])
+    await expect(names).toHaveText(['Created vs completed', 'Notes', 'Calendar', 'Calendar'])
     await expect(names.first()).toHaveAttribute('data-ws-band-name', 'top')
     await expect(names.last()).toHaveAttribute('data-ws-band-name', 'bottom')
     await expect(names.first().locator('svg')).toBeVisible()
