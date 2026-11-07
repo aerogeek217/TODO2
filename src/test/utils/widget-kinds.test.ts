@@ -15,8 +15,8 @@ import { tabTitle } from '../../components/workspace/widget-hooks'
 /** The widget-kind table and what derives from it. */
 describe('widget kinds', () => {
   it('lists the kinds in menu order, with their names', () => {
-    expect(WIDGET_KINDS).toEqual(['lens', 'calendar', 'notes', 'eisenhower', 'dashboard'])
-    expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual(['List', 'Calendar', 'Notes', 'Eisenhower', 'Dashboard'])
+    expect(WIDGET_KINDS).toEqual(['lens', 'calendar', 'notes', 'eisenhower', 'dashboard', 'neglect'])
+    expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual(['List', 'Calendar', 'Notes', 'Eisenhower', 'Dashboard', 'Neglect map'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])
   })
 
@@ -40,6 +40,9 @@ describe('widget kinds', () => {
     // An Eisenhower tab has no config: its panes and source are app-wide settings.
     expect(createTab('eisenhower', 'd', { listDefinitionId: 4 })).toEqual({ id: 'd', kind: 'eisenhower', config: {} })
     expect(createTab('dashboard', 'e')).toEqual({ id: 'e', kind: 'dashboard', config: defaultDashboardConfig() })
+    // A Neglect map colours by the tags it is given (the store passes the `Project: …` ones), 14 days.
+    expect(createTab('neglect', 'f')).toEqual({ id: 'f', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [] }, untouchedDays: 14 } })
+    expect(createTab('neglect', 'f', { neglectTagIds: [3, 8] }).config).toEqual({ colourBy: { kind: 'tags', tagIds: [3, 8] }, untouchedDays: 14 })
     // A fresh config each time.
     const one = createTab('calendar', 'x')
     one.config.dateTypes.due = false
