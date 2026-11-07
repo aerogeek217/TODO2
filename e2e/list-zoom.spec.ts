@@ -197,6 +197,44 @@ test('a Strips click zooms to Rows on that task: scrolled into view, selected an
   await expect(row).toHaveAttribute('data-selected', 'true')
 })
 
+for (const theme of ['dark', 'light'] as const) {
+  test(`Lines (${theme}): a plain task's tick is a visible neutral, a stale one's plainly dimmer`, async ({ page }) => {
+    const ago = new Date(Date.now() - 40 * 86_400_000)
+    const pad = (n: number) => String(n).padStart(2, '0')
+    const modifiedAt = `${ago.getFullYear()}-${pad(ago.getMonth() + 1)}-${pad(ago.getDate())}T09:00`
+    await open(page, { zoom: 'lines', tasks: [{ title: 'Plain' }, { title: 'Stale', modifiedAt }] })
+    await page.evaluate(async (m) => {
+      const mod = (await import(/* @vite-ignore */ '/src/stores/settings-store.ts' as string)) as {
+        useSettingsStore: { getState: () => { setThemeMode: (mode: 'dark' | 'light') => Promise<void> } }
+      }
+      await mod.useSettingsStore.getState().setThemeMode(m)
+    }, theme)
+    await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+    await expect(rowOf(page, 'Stale').locator('[data-task-line]')).toHaveAttribute('data-tone', 'stale')
+    await expect(rowOf(page, 'Plain').locator('[data-task-line]')).toHaveAttribute('data-tone', 'none')
+    // The tick's colour painted over the cell's surface (a canvas does the
+    // compositing, whatever syntax the computed colour is in), and that surface: the luminance of each.
+    const lum = (title: string) => rowOf(page, title).locator('[data-task-line] > span').first().evaluate((tick) => {
+      const ctx = document.createElement('canvas').getContext('2d')!
+      const paint = (...colors: string[]) => {
+        ctx.clearRect(0, 0, 1, 1)
+        for (const c of colors) { ctx.fillStyle = c; ctx.fillRect(0, 0, 1, 1) }
+        return [...ctx.getImageData(0, 0, 1, 1).data.slice(0, 3)]
+      }
+      const lin = (v: number) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 }
+      const L = ([r = 0, g = 0, b = 0]: number[]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+      const surface = getComputedStyle(tick.closest('[data-ws-cell]') ?? document.body).backgroundColor
+      return { tick: L(paint(surface, getComputedStyle(tick).backgroundColor)), surface: L(paint(surface)) }
+    })
+    const ratio = (x: number, y: number) => (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+    const plain = await lum('Plain')
+    const stale = await lum('Stale')
+    expect(ratio(plain.tick, plain.surface)).toBeGreaterThanOrEqual(3)
+    expect(ratio(stale.tick, stale.surface)).toBeGreaterThan(1.3)
+    expect(ratio(plain.tick, plain.surface) / ratio(stale.tick, stale.surface)).toBeGreaterThanOrEqual(1.8)
+  })
+}
+
 test('Lines: a drag reorders a manual list', async ({ page }) => {
   await open(page, { zoom: 'lines' })
   await expect.poll(() => titles(page)).toEqual(['Alpha', 'Bravo', 'Charlie', 'Delta'])

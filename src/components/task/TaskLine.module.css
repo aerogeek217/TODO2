@@ -5,7 +5,7 @@
  */
 .line,
 .strip {
-  --row-tone: var(--color-border);
+  --row-tone: var(--color-row-tone-plain);
 }
 
 [data-tone="late"] {
@@ -21,7 +21,7 @@
 }
 
 [data-tone="stale"] {
-  --row-tone: var(--color-surface-bright);
+  --row-tone: var(--color-row-tone-stale);
 }
 
 /* ── Lines ─────────────────────────────────────────────────────────────── */

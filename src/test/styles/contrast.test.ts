@@ -135,6 +135,29 @@ describe('the calendar heat map (D18) reads on every step', () => {
   })
 })
 
+describe('a Lines tick / Strips bar (D25 I1) tells plain from stale', () => {
+  /** A tone token (the muted text at an alpha) composited over `bg`. */
+  function toneOver(theme: ThemeName, tone: string, bg: string): number {
+    const tokens = themeTokens(theme)
+    const m = /^color-mix\(in srgb, var\(--color-text-muted\) ([\d.]+)%, transparent\)$/.exec(tokens.get(tone) ?? '')
+    if (!m) throw new Error(`${theme}: ${tone} isn't the muted text at an alpha`)
+    const p = Number(m[1]) / 100
+    const fg = resolveColor(tokens.get('--color-text-muted')!, tokens)
+    const under = resolveColor(tokens.get(bg)!, tokens)
+    return contrast(under.map((c, i) => fg[i]! * p + c * (1 - p)) as Rgb, under)
+  }
+
+  it.each(THEMES)('%s: plain at 3:1 on the list surface and a hovered line; stale visibly dimmer', (theme) => {
+    for (const bg of ['--color-surface', '--color-surface-high']) {
+      const plain = toneOver(theme, '--color-row-tone-plain', bg)
+      const stale = toneOver(theme, '--color-row-tone-stale', bg)
+      expect(plain, `plain on ${bg}`).toBeGreaterThanOrEqual(AA_GRAPHIC)
+      expect(stale, `stale on ${bg}`).toBeGreaterThan(1.3)
+      expect(plain / stale, `plain vs stale on ${bg}`).toBeGreaterThanOrEqual(1.8)
+    }
+  })
+})
+
 /** Literal white is theme-blind: on the dark theme's light accent or danger fills it all but vanishes. */
 describe('no hard-coded white in component styles', () => {
   // The check-in email preview is an email: white paper in either theme.

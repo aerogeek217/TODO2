@@ -344,6 +344,11 @@
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 12%, transparent);
   /* A Lines tick's / Strips bar's due-soon state (D25 I1): the deadline colour at 45%. */
   --color-deadline-soon: color-mix(in srgb, var(--color-deadline) 45%, transparent);
+  /* A Lines tick's / Strips bar's other states (D25 I1): a plain task in the
+     muted text at 80% (3.7 : 1 on the surface, a non-text graphic's 3 : 1),
+     a stale one at 35% (1.7 : 1) — still there, plainly dimmer. */
+  --color-row-tone-plain: color-mix(in srgb, var(--color-text-muted) 80%, transparent);
+  --color-row-tone-stale: color-mix(in srgb, var(--color-text-muted) 35%, transparent);
 
   /* Text */
   --color-text-primary: #ece9e6;
@@ -574,6 +579,9 @@
   --color-deadline: #a32cab;
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 10%, transparent);
   --color-deadline-soon: color-mix(in srgb, var(--color-deadline) 45%, transparent);
+  /* 3.4 : 1 and 1.6 : 1 on the surface. */
+  --color-row-tone-plain: color-mix(in srgb, var(--color-text-muted) 80%, transparent);
+  --color-row-tone-stale: color-mix(in srgb, var(--color-text-muted) 35%, transparent);
 
   /* Text */
   --color-text-primary: #1f1d1a;
