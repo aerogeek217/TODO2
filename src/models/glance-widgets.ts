@@ -109,20 +109,6 @@ export interface SectionOptions {
   recentDays?: RecentDays
 }
 
-/** The section's known options (each section has its own); `undefined` for none. */
-export function pickSectionOptions(id: SectionId, raw: unknown): SectionOptions | undefined {
-  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return undefined
-  const r = raw as Obj
-  const out: SectionOptions = {}
-  if (id === 'followup' && includes(LOOK_AHEAD_CHOICES, r.lookAhead)) out.lookAhead = r.lookAhead
-  if (id === 'trend' && includes(TREND_RANGES, r.range)) out.range = r.range
-  if (id === 'people' && typeof r.showUnassigned === 'boolean') out.showUnassigned = r.showUnassigned
-  if (id === 'tags' && typeof r.showUntagged === 'boolean') out.showUntagged = r.showUntagged
-  if (id === 'stale' && includes(STALE_DAYS_CHOICES, r.staleDays)) out.staleDays = r.staleDays
-  if (id === 'recent' && includes(RECENT_DAYS_CHOICES, r.recentDays)) out.recentDays = r.recentDays
-  return Object.keys(out).length > 0 ? out : undefined
-}
-
 // ── The glance widget kinds' configs ────────────────────────────────────────
 
 export interface NumberTabConfig {
