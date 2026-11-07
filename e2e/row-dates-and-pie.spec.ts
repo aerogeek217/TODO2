@@ -6,7 +6,9 @@ import { openSettings, seedTaskList } from './fixtures/workspace'
  * weekday (tomorrow too), `Nov 20` in this calendar year (an overdue date
  * too, bold), `01/15/27` in another — or `MM/DD` under Settings ›
  * Appearance › Dates; each word fits its date part at the 11.5px meta.
- * Fit is the real browser's.
+ * D2 · the checklist pie before a row's `2/5`: a 12px ring filled by the
+ * share done, the accent once every subtask is done. Fit and paint are the
+ * real browser's.
  */
 
 // Friday 6 Nov 2026, mid-morning: the words below are this day's.
@@ -21,6 +23,9 @@ const TASKS = [
   { title: 'Follow-up late', followupInDays: -3 },
   { title: 'Due next year', dueInDays: 70 },
   { title: 'Wide words', dueInDays: 5, followupInDays: 28, recurrence: 'weekly' as const },
+  { title: 'Checklist none', subtasks: [{ title: 'a' }, { title: 'b' }, { title: 'c' }] },
+  { title: 'Checklist some', subtasks: [{ title: 'a', done: true }, { title: 'b' }, { title: 'c' }] },
+  { title: 'Checklist all', subtasks: [{ title: 'a', done: true }, { title: 'b', done: true }, { title: 'c', done: true }] },
 ]
 
 const row = (widget: Locator, title: string) => widget.locator('[data-todo-id]', { has: widget.page().locator(`span[data-task-title="${title}"]`) })
@@ -38,7 +43,7 @@ async function overflow(part: Locator): Promise<number> {
   })
 }
 
-test.describe('row dates in words (D25 D1)', () => {
+test.describe('row dates in words and the checklist pie (D25 D1, D2)', () => {
   test.use({ viewport: { width: 1100, height: 800 } })
 
   test.beforeEach(async ({ page }) => {
@@ -92,4 +97,35 @@ test.describe('row dates in words (D25 D1)', () => {
     await expect(due(widget, 'Due today')).toHaveText('Today')
   })
 
+  test('the pie fills by the share done and turns the accent when all are done', async ({ page }) => {
+    const widget = await seedTaskList(page, { tasks: TASKS })
+    const pie = (title: string) => row(widget, title).locator('[data-subtask-pie]')
+    await expect(pie('Checklist none')).toHaveAttribute('data-subtask-pie', '0')
+    await expect(pie('Checklist some')).toHaveAttribute('data-subtask-pie', '33')
+    await expect(pie('Checklist all')).toHaveAttribute('data-subtask-pie', '100')
+    await expect(row(widget, 'Checklist some').locator('[data-subtask-count]')).toHaveText('1/3')
+
+    const look = (title: string) => pie(title).evaluate((el) => {
+      const cs = getComputedStyle(el)
+      const probe = document.createElement('span')
+      probe.style.color = 'var(--color-accent)'
+      document.body.append(probe)
+      const accent = getComputedStyle(probe).color
+      probe.remove()
+      const box = el.getBoundingClientRect()
+      // The ring: an inset shadow (`<color> 0px 0px 0px 1.5px inset`) — a border would snap to 1px.
+      return { size: [box.width, box.height], ring: cs.boxShadow, fill: cs.backgroundImage, count: getComputedStyle(el.parentElement!).color, accent }
+    })
+    const none = await look('Checklist none')
+    expect(none.size).toEqual([12, 12])
+    expect(none.ring).toBe(`${none.count} 0px 0px 0px 1.5px inset`)
+    expect(none.fill).toBe(`conic-gradient(${none.count} 0%, rgba(0, 0, 0, 0) 0deg)`)
+    const some = await look('Checklist some')
+    expect(some.ring).toBe(`${some.count} 0px 0px 0px 1.5px inset`)
+    expect(some.fill).toBe(`conic-gradient(${some.count} 33%, rgba(0, 0, 0, 0) 0deg)`)
+    expect(some.count).not.toBe(some.accent)
+    const all = await look('Checklist all')
+    expect(all.ring).toBe(`${all.accent} 0px 0px 0px 1.5px inset`)
+    expect(all.fill).toBe(`conic-gradient(${all.accent} 100%, rgba(0, 0, 0, 0) 0deg)`)
+  })
 })
