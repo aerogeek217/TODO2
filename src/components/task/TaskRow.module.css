@@ -17,8 +17,8 @@
   position: relative;
   cursor: grab;
   min-height: 30px;
-  /* Where the title starts: padding 2 + gutter 8 + gap 5 + checkbox 18 + gap 5. */
-  --row-title-start: 38px;
+  /* Where the title starts: `--row-title-start` (tokens.css), which the
+   * lists' drop line, outside the row, reads too. */
 }
 
 /* A flat list's separator: a faint hairline from the title's start to the

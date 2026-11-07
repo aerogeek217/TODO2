@@ -60,6 +60,11 @@
   --list-group-header-height: 28px;
   /* The open space above every task-list group header but the first (D25 A1). */
   --list-group-gap: 18px;
+  /* Where a desktop task row's title starts, from the row's left edge: padding
+     2 + gutter 8 + gap 5 + checkbox 18 + gap 5 (`TASK_ROW`,
+     `utils/task-row-columns`). The row's hairline and the lists' drop line
+     start here. */
+  --row-title-start: 38px;
 
   /* Calendar widget (compact month below 480px of widget width, week rows
      below 560px, icon-only date-type toggles below 620px — measured in JS) */
