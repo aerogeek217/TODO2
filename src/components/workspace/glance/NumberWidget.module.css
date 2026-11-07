@@ -48,7 +48,17 @@ button.number:hover {
   line-height: 16px;
   white-space: nowrap;
   overflow: hidden;
+}
+
+/* The ellipsis needs a text box of its own: a flex container's text isn't one. */
+.labelText {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.label > svg {
+  flex: none;
 }
 
 .figures {

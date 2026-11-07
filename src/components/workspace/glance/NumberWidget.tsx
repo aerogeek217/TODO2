@@ -124,7 +124,7 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
   const content = (
     <>
       <span className={styles.label} style={{ color: colors.label }}>
-        <DashGlyph name={def.glyph} size={12} color={colors.glyph} />{def.label}
+        <DashGlyph name={def.glyph} size={12} color={colors.glyph} /><span className={styles.labelText}>{def.label}</span>
       </span>
       <span className={styles.figures}>
         <span className={styles.count} style={{ color: colors.count }} data-testid="number-count">
