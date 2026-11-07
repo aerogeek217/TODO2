@@ -110,8 +110,8 @@ describe('Number widget', () => {
     expect(onDrill).toHaveBeenCalledTimes(1)
     const drill = onDrill.mock.calls[0]![0] as DashboardDrill
     expect(drill.title).toBe('Overdue tasks')
-    expect(drill.source).toEqual({ kind: 'todos', todoIds: expect.any(Array) as unknown })
-    expect((drill.source as { todoIds: number[] }).todoIds).toHaveLength(2)
+    if (drill.source.kind !== 'todos') throw new Error('a tile opens its tasks')
+    expect(drill.source.todoIds).toHaveLength(2)
   })
 
   it('without a host to open tasks it is a plain group, not a button', () => {
