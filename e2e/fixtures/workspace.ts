@@ -30,6 +30,8 @@ export interface WsTabSeed {
   }
   /** Glance tabs (Number, the sections): config fields over the kind's defaults, e.g. `{ metric: 'open' }`. */
   glance?: Record<string, unknown>
+  /** What changed / Project pulse tabs: the picked tags (names from `tags`; default none). */
+  tagNames?: string[]
   /** Neglect map tabs: the config (defaults: colour by no tags, 14 days). */
   neglect?: {
     /** Colour by these tags (names from `tags`), by people, or not at all. */
@@ -319,6 +321,9 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         if (n.colourBy === 'people' || n.colourBy === 'none') config.colourBy = { kind: n.colourBy }
         else if (n.colourBy) config.colourBy = { kind: 'tags', tagIds: n.colourBy.tags.map((name) => tagIds.get(name)).filter((id) => id != null) }
         if (n.untouchedDays != null) config.untouchedDays = n.untouchedDays
+      }
+      if ((tab.kind === 'changes' || tab.kind === 'pulse') && tab.tagNames) {
+        config.tagIds = tab.tagNames.map((name) => tagIds.get(name)).filter((id) => id != null)
       }
       if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }

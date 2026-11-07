@@ -37,11 +37,11 @@ afterEach(() => {
 })
 
 describe('glance widgets share their data', () => {
-  it('a dozen glance widgets filter the tasks once, and once again after a task changes', () => {
+  it('fifteen glance widgets filter the tasks once, and once again after a task changes', () => {
     const kinds: GlanceWidgetKind[] = [...WIDGET_KINDS.filter(isGlanceKind), 'number', 'number']
     const tabs = kinds.map((k, i) => (k === 'number' ? { id: `w${i}`, kind: 'number', config: { metric: i % 2 ? 'open' : 'overdue' } } : createTab(k, `w${i}`)) as GlanceTab)
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
-    expect(document.querySelectorAll('[data-glance]')).toHaveLength(12)
+    expect(document.querySelectorAll('[data-glance]')).toHaveLength(15)
     // Once for the shared base (the Eisenhower summary's own list isn't loaded: it reads the base).
     expect(vi.mocked(applyFilter)).toHaveBeenCalledTimes(1)
 

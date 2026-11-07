@@ -27,7 +27,7 @@ describe('WidgetKindMenu', () => {
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
       'List', 'Calendar', 'Notes', 'Eisenhower', 'Neglect map',
       'Dashboard', 'Number', 'Needs follow-up', 'Next 7 days', 'Created vs completed', 'Status', 'People', 'Tags',
-      'Stale tasks', 'Recently completed', 'Eisenhower summary',
+      'Stale tasks', 'Recently completed', 'Eisenhower summary', 'What changed', 'Today', 'Project pulse',
     ])
     expect(screen.getByText('Numbers & charts')).toBeInTheDocument()
     expect(screen.queryByText('Tasks')).toBeNull()
@@ -117,7 +117,7 @@ describe('WidgetKindMenu', () => {
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Calendar/ }))
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Eisenhower summary/ }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Project pulse/ }))
     // Type-ahead: the next item starting with the key.
     fireEvent.keyDown(menu, { key: 'n' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Notes/ }))

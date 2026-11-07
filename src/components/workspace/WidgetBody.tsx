@@ -68,6 +68,9 @@ export function WidgetBody({ tab, onResult, onCustomize }: WidgetBodyProps): Rea
     case 'stale':
     case 'recent':
     case 'eisenhowerSummary':
+    case 'changes':
+    case 'today':
+    case 'pulse':
       return (
         <GlanceWidget
           tab={tab}

@@ -19,11 +19,12 @@ describe('widget kinds', () => {
     expect(WIDGET_KINDS).toEqual([
       'lens', 'calendar', 'notes', 'eisenhower', 'dashboard', 'neglect',
       'number', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhowerSummary',
+      'changes', 'today', 'pulse',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
       'List', 'Calendar', 'Notes', 'Eisenhower', 'Dashboard', 'Neglect map',
       'Number', 'Needs follow-up', 'Next 7 days', 'Created vs completed', 'Status', 'People', 'Tags', 'Stale tasks',
-      'Recently completed', 'Eisenhower summary',
+      'Recently completed', 'Eisenhower summary', 'What changed', 'Today', 'Project pulse',
     ])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])
   })

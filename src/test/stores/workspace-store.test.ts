@@ -134,6 +134,24 @@ describe('structural edits and dirty state', () => {
     expect(tabs().find((t) => t.id === seeded)?.config).toEqual({ colourBy: { kind: 'tags', tagIds: [5] }, untouchedDays: 14 })
   })
 
+  it('a new What changed or Project pulse — added, or a tab changed to one — reads the `Project: …` tags', async () => {
+    useTagStore.setState({ tags: [
+      { id: 4, name: 'Project: Alpha', color: '#111111' },
+      { id: 5, name: 'home', color: '#222222' },
+      { id: 6, name: 'Project: Beta', color: '#333333' },
+    ] })
+    await seedAndInit(twoColumns())
+    const tabs = () => ws().working!.columns.flatMap((c) => c.rows.flatMap((r) => r.cells.flatMap((k) => k.tabs)))
+    for (const kind of ['changes', 'pulse'] as const) {
+      const tabId = ws().addWidget(kind, { kind: 'cell', cellId: 'kb' })
+      expect(tabs().find((t) => t.id === tabId)).toEqual({ id: tabId, kind, config: { tagIds: [4, 6] } })
+      const seeded = ws().addWidget(kind, { kind: 'cell', cellId: 'kb' }, { tagIds: [5] })
+      expect(tabs().find((t) => t.id === seeded)?.config).toEqual({ tagIds: [5] })
+    }
+    ws().changeTabKind('a1', 'pulse')
+    expect(tabs().find((t) => t.id === 'a1')?.config).toEqual({ tagIds: [4, 6] })
+  })
+
   it('a stored layout’s bands open with it and survive column edits, save and save as', async () => {
     const top = { id: 'TB', height: 140, cells: [{ id: 'tb', weight: 1, activeTabId: 'top2', tabs: [createTab('dashboard', 'top1'), createTab('notes', 'top2')] }] }
     const bottom = { id: 'BB', height: 160, collapsed: true, cells: [{ id: 'bb', weight: 1, tabs: [createTab('calendar', 'bot1')] }] }
