@@ -48,6 +48,7 @@ import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
 import { CustomizeDashboardDialog } from './dashboard/CustomizeDashboardDialog'
 import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from './eisenhower/eisenhower-settings-link'
 import { useDashboardMenuActions } from './dashboard/dashboard-menu'
+import { useNeglectMenuEntries } from './neglect/neglect-menu'
 import { DashGlyph } from '../shared/DashGlyph'
 import styles from './WorkspaceCell.module.css'
 import { trackScrollEdges } from '../../utils/scroll-edges'
@@ -286,6 +287,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
     guarded([tab.id], 'You’re changing the last widget that shows it.', () => changeTabKind(tab.id, kind))
   }
 
+  const neglectEntries = useNeglectMenuEntries(menuTab?.kind === 'neglect' ? menuTab : undefined)
   const dashboardActions = useDashboardMenuActions({
     onCustomize: () => { if (menuTab) setCustomize(menuTab.id) },
     summary: menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result.summary : undefined,
@@ -470,6 +472,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => openEisenhowerSettings() }]
             : undefined}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
+          settingEntries={menuTab.kind === 'neglect' ? neglectEntries : undefined}
           widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
             ? [
                 // The top bar's lens on this list, while one applies there: on / off here (saved at once).
