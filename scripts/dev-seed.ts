@@ -49,11 +49,11 @@ import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { DashboardTabConfig } from '../src/models/dashboard-config'
 import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
-import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
+import type { LayoutBand, LayoutCell, LayoutColumn, LayoutRow as LayoutCellRow, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 75
+export const DEV_SEED_SCHEMA_VERSION = 76
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -125,6 +125,7 @@ type SubtaskRow = Json<Subtask>
 type LayoutRow = Json<WorkspaceLayout>
 type TabRow = Json<LayoutTab>
 type CellRow = Json<LayoutCell>
+type RowRow = Json<LayoutCellRow>
 type ColumnRow = Json<LayoutColumn>
 type BandRow = Json<LayoutBand>
 interface SettingRow {
@@ -879,9 +880,11 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   const dashboard = (id: string, config: DashboardTabConfig): TabRow => ({ id, kind: 'dashboard', config })
   const cell = (id: string, tabs: TabRow[], extra: Partial<CellRow> = {}): CellRow =>
     ({ id, weight: 1, tabs, activeTabId: tabs[0]?.id, ...extra })
-  const column = (id: string, cells: CellRow[], weight = 1): ColumnRow => ({ id, weight, cells })
-  const band = (id: string, height: number, tabs: TabRow[], extra: Partial<BandRow> = {}): BandRow =>
-    ({ id, height, tabs, activeTabId: tabs[0]?.id, ...extra })
+  /** A row of one cell (every row the seed has): `extra` its height share, its collapse. */
+  const row = (id: string, only: CellRow, extra: Partial<RowRow> = {}): RowRow => ({ id, weight: 1, cells: [only], ...extra })
+  const column = (id: string, rows: RowRow[], weight = 1): ColumnRow => ({ id, weight, rows })
+  const band = (id: string, height: number, cells: CellRow[], extra: Partial<BandRow> = {}): BandRow =>
+    ({ id, height, cells, ...extra })
 
   const layouts: LayoutRow[] = [
     {
@@ -890,20 +893,20 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       sortOrder: 0,
       columns: [
         column('col-focus', [
-          cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), notes('tab-notes')], { weight: 2 }),
-          cell('cell-cal', [calendar('tab-cal', 'week', 0)]),
+          row('row-focus', cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), notes('tab-notes')]), { weight: 2 }),
+          row('row-cal', cell('cell-cal', [calendar('tab-cal', 'week', 0)])),
         ], 1.4),
-        column('col-person', [cell('cell-person', [lens('tab-person', L.byPerson)])]),
+        column('col-person', [row('row-person', cell('cell-person', [lens('tab-person', L.byPerson)]))]),
         column('col-board', [
-          cell('cell-board', [lens('tab-board', L.focus), { id: 'tab-matrix', kind: 'eisenhower', config: {} }]),
-          cell('cell-soon', [lens('tab-soon', L.dueSoon)], { collapsed: true }),
+          row('row-board', cell('cell-board', [lens('tab-board', L.focus), { id: 'tab-matrix', kind: 'eisenhower', config: {} }])),
+          row('row-soon', cell('cell-soon', [lens('tab-soon', L.dueSoon)]), { collapsed: true }),
         ]),
       ],
-      bottom: band('band-dash', 260, [dashboard('tab-dash', {
+      bottom: band('band-dash', 260, [cell('cell-dash', [dashboard('tab-dash', {
         tiles: ['open', 'focus', 'urgent', 'overdue', 'followupDue'],
         listTiles: [L.focus, L.dueSoon],
         sections: [{ id: 'followup' }, { id: 'next7' }, { id: 'trend', options: { range: '4w' } }, { id: 'status' }, { id: 'people' }],
-      })]),
+      })])]),
       createdAt: longAgo,
       modifiedAt: iso(at(-3, 17, 20)),
       lastUsedAt: iso(at(0, 8, 0)),
@@ -912,26 +915,26 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       id: IDS.layouts.planning,
       name: 'Planning',
       sortOrder: 1,
-      top: band('band-cal', 220, [calendar('tab-month', 'month', 0, false)]),
+      top: band('band-cal', 220, [cell('cell-month', [calendar('tab-month', 'month', 0, false)])]),
       columns: [
         column('col-horizon', [
           // A list tab at each zoom (D25 C + I1): Stacked, Rows, Lines, and Strips below.
-          cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], { activeTabId: 'tab-rest' }),
-          cell('cell-someday', [lens('tab-someday', L.someday, 'strips')]),
+          row('row-horizon', cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], { activeTabId: 'tab-rest' })),
+          row('row-someday', cell('cell-someday', [lens('tab-someday', L.someday, 'strips')])),
         ]),
         column('col-people', [
-          cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)], { weight: 2 }),
+          row('row-followups', cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]), { weight: 2 }),
           // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is.
-          cell('cell-neglect', [{
+          row('row-neglect', cell('cell-neglect', [{
             id: 'tab-neglect',
             kind: 'neglect',
             config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
-          }], { weight: 2 }),
-          cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
+          }]), { weight: 2 }),
+          row('row-northwind', cell('cell-northwind', [lens('tab-northwind', L.northwind)])),
         ]),
         column('col-matrix', [
-          cell('cell-matrix', [{ id: 'tab-matrix2', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }]),
-          cell('cell-stats', [
+          row('row-matrix', cell('cell-matrix', [{ id: 'tab-matrix2', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }])),
+          row('row-stats', cell('cell-stats', [
             dashboard('tab-stats', {
               tiles: ['open', 'overdue', 'followupDue', 'dueToday', 'dueNext7'],
               listTiles: [L.hot],
@@ -940,7 +943,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
             lens('tab-hot', L.hot),
             lens('tab-recent', L.recentlyAdded),
             lens('tab-done', L.doneThisWeek),
-          ]),
+          ])),
         ], 1.2),
       ],
       createdAt: iso(at(-60, 10)),
