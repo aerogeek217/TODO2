@@ -398,6 +398,19 @@ export interface WidgetKindSpec<K extends WidgetKind> {
   label: string
   /** A new tab of this kind shows a list (one of the layout's), picked before the tab is added. */
   showsList: boolean
+  /**
+   * A glance widget (a number, a summary): a cell holding one tab of it is
+   * headless unless its `stripShown` says otherwise (`utils/workspace-rows`),
+   * and a row of only glance cells may shrink to `GLANCE_ROW_MIN_PX`.
+   * Absent = false.
+   */
+  glance?: boolean
+  /**
+   * Its content sets its height: a row whose every cell holds one tab of
+   * such a kind fits its content instead of taking a share of the column
+   * (`utils/workspace-rows.isFitRow`). Absent = false.
+   */
+  fitHeight?: boolean
   /** A new tab of this kind, with its default config. */
   newTab: (id: string, seed: TabSeed) => TabOfKind<K>
 }

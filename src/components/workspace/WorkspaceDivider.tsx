@@ -21,8 +21,10 @@ interface WorkspaceDividerProps {
   bId: string
   weightA: number
   weightB: number
-  /** Smallest size (px) of either neighbour. */
+  /** Smallest size (px) of the first neighbour (and of the second, unless `minB` says). */
   min: number
+  /** Smallest size (px) of the second neighbour; default `min`. */
+  minB?: number
   /** New weights; `live` while dragging (each frame), then `onResizeEnd` once at the end. */
   onResize: (weightById: Record<string, number>, opts?: ResizeOptions) => void
   /** The drag ended (save the result: the frames weren't). */
@@ -58,9 +60,10 @@ function measure(between: DividerBetween, id: string): number | null {
  * move it (rAF-throttled; only the two neighbours change; the frames are
  * `live` edits, saved once at the end — sizes are view state), double-click to
  * even them out, ←/→ (↑/↓) to move it 16px. Neither neighbour goes below
- * `min`; dragging a row well past its minimum collapses it instead.
+ * its minimum (`min`, `minB`); dragging a row well past its minimum
+ * collapses it instead.
  */
-export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onResize, onResizeEnd, onCollapse, label }: WorkspaceDividerProps) {
+export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, minB = min, onResize, onResizeEnd, onCollapse, label }: WorkspaceDividerProps) {
   const axisX = between !== 'rows'
   const dragRef = useRef<DragState | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -112,9 +115,9 @@ export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onR
     const drag = dragRef.current
     if (!drag || drag.pointerId !== e.pointerId) return
     const delta = (axisX ? e.clientX : e.clientY) - drag.start
-    const r = resizePair({ ...drag, delta, min })
+    const r = resizePair({ ...drag, delta, min, minB })
     if (onCollapse) {
-      const collapseId = r.rawA < min - COLLAPSE_SLACK_PX ? aId : r.rawB < min - COLLAPSE_SLACK_PX ? bId : null
+      const collapseId = r.rawA < min - COLLAPSE_SLACK_PX ? aId : r.rawB < minB - COLLAPSE_SLACK_PX ? bId : null
       if (collapseId) {
         pendingRef.current = null
         // Back to the drag's start as a frame, so the drag's end saves only that.
@@ -141,7 +144,7 @@ export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onR
     const sizeA = measure(between, aId)
     const sizeB = measure(between, bId)
     if (sizeA == null || sizeB == null) return
-    const r = resizePair({ sizeA, sizeB, weightA, weightB, delta: e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, min })
+    const r = resizePair({ sizeA, sizeB, weightA, weightB, delta: e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, min, minB })
     onResize({ [aId]: r.weightA, [bId]: r.weightB })
   }
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsRow } from './fixtures/workspace'
+import { pickSplit, seedWorkspace, wsCell, wsRow } from './fixtures/workspace'
 
 /**
  * Adding a List widget (the add-tab +, an empty cell's / layout's List) and
@@ -58,7 +58,7 @@ test('an empty cell’s List: a new list in the cell, its Edit list open', async
   })
   // Split, then the new empty cell's List button.
   await wsCell(page, 'cell').getByRole('button', { name: 'Cell options' }).click()
-  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Split right' }).click()
+  await pickSplit(page, 'Right')
   const empty = page.locator('[data-ws-cell]').filter({ hasNot: page.getByRole('tab') })
   await empty.getByRole('button', { name: 'List', exact: true }).click()
   await expect(editListDialog(page, 'New list')).toBeVisible()

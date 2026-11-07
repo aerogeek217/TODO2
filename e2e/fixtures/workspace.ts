@@ -552,9 +552,15 @@ export function wsPanelHandle(page: Page, panelId: string): Locator {
   return page.locator(`[data-ws-panel-handle="${panelId}"]`)
 }
 
-/** The band at an edge. */
+/** The band at an edge: its row of cells. */
 export function wsBand(page: Page, edge: 'top' | 'bottom'): Locator {
-  return page.locator(`[data-ws-band="${edge}"]`)
+  return page.locator(`[data-ws-band-row="${edge}"]`)
+}
+
+/** Picks Split ▸ `item` (Right / Below / New column) in the open cell (or band) menu. */
+export async function pickSplit(page: Page, item: 'Right' | 'Below' | 'New column'): Promise<void> {
+  await page.getByRole('menuitem', { name: 'Split', exact: true }).click()
+  await page.getByRole('menuitem', { name: item, exact: true }).click()
 }
 
 /** Tab ids of the band at `edge` (empty when there is none). */

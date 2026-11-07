@@ -66,13 +66,24 @@
   flex: 0 0 var(--workspace-gutter);
 }
 
-/* A row of cells (a column's row or a band), side by side; it keeps the
-   height its cells need (a collapsed one: their headers). */
+/* A row of cells (a column's row or a band), side by side — the dividers
+   between them are the gutters; it keeps the height its cells need (a
+   collapsed one: their headers). */
 .row {
   display: flex;
-  gap: var(--workspace-gutter);
   min-width: 0;
   min-height: calc(var(--cell-header-height) + var(--cell-body-min-height));
+}
+
+/* A row of glance widgets may shrink to 64px (GLANCE_ROW_MIN_PX). */
+.rowGlance {
+  --cell-min-height: 64px;
+  min-height: var(--cell-min-height);
+}
+
+/* A fit row is as tall as its tallest cell's content (the cells keep their own minimum). */
+.rowFit {
+  min-height: 0;
 }
 
 .rowCollapsed {
@@ -207,6 +218,13 @@
 .cellBar {
   position: fixed;
   height: 3px;
+  border-radius: 2px;
+  background: var(--color-accent);
+}
+
+.cellBarV {
+  position: fixed;
+  width: 3px;
   border-radius: 2px;
   background: var(--color-accent);
 }

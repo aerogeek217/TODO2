@@ -2,27 +2,35 @@ import type { BandEdge, WorkspaceLayout } from '../models/workspace-layout'
 import { cellAt, findCell, findTab, movePanel, moveTab, type LayoutDropTarget } from './workspace-layout-ops'
 
 /**
- * Hit testing for dragging a workspace tab or a whole cell (in a column or a
- * band, by its header). The view measures the rendered bands' cells /
- * columns' cells / tabs into a {@link WorkspaceGeometry} and asks where the pointer
- * is; the answer maps to a `LayoutDropTarget` for `moveTab` / `movePanel`.
+ * Hit testing for dragging a workspace tab or a whole cell (in a column's row
+ * or a band, by its header). The view measures the rendered bands / columns →
+ * rows → cells / tabs into a {@link WorkspaceGeometry} and asks where the
+ * pointer is; the answer maps to a `LayoutDropTarget` for `moveTab` /
+ * `movePanel`.
  *
  * Priority (first match wins):
  * 1. Band edge → new band: within {@link BAND_EDGE_ZONE_PX} inside the
  *    workspace's top (bottom) edge — the top zone also reaches
  *    {@link BAND_EDGE_OUTSIDE_PX} above it, over the top bar's lower edge —
  *    full width, while there is no band there; but never over a tab strip:
- *    a panel's header always wins (in practice the zone is the workspace's
- *    padding above / below the panels, the gaps between columns, and that
+ *    a cell's header always wins (in practice the zone is the workspace's
+ *    padding above / below the cells, the gaps between columns, and that
  *    reach above the top edge).
  * 2. Column edge → new column: within {@link EDGE_ZONE_GUTTER_PX} either side
  *    of the gap between two columns, or within {@link EDGE_ZONE_OUTER_PX}
  *    inside the column area's outer left / right edge — only between the
  *    bands (the column area's height).
- * 3. A cell's or band's header (its tab strip) → insert at that position.
- * 4. A cell body → top quarter: new row above its row; bottom quarter: new
- *    row below; middle half: join as tab(s). An empty cell is one target.
- * 5. A band cell's body → one zone: join that cell (a band is one row).
+ * 3. A cell's header (its tab strip; a band's cell's too) → insert at that
+ *    position. A headless cell's hidden strip is measured as no header.
+ * 4. A cell body (a column's row) → its outer {@link SIDE_ZONE_SHARE} left /
+ *    right (at most {@link SIDE_ZONE_MAX_PX}): a new cell beside it, in its
+ *    row; of the middle that is left, the top quarter / bottom quarter: a
+ *    new row above / below — the cell's row, which in a multi-cell row is
+ *    named as the row (`row-edge`); the middle half: join as tab(s). An
+ *    empty cell is one target.
+ * 5. A band cell's body → left / right as a column cell's (a new cell beside
+ *    it, in the band); the rest joins that cell (a band is one row: no top or
+ *    bottom zone).
  * 6. The empty column area of a layout with bands but no columns → a first
  *    column.
  */
@@ -38,24 +46,31 @@ export interface CellGeometry {
   id: string
   /** The whole cell card. */
   rect: Rect
-  /** The header (tab strip); absent for an empty cell. */
+  /** The header (tab strip); absent for an empty cell and while a headless cell's strip is hidden. */
   header: Rect | null
-  /** The body below the header; absent for collapsed and empty cells. */
+  /** The body below the header (a headless cell's: the whole card); absent for collapsed and empty cells. */
   body: Rect | null
   empty: boolean
   /** Tabs in strip order (visible ones; overflowed tabs are skipped). */
   tabs: ReadonlyArray<{ id: string; rect: Rect }>
 }
 
-/** A band's cell, measured as a column's cell is. */
-export interface BandGeometry extends CellGeometry {
+/** A column's row: its cells side by side. */
+export interface RowGeometry {
+  id: string
+  rect: Rect
+  cells: readonly CellGeometry[]
+}
+
+/** A band: one row of cells spanning the workspace (`id` the band's). */
+export interface BandGeometry extends RowGeometry {
   edge: BandEdge
 }
 
 export interface ColumnGeometry {
   id: string
   rect: Rect
-  cells: readonly CellGeometry[]
+  rows: readonly RowGeometry[]
 }
 
 export interface WorkspaceGeometry {
@@ -75,8 +90,15 @@ export const EDGE_ZONE_OUTER_PX = 24
 export const BAND_EDGE_ZONE_PX = 24
 /** How far the top new-band zone reaches above the workspace's top edge (over the top bar). */
 export const BAND_EDGE_OUTSIDE_PX = 16
+/** A cell body's left / right new-cell zones: this share of its width each … */
+export const SIDE_ZONE_SHARE = 0.2
+/** … but no wider than this (px), so a wide cell's middle stays the bigger part. */
+export const SIDE_ZONE_MAX_PX = 120
 
-export type CellZone = 'top' | 'middle' | 'bottom'
+/** A cell body's zones: beside it (`left` / `right`), a row above / below (`top` / `bottom`), or joining it. */
+export type CellZone = 'left' | 'right' | 'top' | 'middle' | 'bottom'
+/** A band cell's body zones: beside it, or joining it. */
+export type BandZone = 'left' | 'middle' | 'right'
 
 export type WorkspaceDropHit =
   | { kind: 'new-band'; edge: BandEdge }
@@ -84,8 +106,9 @@ export type WorkspaceDropHit =
   | { kind: 'column-edge'; gutter: number; x: number }
   /** A cell's or band's strip (`cellId` = the panel's id). `index` counts every tab in the strip (a dragged one included). */
   | { kind: 'tab-strip'; cellId: string; index: number; lineX: number }
-  | { kind: 'cell-body'; cellId: string; zone: CellZone }
-  | { kind: 'band-body'; edge: BandEdge; cellId: string }
+  /** `rowId` = the cell's row; `multi` = the row holds other cells too (its top / bottom name the row). */
+  | { kind: 'cell-body'; cellId: string; rowId: string; multi: boolean; zone: CellZone }
+  | { kind: 'band-body'; edge: BandEdge; cellId: string; zone: BandZone }
   | { kind: 'empty-cell'; cellId: string }
   | { kind: 'empty-columns' }
 
@@ -101,8 +124,8 @@ export function sameDropHit(a: WorkspaceDropHit | null, b: WorkspaceDropHit | nu
     case 'new-band': return b.kind === 'new-band' && a.edge === b.edge
     case 'column-edge': return b.kind === 'column-edge' && a.gutter === b.gutter && a.x === b.x
     case 'tab-strip': return b.kind === 'tab-strip' && a.cellId === b.cellId && a.index === b.index && a.lineX === b.lineX
-    case 'cell-body': return b.kind === 'cell-body' && a.cellId === b.cellId && a.zone === b.zone
-    case 'band-body': return b.kind === 'band-body' && a.edge === b.edge && a.cellId === b.cellId
+    case 'cell-body': return b.kind === 'cell-body' && a.cellId === b.cellId && a.rowId === b.rowId && a.multi === b.multi && a.zone === b.zone
+    case 'band-body': return b.kind === 'band-body' && a.edge === b.edge && a.cellId === b.cellId && a.zone === b.zone
     case 'empty-cell': return b.kind === 'empty-cell' && a.cellId === b.cellId
     case 'empty-columns': return b.kind === 'empty-columns'
   }
@@ -135,6 +158,11 @@ export function columnEdgeXs(geo: WorkspaceGeometry): number[] {
   }
   xs.push((last.rect.right + geo.columnArea.right) / 2)
   return xs
+}
+
+/** Every measured cell: the bands' and the columns' rows', in no particular order. */
+export function geometryCells(geo: WorkspaceGeometry): CellGeometry[] {
+  return [...geo.bands.flatMap((b) => b.cells), ...geo.columns.flatMap((c) => c.rows.flatMap((r) => r.cells))]
 }
 
 /** Which band edges have no band (where a new band can go). */
@@ -173,7 +201,7 @@ function layoutTabIndex(
 ): number {
   const loc = findCell(layout, hit.cellId)
   const ids = (loc ? cellAt(layout, loc)?.tabs ?? [] : []).map((t) => t.id)
-  const shown = [...geo.bands, ...geo.columns.flatMap((c) => c.cells)].find((c) => c.id === hit.cellId)?.tabs ?? []
+  const shown = geometryCells(geo).find((c) => c.id === hit.cellId)?.tabs ?? []
   const prev = shown[hit.index - 1]
   const next = shown[hit.index]
   const ownIdx = draggedTabId != null ? ids.indexOf(draggedTabId) : -1
@@ -186,8 +214,7 @@ function layoutTabIndex(
 
 /** Whether `p` is over any panel's header (a tab strip). */
 function overStrip(geo: WorkspaceGeometry, p: Point): boolean {
-  const panels = [...geo.bands, ...geo.columns.flatMap((c) => c.cells)]
-  return panels.some((panel) => panel.header != null && inside(panel.header, p))
+  return geometryCells(geo).some((cell) => cell.header != null && inside(cell.header, p))
 }
 
 /** The new-band edge `p` is in, if any: a free edge's zone, outside every tab strip. */
@@ -224,8 +251,14 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
 
   for (const band of geo.bands) {
     if (!inside(band.rect, p)) continue
-    if (band.header && inside(band.header, p)) return stripHit(band, band.header, p)
-    if (band.body && inside(band.body, p)) return { kind: 'band-body', edge: band.edge, cellId: band.id }
+    const cell = band.cells.find((c) => inside(c.rect, p))
+    if (!cell) return null
+    if (cell.empty) return { kind: 'empty-cell', cellId: cell.id }
+    if (cell.header && inside(cell.header, p)) return stripHit(cell, cell.header, p)
+    if (cell.body && inside(cell.body, p)) {
+      const side = sideZone(cell.body, p)
+      return { kind: 'band-body', edge: band.edge, cellId: cell.id, zone: side ?? 'middle' }
+    }
     return null
   }
 
@@ -233,20 +266,35 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
 
   for (const col of geo.columns) {
     if (p.x < col.rect.left || p.x > col.rect.right) continue
-    for (const cell of col.cells) {
-      if (!inside(cell.rect, p)) continue
+    for (const row of col.rows) {
+      const cell = row.cells.find((c) => inside(c.rect, p))
+      if (!cell) continue
       if (cell.empty) return { kind: 'empty-cell', cellId: cell.id }
       if (cell.header && inside(cell.header, p)) return stripHit(cell, cell.header, p)
       if (cell.body && inside(cell.body, p)) {
-        const h = cell.body.bottom - cell.body.top
-        const rel = h > 0 ? (p.y - cell.body.top) / h : 0.5
-        const zone: CellZone = rel < 0.25 ? 'top' : rel > 0.75 ? 'bottom' : 'middle'
-        return { kind: 'cell-body', cellId: cell.id, zone }
+        return { kind: 'cell-body', cellId: cell.id, rowId: row.id, multi: row.cells.length > 1, zone: bodyZone(cell.body, p) }
       }
       return null
     }
   }
   return null
+}
+
+/** The left / right new-cell zone of `body` that `p` is in: its outer `SIDE_ZONE_SHARE` (at most `SIDE_ZONE_MAX_PX`) each side. */
+function sideZone(body: Rect, p: Point): 'left' | 'right' | null {
+  const side = Math.min((body.right - body.left) * SIDE_ZONE_SHARE, SIDE_ZONE_MAX_PX)
+  if (p.x < body.left + side) return 'left'
+  if (p.x > body.right - side) return 'right'
+  return null
+}
+
+/** A column cell's body zone at `p`: a side, else the top / bottom quarter or the middle half of its height. */
+function bodyZone(body: Rect, p: Point): CellZone {
+  const side = sideZone(body, p)
+  if (side) return side
+  const h = body.bottom - body.top
+  const rel = h > 0 ? (p.y - body.top) / h : 0.5
+  return rel < 0.25 ? 'top' : rel > 0.75 ? 'bottom' : 'middle'
 }
 
 /**
@@ -278,9 +326,11 @@ export function dropTargetForHit(
     }
     case 'cell-body':
       if (hit.zone === 'middle') return { kind: 'cell', cellId: hit.cellId }
+      if ((hit.zone === 'top' || hit.zone === 'bottom') && hit.multi) return { kind: 'row-edge', rowId: hit.rowId, edge: hit.zone }
       return { kind: 'cell-edge', cellId: hit.cellId, edge: hit.zone }
     case 'band-body':
-      return { kind: 'cell', cellId: hit.cellId }
+      if (hit.zone === 'middle') return { kind: 'cell', cellId: hit.cellId }
+      return { kind: 'cell-edge', cellId: hit.cellId, edge: hit.zone }
     case 'empty-cell':
       return { kind: 'cell', cellId: hit.cellId }
     case 'empty-columns':

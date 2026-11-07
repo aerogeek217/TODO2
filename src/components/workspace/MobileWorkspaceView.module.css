@@ -220,6 +220,15 @@
 
 /* ── Cells ── */
 
+/* A fit row (glance numbers): its cells two up while two fit (each at least
+   140px), else one to a line. */
+.fitRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(140px, calc((100% - 8px) / 2)), 1fr));
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .cell {
   display: flex;
   flex-direction: column;
