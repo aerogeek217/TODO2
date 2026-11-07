@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, wsListWidget } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
@@ -16,11 +16,11 @@ const FILLERS = Array.from({ length: 30 }, (_, n) => ({ title: `Filler task ${n 
 
 /** One list, in the right-hand of `columns` columns. */
 async function open(page: Page, tasks: Parameters<typeof seedWorkspace>[1]['tasks'], columns = 1): Promise<Locator> {
-  const filler = Array.from({ length: columns - 1 }, (_, n) => ({ id: `c${n}`, cells: [{ id: `n${n}`, tabs: [{ id: `notes${n}`, kind: 'notes' as const }] }] }))
+  const filler = Array.from({ length: columns - 1 }, (_, n) => ({ id: `c${n}`, rows: [wsRow({ id: `n${n}`, tabs: [{ id: `notes${n}`, kind: 'notes' as const }] })] }))
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Tasks' }],
     tasks,
-    layouts: [{ name: 'Main', columns: [...filler, { id: 'list', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [...filler, { id: 'list', rows: [wsRow({ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   const widget = wsListWidget(page, 'tasks')
   await widget.waitFor({ state: 'visible' })

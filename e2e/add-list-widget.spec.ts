@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsRow } from './fixtures/workspace'
 
 /**
  * Adding a List widget (the add-tab +, an empty cell's / layout's List) and
@@ -19,7 +19,7 @@ const editListDialog = (page: Page, name: string) => page.getByRole('dialog', { 
 test('add tab › List: the tab appears with the new list\'s own editor, and Save leaves nothing open', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Existing' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
   })
   await wsCell(page, 'cell').getByRole('button', { name: 'Add widget as tab' }).click()
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
@@ -42,7 +42,7 @@ test('add tab › List: the tab appears with the new list\'s own editor, and Sav
 test('Change widget › List: the tab shows a new list and Edit list opens beside it', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Existing' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
   })
   await wsCell(page, 'cell').getByRole('tab', { name: 'Notes' }).click({ button: 'right' })
   await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitemradio', { name: 'List' }).click()
@@ -54,7 +54,7 @@ test('Change widget › List: the tab shows a new list and Edit list opens besid
 
 test('an empty cell’s List: a new list in the cell, its Edit list open', async ({ page }) => {
   await seedWorkspace(page, {
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
   })
   // Split, then the new empty cell's List button.
   await wsCell(page, 'cell').getByRole('button', { name: 'Cell options' }).click()

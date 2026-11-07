@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedTaskList, seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedTaskList, seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * D25 A1 · breathing group headers, read from the rendered page: open space
@@ -184,7 +184,7 @@ const DASH: WorkspaceSeed = {
   ],
   layouts: [{
     name: 'Dash',
-    columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'followup' }] } }] }] }],
+    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'followup' }] } }] })] }],
   }],
 }
 

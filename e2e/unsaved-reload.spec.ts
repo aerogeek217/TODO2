@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { expectOpenLayout, openLayoutAction, openSettings, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed } from './fixtures/workspace'
+import { expectOpenLayout, openLayoutAction, openSettings, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow } from './fixtures/workspace'
 import { createTab } from '../src/models/workspace-layout'
 import { readStore } from './fixtures/db'
 
@@ -15,8 +15,8 @@ test.use({ viewport: { width: 1280, height: 800 } })
 const twoColumns: WsLayoutSeed = {
   name: 'Main',
   columns: [
-    { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] }] },
-    { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+    { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] })] },
+    { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
   ],
 }
 
@@ -60,7 +60,8 @@ test('an unsaved layout change survives a reload, still unsaved; Discard then fo
 test('an unsaved new layout an older build kept still opens, after the saved tabs; its Save asks a name', async ({ page }) => {
   await seedWorkspace(page, { layouts: [twoColumns] })
   // An older build's New layout wasn't stored until saved: it kept the
-  // unsaved layout in the browser (stamped v68, the oldest version read).
+  // unsaved layout in the browser (stamped v68, the oldest version read — in
+  // its shape: a column's cells, read back as rows through v76).
   const tab = createTab('notes', 'keptNotes')
   await page.evaluate((columns) => {
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'Untitled layout', columns, listNames: {}, schemaVersion: 68 }))

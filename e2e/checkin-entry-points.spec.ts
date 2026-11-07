@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test'
 import { readStore, writeStores } from './fixtures/db'
-import { emptyPredicate, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { emptyPredicate, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The ways into an email check-in, in a real browser. Every entry that names
@@ -42,8 +42,8 @@ const SEED: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard' }] }] },
-      { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
+      { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard' }] })] },
+      { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
     ],
   }],
 }

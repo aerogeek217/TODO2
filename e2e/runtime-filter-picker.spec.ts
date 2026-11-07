@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedTaskList, seedWorkspace, wsListWidget } from './fixtures/workspace'
+import { seedTaskList, seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 
 /**
  * RuntimeFilterPicker (a list widget's prompt row): the panel portals to
@@ -49,9 +49,9 @@ test('panel portals to body and flips above the field when the widget sits at th
       name: 'Main',
       columns: [{
         id: 'col',
-        cells: [
-          { id: 'top', weight: 5, tabs: [{ id: 'notesTab', kind: 'notes' }] },
-          { id: 'bottom', weight: 1, tabs: [{ id: 'listTab', kind: 'lens', listDefIdx: 0 }] },
+        rows: [
+          wsRow({ id: 'top', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { weight: 5 }),
+          wsRow({ id: 'bottom', tabs: [{ id: 'listTab', kind: 'lens', listDefIdx: 0 }] }),
         ],
       }],
     }],

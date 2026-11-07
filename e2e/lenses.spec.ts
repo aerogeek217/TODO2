@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { openSettings, seedWorkspace, switchLayout, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, switchLayout, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * D15 Lenses, as cr22 made them: the top bar's lens control picks one lens
@@ -26,8 +26,8 @@ const SEED: WorkspaceSeed = {
     { id: 'lens-text', name: 'Plans', predicate: { searchText: 'plan' } },
   ],
   layouts: [
-    { name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] },
-    { name: 'Other', columns: [{ id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] }] }] },
+    { name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] },
+    { name: 'Other', columns: [{ id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] })] }] },
   ],
 }
 

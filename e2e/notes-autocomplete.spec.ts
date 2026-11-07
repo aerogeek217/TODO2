@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedTaskList, seedWorkspace } from './fixtures/workspace'
+import { seedTaskList, seedWorkspace, wsRow } from './fixtures/workspace'
 import { taskRowByTitle } from './fixtures/seed'
 import { readStore } from './fixtures/db'
 
@@ -32,7 +32,7 @@ async function lineWith(editor: Locator, fragment: string): Promise<string> {
 }
 
 const NOTES_LAYOUT = {
-  layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] })] }] }],
   people: ['Anna', { name: 'Dana Kim', initials: 'DK' }],
   tags: ['q4'],
   statuses: ['In progress'],

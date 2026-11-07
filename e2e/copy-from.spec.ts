@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { readListDefinitions, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { readListDefinitions, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 import { rowTitles } from './fixtures/seed'
 
@@ -29,13 +29,13 @@ const SEED: WorkspaceSeed = {
     {
       name: 'Main',
       columns: [
-        { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'mineTab', kind: 'lens', listDefIdx: 0 }, { id: 'orderedTab', kind: 'lens', listDefIdx: 1 }] }] },
-        { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'notesTab', kind: 'notes' }] }] },
+        { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'mineTab', kind: 'lens', listDefIdx: 0 }, { id: 'orderedTab', kind: 'lens', listDefIdx: 1 }] })] },
+        { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
       ],
     },
     {
       name: 'Second',
-      columns: [{ id: 'colX', cells: [{ id: 'x1', tabs: [{ id: 'callsTab', kind: 'lens', listDefIdx: 2 }] }] }],
+      columns: [{ id: 'colX', rows: [wsRow({ id: 'x1', tabs: [{ id: 'callsTab', kind: 'lens', listDefIdx: 2 }] })] }],
     },
   ],
 }

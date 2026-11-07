@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsRow } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -26,8 +26,8 @@ test('a calendar day scrolled out of view takes no drop from the list over it', 
     tasks: [{ title: 'Mover', dueInDays: 1 }, ...FILLERS],
     layouts: [{
       name: 'Main',
-      columns: [{ id: 'c1', cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] }],
-      top: { id: 'band', height: 160, tabs: [{ id: 'calTab', kind: 'calendar', titles: true }] },
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] }],
+      top: { id: 'band-band', height: 160, cells: [{ id: 'band', tabs: [{ id: 'calTab', kind: 'calendar', titles: true }] }] },
     }],
   })
   const grid = page.locator('[data-calendar-widget="calTab"] [data-cal-grid="month"]')

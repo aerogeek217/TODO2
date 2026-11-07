@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, drag, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, drag, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -27,8 +27,8 @@ const SEED: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'colB', weight: 2, cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] }] },
+      { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'colB', weight: 2, rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] })] },
     ],
   }],
 }
@@ -40,7 +40,7 @@ const ON_TEAM: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] }] },
+      { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] })] },
     ],
   }],
 }
@@ -128,8 +128,8 @@ test.describe('desktop', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }] },
-          { id: 'colC', cells: [{ id: 'c1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'eisenhower' }] } }] }] },
+          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] },
+          { id: 'colC', rows: [wsRow({ id: 'c1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'eisenhower' }] } }] })] },
         ],
       }],
     })
@@ -193,8 +193,8 @@ test.describe('desktop', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] }] },
-          { id: 'colC', cells: [{ id: 'c1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 1 }] }] },
+          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] })] },
+          { id: 'colC', rows: [wsRow({ id: 'c1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 1 }] })] },
         ],
       }],
     })

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { expectOpenLayout, openLayoutAction, openSettings, readListDefinitions, seedWorkspace, switchLayout as openLayout, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { expectOpenLayout, openLayoutAction, openSettings, readListDefinitions, seedWorkspace, switchLayout as openLayout, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -18,13 +18,13 @@ const SEED: WorkspaceSeed = {
     {
       name: 'Main',
       columns: [
-        { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'sharedTab', kind: 'lens', listDefIdx: 0 }, { id: 'mineTab', kind: 'lens', listDefIdx: 1 }] }] },
-        { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'dashTab', kind: 'dashboard' }] }] },
+        { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'sharedTab', kind: 'lens', listDefIdx: 0 }, { id: 'mineTab', kind: 'lens', listDefIdx: 1 }] })] },
+        { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'dashTab', kind: 'dashboard' }] })] },
       ],
     },
     {
       name: 'Second',
-      columns: [{ id: 'colX', cells: [{ id: 'x1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 2 }, { id: 'otherDash', kind: 'dashboard' }] }] }],
+      columns: [{ id: 'colX', rows: [wsRow({ id: 'x1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 2 }, { id: 'otherDash', kind: 'dashboard' }] })] }],
     },
   ],
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
@@ -26,7 +26,7 @@ function seedWith(tab: Partial<WsTabSeed> = {}, extraColumns: WorkspaceSeed['lay
     layouts: [{
       name: 'Dash',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [0] }, ...tab }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [0] }, ...tab }] })] },
         ...extraColumns,
       ],
     }],
@@ -104,7 +104,7 @@ test('the tab config decides which tiles and sections show; a dashboard is a lay
 
 test('a Needs follow-up row drags onto a calendar day to set its due date', async ({ page }) => {
   await seedWorkspace(page, seedWith({}, [
-    { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] }] },
+    { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] })] },
   ]))
   const row = section(page, 'followup').locator('[data-row-key]').filter({ hasText: 'Plan the offsite' })
   const day = wsCell(page, 'k2').locator('[data-day]').nth(2)

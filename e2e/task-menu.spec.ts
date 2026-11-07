@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedTaskList, seedWorkspace, TASK_LIST_TAB, wsListWidget } from './fixtures/workspace'
+import { seedTaskList, seedWorkspace, TASK_LIST_TAB, wsListWidget, wsRow } from './fixtures/workspace'
 
 /**
  * The task menu, the tooltip and the list bulk bar's ⋯ More in a real
@@ -142,7 +142,7 @@ test('list bulk bar fits 320px; ⋯ More holds Mark followed up and the markers 
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Tasks' }],
     tasks: [{ title: 'one', focus: true }, { title: 'two' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   await wsListWidget(page, TASK_LIST_TAB).waitFor({ state: 'visible' })
   await taskRowByTitle(page, 'one').locator('span[data-task-title="one"]').click()

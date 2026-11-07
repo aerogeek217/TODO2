@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * A filter is Graphical (chips, ANDed) or a typed expression (schema v75).
@@ -24,7 +24,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Bob urgent', people: ['Bob'], urgent: true },
     { title: 'Focus plain', focus: true },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 const sorted = async (page: Page) => (await rowTitles(wsListWidget(page, 't1'))).toSorted()

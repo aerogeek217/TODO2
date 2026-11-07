@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -14,7 +14,7 @@ const seed: WorkspaceSeed = {
   listDefinitions: [{ name: 'Inbox' }],
   tasks: [{ title: 'A task' }],
   layouts: [
-    { name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] },
+    { name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] },
   ],
 }
 

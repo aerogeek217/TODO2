@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { releaseDrag, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { releaseDrag, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 import { box, type Point } from './fixtures/geometry'
 
@@ -22,7 +22,7 @@ function seed(list: { name: string; sort?: string }): WorkspaceSeed {
   return {
     listDefinitions: [list],
     tasks: [{ title: 'Alpha' }, { title: 'Bravo' }, { title: 'Charlie' }, { title: 'Delta' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   }
 }
 
@@ -210,7 +210,7 @@ for (const zoom of ['stacked', 'rows', 'lines', 'strips'] as const) {
   test(`${zoom}: the drop line starts at the rows’ title (a Strips bar’s start)`, async ({ page }) => {
     // A sorted list: the line (dashed) shows where the row would go.
     const s = seed({ name: 'Sorted', sort: 'name' })
-    const tab = s.layouts?.[0]?.columns[0]?.cells[0]?.tabs[0]
+    const tab = s.layouts?.[0]?.columns[0]?.rows[0]?.cells[0]?.tabs[0]
     if (tab) tab.zoom = zoom
     await seedWorkspace(page, s)
     const occurrence = (title: string) => zoom === 'strips'

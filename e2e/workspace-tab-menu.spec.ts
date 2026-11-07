@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * A tab's menu (`WidgetKindMenu` on `MenuPopover`): the list tab's "Change
@@ -22,8 +22,8 @@ const twoLists: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'listTab', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'col2', cells: [{ id: 'cell2', tabs: [{ id: 'targetTab', kind: 'lens', listDefIdx: 1 }] }] },
+      { id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'listTab', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'col2', rows: [wsRow({ id: 'cell2', tabs: [{ id: 'targetTab', kind: 'lens', listDefIdx: 1 }] })] },
     ],
   }],
 }
@@ -77,8 +77,8 @@ const twoColumns: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'left', cells: [{ id: 'leftCell', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'listTab', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'right', cells: [{ id: 'rightCell', tabs: [{ id: 'dashTab', kind: 'dashboard' }] }] },
+      { id: 'left', rows: [wsRow({ id: 'leftCell', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'listTab', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'right', rows: [wsRow({ id: 'rightCell', tabs: [{ id: 'dashTab', kind: 'dashboard' }] })] },
     ],
   }],
 }

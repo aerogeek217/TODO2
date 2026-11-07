@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedTaskList, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { seedTaskList, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The task dialog in a real browser: a dashboard number opens the tasks it
@@ -23,7 +23,7 @@ const SEED: WorkspaceSeed = {
   ],
   layouts: [{
     name: 'Dash',
-    columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [0] } }] }] }],
+    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [0] } }] })] }],
   }],
 }
 

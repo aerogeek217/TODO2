@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -17,8 +17,8 @@ function layoutWith(calendar: Omit<WsTabSeed, 'id' | 'kind'>, opts: { listWeight
   return [{
     name: 'Main',
     columns: [
-      { id: 'colA', weight: opts.listWeight ?? 1, cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'colB', weight: 2, cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar', titles: true, ...calendar }] }] },
+      { id: 'colA', weight: opts.listWeight ?? 1, rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'colB', weight: 2, rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar', titles: true, ...calendar }] })] },
     ],
   }]
 }
@@ -322,13 +322,13 @@ function weekRowsLayout(calWeight: number): WorkspaceSeed['layouts'] {
   return [{
     name: 'Main',
     columns: [
-      { id: 'colA', weight: 3, cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
+      { id: 'colA', weight: 3, rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] },
       {
         id: 'colB',
         weight: 2,
-        cells: [
-          { id: 'b1', weight: calWeight, tabs: [{ id: 'calTab', kind: 'calendar', view: 'week', offset: 0 }] },
-          ...(calWeight < 1 ? [{ id: 'b2', weight: 1 - calWeight, tabs: [{ id: 'notesTab', kind: 'notes' as const }] }] : []),
+        rows: [
+          wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar', view: 'week', offset: 0 }] }, { weight: calWeight }),
+          ...(calWeight < 1 ? [wsRow({ id: 'b2', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { weight: 1 - calWeight })] : []),
         ],
       },
     ],

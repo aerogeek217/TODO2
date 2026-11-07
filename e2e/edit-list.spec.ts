@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, seedWorkspace, wsCell, wsListWidget, wsTab, readListDefinitions, editListDraft, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, seedWorkspace, wsCell, wsListWidget, wsTab, readListDefinitions, editListDraft, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { box, type Box } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 import { rowTitles } from './fixtures/seed'
@@ -25,9 +25,9 @@ const shared: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'c0', cells: [{ id: 'k0', tabs: [{ id: 't0', kind: 'lens', listDefIdx: 1 }] }] },
-      { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 0 }] }] },
+      { id: 'c0', rows: [wsRow({ id: 'k0', tabs: [{ id: 't0', kind: 'lens', listDefIdx: 1 }] })] },
+      { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 0 }] })] },
     ],
   }],
 }
@@ -82,7 +82,7 @@ test('a panel too wide for either side: the popover drops below its filter line,
   await seedWorkspace(page, {
     ...shared,
     listDefinitions: [{ name: 'Team', predicate: { searchText: 'a' } }],
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   const popover = await openFromTabMenu(page, 't1')
   await expect(popover).toHaveAttribute('data-placement', 'below')
@@ -347,8 +347,8 @@ test('a narrow widget: Revert · Save become icon buttons, never hidden', async 
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'wide', weight: 3, cells: [{ id: 'kw', tabs: [{ id: 'tw', kind: 'lens', listDefIdx: 1 }] }] },
-        { id: 'narrow', weight: 1, cells: [{ id: 'kn', tabs: [{ id: 'tn', kind: 'lens', listDefIdx: 0 }] }] },
+        { id: 'wide', weight: 3, rows: [wsRow({ id: 'kw', tabs: [{ id: 'tw', kind: 'lens', listDefIdx: 1 }] })] },
+        { id: 'narrow', weight: 1, rows: [wsRow({ id: 'kn', tabs: [{ id: 'tn', kind: 'lens', listDefIdx: 0 }] })] },
       ],
     }],
   })

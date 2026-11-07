@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   drag, dragTab, expectOpenLayout, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, withSpareLayouts, wsCell, wsShape, wsTab,
   type WsLayoutSeed,
+  wsRow,
 } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -17,8 +18,8 @@ import { readStore } from './fixtures/db'
 const twoColumns: WsLayoutSeed = {
   name: 'Main',
   columns: [
-    { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] }] },
-    { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+    { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] })] },
+    { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
   ],
 }
 
@@ -139,9 +140,9 @@ test.describe('resize and collapse', () => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
-        columns: [{ id: 'colA', cells: [
-          { id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] },
-          { id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
+        columns: [{ id: 'colA', rows: [
+          wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }),
+          wsRow({ id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }),
         ] }],
       }],
     })
@@ -245,8 +246,8 @@ test.describe('a pane that goes leaves no void', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] }] },
-          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+          { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] })] },
+          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
         ],
       }],
     })
@@ -263,8 +264,8 @@ test.describe('a pane that goes leaves no void', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'colA', weight: 0.5, cells: [{ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }] },
-          { id: 'colB', weight: 0.5, cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+          { id: 'colA', weight: 0.5, rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
+          { id: 'colB', weight: 0.5, rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
         ],
       }],
     })
@@ -277,7 +278,7 @@ test.describe('a pane that goes leaves no void', () => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
-        columns: [{ id: 'colA', weight: 0.5, cells: [{ id: 'a1', weight: 0.25, tabs: [{ id: 'notesTab', kind: 'notes' }] }] }],
+        columns: [{ id: 'colA', weight: 0.5, rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { weight: 0.25 })] }],
       }],
     })
     await expect.poll(() => voidRight(page)).toBeLessThan(1)
@@ -289,12 +290,12 @@ test.describe('a pane that goes leaves no void', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'colA', cells: [
-            { id: 'a1', weight: 0.25, collapsed: true, tabs: [{ id: 'notesTab', kind: 'notes' }] },
-            { id: 'a2', weight: 0.25, tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
-            { id: 'a3', weight: 0.5, tabs: [{ id: 'dashTab', kind: 'dashboard' }] },
+          { id: 'colA', rows: [
+            wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { weight: 0.25, collapsed: true }),
+            wsRow({ id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }, { weight: 0.25 }),
+            wsRow({ id: 'a3', tabs: [{ id: 'dashTab', kind: 'dashboard' }] }, { weight: 0.5 }),
           ] },
-          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
         ],
       }],
     })
@@ -308,11 +309,11 @@ test.describe('a pane that goes leaves no void', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'colA', cells: [
-            { id: 'a1', collapsed: true, tabs: [{ id: 'notesTab', kind: 'notes' }] },
-            { id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
+          { id: 'colA', rows: [
+            wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { collapsed: true }),
+            wsRow({ id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }),
           ] },
-          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
         ],
       }],
     })
@@ -326,7 +327,7 @@ test.describe('a pane that goes leaves no void', () => {
 test.describe('saved layouts', () => {
   const second: WsLayoutSeed = {
     name: 'Second',
-    columns: [{ id: 'colZ', cells: [{ id: 'z1', tabs: [{ id: 'zTab', kind: 'eisenhower' }] }] }],
+    columns: [{ id: 'colZ', rows: [wsRow({ id: 'z1', tabs: [{ id: 'zTab', kind: 'eisenhower' }] })] }],
   }
 
   test('save persists across reload; switching layouts prompts Save / Discard / Cancel', async ({ page }) => {
@@ -517,8 +518,8 @@ test.describe('task drags inside the workspace', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
-          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] }] },
+          { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] },
+          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] })] },
         ],
       }],
     })

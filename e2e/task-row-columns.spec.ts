@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box, pointIn, type Box } from './fixtures/geometry'
-import { drag, seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The desktop task row's columns: every row of a list shares one set of
@@ -33,8 +33,8 @@ function seed(tab: Omit<WsTabSeed, 'id'>, width: number, tasks = TASKS): Workspa
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'w', weight: width, cells: [{ id: 'cell', tabs: [{ id: 'tab', ...tab }] }] },
-        { id: 'rest', weight: 1280 - width, cells: [{ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] }] },
+        { id: 'w', weight: width, rows: [wsRow({ id: 'cell', tabs: [{ id: 'tab', ...tab }] })] },
+        { id: 'rest', weight: 1280 - width, rows: [wsRow({ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] })] },
       ],
     }],
   }
@@ -73,8 +73,8 @@ async function laidOutDetails(r: Locator): Promise<number> {
 }
 
 async function storedTabView(page: Page, tabId: string): Promise<Record<string, unknown> | undefined> {
-  const layouts = await readStore<{ columns: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }>(page, 'layouts')
-  for (const l of layouts) for (const c of l.columns) for (const k of c.cells) for (const t of k.tabs) if (t.id === tabId) return t.viewState
+  const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }> }>(page, 'layouts')
+  for (const l of layouts) for (const c of l.columns) for (const r of c.rows) for (const k of r.cells) for (const t of k.tabs) if (t.id === tabId) return t.viewState
   return undefined
 }
 
@@ -232,8 +232,8 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'a', weight: 1, cells: [{ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] }] },
-        { id: 'b', weight: 1, cells: [{ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', detailsWidth: 200, dashboard: { tiles: [], sections: [{ id: 'followup' }] } }] }] },
+        { id: 'a', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] })] },
+        { id: 'b', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', detailsWidth: 200, dashboard: { tiles: [], sections: [{ id: 'followup' }] } }] })] },
       ],
     }],
   })

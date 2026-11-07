@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace } from './fixtures/workspace'
+import { seedWorkspace, wsRow } from './fixtures/workspace'
 
 /**
  * Reduced motion (the system setting): animations and transitions finish at
@@ -10,7 +10,7 @@ import { seedWorkspace } from './fixtures/workspace'
  */
 
 const SEED = {
-  layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] })] }] }],
 }
 
 /** Every element's (and pseudo-element's) transition and animation durations that are longer than 1 ms. */

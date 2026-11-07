@@ -1,5 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The due-date pill hugs its content where pills remain — phone rows and the
@@ -11,7 +11,7 @@ import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 const SEED: WorkspaceSeed = {
   listDefinitions: [{ name: 'Tasks' }],
   tasks: [{ title: 'Pay the bill', dueInDays: 5 }],
-  layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 /** The chip's width beyond its content (padding + border + anything reserved). */

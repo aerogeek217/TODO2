@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { seedTaskList, seedWorkspace } from './fixtures/workspace'
+import { seedTaskList, seedWorkspace, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -56,7 +56,7 @@ test('a stale row lingers too, though completing it moves its modified date to n
     ],
     layouts: [{
       name: 'Dash',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'stale' }] } }] }] }],
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'stale' }] } }] })] }],
     }],
   })
   const stale = page.locator('[data-dash-section="stale"]')

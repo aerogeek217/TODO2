@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { box } from './fixtures/geometry'
-import { seedWorkspace, wsCell, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsCell, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The Neglect map widget (D25 board H) in a real browser: a task due soon
@@ -29,7 +29,7 @@ const NEGLECT_SEED: WorkspaceSeed = {
   ],
   layouts: [{
     name: 'Main',
-    columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'map', kind: 'neglect', neglect: { colourBy: { tags: ['Project: Alpha', 'Project: Beta'] } } }] }] }],
+    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'map', kind: 'neglect', neglect: { colourBy: { tags: ['Project: Alpha', 'Project: Beta'] } } }] })] }],
   }],
 }
 

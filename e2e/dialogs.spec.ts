@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -27,8 +27,8 @@ const SEED: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [] } }] }] },
+      { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [] } }] })] },
     ],
   }],
 }
@@ -488,7 +488,7 @@ test.describe('editor modals', () => {
 
   test('notes → tasks preview: Esc, focus trap and return, backdrop press; its draft editor owns Esc', async ({ page }) => {
     await seedWorkspace(page, {
-      layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' }] }] }] }],
+      layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' }] })] }] }],
     })
     const note = page.getByRole('region', { name: 'Notes cell' }).locator('.cm-content')
     await note.click()

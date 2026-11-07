@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace } from './fixtures/workspace'
+import { seedWorkspace, wsRow } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 import { taskRowByTitle } from './fixtures/seed'
@@ -14,7 +14,7 @@ import { taskRowByTitle } from './fixtures/seed'
  */
 
 const SEED = {
-  layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] })] }] }],
   people: [{ name: 'Anna', initials: 'AN' }, { name: 'Andy Ross', initials: 'AR' }],
   tags: ['q4'],
   tasks: [{ title: 'Plan the offsite', people: ['Andy Ross'] }],
@@ -190,7 +190,7 @@ test.describe('task row notes popover', () => {
   const ROW_SEED = {
     ...SEED,
     listDefinitions: [{ name: 'Everything' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'list', kind: 'lens' as const, listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'list', kind: 'lens' as const, listDefIdx: 0 }] })] }] }],
   }
 
   test('a click on Edit… in the person menu opens the editor; Esc and clicks in it leave the popover open', async ({ page }) => {

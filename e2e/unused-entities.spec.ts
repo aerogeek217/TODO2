@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { assignedNames, readStore } from './fixtures/db'
 
 /**
@@ -18,7 +18,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Open task', people: ['Bob'], tags: ['keep'] },
     { title: 'Done task', people: ['Ann'], tags: ['old'], isCompleted: true },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 /** The names a top-bar filter picker offers (its options, without the None / No tags row). */

@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
 import { expectCounterLive, installRenderCounter, readRenderCounts, resetRenderCounts } from './fixtures/render-count'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 
 /**
  * What a divider drag costs, held where it is observable without timing.
@@ -48,8 +48,8 @@ function seed(tab: Omit<WsTabSeed, 'id'>): WorkspaceSeed {
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'w', weight: 900, cells: [{ id: 'cell', tabs: [{ id: 'tab', ...tab }] }] },
-        { id: 'rest', weight: 380, cells: [{ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] }] },
+        { id: 'w', weight: 900, rows: [wsRow({ id: 'cell', tabs: [{ id: 'tab', ...tab }] })] },
+        { id: 'rest', weight: 380, rows: [wsRow({ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] })] },
       ],
     }],
   }
@@ -63,8 +63,8 @@ async function laidOutDetails(r: Locator): Promise<number> {
 }
 
 async function storedViewState(page: Page): Promise<Record<string, unknown> | undefined> {
-  const layouts = await readStore<{ columns: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }>(page, 'layouts')
-  for (const l of layouts) for (const c of l.columns) for (const k of c.cells) for (const t of k.tabs) if (t.id === 'tab') return t.viewState
+  const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }> }>(page, 'layouts')
+  for (const l of layouts) for (const c of l.columns) for (const r of c.rows) for (const k of r.cells) for (const t of k.tabs) if (t.id === 'tab') return t.viewState
   return undefined
 }
 
@@ -228,7 +228,7 @@ test('a column or band divider drag: no task row re-renders, nothing is written 
   await countStorageWrites(page)
   await countLayoutWrites(page)
   const layout = seed({ kind: 'lens', listDefIdx: 0 })
-  layout.layouts[0]!.top = { id: 'tb', height: 140, tabs: [{ id: 'topnotes', kind: 'notes' }] }
+  layout.layouts[0]!.top = { id: 'tb-band', height: 140, cells: [{ id: 'tb', tabs: [{ id: 'topnotes', kind: 'notes' }] }] }
   await seedWorkspace(page, layout)
   const widget = wsListWidget(page, 'tab')
   await expect(widget.locator('[data-todo-id]')).toHaveCount(ROWS)

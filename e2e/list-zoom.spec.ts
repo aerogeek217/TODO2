@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
-import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * D25 C + I1 · a list tab's zoom, in the real browser: the four levels'
@@ -43,7 +43,7 @@ function seed(opts: {
     listDefinitions: [{ name: 'Zoomed', grouping: opts.grouping ?? 'none', sort: opts.sort ?? 'manual' }],
     layouts: [{
       name: 'Main',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: TAB, kind: 'lens', listDefIdx: 0, ...(opts.zoom ? { zoom: opts.zoom } : {}) }] }] }],
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: TAB, kind: 'lens', listDefIdx: 0, ...(opts.zoom ? { zoom: opts.zoom } : {}) }] })] }],
     }],
   }
 }
@@ -55,8 +55,8 @@ async function open(page: Page, opts: Parameters<typeof seed>[0] = {}): Promise<
 
 /** The list tab's stored zoom (the saved layout's view state). */
 async function storedZoom(page: Page): Promise<unknown> {
-  const layouts = await readStore<{ columns: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: { zoom?: unknown } }> }> }> }>(page, 'layouts')
-  const tab = layouts.flatMap((l) => l.columns.flatMap((c) => c.cells.flatMap((k) => k.tabs))).find((t) => t.id === TAB)
+  const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: { zoom?: unknown } }> }> }> }> }>(page, 'layouts')
+  const tab = layouts.flatMap((l) => l.columns.flatMap((c) => c.rows.flatMap((r) => r.cells.flatMap((k) => k.tabs)))).find((t) => t.id === TAB)
   return tab?.viewState?.zoom
 }
 

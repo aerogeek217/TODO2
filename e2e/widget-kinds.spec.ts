@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { WIDGET_KINDS, widgetKindLabel, type WidgetKind } from '../src/models/workspace-layout'
-import { seedWorkspace, wsCell, type WsLayoutSeed } from './fixtures/workspace'
+import { seedWorkspace, wsCell, type WsLayoutSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Every widget kind (from the one kind table) can be added, switched to and
@@ -91,8 +91,8 @@ test.describe('desktop', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'c1', weight: 1, cells: [{ id: 'k1', tabs, activeTabId: 't4' }] },
-          { id: 'c2', weight: 4, cells: [{ id: 'k2', tabs: [{ id: 'n', kind: 'notes' }] }] },
+          { id: 'c1', weight: 1, rows: [wsRow({ id: 'k1', tabs, activeTabId: 't4' })] },
+          { id: 'c2', weight: 4, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n', kind: 'notes' }] })] },
         ],
       }],
     })
@@ -123,8 +123,8 @@ test.describe('desktop', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'c1', weight: 1, cells: [{ id: 'k1', tabs, activeTabId: 't4' }] },
-          { id: 'c2', weight: 4, cells: [{ id: 'k2', tabs: [{ id: 'n', kind: 'notes' }] }] },
+          { id: 'c1', weight: 1, rows: [wsRow({ id: 'k1', tabs, activeTabId: 't4' })] },
+          { id: 'c2', weight: 4, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n', kind: 'notes' }] })] },
         ],
       }],
     })
@@ -152,7 +152,7 @@ test.describe('phone', () => {
   test('the column view shows every kind', async ({ page }) => {
     const layout: WsLayoutSeed = {
       name: 'Kinds',
-      columns: WIDGET_KINDS.map((kind, i) => ({ id: `col${i}`, cells: [{ id: `cell${i}`, tabs: [{ id: `tab${i}`, kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }] }] })),
+      columns: WIDGET_KINDS.map((kind, i) => ({ id: `col${i}`, rows: [wsRow({ id: `cell${i}`, tabs: [{ id: `tab${i}`, kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }] })] })),
     }
     await seedWorkspace(page, { listDefinitions: [{ name: LIST }], tasks: [{ title: 'A task' }], layouts: [layout] })
     const strip = page.getByRole('tablist', { name: 'Columns' })

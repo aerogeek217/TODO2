@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedTaskList, seedWorkspace, TASK_LIST_TAB, wsCell, wsListWidget } from './fixtures/workspace'
+import { seedTaskList, seedWorkspace, TASK_LIST_TAB, wsCell, wsListWidget, wsRow } from './fixtures/workspace'
 import { box, clickOutside, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
 
 /**
@@ -100,8 +100,8 @@ test.describe('task-row context menu — re-anchor', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'left', cells: [{ id: 'l1', tabs: [{ id: 'leftTab', kind: 'lens', listDefIdx: 0 }] }] },
-          { id: 'right', cells: [{ id: 'r1', tabs: [{ id: 'rightTab', kind: 'lens', listDefIdx: 0 }] }] },
+          { id: 'left', rows: [wsRow({ id: 'l1', tabs: [{ id: 'leftTab', kind: 'lens', listDefIdx: 0 }] })] },
+          { id: 'right', rows: [wsRow({ id: 'r1', tabs: [{ id: 'rightTab', kind: 'lens', listDefIdx: 0 }] })] },
         ],
       }],
     })

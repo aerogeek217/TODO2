@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, openLayoutAction, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { drag, openLayoutAction, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
@@ -26,7 +26,7 @@ const SEED: WorkspaceSeed = {
   ],
   layouts: [{
     name: 'Dash',
-    columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard' }] }] }],
+    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard' }] })] }],
   }],
 }
 
@@ -214,7 +214,7 @@ for (const { name, width, layout } of [
 
 test('Copy summary writes the dashboard’s counts to the clipboard', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
-  await seedWorkspace(page, { ...SEED, layouts: [{ name: 'Dash', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [0] } }] }] }] }] })
+  await seedWorkspace(page, { ...SEED, layouts: [{ name: 'Dash', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [0] } }] })] }] }] })
   await expect(tileCount(page, 'open')).toHaveText('4')
 
   const menu = await openTabMenu(page)
@@ -238,8 +238,8 @@ test('the gear → Add a list adds a tile; its dialog opens the list as a tab', 
     layouts: [{
       name: 'Dash',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard' }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'alice', kind: 'lens', listDefIdx: 0 }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard' }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'alice', kind: 'lens', listDefIdx: 0 }] })] },
       ],
     }],
   })

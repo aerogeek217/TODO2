@@ -38,25 +38,40 @@ export interface WsTabSeed {
 
 export interface WsCellSeed {
   id: string
+  /** Its share of the row's width (default 1). */
   weight?: number
   tabs: WsTabSeed[]
   activeTabId?: string
+  /** Layout config: the tab strip always shown (`true`) or hidden (`false`); absent = by its widget. */
+  stripShown?: boolean
+}
+
+export interface WsRowSeed {
+  /** Default `<first cell's id>-r`. */
+  id?: string
+  /** Its share of the column's height (default 1). */
+  weight?: number
   collapsed?: boolean
+  cells: WsCellSeed[]
 }
 
 export interface WsColumnSeed {
   id: string
   weight?: number
-  cells: WsCellSeed[]
+  rows: WsRowSeed[]
 }
 
 export interface WsBandSeed {
   id: string
   /** Height in px (default 160). */
   height?: number
-  tabs: WsTabSeed[]
-  activeTabId?: string
   collapsed?: boolean
+  cells: WsCellSeed[]
+}
+
+/** A row of one cell, its id `<cell>-r`: `extra` its height share and collapse. */
+export function wsRow(cell: WsCellSeed, extra: Omit<WsRowSeed, 'cells'> = {}): WsRowSeed {
+  return { ...extra, cells: [cell] }
 }
 
 export interface WsLayoutSeed {
@@ -275,7 +290,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     tx.objectStore('layouts').clear()
     let firstId: number | null = null
     const layoutIds: number[] = []
-    type TabSeed = (typeof seed.layouts)[number]['columns'][number]['cells'][number]['tabs'][number]
+    type TabSeed = (typeof seed.layouts)[number]['columns'][number]['rows'][number]['cells'][number]['tabs'][number]
+    type CellSeed = (typeof seed.layouts)[number]['columns'][number]['rows'][number]['cells'][number]
     const buildTab = (tab: TabSeed) => {
       const base = structuredClone(seed.newTabs[tab.kind])
       const out: Record<string, unknown> = { ...base, id: tab.id }
@@ -307,16 +323,22 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       out.config = config
       return out
     }
+    const buildCell = (cell: CellSeed) => ({
+      id: cell.id,
+      weight: cell.weight ?? 1,
+      ...(cell.tabs.length > 0 ? { activeTabId: cell.activeTabId ?? cell.tabs[0]?.id } : {}),
+      ...(cell.stripShown != null ? { stripShown: cell.stripShown } : {}),
+      tabs: cell.tabs.map(buildTab),
+    })
     for (const layout of seed.layouts) {
       const columns = layout.columns.map((col) => ({
         id: col.id,
         weight: col.weight ?? 1,
-        cells: col.cells.map((cell) => ({
-          id: cell.id,
-          weight: cell.weight ?? 1,
-          activeTabId: cell.activeTabId ?? cell.tabs[0]?.id,
-          ...(cell.collapsed ? { collapsed: true } : {}),
-          tabs: cell.tabs.map(buildTab),
+        rows: col.rows.map((row) => ({
+          id: row.id ?? `${row.cells[0]?.id ?? col.id}-r`,
+          weight: row.weight ?? 1,
+          ...(row.collapsed ? { collapsed: true } : {}),
+          cells: row.cells.map(buildCell),
         })),
       }))
       const bands: Record<string, unknown> = {}
@@ -326,9 +348,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         bands[edge] = {
           id: band.id,
           height: band.height ?? 160,
-          activeTabId: band.activeTabId ?? band.tabs[0]?.id,
           ...(band.collapsed ? { collapsed: true } : {}),
-          tabs: band.tabs.map(buildTab),
+          cells: band.cells.map(buildCell),
         }
       }
       const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, ...(layout.hue ? { hue: layout.hue } : {}), createdAt: now, modifiedAt: now })
@@ -338,7 +359,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     // Every list belongs to a layout (now that it has an id): `layoutIdx`'s,
     // else the first layout whose tabs or tiles show it, else the first one.
     const shownBy = (i: number) => seed.layouts.findIndex((layout) => {
-      const panels = [...layout.columns.flatMap((col) => col.cells), ...(layout.top ? [layout.top] : []), ...(layout.bottom ? [layout.bottom] : [])]
+      const panels = [...layout.columns.flatMap((col) => col.rows.flatMap((row) => row.cells)), ...(layout.top?.cells ?? []), ...(layout.bottom?.cells ?? [])]
       return panels.some((p) => p.tabs.some((t) => t.listDefIdx === i || (t.dashboard?.listTileIdxs ?? []).includes(i)))
     })
     for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
@@ -394,7 +415,7 @@ export async function seedTaskList(
   await seedWorkspace(page, {
     ...rest,
     listDefinitions: [{ name: 'Tasks', ...list }],
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] })] }] }],
   }, options)
   const widget = wsListWidget(page, TASK_LIST_TAB)
   await widget.waitFor({ state: 'visible' })
@@ -474,7 +495,7 @@ export async function expectOpenLayout(page: Page, name: string): Promise<void> 
   }
 }
 
-/** Tab ids per cell per column, read from the rendered workspace. */
+/** Tab ids per cell per column (a column's rows' cells in order), read from the rendered workspace. */
 export async function wsShape(page: Page): Promise<string[][][]> {
   return page.evaluate(() =>
     Array.from(document.querySelectorAll('[data-ws-column]')).map((col) =>

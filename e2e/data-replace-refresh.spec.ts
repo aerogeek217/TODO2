@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { selectTaskRowByTitle, taskRowByTitle } from './fixtures/seed'
-import { openSettings, seedTaskList, seedWorkspace } from './fixtures/workspace'
+import { openSettings, seedTaskList, seedWorkspace, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -92,7 +92,7 @@ async function preOpBackupNotes(page: Page): Promise<string[]> {
 
 test('note text saving when a backup restore starts goes into its pre-op backup, not over the restored note', async ({ page }) => {
   await seedWorkspace(page, {
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' }] })] }] }],
   })
   const editor = page.getByRole('region', { name: 'Notes cell' }).locator('.cm-content')
   await editor.click()

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, openSettings, seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { drag, openSettings, seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * cr25 P2: Settings › Tasks › Lenses reorders by a row's grip — dragged
@@ -15,7 +15,7 @@ const SEED: WorkspaceSeed = {
     { id: 'lens-b', name: 'Beta', predicate: {} },
     { id: 'lens-c', name: 'Gamma', predicate: {} },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'notes' }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'notes' }] })] }] }],
 }
 
 /** What the drag's live region says (dnd-kit's). */

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -28,11 +28,11 @@ const SEED: WorkspaceSeed = {
     {
       name: 'Main',
       columns: [
-        { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }] },
-        { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'eisenhower' }] } }] }] },
+        { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] },
+        { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'eisenhower' }] } }] })] },
       ],
     },
-    { name: 'Second', columns: [{ id: 'colX', cells: [{ id: 'x1', tabs: [{ id: 'eis2', kind: 'eisenhower' }] }] }] },
+    { name: 'Second', columns: [{ id: 'colX', rows: [wsRow({ id: 'x1', tabs: [{ id: 'eis2', kind: 'eisenhower' }] })] }] },
   ],
 }
 
@@ -261,7 +261,7 @@ test.describe('phone', () => {
   test('no entry: not in the Settings page, the tab sheet has Edit list… but no Customize, no pane menu', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
-      layouts: [{ name: 'Main', columns: [{ id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }] }] }],
+      layouts: [{ name: 'Main', columns: [{ id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] }] }],
     })
     await expect(page.locator('[data-eisenhower="eisTab"]')).toHaveAttribute('data-layout', 'stacked')
     await wsTab(page, 'eisTab').dispatchEvent('contextmenu')

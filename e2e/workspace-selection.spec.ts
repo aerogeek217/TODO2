@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { drag, seedWorkspace, wsCell, wsListWidget, wsTab } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsListWidget, wsTab, wsRow } from './fixtures/workspace'
 
 /**
  * A list widget's row selection goes away with the widget: after switching
@@ -16,10 +16,10 @@ test('switching tabs drops the hidden list selection', async ({ page }) => {
     tasks: [{ title: 'one' }, { title: 'two' }],
     layouts: [{
       name: 'Main',
-      columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [
+      columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [
         { id: 'list', kind: 'lens', listDefIdx: 0 },
         { id: 'notes', kind: 'notes' },
-      ] }] }],
+      ] })] }],
     }],
   })
   await wsListWidget(page, 'list').waitFor({ state: 'visible' })
@@ -51,9 +51,9 @@ test('list, Eisenhower and dashboard rows select alike; one widget at a time', a
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] }] },
-        { id: 'c3', cells: [{ id: 'k3', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: [], sections: [{ id: 'followup' }] } }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] })] },
+        { id: 'c3', rows: [wsRow({ id: 'k3', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: [], sections: [{ id: 'followup' }] } }] })] },
       ],
     }],
   })
@@ -117,8 +117,8 @@ test('a click outside the rows clears the selection; rows, the bulk bar, menus a
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] }, { id: 'k3', tabs: [{ id: 'eis', kind: 'eisenhower' }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] }), wsRow({ id: 'k3', tabs: [{ id: 'eis', kind: 'eisenhower' }] })] },
       ],
     }],
   })
@@ -181,7 +181,7 @@ test('Space on a focused row control is the control’s; on the page it toggles 
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Tasks', predicate: { showCompleted: true } }],
     tasks: [{ title: 'one' }, { title: 'two' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   await wsListWidget(page, 'list').waitFor({ state: 'visible' })
   const row = taskRowByTitle(page, 'one')

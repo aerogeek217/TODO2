@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * D18 calendar heat map in a real browser: with Titles off (the default) a
@@ -16,7 +16,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Tomorrow', dueInDays: 1 },
     { title: 'Late', dueInDays: -1 },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] }] }],
 }
 
 const calendar = (page: Page) => page.locator('[data-calendar-widget="calTab"]')
@@ -101,8 +101,8 @@ test('a short cell: the month rows keep their least height, the grid scrolls and
     ...SEED,
     layouts: [{
       name: 'Main',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'notes', kind: 'notes' }] }] }],
-      bottom: { id: 'band', height: 160, tabs: [{ id: 'calTab', kind: 'calendar' }] },
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'notes', kind: 'notes' }] })] }],
+      bottom: { id: 'band-band', height: 160, cells: [{ id: 'band', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
     }],
   })
   const grid = calendar(page).locator('[data-cal-grid="month"]')

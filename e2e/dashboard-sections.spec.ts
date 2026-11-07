@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 
 /**
@@ -31,7 +31,7 @@ function seedWith(tab: Partial<WsTabSeed> = {}, extraColumns: WorkspaceSeed['lay
     layouts: [{
       name: 'Dash',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: NEW_SECTIONS }, ...tab }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: NEW_SECTIONS }, ...tab }] })] },
         ...extraColumns,
       ],
     }],
@@ -167,7 +167,7 @@ test('Customize shows a section, changes its option and hides it again, as layou
 
 test('Stale and Recently completed rows are task rows: select, drag out, reopen', async ({ page }) => {
   await seedWorkspace(page, seedWith({}, [
-    { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] }] },
+    { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'calTab', kind: 'calendar', dateTypes: { due: true, followup: false }, titles: true }] })] },
   ]))
   const stale = section(page, 'stale')
   const title = (root: Locator, t: string) => root.locator('[data-row-todo]').filter({ hasText: t }).locator(`span[data-task-title="${t}"]`)
