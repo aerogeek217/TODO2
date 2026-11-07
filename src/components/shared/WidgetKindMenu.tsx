@@ -72,6 +72,11 @@ export interface WidgetKindMenuProps {
   /** A setting of the widget, listed first (see {@link WidgetSetting}). */
   widgetSetting?: WidgetSetting
   /**
+   * The widget's own setting items, as menu entries (submenus of their own,
+   * e.g. a Neglect map's Colour by ›), listed first in a non-list tab's menu.
+   */
+  settingEntries?: readonly MenuEntry[]
+  /**
    * Items listed first after a non-list tab's Edit list… (an Eisenhower
    * tab's: its own list), e.g. the Eisenhower's Customize panes…, before
    * the widget setting. Each closes the menu after running.
@@ -107,6 +112,7 @@ export function WidgetKindMenu({
   widgetActions,
   currentListName,
   widgetSetting,
+  settingEntries,
   sourceActions,
   listLayoutId,
 }: WidgetKindMenuProps) {
@@ -159,6 +165,7 @@ export function WidgetKindMenu({
       for (const a of sourceActions ?? []) entries.push({ kind: 'item', label: a.label, icon: a.icon, onSelect: a.onSelect })
       if (!widgetSetting) entries.push({ kind: 'separator' })
     }
+    if (settingEntries && settingEntries.length > 0) entries.push(...settingEntries, { kind: 'separator' })
     if (widgetSetting) {
       entries.push({
         kind: 'item',

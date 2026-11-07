@@ -17,6 +17,10 @@ import {
   type WidgetKind,
   DEFAULT_CALENDAR_DATE_TYPES,
   DEFAULT_WEIGHT,
+  DEFAULT_NEGLECT_UNTOUCHED_DAYS,
+  isNeglectUntouchedDays,
+  type NeglectColourBy,
+  type NeglectTabConfig,
 } from '../models/workspace-layout'
 import { normalizeDashboardConfig } from '../models/dashboard-config'
 import { isRecord } from '../utils/is-record'
@@ -69,6 +73,36 @@ function isFiniteNum(v: unknown): v is number {
   return typeof v === 'number' && Number.isFinite(v)
 }
 
+/** A Neglect map's `colourBy` as stored: a known kind; tags with a list of ids. */
+function isNeglectColourBy(v: unknown): boolean {
+  if (!isRecord(v)) return false
+  if (v.kind === 'people' || v.kind === 'none') return true
+  return v.kind === 'tags' && Array.isArray(v.tagIds) && v.tagIds.every(isFiniteNum)
+}
+
+/**
+ * A Neglect map tab's config with only the model's keys: a bad `colourBy`
+ * becomes `none` (a tag list keeps its ids that are numbers), a bad
+ * threshold becomes the default; a repeated tag is kept once. `fixed` says
+ * whether anything but a repeat or a stray key was dropped or reset.
+ */
+export function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixed: boolean } {
+  let fixed = !isNeglectColourBy(config.colourBy)
+  let colourBy: NeglectColourBy = { kind: 'none' }
+  const raw = config.colourBy
+  if (isRecord(raw)) {
+    if (raw.kind === 'tags' && Array.isArray(raw.tagIds)) {
+      colourBy = { kind: 'tags', tagIds: [...new Set((raw.tagIds as unknown[]).filter(isFiniteNum))] }
+    } else if (raw.kind === 'people') {
+      colourBy = { kind: 'people' }
+    }
+  }
+  let untouchedDays = DEFAULT_NEGLECT_UNTOUCHED_DAYS
+  if (isNeglectUntouchedDays(config.untouchedDays)) untouchedDays = config.untouchedDays
+  else fixed = true
+  return { config: { colourBy, untouchedDays }, fixed }
+}
+
 /** A tab's config / view state for its kind (a case per kind: a new kind doesn't compile without one). */
 function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | string {
   const config = tab.config
@@ -107,6 +141,10 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       for (const key of ['tiles', 'listTiles', 'sections'] as const) {
         if (config[key] !== undefined && !Array.isArray(config[key])) return `${path}.config.${key}`
       }
+      return true
+    case 'neglect':
+      if (!isNeglectColourBy(config.colourBy)) return `${path}.config.colourBy`
+      if (!isNeglectUntouchedDays(config.untouchedDays)) return `${path}.config.untouchedDays`
       return true
     case 'notes':
       return true
@@ -331,6 +369,12 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const dashboard: LayoutTab = { id, kind: 'dashboard', config: dashboardConfig }
         if (dashboardView) dashboard.viewState = dashboardView
         return dashboard
+      }
+      case 'neglect': {
+        // No view state of its own: any is dropped.
+        const neglect = pickNeglectConfig(config)
+        if (neglect.fixed) fix('settings')
+        return { id, kind: 'neglect', config: neglect.config }
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }

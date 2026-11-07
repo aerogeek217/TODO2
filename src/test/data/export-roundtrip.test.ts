@@ -198,6 +198,7 @@ function buildSeed(): Seed {
                 },
                 { id: 't6', kind: 'lens', config: {} },
                 { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
+                { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
               ] },
               { id: 'k4', weight: 1, tabs: [] },
             ],

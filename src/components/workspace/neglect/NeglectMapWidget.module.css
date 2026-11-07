@@ -1,0 +1,523 @@
+/*
+ * The Neglect map (D25 board H). The chart is a grid: the y axis's marks
+ * beside the plot, the x axis's under it, then the no-due-date strip. The
+ * plot's dots and guides sit in its `.field`, inset so an edge dot isn't
+ * clipped; the y axis and the strip take the same insets, so their marks
+ * line up with it. Colours come from the theme tokens only.
+ */
+
+.widget {
+  --neglect-inset: 8px;
+  --neglect-axis-width: 52px;
+  position: relative;
+  display: flex;
+  gap: 14px;
+  box-sizing: border-box;
+  min-height: 100%;
+  padding: 10px 12px 12px;
+}
+
+.beside {
+  flex-direction: row;
+  height: 100%;
+}
+
+.stacked {
+  flex-direction: column;
+}
+
+/* ── The chart ─────────────────────────────────────────────────────────── */
+
+.chart {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: var(--neglect-axis-width) minmax(0, 1fr);
+  grid-template-rows: minmax(160px, 1fr) 20px 40px;
+  user-select: none;
+}
+
+/* Narrow and on phones the plot scales with the width. */
+.stacked .chart {
+  flex: none;
+  grid-template-rows: auto 20px 40px;
+}
+
+.stacked .plot {
+  aspect-ratio: 1 / 1;
+  max-height: 420px;
+}
+
+.yAxis {
+  grid-column: 1;
+  grid-row: 1;
+  position: relative;
+  margin: var(--neglect-inset) 0;
+}
+
+.yMark,
+.xMark {
+  position: absolute;
+  font-size: 10.5px;
+  line-height: 1;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.yMark {
+  right: 8px;
+  transform: translateY(-50%);
+}
+
+.yMark[data-mark='today'] {
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+}
+
+.yMark[data-mark='top'] {
+  transform: none;
+}
+
+.yMark[data-mark='bottom'] {
+  transform: translateY(-100%);
+}
+
+.plot {
+  grid-column: 2;
+  grid-row: 1;
+  position: relative;
+  min-height: 0;
+  border-radius: var(--radius-chip);
+  background: var(--color-tint-3);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+}
+
+.field {
+  position: absolute;
+  inset: var(--neglect-inset);
+}
+
+/* The Slipping corner, to the plot's own corner: a faint wash of the deadline colour. */
+.slippingCorner {
+  position: absolute;
+  top: calc(-1 * var(--neglect-inset));
+  right: calc(-1 * var(--neglect-inset));
+  border-top-right-radius: var(--radius-chip);
+  background: linear-gradient(
+    to bottom left,
+    color-mix(in srgb, var(--color-deadline) 18%, transparent),
+    color-mix(in srgb, var(--color-deadline) 4%, transparent)
+  );
+  pointer-events: none;
+}
+
+.todayLine,
+.soonLine {
+  position: absolute;
+  left: calc(-1 * var(--neglect-inset));
+  right: calc(-1 * var(--neglect-inset));
+  height: 0;
+  pointer-events: none;
+}
+
+.todayLine {
+  border-top: 1px solid var(--color-tint-20);
+}
+
+.soonLine {
+  border-top: 1px dashed color-mix(in srgb, var(--color-deadline) 55%, transparent);
+}
+
+.untouchedLine {
+  position: absolute;
+  top: calc(-1 * var(--neglect-inset));
+  bottom: calc(-1 * var(--neglect-inset));
+  width: 0;
+  border-left: 1px dashed var(--color-text-muted);
+  opacity: 0.7;
+  pointer-events: none;
+}
+
+.corner {
+  position: absolute;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.cornerSlipping {
+  top: 0;
+  right: 0;
+  color: var(--color-deadline);
+  opacity: 1;
+}
+
+.cornerInHand {
+  top: 0;
+  left: 0;
+}
+
+.cornerPlanned {
+  bottom: 0;
+  left: 0;
+}
+
+.cornerDrifting {
+  bottom: 0;
+  right: 0;
+}
+
+.xAxis {
+  grid-column: 2;
+  grid-row: 2;
+  position: relative;
+  margin: 0 var(--neglect-inset);
+}
+
+.xMark {
+  top: 5px;
+  transform: translateX(-50%);
+}
+
+.xMark[data-mark='zero'] {
+  transform: none;
+}
+
+.xMark[data-mark='cap'] {
+  transform: translateX(-100%);
+}
+
+.xMark[data-mark='threshold'] {
+  color: var(--color-text-secondary);
+}
+
+/* ── The no-due-date strip ─────────────────────────────────────────────── */
+
+.strip {
+  grid-column: 2;
+  grid-row: 3;
+  position: relative;
+  margin-top: 4px;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-3);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+}
+
+.stripField {
+  position: absolute;
+  inset: 0 var(--neglect-inset);
+}
+
+/* Untouched for the threshold: the Forgotten part, a faint yellow. */
+.forgottenPart {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: calc(-1 * var(--neglect-inset));
+  border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  background: color-mix(in srgb, var(--color-followup) 12%, transparent);
+  pointer-events: none;
+}
+
+/* The labels along the strip's top; its dots sit under them (`stripPct`). */
+.stripLabel,
+.forgottenLabel {
+  position: absolute;
+  top: 5px;
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.stripLabel {
+  left: 0;
+  color: var(--color-text-muted);
+}
+
+.forgottenLabel {
+  right: 0;
+  color: var(--color-followup);
+}
+
+/* ── Dots ──────────────────────────────────────────────────────────────── */
+
+.dot {
+  --dot-size: 9px;
+  --dot-ring: 0 0 0 1.5px var(--color-surface);
+  position: absolute;
+  z-index: var(--z-above);
+  width: var(--dot-size);
+  height: var(--dot-size);
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: var(--dot-colour, var(--color-text-muted));
+  box-shadow: var(--dot-ring);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+  transition: transform var(--transition-fast);
+}
+
+.dot[data-marked='true'] {
+  --dot-size: 13px;
+}
+
+.dot[data-followup-late='true'] {
+  --dot-ring: 0 0 0 1.5px var(--color-surface), 0 0 0 3px var(--color-followup);
+}
+
+.dot[data-selected='true'] {
+  z-index: var(--z-above-2);
+  --dot-ring: 0 0 0 1.5px var(--color-surface), 0 0 0 3.5px var(--color-accent);
+}
+
+.dot:hover {
+  z-index: var(--z-above-3);
+  transform: translate(-50%, -50%) scale(1.3);
+}
+
+.dot:focus-visible {
+  z-index: var(--z-above-3);
+  box-shadow: var(--dot-ring), var(--focus-ring);
+}
+
+.dotBadge,
+.slipBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: var(--radius-pill);
+  background: var(--color-deadline);
+  color: var(--color-surface);
+  font-size: 9.5px;
+  font-weight: var(--font-weight-bold);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.dotBadge {
+  position: absolute;
+  left: calc(100% + 2px);
+  bottom: calc(100% - 2px);
+  pointer-events: none;
+}
+
+.dot[data-badge-side='left'] .dotBadge {
+  right: calc(100% + 2px);
+  left: auto;
+}
+
+/* The lasso: a drag on empty plot. */
+.lasso {
+  position: absolute;
+  z-index: var(--z-above-3);
+  border: 1px solid var(--color-accent);
+  border-radius: 2px;
+  background: var(--color-accent-bg-subtle);
+  pointer-events: none;
+}
+
+/* ── The Slipping list ─────────────────────────────────────────────────── */
+
+.slipping {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.beside .slipping {
+  flex: 0 0 240px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.slipHead {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 0 4px;
+}
+
+.slipTitle {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-deadline);
+}
+
+.slipCount {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.slipEmpty {
+  margin: 0;
+  padding: 0 4px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.slipList {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.slipRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  padding: 5px 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.slipRow:hover {
+  background: var(--color-tint-5);
+}
+
+.slipRow[data-selected='true'] {
+  background: var(--color-accent-bg-subtle);
+}
+
+.slipBadge {
+  flex: none;
+  margin-top: 2px;
+}
+
+.slipText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.slipName {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.slipMeta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.slipMore {
+  align-self: flex-start;
+  margin-left: 4px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  cursor: pointer;
+}
+
+.slipMore:hover {
+  background: var(--color-tint-5);
+  color: var(--color-text-primary);
+}
+
+/* ── The screen filter hides every task ────────────────────────────────── */
+
+.notePanel {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: var(--z-above-3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 300px;
+  max-width: calc(100% - 24px);
+  padding: 12px 16px;
+  box-sizing: border-box;
+  border-radius: 8px;
+  background: var(--color-surface-high);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+  text-align: center;
+  transform: translate(-50%, -50%);
+  user-select: text;
+}
+
+.noteTitle {
+  font-size: var(--font-size-task);
+  color: var(--color-text-secondary);
+}
+
+.noteHint {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.noteAction {
+  height: 24px;
+  margin-top: 6px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.noteAction:hover {
+  background: var(--color-tint-14);
+  color: var(--color-text-primary);
+}
+
+/* A tag's colour beside its name in the tab menu's Colour by. */
+.menuSwatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+/* Phones: bigger dots to tap. */
+.touch .dot {
+  --dot-size: 12px;
+}
+
+.touch .dot[data-marked='true'] {
+  --dot-size: 16px;
+}

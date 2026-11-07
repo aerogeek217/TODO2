@@ -7,6 +7,7 @@ import { DashboardWidget } from './dashboard/DashboardWidget'
 import type { DashboardSummary } from './dashboard/dashboard-summary'
 import { EisenhowerWidget } from './eisenhower/EisenhowerWidget'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
+import { NeglectMapWidget } from './neglect/NeglectMapWidget'
 import styles from './WidgetBody.module.css'
 
 /** What a widget reports to its cell (tab count, and what its menu's copy items copy). */
@@ -54,6 +55,8 @@ export function WidgetBody({ tab, onResult, onCustomize }: WidgetBodyProps): Rea
           onCustomize={onCustomize}
         />
       )
+    case 'neglect':
+      return <NeglectMapWidget tab={tab} />
     default: {
       // Every kind has its case above (`never` here), but stored data isn't
       // typed: a kind this build doesn't know (the layout load repair drops
