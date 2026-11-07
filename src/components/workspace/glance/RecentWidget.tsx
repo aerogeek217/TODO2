@@ -4,11 +4,13 @@ import type { RecentTab } from '../../../models/workspace-layout'
 import { useRecentStats, useStatsBase, type ShownOfTotal } from '../../../hooks/use-glance-data'
 import { recentlyCompletedDialog } from '../../../services/task-dialog'
 import type { RecentlyCompleted } from '../../../services/stats/recently-completed'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { countOf } from './glance-copy'
 import { glanceDrill, GLANCE_PANEL_CLASS, useGlanceRows, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { recentLine } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
+import { GlanceSmallFace } from './GlanceSmallFace'
 import type { TodoLookup } from './section-data'
 import { SECTION_META } from './section-meta'
 import { Empty, Panel, RowsGrid, TaskRows, type RowSectionProps } from './section-parts'
@@ -48,18 +50,27 @@ export function RecentWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Recen
   const recentDays = tab.config.recentDays ?? DEFAULT_RECENT_DAYS
   const base = useStatsBase()
   const rows = useGlanceRows(tab)
+  const [faceRef, face] = useWidgetFace()
   const recent = useRecentStats(base, recentDays)
   const lines = useMemo(() => [recentLine({ recent })], [recent])
   useReportLines(onResult, lines)
   return (
-    <GlanceFrame tab={tab} rows={rows}>
-      <RecentSection
+    <GlanceFrame tab={tab} rows={rows} faceRef={faceRef} face={face}>
+      {face === 'small' ? (
+        <GlanceSmallFace
+          glyph={SECTION_META.recent.glyph}
+          glyphColor={SECTION_META.recent.glyphColor}
+          title={SECTION_META.recent.title}
+          value={countOf(recent.shown.ids.length, recent.total.ids.length)}
+          caption={`in ${recentDays} days`}
+        />
+      ) : <RecentSection
         data={{ recent, recentDays, todoById: base.todoById }}
         options={{ recentDays }}
         rows={rows.kit}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
-      />
+      />}
     </GlanceFrame>
   )
 }
