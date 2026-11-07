@@ -40,7 +40,7 @@ function seed(tab: Omit<WsTabSeed, 'id'>, width: number, tasks = TASKS): Workspa
   }
 }
 
-/** A row date's text (D25 D1): `Today`, a weekday, `11/20` or another year's `MM/DD/YY`. */
+/** A row date's text (D25 D1): `Today`, a weekday, or `11/20` (no year). */
 const ROW_DATE = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|\d\d\/\d\d|\d\d\/\d\d\/\d\d)$/
 
 const CELLS = ['markers', 'checkbox', 'notes', 'people', 'tags', 'dates', 'due', 'followup', 'status'] as const
@@ -109,9 +109,9 @@ test('status is the last column, flush with the row’s right padding; the defau
     expect(await laidOutDetails(r)).toBe(300)
   }
   const busy = row(widget, 'Draft the Q4 roadmap review deck')
-  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(55)
-  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(83)
-  expect(Math.round((await box(busy.locator('[data-row-cell="dates"]'))).width)).toBe(106)
+  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(61)
+  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(91)
+  expect(Math.round((await box(busy.locator('[data-row-cell="dates"]'))).width)).toBe(92)
   await expect(busy.locator('[data-row-cell="due"]')).toHaveText(ROW_DATE)
   await expect(busy.locator('[data-row-cell="followup"]')).toHaveText(ROW_DATE)
   await expect(widget.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
@@ -167,7 +167,7 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   // People and tags grew; the dates / status didn't.
   await expect.poll(() => storedTabView(page, 'tab')).toEqual({ detailsWidth: 360 })
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
-  expect(Math.round((await box(first.locator('[data-row-cell="dates"]'))).width)).toBe(106)
+  expect(Math.round((await box(first.locator('[data-row-cell="dates"]'))).width)).toBe(92)
 
   await page.reload()
   await expect(first).toBeVisible()

@@ -202,7 +202,7 @@ test('Lines: a right-click opens the task menu at the pointer; Add tag… opens 
 })
 
 for (const theme of ['dark', 'light'] as const) {
-  test(`Lines (${theme}): a plain task's tick is a visible neutral, a stale one's plainly dimmer`, async ({ page }) => {
+  test(`Lines (${theme}): a plain task's box has a visible neutral border, a stale one's fill is plainly dimmer`, async ({ page }) => {
     const ago = new Date(Date.now() - 40 * 86_400_000)
     const pad = (n: number) => String(n).padStart(2, '0')
     const modifiedAt = `${ago.getFullYear()}-${pad(ago.getMonth() + 1)}-${pad(ago.getDate())}T09:00`
@@ -216,9 +216,11 @@ for (const theme of ['dark', 'light'] as const) {
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     await expect(rowOf(page, 'Stale').locator('[data-task-line]')).toHaveAttribute('data-tone', 'stale')
     await expect(rowOf(page, 'Plain').locator('[data-task-line]')).toHaveAttribute('data-tone', 'none')
-    // The tick's colour painted over the cell's surface (a canvas does the
-    // compositing, whatever syntax the computed colour is in), and that surface: the luminance of each.
-    const lum = (title: string) => rowOf(page, title).locator('[data-task-line] > span').first().evaluate((tick) => {
+    // The box's mark painted over the cell's surface (a canvas does the
+    // compositing, whatever syntax the computed colour is in), and that
+    // surface: the luminance of each. A plain box's mark is its neutral
+    // border (no fill); a stale one's is its fill.
+    const lum = (title: string) => rowOf(page, title).locator('[data-line-box]').evaluate((box) => {
       const ctx = document.createElement('canvas').getContext('2d')!
       const paint = (...colors: string[]) => {
         ctx.clearRect(0, 0, 1, 1)
@@ -227,8 +229,18 @@ for (const theme of ['dark', 'light'] as const) {
       }
       const lin = (v: number) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 }
       const L = ([r = 0, g = 0, b = 0]: number[]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
-      const surface = getComputedStyle(tick.closest('[data-ws-cell]') ?? document.body).backgroundColor
-      return { tick: L(paint(surface, getComputedStyle(tick).backgroundColor)), surface: L(paint(surface)) }
+      const surface = getComputedStyle(box.closest('[data-ws-cell]') ?? document.body).backgroundColor
+      const fill = getComputedStyle(box).backgroundColor
+      let mark = fill
+      if (fill === 'rgba(0, 0, 0, 0)') {
+        // No fill: the border, the neutral token resolved on a probe.
+        const probe = document.createElement('span')
+        probe.style.background = 'var(--color-row-tone-plain)'
+        box.append(probe)
+        mark = getComputedStyle(probe).backgroundColor
+        probe.remove()
+      }
+      return { tick: L(paint(surface, mark)), surface: L(paint(surface)) }
     })
     const ratio = (x: number, y: number) => (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
     const plain = await lum('Plain')

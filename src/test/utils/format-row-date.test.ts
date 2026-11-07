@@ -49,21 +49,21 @@ describe('formatRowDate — relative', () => {
     expect(rel(new Date(2026, 0, 1), today)).toBe('01/01')
   })
 
-  it('another calendar year is MM/DD/YY', () => {
-    expect(rel(new Date(2027, 0, 15), today)).toBe('01/15/27')
-    expect(rel(new Date(2025, 2, 4), today)).toBe('03/04/25')
-    expect(rel(new Date(2030, 11, 9), today)).toBe('12/09/30')
+  it('another calendar year is MM/DD too, no year (the tooltip and name carry it)', () => {
+    expect(rel(new Date(2027, 0, 15), today)).toBe('01/15')
+    expect(rel(new Date(2025, 2, 4), today)).toBe('03/04')
+    expect(rel(new Date(2030, 11, 9), today)).toBe('12/09')
   })
 
-  it('across the year end: the next six days stay weekdays, then the other year’s MM/DD/YY', () => {
+  it('across the year end: the next six days stay weekdays, then MM/DD', () => {
     const newYearsEve = new Date(2026, 11, 31, 18) // Thursday
     expect(rel(new Date(2026, 11, 31), newYearsEve)).toBe('Today')
     expect(rel(new Date(2027, 0, 1), newYearsEve)).toBe('Fri')
     expect(rel(new Date(2027, 0, 6), newYearsEve)).toBe('Wed')
-    expect(rel(new Date(2027, 0, 7), newYearsEve)).toBe('01/07/27')
+    expect(rel(new Date(2027, 0, 7), newYearsEve)).toBe('01/07')
     expect(rel(new Date(2026, 11, 30), newYearsEve)).toBe('12/30')
     // The day before New Year's Day is last year's.
-    expect(rel(new Date(2026, 11, 31), new Date(2027, 0, 1, 9))).toBe('12/31/26')
+    expect(rel(new Date(2026, 11, 31), new Date(2027, 0, 1, 9))).toBe('12/31')
   })
 
   it('counts calendar days over the 25-hour day (clocks back Sun 1 Nov)', () => {

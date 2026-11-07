@@ -57,13 +57,14 @@ describe('TaskDefaultsSection — Remove note lines after converting', () => {
 })
 
 describe('TaskDefaultsSection — Priority cues', () => {
-  it('each priority shows its checkbox ring as the rows draw it (D25 B)', () => {
+  it('each priority shows its checkbox mark as the rows draw it (D25 B): Focus the glow, Urgent / Important their rings', () => {
     render(<TaskDefaultsSection />)
     const rings = Array.from(document.querySelectorAll('[data-cue-ring]')).map((el) => [
       el.getAttribute('data-cue-ring'),
-      el.querySelector('[data-priority-ring]')?.getAttribute('data-priority-ring'),
+      el.querySelector('[data-priority-ring]')?.getAttribute('data-priority-ring') ?? null,
+      el.querySelector('[data-focus-glow]') !== null,
     ])
-    expect(rings).toEqual([['focus', 'focus'], ['urgent', 'urgent'], ['important', 'important']])
+    expect(rings).toEqual([['focus', null, true], ['urgent', 'urgent', false], ['important', 'important', false]])
     expect(screen.getByText("Beside the ring on each task's checkbox. Several glows blend along the row.")).toBeInTheDocument()
   })
 })

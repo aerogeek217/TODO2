@@ -85,7 +85,7 @@ async function rowOverflow(page: Page): Promise<{ rows: number; widths: number[]
 
 /**
  * A row's due and follow-up parts in `tier`: a shown date is its text alone
- * (`Today`, a weekday, `11/20`, `MM/DD/YY` — D25 D1), a dropped one its
+ * (`Today`, a weekday, `11/20` — D25 D1), a dropped one its
  * icon (the clock, the flag) — in view either way.
  */
 async function expectDateParts(row: Locator, tier: string): Promise<void> {
@@ -101,7 +101,7 @@ async function expectDateParts(row: Locator, tier: string): Promise<void> {
 }
 
 /** Which dates the rows show, per column width: the narrower, the fewer. */
-const DATES_TIER: Record<number, string> = { 300: 'icons', 340: 'due', 360: 'due', 380: 'both', 455: 'both', 560: 'both' }
+const DATES_TIER: Record<number, string> = { 300: 'icons', 340: 'due', 360: 'both', 380: 'both', 455: 'both', 560: 'both' }
 
 test.describe('task rows fit their container', () => {
   for (const width of [300, 340, 360, 380, 455, 560]) {

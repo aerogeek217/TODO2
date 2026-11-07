@@ -1,6 +1,6 @@
 import { LIST_ZOOMS, readListZoom, type ListZoom } from '../models/workspace-layout'
 import type { TodoItem } from '../models/todo-item'
-import { formatRowDate } from './date'
+import { formatRowDate, startOfDay } from './date'
 import { isDeadlinePast } from './effective-date'
 import { isFollowupOverdue } from './followup'
 import type { RowDates } from './row-dates'
@@ -55,10 +55,11 @@ export function canStepListZoom(zoom: ListZoom, dir: ZoomDirection): boolean {
 }
 
 /**
- * A task's state as a Lines row's tick draws it, the first that holds: `late` (due date past), `soon` (due
- * inside the Settings "due soon" range), `followup` (the follow-up late),
- * `stale` (untouched for the Settings threshold), else `none` (a completed
- * task too).
+ * A task's state as a Lines row's box fills with it (the box's ring is its
+ * priority, as on a row's checkbox), the first that holds: `late` (due date
+ * past), `soon` (due inside the Settings "due soon" range), `followup` (the
+ * follow-up late), `stale` (untouched for the Settings threshold), else
+ * `none` (a completed task too).
  */
 export type RowTone = 'late' | 'soon' | 'followup' | 'stale' | 'none'
 
@@ -78,6 +79,36 @@ export function rowTone(
   if (isFollowupOverdue(todo, today)) return 'followup'
   if (isStale(todo, today, staleAfterDays)) return 'stale'
   return 'none'
+}
+
+/**
+ * The date at a Lines row's end, coloured as the Rows date cells colour it
+ * (`tone`): `late` — the due date past (bold), `soon` — due inside the
+ * Settings "due soon" range, `followup` — the follow-up today or late,
+ * `plain` — any other. Which date: the follow-up while it is today or late
+ * (it asks for action now), else the due date, else the next follow-up; a
+ * completed task's, or none, is null.
+ */
+export interface LineDate {
+  kind: 'due' | 'followup'
+  text: string
+  tone: 'late' | 'soon' | 'followup' | 'plain'
+}
+
+export function lineDate(
+  todo: Pick<TodoItem, 'dueDate' | 'nextFollowupAt' | 'isCompleted'>,
+  today: Date,
+  { urgentRange, rowDates }: { urgentRange: UrgentDueWithinDays; rowDates: RowDates },
+): LineDate | null {
+  if (todo.isCompleted) return null
+  const next = todo.nextFollowupAt
+  const followupNow = !!next && (isFollowupOverdue(todo, today) || startOfDay(new Date(next)).getTime() === startOfDay(today).getTime())
+  if (next && followupNow) return { kind: 'followup', text: formatRowDate(next, today, rowDates), tone: 'followup' }
+  if (todo.dueDate) {
+    const tone = isDeadlinePast(todo, today) ? 'late' : isUrgentByDate(todo, today, urgentRange) ? 'soon' : 'plain'
+    return { kind: 'due', text: formatRowDate(todo.dueDate, today, rowDates), tone }
+  }
+  return next ? { kind: 'followup', text: formatRowDate(next, today, rowDates), tone: 'plain' } : null
 }
 
 /** What a Lines row's tooltip says beside the title. */

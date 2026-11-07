@@ -79,8 +79,9 @@ function calendarDaysFrom(today: Date, date: Date): number {
 /**
  * A task row's due or next follow-up date (D25 D1). `numeric`: `MM/DD`.
  * `relative`: `Today`; the next six days (tomorrow too) their weekday
- * (`Sat`); any other day of `today`'s calendar year `11/20` (an overdue
- * date too — the row's colour says it is late); another year `01/15/27`.
+ * (`Sat`); any other day `11/20` — an overdue date too (the row's colour
+ * says it is late), and another year's, with no year: the row's date
+ * column keeps to the width of a word.
  * The row's aria-label and tooltip carry the full date.
  */
 export function formatRowDate(date: Date, today: Date, mode: RowDates): string {
@@ -89,8 +90,7 @@ export function formatRowDate(date: Date, today: Date, mode: RowDates): string {
   const days = calendarDaysFrom(today, d)
   if (days === 0) return 'Today'
   if (days >= 1 && days <= 6) return formatDateWith(d, { weekday: 'short' })
-  if (d.getFullYear() === today.getFullYear()) return formatDateNumeric(d)
-  return `${formatDateNumeric(d)}/${String(d.getFullYear() % 100).padStart(2, '0')}`
+  return formatDateNumeric(d)
 }
 
 /** Format as relative time: "just now", "5m ago", "3h ago", "2d ago", or "in Xd" for future */
