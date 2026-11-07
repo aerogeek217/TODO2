@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { FollowupTab, GlanceTab, RecentTab, StaleTab } from '../../../models/workspace-layout'
+import type { FollowupTab, GlanceTab, RecentTab, StaleTab, TodayTab } from '../../../models/workspace-layout'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useLeavingRows, type LeavingRows } from '../../../hooks/use-leaving-rows'
@@ -42,7 +42,7 @@ export function useReportLines(onResult: ((r: GlanceResult) => void) | undefined
   }, [summary, onResultRef])
 }
 
-type RowsTab = FollowupTab | StaleTab | RecentTab
+type RowsTab = FollowupTab | StaleTab | RecentTab | TodayTab
 
 /** A row widget's rows: their selection scope, columns, lingering completions and bulk bar. */
 export interface GlanceRows {
@@ -60,7 +60,7 @@ export interface GlanceRows {
 
 /**
  * The task rows of a row widget (Needs follow-up, Stale tasks, Recently
- * completed): its own selection scope (its tab id) and bulk bar, as the
+ * completed, Today): its own selection scope (its tab id) and bulk bar, as the
  * Dashboard's; the rows' details width is the tab's view state.
  */
 export function useGlanceRows(tab: RowsTab): GlanceRows {

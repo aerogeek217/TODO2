@@ -35,8 +35,11 @@ export interface RowSectionProps<D> extends SectionProps<D> {
   rows: DashboardRowKit
 }
 
+/** What a panel's header names: a section's meta, or a glance widget's own (What changed, Today, Project pulse). */
+export type PanelDef = Pick<DashboardSectionMeta, 'title' | 'glyph' | 'glyphColor'> & { id: string }
+
 export function Panel({ def, count, onCount, sub, extras, style, className, children }: {
-  def: DashboardSectionMeta
+  def: PanelDef
   count?: string
   /** Opens the tasks behind the count; absent = plain text. */
   onCount?: () => void

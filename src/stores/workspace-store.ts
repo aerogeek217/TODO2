@@ -234,10 +234,14 @@ function randomId(): string {
   return `w-${Math.random().toString(36).slice(2, 10)}`
 }
 
-/** A new tab's seed: a Neglect map with no tags given colours by the `Project: …` tags. */
+/**
+ * A new tab's seed: a Neglect map with no tags given colours by the
+ * `Project: …` tags; a What changed or Project pulse with none reads them.
+ */
 function seedFor(kind: WidgetKind, seed: TabSeed | undefined): TabSeed | undefined {
-  if (kind !== 'neglect' || seed?.neglectTagIds) return seed
-  return { ...seed, neglectTagIds: projectTagIds(useTagStore.getState().tags) }
+  if (kind === 'neglect' && !seed?.neglectTagIds) return { ...seed, neglectTagIds: projectTagIds(useTagStore.getState().tags) }
+  if ((kind === 'changes' || kind === 'pulse') && !seed?.tagIds) return { ...seed, tagIds: projectTagIds(useTagStore.getState().tags) }
+  return seed
 }
 
 /** Id generator that never returns an id already in `layout` (or one it handed out). */

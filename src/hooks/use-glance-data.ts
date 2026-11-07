@@ -1,19 +1,22 @@
 import { useMemo } from 'react'
-import type { PersistedTodoItem, TodoEvent } from '../models'
+import type { PersistedTodoItem, Tag, TodoEvent } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import type { LookAhead, TrendRange } from '../models/glance-widgets'
+import { computeChanges, type Change } from '../services/stats/changes'
 import { computeClosedThisWeek, type ClosedThisWeek } from '../services/stats/closed-this-week'
 import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
 import { computeFollowupGroups, type FollowupGroups } from '../services/stats/followup-groups'
 import { computeMetricHistory, type MetricHistory } from '../services/stats/metric-history'
 import { computeNextSevenDays, type NextDaysColumn } from '../services/stats/next-seven-days'
 import { computePeopleStats, type PeopleStats } from '../services/stats/people'
+import { computePulse, type PulseCard } from '../services/stats/pulse'
 import { computeRecentlyCompleted, type RecentlyCompleted } from '../services/stats/recently-completed'
 import { computeStaleTasks, type StaleTasks } from '../services/stats/stale'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { selectStatusBreakdown, type StatusBreakdownEntry } from '../services/stats/status-breakdown'
 import { computeTagStats, type TagStats } from '../services/stats/tags'
 import { computeTiles, type TileStats } from '../services/stats/tiles'
+import { computeTodayPicks, openFocusIds, type TodayPicks } from '../services/stats/today-picks'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListDraftStore } from '../stores/list-draft-store'
@@ -213,6 +216,33 @@ export function useMetricHistory(base: StatsBase): { history: MetricHistory; tre
   return { history: historyMemo(base.shown, events, base.ctx), trend: historyTrendMemo(base.shown, events, base.ctx) }
 }
 
+// ── The brief's parts (D25 L) ───────────────────────────────────────────────
+
+const changesMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext, tagIds: readonly number[]): Change[] => (
+  computeChanges(shown, events, ctx, tagIds)
+))
+/** What changed's sentences over the screen-filtered tasks; `null` until its events have been read. */
+export function useChanges(base: StatsBase, tagIds: readonly number[]): Change[] | null {
+  const events = useTrendEvents('changes')
+  return events ? changesMemo(base.shown, events, base.ctx, tagIds) : null
+}
+
+const pulseMemo = sharedMemo((shown: Tasks, tags: readonly Tag[], ctx: StatsContext, tagIds: readonly number[], staleAfterDays: number): PulseCard[] => (
+  computePulse(shown, tags, ctx, tagIds, staleAfterDays)
+))
+/** Project pulse's cards over the screen-filtered tasks, a card per picked tag. */
+export function usePulse(base: StatsBase, tagIds: readonly number[]): PulseCard[] {
+  const tags = useTagStore((s) => s.tags)
+  const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
+  return pulseMemo(base.shown, tags, base.ctx, tagIds, staleAfterDays)
+}
+
+const todayMemo = sharedMemo((shown: Tasks, ctx: StatsContext): TodayPicks => computeTodayPicks(shown, ctx))
+/** Today's Focus tasks and suggestions over the screen-filtered tasks. */
+export function useTodayPicks(base: StatsBase): TodayPicks {
+  return todayMemo(base.shown, base.ctx)
+}
+
 // ── The Eisenhower summary ──────────────────────────────────────────────────
 
 /** The Eisenhower settings as the Eisenhower summary uses them. */
@@ -353,6 +383,14 @@ export function useFollowupRows(
   return useMemo(
     () => lingeringRows(base, followup.shown, followupRowIds, (tasks) => computeFollowupGroups(tasks, base.ctx, lookAhead), leaving),
     [base, followup, lookAhead, leaving],
+  )
+}
+
+/** Today's Focus rows (`picks.focusIds`, a lingering completion kept in place). */
+export function useTodayRows(base: StatsBase, picks: TodayPicks, leaving: LeavingRows | undefined): LingeringRows<number[]> {
+  return useMemo(
+    () => lingeringRows(base, picks.focusIds, (ids) => ids, (tasks) => openFocusIds(tasks), leaving),
+    [base, picks, leaving],
   )
 }
 

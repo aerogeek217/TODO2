@@ -32,6 +32,7 @@ import {
   type PeopleTabConfig,
   type RecentTabConfig,
   type StaleTabConfig,
+  type TagPicksTabConfig,
   type TagsTabConfig,
   type TrendTabConfig,
 } from './glance-widgets'
@@ -40,18 +41,21 @@ import {
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
  * list widget (its old name; renaming it would need a migration). The glance
  * kinds (D25 N) are the Dashboard's pieces as widgets of their own: `number`
- * (one count) and one per section (`followup` … `eisenhowerSummary`).
+ * (one count), one per section (`followup` … `eisenhowerSummary`), and the
+ * morning brief's parts (D25 L): `changes` (What changed), `today` (the
+ * Focus tasks and suggestions) and `pulse` (Project pulse).
  */
 export type WidgetKind =
   | 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard' | 'neglect'
   | GlanceWidgetKind
 
-/** The glance widget kinds (D25 N): a Number and the Dashboard's sections, each a widget. */
+/** The glance widget kinds (D25 N): a Number, the Dashboard's sections and the brief's parts, each a widget. */
 export type GlanceWidgetKind =
   | 'number' | 'followup' | 'next7' | 'trend' | 'status' | 'people' | 'tags' | 'stale' | 'recent' | 'eisenhowerSummary'
+  | 'changes' | 'today' | 'pulse'
 
 /** The glance kinds that show task rows (each its own selection scope and bulk bar). */
-export type GlanceRowsKind = 'followup' | 'stale' | 'recent'
+export type GlanceRowsKind = 'followup' | 'stale' | 'recent' | 'today'
 
 export type CalendarView = 'week' | 'month'
 
@@ -241,10 +245,14 @@ export type TagsTab = TabOf<'tags', TagsTabConfig, NoTabSettings>
 export type StaleTab = TabOf<'stale', StaleTabConfig, TaskRowsViewState>
 export type RecentTab = TabOf<'recent', RecentTabConfig, TaskRowsViewState>
 export type EisenhowerSummaryTab = TabOf<'eisenhowerSummary', NoTabSettings, NoTabSettings>
+export type ChangesTab = TabOf<'changes', TagPicksTabConfig, NoTabSettings>
+export type TodayTab = TabOf<'today', NoTabSettings, TaskRowsViewState>
+export type PulseTab = TabOf<'pulse', TagPicksTabConfig, NoTabSettings>
 
 /** A glance widget's tab (D25 N). */
 export type GlanceTab =
   | NumberTab | FollowupTab | Next7Tab | TrendTab | StatusTab | PeopleTab | TagsTab | StaleTab | RecentTab | EisenhowerSummaryTab
+  | ChangesTab | TodayTab | PulseTab
 
 export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | DashboardTab | NeglectTab | GlanceTab
 
@@ -430,6 +438,8 @@ export interface TabSeed {
   listDefinitionId?: number
   /** The tags a new Neglect map colours by (the workspace store passes the `Project: …` tags). */
   neglectTagIds?: readonly number[]
+  /** The tags a new What changed or Project pulse reads (the workspace store passes the `Project: …` tags). */
+  tagIds?: readonly number[]
 }
 
 /** The add-widget menus' groups: the task widgets, and the numbers and charts. */
@@ -467,7 +477,7 @@ export interface WidgetKindSpec<K extends WidgetKind> {
 }
 
 /** A glance kind's spec: in the Numbers & charts group, headless when alone in its cell. */
-function glanceSpec<K extends GlanceWidgetKind>(label: string, newTab: (id: string) => TabOfKind<K>, fitHeight = false): WidgetKindSpec<K> {
+function glanceSpec<K extends GlanceWidgetKind>(label: string, newTab: (id: string, seed: TabSeed) => TabOfKind<K>, fitHeight = false): WidgetKindSpec<K> {
   return { label, showsList: false, group: 'glance', glance: true, fitHeight, newTab }
 }
 
@@ -528,6 +538,9 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   stale: glanceSpec('Stale tasks', (id) => ({ id, kind: 'stale', config: { staleDays: DEFAULT_STALE_DAYS } })),
   recent: glanceSpec('Recently completed', (id) => ({ id, kind: 'recent', config: { recentDays: DEFAULT_RECENT_DAYS } })),
   eisenhowerSummary: glanceSpec('Eisenhower summary', (id) => ({ id, kind: 'eisenhowerSummary', config: {} })),
+  changes: glanceSpec('What changed', (id, seed) => ({ id, kind: 'changes', config: { tagIds: [...(seed.tagIds ?? [])] } })),
+  today: glanceSpec('Today', (id) => ({ id, kind: 'today', config: {} })),
+  pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
 }
 
 /** Every widget kind, in menu order. */

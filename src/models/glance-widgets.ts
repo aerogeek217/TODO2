@@ -137,6 +137,15 @@ export interface RecentTabConfig {
   recentDays: RecentDays
 }
 
+/**
+ * What changed / Project pulse: the tags it reads, in pick order (What
+ * changed names the one with the most late tasks; Project pulse draws a
+ * card per tag). A new tab picks the `Project: …` tags.
+ */
+export interface TagPicksTabConfig {
+  tagIds: number[]
+}
+
 /** A config read from untrusted input, and whether a bad or missing value was reset to its default. */
 export interface PickedConfig<C> {
   config: C
@@ -148,6 +157,9 @@ const isLookAhead = (v: unknown): v is LookAhead => includes(LOOK_AHEAD_CHOICES,
 const isTrendRange = (v: unknown): v is TrendRange => includes(TREND_RANGES, v)
 const isStaleDays = (v: unknown): v is StaleDays => includes(STALE_DAYS_CHOICES, v)
 const isRecentDays = (v: unknown): v is RecentDays => includes(RECENT_DAYS_CHOICES, v)
+const isTagId = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
+/** A stored tag pick list: an array of numbers (a tag deleted since is kept; it just matches nothing). */
+const isTagIds = (v: unknown): v is number[] => Array.isArray(v) && v.every(isTagId)
 
 /** `v` when `ok`, else `fallback` (and `fixed`). */
 function pickOne<V>(v: unknown, ok: (v: unknown) => v is V, fallback: V): { value: V; fixed: boolean } {
@@ -196,6 +208,17 @@ export function pickRecentConfig(raw: Obj): PickedConfig<RecentTabConfig> {
   return { config: { recentDays: value }, fixed }
 }
 
+/**
+ * A What changed's or Project pulse's config: its tag ids that are numbers,
+ * each once, in order; not a list = none (`fixed`, as a dropped entry is).
+ */
+export function pickTagPicksConfig(raw: Obj): PickedConfig<TagPicksTabConfig> {
+  const v = raw.tagIds
+  if (!Array.isArray(v)) return { config: { tagIds: [] }, fixed: true }
+  const tagIds = [...new Set((v as unknown[]).filter(isTagId))]
+  return { config: { tagIds }, fixed: !isTagIds(v) }
+}
+
 /** Each glance kind's one config field and whether a stored value is one it keeps (the layout check). */
 export const GLANCE_CONFIG_FIELDS = {
   number: { key: 'metric', ok: isNumberMetric },
@@ -205,4 +228,6 @@ export const GLANCE_CONFIG_FIELDS = {
   tags: { key: 'showUntagged', ok: isBool },
   stale: { key: 'staleDays', ok: isStaleDays },
   recent: { key: 'recentDays', ok: isRecentDays },
+  changes: { key: 'tagIds', ok: isTagIds },
+  pulse: { key: 'tagIds', ok: isTagIds },
 } as const satisfies Record<string, { key: string; ok: (v: unknown) => boolean }>

@@ -213,6 +213,9 @@ function buildSeed(): Seed {
                 { id: 'g8', kind: 'stale', config: { staleDays: 30 } },
                 { id: 'g9', kind: 'recent', config: { recentDays: 14 }, viewState: { detailsWidth: 0 } },
                 { id: 'g10', kind: 'eisenhowerSummary', config: {} },
+                { id: 'g11', kind: 'changes', config: { tagIds: [1] } },
+                { id: 'g12', kind: 'today', config: {}, viewState: { detailsWidth: 300 } },
+                { id: 'g13', kind: 'pulse', config: { tagIds: [1] } },
               ] }),
               // Two cells side by side: an empty one (after a split) and a headless one.
               { id: 'r2', weight: 0.5, cells: [

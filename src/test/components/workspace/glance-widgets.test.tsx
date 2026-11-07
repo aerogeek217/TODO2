@@ -160,7 +160,7 @@ describe('section widgets', () => {
     for (const kind of GLANCE_KINDS) {
       const { unmount } = setup(createTab(kind, `w-${kind}`) as GlanceTab)
       const root = document.querySelector<HTMLElement>(`[data-glance="${kind}"]`)!
-      expect(root.hasAttribute('data-selection-scope')).toBe(['followup', 'stale', 'recent'].includes(kind))
+      expect(root.hasAttribute('data-selection-scope')).toBe(['followup', 'stale', 'recent', 'today'].includes(kind))
       unmount()
     }
   })

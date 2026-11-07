@@ -77,6 +77,11 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   stale: <path d={DASH_GLYPH.stale} />,
   recent: <path d={DASH_GLYPH.done} />,
   eisenhowerSummary: <path d={DASH_GLYPH.matrix} />,
+  // The brief's parts: What changed is lines of text under a spark; Today the
+  // Focus target; Project pulse a ring with its late share as a wedge.
+  changes: <path d="M2.5 4.5h7M2.5 8h11M2.5 11.5h9M12.5 2.2v3.6M10.7 4h3.6" />,
+  today: <path d={DASH_GLYPH.focus} />,
+  pulse: <path d="M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11zM8 2.5V8h5.5" />,
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {

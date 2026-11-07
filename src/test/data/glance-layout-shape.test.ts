@@ -31,12 +31,17 @@ const SETTINGS: Array<[GlanceWidgetKind, string, unknown, unknown, unknown]> = [
   ['tags', 'showUntagged', false, 0, true],
   ['stale', 'staleDays', 60, 15, 14],
   ['recent', 'recentDays', 30, 31, 7],
+  ['changes', 'tagIds', [3, 1], 'tags', []],
+  ['pulse', 'tagIds', [2], { 0: 1 }, []],
 ]
 
 describe('glance widget kinds', () => {
   it('are glance widgets in the Numbers & charts group; only a Number fits its height', () => {
     const glance = WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].glance)
-    expect(glance).toEqual(['number', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhowerSummary'])
+    expect(glance).toEqual([
+      'number', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhowerSummary',
+      'changes', 'today', 'pulse',
+    ])
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'notes', 'eisenhower', 'neglect'])
@@ -52,7 +57,23 @@ describe('glance widget kinds', () => {
     expect(createTab('tags', 'g').config).toEqual({ showUntagged: true })
     expect(createTab('stale', 's').config).toEqual({ staleDays: 14 })
     expect(createTab('recent', 'r').config).toEqual({ recentDays: 7 })
-    for (const kind of ['next7', 'status', 'eisenhowerSummary'] as const) expect(createTab(kind, 'x').config).toEqual({})
+    for (const kind of ['next7', 'status', 'eisenhowerSummary', 'today'] as const) expect(createTab(kind, 'x').config).toEqual({})
+    // What changed and Project pulse read the tags they're seeded with (the store passes the `Project: …` tags).
+    for (const kind of ['changes', 'pulse'] as const) {
+      expect(createTab(kind, 'x').config).toEqual({ tagIds: [] })
+      expect(createTab(kind, 'x', { tagIds: [4, 2] }).config).toEqual({ tagIds: [4, 2] })
+    }
+  })
+
+  it('a tag pick list keeps its numbers once each, in order: a repeat goes quietly, anything else is a fix', () => {
+    for (const kind of ['changes', 'pulse'] as const) {
+      expect(tabOf(layoutRow({ id: 't', kind, config: { tagIds: [2, 1, 2] } }))).toEqual({ id: 't', kind, config: { tagIds: [2, 1] } })
+      expect(rowFixes('layouts', layoutRow({ id: 't', kind, config: { tagIds: [2, 1, 2] } }))).toEqual([])
+      const mixed = layoutRow({ id: 't', kind, config: { tagIds: [2, 'x', null, 5] } })
+      expect(checkLayoutBody({ columns: mixed.columns })).toBe('columns[0].rows[0].cells[0].tabs[0].config.tagIds')
+      expect(rowFixes('layouts', mixed)).toEqual(['tab or cell settings reset'])
+      expect(tabOf(mixed)).toEqual({ id: 't', kind, config: { tagIds: [2, 5] } })
+    }
   })
 
   it.each(SETTINGS)('%s: a known %s round-trips; a bad or missing one is reset to its default', (kind, key, kept, bad, fallback) => {
@@ -81,7 +102,7 @@ describe('glance widget kinds', () => {
   })
 
   it('the row widgets keep a details width (view state); the others drop it', () => {
-    for (const kind of ['followup', 'stale', 'recent'] as const) {
+    for (const kind of ['followup', 'stale', 'recent', 'today'] as const) {
       const tab = { ...createTab(kind, 't'), viewState: { detailsWidth: 280 } }
       expect(tabOf(layoutRow(tab))).toEqual(tab)
       const bad = layoutRow({ ...tab, viewState: { detailsWidth: -1 } })

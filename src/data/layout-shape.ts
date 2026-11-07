@@ -33,6 +33,7 @@ import {
   pickPeopleConfig,
   pickRecentConfig,
   pickStaleConfig,
+  pickTagPicksConfig,
   pickTagsConfig,
   pickTrendConfig,
   type PickedConfig,
@@ -119,7 +120,7 @@ export function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixe
 }
 
 /** The kinds whose tabs show task rows: they keep a details width (`TaskRowsViewState`). */
-const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens', 'eisenhower', 'dashboard', 'followup', 'stale', 'recent'])
+const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens', 'eisenhower', 'dashboard', 'followup', 'stale', 'recent', 'today'])
 
 /** A tab's config / view state for its kind (a case per kind: a new kind doesn't compile without one). */
 function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | string {
@@ -171,7 +172,9 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     case 'people':
     case 'tags':
     case 'stale':
-    case 'recent': {
+    case 'recent':
+    case 'changes':
+    case 'pulse': {
       // One config field, a known value.
       const field = GLANCE_CONFIG_FIELDS[kind]
       return field.ok(config[field.key]) ? true : `${path}.config.${field.key}`
@@ -180,6 +183,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     case 'next7':
     case 'status':
     case 'eisenhowerSummary':
+    case 'today':
       return true
   }
 }
@@ -466,6 +470,12 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         return withRowsView({ id, kind: 'stale', config: glance(pickStaleConfig(config)) })
       case 'recent':
         return withRowsView({ id, kind: 'recent', config: glance(pickRecentConfig(config)) })
+      case 'changes':
+        return { id, kind: 'changes', config: glance(pickTagPicksConfig(config)) }
+      case 'pulse':
+        return { id, kind: 'pulse', config: glance(pickTagPicksConfig(config)) }
+      case 'today':
+        return withRowsView({ id, kind: 'today', config: {} })
       case 'next7':
       case 'status':
       case 'eisenhowerSummary':
