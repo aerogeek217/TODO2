@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { ownerLayoutId } from '../../models/list-definition'
-import { getActiveTab, tabListId, widgetKindLabel, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
+import { getActiveTab, kindTabTitle, tabListId, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -16,7 +16,7 @@ import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
  * kind's name — an Eisenhower tab reads `Eisenhower`.
  */
 export function tabTitle(tab: LayoutTab, listName: string | undefined): string {
-  if (tab.kind !== 'lens' || tab.config.listDefinitionId == null) return widgetKindLabel(tab.kind)
+  if (tab.kind !== 'lens' || tab.config.listDefinitionId == null) return kindTabTitle(tab)
   return listName ?? DELETED_LIST_TITLE
 }
 

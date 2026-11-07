@@ -1,0 +1,20 @@
+/* A glance widget (D25 N): one Dashboard piece filling its cell — a
+ * section with its header, or a Number. */
+
+.widget {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  background: var(--color-surface);
+}
+
+/* A section as a widget: no card of its own — the cell is its frame. */
+.widget > .panel {
+  flex: 1 1 auto;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}

@@ -194,3 +194,15 @@ export function trendBucketDialogWords(start: Date, granularity: 'day' | 'week',
   const week = `Week of ${trendBucketLabel(start, 'week')}`
   return { title: week, description: `Tasks completed or created in the week of ${trendBucketLabel(start, 'week')}.` }
 }
+
+// ── The Number widget's words ────────────────────────────────────────────────
+
+/** Closed this week's sub-line: `Since Sun 4`. */
+export function closedSubLine(weekStart: Date, today: Date): string {
+  return `Since ${formatFollowupDay(weekStart, today)}`
+}
+
+/** A Number's change since yesterday: `+2 vs yesterday`, `No change vs yesterday`. */
+export function deltaLabel(delta: number): string {
+  return delta === 0 ? 'No change vs yesterday' : `${signed(delta)} vs yesterday`
+}

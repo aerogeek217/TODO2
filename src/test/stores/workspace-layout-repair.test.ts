@@ -20,7 +20,7 @@ function corrupt(name = 'Daily'): Omit<WorkspaceLayout, 'id'> {
     createdAt: T0,
     modifiedAt: T0,
     columns: [
-      { id: 'A', weight: 1, rows: [rowOf({ id: 'ka', weight: 1, activeTabId: 'a1', tabs: [createTab('notes', 'a1'), { id: 'old', kind: 'status', config: {} } as never] }, { weight: -1 })] },
+      { id: 'A', weight: 1, rows: [rowOf({ id: 'ka', weight: 1, activeTabId: 'a1', tabs: [createTab('notes', 'a1'), { id: 'old', kind: 'taskboard', config: {} } as never] }, { weight: -1 })] },
       { id: 'B', weight: 1, rows: [rowOf({ id: 'kb', weight: 1, tabs: [createTab('calendar', 'b1')] })] },
     ],
   }

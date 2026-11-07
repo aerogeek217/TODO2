@@ -16,20 +16,27 @@ import { rowOf } from '../helpers/layout-builders'
 /** The widget-kind table and what derives from it. */
 describe('widget kinds', () => {
   it('lists the kinds in menu order, with their names', () => {
-    expect(WIDGET_KINDS).toEqual(['lens', 'calendar', 'notes', 'eisenhower', 'dashboard', 'neglect'])
-    expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual(['List', 'Calendar', 'Notes', 'Eisenhower', 'Dashboard', 'Neglect map'])
+    expect(WIDGET_KINDS).toEqual([
+      'lens', 'calendar', 'notes', 'eisenhower', 'dashboard', 'neglect',
+      'number', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhowerSummary',
+    ])
+    expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
+      'List', 'Calendar', 'Notes', 'Eisenhower', 'Dashboard', 'Neglect map',
+      'Number', 'Needs follow-up', 'Next 7 days', 'Created vs completed', 'Status', 'People', 'Tags', 'Stale tasks',
+      'Recently completed', 'Eisenhower summary',
+    ])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])
   })
 
   it('accepts exactly the stored kind ids (the layout import check uses it)', () => {
     for (const kind of WIDGET_KINDS) expect(isWidgetKind(kind)).toBe(true)
-    for (const v of ['status', 'taskboard', 'list', 'List', 'toString', '__proto__', 'constructor', '', 3, null, undefined]) {
+    for (const v of ['taskboard', 'list', 'List', 'toString', '__proto__', 'constructor', '', 3, null, undefined]) {
       expect(isWidgetKind(v)).toBe(false)
     }
     const layout = (kind: unknown) => [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 't', kind, config: {} }] })] }]
-    expect(checkLayoutBody({ columns: layout('status') })).toBe('columns[0].rows[0].cells[0].tabs[0].kind')
+    expect(checkLayoutBody({ columns: layout('taskboard') })).toBe('columns[0].rows[0].cells[0].tabs[0].kind')
     expect(checkLayoutBody({ columns: layout('toString') })).toBe('columns[0].rows[0].cells[0].tabs[0].kind')
-    expect(pickLayoutBody({ columns: layout('status') }).fixes).toEqual(['tab dropped'])
+    expect(pickLayoutBody({ columns: layout('taskboard') }).fixes).toEqual(['tab dropped'])
   })
 
   it('makes each kind’s new tab with its defaults', () => {
@@ -63,6 +70,10 @@ describe('widget kinds', () => {
     expect(tabTitle(createTab('eisenhower', 'b'), undefined)).toBe('Eisenhower')
     // The Eisenhower reads Eisenhower whatever its list.
     expect(tabTitle(createTab('eisenhower', 'b'), 'Team')).toBe('Eisenhower')
+    // A Number reads its metric.
+    expect(tabTitle(createTab('number', 'n'), undefined)).toBe('Overdue')
+    expect(tabTitle({ id: 'n', kind: 'number', config: { metric: 'closedThisWeek' } }, undefined)).toBe('Closed this week')
+    expect(tabTitle(createTab('trend', 't'), undefined)).toBe('Created vs completed')
   })
 
   it('the list a tab shows: a list tab’s own, an Eisenhower tab’s the Eisenhower’s list; none for the rest', () => {

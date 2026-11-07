@@ -32,7 +32,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['strip shown not a boolean', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }, { stripShown: 'yes' })), 'columns[0].rows[0].cells[0].stripShown'],
   ['zero weight', layoutRow([{ id: 'c', weight: 0, rows: [] }]), 'columns[0].weight'],
   ['unknown kind', layoutRow(oneTab({ id: 't', kind: 'horizons', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
-  ['retired Status widget', layoutRow(oneTab({ id: 't', kind: 'status', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
+  ['retired Taskboard widget', layoutRow(oneTab({ id: 't', kind: 'taskboard', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
   ['dashboard tiles not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { tiles: 'open' } })), 'columns[0].rows[0].cells[0].tabs[0].config.tiles'],
   ['dashboard list tiles not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles: 3 } })), 'columns[0].rows[0].cells[0].tabs[0].config.listTiles'],
   ['dashboard sections not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { sections: {} } })), 'columns[0].rows[0].cells[0].tabs[0].config.sections'],
@@ -57,7 +57,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['band id repeats a cell id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { top: { id: 'k', height: 160, cells: [{ id: 'k-c', weight: 1, tabs: [{ id: 't2', kind: 'notes', config: {} }] }] } }), 'top.id'],
   ['band tab id repeats a tab id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'bottom.cells[0].tabs[0].id'],
   ['the two bands share an id', layoutRow([], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] }, bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't2', kind: 'notes', config: {} }] }] } }), 'bottom.id'],
-  ['unknown band tab kind', layoutRow([], { bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'status', config: {} }] }] } }), 'bottom.cells[0].tabs[0].kind'],
+  ['unknown band tab kind', layoutRow([], { bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'taskboard', config: {} }] }] } }), 'bottom.cells[0].tabs[0].kind'],
   ['bad band collapsed', layoutRow([], { top: { id: 'b', height: 160, collapsed: 1, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.collapsed'],
   ['bad band tab settings', layoutRow([], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'calendar', config: {} }] }] } }), 'top.cells[0].tabs[0].config.dateTypes'],
   ['Neglect map without colourBy', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { untouchedDays: 14 } })), 'columns[0].rows[0].cells[0].tabs[0].config.colourBy'],
@@ -389,7 +389,7 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
   it('counts each kind of fix', () => {
     const row = layoutRow([
       { id: 'c1', weight: 0, rows: [
-        rowOf({ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'nope', config: {} }, { id: 't2', kind: 'status', config: {} }, 5] }, { weight: 'big', collapsed: 'yes' }),
+        rowOf({ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'nope', config: {} }, { id: 't2', kind: 'taskboard', config: {} }, 5] }, { weight: 'big', collapsed: 'yes' }),
       ] },
       { id: 'c1', weight: 1, rows: [] },
     ], { name: '', createdAt: 'never' })

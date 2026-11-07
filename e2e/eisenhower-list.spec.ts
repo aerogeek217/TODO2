@@ -207,7 +207,7 @@ test.describe('desktop', () => {
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: /^Edit list/ })).toHaveCount(0)
     // Back to Eisenhower: its own list's filter line.
-    await (await openTabMenu(page, 'eisTab')).getByRole('menuitemradio', { name: 'Eisenhower' }).click()
+    await (await openTabMenu(page, 'eisTab')).getByRole('menuitemradio', { name: 'Eisenhower', exact: true }).click()
     await expect(widget(page)).toBeVisible()
     await expect(filterLine(page)).toContainText('No filters')
   })

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { TILES, tileColors } from '../../../components/workspace/dashboard/dashboard-tiles'
+import { TILES, tileColors } from '../../../components/workspace/glance/tiles'
 import { DASHBOARD_TILE_IDS } from '../../../models/dashboard-config'
 
 const MUTED = 'var(--color-text-muted)'

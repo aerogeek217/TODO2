@@ -14,16 +14,17 @@ import { readScopeRows } from '../../../utils/scoped-selection'
 import { createValueStore } from '../../../utils/value-store'
 import { ListBulkBar } from '../list/ListBulkBar'
 import { useElementSize } from '../../../hooks/use-element-size'
-import { countOf, tileSubLine, withScreenNote } from './dashboard-copy'
-import { TILES, tileColors, tileDrill } from './dashboard-tiles'
+import { countOf, tileSubLine, withScreenNote } from '../glance/glance-copy'
+import { TILES, tileColors, tileDrill } from '../glance/tiles'
 import { DASHBOARD_WIDE_MIN_PX, packSections, sectionRowTracks, TILES_PER_ROW } from './dashboard-layout'
 import { DASHBOARD_SECTIONS } from './dashboard-sections'
-import { buildDashboardSummary, sectionSummaryLines, type DashboardSummary } from './dashboard-summary'
+import { buildDashboardSummary, sectionSummaryLines, type DashboardSummary } from '../glance/glance-summary'
 import { DashGlyph } from '../../shared/DashGlyph'
+import { Sparkline } from '../glance/Sparkline'
 import { GearIcon } from '../../shared/icons'
 import { useTooltip } from '../../shared/use-tooltip'
 import { useListTileHints } from './use-list-tile-hints'
-import type { DashboardRowKit, OnDashboardDrill } from './types'
+import type { DashboardRowKit, OnDashboardDrill } from '../glance/glance-types'
 import { useDashboardData, type DashboardData } from '../../../hooks/use-dashboard-data'
 import { useLeavingRows } from '../../../hooks/use-leaving-rows'
 import styles from './DashboardWidget.module.css'
@@ -35,23 +36,6 @@ export interface DashboardResult {
   /** Open tasks shown; `shown of total` when the screen filter hides some. */
   countLabel: string
   summary: DashboardSummary
-}
-
-/** The Open tile's sparkline: the open count per day over the trend range. */
-function Sparkline({ series }: { series: readonly number[] }) {
-  if (series.length < 2) return null
-  const min = Math.min(...series)
-  const max = Math.max(...series)
-  const x = (i: number) => 2 + (i * 72) / (series.length - 1)
-  const y = (v: number) => 22 - ((v - min) / Math.max(1, max - min)) * 18
-  const points = series.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ')
-  const last = series.length - 1
-  return (
-    <svg className={styles.spark} width={76} height={26} viewBox="0 0 76 26" aria-hidden="true">
-      <polyline points={points} fill="none" stroke="var(--color-accent)" strokeWidth={1.6} strokeLinejoin="round" strokeLinecap="round" />
-      <circle cx={x(last)} cy={y(series[last] ?? 0)} r={2.4} fill="var(--color-accent)" />
-    </svg>
-  )
 }
 
 function Tile({ id, data, onDrill }: { id: DashboardTileId; data: DashboardData; onDrill?: OnDashboardDrill }) {
@@ -72,7 +56,7 @@ function Tile({ id, data, onDrill }: { id: DashboardTileId; data: DashboardData;
         {shown !== total && <span className={styles.of}>of {total}</span>}
       </span>
       <span className={styles.tileSub}>{sub}</span>
-      {id === 'open' && data.trend && <Sparkline series={data.trend.openSeries} />}
+      {id === 'open' && data.trend && <Sparkline series={data.trend.openSeries} className={styles.spark} />}
     </>
   )
   const cls = `${styles.tile} ${styles.surface}`

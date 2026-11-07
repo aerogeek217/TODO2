@@ -2,6 +2,7 @@ import { useCallback, useRef, useState, type CSSProperties, type ReactNode, type
 import { useDraggable } from '@dnd-kit/core'
 import {
   getActiveTab,
+  isGlanceTab,
   tabListId,
   WIDGET_KIND_SPECS,
   type BandEdge,
@@ -50,6 +51,7 @@ import { CustomizeDashboardDialog } from './dashboard/CustomizeDashboardDialog'
 import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from './eisenhower/eisenhower-settings-link'
 import { useDashboardMenuActions } from './dashboard/dashboard-menu'
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
+import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
 import { DashGlyph } from '../shared/DashGlyph'
 import styles from './WorkspaceCell.module.css'
@@ -322,6 +324,11 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, style }: W
     onCustomize: () => { if (menuTab) setCustomize(menuTab.id) },
     summary: menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result.summary : undefined,
   })
+  // A glance widget's settings and Copy (its lines, while it is the cell's active tab).
+  const glance = glanceMenu(
+    menuTab && isGlanceTab(menuTab) ? menuTab : undefined,
+    menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result.summary : undefined,
+  )
 
   const cellMenuEntries: MenuEntry[] = [
     // The active widget's own setup, when it has one.
@@ -534,8 +541,8 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, style }: W
             ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => openEisenhowerSettings() }]
             : undefined}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
-          settingEntries={menuTab.kind === 'neglect' ? neglectEntries : menuTab.kind === 'lens' ? zoomEntries : undefined}
-          widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
+          settingEntries={menuTab.kind === 'neglect' ? neglectEntries : menuTab.kind === 'lens' ? zoomEntries : glance?.settingEntries}
+          widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : glance ? glance.actions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
             ? [
                 // The top bar's lens on this list, while one applies there: on / off here (saved at once).
                 ...(widgetResult.result.lens ? [lensSwitchAction(widgetResult.result.lens)] : []),

@@ -11,8 +11,8 @@ import {
   withSectionOption,
 } from '../../../components/workspace/dashboard/dashboard-customize'
 import { resolvePanes } from '../../../utils/eisenhower-panes'
-import { buildDashboardSummary, sectionSummaryLines } from '../../../components/workspace/dashboard/dashboard-summary'
-import { tileCatalogHint } from '../../../components/workspace/dashboard/dashboard-copy'
+import { buildDashboardSummary, sectionSummaryLines } from '../../../components/workspace/glance/glance-summary'
+import { tileCatalogHint } from '../../../components/workspace/glance/glance-copy'
 import { defaultDashboardConfig, DASHBOARD_SECTION_IDS, DASHBOARD_TILE_IDS, type DashboardTabConfig } from '../../../models/dashboard-config'
 import type { TileStats } from '../../../services/stats/tiles'
 

@@ -1,15 +1,15 @@
 import { create } from 'zustand'
 import { todoEventRepository } from '../data/todo-event-repository'
 import type { TodoEvent } from '../models'
-import type { DashboardTrendRange as TrendRange } from '../models/dashboard-config'
-import { TREND_EVENT_TYPES, trendWindow } from '../utils/trend-window'
+import { eventsWindowRead, type EventsWindow } from '../utils/trend-window'
 import type { WeekStart } from '../utils/effective-date'
 import { dayKey } from '../utils/date'
 
 /**
- * The `todoEvents` the dashboard trend reads, cached per (range, day): one
- * indexed read of every created / completed / reopened event since the
- * range's first day. `invalidate` (on any event write, or after a restore)
+ * The `todoEvents` the dashboard trend and the Numbers' history read, cached
+ * per (window, day): one indexed read of every created / completed /
+ * reopened event (and, for a Number's history, `deadline`) since the
+ * window's first day. `invalidate` (on any event write, or after a restore)
  * marks every entry stale; a stale entry keeps its events on show until the
  * re-read lands, so the chart never blanks.
  */
@@ -26,12 +26,12 @@ interface TrendEventsState {
   /** Bumped by `invalidate`; a read that started before it lands stale. */
   generation: number
   /** Reads the window's events unless the entry is fresh or already loading. */
-  load: (range: TrendRange, today: Date, weekStartsOn: WeekStart) => Promise<void>
+  load: (range: EventsWindow, today: Date, weekStartsOn: WeekStart) => Promise<void>
   invalidate: () => void
 }
 
-/** The cache key of a trend window. */
-export function trendEventsKey(range: TrendRange, today: Date, weekStartsOn: WeekStart): string {
+/** The cache key of a trend window (or a Number's history, `history`). */
+export function trendEventsKey(range: EventsWindow, today: Date, weekStartsOn: WeekStart): string {
   return `${range}|${weekStartsOn}|${dayKey(today)}`
 }
 
@@ -59,8 +59,8 @@ export const useTrendEventsStore = create<TrendEventsState>((set, get) => {
       setEntry(key, { events: previous, stale: true, loading: true }, dayKey(today))
       let events: readonly TodoEvent[]
       try {
-        const window = trendWindow(range, today, weekStartsOn)
-        events = await todoEventRepository.since(window.start, TREND_EVENT_TYPES)
+        const read = eventsWindowRead(range, today, weekStartsOn)
+        events = await todoEventRepository.since(read.start, read.types)
       } catch (e) {
         console.error('Failed to read task history:', e)
         // Keep what was shown; don't retry until the next change.

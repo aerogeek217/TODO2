@@ -28,6 +28,8 @@ export interface WsTabSeed {
     listTileIdxs?: number[]
     sections?: Array<{ id: string; options?: Record<string, unknown> }>
   }
+  /** Glance tabs (Number, the sections): config fields over the kind's defaults, e.g. `{ metric: 'open' }`. */
+  glance?: Record<string, unknown>
   /** Neglect map tabs: the config (defaults: colour by no tags, 14 days). */
   neglect?: {
     /** Colour by these tags (names from `tags`), by people, or not at all. */
@@ -318,6 +320,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         else if (n.colourBy) config.colourBy = { kind: 'tags', tagIds: n.colourBy.tags.map((name) => tagIds.get(name)).filter((id) => id != null) }
         if (n.untouchedDays != null) config.untouchedDays = n.untouchedDays
       }
+      if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
       if (tab.zoom != null) out.viewState = { ...(out.viewState as object | undefined), zoom: tab.zoom }
       out.config = config

@@ -19,7 +19,7 @@ async function corruptActiveLayout(page: Page): Promise<number> {
   const cell = layout?.columns[0]?.rows[0]?.cells[0]
   if (!layout || !cell) throw new Error('no active layout')
   cell.weight = -1
-  cell.tabs.push({ id: 'retired', kind: 'status', config: {} })
+  cell.tabs.push({ id: 'retired', kind: 'taskboard', config: {} })
   await writeStores(page, { put: { layouts: [layout] } })
   return active
 }

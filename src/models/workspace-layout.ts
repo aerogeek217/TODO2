@@ -20,12 +20,38 @@
  */
 
 import { defaultDashboardConfig, type DashboardTabConfig } from './dashboard-config'
+import {
+  DEFAULT_LOOK_AHEAD,
+  DEFAULT_NUMBER_METRIC,
+  DEFAULT_RECENT_DAYS,
+  DEFAULT_STALE_DAYS,
+  DEFAULT_TREND_RANGE,
+  NUMBER_METRIC_LABELS,
+  type FollowupTabConfig,
+  type NumberTabConfig,
+  type PeopleTabConfig,
+  type RecentTabConfig,
+  type StaleTabConfig,
+  type TagsTabConfig,
+  type TrendTabConfig,
+} from './glance-widgets'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
- * list widget (its old name; renaming it would need a migration).
+ * list widget (its old name; renaming it would need a migration). The glance
+ * kinds (D25 N) are the Dashboard's pieces as widgets of their own: `number`
+ * (one count) and one per section (`followup` … `eisenhowerSummary`).
  */
-export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard' | 'neglect'
+export type WidgetKind =
+  | 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard' | 'neglect'
+  | GlanceWidgetKind
+
+/** The glance widget kinds (D25 N): a Number and the Dashboard's sections, each a widget. */
+export type GlanceWidgetKind =
+  | 'number' | 'followup' | 'next7' | 'trend' | 'status' | 'people' | 'tags' | 'stale' | 'recent' | 'eisenhowerSummary'
+
+/** The glance kinds that show task rows (each its own selection scope and bulk bar). */
+export type GlanceRowsKind = 'followup' | 'stale' | 'recent'
 
 export type CalendarView = 'week' | 'month'
 
@@ -205,8 +231,22 @@ export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
 export type DashboardTab = TabOf<'dashboard', DashboardTabConfig, TaskRowsViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
+export type NumberTab = TabOf<'number', NumberTabConfig, NoTabSettings>
+export type FollowupTab = TabOf<'followup', FollowupTabConfig, TaskRowsViewState>
+export type Next7Tab = TabOf<'next7', NoTabSettings, NoTabSettings>
+export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
+export type StatusTab = TabOf<'status', NoTabSettings, NoTabSettings>
+export type PeopleTab = TabOf<'people', PeopleTabConfig, NoTabSettings>
+export type TagsTab = TabOf<'tags', TagsTabConfig, NoTabSettings>
+export type StaleTab = TabOf<'stale', StaleTabConfig, TaskRowsViewState>
+export type RecentTab = TabOf<'recent', RecentTabConfig, TaskRowsViewState>
+export type EisenhowerSummaryTab = TabOf<'eisenhowerSummary', NoTabSettings, NoTabSettings>
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | DashboardTab | NeglectTab
+/** A glance widget's tab (D25 N). */
+export type GlanceTab =
+  | NumberTab | FollowupTab | Next7Tab | TrendTab | StatusTab | PeopleTab | TagsTab | StaleTab | RecentTab | EisenhowerSummaryTab
+
+export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | DashboardTab | NeglectTab | GlanceTab
 
 export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -392,27 +432,43 @@ export interface TabSeed {
   neglectTagIds?: readonly number[]
 }
 
+/** The add-widget menus' groups: the task widgets, and the numbers and charts. */
+export type WidgetKindGroup = 'tasks' | 'glance'
+
+/** The groups in menu order, with their headings. */
+export const WIDGET_KIND_GROUPS: ReadonlyArray<{ group: WidgetKindGroup; label: string }> = [
+  { group: 'tasks', label: 'Tasks' },
+  { group: 'glance', label: 'Numbers & charts' },
+]
+
 /** What the app knows about one widget kind. */
 export interface WidgetKindSpec<K extends WidgetKind> {
   /** Its name in menus, the add-widget tiles and tab titles. */
   label: string
   /** A new tab of this kind shows a list (one of the layout's), picked before the tab is added. */
   showsList: boolean
+  /** Its group in the add-widget menus. */
+  group: WidgetKindGroup
   /**
-   * A glance widget (a number, a summary): a cell holding one tab of it is
-   * headless unless its `stripShown` says otherwise (`utils/workspace-rows`),
-   * and a row of only glance cells may shrink to `GLANCE_ROW_MIN_PX`.
-   * Absent = false.
+   * A glance widget (a Number, a section, What changed): a cell holding one
+   * tab of it is headless unless its `stripShown` says otherwise — its tab
+   * strip slides in on hover or focus (`utils/workspace-rows`) — and a row of
+   * only glance cells may shrink to `GLANCE_ROW_MIN_PX`.
    */
-  glance?: boolean
+  glance: boolean
   /**
-   * Its content sets its height: a row whose every cell holds one tab of
-   * such a kind fits its content instead of taking a share of the column
-   * (`utils/workspace-rows.isFitRow`). Absent = false.
+   * Its content sets its height (a Number): a row whose every cell holds one
+   * tab of such a kind fits its content instead of taking a share of the
+   * column (`utils/workspace-rows.isFitRow`).
    */
-  fitHeight?: boolean
+  fitHeight: boolean
   /** A new tab of this kind, with its default config. */
   newTab: (id: string, seed: TabSeed) => TabOfKind<K>
+}
+
+/** A glance kind's spec: in the Numbers & charts group, headless when alone in its cell. */
+function glanceSpec<K extends GlanceWidgetKind>(label: string, newTab: (id: string) => TabOfKind<K>, fitHeight = false): WidgetKindSpec<K> {
+  return { label, showsList: false, group: 'glance', glance: true, fitHeight, newTab }
 }
 
 /**
@@ -424,25 +480,54 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   lens: {
     label: 'List',
     showsList: true,
+    group: 'tasks',
+    glance: false,
+    fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'lens', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
   },
   calendar: {
     label: 'Calendar',
     showsList: false,
+    group: 'tasks',
+    glance: false,
+    fitHeight: false,
     newTab: (id) => ({ id, kind: 'calendar', config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }),
   },
-  notes: { label: 'Notes', showsList: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
+  notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
   eisenhower: {
     label: 'Eisenhower',
     showsList: false,
+    group: 'tasks',
+    glance: false,
+    fitHeight: false,
     newTab: (id) => ({ id, kind: 'eisenhower', config: {} }),
   },
-  dashboard: { label: 'Dashboard', showsList: false, newTab: (id) => ({ id, kind: 'dashboard', config: defaultDashboardConfig() }) },
+  dashboard: {
+    label: 'Dashboard',
+    showsList: false,
+    group: 'glance',
+    glance: false,
+    fitHeight: false,
+    newTab: (id) => ({ id, kind: 'dashboard', config: defaultDashboardConfig() }),
+  },
   neglect: {
     label: 'Neglect map',
     showsList: false,
+    group: 'tasks',
+    glance: false,
+    fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'neglect', config: defaultNeglectConfig(seed.neglectTagIds) }),
   },
+  number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: { metric: DEFAULT_NUMBER_METRIC } }), true),
+  followup: glanceSpec('Needs follow-up', (id) => ({ id, kind: 'followup', config: { lookAhead: DEFAULT_LOOK_AHEAD } })),
+  next7: glanceSpec('Next 7 days', (id) => ({ id, kind: 'next7', config: {} })),
+  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
+  status: glanceSpec('Status', (id) => ({ id, kind: 'status', config: {} })),
+  people: glanceSpec('People', (id) => ({ id, kind: 'people', config: { showUnassigned: true } })),
+  tags: glanceSpec('Tags', (id) => ({ id, kind: 'tags', config: { showUntagged: true } })),
+  stale: glanceSpec('Stale tasks', (id) => ({ id, kind: 'stale', config: { staleDays: DEFAULT_STALE_DAYS } })),
+  recent: glanceSpec('Recently completed', (id) => ({ id, kind: 'recent', config: { recentDays: DEFAULT_RECENT_DAYS } })),
+  eisenhowerSummary: glanceSpec('Eisenhower summary', (id) => ({ id, kind: 'eisenhowerSummary', config: {} })),
 }
 
 /** Every widget kind, in menu order. */
@@ -458,6 +543,30 @@ export const UNKNOWN_WIDGET_LABEL = 'Unknown widget'
 /** A widget kind's name (`List`, `Calendar`, …; `UNKNOWN_WIDGET_LABEL` for a kind this build doesn't know). */
 export function widgetKindLabel(kind: WidgetKind): string {
   return isWidgetKind(kind) ? WIDGET_KIND_SPECS[kind].label : UNKNOWN_WIDGET_LABEL
+}
+
+/** The kinds of `group`, in menu order. */
+export function widgetKindsOf(group: WidgetKindGroup): WidgetKind[] {
+  return WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === group)
+}
+
+/** A glance widget kind (`WidgetKindSpec.glance`). */
+export function isGlanceKind(kind: WidgetKind): kind is GlanceWidgetKind {
+  return isWidgetKind(kind) && WIDGET_KIND_SPECS[kind].glance
+}
+
+/** A glance widget's tab. */
+export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
+  return isGlanceKind(tab.kind)
+}
+
+/**
+ * A non-list tab's title: a Number's is its metric (`Overdue`), every
+ * other kind's its kind's name.
+ */
+export function kindTabTitle(tab: LayoutTab): string {
+  if (tab.kind === 'number') return NUMBER_METRIC_LABELS[tab.config.metric] ?? widgetKindLabel(tab.kind)
+  return widgetKindLabel(tab.kind)
 }
 
 /** A new tab of `kind` with that kind's default config. */

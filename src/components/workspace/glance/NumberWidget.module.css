@@ -1,0 +1,120 @@
+/* The Number widget: one count centred in its cell — the label, the count
+ * with its history line, the sub-line. 76px tall at its smallest (a fit
+ * row); a bigger cell draws it large (`.large`), never stretched. */
+
+.body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.number {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--radius-card);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+}
+
+button.number {
+  cursor: pointer;
+}
+
+button.number:hover {
+  background: var(--color-tint-6);
+}
+
+.label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 16px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.figures {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.count {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+.of {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  color: var(--color-text-muted);
+}
+
+.history {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.spark {
+  flex: none;
+}
+
+.delta {
+  font-size: var(--font-size-sm);
+  line-height: 16px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.sub {
+  max-width: 100%;
+  font-size: var(--font-size-sm);
+  line-height: 16px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* A big cell: the count and its line grow; the layout stays centred. */
+.large {
+  gap: 6px;
+}
+
+.large .count {
+  font-size: 40px;
+  line-height: 44px;
+}
+
+.large .history {
+  flex-direction: column;
+  gap: 2px;
+}
