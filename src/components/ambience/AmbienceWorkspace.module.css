@@ -1,0 +1,26 @@
+/*
+ * Ambience in the workspace. The backdrop is the area's first child and the
+ * cells are positioned after it, so it draws under them: it shows only in the
+ * gutters and the empty space. The lamp is the area's last child, over the
+ * cells, and takes no pointer.
+ */
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.sunbeam {
+  position: absolute;
+  inset: 0;
+  transition: opacity 800ms ease;
+}
+
+.lamp {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transition: opacity 800ms ease;
+}
