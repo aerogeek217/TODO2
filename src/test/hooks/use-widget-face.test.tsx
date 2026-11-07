@@ -35,7 +35,7 @@ describe('hostedFace', () => {
   it('unmeasured is large; otherwise widgetFaceFor', () => {
     expect(hostedFace({ width: 0, height: 0 }, {})).toBe('large')
     expect(hostedFace({ width: 400, height: 80 }, {})).toBe('small')
-    expect(hostedFace({ width: 400, height: 200 }, {})).toBe('medium')
+    expect(hostedFace({ width: 400, height: 140 }, {})).toBe('medium')
     expect(hostedFace({ width: 400, height: 400 }, {})).toBe('large')
   })
 
@@ -64,7 +64,7 @@ describe('useWidgetFace', () => {
   })
 
   it('the host hears every face it settles on, and offers its full widget', () => {
-    stubSize(400, 200)
+    stubSize(400, 140)
     const onFace = vi.fn()
     const openFull = vi.fn()
     const probe = renderIn({ onFace, openFull })

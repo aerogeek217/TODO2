@@ -17,7 +17,7 @@ export const SMALL_FACE_MAX_HEIGHT_PX = 90
 /** A body this narrow or narrower shows the small face. */
 export const SMALL_FACE_MAX_WIDTH_PX = 180
 /** A body this tall or shorter (and not small) shows the medium face. */
-export const MEDIUM_FACE_MAX_HEIGHT_PX = 260
+export const MEDIUM_FACE_MAX_HEIGHT_PX = 160
 
 /**
  * The face for a body of `size`. Unmeasured (0 × 0: before the first layout,
