@@ -38,6 +38,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].cells[0].tabs[0].id'],
   ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
   ['negative details width', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { detailsWidth: -1 } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
+  ['unknown list zoom', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'huge' } })), 'columns[0].cells[0].tabs[0].viewState.zoom'],
   ['band not an object', layoutRow([], { bottom: 'yes' }), 'bottom'],
   ['band with no tabs', layoutRow([], { top: { id: 'b', height: 160, tabs: [] } }), 'top.tabs'],
   ['band tabs not a list', layoutRow([], { top: { id: 'b', height: 160, tabs: {} } }), 'top.tabs'],
@@ -384,6 +385,27 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do'] } })
     // Not an object: the tab's settings reset, as for any kind.
     expect(rowFixes('layouts', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: 7 })))).toEqual(['tab or cell settings reset'])
+  })
+
+  it('a list tab’s zoom round-trips with its details width; an unknown one is dropped (the tab opens at the Settings default)', () => {
+    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.cells[0]!.tabs[0]
+    for (const zoom of ['stacked', 'rows', 'lines', 'strips']) {
+      const row = layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 280, zoom } }))
+      expect(validateRow('layouts', row), zoom).toBe(true)
+      expect(rowFixes('layouts', row)).toEqual([])
+      const res = validateImportData({ todos: [], settings: [], layouts: [row] })
+      if (!res.ok) throw new Error(res.error)
+      expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 280, zoom })
+    }
+    // A zoom alone is view state enough.
+    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } }))))
+      .toEqual({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } })
+    // Repaired: an unknown level dropped, the details width kept; with nothing left, no view state.
+    const bad = layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 300, zoom: 'mosaic' } }))
+    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(bad)).toEqual({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 300 } })
+    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 2 } }))))
+      .toEqual({ id: 't', kind: 'lens', config: {} })
   })
 
   it('a Neglect map’s config keeps only its keys; a bad part falls back to its default', () => {

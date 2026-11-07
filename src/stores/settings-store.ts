@@ -51,7 +51,8 @@ import {
 } from '../utils/completed-at'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../data/checkin-filter-shape'
 import { DEFAULT_STALE_AFTER_DAYS, isStaleAfterDays, parseStaleAfterDays } from '../utils/stale'
-import { DEFAULT_ROW_DENSITY, isRowDensity, type RowDensity } from '../utils/row-density'
+import { DEFAULT_LIST_ZOOM, LIST_ZOOM_LABELS, parseListZoomSetting } from '../utils/list-zoom'
+import { isListZoom, type ListZoom } from '../models/workspace-layout'
 import { DEFAULT_ROW_DATES, isRowDates, type RowDates } from '../utils/row-dates'
 import type { Lens } from '../utils/lens'
 import { formatLensesSetting, isLensId, readLensesSetting } from '../data/lens-shape'
@@ -84,7 +85,7 @@ import { registerModuleReset } from '../utils/module-reset'
 
 export type ThemeMode = 'light' | 'dark' | 'system'
 
-export type { RowDensity } from '../utils/row-density'
+export type { ListZoom } from '../models/workspace-layout'
 export type { RowDates } from '../utils/row-dates'
 
 export type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
@@ -141,8 +142,8 @@ interface SettingsData {
   tabBadges: TabBadgeRanges
   /** What each priority adds to a task's row (`utils/priority-cues`). */
   priorityCues: PriorityCues
-  /** Row density of the desktop task rows (`utils/row-density`). */
-  rowDensity: RowDensity
+  /** The zoom of a list tab that hasn't picked one (Settings › Appearance › Default list zoom; `utils/list-zoom`). */
+  listZoom: ListZoom
   /** How the task rows show their due and follow-up dates (`utils/row-dates`). */
   rowDates: RowDates
   /** The lenses (named screen filters, picked in the top bar — `utils/lens`), in Settings' order. */
@@ -216,8 +217,8 @@ interface SettingsState extends SettingsData {
   setStaleAfterDays: (days: number) => Promise<void>
   setTabBadges: (ranges: TabBadgeRanges) => Promise<void>
   setPriorityCues: (cues: PriorityCues) => Promise<void>
-  /** The row density (an unknown value is ignored); stored only when not `compact`. */
-  setRowDensity: (density: RowDensity) => Promise<void>
+  /** The default list zoom (an unknown value is ignored); stored only when not `rows`. */
+  setListZoom: (zoom: ListZoom) => Promise<void>
   /** How the task rows show dates (an unknown value is ignored); stored only when not `relative`. */
   setRowDates: (dates: RowDates) => Promise<void>
   // The lens edits and the top bar's pick are `stores/lens-actions`' (cr31 A5).
@@ -584,12 +585,13 @@ export const SETTINGS = {
     failure: 'Couldn’t save the priority cues.',
     undo: () => 'Changed the priority cues',
   }),
-  rowDensity: setting(['rowDensity'], {
-    read: (rows) => ({ rowDensity: rowOr(rows, K.rowDensity, DEFAULT_ROW_DENSITY, (v) => (isRowDensity(v) ? v : DEFAULT_ROW_DENSITY)) }),
-    rows: ({ rowDensity }) => rowUnlessDefault(K.rowDensity, rowDensity, rowDensity === DEFAULT_ROW_DENSITY),
-    label: 'the row density',
-    failure: 'Couldn’t save the row density.',
-    undo: ({ rowDensity }) => (rowDensity === 'comfortable' ? 'Comfortable rows' : 'Compact rows'),
+  // In the `rowDensity` row, which held the densities before the zoom levels (read as levels: `utils/list-zoom`).
+  listZoom: setting(['listZoom'], {
+    read: (rows) => ({ listZoom: rowOr(rows, K.rowDensity, DEFAULT_LIST_ZOOM, (v) => parseListZoomSetting(v) ?? DEFAULT_LIST_ZOOM) }),
+    rows: ({ listZoom }) => rowUnlessDefault(K.rowDensity, listZoom, listZoom === DEFAULT_LIST_ZOOM),
+    label: 'the default list zoom',
+    failure: 'Couldn’t save the default list zoom.',
+    undo: ({ listZoom }) => `Default list zoom: ${LIST_ZOOM_LABELS[listZoom]}`,
   }),
   rowDates: setting(['rowDates'], {
     read: (rows) => ({ rowDates: rowOr(rows, K.rowDates, DEFAULT_ROW_DATES, (v) => (isRowDates(v) ? v : DEFAULT_ROW_DATES)) }),
@@ -746,8 +748,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     await SETTINGS.priorityCues.write({ priorityCues: cues })
   },
 
-  async setRowDensity(density) {
-    if (isRowDensity(density)) await SETTINGS.rowDensity.write({ rowDensity: density })
+  async setListZoom(zoom) {
+    if (isListZoom(zoom)) await SETTINGS.listZoom.write({ listZoom: zoom })
   },
 
   async setRowDates(dates) {

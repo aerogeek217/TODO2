@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { useSettingsStore, type RowDates, type RowDensity, type ThemeMode } from '../../../stores/settings-store'
+import { useSettingsStore, type RowDates, type ThemeMode } from '../../../stores/settings-store'
+import { LIST_ZOOMS } from '../../../models/workspace-layout'
+import { LIST_ZOOM_LABELS } from '../../../utils/list-zoom'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { ThemeColorsEditor } from '../ThemeColorsEditor'
 import { NlpSyntaxModal } from '../NlpSyntaxModal'
@@ -13,22 +15,17 @@ const THEME_OPTIONS: ReadonlyArray<{ mode: ThemeMode; label: string }> = [
   { mode: 'dark', label: 'Dark' },
 ]
 
-const DENSITY_OPTIONS: ReadonlyArray<{ density: RowDensity; label: string }> = [
-  { density: 'comfortable', label: 'Comfortable' },
-  { density: 'compact', label: 'Compact' },
-]
-
 const DATES_OPTIONS: ReadonlyArray<{ dates: RowDates; label: string }> = [
   { dates: 'relative', label: 'Relative' },
   { dates: 'numeric', label: 'MM/DD' },
 ]
 
-/** Theme (the only place it is set), theme colors, the row density and how rows show dates. */
+/** Theme (the only place it is set), theme colors, the default list zoom and how rows show dates. */
 export function AppearanceSection() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
-  const rowDensity = useSettingsStore((s) => s.rowDensity)
-  const setRowDensity = useSettingsStore((s) => s.setRowDensity)
+  const listZoom = useSettingsStore((s) => s.listZoom)
+  const setListZoom = useSettingsStore((s) => s.setListZoom)
   const rowDates = useSettingsStore((s) => s.rowDates)
   const setRowDates = useSettingsStore((s) => s.setRowDates)
   const isMobile = useIsMobile()
@@ -54,18 +51,21 @@ export function AppearanceSection() {
           ))}
         </div>
       </SettingRow>
-      <SettingRow label="Row density" help="Comfortable lets task names wrap to two lines in taller rows; Compact keeps one line per task.">
-        <div className={styles.segmented} role="radiogroup" aria-label="Row density">
-          {DENSITY_OPTIONS.map(({ density, label }) => (
+      <SettingRow
+        label="Default list zoom"
+        help="How a list tab draws its tasks until you zoom it (Ctrl + scroll over the list, or its tab menu): Stacked puts the details under the name, Rows one row per task, Lines the names alone, Strips a bar per task."
+      >
+        <div className={styles.segmented} role="radiogroup" aria-label="Default list zoom">
+          {LIST_ZOOMS.map((zoom) => (
             <button
-              key={density}
+              key={zoom}
               type="button"
               role="radio"
-              aria-checked={rowDensity === density}
-              className={`${styles.segment} ${rowDensity === density ? styles.segmentActive : ''}`}
-              onClick={() => void setRowDensity(density)}
+              aria-checked={listZoom === zoom}
+              className={`${styles.segment} ${listZoom === zoom ? styles.segmentActive : ''}`}
+              onClick={() => void setListZoom(zoom)}
             >
-              {label}
+              {LIST_ZOOM_LABELS[zoom]}
             </button>
           ))}
         </div>

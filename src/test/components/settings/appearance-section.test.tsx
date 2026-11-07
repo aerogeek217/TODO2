@@ -12,21 +12,21 @@ beforeEach(async () => {
 
 afterEach(cleanup)
 
-describe('AppearanceSection — row density', () => {
-  it('offers Comfortable | Compact under the theme, Compact checked by default; a pick is saved and the row goes back to compact', async () => {
+describe('AppearanceSection — default list zoom', () => {
+  it('offers Stacked | Rows | Lines | Strips under the theme, Rows checked by default; a pick is saved and Rows removes the row', async () => {
     render(<AppearanceSection />)
-    const group = screen.getByRole('radiogroup', { name: 'Row density' })
-    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Comfortable', 'Compact'])
-    expect(within(group).getByRole('radio', { name: 'Compact' })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.getByText(/Comfortable lets task names wrap to two lines/)).toBeInTheDocument()
+    const group = screen.getByRole('radiogroup', { name: 'Default list zoom' })
+    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Stacked', 'Rows', 'Lines', 'Strips'])
+    expect(within(group).getByRole('radio', { name: 'Rows' })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByText(/How a list tab draws its tasks until you zoom it/)).toBeInTheDocument()
 
-    fireEvent.click(within(group).getByRole('radio', { name: 'Comfortable' }))
-    await waitFor(() => expect(useSettingsStore.getState().rowDensity).toBe('comfortable'))
-    expect(within(group).getByRole('radio', { name: 'Comfortable' })).toHaveAttribute('aria-checked', 'true')
-    await waitFor(async () => expect((await db.settings.get('rowDensity'))?.value).toBe('comfortable'))
+    fireEvent.click(within(group).getByRole('radio', { name: 'Lines' }))
+    await waitFor(() => expect(useSettingsStore.getState().listZoom).toBe('lines'))
+    expect(within(group).getByRole('radio', { name: 'Lines' })).toHaveAttribute('aria-checked', 'true')
+    await waitFor(async () => expect((await db.settings.get('rowDensity'))?.value).toBe('lines'))
 
-    fireEvent.click(within(group).getByRole('radio', { name: 'Compact' }))
-    await waitFor(() => expect(useSettingsStore.getState().rowDensity).toBe('compact'))
+    fireEvent.click(within(group).getByRole('radio', { name: 'Rows' }))
+    await waitFor(() => expect(useSettingsStore.getState().listZoom).toBe('rows'))
     await waitFor(async () => expect(await db.settings.get('rowDensity')).toBeUndefined())
   })
 })

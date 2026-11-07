@@ -16,13 +16,23 @@ function startDrag(divider: Element) {
   fireEvent.pointerMove(divider, { pointerId: 1, clientX: 380 })
 }
 
-describe('TaskRowGrid density', () => {
-  it('carries the Settings row density as data-density (compact by default), live', () => {
-    const { container } = render(<TaskRowGrid><div /></TaskRowGrid>)
+describe('TaskRowGrid zoom', () => {
+  it('carries its zoom as data-zoom (rows by default), whatever the Settings default', () => {
+    useSettingsStore.setState({ listZoom: 'stacked' })
+    const { container, rerender } = render(<TaskRowGrid><div /></TaskRowGrid>)
     const grid = container.querySelector('[data-task-row-grid]')
-    expect(grid).toHaveAttribute('data-density', 'compact')
-    act(() => useSettingsStore.setState({ rowDensity: 'comfortable' }))
-    expect(grid).toHaveAttribute('data-density', 'comfortable')
+    expect(grid).toHaveAttribute('data-zoom', 'rows')
+    rerender(<TaskRowGrid zoom="lines"><div /></TaskRowGrid>)
+    expect(grid).toHaveAttribute('data-zoom', 'lines')
+  })
+
+  it('draws the divider at rows only', () => {
+    const { queryByRole, rerender } = render(<TaskRowGrid onDetailsWidthChange={() => {}} zoom="rows"><div /></TaskRowGrid>)
+    expect(queryByRole('separator')).not.toBeNull()
+    for (const zoom of ['stacked', 'lines', 'strips'] as const) {
+      rerender(<TaskRowGrid onDetailsWidthChange={() => {}} zoom={zoom}><div /></TaskRowGrid>)
+      expect(queryByRole('separator')).toBeNull()
+    }
   })
 })
 

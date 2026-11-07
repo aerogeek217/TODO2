@@ -4,6 +4,7 @@ import {
   clampCalendarOffset,
   EISENHOWER_QUADRANTS,
   isEisenhowerQuadrant,
+  isListZoom,
   isWidgetKind,
   pickDetailsWidth,
   type CalendarTabViewState,
@@ -14,6 +15,7 @@ import {
   type LayoutColumn,
   type LayoutTab,
   type LensTabConfig,
+  type ListTabViewState,
   type WidgetKind,
   DEFAULT_CALENDAR_DATE_TYPES,
   DEFAULT_WEIGHT,
@@ -117,6 +119,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   switch (kind) {
     case 'lens':
       if (config.listDefinitionId !== undefined && !isFiniteNum(config.listDefinitionId)) return `${path}.config.listDefinitionId`
+      if (view?.zoom !== undefined && !isListZoom(view.zoom)) return `${path}.viewState.zoom`
       return true
     case 'calendar': {
       const types = config.dateTypes
@@ -319,8 +322,13 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const lensConfig: LensTabConfig = {}
         if (isFiniteNum(config.listDefinitionId)) lensConfig.listDefinitionId = config.listDefinitionId
         else if (config.listDefinitionId !== undefined) fix('settings')
-        const lensView = rowsView()
-        return lensView ? { id, kind: 'lens', config: lensConfig, viewState: lensView } : { id, kind: 'lens', config: lensConfig }
+        // The zoom: one of the levels, else dropped (the tab opens at the Settings default).
+        const lensView: ListTabViewState = { ...rowsView() }
+        if (isListZoom(view?.zoom)) lensView.zoom = view.zoom
+        else if (view?.zoom !== undefined) fix('settings')
+        return Object.keys(lensView).length > 0
+          ? { id, kind: 'lens', config: lensConfig, viewState: lensView }
+          : { id, kind: 'lens', config: lensConfig }
       }
       case 'calendar': {
         const types = config.dateTypes

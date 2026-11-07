@@ -12,7 +12,7 @@ import { parseUrgentDueWithinDays } from '../utils/urgency'
 import { formatShortcutOverrides, readShortcutOverrides } from '../utils/shortcut-bindings'
 import { isCheckinOpenMethod } from '../utils/checkin-settings'
 import { parseStaleAfterDays } from '../utils/stale'
-import { isRowDensity } from '../utils/row-density'
+import { parseListZoomSetting } from '../utils/list-zoom'
 import { isRowDates } from '../utils/row-dates'
 import { parsePurgePromptIntervalDays } from '../utils/completed-at'
 import type { WorkspaceLayout } from '../models/workspace-layout'
@@ -431,7 +431,9 @@ function checkSetting(v: unknown): CheckResult {
     return isDateLike(v.value) ? true : 'value (purgePromptLastAt must be a date)'
   }
   if (v.key === SETTING_KEYS.rowDensity) {
-    return isRowDensity(v.value) ? true : 'value (rowDensity must be comfortable or compact)'
+    return parseListZoomSetting(v.value) !== undefined
+      ? true
+      : 'value (rowDensity must be stacked, rows, lines or strips — or comfortable or compact)'
   }
   if (v.key === SETTING_KEYS.rowDates) {
     return isRowDates(v.value) ? true : 'value (rowDates must be relative or numeric)'
