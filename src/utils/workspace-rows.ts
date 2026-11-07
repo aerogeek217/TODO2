@@ -28,27 +28,29 @@ function onlyKind(cell: Pick<LayoutCell, 'tabs'>): WidgetKind | null {
 /**
  * Whether a cell hides its tab strip (it slides in on hover or focus): it
  * holds exactly one tab, and either its `stripShown` is `false`, or it has
- * none and that tab is a glance widget. `stripShown: true` always shows it.
+ * none and that tab is a glance widget — or shows its small face (D25 R:
+ * `smallFace`, what the cell heard from its widget). `stripShown: true`
+ * always shows it.
  */
-export function isHeadlessCell(cell: Pick<LayoutCell, 'tabs' | 'stripShown'>, glance: KindFlag = isGlanceKind): boolean {
+export function isHeadlessCell(cell: Pick<LayoutCell, 'tabs' | 'stripShown'>, glance: KindFlag = isGlanceKind, smallFace = false): boolean {
   const kind = onlyKind(cell)
   if (kind == null || cell.stripShown === true) return false
-  return cell.stripShown === false || glance(kind)
+  return cell.stripShown === false || glance(kind) || smallFace
 }
 
 /** What a cell's strip would be with no `stripShown` of its own: headless (`false`) or shown (`true`). */
-export function stripShownByWidget(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): boolean {
-  return !isHeadlessCell({ tabs: cell.tabs }, glance)
+export function stripShownByWidget(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind, smallFace = false): boolean {
+  return !isHeadlessCell({ tabs: cell.tabs }, glance, smallFace)
 }
 
 /**
  * The `stripShown` the cell menu's toggle writes to show (`show`) or hide
  * the strip: the explicit choice, or `null` (by widget) when the widget
- * would do that by itself — so toggling twice puts the cell back to its
- * widget's way.
+ * would do that by itself — at the face it shows now (`smallFace`) — so
+ * toggling twice puts the cell back to its widget's way.
  */
-export function stripShownChoice(cell: Pick<LayoutCell, 'tabs'>, show: boolean, glance: KindFlag = isGlanceKind): boolean | null {
-  return stripShownByWidget(cell, glance) === show ? null : show
+export function stripShownChoice(cell: Pick<LayoutCell, 'tabs'>, show: boolean, glance: KindFlag = isGlanceKind, smallFace = false): boolean | null {
+  return stripShownByWidget(cell, glance, smallFace) === show ? null : show
 }
 
 /** Whether a row fits its content: every cell holds exactly one tab, of a `fitHeight` kind. */

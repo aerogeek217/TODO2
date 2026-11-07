@@ -71,6 +71,7 @@ function CellRow({ row, band, style }: { row: LayoutCellRow; band?: BandEdge; st
               rowId={row.id}
               collapsed={collapsed}
               multiRow={row.cells.length > 1}
+              fitRow={fit}
               style={{ flex: `${cell.weight / cellsWeight} 1 0px` }}
             />
           </Fragment>
