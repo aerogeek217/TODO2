@@ -93,6 +93,21 @@ describe('Graphical | Expression', () => {
     expect(screen.queryByTestId('expression-locked')).toBeNull()
     expect(screen.getByRole('button', { name: /Filter/ })).toBeTruthy()
   })
+
+  it('a filter put back to chips from outside (Revert, undo) shows them; one emptied stays in Expression', () => {
+    const chips = { ...emptyPredicate(), personIds: [1] }
+    const show = (predicate: TodoPredicate) => <PredicateChips predicate={predicate} layout="stack" onChange={() => {}} />
+    const { rerender } = render(show({ ...emptyPredicate(), expression: RULE }))
+    expect(field().value).toBe('/focus or (@Alice and !Waiting)')
+    rerender(show(chips))
+    expect(screen.queryByRole('textbox', { name: 'Filter expression' })).toBeNull()
+    expect(mode('Graphical')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByText('Alice')).toBeTruthy()
+    rerender(show({ ...emptyPredicate(), expression: RULE }))
+    rerender(show(emptyPredicate()))
+    expect(mode('Expression')).toHaveAttribute('aria-checked', 'true')
+    expect(field().value).toBe('')
+  })
 })
 
 describe('the expression field', () => {

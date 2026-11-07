@@ -8,6 +8,7 @@ import {
   type FilterChip, type GraphicalLineItem,
 } from '../../../utils/filter-chips'
 import { freeDateField, offeredDateFields } from '../../../utils/date-filters'
+import { hasFilterClause } from '../../../utils/filter-clauses'
 import { rowOrderOf, sortedRows, withoutChipRow, withoutPriorityRow, withRowsAdded, type ChipRef, type RowOrder } from '../../../utils/filter-row-order'
 import { asExpression, asGraphical, withExpression } from '../../../utils/predicate-expression'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
@@ -90,11 +91,14 @@ export function PredicateChips(props: PredicateChipsProps) {
   const { predicate, onChange, before, layout = 'line', omitFields, onOpenExpression } = props
   const isExpression = predicate.expression != null
   const [mode, setMode] = useState<FilterMode>(isExpression ? 'expression' : 'graphical')
-  // A filter that became an expression elsewhere (undo, a reload) shows as one.
+  // A filter that became an expression elsewhere (undo, a reload) shows as
+  // one; one that became chips elsewhere (Revert, undo) shows them. Emptied,
+  // it stays where it is: clearing the field leaves Expression open.
   const [seenExpression, setSeenExpression] = useState(isExpression)
   if (isExpression !== seenExpression) {
     setSeenExpression(isExpression)
     if (isExpression) setMode('expression')
+    else if (hasFilterClause(predicate)) setMode('graphical')
   }
   const names = useChipNames()
   const text = useMemo(() => expressionText(predicate, names), [predicate, names])
