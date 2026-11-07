@@ -353,7 +353,8 @@ test.describe('week rows', () => {
     await seedWorkspace(page, {
       listDefinitions: [TASK_LIST],
       tasks: ['One', 'Two', 'Three', 'Four', 'Five'].map((title) => ({ title, dueInDays: 0 })),
-      layouts: weekRowsLayout(0.25),
+      // Short, but still the full calendar (a body over 260px; shorter shows its medium face, D25 R).
+      layouts: weekRowsLayout(0.4),
     })
     await expect(calendar(page)).toHaveAttribute('data-mode', 'rows')
     const today = await day(page, 0)

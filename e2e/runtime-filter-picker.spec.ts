@@ -39,21 +39,18 @@ async function findPanelRect(page: Page, optionName: string): Promise<PanelGeom 
 }
 
 test('panel portals to body and flips above the field when the widget sits at the viewport bottom', async ({ page }) => {
-  // The list widget is the short bottom cell of a column, so its prompt
-  // field sits near the viewport bottom: the default bottom-start placement
-  // would overflow → `usePopoverAnchor`'s flip lands the panel above.
+  // The list widget is a short bottom band (the shortest that shows the full
+  // list: a body over 260px, D25 R), so its prompt field sits near the viewport
+  // bottom: the default bottom-start placement of a full panel (enough people
+  // to reach its 240px cap) would overflow → `usePopoverAnchor`'s flip lands
+  // the panel above.
   await seedWorkspace(page, {
-    people: ['Ada', 'Bob', 'Cy', 'Di'],
+    people: ['Ada', 'Bob', 'Cy', 'Di', ...Array.from({ length: 10 }, (_, n) => `Person ${n + 1}`)],
     listDefinitions: [{ name: 'Person picker', runtimeFilter: { field: 'person' } }],
     layouts: [{
       name: 'Main',
-      columns: [{
-        id: 'col',
-        rows: [
-          wsRow({ id: 'top', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { weight: 5 }),
-          wsRow({ id: 'bottom', tabs: [{ id: 'listTab', kind: 'lens', listDefIdx: 0 }] }),
-        ],
-      }],
+      columns: [{ id: 'col', rows: [wsRow({ id: 'top', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }],
+      bottom: { id: 'bottom-band', height: 296, cells: [{ id: 'bottom', tabs: [{ id: 'listTab', kind: 'lens', listDefIdx: 0 }] }] },
     }],
   })
 
