@@ -7,7 +7,9 @@ import { useFilterSettings } from '../../../hooks/use-filter-settings'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useToday } from '../../../hooks/use-today'
 import { useTodoNameLookups } from '../../../hooks/use-todo-name-lookups'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
+import type { WidgetFace } from '../../../utils/widget-face'
 import { slippingTasksDialog } from '../../../services/task-dialog'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
@@ -28,6 +30,7 @@ import {
   NEGLECT_Y_MIN,
   neglectDotColour,
   untouchedText,
+  type NeglectMap,
   type NeglectPoint,
   type NeglectZone,
 } from '../../../utils/neglect-map'
@@ -226,14 +229,74 @@ function xMarks(untouchedDays: number): Array<{ x: number; label: string; key: s
  * selection, which the bulk bar acts on.
  */
 export function NeglectMapWidget({ tab }: { tab: NeglectTab }) {
-  const isMobile = useIsMobile()
+  // Its face (D25 R), measured on a host the body's size (the full map grows past it when stacked).
+  const [faceRef, face] = useWidgetFace()
+  return (
+    <div ref={faceRef} className={styles.faceHost}>
+      {face === 'large' ? <NeglectMapFull tab={tab} /> : <NeglectFace tab={tab} face={face} />}
+    </div>
+  )
+}
+
+/** Every open task the screen filter keeps, placed on the map (the full map's and its faces'). */
+function useNeglectMap(tab: NeglectTab) {
   const today = useToday()
   const todos = useTodoStore((s) => s.todos)
   const lookups = useTodoNameLookups()
-  const { filters: screen, active: screenActive } = useScreenFilter()
+  const { filters: screen } = useScreenFilter()
+  const markerSettings = useFilterSettings()
+  const dueSoonDays = useSettingsStore((s) => s.urgentDueWithinDays)
+  const { untouchedDays } = tab.config
+  const shown = useMemo(
+    () => applyFilter(screen, todos, lookups, today, markerSettings),
+    [screen, todos, lookups, today, markerSettings],
+  )
+  return useMemo(() => buildNeglectMap(shown, { today, untouchedDays, dueSoonDays }), [shown, today, untouchedDays, dueSoonDays])
+}
+
+/**
+ * The map's small and medium faces (D25 R). Small: the Slipping count, of
+ * the open tasks placed — no 7-day change: what a task's untouched days
+ * were a week ago isn't kept (a task touched since has lost its older
+ * stamp), so a past Slipping count can't be rebuilt honestly. Medium: the
+ * numbered Slipping list without the plot.
+ */
+function NeglectFace({ tab, face }: { tab: NeglectTab; face: Exclude<WidgetFace, 'large'> }) {
+  const map = useNeglectMap(tab)
+  const { untouchedDays } = tab.config
+  const slipping = map.slipping.length
+  if (face === 'medium') {
+    return (
+      <div className={`${styles.widget} ${styles.stacked} ${styles.face}`} data-neglect-face="medium" data-neglect-face-tab={tab.id}>
+        <SlippingList map={map} untouchedDays={untouchedDays} tabId={tab.id} />
+      </div>
+    )
+  }
+  return (
+    <div
+      className={styles.smallFace}
+      role="group"
+      aria-label={`Slipping: ${slipping} of ${map.points.length} open`}
+      data-neglect-face="small"
+      data-neglect-face-tab={tab.id}
+    >
+      <span className={styles.smallTitle}>Slipping</span>
+      <span className={styles.smallFigures}>
+        <span className={styles.smallCount} data-lit={slipping > 0 ? 'true' : undefined} data-testid="neglect-face-count">{slipping}</span>
+        <span className={styles.smallCaption}>of {map.points.length} open · {untouchedDays}d+ untouched</span>
+      </span>
+    </div>
+  )
+}
+
+/** The full map (its large face). */
+function NeglectMapFull({ tab }: { tab: NeglectTab }) {
+  const isMobile = useIsMobile()
+  const today = useToday()
+  const todos = useTodoStore((s) => s.todos)
+  const { active: screenActive } = useScreenFilter()
   const lens = useAppliedLens()
   const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
-  const markerSettings = useFilterSettings()
   const dueSoonDays = useSettingsStore((s) => s.urgentDueWithinDays)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
@@ -241,15 +304,10 @@ export function NeglectMapWidget({ tab }: { tab: NeglectTab }) {
   const [sizeRef, size] = useElementSize()
   const { untouchedDays, colourBy } = tab.config
 
-  const shown = useMemo(
-    () => applyFilter(screen, todos, lookups, today, markerSettings),
-    [screen, todos, lookups, today, markerSettings],
-  )
-  const map = useMemo(() => buildNeglectMap(shown, { today, untouchedDays, dueSoonDays }), [shown, today, untouchedDays, dueSoonDays])
+  const map = useNeglectMap(tab)
   const openTotal = useMemo(() => todos.reduce((n, t) => n + (t.isCompleted ? 0 : 1), 0), [todos])
 
-  const listed = useMemo(() => map.slipping.slice(0, SLIPPING_LISTED), [map])
-  const badges = useMemo(() => new Map(listed.map((p, i) => [p.todo.id, i + 1])), [listed])
+  const badges = useMemo(() => new Map(map.slipping.slice(0, SLIPPING_LISTED).map((p, i) => [p.todo.id, i + 1])), [map])
 
   // Selection rows, in the order the keyboard walks them: the Slipping list's, then the rest.
   const rows = useMemo<ScopedRow[]>(() => {
@@ -287,7 +345,6 @@ export function NeglectMapWidget({ tab }: { tab: NeglectTab }) {
   const nearEdge = yPct(dueSoonDays != null ? Math.min(NEGLECT_Y_MAX, dueSoonDays) : 0)
   const forgottenStart = threshold
   const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
-  const showMore = map.slipping.length > listed.length
 
   const dotFor = (p: NeglectPoint<PersistedTodoItem>) => (
     <Dot
@@ -371,50 +428,75 @@ export function NeglectMapWidget({ tab }: { tab: NeglectTab }) {
         )}
       </div>
 
-      <section className={styles.slipping} aria-label="Slipping">
-        <header className={styles.slipHead}>
-          <span className={styles.slipTitle}>Slipping</span>
-          <span className={styles.slipCount} data-testid="neglect-slipping-count">{map.slipping.length}</span>
-        </header>
-        {map.slipping.length === 0 ? (
-          <p className={styles.slipEmpty}>
-            Nothing slipping: every task due soon or late was touched in the last {untouchedDays} days.
-          </p>
-        ) : (
-          <ol className={styles.slipList}>
-            {listed.map((p, i) => (
-              <li key={p.todo.id}>
-                <button
-                  type="button"
-                  className={styles.slipRow}
-                  data-selected={inScope && selectedIds.has(p.todo.id) ? 'true' : undefined}
-                  {...{ [TODO_ID_ATTR]: p.todo.id }}
-                  onClick={() => openEditPopup(p.todo.id)}
-                >
-                  <span className={styles.slipBadge} aria-hidden="true">{i + 1}</span>
-                  <span className={styles.slipText}>
-                    <span className={styles.slipName}>{p.todo.title}</span>
-                    <span className={styles.slipMeta}>{dueInText(p.dueIn)} · {untouchedText(p.untouched)}</span>
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ol>
-        )}
-        {showMore && (
-          <button
-            type="button"
-            className={styles.slipMore}
-            onClick={() => useUIStore.getState().showTaskDialog({
-              ...slippingTasksDialog(map.slipping.map((p) => p.todo.id), untouchedDays),
-              fromTabId: tab.id,
-            })}
-          >
-            {map.slipping.length - listed.length} more
-          </button>
-        )}
-      </section>
+      <SlippingList
+        map={map}
+        untouchedDays={untouchedDays}
+        tabId={tab.id}
+        selectedIds={inScope ? selectedIds : undefined}
+      />
       {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
     </div>
+  )
+}
+
+/**
+ * The Slipping list: its count, then its first `SLIPPING_LISTED` tasks
+ * numbered as their dots are badged (each opens its task), the rest in the
+ * task dialog. The map's own list, and its medium face (D25 R) alone.
+ */
+function SlippingList({ map, untouchedDays, tabId, selectedIds }: {
+  map: NeglectMap<PersistedTodoItem>
+  untouchedDays: number
+  tabId: string
+  /** The widget's selection, while it owns it (the full map's). */
+  selectedIds?: ReadonlySet<number>
+}) {
+  const openEditPopup = useUIStore((s) => s.openEditPopup)
+  const listed = map.slipping.slice(0, SLIPPING_LISTED)
+  const showMore = map.slipping.length > listed.length
+  return (
+    <section className={styles.slipping} aria-label="Slipping">
+      <header className={styles.slipHead}>
+        <span className={styles.slipTitle}>Slipping</span>
+        <span className={styles.slipCount} data-testid="neglect-slipping-count">{map.slipping.length}</span>
+      </header>
+      {map.slipping.length === 0 ? (
+        <p className={styles.slipEmpty}>
+          Nothing slipping: every task due soon or late was touched in the last {untouchedDays} days.
+        </p>
+      ) : (
+        <ol className={styles.slipList}>
+          {listed.map((p, i) => (
+            <li key={p.todo.id}>
+              <button
+                type="button"
+                className={styles.slipRow}
+                data-selected={selectedIds?.has(p.todo.id) ? 'true' : undefined}
+                {...{ [TODO_ID_ATTR]: p.todo.id }}
+                onClick={() => openEditPopup(p.todo.id)}
+              >
+                <span className={styles.slipBadge} aria-hidden="true">{i + 1}</span>
+                <span className={styles.slipText}>
+                  <span className={styles.slipName}>{p.todo.title}</span>
+                  <span className={styles.slipMeta}>{dueInText(p.dueIn)} · {untouchedText(p.untouched)}</span>
+                </span>
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+      {showMore && (
+        <button
+          type="button"
+          className={styles.slipMore}
+          onClick={() => useUIStore.getState().showTaskDialog({
+            ...slippingTasksDialog(map.slipping.map((p) => p.todo.id), untouchedDays),
+            fromTabId: tabId,
+          })}
+        >
+          {map.slipping.length - listed.length} more
+        </button>
+      )}
+    </section>
   )
 }

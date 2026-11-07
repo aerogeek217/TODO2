@@ -521,3 +521,75 @@
 .touch .dot[data-marked='true'] {
   --dot-size: 16px;
 }
+
+/* ── Faces (D25 R) ─────────────────────────────────────────────────────── */
+
+/* What the face is measured on: the cell body's size (the full map may grow past it). */
+.faceHost {
+  height: 100%;
+  min-height: 0;
+}
+
+/* The medium face: the Slipping list filling the cell. */
+.face {
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.face .slipping {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* The small face: Slipping and its count, centred as a small Number reads. */
+.smallFace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 6px 12px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.smallTitle {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.smallFigures {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.smallCount {
+  flex: none;
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.smallCount[data-lit='true'] {
+  color: var(--color-deadline);
+}
+
+.smallCaption {
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
