@@ -11,6 +11,7 @@ import {
 import { defaultDashboardConfig } from '../../models/dashboard-config'
 import { checkLayoutBody, pickLayoutBody } from '../../data/layout-shape'
 import { tabTitle } from '../../components/workspace/widget-hooks'
+import { rowOf } from '../helpers/layout-builders'
 
 /** The widget-kind table and what derives from it. */
 describe('widget kinds', () => {
@@ -25,9 +26,9 @@ describe('widget kinds', () => {
     for (const v of ['status', 'taskboard', 'list', 'List', 'toString', '__proto__', 'constructor', '', 3, null, undefined]) {
       expect(isWidgetKind(v)).toBe(false)
     }
-    const layout = (kind: unknown) => [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 't', kind, config: {} }] }] }]
-    expect(checkLayoutBody({ columns: layout('status') })).toBe('columns[0].cells[0].tabs[0].kind')
-    expect(checkLayoutBody({ columns: layout('toString') })).toBe('columns[0].cells[0].tabs[0].kind')
+    const layout = (kind: unknown) => [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 't', kind, config: {} }] })] }]
+    expect(checkLayoutBody({ columns: layout('status') })).toBe('columns[0].rows[0].cells[0].tabs[0].kind')
+    expect(checkLayoutBody({ columns: layout('toString') })).toBe('columns[0].rows[0].cells[0].tabs[0].kind')
     expect(pickLayoutBody({ columns: layout('status') }).fixes).toEqual(['tab dropped'])
   })
 
@@ -50,7 +51,7 @@ describe('widget kinds', () => {
   })
 
   it('every new tab passes the layout check', () => {
-    const columns = [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: WIDGET_KINDS.map((k) => createTab(k, `t-${k}`)) }] }]
+    const columns = [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: WIDGET_KINDS.map((k) => createTab(k, `t-${k}`)) })] }]
     expect(checkLayoutBody({ columns })).toBe(true)
     expect(pickLayoutBody({ columns })).toEqual({ columns, fixes: [] })
   })

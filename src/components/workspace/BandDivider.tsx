@@ -42,7 +42,7 @@ function measure(edge: BandEdge): { height: number; max: number } | null {
 export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }) {
   const setBandHeight = useWorkspaceStore((s) => s.setBandHeight)
   const endResize = useWorkspaceStore((s) => s.endResize)
-  const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
+  const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
   const dragRef = useRef<DragState | null>(null)
   const rafRef = useRef<number | null>(null)
   const pendingRef = useRef<number | null>(null)
@@ -92,7 +92,7 @@ export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }
       // Back to the drag's start as a frame, so the drag's end saves only that.
       void setBandHeight(edge, drag.storedHeight, { live: true })
       endDrag(e.currentTarget, e.pointerId)
-      void setCellCollapsed(band.id, true)
+      void setRowCollapsed(band.id, true)
       return
     }
     pendingRef.current = r.height

@@ -13,6 +13,7 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { addTask } from '../add-task'
+import { rowOf } from '../helpers/layout-builders'
 
 beforeEach(async () => {
   await db.delete()
@@ -165,7 +166,7 @@ describe('currentPaneContext', () => {
 describe('currentPanes', () => {
   const layout = (tabs: LayoutTab[]): PersistedWorkspaceLayout => {
     const at = new Date(2026, 0, 1)
-    return { id: 1, sortOrder: 0, name: 'Main', createdAt: at, modifiedAt: at, columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs }] }] }
+    return { id: 1, sortOrder: 0, name: 'Main', createdAt: at, modifiedAt: at, columns: [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs })] }] }
   }
 
   it('a drop on an Eisenhower tab of the open layout is resolved with the app-wide panes as they are now', () => {

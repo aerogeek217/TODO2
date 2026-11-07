@@ -11,6 +11,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { PEOPLE, SAMPLE_LISTS, STATUSES, TAGS } from '../../fixtures/dashboard-sample'
+import { rowOf } from '../../helpers/layout-builders'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
@@ -21,7 +22,7 @@ function layoutWith(config: DashboardTabConfig): PersistedWorkspaceLayout {
     sortOrder: 0, name: 'Dash',
     createdAt: T0,
     modifiedAt: T0,
-    columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, activeTabId: 'dash', tabs: [tab] }] }],
+    columns: [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, activeTabId: 'dash', tabs: [tab] })] }],
   }
 }
 
@@ -31,7 +32,7 @@ function seed(config: DashboardTabConfig = defaultDashboardConfig()) {
 }
 
 const tabConfig = (): DashboardTabConfig => {
-  const tab = useWorkspaceStore.getState().working!.columns[0]!.cells[0]!.tabs[0]!
+  const tab = useWorkspaceStore.getState().working!.columns[0]!.rows[0]!.cells[0]!.tabs[0]!
   if (tab.kind !== 'dashboard') throw new Error('not a dashboard')
   return tab.config
 }

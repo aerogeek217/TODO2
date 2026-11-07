@@ -4,8 +4,8 @@ import {
   type BandEdge,
   type EisenhowerTab,
   type LayoutBand,
+  type LayoutCell,
   type LayoutColumn,
-  type LayoutPanel,
   type WorkspaceLayout,
 } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -55,9 +55,9 @@ function pagesOf(layout: WorkspaceLayout): PagerPage[] {
   return pages
 }
 
-/** A page's name: the active tab title of its band, or of a column's first cell. */
+/** A page's name: the active tab title of its first cell (a band's, or a column's first row's). */
 function usePageName(page: PagerPage, index: number): string {
-  const first = page.kind === 'band' ? page.band : page.column.cells[0]
+  const first = page.kind === 'band' ? page.band.cells[0] : page.column.rows[0]?.cells[0]
   const title = useTabTitle(first ? getActiveTab(first) : undefined)
   return title || (page.kind === 'band' ? `${page.edge === 'top' ? 'Top' : 'Bottom'} band` : `Column ${index + 1}`)
 }
@@ -342,16 +342,23 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
 }
 
 /**
- * A cell (or a band) on mobile: tabs switch, the ⋯ menu only collapses, a
- * list tab's long-press opens its list sheet. No layout editing.
+ * A cell (of a column's row or a band) on mobile: tabs switch, the ⋯ menu
+ * only collapses (its row), a list tab's long-press opens its list sheet. No
+ * layout editing.
  */
-function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boolean; band?: boolean }) {
+function MobileCell({ cell, rowId, collapsed, fill, band = false }: {
+  cell: LayoutCell
+  /** Its row's id (a column's row, or the band): what collapses. */
+  rowId: string
+  collapsed: boolean
+  fill: boolean
+  band?: boolean
+}) {
   const noun = band ? 'band' : 'cell'
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
-  const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
+  const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
-  const collapsed = cell.collapsed === true
   const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
   const [tabSheet, setTabSheet] = useState<{ tabId: string; listDefinitionId: number } | null>(null)
   const [eisenhowerSheet, setEisenhowerSheet] = useState<string | null>(null)
@@ -371,7 +378,7 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
   const eisenhowerTab = sheetTab?.kind === 'eisenhower' ? sheetTab : undefined
 
   const menuEntries: MenuEntry[] = [
-    { kind: 'item', label: `Collapse ${noun}`, icon: <ChevronUpIcon />, onSelect: () => { void setCellCollapsed(cell.id, true) } },
+    { kind: 'item', label: `Collapse ${noun}`, icon: <ChevronUpIcon />, onSelect: () => { void setRowCollapsed(rowId, true) } },
   ]
 
   return (
@@ -394,7 +401,7 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
           onActivate={(tabId) => {
             withViewTransition(() => {
               void setActiveTab(tabId)
-              if (collapsed) void setCellCollapsed(cell.id, false)
+              if (collapsed) void setRowCollapsed(rowId, false)
             })
           }}
         />
@@ -404,7 +411,7 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
             className={styles.cellAction}
             aria-label={`Expand ${noun}`}
             aria-expanded={false}
-            onClick={() => { void setCellCollapsed(cell.id, false) }}
+            onClick={() => { void setRowCollapsed(rowId, false) }}
           >
             <ChevronDownIcon size={16} />
           </button>
@@ -459,7 +466,7 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
   )
 }
 
-/** A pager page: a column's cells, or a band as one full-height cell. */
+/** A pager page: a column's rows' cells, top to bottom, or a band's cells (one alone fills the page). */
 function MobilePage({ page, index }: { page: PagerPage; index: number }) {
   const name = usePageName(page, index)
   if (page.kind === 'band') {
@@ -471,12 +478,14 @@ function MobilePage({ page, index }: { page: PagerPage; index: number }) {
         aria-label={name}
         data-ws-band-page={page.edge}
       >
-        <MobileCell cell={page.band} fill band />
+        {page.band.cells.map((cell) => (
+          <MobileCell key={cell.id} cell={cell} rowId={page.band.id} collapsed={page.band.collapsed === true} fill={page.band.cells.length === 1} band />
+        ))}
       </section>
     )
   }
   const { column } = page
-  const fill = column.cells.length === 1
+  const fill = column.rows.length === 1 && column.rows[0]?.cells.length === 1
   return (
     <section
       className={styles.column}
@@ -485,7 +494,9 @@ function MobilePage({ page, index }: { page: PagerPage; index: number }) {
       aria-label={name}
       data-ws-column={column.id}
     >
-      {column.cells.map((cell) => <MobileCell key={cell.id} cell={cell} fill={fill} />)}
+      {column.rows.flatMap((row) => row.cells.map((cell) => (
+        <MobileCell key={cell.id} cell={cell} rowId={row.id} collapsed={row.collapsed === true} fill={fill} />
+      )))}
     </section>
   )
 }

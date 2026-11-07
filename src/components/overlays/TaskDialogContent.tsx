@@ -48,7 +48,7 @@ function resolve(payload: TaskDialogPayload): Resolved {
 function cellOfTab(layout: WorkspaceLayout, tabId: string | undefined): { cellId: string; index: number } | null {
   if (tabId == null) return null
   const loc = findTab(layout, tabId)
-  return loc ? { cellId: loc.panelId, index: loc.tabIdx } : null
+  return loc ? { cellId: loc.cellId, index: loc.tabIdx } : null
 }
 
 export interface TaskDialogContentProps {

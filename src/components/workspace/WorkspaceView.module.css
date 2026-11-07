@@ -35,7 +35,7 @@
 }
 
 /* Bands span the visible workspace and never scroll sideways. */
-.area > [data-ws-band],
+.area > [data-ws-band-row],
 .area > [data-ws-band-divider] {
   margin: 0 var(--workspace-gutter);
 }
@@ -64,6 +64,19 @@
 
 .cellGap {
   flex: 0 0 var(--workspace-gutter);
+}
+
+/* A row of cells (a column's row or a band), side by side; it keeps the
+   height its cells need (a collapsed one: their headers). */
+.row {
+  display: flex;
+  gap: var(--workspace-gutter);
+  min-width: 0;
+  min-height: calc(var(--cell-header-height) + var(--cell-body-min-height));
+}
+
+.rowCollapsed {
+  min-height: var(--cell-header-height);
 }
 
 /* ── Empty layout ── */

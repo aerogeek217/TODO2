@@ -16,20 +16,21 @@ import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useListOrderStore } from '../../../stores/list-order-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { clearFilterStore, makePerson, makeTodo, patchScreenFilter, resetEntityStores } from '../../helpers'
+import { rowOf } from '../../helpers/layout-builders'
 
 const TODAY = new Date(2026, 9, 10, 10) // Sat 10 Oct 2026
 const day = (n: number) => new Date(2026, 9, 10 + n)
 
 function layoutWith(tab: EisenhowerTab): PersistedWorkspaceLayout {
   const now = new Date(2026, 0, 1)
-  return { id: 1, sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now, columns: [{ id: 'c1', weight: 1, cells: [{ id: 'x1', weight: 1, tabs: [tab] }] }] }
+  return { id: 1, sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now, columns: [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'x1', weight: 1, tabs: [tab] })] }] }
 }
 
 let lastResult: EisenhowerResult | null = null
 
 /** Renders the tab as the workspace store holds it (so view-state edits show). */
 function Host() {
-  const tab = useWorkspaceStore((s) => s.working?.columns[0]?.cells[0]?.tabs[0])
+  const tab = useWorkspaceStore((s) => s.working?.columns[0]?.rows[0]?.cells[0]?.tabs[0])
   return tab?.kind === 'eisenhower' ? <EisenhowerWidget tab={tab} onResult={(r) => { lastResult = r }} /> : null
 }
 
@@ -158,7 +159,7 @@ describe('EisenhowerWidget', () => {
     expect(document.querySelector('[data-eisenhower]')?.getAttribute('data-layout')).toBe('stacked')
     const toggle = within(quadrant('schedule')).getByRole('button', { expanded: true })
     fireEvent.click(toggle)
-    expect(useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs[0]?.viewState).toEqual({ collapsed: ['schedule'] })
+    expect(useWorkspaceStore.getState().working?.columns[0]?.rows[0]?.cells[0]?.tabs[0]?.viewState).toEqual({ collapsed: ['schedule'] })
     expect(useWorkspaceStore.getState().isDirty).toBe(false)
     expect(quadrant('schedule').getAttribute('data-collapsed')).toBe('true')
     expect(titles('schedule')).toEqual([])

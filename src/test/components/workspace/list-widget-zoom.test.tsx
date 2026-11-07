@@ -17,6 +17,7 @@ import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { LensTab, ListZoom } from '../../../models/workspace-layout'
 import type { Person } from '../../../models'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
+import { rowOf } from '../../helpers/layout-builders'
 
 /**
  * A list tab at each zoom (D25 C + I1), as far as JSDOM shows it: what each
@@ -146,7 +147,7 @@ describe('a list tab’s zoom', () => {
   it('the palette offers Zoom List In / Out for the list on screen, each with its step', () => {
     const tab = tabAt('rows')
     useWorkspaceStore.setState({
-      working: { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(), modifiedAt: new Date(), columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [tab] }] }] },
+      working: { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(), modifiedAt: new Date(), columns: [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [tab] })] }] },
     })
     render(<DndContext><ListWidget tab={tab} /></DndContext>)
     expect(paletteCommands().filter((c) => c.id.startsWith('list-zoom-')).map((c) => [c.name, c.hint])).toEqual([

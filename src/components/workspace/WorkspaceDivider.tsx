@@ -7,12 +7,16 @@ import type { ResizeOptions } from '../../stores/workspace-store'
 
 /** Keyboard step for a focused divider (px). */
 const KEY_STEP_PX = 16
-/** How far past a cell's minimum height the pointer must go to collapse it (px). */
+/** How far past a row's minimum height the pointer must go to collapse it (px). */
 const COLLAPSE_SLACK_PX = 24
 
 interface WorkspaceDividerProps {
-  /** `columns`: between two columns (drags left/right); `cells`: between two cells of a column. */
-  between: 'columns' | 'cells'
+  /**
+   * `columns`: between two columns (drags left/right); `rows`: between two
+   * rows of a column (drags up/down); `cells`: between two cells of a row
+   * (drags left/right).
+   */
+  between: DividerBetween
   aId: string
   bId: string
   weightA: number
@@ -23,7 +27,7 @@ interface WorkspaceDividerProps {
   onResize: (weightById: Record<string, number>, opts?: ResizeOptions) => void
   /** The drag ended (save the result: the frames weren't). */
   onResizeEnd?: () => void
-  /** Cells only: dragging past a cell's minimum collapses it to its header. */
+  /** Rows only: dragging past a row's minimum collapses it to its headers. */
   onCollapse?: (id: string) => void
   label: string
 }
@@ -37,23 +41,27 @@ interface DragState {
   weightB: number
 }
 
-function measure(between: 'columns' | 'cells', id: string): number | null {
-  const attr = between === 'columns' ? 'data-ws-column' : 'data-ws-cell'
+type DividerBetween = 'columns' | 'rows' | 'cells'
+
+const MEASURED: Record<DividerBetween, string> = { columns: 'data-ws-column', rows: 'data-ws-row', cells: 'data-ws-cell' }
+
+function measure(between: DividerBetween, id: string): number | null {
+  const attr = MEASURED[between]
   const el = document.querySelector<HTMLElement>(`[${attr}="${CSS.escape(id)}"]`)
   if (!el) return null
   const r = el.getBoundingClientRect()
-  return between === 'columns' ? r.width : r.height
+  return between === 'rows' ? r.height : r.width
 }
 
 /**
- * The gutter between two columns or two cells, as a resize handle: drag to
+ * The gutter between two columns, rows or cells, as a resize handle: drag to
  * move it (rAF-throttled; only the two neighbours change; the frames are
  * `live` edits, saved once at the end — sizes are view state), double-click to
  * even them out, ←/→ (↑/↓) to move it 16px. Neither neighbour goes below
- * `min`; dragging a cell well past its minimum collapses it instead.
+ * `min`; dragging a row well past its minimum collapses it instead.
  */
 export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, onResize, onResizeEnd, onCollapse, label }: WorkspaceDividerProps) {
-  const axisX = between === 'columns'
+  const axisX = between !== 'rows'
   const dragRef = useRef<DragState | null>(null)
   const rafRef = useRef<number | null>(null)
   const pendingRef = useRef<Record<string, number> | null>(null)

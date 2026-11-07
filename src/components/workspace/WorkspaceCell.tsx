@@ -6,7 +6,6 @@ import {
   WIDGET_KIND_SPECS,
   type BandEdge,
   type LayoutCell,
-  type LayoutPanel,
   type LayoutTab,
   type WidgetKind,
 } from '../../models/workspace-layout'
@@ -61,15 +60,19 @@ function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number
 }
 
 interface WorkspaceCellProps {
-  /** A cell of a column, or (with `band`) a band. */
-  cell: LayoutPanel
-  /** Set when `cell` is the band at that edge. */
+  /** A cell of a column's row, or (with `band`) of a band. */
+  cell: LayoutCell
+  /** Set when `cell` is in the band at that edge. */
   band?: BandEdge
+  /** The id of its row (a column's row, or the band): what collapses. */
+  rowId: string
+  /** Its row is collapsed: the cell shows only its header. */
+  collapsed: boolean
   style?: CSSProperties
 }
 
 /** An empty cell (right after a split): kind buttons, "or drag a tab here", and a close ×. */
-function EmptyCell({ cell, style }: { cell: LayoutCell; style?: CSSProperties }) {
+function EmptyCell({ cell, band, style }: { cell: LayoutCell; band?: BandEdge; style?: CSSProperties }) {
   const closeCell = useWorkspaceStore((s) => s.closeCell)
   const drag = useWorkspaceDrag()
   const over = drag?.hit?.kind === 'empty-cell' && drag.hit.cellId === cell.id && drag.accepts
@@ -78,6 +81,7 @@ function EmptyCell({ cell, style }: { cell: LayoutCell; style?: CSSProperties })
       className={`${styles.emptyCell} ${over ? styles.emptyCellOver : ''}`}
       style={style}
       data-ws-cell={cell.id}
+      data-ws-band={band}
       data-empty="true"
       aria-label="Empty cell"
     >
@@ -192,18 +196,19 @@ function listsLosingLastWidget(tabIds: readonly string[]): number[] {
   return [...out]
 }
 
-/** A cell (an empty one after a split, else its tabs) or a band. */
-export function WorkspaceCell({ cell, band, style }: WorkspaceCellProps) {
-  if (!band && cell.tabs.length === 0 && 'weight' in cell) return <EmptyCell cell={cell} style={style} />
-  return <FilledCell cell={cell} band={band} style={style} />
+/** A cell, in a column's row or a band: an empty one after a split, else its tabs. */
+export function WorkspaceCell(props: WorkspaceCellProps) {
+  const { cell, band, style } = props
+  if (cell.tabs.length === 0) return <EmptyCell cell={cell} band={band} style={style} />
+  return <FilledCell {...props} />
 }
 
-function FilledCell({ cell, band, style }: WorkspaceCellProps) {
+function FilledCell({ cell, band, rowId, collapsed, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const closeTab = useWorkspaceStore((s) => s.closeTab)
   const closeCell = useWorkspaceStore((s) => s.closeCell)
   const splitCell = useWorkspaceStore((s) => s.splitCell)
-  const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
+  const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
   const patchTabConfig = useWorkspaceStore((s) => s.patchTabConfig)
   const movePanel = useWorkspaceStore((s) => s.movePanel)
@@ -215,7 +220,6 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
 
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
-  const collapsed = cell.collapsed === true
   /** What the active tab's widget last reported (any kind): its count label, shown sections or summary. */
   const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
   const [guard, setGuard] = useState<{ listIds: number[]; lead: string; run: () => void } | null>(null)
@@ -240,7 +244,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
 
   const hit = drag?.hit
   const bodyHit = !band && hit?.kind === 'cell-body' && hit.cellId === cell.id ? hit : null
-  const bandHit = band && hit?.kind === 'band-body' && hit.edge === band ? hit : null
+  const bandHit = band && hit?.kind === 'band-body' && hit.cellId === cell.id ? hit : null
   const stripHit = hit?.kind === 'tab-strip' && hit.cellId === cell.id && drag?.accepts ? hit : null
   const joining = drag?.accepts === true && (bodyHit?.zone === 'middle' || bandHit != null)
   const ghosts = joining && drag ? drag.tabs : null
@@ -326,7 +330,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
       bandMoveEntry(band === 'top' ? 'bottom' : 'top'),
       { kind: 'item' as const, label: 'Move to a new column', icon: <SplitRightIcon />, onSelect: () => movePanel(cell.id, { kind: 'layout' }) },
     ] : [
-      { kind: 'item' as const, label: 'Split right', icon: <SplitRightIcon />, onSelect: () => { splitCell(cell.id, 'right') } },
+      { kind: 'item' as const, label: 'Split right', icon: <SplitRightIcon />, onSelect: () => { splitCell(cell.id, 'new-column') } },
       { kind: 'item' as const, label: 'Split below', icon: <SplitBelowIcon />, onSelect: () => { splitCell(cell.id, 'below') } },
       bandMoveEntry('top'),
       bandMoveEntry('bottom'),
@@ -335,7 +339,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
       kind: 'item',
       label: collapsed ? `Expand ${noun}` : `Collapse ${noun}`,
       icon: collapsed ? <ChevronDownIcon size={14} /> : <ChevronUpIcon />,
-      onSelect: () => { void setCellCollapsed(cell.id, !collapsed) },
+      onSelect: () => { void setRowCollapsed(rowId, !collapsed) },
     },
     { kind: 'separator' },
     ...(active ? [{ kind: 'item' as const, label: `Close tab “${activeTitle}”`, icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => closeTabGuarded(active.id) }] : []),
@@ -368,7 +372,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           onActivate={(tabId) => {
             withViewTransition(() => {
               void setActiveTab(tabId)
-              if (collapsed) void setCellCollapsed(cell.id, false)
+              if (collapsed) void setRowCollapsed(rowId, false)
             })
           }}
           onClose={closeTabGuarded}
@@ -386,7 +390,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             aria-label={`Expand ${noun}`}
             aria-expanded={false}
             title={`Expand ${noun}`}
-            onClick={() => { void setCellCollapsed(cell.id, false) }}
+            onClick={() => { void setRowCollapsed(rowId, false) }}
           >
             <ChevronDownIcon size={14} />
           </button>
@@ -398,7 +402,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
               aria-label={`Collapse ${noun}`}
               aria-expanded={true}
               title="Collapse"
-              onClick={() => { void setCellCollapsed(cell.id, true) }}
+              onClick={() => { void setRowCollapsed(rowId, true) }}
             >
               <ChevronUpIcon />
             </button>

@@ -1,5 +1,5 @@
 import { Fragment, type CSSProperties } from 'react'
-import type { BandEdge, LayoutBand, LayoutColumn, WorkspaceLayout } from '../../models/workspace-layout'
+import type { BandEdge, LayoutBand, LayoutCellRow, LayoutColumn, WorkspaceLayout } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { columnEdgeXs, EDGE_ZONE_GUTTER_PX, freeBandEdges } from '../../utils/workspace-drop'
 import { BAND_MIN_PX, CELL_MIN_PX, COLUMN_MIN_PX, expandedWeight } from '../../utils/workspace-resize'
@@ -25,39 +25,67 @@ function EmptyLayout() {
   )
 }
 
+/**
+ * A row of cells — a column's row or a band — drawn side by side, each by its
+ * share of the row's width. A collapsed row folds every cell to its header.
+ */
+function CellRow({ row, band, style }: { row: LayoutCellRow; band?: BandEdge; style: CSSProperties }) {
+  const collapsed = row.collapsed === true
+  const cellsWeight = expandedWeight(row.cells)
+  return (
+    <div
+      className={`${styles.row} ${collapsed ? styles.rowCollapsed : ''}`}
+      style={style}
+      data-ws-row={row.id}
+      data-ws-band-row={band}
+    >
+      {row.cells.map((cell) => (
+        <WorkspaceCell
+          key={cell.id}
+          cell={cell}
+          band={band}
+          rowId={row.id}
+          collapsed={collapsed}
+          style={{ flex: `${cell.weight / cellsWeight} 1 0px` }}
+        />
+      ))}
+    </div>
+  )
+}
+
 function Column({ column, widthShare }: { column: LayoutColumn; widthShare: number }) {
-  const setCellWeights = useWorkspaceStore((s) => s.setCellWeights)
+  const setRowWeights = useWorkspaceStore((s) => s.setRowWeights)
   const endResize = useWorkspaceStore((s) => s.endResize)
-  const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
-  const cellsWeight = expandedWeight(column.cells)
+  const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
+  const rowsWeight = expandedWeight(column.rows)
   return (
     <div
       className={styles.column}
       style={{ flexGrow: widthShare } as CSSProperties}
       data-ws-column={column.id}
     >
-      {column.cells.map((cell, i) => {
-        const prev = column.cells[i - 1]
-        const style: CSSProperties = cell.collapsed ? { flex: '0 0 auto' } : { flex: `${cell.weight / cellsWeight} 1 0px` }
+      {column.rows.map((row, i) => {
+        const prev = column.rows[i - 1]
+        const style: CSSProperties = row.collapsed ? { flex: '0 0 auto' } : { flex: `${row.weight / rowsWeight} 1 0px` }
         return (
-          <Fragment key={cell.id}>
-            {prev && (prev.collapsed || cell.collapsed ? (
+          <Fragment key={row.id}>
+            {prev && (prev.collapsed || row.collapsed ? (
               <div className={styles.cellGap} aria-hidden="true" />
             ) : (
               <WorkspaceDivider
-                between="cells"
+                between="rows"
                 aId={prev.id}
-                bId={cell.id}
+                bId={row.id}
                 weightA={prev.weight}
-                weightB={cell.weight}
+                weightB={row.weight}
                 min={CELL_MIN_PX}
-                onResize={setCellWeights}
+                onResize={setRowWeights}
                 onResizeEnd={endResize}
-                onCollapse={(id) => { void setCellCollapsed(id, true) }}
+                onCollapse={(id) => { void setRowCollapsed(id, true) }}
                 label="Resize cells"
               />
             ))}
-            <WorkspaceCell cell={cell} style={style} />
+            <CellRow row={row} style={style} />
           </Fragment>
         )
       })}
@@ -66,15 +94,15 @@ function Column({ column, widthShare }: { column: LayoutColumn; widthShare: numb
 }
 
 /**
- * A full-width band: a cell spanning the workspace. Its stored height is
- * drawn at least `BAND_MIN_PX`; when the window is short it shrinks (down to
- * its header) so the column area keeps its minimum.
+ * A full-width band: a row of cells spanning the workspace. Its stored
+ * height is drawn at least `BAND_MIN_PX`; when the window is short it
+ * shrinks (down to its header) so the column area keeps its minimum.
  */
 function Band({ edge, band }: { edge: BandEdge; band: LayoutBand }) {
   const style: CSSProperties = band.collapsed
     ? { flex: '0 0 auto' }
     : { flex: `0 1 ${Math.max(BAND_MIN_PX, band.height)}px` }
-  return <WorkspaceCell cell={band} band={edge} style={style} />
+  return <CellRow row={band} band={edge} style={style} />
 }
 
 /** The gutter between a band and the column area: a resize handle, or a plain gap while the band is collapsed. */
@@ -163,7 +191,7 @@ function Grain() {
 
 /**
  * The open layout, filling the page: the top band, the column area (columns
- * of cells with resize dividers; it alone scrolls sideways when the columns
+ * of rows of cells with resize dividers; it alone scrolls sideways when the columns
  * don't fit), and the bottom band.
  */
 export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {

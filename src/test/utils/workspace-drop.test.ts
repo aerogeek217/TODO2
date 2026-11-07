@@ -11,6 +11,7 @@ import {
   type Rect,
   type WorkspaceGeometry,
 } from '../../utils/workspace-drop'
+import { rowOf } from '../helpers/layout-builders'
 import { evenPair, pairPercent, resizePair } from '../../utils/workspace-resize'
 
 function rect(left: number, top: number, right: number, bottom: number): Rect {
@@ -49,8 +50,9 @@ function cell(id: string, tabIds: string[]): LayoutCell {
   return { id, weight: 1, tabs, ...(tabs[0] ? { activeTabId: tabs[0].id } : {}) }
 }
 
+/** A column of one-cell rows. */
 function col(id: string, cells: LayoutCell[]): LayoutColumn {
-  return { id, weight: 1, cells }
+  return { id, weight: 1, rows: cells.map((c) => rowOf(c)) }
 }
 
 function layout(): WorkspaceLayout {
@@ -213,7 +215,7 @@ function layoutWithTopBand(): WorkspaceLayout {
   return {
     ...l,
     columns: l.columns.map((c) => ({ ...c })),
-    top: { id: 'tb', height: 160, tabs: [createTab('notes', 't5')], activeTabId: 't5' },
+    top: { id: 'top', height: 160, cells: [{ id: 'tb', weight: 1, tabs: [createTab('notes', 't5')], activeTabId: 't5' }] },
   }
 }
 
@@ -255,16 +257,16 @@ describe('bands in the hit test', () => {
     const geo = geometryWithTopBand()
     expect(hitTestWorkspace(geo, { x: 300, y: 10 })).toMatchObject({ kind: 'tab-strip', cellId: 'tb', index: 1 })
     expect(hitTestWorkspace(geo, { x: 30, y: 30 })).toMatchObject({ kind: 'tab-strip', cellId: 'tb', index: 0 })
-    expect(hitTestWorkspace(geo, { x: 300, y: 100 })).toEqual({ kind: 'band-body', edge: 'top' })
+    expect(hitTestWorkspace(geo, { x: 300, y: 100 })).toEqual({ kind: 'band-body', edge: 'top', cellId: 'tb' })
     // The bottom edge is still free.
     expect(hitTestWorkspace(geo, { x: 300, y: 700 })).toEqual({ kind: 'new-band', edge: 'bottom' })
   })
 
   it('column-edge zones span the column area only, not the bands', () => {
     const geo = geometryWithTopBand()
-    expect(hitTestWorkspace(geo, { x: 503, y: 100 })).toEqual({ kind: 'band-body', edge: 'top' })
+    expect(hitTestWorkspace(geo, { x: 503, y: 100 })).toEqual({ kind: 'band-body', edge: 'top', cellId: 'tb' })
     expect(hitTestWorkspace(geo, { x: 503, y: 300 })).toMatchObject({ kind: 'column-edge', gutter: 1 })
-    expect(hitTestWorkspace(geo, { x: 10, y: 100 })).toEqual({ kind: 'band-body', edge: 'top' })
+    expect(hitTestWorkspace(geo, { x: 10, y: 100 })).toEqual({ kind: 'band-body', edge: 'top', cellId: 'tb' })
   })
 
   it('only bands, no columns: the column area is one target (a first column)', () => {
@@ -283,12 +285,12 @@ describe('bands in the hit test', () => {
     expect(hitTestWorkspace(shifted, { x: 10, y: 400 })).toMatchObject({ kind: 'column-edge', gutter: 0 })
   })
 
-  it('band hits map to band targets, a strip to the band panel, the empty column area to a new column', () => {
+  it('band hits map to their cell, a strip to the band cell, the empty column area to a new column', () => {
     const l = layoutWithTopBand()
     const geo = geometryWithTopBand()
     const tab = { type: 'tab', tabId: 't1' } as const
     expect(dropTargetForHit(l, geo, { kind: 'new-band', edge: 'bottom' }, tab)).toEqual({ kind: 'new-band', edge: 'bottom' })
-    expect(dropTargetForHit(l, geo, { kind: 'band-body', edge: 'top' }, tab)).toEqual({ kind: 'band', edge: 'top' })
+    expect(dropTargetForHit(l, geo, { kind: 'band-body', edge: 'top', cellId: 'tb' }, tab)).toEqual({ kind: 'cell', cellId: 'tb' })
     expect(dropTargetForHit(l, geo, { kind: 'tab-strip', cellId: 'tb', index: 1, lineX: 0 }, tab)).toEqual({ kind: 'cell', cellId: 'tb', index: 1 })
     expect(dropTargetForHit(l, geo, { kind: 'empty-columns' }, tab)).toEqual({ kind: 'layout' })
     // A panel drag never adjusts a strip index (its own strip is a no-op).

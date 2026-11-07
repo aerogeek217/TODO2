@@ -19,6 +19,7 @@ import { clearFilterStore, resetEntityStores } from '../../helpers'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_TASKS, STATUSES, TAGS,
 } from '../../fixtures/dashboard-sample'
+import { rowOf } from '../../helpers/layout-builders'
 
 const HOT: TaskDialogPayload = {
   title: 'Hot tasks',
@@ -32,7 +33,7 @@ function layout(): PersistedWorkspaceLayout {
   const now = new Date(2026, 0, 1)
   return {
     id: 1, sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now,
-    columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [createTab('dashboard', 'dash')] }] }],
+    columns: [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, tabs: [createTab('dashboard', 'dash')] })] }],
   }
 }
 
@@ -166,7 +167,7 @@ describe('TaskDialog', () => {
     open({ title: '#q4 planning', glyph: 'list', description: 'List · #q4', source: { kind: 'list', listDefinitionId: 3 }, fromTabId: 'dash' })
     expect(rowTitles()).toEqual(['Budget review with finance', 'Q4 roadmap deck', 'Q4 forecast', 'Book venue for offsite', 'Offsite agenda'])
     fireEvent.click(within(dialog()!).getByRole('button', { name: 'Open as tab' }))
-    const cell = useWorkspaceStore.getState().working!.columns[0]!.cells[0]!
+    const cell = useWorkspaceStore.getState().working!.columns[0]!.rows[0]!.cells[0]!
     expect(cell.tabs.map((t) => t.kind)).toEqual(['dashboard', 'lens'])
     expect(cell.tabs[1]).toMatchObject({ kind: 'lens', config: { listDefinitionId: 3 } })
     expect(cell.activeTabId).toBe(cell.tabs[1]!.id)

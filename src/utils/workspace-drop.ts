@@ -1,10 +1,10 @@
 import type { BandEdge, WorkspaceLayout } from '../models/workspace-layout'
-import { findPanel, findTab, movePanel, moveTab, panelAt, type LayoutDropTarget } from './workspace-layout-ops'
+import { cellAt, findCell, findTab, movePanel, moveTab, type LayoutDropTarget } from './workspace-layout-ops'
 
 /**
- * Hit testing for dragging a workspace tab or a whole panel (a cell or a
- * band, by its header). The view measures the rendered bands / columns /
- * cells / tabs into a {@link WorkspaceGeometry} and asks where the pointer
+ * Hit testing for dragging a workspace tab or a whole cell (in a column or a
+ * band, by its header). The view measures the rendered bands' cells /
+ * columns' cells / tabs into a {@link WorkspaceGeometry} and asks where the pointer
  * is; the answer maps to a `LayoutDropTarget` for `moveTab` / `movePanel`.
  *
  * Priority (first match wins):
@@ -20,9 +20,9 @@ import { findPanel, findTab, movePanel, moveTab, panelAt, type LayoutDropTarget 
  *    inside the column area's outer left / right edge — only between the
  *    bands (the column area's height).
  * 3. A cell's or band's header (its tab strip) → insert at that position.
- * 4. A cell body → top quarter: new cell above; bottom quarter: new cell
- *    below; middle half: join as tab(s). An empty cell is one target.
- * 5. A band body → one zone: join the band (a band never splits).
+ * 4. A cell body → top quarter: new row above its row; bottom quarter: new
+ *    row below; middle half: join as tab(s). An empty cell is one target.
+ * 5. A band cell's body → one zone: join that cell (a band is one row).
  * 6. The empty column area of a layout with bands but no columns → a first
  *    column.
  */
@@ -47,7 +47,7 @@ export interface CellGeometry {
   tabs: ReadonlyArray<{ id: string; rect: Rect }>
 }
 
-/** A band: a full-width panel, measured as a cell is. */
+/** A band's cell, measured as a column's cell is. */
 export interface BandGeometry extends CellGeometry {
   edge: BandEdge
 }
@@ -85,7 +85,7 @@ export type WorkspaceDropHit =
   /** A cell's or band's strip (`cellId` = the panel's id). `index` counts every tab in the strip (a dragged one included). */
   | { kind: 'tab-strip'; cellId: string; index: number; lineX: number }
   | { kind: 'cell-body'; cellId: string; zone: CellZone }
-  | { kind: 'band-body'; edge: BandEdge }
+  | { kind: 'band-body'; edge: BandEdge; cellId: string }
   | { kind: 'empty-cell'; cellId: string }
   | { kind: 'empty-columns' }
 
@@ -102,7 +102,7 @@ export function sameDropHit(a: WorkspaceDropHit | null, b: WorkspaceDropHit | nu
     case 'column-edge': return b.kind === 'column-edge' && a.gutter === b.gutter && a.x === b.x
     case 'tab-strip': return b.kind === 'tab-strip' && a.cellId === b.cellId && a.index === b.index && a.lineX === b.lineX
     case 'cell-body': return b.kind === 'cell-body' && a.cellId === b.cellId && a.zone === b.zone
-    case 'band-body': return b.kind === 'band-body' && a.edge === b.edge
+    case 'band-body': return b.kind === 'band-body' && a.edge === b.edge && a.cellId === b.cellId
     case 'empty-cell': return b.kind === 'empty-cell' && a.cellId === b.cellId
     case 'empty-columns': return b.kind === 'empty-columns'
   }
@@ -171,8 +171,8 @@ function layoutTabIndex(
   hit: { cellId: string; index: number },
   draggedTabId: string | null,
 ): number {
-  const loc = findPanel(layout, hit.cellId)
-  const ids = (loc ? panelAt(layout, loc)?.tabs ?? [] : []).map((t) => t.id)
+  const loc = findCell(layout, hit.cellId)
+  const ids = (loc ? cellAt(layout, loc)?.tabs ?? [] : []).map((t) => t.id)
   const shown = [...geo.bands, ...geo.columns.flatMap((c) => c.cells)].find((c) => c.id === hit.cellId)?.tabs ?? []
   const prev = shown[hit.index - 1]
   const next = shown[hit.index]
@@ -225,7 +225,7 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
   for (const band of geo.bands) {
     if (!inside(band.rect, p)) continue
     if (band.header && inside(band.header, p)) return stripHit(band, band.header, p)
-    if (band.body && inside(band.body, p)) return { kind: 'band-body', edge: band.edge }
+    if (band.body && inside(band.body, p)) return { kind: 'band-body', edge: band.edge, cellId: band.id }
     return null
   }
 
@@ -273,14 +273,14 @@ export function dropTargetForHit(
       const dragged = source.type === 'tab' ? source.tabId : null
       const at = layoutTabIndex(layout, geo, hit, dragged)
       const loc = dragged != null ? findTab(layout, dragged) : null
-      const index = loc?.panelId === hit.cellId && loc.tabIdx < at ? at - 1 : at
+      const index = loc?.cellId === hit.cellId && loc.tabIdx < at ? at - 1 : at
       return { kind: 'cell', cellId: hit.cellId, index }
     }
     case 'cell-body':
       if (hit.zone === 'middle') return { kind: 'cell', cellId: hit.cellId }
       return { kind: 'cell-edge', cellId: hit.cellId, edge: hit.zone }
     case 'band-body':
-      return { kind: 'band', edge: hit.edge }
+      return { kind: 'cell', cellId: hit.cellId }
     case 'empty-cell':
       return { kind: 'cell', cellId: hit.cellId }
     case 'empty-columns':

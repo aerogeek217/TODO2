@@ -7,7 +7,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { uniqueListName } from '../../utils/list-copy'
 import { registerModuleReset } from '../../utils/module-reset'
-import { panelOfTab, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
+import { panelOfTab, rowOfCell, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
 
 /**
@@ -60,8 +60,8 @@ export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
 }
 
 /**
- * Opens Edit list for a list tab: the tab is made its panel's active one and
- * the panel expanded (so the list it previews is on screen), then the
+ * Opens Edit list for a list tab: the tab is made its cell's active one and
+ * the cell's row expanded (so the list it previews is on screen), then the
  * surface opens beside it, in place of another list's open Edit list (that
  * list keeps its draft).
  */
@@ -69,9 +69,10 @@ export function openEditList(tabId: string, listDefinitionId: number): void {
   const ws = useWorkspaceStore.getState()
   const working = ws.working
   const cell = working ? panelOfTab(working, tabId) : undefined
-  if (cell) {
+  if (working && cell) {
     if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
-    if (cell.collapsed) void ws.setCellCollapsed(cell.id, false)
+    const row = rowOfCell(working, cell.id)
+    if (row?.collapsed) void ws.setRowCollapsed(row.id, false)
   }
   useUIStore.getState().openListEditor(listDefinitionId, tabId)
 }
