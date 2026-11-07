@@ -3,6 +3,7 @@ import { LIST_ZOOMS, isListZoom, readListZoom } from '../../models/workspace-lay
 import {
   canStepListZoom,
   parseListZoomSetting,
+  lineDate,
   rowSummaryText,
   rowTone,
   stepListZoom,
@@ -93,5 +94,25 @@ describe('a stored zoom', () => {
     expect(readListZoom('strips')).toBe('lines')
     expect(readListZoom('compact')).toBeUndefined()
     expect(readListZoom(undefined)).toBeUndefined()
+  })
+})
+
+describe('a Lines row’s date', () => {
+  const OPTS = { urgentRange: 3 as const, rowDates: 'relative' as const }
+  it('is the follow-up while it is today or late, in the follow-up colour', () => {
+    expect(lineDate(task({ dueDate: day(10), nextFollowupAt: day(-1) }), TODAY, OPTS)).toEqual({ kind: 'followup', text: '11/05', tone: 'followup' })
+    expect(lineDate(task({ dueDate: day(10), nextFollowupAt: day(0) }), TODAY, OPTS)).toEqual({ kind: 'followup', text: 'Today', tone: 'followup' })
+  })
+
+  it('else the due date: late, due soon or plain, as the Rows due cell colours it', () => {
+    expect(lineDate(task({ dueDate: day(-2), nextFollowupAt: day(4) }), TODAY, OPTS)).toEqual({ kind: 'due', text: '11/04', tone: 'late' })
+    expect(lineDate(task({ dueDate: day(2) }), TODAY, OPTS)).toEqual({ kind: 'due', text: 'Sun', tone: 'soon' })
+    expect(lineDate(task({ dueDate: day(14) }), TODAY, OPTS)).toEqual({ kind: 'due', text: '11/20', tone: 'plain' })
+  })
+
+  it('else an upcoming follow-up, plain; nothing without dates or once completed', () => {
+    expect(lineDate(task({ nextFollowupAt: day(5) }), TODAY, OPTS)).toEqual({ kind: 'followup', text: 'Wed', tone: 'plain' })
+    expect(lineDate(task(), TODAY, OPTS)).toBeNull()
+    expect(lineDate(task({ dueDate: day(-2), isCompleted: true }), TODAY, OPTS)).toBeNull()
   })
 })

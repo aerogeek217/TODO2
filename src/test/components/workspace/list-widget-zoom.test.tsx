@@ -116,6 +116,29 @@ describe('a list tab’s zoom', () => {
     expect(useUIStore.getState().selectedTodoIds).toEqual(new Set([1, 2]))
   })
 
+  it('Lines: the box’s ring is the priority and its fill the date state; the date that matters ends the line', () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Late one', sortOrder: 1, dueDate: new Date(Date.now() - 2 * DAY) }),
+        makeTodo({ id: 2, title: 'Plain one', sortOrder: 2 }),
+        makeTodo({ id: 3, title: 'Focus and important', sortOrder: 3, focus: true, important: true }),
+      ],
+    })
+    show('lines')
+    const line = (id: number) => document.querySelector<HTMLElement>(`[data-row-key] [data-todo-id="${id}"]`)!
+    // Late: urgent by its due date (the dashed ring), filled late, its due date bold at the end.
+    expect(line(1)).toHaveAttribute('data-tone', 'late')
+    expect(line(1).querySelector('[data-line-box] [data-priority-ring]')).toHaveAttribute('data-priority-ring', 'urgent')
+    expect(line(1).querySelector('[data-line-date]')).toHaveAttribute('data-line-date', 'due')
+    expect(line(1).querySelector('[data-line-date]')).toHaveAttribute('data-date-tone', 'late')
+    // Plain: no ring, no date.
+    expect(line(2).querySelector('[data-priority-ring]')).toBeNull()
+    expect(line(2).querySelector('[data-line-date]')).toBeNull()
+    // Focus and Important: the important ring with the Focus glow, as a row's checkbox.
+    expect(line(3).querySelector('[data-line-box] [data-priority-ring]')).toHaveAttribute('data-priority-ring', 'important')
+    expect(line(3).querySelector('[data-line-box] [data-focus-glow]')).not.toBeNull()
+  })
+
   it('Lines: a right-click opens the task menu, as a row’s does; its pickers open at the line, and a click in them is not the line’s', () => {
     const open = vi.fn()
     useUIStore.setState({ openEditPopup: open })

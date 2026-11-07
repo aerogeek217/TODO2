@@ -323,14 +323,6 @@ export function DatesCell({
   )
 }
 
-/**
- * A row date's text longer than any word or month and day: another year's
- * `MM/DD/YY` (`formatRowDate`), drawn in the part's padding (`.dateLong`).
- */
-function isLongRowDate(text: string): boolean {
-  return text.length > 6
-}
-
 /** A date part's clear ×: over the part's right end on hover — takes no width. */
 function DateClear({ label, cell, onClear }: { label: string; cell: string; onClear: () => void }) {
   return (
@@ -369,12 +361,11 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
   const rowDates = useSettingsStore((s) => s.rowDates)
   const text = due ? formatRowDate(due, today, rowDates) : ''
   // Another year's MM/DD/YY takes the whole part: a repeating task's glyph gives way (its tooltip says it repeats).
-  const long = !!dateOnly && isLongRowDate(text)
   return (
     <span className={styles.datePart} style={{ width }}>
       <button
         type="button"
-        className={`${styles.cell} ${styles.datePartButton} ${dateOnly ? '' : styles.cellCenter} ${dateOnly && repeats && !long ? styles.dueRepeat : ''} ${long ? styles.dateLong : ''} ${styles.due} ${past ? styles.duePast : ''}`}
+        className={`${styles.cell} ${styles.datePartButton} ${dateOnly ? '' : styles.cellCenter} ${dateOnly && repeats ? styles.dueRepeat : ''} ${styles.due} ${past ? styles.duePast : ''}`}
         aria-label={due ? `Due ${formatFollowupDate(due, today)}` : 'Set due date'}
         data-row-cell="due"
         data-due-soon={soon || undefined}
@@ -385,7 +376,7 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
         {due ? (
           showDate ? (
             <>
-              {repeats && !long && <RepeatIcon size={10} />}
+              {repeats && <RepeatIcon size={10} />}
               <span className={styles.dateText}>{text}</span>
             </>
           ) : (
@@ -427,13 +418,12 @@ function FollowupPart({ todo, today, width, showDate, anchorRef, open, onToggle,
   const state = !next ? undefined : late ? 'late' : isToday ? 'today' : 'upcoming'
   const rowDates = useSettingsStore((s) => s.rowDates)
   const text = next ? formatRowDate(next, today, rowDates) : ''
-  const long = !!next && showDate && isLongRowDate(text)
   return (
     <span className={styles.datePart} style={{ width }}>
       <button
         ref={anchorRef}
         type="button"
-        className={`${styles.cell} ${styles.datePartButton} ${showDate && next ? '' : styles.cellCenter} ${long ? styles.dateLong : ''} ${styles.followup} ${open ? styles.cellOpen : ''}`}
+        className={`${styles.cell} ${styles.datePartButton} ${showDate && next ? '' : styles.cellCenter} ${styles.followup} ${open ? styles.cellOpen : ''}`}
         aria-label={next ? `Follow-up: ${followupPillLabel(todo, today)}${late ? ', late' : ''}` : 'Set follow-up'}
         aria-haspopup="dialog"
         aria-expanded={open}
