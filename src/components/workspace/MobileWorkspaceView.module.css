@@ -504,3 +504,16 @@
 .sheetSectionTitle {
   margin-top: 16px;
 }
+
+/* A glance cell (a glance widget, or any at its small face, D25 R): a slim
+   header — its tabs keep their touch target (`.touch::after`), so the tab
+   sheet's long-press is still there — and a body as short as its face. */
+.cellCompact {
+  --cell-header-height: 30px;
+  --cell-tab-height: 26px;
+  --cell-body-min-height: 56px;
+}
+
+.cellCompact .cellAction {
+  width: 36px;
+}
