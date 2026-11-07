@@ -22,11 +22,9 @@ const notes = (id: string) => createTab('notes', id)
 const calendar = (id: string) => createTab('calendar', id)
 
 describe('the kind flags', () => {
-  it('no kind of this build is a glance or fit-height one yet', () => {
-    for (const kind of WIDGET_KINDS) {
-      expect(isGlanceKind(kind)).toBe(false)
-      expect(isFitHeightKind(kind)).toBe(false)
-    }
+  it('the glance kinds are the Number and the sections; only the Number fits its height', () => {
+    expect(WIDGET_KINDS.filter(isGlanceKind)).toEqual(['number', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhowerSummary'])
+    expect(WIDGET_KINDS.filter(isFitHeightKind)).toEqual(['number'])
   })
 
   it('an unknown kind is neither', () => {

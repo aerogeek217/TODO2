@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { pickSplit, seedWorkspace, wsCell, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * The glance widgets (D25 N) in a real browser: a Number and a Created vs
@@ -32,7 +32,7 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   const header = wsCell(page, 'k1').locator('[data-ws-cell-header]')
   await header.hover()
   await header.getByRole('button', { name: 'Cell options' }).click()
-  await page.getByRole('menuitem', { name: 'Split below' }).click()
+  await pickSplit(page, 'Below')
   const empty = page.getByRole('region', { name: 'Empty cell' })
   await expect(empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Calendar' })).toBeVisible()
   await empty.getByRole('group', { name: 'Numbers & charts' }).getByRole('button', { name: 'Number', exact: true }).click()
@@ -43,9 +43,9 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   // And Created vs completed below it.
   const numberCell = page.locator('[data-ws-cell]').filter({ has: page.locator('[data-glance="number"]') })
   const numberHeader = numberCell.locator('[data-ws-cell-header]')
-  await numberHeader.hover()
+  await numberCell.hover()
   await numberHeader.getByRole('button', { name: 'Cell options' }).click()
-  await page.getByRole('menuitem', { name: 'Split below' }).click()
+  await pickSplit(page, 'Below')
   await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Numbers & charts' })
     .getByRole('button', { name: 'Created vs completed' }).click()
   await expect(page.locator('[data-glance="trend"] [data-dash-section="trend"]')).toBeVisible()
@@ -54,6 +54,9 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   // The Number's tab menu: Metric › Open — the tab reads its metric, the count follows.
   const numberTab = numberCell.getByRole('tab')
   await expect(numberTab).toContainText('Overdue')
+  // A lone Number is headless: its strip slides in on hover.
+  await expect(numberCell).toHaveAttribute('data-headless', 'true')
+  await numberCell.hover()
   await numberTab.click({ button: 'right' })
   const menu = page.getByRole('menu', { name: 'Change widget' })
   await menu.getByRole('menuitem', { name: /^Metric/ }).click()

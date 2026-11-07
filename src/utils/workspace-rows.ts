@@ -1,4 +1,4 @@
-import { isWidgetKind, WIDGET_KIND_SPECS, type LayoutCell, type LayoutCellRow, type WidgetKind } from '../models/workspace-layout'
+import { isGlanceKind as isGlanceWidgetKind, isWidgetKind, WIDGET_KIND_SPECS, type LayoutCell, type LayoutCellRow, type WidgetKind } from '../models/workspace-layout'
 import { CELL_MIN_PX } from './workspace-resize'
 
 /**
@@ -11,11 +11,11 @@ import { CELL_MIN_PX } from './workspace-resize'
 /** Whether a widget kind has a given flag (`glance`, `fitHeight`). */
 export type KindFlag = (kind: WidgetKind) => boolean
 
-/** A glance widget (`WidgetKindSpec.glance`); an unknown kind is not. */
-export const isGlanceKind: KindFlag = (kind) => isWidgetKind(kind) && WIDGET_KIND_SPECS[kind].glance === true
+/** A glance widget (`WidgetKindSpec.glance`, `models/workspace-layout.isGlanceKind`); an unknown kind is not. */
+export const isGlanceKind: KindFlag = (kind) => isGlanceWidgetKind(kind)
 
 /** A kind whose content sets its height (`WidgetKindSpec.fitHeight`); an unknown kind is not. */
-export const isFitHeightKind: KindFlag = (kind) => isWidgetKind(kind) && WIDGET_KIND_SPECS[kind].fitHeight === true
+export const isFitHeightKind: KindFlag = (kind) => isWidgetKind(kind) && WIDGET_KIND_SPECS[kind].fitHeight
 
 /** The smallest height (px) of a row whose cells hold only glance widgets. */
 export const GLANCE_ROW_MIN_PX = 64
