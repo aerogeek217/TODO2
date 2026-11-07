@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createTab, kindTabTitle, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../src/models/workspace-layout'
-import { seedWorkspace, wsCell, type WsLayoutSeed, wsRow } from './fixtures/workspace'
+import { pickWidgetKind, seedWorkspace, wsCell, type WsLayoutSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Every widget kind (from the one kind table) can be added, switched to and
@@ -19,7 +19,6 @@ function body(cell: Locator, kind: WidgetKind): Locator {
     case 'calendar': return cell.locator('[data-calendar-widget]')
     case 'notes': return cell.locator('.cm-content')
     case 'eisenhower': return cell.locator('[data-eisenhower]')
-    case 'dashboard': return cell.locator('[data-dashboard]')
     case 'neglect': return cell.locator('[data-neglect-map]')
     default: return cell.locator(`[data-glance="${kind}"]`)
   }
@@ -33,14 +32,15 @@ const tab = (page: Page, kind: WidgetKind) => {
   const longer = WIDGET_KINDS.map(title).filter((t) => t !== mine && t.startsWith(mine)).map((t) => t.slice(mine.length))
   return page.getByRole('tab', { name: new RegExp(`^${mine}${longer.length > 0 ? `(?!${longer.join('|')})` : ''}`) })
 }
-/** The kinds in the add-widget menu's order: Tasks, then Numbers & charts. */
-const MENU_ORDER = [...widgetKindsOf('tasks'), ...widgetKindsOf('glance')]
+/** The add-widget menu's items: the task kinds, then the Numbers & charts submenu. */
+const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindLabel), 'Numbers & charts']
+const GLANCE = widgetKindsOf('glance')
 
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
   test('every kind can be added as a tab, switched to and closed', async ({ page }) => {
-    // It walks every kind twice (add, then switch): nineteen kinds outlast the default timeout under load.
+    // It walks every kind twice (add, then switch): eighteen kinds outlast the default timeout under load.
     test.slow()
     // (A layout's lists are the ones it shows: the list tab makes its own.)
     await seedWorkspace(page, {
@@ -58,8 +58,8 @@ test.describe('desktop', () => {
     for (const kind of WIDGET_KINDS.filter((k) => k !== 'notes')) {
       await page.getByRole('button', { name: 'Add widget as tab' }).click()
       const menu = page.getByRole('menu', { name: 'Add widget' })
-      await expect(menu.getByRole('menuitem')).toHaveText(MENU_ORDER.map(widgetKindLabel))
-      await menu.getByRole('menuitem', { name: widgetKindLabel(kind), exact: true }).click()
+      await expect(menu.getByRole('menuitem')).toHaveText(MENU_ITEMS)
+      await pickWidgetKind(page, 'Add widget', widgetKindLabel(kind))
       if (kind === 'lens') {
         await expect(page.getByRole('dialog', { name: `Edit list ${LIST}` })).toBeVisible()
         await page.keyboard.press('Escape')
@@ -74,8 +74,10 @@ test.describe('desktop', () => {
       await tab(page, current).first().click()
       await tab(page, current).first().click({ button: 'right' })
       const menu = page.getByRole('menu', { name: 'Change widget' })
-      await expect(menu.getByRole('menuitemradio', { name: widgetKindLabel(current), exact: true })).toHaveAttribute('aria-checked', 'true')
-      await menu.getByRole('menuitemradio', { name: widgetKindLabel(kind), exact: true }).click()
+      // The current kind is checked — a Numbers & charts one is named on its submenu's item.
+      if (GLANCE.includes(current)) await expect(menu.getByRole('menuitem', { name: /^Numbers & charts/ })).toContainText(widgetKindLabel(current))
+      else await expect(menu.getByRole('menuitemradio', { name: widgetKindLabel(current), exact: true })).toHaveAttribute('aria-checked', 'true')
+      await pickWidgetKind(page, 'Change widget', widgetKindLabel(kind))
       // Switched to List: a new list of the layout, its Edit list open.
       if (kind === 'lens') {
         await expect(page.getByRole('dialog', { name: /^Edit list / })).toBeVisible()

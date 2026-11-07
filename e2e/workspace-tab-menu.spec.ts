@@ -78,7 +78,7 @@ const twoColumns: WorkspaceSeed = {
     name: 'Main',
     columns: [
       { id: 'left', rows: [wsRow({ id: 'leftCell', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'listTab', kind: 'lens', listDefIdx: 0 }] })] },
-      { id: 'right', rows: [wsRow({ id: 'rightCell', tabs: [{ id: 'dashTab', kind: 'dashboard' }] })] },
+      { id: 'right', rows: [wsRow({ id: 'rightCell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
     ],
   }],
 }
@@ -90,8 +90,6 @@ async function rect(locator: Locator): Promise<{ x: number; y: number; width: nu
 }
 
 test('Shift+F10 on a tab opens its menu under the tab; type-ahead moves; Esc returns focus to the tab', async ({ page }) => {
-  // The menu lists every widget kind: tall enough that it fits under the tab only on a taller window.
-  await page.setViewportSize({ width: 1280, height: 1000 })
   await seedWorkspace(page, twoLists)
   const tab = wsTab(page, 'listTab')
   await tab.focus()
@@ -118,7 +116,7 @@ test('the tab menu opened at the window’s right edge stays inside the window',
   await seedWorkspace(page, twoColumns)
   const vp = page.viewportSize()!
   // Right-click the right-hand tab at the window's right edge: the menu ends inside the window.
-  const tab = wsTab(page, 'dashTab')
+  const tab = wsTab(page, 'notesTab')
   const t = await rect(tab)
   await page.mouse.click(Math.min(t.x + t.width - 2, vp.width - 4), t.y + t.height / 2, { button: 'right' })
   const menu = tabMenu(page)
