@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import {
   getActiveTab,
   type BandEdge,
@@ -13,6 +13,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-pager'
 import { scrollBehavior } from '../../utils/motion'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
+import { isFitRow } from '../../utils/workspace-rows'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
@@ -466,7 +467,10 @@ function MobileCell({ cell, rowId, collapsed, fill, band = false }: {
   )
 }
 
-/** A pager page: a column's rows' cells, top to bottom, or a band's cells (one alone fills the page). */
+/**
+ * A pager page: a column's rows top to bottom, each row's cells stacked in
+ * order (a fit row's two up), or a band's cells (one alone fills the page).
+ */
 function MobilePage({ page, index }: { page: PagerPage; index: number }) {
   const name = usePageName(page, index)
   if (page.kind === 'band') {
@@ -494,9 +498,15 @@ function MobilePage({ page, index }: { page: PagerPage; index: number }) {
       aria-label={name}
       data-ws-column={column.id}
     >
-      {column.rows.flatMap((row) => row.cells.map((cell) => (
-        <MobileCell key={cell.id} cell={cell} rowId={row.id} collapsed={row.collapsed === true} fill={fill} />
-      )))}
+      {column.rows.map((row) => {
+        const cells = row.cells.map((cell) => (
+          <MobileCell key={cell.id} cell={cell} rowId={row.id} collapsed={row.collapsed === true} fill={fill} />
+        ))
+        // A fit row (glance numbers) stays side by side, two up while two fit; any other row's cells stack.
+        return isFitRow(row)
+          ? <div key={row.id} className={styles.fitRow} data-ws-row={row.id} data-fit="true">{cells}</div>
+          : <Fragment key={row.id}>{cells}</Fragment>
+      })}
     </section>
   )
 }
