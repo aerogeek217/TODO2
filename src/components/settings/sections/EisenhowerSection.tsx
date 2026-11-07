@@ -85,11 +85,6 @@ export function EisenhowerSection() {
           </div>
         )}
       </SettingRow>
-      <p className={styles.intro}>
-        A task shows in the first pane whose filter it matches, checked in order: top left, top right, bottom left,
-        bottom right. Dropping a task on a pane gives it what the filter sets. The panes are the same in every
-        Eisenhower and on the dashboard; changes are saved at once.
-      </p>
       <div className={styles.grid}>
         {panes.map((pane) => (
           <PaneCard

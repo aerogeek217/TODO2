@@ -1,0 +1,36 @@
+/* The ⓘ after a label (`HelpTip`): muted until hovered, focused or open. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text-muted);
+  vertical-align: middle;
+  cursor: help;
+  flex-shrink: 0;
+  transition: color var(--transition-fast), background var(--transition-fast);
+}
+
+.button:hover,
+.open {
+  color: var(--color-text-primary);
+  background: var(--color-tint-6);
+}
+
+/* The description, for screen readers (the button's `aria-describedby`). */
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
