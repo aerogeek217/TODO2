@@ -8,6 +8,7 @@ import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
 import { emptyPredicate } from '../../models/filter-predicate'
 import { checkinFilterOf } from '../../utils/checkin-settings'
 import { DEFAULT_PRIORITY_CUES } from '../../utils/priority-cues'
+import { DEFAULT_AMBIENCE } from '../../models/ambience'
 
 type State = ReturnType<typeof useSettingsStore.getState>
 type Writable = SettingSpec<State, keyof State> & SettingWriter<State, keyof State>
@@ -47,6 +48,7 @@ const CASES: Record<string, Case> = {
   priorityCues: { value: { priorityCues: { ...DEFAULT_PRIORITY_CUES, focus: { glow: true, semibold: false } } }, undo: 'Changed the priority cues', failure: 'Couldn’t save the priority cues.' },
   listZoom: { value: { listZoom: 'lines' }, undo: 'Default list zoom: Lines', failure: 'Couldn’t save the default list zoom.' },
   rowDates: { value: { rowDates: 'numeric' }, undo: 'MM/DD dates on rows', failure: 'Couldn’t save how rows show dates.' },
+  ambience: { value: { ambience: { ...DEFAULT_AMBIENCE, sky: 'vivid' } }, undo: 'Ambience: Vivid, with seasons', failure: 'Couldn’t save the ambience settings.' },
   lenses: { value: { lenses: [{ id: 'lens-a', name: 'Fresh', predicate: emptyPredicate() }] }, undo: null, failure: 'Couldn’t save the lenses.' },
   activeLensId: { value: { activeLensId: 'lens-a' }, undo: null, failure: 'Couldn’t save the lens pick.' },
   shortcutOverrides: { value: { shortcutOverrides: { 'command-palette': [{ key: 'p', mod: true, shift: true }] } }, undo: null, failure: 'Couldn’t save the keyboard shortcuts.' },

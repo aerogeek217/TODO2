@@ -45,7 +45,7 @@ describe('SettingsModal', () => {
     const nav = screen.getByRole('navigation', { name: 'Settings sections' })
     expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual([
       'Database', 'Import / Export', 'File storage', 'Backups', 'Data integrity',
-      'Appearance',
+      'Appearance', 'Theme and lists', 'Ambience',
       'Tasks', 'Task defaults', 'Lenses', 'Eisenhower', 'Completed tasks',
       'People, statuses & tags',
       'Keyboard shortcuts',
@@ -64,7 +64,8 @@ describe('SettingsModal', () => {
     })
     try {
       render(<SettingsModal />)
-      open('appearance')
+      // A one-part section: no part to mark.
+      open('about')
       const nav = screen.getByRole('navigation', { name: 'Settings sections' })
       const navPart = (id: string) => nav.querySelector<HTMLElement>(`[data-settings-nav-part="${id}"]`) as HTMLElement
       expect(nav.querySelectorAll('[aria-current="location"]')).toHaveLength(0)
