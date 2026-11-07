@@ -134,7 +134,7 @@ describe('dev seed generator', () => {
     expect(seed.layouts.some((l) => l.top) && seed.layouts.some((l) => l.bottom), 'bands').toBe(true)
     const kinds = new Set(seed.layouts.flatMap((l) => [...l.columns.flatMap((c) => c.rows.flatMap((r) => r.cells)), ...(l.top?.cells ?? []), ...(l.bottom?.cells ?? [])])
       .flatMap((p) => p.tabs.map((t) => t.kind)))
-    expect([...kinds].sort()).toEqual(['calendar', 'dashboard', 'eisenhower', 'lens', 'neglect', 'notes'])
+    expect([...kinds].sort()).toEqual(['calendar', 'changes', 'eisenhower', 'followup', 'lens', 'neglect', 'next7', 'notes', 'number', 'people', 'pulse', 'today', 'trend'])
   })
 
   it('shows a list tab at each zoom and a Neglect map by project, kept whole by the layout repair (D25)', () => {
