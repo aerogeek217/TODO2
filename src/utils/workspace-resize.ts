@@ -10,6 +10,8 @@
 export const COLUMN_MIN_PX = 280
 /** Smallest cell height (px): the 32px header plus an 80px body. */
 export const CELL_MIN_PX = 32 + 80
+/** Smallest width (px) a divider sizes a cell to beside another in its row (or band). */
+export const CELL_MIN_WIDTH_PX = 120
 
 export interface PairResizeInput {
   /** Measured size (px) of the first neighbour (left / above) when the drag started. */
@@ -19,8 +21,10 @@ export interface PairResizeInput {
   weightB: number
   /** Pointer travel (px) since the drag started; positive grows the first neighbour. */
   delta: number
-  /** Smallest size (px) either neighbour may take. */
+  /** Smallest size (px) the first neighbour may take (and the second, unless `minB` says). */
   min: number
+  /** Smallest size (px) the second neighbour may take; default `min`. */
+  minB?: number
 }
 
 export interface PairResizeResult {
@@ -34,12 +38,15 @@ export interface PairResizeResult {
   rawB: number
 }
 
-export function resizePair({ sizeA, sizeB, weightA, weightB, delta, min }: PairResizeInput): PairResizeResult {
+export function resizePair({ sizeA, sizeB, weightA, weightB, delta, min, minB = min }: PairResizeInput): PairResizeResult {
   const pair = sizeA + sizeB
-  const floor = Math.min(min, pair / 2)
+  // Each floor is its minimum, scaled down when the pair can't hold both.
+  const mins = min + minB
+  const floorA = mins > pair && mins > 0 ? pair * (min / mins) : min
+  const floorB = mins > pair && mins > 0 ? pair * (minB / mins) : minB
   const rawA = sizeA + delta
   const rawB = sizeB - delta
-  const clampedA = Math.max(floor, Math.min(pair - floor, rawA))
+  const clampedA = Math.max(floorA, Math.min(pair - floorB, rawA))
   const clampedB = pair - clampedA
   const totalWeight = weightA + weightB
   const shareA = pair > 0 ? clampedA / pair : 0.5
