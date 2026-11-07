@@ -118,13 +118,12 @@ function matchesExpression(e: FilterExpr, t: ClauseTask): boolean {
 /**
  * Canonical evaluator. Takes runtime filter state (`FilterCriteria`) and a
  * single todo; returns whether the todo passes the filter: its completion
- * (`admitsCompleted`: Show completed, or a Completed range outside the or
- * groups or as an or group's only alternative, its own or its lens's), the
- * lens, every clause and every or group (at least one clause of each). A People / Status / Tags clause with its "is not"
- * switch passes the tasks the clause without it would fail
- * (`FilterNegation`), and an "is not" date range the dated tasks outside
- * it and every task without the date (`matchesDateMatch`) — inside an or
- * group as outside.
+ * (`admitsCompleted`: Show completed, or a Completed range among the clauses
+ * or the expression's top-level terms, its own or its lens's), the lens,
+ * every clause and the expression (`matchesExpression`). A People / Status /
+ * Tags clause with its "is not" switch passes the tasks the clause without
+ * it would fail (`FilterNegation`), and an "is not" date range the dated
+ * tasks outside it and every task without the date (`matchesDateMatch`).
  */
 export function matchesFilter(
   filters: FilterCriteria,

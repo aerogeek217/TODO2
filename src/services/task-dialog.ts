@@ -233,8 +233,7 @@ const NO_BADGE_COUNTS: TabBadgeCounts = { due: 0, dueOverdue: 0, followup: 0, fo
 /**
  * Whether the screen filter admits completed task `t` — counts it in the
  * counter's total: the chips' Show completed admits every completed task; a
- * Completed range of the chips (outside the or groups, or an or group of
- * only that) the ones it keeps, whatever the other chips (they are what the
+ * Completed range of the chips the ones it keeps, whatever the other chips (they are what the
  * count narrows by); the lens, when a Completed range of its own lets
  * completed tasks through, the ones the whole lens keeps — so it never
  * hides a completed task it admitted, and its hide count is the picker's.

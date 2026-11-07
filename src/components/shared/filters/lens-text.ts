@@ -3,8 +3,7 @@ import type { Lens } from '../../../utils/lens'
 
 /**
  * A lens's filters in a line: `Status not Waiting · People not Unassigned`,
- * an or group as its chips joined with "or" (`Priority Focus or People
- * Aisha`); `Every task` with none.
+ * an expression as its text (`/focus or @Aisha`); `Every task` with none.
  */
 export function lensSummary(lens: Lens, names: FilterChipNames): string {
   const items = predicateLineItems(lens.predicate, names)

@@ -194,8 +194,8 @@ export const COPY_FAILED_NOTICE = 'Couldn’t copy the email to the clipboard, s
 export const ASSIGNMENTS_LOADING_NOTICE = 'Not every task’s people and tags have loaded yet, so nothing was sent. Check the tasks here, then send.'
 
 /**
- * Whether every open task's people — and, for a filter on tags or text, of
- * its own or in an or group (an "is not" tag clause lets a task with no
+ * Whether every open task's people — and, for a filter on tags or text, as
+ * a clause or in its expression (an "is not" tag clause lets a task with no
  * entry through; Text contains matches tag names too), its tags — are
  * loaded, so selecting the person's tasks reads complete data.
  */

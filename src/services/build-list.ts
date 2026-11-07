@@ -80,8 +80,7 @@ export interface ListContents {
  * of the list's own clause on that field, and is always "is" (a list's "is
  * not" switch on the field goes with the clause it switched). Empty `values`
  * is a no-op so "user cleared all chips" doesn't short-circuit to "match
- * nothing". The pick merges into the clauses outside the or groups, which
- * stay as they are. An expression gets the pick as one more top-level term
+ * nothing". An expression gets the pick as one more top-level term
  * (`and (@a or @b)`).
  */
 export function applyRuntimeFilter(
@@ -169,8 +168,9 @@ export function buildList(
  * the list's effective predicate (prompt pick merged in), of the screen
  * filter's chips and of its lens — every filter a member passes. An "is
  * not" pick doesn't narrow: its members have none of the picked people /
- * tags, so their groups never show anyway. Only the clauses outside the or
- * groups narrow them: an or group's pick may not be what a member has. The
+ * tags, so their groups never show anyway. Of an expression only the
+ * top-level `and` terms narrow them: a pick inside an `or` may not be what a
+ * member has. The
  * 0 pick (Unassigned / No tags) keeps the trailing section, as in
  * `buildListSections`, which intersects several.
  */

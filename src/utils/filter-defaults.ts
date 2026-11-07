@@ -22,9 +22,7 @@ export interface FilterDefaults {
  * Tags use OR semantics in the filter so all picked tag ids become defaults.
  * A Priority filter makes new tasks start with the flags it decides
  * (`markerConditions`). An "is not" People / Status / Tags filter seeds nothing
- * (the new task simply has none of the excluded values). Or groups seed
- * nothing, by design: which of an or group's clauses a new task should
- * meet is ambiguous, so only the clauses outside them are read.
+ * (the new task simply has none of the excluded values).
  */
 export function getFilterDefaults(filters: FilterCriteria): FilterDefaults {
   const seeds = (field: 'personIds' | 'tags') => {
@@ -66,7 +64,7 @@ export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): 
  * `TodoPredicate` — the form a `ListDefinition` stores on disk. Used to seed
  * a "+ Add task" affordance from the predicate of a list widget,
  * post any runtime-filter merge. An expression seeds from its top-level
- * terms that are chips (`topLevelPredicate`), as clauses outside or groups do.
+ * terms that are chips (`topLevelPredicate`): which side of an `or` a new task should meet is ambiguous.
  */
 export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefaults {
   return getFilterDefaults(predicateToCriteria(topLevelPredicate(predicate)))

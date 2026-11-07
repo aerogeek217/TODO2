@@ -117,8 +117,8 @@ export function fixedAnchor(d: Date): DateAnchor {
  * Number of active screen filters, one per control: people, status,
  * tags, dates (however many date types filter), markers, show completed,
  * search — and the lens, when the filter carries one (the composed screen
- * filter; the top bar's chips alone never do). Or groups aren't
- * counted: the screen filter never has one.
+ * filter; the top bar's chips alone never do). The chips never hold an
+ * expression.
  */
 export function countActiveFilters(f: FilterCriteria): number {
   const dates = hasDateFilters(f.dates)
@@ -186,9 +186,8 @@ function clausesToCriteria(c: FilterClauses): CriteriaClauses {
 /**
  * Runtime (Sets) → serializable (arrays) for saved views / list definitions.
  * The "is not" switches are normalised (`withNormalizedNegation`): `negate`
- * is present only while some field reads "is not"; the or groups are in
- * their stored form (`normalizeOrGroups`): `orGroups` is present only while
- * one filters. The lens isn't part of it.
+ * is present only while some field reads "is not"; `expression` only while
+ * there is one. The lens isn't part of it.
  */
 export function criteriaToPredicate(f: FilterCriteria): TodoPredicate {
   const p: TodoPredicate = withNormalizedNegation({ showCompleted: f.showCompleted, ...clausesToPredicate(f) })

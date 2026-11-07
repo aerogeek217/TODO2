@@ -221,10 +221,9 @@ export interface TodoPredicate {
   /**
    * The filter as an expression (`models/filter-expression`): a task must
    * pass it as well. A predicate is Graphical (its clauses: a chip per
-   * field, one Priority condition) or an expression: while this is present
-   * its own clauses are empty (`pickPredicate` folds any into it; schema v75
-   * made each stored filter with or groups or several Priority conditions
-   * one). Show completed stays the predicate's (`and done` in the text).
+   * field, a chip per Priority condition, all ANDed) or an expression:
+   * while this is present its own clauses are empty (`pickPredicate` folds
+   * any into it; schema v75 made each stored filter with or groups one). Show completed stays the predicate's (`and done` in the text).
    * Absent = Graphical.
    */
   expression?: FilterExpr

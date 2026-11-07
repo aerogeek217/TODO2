@@ -199,9 +199,9 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
 
   // + Add task: only when the merged predicate names people / status / tags
   // / markers to seed the new task with (an "is not" field or several
-  // priorities seed nothing, but keep the button — and so does an or group: which of its clauses a
-  // new task should meet is ambiguous, so only the clauses outside it seed).
-  // An expression keeps it too (its top-level chips seed: `topLevelPredicate`).
+  // priorities seed nothing, but keep the button). An expression keeps it
+  // too: only its top-level terms a chip could say seed (`topLevelPredicate`);
+  // which side of an `or` a new task should meet is ambiguous.
   const seeding = mergedPredicate && topLevelPredicate(mergedPredicate)
   const canAddTask = mergedPredicate != null && seeding != null && (
     seeding.personIds != null

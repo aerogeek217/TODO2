@@ -69,8 +69,7 @@ export function hasCompletedDateClause(predicate: TodoPredicate): boolean {
 /**
  * The check-in filter as it is kept: no people filter (nor its "is not"
  * switch) and no Completed date range (a check-in only takes open tasks, so
- * it would match none) — in an or group either, an or group left with no
- * clause dropped —, completed tasks off.
+ * it would match none) — in its expression either —, completed tasks off.
  */
 export function checkinFilterOf(predicate: TodoPredicate): CheckinTaskFilter {
   if (predicate.expression) {

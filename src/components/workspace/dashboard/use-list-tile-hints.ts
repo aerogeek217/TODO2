@@ -5,7 +5,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { listFilterHint, predicateLineItems } from '../../../utils/filter-chips'
 
-/** Each list's filters in a few words (`Status: Waiting`, `@Priya`, an or group joined with "or"), by list id. */
+/** Each list's filters in a few words (`Status: Waiting`, `@Priya`, an expression as its text), by list id. */
 export function useListTileHints(): ReadonlyMap<number, string> {
   const defs = useListDefinitionStore((s) => s.listDefinitions)
   const people = usePersonStore((s) => s.people)

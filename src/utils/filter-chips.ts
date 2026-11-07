@@ -50,8 +50,8 @@ export interface FilterChipNames {
 }
 
 /**
- * Narrowing clauses of a filter, in the shape predicates, their or groups
- * and screen criteria share (an or group has no Show completed).
+ * Narrowing clauses of a filter, in the shape predicates and screen
+ * criteria share.
  */
 export interface ChipClauses {
   showCompleted?: boolean
@@ -408,7 +408,7 @@ export function filterChips(c: ChipClauses, names: FilterChipNames, includeCompl
   return chips
 }
 
-/** Whether a list predicate narrows anything (`showCompleted` doesn't; an or group that filters does). */
+/** Whether a list predicate narrows anything (`showCompleted` doesn't; an expression does). */
 export function hasNarrowingFilters(p: TodoPredicate): boolean {
   return p.personIds != null
     || p.statusIds != null
