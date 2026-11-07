@@ -46,6 +46,7 @@ const CASES: Record<string, Case> = {
   tabBadges: { value: { tabBadges: { due: 7, followup: 'off' } }, undo: 'Changed the tab badges', failure: 'Couldn’t save the tab badges.' },
   priorityCues: { value: { priorityCues: { ...DEFAULT_PRIORITY_CUES, focus: { glow: true, semibold: false } } }, undo: 'Changed the priority cues', failure: 'Couldn’t save the priority cues.' },
   rowDensity: { value: { rowDensity: 'comfortable' }, undo: 'Comfortable rows', failure: 'Couldn’t save the row density.' },
+  rowDates: { value: { rowDates: 'numeric' }, undo: 'MM/DD dates on rows', failure: 'Couldn’t save how rows show dates.' },
   lenses: { value: { lenses: [{ id: 'lens-a', name: 'Fresh', predicate: emptyPredicate() }] }, undo: null, failure: 'Couldn’t save the lenses.' },
   activeLensId: { value: { activeLensId: 'lens-a' }, undo: null, failure: 'Couldn’t save the lens pick.' },
   shortcutOverrides: { value: { shortcutOverrides: { 'command-palette': [{ key: 'p', mod: true, shift: true }] } }, undo: null, failure: 'Couldn’t save the keyboard shortcuts.' },

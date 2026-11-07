@@ -131,9 +131,23 @@ describe('MobileTaskRow', () => {
   // ── Date chips ────────────────────────────────────────────────────
 
   describe('date chips', () => {
-    it('shows the due date as MM/DD', () => {
-      const year = new Date().getFullYear()
-      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11) })} />)
+    it('shows the due date in words (D25 D1): Today, the next days’ weekday, then the month and day', () => {
+      const due = (d: Date) => {
+        const { container, unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: d })} />)
+        const text = container.querySelector('[data-pill="due"]')?.textContent
+        unmount()
+        return text
+      }
+      expect(due(new Date(2026, 3, 11))).toBe('Today')
+      expect(due(new Date(2026, 3, 12))).toBe('Sun')
+      expect(due(new Date(2026, 3, 18))).toBe('Apr 18')
+      expect(due(new Date(2026, 3, 2))).toBe('Apr 2')
+      expect(due(new Date(2027, 1, 3))).toBe('02/03/27')
+    })
+
+    it('shows the due date as MM/DD under Settings’ MM/DD', () => {
+      useSettingsStore.setState({ rowDates: 'numeric' })
+      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 11) })} />)
       expect(screen.getByText(/04\/11$/)).toBeInTheDocument()
     })
 
@@ -144,9 +158,8 @@ describe('MobileTaskRow', () => {
     })
 
     it('shows recurrence indicator inside deadline chip when recurrenceRule is set', () => {
-      const year = new Date().getFullYear()
-      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(year, 3, 11), recurrenceRule: { type: 'weekly' } })} />)
-      const chip = screen.getByText(/04\/11/)
+      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 11), recurrenceRule: { type: 'weekly' } })} />)
+      const chip = screen.getByText(/Today/)
       expect(chip.textContent).toContain('\u21bb')
     })
   })

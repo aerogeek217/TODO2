@@ -1,4 +1,5 @@
 import { registerModuleReset } from './module-reset'
+import type { RowDates } from './row-dates'
 
 /** Milliseconds in one day */
 export const MS_PER_DAY = 86_400_000
@@ -63,6 +64,33 @@ export function formatDateShort(date: Date): string {
 export function formatDateNumeric(date: Date): string {
   const d = new Date(date)
   return `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * Whole calendar days from `today`'s day to `date`'s (negative = before),
+ * counted on the local calendar dates through UTC — exact across a DST
+ * change (a 23- or 25-hour day), whatever the times of day.
+ */
+function calendarDaysFrom(today: Date, date: Date): number {
+  const utc = (d: Date) => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
+  return Math.round((utc(date) - utc(today)) / MS_PER_DAY)
+}
+
+/**
+ * A task row's due or next follow-up date (D25 D1). `numeric`: `MM/DD`.
+ * `relative`: `Today`; the next six days (tomorrow too) their weekday
+ * (`Sat`); any other day of `today`'s calendar year `Nov 20` (an overdue
+ * date too — the row's colour says it is late); another year `01/15/27`.
+ * The row's aria-label and tooltip carry the full date.
+ */
+export function formatRowDate(date: Date, today: Date, mode: RowDates): string {
+  const d = new Date(date)
+  if (mode === 'numeric') return formatDateNumeric(d)
+  const days = calendarDaysFrom(today, d)
+  if (days === 0) return 'Today'
+  if (days >= 1 && days <= 6) return formatDateWith(d, { weekday: 'short' })
+  if (d.getFullYear() === today.getFullYear()) return formatDateWith(d, { month: 'short', day: 'numeric' })
+  return `${formatDateNumeric(d)}/${String(d.getFullYear() % 100).padStart(2, '0')}`
 }
 
 /** Format as relative time: "just now", "5m ago", "3h ago", "2d ago", or "in Xd" for future */

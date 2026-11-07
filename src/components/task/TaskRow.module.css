@@ -517,7 +517,8 @@
 }
 
 /*
- * Dates: the due part and the follow-up part (each its `MM/DD` alone) side
+ * Dates: the due part and the follow-up part (each its date's text alone —
+ * `Today`, `Sat`, `Nov 20` or `MM/DD`, D25 D1) side
  * by side, each part its own button with its own width (set inline per
  * tier); a narrow list shows a part as its icon alone, as an absent date's
  * placeholder is.
@@ -544,10 +545,20 @@
   min-width: 0;
 }
 
-/* A repeating task's due part with its date: the repeat glyph takes the padding's room (10 + 2 + 34 = 46). */
+/* A repeating task's due part with its date: the repeat glyph takes the padding's room (10 + 2 + 40 = 52). */
 .dueRepeat {
   gap: 2px;
   padding: 0;
+}
+
+/* Another year's `MM/DD/YY` (D25 D1): the text takes the padding's room, at 11px (50.7 bold in 52). */
+.dateLong {
+  justify-content: center;
+  padding: 0;
+}
+
+.dateLong .dateText {
+  font-size: 11px;
 }
 
 /*

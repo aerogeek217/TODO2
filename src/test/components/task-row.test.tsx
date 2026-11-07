@@ -77,21 +77,47 @@ describe('TaskRow', () => {
   })
 
   describe('due column', () => {
-    it('shows the due date as MM/DD (tabular), named with the full day', () => {
+    it('shows the due date in words (D25 D1), named with the full day; Settings’ MM/DD shows 04/20', () => {
+      const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
+      expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent(/^Mon$/)
+      unmount()
+      useSettingsStore.setState({ rowDates: 'numeric' })
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
-      const due = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
-      expect(due).toHaveTextContent('04/20')
+      expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent(/^04\/20$/)
+    })
+
+    it('relative words: Today, the next six days’ weekday, then the month and day; overdue keeps its month and day; another year MM/DD/YY', () => {
+      const cases: Array<[Date, string, string]> = [
+        [new Date(2026, 3, 16), 'Due Thu 16 Apr', 'Today'],
+        [new Date(2026, 3, 17), 'Due Fri 17 Apr', 'Fri'],
+        [new Date(2026, 3, 22), 'Due Wed 22 Apr', 'Wed'],
+        [new Date(2026, 3, 23), 'Due Thu 23 Apr', 'Apr 23'],
+        [new Date(2026, 3, 10), 'Due Fri 10 Apr', 'Apr 10'],
+        [new Date(2027, 0, 15), 'Due Fri 15 Jan 2027', '01/15/27'],
+      ]
+      for (const [dueDate, name, text] of cases) {
+        const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate })} />)
+        expect(screen.getByRole('button', { name }).textContent, name).toBe(text)
+        unmount()
+      }
+    })
+
+    it('another year’s MM/DD/YY takes the whole part: a repeating task’s glyph gives way, its tooltip still names the repeat', () => {
+      render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2027, 0, 15), recurrenceRule: { type: 'yearly' } })} />)
+      const due = screen.getByRole('button', { name: 'Due Fri 15 Jan 2027' })
+      expect(due.textContent).toBe('01/15/27')
+      expect(due.querySelectorAll('svg')).toHaveLength(0)
     })
 
     it('a set date is its text alone (no clock); a repeating task keeps the repeat glyph before it', () => {
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20) })} />)
       const once = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
-      expect(once).toHaveTextContent('04/20')
+      expect(once).toHaveTextContent('Mon')
       expect(once.querySelectorAll('svg')).toHaveLength(0)
       unmount()
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 20), recurrenceRule: { type: 'weekly' } })} />)
       const repeating = screen.getByRole('button', { name: 'Due Mon 20 Apr' })
-      expect(repeating).toHaveTextContent('04/20')
+      expect(repeating).toHaveTextContent('Mon')
       expect(repeating.querySelectorAll('svg')).toHaveLength(1)
       expect(repeating.querySelector('circle')).toBeNull()
     })
@@ -220,14 +246,14 @@ describe('TaskRow', () => {
 
     it('shows both dates beside their icons, each part its own button', () => {
       render(inList(528))
-      expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('04/20')
-      expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' })).toHaveTextContent('04/24')
+      expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('Mon')
+      expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' })).toHaveTextContent('Apr 24')
       expect(document.querySelector('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'both')
     })
 
     it('a narrower list drops the follow-up date first, then the due date (the icons and names stay)', () => {
       const { unmount } = render(inList(330))
-      expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('04/20')
+      expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('Mon')
       expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' }).textContent).toBe('')
       expect(screen.queryByRole('button', { name: 'Clear follow-up' })).toBeNull()
       unmount()
@@ -507,7 +533,7 @@ describe('TaskRow', () => {
       expect(mockBulk.setStatus).toHaveBeenCalledWith(1, undefined)
       const followup = screen.getByRole('button', { name: 'Follow-up: Mon 20' })
       expect(followup).toHaveAttribute('data-followup', 'upcoming')
-      expect(followup.textContent).toBe('04/20')
+      expect(followup.textContent).toBe('Mon')
       fireEvent.click(followup)
       const popover = screen.getByRole('dialog', { name: 'Follow-up' })
       // Its Mark followed up hands the row's action the field's date (here: cleared → none).

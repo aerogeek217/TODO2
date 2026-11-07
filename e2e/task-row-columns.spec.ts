@@ -40,6 +40,9 @@ function seed(tab: Omit<WsTabSeed, 'id'>, width: number, tasks = TASKS): Workspa
   }
 }
 
+/** A row date's text (D25 D1): `Today`, a weekday, `Nov 20` or another year's `MM/DD/YY`. */
+const ROW_DATE = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|[A-Z][a-z]{2} \d{1,2}|\d\d\/\d\d\/\d\d)$/
+
 const CELLS = ['markers', 'checkbox', 'notes', 'people', 'tags', 'dates', 'due', 'followup', 'status'] as const
 
 /** Every row's cell boxes (by cell name) plus its title box. */
@@ -106,11 +109,11 @@ test('status is the last column, flush with the row’s right padding; the defau
     expect(await laidOutDetails(r)).toBe(300)
   }
   const busy = row(widget, 'Draft the Q4 roadmap review deck')
-  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(60)
-  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(90)
-  expect(Math.round((await box(busy.locator('[data-row-cell="dates"]'))).width)).toBe(94)
-  await expect(busy.locator('[data-row-cell="due"]')).toHaveText(/^\d\d\/\d\d$/)
-  await expect(busy.locator('[data-row-cell="followup"]')).toHaveText(/^\d\d\/\d\d$/)
+  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(55)
+  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(83)
+  expect(Math.round((await box(busy.locator('[data-row-cell="dates"]'))).width)).toBe(106)
+  await expect(busy.locator('[data-row-cell="due"]')).toHaveText(ROW_DATE)
+  await expect(busy.locator('[data-row-cell="followup"]')).toHaveText(ROW_DATE)
   await expect(widget.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
 })
 
@@ -164,7 +167,7 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   // People and tags grew; the dates / status didn't.
   await expect.poll(() => storedTabView(page, 'tab')).toEqual({ detailsWidth: 360 })
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
-  expect(Math.round((await box(first.locator('[data-row-cell="dates"]'))).width)).toBe(94)
+  expect(Math.round((await box(first.locator('[data-row-cell="dates"]'))).width)).toBe(106)
 
   await page.reload()
   await expect(first).toBeVisible()
@@ -313,9 +316,9 @@ test('the dates cell: the due part opens the date picker, the follow-up part the
   await expect(r).toBeVisible()
   const due = r.locator('[data-row-cell="due"]')
   const followup = r.locator('[data-row-cell="followup"]')
-  // Clock, MM/DD — flag, MM/DD: the due part left of the follow-up part, side by side in one cell.
-  await expect(due).toHaveText(/^\d\d\/\d\d$/)
-  await expect(followup).toHaveText(/^\d\d\/\d\d$/)
+  // The due date's text — the follow-up's: the due part left of the follow-up part, side by side in one cell.
+  await expect(due).toHaveText(ROW_DATE)
+  await expect(followup).toHaveText(ROW_DATE)
   const [db, fb, cell] = [await box(due), await box(followup), await box(r.locator('[data-row-cell="dates"]'))]
   expect(db.x + db.width).toBeLessThanOrEqual(fb.x + 0.5)
   expect(db.x).toBeGreaterThanOrEqual(cell.x - 0.5)
@@ -343,7 +346,7 @@ test('the dates cell: the due part opens the date picker, the follow-up part the
   await expect(r.getByRole('button', { name: 'Clear due date' })).toHaveCSS('opacity', '0')
   await clearFollowup.click()
   await expect(r.getByRole('button', { name: 'Set follow-up' })).toBeVisible()
-  await expect(due).toHaveText(/^\d\d\/\d\d$/)
+  await expect(due).toHaveText(ROW_DATE)
   await due.hover()
   await r.getByRole('button', { name: 'Clear due date' }).click()
   await expect(r.getByRole('button', { name: 'Set due date' })).toBeVisible()

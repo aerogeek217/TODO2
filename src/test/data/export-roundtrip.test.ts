@@ -119,6 +119,7 @@ function buildSeed(): Seed {
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
       { key: 'rowDensity', value: 'comfortable' },
+      { key: 'rowDates', value: 'numeric' },
       { key: 'lenses', value: formatLensesSetting([{ id: 'lens-a', name: 'This month', predicate: { ...emptyPredicate(), expression: EXPRESSION } }]) },
       { key: 'lensPresetsSeeded', value: 'true' },
       { key: 'activeLensId', value: 'lens-a' },

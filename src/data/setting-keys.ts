@@ -96,6 +96,8 @@ export const SETTING_KEYS = {
   priorityCues: 'priorityCues',
   /** Row density of the desktop task rows: `comfortable` (titles wrap to two lines) or `compact`. Absent = `compact`. */
   rowDensity: 'rowDensity',
+  /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `Nov 20`) or `numeric` (`MM/DD`). Absent = `relative`. */
+  rowDates: 'rowDates',
   /**
    * The lenses (named screen filters, picked in the top bar — `activeLensId`): JSON array of
    * `{ id, name, predicate }`, the predicate a list predicate with

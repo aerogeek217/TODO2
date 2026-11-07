@@ -52,6 +52,7 @@ import {
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../data/checkin-filter-shape'
 import { DEFAULT_STALE_AFTER_DAYS, isStaleAfterDays, parseStaleAfterDays } from '../utils/stale'
 import { DEFAULT_ROW_DENSITY, isRowDensity, type RowDensity } from '../utils/row-density'
+import { DEFAULT_ROW_DATES, isRowDates, type RowDates } from '../utils/row-dates'
 import type { Lens } from '../utils/lens'
 import { formatLensesSetting, isLensId, readLensesSetting } from '../data/lens-shape'
 import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
@@ -84,6 +85,7 @@ import { registerModuleReset } from '../utils/module-reset'
 export type ThemeMode = 'light' | 'dark' | 'system'
 
 export type { RowDensity } from '../utils/row-density'
+export type { RowDates } from '../utils/row-dates'
 
 export type { ThemeColors, ThemedColors, ThemeName } from '../models/theme-colors'
 export { DEFAULT_THEMED_COLORS } from '../models/theme-colors'
@@ -141,6 +143,8 @@ interface SettingsData {
   priorityCues: PriorityCues
   /** Row density of the desktop task rows (`utils/row-density`). */
   rowDensity: RowDensity
+  /** How the task rows show their due and follow-up dates (`utils/row-dates`). */
+  rowDates: RowDates
   /** The lenses (named screen filters, picked in the top bar — `utils/lens`), in Settings' order. */
   lenses: readonly Lens[]
   /** The preset lenses were seeded once (`seedLensPresets`); nothing seeds them again. */
@@ -214,6 +218,8 @@ interface SettingsState extends SettingsData {
   setPriorityCues: (cues: PriorityCues) => Promise<void>
   /** The row density (an unknown value is ignored); stored only when not `compact`. */
   setRowDensity: (density: RowDensity) => Promise<void>
+  /** How the task rows show dates (an unknown value is ignored); stored only when not `relative`. */
+  setRowDates: (dates: RowDates) => Promise<void>
   // The lens edits and the top bar's pick are `stores/lens-actions`' (cr31 A5).
   /**
    * Gives `id` new keys (no undo step). Resolves the reason when they are
@@ -585,6 +591,13 @@ export const SETTINGS = {
     failure: 'Couldn’t save the row density.',
     undo: ({ rowDensity }) => (rowDensity === 'comfortable' ? 'Comfortable rows' : 'Compact rows'),
   }),
+  rowDates: setting(['rowDates'], {
+    read: (rows) => ({ rowDates: rowOr(rows, K.rowDates, DEFAULT_ROW_DATES, (v) => (isRowDates(v) ? v : DEFAULT_ROW_DATES)) }),
+    rows: ({ rowDates }) => rowUnlessDefault(K.rowDates, rowDates, rowDates === DEFAULT_ROW_DATES),
+    label: 'the row dates',
+    failure: 'Couldn’t save how rows show dates.',
+    undo: ({ rowDates }) => (rowDates === 'relative' ? 'Relative dates on rows' : 'MM/DD dates on rows'),
+  }),
   // The lenses and the pick are written by `stores/lens-actions` (its undo names are the edit's).
   lenses: setting(['lenses'], {
     read: (rows) => ({ lenses: rowOr<readonly Lens[]>(rows, K.lenses, [], (v) => readLensesSetting(v).lenses) }),
@@ -735,6 +748,10 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setRowDensity(density) {
     if (isRowDensity(density)) await SETTINGS.rowDensity.write({ rowDensity: density })
+  },
+
+  async setRowDates(dates) {
+    if (isRowDates(dates)) await SETTINGS.rowDates.write({ rowDates: dates })
   },
 
   async setShortcut(id, chord) {

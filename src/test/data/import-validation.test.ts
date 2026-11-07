@@ -534,6 +534,7 @@ describe('validateImportData', () => {
         ['purgePromptLastAt', '2026-10-20T08:00:00.000Z'],
         ['staleAfterDays', '0'], ['staleAfterDays', '30'], ['staleAfterDays', '365'],
         ['rowDensity', 'comfortable'], ['rowDensity', 'compact'],
+        ['rowDates', 'relative'], ['rowDates', 'numeric'],
       ]) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
         expect(result.ok, `${key}=${value}`).toBe(true)
@@ -556,6 +557,8 @@ describe('validateImportData', () => {
         ['staleAfterDays', '07', 'staleAfterDays must be a day count 0–365'],
         ['staleAfterDays', '', 'staleAfterDays must be a day count 0–365'],
         ['rowDensity', 'cosy', 'rowDensity must be comfortable or compact'],
+        ['rowDates', 'short', 'rowDates must be relative or numeric'],
+        ['rowDates', '', 'rowDates must be relative or numeric'],
       ] as const) {
         const result = validateImportData(validData({ settings: [{ key, value }] }))
         expect(result, `${key}=${value}`).toEqual({ ok: false, error: expect.stringContaining(message) })

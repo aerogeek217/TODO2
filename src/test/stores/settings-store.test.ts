@@ -537,6 +537,28 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().rowDensity).toBe('compact')
   })
 
+  it('the row dates: relative by default (no row); numeric stored, relative removes the row; junk ignored on load', async () => {
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().rowDates).toBe('relative')
+    useUndoStore.getState().clear()
+
+    await useSettingsStore.getState().setRowDates('numeric')
+    expect(await db.settings.get('rowDates')).toEqual({ key: 'rowDates', value: 'numeric' })
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('MM/DD dates on rows')
+    await useSettingsStore.getState().setRowDates('short' as never)
+    expect(useSettingsStore.getState().rowDates).toBe('numeric')
+    await useSettingsStore.getState().setRowDates('relative')
+    expect(await db.settings.get('rowDates')).toBeUndefined()
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Relative dates on rows')
+
+    await db.settings.put({ key: 'rowDates', value: 'numeric' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().rowDates).toBe('numeric')
+    await db.settings.put({ key: 'rowDates', value: 'words' })
+    await useSettingsStore.getState().load()
+    expect(useSettingsStore.getState().rowDates).toBe('relative')
+  })
+
   it('new-list sort / grouping and the purge interval: each change is one undo step with the snackbar; undo / redo save', async () => {
     await useSettingsStore.getState().load()
     useUndoStore.getState().clear()

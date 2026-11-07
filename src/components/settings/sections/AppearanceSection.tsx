@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useSettingsStore, type RowDensity, type ThemeMode } from '../../../stores/settings-store'
+import { useSettingsStore, type RowDates, type RowDensity, type ThemeMode } from '../../../stores/settings-store'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { ThemeColorsEditor } from '../ThemeColorsEditor'
 import { NlpSyntaxModal } from '../NlpSyntaxModal'
@@ -18,12 +18,19 @@ const DENSITY_OPTIONS: ReadonlyArray<{ density: RowDensity; label: string }> = [
   { density: 'compact', label: 'Compact' },
 ]
 
-/** Theme (the only place it is set), theme colors and the row density. */
+const DATES_OPTIONS: ReadonlyArray<{ dates: RowDates; label: string }> = [
+  { dates: 'relative', label: 'Relative' },
+  { dates: 'numeric', label: 'MM/DD' },
+]
+
+/** Theme (the only place it is set), theme colors, the row density and how rows show dates. */
 export function AppearanceSection() {
   const themeMode = useSettingsStore((s) => s.themeMode)
   const setThemeMode = useSettingsStore((s) => s.setThemeMode)
   const rowDensity = useSettingsStore((s) => s.rowDensity)
   const setRowDensity = useSettingsStore((s) => s.setRowDensity)
+  const rowDates = useSettingsStore((s) => s.rowDates)
+  const setRowDates = useSettingsStore((s) => s.setRowDates)
   const isMobile = useIsMobile()
   const [showThemeColors, setShowThemeColors] = useState(false)
   const [showNlpSyntax, setShowNlpSyntax] = useState(false)
@@ -57,6 +64,22 @@ export function AppearanceSection() {
               aria-checked={rowDensity === density}
               className={`${styles.segment} ${rowDensity === density ? styles.segmentActive : ''}`}
               onClick={() => void setRowDensity(density)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </SettingRow>
+      <SettingRow label="Dates" help="How task rows show due and follow-up dates. Relative says Today, the weekday for the next six days, else Nov 20; MM/DD always says 11/20.">
+        <div className={styles.segmented} role="radiogroup" aria-label="Dates">
+          {DATES_OPTIONS.map(({ dates, label }) => (
+            <button
+              key={dates}
+              type="button"
+              role="radio"
+              aria-checked={rowDates === dates}
+              className={`${styles.segment} ${rowDates === dates ? styles.segmentActive : ''}`}
+              onClick={() => void setRowDates(dates)}
             >
               {label}
             </button>

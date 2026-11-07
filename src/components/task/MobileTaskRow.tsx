@@ -104,6 +104,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({
   const priorityCues = useSettingsStore((s) => s.priorityCues)
   const cue = rowCue(todo, priorityCues, today, urgentRange)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
+  // The due chip's date as Settings › Appearance › Dates says (`formatRowDate`).
+  const rowDates = useSettingsStore((s) => s.rowDates)
   const stale = isStale(todo, today, staleAfterDays)
 
   const hasPeople = people.length > 0
@@ -217,7 +219,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             people={people}
             today={today}
             density="small"
-            dateFormat="numeric"
+            dateFormat={rowDates === 'relative' ? 'relative' : 'numeric'}
             followupFlagOnly
             deadlineIntensity={deadlineIntensity}
             peopleAnchorRef={peopleRef as RefObject<HTMLDivElement | null>}

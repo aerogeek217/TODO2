@@ -18,11 +18,13 @@
  */
 
 /**
- * The `MM/DD` text's width in the row's meta font, px: measured in the app
- * font at 12px, tabular figures (34; the system fallbacks are narrower).
- * The 11.5px meta (D25 B) draws it narrower; the part keeps this width.
+ * A row date's text width, px (`formatRowDate`, D25 D1): the widest month
+ * and day in the app font at the 11.5px meta, tabular figures, bold as an
+ * overdue date is (`May 28` 39.5; `Today` 34, `Wed` 26, `MM/DD` 33.4; the
+ * system fallbacks are narrower). Another year's `MM/DD/YY` (51–53) takes
+ * the padding's room at 11px instead (`.dateLong`: 50.7 bold in 52).
  */
-const DATE_TEXT = 34
+const DATE_TEXT = 40
 /** A date part's icon (1em of the meta font), px — the placeholder, or the repeat glyph before a repeating task's date. */
 const DATE_ICON = 12
 /** The padding each side of a part's date, px. */
@@ -31,7 +33,7 @@ const DATE_TEXT_PAD = 6
 const DATE_PARTS_GAP = 2
 
 /**
- * One date part's width: the `MM/DD` text alone (6 + 34 + 6 = 46 — a set
+ * One date part's width: the date's text alone (6 + 40 + 6 = 52 — a set
  * date shows no clock / flag beside it), or an icon alone (the absent-date
  * placeholder, the icon-only tier). A repeating task's due part draws the
  * repeat glyph before its date and takes `REPEAT_DATE_PART` instead.
@@ -42,8 +44,8 @@ function datePart(withDate: boolean): number {
 
 /**
  * A repeating task's due part with its date at its natural width: the
- * repeat glyph, the gap and the date (58). The tracks are the same for every
- * row of a list, so the part keeps `datePart(true)` (46): its glyph is drawn
+ * repeat glyph, the gap and the date (64). The tracks are the same for every
+ * row of a list, so the part keeps `datePart(true)` (52): its glyph is drawn
  * smaller (10px) in the padding's room (`.dueRepeat`).
  */
 export const REPEAT_DATE_PART = datePart(true) + DATE_ICON

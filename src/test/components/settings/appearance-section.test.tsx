@@ -30,3 +30,21 @@ describe('AppearanceSection — row density', () => {
     await waitFor(async () => expect(await db.settings.get('rowDensity')).toBeUndefined())
   })
 })
+
+describe('AppearanceSection — dates', () => {
+  it('offers Relative | MM/DD, Relative checked by default; MM/DD is saved and Relative removes the row', async () => {
+    render(<AppearanceSection />)
+    const group = screen.getByRole('radiogroup', { name: 'Dates' })
+    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Relative', 'MM/DD'])
+    expect(within(group).getByRole('radio', { name: 'Relative' })).toHaveAttribute('aria-checked', 'true')
+
+    fireEvent.click(within(group).getByRole('radio', { name: 'MM/DD' }))
+    await waitFor(() => expect(useSettingsStore.getState().rowDates).toBe('numeric'))
+    expect(within(group).getByRole('radio', { name: 'MM/DD' })).toHaveAttribute('aria-checked', 'true')
+    await waitFor(async () => expect((await db.settings.get('rowDates'))?.value).toBe('numeric'))
+
+    fireEvent.click(within(group).getByRole('radio', { name: 'Relative' }))
+    await waitFor(() => expect(useSettingsStore.getState().rowDates).toBe('relative'))
+    await waitFor(async () => expect(await db.settings.get('rowDates')).toBeUndefined())
+  })
+})
