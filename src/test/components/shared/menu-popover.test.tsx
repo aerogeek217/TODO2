@@ -20,6 +20,24 @@ const item = (label: string, extra: Partial<Extract<MenuEntry, { kind: 'item' }>
   ({ kind: 'item', label, onSelect: vi.fn(), ...extra })
 
 describe('MenuPopover — the popover menu', () => {
+  it('a stepper row: − · the value · +, each disabled without its handler; a press keeps the menu open; ↑↓ reach its buttons', () => {
+    const onDecrement = vi.fn()
+    const onClose = vi.fn()
+    render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={onClose} entries={[
+      item('Copy'),
+      { kind: 'stepper', label: 'Zoom', value: 'Stacked', decrementLabel: 'Zoom out', incrementLabel: 'Zoom in', onDecrement },
+    ]} />)
+    const group = screen.getByRole('group', { name: 'Zoom' })
+    expect(group).toHaveTextContent('Stacked')
+    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }))
+    expect(onDecrement).toHaveBeenCalledOnce()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByRole('menuitem', { name: 'Copy' })).toHaveFocus()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' })
+    expect(screen.getByRole('button', { name: 'Zoom out' })).toHaveFocus()
+  })
+
   it('checkbox items: aria-checked true / false / mixed with a note', () => {
     render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={vi.fn()} entries={[
       item('On', { checkbox: true, checked: true }),

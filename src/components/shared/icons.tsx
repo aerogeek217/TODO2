@@ -153,6 +153,11 @@ export function PlusIcon({ size = 14, strokeWidth = 1.6 }: { size?: number; stro
   return <Svg size={size} strokeWidth={strokeWidth}><path d="M8 3v10M3 8h10" /></Svg>
 }
 
+/** The plus's bar alone: a step down (a list tab menu's Zoom out). */
+export function MinusIcon({ size = 14, strokeWidth = 1.6 }: { size?: number; strokeWidth?: number }) {
+  return <Svg size={size} strokeWidth={strokeWidth}><path d="M3 8h10" /></Svg>
+}
+
 /** The Settings gear (stroke ≈ 1.9 at 16px): Settings, Customize dashboard. */
 export function GearIcon({ size = 16 }: { size?: number }) {
   return (

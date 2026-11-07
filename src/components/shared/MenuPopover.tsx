@@ -6,7 +6,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../constants'
 import { anchorAtPoint, usePopoverAnchor, type AnchorRect, type PopoverAnchor, type PopoverCaret, type PopoverPlacement } from '../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import { CheckIcon, ChevronRightIcon, DashIcon } from './icons'
+import { CheckIcon, ChevronRightIcon, DashIcon, MinusIcon, PlusIcon } from './icons'
 import styles from './MenuPopover.module.css'
 import { PopoverRoot } from './PopoverRoot'
 import { PopoverLevelContext, usePopoverLevel } from './popover-level'
@@ -64,8 +64,26 @@ export interface MenuItemEntry {
   dragId?: string
 }
 
+/**
+ * A value stepped in place with − and + (e.g. a list's zoom): the menu
+ * stays open; a step without its handler is disabled (the value's end).
+ */
+export interface MenuStepperEntry {
+  kind: 'stepper'
+  label: string
+  icon?: ReactNode
+  /** The current value, between − and +. */
+  value: string
+  /** The buttons' names (e.g. `Zoom out`, `Zoom in`). */
+  decrementLabel: string
+  incrementLabel: string
+  onDecrement?: () => void
+  onIncrement?: () => void
+}
+
 export type MenuEntry =
   | MenuItemEntry
+  | MenuStepperEntry
   | { kind: 'separator' }
   | { kind: 'label'; text: string }
   /** A muted, wrapping footnote. */
@@ -107,8 +125,11 @@ const SUBMENU_GAP_PX = 2
 const MENU_PADDING_PX = 4
 const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
 
+/** The panel's focusable items in order: its item buttons, and a stepper's − / + buttons. */
 function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
-  return panel ? Array.from(panel.querySelectorAll<HTMLButtonElement>(':scope > button:not([disabled])')) : []
+  return panel
+    ? Array.from(panel.querySelectorAll<HTMLButtonElement>(':scope > button:not([disabled]), :scope > [data-menu-stepper] > button:not([disabled])'))
+    : []
 }
 
 /**
@@ -359,6 +380,7 @@ function MenuPanel({ panelRef, entries, label, className, style, caret, openInde
     if (entry.kind === 'separator') return <div key={i} className={styles.separator} role="separator" />
     if (entry.kind === 'label') return <div key={i} className={styles.groupLabel} role="presentation">{entry.text}</div>
     if (entry.kind === 'note') return <div key={i} className={styles.footnote}>{entry.text}</div>
+    if (entry.kind === 'stepper') return <MenuStepper key={i} entry={entry} />
     const props: MenuItemButtonProps = {
       entry,
       index: i,
@@ -410,6 +432,41 @@ function MenuReorder({ ids, onReorder, children }: {
     <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[verticalOnly]} autoScroll={false} onDragEnd={onDragEnd}>
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>{children}</SortableContext>
     </DndContext>
+  )
+}
+
+/**
+ * A stepper row: its label, then − · the value · +. The buttons are the
+ * menu's items for ↑↓ (Enter or Space presses one); a press keeps the menu
+ * open.
+ */
+function MenuStepper({ entry }: { entry: MenuStepperEntry }) {
+  return (
+    <div className={styles.stepper} role="group" aria-label={entry.label} data-menu-stepper="">
+      {entry.icon && <span className={styles.icon}>{entry.icon}</span>}
+      <span className={styles.label}>{entry.label}</span>
+      <button
+        type="button"
+        className={styles.stepButton}
+        aria-label={entry.decrementLabel}
+        title={entry.decrementLabel}
+        disabled={!entry.onDecrement}
+        onClick={() => entry.onDecrement?.()}
+      >
+        <MinusIcon size={12} />
+      </button>
+      <span className={styles.stepValue} aria-live="polite" data-menu-stepper-value="">{entry.value}</span>
+      <button
+        type="button"
+        className={styles.stepButton}
+        aria-label={entry.incrementLabel}
+        title={entry.incrementLabel}
+        disabled={!entry.onIncrement}
+        onClick={() => entry.onIncrement?.()}
+      >
+        <PlusIcon size={12} />
+      </button>
+    </div>
   )
 }
 

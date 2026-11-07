@@ -7,6 +7,8 @@ import { shortcutLabel } from '../utils/shortcut-bindings'
 import type { ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import { runShortcutCommand, type ShortcutCallbacks } from './keyboard-shortcuts'
 import { copySelectedTasks } from './task-copy'
+import { listTabZoom, setListTabZoom, zoomTargetTab } from './list-zoom'
+import { LIST_ZOOM_LABELS, stepListZoom } from '../utils/list-zoom'
 
 /** `task` = task actions (New Task, Undo …); `search-results` = tasks found by the palette's search. */
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'search-results'
@@ -132,6 +134,8 @@ export function createCommands(
       ctx.setDateRange(null, yesterday)
     }},
   ]
+  commands.push(...listZoomCommands())
+
   // Always offered: with no filter on, it lists every open task.
   const showScreenTasks = ctx.showScreenTasks
   if (showScreenTasks) {
@@ -200,6 +204,28 @@ export function createCommands(
   }
 
   return commands
+}
+
+/**
+ * Zoom List In / Zoom List Out (D25 I1) for the list tab on screen the user
+ * was last in (`zoomTargetTab`), each while it can step that way; the hint
+ * says the step (`Rows → Lines`). None without a list tab on screen.
+ */
+function listZoomCommands(): Command[] {
+  const tab = zoomTargetTab()
+  if (!tab) return []
+  const zoom = listTabZoom(tab)
+  return (['in', 'out'] as const).flatMap((dir): Command[] => {
+    const next = stepListZoom(zoom, dir)
+    if (next === zoom) return []
+    return [{
+      id: `list-zoom-${dir}`,
+      name: dir === 'in' ? 'Zoom List In' : 'Zoom List Out',
+      hint: `${LIST_ZOOM_LABELS[zoom]} → ${LIST_ZOOM_LABELS[next]}`,
+      category: 'navigation',
+      action: () => { void setListTabZoom(tab.id, next) },
+    }]
+  })
 }
 
 /**
