@@ -116,6 +116,12 @@ test('the screen filter narrows the dots', async ({ page }) => {
   await expect(dots(page)).toHaveCount(1)
   await expect(dots(page, 'slipping')).toHaveCount(1)
   await expect(slippingList(page).getByRole('listitem')).toHaveText([/Ship the quarterly report/])
+  // Hiding every task says so; its button (a click on the plot, not a lasso) clears the filter.
+  await page.locator('header').getByRole('textbox', { name: 'Search tasks' }).fill('nothing like this')
+  const note = map(page).getByRole('status')
+  await expect(note).toContainText('All 12 open tasks are hidden by the screen filter.')
+  await note.getByRole('button').click()
+  await expect(dots(page)).toHaveCount(12)
 })
 
 test('the tab menu sets Colour by and Untouched after', async ({ page }) => {

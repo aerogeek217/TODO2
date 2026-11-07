@@ -137,9 +137,9 @@ function useLasso(enabled: boolean, onSelect: (ids: number[], additive: boolean)
   const startRef = useRef<{ x: number; y: number; id: number } | null>(null)
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (!enabled || e.button !== 0 || !(e.target instanceof Element)) return
-    if (e.target.closest('[data-neglect-dot]')) return
+    // A dot, or the note's button: its own click.
+    if (e.target.closest('button')) return
     startRef.current = { x: e.clientX, y: e.clientY, id: e.pointerId }
-    e.currentTarget.setPointerCapture?.(e.pointerId)
   }
   const rectOf = (el: HTMLElement, e: ReactPointerEvent<HTMLDivElement>, start: { x: number; y: number }): Lasso => {
     const box = el.getBoundingClientRect()
@@ -150,15 +150,19 @@ function useLasso(enabled: boolean, onSelect: (ids: number[], additive: boolean)
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const start = startRef.current
     if (!start || start.id !== e.pointerId) return
-    if (!lasso && Math.hypot(e.clientX - start.x, e.clientY - start.y) < DRAG_ACTIVATION_DISTANCE_PX) return
+    if (!lasso) {
+      if (Math.hypot(e.clientX - start.x, e.clientY - start.y) < DRAG_ACTIVATION_DISTANCE_PX) return
+      // Captured only once it is a drag, so a plain click keeps its target.
+      e.currentTarget.setPointerCapture?.(e.pointerId)
+    }
     setLasso(rectOf(e.currentTarget, e, start))
   }
   const end = (e: ReactPointerEvent<HTMLDivElement>, cancelled: boolean) => {
     const start = startRef.current
     startRef.current = null
     if (!start || start.id !== e.pointerId) return
-    e.currentTarget.releasePointerCapture?.(e.pointerId)
     if (!lasso) return
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
     setLasso(null)
     if (cancelled) return
     const r = rectOf(e.currentTarget, e, start)
