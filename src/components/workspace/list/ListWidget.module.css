@@ -338,7 +338,7 @@
   box-shadow: inset 0 0 0 1px var(--color-border);
 }
 
-/* Drop line between rows: a 2px bar with a ring at its start. */
+/* Drop line between rows: a 2px bar from the rows' title (D25 E4) with a ring at its start. */
 .dropLine {
   position: relative;
   height: 0;
@@ -348,7 +348,7 @@
 .dropLine::before {
   content: '';
   position: absolute;
-  left: 6px;
+  left: var(--row-title-start);
   right: 6px;
   top: -1px;
   height: 2px;
@@ -359,7 +359,7 @@
 .dropLine::after {
   content: '';
   position: absolute;
-  left: 2px;
+  left: calc(var(--row-title-start) - 4px);
   top: -4px;
   width: 8px;
   height: 8px;

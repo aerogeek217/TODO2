@@ -294,7 +294,7 @@
   color: var(--color-text-muted);
 }
 
-/* Where the dragged task lands in the hovered quadrant's due-date order. */
+/* Where the dragged task lands in the hovered quadrant's due-date order: from the rows' title, as a list's line. */
 .dropLine {
   position: relative;
   height: 0;
@@ -304,7 +304,7 @@
 .dropLine::before {
   content: '';
   position: absolute;
-  left: 6px;
+  left: var(--row-title-start);
   right: 6px;
   top: -1px;
   height: 2px;
@@ -315,7 +315,7 @@
 .dropLine::after {
   content: '';
   position: absolute;
-  left: 2px;
+  left: calc(var(--row-title-start) - 4px);
   top: -4px;
   width: 8px;
   height: 8px;
