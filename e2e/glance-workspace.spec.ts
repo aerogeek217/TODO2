@@ -126,3 +126,30 @@ test('a Needs follow-up row drags onto a calendar day to set its due date', asyn
   await expect(day).toContainText('Plan the offsite')
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 })
+
+test('narrow section cells keep their parts inside: People keeps the names, Created vs completed its stats and key', async ({ page }) => {
+  // Three sections side by side in a wide column: each cell about 350px wide.
+  await seedWorkspace(page, seedWith([
+    { id: 'c2', weight: 3, rows: [{ cells: (['people', 'trend', 'next7'] as const).map((kind) => ({ id: `narrow-${kind}`, tabs: [{ id: `narrow-${kind}-tab`, kind }] })) }] },
+  ]))
+  const people = page.locator('[data-glance-tab="narrow-people-tab"]')
+  const trend = page.locator('[data-glance-tab="narrow-trend-tab"]')
+  await expect(people.locator('[data-person-row]').first()).toBeVisible()
+  await expect(trend.locator('[data-dash-section="trend"]')).toBeVisible()
+
+  // Nothing drawn past a section's right edge (a cut title's ellipsis box excepted).
+  const spill = (root: typeof people) => root.evaluate((el) => {
+    const right = el.getBoundingClientRect().right
+    return Array.from(el.querySelectorAll<HTMLElement>('*'))
+      .filter((e) => getComputedStyle(e).display !== 'none' && e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().right > right + 0.5)
+      .filter((e) => !e.closest('[class*="titleText"]'))
+      .map((e) => e.textContent?.trim().slice(0, 30) ?? e.tagName)
+  })
+  expect((await people.boundingBox())!.width).toBeLessThan(380)
+  expect(await spill(people)).toEqual([])
+  expect(await spill(trend)).toEqual([])
+
+  // People: each name keeps room to read (the bar goes first).
+  const names = await people.locator('[data-person-row]').evaluateAll((rows) => rows.map((r) => r.firstElementChild!.getBoundingClientRect().width))
+  for (const w of names) expect(w).toBeGreaterThan(60)
+})

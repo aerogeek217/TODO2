@@ -36,6 +36,8 @@
   min-width: 0;
   height: 40px;
   padding: 0 10px 0 14px;
+  /* A narrow cell drops the chart key (below) rather than push it past the edge. */
+  container-type: inline-size;
 }
 
 .panelTitle {
@@ -83,6 +85,14 @@
   gap: 10px;
   flex: none;
   margin-left: auto;
+}
+
+/* A widget cell may be as narrow as 120px: the key goes first (Next 7 days'
+   marks carry their glyphs; Created vs completed's stats name the series). */
+@container (max-width: 380px) {
+  .panelExtras {
+    display: none;
+  }
 }
 
 .legend {
@@ -299,7 +309,8 @@ button.day:hover {
 
 .trendStats {
   display: flex;
-  gap: 24px;
+  flex-wrap: wrap;
+  gap: 2px 24px;
   flex: none;
 }
 
@@ -467,6 +478,10 @@ button.personRow:hover {
   column-gap: 10px;
 }
 
+.peoplePanel {
+  container-type: inline-size;
+}
+
 .peopleHead {
   flex: none;
   height: 24px;
@@ -535,6 +550,19 @@ button.personRow:hover {
   height: 100%;
   border-radius: var(--radius-pill);
   background: var(--color-text-secondary);
+}
+
+/* A narrow widget keeps the names and counts; the bar goes (its header's
+   Open moves over the count). */
+@container (max-width: 440px) {
+  .peopleGrid {
+    grid-template-columns: minmax(0, 1fr) 36px 64px 64px;
+  }
+
+  .peopleBar,
+  .peopleHeadGap {
+    display: none;
+  }
 }
 
 .num {

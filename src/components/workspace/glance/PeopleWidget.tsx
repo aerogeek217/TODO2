@@ -29,13 +29,13 @@ export function PeopleSection({ data, options, onDrill, style, className }: Sect
     ...(showUnassigned ? [{ key: 'none', person: null, stats: unassigned }] : []),
   ], [rows, unassigned, showUnassigned])
   return (
-    <Panel def={SECTION_META.people} style={style} className={className} sub="Open tasks by person">
+    <Panel def={SECTION_META.people} style={style} className={`${styles.peoplePanel}${className ? ` ${className}` : ''}`} sub="Open tasks by person">
       {all.length === 0 ? (
         <Empty title="No open tasks" hint="Open tasks show here by person." />
       ) : (
         <>
           <div className={`${styles.peopleGrid} ${styles.peopleHead}`}>
-            <span>Person</span><span>Open</span><span /><span className={styles.num}>Priority</span><span className={styles.num}>Follow-up</span>
+            <span>Person</span><span>Open</span><span className={styles.peopleHeadGap} /><span className={styles.num}>Priority</span><span className={styles.num}>Follow-up</span>
           </div>
           <div ref={trackScrollEdges} className={styles.panelBody}>
             {all.map(({ key, person, stats }) => {
