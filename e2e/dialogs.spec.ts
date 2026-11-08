@@ -56,6 +56,17 @@ async function refuseClipboard(page: Page) {
   })
 }
 
+/**
+ * Waits for the element's own finite animations (an entry's `cardPop`, say)
+ * to end, so a box read after it sees the resting place, not a frame of the
+ * entry. An infinite animation never ends and is left alone.
+ */
+async function animationsSettled(el: Locator) {
+  await el.evaluate((node) => Promise.all(node.getAnimations()
+    .filter((a) => a.effect?.getComputedTiming().endTime !== Infinity)
+    .map((a) => a.finished.catch(() => undefined))))
+}
+
 const focusInside = (dialog: Locator) => dialog.evaluate((panel) => panel.contains(document.activeElement))
 
 /**
@@ -113,6 +124,7 @@ interface Contract {
 
 /** The panel sits in the middle of the window (the frame centres it without a transform). */
 async function expectCentred(dialog: Locator) {
+  await animationsSettled(dialog)
   const box = await dialog.boundingBox()
   if (!box) throw new Error('no box')
   expect(Math.abs(box.x + box.width / 2 - VIEWPORT.width / 2)).toBeLessThanOrEqual(1)
@@ -494,6 +506,8 @@ test('task editor from a list row: on the frame, 12vh from the top; Tab kept ins
   const editor = page.getByRole('dialog', { name: 'Edit task' })
   await expect(editor).toBeVisible()
   expect(await focusInside(editor)).toBe(true)
+  // Its card pops in for 300 ms (scale + translateY): read the box at rest.
+  await animationsSettled(editor)
   const box = await editor.boundingBox()
   const vh = page.viewportSize()?.height ?? 0
   expect(Math.abs((box?.y ?? 0) - vh * 0.12)).toBeLessThan(2)
