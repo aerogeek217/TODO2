@@ -3,6 +3,7 @@ import type { MarkerConditions, MarkerKey, TodoItem, TodoPredicate } from '../mo
 import { activeMarkers, markerConditions } from './markers'
 import { isNegated } from './filter-negation'
 import { topLevelPredicate } from './predicate-expression'
+import { topLevelIdPicks } from './filter-expression'
 
 export interface FilterDefaults {
   personIds: number[]
@@ -65,7 +66,12 @@ export function withoutMarkers(fd: FilterDefaults, keys: readonly MarkerKey[]): 
  * a "+ Add task" affordance from the predicate of a list widget,
  * post any runtime-filter merge. An expression seeds from its top-level
  * terms that are chips (`topLevelPredicate`): which side of an `or` a new task should meet is ambiguous.
+ * Its people and tags are those of every top-level "is" term (`topLevelIdPicks`),
+ * so `@a and @b` — one chip and a term beside it — seeds both (cr33 F12).
  */
 export function predicateToFilterDefaults(predicate: TodoPredicate): FilterDefaults {
-  return getFilterDefaults(predicateToCriteria(topLevelPredicate(predicate)))
+  const fd = getFilterDefaults(predicateToCriteria(topLevelPredicate(predicate)))
+  if (!predicate.expression) return fd
+  const seeds = (kind: 'person' | 'tag') => [...new Set(topLevelIdPicks(predicate.expression, kind).flat())].filter((id) => id !== 0)
+  return { ...fd, personIds: seeds('person'), tagIds: seeds('tag') }
 }

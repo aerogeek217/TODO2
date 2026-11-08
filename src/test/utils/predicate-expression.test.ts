@@ -150,6 +150,31 @@ describe('the readers of the top level', () => {
     expect(groupRestrictions('personIds', undefined, { ...predicateToCriteria(emptyPredicate()), lens })).toEqual([[2]])
   })
 
+  // cr33 F12: `@a and @b` keeps tasks of both, so a new task gets both and
+  // the groups narrow to both (a task of both shows under each).
+  const both = expr({ kind: 'and', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 2 }, { kind: 'tag', id: 1 }, { kind: 'tag', id: 3 }] })
+
+  it('seed every person and tag a repeated top-level "is" term names', () => {
+    expect(predicateToFilterDefaults(both)).toEqual({ personIds: [1, 2], tagIds: [1, 3], statusId: undefined })
+    // A seeded task matches the list it was added from.
+    const evaluate = createPredicateEvaluator(lookupsFor({
+      assignedPeopleMap: new Map([[9, [ann, bob]]]),
+      assignedTagsMap: new Map([[9, [work, { id: 3, name: 'q4', color: '#000' }]]]),
+    }), today, currentFilterSettings())
+    expect(evaluate(both, makeTodo({ id: 9, title: 'new' }))).toBe(true)
+    // An "is not" first, an "is" after it: the "is" seeds.
+    expect(predicateToFilterDefaults(expr({ kind: 'and', items: [{ kind: 'not', item: { kind: 'person', id: 1 } }, { kind: 'person', id: 2 }] })).personIds).toEqual([2])
+    // A repeated term inside an `or` still seeds nothing.
+    expect(predicateToFilterDefaults(expr({ kind: 'or', items: [{ kind: 'and', items: [{ kind: 'person', id: 1 }, { kind: 'person', id: 2 }] }, { kind: 'tag', id: 1 }] })).personIds).toEqual([])
+  })
+
+  it('narrow People / Tag groups by each repeated top-level "is" term, intersected', () => {
+    expect(groupRestrictions('personIds', both, undefined)).toEqual([[1], [2]])
+    expect(groupRestrictions('tags', both, undefined)).toEqual([[1], [3]])
+    const lens = predicateToCriteria(expr({ kind: 'and', items: [{ kind: 'person', id: 1 }, { kind: 'not', item: { kind: 'person', id: 3 } }, { kind: 'or', items: [{ kind: 'person', id: 2 }, { kind: 'person', id: 4 }] }] }))
+    expect(groupRestrictions('personIds', undefined, { ...predicateToCriteria(emptyPredicate()), lens })).toEqual([[1], [2, 4]])
+  })
+
   it('write a pane drop from the top-level chips', () => {
     expect(paneWrites(mixed, names)).toMatchObject({ statusId: 2, personId: 1, markers: { urgent: true } })
   })
