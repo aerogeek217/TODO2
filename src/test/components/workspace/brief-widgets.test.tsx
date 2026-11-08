@@ -279,7 +279,7 @@ describe('Clear Focus', () => {
     await answer(true)
     await done
     expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
-    expect(setMarkerFlags).toHaveBeenCalledWith([{ todoId: 5, focus: false }], 'Cleared Focus from 1 done task')
+    expect(setMarkerFlags).toHaveBeenCalledWith([{ todoId: 5, focus: false }], 'Cleared Focus from 1 done task', { stamp: false })
   })
 
   it('the prompt names the open count; Clear all clears every Focus task, open and done, in one step', async () => {
