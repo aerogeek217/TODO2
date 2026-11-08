@@ -152,7 +152,11 @@ test('the follow-up popover’s update line: Enter marks followed up and adds th
 
   const line = popover.getByRole('textbox', { name: 'Status update' })
   await line.fill('legal signed off')
-  await expect(popover.getByRole('button', { name: 'Mark followed up + add update' })).toBeVisible()
+  // The button keeps its label with text typed; its tooltip says the update goes too.
+  const markButton = popover.getByRole('button', { name: 'Mark followed up', exact: true })
+  await expect(markButton).toBeVisible()
+  await markButton.hover()
+  await expect(page.getByRole('tooltip')).toHaveText(/, and add the status update$/)
   await line.press('Enter')
   // It stays open for a date, the line emptied, the entry as the newest.
   await expect(line).toHaveValue('')
