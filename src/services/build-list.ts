@@ -13,7 +13,7 @@ import type {
 import type { WeekStart } from '../utils/effective-date'
 import { topLevelCriteria, type FilterCriteria } from '../utils/filter-criteria'
 import type { FilterExpr, IdAtomKind } from '../models/filter-expression'
-import { normalizeExpression } from '../utils/filter-expression'
+import { normalizeExpression, topLevelTerms } from '../utils/filter-expression'
 import { topLevelPredicate, withExpression } from '../utils/predicate-expression'
 import { startOfDay } from '../utils/date'
 import { isNegated, withIdFilter, type NegatableClauses } from '../utils/filter-negation'
@@ -80,8 +80,10 @@ export interface ListContents {
  * of the list's own clause on that field, and is always "is" (a list's "is
  * not" switch on the field goes with the clause it switched). Empty `values`
  * is a no-op so "user cleared all chips" doesn't short-circuit to "match
- * nothing". An expression gets the pick as one more top-level term
- * (`and (@a or @b)`).
+ * nothing". An expression the same way: the pick takes the place of its
+ * top-level `and` terms on the field (`@a`, `@a or @b`, `not @a` — what a
+ * chip on it says) and joins as one more term (`and (@a or @b)`); a term
+ * mixing fields stays.
  */
 export function applyRuntimeFilter(
   predicate: TodoPredicate,
@@ -92,13 +94,21 @@ export function applyRuntimeFilter(
   if (predicate.expression) {
     const kind: IdAtomKind = spec.field
     const pick: FilterExpr = { kind: 'or', items: values.map((id): FilterExpr => ({ kind, id })) }
-    return withExpression(predicate, normalizeExpression({ kind: 'and', items: [predicate.expression, pick] }))
+    const kept = topLevelTerms(normalizeExpression(predicate.expression)).filter((term) => !isIdTermOn(term, kind))
+    return withExpression(predicate, normalizeExpression({ kind: 'and', items: [...kept, pick] }))
   }
   switch (spec.field) {
     case 'person': return withIdFilter(predicate, 'personIds', [...values], false)
     case 'status': return withIdFilter(predicate, 'statusIds', [...values], false)
     case 'tag': return withIdFilter(predicate, 'tags', [...values], false)
   }
+}
+
+/** Whether `term` names only `kind` ids, as one chip would: an atom or an `or` of atoms of that kind, or `not` one. */
+function isIdTermOn(term: FilterExpr, kind: IdAtomKind): boolean {
+  const inner = term.kind === 'not' ? term.item : term
+  const atoms = inner.kind === 'or' ? inner.items : [inner]
+  return atoms.length > 0 && atoms.every((a) => a.kind === kind)
 }
 
 /**
