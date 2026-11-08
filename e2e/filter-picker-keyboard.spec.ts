@@ -194,7 +194,7 @@ test('Delete on a focused chip in Edit list: the focus goes to the next chip, th
     listDefinitions: [{ name: 'Team', people: ['Ann'], predicate: { searchText: 'task' } }],
   })
   await expect.poll(() => titles(page)).toEqual(['Ann task'])
-  await page.getByRole('tab').filter({ hasText: 'Team' }).first().click({ button: 'right' })
+  await page.locator('[data-ws-tab]').filter({ hasText: 'Team' }).first().getByTestId('top-line-name').click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Edit list…' }).click()
   const editor = page.getByTestId('edit-list')
   const chips = editor.getByTestId('list-filter-chip')
@@ -217,7 +217,7 @@ test('a chip is two controls: Shift+Tab reaches its × then its own button, and 
     listDefinitions: [{ name: 'Team', people: ['Ann'], predicate: { searchText: 'task' } }],
   })
   await expect.poll(() => titles(page)).toEqual(['Ann task'])
-  await page.getByRole('tab').filter({ hasText: 'Team' }).first().click({ button: 'right' })
+  await page.locator('[data-ws-tab]').filter({ hasText: 'Team' }).first().getByTestId('top-line-name').click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Edit list…' }).click()
   const editor = page.getByTestId('edit-list')
   const last = editor.getByTestId('list-filter-chip').last()

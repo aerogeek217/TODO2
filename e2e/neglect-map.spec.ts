@@ -124,10 +124,12 @@ test('the screen filter narrows the dots', async ({ page }) => {
   await expect(dots(page)).toHaveCount(12)
 })
 
-test('the tab menu sets Colour by and Untouched after', async ({ page }) => {
-  const tab = wsCell(page, 'k1').getByRole('tab', { name: /^Neglect map/ })
+test('the ⋯ menu sets Colour by and Untouched after', async ({ page }) => {
+  // Alone in its cell: its top line (its name, Slipping N) stands for the tab (D26 AA1).
+  const tab = wsCell(page, 'k1').locator('[data-ws-tab]').getByTestId('top-line-name')
+  await expect(tab).toHaveText('Neglect map')
   await tab.click({ button: 'right' })
-  const menu = page.getByRole('menu', { name: 'Change widget' })
+  const menu = page.getByRole('menu', { name: 'Cell options' })
   await menu.getByRole('menuitem', { name: /^Colour by/ }).click()
   await page.getByRole('menuitemradio', { name: 'None' }).click()
   await expect(dot(page, 'Ship the quarterly report')).not.toHaveAttribute('data-coloured', 'true')
@@ -139,7 +141,7 @@ test('the tab menu sets Colour by and Untouched after', async ({ page }) => {
   await page.keyboard.press('Escape')
 
   await tab.click({ button: 'right' })
-  await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: /^Untouched after/ }).click()
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: /^Untouched after/ }).click()
   await page.getByRole('menuitemradio', { name: '30 days' }).click()
   await expect(dots(page, 'slipping')).toHaveCount(2)
   await expect(slippingList(page).getByRole('listitem')).toHaveText([/Clean up the backlog/, /Renew the vendor contract/])

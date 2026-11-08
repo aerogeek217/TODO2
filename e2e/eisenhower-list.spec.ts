@@ -64,7 +64,7 @@ const unsavedDot = (tab: Locator) => tab.getByRole('img', { name: 'unsaved list 
 
 async function openTabMenu(page: Page, tabId: string): Promise<Locator> {
   await wsTab(page, tabId).click({ button: 'right' })
-  const menu = page.getByRole('menu', { name: 'Change widget' })
+  const menu = page.getByRole('menu', { name: 'Cell options' })
   await expect(menu).toBeVisible()
   return menu
 }
@@ -130,7 +130,7 @@ test.describe('desktop', () => {
         // The second Eisenhower in a short fixed row across the bottom: its small face.
         table: {
           areas: ['b1 k0', 'k1 k1'],
-          rows: [1000, { px: 120 }],
+          rows: [1000, { px: 88 }],
           cells: [
             { id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
             { id: 'k0', tabs: [{ id: 'notes', kind: 'notes' }] },

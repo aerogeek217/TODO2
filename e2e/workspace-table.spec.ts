@@ -233,7 +233,7 @@ test.describe('the cell menu', () => {
     await seedWorkspace(page, { layouts: [aBc] })
     const area = await areaBox(page)
     await openCellMenu(page, 'c')
-    await page.getByRole('menuitem', { name: 'Close cell (1 tab)' }).click()
+    await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).height)).toBe(Math.round(area.height - 12))
 
     // A pinwheel: the middle cell shares no whole edge with any other.
@@ -248,7 +248,7 @@ test.describe('the cell menu', () => {
     })
     const before = await edges(wsCell(page, 'm'))
     await openCellMenu(page, 'm')
-    await page.getByRole('menuitem', { name: 'Close cell (1 tab)' }).click()
+    await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
     const empty = page.getByRole('region', { name: 'Empty cell' })
     await expect(empty).toBeVisible()
     expectSameEdges(await edges(empty), before)

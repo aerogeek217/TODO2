@@ -236,7 +236,7 @@ test.describe('desktop', () => {
   test('the tab menu’s and the cell menu’s Customize panes…, a pane header’s Edit pane…, land on the part', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await wsTab(page, 'eisTab').click({ button: 'right' })
-    const tabMenu = page.getByRole('menu', { name: 'Change widget' })
+    const tabMenu = page.getByRole('menu', { name: 'Cell options' })
     await expect(tabMenu.getByRole('menuitem', { name: 'Edit list…' })).toBeVisible()
     await tabMenu.getByRole('menuitem', { name: 'Customize panes…' }).click()
     await expect(settingsDialog(page).getByRole('heading', { level: 2 })).toHaveText('Tasks')
@@ -264,13 +264,15 @@ test.describe('desktop', () => {
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('no entry: not in the Settings page, the tab sheet has Edit list… but no Customize, no pane menu', async ({ page }) => {
+  test('no entry: not in the Settings page, the options sheet has Edit list… but no Customize, no pane menu', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
       layouts: [{ name: 'Main', columns: [{ id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] }] }],
     })
     await expect(page.locator('[data-eisenhower="eisTab"]')).toHaveAttribute('data-layout', 'stacked')
-    await wsTab(page, 'eisTab').dispatchEvent('contextmenu')
+    // Alone in its cell: no tab to long-press; its ⋯ has Eisenhower options….
+    await wsCell(page, 'a1').getByRole('button', { name: 'Cell options' }).click()
+    await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Eisenhower options…' }).click()
     const sheet = page.getByRole('menu', { name: 'Eisenhower' })
     await expect(sheet.getByRole('menuitem', { name: 'Edit list…' })).toBeVisible()
     await expect(sheet).toContainText('To change the panes, use Settings on a wider screen.')

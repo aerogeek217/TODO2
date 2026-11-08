@@ -45,7 +45,7 @@ const count = (page: Page, tabId: string, q: string) => face(page, tabId).locato
 const popover = (page: Page) => page.getByTestId('widget-face-popover')
 
 test('a short cell shows the small face — the 2×2 of counts; a click opens the whole widget over it', async ({ page }) => {
-  await seedWorkspace(page, seed(120))
+  await seedWorkspace(page, seed(88))
   const cell = wsCell(page, 'face')
   await expect(cell).toHaveAttribute('data-face', 'small')
   await expect(face(page, 'eisFace')).toHaveAttribute('data-eis-face', 'small')
@@ -73,7 +73,7 @@ test('a short cell shows the small face — the 2×2 of counts; a click opens th
 })
 
 test('a little taller, the medium face: the counts and each pane’s first titles; a title opens the task, a count the pane’s tasks', async ({ page }) => {
-  await seedWorkspace(page, seed(180))
+  await seedWorkspace(page, seed(148))
   const cell = wsCell(page, 'face')
   await expect(cell).toHaveAttribute('data-face', 'medium')
   await expect(face(page, 'eisFace')).toHaveAttribute('data-eis-face', 'medium')

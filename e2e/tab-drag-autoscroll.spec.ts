@@ -12,9 +12,10 @@ import { box } from './fixtures/geometry'
 test.use({ viewport: { width: 900, height: 700 } })
 
 // Nine columns of at least 120px: wider than the 900px window.
+// Each cell holds two widgets: tabs, so a strip to drop on (one widget has none, D26 AA1).
 const COLUMNS = ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9'].map((id) => ({
   id,
-  rows: [wsRow({ id: `${id}k`, tabs: [{ id: `${id}t`, kind: 'notes' as const }] })],
+  rows: [wsRow({ id: `${id}k`, tabs: [{ id: `${id}t`, kind: 'notes' as const }, { id: `${id}u`, kind: 'notes' as const }], activeTabId: `${id}t` })],
 }))
 
 test('a tab drag that auto-scrolls the table drops in the cell now under the pointer', async ({ page }) => {
