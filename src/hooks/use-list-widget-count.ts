@@ -1,6 +1,6 @@
 import { useSettingsStore } from '../stores/settings-store'
 import { useWorkspaceStore, type WorkspaceState } from '../stores/workspace-store'
-import { countListTabs } from '../utils/workspace-layout-ops'
+import { countListTabs } from '../utils/workspace-layout-lists'
 
 /**
  * How many widgets show list `listDefinitionId` across every layout — list

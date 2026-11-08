@@ -5,7 +5,7 @@ import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useNextDays, useStatsBase } from '../../../hooks/use-glance-data'
 import type { NextDaysColumn } from '../../../services/stats/next-seven-days'
 import type { StatsContext } from '../../../services/stats/stats-context'
-import { DashGlyph } from '../../shared/DashGlyph'
+import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import { nextDayLabels } from './glance-copy'
 import { nextDayDrill } from './glance-drills'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
@@ -18,7 +18,7 @@ import { Clickable, Legend, Panel, type SectionProps } from './section-parts'
 import styles from './GlanceSections.module.css'
 
 /** What Next 7 days reads. */
-export interface NextDaysSectionData {
+interface NextDaysSectionData {
   nextDays: NextDaysColumn[]
   ctx: StatsContext
 }
@@ -29,7 +29,7 @@ const DAY_UNIT_PX = 22
 const DAY_CHROME_PX = 80
 
 /** Next 7 days: due dates and follow-ups per day, late first, as bars. */
-export function NextDaysSection({ data, onDrill, style, className }: SectionProps<NextDaysSectionData>) {
+function NextDaysSection({ data, onDrill, style, className }: SectionProps<NextDaysSectionData>) {
   const [ref, size] = useElementSize()
   const cols = data.nextDays
   const tallest = Math.max(1, ...cols.map((c) => c.dueIds.length + c.followupIds.length))
@@ -54,7 +54,7 @@ export function NextDaysSection({ data, onDrill, style, className }: SectionProp
               className={styles.day}
               data-late={i === 0 ? 'true' : undefined}
               data-today={i === 1 ? 'true' : undefined}
-              data-testid="dash-day"
+              data-testid="glance-day"
               label={`${name} ${num}: ${d} due, ${f} follow-up. Show tasks`}
               onClick={onDrill
                 ? () => onDrill(nextDayDrill(c.date, i, data.ctx.today, { due: c.dueIds, followup: c.followupIds }))
@@ -63,8 +63,8 @@ export function NextDaysSection({ data, onDrill, style, className }: SectionProp
               <span className={styles.dayCounts}>
                 {d + f === 0 && <span className={styles.muted}>–</span>}
                 {/* Each count with its glyph, so due and follow-up don't rest on colour alone. */}
-                {d > 0 && <span className={styles.dayCount} data-count="due" style={{ color: 'var(--color-overdue)' }}><DashGlyph name="calendar" size={10} />{d}</span>}
-                {f > 0 && <span className={styles.dayCount} data-count="followup" style={{ color: 'var(--color-followup)' }}><DashGlyph name="followup" size={10} />{f}</span>}
+                {d > 0 && <span className={styles.dayCount} data-count="due" style={{ color: 'var(--color-overdue)' }}><GlanceGlyph name="calendar" size={10} />{d}</span>}
+                {f > 0 && <span className={styles.dayCount} data-count="followup" style={{ color: 'var(--color-followup)' }}><GlanceGlyph name="followup" size={10} />{f}</span>}
               </span>
               <span className={styles.dayBars}>
                 {d > 0 && <span className={styles.bar} style={{ height: d * unit, background: 'var(--color-overdue)' }} />}
@@ -107,7 +107,6 @@ export function NextDaysWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Nex
         />
       ) : <NextDaysSection
         data={{ nextDays, ctx: base.ctx }}
-        options={{}}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
       />}

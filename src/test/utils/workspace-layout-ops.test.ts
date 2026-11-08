@@ -1,35 +1,39 @@
 import { describe, it, expect } from 'vitest'
 import { BAND_DEFAULT_HEIGHT, createTab, type LayoutBand, type LayoutCell, type LayoutColumn, type LayoutRow, type WorkspaceLayout } from '../../models/workspace-layout'
 import {
-  addTab,
-  closeCell,
-  cellSizeGroups,
-  closeTab,
-  copySizes,
-  countListTabs,
   findCell,
   findRow,
   findTab,
   getTab,
   layoutPanels,
   layoutRows,
-  movePanel,
   panelOfTab,
   rowOfCell,
-  rowSizeGroups,
-  setBandHeight,
   layoutIds,
   layoutStructureEqual,
+} from '../../utils/workspace-layout-queries'
+import { countListTabs } from '../../utils/workspace-layout-lists'
+import {
+  cellSizeGroups,
+  copySizes,
+  rowSizeGroups,
+  setBandHeight,
+  setCellWeights,
+  setColumnWeights,
+  setRowWeights,
+} from '../../utils/workspace-layout-sizes'
+import {
+  addTab,
+  closeCell,
+  closeTab,
+  movePanel,
   moveTab,
   patchTabConfig,
   patchTabViewState,
   replaceTab,
   setActiveTab,
   setCellStripShown,
-  setCellWeights,
-  setColumnWeights,
   setRowCollapsed,
-  setRowWeights,
   splitCell,
 } from '../../utils/workspace-layout-ops'
 import { row, rowOf } from '../helpers/layout-builders'

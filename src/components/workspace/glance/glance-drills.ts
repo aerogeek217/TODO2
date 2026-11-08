@@ -1,42 +1,35 @@
-import type { Person } from '../../../models'
-import type { TileMetricId } from '../../../models/glance-widgets'
+import type { Person, Tag } from '../../../models'
+import type { MetricId } from '../../../models/glance-widgets'
+import type { EisenhowerQuadrant } from '../../../models/workspace-layout'
 import type { Change } from '../../../services/stats/changes'
 import type { ClosedThisWeek } from '../../../services/stats/closed-this-week'
 import type { StatsContext } from '../../../services/stats/stats-context'
-import type { TileStats } from '../../../services/stats/tiles'
+import type { MetricStats } from '../../../services/stats/metrics'
 import type { TaskDialogGroup } from '../../../stores/task-dialog-payload'
+import { QUADRANT_COLOR, type EisenhowerPane } from '../../../utils/eisenhower-panes'
 import { formatFollowupDay } from '../../../utils/followup'
 import { STUCK_STATUS_DAYS } from '../../../utils/trend-window'
+import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 import { metricDescription, trendBucketLabel } from './glance-copy'
 import type { GlanceDrill } from './glance-types'
-import { NUMBER_DEFS, TILE_DEFS } from './number-defs'
+import { NUMBER_DEFS, METRIC_DEFS } from './number-defs'
 
 /**
  * What a glance widget's click opens in the task dialog (`GlanceDrill`):
- * every glance payload is built here, from the ids and counts the pure
- * statistics (`services/stats/*`) return. The section payloads the task
- * dialog's other callers share stay in `services/task-dialog` and are
- * re-exported, so a widget asks this one module.
+ * every glance payload is built here (and the Neglect map's Slipping list),
+ * from the ids and counts the pure statistics (`services/stats/*`) return.
+ * The payloads other surfaces open too (a person's or a tag's tasks, the
+ * screen filter's) stay in `services/task-dialog`.
  */
-
-export {
-  eisenhowerQuadrantDialog,
-  eisenhowerSummaryDialog,
-  recentlyCompletedDialog,
-  slippingTasksDialog,
-  staleTasksDialog,
-  tagSectionDialog,
-  tagsSectionDialog,
-} from '../../../services/task-dialog'
 
 const todos = (todoIds: readonly number[]) => ({ kind: 'todos' as const, todoIds: [...todoIds] })
 
 // ── Numbers ─────────────────────────────────────────────────────────────────
 
 /** A metric's tasks (a Number, a section's count). */
-export function metricDrill(id: TileMetricId, data: { tiles: { shown: TileStats }; ctx: StatsContext }): GlanceDrill {
-  const def = TILE_DEFS[id]
-  return { title: def.title, glyph: def.glyph, description: metricDescription(id, data.ctx), source: todos(data.tiles.shown[id].ids) }
+export function metricDrill(id: MetricId, data: { metrics: { shown: MetricStats }; ctx: StatsContext }): GlanceDrill {
+  const def = METRIC_DEFS[id]
+  return { title: def.title, glyph: def.glyph, description: metricDescription(id, data.ctx), source: todos(data.metrics.shown[id].ids) }
 }
 
 /** Closed this week's tasks. */
@@ -159,6 +152,131 @@ export function personRowDrill(person: Pick<Person, 'id' | 'name'> | null, ids: 
     description: person ? `Open tasks assigned to ${person.name}.` : 'Open tasks with nobody assigned.',
     source: todos(ids),
     ...(person?.id != null ? { personId: person.id } : {}),
+  }
+}
+
+// Tags, Stale tasks, Recently completed, the Eisenhower summary and the
+// Neglect map's Slipping list: the tasks it counted (screen-filtered), in its order.
+
+/** A Tags row: that tag's open tasks; `null` = the No tag row. */
+export function tagRowDrill(tag: Pick<Tag, 'id' | 'name'> | null, todoIds: readonly number[]): GlanceDrill {
+  return {
+    title: tag ? `#${tag.name}` : 'No tag',
+    glyph: 'tag',
+    description: tag ? `Open tasks tagged #${tag.name}.` : 'Open tasks with no tag.',
+    source: { kind: 'todos', todoIds },
+  }
+}
+
+/** The Tags count: every row under its own heading. */
+export function tagsDrill(rows: ReadonlyArray<{ tag: Tag | null; todoIds: readonly number[] }>): GlanceDrill {
+  return {
+    title: 'Tagged tasks',
+    glyph: 'tag',
+    description: 'Open tasks by tag. A task with several tags shows under each.',
+    source: {
+      kind: 'groups',
+      groups: rows.map(({ tag, todoIds }) => (tag
+        ? { key: `tag-${tag.id}`, label: `#${tag.name}`, ...(tag.color ? { color: tag.color } : {}), todoIds }
+        : { key: 'untagged', label: 'No tag', todoIds })),
+    },
+  }
+}
+
+/** A Neglect map's Slipping tasks (latest first), untouched for `days` or more. */
+export function slippingDrill(todoIds: readonly number[], days: number): GlanceDrill {
+  return {
+    title: 'Slipping',
+    glyph: 'stale',
+    description: `Open tasks due soon or late and not changed in ${days} days or more, latest first.`,
+    source: { kind: 'todos', todoIds },
+  }
+}
+
+export function staleDrill(todoIds: readonly number[], days: number): GlanceDrill {
+  return {
+    title: 'Stale tasks',
+    glyph: 'stale',
+    description: `Open tasks not changed in ${days} days or more, oldest first.`,
+    source: { kind: 'todos', todoIds },
+  }
+}
+
+export function recentDrill(todoIds: readonly number[], days: number): GlanceDrill {
+  return {
+    title: 'Recently completed',
+    glyph: 'done',
+    description: `Tasks completed in the last ${days} days, newest first.`,
+    source: { kind: 'todos', todoIds },
+  }
+}
+
+const QUADRANT_WORDS: Record<EisenhowerQuadrant, string> = {
+  do: 'urgent and important',
+  schedule: 'important, not urgent',
+  delegate: 'urgent, not important',
+  drop: 'neither urgent nor important',
+}
+
+/** What the app-wide urgent range adds to Urgent, as a sentence (empty when it's off). */
+function urgentIncludes(range: UrgentDueWithinDays): string {
+  if (range == null) return ''
+  if (range === 0) return ' Urgent includes tasks due today or earlier.'
+  return ` Urgent includes tasks due within ${urgentRangeLabel(range)}.`
+}
+
+/** What the Eisenhower counts are taken from, for a dialog's description. */
+export interface EisenhowerDrillSource {
+  /** The app-wide urgent range (what Urgent includes). */
+  urgentRange: UrgentDueWithinDays
+  /** The Eisenhower's list's name while its filter narrows the tasks; `null` = every task. */
+  listName: string | null
+}
+
+/** ` of “Team”` for a list source, else nothing. */
+function ofList(listName: string | null): string {
+  return listName == null ? '' : ` of “${listName}”`
+}
+
+/**
+ * An Eisenhower summary pane: its open tasks. A default pane is described
+ * by its quadrant (`Open tasks that are urgent and important.`), a custom
+ * one by its filter in words (`subtitle`).
+ */
+export function eisenhowerPaneDrill(
+  pane: EisenhowerPane,
+  subtitle: string,
+  todoIds: readonly number[],
+  { urgentRange, listName }: EisenhowerDrillSource,
+): GlanceDrill {
+  const description = pane.customFilter
+    ? `Open tasks${ofList(listName)} in “${pane.name}” (${subtitle}) — the first pane each matches.`
+    : `Open tasks${ofList(listName)} that are ${QUADRANT_WORDS[pane.id]}.${urgentIncludes(urgentRange)}`
+  return {
+    title: pane.name,
+    glyph: 'matrix',
+    description,
+    source: { kind: 'todos', todoIds },
+  }
+}
+
+/** The Eisenhower summary's count: every pane under its heading. */
+export function eisenhowerDrill(
+  panes: readonly EisenhowerPane[],
+  ids: Readonly<Record<EisenhowerQuadrant, readonly number[]>>,
+  { urgentRange, listName }: EisenhowerDrillSource,
+): GlanceDrill {
+  const custom = panes.some((p) => p.customFilter)
+  return {
+    title: 'Eisenhower',
+    glyph: 'matrix',
+    description: custom
+      ? `Open tasks${ofList(listName)} by pane, each in the first pane it matches.${urgentIncludes(urgentRange)}`
+      : `Open tasks${ofList(listName)} by urgent × important.${urgentIncludes(urgentRange)}`,
+    source: {
+      kind: 'groups',
+      groups: panes.map((p) => ({ key: p.id, label: p.name, color: QUADRANT_COLOR[p.id], todoIds: ids[p.id] })),
+    },
   }
 }
 

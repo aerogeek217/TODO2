@@ -2,16 +2,13 @@ import { useMemo } from 'react'
 import type { PersistedTodoItem } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import { useBuiltList } from './use-built-list'
-import { useFilterSettings } from './use-filter-settings'
+import { useScreenTasks } from './use-glance-data'
 import type { LeavingRows } from './use-leaving-rows'
 import { useEffectiveListDefinition } from './use-list-draft'
-import { useToday } from './use-today'
-import { useTodoNameLookups } from './use-todo-name-lookups'
 import { useScreenFilter } from '../stores/screen-filter'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTodoStore } from '../stores/todo-store'
-import { applyFilter } from '../utils/filter-match'
 import { hasNarrowingFilters } from '../utils/filter-chips'
 
 /** The Eisenhower's own list, as the Eisenhower shows it. */
@@ -62,11 +59,10 @@ export function countOpen(todos: readonly PersistedTodoItem[]): number {
 export function useEisenhowerSource(leaving?: LeavingRows): EisenhowerSource {
   const listId = useSettingsStore((s) => s.eisenhowerListId) ?? undefined
   const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
-  const today = useToday()
   const todos = useTodoStore((s) => s.todos)
-  const lookups = useTodoNameLookups()
   const { filters: screen, active: screenActive } = useScreenFilter()
-  const settings = useFilterSettings()
+  // The screen-filtered tasks, filtered once for every widget on screen (the glance widgets' shared base).
+  const screenTasks = useScreenTasks()
 
   // Only its members matter (its prompt — a temporary pick —, group and
   // sort don't apply to the panes).
@@ -88,10 +84,7 @@ export function useEisenhowerSource(leaving?: LeavingRows): EisenhowerSource {
   )
 
   // Not loaded yet: all tasks, through the screen filter.
-  const allShown = useMemo(
-    () => (definition ? NO_TASKS : applyFilter(screen, todos, lookups, today, settings)),
-    [definition, screen, todos, lookups, today, settings],
-  )
+  const allShown = definition ? NO_TASKS : screenTasks
 
   return useMemo<EisenhowerSource>(
     () => (list

@@ -19,13 +19,13 @@ import { Clickable, Empty, Panel, type SectionProps } from './section-parts'
 import styles from './GlanceSections.module.css'
 
 /** What Status reads: the breakdown, and the tasks it counts (for its drills). */
-export interface StatusSectionData {
+interface StatusSectionData {
   status: ShownOfTotal<StatusBreakdownEntry[]>
   shown: readonly PersistedTodoItem[]
 }
 
 /** Status: the open tasks by status, as a bar and a row per status. */
-export function StatusSection({ data, onDrill, style, className }: SectionProps<StatusSectionData>) {
+function StatusSection({ data, onDrill, style, className }: SectionProps<StatusSectionData>) {
   const entries = data.status.shown
   const open = entries.reduce((n, e) => n + e.count, 0)
   const openTotal = data.status.total.reduce((n, e) => n + e.count, 0)
@@ -99,7 +99,6 @@ export function StatusWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Statu
         />
       ) : <StatusSection
         data={{ status, shown: base.shown }}
-        options={{}}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
       />}

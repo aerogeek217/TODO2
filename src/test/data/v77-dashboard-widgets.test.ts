@@ -5,7 +5,7 @@ import { prepareImport } from '../../data/import-pipeline'
 import { readLayoutDraft } from '../../data/draft-storage'
 import { rowFixes } from '../../data/import-validation'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
-import { layoutListRefs } from '../../utils/workspace-layout-ops'
+import { layoutListRefs } from '../../utils/workspace-layout-lists'
 import type { LayoutBody } from '../../models/workspace-layout'
 
 const DATE = '2026-11-01T09:00:00.000Z'

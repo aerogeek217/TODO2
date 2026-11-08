@@ -59,7 +59,7 @@ test('a stale row lingers too, though completing it moves its modified date to n
       columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'stale' }] })] }],
     }],
   })
-  const stale = page.locator('[data-dash-section="stale"]')
+  const stale = page.locator('[data-glance-section="stale"]')
   await expect.poll(() => rowTitles(stale)).toEqual(['Plan the offsite', 'Collect sign-offs', 'Clean the garage'])
   await stale.locator('[data-row-todo]', { has: page.locator('span[data-task-title="Collect sign-offs"]') })
     .getByRole('checkbox', { name: 'Mark complete' }).click()

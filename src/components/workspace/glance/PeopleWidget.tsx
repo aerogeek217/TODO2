@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import type { PeopleTab } from '../../../models/workspace-layout'
+import type { PeopleTabConfig } from '../../../models/glance-widgets'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { usePeopleStats, useStatsBase } from '../../../hooks/use-glance-data'
 import type { PeopleStats } from '../../../services/stats/people'
@@ -16,14 +17,14 @@ import { Count, Empty, Panel, PriorityBadges, type SectionProps } from './sectio
 import styles from './GlanceSections.module.css'
 
 /** What People reads. */
-export interface PeopleSectionData extends TodoLookup {
+interface PeopleSectionData extends TodoLookup {
   people: PeopleStats
 }
 
 /** People: each person's open tasks, by priority and follow-ups due; Unassigned last (an option). */
-export function PeopleSection({ data, options, onDrill, style, className }: SectionProps<PeopleSectionData>) {
+function PeopleSection({ data, config, onDrill, style, className }: SectionProps<PeopleSectionData> & { config: PeopleTabConfig }) {
   const { rows, unassigned } = data.people
-  const showUnassigned = options.showUnassigned !== false && unassigned.ids.length > 0
+  const showUnassigned = config.showUnassigned && unassigned.ids.length > 0
   const max = Math.max(1, ...rows.map((r) => r.ids.length), showUnassigned ? unassigned.ids.length : 0)
   const all = useMemo(() => [
     ...rows.map((r) => ({ key: String(r.person.id), person: r.person, stats: r })),
@@ -106,7 +107,7 @@ export function PeopleWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Peopl
         />
       ) : <PeopleSection
         data={{ people, todoById: base.todoById }}
-        options={{ showUnassigned }}
+        config={tab.config}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
       />}

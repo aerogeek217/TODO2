@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import type { TagsTab } from '../../../models/workspace-layout'
+import type { TagsTabConfig } from '../../../models/glance-widgets'
 import { useStatsBase, useTagStats, type ShownOfTotal } from '../../../hooks/use-glance-data'
-import { tagSectionDialog, tagsSectionDialog } from './glance-drills'
+import { tagRowDrill, tagsDrill } from './glance-drills'
 import type { TagStats } from '../../../services/stats/tags'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
@@ -16,14 +17,14 @@ import { Count, Empty, Panel, PriorityBadges, type SectionProps } from './sectio
 import styles from './GlanceSections.module.css'
 
 /** What Tags reads. */
-export interface TagsSectionData extends TodoLookup {
+interface TagsSectionData extends TodoLookup {
   tags: ShownOfTotal<TagStats>
 }
 
 /** Tags: each tag's open tasks, by priority and follow-ups due; No tag last (an option). */
-export function TagsSection({ data, options, onDrill, style, className }: SectionProps<TagsSectionData>) {
+function TagsSection({ data, config, onDrill, style, className }: SectionProps<TagsSectionData> & { config: TagsTabConfig }) {
   const { shown, total } = data.tags
-  const showUntagged = options.showUntagged !== false && shown.untagged.ids.length > 0
+  const showUntagged = config.showUntagged && shown.untagged.ids.length > 0
   const all = useMemo(() => {
     const totalOpen = new Map(total.rows.map((r) => [r.tag.id, r.ids.length]))
     return [
@@ -39,7 +40,7 @@ export function TagsSection({ data, options, onDrill, style, className }: Sectio
       className={`${styles.tagsPanel}${className ? ` ${className}` : ''}`}
       count={`${countOf(shown.taggedIds.length, total.taggedIds.length)} tagged`}
       // Each tag's tasks in their own order, as a person's are.
-      onCount={onDrill ? () => onDrill(tagsSectionDialog(shown.rows.map((r) => ({ tag: r.tag, todoIds: inSortOrder(r.ids, data) })))) : undefined}
+      onCount={onDrill ? () => onDrill(tagsDrill(shown.rows.map((r) => ({ tag: r.tag, todoIds: inSortOrder(r.ids, data) })))) : undefined}
       sub="Open tasks by tag"
     >
       {all.length === 0 ? (
@@ -61,7 +62,7 @@ export function TagsSection({ data, options, onDrill, style, className }: Sectio
                     <span className={styles.tagName}>{name}</span>
                   </span>
                   <span className={`${styles.peopleBar} ${styles.tagsBarCol}`}><span style={{ width: `${Math.round((open / max) * 100)}%` }} /></span>
-                  <span className={styles.num} data-testid="dash-tag-open">{openLabel}</span>
+                  <span className={styles.num} data-testid="glance-tag-open">{openLabel}</span>
                   <PriorityBadges counts={stats.priority} />
                   <Count n={stats.followupDueIds.length} color="var(--color-followup)" />
                 </>
@@ -74,7 +75,7 @@ export function TagsSection({ data, options, onDrill, style, className }: Sectio
                   className={cls}
                   data-tag-row={key}
                   aria-label={`${name}: ${openLabel} open, ${priorityWords(stats.priority)}${stats.followupDueIds.length} follow-up due`}
-                  onClick={() => onDrill(tagSectionDialog(tag, inSortOrder(stats.ids, data)))}
+                  onClick={() => onDrill(tagRowDrill(tag, inSortOrder(stats.ids, data)))}
                 >
                   {content}
                 </button>
@@ -115,7 +116,7 @@ export function TagsWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TagsTab
         />
       ) : <TagsSection
         data={{ tags, todoById: base.todoById }}
-        options={{ showUntagged }}
+        config={tab.config}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
       />}

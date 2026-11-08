@@ -65,7 +65,7 @@ import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { LIST_SECTION_ATTR, LIST_WIDGET_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
-import { listTabZoom, setListTabZoom } from '../../../services/list-zoom'
+import { listTabZoom, stepListTabZoom } from '../../../services/list-zoom'
 import { zoomOnCtrlWheel } from './zoom-wheel'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { transitionName, withViewTransition } from '../../shared/view-transition'
@@ -161,7 +161,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const defaultZoom = useSettingsStore((s) => s.listZoom)
   const zoom: ListZoom = isMobile ? 'rows' : listTabZoom(tab, defaultZoom)
   const zoomRef = useLatestRef(isMobile ? null : zoom)
-  const tabIdRef = useLatestRef(tab.id)
+  const tabRef = useLatestRef(tab)
   const picks = useListWidgetStore((s) => s.picks[tab.id])
   const setPicks = useListWidgetStore((s) => s.setPicks)
   const collapsed = useListWidgetStore((s) => s.collapsed[tab.id])
@@ -195,13 +195,13 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const setWidgetEl = useCallback((el: HTMLDivElement | null) => {
     widgetRef.current = el
     faceRef(el)
-    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current, (z) => void setListTabZoom(tabIdRef.current, z)) : undefined
+    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current != null, (dir) => void stepListTabZoom(tabRef.current, dir)) : undefined
     return () => {
       widgetRef.current = null
       faceRef(null)
       stopWheel?.()
     }
-  }, [faceRef, zoomRef, tabIdRef])
+  }, [faceRef, zoomRef, tabRef])
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import type { PersistedTodoItem } from '../../../models'
-import type { NeglectTab } from '../../../models/workspace-layout'
+import { NEGLECT_UNTOUCHED_CHOICES, type NeglectTab } from '../../../models/workspace-layout'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../../constants'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
@@ -10,7 +10,7 @@ import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import type { WidgetFace } from '../../../utils/widget-face'
 import type { StatsContext } from '../../../services/stats/stats-context'
-import { slippingTasksDialog } from '../glance/glance-drills'
+import { slippingDrill } from '../glance/glance-drills'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
@@ -244,7 +244,7 @@ const neglectMemo = sharedMemo((
   ctx: StatsContext,
   untouchedDays: number,
   dueSoonDays: UrgentDueWithinDays,
-): NeglectMap<PersistedTodoItem> => buildNeglectMap(shown, { today: ctx.today, untouchedDays, dueSoonDays }))
+): NeglectMap<PersistedTodoItem> => buildNeglectMap(shown, { today: ctx.today, untouchedDays, dueSoonDays }), NEGLECT_UNTOUCHED_CHOICES.length)
 
 /**
  * Every open task the screen filter keeps, placed on the map (the full
@@ -491,7 +491,7 @@ function SlippingList({ map, untouchedDays, selectedIds }: {
           type="button"
           className={styles.slipMore}
           onClick={() => useUIStore.getState().showTaskDialog(
-            slippingTasksDialog(map.slipping.map((p) => p.todo.id), untouchedDays),
+            slippingDrill(map.slipping.map((p) => p.todo.id), untouchedDays),
           )}
         >
           {map.slipping.length - listed.length} more

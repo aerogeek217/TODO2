@@ -3,7 +3,7 @@ import { EISENHOWER_QUADRANTS, type EisenhowerSummaryTab } from '../../../models
 import { useEisenhowerStats, useStatsBase, type EisenhowerSetup, type ShownOfTotal } from '../../../hooks/use-glance-data'
 import type { EisenhowerSummary } from '../../../services/stats/eisenhower-summary'
 import type { StatsContext } from '../../../services/stats/stats-context'
-import { eisenhowerQuadrantDialog, eisenhowerSummaryDialog } from './glance-drills'
+import { eisenhowerPaneDrill, eisenhowerDrill } from './glance-drills'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { paneSubtitle, QUADRANT_COLOR } from '../../../utils/eisenhower-panes'
 import { useChipNames } from '../../shared/filters/filter-menu'
@@ -17,14 +17,14 @@ import { Clickable, Panel, type SectionProps } from './section-parts'
 import styles from './GlanceSections.module.css'
 
 /** What the Eisenhower summary reads. */
-export interface EisenhowerSectionData {
+interface EisenhowerSectionData {
   eisenhower: ShownOfTotal<EisenhowerSummary>
   eisenhowerSetup: EisenhowerSetup
   ctx: StatsContext
 }
 
 /** The Eisenhower summary: the app-wide panes' counts, a 2×2 in the quadrants' tints. */
-export function EisenhowerSection({ data, onDrill, style, className }: SectionProps<EisenhowerSectionData>) {
+function EisenhowerSection({ data, onDrill, style, className }: SectionProps<EisenhowerSectionData>) {
   const { shown, total } = data.eisenhower
   const { panes, listName } = data.eisenhowerSetup
   const names = useChipNames()
@@ -39,7 +39,7 @@ export function EisenhowerSection({ data, onDrill, style, className }: SectionPr
       style={style}
       className={className}
       count={`${countOf(sum(shown), sum(total))} open`}
-      onCount={onDrill ? () => onDrill(eisenhowerSummaryDialog(panes, {
+      onCount={onDrill ? () => onDrill(eisenhowerDrill(panes, {
         do: shown.do.ids, schedule: shown.schedule.ids, delegate: shown.delegate.ids, drop: shown.drop.ids,
       }, source)) : undefined}
       sub={sub}
@@ -58,11 +58,11 @@ export function EisenhowerSection({ data, onDrill, style, className }: SectionPr
               className={styles.quadrant}
               data-eis-cell={q}
               label={`${pane.name}, ${subtitle.toLowerCase()}: ${countOf(n, t)}. Show tasks`}
-              onClick={onDrill && n > 0 ? () => onDrill(eisenhowerQuadrantDialog(pane, subtitle, shown[q].ids, source)) : undefined}
+              onClick={onDrill && n > 0 ? () => onDrill(eisenhowerPaneDrill(pane, subtitle, shown[q].ids, source)) : undefined}
             >
               <span className={styles.quadrantName} style={{ color: QUADRANT_COLOR[q] }}>{pane.name}</span>
               <span className={styles.quadrantSub}>{subtitle}</span>
-              <span className={styles.quadrantCount} style={{ color: n === 0 ? 'var(--color-text-muted)' : undefined }} data-testid="dash-eis-count">
+              <span className={styles.quadrantCount} style={{ color: n === 0 ? 'var(--color-text-muted)' : undefined }} data-testid="glance-eis-count">
                 {n}
                 {n !== t && <span className={styles.of}>of {t}</span>}
               </span>
@@ -97,7 +97,6 @@ export function EisenhowerSummaryWidget({ tab, onResult, onDrill }: GlanceWidget
         />
       ) : <EisenhowerSection
         data={{ eisenhower, eisenhowerSetup, ctx: base.ctx }}
-        options={{}}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
       />}

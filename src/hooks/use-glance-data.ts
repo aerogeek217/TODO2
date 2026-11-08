@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { PersistedTodoItem, Tag, TodoEvent } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
-import type { LookAhead, TrendRange } from '../models/glance-widgets'
+import { LOOK_AHEAD_CHOICES, RECENT_DAYS_CHOICES, STALE_DAYS_CHOICES, TREND_RANGES, type LookAhead, type TrendRange } from '../models/glance-widgets'
 import { groupRestrictions } from '../services/build-list'
 import { computeChanges, type Change } from '../services/stats/changes'
 import { computeClosedThisWeek, type ClosedThisWeek } from '../services/stats/closed-this-week'
@@ -16,7 +16,7 @@ import { computeStaleTasks, type StaleTasks } from '../services/stats/stale'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { selectStatusBreakdown, type StatusBreakdownEntry } from '../services/stats/status-breakdown'
 import { computeTagStats, type TagStats } from '../services/stats/tags'
-import { computeTiles, type TileStats } from '../services/stats/tiles'
+import { computeMetrics, type MetricStats } from '../services/stats/metrics'
 import { computeTodayPicks, openFocusIds, type TodayPicks } from '../services/stats/today-picks'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { useListDefinitionStore } from '../stores/list-definition-store'
@@ -33,7 +33,7 @@ import type { PaneContext } from '../utils/eisenhower'
 import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import { hasNarrowingFilters } from '../utils/filter-chips'
-import { countActiveFilters, type FilterCriteria } from '../utils/filter-criteria'
+import { admitsCompleted, countActiveFilters, type FilterCriteria } from '../utils/filter-criteria'
 import { applyFilter, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { WeekStart } from '../utils/effective-date'
@@ -47,9 +47,18 @@ import { useTrendEvents } from './use-trend-events'
  * shared base: the screen-filtered tasks are filtered once for every widget
  * on screen, and each statistic computed once per set of inputs, however
  * many widgets show it (`utils/shared-memo` — each part's inputs are store
- * values or other shared parts, so they compare by identity). The
+ * values or other shared parts, so they compare by identity). A memo keeps
+ * one input set, or one per choice of the option its callers differ by
+ * (`OPTION_SLOTS`), so stale generations of the task arrays aren't held. The
  * statistics themselves are the pure `services/stats/*` functions.
  */
+
+/**
+ * Input sets kept by a memo whose callers differ by a free choice (What
+ * changed's and Project pulse's tag picks, one per tab): a few tabs on
+ * screen each hit.
+ */
+const OPTION_SLOTS = 8
 
 /** A statistic over the screen-filtered tasks, and over every task (the `of N`). */
 export interface ShownOfTotal<T> {
@@ -100,7 +109,7 @@ const shownMemo = sharedMemo((
   lookups: TodoNameLookups,
   ctx: StatsContext,
   settings: FilterSettings,
-) => applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings), 8, sameElements)
+) => applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings), 1, sameElements)
 
 const byIdMemo = sharedMemo((todos: readonly PersistedTodoItem[]) => new Map(todos.map((t) => [t.id, t])))
 
@@ -129,6 +138,22 @@ export function useStatsBase(): StatsBase {
   )
 }
 
+const screenTasksMemo = sharedMemo((shown: PersistedTodoItem[], withCompleted: boolean): PersistedTodoItem[] => (
+  withCompleted ? shown : shown.filter((t) => !t.isCompleted)
+))
+
+/**
+ * The tasks the screen filter shows, as a list, the calendar and the
+ * Eisenhower show them: the shared base's `shown` (filtered once for every
+ * widget on screen), its completed tasks kept only while the screen filter
+ * lets them through (`admitsCompleted`: Show completed, or a Completed
+ * range) — the same tasks `applyFilter(screen, …)` keeps.
+ */
+export function useScreenTasks(): PersistedTodoItem[] {
+  const base = useStatsBase()
+  return screenTasksMemo(base.shown, admitsCompleted(base.screen))
+}
+
 // ── The parts ───────────────────────────────────────────────────────────────
 
 type Tasks = readonly PersistedTodoItem[]
@@ -136,19 +161,20 @@ type Tasks = readonly PersistedTodoItem[]
 /**
  * A statistic over the screen-filtered tasks and over every task, each half
  * memoized on its own tasks: a screen filter change recomputes only the
- * shown half, and the pair keeps its identity while both halves do.
+ * shown half, and the pair keeps its identity while both halves do. `slots`:
+ * the input sets each keeps (one per choice of its option).
  */
-function shownOfTotalMemo<O extends readonly unknown[], T>(compute: (tasks: Tasks, ...opts: O) => T) {
-  const shownHalf = sharedMemo((tasks: Tasks, ...opts: O) => compute(tasks, ...opts))
-  const totalHalf = sharedMemo((tasks: Tasks, ...opts: O) => compute(tasks, ...opts))
-  const pair = sharedMemo((shown: T, total: T): ShownOfTotal<T> => ({ shown, total }))
+function shownOfTotalMemo<O extends readonly unknown[], T>(compute: (tasks: Tasks, ...opts: O) => T, slots = 1) {
+  const shownHalf = sharedMemo((tasks: Tasks, ...opts: O) => compute(tasks, ...opts), slots)
+  const totalHalf = sharedMemo((tasks: Tasks, ...opts: O) => compute(tasks, ...opts), slots)
+  const pair = sharedMemo((shown: T, total: T): ShownOfTotal<T> => ({ shown, total }), slots)
   return (shown: Tasks, todos: Tasks, ...opts: O): ShownOfTotal<T> => pair(shownHalf(shown, ...opts), totalHalf(todos, ...opts))
 }
 
-const tilesMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeTiles(tasks, ctx))
-/** The tiles' counts (every Number metric but Closed this week). */
-export function useTileStats(base: StatsBase): ShownOfTotal<TileStats> {
-  return tilesMemo(base.shown, base.todos, base.ctx)
+const metricsMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeMetrics(tasks, ctx))
+/** The counted metrics (every Number metric but Closed this week). */
+export function useMetricStats(base: StatsBase): ShownOfTotal<MetricStats> {
+  return metricsMemo(base.shown, base.todos, base.ctx)
 }
 
 const closedMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeClosedThisWeek(tasks, ctx))
@@ -156,7 +182,7 @@ export function useClosedThisWeek(base: StatsBase): ShownOfTotal<ClosedThisWeek>
   return closedMemo(base.shown, base.todos, base.ctx)
 }
 
-const followupMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, lookAhead: LookAhead) => computeFollowupGroups(tasks, ctx, lookAhead))
+const followupMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, lookAhead: LookAhead) => computeFollowupGroups(tasks, ctx, lookAhead), LOOK_AHEAD_CHOICES.length)
 export function useFollowupStats(base: StatsBase, lookAhead: LookAhead): ShownOfTotal<FollowupGroups> {
   return followupMemo(base.shown, base.todos, base.ctx, lookAhead)
 }
@@ -188,19 +214,19 @@ export function useTagStats(base: StatsBase): ShownOfTotal<TagStats> {
   return tagsPairMemo(tagsShownMemo(base.shown, base.ctx, base.screen), tagsTotalMemo(base.todos, base.ctx))
 }
 
-const staleMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, days: number) => computeStaleTasks(tasks, ctx, days))
+const staleMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, days: number) => computeStaleTasks(tasks, ctx, days), STALE_DAYS_CHOICES.length)
 export function useStaleStats(base: StatsBase, days: number): ShownOfTotal<StaleTasks> {
   return staleMemo(base.shown, base.todos, base.ctx, days)
 }
 
-const recentMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, days: number) => computeRecentlyCompleted(tasks, ctx, days))
+const recentMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, days: number) => computeRecentlyCompleted(tasks, ctx, days), RECENT_DAYS_CHOICES.length)
 export function useRecentStats(base: StatsBase, days: number): ShownOfTotal<RecentlyCompleted> {
   return recentMemo(base.shown, base.todos, base.ctx, days)
 }
 
 const trendMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext, range: TrendRange): TrendStats => (
   computeTrend(shown, events, ctx, range)
-))
+), TREND_RANGES.length)
 /** Created vs completed over `range`; `null` until the history has been read. */
 export function useTrendStats(base: StatsBase, range: TrendRange): TrendStats | null {
   const events = useTrendEvents(range)
@@ -232,7 +258,7 @@ const changesMemo = sharedMemo((
   ctx: StatsContext,
   tagIds: readonly number[],
   retentionDays: number | null,
-): Change[] => computeChanges(shown, events, ctx, tagIds, retentionDays))
+): Change[] => computeChanges(shown, events, ctx, tagIds, retentionDays), OPTION_SLOTS)
 /** What changed's sentences over the screen-filtered tasks; `null` until its events have been read. */
 export function useChanges(base: StatsBase, tagIds: readonly number[]): Change[] | null {
   const events = useTrendEvents('changes')
@@ -242,7 +268,7 @@ export function useChanges(base: StatsBase, tagIds: readonly number[]): Change[]
 
 const pulseMemo = sharedMemo((shown: Tasks, tags: readonly Tag[], ctx: StatsContext, tagIds: readonly number[], staleAfterDays: number): PulseCard[] => (
   computePulse(shown, tags, ctx, tagIds, staleAfterDays)
-))
+), OPTION_SLOTS)
 /** Project pulse's cards over the screen-filtered tasks, a card per picked tag. */
 export function usePulse(base: StatsBase, tagIds: readonly number[]): PulseCard[] {
   const tags = useTagStore((s) => s.tags)

@@ -16,7 +16,7 @@ import { COPY_REFUSED_NOTICE } from '../../../services/task-copy'
 import { useTagStore } from '../../../stores/tag-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { DashGlyph } from '../../shared/DashGlyph'
+import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
 import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from '../eisenhower/eisenhower-settings-link'
@@ -86,7 +86,7 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
       return [settingEntry('Last', RECENT_DAYS_CHOICES.map(days), tab.config.recentDays,
         (recentDays) => ws().patchTabConfig(tab.id, 'recent', { recentDays }))]
     case 'eisenhowerSummary':
-      return [{ kind: 'item', label: CUSTOMIZE_PANES_LABEL, icon: <DashGlyph name="sliders" />, onSelect: () => openEisenhowerSettings() }]
+      return [{ kind: 'item', label: CUSTOMIZE_PANES_LABEL, icon: <GlanceGlyph name="sliders" />, onSelect: () => openEisenhowerSettings() }]
     case 'changes':
       return [tagPicksEntry(tab, 'The tag with the most late tasks among these gets a sentence.')]
     case 'pulse':
@@ -101,7 +101,7 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
 /** A glance tab's own actions, before Copy: Today's Clear Focus…. */
 function kindActions(tab: GlanceTab): WidgetMenuAction[] {
   if (tab.kind !== 'today') return []
-  return [{ label: 'Clear Focus…', icon: <DashGlyph name="focus" />, onSelect: () => void clearFocus() }]
+  return [{ label: 'Clear Focus…', icon: <GlanceGlyph name="focus" />, onSelect: () => void clearFocus() }]
 }
 
 /** What a glance tab's menu adds: its settings (first) and its actions (Today's Clear Focus…, Copy). */
@@ -119,7 +119,7 @@ export function glanceMenu(tab: GlanceTab | undefined, summary: GlanceSummary | 
   if (!tab) return undefined
   const actions: WidgetMenuAction[] = [...kindActions(tab), ...(summary ? [{
     label: 'Copy',
-    icon: <DashGlyph name="copy" />,
+    icon: <GlanceGlyph name="copy" />,
     onSelect: () => {
       void writeRichClipboard(wrapClipboardHtml(summary.html), summary.plain).then((ok) => {
         if (!ok) useUndoStore.getState().notify(COPY_REFUSED_NOTICE)

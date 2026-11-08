@@ -211,17 +211,17 @@ function groupLooks(root: Locator, groupSelector: string) {
 test('the Needs follow-up widget’s groups and the task dialog’s groups take the same headers, rows without hairlines', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, DASH)
-  const section = page.locator('[data-dash-section="followup"]')
+  const section = page.locator('[data-glance-section="followup"]')
   await expect(section.locator('[data-todo-id]')).toHaveCount(4)
 
-  const dashGroups = await groupLooks(section, '[data-row-group]')
-  expect(dashGroups.map((g) => [g.name, g.count, g.margin])).toEqual([['Late', '2', '0px'], ['Today', '1', '18px'], ['Next 7 days', '1', '18px']])
-  for (const g of dashGroups) {
+  const glanceGroups = await groupLooks(section, '[data-row-group]')
+  expect(glanceGroups.map((g) => [g.name, g.count, g.margin])).toEqual([['Late', '2', '0px'], ['Today', '1', '18px'], ['Next 7 days', '1', '18px']])
+  for (const g of glanceGroups) {
     expect([g.nameSize, g.nameWeight, g.ruleHeight, g.ruleGrows]).toEqual(['13px', '700', 1, true])
   }
   expect(new Set(await rowAfterContents(section))).toEqual(new Set(['none']))
 
-  await section.getByTestId('dash-section-count').click()
+  await section.getByTestId('glance-section-count').click()
   const dialog = page.locator('[data-task-dialog]')
   await expect(dialog.locator('[data-todo-id]')).toHaveCount(4)
   const dialogGroups = await groupLooks(dialog, '[data-task-dialog-group]')

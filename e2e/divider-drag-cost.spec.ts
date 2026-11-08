@@ -209,12 +209,12 @@ test('Eisenhower: every quadrant follows the drag without the widget or its rows
 test('Needs follow-up: its rows follow the drag without the widget or its rows re-rendering', async ({ page }) => {
   await installRenderCounter(page, WATCHED)
   await seedWorkspace(page, seed({ kind: 'followup' }))
-  await expect(page.locator('[data-dash-section="followup"] [data-todo-id]').first()).toBeVisible()
-  await settled(page.locator('[data-dash-section="followup"]'))
+  await expect(page.locator('[data-glance-section="followup"] [data-todo-id]').first()).toBeVisible()
+  await settled(page.locator('[data-glance-section="followup"]'))
   await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
-  await dragDivider(page, page.locator('[data-dash-section="followup"]'), 60, 10, async () => {
-    await expectDetails(page.locator('[data-ws-area]'), '[data-dash-section="followup"]', 240)
+  await dragDivider(page, page.locator('[data-glance-section="followup"]'), 60, 10, async () => {
+    await expectDetails(page.locator('[data-ws-area]'), '[data-glance-section="followup"]', 240)
     const counts = await readRenderCounts(page)
     expect(counts.TaskRow).toBe(0)
     expect(counts.FollowupWidget).toBe(0)

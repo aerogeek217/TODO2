@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../../models'
 import { computeClosedThisWeek } from '../../../services/stats/closed-this-week'
 import { computeMetricHistory, hasHistory, HISTORY_AGAINST, historyDelta } from '../../../services/stats/metric-history'
-import { computeTiles } from '../../../services/stats/tiles'
+import { computeMetrics } from '../../../services/stats/metrics'
 import { computeTrend } from '../../../services/stats/trend'
 import { historyEventsStart } from '../../../utils/trend-window'
 import { makeTodo } from '../../helpers'
@@ -48,7 +48,7 @@ describe('computeMetricHistory', () => {
     // Task 2 is late from Fri 2 Oct (day 5) on; due today only today for task 3, due on day 4 for task 2.
     expect(h.series.overdue).toEqual([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1])
     expect(h.series.dueToday).toEqual([0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1])
-    const tiles = computeTiles(tasks, fullCtx)
+    const tiles = computeMetrics(tasks, fullCtx)
     expect(h.series.open.at(-1)).toBe(tiles.open.ids.length)
     expect(h.series.overdue.at(-1)).toBe(tiles.overdue.ids.length)
     expect(h.series.dueToday.at(-1)).toBe(tiles.dueToday.ids.length)

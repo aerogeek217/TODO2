@@ -240,7 +240,7 @@ test('Eisenhower quadrants and a Needs follow-up widget use their tab’s value'
   const eis = page.locator('[data-eisenhower="eis"]')
   await expect(eis.locator('[data-todo-id]')).toHaveCount(TASKS.length)
   for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(160)
-  const dash = page.locator('[data-dash-section]')
+  const dash = page.locator('[data-glance-section]')
   await expect(dash.locator('[data-todo-id]').first()).toBeVisible()
   for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
   // Their rows have no ⋯ either.
@@ -264,7 +264,7 @@ test('Eisenhower quadrants and a Needs follow-up widget use their tab’s value'
   for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
 
   // Its rows share its value live too.
-  const followup = page.locator('[data-dash-section="followup"]')
+  const followup = page.locator('[data-glance-section="followup"]')
   const dFrom = await pointIn(divider(followup))
   await page.mouse.move(dFrom.x, dFrom.y)
   await page.mouse.down()

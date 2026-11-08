@@ -10,7 +10,7 @@ import {
 } from '../models/workspace-layout'
 import { isEisenhowerOwner, ownerLayoutId, type ListDefinition, type PersistedListDefinition } from '../models/list-definition'
 import type { PersistedListOrder } from '../models/list-order'
-import { repointLayoutLists } from '../utils/workspace-layout-ops'
+import { repointLayoutLists } from '../utils/workspace-layout-lists'
 import { nextSortOrder } from './create-repository'
 
 /** The layout Settings › Data integrity's cleanup puts the lists that belong to no layout into. */
@@ -87,7 +87,10 @@ async function ownedListIds(layoutId: number): Promise<number[]> {
 /**
  * The list ids a stored layout row names, read from the row as stored (not
  * through the layout repair, which may drop a tab it can't use): every
- * whole-number `listDefinitionId` and `listTiles` entry anywhere in it.
+ * whole-number `listDefinitionId` anywhere in it. (A retired Dashboard tab's
+ * `listTiles` can't be stored: v77 converted every stored row, and an
+ * import is upgraded and then rebuilt by the layout check before it is
+ * written.)
  */
 export function storedListRefs(row: unknown): Set<number> {
   const ids = new Set<number>()
@@ -104,7 +107,6 @@ export function storedListRefs(row: unknown): Set<number> {
     }
     for (const [key, value] of Object.entries(node)) {
       if (key === 'listDefinitionId' && isId(value)) ids.add(value)
-      else if (key === 'listTiles' && Array.isArray(value)) for (const v of value) if (isId(v)) ids.add(v)
       stack.push(value)
     }
   }

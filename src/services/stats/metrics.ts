@@ -4,12 +4,12 @@ import { isEffectivelyUrgent } from '../../utils/urgency'
 import { idsByDate, NEXT_DAYS, openTasks, type StatsContext } from './stats-context'
 
 /**
- * The tile metrics (each a Number). Every tile counts open tasks only; its
+ * The counted metrics (each a Number's). Every one counts open tasks only; its
  * `ids` are the tasks it counts, in dialog order (by due date, or by next
- * follow-up for follow-up tiles; overdue first, undated last, ties by
- * `sortOrder`). A tile's count is `ids.length`.
+ * follow-up for the follow-up metrics; overdue first, undated last, ties by
+ * `sortOrder`). A metric's count is `ids.length`.
  */
-export interface TileStats {
+export interface MetricStats {
   /** Every open task. (The `+N in the last …` line comes from the trend.) */
   open: { ids: number[] }
   /** Effective urgent: `flagged` + `byDate` (urgent only by its due date). */
@@ -32,8 +32,8 @@ export interface TileStats {
   noFollowup: { ids: number[] }
 }
 
-/** Every tile's stats over `tasks` (completed tasks are skipped). */
-export function computeTiles(tasks: readonly PersistedTodoItem[], ctx: StatsContext): TileStats {
+/** Every counted metric over `tasks` (completed tasks are skipped). */
+export function computeMetrics(tasks: readonly PersistedTodoItem[], ctx: StatsContext): MetricStats {
   const { today, urgentRange } = ctx
   const open = openTasks(tasks)
 
