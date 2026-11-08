@@ -155,6 +155,27 @@ describe('the expression field', () => {
     expect(field().value).toBe('"budget review" and @"Ann Lee" and done')
   })
 
+  it('a focus and a blur write nothing when the text reads as the same filter (cr33 F4)', () => {
+    const log: TodoPredicate[] = []
+    // As Graphical → Expression writes a Relative Completed range: its end a 0-day offset, which reads back as `today`.
+    const lastWeek: FilterExpr = { kind: 'date', field: 'completed', match: { match: 'range', start: { kind: 'offset', days: -6 }, end: { kind: 'offset', days: 0 } } }
+    render(<Harness initial={{ ...emptyPredicate(), expression: lastWeek }} log={log} />)
+    expect(field().value).toBe('completed within last 6 days')
+    fireEvent.focus(field())
+    fireEvent.blur(field())
+    expect(log).toEqual([])
+  })
+
+  it('keeps the person the text named when two share a name (cr33 F5)', () => {
+    usePersonStore.setState({ people: [makePerson({ id: 3, name: 'Alex' }), makePerson({ id: 4, name: 'Alex' })], assignedPeopleMap: new Map() })
+    const log: TodoPredicate[] = []
+    render(<Harness initial={{ ...emptyPredicate(), expression: { kind: 'person', id: 4 } }} log={log} />)
+    expect(field().value).toBe('@Alex')
+    type('(@Alex and #work)')
+    fireEvent.blur(field())
+    expect(log.at(-1)?.expression).toEqual({ kind: 'and', items: [{ kind: 'person', id: 4 }, { kind: 'tag', id: 10 }] })
+  })
+
   it('Esc puts back the filter’s text, writing nothing', () => {
     const log: TodoPredicate[] = []
     render(<Harness initial={{ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }} log={log} />)

@@ -8,7 +8,7 @@ import { expressionNamesOf } from '../utils/filter-chips'
 import { parseExpression, printExpression, type ExpressionParse } from '../utils/filter-expression'
 import { expressionsEqual } from '../utils/filter-expression'
 import { withExpression } from '../utils/predicate-expression'
-import { expressionAutocomplete, expressionResolver, expressionTints } from '../services/filter-expression-field'
+import { expressionAutocomplete, expressionResolver, expressionTints, namedIds } from '../services/filter-expression-field'
 import { personItems, statusItems, tagItems } from '../services/nlp-autocomplete'
 import type { TintSpan } from '../services/nlp-token-tints'
 import { useNlpAutocomplete } from './use-nlp-autocomplete'
@@ -43,7 +43,9 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
   const names = useMemo(() => expressionNamesOf({ people, tags, statuses }), [people, tags, statuses])
-  const resolver = useMemo(() => expressionResolver(people, tags, statuses), [people, tags, statuses])
+  // The ids the filter names win over a namesake (two people called Alex).
+  const named = useMemo(() => namedIds(predicate.expression), [predicate.expression])
+  const resolver = useMemo(() => expressionResolver(people, tags, statuses, named), [people, tags, statuses, named])
 
   const stored = printExpression(predicate.expression, predicate.showCompleted, names)
   const [text, setText] = useState(stored)
@@ -87,7 +89,11 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
       return
     }
     const current = predicateRef.current
-    if (expressionsEqual(p.expression, current.expression) && p.showCompleted === current.showCompleted) {
+    // The same filter, or one that prints the same (`today` for a 0-day
+    // offset, cr33 F4): nothing to write, so a focus and a blur change nothing.
+    const same = p.showCompleted === current.showCompleted && (expressionsEqual(p.expression, current.expression)
+      || printExpression(p.expression, false, names) === printExpression(current.expression, false, names))
+    if (same) {
       pendingWrite.current = null
       return
     }
