@@ -6,6 +6,7 @@ import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { readLayoutDraft } from '../../data/draft-storage'
 import { rowFixes, validateRow } from '../../data/import-validation'
 import { isNormalized, validateTiling } from '../../utils/workspace-grid'
+import { closeCell } from '../../utils/workspace-layout-ops'
 import type { LayoutBody, LayoutTab } from '../../models/workspace-layout'
 import { cell, grid, picture, type GridOptions } from '../helpers/layout-builders'
 
@@ -96,6 +97,47 @@ describe('v78 widget-set: the Eisenhower summary becomes the Eisenhower; the rem
     expect(picture(out)).toEqual(['a a b', 'd x b', 'd c c'])
     expect(out.cells.find((c) => c.id === 'x')).toEqual({ id: 'x', area: { col: 1, row: 1, colSpan: 1, rowSpan: 1 }, tabs: [] })
     expectValid(out)
+  })
+
+  it('with no single whole-edge neighbour, the neighbours along a side that cover its whole edge together grow across it', () => {
+    const t = (id: string) => cell(id, [notes(`${id}-t`)])
+    const x = () => cell('x', [raw('g', 'stale')])
+    // a x      a and c together cover x's left edge.
+    // c x
+    expect(picture(upgraded([[t('a'), x()], [t('c'), x()]]))).toEqual(['a', 'c'])
+    // x b      No left, no top: on its right b and d together cover it.
+    // x d
+    expect(picture(upgraded([[x(), t('b')], [x(), t('d')]]))).toEqual(['b', 'd'])
+    // l a b    On its left l sticks out (taller), below f is wider; above, a and b
+    // l x x    together cover its top edge: both grow down, the row line goes.
+    // f f f
+    const out = upgraded([[t('l'), t('a'), t('b')], [t('l'), x(), x()], [t('f'), t('f'), t('f')]], { cols: [200, 300, 500] })
+    expect(picture(out)).toEqual(['l a b', 'f f f'])
+    expect(weights(out, 'columns')).toEqual([200, 300, 500])
+    expectValid(out)
+    // A single whole-edge neighbour still comes first: h below takes x alone
+    // (above, c and d wouldn't: d sticks out past x's right end).
+    //   c d d
+    //   x x g
+    //   h h g
+    expect(picture(upgraded([[t('c'), t('d'), t('d')], [x(), x(), t('g')], [t('h'), t('h'), t('g')]]))).toEqual(['c d d', 'h h g'])
+  })
+
+  it('closes as the live Close cell does, on the shapes that tell the two passes apart', () => {
+    const t = (id: string) => cell(id, [notes(`${id}-t`)])
+    const x = () => cell('x', [raw('g', 'today')])
+    const shapes: Parameters<typeof grid>[0][] = [
+      [[t('a'), x()], [t('c'), x()]],
+      [[x(), t('b')], [x(), t('d')]],
+      [[t('l'), t('a'), t('b')], [t('l'), x(), x()], [t('f'), t('f'), t('f')]],
+      [[t('c'), t('d'), t('d')], [x(), x(), t('g')], [t('h'), t('h'), t('g')]],
+      [[t('a'), t('a'), t('b')], [t('d'), x(), t('b')], [t('d'), t('c'), t('c')]],
+      [[t('a'), t('b'), t('c')], [x(), x(), x()], [t('d'), t('d'), t('e')]],
+    ]
+    for (const shape of shapes) {
+      const live = closeCell(grid(shape), 'x')
+      expect(picture(upgraded(shape))).toEqual(picture(live))
+    }
   })
 
   it('a cell that was empty before stays as it was; only the emptied ones close', () => {

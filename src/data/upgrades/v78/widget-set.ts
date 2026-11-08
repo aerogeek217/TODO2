@@ -14,7 +14,10 @@ import type { DataRow, DataSet } from '../../schema-upgrades'
  *   after), as closing a tab does.
  * - A cell the removals leave **without tabs closes** as Close cell does:
  *   the neighbour sharing its whole edge — looked for left, above, right,
- *   below — takes its space; with none, it stays as an empty cell. A cell
+ *   below — takes its space; with none, the neighbours along a side that
+ *   together cover that whole edge (none sticking out past either end; the
+ *   sides in the same order) all grow across it; with none of those either
+ *   (a pinwheel's centre), it stays as an empty cell. A cell
  *   that was empty before is left as it was. The cells close in reading
  *   order, each against the table as the ones before left it. Then every
  *   inner grid line no cell's edge lies on goes (its two tracks merge: the
@@ -53,6 +56,10 @@ interface Rect {
 }
 
 type Axis = 'columns' | 'rows'
+
+/** The sides a closed cell's taker is looked for on, in order. */
+const SIDES = ['left', 'top', 'right', 'bottom'] as const
+type Side = (typeof SIDES)[number]
 
 function isTrackIndex(v: unknown, min: number): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v >= min
@@ -140,7 +147,7 @@ function readTable(row: Obj, cells: unknown[]): Table | null {
 }
 
 /** The index of the cell across `side` of cell `i` sharing the whole of that edge, if any. */
-function wholeEdgeTaker(t: Table, i: number, side: 'left' | 'top' | 'right' | 'bottom'): number {
+function wholeEdgeTaker(t: Table, i: number, side: Side): number {
   const r = t.rects[i]
   if (!r) return -1
   return t.rects.findIndex((q, j) => {
@@ -155,17 +162,72 @@ function wholeEdgeTaker(t: Table, i: number, side: 'left' | 'top' | 'right' | 'b
   })
 }
 
-/** Closes cell `i` (no tabs): a whole-edge neighbour takes its rectangle; `false` with none (it stays empty). */
+/**
+ * The indices of the cells along `side` of cell `i` that together cover
+ * that whole edge — every cell touching the edge lies within it, the first
+ * starting where it starts and the last ending where it ends (the cells
+ * tile, so they meet end to end) —, or `null` when they don't.
+ */
+function sideTakers(t: Table, i: number, side: Side): number[] | null {
+  const r = t.rects[i]
+  if (!r) return null
+  const across: Axis = side === 'left' || side === 'right' ? 'rows' : 'columns'
+  const [start, end] = spanOf(r, across)
+  const along: Array<{ j: number; s: number; e: number }> = []
+  t.rects.forEach((q, j) => {
+    if (j === i) return
+    const touches = side === 'left' ? q.c1 === r.c0
+      : side === 'right' ? q.c0 === r.c1
+        : side === 'top' ? q.r1 === r.r0
+          : q.r0 === r.r1
+    const [s, e] = spanOf(q, across)
+    if (touches && s < end && e > start) along.push({ j, s, e })
+  })
+  if (along.length === 0 || along.some((a) => a.s < start || a.e > end)) return null
+  along.sort((a, b) => a.s - b.s)
+  if (along[0]?.s !== start || along.at(-1)?.e !== end) return null
+  return along.map((a) => a.j)
+}
+
+/** `q` grown across `r`, from `side` of `r`: its edge on `r` moved to `r`'s far edge. */
+function grownAcross(q: Rect, r: Rect, side: Side): Rect {
+  switch (side) {
+    case 'left': return { ...q, c1: r.c1 }
+    case 'right': return { ...q, c0: r.c0 }
+    case 'top': return { ...q, r1: r.r1 }
+    case 'bottom': return { ...q, r0: r.r0 }
+  }
+}
+
+/**
+ * Closes cell `i` (no tabs): a whole-edge neighbour takes its rectangle;
+ * with none, the neighbours along a side that together cover that edge
+ * (`sideTakers`, the sides in the same order) all grow across it; `false`
+ * with neither (it stays empty).
+ */
 function closeInto(t: Table, i: number): boolean {
   const r = t.rects[i]
   if (!r) return false
-  for (const side of ['left', 'top', 'right', 'bottom'] as const) {
+  const drop = () => {
+    t.rects.splice(i, 1)
+    t.cells.splice(i, 1)
+  }
+  for (const side of SIDES) {
     const j = wholeEdgeTaker(t, i, side)
     const q = t.rects[j]
     if (j < 0 || !q) continue
     t.rects[j] = { c0: Math.min(q.c0, r.c0), c1: Math.max(q.c1, r.c1), r0: Math.min(q.r0, r.r0), r1: Math.max(q.r1, r.r1) }
-    t.rects.splice(i, 1)
-    t.cells.splice(i, 1)
+    drop()
+    return true
+  }
+  for (const side of SIDES) {
+    const takers = sideTakers(t, i, side)
+    if (!takers) continue
+    for (const j of takers) {
+      const q = t.rects[j]
+      if (q) t.rects[j] = grownAcross(q, r, side)
+    }
+    drop()
     return true
   }
   return false
