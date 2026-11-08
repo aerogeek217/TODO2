@@ -1,68 +1,36 @@
-import { useRef, useState, type RefObject } from 'react'
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import {
-  getActiveTab,
-  isGlanceTab,
-  tabListId,
-  WIDGET_KIND_SPECS,
-  type LayoutTab,
-  type WidgetKind,
-} from '../../models/workspace-layout'
+import { getActiveTab, isGlanceKind, tabListId, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { getUnsavedListIds } from '../../stores/list-draft-store'
 import { useSettingsStore } from '../../stores/settings-store'
-import { useListWidgetStore } from '../../stores/list-widget-store'
-import { copyTasks } from '../../services/task-copy'
-import { WidgetKindMenu, type WidgetMenuAction } from '../shared/WidgetKindMenu'
-import { CellTabStrip } from './CellTabStrip'
+import { useWidgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
+import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
 import type { AddWhere } from './add-widget-where'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
 import { layoutTabs } from '../../utils/workspace-layout-queries'
-import { createListThenEdit, NO_LIST_LAYOUT_REASON, openEditList, useListOwnerLayoutId, useTabTitle, useTabTitles } from './widget-hooks'
+import { useTabTitle, useTabTitles } from './widget-hooks'
 import { UnsavedPrompt } from './UnsavedPrompt'
-import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
+import { MenuPopover } from '../shared/MenuPopover'
+import { ChevronDownIcon, ChevronUpIcon, GripIcon, MoreIcon } from '../shared/icons'
 import {
-  ChevronDownIcon,
-  ChevronUpIcon,
-  CloseCellIcon,
-  CloseIcon,
-  GripIcon,
-  MoreIcon,
-  PlusIcon,
-  SplitBelowIcon,
-  SplitRightIcon,
-} from '../shared/icons'
-import { mergeNeighbour, type Side } from '../../utils/workspace-grid'
-import {
-  tabsCount,
   useWorkspaceDrag,
   WORKSPACE_PANEL_DRAG,
   workspacePanelDragId,
   type WorkspacePanelDragData,
 } from './workspace-drag'
-import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
-import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from './eisenhower/eisenhower-settings-link'
-import { useNeglectMenuEntries } from './neglect/neglect-menu'
-import { glanceMenu } from './glance/glance-menu'
-import { useListZoomMenuEntries } from './list/zoom-menu'
-import { GlanceGlyph } from '../shared/GlanceGlyph'
 import styles from './WorkspaceCell.module.css'
 import type { WorkspaceCellProps } from './WorkspaceCell'
 import { trackScrollEdges } from '../../utils/scroll-edges'
-import { isHeadlessCell } from '../../utils/workspace-rows'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
-import { CELL_HEADER_PX, smallFaceClick, useCellFace } from './cell-face'
+import { smallFaceClick, useCellFace } from './cell-face'
 import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
 import { transitionName, withViewTransition } from '../shared/view-transition'
-
-/** The cell across `side` that cell `cellId` merges with into a rectangle (Merge with ▸), in the open layout. */
-function mergeTarget(cellId: string, side: Side): string | undefined {
-  const layout = useWorkspaceStore.getState().working
-  return layout ? mergeNeighbour(layout, cellId, side)?.id : undefined
-}
+import { cellMenuEntries, mergedCellMenu, useWidgetMenuContent, type GuardedRun } from './cell-menu'
+import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
+import { CellControls } from './WidgetTopLine'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
   const r = ref.current?.getBoundingClientRect()
@@ -70,9 +38,9 @@ function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number
 }
 
 /**
- * The header's empty space: drags the whole panel (5px to start, as a tab),
- * with a faint grip on header hover. Not focusable — the ⋯ menu's Move and
- * Split items are the keyboard way.
+ * The strip header's empty space: drags the whole panel (5px to start, as a
+ * tab), with a faint grip on header hover. Not focusable — the ⋯ menu's
+ * Split, Merge and Insert are the keyboard way.
  */
 function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly LayoutTab[] }) {
   const titles = useTabTitles(tabs)
@@ -87,15 +55,6 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
       <span className={styles.grip}><GripIcon /></span>
     </div>
   )
-}
-
-/** A list tab's menu switch for the top bar's lens on its list: checked while it applies; saved at once. */
-function lensSwitchAction(lens: NonNullable<WidgetResult['lens']>): WidgetMenuAction {
-  return {
-    label: `Apply lens “${lens.name}” here`,
-    checked: !lens.ignored,
-    onSelect: () => void useListDefinitionStore.getState().setIgnoreLens(lens.listId, !lens.ignored),
-  }
 }
 
 /**
@@ -118,23 +77,32 @@ function listsLosingLastWidget(tabIds: readonly string[]): number[] {
   return [...out]
 }
 
-/** Merge with ▸ Right / Below: why the item is off when the cell doesn't merge that way. */
-const NO_MERGE_REASON = 'Only cells that make a rectangle together merge'
+/** Before any menu is open: the widget part builds nothing. */
+const NO_WIDGET_MENU: WidgetKindMenuContent = { onChangeKind: () => {} }
 
-/** Insert ▸: a full-width row or a full-height column at an edge of the layout. */
-const INSERT_ITEMS: ReadonlyArray<{ label: string; edge: Side }> = [
-  { label: 'Row at the top', edge: 'top' },
-  { label: 'Row at the bottom', edge: 'bottom' },
-  { label: 'Column at the left', edge: 'left' },
-  { label: 'Column at the right', edge: 'right' },
-]
+/** Where the ⋯ menu opens: under the ⋯ (`null`), or at a point (a right-click). */
+type MenuAt = { x: number; y: number } | null
 
 /**
- * A cell of the layout's table holding tabs: its header (the tab strip, the
- * panel handle, collapse and the ⋯ menu), its active widget's body at its
- * face (D25 R; headless as `utils/workspace-rows` says), and its menus —
- * the cell menu in the table's words (D26 board V): Add widget…, Split
- * cell ▸, Merge with ▸, Insert ▸, Collapse row, Close tab, Close cell.
+ * Whether `target` is in a widget top line of `cell` — or, with `holding`
+ * (the focused element, for the keyboard), holds one: a Number's button
+ * holds its label row.
+ */
+function onTopLine(cell: HTMLElement, target: EventTarget | null, holding = false): boolean {
+  if (!(target instanceof Element) || !cell.contains(target)) return false
+  const line = target.closest(`[${TOP_LINE_ATTR}]`)
+  if (line && cell.contains(line)) return true
+  return holding && target.querySelector(`[${TOP_LINE_ATTR}]`) != null
+}
+
+/**
+ * A cell of the layout's table holding tabs (D26 AA1): with one widget no
+ * tab strip — the widget's own top line names it and holds the controls
+ * slot (grip and ⋯, `CellControlsContext`); with two or more, the tab
+ * strip, the panel handle, collapse and the ⋯ in its header. Either way the
+ * ⋯ opens one merged menu (`cell-menu`): the widget's own entries, then the
+ * cell's in the table's words (D26 board V). The active widget's body shows
+ * at its face (D25 R).
  */
 export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
@@ -144,43 +112,41 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const mergeCells = useWorkspaceStore((s) => s.mergeCells)
   const insertTrack = useWorkspaceStore((s) => s.insertTrack)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
-  const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
-  const patchTabConfig = useWorkspaceStore((s) => s.patchTabConfig)
   const drag = useWorkspaceDrag()
-  const urgentRangeSetting = useUrgentRangeSetting()
-  const noun = 'cell'
-  /** What collapses with this cell: the row tracks it covers. */
-  const rowNoun = 'row'
-  const setRowCollapsed = (next: boolean) => setTrackCollapsed(rowTrackIds, next)
+  const setRowCollapsed = useCallback((next: boolean) => { void setTrackCollapsed(rowTrackIds, next) }, [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
-  /** Headless whatever its face (one glance tab, or its strip hidden in the menu). */
-  const headlessByWidget = isHeadlessCell(cell)
-  // The active widget's face (D25 R): a fit row's is small; a cell headless
-  // only at its small face lends the body its header's room (measured as if headed).
-  const cellFace = useCellFace(active, {
-    forced: fitRow ? 'small' : undefined,
-    smallAllowancePx: !headlessByWidget && cell.tabs.length === 1 ? CELL_HEADER_PX : undefined,
-  })
-  const smallFace = cellFace.face === 'small'
-  /** Headless: the strip is hidden until hover / focus (never while collapsed: the header is all it shows). */
-  const headless = !collapsed && isHeadlessCell(cell, undefined, smallFace)
+  /** Tabs only when there's a choice (D26 AA1): one widget's top line names it. */
+  const stripShown = cell.tabs.length > 1
+  // The active widget's face (D25 R): a fit row's is small; a collapsed
+  // one-widget cell shows its top line, which is its large face's first line.
+  const cellFace = useCellFace(active, { forced: fitRow ? 'small' : collapsed && !stripShown ? 'large' : undefined })
+  const smallFace = cellFace.face === 'small' && !collapsed
   const cellRef = useRef<HTMLElement | null>(null)
   /** What the active tab's widget last reported (any kind): its count label, shown sections or summary. */
   const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
   const [guard, setGuard] = useState<{ listIds: number[]; lead: string; run: () => void } | null>(null)
-  const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
-  const [cellMenuOpen, setCellMenuOpen] = useState(false)
+  const [menu, setMenu] = useState<{ tabId: string; at: MenuAt } | null>(null)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number }; where: AddWhere } | null>(null)
-  const moreRef = useRef<HTMLButtonElement | null>(null)
-  /** A menu of the cell is open: a headless cell keeps its strip in while it is. */
-  const stripPinned = cellMenuOpen || tabMenu != null || addFlow != null
+  // The ⋯ button (in the strip's header, or a top line's slot): kept as state, so the menu anchors to whichever is drawn.
+  const [moreEl, setMoreEl] = useState<HTMLButtonElement | null>(null)
+  const moreRef = useMemo(() => ({ current: moreEl }), [moreEl])
+  // A ⋯ going (the cell's own slot, once a top line takes it) leaves the one still drawn.
+  const setMoreButton = useCallback((el: HTMLButtonElement | null) => {
+    setMoreEl((prev) => el ?? (prev?.isConnected ? prev : null))
+  }, [])
+  /** Top lines holding the controls slot: none, and the cell draws its own (a face without one). */
+  const [claims, setClaims] = useState(0)
+  const claim = useCallback(() => {
+    setClaims((n) => n + 1)
+    return () => setClaims((n) => n - 1)
+  }, [])
 
   const activeResult = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result : undefined
   const activeCount = activeResult?.countLabel
 
   /** Runs `run`, first asking about unsaved lists that would lose their last widget with `tabIds`. */
-  const guarded = (tabIds: readonly string[], lead: string, run: () => void) => {
+  const guarded: GuardedRun = (tabIds, lead, run) => {
     const listIds = listsLosingLastWidget(tabIds)
     if (listIds.length === 0) run()
     else setGuard({ listIds, lead, run })
@@ -190,109 +156,68 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
 
   const hit = drag?.hit
   const stripHit = hit?.kind === 'tab-strip' && hit.cellId === cell.id && drag?.accepts ? hit : null
-  // Joining it (its body's middle): the tabs show in its strip as ghosts.
+  // Joining it (its body's middle): the tabs show in its strip as ghosts —
+  // a one-widget cell's in the strip it will have, over its top line.
   const joining = drag?.accepts === true && hit?.kind === 'cell-body' && hit.cellId === cell.id && hit.zone === 'middle'
   const ghosts = joining ? drag.tabs : null
   const isDragSource = drag?.source.type === 'panel' && drag.source.panelId === cell.id
 
-  const menuTab = tabMenu ? cell.tabs.find((t) => t.id === tabMenu.tabId) : undefined
-  const layoutId = useListOwnerLayoutId()
-  const eisenhowerListId = useSettingsStore((s) => s.eisenhowerListId)
-  const menuListId = menuTab ? tabListId(menuTab, eisenhowerListId) : undefined
-  const menuListName = useListDefinitionStore((s) =>
-    menuListId != null ? s.listDefinitions.find((d) => d.id === menuListId)?.name : undefined,
-  )
+  // ── The merged ⋯ menu ──
+  const menuTab = menu ? cell.tabs.find((t) => t.id === menu.tabId) : undefined
+  const menuTitle = useTabTitle(menuTab)
+  const widgetContent = useWidgetMenuContent(menuTab, menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result : undefined, guarded)
+  const widgetEntries = useWidgetKindMenuEntries(widgetContent ?? NO_WIDGET_MENU)
+  const menuEntries = menu && menuTab
+    ? mergedCellMenu(widgetEntries, cellMenuEntries({
+        cell,
+        tab: menuTab,
+        tabTitle: menuTitle,
+        collapsed,
+        onAddWidget: () => setAddFlow({ anchor: menu.at ?? anchorBelow(moreRef), where: 'tab' }),
+        onSplit: (side) => { splitCell(cell.id, side) },
+        onMerge: (other) => { mergeCells(cell.id, other) },
+        onInsert: (edge) => { insertTrack(edge) },
+        onCollapse: setRowCollapsed,
+        onCloseTab: closeTabGuarded,
+        onCloseCell: closeCellGuarded,
+      }))
+    : null
+  const openMenu = useCallback((tabId: string, at: MenuAt) => setMenu({ tabId, at }), [])
+  const menuOpen = menu != null || addFlow != null
 
-  /**
-   * Changes a tab's kind. Switched to List — an Eisenhower tab too: the
-   * Eisenhower's own list is never a list tab's — it shows a new blank list
-   * of the layout, whose Edit list opens at once.
-   */
-  const changeKind = (tab: LayoutTab, kind: WidgetKind) => {
-    if (kind === tab.kind) return
-    if (WIDGET_KIND_SPECS[kind].showsList) {
-      if (layoutId == null) return
-      // An Eisenhower tab shows the Eisenhower's list: asked about first,
-      // as any change of the last widget showing an unsaved list.
-      guarded([tab.id], 'You’re changing the last widget that shows it.', () => createListThenEdit((id) => {
-        changeTabKind(tab.id, 'lens', { listDefinitionId: id })
-        return tab.id
-      }, layoutId))
-      return
-    }
-    guarded([tab.id], 'You’re changing the last widget that shows it.', () => changeTabKind(tab.id, kind))
+  // A one-widget cell's controls slot, lent to its widget's top line.
+  const activeId = active?.id
+  const controls = useMemo<CellControlsValue | null>(() => (stripShown || activeId == null ? null : {
+    cellId: cell.id,
+    tabs: cell.tabs,
+    tabId: activeId,
+    title: activeTitle,
+    touch: false,
+    setMoreButton,
+    menuOpen,
+    onMore: () => setMenu((m) => (m ? null : { tabId: activeId, at: null })),
+    collapsed,
+    onExpand: () => setRowCollapsed(false),
+    claim,
+  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, collapsed, setRowCollapsed, claim, setMoreButton])
+
+  /** A right-click on the top line (a glance widget's: anywhere on it) opens the ⋯ menu there. */
+  const onContextMenu = (e: MouseEvent<HTMLElement>) => {
+    if (stripShown || e.defaultPrevented || !active) return
+    // Not one from the full widget's popover (portaled, but in this React tree).
+    if (!(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return
+    if (!isGlanceKind(active.kind) && !onTopLine(e.currentTarget, e.target)) return
+    e.preventDefault()
+    openMenu(active.id, { x: e.clientX, y: e.clientY })
   }
-
-  const neglectEntries = useNeglectMenuEntries(menuTab?.kind === 'neglect' ? menuTab : undefined)
-  const zoomEntries = useListZoomMenuEntries(menuTab?.kind === 'lens' ? menuTab : undefined)
-  // A glance widget's settings and Copy (its lines, while it is the cell's active tab).
-  const glance = glanceMenu(
-    menuTab && isGlanceTab(menuTab) ? menuTab : undefined,
-    menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result.summary : undefined,
-  )
-
-  const cellMenuEntries: MenuEntry[] = [
-    // The active widget's own setup, when it has one.
-    ...(active?.kind === 'eisenhower' ? [
-      {
-        kind: 'item' as const,
-        label: CUSTOMIZE_PANES_LABEL,
-        icon: <GlanceGlyph name="sliders" />,
-        onSelect: () => openEisenhowerSettings(),
-      },
-      { kind: 'separator' as const },
-    ] : []),
-    {
-      kind: 'item',
-      label: 'Add widget…',
-      icon: <PlusIcon />,
-      submenu: true,
-      onSelect: () => setAddFlow({ anchor: anchorBelow(moreRef), where: 'tab' }),
-    },
-    { kind: 'separator' },
-    {
-      kind: 'item',
-      label: 'Split cell',
-      icon: <SplitRightIcon />,
-      children: [
-        { kind: 'item', label: 'Right', icon: <SplitRightIcon />, onSelect: () => { splitCell(cell.id, 'right') } },
-        { kind: 'item', label: 'Below', icon: <SplitBelowIcon />, onSelect: () => { splitCell(cell.id, 'bottom') } },
-      ],
-    },
-    {
-      kind: 'item',
-      label: 'Merge with',
-      children: (['right', 'bottom'] as const).map((side): MenuEntry => {
-        const other = cellMenuOpen ? mergeTarget(cell.id, side) : undefined
-        return {
-          kind: 'item',
-          label: side === 'right' ? 'Right' : 'Below',
-          disabled: other == null,
-          title: other == null ? NO_MERGE_REASON : undefined,
-          onSelect: () => { if (other) mergeCells(cell.id, other) },
-        }
-      }),
-    },
-    {
-      kind: 'item',
-      label: 'Insert',
-      children: INSERT_ITEMS.map(({ label, edge }): MenuEntry => ({ kind: 'item', label, onSelect: () => { insertTrack(edge) } })),
-    },
-    {
-      kind: 'item',
-      label: collapsed ? `Expand ${rowNoun}` : `Collapse ${rowNoun}`,
-      icon: collapsed ? <ChevronDownIcon size={14} /> : <ChevronUpIcon />,
-      onSelect: () => { void setRowCollapsed(!collapsed) },
-    },
-    { kind: 'separator' },
-    ...(active ? [{ kind: 'item' as const, label: `Close tab “${activeTitle}”`, icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => closeTabGuarded(active.id) }] : []),
-    {
-      kind: 'item',
-      label: `Close ${noun} (${tabsCount(cell.tabs.length)})`,
-      icon: <CloseCellIcon />,
-      onSelect: closeCellGuarded,
-    },
-  ]
+  /** Shift+F10 / the Menu key on the top line opens the ⋯ menu under the ⋯ (a widget's own menu, e.g. a row's, goes first). */
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (stripShown || e.defaultPrevented || !active) return
+    if (e.key !== 'ContextMenu' && !(e.key === 'F10' && e.shiftKey)) return
+    if (!onTopLine(e.currentTarget, e.target, true)) return
+    e.preventDefault()
+    openMenu(active.id, null)
+  }
 
   return (
     <section
@@ -301,117 +226,113 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         styles.cell,
         collapsed ? styles.collapsed : '',
         isDragSource ? styles.dragSource : '',
-        headless ? styles.headless : '',
-        headless && drag ? styles.headlessQuiet : '',
       ].join(' ')}
       style={{ ...style, viewTransitionName: transitionName('ws-cell', cell.id) }}
       data-ws-cell={cell.id}
       data-ws-cell-title={activeTitle}
-      data-headless={headless ? 'true' : undefined}
       data-face={!collapsed && active ? cellFace.face : undefined}
-      aria-label={`${activeTitle} ${noun}`}
-      onContextMenu={headless ? (e) => {
-        // A headless cell's right-click is its tab's menu (a widget's own menu, e.g. a row's, goes first).
-        // Not one from the full widget's popover (portaled, but in this React tree).
-        if (e.defaultPrevented || !active || !(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return
-        e.preventDefault()
-        setTabMenu({ tabId: active.id, x: e.clientX, y: e.clientY })
-      } : undefined}
+      aria-label={`${activeTitle} cell`}
+      onContextMenu={onContextMenu}
+      onKeyDown={onKeyDown}
     >
-      <div
-        className={[styles.header, cellMenuOpen ? styles.headerMenuOpen : '', headless && stripPinned ? styles.stripPinned : ''].join(' ')}
-        data-ws-cell-header={cell.id}
-        data-strip-hidden={headless ? '' : undefined}
-      >
-        <CellTabStrip
-          cell={cell}
-          collapsed={collapsed}
-          activeCount={activeCount}
-          activeLens={activeCount != null ? activeResult?.lens : undefined}
-          ghosts={ghosts}
-          onActivate={(tabId) => {
-            withViewTransition(() => {
-              void setActiveTab(tabId)
-              if (collapsed) void setRowCollapsed(false)
-            })
-          }}
-          onClose={closeTabGuarded}
-          onOpenTabMenu={(tabId, p) => setTabMenu({ tabId, ...p })}
-          onAddTab={(ref) => setAddFlow({ anchor: anchorBelow(ref), where: 'tab' })}
-        />
-        {stripHit && drag?.insertLeft != null && (
-          <span className={styles.insertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
-        )}
-        <PanelHandle panelId={cell.id} tabs={cell.tabs} />
-        {collapsed ? (
-          <button
-            type="button"
-            className={styles.expand}
-            aria-label={`Expand ${rowNoun}`}
-            aria-expanded={false}
-            title={`Expand ${rowNoun}`}
-            onClick={() => { void setRowCollapsed(false) }}
-          >
-            <ChevronDownIcon size={14} />
-          </button>
-        ) : (
-          <div className={styles.actions}>
+      {stripShown && (
+        <div
+          className={[styles.header, menuOpen ? styles.headerMenuOpen : ''].join(' ')}
+          data-ws-cell-header={cell.id}
+        >
+          <CellTabStrip
+            cell={cell}
+            collapsed={collapsed}
+            activeCount={activeCount}
+            activeLens={activeCount != null ? activeResult?.lens : undefined}
+            ghosts={ghosts}
+            onActivate={(tabId) => {
+              withViewTransition(() => {
+                void setActiveTab(tabId)
+                if (collapsed) setRowCollapsed(false)
+              })
+            }}
+            onClose={closeTabGuarded}
+            onOpenTabMenu={(tabId, p) => openMenu(tabId, p)}
+            onAddTab={(ref) => setAddFlow({ anchor: anchorBelow(ref), where: 'tab' })}
+          />
+          {stripHit && drag?.insertLeft != null && (
+            <span className={styles.insertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
+          )}
+          <PanelHandle panelId={cell.id} tabs={cell.tabs} />
+          {collapsed ? (
             <button
               type="button"
-              className={styles.action}
-              aria-label={`Collapse ${rowNoun}`}
-              aria-expanded={true}
-              title="Collapse"
-              onClick={() => { void setRowCollapsed(true) }}
+              className={styles.expand}
+              aria-label="Expand row"
+              aria-expanded={false}
+              title="Expand row"
+              onClick={() => setRowCollapsed(false)}
             >
-              <ChevronUpIcon />
+              <ChevronDownIcon size={14} />
             </button>
-            <button
-              ref={moreRef}
-              type="button"
-              className={`${styles.action} ${cellMenuOpen ? styles.actionPressed : ''}`}
-              aria-label="Cell options"
-              aria-haspopup="menu"
-              aria-expanded={cellMenuOpen}
-              title="Cell options"
-              onClick={() => setCellMenuOpen((o) => !o)}
-            >
-              <MoreIcon />
-            </button>
-          </div>
-        )}
-      </div>
-      {!collapsed && active && (
+          ) : (
+            <div className={styles.actions}>
+              <button
+                type="button"
+                className={styles.action}
+                aria-label="Collapse row"
+                aria-expanded={true}
+                title="Collapse"
+                onClick={() => setRowCollapsed(true)}
+              >
+                <ChevronUpIcon />
+              </button>
+              <button
+                ref={setMoreButton}
+                type="button"
+                className={`${styles.action} ${menu?.at === null ? styles.actionPressed : ''}`}
+                aria-label="Cell options"
+                aria-haspopup="menu"
+                aria-expanded={menu != null}
+                title="Cell options"
+                onClick={() => setMenu((m) => (m ? null : active ? { tabId: active.id, at: null } : null))}
+              >
+                <MoreIcon />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {!stripShown && active && ghosts && <JoinPreviewStrip tab={active} ghosts={ghosts} />}
+      {(!collapsed || !stripShown) && active && (
         <div className={styles.bodyFrame}>
           <div
-            ref={trackScrollEdges}
+            ref={collapsed ? undefined : trackScrollEdges}
             className={`${styles.body} ${smallFace ? styles.bodySmall : ''}`}
-            role="tabpanel"
-            aria-labelledby={`ws-tab-${active.id}`}
+            role={stripShown ? 'tabpanel' : undefined}
+            aria-labelledby={stripShown ? `ws-tab-${active.id}` : undefined}
             data-ws-cell-body={cell.id}
             // A small face opens its full widget (a widget's own click goes first).
-            onClick={drag ? undefined : smallFaceClick(cellFace)}
+            onClick={drag || collapsed ? undefined : smallFaceClick(cellFace)}
           >
             {smallFace && !drag && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
-            <WidgetFaceContext.Provider value={cellFace.host}>
-              <WidgetBody
-                key={active.id}
-                tab={active}
-                onResult={(result) => setWidgetResult({ tabId: active.id, result })}
-              />
-            </WidgetFaceContext.Provider>
+            <CellControlsContext.Provider value={controls}>
+              <WidgetFaceContext.Provider value={cellFace.host}>
+                <WidgetBody
+                  key={active.id}
+                  tab={active}
+                  onResult={(result) => setWidgetResult({ tabId: active.id, result })}
+                />
+              </WidgetFaceContext.Provider>
+            </CellControlsContext.Provider>
           </div>
         </div>
       )}
+      {controls && claims === 0 && <CellControls value={controls} floating />}
 
-      {cellMenuOpen && (
+      {menu && menuEntries && (
         <MenuPopover
-          anchorRef={moreRef}
-          placement="bottom-end"
-          width={232}
+          {...(menu.at ? { point: menu.at, restoreFocus: true } : { anchorRef: moreRef, placement: 'bottom-end' as const })}
+          width={248}
           label="Cell options"
-          entries={cellMenuEntries}
-          onClose={() => setCellMenuOpen(false)}
+          entries={menuEntries}
+          onClose={() => setMenu(null)}
         />
       )}
       {addFlow && (
@@ -420,59 +341,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
           initialWhere={addFlow.where}
           anchor={addFlow.anchor}
           onClose={() => setAddFlow(null)}
-        />
-      )}
-      {tabMenu && menuTab && (
-        <WidgetKindMenu
-          anchor={{ x: tabMenu.x, y: tabMenu.y }}
-          currentKind={menuTab.kind}
-          onChangeKind={(kind) => changeKind(menuTab, kind)}
-          unavailableKinds={layoutId == null ? { lens: NO_LIST_LAYOUT_REASON } : undefined}
-          pickListForLens={menuTab.kind === 'lens'
-            ? (id) => {
-                if (id === menuTab.config.listDefinitionId) return
-                guarded([menuTab.id], 'You’re changing the last widget that shows it.', () => patchTabConfig(menuTab.id, 'lens', { listDefinitionId: id }))
-              }
-            : undefined}
-          onEditList={menuListId != null && (menuTab.kind === 'lens' || menuListName != null)
-            ? () => openEditList(menuTab.id, menuListId)
-            : undefined}
-          currentListName={menuListName}
-          listLayoutId={layoutId}
-          sourceActions={menuTab.kind === 'eisenhower'
-            ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => openEisenhowerSettings() }]
-            : undefined}
-          widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
-          settingEntries={menuTab.kind === 'neglect' ? neglectEntries : menuTab.kind === 'lens' ? zoomEntries : glance?.settingEntries}
-          widgetActions={glance ? glance.actions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
-            ? [
-                // The top bar's lens on this list, while one applies there: on / off here (saved at once).
-                ...(widgetResult.result.lens ? [lensSwitchAction(widgetResult.result.lens)] : []),
-                {
-                  label: 'Copy tasks',
-                  icon: '⧉',
-                  onSelect: () => {
-                    const sections = widgetResult.result.sections
-                    const labelled = !(sections.length === 1 && sections[0]?.key === 'all')
-                    void copyTasks(sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
-                  },
-                },
-                // A grouped list: fold or unfold every group (the collapse set is per tab, never saved).
-                ...(widgetResult.result.grouped ? [
-                  {
-                    label: 'Collapse all groups',
-                    icon: <ChevronUpIcon />,
-                    onSelect: () => useListWidgetStore.getState().setCollapsed(menuTab.id, widgetResult.result.sections.map((sec) => sec.key)),
-                  },
-                  {
-                    label: 'Expand all groups',
-                    icon: <ChevronDownIcon size={14} />,
-                    onSelect: () => useListWidgetStore.getState().setCollapsed(menuTab.id, []),
-                  },
-                ] : []),
-              ]
-            : undefined}
-          onClose={() => setTabMenu(null)}
         />
       )}
       {guard && (

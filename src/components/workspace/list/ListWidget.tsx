@@ -51,6 +51,7 @@ import { ListGroupHeader } from './ListGroupHeader'
 import { groupPerson, listGroupMenu, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { ListFilterRow } from './ListFilterRow'
+import { ListNameLine, ListTopLineLead } from './ListTopLine'
 import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
@@ -548,6 +549,17 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
       // Phones: the filter chips (a shared stylesheet) get their touch height.
       data-touch-chips={isMobile ? '' : undefined}
     >
+      {/* Its top line (D26 AA1): the filter line — or, hidden, a slim name line alone in its cell. */}
+      {filterLineShown ? (
+        <ListFilterRow
+          tabId={tab.id}
+          definition={definition}
+          count={countLabel}
+          lens={lensMark}
+          onToggleLens={toggleLens}
+          topLine={{ lead: <ListTopLineLead tab={tab} listId={definition.id} /> }}
+        />
+      ) : <ListNameLine tab={tab} listId={definition.id} count={countLabel} lens={lensMark} />}
       {definition.runtimeFilter && (
         <RuntimeFilterPicker
           inputRef={runtimeInputRef}
@@ -556,7 +568,6 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
           onChange={(ids) => setPicks(tab.id, ids)}
         />
       )}
-      <ListFilterRow tabId={tab.id} definition={definition} count={countLabel} lens={lensMark} onToggleLens={toggleLens} />
       <div ref={setScrollEl} className={styles.scroll}>
         {body}
       </div>

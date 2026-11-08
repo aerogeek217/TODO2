@@ -12,6 +12,7 @@ import { numberLines } from './glance-summary'
 import { breakdownDrill, closedThisWeekDrill, metricDrill } from './glance-drills'
 import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
+import { WidgetTopLine } from '../WidgetTopLine'
 import { Sparkline } from './Sparkline'
 import { NUMBER_DEFS, numberColors } from './number-defs'
 import styles from './NumberWidget.module.css'
@@ -114,9 +115,9 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
   const drill = glanceDrill(onDrill, base.filtered)
   const content = (
     <>
-      <span className={styles.label} style={{ color: colors.label }}>
+      <WidgetTopLine as="span" controls="cell" className={styles.label} style={{ color: colors.label }}>
         <GlanceGlyph name={def.glyph} size={12} color={colors.glyph} /><span className={styles.labelText}>{def.label}</span>
-      </span>
+      </WidgetTopLine>
       <span className={styles.figures}>
         <span className={styles.count} style={{ color: colors.count }} data-testid="number-count">
           {shown}

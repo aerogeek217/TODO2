@@ -17,8 +17,8 @@ import { spanPx, tableTrackSizes, trackStart } from './workspace-table'
  *    {@link INSERT_EDGE_ZONE_PX} inside the workspace's top (bottom) edge —
  *    reaching {@link INSERT_EDGE_OUTSIDE_PX} past it too —, full width; but
  *    never over a cell (its strip and its body's zones win).
- * 3. A cell's header (its tab strip) → insert at that position. A headless
- *    cell's hidden strip is none (`dropStrip`).
+ * 3. A cell's header (its tab strip) → insert at that position. A cell
+ *    with one widget has none (D26 AA1): its whole card is its body.
  * 4. A cell body → its outer {@link SIDE_ZONE_SHARE} on each side (at
  *    most {@link SIDE_ZONE_MAX_PX}): split it that side (in a corner, the
  *    side the pointer is deeper into); the middle: join as tab(s). An
@@ -43,15 +43,13 @@ export interface CellGeometry {
   title?: string
   /** The whole cell card. */
   rect: Rect
-  /** The header (tab strip) as drawn; absent for an empty cell. A headless cell's is out of view (see `headless`). */
+  /** The header (tab strip) as drawn; absent for an empty cell and a cell of one widget (it has no strip). */
   header: Rect | null
   /**
-   * The cell hides its strip (`utils/workspace-rows.isHeadlessCell`; it stays
-   * out during a drag): its header is no drop target (`dropStrip`), and its
-   * body is the whole card.
+   * The body below the header — a cell of one widget's is the whole card,
+   * collapsed or not —; absent for a collapsed cell with a strip and an
+   * empty cell.
    */
-  headless?: boolean
-  /** The body below the header (a headless cell's: the whole card); absent for collapsed and empty cells. */
   body: Rect | null
   empty: boolean
   /** Tabs in strip order (visible ones; overflowed tabs are skipped). */
@@ -176,15 +174,6 @@ function layoutTabIndex(
   return lastIdx !== -1 ? lastIdx + 1 : Math.min(hit.index, ids.length)
 }
 
-/**
- * The tab strip a drop can land on in `cell`: its header, unless the cell is
- * headless (its strip is out of view during a drag, so its body — the whole
- * card — takes every drop). The one place the headless rule meets the hit test.
- */
-export function dropStrip(cell: CellGeometry): Rect | null {
-  return cell.headless === true ? null : cell.header
-}
-
 /** Whether `p` is over any cell's card (its strip, its body, a collapsed or an empty cell). */
 function overCell(geo: WorkspaceGeometry, p: Point): boolean {
   return geometryCells(geo).some((cell) => inside(cell.rect, p))
@@ -216,7 +205,7 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
   const cell = geo.cells.find((c) => inside(c.rect, p))
   if (!cell) return null
   if (cell.empty) return { kind: 'empty-cell', cellId: cell.id }
-  const strip = dropStrip(cell)
+  const strip = cell.header
   if (strip && inside(strip, p)) return stripHit(cell, strip, p)
   if (cell.body && inside(cell.body, p)) return { kind: 'cell-body', cellId: cell.id, zone: bodyZone(cell.body, p) }
   return null

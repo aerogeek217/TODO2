@@ -1,0 +1,126 @@
+/* A widget's top line (D26 AA1): the widget's own first line, which —
+ * alone in its cell — names the widget and ends with the cell's controls. */
+
+.topLine {
+  min-width: 0;
+}
+
+/* The widget's name at the line's start (alone in its cell). */
+.name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/* Beside a line's own content (a list's chips): it gives way first, down to its share. */
+.topLine > .name {
+  max-width: 45%;
+}
+
+/* A slim name line (Notes, the Eisenhower, the Neglect map). */
+.nameLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  flex-shrink: 0;
+  padding: 0 4px 0 10px;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+/* The controls slot: an Expand button while collapsed (always shown), then
+ * the grip and ⋯ — shown while the pointer is over the cell, while focus is
+ * in it and while its menu is open, always on touch. Opacity only, so the
+ * line never moves. */
+.slot {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: none;
+  margin-left: auto;
+}
+
+.controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+
+:global([data-ws-cell]):hover .controls,
+:global([data-ws-cell]):focus-within .controls,
+.slot[data-open] .controls,
+.slot[data-touch] .controls {
+  opacity: 1;
+}
+
+/* The cell's own slot, for a face without a top line that holds it: over
+ * the cell's top-right corner, on the surface so it reads over the face. */
+.floating {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  z-index: var(--z-above-2);
+}
+
+.floating .controls {
+  padding: 1px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.slot[data-touch] .button {
+  width: 32px;
+  height: 32px;
+}
+
+.button:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.pressed {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+.grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 24px;
+  color: var(--color-text-muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.grip:hover {
+  color: var(--color-text-primary);
+}
+
+.grip:active {
+  cursor: grabbing;
+  color: var(--color-accent-text);
+}

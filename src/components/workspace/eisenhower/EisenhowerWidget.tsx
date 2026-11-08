@@ -68,6 +68,7 @@ import { countOpen, useEisenhowerSource, type ListSourceContext } from '../../..
 import { openEisenhowerSettings } from './eisenhower-settings-link'
 import { SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
+import { WidgetNameLine } from '../WidgetTopLine'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -560,6 +561,8 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
       // Phones: the list's filter chips (a shared stylesheet) get their touch height.
       data-touch-chips={list && isMobile ? '' : undefined}
     >
+      {/* Alone in its cell, its top line (D26 AA1): a slim name line. */}
+      <WidgetNameLine name="Eisenhower" />
       {list && <ListFilterRow tabId={tab.id} definition={list.definition} summary={false} />}
       <div
         ref={setRootRef}

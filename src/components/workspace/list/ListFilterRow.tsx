@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { useIsListDirty } from '../../../hooks/use-list-draft'
 import { useListDraftStore } from '../../../stores/list-draft-store'
@@ -14,6 +14,7 @@ import { ListDraftButtons } from './ListDraftButtons'
 import { EDIT_LIST_KEEP_ATTR } from './edit-list-keep'
 import { useScreenChips } from './use-screen-chips'
 import { openEditList } from '../widget-hooks'
+import { WidgetTopLine } from '../WidgetTopLine'
 import chipStyles from '../../shared/filters/ListFilterChips.module.css'
 import styles from './ListFilterRow.module.css'
 
@@ -44,6 +45,12 @@ interface ListFilterRowProps {
   lens?: ListLensMark
   /** Turns the lens off / on for this list (saved at once). */
   onToggleLens?: () => void
+  /**
+   * It is its list widget's top line (D26 AA1): alone in its cell it starts
+   * with `lead` (the list's name, unsaved dot and badge) and ends with the
+   * cell's controls (`WidgetTopLine`).
+   */
+  topLine?: { lead: ReactNode }
 }
 
 /**
@@ -68,7 +75,7 @@ export function ListFilterRow(props: ListFilterRowProps) {
   return <FilterRowBody {...props} unsaved={unsaved} />
 }
 
-function FilterRowBody({ tabId, definition, summary = true, inDialog = false, count, lens, onToggleLens, unsaved }: ListFilterRowProps & { unsaved: boolean }) {
+function FilterRowBody({ tabId, definition, summary = true, inDialog = false, count, lens, onToggleLens, topLine, unsaved }: ListFilterRowProps & { unsaved: boolean }) {
   const editorOpen = useUIStore((s) => tabId != null && s.listEditor?.tabId === tabId)
   const names = useChipNames()
   const screenChips = useScreenChips()
@@ -78,8 +85,8 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, co
   const chipsOverflow = useOverflowsX(chipsRef)
   const id = definition.id
 
-  return (
-    <div className={styles.filterRow} data-testid="list-filter-row">
+  const content = (
+    <>
       <div ref={chipsRef} className={`${styles.chips} ${chipsOverflow ? styles.chipsClipped : ''}`}>
         <PredicateChips
           predicate={predicate}
@@ -121,8 +128,11 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, co
         </button>
       )}
       {unsaved && <ListDraftButtons listDefinitionId={id} />}
-    </div>
+    </>
   )
+  return topLine
+    ? <WidgetTopLine className={styles.filterRow} lead={topLine.lead} data-testid="list-filter-row">{content}</WidgetTopLine>
+    : <div className={styles.filterRow} data-testid="list-filter-row">{content}</div>
 }
 
 /**

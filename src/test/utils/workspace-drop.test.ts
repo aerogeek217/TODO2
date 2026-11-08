@@ -99,10 +99,11 @@ describe('hitTestWorkspace', () => {
     expect(hitTestWorkspace(g, { x: 300, y: 300 })).toEqual({ kind: 'empty-cell', cellId: 'e' })
   })
 
-  it('a headless cell’s strip, measured out of view, is no target: its body is the whole card', () => {
-    const h: CellGeometry = { id: 'n1', rect: rect(6, 6, 500, 76), header: rect(6, -18, 500, 6), headless: true, body: rect(6, 6, 500, 76), empty: false, tabs: [{ id: 'num', rect: rect(10, -16, 90, 6) }] }
+  it('a cell of one widget has no strip: its body is the whole card, its top a split above', () => {
+    const h: CellGeometry = { id: 'n1', rect: rect(6, 6, 500, 76), header: null, body: rect(6, 6, 500, 76), empty: false, tabs: [] }
     const g: WorkspaceGeometry = { area: geo.area, cells: [h] }
     expect(hitTestWorkspace(g, { x: 250, y: 12 })).toEqual({ kind: 'cell-body', cellId: 'n1', zone: 'top' })
+    expect(hitTestWorkspace(g, { x: 250, y: 40 })).toEqual({ kind: 'cell-body', cellId: 'n1', zone: 'middle' })
     expect(hitTestWorkspace(g, { x: 250, y: -10 })).toEqual({ kind: 'insert', edge: 'top' })
   })
 })

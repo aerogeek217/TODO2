@@ -261,3 +261,21 @@
   background: transparent;
   color: var(--color-text-muted);
 }
+
+/* A one-widget cell a drag would join: the strip it will have, over its top line (`JoinPreviewStrip`). */
+.joinPreview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-above-2);
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: var(--cell-header-height);
+  padding: 0 4px;
+  overflow: hidden;
+  background: linear-gradient(var(--color-header-bg), var(--cell-header-shade));
+  border-bottom: 1px solid var(--color-border-muted);
+  pointer-events: none;
+}

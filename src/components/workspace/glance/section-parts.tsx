@@ -3,6 +3,7 @@ import { MARKER_KEYS, type MarkerKey } from '../../../models'
 import { MARKER_COLOR, MARKER_LABELS } from '../../../utils/markers'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import { GlanceGlyph } from '../../shared/GlanceGlyph'
+import { WidgetTopLine } from '../WidgetTopLine'
 import type { OnGlanceDrill } from './glance-types'
 import type { SectionMeta } from './section-meta'
 import styles from './GlanceSections.module.css'
@@ -37,7 +38,7 @@ export function Panel({ def, count, onCount, sub, extras, style, className, chil
 }) {
   return (
     <section className={`${styles.panel} ${styles.surface}${className ? ` ${className}` : ''}`} style={style} aria-label={def.title} data-glance-section={def.id}>
-      <div className={styles.panelHeader}>
+      <WidgetTopLine className={styles.panelHeader}>
         <GlanceGlyph name={def.glyph} color={def.glyphColor} />
         <span className={styles.panelTitle}>{def.title}</span>
         {count != null && (onCount
@@ -49,7 +50,7 @@ export function Panel({ def, count, onCount, sub, extras, style, className, chil
           : <span className={styles.panelCount} data-testid="glance-section-count">{count}</span>)}
         {sub && <span className={styles.panelSub}>{sub}</span>}
         {extras && <span className={styles.panelExtras}>{extras}</span>}
-      </div>
+      </WidgetTopLine>
       {children}
     </section>
   )

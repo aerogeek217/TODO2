@@ -14,6 +14,7 @@ import { ChevronLeftIcon, ChevronRightIcon, TodayIcon } from '../../shared/icons
 import { CalendarDayPopover } from './CalendarDayPopover'
 import { useElementSize } from '../../../hooks/use-element-size'
 import styles from './CalendarWidget.module.css'
+import { WidgetTopLine } from '../WidgetTopLine'
 import type { CalendarMode } from './calendar-day'
 import { useCalendarEntries, useCalendarSetup } from './calendar-data'
 import { EntryItem } from './CalendarDayParts'
@@ -210,7 +211,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
       data-mobile={isMobile ? 'true' : undefined}
       data-dragging={drag ? 'true' : undefined}
     >
-      <div className={styles.toolbar}>
+      <WidgetTopLine className={styles.toolbar}>
         <button
           type="button"
           className={styles.iconButton}
@@ -267,7 +268,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
             </button>
           ))}
         </div>
-      </div>
+      </WidgetTopLine>
 
       <div className={styles.body}>
         {body}

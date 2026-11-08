@@ -13,7 +13,8 @@
   display: flex;
   gap: 14px;
   box-sizing: border-box;
-  min-height: 100%;
+  /* The face host's height, under the top line when it has one (taller when stacked). */
+  flex: 1 0 auto;
   padding: 10px 12px 12px;
 }
 
@@ -518,8 +519,22 @@
 
 /* What the face is measured on: the cell body's size (the full map may grow past it). */
 .faceHost {
+  display: flex;
+  flex-direction: column;
   height: 100%;
   min-height: 0;
+}
+
+/* The top line's Slipping count (alone in its cell). */
+.lineSlipping {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.lineSlipping b {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
 }
 
 /* The medium face: the Slipping list filling the cell. */
