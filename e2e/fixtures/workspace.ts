@@ -1,5 +1,6 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { createTab, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
+import { layoutTableOf } from '../../src/data/upgrades/v78/layout-table'
 import { DB_NAME, readStore } from './db'
 import { box, pointIn, type Point } from './geometry'
 
@@ -35,12 +36,10 @@ export interface WsTabSeed {
 
 export interface WsCellSeed {
   id: string
-  /** Its share of the row's width (default 1). */
+  /** Columns / bands form: its share of the row's width (default 1). */
   weight?: number
   tabs: WsTabSeed[]
   activeTabId?: string
-  /** Layout config: the tab strip always shown (`true`) or hidden (`false`); absent = by its widget. */
-  stripShown?: boolean
 }
 
 export interface WsRowSeed {
@@ -71,14 +70,90 @@ export function wsRow(cell: WsCellSeed, extra: Omit<WsRowSeed, 'cells'> = {}): W
   return { ...extra, cells: [cell] }
 }
 
+/** A grid track's size: a weight (a number), or `{ px }` (fixed); `collapsed` on a row. */
+export type WsTrackSeed = number | { weight?: number; px?: number; collapsed?: boolean }
+
+/**
+ * A layout drawn as a table (D26): `areas` a line per row track, each word a
+ * column track holding a cell id — a cell over several tracks spans them.
+ */
+export interface WsTableSeed {
+  areas: string[]
+  cells: WsCellSeed[]
+  /** Column / row track sizes (default weight 1000 each). */
+  cols?: WsTrackSeed[]
+  rows?: WsTrackSeed[]
+}
+
+/**
+ * A layout: a `table` (D26), or — the shape most specs were written in —
+ * columns of rows of cells with bands above and below, which the seed turns
+ * into the table the v78 upgrade makes of it (`layout-table`).
+ */
 export interface WsLayoutSeed {
   name: string
-  columns: WsColumnSeed[]
+  columns?: WsColumnSeed[]
   /** The full-width band above / below the columns. */
   top?: WsBandSeed
   bottom?: WsBandSeed
+  table?: WsTableSeed
   /** The layout's hue (D19): a preset name or a hex colour. */
   hue?: string
+}
+
+/** A seeded layout's table: its tracks, and each cell's area with its tab seeds (built in the page). */
+interface WsTable {
+  grid: { columns: Array<Record<string, unknown>>; rows: Array<Record<string, unknown>> }
+  cells: Array<{ id: string; area: { col: number; row: number; colSpan: number; rowSpan: number }; tabs: WsTabSeed[]; activeTabId?: string }>
+}
+
+function trackOf(id: string, spec: WsTrackSeed | undefined): Record<string, unknown> {
+  if (spec == null) return { id, weight: 1000 }
+  if (typeof spec === 'number') return { id, weight: spec }
+  return { id, ...(spec.px != null ? { px: spec.px } : { weight: spec.weight ?? 1000 }), ...(spec.collapsed ? { collapsed: true } : {}) }
+}
+
+/** A layout seed as the table the app stores (tab seeds still to build). */
+export function wsTableOf(layout: WsLayoutSeed): WsTable {
+  if (layout.table) {
+    const { areas, cells, cols, rows } = layout.table
+    const lines = areas.map((line) => line.trim().split(/\s+/))
+    const colCount = lines[0]?.length ?? 0
+    const out: WsTable['cells'] = cells.map((cell) => {
+      const at = lines.flatMap((line, r) => line.flatMap((id, c) => (id === cell.id ? [[r, c] as const] : [])))
+      if (at.length === 0) throw new Error(`table seed: cell ${cell.id} is not in the areas`)
+      const rs = at.map(([r]) => r)
+      const cs = at.map(([, c]) => c)
+      const area = { col: Math.min(...cs), row: Math.min(...rs), colSpan: Math.max(...cs) - Math.min(...cs) + 1, rowSpan: Math.max(...rs) - Math.min(...rs) + 1 }
+      return { id: cell.id, area, tabs: cell.tabs, ...(cell.activeTabId ? { activeTabId: cell.activeTabId } : {}) }
+    })
+    out.sort((a, b) => a.area.row - b.area.row || a.area.col - b.area.col)
+    return {
+      grid: {
+        columns: Array.from({ length: colCount }, (_, i) => trackOf(`c${i + 1}`, cols?.[i])),
+        rows: lines.map((_, i) => trackOf(`r${i + 1}`, rows?.[i])),
+      },
+      cells: out,
+    }
+  }
+  const cellRow = (cell: WsCellSeed) => ({ id: cell.id, weight: cell.weight ?? 1, tabs: cell.tabs, ...(cell.activeTabId ? { activeTabId: cell.activeTabId } : {}) })
+  const v77 = {
+    columns: (layout.columns ?? []).map((col) => ({
+      id: col.id,
+      weight: col.weight ?? 1,
+      rows: col.rows.map((row) => ({
+        id: row.id ?? `${row.cells[0]?.id ?? col.id}-r`,
+        weight: row.weight ?? 1,
+        ...(row.collapsed ? { collapsed: true } : {}),
+        cells: row.cells.map(cellRow),
+      })),
+    })),
+    ...Object.fromEntries((['top', 'bottom'] as const).flatMap((edge) => {
+      const band = layout[edge]
+      return band ? [[edge, { id: band.id, height: band.height ?? 160, ...(band.collapsed ? { collapsed: true } : {}), cells: band.cells.map(cellRow) }]] : []
+    })),
+  }
+  return layoutTableOf(v77) as unknown as WsTable
 }
 
 /** The app-wide Eisenhower panes (a filter is merged over the empty predicate). */
@@ -184,7 +259,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   // Every kind's new tab, as the app makes it: the seeded tabs start from these.
   const newTabs = Object.fromEntries(WIDGET_KINDS.map((kind) => [kind, createTab(kind, '')])) as Record<WidgetKind, LayoutTab>
-  const payload = { ...seed, predicate: emptyPredicate(), newTabs }
+  const payload = { ...seed, tables: seed.layouts.map(wsTableOf), predicate: emptyPredicate(), newTabs }
   await page.evaluate(async ({ db, seed }) => {
     const idb = await new Promise<IDBDatabase>((resolve, reject) => {
       const req = indexedDB.open(db)
@@ -290,8 +365,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     tx.objectStore('layouts').clear()
     let firstId: number | null = null
     const layoutIds: number[] = []
-    type TabSeed = (typeof seed.layouts)[number]['columns'][number]['rows'][number]['cells'][number]['tabs'][number]
-    type CellSeed = (typeof seed.layouts)[number]['columns'][number]['rows'][number]['cells'][number]
+    type TabSeed = (typeof seed.tables)[number]['cells'][number]['tabs'][number]
+    type CellSeed = (typeof seed.tables)[number]['cells'][number]
     const buildTab = (tab: TabSeed) => {
       const base = structuredClone(seed.newTabs[tab.kind])
       const out: Record<string, unknown> = { ...base, id: tab.id }
@@ -323,43 +398,19 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     }
     const buildCell = (cell: CellSeed) => ({
       id: cell.id,
-      weight: cell.weight ?? 1,
+      area: cell.area,
       ...(cell.tabs.length > 0 ? { activeTabId: cell.activeTabId ?? cell.tabs[0]?.id } : {}),
-      ...(cell.stripShown != null ? { stripShown: cell.stripShown } : {}),
       tabs: cell.tabs.map(buildTab),
     })
-    for (const layout of seed.layouts) {
-      const columns = layout.columns.map((col) => ({
-        id: col.id,
-        weight: col.weight ?? 1,
-        rows: col.rows.map((row) => ({
-          id: row.id ?? `${row.cells[0]?.id ?? col.id}-r`,
-          weight: row.weight ?? 1,
-          ...(row.collapsed ? { collapsed: true } : {}),
-          cells: row.cells.map(buildCell),
-        })),
-      }))
-      const bands: Record<string, unknown> = {}
-      for (const edge of ['top', 'bottom'] as const) {
-        const band = layout[edge]
-        if (!band) continue
-        bands[edge] = {
-          id: band.id,
-          height: band.height ?? 160,
-          ...(band.collapsed ? { collapsed: true } : {}),
-          cells: band.cells.map(buildCell),
-        }
-      }
-      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, ...(layout.hue ? { hue: layout.hue } : {}), createdAt: now, modifiedAt: now })
+    for (const [i, layout] of seed.layouts.entries()) {
+      const table = seed.tables[i]!
+      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: i, grid: table.grid, cells: table.cells.map(buildCell), ...(layout.hue ? { hue: layout.hue } : {}), createdAt: now, modifiedAt: now })
       firstId ??= id
       layoutIds.push(id)
     }
     // Every list belongs to a layout (now that it has an id): `layoutIdx`'s,
     // else the first layout whose tabs show it, else the first one.
-    const shownBy = (i: number) => seed.layouts.findIndex((layout) => {
-      const panels = [...layout.columns.flatMap((col) => col.rows.flatMap((row) => row.cells)), ...(layout.top?.cells ?? []), ...(layout.bottom?.cells ?? [])]
-      return panels.some((p) => p.tabs.some((t) => t.listDefIdx === i))
-    })
+    const shownBy = (i: number) => seed.tables.findIndex((table) => table.cells.some((p) => p.tabs.some((t) => t.listDefIdx === i)))
     for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
       const listId = defIds[i]
       if (seed.eisenhower?.listDefIdx === i) continue
@@ -493,15 +544,23 @@ export async function expectOpenLayout(page: Page, name: string): Promise<void> 
   }
 }
 
-/** Tab ids per cell per column (a column's rows' cells in order), read from the rendered workspace. */
+/**
+ * Tab ids per cell per column track, read from the rendered table: each
+ * column track's cells — those starting in it — top to bottom.
+ */
 export async function wsShape(page: Page): Promise<string[][][]> {
-  return page.evaluate(() =>
-    Array.from(document.querySelectorAll('[data-ws-column]')).map((col) =>
-      Array.from(col.querySelectorAll('[data-ws-cell]')).map((cell) =>
-        Array.from(cell.querySelectorAll<HTMLElement>('[data-ws-tab]')).map((t) => t.dataset.wsTab ?? ''),
-      ),
-    ),
-  )
+  return page.evaluate(() => {
+    const cells = Array.from(document.querySelectorAll<HTMLElement>('[data-ws-table] [data-ws-cell]')).map((cell) => {
+      const style = getComputedStyle(cell)
+      return {
+        col: Number.parseInt(style.gridColumnStart, 10) || 1,
+        row: Number.parseInt(style.gridRowStart, 10) || 1,
+        tabs: Array.from(cell.querySelectorAll<HTMLElement>('[data-ws-tab]')).map((t) => t.dataset.wsTab ?? ''),
+      }
+    })
+    const cols = [...new Set(cells.map((c) => c.col))].sort((a, b) => a - b)
+    return cols.map((col) => cells.filter((c) => c.col === col).sort((a, b) => a.row - b.row).map((c) => c.tabs))
+  })
 }
 
 /**

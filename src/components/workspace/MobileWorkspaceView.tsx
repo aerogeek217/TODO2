@@ -1,20 +1,15 @@
-import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import {
   getActiveTab,
   isGlanceKind,
-  type BandEdge,
   type EisenhowerTab,
-  type LayoutBand,
   type LayoutCell,
-  type LayoutColumn,
   type WorkspaceLayout,
 } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUIStore } from '../../stores/ui-store'
-import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-pager'
-import { scrollBehavior } from '../../utils/motion'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
-import { isFitRow } from '../../utils/workspace-rows'
+import { isFitCell } from '../../utils/workspace-rows'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
 import { smallFaceClick, useCellFace } from './cell-face'
@@ -30,7 +25,7 @@ import { copyTasks } from '../../services/task-copy'
 import { openEditList, useTabTitle } from './widget-hooks'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
-import { BandIcon, CheckIcon, ChevronDownIcon, ChevronUpIcon, HuedLayoutIcon, MoreIcon } from '../shared/icons'
+import { CheckIcon, ChevronDownIcon, ChevronUpIcon, HuedLayoutIcon, MoreIcon } from '../shared/icons'
 import { useFilterStore } from '../../stores/filter-store'
 import { usePickedLens } from '../../stores/screen-filter'
 import { useScreenTaskCounts } from '../../hooks/use-screen-task-count'
@@ -41,31 +36,7 @@ import { tabBadgeSummary } from '../../utils/tab-badges'
 import styles from './MobileWorkspaceView.module.css'
 import { withViewTransition } from '../shared/view-transition'
 
-/** Gap between columns in the pager (px). */
-const PAGER_GAP_PX = 8
-/** The strip underline sits under the name, inside the button's side padding. */
-const STRIP_ITEM_PADDING_PX = 12
-
 const WIDER_SCREEN_HINT = 'To create or edit layouts, use a wider screen.'
-
-/** One pager page: a column, or a band (the top band first, the bottom band last). */
-type PagerPage =
-  | { kind: 'column'; id: string; column: LayoutColumn }
-  | { kind: 'band'; id: string; edge: BandEdge; band: LayoutBand }
-
-function pagesOf(layout: WorkspaceLayout): PagerPage[] {
-  const pages: PagerPage[] = layout.columns.map((column) => ({ kind: 'column', id: column.id, column }))
-  if (layout.top) pages.unshift({ kind: 'band', id: layout.top.id, edge: 'top', band: layout.top })
-  if (layout.bottom) pages.push({ kind: 'band', id: layout.bottom.id, edge: 'bottom', band: layout.bottom })
-  return pages
-}
-
-/** A page's name: the active tab title of its first cell (a band's, or a column's first row's). */
-function usePageName(page: PagerPage, index: number): string {
-  const first = page.kind === 'band' ? page.band.cells[0] : page.column.rows[0]?.cells[0]
-  const title = useTabTitle(first ? getActiveTab(first) : undefined)
-  return title || (page.kind === 'band' ? `${page.edge === 'top' ? 'Top' : 'Bottom'} band` : `Column ${index + 1}`)
-}
 
 function SearchIcon() {
   return (
@@ -347,27 +318,24 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
 }
 
 /**
- * A cell (of a column's row or a band) on mobile: tabs switch, the ⋯ menu
- * only collapses (its row), a list tab's long-press opens its list sheet. No
- * layout editing.
+ * A cell of the table on mobile: tabs switch, the ⋯ menu only collapses
+ * (the row tracks it covers), a list tab's long-press opens its list sheet.
+ * No layout editing.
  */
-function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false, multiRow = false }: {
+function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
   cell: LayoutCell
-  /** Its row's id (a column's row, or the band): what collapses. */
-  rowId: string
+  /** The ids of the row tracks it covers: what collapses. */
+  rowTrackIds: readonly string[]
   collapsed: boolean
   fill: boolean
-  /** Its row fits its content (glance numbers two up): the widget shows its small face. */
+  /** It is a Number among Numbers (two up): the widget shows its small face. */
   fitRow?: boolean
-  band?: boolean
-  /** Its row holds other cells too: collapsing folds the whole row. */
-  multiRow?: boolean
 }) {
-  const noun = band ? 'band' : 'cell'
-  /** What collapses with this cell: its band, its row (shared with other cells) or just it — as on desktop. */
-  const rowNoun = band ? 'band' : multiRow ? 'row' : 'cell'
+  const noun = 'cell'
+  const rowNoun = 'row'
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
-  const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
+  const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
+  const setRowCollapsed = (next: boolean) => setTrackCollapsed(rowTrackIds, next)
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
@@ -395,7 +363,7 @@ function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false
   const eisenhowerTab = sheetTab?.kind === 'eisenhower' ? sheetTab : undefined
 
   const menuEntries: MenuEntry[] = [
-    { kind: 'item', label: `Collapse ${rowNoun}`, icon: <ChevronUpIcon />, onSelect: () => { void setRowCollapsed(rowId, true) } },
+    { kind: 'item', label: `Collapse ${rowNoun}`, icon: <ChevronUpIcon />, onSelect: () => { void setRowCollapsed(true) } },
   ]
 
   return (
@@ -421,7 +389,7 @@ function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false
           onActivate={(tabId) => {
             withViewTransition(() => {
               void setActiveTab(tabId)
-              if (collapsed) void setRowCollapsed(rowId, false)
+              if (collapsed) void setRowCollapsed(false)
             })
           }}
         />
@@ -431,7 +399,7 @@ function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false
             className={styles.cellAction}
             aria-label={`Expand ${rowNoun}`}
             aria-expanded={false}
-            onClick={() => { void setRowCollapsed(rowId, false) }}
+            onClick={() => { void setRowCollapsed(false) }}
           >
             <ChevronDownIcon size={16} />
           </button>
@@ -440,7 +408,7 @@ function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false
             ref={moreRef}
             type="button"
             className={`${styles.cellAction} ${menuOpen ? styles.cellActionPressed : ''}`}
-            aria-label={band ? 'Band options' : 'Cell options'}
+            aria-label="Cell options"
             aria-haspopup="menu"
             aria-expanded={menuOpen}
             onClick={() => setMenuOpen((o) => !o)}
@@ -484,7 +452,7 @@ function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false
         <MenuPopover
           anchorRef={moreRef}
           placement="bottom-end"
-          label={band ? 'Band options' : 'Cell options'}
+          label="Cell options"
           entries={menuEntries}
           onClose={() => setMenuOpen(false)}
         />
@@ -494,248 +462,75 @@ function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false
 }
 
 /**
- * A pager page: a column's rows top to bottom, each row's cells stacked in
- * order (a fit row's two up), or a band's cells (one alone fills the page).
+ * Every cell of the table in reading order (by its top track, then its
+ * left), in one scroll; a run of Numbers side by side, two up while two
+ * fit (each at least 140px). One cell alone fills the screen.
  */
-function MobilePage({ page, index }: { page: PagerPage; index: number }) {
-  const name = usePageName(page, index)
-  if (page.kind === 'band') {
+function MobileTable({ layout }: { layout: WorkspaceLayout }) {
+  const rows = layout.grid.rows
+  const fill = layout.cells.length === 1
+  const groups: LayoutCell[][] = []
+  for (const cell of layout.cells) {
+    const last = groups.at(-1)
+    const lastCell = last?.at(-1)
+    if (last && lastCell && isFitCell(lastCell) && isFitCell(cell)) last.push(cell)
+    else groups.push([cell])
+  }
+  const cellOf = (cell: LayoutCell, fitRow: boolean) => {
+    const tracks = rows.slice(cell.area.row, cell.area.row + cell.area.rowSpan)
     return (
-      <section
-        className={styles.column}
-        id={`ws-column-${page.id}`}
-        role="tabpanel"
-        aria-label={name}
-        data-ws-band-page={page.edge}
-      >
-        {page.band.cells.map((cell) => (
-          <MobileCell key={cell.id} cell={cell} rowId={page.band.id} collapsed={page.band.collapsed === true} fill={page.band.cells.length === 1} band />
-        ))}
-      </section>
+      <MobileCell
+        key={cell.id}
+        cell={cell}
+        rowTrackIds={tracks.map((t) => t.id)}
+        collapsed={tracks.length > 0 && tracks.every((t) => t.collapsed === true)}
+        fill={fill}
+        fitRow={fitRow}
+      />
     )
   }
-  const { column } = page
-  const fill = column.rows.length === 1 && column.rows[0]?.cells.length === 1
   return (
-    <section
-      className={styles.column}
-      id={`ws-column-${column.id}`}
-      role="tabpanel"
-      aria-label={name}
-      data-ws-column={column.id}
+    <div
+      className={styles.pager}
+      // The layout's hue (D19), as the desktop workspace: the cell headers' tint and the focus ring.
+      style={{ '--ws-pager-gap': '8px', '--layout-hue': hueColor(layout.hue) } as CSSProperties}
+      data-layout-hue={hueAttr(layout.hue)}
+      data-ws-area
+      data-ws-pager
     >
-      {column.rows.map((row) => {
-        const fit = isFitRow(row)
-        const cells = row.cells.map((cell) => (
-          <MobileCell key={cell.id} cell={cell} rowId={row.id} collapsed={row.collapsed === true} fill={fill} fitRow={fit} multiRow={row.cells.length > 1} />
-        ))
-        // A fit row (glance numbers) stays side by side, two up while two fit; any other row's cells stack.
-        return fit
-          ? <div key={row.id} className={styles.fitRow} data-ws-row={row.id} data-fit="true">{cells}</div>
-          : <Fragment key={row.id}>{cells}</Fragment>
-      })}
-    </section>
-  )
-}
-
-function PageName({ page, index, active, setRef, onPick }: {
-  page: PagerPage
-  index: number
-  active: boolean
-  setRef: (el: HTMLButtonElement | null) => void
-  onPick: () => void
-}) {
-  const name = usePageName(page, index)
-  return (
-    <button
-      ref={setRef}
-      type="button"
-      role="tab"
-      aria-selected={active}
-      aria-controls={`ws-column-${page.id}`}
-      tabIndex={active ? 0 : -1}
-      className={`${styles.stripItem} ${active ? styles.stripItemActive : ''} ${page.kind === 'band' ? styles.stripItemBand : ''}`}
-      data-ws-column-name={page.id}
-      data-ws-band-name={page.kind === 'band' ? page.edge : undefined}
-      onClick={onPick}
-    >
-      {page.kind === 'band' && <span className={styles.bandGlyph}><BandIcon edge={page.edge} size={12} /></span>}
-      {page.kind === 'band' ? <span className={styles.stripName}>{name}</span> : name}
-    </button>
+      <section className={styles.column} aria-label={layout.name} data-ws-table>
+        {groups.map((group) => {
+          const first = group[0]
+          if (!first) return null
+          const fit = isFitCell(first)
+          return fit
+            ? <div key={first.id} className={styles.fitRow} data-fit="true">{group.map((c) => cellOf(c, true))}</div>
+            : cellOf(first, false)
+        })}
+      </section>
+    </div>
   )
 }
 
 /**
- * Pages side by side — the top band, the columns, the bottom band — one
- * viewport wide each, swiped with native scrolling and mandatory scroll
- * snap. The strip above names them (bands with a band glyph); its underline
- * follows the scroll position, and tapping a name scrolls to that page.
- * It opens on the layout's `activeColumnId` (view state, while that page
- * is still there; else the first) and saves the page it settles on.
- */
-function ColumnPager({ pages, hue, activeId }: { pages: readonly PagerPage[]; hue?: string; activeId?: string }) {
-  const pagerRef = useRef<HTMLDivElement | null>(null)
-  const stripRef = useRef<HTMLDivElement | null>(null)
-  const underlineRef = useRef<HTMLSpanElement | null>(null)
-  const itemEls = useRef<(HTMLButtonElement | null)[]>([])
-  const frame = useRef<number | null>(null)
-  const [initial] = useState(() => Math.max(0, pages.findIndex((p) => p.id === activeId)))
-  const activeRef = useRef(initial)
-  const [active, setActive] = useState(initial)
-  const count = pages.length
-
-  const sync = useCallback(() => {
-    frame.current = null
-    const pager = pagerRef.current
-    const underline = underlineRef.current
-    if (!pager) return
-    const pos = pagerPosition(pager.scrollLeft, pager.clientWidth, PAGER_GAP_PX, count)
-    if (underline) {
-      const boxes = itemEls.current.slice(0, count).map((el) => ({
-        left: (el?.offsetLeft ?? 0) + STRIP_ITEM_PADDING_PX,
-        width: Math.max((el?.offsetWidth ?? 0) - STRIP_ITEM_PADDING_PX * 2, 0),
-      }))
-      const box = indicatorBox(boxes, pos)
-      if (box) {
-        underline.style.transform = `translateX(${box.left}px)`
-        underline.style.width = `${box.width}px`
-      }
-    }
-    const idx = Math.round(pos)
-    activeRef.current = idx
-    setActive((prev) => (prev === idx ? prev : idx))
-  }, [count])
-
-  const onScroll = useCallback(() => {
-    if (frame.current == null) frame.current = requestAnimationFrame(sync)
-  }, [sync])
-
-  useEffect(() => () => { if (frame.current != null) cancelAnimationFrame(frame.current) }, [])
-
-  // Open on the remembered page, before the first paint and the underline's placing.
-  useLayoutEffect(() => {
-    const pager = pagerRef.current
-    if (pager && initial > 0) pager.scrollLeft = pageOffset(initial, pager.clientWidth, PAGER_GAP_PX)
-  }, [initial])
-
-  // The page shown is view state: saved as it changes (the first page is the default, no key).
-  const shownId = active === 0 ? null : (pages[active]?.id ?? null)
-  useEffect(() => {
-    if (shownId !== (activeId ?? null)) void useWorkspaceStore.getState().setActiveColumn(shownId)
-  }, [shownId, activeId])
-
-  // Place the underline before paint, and again when the pager or names resize
-  // (rotation, renamed tabs). A resize keeps the current column in view.
-  useLayoutEffect(() => {
-    sync()
-    const pager = pagerRef.current
-    const strip = stripRef.current
-    if (!pager || typeof ResizeObserver === 'undefined') return
-    let width = pager.clientWidth
-    const ro = new ResizeObserver(() => {
-      if (pager.clientWidth !== width) {
-        width = pager.clientWidth
-        pager.scrollLeft = pageOffset(activeRef.current, width, PAGER_GAP_PX)
-      }
-      sync()
-    })
-    ro.observe(pager)
-    if (strip) ro.observe(strip)
-    for (const el of itemEls.current) if (el) ro.observe(el)
-    return () => ro.disconnect()
-  }, [sync])
-
-  // Keep the active name visible when the strip overflows.
-  useEffect(() => {
-    const strip = stripRef.current
-    const el = itemEls.current[active]
-    if (!strip || !el) return
-    const left = el.offsetLeft
-    const right = left + el.offsetWidth
-    if (left < strip.scrollLeft) strip.scrollTo({ left })
-    else if (right > strip.scrollLeft + strip.clientWidth) strip.scrollTo({ left: right - strip.clientWidth })
-  }, [active])
-
-  const goTo = useCallback((index: number, focus = false) => {
-    const pager = pagerRef.current
-    if (!pager) return
-    const i = Math.min(Math.max(index, 0), count - 1)
-    pager.scrollTo({ left: pageOffset(i, pager.clientWidth, PAGER_GAP_PX), behavior: scrollBehavior() })
-    if (focus) itemEls.current[i]?.focus()
-  }, [count])
-
-  const onStripKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    let next: number | null = null
-    if (e.key === 'ArrowRight') next = active + 1
-    else if (e.key === 'ArrowLeft') next = active - 1
-    else if (e.key === 'Home') next = 0
-    else if (e.key === 'End') next = count - 1
-    if (next == null) return
-    e.preventDefault()
-    goTo(next, true)
-  }
-
-  return (
-    <>
-      <div
-        ref={stripRef}
-        className={styles.strip}
-        role="tablist"
-        aria-label="Columns"
-        onKeyDown={onStripKeyDown}
-        data-layout-hue={hueAttr(hue)}
-        style={{ '--layout-hue': hueColor(hue) } as CSSProperties}
-      >
-        {pages.map((page, i) => (
-          <PageName
-            key={page.id}
-            page={page}
-            index={i}
-            active={i === active}
-            setRef={(el) => { itemEls.current[i] = el }}
-            onPick={() => goTo(i)}
-          />
-        ))}
-        <span ref={underlineRef} className={styles.underline} aria-hidden="true" data-testid="ws-column-underline" />
-      </div>
-      <div
-        ref={pagerRef}
-        className={styles.pager}
-        // The layout's hue (D19), as the desktop workspace: the cell headers' tint and the focus ring.
-        style={{ '--ws-pager-gap': `${PAGER_GAP_PX}px`, '--layout-hue': hueColor(hue) } as CSSProperties}
-        data-layout-hue={hueAttr(hue)}
-        onScroll={onScroll}
-        data-ws-area
-        data-ws-pager
-        data-active-column={active}
-      >
-        {pages.map((page, i) => <MobilePage key={page.id} page={page} index={i} />)}
-      </div>
-    </>
-  )
-}
-
-/**
- * The open layout on a phone: one column (or band) at a time, swiped
- * sideways, with a strip of their names under the top bar. Tabs switch and
- * cells collapse (view state, saved automatically); changing the layout
- * itself is desktop-only, so this view never makes unsaved changes.
- * `status` sits in the top bar beside search (the storage status button).
+ * The open layout on a phone: every cell in reading order, in one scroll
+ * (D26). Tabs switch and cells collapse (view state, saved automatically);
+ * changing the layout itself is desktop-only, so this view never makes
+ * unsaved changes. `status` sits in the top bar beside search (the storage
+ * status button).
  */
 export function MobileWorkspaceView({ layout, status }: { layout: WorkspaceLayout; status?: ReactNode }) {
-  const pages = pagesOf(layout)
   return (
     <div className={styles.root} data-ws-mobile>
       <MobileTopBar name={layout.name} hue={layout.hue} status={status} />
-      {pages.length === 0 ? (
+      {layout.cells.length === 0 ? (
         <div className={styles.emptyLayout} data-ws-area>
           <p className={styles.emptyLayoutTitle}>This layout is empty</p>
           <p className={styles.emptyHint}>{WIDER_SCREEN_HINT}</p>
           <p className={styles.emptyHint}>Or choose a saved layout from the picker above.</p>
         </div>
       ) : (
-        // Remount per layout so a switch starts on that layout's remembered column.
-        <ColumnPager key={layout.id ?? 'layout'} pages={pages} hue={layout.hue} activeId={layout.activeColumnId} />
+        <MobileTable key={layout.id ?? 'layout'} layout={layout} />
       )}
     </div>
   )

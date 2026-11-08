@@ -7,6 +7,7 @@ import { layoutRepository } from '../../data/layout-repository'
 import { todoRepository } from '../../data'
 import { auditData, cleanupIssues } from '../../data/audit'
 import { resetDb } from '../helpers'
+import { emptyBody } from '../helpers/layout-builders'
 
 describe('listOrders import validation', () => {
   const base = { todos: [], settings: [] }
@@ -82,7 +83,7 @@ describe('listOrders cascades and audit', () => {
   it('deleting a list (one its layout no longer shows, at a Save) deletes its ranks only', async () => {
     const { list, other } = await seed()
     const now = new Date()
-    const layoutId = await layoutRepository.insert({ name: 'X', columns: [], createdAt: now, modifiedAt: now })
+    const layoutId = await layoutRepository.insert({ name: 'X', ...emptyBody(), createdAt: now, modifiedAt: now })
     await db.listDefinitions.update(list, { owner: { layoutId } })
     await layoutRepository.pruneOwnedLists(layoutId, new Set())
     const rows = await db.listOrders.toArray()

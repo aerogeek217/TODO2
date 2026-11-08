@@ -34,60 +34,22 @@
   pointer-events: none;
 }
 
-/* Bands span the visible workspace and never scroll sideways. */
-.area > [data-ws-band-row],
-.area > [data-ws-band-divider] {
-  margin: 0 var(--workspace-gutter);
-}
-
-/* The columns between the bands; only this scrolls sideways when they don't fit. */
-.columnArea {
-  display: flex;
+/* The layout's table: one grid, its tracks from the layout (D26); only it
+   scrolls when the tracks don't fit. */
+.table {
+  display: grid;
+  gap: var(--workspace-gutter);
   flex: 1 1 0;
-  min-height: var(--column-area-min-height);
+  min-height: 0;
   min-width: 0;
   padding: 0 var(--workspace-gutter);
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: auto;
   box-sizing: border-box;
 }
 
-.column {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  flex-basis: 0;
-  min-width: var(--column-min-width);
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.cellGap {
-  flex: 0 0 var(--workspace-gutter);
-}
-
-/* A row of cells (a column's row or a band), side by side — the dividers
-   between them are the gutters; it keeps the height its cells need (a
-   collapsed one: their headers). */
-.row {
-  display: flex;
+.table > [data-ws-cell] {
   min-width: 0;
-  min-height: calc(var(--cell-header-height) + var(--cell-body-min-height));
-}
-
-/* A row of glance widgets may shrink to 64px (GLANCE_ROW_MIN_PX). */
-.rowGlance {
-  --cell-min-height: 64px;
-  min-height: var(--cell-min-height);
-}
-
-/* A fit row is as tall as its tallest cell's content (the cells keep their own minimum). */
-.rowFit {
   min-height: 0;
-}
-
-.rowCollapsed {
-  min-height: var(--cell-header-height);
 }
 
 /* ── Empty layout ── */
@@ -162,21 +124,7 @@
   pointer-events: none;
 }
 
-.edgeBar {
-  position: fixed;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--color-border);
-}
-
-.edgeBarH {
-  position: fixed;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--color-border);
-}
-
-/* The new-band zone, lit: a 32px strip across the workspace's top / bottom edge. */
+/* The insert-row zone, lit: a 32px strip across the workspace's top / bottom edge. */
 .newBandStrip {
   position: fixed;
   height: 32px;
@@ -196,6 +144,7 @@
   background: var(--color-accent);
 }
 
+/* The insert-column zone, lit: a 32px strip down the workspace's left / right edge. */
 .edgeBand {
   position: fixed;
   width: 32px;

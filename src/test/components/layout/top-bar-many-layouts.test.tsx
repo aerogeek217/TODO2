@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router'
 import { TopBar } from '../../../components/layout/TopBar'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import { emptyBody } from '../../helpers/layout-builders'
 
 /**
  * The layout tabs are only for a number of layouts a bar can show: past
@@ -15,7 +16,7 @@ const T0 = new Date('2026-09-01T09:00:00.000Z')
 
 function openLayouts(n: number): void {
   const layouts: PersistedWorkspaceLayout[] = Array.from({ length: n }, (_, i) => ({
-    id: i + 1, name: `Layout ${i + 1}`, sortOrder: i, columns: [], createdAt: T0, modifiedAt: T0,
+    id: i + 1, name: `Layout ${i + 1}`, sortOrder: i, ...emptyBody(), createdAt: T0, modifiedAt: T0,
   }))
   const [first] = layouts
   useWorkspaceStore.setState({ layouts, activeLayoutId: 1, working: first ?? null, saved: first ?? null, hydrated: true, isDirty: false })

@@ -20,7 +20,7 @@ import { emptyPredicate, type TodoPredicate } from '../../../models'
 import { defaultPaneFilter } from '../../../utils/eisenhower-panes'
 import { db } from '../../../data/database'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
-import { rowOf } from '../../helpers/layout-builders'
+import { single } from '../../helpers/layout-builders'
 
 /**
  * Settings › Tasks › Eisenhower: its list's filter line (the shared draft,
@@ -41,13 +41,13 @@ const list = (id: number, name: string, predicate: TodoPredicate = emptyPredicat
 function showLayout(): void {
   const layout: PersistedWorkspaceLayout = {
     id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT,
-    columns: [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'x1', weight: 1, tabs: [{ id: 'eis', kind: 'eisenhower', config: {} }] })] }],
+    ...single({ id: 'x1', tabs: [{ id: 'eis', kind: 'eisenhower', config: {} }] }),
   }
   useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
 }
 
 function Widget() {
-  const tab = useWorkspaceStore((s) => s.working?.columns[0]?.rows[0]?.cells[0]?.tabs[0])
+  const tab = useWorkspaceStore((s) => s.working?.cells[0]?.tabs[0])
   return tab?.kind === 'eisenhower' ? <EisenhowerWidget tab={tab} /> : null
 }
 

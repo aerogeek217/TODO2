@@ -47,8 +47,8 @@ test('an unsaved layout change survives a reload, still unsaved; Discard then fo
   await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
   // The stored layout never changed.
-  const [stored] = await readStore<{ columns: unknown[] }>(page, 'layouts')
-  expect(JSON.stringify(stored?.columns)).toContain('eisTab')
+  const [stored] = await readStore<{ cells: unknown[] }>(page, 'layouts')
+  expect(JSON.stringify(stored?.cells)).toContain('eisTab')
 
   await openLayoutAction(page, 'Discard changes')
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')

@@ -22,7 +22,7 @@ export interface SettingRow {
  * `db.verno === CURRENT_DB_VERSION` after open, so a `this.version(N+1)`
  * without raising this constant fails the suite.
  */
-export const CURRENT_DB_VERSION = 77
+export const CURRENT_DB_VERSION = 78
 
 /**
  * Lowest database version this build reads. A browser database whose
@@ -246,6 +246,11 @@ export class Todo2Database extends Dexie {
     // v77: the Dashboard retires — every Dashboard tab becomes the glance
     // widgets of its parts, each in a cell of its own; no store changes.
     this.version(77).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 77))
+
+    // v78: Dashboard building (D26) — a layout becomes a table (grid tracks
+    // and cells covering rectangles of them), and the parts of `upgrades/v78`
+    // after it; no store changes.
+    this.version(78).stores({}).upgrade((tx) => applySchemaUpgradeInTx(tx, 78))
 
     // The next schema step N goes here, after the last one:
     //

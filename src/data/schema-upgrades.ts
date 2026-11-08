@@ -8,6 +8,7 @@ import { upgradeV74 } from './upgrades/v74-priority-filter'
 import { upgradeV75 } from './upgrades/v75-filter-expressions'
 import { upgradeV76 } from './upgrades/v76-layout-rows'
 import { upgradeV77 } from './upgrades/v77-dashboard-widgets'
+import { upgradeV78 } from './upgrades/v78'
 
 /**
  * Permanent schema-upgrade pipeline.
@@ -91,8 +92,10 @@ export type SchemaUpgrade = (data: DataSet) => DataSet
  * (`upgrades/v75-filter-expressions.ts`), and v76, a layout's cells in rows
  * and its bands as rows of cells (`upgrades/v76-layout-rows.ts`), and v77, every
  * Dashboard tab as the glance widgets of its parts
- * (`upgrades/v77-dashboard-widgets.ts`). Each transform lives in
- * `data/upgrades/v<N>-*.ts`.
+ * (`upgrades/v77-dashboard-widgets.ts`), and v78, Dashboard building (D26),
+ * its parts composed in `upgrades/v78/index.ts` — the first a layout's
+ * columns, rows and bands as a table (`upgrades/v78/layout-table.ts`). Each
+ * transform lives in `data/upgrades/v<N>-*.ts` (or `v<N>/`, by parts).
  */
 export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<number, SchemaUpgrade>([
   [69, upgradeV69],
@@ -104,6 +107,7 @@ export const SCHEMA_UPGRADES: ReadonlyMap<number, SchemaUpgrade> = new Map<numbe
   [75, upgradeV75],
   [76, upgradeV76],
   [77, upgradeV77],
+  [78, upgradeV78],
 ])
 
 /**

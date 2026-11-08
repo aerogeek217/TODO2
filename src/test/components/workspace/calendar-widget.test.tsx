@@ -11,7 +11,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import type { CalendarTab, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 import { dayKey } from '../../../utils/date'
-import { rowOf } from '../../helpers/layout-builders'
+import { single } from '../../helpers/layout-builders'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { WidgetFace } from '../../../utils/widget-face'
 
@@ -25,7 +25,7 @@ function layoutWith(tab: CalendarTab): PersistedWorkspaceLayout {
     sortOrder: 0, name: 'Main',
     createdAt: now,
     modifiedAt: now,
-    columns: [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'x1', weight: 1, tabs: [tab] })] }],
+    ...single({ id: 'x1', tabs: [tab] }),
   }
 }
 
@@ -36,7 +36,7 @@ function calendarTab(over: Partial<CalendarTab> = {}): CalendarTab {
 
 /** Renders the calendar tab as the workspace store holds it (so config / view-state edits show). */
 function Host() {
-  const tab = useWorkspaceStore((s) => s.working?.columns[0]?.rows[0]?.cells[0]?.tabs[0])
+  const tab = useWorkspaceStore((s) => s.working?.cells[0]?.tabs[0])
   return tab?.kind === 'calendar' ? <CalendarWidget tab={tab} /> : null
 }
 
@@ -46,7 +46,7 @@ function setup(tab: CalendarTab = calendarTab()) {
   render(<DndContext><Host /></DndContext>)
 }
 
-const workingTab = () => useWorkspaceStore.getState().working?.columns[0]?.rows[0]?.cells[0]?.tabs[0] as CalendarTab
+const workingTab = () => useWorkspaceStore.getState().working?.cells[0]?.tabs[0] as CalendarTab
 const dayCell = (d: Date) => document.querySelector<HTMLElement>(`[data-day="${dayKey(d)}"]`)
 const label = () => screen.getByTestId('calendar-range-label').textContent
 

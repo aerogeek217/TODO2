@@ -73,8 +73,8 @@ async function laidOutDetails(r: Locator): Promise<number> {
 }
 
 async function storedTabView(page: Page, tabId: string): Promise<Record<string, unknown> | undefined> {
-  const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }> }>(page, 'layouts')
-  for (const l of layouts) for (const c of l.columns) for (const r of c.rows) for (const k of r.cells) for (const t of k.tabs) if (t.id === tabId) return t.viewState
+  const layouts = await readStore<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }>(page, 'layouts')
+  for (const l of layouts) for (const k of l.cells) for (const t of k.tabs) if (t.id === tabId) return t.viewState
   return undefined
 }
 

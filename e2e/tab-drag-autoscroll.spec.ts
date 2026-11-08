@@ -16,7 +16,8 @@ const COLUMNS = ['c1', 'c2', 'c3', 'c4', 'c5'].map((id) => ({
   rows: [wsRow({ id: `${id}k`, tabs: [{ id: `${id}t`, kind: 'notes' as const }] })],
 }))
 
-test('a tab drag that auto-scrolls the columns drops in the cell now under the pointer', async ({ page }) => {
+// D26 P2: the table scrolls sideways only once its tracks have minimums (columns were 280px at least).
+test.fixme('a tab drag that auto-scrolls the columns drops in the cell now under the pointer', async ({ page }) => {
   await seedWorkspace(page, { layouts: [{ name: 'Main', columns: COLUMNS.map((c, i) => i === 0 ? { ...c, rows: [wsRow({ id: 'c1k', tabs: [{ id: 'c1t', kind: 'notes' }, { id: 'mover', kind: 'notes' }], activeTabId: 'mover' })] } : c) }] })
   const scroller = page.locator('[data-ws-cell="c1k"]').locator('xpath=ancestor::*[contains(@class, "columnArea")]')
   await expect(scroller).toHaveCount(1)

@@ -2,6 +2,9 @@ import { expect, test, type Page } from '@playwright/test'
 import { drag, dragTab, pickSplit, seedWorkspace, wsCell, wsShape, wsTab, wsRow, type WsLayoutSeed } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 
+// D26 P2: drops and dividers around a fit row track are the table hit test, ghost and dividers.
+test.fixme(true, 'D26 P2')
+
 /**
  * Fit rows (a Number's) among weighted rows, in a real browser (cr33 M8): a
  * Number row added between two rows takes none of their height — dropped on

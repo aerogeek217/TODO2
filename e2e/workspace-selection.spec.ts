@@ -110,7 +110,8 @@ test('list, Eisenhower and Needs follow-up rows select alike; one widget at a ti
  * on rows, the bulk bar and its menus keep it, and so does a drag (here a
  * divider resize, whose release lands outside any row).
  */
-test('a click outside the rows clears the selection; rows, the bulk bar, menus and drags keep it', async ({ page }) => {
+// D26 P2: drags a workspace divider (none drawn until P2).
+test.fixme('a click outside the rows clears the selection; rows, the bulk bar, menus and drags keep it', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Tasks' }],
     tasks: [{ title: 'alpha' }, { title: 'bravo' }, { title: 'charlie' }],

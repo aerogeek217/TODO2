@@ -4,6 +4,7 @@ import { restoreFromImportData } from '../../data/restore'
 import { prepareImport } from '../../data/import-pipeline'
 import { startOfToday } from '../../utils/date'
 import type { ImportData } from '../../data/import-validation'
+import { emptyBody } from '../helpers/layout-builders'
 
 const now = new Date()
 
@@ -54,9 +55,9 @@ describe('restoreFromImportData', () => {
     })
 
     it('replaces existing layouts with imported rows', async () => {
-      await db.layouts.add({ sortOrder: 0, name: 'Old Layout', columns: [], createdAt: now, modifiedAt: now })
+      await db.layouts.add({ sortOrder: 0, name: 'Old Layout', ...emptyBody(), createdAt: now, modifiedAt: now })
       const newData = makeImportData({
-        layouts: [{ id: 5, sortOrder: 0, name: 'New Layout', columns: [], createdAt: now, modifiedAt: now }],
+        layouts: [{ id: 5, sortOrder: 0, name: 'New Layout', ...emptyBody(), createdAt: now, modifiedAt: now }],
       })
 
       await restoreFromImportData(newData)
@@ -83,7 +84,7 @@ describe('restoreFromImportData', () => {
       await db.todoEvents.add({ todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: now.toISOString() })
       await db.statusUpdates.add({ todoId: 1, date: startOfToday(), text: 'old update', createdAt: now })
       await db.subtasks.add({ todoId: 1, title: 'old subtask', isCompleted: false, sortOrder: 0, createdAt: now })
-      await db.layouts.add({ sortOrder: 0, name: 'Old Layout', columns: [], createdAt: now, modifiedAt: now })
+      await db.layouts.add({ sortOrder: 0, name: 'Old Layout', ...emptyBody(), createdAt: now, modifiedAt: now })
       await db.listOrders.add({ listDefinitionId: 1, todoId: 1, rank: 1 })
       for (const table of ALL_DATA_TABLES) expect(await table.count(), `${table.name} seeded`).toBeGreaterThan(0)
 
@@ -243,10 +244,10 @@ describe('restoreFromImportData', () => {
 
   describe('atomicity', () => {
     it('writes layouts and todos in a single transaction', async () => {
-      await db.layouts.add({ sortOrder: 0, name: 'Old', columns: [], createdAt: now, modifiedAt: now })
+      await db.layouts.add({ sortOrder: 0, name: 'Old', ...emptyBody(), createdAt: now, modifiedAt: now })
 
       const data = makeImportData({
-        layouts: [{ id: 1, sortOrder: 0, name: 'Restored', columns: [], createdAt: now, modifiedAt: now }],
+        layouts: [{ id: 1, sortOrder: 0, name: 'Restored', ...emptyBody(), createdAt: now, modifiedAt: now }],
         todos: [
           { id: 1, uid: 'u1', title: 'Restored Task', isCompleted: false, sortOrder: 0, createdAt: now, modifiedAt: now },
         ],

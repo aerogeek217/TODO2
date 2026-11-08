@@ -3,6 +3,7 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import { STATUS_ICON_KEYS } from '../../models/status'
 import { validateImportData, isKnownSettingKey } from '../../data/import-validation'
 import { isValidCssColor } from '../../utils/css'
+import { emptyBody } from '../helpers/layout-builders'
 
 const now = new Date().toISOString()
 
@@ -170,7 +171,7 @@ describe('validateImportData', () => {
       todoEvents: { id: 'x', todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: now },
       listOrders: { id: 'x', listDefinitionId: 1, todoId: 1, rank: 1 },
       listDefinitions: { id: 'x', name: 'L', sortOrder: 0, membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'manual', grouping: 'none' },
-      layouts: { id: 'x', name: 'Main', sortOrder: 0, columns: [], createdAt: now, modifiedAt: now },
+      layouts: { id: 'x', name: 'Main', sortOrder: 0, ...emptyBody(), createdAt: now, modifiedAt: now },
     }
     for (const [table, row] of Object.entries(rows)) {
       const result = validateImportData(validData({ [table]: [row] }))

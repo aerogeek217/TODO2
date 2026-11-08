@@ -9,8 +9,9 @@ import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { makeTodo } from '../helpers'
+import { emptyBody } from '../helpers/layout-builders'
 
-const LAYOUT: PersistedWorkspaceLayout = { id: 1, name: 'Default', sortOrder: 0, columns: [], createdAt: new Date(0), modifiedAt: new Date(0) }
+const LAYOUT: PersistedWorkspaceLayout = { id: 1, name: 'Default', sortOrder: 0, ...emptyBody(), createdAt: new Date(0), modifiedAt: new Date(0) }
 const FOCUS = { id: 'lens-f', name: 'Focus only', predicate: { ...emptyPredicate(), markers: [{ values: ['focus' as const] }] } }
 
 function renderSheet() {

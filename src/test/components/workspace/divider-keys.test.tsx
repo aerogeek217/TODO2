@@ -1,10 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { cleanup, render, fireEvent, renderHook } from '@testing-library/react'
-import { BandDivider } from '../../../components/workspace/BandDivider'
 import { WorkspaceDivider } from '../../../components/workspace/WorkspaceDivider'
 import { useKeyboardShortcuts } from '../../../hooks/use-keyboard-shortcuts'
 import { useUIStore } from '../../../stores/ui-store'
-import type { LayoutBand } from '../../../models/workspace-layout'
 
 // The arrow keys move a focused divider; they must not also run the app's
 // "select the next / previous task" shortcut on the rows behind it.
@@ -26,17 +24,6 @@ afterEach(() => {
 })
 
 describe('workspace dividers and the arrow-key shortcuts', () => {
-  it('↑ / ↓ on a band divider leave the task selection alone', () => {
-    withShortcutsAndARow()
-    const band: LayoutBand = { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] }
-    const { container } = render(<BandDivider edge="top" band={band} />)
-    const divider = container.querySelector<HTMLElement>('[data-ws-band-divider]')!
-    divider.focus()
-    fireEvent.keyDown(divider, { key: 'ArrowDown' })
-    fireEvent.keyDown(divider, { key: 'ArrowUp' })
-    expect(useUIStore.getState().selectedTodoIds.size).toBe(0)
-  })
-
   it('↑ / ↓ on a divider between two rows leave the task selection alone, and still resize', () => {
     withShortcutsAndARow()
     const onResize = vi.fn()

@@ -1,6 +1,4 @@
 import {
-  BAND_DEFAULT_HEIGHT,
-  BAND_EDGES,
   clampCalendarOffset,
   EISENHOWER_QUADRANTS,
   isEisenhowerQuadrant,
@@ -8,12 +6,11 @@ import {
   isWidgetKind,
   pickDetailsWidth,
   type CalendarTabViewState,
-  type LayoutBand,
+  type CellArea,
+  type GridTrack,
   type LayoutBody,
   type TaskRowsViewState,
   type LayoutCell,
-  type LayoutColumn,
-  type LayoutRow,
   type LayoutTab,
   type LensTabConfig,
   type ListTabViewState,
@@ -39,33 +36,34 @@ import {
   type PickedConfig,
 } from '../models/glance-widgets'
 import { isRecord } from '../utils/is-record'
+import { isCellEdge, normalizeGrid, validateTiling } from '../utils/workspace-grid'
+import { closeCell } from '../utils/workspace-layout-ops'
 
 /**
  * Shape check + whitelist reconstruction for the nested part of a `layouts`
- * row: `WorkspaceLayout.columns` (columns → rows → cells → tabs) and the
- * optional `top` / `bottom` bands (each a row of cells).
+ * row: its table — `WorkspaceLayout.grid` (column and row tracks) and
+ * `cells` (each an area of tracks and a strip of tabs).
  * Used by import validation (`checkLayout` / `pickLayout` in
  * `import-validation.ts`), so a layout from a file only reaches Dexie with
- * known kinds, known keys and unique ids.
+ * known kinds, known keys, unique ids and cells that tile the grid.
  */
 
 
 /** A layout row's body as stored (unchecked). */
 export interface RawLayoutBody {
-  columns?: unknown
-  top?: unknown
-  bottom?: unknown
+  grid?: unknown
+  cells?: unknown
 }
 
 /**
- * Longest column / row / cell / band / tab id. The app's ids are short (`w-` + 8
+ * Longest track / cell / tab id. The app's ids are short (`w-` + 8
  * characters; the v56 seed's are the old rail ids, deduplicated).
  */
 const MAX_ID_LEN = 100
 
 /**
- * The most columns, rows, cells and tabs a layout keeps (each counted over the
- * whole layout, bands included). Far
+ * The most column tracks, row tracks, cells and tabs a layout keeps (each
+ * counted over the whole layout). Far
  * past anything one builds by hand, so nothing the app makes is cut; a file
  * holding more (one a hand edit or a hostile file made, which would leave
  * the app unable to show the workspace on every launch) still loads — the
@@ -76,17 +74,17 @@ export const LAYOUT_PART_LIMIT = 1000
 
 type Obj = Record<string, unknown>
 
-/** A layout part's id (a column, band, cell or tab) as stored. */
+/** A layout part's id (a track, cell or tab) as stored. */
 export function isId(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LEN
 }
 
 /**
- * The largest weight (and band height, in px) a layout part keeps: far past
+ * The largest weight (and fixed track size, in px) a layout part keeps: far past
  * anything the dividers make (they keep a pair's sum), and small enough that
  * no sum of a layout's parts reaches `Infinity` — two weights near
  * `Number.MAX_VALUE` summed to it, every share became 0 and no divider could
- * resize them back (cr33 S4). A larger one is a bad size (repaired to 1).
+ * resize them back (cr33 S4). A larger one is a bad size (repaired).
  */
 export const LAYOUT_SIZE_MAX = 1_000_000
 
@@ -218,94 +216,85 @@ function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) =
   return true
 }
 
-/** `true` when a cell is valid, else the path of its first bad field. */
-function checkCell(cell: unknown, path: string, fresh: (id: string) => boolean): true | string {
-  if (!isRecord(cell)) return path
-  if (!isId(cell.id) || !fresh(cell.id)) return `${path}.id`
-  if (!isWeight(cell.weight)) return `${path}.weight`
-  if (cell.activeTabId !== undefined && !isId(cell.activeTabId)) return `${path}.activeTabId`
-  if (cell.stripShown !== undefined && typeof cell.stripShown !== 'boolean') return `${path}.stripShown`
-  if (!Array.isArray(cell.tabs)) return `${path}.tabs`
-  return checkTabs(cell.tabs, path, fresh)
-}
 
-/** `true` when every cell of a row (or band) is valid and there is at least one, else the path of the first bad field. */
-function checkCells(cells: unknown, path: string, fresh: (id: string) => boolean): true | string {
-  if (!Array.isArray(cells) || cells.length === 0) return `${path}.cells`
-  for (let k = 0; k < cells.length; k++) {
-    const res = checkCell(cells[k], `${path}.cells[${k}]`, fresh)
-    if (res !== true) return res
+/** A track as stored: an object with a fresh id, a size (a weight or px) and, on a row, a boolean `collapsed`. */
+function checkTrack(track: unknown, path: string, rows: boolean, fresh: (id: string) => boolean): true | string {
+  if (!isRecord(track)) return path
+  if (!isId(track.id) || !fresh(track.id)) return `${path}.id`
+  if (track.px !== undefined) {
+    if (!isWeight(track.px) || track.weight !== undefined) return `${path}.px`
+  } else if (!isWeight(track.weight)) {
+    return `${path}.weight`
   }
+  if (track.collapsed !== undefined && (!rows || typeof track.collapsed !== 'boolean')) return `${path}.collapsed`
   return true
 }
 
-function checkColumns(columns: unknown, fresh: (id: string) => boolean): true | string {
-  if (!Array.isArray(columns)) return 'columns'
-  for (let c = 0; c < columns.length; c++) {
-    const col: unknown = columns[c]
-    const cp = `columns[${c}]`
-    if (!isRecord(col)) return cp
-    if (!isId(col.id) || !fresh(col.id)) return `${cp}.id`
-    if (!isWeight(col.weight)) return `${cp}.weight`
-    if (!Array.isArray(col.rows) || col.rows.length === 0) return `${cp}.rows`
-    for (let r = 0; r < col.rows.length; r++) {
-      const row: unknown = col.rows[r]
-      const rp = `${cp}.rows[${r}]`
-      if (!isRecord(row)) return rp
-      if (!isId(row.id) || !fresh(row.id)) return `${rp}.id`
-      if (!isWeight(row.weight)) return `${rp}.weight`
-      if (row.collapsed !== undefined && typeof row.collapsed !== 'boolean') return `${rp}.collapsed`
-      const cells = checkCells(row.cells, rp, fresh)
-      if (cells !== true) return cells
+/** A cell's area as stored: whole track indices, spans of at least one. */
+function isAreaShape(v: unknown): v is CellArea {
+  if (!isRecord(v)) return false
+  const { col, row, colSpan, rowSpan } = v
+  return [col, row, colSpan, rowSpan].every((n) => typeof n === 'number' && Number.isInteger(n))
+    && (col as number) >= 0 && (row as number) >= 0 && (colSpan as number) >= 1 && (rowSpan as number) >= 1
+}
+
+/**
+ * `true` when a layout row's table is valid, else the path of the first bad
+ * field (`grid.columns[0].weight`, `cells[2].area`, …): every track an id
+ * and a size (a weight, or `px`; only a row track may be `collapsed`),
+ * every cell an id, an area and a strip of valid tabs (an empty strip is an
+ * empty cell), ids unique across tracks, cells and tabs, the cells tiling
+ * the grid exactly (`validateTiling`), and every inner line some cell's
+ * edge. An empty layout has no tracks and no cells.
+ */
+export function checkLayoutBody(body: RawLayoutBody): true | string {
+  const fresh = idTracker()
+  const grid = body.grid
+  if (!isRecord(grid) || !Array.isArray(grid.columns) || !Array.isArray(grid.rows)) return 'grid'
+  for (const axis of ['columns', 'rows'] as const) {
+    const tracks = grid[axis] as unknown[]
+    for (let i = 0; i < tracks.length; i++) {
+      const res = checkTrack(tracks[i], `grid.${axis}[${i}]`, axis === 'rows', fresh)
+      if (res !== true) return res
+    }
+  }
+  if (!Array.isArray(body.cells)) return 'cells'
+  for (let k = 0; k < body.cells.length; k++) {
+    const cell: unknown = body.cells[k]
+    const cp = `cells[${k}]`
+    if (!isRecord(cell)) return cp
+    if (!isId(cell.id) || !fresh(cell.id)) return `${cp}.id`
+    if (!isAreaShape(cell.area)) return `${cp}.area`
+    if (cell.activeTabId !== undefined && !isId(cell.activeTabId)) return `${cp}.activeTabId`
+    if (!Array.isArray(cell.tabs)) return `${cp}.tabs`
+    const tabs = checkTabs(cell.tabs, cp, fresh)
+    if (tabs !== true) return tabs
+  }
+  const table = { grid: grid as unknown as LayoutBody['grid'], cells: body.cells as LayoutCell[] }
+  if (validateTiling(table) !== true) return 'cells'
+  for (const axis of ['columns', 'rows'] as const) {
+    for (let line = 1; line < table.grid[axis].length; line++) {
+      if (!isCellEdge(table, axis, line)) return `grid.${axis}`
     }
   }
   return true
 }
 
-/** A band (absent is fine): an id, a positive height and at least one cell. */
-function checkBand(band: unknown, path: string, fresh: (id: string) => boolean): true | string {
-  if (band === undefined) return true
-  if (!isRecord(band)) return path
-  if (!isId(band.id) || !fresh(band.id)) return `${path}.id`
-  if (!isWeight(band.height)) return `${path}.height`
-  if (band.collapsed !== undefined && typeof band.collapsed !== 'boolean') return `${path}.collapsed`
-  return checkCells(band.cells, path, fresh)
-}
-
-/**
- * `true` when a layout row's columns and bands are valid, else the path of
- * the first bad field (`columns[0].weight`, `top.cells`, …). A column needs
- * at least one row, a row and a band at least one cell. A band is optional;
- * one that is there needs an id and a positive height. Ids are unique across
- * the columns, rows, cells, tabs and both bands.
- */
-export function checkLayoutBody(body: RawLayoutBody): true | string {
-  const fresh = idTracker()
-  const columns = checkColumns(body.columns, fresh)
-  if (columns !== true) return columns
-  for (const edge of BAND_EDGES) {
-    const band = checkBand(body[edge], edge, fresh)
-    if (band !== true) return band
-  }
-  return true
-}
-
 /** A part `pickLayoutBody` dropped or reset, counted. */
-type LayoutFix = 'columns' | 'column' | 'row' | 'cell' | 'band' | 'tab' | 'size' | 'settings' | 'eisenhower'
-  | 'columnLimit' | 'rowLimit' | 'cellLimit' | 'tabLimit'
+type LayoutFix = 'grid' | 'rebuilt' | 'lines' | 'track' | 'cell' | 'tab' | 'size' | 'settings' | 'eisenhower'
+  | 'trackLimit' | 'cellLimit' | 'tabLimit'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
-  columns: ['columns reset', 'columns reset'],
-  column: ['column dropped', 'columns dropped'],
-  row: ['row dropped', 'rows dropped'],
+  grid: ['grid reset', 'grid reset'],
+  rebuilt: ['cells restacked in one column', 'cells restacked in one column'],
+  lines: ['grid line merged', 'grid lines merged'],
+  track: ['track dropped', 'tracks dropped'],
   cell: ['cell dropped', 'cells dropped'],
-  band: ['band dropped', 'bands dropped'],
   tab: ['tab dropped', 'tabs dropped'],
   size: ['size reset', 'sizes reset'],
   settings: ['tab or cell settings reset', 'tab or cell settings reset'],
   eisenhower: ['Eisenhower tab setting dropped', 'Eisenhower tab settings dropped'],
-  columnLimit: ['column past the limit of 1,000 dropped', 'columns past the limit of 1,000 dropped'],
-  rowLimit: ['row past the limit of 1,000 dropped', 'rows past the limit of 1,000 dropped'],
+  trackLimit: ['track past the limit of 1,000 dropped', 'tracks past the limit of 1,000 dropped'],
   cellLimit: ['cell past the limit of 1,000 dropped', 'cells past the limit of 1,000 dropped'],
   tabLimit: ['tab past the limit of 1,000 dropped', 'tabs past the limit of 1,000 dropped'],
 }
@@ -313,35 +302,45 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
 export interface PickedLayoutBody extends LayoutBody {
   /**
    * The parts `checkLayoutBody` rejects that were dropped or reset, and the
-   * parts past `LAYOUT_PART_LIMIT`, in words (`2 tabs dropped`, `band
-   * dropped`, …); otherwise empty for a body that passes it.
+   * parts past `LAYOUT_PART_LIMIT`, in words (`2 tabs dropped`, `grid lines
+   * merged`, …); otherwise empty for a body that passes it.
    */
   fixes: string[]
 }
 
+/** A picked cell before its place is settled: its area as stored (when it reads as one) and whether the repair emptied it. */
+interface PickedCell {
+  cell: LayoutCell
+  rawArea: CellArea | null
+  /** It held tabs, and every one was dropped. */
+  emptied: boolean
+}
+
 /**
- * Rebuilds a layout body (columns + bands) with only the model's keys. For a
- * body that passes `checkLayoutBody` (all import ever picks) nothing is
- * dropped but a stale `activeTabId` (= first tab), duplicate collapsed
- * quadrants, an out-of-range calendar offset (clamped), and any key of an
- * Eisenhower tab's config (it has none — reported in `fixes`); a details
- * width is rounded. A `dashboard` tab (the retired kind: v77 converted every
- * one) is an unknown kind, dropped like one.
+ * Rebuilds a layout body (its table) with only the model's keys. For a body
+ * that passes `checkLayoutBody` (all import ever picks) nothing is dropped
+ * but a stale `activeTabId` (= first tab), duplicate collapsed quadrants, an
+ * out-of-range calendar offset (clamped), and any key of an Eisenhower tab's
+ * config (it has none — reported in `fixes`); a details width is rounded,
+ * and the cells come in reading order. A `dashboard` tab (the retired kind:
+ * v77 converted every one) is an unknown kind, dropped like one.
  *
- * Past `LAYOUT_PART_LIMIT` columns, rows, cells or tabs in the layout, the
- * rest are dropped and reported in `fixes`.
+ * Past `LAYOUT_PART_LIMIT` tracks, cells or tabs in the layout, the rest are
+ * dropped and reported in `fixes`.
  *
  * Anything else becomes a valid body, its bad parts reported in `fixes`, so
- * the audit can repair a stored layout instead of deleting it: a column /
- * row / cell / band / tab that isn't an object, has a bad or repeated id
- * (ids are unique across every level), or (tab) an unknown kind is dropped,
- * as is a column left without rows, and a row or a band left without cells; a
- * bad size becomes 1 (a band's height `BAND_DEFAULT_HEIGHT`); bad tab
- * settings fall back to the kind's defaults; a bad `activeTabId` /
- * `collapsed` / `stripShown` is dropped.
+ * the audit can repair a stored layout instead of deleting it: a track /
+ * cell / tab that isn't an object, has a bad or repeated id (ids are unique
+ * across tracks, cells and tabs), or (tab) an unknown kind is dropped; a bad
+ * size is reset (a weight to the axis's average); bad tab settings fall back
+ * to the kind's defaults; a bad `activeTabId` / `collapsed` is dropped; a
+ * cell whose every tab was dropped closes (`closeCell`: a neighbour takes
+ * its space, or it stays empty); an inner line no cell's edge lies on goes
+ * (`normalizeGrid`). When the cells don't tile the grid any more (a bad
+ * area, a dropped track or cell), the grid is rebuilt: every cell kept, in
+ * its old reading order, stacked in one column (`restacked`).
  */
 export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
-  const raw = body.columns
   const counts = new Map<LayoutFix, number>()
   const fix = (what: LayoutFix) => { counts.set(what, (counts.get(what) ?? 0) + 1) }
   const seen = new Set<string>()
@@ -351,15 +350,11 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     return true
   }
   // Parts kept so far, over the whole layout (`LAYOUT_PART_LIMIT`).
-  let columnsKept = 0
-  let rowsKept = 0
+  let tracksKept = 0
   let cellsKept = 0
   let tabsKept = 0
-  const weightOf = (v: unknown, fallback = DEFAULT_WEIGHT): number => {
-    if (isWeight(v)) return v
-    fix('size')
-    return fallback
-  }
+  // The grid as stored no longer holds: the cells are restacked.
+  let rebuild = false
 
   const pickTab = (tab: unknown): LayoutTab | null => {
     if (!isRecord(tab) || !fresh(tab.id) || !isWidgetKind(tab.kind)) {
@@ -489,126 +484,166 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     }
     return tabs
   }
-  /** A cell's view state and config: a known `activeTabId`, a boolean `stripShown`. */
-  const pickCellView = (raw: Obj, tabs: readonly LayoutTab[]): Pick<LayoutCell, 'activeTabId' | 'stripShown'> => {
-    const out: Pick<LayoutCell, 'activeTabId' | 'stripShown'> = {}
-    if (typeof raw.activeTabId === 'string' && tabs.some((t) => t.id === raw.activeTabId)) out.activeTabId = raw.activeTabId
-    else if (raw.activeTabId !== undefined && !isId(raw.activeTabId)) fix('settings')
-    if (typeof raw.stripShown === 'boolean') out.stripShown = raw.stripShown
-    else if (raw.stripShown !== undefined) fix('settings')
-    return out
-  }
-  /** A row's or band's `collapsed`: kept only when `true`. */
-  const pickCollapsed = (raw: Obj): { collapsed?: true } => {
-    if (raw.collapsed === true) return { collapsed: true }
-    if (raw.collapsed !== undefined && typeof raw.collapsed !== 'boolean') fix('settings')
-    return {}
+  const pickTrack = (raw: unknown, rows: boolean): GridTrack | null => {
+    if (!isRecord(raw) || !fresh(raw.id)) {
+      fix('track')
+      return null
+    }
+    const track: GridTrack = { id: raw.id }
+    if (raw.px !== undefined && isWeight(raw.px)) {
+      track.px = raw.px
+      if (raw.weight !== undefined) fix('size')
+    } else if (isWeight(raw.weight)) {
+      track.weight = raw.weight
+      if (raw.px !== undefined) fix('size')
+    } else {
+      // Reset below, to the axis's average weight.
+      fix('size')
+    }
+    if (raw.collapsed === true && rows) track.collapsed = true
+    else if (raw.collapsed !== undefined && (!rows || typeof raw.collapsed !== 'boolean')) fix('settings')
+    return track
   }
 
-  const pickCell = (cell: unknown): LayoutCell | null => {
-    if (!isRecord(cell) || !fresh(cell.id) || !Array.isArray(cell.tabs)) {
+  const pickTracks = (raw: unknown[], rows: boolean): GridTrack[] => {
+    const tracks: GridTrack[] = []
+    // Counted per axis: a layout keeps up to the limit of columns and of rows.
+    tracksKept = 0
+    for (const t of raw) {
+      if (tracksKept >= LAYOUT_PART_LIMIT) {
+        fix('trackLimit')
+        rebuild = true
+        continue
+      }
+      const picked = pickTrack(t, rows)
+      if (!picked) {
+        rebuild = true
+        continue
+      }
+      tracks.push(picked)
+      tracksKept++
+    }
+    // A track without a size takes the average of the axis's weights.
+    const weights = tracks.flatMap((t) => (t.weight != null ? [t.weight] : []))
+    const average = weights.length > 0 ? weights.reduce((a, b) => a + b, 0) / weights.length : DEFAULT_WEIGHT
+    return tracks.map((t) => (t.weight == null && t.px == null ? { ...t, weight: average } : t))
+  }
+
+  const pickCell = (raw: unknown): PickedCell | null => {
+    if (!isRecord(raw) || !fresh(raw.id) || !Array.isArray(raw.tabs)) {
       fix('cell')
       return null
     }
-    const id = cell.id
-    const weight = weightOf(cell.weight)
-    const tabs = pickTabs(cell.tabs as unknown[])
-    return { id, weight, tabs, ...pickCellView(cell, tabs) }
+    const rawTabs = raw.tabs as unknown[]
+    const tabs = pickTabs(rawTabs)
+    const cell: LayoutCell = { id: raw.id, area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs }
+    if (typeof raw.activeTabId === 'string' && tabs.some((t) => t.id === raw.activeTabId)) cell.activeTabId = raw.activeTabId
+    else if (raw.activeTabId !== undefined && !isId(raw.activeTabId)) fix('settings')
+    const area = raw.area
+    const rawArea = isAreaShape(area) ? { col: area.col, row: area.row, colSpan: area.colSpan, rowSpan: area.rowSpan } : null
+    return { cell, rawArea, emptied: rawTabs.length > 0 && tabs.length === 0 }
   }
 
-  /** The cells of a row or band that are kept (`LAYOUT_PART_LIMIT` over the layout). */
-  const pickCells = (raw: unknown[]): LayoutCell[] => {
-    const cells: LayoutCell[] = []
-    for (const cell of raw) {
+  const grid = body.grid
+  let columns: GridTrack[] = []
+  let rows: GridTrack[] = []
+  if (isRecord(grid) && Array.isArray(grid.columns) && Array.isArray(grid.rows)) {
+    columns = pickTracks(grid.columns as unknown[], false)
+    rows = pickTracks(grid.rows as unknown[], true)
+  } else {
+    fix('grid')
+    rebuild = true
+  }
+
+  const picked: PickedCell[] = []
+  if (Array.isArray(body.cells)) {
+    for (const raw of body.cells as unknown[]) {
       if (cellsKept >= LAYOUT_PART_LIMIT) {
         fix('cellLimit')
+        rebuild = true
         continue
       }
-      const picked = pickCell(cell)
-      if (!picked) continue
-      cells.push(picked)
+      const cell = pickCell(raw)
+      if (!cell) {
+        rebuild = true
+        continue
+      }
+      picked.push(cell)
       cellsKept++
     }
-    return cells
-  }
-
-  const pickRow = (row: unknown): LayoutRow | null => {
-    if (!isRecord(row) || !fresh(row.id) || !Array.isArray(row.cells)) {
-      fix('row')
-      return null
-    }
-    const id = row.id
-    const weight = weightOf(row.weight)
-    const cells = pickCells(row.cells as unknown[])
-    if (cells.length === 0) {
-      // Left without cells: by the cell limit, or by its own bad cells.
-      fix(cellsKept >= LAYOUT_PART_LIMIT ? 'rowLimit' : 'row')
-      return null
-    }
-    return { id, weight, ...pickCollapsed(row), cells }
-  }
-
-  const pickBand = (band: unknown): LayoutBand | null => {
-    if (!isRecord(band) || !fresh(band.id) || !Array.isArray(band.cells)) {
-      fix('band')
-      return null
-    }
-    const id = band.id
-    const height = weightOf(band.height, BAND_DEFAULT_HEIGHT)
-    const cells = pickCells(band.cells as unknown[])
-    if (cells.length === 0) {
-      fix('band')
-      return null
-    }
-    return { id, height, ...pickCollapsed(band), cells }
-  }
-
-  const columns: LayoutColumn[] = []
-  if (Array.isArray(raw)) {
-    for (const col of raw as unknown[]) {
-      if (columnsKept >= LAYOUT_PART_LIMIT) {
-        fix('columnLimit')
-        continue
-      }
-      if (!isRecord(col) || !fresh(col.id) || !Array.isArray(col.rows)) {
-        fix('column')
-        continue
-      }
-      const id = col.id
-      const weight = weightOf(col.weight)
-      const rows: LayoutRow[] = []
-      for (const row of col.rows as unknown[]) {
-        if (rowsKept >= LAYOUT_PART_LIMIT) {
-          fix('rowLimit')
-          continue
-        }
-        const picked = pickRow(row)
-        if (!picked) continue
-        rows.push(picked)
-        rowsKept++
-      }
-      if (rows.length === 0) {
-        // Left without rows: by a limit, or by its own bad rows.
-        fix(rowsKept >= LAYOUT_PART_LIMIT || cellsKept >= LAYOUT_PART_LIMIT ? 'columnLimit' : 'column')
-        continue
-      }
-      columns.push({ id, weight, rows })
-      columnsKept++
-    }
   } else {
-    fix('columns')
+    fix('cell')
+    rebuild = true
   }
 
-  const out: PickedLayoutBody = { columns, fixes: [] }
-  for (const edge of BAND_EDGES) {
-    if (body[edge] === undefined) continue
-    const band = pickBand(body[edge])
-    if (band) out[edge] = band
+  let table: LayoutBody = {
+    grid: { columns, rows },
+    cells: picked.map((p) => (p.rawArea ? { ...p.cell, area: p.rawArea } : p.cell)),
   }
+  if (rebuild || picked.some((p) => !p.rawArea) || validateTiling(table) !== true) {
+    table = restacked(picked, columns, rows)
+    if (picked.length > 0) fix('rebuilt')
+    else if (columns.length > 0 || rows.length > 0) fix('grid')
+  }
+  // A cell the repair emptied closes; a line no cell's edge lies on goes.
+  for (const p of picked) if (p.emptied) table = closeCell(table, p.cell.id)
+  const lines = table.grid.columns.length + table.grid.rows.length
+  const normal = normalizeGrid(table)
+  const merged = lines - (normal.grid.columns.length + normal.grid.rows.length)
+  if (normal.cells.length > 0) for (let i = 0; i < merged; i++) fix('lines')
 
-  out.fixes = [...counts].map(([what, n]) => {
-    const [one, many] = FIX_WORDS[what]
-    return n === 1 ? one : `${n} ${many}`
+  return {
+    grid: normal.grid,
+    cells: normal.cells,
+    fixes: [...counts].map(([what, n]) => {
+      const [one, many] = FIX_WORDS[what]
+      return n === 1 ? one : `${n} ${many}`
+    }),
+  }
+}
+
+/**
+ * The table rebuilt from its cells: each, in its old reading order (by its
+ * stored area while every cell has one, else in the order listed), a row of
+ * one column — the column keeping the first stored column's id, each row
+ * the stored row track at its place when there is one (its id, its px and
+ * collapse kept), else a new one — every weighted row the default weight.
+ * At most `LAYOUT_PART_LIMIT` cells, so the rows stay within the limit;
+ * none for no cells.
+ */
+function restacked(picked: readonly PickedCell[], columns: readonly GridTrack[], rows: readonly GridTrack[]): LayoutBody {
+  if (picked.length === 0) return { grid: { columns: [], rows: [] }, cells: [] }
+  const byArea = picked.every((p) => p.rawArea != null)
+  const order = picked
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => {
+      const pa = a.p.rawArea
+      const pb = b.p.rawArea
+      if (byArea && pa && pb) return pa.row - pb.row || pa.col - pb.col || a.i - b.i
+      return a.i - b.i
+    })
+    .map((x) => x.p)
+    .slice(0, LAYOUT_PART_LIMIT)
+  const taken = new Set<string>(order.flatMap((p) => [p.cell.id, ...p.cell.tabs.map((t) => t.id)]))
+  const trackId = (stored: GridTrack | undefined, fallback: string): string => {
+    if (stored && !taken.has(stored.id)) {
+      taken.add(stored.id)
+      return stored.id
+    }
+    let id = fallback
+    for (let n = 2; taken.has(id); n++) id = `${fallback}-${n}`
+    taken.add(id)
+    return id
+  }
+  const column: GridTrack = { id: trackId(columns[0], 'grid-col'), weight: DEFAULT_WEIGHT }
+  const rowTracks = order.map((_, i): GridTrack => {
+    const stored = rows[i]
+    const id = trackId(stored, `grid-row-${i + 1}`)
+    const collapsed = stored?.collapsed === true ? { collapsed: true } : {}
+    return stored?.px != null ? { id, px: stored.px, ...collapsed } : { id, weight: DEFAULT_WEIGHT, ...collapsed }
   })
-  return out
+  return {
+    grid: { columns: [column], rows: rowTracks },
+    cells: order.map((p, i) => ({ ...p.cell, area: { col: 0, row: i, colSpan: 1, rowSpan: 1 } })),
+  }
 }

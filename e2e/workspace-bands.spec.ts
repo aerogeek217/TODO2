@@ -17,6 +17,9 @@ import {
 import { box, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
+// D26 P2: bands are fixed rows of the table; P2 rewrites this spec for Insert row / column and the ghost.
+test.fixme(true, 'D26 P2')
+
 /**
  * Full-width bands (one above and one below the columns) and whole-panel
  * drags, in a real browser: every drop target for a tab drag and for a
