@@ -69,7 +69,8 @@ async function rowShape(page: Page): Promise<string[][][]> {
 }
 
 test.describe('drops beside a cell', () => {
-  test('a tab on a cell’s right edge makes a two-cell row (a vertical bar while dragging)', async ({ page }) => {
+  // D26 P2: the drop zones and bars are the table hit test and ghost.
+  test.fixme('a tab on a cell’s right edge makes a two-cell row (a vertical bar while dragging)', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await dragTab(page, wsTab(page, 'calTab'), await bodyPoint(page, 'a1', 0.95, 0.5), async () => {
       await expect(wsCell(page, 'a1').getByTestId('ws-drop-zones')).toHaveAttribute('data-active-zone', 'right')
@@ -87,7 +88,8 @@ test.describe('drops beside a cell', () => {
     await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
   })
 
-  test('a tab on a cell’s left edge goes before it; the middle still joins', async ({ page }) => {
+  // D26 P2: the drop zones and bars are the table hit test and ghost.
+  test.fixme('a tab on a cell’s left edge goes before it; the middle still joins', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await dragTab(page, wsTab(page, 'calTab'), await bodyPoint(page, 'a1', 0.05, 0.5), async () => {
       await expect(wsCell(page, 'a1').getByTestId('ws-drop-zones')).toHaveAttribute('data-active-zone', 'left')
@@ -96,7 +98,8 @@ test.describe('drops beside a cell', () => {
     expect((await rowShape(page))[0]?.[0]?.at(-1)).toBe('a1')
   })
 
-  test('a multi-cell row’s top zone makes a new row above the whole row; a panel drag moves a cell beside another', async ({ page }) => {
+  // D26 P2: the drop zones and bars are the table hit test and ghost.
+  test.fixme('a multi-cell row’s top zone makes a new row above the whole row; a panel drag moves a cell beside another', async ({ page }) => {
     await seedWorkspace(page, { layouts: [sideBySide] })
     await dragTab(page, wsTab(page, 'notes2'), await bodyPoint(page, 'c2', 0.5, 0.1), async () => {
       await expect(wsCell(page, 'c2').getByTestId('ws-drop-zones')).toHaveAttribute('data-active-zone', 'top')
@@ -123,7 +126,8 @@ test.describe('drops beside a cell', () => {
 })
 
 test.describe('a body its widget scrolls', () => {
-  test('the drop zones cover the body where it is on screen, however far it is scrolled (cr33 W7)', async ({ page }) => {
+  // D26 P2: the drop zones are the table hit test and ghost.
+  test.fixme('the drop zones cover the body where it is on screen, however far it is scrolled (cr33 W7)', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 900 })
     await seedWorkspace(page, {
       layouts: [{
@@ -155,7 +159,8 @@ test.describe('a body its widget scrolls', () => {
 })
 
 test.describe('sizes and collapse of a row of cells', () => {
-  test('the divider between two cells resizes them, saved at once and kept over a reload', async ({ page }) => {
+  // D26 P2: the dividers are per edge stretch now (none drawn until P2).
+  test.fixme('the divider between two cells resizes them, saved at once and kept over a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [sideBySide] })
     const c1 = wsCell(page, 'c1')
     const before = (await box(c1)).width
@@ -174,14 +179,16 @@ test.describe('sizes and collapse of a row of cells', () => {
     await expect.poll(async () => Math.round((await box(c1)).width)).toBe(resized)
   })
 
-  test('the divider stops at the cell minimum width', async ({ page }) => {
+  // D26 P2: the dividers are per edge stretch now (none drawn until P2).
+  test.fixme('the divider stops at the cell minimum width', async ({ page }) => {
     await seedWorkspace(page, { layouts: [sideBySide] })
     const d = await box(page.locator('[data-ws-divider="c1|c2"]'))
     await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: 0, y: d.y + d.height / 2 })
     await expect.poll(async () => Math.round((await box(wsCell(page, 'c1'))).width)).toBe(120)
   })
 
-  test('collapsing a cell of a multi-cell row folds the whole row; expanding brings it back', async ({ page }) => {
+  // D26 P2: collapse is a row track’s now; rewrite for the table.
+  test.fixme('collapsing a cell of a multi-cell row folds the whole row; expanding brings it back', async ({ page }) => {
     await seedWorkspace(page, { layouts: [sideBySide] })
     const header = wsCell(page, 'c1').locator('[data-ws-cell-header]')
     await header.hover()
@@ -205,7 +212,8 @@ test.describe('bands of several cells', () => {
     top: { id: 'tb-band', height: 200, cells: [{ id: 'tb', tabs: [{ id: 'topNotes', kind: 'notes' }] }] },
   }
 
-  test('a band takes a second cell on its right edge, and its divider resizes the two', async ({ page }) => {
+  // D26 P2: bands are fixed rows of the table.
+  test.fixme('a band takes a second cell on its right edge, and its divider resizes the two', async ({ page }) => {
     await seedWorkspace(page, { layouts: [withBand] })
     const band = wsBand(page, 'top')
     await dragTab(page, wsTab(page, 'calTab'), await pointIn(band.locator('[data-ws-cell-body]'), 0.97, 0.5), async () => {
@@ -235,7 +243,8 @@ test.describe('the cell menu', () => {
     await header.getByRole('button', { name: 'Cell options' }).click()
   }
 
-  test('Split ▸ Right adds a cell beside, Below a row under it, New column a column', async ({ page }) => {
+  // D26 P2: the cell menu’s table words (Split / Insert / Merge).
+  test.fixme('Split ▸ Right adds a cell beside, Below a row under it, New column a column', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await openCellMenu(page, 'a1')
     await pickSplit(page, 'Right')
@@ -254,7 +263,8 @@ test.describe('the cell menu', () => {
     await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
   })
 
-  test('Hide tab strip makes a one-tab cell headless; Show tab strip brings it back', async ({ page }) => {
+  // D26 P2: Show / Hide tab strip went with stripShown (P3: tabs on demand).
+  test.fixme('Hide tab strip makes a one-tab cell headless; Show tab strip brings it back', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await openCellMenu(page, 'a1')
     await page.getByRole('menuitem', { name: 'Hide tab strip' }).click()
@@ -340,7 +350,8 @@ test.describe('on a phone', () => {
     expect(a2.y).toBeGreaterThan(c2.y + c2.height - 1)
   })
 
-  test('a cell of a multi-cell row offers Collapse row, which folds the whole row (cr33 W4)', async ({ page }) => {
+  // D26 P2: the phone shows every cell in one scroll.
+  test.fixme('a cell of a multi-cell row offers Collapse row, which folds the whole row (cr33 W4)', async ({ page }) => {
     await seedWorkspace(page, { layouts: [sideBySide] })
     await wsCell(page, 'c1').getByRole('button', { name: 'Cell options' }).tap()
     const menu = page.getByRole('menu', { name: 'Cell options' })

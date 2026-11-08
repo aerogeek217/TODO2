@@ -42,7 +42,8 @@ test.describe('tab drop targets', () => {
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   })
 
-  test('cell top / bottom edge makes a new cell in that column', async ({ page }) => {
+  // D26 P2: the drop zones and the new-column edge are the table hit test and ghost.
+  test.fixme('cell top / bottom edge makes a new cell in that column', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const top = await bodyPoint(page, 'b1', 0.1)
     await dragTab(page, wsTab(page, 'eisTab'), top, async () => {
@@ -56,7 +57,8 @@ test.describe('tab drop targets', () => {
     await expect.poll(() => wsShape(page)).toEqual([[['eisTab'], ['calTab'], ['notesTab']]])
   })
 
-  test('column edge makes a new column; the empty column goes away', async ({ page }) => {
+  // D26 P2: the drop zones and the new-column edge are the table hit test and ghost.
+  test.fixme('column edge makes a new column; the empty column goes away', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const a = await page.locator('[data-ws-column="colA"]').boundingBox()
     const b = await page.locator('[data-ws-column="colB"]').boundingBox()
@@ -110,7 +112,8 @@ test.describe('tab drop targets', () => {
 })
 
 test.describe('resize and collapse', () => {
-  test('dragging the column divider resizes both neighbours (saved at once, never unsaved) and respects the 280px minimum', async ({ page }) => {
+  // D26 P2: the dividers are per edge stretch now (none drawn until P2).
+  test.fixme('dragging the column divider resizes both neighbours (saved at once, never unsaved) and respects the 280px minimum', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const divider = page.getByRole('separator', { name: 'Resize columns' })
     const before = await page.locator('[data-ws-column="colA"]').boundingBox()
@@ -136,7 +139,8 @@ test.describe('resize and collapse', () => {
     await expect.poll(async () => Math.round((await page.locator('[data-ws-column="colB"]').boundingBox())!.width)).toBe(280)
   })
 
-  test('cell divider resizes; dragging past the minimum collapses the cell; neither is an unsaved change', async ({ page }) => {
+  // D26 P2: the dividers are per edge stretch now (none drawn until P2).
+  test.fixme('cell divider resizes; dragging past the minimum collapses the cell; neither is an unsaved change', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -177,10 +181,11 @@ test.describe('resize and collapse', () => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const header = wsCell(page, 'b1').locator('[data-ws-cell-header]')
     await header.hover()
-    await header.getByRole('button', { name: 'Collapse cell' }).click()
+    // D26: collapse is a row track's — the row b1 lies in.
+    await header.getByRole('button', { name: 'Collapse row' }).click()
     await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toHaveCount(0)
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-    await wsCell(page, 'b1').getByRole('button', { name: 'Expand cell' }).click()
+    await wsCell(page, 'b1').getByRole('button', { name: 'Expand row' }).click()
 
     await header.hover()
     await header.getByRole('button', { name: 'Cell options' }).click()
@@ -191,7 +196,8 @@ test.describe('resize and collapse', () => {
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   })
 
-  test('with an unsaved new column, a column resize stays unsaved with it (kept over a reload); Save keeps the widths', async ({ page }) => {
+  // D26 P2: the dividers are per edge stretch now (none drawn until P2).
+  test.fixme('with an unsaved new column, a column resize stays unsaved with it (kept over a reload); Save keeps the widths', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const header = wsCell(page, 'b1').locator('[data-ws-cell-header]')
     await header.hover()
@@ -241,7 +247,8 @@ test.describe('a pane that goes leaves no void', () => {
     return col.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom
   }, columnId)
 
-  test('a cell split off, whose last tab then joins another pane, gives its height back', async ({ page }) => {
+  // D26 P2: measures columns (`data-ws-column`); the table has none.
+  test.fixme('a cell split off, whose last tab then joins another pane, gives its height back', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -259,7 +266,8 @@ test.describe('a pane that goes leaves no void', () => {
     await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
   })
 
-  test('a column whose last tab joins another column gives its width back', async ({ page }) => {
+  // D26 P2: measures columns (`data-ws-column`); the table has none.
+  test.fixme('a column whose last tab joins another column gives its width back', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -274,7 +282,8 @@ test.describe('a pane that goes leaves no void', () => {
     await expect.poll(() => voidRight(page)).toBeLessThan(1)
   })
 
-  test('a layout stored with weights under 1 fills the workspace', async ({ page }) => {
+  // D26 P2: measures columns (`data-ws-column`); the table has none.
+  test.fixme('a layout stored with weights under 1 fills the workspace', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -285,7 +294,8 @@ test.describe('a pane that goes leaves no void', () => {
     await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
   })
 
-  test('beside a collapsed cell, the expanded cell takes all the free height', async ({ page }) => {
+  // D26 P2: collapse is a row track’s now; rewrite for the table.
+  test.fixme('beside a collapsed cell, the expanded cell takes all the free height', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -304,7 +314,8 @@ test.describe('a pane that goes leaves no void', () => {
     await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
   })
 
-  test('the last expanded cell going expands the collapsed one left', async ({ page }) => {
+  // D26 P2: collapse is a row track’s now; rewrite for the table.
+  test.fixme('the last expanded cell going expands the collapsed one left', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',

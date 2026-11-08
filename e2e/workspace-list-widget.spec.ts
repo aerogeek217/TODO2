@@ -251,7 +251,8 @@ test('prompt picks are temporary: empty again after a reload', async ({ page }) 
   await expect(wsListWidget(page, 't1')).toContainText('Pick a person to show this list')
 })
 
-test('narrow widgets: the dates show as icons, the tags column gives way, the summary hides, titles keep room', async ({ page }) => {
+// D26 P2: the table’s track minimums (a column was 280px wide at least).
+test.fixme('narrow widgets: the dates show as icons, the tags column gives way, the summary hides, titles keep room', async ({ page }) => {
   await page.setViewportSize({ width: 1100, height: 800 })
   await seedWorkspace(page, {
     tags: ['home', 'work'],

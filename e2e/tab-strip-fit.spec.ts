@@ -177,12 +177,12 @@ test('the +N menu lists the folded tabs, and picking one shows it', async ({ pag
 
 /** Cell k1's tabs in the layout on screen (the working copy while edited, else the saved one). */
 const k1Tabs = (page: Page) => page.evaluate(async () => {
-  type L = { columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string }> }> }> }> } | null
+  type L = { cells: Array<{ id: string; tabs: Array<{ id: string }> }> } | null
   const ws = (await import(/* @vite-ignore */ '/src/stores/workspace-store.ts' as string)) as {
     useWorkspaceStore: { getState: () => { working: L; saved: L } }
   }
   const s = ws.useWorkspaceStore.getState()
-  return (s.working ?? s.saved)?.columns[0]?.rows[0]?.cells[0]?.tabs.map((t) => t.id)
+  return (s.working ?? s.saved)?.cells.find((c) => c.id === 'k1')?.tabs.map((t) => t.id)
 })
 
 /**

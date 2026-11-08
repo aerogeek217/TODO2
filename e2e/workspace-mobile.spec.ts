@@ -66,7 +66,8 @@ async function swipe(page: Page, dx: number): Promise<void> {
   await cdp.detach()
 }
 
-test('mobile opens the workspace; list widgets use touch rows and tabs are not draggable', async ({ page }) => {
+// D26 P2: the phone shows every cell in one scroll (no column strip).
+test.fixme('mobile opens the workspace; list widgets use touch rows and tabs are not draggable', async ({ page }) => {
   await seed(page)
   await page.goto('/#/')
   await expect(page).toHaveURL(/#\/$/)
@@ -85,7 +86,8 @@ test('mobile opens the workspace; list widgets use touch rows and tabs are not d
   await expect(page.getByRole('button', { name: 'Quick add' })).toBeVisible()
 })
 
-test('swiping snaps to whole columns and the strip follows', async ({ page }) => {
+// D26 P2: the phone shows every cell in one scroll (no column pager).
+test.fixme('swiping snaps to whole columns and the strip follows', async ({ page }) => {
   await seed(page)
   const { page: width } = await pagerState(page)
 
@@ -111,7 +113,8 @@ test('swiping snaps to whole columns and the strip follows', async ({ page }) =>
   await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width)
 })
 
-test('tapping a column name scrolls to it; tabs switch inside a cell and stay switched', async ({ page }) => {
+// D26 P2: the phone shows every cell in one scroll (no column strip).
+test.fixme('tapping a column name scrolls to it; tabs switch inside a cell and stay switched', async ({ page }) => {
   await seed(page)
   const { page: width } = await pagerState(page)
 
@@ -134,20 +137,21 @@ test('tapping a column name scrolls to it; tabs switch inside a cell and stay sw
   await expect(sheet.getByText('Edited')).toHaveCount(0)
 })
 
-test('the ⋯ menu collapses a cell; tapping its tab expands it', async ({ page }) => {
+test('the ⋯ menu collapses a cell’s rows (D26: Collapse row); tapping its tab expands it', async ({ page }) => {
   await seed(page)
   await wsCell(page, 'a1').getByRole('button', { name: 'Cell options' }).tap()
   const menu = page.getByRole('menu', { name: 'Cell options' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Collapse cell'])
-  await menu.getByRole('menuitem', { name: 'Collapse cell' }).tap()
+  await expect(menu.getByRole('menuitem')).toHaveText(['Collapse row'])
+  await menu.getByRole('menuitem', { name: 'Collapse row' }).tap()
   await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toHaveCount(0)
-  await expect(wsCell(page, 'a1').getByRole('button', { name: 'Expand cell' })).toBeVisible()
+  await expect(wsCell(page, 'a1').getByRole('button', { name: 'Expand row' })).toBeVisible()
 
   await wsTab(page, 'todayTab').tap()
   await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
 })
 
-test('the layout sheet switches layouts; each layout opens on the column it was left on (view state, across a reload)', async ({ page }) => {
+// D26 P2: the phone shows every cell in one scroll (no remembered column).
+test.fixme('the layout sheet switches layouts; each layout opens on the column it was left on (view state, across a reload)', async ({ page }) => {
   await seed(page)
   const { page: width } = await pagerState(page)
   await columnName(page, 'Waiting on').tap()
@@ -279,7 +283,8 @@ test('long-pressing a list tab opens its list sheet; Edit list is a half sheet w
   await expect(line).toContainText('No filters')
 })
 
-test('switching between desktop and phone widths keeps the drag sensors stable (no React deps error)', async ({ page }) => {
+// D26 P2: the phone shows every cell in one scroll (no column strip).
+test.fixme('switching between desktop and phone widths keeps the drag sensors stable (no React deps error)', async ({ page }) => {
   const errors: string[] = []
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
   await seed(page)

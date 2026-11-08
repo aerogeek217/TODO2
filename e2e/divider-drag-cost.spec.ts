@@ -76,8 +76,8 @@ function everyLaidOutDetails(rows: Locator): Promise<number[]> {
 }
 
 async function storedViewState(page: Page): Promise<Record<string, unknown> | undefined> {
-  const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }> }>(page, 'layouts')
-  for (const l of layouts) for (const c of l.columns) for (const r of c.rows) for (const k of r.cells) for (const t of k.tabs) if (t.id === 'tab') return t.viewState
+  const layouts = await readStore<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }>(page, 'layouts')
+  for (const l of layouts) for (const k of l.cells) for (const t of k.tabs) if (t.id === 'tab') return t.viewState
   return undefined
 }
 
@@ -238,7 +238,8 @@ async function countLayoutWrites(page: Page): Promise<void> {
 }
 const layoutWrites = (page: Page) => page.evaluate(() => (window as unknown as { __layoutWrites: number }).__layoutWrites)
 
-test('a column or band divider drag: no task row re-renders, nothing is written until the release, which saves the size once', async ({ page }) => {
+// D26 P2: the table’s dividers (none drawn until P2).
+test.fixme('a column or band divider drag: no task row re-renders, nothing is written until the release, which saves the size once', async ({ page }) => {
   // Two drags and two full loads of 40 rich rows under the render counter
   // (the seed and the reload): ~6 s alone, past 30 s under a full parallel run.
   test.slow()

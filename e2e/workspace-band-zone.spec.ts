@@ -2,6 +2,9 @@ import { expect, test } from '@playwright/test'
 import { dragTab, seedWorkspace, wsCell, wsShape, wsTab, wsRow, type WsLayoutSeed } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
+// D26 P2: the new-band zone is the insert-row edge of the table hit test.
+test.fixme(true, 'D26 P2')
+
 /**
  * The new-band zone never covers a cell, in a real browser (cr33 M9): a
  * headless Number row first in its column keeps its "New row above" zone,

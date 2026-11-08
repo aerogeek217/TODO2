@@ -9,16 +9,17 @@ import { readStore, readStores, writeStores } from './fixtures/db'
  * deletes a layout, so the active one survives with its good tabs.
  */
 
-interface StoredLayout { id: number; columns: Array<{ rows: Array<{ cells: Array<{ weight: unknown; tabs: unknown[] }> }> }> }
+interface StoredLayout { id: number; grid: { rows: Array<{ weight?: unknown }> }; cells: Array<{ tabs: unknown[] }> }
 
-/** Rewrites the stored active layout's columns straight in IndexedDB. */
+/** Rewrites the stored active layout's table straight in IndexedDB. */
 async function corruptActiveLayout(page: Page): Promise<number> {
   const { layouts, settings } = await readStores(page, ['layouts', 'settings'])
   const active = Number(settings?.find((s) => s.key === 'activeLayoutId')?.value)
   const layout = (layouts as unknown as StoredLayout[] | undefined)?.find((l) => l.id === active)
-  const cell = layout?.columns[0]?.rows[0]?.cells[0]
-  if (!layout || !cell) throw new Error('no active layout')
-  cell.weight = -1
+  const cell = layout?.cells[0]
+  const row = layout?.grid.rows[0]
+  if (!layout || !cell || !row) throw new Error('no active layout')
+  row.weight = -1
   cell.tabs.push({ id: 'retired', kind: 'taskboard', config: {} })
   await writeStores(page, { put: { layouts: [layout] } })
   return active
@@ -56,8 +57,9 @@ test('the audit repairs a corrupt active layout instead of deleting it', async (
   expect(await readStore(page, 'layouts')).toEqual([expect.objectContaining({
     id: active,
     name: 'Daily',
-    // The size reset to 1, the retired tab gone, the notes tab kept.
-    columns: [{ id: 'c1', weight: 1, rows: [{ id: 'k1-r', weight: 1, cells: [expect.objectContaining({ id: 'k1', weight: 1, tabs: [{ id: 'n1', kind: 'notes', config: {} }] })] }] }],
+    // The size reset (the axis's only weight: the default), the retired tab gone, the notes tab kept.
+    grid: { columns: [expect.objectContaining({ weight: 1000 })], rows: [expect.objectContaining({ weight: 1000 })] },
+    cells: [expect.objectContaining({ id: 'k1', tabs: [{ id: 'n1', kind: 'notes', config: {} }] })],
   })])
 
   // The workspace reloaded the repaired row: nothing left unsaved.
