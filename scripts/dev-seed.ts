@@ -726,6 +726,12 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     if (o.urgent) todo.urgent = true
     if (o.important) todo.important = true
     if (o.status) todo.statusId = IDS.statuses[o.status]
+    // The history log H3 (D26): the flags and the follow-ups as set when the
+    // task was made, and the follow-up when it was marked.
+    const flags = [todo.urgent && 'urgent', todo.important && 'important', todo.focus && 'focus'].filter(Boolean)
+    if (flags.length > 0) ev('marker', created, null, flags.join(','))
+    if (todo.nextFollowupAt) ev('followup', created, null, todo.nextFollowupAt)
+    if (todo.lastFollowupAt) ev('followedUp', lastFollowupMs ?? created, null, todo.lastFollowupAt)
     // Field order of the model (cosmetic — keeps diffs against real exports readable).
     todos.push(reorder(todo, ['id', 'uid', 'title', 'notes', 'isCompleted', 'completedAt', 'dueDate',
       'lastFollowupAt', 'nextFollowupAt', 'recurrenceRule', 'focus', 'urgent', 'important', 'createdAt', 'modifiedAt',
@@ -737,6 +743,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     const projectTag = spec.project !== undefined ? IDS.projectTags[spec.project] : undefined
     if (projectTag !== undefined) tagIds.add(projectTag)
     for (const tagId of tagIds) todoTags.push({ todoId: id, tagId })
+    // A create logs its people and tags as added with it.
+    for (const personId of personIds) ev('person', created, null, personId)
+    for (const tagId of tagIds) ev('tag', created, null, tagId)
 
     // The checklist, written a minute apart soon after the task.
     o.subtasks?.forEach((line, k) => {
@@ -992,6 +1001,8 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     { key: 'eisenhowerPanes', value: JSON.stringify(panes) },
     { key: 'eisenhowerSource', value: `list:${L.eisenhower}` },
     { key: 'followupDefaultInterval', value: '1w' },
+    // Every task's history was logged (D26's history log H3) from before the first one.
+    { key: 'historyLogSince', value: longAgo },
     { key: 'seededAssignedStatusId', value: String(IDS.statuses.assigned) },
     { key: 'themeMode', value: 'dark' },
     { key: 'urgentDueWithinDays', value: '2' },
