@@ -1,5 +1,5 @@
 import type { TodoPredicate } from '../models'
-import type { DashGlyphName } from '../utils/dash-glyphs'
+import type { GlanceGlyphName } from '../utils/glance-glyphs'
 
 /**
  * What the task dialog shows (`ui-store.taskDialog`): a payload says what
@@ -33,7 +33,7 @@ export type TaskDialogSource =
 
 export interface TaskDialogPayload {
   title: string
-  glyph: DashGlyphName
+  glyph: GlanceGlyphName
   /** What is counted, in words. */
   description: string
   source: TaskDialogSource

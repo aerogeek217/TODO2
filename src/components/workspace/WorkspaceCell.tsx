@@ -51,7 +51,7 @@ import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from './eisenhower/eise
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
 import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
-import { DashGlyph } from '../shared/DashGlyph'
+import { GlanceGlyph } from '../shared/GlanceGlyph'
 import styles from './WorkspaceCell.module.css'
 import { trackScrollEdges } from '../../utils/scroll-edges'
 import type { BandZone, CellZone } from '../../utils/workspace-drop'
@@ -342,7 +342,7 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = f
       {
         kind: 'item' as const,
         label: CUSTOMIZE_PANES_LABEL,
-        icon: <DashGlyph name="sliders" />,
+        icon: <GlanceGlyph name="sliders" />,
         onSelect: () => openEisenhowerSettings(),
       },
       { kind: 'separator' as const },

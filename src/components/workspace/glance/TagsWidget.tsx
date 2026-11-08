@@ -61,7 +61,7 @@ export function TagsSection({ data, options, onDrill, style, className }: Sectio
                     <span className={styles.tagName}>{name}</span>
                   </span>
                   <span className={`${styles.peopleBar} ${styles.tagsBarCol}`}><span style={{ width: `${Math.round((open / max) * 100)}%` }} /></span>
-                  <span className={styles.num} data-testid="dash-tag-open">{openLabel}</span>
+                  <span className={styles.num} data-testid="glance-tag-open">{openLabel}</span>
                   <PriorityBadges counts={stats.priority} />
                   <Count n={stats.followupDueIds.length} color="var(--color-followup)" />
                 </>

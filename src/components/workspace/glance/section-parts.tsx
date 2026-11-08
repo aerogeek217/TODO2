@@ -3,10 +3,10 @@ import type { SectionOptions } from '../../../models/glance-widgets'
 import { MARKER_KEYS, type MarkerKey } from '../../../models'
 import { MARKER_COLOR, MARKER_LABELS } from '../../../utils/markers'
 import { usePersonStore } from '../../../stores/person-store'
-import type { DashGlyphName } from '../../../utils/dash-glyphs'
+import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import { rowKey } from '../../../utils/scoped-selection'
 import { leavingShownAs } from '../../../hooks/use-leaving-rows'
-import { DashGlyph } from '../../shared/DashGlyph'
+import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
 import { ListWidgetRow } from '../list/ListWidgetRow'
@@ -50,17 +50,17 @@ export function Panel({ def, count, onCount, sub, extras, style, className, chil
   children: ReactNode
 }) {
   return (
-    <section className={`${styles.panel} ${styles.surface}${className ? ` ${className}` : ''}`} style={style} aria-label={def.title} data-dash-section={def.id}>
+    <section className={`${styles.panel} ${styles.surface}${className ? ` ${className}` : ''}`} style={style} aria-label={def.title} data-glance-section={def.id}>
       <div className={styles.panelHeader}>
-        <DashGlyph name={def.glyph} color={def.glyphColor} />
+        <GlanceGlyph name={def.glyph} color={def.glyphColor} />
         <span className={styles.panelTitle}>{def.title}</span>
         {count != null && (onCount
           ? (
-            <button type="button" className={`${styles.panelCount} ${styles.panelCountBtn}`} data-testid="dash-section-count" aria-label={`${def.title}: ${count}. Show tasks`} onClick={onCount}>
+            <button type="button" className={`${styles.panelCount} ${styles.panelCountBtn}`} data-testid="glance-section-count" aria-label={`${def.title}: ${count}. Show tasks`} onClick={onCount}>
               {count}
             </button>
           )
-          : <span className={styles.panelCount} data-testid="dash-section-count">{count}</span>)}
+          : <span className={styles.panelCount} data-testid="glance-section-count">{count}</span>)}
         {sub && <span className={styles.panelSub}>{sub}</span>}
         {extras && <span className={styles.panelExtras}>{extras}</span>}
       </div>
@@ -79,10 +79,10 @@ export function Empty({ title, hint }: { title: string; hint: string }) {
 }
 
 /** A chart key: the series' colour as a swatch, or as its glyph when the marks carry it too (Next 7 days). */
-export function Legend({ color, label, glyph }: { color: string; label: string; glyph?: DashGlyphName }) {
+export function Legend({ color, label, glyph }: { color: string; label: string; glyph?: GlanceGlyphName }) {
   return (
     <span className={styles.legend}>
-      {glyph ? <DashGlyph name={glyph} size={11} color={color} /> : <i className={styles.swatch} style={{ background: color }} />}
+      {glyph ? <GlanceGlyph name={glyph} size={11} color={color} /> : <i className={styles.swatch} style={{ background: color }} />}
       {label}
     </span>
   )
@@ -175,7 +175,7 @@ export function Count({ n, color }: { n: number; color: string }) {
 /** A row's open tasks by priority: a badge in the marker's colour for each that has any. */
 export function PriorityBadges({ counts }: { counts: Record<MarkerKey, number> }) {
   return (
-    <span className={styles.priorityBadges} data-testid="dash-priority-badges">
+    <span className={styles.priorityBadges} data-testid="glance-priority-badges">
       {MARKER_KEYS.map((k) => counts[k] > 0 && (
         <span
           key={k}

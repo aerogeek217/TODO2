@@ -62,7 +62,7 @@ export function EisenhowerSection({ data, onDrill, style, className }: SectionPr
             >
               <span className={styles.quadrantName} style={{ color: QUADRANT_COLOR[q] }}>{pane.name}</span>
               <span className={styles.quadrantSub}>{subtitle}</span>
-              <span className={styles.quadrantCount} style={{ color: n === 0 ? 'var(--color-text-muted)' : undefined }} data-testid="dash-eis-count">
+              <span className={styles.quadrantCount} style={{ color: n === 0 ? 'var(--color-text-muted)' : undefined }} data-testid="glance-eis-count">
                 {n}
                 {n !== t && <span className={styles.of}>of {t}</span>}
               </span>

@@ -160,7 +160,7 @@ describe('section widgets', () => {
     setup(createTab(kind as GlanceWidgetKind, 'w') as GlanceTab)
     const root = document.querySelector<HTMLElement>(`[data-glance="${kind}"]`)!
     expect(root).not.toBeNull()
-    const section = root.querySelector<HTMLElement>(`[data-dash-section="${sectionId}"]`)!
+    const section = root.querySelector<HTMLElement>(`[data-glance-section="${sectionId}"]`)!
     expect(section).not.toBeNull()
     expect(section.querySelector('[class*="panelHeader"]')).not.toBeNull()
     expect(lastResult?.summary.plain.length).toBeGreaterThan(0)
@@ -208,10 +208,10 @@ describe('section widgets', () => {
 
   it('options come from the config: look ahead, range, the Unassigned and No tag rows, the day spans', () => {
     setup({ id: 'w', kind: 'followup', config: { lookAhead: 3 } })
-    expect(document.querySelector('[data-dash-section="followup"]')!.textContent).toContain('Late, today and the next 3 days')
+    expect(document.querySelector('[data-glance-section="followup"]')!.textContent).toContain('Late, today and the next 3 days')
     cleanup()
     setup({ id: 'w', kind: 'trend', config: { range: '4w' } })
-    expect(document.querySelector('[data-dash-section="trend"]')!.textContent).toContain('Last 4 weeks')
+    expect(document.querySelector('[data-glance-section="trend"]')!.textContent).toContain('Last 4 weeks')
     cleanup()
     setup({ id: 'w', kind: 'people', config: { showUnassigned: false } })
     expect(document.querySelector('[data-person-row="none"]')).toBeNull()
@@ -220,16 +220,16 @@ describe('section widgets', () => {
     expect(document.querySelector('[data-person-row="none"]')).not.toBeNull()
     cleanup()
     setup({ id: 'w', kind: 'stale', config: { staleDays: 30 } })
-    expect(document.querySelector('[data-dash-section="stale"]')!.textContent).toContain('Not changed in 30 days or more')
+    expect(document.querySelector('[data-glance-section="stale"]')!.textContent).toContain('Not changed in 30 days or more')
     cleanup()
     setup({ id: 'w', kind: 'recent', config: { recentDays: 14 } })
-    expect(document.querySelector('[data-dash-section="recent"]')!.textContent).toContain('Last 14 days')
+    expect(document.querySelector('[data-glance-section="recent"]')!.textContent).toContain('Last 14 days')
   })
 
   it('a section’s count opens its tasks', () => {
     const onDrill = vi.fn()
     setup(createTab('stale', 's'), onDrill)
-    fireEvent.click(within(document.querySelector<HTMLElement>('[data-dash-section="stale"]')!).getByTestId('dash-section-count'))
+    fireEvent.click(within(document.querySelector<HTMLElement>('[data-glance-section="stale"]')!).getByTestId('glance-section-count'))
     expect(onDrill).toHaveBeenCalledTimes(1)
   })
 })
@@ -335,14 +335,14 @@ describe('faces (D25 R)', () => {
   it.each(SECTION_FACE_KINDS)('a small %s is its title and headline number, not its section', (kind) => {
     setup(createTab(kind, 'w') as GlanceTab, undefined, 'small')
     expect(smallFace()).not.toBeNull()
-    expect(document.querySelector('[data-dash-section]')).toBeNull()
+    expect(document.querySelector('[data-glance-section]')).toBeNull()
     expect(smallValue()).toMatch(/^[+−]?\d+( of \d+)?$|^–$/)
   })
 
   it.each(SECTION_FACE_KINDS)('a medium %s is its section as today', (kind) => {
     setup(createTab(kind, 'w') as GlanceTab, undefined, 'medium')
     expect(smallFace()).toBeNull()
-    expect(document.querySelector(`[data-dash-section="${SECTION_OF[kind]}"]`)).not.toBeNull()
+    expect(document.querySelector(`[data-glance-section="${SECTION_OF[kind]}"]`)).not.toBeNull()
   })
 
   it('the headlines: the late follow-ups, the Stale and Recently completed counts, the top person, the Do count, the net', () => {
@@ -354,17 +354,17 @@ describe('faces (D25 R)', () => {
     }
     const large = <T,>(kind: GlanceWidgetKind, read: (section: HTMLElement) => T): T => {
       setup(createTab(kind, 'w') as GlanceTab, vi.fn(), 'large')
-      const out = read(document.querySelector<HTMLElement>('[data-dash-section]')!)
+      const out = read(document.querySelector<HTMLElement>('[data-glance-section]')!)
       cleanup()
       return out
     }
     const late = large('followup', (el) => within(el).getByRole('group', { name: 'Late' }).querySelectorAll('[data-todo-id]').length)
     expect(headline('followup').value).toBe(String(late))
-    expect(headline('stale').value).toBe(large('stale', (el) => within(el).getByTestId('dash-section-count').textContent))
-    expect(headline('recent').value).toBe(large('recent', (el) => within(el).getByTestId('dash-section-count').textContent))
+    expect(headline('stale').value).toBe(large('stale', (el) => within(el).getByTestId('glance-section-count').textContent))
+    expect(headline('recent').value).toBe(large('recent', (el) => within(el).getByTestId('glance-section-count').textContent))
     const topPerson = large('people', (el) => el.querySelector('[data-person-row]')!.getAttribute('aria-label')!.match(/^(.+): (\d+) open/)!)
     expect(headline('people').label).toBe(`People: ${topPerson[1]}: ${topPerson[2]} open`)
-    expect(headline('eisenhowerSummary').value).toBe(large('eisenhowerSummary', (el) => el.querySelector('[data-eis-cell="do"] [data-testid="dash-eis-count"]')!.textContent))
+    expect(headline('eisenhowerSummary').value).toBe(large('eisenhowerSummary', (el) => el.querySelector('[data-eis-cell="do"] [data-testid="glance-eis-count"]')!.textContent))
     expect(headline('trend').label).toMatch(/^Created vs completed: [+−]?\d+ net · 14 days$/)
   })
 

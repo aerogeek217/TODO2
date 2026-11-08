@@ -23,7 +23,7 @@ import { startOfToday } from '../../utils/date'
 import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
 import { TaskRowGrid } from '../task/TaskRowGrid'
-import { DashGlyph } from '../shared/DashGlyph'
+import { GlanceGlyph } from '../shared/GlanceGlyph'
 import { ChevronDownIcon, EnvelopeIcon } from '../shared/icons'
 import { PersonCheckinMenu } from '../shared/PersonCheckinMenu'
 import styles from './TaskDialog.module.css'
@@ -130,7 +130,7 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
   return (
     <>
       <div className={styles.header}>
-        <DashGlyph name={payload.glyph} className={styles.glyph} />
+        <GlanceGlyph name={payload.glyph} className={styles.glyph} />
         <h2 id={titleId} className={styles.title}>{payload.title}</h2>
         <span className={styles.countBadge} data-testid="task-dialog-count">{count}</span>
         <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}>×</button>

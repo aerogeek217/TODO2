@@ -5,7 +5,7 @@ import { useClosedThisWeek, useMetricHistory, useStatsBase, useTileStats } from 
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { HISTORY_AGAINST, hasHistory, historyDelta } from '../../../services/stats/metric-history'
 import { numberBreakdown, type BreakdownEntry } from '../../../services/stats/number-breakdown'
-import { DashGlyph } from '../../shared/DashGlyph'
+import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import { closedSubLine, countOf, deltaLabel, metricSubLine } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { numberLines } from './glance-summary'
@@ -115,7 +115,7 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
   const content = (
     <>
       <span className={styles.label} style={{ color: colors.label }}>
-        <DashGlyph name={def.glyph} size={12} color={colors.glyph} /><span className={styles.labelText}>{def.label}</span>
+        <GlanceGlyph name={def.glyph} size={12} color={colors.glyph} /><span className={styles.labelText}>{def.label}</span>
       </span>
       <span className={styles.figures}>
         <span className={styles.count} style={{ color: colors.count }} data-testid="number-count">

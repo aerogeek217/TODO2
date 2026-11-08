@@ -1,12 +1,12 @@
 import { NUMBER_METRIC_LABELS, type NumberMetric, type TileMetricId } from '../../../models/glance-widgets'
-import type { DashGlyphName } from '../../../utils/dash-glyphs'
+import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 
 /** A Number metric's look and its task dialog's title. */
 export interface NumberDef {
   label: string
   /** The task dialog's title. */
   title: string
-  glyph: DashGlyphName
+  glyph: GlanceGlyphName
   /** The metric's colour: its label's, glyph's and count's when lit. */
   color: string
   /**

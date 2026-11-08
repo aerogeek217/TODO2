@@ -1,11 +1,11 @@
 import type { SectionId, SectionOptions } from '../../../models/glance-widgets'
-import type { DashGlyphName } from '../../../utils/dash-glyphs'
+import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 
 /** What a section is, apart from how it renders. */
 export interface SectionMeta {
   id: SectionId
   title: string
-  glyph: DashGlyphName
+  glyph: GlanceGlyphName
   glyphColor: string
   /** Columns of the 12-column grid it spans on a wide cell. */
   defaultSpan: number

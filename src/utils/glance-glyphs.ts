@@ -3,7 +3,7 @@
  * joins, `currentColor`), also the task dialog's header glyph. Decorative:
  * the control that shows one carries the accessible name.
  */
-export const DASH_GLYPH = {
+export const GLANCE_GLYPH = {
   open: 'M2.5 9h3l1 2h3l1-2h3M4 3.5h8l1.5 5.5v4h-11V9z',
   urgent: 'M8 3v6M8 12.4v.4',
   overdue: 'M2.9 8a5.1 5.1 0 1 0 1.5-3.6M2.6 2.6v2.6h2.6M8 5.4V8l1.8 1.2',
@@ -27,4 +27,4 @@ export const DASH_GLYPH = {
   filter: 'M2.5 3h11l-4.25 5.25V13l-2.5-1.5V8.25z',
 } as const
 
-export type DashGlyphName = keyof typeof DASH_GLYPH
+export type GlanceGlyphName = keyof typeof GLANCE_GLYPH

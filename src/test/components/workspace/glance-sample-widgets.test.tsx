@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { DASH_GLYPH } from '../../../utils/dash-glyphs'
+import { GLANCE_GLYPH } from '../../../utils/glance-glyphs'
 import { render, cleanup, act, within, fireEvent } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
@@ -55,8 +55,8 @@ function setup(tabs: GlanceTab[] = defaults(), onDrill?: (d: GlanceDrill) => voi
 
 const tile = (id: string) => document.querySelector<HTMLElement>(`[data-number-metric="${id}"]`)!
 const tileCount = (id: string) => within(tile(id)).getByTestId('number-count').textContent
-const section = (id: string) => document.querySelector<HTMLElement>(`[data-dash-section="${id}"]`)
-const sectionCount = (id: string) => within(section(id)!).getByTestId('dash-section-count').textContent
+const section = (id: string) => document.querySelector<HTMLElement>(`[data-glance-section="${id}"]`)
+const sectionCount = (id: string) => within(section(id)!).getByTestId('glance-section-count').textContent
 const rowTitles = (el: HTMLElement) => Array.from(el.querySelectorAll('[data-row-todo]'))
   .map((r) => SAMPLE_TASKS.find((t) => t.id === Number((r as HTMLElement).dataset.rowTodo))?.title)
 
@@ -116,7 +116,7 @@ describe('glance widgets — the design sample', () => {
 
   it('each section widget renders its section', () => {
     setup()
-    const ids = Array.from(document.querySelectorAll('[data-dash-section]')).map((el) => (el as HTMLElement).dataset.dashSection)
+    const ids = Array.from(document.querySelectorAll('[data-glance-section]')).map((el) => (el as HTMLElement).dataset.glanceSection)
     expect(ids).toEqual(['followup', 'next7', 'trend', 'status', 'people'])
   })
 
@@ -134,7 +134,7 @@ describe('glance widgets — the design sample', () => {
 
   it('Next 7 days: a Late column, today and six days, with due / follow-up counts', () => {
     setup()
-    const days = within(section('next7')!).getAllByTestId('dash-day')
+    const days = within(section('next7')!).getAllByTestId('glance-day')
     expect(days).toHaveLength(8)
     expect(days.map((d) => d.querySelector('[class*="dayName"]')?.textContent))
       .toEqual(['Late', 'Today', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri'])
@@ -146,23 +146,23 @@ describe('glance widgets — the design sample', () => {
     setup()
     const panel = section('next7')!
     const glyphOf = (el: Element | null) => el?.querySelector('svg path')?.getAttribute('d')
-    const today = within(panel).getAllByTestId('dash-day')[1]!
+    const today = within(panel).getAllByTestId('glance-day')[1]!
     const due = today.querySelector('[data-count="due"]')
     const followup = today.querySelector('[data-count="followup"]')
     expect(due?.textContent).toBe('3')
     expect(followup?.textContent).toBe('1')
-    expect(glyphOf(due)).toBe(DASH_GLYPH.calendar)
-    expect(glyphOf(followup)).toBe(DASH_GLYPH.followup)
+    expect(glyphOf(due)).toBe(GLANCE_GLYPH.calendar)
+    expect(glyphOf(followup)).toBe(GLANCE_GLYPH.followup)
     // The key shows the same glyphs beside its words.
     const key = (label: string) => within(panel).getByText(label)
-    expect(glyphOf(key('Due'))).toBe(DASH_GLYPH.calendar)
-    expect(glyphOf(key('Follow-up'))).toBe(DASH_GLYPH.followup)
+    expect(glyphOf(key('Due'))).toBe(GLANCE_GLYPH.calendar)
+    expect(glyphOf(key('Follow-up'))).toBe(GLANCE_GLYPH.followup)
   })
 
   it('Created vs completed: the window totals', () => {
     setup()
-    expect(within(section('trend')!).getByTestId('dash-trend-completed').textContent).toBe('14completed')
-    expect(within(section('trend')!).getByTestId('dash-trend-created').textContent).toBe('17created')
+    expect(within(section('trend')!).getByTestId('glance-trend-completed').textContent).toBe('14completed')
+    expect(within(section('trend')!).getByTestId('glance-trend-created').textContent).toBe('17created')
     expect(section('trend')!.textContent).toContain('+3open since Sun 27 Sep')
   })
 
@@ -244,7 +244,7 @@ describe('glance widgets — drill hook', () => {
   it('without a drill handler numbers are not buttons', () => {
     setup()
     expect(tile('open').tagName).toBe('DIV')
-    expect(section('followup')!.querySelector('button[data-testid="dash-section-count"]')).toBeNull()
+    expect(section('followup')!.querySelector('button[data-testid="glance-section-count"]')).toBeNull()
     expect(section('people')!.querySelector('button[data-person-row]')).toBeNull()
   })
 
@@ -264,12 +264,12 @@ describe('glance widgets — drill hook', () => {
   it('panel counts open their tasks: Needs follow-up and Status under headings', () => {
     const onDrill = vi.fn()
     setup(defaults(), onDrill)
-    fireEvent.click(within(section('followup')!).getByTestId('dash-section-count'))
+    fireEvent.click(within(section('followup')!).getByTestId('glance-section-count'))
     const fu = onDrill.mock.lastCall?.[0]
     expect(fu.title).toBe('Needs follow-up')
     expect(fu.source.groups.map((g: Group) => [g.label, g.todoIds])).toEqual([['Late', [10]], ['Today', [9]], ['Next 7 days', [11, 8, 4]]])
 
-    fireEvent.click(within(section('status')!).getByTestId('dash-section-count'))
+    fireEvent.click(within(section('status')!).getByTestId('glance-section-count'))
     const st = onDrill.mock.lastCall?.[0]
     expect(st.title).toBe('Open tasks')
     expect(st.source.groups.map((g: Group) => [g.label, g.todoIds.length])).toEqual([['To do', 11], ['In progress', 5], ['Waiting', 2], ['Blocked', 1]])
@@ -286,7 +286,7 @@ describe('glance widgets — drill hook', () => {
   it('a Next 7 days column opens its due and follow-up tasks under headings', () => {
     const onDrill = vi.fn()
     setup(defaults(), onDrill)
-    const days = within(section('next7')!).getAllByTestId('dash-day')
+    const days = within(section('next7')!).getAllByTestId('glance-day')
     fireEvent.click(days[1]!)
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({
       title: 'Today',
@@ -306,10 +306,10 @@ describe('glance widgets — drill hook', () => {
     expect(day.title).toBe('Sat 10')
     expect(day.source.groups.map((g: Group) => [g.label, g.todoIds])).toEqual([['Completed', [114]], ['Created', [1]]])
 
-    fireEvent.click(within(section('trend')!).getByTestId('dash-trend-completed'))
+    fireEvent.click(within(section('trend')!).getByTestId('glance-trend-completed'))
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Completed', description: 'Tasks completed in the last 14 days.' })
     expect(onDrill.mock.lastCall?.[0].source.todoIds).toHaveLength(14)
-    fireEvent.click(within(section('trend')!).getByTestId('dash-trend-created'))
+    fireEvent.click(within(section('trend')!).getByTestId('glance-trend-created'))
     expect(onDrill.mock.lastCall?.[0].source.todoIds).toHaveLength(17)
   })
 
@@ -343,12 +343,12 @@ describe('glance widgets — drill hook', () => {
 describe('glance widgets — Tags, Stale tasks, Recently completed, Eisenhower', () => {
   const NEW_SECTIONS = (): GlanceTab[] => [of('tags'), of('stale'), of('recent'), of('eisenhowerSummary')]
   const tagRows = () => Array.from(section('tags')!.querySelectorAll<HTMLElement>('[data-tag-row]'))
-  const eisCount = (q: string) => within(section('eisenhower')!.querySelector<HTMLElement>(`[data-eis-cell="${q}"]`)!).getByTestId('dash-eis-count').textContent
+  const eisCount = (q: string) => within(section('eisenhower')!.querySelector<HTMLElement>(`[data-eis-cell="${q}"]`)!).getByTestId('glance-eis-count').textContent
 
   it('Tags: open tasks per tag by count then name, No tag last (can be hidden), the tagged count', () => {
     setup([of('tags')])
     expect(sectionCount('tags')).toBe('9 tagged')
-    expect(tagRows().map((r) => [r.dataset.tagRow, r.querySelector('[class*="tagName"]')?.textContent, r.querySelector('[data-testid="dash-tag-open"]')?.textContent]))
+    expect(tagRows().map((r) => [r.dataset.tagRow, r.querySelector('[class*="tagName"]')?.textContent, r.querySelector('[data-testid="glance-tag-open"]')?.textContent]))
       .toEqual([['1', '#q4', '5'], ['4', '#errands', '2'], ['3', '#home', '1'], ['2', '#planning', '1'], ['none', 'No tag', '10']])
     cleanup()
     setup([of('tags', { showUntagged: false })])
@@ -409,16 +409,16 @@ describe('glance widgets — Tags, Stale tasks, Recently completed, Eisenhower',
     expect(onDrill.mock.lastCall?.[0]).toEqual({ title: '#q4', glyph: 'tag', description: 'Open tasks tagged #q4.', source: { kind: 'todos', todoIds: [4, 7, 14, 15, 17] } })
     fireEvent.click(tagRows().at(-1)!)
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'No tag', source: { kind: 'todos', todoIds: [1, 2, 5, 8, 9, 10, 11, 12, 16, 19] } })
-    fireEvent.click(within(section('tags')!).getByTestId('dash-section-count'))
+    fireEvent.click(within(section('tags')!).getByTestId('glance-section-count'))
     const tags = onDrill.mock.lastCall?.[0]
     expect(tags.title).toBe('Tagged tasks')
     expect(tags.source.groups.map((g: { label: string; todoIds: number[] }) => [g.label, g.todoIds.length])).toEqual([['#q4', 5], ['#errands', 2], ['#home', 1], ['#planning', 1]])
 
-    fireEvent.click(within(section('stale')!).getByTestId('dash-section-count'))
+    fireEvent.click(within(section('stale')!).getByTestId('glance-section-count'))
     expect(onDrill.mock.lastCall?.[0]).toEqual({
       title: 'Stale tasks', glyph: 'stale', description: 'Open tasks not changed in 14 days or more, oldest first.', source: { kind: 'todos', todoIds: [17, 19] },
     })
-    fireEvent.click(within(section('recent')!).getByTestId('dash-section-count'))
+    fireEvent.click(within(section('recent')!).getByTestId('glance-section-count'))
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Recently completed', source: { kind: 'todos', todoIds: [114, 113, 112, 103, 111, 110, 109] } })
 
     fireEvent.click(section('eisenhower')!.querySelector<HTMLElement>('[data-eis-cell="delegate"]')!)
@@ -427,14 +427,14 @@ describe('glance widgets — Tags, Stale tasks, Recently completed, Eisenhower',
       description: 'Open tasks that are urgent, not important. Urgent includes tasks due within 3 days.',
       source: { kind: 'todos', todoIds: [5, 6, 7, 12, 13] },
     })
-    fireEvent.click(within(section('eisenhower')!).getByTestId('dash-section-count'))
+    fireEvent.click(within(section('eisenhower')!).getByTestId('glance-section-count'))
     expect(onDrill.mock.lastCall?.[0].source.groups.map((g: { label: string; todoIds: number[] }) => [g.label, g.todoIds.length]))
       .toEqual([['Do', 3], ['Schedule', 1], ['Delegate', 5], ['Drop', 10]])
   })
 })
 
 describe('the Eisenhower summary follows the app-wide panes and the Eisenhower’s list', () => {
-  const eisCount = (q: string) => within(section('eisenhower')!.querySelector<HTMLElement>(`[data-eis-cell="${q}"]`)!).getByTestId('dash-eis-count').textContent
+  const eisCount = (q: string) => within(section('eisenhower')!.querySelector<HTMLElement>(`[data-eis-cell="${q}"]`)!).getByTestId('glance-eis-count').textContent
   const Q4_LIST = {
     id: 90, name: 'Q4 work', sortOrder: 9, sort: 'manual' as const, grouping: 'none' as const,
     membership: { kind: 'custom' as const, predicate: { ...emptyPredicate(), tags: [Q4] } },
@@ -461,7 +461,7 @@ describe('the Eisenhower summary follows the app-wide panes and the Eisenhower�
     fireEvent.click(delegate)
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Hand off', source: { kind: 'todos', todoIds: [7] } })
     expect(onDrill.mock.lastCall?.[0].description).toContain('Open tasks of “Q4 work” in “Hand off”')
-    fireEvent.click(within(section('eisenhower')!).getByTestId('dash-section-count'))
+    fireEvent.click(within(section('eisenhower')!).getByTestId('glance-section-count'))
     expect(onDrill.mock.lastCall?.[0].source.groups.map((g: { label: string }) => g.label)).toEqual(['Do', 'Schedule', 'Hand off', 'Drop'])
   })
 

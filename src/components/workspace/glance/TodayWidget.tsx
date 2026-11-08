@@ -6,7 +6,7 @@ import type { TodayReason, TodayPicks } from '../../../services/stats/today-pick
 import { pickForToday } from '../../../services/today-focus'
 import { useUIStore } from '../../../stores/ui-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
-import { DashGlyph } from '../../shared/DashGlyph'
+import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import { PlusIcon } from '../../shared/icons'
 import { glanceDrill, GLANCE_PANEL_CLASS, useGlanceRows, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { SummaryPart } from './glance-summary'
@@ -85,7 +85,7 @@ export function TodayWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TodayT
   if (face === 'small') {
     const content = (
       <>
-        <span className={styles.todayLabel}><DashGlyph name="focus" size={12} color="var(--color-marker-focus)" />Today</span>
+        <span className={styles.todayLabel}><GlanceGlyph name="focus" size={12} color="var(--color-marker-focus)" />Today</span>
         <span className={styles.todayCount} data-testid="today-count">{count}</span>
       </>
     )

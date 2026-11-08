@@ -52,7 +52,7 @@ export function TrendSection({ data, onDrill, style, className }: SectionProps<T
           <Clickable
             as="span"
             className={styles.trendStat}
-            data-testid="dash-trend-completed"
+            data-testid="glance-trend-completed"
             label={`${trend?.completed ?? 0} completed in ${rangeWords}. Show tasks`}
             onClick={onDrill && trend
               ? () => onDrill(trendTotalDrill('completed', rangeWords, buckets.flatMap((b) => b.completedIds)))
@@ -63,7 +63,7 @@ export function TrendSection({ data, onDrill, style, className }: SectionProps<T
           <Clickable
             as="span"
             className={styles.trendStat}
-            data-testid="dash-trend-created"
+            data-testid="glance-trend-created"
             label={`${trend?.created ?? 0} created in ${rangeWords}. Show tasks`}
             onClick={onDrill && trend
               ? () => onDrill(trendTotalDrill('created', rangeWords, buckets.flatMap((b) => b.createdIds)))
