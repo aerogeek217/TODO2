@@ -19,6 +19,8 @@ afterAll(() => {
   // No `globals: true`, so Testing Library's own afterEach(cleanup) never registers.
   cleanup()
   document.body.innerHTML = ''
+  // A range a file left selected would make a later file's `addRange` a no-op.
+  window.getSelection()?.removeAllRanges()
   const html = document.documentElement
   for (const name of html.getAttributeNames()) html.removeAttribute(name)
   vi.useRealTimers()
