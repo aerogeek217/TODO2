@@ -126,6 +126,41 @@ test('Edit list: a text that doesn’t read holds the first close, saying so, an
   await expect(page.getByTestId('edit-list').getByRole('button', { name: /Filter/ })).toBeFocused()
 })
 
+/** Whether the page goes idle within `ms`: a render loop keeps the main thread busy, so its idle callback only times out. */
+const goesIdle = (page: Page, ms: number) => page.evaluate((timeout) => new Promise<boolean>((resolve) => {
+  requestIdleCallback((deadline) => resolve(!deadline.didTimeout), { timeout })
+}), ms)
+
+test('the field settles while its popup is open: no render loop (cr33 wave 2)', async ({ page }) => {
+  // The popup's compute was a new function each render, and the popup re-reads its text whenever that changes.
+  await page.addInitScript(() => {
+    const w = window as unknown as { measured: number }
+    w.measured = 0
+    const measure = CanvasRenderingContext2D.prototype.measureText
+    CanvasRenderingContext2D.prototype.measureText = function (text: string) {
+      w.measured++
+      return measure.call(this, text)
+    }
+  })
+  await seedWorkspace(page, SEED)
+  await expect.poll(() => sorted(page)).toEqual(['Ann active', 'Ann waiting'])
+  await wsListWidget(page, 't1').getByTestId('list-summary').click()
+  const editList = page.getByTestId('edit-list')
+  await editList.getByRole('radiogroup', { name: 'Filter mode' }).getByRole('radio', { name: 'Expression' }).click()
+  const field = editList.getByRole('textbox', { name: 'Filter expression' })
+  await field.press('End')
+  await field.pressSequentially(' and /fo')
+  await expect(page.getByRole('listbox').getByRole('option', { name: /Focus/ })).toBeVisible()
+  expect(await goesIdle(page, 3000)).toBe(true)
+  // Idle, the popup measures its anchor no more.
+  const measured = () => page.evaluate(() => (window as unknown as { measured: number }).measured)
+  const before = await measured()
+  expect(await goesIdle(page, 3000)).toBe(true)
+  expect(await measured()).toBe(before)
+  await field.press('Tab')
+  await expect(field).toHaveValue(/^@Ann and \/focus\s*$/)
+})
+
 test('a lens holding an expression filters the lists under the top bar', async ({ page }) => {
   await seedWorkspace(page, {
     ...SEED,

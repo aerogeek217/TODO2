@@ -9,7 +9,7 @@ import { parseExpression, printExpression, type ExpressionParse } from '../utils
 import { expressionsEqual } from '../utils/filter-expression'
 import { withExpression } from '../utils/predicate-expression'
 import { expressionAutocomplete, expressionResolver, expressionTints, namedIds } from '../services/filter-expression-field'
-import { personItems, statusItems, tagItems } from '../services/nlp-autocomplete'
+import { personItems, statusItems, tagItems, type computeAutocomplete } from '../services/nlp-autocomplete'
 import type { TintSpan } from '../services/nlp-token-tints'
 import { useNlpAutocomplete } from './use-nlp-autocomplete'
 import { useLatestRef } from './use-latest-ref'
@@ -144,12 +144,19 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   const acPeople = useMemo(() => personItems(people), [people])
   const acTags = useMemo(() => tagItems(tags), [tags])
   const acStatuses = useMemo(() => statusItems(statuses), [statuses])
+  // Stable, as the sources are: the popup re-reads its text whenever
+  // `compute` changes (its candidates changed), so a new one each render
+  // would re-render it forever while it is open.
+  const compute = useCallback<typeof computeAutocomplete>(
+    (value, cursor, sources) => expressionAutocomplete(value, cursor, sources, allowPeople),
+    [allowPeople],
+  )
   const ac = useNlpAutocomplete({
     people: acPeople,
     tags: acTags,
     statuses: acStatuses,
     commands: true,
-    compute: (value, cursor, sources) => expressionAutocomplete(value, cursor, sources, allowPeople),
+    compute,
     onApply: (value, cursor) => {
       pendingCaret.current = cursor
       setAndRead(value)
