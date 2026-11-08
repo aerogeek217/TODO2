@@ -28,7 +28,7 @@ import {
   type WidgetKind,
   type WorkspaceLayout,
 } from '../models/workspace-layout'
-import { findCell, layoutPanels, layoutIds, layoutStructureEqual, withTrackIdsOf } from '../utils/workspace-layout-queries'
+import { findCell, layoutPanels, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
 import { layoutListRefs, listIdChanges, repointLayoutLists } from '../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes } from '../utils/workspace-layout-sizes'
 import {
@@ -47,6 +47,7 @@ import {
   setTrackCollapsed,
   setLayoutHue,
   splitCell,
+  withTrackIdsOf,
   type IdGen,
   type LayoutDropTarget,
   type MoveEdgeOptions,

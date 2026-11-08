@@ -110,19 +110,12 @@ function arrangementKey(body: LayoutBody): string {
 }
 
 /**
- * `body` with `model`'s track ids, when the two are the same arrangement —
+ * Whether two bodies are the same arrangement whatever their tracks' ids:
  * as many tracks on each axis, the same cells in the same areas with the
- * same tabs — but some track ids differ: an edit that came back to `model`
- * by another way (a row inserted and closed again, whose merged track kept
- * the inserted one's id, `workspace-grid.mergeTracks`) is `model` again.
- * The same object otherwise.
+ * same tabs (view state aside).
  */
-export function withTrackIdsOf<B extends LayoutBody>(body: B, model: LayoutBody): B {
-  const sameIds = (axis: 'columns' | 'rows') => body.grid[axis].every((t, i) => t.id === model.grid[axis][i]?.id)
-  if (sameIds('columns') && sameIds('rows')) return body
-  if (arrangementKey(body) !== arrangementKey(model)) return body
-  const ids = (axis: 'columns' | 'rows') => body.grid[axis].map((t, i) => ({ ...t, id: model.grid[axis][i]?.id ?? t.id }))
-  return { ...body, grid: { columns: ids('columns'), rows: ids('rows') } }
+export function sameArrangement(a: LayoutBody, b: LayoutBody): boolean {
+  return a === b || arrangementKey(a) === arrangementKey(b)
 }
 
 /** True when two layout bodies differ only in view state (i.e. the working copy has no unsaved changes). */
