@@ -52,8 +52,9 @@ export function sunDay(d: Date, place: AmbiencePlace): SunDay {
   const cosH0 = (Math.sin(-0.833 * RAD) - Math.sin(phi) * Math.sin(decl)) / (Math.cos(phi) * Math.cos(decl))
   const polar = cosH0 >= 1 ? 'night' : cosH0 <= -1 ? 'day' : null
   const halfDay = Math.acos(clamp(cosH0, -1, 1)) / RAD / 15
+  // Clamped: with the sun overhead at noon the sum can round past 1 (`asin` → NaN).
   const altitude = (hours: number): number =>
-    Math.asin(Math.sin(phi) * Math.sin(decl) + Math.cos(phi) * Math.cos(decl) * Math.cos(15 * (hours - noon) * RAD)) / RAD
+    Math.asin(clamp(Math.sin(phi) * Math.sin(decl) + Math.cos(phi) * Math.cos(decl) * Math.cos(15 * (hours - noon) * RAD), -1, 1)) / RAD
   return {
     noon,
     rise: noon - halfDay,
