@@ -16,6 +16,7 @@ import {
   type WidgetKind,
   type WorkspaceLayout,
 } from '../models/workspace-layout'
+import { isFitRow } from './workspace-rows'
 
 /**
  * Pure reducers over a `WorkspaceLayout`. Each returns the **same object**
@@ -464,7 +465,12 @@ function insertColumnAtGutter<L extends WorkspaceLayout>(layout: L, gutter: numb
   return withColumns(layout, insertAt(columns, gutter, makeColumn(weight)))
 }
 
-/** A new row directly above / below row `rowIdx` of column `colIdx`; the two split that row's weight evenly. */
+/**
+ * A new row directly above / below row `rowIdx` of column `colIdx`; the two
+ * split that row's weight evenly — unless the new row fits its content
+ * (`isFitRow`, a Number's): it takes no share of the column's height, so the
+ * row keeps its weight (the new one's half counts only once it stops fitting).
+ */
 function insertRowBeside<L extends WorkspaceLayout>(
   layout: L,
   colIdx: number,
@@ -476,9 +482,36 @@ function insertRowBeside<L extends WorkspaceLayout>(
   const hovered = col?.rows[rowIdx]
   if (!col || !hovered) return layout
   const half = hovered.weight / 2
-  const rows = replaceAt(col.rows, rowIdx, { ...hovered, weight: half })
+  const row = makeRow(half)
+  const rows = isFitRow(row) ? col.rows : replaceAt(col.rows, rowIdx, { ...hovered, weight: half })
   const at = edge === 'top' ? rowIdx : rowIdx + 1
-  return withColumns(layout, replaceAt(layout.columns, colIdx, { ...col, rows: insertAt(rows, at, makeRow(half)) }))
+  return withColumns(layout, replaceAt(layout.columns, colIdx, { ...col, rows: insertAt(rows, at, row) }))
+}
+
+/**
+ * After tabs joined the cell at `loc`: when that cell was empty and alone in
+ * its column row (a Split ▸ Below's new row, which took half of the row it
+ * split) and the row now fits its content, its weight goes back to the
+ * nearest row above that doesn't fit (else below) — a fit row takes no share
+ * of the column's height, so the split leaves the other rows as they were.
+ * Its own weight stays, counted only once it stops fitting.
+ */
+function handBackFitRowWeight<L extends WorkspaceLayout>(layout: L, loc: CellLocation, wasLoneEmpty: boolean): L {
+  if (!wasLoneEmpty || loc.kind !== 'column') return layout
+  const col = layout.columns[loc.colIdx]
+  const row = col?.rows[loc.rowIdx]
+  if (!col || !row || !isFitRow(row)) return layout
+  const weighted = (i: number) => {
+    const r = col.rows[i]
+    return r != null && !isFitRow(r)
+  }
+  let heir = -1
+  for (let i = loc.rowIdx - 1; i >= 0 && heir === -1; i--) if (weighted(i)) heir = i
+  for (let i = loc.rowIdx + 1; i < col.rows.length && heir === -1; i++) if (weighted(i)) heir = i
+  const heirRow = col.rows[heir]
+  if (!heirRow) return layout
+  const rows = replaceAt(col.rows, heir, { ...heirRow, weight: heirRow.weight + row.weight })
+  return withColumns(layout, replaceAt(layout.columns, loc.colIdx, { ...col, rows }))
 }
 
 /** A new cell directly left / right of the cell at `loc`, in its row; the two split that cell's width evenly. */
@@ -544,7 +577,9 @@ function placeTabs<L extends WorkspaceLayout>(
       const cell = loc ? cellAt(layout, loc) : undefined
       if (!loc || !cell) return null
       const at = target.index ?? cell.tabs.length
-      return setStrip(layout, loc, { ...stripOf(cell), tabs: insertAllAt(cell.tabs, at, tabs), activeTabId: first.id })
+      const loneEmpty = cell.tabs.length === 0 && rowAt(layout, rowLocOf(loc))?.cells.length === 1
+      const joined = setStrip(layout, loc, { ...stripOf(cell), tabs: insertAllAt(cell.tabs, at, tabs), activeTabId: first.id })
+      return handBackFitRowWeight(joined, loc, loneEmpty)
     }
     case 'new-band': {
       if (layout[target.edge]) return null

@@ -290,6 +290,49 @@ describe('closeTab / closeCell / splitCell', () => {
   })
 })
 
+describe('a fit row takes no weight from its neighbours (cr33 M8)', () => {
+  const weights = (l: WorkspaceLayout) => l.columns[0]!.rows.map((r) => r.weight)
+  const number = (id: string) => createTab('number', id)
+
+  it('a Number dropped on a row’s top / bottom zone makes a fit row; the row keeps its weight', () => {
+    const below = addTab(base(), number('x'), { kind: 'cell-edge', cellId: 'ka', edge: 'bottom' }, seqIds())
+    expect(shape(below)[0]).toEqual([['a1', 'a2'], ['x'], ['a3']])
+    expect(weights(below)).toEqual([1, 0.5, 1])
+    const above = addTab(base(), number('x'), { kind: 'row-edge', rowId: 'kb-r', edge: 'top' }, seqIds())
+    expect(weights(above)).toEqual([1, 0.5, 1])
+    // A Number cell dragged whole onto a row's edge too.
+    const withNumber = addTab(base(), number('x'), { kind: 'column-edge', columnId: 'C', edge: 'right' }, seqIds())
+    const numberCell = withNumber.columns[3]!.rows[0]!.cells[0]!.id
+    const moved = movePanel(withNumber, numberCell, { kind: 'cell-edge', cellId: 'kb', edge: 'top' }, seqIds())
+    expect(weights(moved)).toEqual([1, 0.5, 1])
+    // Any other widget still splits the row.
+    expect(weights(addTab(base(), createTab('notes', 'x'), { kind: 'cell-edge', cellId: 'ka', edge: 'bottom' }, seqIds()))).toEqual([0.5, 0.5, 1])
+  })
+
+  it('Split ▸ Below then a Number in the new cell: the split row gets its half back', () => {
+    const { layout: split, cellId } = splitCell(base(), 'ka', 'below', seqIds())
+    expect(weights(split)).toEqual([0.5, 0.5, 1])
+    const filled = addTab(split, number('x'), { kind: 'cell', cellId: cellId! }, seqIds())
+    expect(shape(filled)[0]).toEqual([['a1', 'a2'], ['x'], ['a3']])
+    expect(weights(filled)).toEqual([1, 0.5, 1])
+    expectInvariants(filled)
+    // A Number tab dragged into it does the same.
+    const withNumber = addTab(split, number('y'), { kind: 'cell', cellId: 'kc' }, seqIds())
+    expect(weights(moveTab(withNumber, 'y', { kind: 'cell', cellId: cellId! }, seqIds()))).toEqual([1, 0.5, 1])
+    // A Notes tab in it leaves the split as it is.
+    expect(weights(addTab(split, createTab('notes', 'x'), { kind: 'cell', cellId: cellId! }, seqIds()))).toEqual([0.5, 0.5, 1])
+  })
+
+  it('the half goes to the nearest row above that doesn’t fit, past other fit rows, else below', () => {
+    // [A: (n1: Number) (ka) (empty)] — the empty cell's row is under ka.
+    const l = layout({ id: 'A', weight: 1, rows: [rowOf({ id: 'kn', weight: 1, tabs: [number('n1')], activeTabId: 'n1' }), rowOf(cell('ka', ['a1'])), rowOf({ id: 'ke', weight: 1, tabs: [] }, { weight: 0.5 })] })
+    expect(weights(addTab(l, number('x'), { kind: 'cell', cellId: 'ke' }, seqIds()))).toEqual([1, 1.5, 0.5])
+    // Only a fit row above: the row below takes it.
+    const top = layout({ id: 'A', weight: 1, rows: [rowOf({ id: 'kn', weight: 1, tabs: [number('n1')], activeTabId: 'n1' }), rowOf({ id: 'ke', weight: 1, tabs: [] }, { weight: 0.5 }), rowOf(cell('ka', ['a1']))] })
+    expect(weights(addTab(top, number('x'), { kind: 'cell', cellId: 'ke' }, seqIds()))).toEqual([1, 0.5, 1.5])
+  })
+})
+
 describe('weights, view state, tab settings', () => {
   it('batched weights update listed ids only and ignore bad values', () => {
     const l = base()

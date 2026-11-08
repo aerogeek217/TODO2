@@ -70,3 +70,31 @@ export function isGlanceRow(row: Pick<LayoutCellRow, 'cells'>, glance: KindFlag 
 export function rowMinHeightPx(row: Pick<LayoutCellRow, 'cells'>, glance: KindFlag = isGlanceKind): number {
   return isGlanceRow(row, glance) ? GLANCE_ROW_MIN_PX : CELL_MIN_PX
 }
+
+/** A row that takes no share of its column's height: collapsed (its headers) or fit (its content). */
+export function isFixedHeightRow(row: Pick<LayoutCellRow, 'cells' | 'collapsed'>, fit: KindFlag = isFitHeightKind): boolean {
+  return row.collapsed === true || isFitRow(row, fit)
+}
+
+/**
+ * What the gap above row `i` of a column's `rows` is: a resize divider
+ * between the two rows it sizes (`above`, `below`), or `null` for a plain
+ * gap. Between two rows that take a share of the height, it is their
+ * divider. Fit rows between two such rows don't part them (cr33 M8): the gap
+ * right under the upper one is their divider, the fit rows moving with it,
+ * and the gaps beside the fit rows are plain. A collapsed row parts them.
+ */
+export function rowDividerAt<R extends Pick<LayoutCellRow, 'cells' | 'collapsed'>>(
+  rows: readonly R[],
+  i: number,
+  fit: KindFlag = isFitHeightKind,
+): { above: R; below: R } | null {
+  const above = rows[i - 1]
+  if (!above || isFixedHeightRow(above, fit)) return null
+  for (let j = i; j < rows.length; j++) {
+    const row = rows[j]
+    if (!row || row.collapsed === true) return null
+    if (!isFitRow(row, fit)) return { above, below: row }
+  }
+  return null
+}

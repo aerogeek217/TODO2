@@ -1,9 +1,9 @@
 import { Fragment, type CSSProperties } from 'react'
-import type { BandEdge, LayoutBand, LayoutCellRow, LayoutColumn, LayoutRow, WorkspaceLayout } from '../../models/workspace-layout'
+import type { BandEdge, LayoutBand, LayoutCellRow, LayoutColumn, WorkspaceLayout } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { columnEdgeXs, EDGE_ZONE_GUTTER_PX, freeBandEdges, type RowGeometry, type WorkspaceDropHit, type WorkspaceGeometry } from '../../utils/workspace-drop'
 import { BAND_MIN_PX, CELL_MIN_WIDTH_PX, COLUMN_MIN_PX, expandedWeight } from '../../utils/workspace-resize'
-import { isFitRow, isGlanceRow, rowMinHeightPx } from '../../utils/workspace-rows'
+import { isFitRow, isFixedHeightRow, isGlanceRow, rowDividerAt, rowMinHeightPx } from '../../utils/workspace-rows'
 import { EmptyColumnArea, WorkspaceCell } from './WorkspaceCell'
 import { WorkspaceDivider } from './WorkspaceDivider'
 import { BandDivider } from './BandDivider'
@@ -81,16 +81,11 @@ function CellRow({ row, band, style }: { row: LayoutCellRow; band?: BandEdge; st
   )
 }
 
-/** A row that takes no share of the column's height: collapsed (its headers) or fit (its content). */
-function fixedHeight(row: LayoutRow): boolean {
-  return row.collapsed === true || isFitRow(row)
-}
-
 function Column({ column, widthShare }: { column: LayoutColumn; widthShare: number }) {
   const setRowWeights = useWorkspaceStore((s) => s.setRowWeights)
   const endResize = useWorkspaceStore((s) => s.endResize)
   const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
-  const rowsWeight = column.rows.reduce((sum, row) => (fixedHeight(row) ? sum : sum + row.weight), 0)
+  const rowsWeight = column.rows.reduce((sum, row) => (isFixedHeightRow(row) ? sum : sum + row.weight), 0)
   return (
     <div
       className={styles.column}
@@ -98,21 +93,22 @@ function Column({ column, widthShare }: { column: LayoutColumn; widthShare: numb
       data-ws-column={column.id}
     >
       {column.rows.map((row, i) => {
-        const prev = column.rows[i - 1]
-        const style: CSSProperties = fixedHeight(row) ? { flex: '0 0 auto' } : { flex: `${row.weight / rowsWeight} 1 0px` }
+        const style: CSSProperties = isFixedHeightRow(row) ? { flex: '0 0 auto' } : { flex: `${row.weight / rowsWeight} 1 0px` }
+        // The rows this gap resizes (across fit rows between them), or none: a plain gap.
+        const pair = rowDividerAt(column.rows, i)
         return (
           <Fragment key={row.id}>
-            {prev && (fixedHeight(prev) || fixedHeight(row) ? (
+            {i > 0 && (pair == null ? (
               <div className={styles.cellGap} aria-hidden="true" />
             ) : (
               <WorkspaceDivider
                 between="rows"
-                aId={prev.id}
-                bId={row.id}
-                weightA={prev.weight}
-                weightB={row.weight}
-                min={rowMinHeightPx(prev)}
-                minB={rowMinHeightPx(row)}
+                aId={pair.above.id}
+                bId={pair.below.id}
+                weightA={pair.above.weight}
+                weightB={pair.below.weight}
+                min={rowMinHeightPx(pair.above)}
+                minB={rowMinHeightPx(pair.below)}
                 onResize={setRowWeights}
                 onResizeEnd={endResize}
                 onCollapse={(id) => { void setRowCollapsed(id, true) }}
