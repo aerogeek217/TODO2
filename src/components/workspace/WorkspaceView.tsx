@@ -1,8 +1,7 @@
 import type { CSSProperties } from 'react'
 import type { GridTrack, LayoutBody, WorkspaceLayout } from '../../models/workspace-layout'
 import { geometryCells, type WorkspaceDropHit, type WorkspaceGeometry } from '../../utils/workspace-drop'
-import { CELL_MIN_WIDTH_PX } from '../../utils/workspace-resize'
-import { isFitTrack, trackMinHeightPx } from '../../utils/workspace-rows'
+import { isFitTrack } from '../../utils/workspace-rows'
 import { WorkspaceCell } from './WorkspaceCell'
 import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
@@ -32,8 +31,10 @@ function weightedTotal(tracks: readonly GridTrack[], shares: (i: number) => bool
 /**
  * The grid's template on one axis: a fixed track its px, a weighted one its
  * share of the free space as `fr` (scaled so the shares sum to 100: `fr`
- * under 1 in total would leave space empty), over its minimum; a row track
- * that fits its content or is collapsed `auto`.
+ * under 1 in total would leave space empty; no minimum of its own — a
+ * track can be part of a cell, so the minimums are the cells', which the
+ * dividers keep, D26 P2); a row track that fits its content or is
+ * collapsed `auto`.
  */
 function template(body: LayoutBody, axis: 'columns' | 'rows'): string {
   const tracks = body.grid[axis]
@@ -44,8 +45,7 @@ function template(body: LayoutBody, axis: 'columns' | 'rows'): string {
     if (auto(i)) return 'auto'
     if (t.px != null) return `${t.px}px`
     const fr = ((t.weight ?? 0) / total) * 100
-    const min = axis === 'columns' ? CELL_MIN_WIDTH_PX : trackMinHeightPx(body, i)
-    return `minmax(${min}px, ${fr}fr)`
+    return `minmax(0, ${fr}fr)`
   }).join(' ')
 }
 

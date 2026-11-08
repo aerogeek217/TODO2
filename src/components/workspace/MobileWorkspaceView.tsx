@@ -496,6 +496,7 @@ function MobileTable({ layout }: { layout: WorkspaceLayout }) {
       style={{ '--ws-pager-gap': '8px', '--layout-hue': hueColor(layout.hue) } as CSSProperties}
       data-layout-hue={hueAttr(layout.hue)}
       data-ws-area
+      data-ws-pager
     >
       <section className={styles.column} aria-label={layout.name} data-ws-table>
         {groups.map((group) => {
