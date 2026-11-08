@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { createTab } from '../../models/workspace-layout'
 import { cellMinPx, solveTracks, tableTrackSizes, TABLE_HEADER_PX, trackMinimums, trackTemplate } from '../../utils/workspace-table'
 import { CELL_MIN_PX, CELL_MIN_WIDTH_PX } from '../../utils/workspace-resize'
-import { GLANCE_ROW_MIN_PX } from '../../utils/workspace-rows'
+import { GLANCE_CELL_MIN_WIDTH_PX, GLANCE_ROW_MIN_PX } from '../../utils/workspace-rows'
 import { cell, grid } from '../helpers/layout-builders'
 
 /**
@@ -38,6 +38,13 @@ describe('trackMinimums', () => {
     const mins = trackMinimums(spanned, 'rows', 6)
     expect(mins[0]).toBeCloseTo((CELL_MIN_PX - 6) / 4)
     expect(mins[1]).toBeCloseTo(((CELL_MIN_PX - 6) * 3) / 4)
+  })
+
+  it('a glance cell may go to 72px wide, so a row of Numbers needn’t scroll the table; any other keeps 120px', () => {
+    const body = grid([[number('n1'), number('n2'), number('n3')], [notes('a'), notes('a'), notes('a')]])
+    expect(trackMinimums(body, 'columns', 6)).toEqual([GLANCE_CELL_MIN_WIDTH_PX, GLANCE_CELL_MIN_WIDTH_PX, GLANCE_CELL_MIN_WIDTH_PX])
+    const mixed = grid([[number('n1'), notes('b')]])
+    expect(trackMinimums(mixed, 'columns', 6)).toEqual([GLANCE_CELL_MIN_WIDTH_PX, CELL_MIN_WIDTH_PX])
   })
 
   it('a collapsed cell needs only its header', () => {

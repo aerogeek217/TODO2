@@ -1,7 +1,6 @@
 import type { GridAxis, GridTrack, LayoutBody, LayoutCell } from '../models/workspace-layout'
 import { spanOf } from './workspace-grid'
-import { cellMinHeightPx, isFitTrack } from './workspace-rows'
-import { CELL_MIN_WIDTH_PX } from './workspace-resize'
+import { cellMinHeightPx, cellMinWidthPx, isFitTrack } from './workspace-rows'
 
 /**
  * How the layout's table sizes its tracks (D26 P2), for the view's CSS grid
@@ -55,12 +54,13 @@ export function isCellCollapsedIn(body: LayoutBody, cell: LayoutCell): boolean {
 }
 
 /**
- * The smallest size (px) a cell may take along `axis`: 120px wide; high,
+ * The smallest size (px) a cell may take along `axis`: 120px wide (a glance
+ * cell 72px, `workspace-rows.cellMinWidthPx`); high,
  * `CELL_MIN_PX` (64px for a glance cell, `workspace-rows.cellMinHeightPx`),
  * or its header's height while collapsed.
  */
 export function cellMinPx(body: LayoutBody, cell: LayoutCell, axis: GridAxis): number {
-  if (axis === 'columns') return CELL_MIN_WIDTH_PX
+  if (axis === 'columns') return cellMinWidthPx(cell)
   return isCellCollapsedIn(body, cell) ? TABLE_HEADER_PX : cellMinHeightPx(cell)
 }
 

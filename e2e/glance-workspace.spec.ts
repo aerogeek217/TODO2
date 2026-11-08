@@ -128,18 +128,10 @@ test('a Needs follow-up row drags onto a calendar day to set its due date', asyn
 })
 
 test('narrow section cells keep their parts inside: People keeps the names, Created vs completed its stats and key', async ({ page }) => {
-  // Three sections side by side in a wide column: each cell about 350px wide. (Without the
-  // Numbers row: in the table its nine cells would each keep 120px, D26 P2.)
-  await seedWorkspace(page, {
-    ...seedWith(),
-    layouts: [{
-      name: 'Glance',
-      columns: [
-        { id: 'c1', rows: [{ id: 'side', cells: [{ id: 'k-notes', tabs: [{ id: 'notes', kind: 'notes' }] }] }] },
-        { id: 'c2', weight: 3, rows: [{ cells: (['people', 'trend', 'next7'] as const).map((kind) => ({ id: `narrow-${kind}`, tabs: [{ id: `narrow-${kind}-tab`, kind }] })) }] },
-      ],
-    }],
-  })
+  // Three sections side by side in a wide column: each cell about 350px wide.
+  await seedWorkspace(page, seedWith([
+    { id: 'c2', weight: 3, rows: [{ cells: (['people', 'trend', 'next7'] as const).map((kind) => ({ id: `narrow-${kind}`, tabs: [{ id: `narrow-${kind}-tab`, kind }] })) }] },
+  ]))
   const people = page.locator('[data-glance-tab="narrow-people-tab"]')
   const trend = page.locator('[data-glance-tab="narrow-trend-tab"]')
   await expect(people.locator('[data-person-row]').first()).toBeVisible()
