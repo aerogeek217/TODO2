@@ -9,7 +9,7 @@ import { expect, test, type BrowserContext, type Page } from '@playwright/test'
 import { checkOfflineFile } from '../scripts/offline-file'
 import { taskRowByTitle } from './fixtures/seed'
 import { stubFilePermission } from './fixtures/sync-file'
-import { openSettings, seedTaskList } from './fixtures/workspace'
+import { openSettings, seedTaskList, seedWorkspace, wsCell, wsRow } from './fixtures/workspace'
 
 /**
  * Both built targets start and run under their own Content-Security-Policy:
@@ -20,8 +20,8 @@ import { openSettings, seedTaskList } from './fixtures/workspace'
  * scripts and both policies are set at build time.
  *
  * The offline file is also audited for egress: through its main flows —
- * tasks, Settings, a lens, the check-in preview, export and import, and the
- * sync file end to end — it requests nothing but itself and data: / blob: /
+ * tasks, Settings, a lens, the check-in preview, export and import, the
+ * glance widgets and the Neglect map, and the sync file end to end — it requests nothing but itself and data: / blob: /
  * about: URLs, and causes no CSP violation.
  *
  * The builds go to a temp folder (no lint / type-check — the build command
@@ -303,6 +303,85 @@ test('the offline file requests nothing but itself through its main flows', asyn
   await page.keyboard.press('Escape')
   await expect(taskRowByTitle(page, 'Added after the export')).toHaveCount(0)
   await expect(taskRowByTitle(page, 'Added offline')).toBeVisible()
+
+  expect(requests.all()).toContain(fileUrl)
+  expect(requests.remote()).toEqual([])
+  expect(violations()).toEqual([])
+})
+
+/**
+ * The glance widgets and the Neglect map from the built file (cr33 security
+ * I2): a Number's small face, its full widget in the face popover (the
+ * 14-day sparkline) and its tasks in the task dialog; What changed, Today
+ * and a Project pulse card opening its tag's tasks; the Neglect map's dots,
+ * one opening the editor. Nothing is requested but the file itself.
+ */
+test('the offline file requests nothing through the glance widgets and the Neglect map', async ({ page, context }) => {
+  test.setTimeout(120_000)
+  const requests = watchRequests(context)
+  const violations = await watchCsp(page)
+  const fileUrl = pathToFileURL(join(outDir, 'offline', 'todo2.html')).href
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seedWorkspace(page, {
+    tags: [{ name: 'Project: Atlas', color: '#4f8cff' }],
+    tasks: [
+      { title: 'Ship the beta', focus: true, dueInDays: 2, tags: ['Project: Atlas'] },
+      { title: 'Renew the domain', dueInDays: -1, modifiedInDays: -20, tags: ['Project: Atlas'] },
+      { title: 'Pay the invoice', dueInDays: 0, tags: ['Project: Atlas'] },
+      { title: 'Archive old tickets', modifiedInDays: -50 },
+      { title: 'Closed already', dueInDays: -3, completedInDays: -1 },
+    ],
+    layouts: [{
+      name: 'Glance',
+      columns: [
+        { id: 'c1', rows: [
+          wsRow({ id: 'kn', tabs: [{ id: 'num', kind: 'number', glance: { metric: 'open' } }] }),
+          wsRow({ id: 'km', tabs: [{ id: 'map', kind: 'neglect', neglect: { colourBy: { tags: ['Project: Atlas'] } } }] }),
+        ] },
+        { id: 'c2', rows: [
+          { cells: [
+            { id: 'kc', tabs: [{ id: 'changes', kind: 'changes', tagNames: ['Project: Atlas'] }] },
+            { id: 'kt', tabs: [{ id: 'today', kind: 'today' }] },
+          ] },
+          wsRow({ id: 'kp', tabs: [{ id: 'pulse', kind: 'pulse', tagNames: ['Project: Atlas'] }] }),
+        ] },
+      ],
+    }],
+  }, { url: fileUrl })
+  const taskDialog = page.locator('[data-task-dialog]')
+
+  // A Number: its small face, its full widget in the popover, its tasks.
+  const numberCell = wsCell(page, 'kn')
+  await expect(numberCell.locator('[data-number-metric="open"]').getByTestId('number-count')).toHaveText('4')
+  await numberCell.getByRole('button', { name: 'Open Open' }).focus()
+  await page.keyboard.press('Enter')
+  const full = page.getByTestId('widget-face-popover')
+  await expect(full.locator('[data-sparkline]')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(full).toHaveCount(0)
+  await numberCell.locator('[data-number-metric="open"]').click()
+  await expect(taskDialog.getByRole('heading')).toHaveText('Open tasks')
+  await page.keyboard.press('Escape')
+  await expect(taskDialog).toBeHidden()
+
+  // What changed, Today, Project pulse.
+  await expect(page.locator('[data-glance="changes"] [data-change="late"]')).toHaveText('1 task went late since yesterday.')
+  await expect(page.locator('[data-glance="today"] [data-row-key] [data-task-title]')).toHaveText(['Ship the beta'])
+  const card = page.locator('[data-glance="pulse"] [data-pulse-card]').first()
+  await expect(card).toContainText('Project: Atlas')
+  await card.click()
+  await expect(taskDialog.getByRole('heading')).toHaveText('#Project: Atlas')
+  await page.keyboard.press('Escape')
+  await expect(taskDialog).toBeHidden()
+
+  // The Neglect map: its dots, one opening the editor.
+  const map = wsCell(page, 'km').locator('[data-neglect-map]')
+  await expect(map.locator('[data-neglect-dot]')).toHaveCount(4)
+  await map.locator('[data-neglect-dot]').and(page.getByRole('button', { name: /^Renew the domain: / })).click()
+  const editor = page.getByRole('dialog', { name: 'Edit task' })
+  await expect(editor.getByRole('textbox', { name: 'Task title' })).toHaveValue('Renew the domain')
+  await page.keyboard.press('Escape')
+  await expect(editor).toBeHidden()
 
   expect(requests.all()).toContain(fileUrl)
   expect(requests.remote()).toEqual([])
