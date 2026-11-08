@@ -10,6 +10,7 @@ import { useTagStore } from '../stores/tag-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useListOrderStore, useListRanks } from '../stores/list-order-store'
 import { applyRuntimeFilter, buildList, type ListContents } from '../services/build-list'
+import { admitsCompletedTask } from '../services/task-dialog'
 import { useTodoNameLookups } from './use-todo-name-lookups'
 import { useToday } from './use-today'
 import { useFilterSettings } from './use-filter-settings'
@@ -20,10 +21,12 @@ export interface BuiltList {
   list: ListContents | null
   /**
    * Members by the list's own filter (and prompt picks) alone, before the
-   * screen filter — the "total" a screen filter hides tasks from. Completed
-   * tasks count as the composed filter lets them through (`composeScreenFilter`:
-   * the screen's Show completed or Completed range opens the list's gate
-   * too), so what is shown is always among them. Equals `list.todos.length`
+   * screen filter — the "total" a screen filter hides tasks from: its open
+   * members, and the completed ones its own gate lets through or the screen
+   * filter admits as the top bar's counter counts them
+   * (`task-dialog.admitsCompletedTask`: Show completed every one, a Completed
+   * range the ones it keeps), so what is shown is always among them and
+   * `of M` never grows with the whole history. Equals `list.todos.length`
    * without a screen filter.
    */
   baseCount: number
@@ -49,9 +52,10 @@ export interface BuiltList {
    */
   kept: ReadonlySet<number>
   /**
-   * With a `lensProbe`: how many of the list's tasks (its filter, prompt
-   * picks and the top bar's chips) the top bar's lens hides — whether or
-   * not it applies to this list. 0 without one.
+   * With a `lensProbe`: how many of the list's open tasks (its filter,
+   * prompt picks and the top bar's chips) the top bar's lens hides — whether
+   * or not it applies to this list; open tasks only, as the counter's and
+   * the lens picker's "hides". 0 without one.
    */
   lensHides: number
 }
@@ -98,8 +102,8 @@ const NO_BUILT: BuiltList = {
  * kept build: its row shows the task as it is now (`useKeptTodos`).
  *
  * `lensProbe`: count what the top bar's lens hides here (`lensHides`) —
- * the list's tasks under the chips alone less those under the chips and
- * the lens — however `screenFilter` treats the lens.
+ * the list's open tasks under the chips alone less those under the chips
+ * and the lens — however `screenFilter` treats the lens.
  */
 export function useBuiltList(
   definition: PersistedListDefinition | undefined,
@@ -168,26 +172,29 @@ export function useBuiltList(
         kept = dropped
       }
     }
-    // The list's own clauses under the composed completion gate (as `composeScreenFilter`).
-    const basePredicate = screenFilter && mergedPredicate && admitsCompleted(screenFilter) && !mergedPredicate.showCompleted
-      ? { ...mergedPredicate, showCompleted: true }
-      : mergedPredicate
-    const baseCount = screenFilter && basePredicate
-      ? countMatching(todos, (t) => listOnly(basePredicate, t))
-      : list.todos.length
+    // The list's completed tasks count as the top bar's counter counts them: those its own gate
+    // lets through, and those the screen filter admits (`admitsCompletedTask`: Show completed, a
+    // Completed range of the chips, the lens's own) — so `of M` never grows with the whole history.
+    const screenAdmits = screenFilter && admitsCompleted(screenFilter) ? admitsCompletedTask(screenFilter, lookups, today, markerSettings) : null
+    const gateOpen = mergedPredicate && !mergedPredicate.showCompleted ? { ...mergedPredicate, showCompleted: true } : mergedPredicate
+    const inBase = (t: PersistedTodoItem): boolean => mergedPredicate != null && (
+      listOnly(mergedPredicate, t)
+      || (t.isCompleted && screenAdmits != null && gateOpen != null && screenAdmits(t) && listOnly(gateOpen, t)))
+    const baseCount = screenFilter ? countMatching(todos, inBase) : list.todos.length
     const ownPredicate = definition.membership.predicate
     const orderCandidates = () => {
       const shown = new Set(list.todos.map((t) => t.id))
       return todos.filter((t) => shown.has(t.id) || listOnly(ownPredicate, t))
     }
     const countOpenBase = () => (mergedPredicate ? countMatching(todos, (t) => !t.isCompleted && listOnly(mergedPredicate, t)) : 0)
+    // What the lens hides here, of open tasks only — the picker's and the counter's rule.
     let lensHides = 0
     if (lensProbe && mergedPredicate) {
-      const under = (screen: FilterCriteria | undefined) => {
+      const openUnder = (screen: FilterCriteria | undefined): number => {
         const match = screen ? createScreenComposedEvaluator(screen, lookups, today, markerSettings) : listOnly
-        return countMatching(todos, (t) => match(mergedPredicate, t))
+        return countMatching(todos, (t) => !t.isCompleted && match(mergedPredicate, t))
       }
-      lensHides = Math.max(0, under(lensProbe.chips) - under(lensProbe.lensed))
+      lensHides = Math.max(0, openUnder(lensProbe.chips) - openUnder(lensProbe.lensed))
     }
     return { list, baseCount, runtimeFilterPending, mergedPredicate, orderCandidates, countOpenBase, kept, lensHides }
   }, [

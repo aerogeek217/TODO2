@@ -221,8 +221,9 @@ const NO_BADGE_COUNTS: TabBadgeCounts = { due: 0, dueOverdue: 0, followup: 0, fo
  * count narrows by); the lens, when a Completed range of its own lets
  * completed tasks through, the ones the whole lens keeps — so it never
  * hides a completed task it admitted, and its hide count is the picker's.
+ * A list's `of M` counts its completed tasks by the same rule (`useBuiltList`).
  */
-function admitsCompletedTask(
+export function admitsCompletedTask(
   screen: FilterCriteria,
   lookups: TodoNameLookups,
   today: Date,
