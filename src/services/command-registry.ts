@@ -9,6 +9,8 @@ import { runShortcutCommand, type ShortcutCallbacks } from './keyboard-shortcuts
 import { copySelectedTasks } from './task-copy'
 import { listTabZoom, stepListTabZoom, zoomTargetTab } from './list-zoom'
 import { LIST_ZOOM_LABELS, stepListZoom } from '../utils/list-zoom'
+import { listReviewCount, reviewTargetTabId } from './review'
+import { useListWidgetStore } from '../stores/list-widget-store'
 
 /** `task` = task actions (New Task, Undo …); `search-results` = tasks found by the palette's search. */
 export type CommandCategory = 'navigation' | 'task' | 'bulk' | 'filter' | 'email' | 'search-results'
@@ -135,6 +137,7 @@ export function createCommands(
     }},
   ]
   commands.push(...listZoomCommands())
+  commands.push(...reviewListCommands(bound))
 
   // Always offered: with no filter on, it lists every open task.
   const showScreenTasks = ctx.showScreenTasks
@@ -226,6 +229,19 @@ function listZoomCommands(): Command[] {
       action: () => { void stepListTabZoom(tab, dir) },
     }]
   })
+}
+
+/**
+ * Review List (D26): the review deck over the list tab on screen the user
+ * was last in (`reviewTargetTabId`), as its key does; the hint names the
+ * list and its count. None without a list tab on screen that shows a task.
+ */
+function reviewListCommands(bound: (id: string, name: string, binding: ShortcutId, category: CommandCategory) => Command): Command[] {
+  const tabId = reviewTargetTabId()
+  if (!tabId) return []
+  const name = useListWidgetStore.getState().shown[tabId]?.label
+  const count = tasksLabel(listReviewCount(tabId))
+  return [{ ...bound('review-list', 'Review List', 'review-list', 'task'), hint: name ? `${name} · ${count}` : count }]
 }
 
 /**

@@ -3,13 +3,15 @@ import { render, fireEvent, cleanup, screen, within, act } from '@testing-librar
 import { TOOLTIP_DELAY_MS } from '../../../../components/shared/use-tooltip'
 import { FilterChipBar } from '../../../../components/shared/filters/FilterChipBar'
 import { ADD_FILTER_ITEMS } from '../../../../components/shared/filters/filter-menu'
-import type { TodoPredicate } from '../../../../models'
+import type { Person, TodoPredicate } from '../../../../models'
 import { useStatusStore } from '../../../../stores/status-store'
 import { usePersonStore } from '../../../../stores/person-store'
 import { useUIStore } from '../../../../stores/ui-store'
 import { useTagStore } from '../../../../stores/tag-store'
 import { emptyPredicate } from '../../../../models'
-import { makePerson } from '../../../helpers'
+import { makePerson, makeTodo } from '../../../helpers'
+import { useReviewStore } from '../../../../stores/review-store'
+import { useTodoStore } from '../../../../stores/todo-store'
 
 /** A row of the Priority picker. */
 function priorityRow(name: string): HTMLElement {
@@ -420,8 +422,8 @@ describe('FilterChipBar — primitive', () => {
 
       it('narrowed to one person: Paste reply from <name>… under the send opens the reply import and closes the picker', () => {
         openPeople([2])
-        const footer = screen.getAllByRole('button', { name: /^(Email check-in|Paste reply)/ }).map((b) => b.textContent)
-        expect(footer).toEqual(['Email check-in to Bob', 'Paste reply from Bob…'])
+        const footer = screen.getAllByRole('button', { name: /^(Review|Email check-in|Paste reply)/ }).map((b) => b.textContent)
+        expect(footer).toEqual(['Review with Bob…', 'Email check-in to Bob', 'Paste reply from Bob…'])
         fireEvent.click(screen.getByRole('button', { name: 'Paste reply from Bob…' }))
         expect(useUIStore.getState().checkinImportOpen).toBe(true)
         expect(useUIStore.getState().checkinImportPersonId).toBe(2)
@@ -436,6 +438,46 @@ describe('FilterChipBar — primitive', () => {
         expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1, 3] })
       })
 
+      describe('Review', () => {
+        beforeEach(() => {
+          const [alice, bob, cara] = usePersonStore.getState().people as [Person, Person, Person]
+          useTodoStore.setState({ todos: [makeTodo({ id: 11, sortOrder: 2 }), makeTodo({ id: 12, sortOrder: 1 }), makeTodo({ id: 13, sortOrder: 3 })] })
+          usePersonStore.setState({ assignedPeopleMap: new Map([[11, [alice]], [12, [bob, alice]], [13, [cara]]]) })
+          useReviewStore.getState().close()
+        })
+
+        it('narrowed to one person: Review with <name>… opens the deck on their open tasks and closes the picker', () => {
+          openPeople([1])
+          fireEvent.click(screen.getByRole('button', { name: 'Review with Alice…' }))
+          expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Alice' }, ids: [12, 11] })
+          expect(screen.queryByPlaceholderText('Search...')).toBeNull()
+        })
+
+        it('narrowed to several: Review N people’s tasks… first, then Email check-in to N people…', () => {
+          openPeople([3, 1])
+          const footer = screen.getAllByRole('button', { name: /^(Review|Email check-in|Paste reply)/ }).map((b) => b.textContent)
+          expect(footer).toEqual(['Review 2 people’s tasks…', 'Email check-in to 2 people…'])
+          fireEvent.click(screen.getByRole('button', { name: 'Review 2 people’s tasks…' }))
+          expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'people', title: '2 people' }, ids: [12, 11, 13] })
+          expect(screen.queryByPlaceholderText('Search...')).toBeNull()
+        })
+
+        it('a person with no open task: Review is there but disabled', () => {
+          useTodoStore.setState({ todos: [] })
+          openPeople([2])
+          const review = screen.getByRole('button', { name: 'Review with Bob…' })
+          expect(review).toBeDisabled()
+          expect(review).toHaveAttribute('title', 'No open tasks')
+        })
+
+        it('while the deck is open: no Review, the check-ins stay', () => {
+          useReviewStore.getState().start({ source: { kind: 'list', title: 'L', description: '' }, ids: [11] })
+          openPeople([1])
+          expect(screen.queryByRole('button', { name: /^Review/ })).toBeNull()
+          expect(screen.getByRole('button', { name: 'Email check-in to Alice' })).toBeInTheDocument()
+        })
+      })
+
       it.each([
         ['no filter', null],
         ['every person', [1, 2, 3]],
@@ -443,8 +485,8 @@ describe('FilterChipBar — primitive', () => {
         ['nobody', []],
       ])('%s: a hint instead of the action', (_label, personIds) => {
         openPeople(personIds)
-        expect(screen.getByText('Narrow to some people to email them.')).toBeInTheDocument()
-        expect(screen.queryByRole('button', { name: /^(Email check-in|Paste reply)/ })).toBeNull()
+        expect(screen.getByText('Narrow to some people to review or email them.')).toBeInTheDocument()
+        expect(screen.queryByRole('button', { name: /^(Review|Email check-in|Paste reply)/ })).toBeNull()
       })
 
       it('folded: the action closes the Filters menu too', () => {
@@ -459,7 +501,7 @@ describe('FilterChipBar — primitive', () => {
       it('Tags and Status pickers have no such footer', () => {
         render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
         fireEvent.click(screen.getByRole('button', { name: 'Tags filter' }))
-        expect(screen.queryByText('Narrow to some people to email them.')).toBeNull()
+        expect(screen.queryByText('Narrow to some people to review or email them.')).toBeNull()
       })
     })
   })

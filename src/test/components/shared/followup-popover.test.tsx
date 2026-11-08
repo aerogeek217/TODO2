@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useState } from 'react'
 import { act, render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { FollowupPopover } from '../../../components/shared/followup/FollowupPopover'
+import { TOOLTIP_DELAY_MS } from '../../../components/shared/use-tooltip'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { formatWeekdayNumeric } from '../../../utils/followup'
 import { makeTodo } from '../../helpers'
@@ -236,7 +237,8 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
     it('Mark followed up already took the status: nothing more as it closes', () => {
       const r = renderPopover()
       fireEvent.change(screen.getByRole('textbox', { name: 'Status update' }), { target: { value: 'Sent it' } })
-      fireEvent.click(screen.getByRole('button', { name: 'Mark followed up + add update' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
+      expect(r.onFollowedUp.mock.calls).toEqual([[undefined, 'Sent it']])
       cleanup()
       expect(r.onFollowedUp).toHaveBeenCalledTimes(1)
     })
@@ -530,16 +532,16 @@ describe('<FollowupPopover> Status update line', () => {
     expect(onFollowedUp.mock.calls[0]).toEqual([undefined])
   })
 
-  it('with text the button says so; it and ⏎ in the line pass the update with the next follow-up', () => {
+  it('with text the button keeps its label; it and ⏎ in the line pass the update with the next follow-up', () => {
     let r = renderPopover()
     fireEvent.change(r.update, { target: { value: 'Waiting on legal' } })
-    const button = screen.getByRole('button', { name: 'Mark followed up + add update' })
+    const button = screen.getByRole('button', { name: 'Mark followed up' })
     fireEvent.click(button)
     expect(r.onFollowedUp.mock.calls[0]).toEqual([undefined, 'Waiting on legal'])
     expect(r.onClose).not.toHaveBeenCalled()
-    // Written: the line empties and the button says plain Mark followed up again.
+    // Written: the line empties; the button is the same one.
     expect(r.update.value).toBe('')
-    expect(screen.getByRole('button', { name: 'Mark followed up' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark followed up' })).toBe(button)
     cleanup()
 
     r = renderPopover()
@@ -554,6 +556,25 @@ describe('<FollowupPopover> Status update line', () => {
     fireEvent.change(r.update, { target: { value: '   ' } })
     fireEvent.keyDown(r.update, { key: 'Enter' })
     expect(r.onFollowedUp.mock.calls[0]).toEqual([undefined])
+  })
+
+  it('with text its tooltip adds the update, and a done-today button lights again', () => {
+    const r = renderPopover({ todo: makeTodo({ id: 1, nextFollowupAt: new Date(2026, 9, 27), lastFollowupAt: TODAY }) })
+    const button = screen.getByRole('button', { name: 'Mark followed up' })
+    expect(button).toHaveAttribute('data-done-today', 'true')
+    const dimmedClass = button.className
+    fireEvent.pointerEnter(button)
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Record a follow-up today and keep the next follow-up')
+    expect(screen.getByRole('tooltip').textContent).not.toMatch(/status update/)
+    fireEvent.pointerLeave(button)
+
+    fireEvent.change(r.update, { target: { value: 'Waiting on legal' } })
+    expect(button).toHaveAttribute('data-done-today', 'true')
+    expect(button.className).not.toBe(dimmedClass)
+    fireEvent.pointerEnter(button)
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.getByRole('tooltip').textContent).toMatch(/, and add the status update$/)
   })
 
   it('the newest update shows under the line as MM/DD text; nothing without one', () => {

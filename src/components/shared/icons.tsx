@@ -419,6 +419,16 @@ export function ReplyIcon({ size = 14 }: { size?: number }) {
   )
 }
 
+/** Two stacked cards: the review deck (Review with X…). */
+export function ReviewIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <rect x="4.5" y="2.5" width="9" height="8" rx="1.5" />
+      <path d="M2.5 5.5v7a1 1 0 0 0 1 1h7" />
+    </Svg>
+  )
+}
+
 /** A short bar: the mixed state of a checkbox item. */
 export function DashIcon({ size = 14 }: { size?: number }) {
   return <Svg size={size} strokeWidth={2}><path d="M4.5 8h7" /></Svg>

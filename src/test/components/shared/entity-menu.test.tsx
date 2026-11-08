@@ -1,0 +1,154 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ReactNode } from 'react'
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import type { DialogLayer } from '../../../components/shared/Dialog'
+import { DialogLayerContext } from '../../../components/shared/dialog-layer'
+import { EntityMenu, type MenuEntity } from '../../../components/shared/EntityMenu'
+import type { Tag } from '../../../models'
+import { usePersonStore } from '../../../stores/person-store'
+import { useReviewStore } from '../../../stores/review-store'
+import { useTagStore } from '../../../stores/tag-store'
+import { useTodoStore } from '../../../stores/todo-store'
+import { useUIStore } from '../../../stores/ui-store'
+import { makePerson, makeTodo } from '../../helpers'
+
+/**
+ * The one person / tag menu (D26): a person's Review with X… · Email
+ * check-in to X · Paste reply from X… · ─ · Show tasks · Edit… · ─ ·
+ * Delete…; a tag's Review #tag tasks… · ─ · Show tasks · Edit… · ─ ·
+ * Delete…. Review and the check-ins follow Show tasks' layer rule; Review is
+ * also left out on a phone and while the review deck is open.
+ */
+
+const aisha = makePerson({ id: 1, name: 'Aisha Rahman', initials: 'AR' })
+const ben = makePerson({ id: 2, name: 'Ben Ortiz', initials: 'BO' })
+const legal: Tag = { id: 7, name: 'legal', color: '#999' }
+
+const PERSON_MENU = ['Review with Aisha Rahman…', 'Email check-in to Aisha Rahman', 'Paste reply from Aisha Rahman…', 'Show tasks', 'Edit…', 'Delete…']
+
+beforeEach(() => {
+  useTodoStore.setState({
+    todos: [makeTodo({ id: 1, sortOrder: 2 }), makeTodo({ id: 2, sortOrder: 1 }), makeTodo({ id: 3, sortOrder: 3, isCompleted: true })],
+  })
+  usePersonStore.setState({ people: [aisha, ben], assignedPeopleMap: new Map([[1, [aisha]], [2, [aisha, ben]], [3, [ben]]]) })
+  useTagStore.setState({ tags: [legal], assignedTagsMap: new Map([[1, [legal]], [2, []], [3, []]]) })
+  useUIStore.setState({ checkinDialog: null, checkinImportOpen: false, taskDialog: null })
+})
+
+afterEach(cleanup)
+
+function renderMenu(entities: MenuEntity[], { layer = null, onShowTasks }: { layer?: DialogLayer | null; onShowTasks?: () => void } = {}) {
+  const onClose = vi.fn()
+  const menu: ReactNode = <EntityMenu entities={entities} point={{ x: 20, y: 20 }} onShowTasks={onShowTasks} onClose={onClose} />
+  render(<DialogLayerContext.Provider value={layer}>{menu}</DialogLayerContext.Provider>)
+  return { onClose }
+}
+
+const items = (menu = screen.getByRole('menu')) => within(menu).getAllByRole('menuitem').map((i) => i.textContent)
+const person: MenuEntity = { kind: 'person', entity: aisha }
+const tag: MenuEntity = { kind: 'tag', entity: legal }
+
+describe('EntityMenu — a person', () => {
+  it('Review · the two check-ins, then Show tasks · Edit…, then Delete…', () => {
+    renderMenu([person])
+    const menu = screen.getByRole('menu', { name: '@Aisha Rahman' })
+    expect(items(menu)).toEqual(PERSON_MENU)
+    expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(2)
+  })
+
+  it('Review with X… opens the deck on their open tasks, as their task dialog lists them', () => {
+    const onShowTasks = vi.fn()
+    const { onClose } = renderMenu([person], { onShowTasks })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Aisha Rahman…' }))
+    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Aisha Rahman' }, ids: [2, 1] })
+    expect(onShowTasks).toHaveBeenCalledOnce()
+    expect(onClose).toHaveBeenCalled()
+  })
+
+  it('Review is disabled for a person with no open task', () => {
+    renderMenu([{ kind: 'person', entity: makePerson({ id: 9, name: 'Nobody' }) }])
+    const review = screen.getByRole('menuitem', { name: 'Review with Nobody…' })
+    expect(review).toBeDisabled()
+    fireEvent.click(review)
+    expect(useReviewStore.getState().open).toBe(false)
+  })
+
+  it('Email check-in to X sends inside the click (here: no open task matches, so the dialog opens with why)', () => {
+    useTodoStore.setState({ todos: [] })
+    const onShowTasks = vi.fn()
+    renderMenu([person], { onShowTasks })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in to Aisha Rahman' }))
+    // Set before the click returned: the send ran synchronously up to its first await.
+    expect(useUIStore.getState().checkinDialog).toEqual({ personIds: [1], notice: 'Aisha Rahman has no open tasks, so nothing was sent.' })
+    expect(onShowTasks).toHaveBeenCalledOnce()
+  })
+
+  it('Paste reply from X… opens the reply import for them', () => {
+    renderMenu([person])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Paste reply from Aisha Rahman…' }))
+    expect(useUIStore.getState()).toMatchObject({ checkinImportOpen: true, checkinImportPersonId: 1 })
+  })
+})
+
+describe('EntityMenu — a tag', () => {
+  it('Review #tag tasks…, then Show tasks · Edit…, then Delete…', () => {
+    renderMenu([tag])
+    expect(items(screen.getByRole('menu', { name: '#legal' }))).toEqual(['Review #legal tasks…', 'Show tasks', 'Edit…', 'Delete…'])
+  })
+
+  it('Review #tag tasks… opens the deck on its open tasks', () => {
+    renderMenu([tag])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Review #legal tasks…' }))
+    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'tag', title: '#legal' }, ids: [1] })
+  })
+})
+
+describe('EntityMenu — where Review and the check-ins are offered', () => {
+  it.each(['dialog', 'raised', 'nested'] as const)('inside a %s-tier dialog: Edit… and Delete… only', (layer) => {
+    renderMenu([person], { layer })
+    expect(items()).toEqual(['Edit…', 'Delete…'])
+    cleanup()
+    renderMenu([tag], { layer })
+    expect(items()).toEqual(['Edit…', 'Delete…'])
+  })
+
+  it('on the overlay tier (the task dialog, the deck): the whole menu', () => {
+    renderMenu([person], { layer: 'overlay' })
+    expect(items()).toEqual(PERSON_MENU)
+  })
+
+  it('while the review deck is open: no Review — the check-ins and Show tasks stay', () => {
+    useReviewStore.getState().start({ source: { kind: 'list', title: 'Inbox', description: '' }, ids: [1] })
+    renderMenu([person], { layer: 'overlay' })
+    expect(items()).toEqual(PERSON_MENU.slice(1))
+    cleanup()
+    renderMenu([tag], { layer: 'overlay' })
+    expect(items()).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+  })
+
+  it('on a phone: no Review (the deck is desktop only)', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
+    try {
+      renderMenu([person])
+      expect(items()).toEqual(PERSON_MENU.slice(1))
+    } finally {
+      window.matchMedia = original
+    }
+  })
+})
+
+describe('EntityMenu — a row’s cell (one submenu per entity)', () => {
+  it('each person’s submenu holds the same entries', () => {
+    renderMenu([person, { kind: 'person', entity: ben }])
+    const menu = screen.getByRole('menu', { name: 'People' })
+    expect(items(menu)).toEqual(['@Aisha Rahman', '@Ben Ortiz'])
+    fireEvent.click(within(menu).getByRole('menuitem', { name: '@Ben Ortiz' }))
+    const sub = screen.getAllByRole('menu').find((m) => m !== menu)
+    expect(sub && items(sub)).toEqual([
+      'Review with Ben Ortiz…', 'Email check-in to Ben Ortiz', 'Paste reply from Ben Ortiz…', 'Show tasks', 'Edit…', 'Delete…',
+    ])
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Ben Ortiz…' }))
+    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Ben Ortiz' }, ids: [2] })
+  })
+})

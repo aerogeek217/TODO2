@@ -48,6 +48,7 @@ import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from './eisenhower/eise
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
 import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
+import { useListReviewMenuEntries } from './list/review-menu'
 import { GlanceGlyph } from '../shared/GlanceGlyph'
 import styles from './WorkspaceCell.module.css'
 import type { WorkspaceCellProps } from './WorkspaceCell'
@@ -224,7 +225,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   }
 
   const neglectEntries = useNeglectMenuEntries(menuTab?.kind === 'neglect' ? menuTab : undefined)
-  const zoomEntries = useListZoomMenuEntries(menuTab?.kind === 'lens' ? menuTab : undefined)
+  const listZoomEntries = useListZoomMenuEntries(menuTab?.kind === 'lens' ? menuTab : undefined)
+  // A list tab's Review these N tasks (D26), above its zoom.
+  const reviewEntries = useListReviewMenuEntries(menuTab?.kind === 'lens' ? menuTab : undefined)
+  const zoomEntries: MenuEntry[] = reviewEntries.length > 0 ? [...reviewEntries, { kind: 'separator' }, ...listZoomEntries] : listZoomEntries
   // A glance widget's settings and Copy (its lines, while it is the cell's active tab).
   const glance = glanceMenu(
     menuTab && isGlanceTab(menuTab) ? menuTab : undefined,

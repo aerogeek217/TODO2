@@ -307,10 +307,11 @@ describe('ChipSelector — a person’s / tag’s menu on its options', () => {
     const { onToggle, onClose } = renderWithMenu()
     fireEvent.contextMenu(screen.getByRole('option', { name: 'Dana Kim' }), { button: 2, clientX: 40, clientY: 60 })
     const menu = screen.getByRole('menu', { name: '@Dana Kim' })
-    expect(menuItems()).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+    expect(menuItems()).toEqual(['Review with Dana Kim…', 'Email check-in to Dana Kim', 'Paste reply from Dana Kim…', 'Show tasks', 'Edit…', 'Delete…'])
     expect(onToggle).not.toHaveBeenCalled()
     expect(activeOption()).toHaveTextContent('Dana Kim')
-    expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Show tasks' }))
+    // Review is disabled (Dana has no open task): the focus is on the first item it can take.
+    expect(document.activeElement).toBe(within(menu).getByRole('menuitem', { name: 'Email check-in to Dana Kim' }))
     fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
     expect(screen.queryByRole('menu')).toBeNull()
     expect(onClose).not.toHaveBeenCalled()
@@ -388,7 +389,7 @@ describe('ChipSelector — a person’s / tag’s menu on its options', () => {
     expect(useUIStore.getState().entityAction).toEqual({ kind: 'tag', id: 7, action: 'edit' })
   })
 
-  it('inside a dialog the task dialog can’t show above (raised), Show tasks isn’t offered; in an overlay it is', () => {
+  it('inside a dialog the task dialog can’t show above (raised), Show tasks, Review and the check-ins aren’t offered; in an overlay they are', () => {
     seedPeople()
     const picker = <ChipSelector items={people} selectedIds={new Set()} onToggle={vi.fn()} entityMenu="person" />
     const { unmount } = render(<DialogFrame layer="raised" onClose={vi.fn()} aria-label="List editor">{picker}</DialogFrame>)
@@ -397,7 +398,7 @@ describe('ChipSelector — a person’s / tag’s menu on its options', () => {
     unmount()
     render(<DialogFrame layer="overlay" onClose={vi.fn()} aria-label="Task dialog">{picker}</DialogFrame>)
     fireEvent.contextMenu(screen.getByRole('option', { name: 'Dana Kim' }), { button: 2 })
-    expect(menuItems()).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+    expect(menuItems()).toEqual(['Review with Dana Kim…', 'Email check-in to Dana Kim', 'Paste reply from Dana Kim…', 'Show tasks', 'Edit…', 'Delete…'])
   })
 
   it('the menu closes itself once its person is gone', () => {

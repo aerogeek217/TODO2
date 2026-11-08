@@ -49,7 +49,7 @@ const STATUS_UPDATE_PLACEHOLDER = 'e.g. waiting on legal, 50% done'
  * Create task / ⏎ / Save draft, and the close's "anything to lose?" check,
  * run before the open field unmounts.
  */
-export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, className, labelClassName, commitRef }: {
+export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, className, labelClassName, commitRef, heading = 'Status updates' }: {
   /** Newest first. */
   entries: readonly StatusUpdateEntry[]
   onAdd: (entry: StatusUpdateFields) => void
@@ -58,6 +58,8 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
   className?: string
   labelClassName?: string
   commitRef?: { current: (() => void) | null }
+  /** The section's heading (the review deck: Recent updates). */
+  heading?: string
 }) {
   const today = useToday()
   // The open edit's / add's commit, for `commitRef`.
@@ -168,7 +170,7 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
     <section className={className} aria-labelledby={labelId} data-status-updates="">
       <div className={styles.headingRow}>
         <div className={`${labelClassName ?? ''} ${styles.heading}`} id={labelId}>
-          Status updates
+          {heading}
           {entries.length > 0 && <span className={styles.count}>{entries.length}</span>}
         </div>
         <button
