@@ -52,6 +52,7 @@ import { groupPerson, listGroupMenu, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { ListFilterRow } from './ListFilterRow'
 import { useScreenChips } from './use-screen-chips'
+import { useShownListReport } from './use-shown-list'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { TaskDropLandingContext } from '../../task/dnd/task-drop-landing'
@@ -277,6 +278,8 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
       grouped,
     })
   }, [tabCount, lensMark, definition.id, sections, grouped, onResultRef])
+  // The tasks as shown, for a review of the tab (its menu, the shortcut, the palette).
+  useShownListReport(tab.id, definition, runtimeFilterPending ? null : sections)
 
   // ── Selection: one widget at a time, rows addressed by occurrence ──
   const rows = useMemo<ScopedRow[]>(
