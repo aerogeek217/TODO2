@@ -87,8 +87,8 @@ test.describe('a body its widget scrolls', () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Add as tab')
       await expect(page.getByTestId('ws-drop-label')).toBeInViewport()
     })
-    // b1's place: no cell shares its whole left edge, so it stays as an empty cell (D26's absorb rule).
-    await expect.poll(() => wsShape(page)).toEqual([[['calTab', 'notesTab'], ['notesA']], [[]]])
+    // b1's place: the two cells on its left cover its edge together, and grow across it.
+    await expect.poll(() => wsShape(page)).toEqual([[['calTab', 'notesTab'], ['notesA']]])
   })
 })
 

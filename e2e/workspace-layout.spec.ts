@@ -43,17 +43,17 @@ test.describe('tab drop targets', () => {
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   })
 
-  test('cell top / bottom edge splits it above / below; a cell that leaves no neighbour its place stays empty', async ({ page }) => {
+  test('cell top / bottom edge splits it above / below; a vacated cell goes to the cells along a side that cover it', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.1), async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Split Calendar · above')
     })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['eisTab'], ['calTab']]])
 
-    // a1's place: no cell shares its whole right edge (two cells do, each half of it), so it stays as an empty cell.
+    // a1's place: no one cell shares its whole right edge, but the two there cover it together: both grow across it.
     await dragTab(page, wsTab(page, 'notesTab'), await bodyPoint(page, 'b1', 0.92))
-    await expect.poll(() => wsShape(page)).toEqual([[[]], [['eisTab'], ['calTab'], ['notesTab']]])
-    await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
+    await expect.poll(() => wsShape(page)).toEqual([[['eisTab'], ['calTab'], ['notesTab']]])
+    await expect(page.getByRole('region', { name: 'Empty cell' })).toHaveCount(0)
   })
 
   test('a cell’s side edge makes a new column beside it; the layout’s outer edge a new column there', async ({ page }) => {

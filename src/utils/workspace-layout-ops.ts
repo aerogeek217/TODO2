@@ -13,6 +13,7 @@ import {
 import {
   cellById,
   crossAxis,
+  neighbours,
   normalizeGrid,
   rectOf,
   SIDES,
@@ -28,8 +29,7 @@ import {
 } from './workspace-grid'
 import { findTab, layoutIds } from './workspace-layout-queries'
 import { insertAllAt, insertAt, removeAt, replaceAt, setCell, withCells, withTracks } from './workspace-layout-edit'
-import { cellMinHeightPx } from './workspace-rows'
-import { CELL_MIN_WIDTH_PX } from './workspace-resize'
+import { cellMinHeightPx, cellMinWidthPx } from './workspace-rows'
 
 /**
  * Pure reducers over a layout's table (`LayoutBody`: tracks and cells).
@@ -44,8 +44,9 @@ import { CELL_MIN_WIDTH_PX } from './workspace-resize'
  *
  * A cell losing its last tab (closed, or moved away) closes by the absorb
  * rule (`closeCell`): its space goes to a neighbour sharing its whole edge
- * — left, above, right, below, the first there is — or, with none, it
- * stays as an empty cell.
+ * — left, above, right, below, the first there is —, else to the
+ * neighbours along a side that together cover that whole edge, or, with
+ * none (a pinwheel's centre), it stays as an empty cell.
  */
 
 /** Mints a fresh id for a new track or cell. */
@@ -121,10 +122,39 @@ function splitTrack<L extends LayoutBody>(layout: L, axis: GridAxis, t: number, 
 }
 
 /**
+ * The cells along `side` of `cell` that together cover that whole edge —
+ * the first starting where it starts, the last ending where it ends, none
+ * sticking out past either end — each grown across `cell` (its area
+ * extended to the far side of it); `null` when they don't.
+ */
+function sideTakers(layout: LayoutBody, cell: LayoutCell, side: Side): LayoutCell[] | null {
+  const along = neighbours(layout, cell.id, side)
+  const first = along[0]
+  const last = along.at(-1)
+  if (!first || !last) return null
+  const cross = crossAxis(sideAxis(side))
+  const [start, end] = spanOf(cell.area, cross)
+  const inside = along.every((c) => {
+    const [s, e] = spanOf(c.area, cross)
+    return s >= start && e <= end
+  })
+  if (!inside || spanOf(first.area, cross)[0] !== start || spanOf(last.area, cross)[1] !== end) return null
+  const axis = sideAxis(side)
+  const [c0, c1] = spanOf(cell.area, axis)
+  return along.map((c) => {
+    const [s, e] = spanOf(c.area, axis)
+    return { ...c, area: side === 'left' || side === 'top' ? withSpan(c.area, axis, s, c1) : withSpan(c.area, axis, c0, e) }
+  })
+}
+
+/**
  * Removes a cell's tabs and gives its space away: to the neighbour sharing
  * its whole edge — left, above, right, below, the first there is — which
- * grows over it; with none, the cell stays as an empty cell (no tabs). The
- * same layout for an unknown cell, or an empty one with no taker.
+ * grows over it; with none, to the neighbours along a side that together
+ * cover that whole edge (`sideTakers`, the sides in the same order), which
+ * all grow across it; with none of those either (the centre of a pinwheel),
+ * the cell stays as an empty cell (no tabs). The same layout for an unknown
+ * cell, or an empty one with no taker.
  */
 export function closeCell<L extends LayoutBody>(layout: L, cellId: string): L {
   const cell = cellById(layout, cellId)
@@ -133,6 +163,12 @@ export function closeCell<L extends LayoutBody>(layout: L, cellId: string): L {
     const taker = wholeEdgeNeighbour(layout, cellId, side)
     const area = taker ? unionArea(taker.area, cell.area) : null
     if (taker && area) return normalizeGrid(setCell(setCell(layout, taker.id, { ...taker, area }), cellId, null))
+  }
+  for (const side of SIDES) {
+    const takers = sideTakers(layout, cell, side)
+    if (!takers) continue
+    const grown = takers.reduce<L>((next, c) => setCell(next, c.id, c), layout)
+    return normalizeGrid(setCell(grown, cellId, null))
   }
   if (cell.tabs.length === 0) return layout
   return setCell(layout, cellId, withStrip(cell, { tabs: [] }))
@@ -423,13 +459,14 @@ export interface MoveEdgeOptions {
   snapPx?: number
   /**
    * The smallest size (px) a cell may take along the axis; default 120px
-   * wide (`CELL_MIN_WIDTH_PX`), `CELL_MIN_PX` high (64px for a glance cell).
+   * wide (72px for a glance cell, `cellMinWidthPx`), `CELL_MIN_PX` high (64px
+   * for a glance cell).
    */
   minPx?: (cell: LayoutCell, axis: GridAxis) => number
 }
 
 function defaultMinPx(cell: LayoutCell, axis: GridAxis): number {
-  return axis === 'columns' ? CELL_MIN_WIDTH_PX : cellMinHeightPx(cell)
+  return axis === 'columns' ? cellMinWidthPx(cell) : cellMinHeightPx(cell)
 }
 
 /** A track resized to `px` of `total` px that it and its pair share (weights kept proportional). */
