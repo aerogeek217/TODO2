@@ -79,6 +79,20 @@ describe('Settings › Tasks › Lenses', () => {
     expect(screen.getByTestId('lens-keeps')).toHaveTextContent('Keeps 2 of 3 open tasks right now')
   })
 
+  it('a lens’s expression refuses done: the top bar’s lens never shows completed tasks by it (cr33 F9)', () => {
+    useSettingsStore.setState({
+      lensPresetsSeeded: true,
+      lenses: [{ id: 'lens-g', name: 'Either', predicate: { ...emptyPredicate(), expression: { kind: 'status', id: 3 } } }],
+    })
+    render(<LensesSection />)
+    fireEvent.click(rows()[0]!)
+    const field = screen.getByRole('textbox', { name: 'Filter expression' })
+    fireEvent.change(field, { target: { value: '!Waiting and done', selectionStart: 17 } })
+    fireEvent.blur(field)
+    expect(screen.getByTestId('expression-field')).toHaveTextContent('done has no say here')
+    expect(useLensDraftStore.getState().draft).toBeNull()
+  })
+
   it('Rename in place (Esc cancels), Duplicate after it, + New lens opens a new one to name', async () => {
     useSettingsStore.setState({ lensPresetsSeeded: true, lenses: [{ id: 'lens-a', name: 'Fresh', predicate: emptyPredicate() }] })
     render(<LensesSection />)

@@ -283,6 +283,7 @@ function CheckinDialogPanel({ openedFor, notice }: { openedFor: number[]; notice
               onChange={(next) => { void useSettingsStore.getState().setCheckinTaskFilter(next) }}
               addLabel="Add a filter to the check-in"
               layout="stack"
+              allowDone={false}
               omitFields={CHECKIN_OMIT_FIELDS}
               dateHost={CHECKIN_DATE_HOST}
               inDialog
