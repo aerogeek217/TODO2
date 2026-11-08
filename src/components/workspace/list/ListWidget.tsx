@@ -180,22 +180,28 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const filterSettings = useFilterSettings()
   const scrollRef = useRef<HTMLDivElement>(null)
   const runtimeInputRef = useRef<HTMLInputElement>(null)
-  // The drag hook reads the scroller through `scrollRef`; the edge fades track it; Ctrl + wheel over it zooms.
+  // The drag hook reads the scroller through `scrollRef`; the edge fades track it.
   const setScrollEl = useCallback((el: HTMLDivElement | null) => {
     scrollRef.current = el
     const stop = trackScrollEdges(el)
-    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current, (z) => void setListTabZoom(tabIdRef.current, z)) : undefined
     return () => {
       scrollRef.current = null
       stop?.()
-      stopWheel?.()
     }
-  }, [zoomRef, tabIdRef])
+  }, [])
   const widgetRef = useRef<HTMLDivElement | null>(null)
+  // Ctrl + wheel anywhere over the widget zooms the list — its prompt, filter line and footer
+  // too, never the page.
   const setWidgetEl = useCallback((el: HTMLDivElement | null) => {
     widgetRef.current = el
     faceRef(el)
-  }, [faceRef])
+    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current, (z) => void setListTabZoom(tabIdRef.current, z)) : undefined
+    return () => {
+      widgetRef.current = null
+      faceRef(null)
+      stopWheel?.()
+    }
+  }, [faceRef, zoomRef, tabIdRef])
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)

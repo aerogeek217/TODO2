@@ -163,14 +163,26 @@ describe('a list tab’s zoom', () => {
     useWorkspaceStore.setState({ patchTabViewState: patch })
     show('rows')
     const scroller = grid().parentElement!
-    const plain = new WheelEvent('wheel', { deltaY: 100, cancelable: true })
+    const plain = new WheelEvent('wheel', { deltaY: 100, cancelable: true, bubbles: true })
     scroller.dispatchEvent(plain)
     expect(plain.defaultPrevented).toBe(false)
     expect(patch).not.toHaveBeenCalled()
-    const zoomOut = new WheelEvent('wheel', { deltaY: 100, ctrlKey: true, cancelable: true })
+    const zoomOut = new WheelEvent('wheel', { deltaY: 100, ctrlKey: true, cancelable: true, bubbles: true })
     scroller.dispatchEvent(zoomOut)
     expect(zoomOut.defaultPrevented).toBe(true)
     expect(patch).toHaveBeenCalledWith('t1', 'lens', { zoom: 'lines' })
+  })
+
+  it('Ctrl + wheel over the filter line zooms the list too, never the page (U12)', () => {
+    const patch = vi.fn().mockResolvedValue(undefined)
+    useWorkspaceStore.setState({ patchTabViewState: patch })
+    show('rows')
+    const line = screen.getByTestId('list-filter-row')
+    expect(widget().contains(line)).toBe(true)
+    const zoomIn = new WheelEvent('wheel', { deltaY: -100, ctrlKey: true, cancelable: true, bubbles: true })
+    line.dispatchEvent(zoomIn)
+    expect(zoomIn.defaultPrevented).toBe(true)
+    expect(patch).toHaveBeenCalledWith('t1', 'lens', { zoom: 'stacked' })
   })
 
   it('the palette offers Zoom List In / Out for the list on screen, each with its step', () => {
