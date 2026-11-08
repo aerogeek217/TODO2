@@ -2,7 +2,7 @@ import { LIST_ZOOMS, readListZoom, type ListZoom } from '../models/workspace-lay
 import type { TodoItem } from '../models/todo-item'
 import { formatRowDate } from './date'
 import { isDeadlinePast } from './effective-date'
-import { isFollowupOverdue } from './followup'
+import { formatFollowupDate, isFollowupOverdue } from './followup'
 import { dueState, followupState } from './row-date-state'
 import type { RowDates } from './row-dates'
 import { isStale, staleTooltipLine } from './stale'
@@ -115,7 +115,6 @@ export function lineDate(
 
 /** What a Lines row's tooltip says beside the title. */
 export interface RowSummaryParts {
-  rowDates: RowDates
   people: readonly string[]
   tags: readonly string[]
   count: SubtaskCount | null
@@ -124,17 +123,19 @@ export interface RowSummaryParts {
 
 /**
  * A Lines row's tooltip (it has no cells): the title, then what the Rows
- * cells would show — `Due 11/20 (late) · Follow-up Mon · 2 of 5 subtasks
- * done · Aisha, Ben · #docs` —, then a stale task's last-edited line.
+ * cells would show, each date in full as their tooltips and names give it
+ * (`formatFollowupDate`: the year when not this year) — `Due Fri 20 Nov
+ * (late) · Follow-up Mon 16 Nov · 2 of 5 subtasks done · Aisha, Ben ·
+ * #docs` —, then a stale task's last-edited line.
  */
 export function rowSummaryText(
   todo: Pick<TodoItem, 'title' | 'dueDate' | 'nextFollowupAt' | 'isCompleted' | 'modifiedAt'>,
   today: Date,
-  { rowDates, people, tags, count, stale }: RowSummaryParts,
+  { people, tags, count, stale }: RowSummaryParts,
 ): string {
   const parts: string[] = []
-  if (todo.dueDate) parts.push(`Due ${formatRowDate(todo.dueDate, today, rowDates)}${isDeadlinePast(todo, today) && !todo.isCompleted ? ' (late)' : ''}`)
-  if (todo.nextFollowupAt) parts.push(`Follow-up ${formatRowDate(todo.nextFollowupAt, today, rowDates)}${isFollowupOverdue(todo, today) ? ' (late)' : ''}`)
+  if (todo.dueDate) parts.push(`Due ${formatFollowupDate(todo.dueDate, today)}${isDeadlinePast(todo, today) && !todo.isCompleted ? ' (late)' : ''}`)
+  if (todo.nextFollowupAt) parts.push(`Follow-up ${formatFollowupDate(todo.nextFollowupAt, today)}${isFollowupOverdue(todo, today) ? ' (late)' : ''}`)
   if (count) parts.push(describeSubtaskCount(count))
   if (people.length > 0) parts.push(people.join(', '))
   if (tags.length > 0) parts.push(tags.map((t) => `#${t}`).join(' '))

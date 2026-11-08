@@ -35,4 +35,14 @@ describe('TaskLine', () => {
     expect(lineDate()).toHaveTextContent('04/16')
     expect(lineDate()).toHaveAttribute('data-date-tone', 'late')
   })
+
+  it('its tooltip gives each date in full with its year (cr33 U8)', () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date(2026, 3, 16, 10, 0))
+    render(<TaskLine todo={makeTodo({ id: 1, title: 'Far', dueDate: new Date(2027, 0, 15), modifiedAt: new Date(2026, 3, 16) })} />)
+    expect(lineDate()).toHaveTextContent('01/15')
+    fireEvent.pointerEnter(line())
+    act(() => { vi.advanceTimersByTime(1000) })
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Due Fri 15 Jan 2027')
+  })
 })

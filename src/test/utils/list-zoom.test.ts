@@ -73,18 +73,25 @@ describe('a task’s tone at Lines', () => {
 })
 
 describe('a line’s tooltip', () => {
-  it('the title, then what the cells would say, then a stale task’s last edit', () => {
+  it('the title, then what the cells would say — each date in full —, then a stale task’s last edit', () => {
     const text = rowSummaryText(task({ title: 'Ship it', dueDate: day(-2), nextFollowupAt: day(1), modifiedAt: day(-40) }), TODAY, {
-      rowDates: 'relative', people: ['Ann', 'Bob'], tags: ['docs'], count: { done: 1, total: 3 }, stale: true,
+      people: ['Ann', 'Bob'], tags: ['docs'], count: { done: 1, total: 3 }, stale: true,
     })
     const [title, meta, stale] = text.split('\n')
     expect(title).toBe('Ship it')
-    expect(meta).toBe('Due 11/04 (late) · Follow-up Sat · 1 of 3 subtasks done · Ann, Bob · #docs')
+    expect(meta).toBe('Due Wed 4 Nov (late) · Follow-up Sat 7 Nov · 1 of 3 subtasks done · Ann, Bob · #docs')
     expect(stale).toMatch(/^Last edited 40 days ago/)
   })
 
+  it('another year’s date carries its year, which the line’s own `MM/DD` drops (cr33 U8)', () => {
+    const t = task({ title: 'Years', dueDate: new Date(2027, 0, 5), nextFollowupAt: new Date(2025, 11, 30) })
+    expect(rowSummaryText(t, TODAY, { people: [], tags: [], count: null, stale: false }).split('\n')[1])
+      .toBe('Due Tue 5 Jan 2027 · Follow-up Tue 30 Dec 2025 (late)')
+    expect(lineDate(t, TODAY, { urgentRange: 3, rowDates: 'relative' })?.text).toBe('12/30')
+  })
+
   it('a task with nothing set is its title alone', () => {
-    expect(rowSummaryText(task({ title: 'Bare' }), TODAY, { rowDates: 'numeric', people: [], tags: [], count: null, stale: false })).toBe('Bare')
+    expect(rowSummaryText(task({ title: 'Bare' }), TODAY, { people: [], tags: [], count: null, stale: false })).toBe('Bare')
   })
 })
 

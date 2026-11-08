@@ -44,7 +44,6 @@ function useLineState(todo: PersistedTodoItem, today: Date) {
     stale: isStale(todo, today, staleAfterDays),
     markers: markerSummary(todo, today, urgentRange),
     date: lineDate(todo, today, { urgentRange, rowDates }),
-    rowDates,
   }
 }
 
@@ -65,11 +64,11 @@ const NO_PEOPLE: readonly Person[] = []
  * soon, follow-up late, stale or none: `rowTone`), the title at 10.5px
  * starting where a row's title does, and at the line's end the one date
  * that matters (`lineDate`), coloured as the Rows date cells colour it. No
- * other cells: hovering shows what they'd say (`rowSummaryText`), a
- * click opens the editor (and selects the task); Shift / Ctrl-click only
- * selects; a right-click (or the context-menu key) opens the task menu, as
- * a row's does (`LineActions`). Its list wraps it as the drag source, as a
- * row.
+ * other cells: hovering shows what they'd say, each date in full
+ * (`rowSummaryText`), a click opens the editor (and selects the task);
+ * Shift / Ctrl-click only selects; a right-click (or the context-menu key)
+ * opens the task menu, as a row's does (`LineActions`). Its list wraps it
+ * as the drag source, as a row.
  */
 export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect, onOpenDetail }: {
   todo: PersistedTodoItem
@@ -84,13 +83,12 @@ export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect,
   // Clicks in the menu and its pickers (portaled, but children here) aren't the line's.
   const own = (e: React.SyntheticEvent) => e.target instanceof Node && e.currentTarget.contains(e.target)
   const today = useToday()
-  const { tone, stale, markers, date, rowDates } = useLineState(todo, today)
+  const { tone, stale, markers, date } = useLineState(todo, today)
   const tags = useTagStore((s) => s.assignedTagsMap.get(todo.id))
   const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
   const people = assignedPeople ?? NO_PEOPLE
   const tip = rowSummaryText(todo, today, {
-    rowDates,
     people: people.map((p) => p.name),
     tags: (tags ?? []).map((t) => t.name),
     count: subtasks && subtasks.length > 0 ? subtaskCount(subtasks) : null,
