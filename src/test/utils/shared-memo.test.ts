@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { sameElements, sharedMemo } from '../../utils/shared-memo'
+import { FRESH_MISSES_WARN, SHARED_MEMO_WARNING, sameElements, sharedMemo } from '../../utils/shared-memo'
 
 describe('sharedMemo', () => {
   it('computes once per set of inputs, compared by identity', () => {
@@ -41,5 +41,41 @@ describe('sharedMemo', () => {
     expect(sameElements([a, b], [a, b])).toBe(true)
     expect(sameElements([a, b], [b, a])).toBe(false)
     expect(sameElements([a], [a, b])).toBe(false)
+  })
+
+  it('keeps one input set by default: a new one lets the old arrays go', () => {
+    const compute = vi.fn((xs: readonly number[]) => xs.length)
+    const memo = sharedMemo(compute)
+    const a = [1]
+    const b = [1, 2]
+    memo(a)
+    memo(b)
+    memo(a)
+    expect(compute).toHaveBeenCalledTimes(3)
+  })
+
+  it('warns once, in development, when a caller keeps passing a fresh input equal to a kept one', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const memo = sharedMemo(function picks(ids: readonly number[], opts: { days: number }) { return ids.length * opts.days })
+    const ids = [1, 2]
+    for (let i = 0; i <= FRESH_MISSES_WARN + 2; i++) memo(ids, { days: 7 })
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(String(warn.mock.calls[0]![0])).toContain(SHARED_MEMO_WARNING)
+    expect(String(warn.mock.calls[0]![0])).toContain('picks')
+    warn.mockRestore()
+  })
+
+  it('no warning for store-like inputs: the same values hit, a real change misses', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const memo = sharedMemo((ids: readonly number[], opts: { days: number }) => ids.length * opts.days)
+    const opts = { days: 7 }
+    let ids = [1]
+    for (let i = 0; i < 10; i++) {
+      memo(ids, opts)
+      memo(ids, opts)
+      ids = [...ids, i + 2]
+    }
+    expect(warn).not.toHaveBeenCalled()
+    warn.mockRestore()
   })
 })

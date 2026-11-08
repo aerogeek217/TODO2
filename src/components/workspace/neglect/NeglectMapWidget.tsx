@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import type { PersistedTodoItem } from '../../../models'
-import type { NeglectTab } from '../../../models/workspace-layout'
+import { NEGLECT_UNTOUCHED_CHOICES, type NeglectTab } from '../../../models/workspace-layout'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../../constants'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
@@ -244,7 +244,7 @@ const neglectMemo = sharedMemo((
   ctx: StatsContext,
   untouchedDays: number,
   dueSoonDays: UrgentDueWithinDays,
-): NeglectMap<PersistedTodoItem> => buildNeglectMap(shown, { today: ctx.today, untouchedDays, dueSoonDays }))
+): NeglectMap<PersistedTodoItem> => buildNeglectMap(shown, { today: ctx.today, untouchedDays, dueSoonDays }), NEGLECT_UNTOUCHED_CHOICES.length)
 
 /**
  * Every open task the screen filter keeps, placed on the map (the full

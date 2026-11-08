@@ -12,6 +12,9 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { applyFilter } from '../../../utils/filter-match'
 import { computeMetrics } from '../../../services/stats/metrics'
 import { computeTagStats } from '../../../services/stats/tags'
+import { computeFollowupGroups } from '../../../services/stats/followup-groups'
+import { computeStaleTasks } from '../../../services/stats/stale'
+import { SHARED_MEMO_WARNING } from '../../../utils/shared-memo'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
 import { useSubtaskStore } from '../../../stores/subtask-store'
@@ -31,6 +34,15 @@ vi.mock('../../../services/stats/metrics', async (importOriginal) => {
 vi.mock('../../../services/stats/tags', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/stats/tags')>()
   return { ...actual, computeTagStats: vi.fn(actual.computeTagStats) }
+})
+// And two with options: a memo keeps one input set per choice (A9).
+vi.mock('../../../services/stats/followup-groups', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/stats/followup-groups')>()
+  return { ...actual, computeFollowupGroups: vi.fn(actual.computeFollowupGroups) }
+})
+vi.mock('../../../services/stats/stale', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/stats/stale')>()
+  return { ...actual, computeStaleTasks: vi.fn(actual.computeStaleTasks) }
 })
 
 beforeEach(() => {
@@ -107,5 +119,39 @@ describe('glance widgets share their data', () => {
     expect(vi.mocked(computeMetrics)).toHaveBeenCalledTimes(1)
     expect(vi.mocked(computeMetrics).mock.calls[0]![0].length).toBeLessThan(SAMPLE_TASKS.length)
     expect(vi.mocked(computeTagStats)).toHaveBeenCalledTimes(1)
+  })
+
+  it('a dozen widgets, options differing, still hit on a re-render: no part recomputes and no memo warns', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    vi.mocked(computeFollowupGroups).mockClear()
+    vi.mocked(computeStaleTasks).mockClear()
+    const tabs: GlanceTab[] = [
+      ...WIDGET_KINDS.filter(isGlanceKind).filter((k) => k !== 'followup' && k !== 'stale').map((k) => createTab(k, `w-${k}`) as GlanceTab),
+      { id: 'f3', kind: 'followup', config: { lookAhead: 3 } },
+      { id: 'f7', kind: 'followup', config: { lookAhead: 7 } },
+      { id: 'f14', kind: 'followup', config: { lookAhead: 14 } },
+      { id: 's7', kind: 'stale', config: { staleDays: 7 } },
+      { id: 's30', kind: 'stale', config: { staleDays: 30 } },
+    ]
+    expect(tabs.length).toBeGreaterThanOrEqual(12)
+    const tree = () => <DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>
+    const { rerender } = render(tree())
+    // Each half once per look-ahead / threshold on screen.
+    expect(vi.mocked(computeFollowupGroups)).toHaveBeenCalledTimes(6)
+    expect(vi.mocked(computeStaleTasks)).toHaveBeenCalledTimes(4)
+    for (const fn of [applyFilter, computeMetrics, computeTagStats, computeFollowupGroups, computeStaleTasks]) vi.mocked(fn).mockClear()
+    for (let i = 0; i < 4; i++) rerender(tree())
+    expect(vi.mocked(applyFilter)).not.toHaveBeenCalled()
+    expect(vi.mocked(computeMetrics)).not.toHaveBeenCalled()
+    expect(vi.mocked(computeTagStats)).not.toHaveBeenCalled()
+    expect(vi.mocked(computeFollowupGroups)).not.toHaveBeenCalled()
+    expect(vi.mocked(computeStaleTasks)).not.toHaveBeenCalled()
+    // A task write: each part recomputes once per option on screen, never per widget.
+    act(() => { useTodoStore.setState({ todos: SAMPLE_TASKS.map((t) => (t.id === SAMPLE_TASKS[0]!.id ? { ...t, title: 'Renamed' } : t)) }) })
+    for (let i = 0; i < 4; i++) rerender(tree())
+    expect(vi.mocked(computeFollowupGroups)).toHaveBeenCalledTimes(6)
+    expect(vi.mocked(computeStaleTasks)).toHaveBeenCalledTimes(4)
+    expect(warn.mock.calls.filter((c) => String(c[0]).includes(SHARED_MEMO_WARNING))).toEqual([])
+    warn.mockRestore()
   })
 })
