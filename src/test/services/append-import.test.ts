@@ -131,6 +131,46 @@ describe('appendImportTasks — archive from another database', () => {
   })
 })
 
+describe('appendImportTasks — the history log H3 (D26)', () => {
+  it('re-points person / tag events at the people and tags matched by name; one naming nobody here is left out', async () => {
+    const ann = await db.people.add({ name: 'Ann', initials: 'AN' }) as number
+    const gone = await db.people.add({ name: 'Gone', initials: 'GO' }) as number
+    const ops = await db.tags.add({ name: 'ops', color: '#fff' }) as number
+    const at = daysAgo(5).toISOString()
+    const id = await todoRepository.insert({ title: 'Ship', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(5), sortOrder: 1, focus: true })
+    await db.todoPeople.add({ todoId: id, personId: ann })
+    await db.todoEvents.bulkAdd([
+      { todoId: id, type: 'person', fromValue: null, toValue: ann, timestamp: at },
+      { todoId: id, type: 'person', fromValue: gone, toValue: null, timestamp: at },
+      { todoId: id, type: 'tag', fromValue: ops, toValue: null, timestamp: at },
+      { todoId: id, type: 'marker', fromValue: null, toValue: 'focus', timestamp: at },
+      { todoId: id, type: 'followup', fromValue: null, toValue: at, timestamp: at },
+    ])
+    await db.todoTags.add({ todoId: id, tagId: ops })
+    await db.todoTags.where({ todoId: id }).delete()
+    const archive = await buildTaskArchive([id])
+    // The removed person and tag travel with the archive, for matching.
+    expect(archive.people.map((p) => p.name).sort()).toEqual(['Ann', 'Gone'])
+    expect(archive.tags.map((t) => t.name)).toEqual(['ops'])
+
+    await resetDb()
+    // Here: Bob first (so the ids differ), then Ann and OPS; nobody named Gone.
+    await db.people.add({ name: 'Bob', initials: 'BO' })
+    const annHere = await db.people.add({ name: 'ann', initials: 'AN' }) as number
+    await db.tags.add({ name: 'x', color: '#000' })
+    const opsHere = await db.tags.add({ name: 'OPS', color: '#000' }) as number
+    const result = await appendImportTasks(prepareAppend(JSON.stringify(archive)), new Map())
+    const newId = result.todoIds[0]!
+    const events = await db.todoEvents.where('todoId').equals(newId).sortBy('id')
+    expect(events.filter((e) => e.type !== 'created').map((e) => [e.type, e.fromValue, e.toValue])).toEqual([
+      ['person', null, annHere],
+      ['tag', opsHere, null],
+      ['marker', null, 'focus'],
+      ['followup', null, at],
+    ])
+  })
+})
+
 describe('appendImportTasks — subtasks', () => {
   it('copies the tasks’ subtasks, re-pointed at the new ids, in order; a skipped task’s stay behind', async () => {
     const now = new Date()

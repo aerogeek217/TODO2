@@ -102,6 +102,17 @@ describe('dev seed generator', () => {
       expect(c, `event ${String(e.id)} todo`).toBeDefined()
       expect(Date.parse(e.timestamp), `event ${String(e.id)} time`).toBeGreaterThanOrEqual(c!)
     }
+
+    // The history log H3 (D26) ran from before the first task: each task's
+    // people and tags are logged as added with it.
+    const since = Date.parse(seed.settings.find((r) => r.key === 'historyLogSince')?.value ?? '')
+    expect(Math.min(...created.values())).toBeGreaterThan(since)
+    for (const r of seed.todoPeople) {
+      expect(seed.todoEvents.some((e) => e.todoId === r.todoId && e.type === 'person' && e.toValue === r.personId), `person ${String(r.id)}`).toBe(true)
+    }
+    for (const r of seed.todoTags) {
+      expect(seed.todoEvents.some((e) => e.todoId === r.todoId && e.type === 'tag' && e.toValue === r.tagId), `tag ${String(r.id)}`).toBe(true)
+    }
   })
 
   it('gives tasks a few status updates in place of Progress, never after today', () => {

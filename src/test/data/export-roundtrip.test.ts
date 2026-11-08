@@ -11,6 +11,7 @@ import { NEGATABLE_FIELDS, emptyPredicate, type TodoPredicate } from '../../mode
 import type { FilterExpr } from '../../models/filter-expression'
 import { expressionAtoms } from '../../utils/filter-expression'
 import { DATE_FIELD_VALUES } from '../../models/app-view'
+import { TODO_EVENT_TYPES } from '../../models/todo-event'
 import { WIDGET_KINDS } from '../../models/workspace-layout'
 import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import { formatLensesSetting } from '../../data/lens-shape'
@@ -118,6 +119,7 @@ function buildSeed(): Seed {
       { key: 'newListGroup', value: 'tag' },
       { key: 'purgePromptIntervalDays', value: '14' },
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
+      { key: 'historyLogSince', value: '2026-09-01T07:00:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
       { key: 'rowDensity', value: 'comfortable' },
       { key: 'rowDates', value: 'numeric' },
@@ -163,6 +165,14 @@ function buildSeed(): Seed {
       { id: 1, todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: '2026-09-02T10:00:00.000Z' },
       { id: 2, todoId: 1, type: 'deadline', fromValue: null, toValue: '2026-10-16T00:00:00.000Z', timestamp: '2026-09-11T09:30:00.000Z' },
       { id: 3, todoId: 1, type: 'status', fromValue: 1, toValue: 2, timestamp: '2026-09-11T09:31:00.000Z' },
+      // The history log H3's types (D26).
+      { id: 4, todoId: 1, type: 'followup', fromValue: null, toValue: '2026-10-20T00:00:00.000Z', timestamp: '2026-09-11T09:32:00.000Z' },
+      { id: 5, todoId: 1, type: 'followedUp', fromValue: '2026-09-01T00:00:00.000Z', toValue: '2026-09-11T09:33:00.000Z', timestamp: '2026-09-11T09:33:00.000Z' },
+      { id: 6, todoId: 1, type: 'marker', fromValue: 'important', toValue: 'urgent,important,focus', timestamp: '2026-09-11T09:34:00.000Z' },
+      { id: 7, todoId: 1, type: 'person', fromValue: null, toValue: 1, timestamp: '2026-09-11T09:35:00.000Z' },
+      { id: 8, todoId: 1, type: 'tag', fromValue: 1, toValue: null, timestamp: '2026-09-11T09:36:00.000Z' },
+      { id: 9, todoId: 1, type: 'completed', fromValue: null, toValue: null, timestamp: '2026-09-12T09:00:00.000Z' },
+      { id: 10, todoId: 1, type: 'reopened', fromValue: null, toValue: null, timestamp: '2026-09-12T10:00:00.000Z' },
     ],
     statusUpdates: [
       { id: 1, todoId: 1, date: at('2026-09-10T00:00:00.000Z'), text: 'Asked Finance for the numbers', createdAt: at('2026-09-10T15:00:00.000Z') },
@@ -299,6 +309,8 @@ describe('export → JSON → import round-trip', () => {
     // Every setting this build knows.
     const settingKeys = new Set(seed.settings.map((s) => s.key))
     expect(ALL_SETTING_KEYS.filter((k) => !settingKeys.has(k)), 'settings missing from buildSeed()').toEqual([])
+    // Every event type the log writes (all but the history-only `scheduled`).
+    expect(new Set(seed.todoEvents.map((e) => e.type))).toEqual(new Set(TODO_EVENT_TYPES.filter((t) => t !== 'scheduled')))
     // Nested shapes the table-level check can't see.
     expect(seed.todos.some((t) => t.recurrenceRule?.originalDayOfMonth !== undefined)).toBe(true)
     expect(seed.listDefinitions.some((d) => d.runtimeFilter !== undefined)).toBe(true)

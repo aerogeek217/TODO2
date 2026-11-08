@@ -2,10 +2,11 @@ import { db } from './database'
 import type { Tag } from '../models'
 import { createRepository } from './create-repository'
 import type { TaskTouch } from './touch-todos'
-import { createJoinOps, buildAssignmentMap, restoreNamedEntityWithJoins, type JoinCapture } from './join-helpers'
+import { createJoinOps, buildAssignmentMap, logEntityJoinsRemoved, restoreNamedEntityWithJoins, type EntityLink, type JoinCapture } from './join-helpers'
 
 const base = createRepository<Tag>(db.tags, 'name')
-const todoTagOps = createJoinOps(db.todoTags, 'todoId', 'tagId')
+const todoTagOps = createJoinOps(db.todoTags, 'todoId', 'tagId', 'tag')
+const TAGS_LINK: EntityLink = { table: db.todoTags, entityKey: 'tagId', linkKey: 'todoId', event: 'tag' }
 
 async function findConflictingTag(name: string, excludeId?: number): Promise<Tag | undefined> {
   const target = name.trim().toLowerCase()
@@ -41,9 +42,12 @@ export const tagRepository = {
     await db.tags.put(tag)
   },
 
+  /** Deletes the tag and its assignments (each logged as a `tag` remove on its task). */
   async delete(id: number): Promise<void> {
-    await db.transaction('rw', [db.tags, db.todoTags], async () => {
-      await db.todoTags.where('tagId').equals(id).delete()
+    await db.transaction('rw', [db.tags, db.todoTags, db.todos, db.todoEvents], async () => {
+      const joins = await db.todoTags.where('tagId').equals(id).toArray()
+      await db.todoTags.bulkDelete(joins.map((j) => j.id!))
+      await logEntityJoinsRemoved(TAGS_LINK, joins)
       await db.tags.delete(id)
     })
   },
@@ -87,6 +91,6 @@ export const tagRepository = {
    * same name created meanwhile is folded into it (`restoreNamedEntityWithJoins`).
    */
   async restoreWithJoins(tag: Tag, joins: JoinCapture[]): Promise<void> {
-    await restoreNamedEntityWithJoins(db.tags, tag, { table: db.todoTags, entityKey: 'tagId', linkKey: 'todoId' }, joins)
+    await restoreNamedEntityWithJoins(db.tags, tag, TAGS_LINK, joins)
   },
 }

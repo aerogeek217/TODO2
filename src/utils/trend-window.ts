@@ -40,6 +40,15 @@ export const METRIC_HISTORY_DAYS = 14
 export const HISTORY_EVENT_TYPES: readonly TodoEventType[] = [...TREND_EVENT_TYPES, 'deadline']
 
 /**
+ * The event types a filter's history reads (`services/stats/filter-history`):
+ * every one that moves a field a filter can test — the state, the due date,
+ * the status and the history log H3's follow-ups, markers, people and tags.
+ */
+export const FILTER_HISTORY_EVENT_TYPES: readonly TodoEventType[] = [
+  ...HISTORY_EVENT_TYPES, 'status', 'followup', 'followedUp', 'marker', 'person', 'tag',
+]
+
+/**
  * The first day a Number's history needs events from: its first day's week
  * start (Closed this week counts from the week's start), else the first day.
  */

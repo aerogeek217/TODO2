@@ -1,5 +1,5 @@
 import type { TodoItem, Person, TodoPerson, RecurrenceRule, RecurrenceType, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, StatusUpdate, Subtask, ListOrder } from '../models'
-import { isTodoSortBy, isTodoGroupBy, isTodoSortDirection, STATUS_UPDATE_TEXT_MAX, SUBTASK_TITLE_MAX } from '../models'
+import { TODO_EVENT_TYPES, isTodoSortBy, isTodoGroupBy, isTodoSortDirection, STATUS_UPDATE_TEXT_MAX, SUBTASK_TITLE_MAX } from '../models'
 import type { ListDefinition, ListOwner, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { toDate, toOptDate } from './date-revive'
@@ -276,22 +276,30 @@ function checkNote(v: unknown): CheckResult {
   ])
 }
 
-const VALID_TODO_EVENT_TYPES: readonly TodoEventType[] = [
-  'created', 'scheduled', 'deadline', 'status', 'completed', 'reopened',
-]
-
 function isOptScalarValue(v: unknown): boolean {
   return v === undefined || v === null || typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v))
 }
 
+/**
+ * A `person` / `tag` event names one id, as its `toValue` (an add) or its
+ * `fromValue` (a remove), never both (`models/todo-event`).
+ */
+function isAssignmentEventValues(v: Raw): boolean {
+  const from = v.fromValue ?? null
+  const to = v.toValue ?? null
+  return (from === null) !== (to === null) && Number.isSafeInteger(from ?? to) && ((from ?? to) as number) >= 1
+}
+
 function checkTodoEvent(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
+  const assignment = v.type === 'person' || v.type === 'tag'
   return checkFields(v, [
     ['id', isOptId(v.id)],
     ['todoId', isFiniteNum(v.todoId)],
-    ['type', typeof v.type === 'string' && (VALID_TODO_EVENT_TYPES as readonly string[]).includes(v.type)],
+    ['type', typeof v.type === 'string' && (TODO_EVENT_TYPES as readonly string[]).includes(v.type)],
     ['fromValue', isOptScalarValue(v.fromValue)],
     ['toValue', isOptScalarValue(v.toValue)],
+    ['value', !assignment || isAssignmentEventValues(v)],
     ['timestamp', typeof v.timestamp === 'string' && !isNaN(Date.parse(v.timestamp))],
   ])
 }
@@ -430,6 +438,9 @@ function checkSetting(v: unknown): CheckResult {
   }
   if (v.key === SETTING_KEYS.purgePromptLastAt) {
     return isDateLike(v.value) ? true : 'value (purgePromptLastAt must be a date)'
+  }
+  if (v.key === SETTING_KEYS.historyLogSince) {
+    return isDateLike(v.value) ? true : 'value (historyLogSince must be a date)'
   }
   if (v.key === SETTING_KEYS.rowDensity) {
     return parseListZoomSetting(v.value) !== undefined
