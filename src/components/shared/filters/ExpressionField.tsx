@@ -5,6 +5,7 @@ import { useExpressionField } from '../../../hooks/use-expression-field'
 import { mirrorCharX, useNlpPopupAnchor } from '../../../hooks/use-nlp-popup-anchor'
 import { describeDateMatch } from '../../../utils/filter-chips'
 import { topLevelTerms, type ExpressionNames } from '../../../utils/filter-expression'
+import { completedOnlyInside } from '../../../utils/predicate-expression'
 import { DATE_FIELD_LABELS_SHORT, NO_STATUS_LABEL, NO_TAGS_LABEL, UNASSIGNED_LABEL } from '../../../utils/filter-labels'
 import { MARKER_LABELS } from '../../../utils/markers'
 import { NlpPopup } from '../NlpPopup'
@@ -126,6 +127,9 @@ export function ExpressionField({ predicate, onChange, allowPeople = true, allow
       </div>
       {parse.ok && parse.expression && <ReadsAs expression={parse.expression} names={field.names} />}
       {parse.ok && parse.showCompleted && <p className={styles.done}>Completed tasks too</p>}
+      {parse.ok && parse.expression && completedOnlyInside(parse.expression, parse.showCompleted) && (
+        <p className={styles.done} data-testid="expression-completed-hint">{allowDone ? COMPLETED_HINT_DONE : COMPLETED_HINT}</p>
+      )}
       {ac.state.visible && ac.state.view && createPortal(
         <NlpPopup
           view={ac.state.view}
@@ -142,6 +146,10 @@ export function ExpressionField({ predicate, onChange, allowPeople = true, allow
     </div>
   )
 }
+
+/** A Completed date inside an `or` / `not` keeps no open task, and completed tasks aren't let in (cr33 F10). */
+export const COMPLETED_HINT_DONE = 'A Completed date inside or / not matches completed tasks only — add “and done” to show them'
+export const COMPLETED_HINT = 'A Completed date inside or / not matches completed tasks only; one of its own (… and completed …) lets them in'
 
 // ── Reads as ────────────────────────────────────────────────────────────────
 

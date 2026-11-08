@@ -3,6 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { PredicateChips, SWITCH_REFUSED } from '../../../../components/shared/filters/PredicateChips'
 import { EXPRESSION_WRITE_MS } from '../../../../hooks/use-expression-field'
+import { COMPLETED_HINT_DONE } from '../../../../components/shared/filters/ExpressionField'
 import { EXPRESSION_NODES_MAX, emptyPredicate, type FilterExpr, type TodoPredicate } from '../../../../models'
 import { usePersonStore } from '../../../../stores/person-store'
 import { useStatusStore } from '../../../../stores/status-store'
@@ -201,6 +202,17 @@ describe('the expression field', () => {
     fireEvent.blur(field())
     expect(log).toEqual([])
     expect(screen.getByTestId('expression-field')).toHaveTextContent('Leave completed out')
+  })
+
+  it('says why Completed dates inside an or keep nothing without “and done” (cr33 F10)', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={{ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }} log={log} />)
+    type('(completed this week or completed last week)')
+    expect(screen.getByTestId('expression-completed-hint')).toHaveTextContent(COMPLETED_HINT_DONE)
+    type('(completed this week or completed last week) and done')
+    expect(screen.queryByTestId('expression-completed-hint')).toBeNull()
+    type('(#work or completed this week) and completed last week')
+    expect(screen.queryByTestId('expression-completed-hint')).toBeNull()
   })
 
   it('refuses people where the filter can’t name them (the check-in)', () => {

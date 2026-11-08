@@ -1,6 +1,6 @@
 import { emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../models/filter-predicate'
 import { EXPRESSION_NODES_MAX, type FilterExpr } from '../models/filter-expression'
-import { expressionSize, expressionToClauses, splitTopLevel, wholeExpression } from './filter-expression'
+import { expressionSize, expressionToClauses, splitTopLevel, topLevelTerms, wholeExpression } from './filter-expression'
 import { withNormalizedNegation } from './filter-negation'
 
 /**
@@ -66,6 +66,25 @@ export function withExpression<T extends TodoPredicate>(p: T, expression: Filter
   const { expression: _expression, ...plain } = out
   void _expression
   return plain as T
+}
+
+/**
+ * Whether `e` has a Completed date range that can only keep completed tasks
+ * where none are let in: inside an `or` (or under a `not`'s `not`), with no
+ * Completed range among its top-level terms and no Show completed
+ * (`filter-criteria.admitsCompleted`) — `completed this week or completed
+ * last week` keeps nothing (cr33 F10).
+ */
+export function completedOnlyInside(e: FilterExpr, showCompleted: boolean): boolean {
+  if (showCompleted) return false
+  const top = topLevelTerms(e)
+  if (top.some((t) => t.kind === 'date' && t.field === 'completed')) return false
+  const positive = (n: FilterExpr, negated: boolean): boolean => {
+    if (n.kind === 'not') return positive(n.item, !negated)
+    if (n.kind === 'and' || n.kind === 'or') return n.items.some((item) => positive(item, negated))
+    return !negated && n.kind === 'date' && n.field === 'completed' && n.match.match === 'range'
+  }
+  return top.some((t) => positive(t, false))
 }
 
 /** `p` as Graphical clauses, or null when its expression has a term no chip says. */
