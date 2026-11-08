@@ -139,6 +139,32 @@ describe('filter expressions — parse', () => {
     expect((tree('modified before 30 days ago') as { match: unknown }).match).toEqual({ match: 'range', start: null, end: { kind: 'offset', days: -31 } })
   })
 
+  it('rolls a year-less day forward on the dates that look ahead; a weekday is the last one on those that look back (cr33 Answer 12)', () => {
+    const match = (text: string) => (tree(text) as { match: unknown }).match
+    const day = (y: number, m: number, d: number) => ({ match: 'range', start: fixed(y, m, d), end: fixed(y, m, d) })
+    // Friday 6 Nov 2026: 11/1 and 1/5 are past this year.
+    expect(match('due 11/1')).toEqual(day(2027, 11, 1))
+    expect(match('due 1/5')).toEqual(day(2027, 1, 5))
+    expect(match('followup by 1/5')).toEqual({ match: 'range', start: null, end: fixed(2027, 1, 5) })
+    expect(match('due 11/6')).toEqual(day(2026, 11, 6))
+    // A look-back date keeps this year's.
+    expect(match('created 1/5')).toEqual(day(2026, 1, 5))
+    expect(match('completed 11/1')).toEqual(day(2026, 11, 1))
+    // A range of two year-less days is read as one.
+    expect(match('due 12/20..1/5')).toEqual({ match: 'range', start: fixed(2026, 12, 20), end: fixed(2027, 1, 5) })
+    expect(match('due 11/1..11/5')).toEqual({ match: 'range', start: fixed(2027, 11, 1), end: fixed(2027, 11, 5) })
+    expect(match('created 12/20..1/5')).toEqual({ match: 'range', start: fixed(2025, 12, 20), end: fixed(2026, 1, 5) })
+    // A weekday: the next on Due / Next follow-up, the last on the others (never today).
+    expect(match('due fri')).toEqual(day(2026, 11, 13))
+    expect(match('followup mon')).toEqual(day(2026, 11, 9))
+    expect(match('created fri')).toEqual(day(2026, 10, 30))
+    expect(match('followed mon')).toEqual(day(2026, 11, 2))
+    expect(match('modified by thursday')).toEqual({ match: 'range', start: null, end: fixed(2026, 11, 5) })
+    expect(match('completed from wed')).toEqual({ match: 'range', start: fixed(2026, 11, 4), end: null })
+    // next fri is the next one on every date.
+    expect(match('created next fri')).toEqual(day(2026, 11, 13))
+  })
+
   it('makes a top-level done Show completed', () => {
     const r = parse('@Ben and done')
     expect(r.ok && r.expression).toEqual({ kind: 'person', id: 2 })
