@@ -53,8 +53,12 @@ export interface ExpressionParseOptions {
   /** Today, for the day words that are fixed dates (`fri`, `11/30`: the next one on Due / Next follow-up, on the others the last weekday and this year's day). */
   today: Date
   names: ExpressionNameResolver
-  /** `false`: `@` terms are refused (the check-in filter: a check-in goes to one person). */
+  /** `false`: `@`, `no person` and `any person` are refused (the check-in filter: a check-in goes to one person). */
   allowPeople?: boolean
+  /** `false`: Completed dates are refused (the check-in filter: it takes open tasks only). */
+  allowCompleted?: boolean
+  /** `false`: `done` is refused (a lens, an Eisenhower pane, the check-in: they never show completed tasks by it). */
+  allowDone?: boolean
 }
 
 /** What a span of the text is, for tinting. */
@@ -335,13 +339,16 @@ class Parser {
     if (t.open) fail(t.start, t.end, 'Missing closing "')
     const name = t.value.trim()
     if (!name) fail(t.start, t.end, `Pick a ${KIND_NOUN[kind]} after ${t.sigil ?? '@'}`)
-    if (kind === 'person' && this.opts.allowPeople === false) {
-      fail(t.start, t.end, 'Leave people out', 'A check-in already goes to one person')
-    }
+    if (kind === 'person') this.refusePeople(t.start, t.end)
     const id = this.opts.names[kind](name)
     if (id == null) fail(t.start, t.end, `No ${KIND_NOUN[kind]} named ${name}`)
     this.span(t, kind)
     return { kind, id }
+  }
+
+  /** A people term where the filter can't name people (`allowPeople`). */
+  private refusePeople(start: number, end: number): void {
+    if (this.opts.allowPeople === false) fail(start, end, 'Leave people out', 'A check-in already goes to one person')
   }
 
   private priority(t: Lex): FilterExpr {
@@ -355,6 +362,7 @@ class Parser {
     const w = t.value.toLowerCase()
     if (w === 'and' || w === 'or') fail(t.start, t.end, `“${w}” needs something before it`)
     if (w === 'done') {
+      if (this.opts.allowDone === false) fail(t.start, t.end, 'done has no say here', 'This filter never shows completed tasks by it')
       this.span(t, 'done')
       return { kind: 'done', start: t.start, end: t.end }
     }
@@ -398,6 +406,7 @@ class Parser {
     const w = lower(what)
     const kind = w ? ENTITY_KINDS.get(w) : undefined
     if (what && kind) {
+      if (kind === 'person') this.refusePeople(t.start, what.end)
       this.next()
       this.span({ start: t.start, end: what.end }, 'none')
       return { kind, id: 0 }
@@ -424,6 +433,7 @@ class Parser {
     const w = lower(what)
     const kind = w ? ENTITY_KINDS.get(w) : undefined
     if (what && kind) {
+      if (kind === 'person') this.refusePeople(t.start, what.end)
       this.next()
       this.span({ start: t.start, end: what.end }, 'none')
       return { kind: 'not', item: { kind, id: 0 } }
@@ -437,6 +447,7 @@ class Parser {
   }
 
   private dateTerm(t: Lex, field: DateField): FilterExpr {
+    if (field === 'completed' && this.opts.allowCompleted === false) fail(t.start, t.end, 'Leave completed out', 'A check-in takes open tasks only')
     const kind: ExpressionSpanKind = field === 'deadline' ? 'due' : field === 'followup' || field === 'lastFollowup' ? 'followup' : 'date'
     const startPos = this.pos
     const match = this.when(t, field)

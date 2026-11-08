@@ -186,6 +186,23 @@ describe('the expression field', () => {
     expect(log).toEqual([])
   })
 
+  it('refuses done where the host never shows completed tasks by it, and a Completed date where it has none (cr33 F9, F11)', () => {
+    const log: TodoPredicate[] = []
+    const initial = { ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } as FilterExpr }
+    const { unmount } = render(<PredicateChips predicate={initial} layout="stack" allowDone={false} onChange={(n) => log.push(n)} />)
+    type('(/focus and done)')
+    fireEvent.blur(field())
+    expect(log).toEqual([])
+    expect(field()).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByTestId('expression-field')).toHaveTextContent('done has no say here')
+    unmount()
+    render(<PredicateChips predicate={initial} layout="stack" dateHost={{ omit: ['completed'] }} onChange={(n) => log.push(n)} />)
+    type('(/focus or completed this week)')
+    fireEvent.blur(field())
+    expect(log).toEqual([])
+    expect(screen.getByTestId('expression-field')).toHaveTextContent('Leave completed out')
+  })
+
   it('refuses people where the filter can’t name them (the check-in)', () => {
     const log: TodoPredicate[] = []
     render(<Harness initial={{ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }} log={log} omitPeople />)

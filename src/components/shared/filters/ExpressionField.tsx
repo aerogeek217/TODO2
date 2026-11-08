@@ -22,6 +22,10 @@ interface ExpressionFieldProps {
   onChange: (next: TodoPredicate) => void
   /** `false`: no `@` terms (the check-in filter). */
   allowPeople?: boolean
+  /** `false`: no Completed dates (the check-in filter). */
+  allowCompleted?: boolean
+  /** `false`: no `done` (a lens, a pane, the check-in: they never show completed tasks by it). */
+  allowDone?: boolean
   /** Focus the field when it mounts (the switch to Expression). */
   autoFocus?: boolean
 }
@@ -34,12 +38,12 @@ interface ExpressionFieldProps {
  * term), and Syntax… for the cheat sheet. Writes go through
  * `useExpressionField`: a text that doesn't read is never written.
  */
-export function ExpressionField({ predicate, onChange, allowPeople = true, autoFocus = false }: ExpressionFieldProps) {
+export function ExpressionField({ predicate, onChange, allowPeople = true, allowCompleted = true, allowDone = true, autoFocus = false }: ExpressionFieldProps) {
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const mirrorRef = useRef<HTMLDivElement>(null)
   const errorId = useId()
   const [syntaxOpen, setSyntaxOpen] = useState(false)
-  const field = useExpressionField({ predicate, onChange, inputRef, allowPeople })
+  const field = useExpressionField({ predicate, onChange, inputRef, allowPeople, allowCompleted, allowDone })
   const { text, parse, tints, ac } = field
   const error = parse.ok ? null : parse.error
   const errorTip = useTooltip(error?.hint ?? null)

@@ -74,6 +74,12 @@ interface PredicateChipsProps {
    * the chip only shows it.
    */
   onOpenExpression?: () => void
+  /**
+   * `false`: an expression's `done` is refused (an error line), for the
+   * filters that never show completed tasks by it — a lens, an Eisenhower
+   * pane, the check-in — which would drop it silently (cr33 F9).
+   */
+  allowDone?: boolean
 }
 
 /**
@@ -140,9 +146,20 @@ export function PredicateChips(props: PredicateChipsProps) {
     setMode('expression')
   }
   const allowPeople = !(omitFields ?? []).includes('people')
+  // A host without the Completed date (the check-in) refuses it in an expression too.
+  const allowCompleted = !(props.dateHost?.omit ?? []).includes('completed')
   let body: ReactNode
   if (mode === 'expression') {
-    body = <ExpressionField predicate={predicate} onChange={onChange} allowPeople={allowPeople} autoFocus={!isExpression} />
+    body = (
+      <ExpressionField
+        predicate={predicate}
+        onChange={onChange}
+        allowPeople={allowPeople}
+        allowCompleted={allowCompleted}
+        allowDone={props.allowDone ?? true}
+        autoFocus={!isExpression}
+      />
+    )
   } else if (isExpression) {
     // Graphical over an expression no chips say.
     body = (

@@ -200,6 +200,22 @@ describe('filter expressions — parse', () => {
   it('refuses people where a filter can’t name them', () => {
     const r = parse('@Aisha', false)
     expect(!r.ok && r.error.message).toBe('Leave people out')
+    // `no person` / `any person` too: a check-in's tasks all have its person (cr33 F11).
+    for (const text of ['#q4 or no person', 'any person']) {
+      const n = parse(text, false)
+      expect(!n.ok && n.error.message).toBe('Leave people out')
+    }
+  })
+
+  it('refuses Completed dates and done where the filter asks (cr33 F9, F11)', () => {
+    const with_ = (text: string, opts: { allowCompleted?: boolean; allowDone?: boolean }) =>
+      parseExpression(text, { today: TODAY, names: { person: resolver(PEOPLE), tag: resolver(TAGS), status: resolver(STATUSES) }, ...opts })
+    const completed = with_('#q4 or completed this week', { allowCompleted: false })
+    expect(!completed.ok && completed.error.message).toBe('Leave completed out')
+    const done = with_('#q4 and done', { allowDone: false })
+    expect(!done.ok && done.error.message).toBe('done has no say here')
+    expect(!done.ok && [done.error.start, done.error.end]).toEqual([8, 12])
+    expect(with_('#q4 and done', {}).ok).toBe(true)
   })
 
   it('tints what it read', () => {

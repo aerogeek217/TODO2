@@ -21,8 +21,12 @@ interface ExpressionFieldOptions {
   predicate: TodoPredicate
   onChange: (next: TodoPredicate) => void
   inputRef: RefObject<HTMLTextAreaElement | null>
-  /** `false`: `@` terms are refused and `@` opens no popup (the check-in filter). */
+  /** `false`: `@`, `no person` and `any person` are refused and `@` opens no popup (the check-in filter). */
   allowPeople?: boolean
+  /** `false`: Completed dates are refused (the check-in filter). */
+  allowCompleted?: boolean
+  /** `false`: `done` is refused (filters that never show completed tasks by it: a lens, a pane, the check-in). */
+  allowDone?: boolean
 }
 
 /**
@@ -38,7 +42,7 @@ interface ExpressionFieldOptions {
  * Hosts render a textarea over `tints` (`shared/TintedText`), the popup with
  * `ac.state`, and route the textarea's change / select / keydown / blur here.
  */
-export function useExpressionField({ predicate, onChange, inputRef, allowPeople = true }: ExpressionFieldOptions) {
+export function useExpressionField({ predicate, onChange, inputRef, allowPeople = true, allowCompleted = true, allowDone = true }: ExpressionFieldOptions) {
   const people = usePersonStore((s) => s.people)
   const tags = useTagStore((s) => s.tags)
   const statuses = useStatusStore((s) => s.statuses)
@@ -63,8 +67,8 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   }
 
   const parse: ExpressionParse = useMemo(
-    () => parseExpression(text, { today: startOfToday(), names: resolver, allowPeople }),
-    [text, resolver, allowPeople],
+    () => parseExpression(text, { today: startOfToday(), names: resolver, allowPeople, allowCompleted, allowDone }),
+    [text, resolver, allowPeople, allowCompleted, allowDone],
   )
 
   const predicateRef = useLatestRef(predicate)
@@ -119,8 +123,8 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
 
   const setAndRead = useCallback((value: string) => {
     setText(value)
-    queue(parseExpression(value, { today: startOfToday(), names: resolver, allowPeople }), false)
-  }, [queue, resolver, allowPeople])
+    queue(parseExpression(value, { today: startOfToday(), names: resolver, allowPeople, allowCompleted, allowDone }), false)
+  }, [queue, resolver, allowPeople, allowCompleted, allowDone])
 
   const acPeople = useMemo(() => personItems(people), [people])
   const acTags = useMemo(() => tagItems(tags), [tags])
@@ -152,10 +156,10 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
 
   /** Shows the text that reads in its canonical form, the filter written now. */
   const settle = useCallback(() => {
-    const now = parseExpression(text, { today: startOfToday(), names: resolver, allowPeople })
+    const now = parseExpression(text, { today: startOfToday(), names: resolver, allowPeople, allowCompleted, allowDone })
     queue(now, true)
     if (now.ok) setText(printExpression(now.expression, now.showCompleted, names))
-  }, [text, resolver, allowPeople, queue, names])
+  }, [text, resolver, allowPeople, allowCompleted, allowDone, queue, names])
 
   const onBlur = useCallback(() => {
     dismiss()
