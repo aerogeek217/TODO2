@@ -56,6 +56,8 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
   const [syncedFrom, setSyncedFrom] = useState(stored)
   /** The canonical text of the filter this field last wrote (or is about to). */
   const [written, setWritten] = useState(stored)
+  /** Counts the changes from elsewhere the field took up (a write still waiting is dropped after each). */
+  const [adopted, setAdopted] = useState(0)
   // The filter changed: this field's own write arriving (the text stays as
   // typed), or a change from elsewhere, which the field then shows.
   if (stored !== syncedFrom) {
@@ -63,6 +65,7 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
     if (stored !== written) {
       setWritten(stored)
       setText(stored)
+      setAdopted((n) => n + 1)
     }
   }
 
@@ -110,6 +113,16 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
 
   // A write still waiting when the field goes is made then.
   useEffect(() => flush, [flush])
+
+  // A change from elsewhere (an undo, a Revert) landed while a write waited
+  // out its pause: the field shows the change, so the write it would undo
+  // goes (cr33 U13).
+  useLayoutEffect(() => {
+    if (adopted === 0) return
+    if (pending.current) clearTimeout(pending.current)
+    pending.current = null
+    pendingWrite.current = null
+  }, [adopted])
 
   /** Where the caret goes once the text has changed under it (a pick). */
   const pendingCaret = useRef<number | null>(null)

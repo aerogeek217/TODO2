@@ -156,6 +156,19 @@ describe('the expression field', () => {
     expect(field().value).toBe('"budget review" and @"Ann Lee" and done')
   })
 
+  it('a change from elsewhere during the write pause drops the waiting write (cr33 U13)', () => {
+    vi.useFakeTimers()
+    const log: TodoPredicate[] = []
+    const show = (predicate: TodoPredicate) => <PredicateChips predicate={predicate} layout="stack" onChange={(n) => log.push(n)} />
+    const { rerender } = render(show({ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }))
+    type('(/focus or #work)')
+    // An undo lands before the pause is over.
+    rerender(show({ ...emptyPredicate(), expression: { kind: 'tag', id: 10 } }))
+    expect(field().value).toBe('#work')
+    act(() => { vi.advanceTimersByTime(EXPRESSION_WRITE_MS * 2) })
+    expect(log).toEqual([])
+  })
+
   it('a focus and a blur write nothing when the text reads as the same filter (cr33 F4)', () => {
     const log: TodoPredicate[] = []
     // As Graphical → Expression writes a Relative Completed range: its end a 0-day offset, which reads back as `today`.
