@@ -5,7 +5,8 @@ import { box, expectInsideViewport } from './fixtures/geometry'
 
 /**
  * A right-click on a person or tag in a people / tag picker (or Shift+F10 on
- * the highlighted option) opens the same Show tasks · Edit… · Delete… menu
+ * the highlighted option) opens the same person / tag menu (Review · the
+ * check-ins · Show tasks · Edit… · Delete…)
  * as a task row's avatar / tag, over the picker, without picking the option.
  * Esc closes only the menu; Edit… and Delete… open above the picker, which
  * stays open behind them and shows the change; Show tasks closes the picker.
@@ -48,8 +49,8 @@ test('a right-click on an option opens its menu at the pointer without picking i
   await page.mouse.click(at.x, at.y, { button: 'right' })
 
   const menu = page.getByRole('menu', { name: '@Ben Ortiz' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Show tasks', 'Edit…', 'Delete…'])
-  await expect(menu.getByRole('menuitem', { name: 'Show tasks' })).toBeFocused()
+  await expect(menu.getByRole('menuitem')).toHaveText(['Review with Ben Ortiz…', 'Email check-in to Ben Ortiz', 'Paste reply from Ben Ortiz…', 'Show tasks', 'Edit…', 'Delete…'])
+  await expect(menu.getByRole('menuitem', { name: 'Review with Ben Ortiz…' })).toBeFocused()
   // At the pointer, over the picker; the task menu didn't open behind.
   const m = await box(menu)
   expect(Math.abs(m.x - at.x)).toBeLessThan(6)
@@ -79,13 +80,13 @@ test('Shift+F10 in the search opens the highlighted option’s menu under it', a
   await expect(ben).toHaveAttribute('data-active', '')
   await page.keyboard.press('Shift+F10')
   const menu = page.getByRole('menu', { name: '@Ben Ortiz' })
-  await expect(menu.getByRole('menuitem', { name: 'Show tasks' })).toBeFocused()
+  await expect(menu.getByRole('menuitem', { name: 'Review with Ben Ortiz…' })).toBeFocused()
   const o = await box(ben)
   const m = await box(menu)
   expect(m.y).toBeGreaterThanOrEqual(o.y + o.height - 1)
   expect(m.x).toBeGreaterThan(o.x)
   await page.keyboard.press('ArrowDown')
-  await expect(menu.getByRole('menuitem', { name: 'Edit…' })).toBeFocused()
+  await expect(menu.getByRole('menuitem', { name: 'Email check-in to Ben Ortiz' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(menu).toHaveCount(0)
   await expect(panel.getByRole('combobox')).toBeFocused()
