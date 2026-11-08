@@ -135,13 +135,28 @@ function quotedTitles(titles: readonly string[]): string {
 }
 
 /**
- * What closing the deck asks while tasks' Status update lines hold text not
- * recorded yet (`titles`: those tasks): Discard the unrecorded update(s)?
+ * What closing the deck asks while tasks hold text not recorded yet:
+ * `updates` — the titles of the tasks whose Status update line has text;
+ * `nextDates` — those whose Next follow-up field has a date typed and not
+ * set. The title counts both: `Discard the unrecorded update?` /
+ * `Discard N unrecorded updates?`.
  */
-export function unrecordedReviewPrompt(titles: readonly string[]): { title: string; message: string } {
-  const one = titles.length === 1
+export function unrecordedReviewPrompt(
+  { updates, nextDates }: { updates: readonly string[]; nextDates: readonly string[] },
+): { title: string; message: string } {
+  const n = updates.length + nextDates.length
+  const parts: string[] = []
+  if (updates.length > 0) {
+    const one = updates.length === 1
+    parts.push(`${one ? 'the update typed for' : 'the updates typed for'} ${quotedTitles(updates)} ${one ? 'hasn’t' : 'haven’t'} been recorded`)
+  }
+  if (nextDates.length > 0) {
+    const one = nextDates.length === 1
+    parts.push(`${one ? 'a next follow-up date typed for' : 'the next follow-up dates typed for'} ${quotedTitles(nextDates)} ${one ? 'hasn’t' : 'haven’t'} been set`)
+  }
+  const sentence = parts.join(', and ')
   return {
-    title: one ? 'Discard the unrecorded update?' : `Discard ${titles.length} unrecorded updates?`,
-    message: `${one ? 'The update typed for' : 'The updates typed for'} ${quotedTitles(titles)} ${one ? 'hasn’t' : 'haven’t'} been recorded. Nothing is marked followed up.`,
+    title: n === 1 ? 'Discard the unrecorded update?' : `Discard ${n} unrecorded updates?`,
+    message: `${sentence.charAt(0).toUpperCase()}${sentence.slice(1)}. Nothing is marked followed up.`,
   }
 }

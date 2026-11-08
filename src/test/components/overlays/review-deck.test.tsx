@@ -81,7 +81,8 @@ describe('the review deck', () => {
     await waitFor(() => expect(useStatusUpdateStore.getState().byTodo.get(first)?.map((u) => [u.text, u.followedUp]))
       .toEqual([['Legal has it, back Thursday', true]]))
     expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Followed up · status update added'])
-    expect(railRow(FIRST)).toHaveAttribute('data-mark', 'done')
+    // Marked once the write is in.
+    await waitFor(() => expect(railRow(FIRST)).toHaveAttribute('data-mark', 'done'))
     expect(screen.getByTestId('review-followed-up')).toHaveTextContent('1 followed up')
   })
 
@@ -276,6 +277,126 @@ describe('the review deck', () => {
     await waitFor(() => expect(updateField()).toHaveFocus())
   })
 
+  it('a next follow-up date typed and not set counts too: the prompt says so, Keep reviewing focuses that field', async () => {
+    const [first] = ids as [number]
+    await openDeck()
+    fireEvent.change(nextField(), { target: { value: '2w' } })
+    fireEvent.keyDown(nextField(), { key: 'Escape' })
+    const prompt = await screen.findByRole('dialog', { name: 'Discard the unrecorded update?' })
+    expect(prompt).toHaveTextContent('A next follow-up date typed for “Answer Northwind” hasn’t been set. Nothing is marked followed up.')
+    fireEvent.click(within(prompt).getByRole('button', { name: /Keep reviewing/ }))
+    await waitFor(() => expect(nextField()).toHaveFocus())
+    expect(nextField()).toHaveValue('2w')
+
+    fireEvent.keyDown(nextField(), { key: 'Escape' })
+    fireEvent.click(within(await screen.findByRole('dialog', { name: 'Discard the unrecorded update?' })).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(useReviewStore.getState().open).toBe(false))
+    expect(useReviewStore.getState().nextDrafts).toEqual({})
+    expect(todo(first)?.nextFollowupAt).toBeUndefined()
+  })
+
+  it('an update and a next date on one task: both counted, both named', async () => {
+    await openDeck()
+    fireEvent.change(updateField(), { target: { value: 'Waiting on legal' } })
+    fireEvent.change(nextField(), { target: { value: 'not a date' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close review' }))
+    const prompt = await screen.findByRole('dialog', { name: 'Discard 2 unrecorded updates?' })
+    expect(prompt).toHaveTextContent('The update typed for “Answer Northwind” hasn’t been recorded, and a next follow-up date typed for “Answer Northwind” hasn’t been set.')
+    fireEvent.click(within(prompt).getByRole('button', { name: /Keep reviewing/ }))
+    // The update line first.
+    await waitFor(() => expect(updateField()).toHaveFocus())
+  })
+
+  it('a next date typed and not set comes back with its card (Back); a set one is no longer pending', async () => {
+    await openDeck()
+    fireEvent.change(nextField(), { target: { value: '2w' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    expect(nextField()).not.toHaveValue('2w')
+    fireEvent.click(screen.getByRole('button', { name: /^Back/ }))
+    expect(nextField()).toHaveValue('2w')
+    fireEvent.keyDown(nextField(), { key: 'Enter' })
+    expect(useReviewStore.getState().nextDrafts).toEqual({})
+  })
+
+  it('a click into the Next field selects its text, so typing replaces it', async () => {
+    await openDeck()
+    const field = nextField() as HTMLInputElement
+    fireEvent.change(field, { target: { value: 'Mon 11/16' } })
+    field.blur()
+    fireEvent.mouseDown(field)
+    field.focus()
+    // The click's mouseup would put the caret down: its default is prevented.
+    expect(fireEvent.mouseUp(field)).toBe(false)
+    expect([field.selectionStart, field.selectionEnd]).toEqual([0, field.value.length])
+  })
+
+  it('a follow-up that fails to write keeps the typed text and shows no ✓', async () => {
+    const [first] = ids as [number]
+    vi.spyOn(todoRepository, 'bulkUpdate').mockRejectedValue(new Error('disk full'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    await openDeck()
+    fireEvent.change(updateField(), { target: { value: 'Legal has it' } })
+    fireEvent.keyDown(updateField(), { key: 'Enter' })
+    await waitFor(() => expect(useUndoStore.getState().snackbar?.description).toMatch(/Couldn’t mark the tasks followed up/))
+    expect(useReviewStore.getState().drafts).toEqual({ [first]: 'Legal has it' })
+    expect(railRow(FIRST)).not.toHaveAttribute('data-mark')
+    expect(screen.getByTestId('review-followed-up')).toHaveTextContent('0 followed up')
+  })
+
+  it('an undo of the follow-up takes the ✓ and the count away', async () => {
+    await openDeck()
+    fireEvent.click(markButton())
+    await waitFor(() => expect(railRow(FIRST)).toHaveAttribute('data-mark', 'done'))
+    await act(async () => { await useUndoStore.getState().undo() })
+    await waitFor(() => expect(railRow(FIRST)).not.toHaveAttribute('data-mark'))
+    expect(screen.getByTestId('review-followed-up')).toHaveTextContent('0 followed up')
+  })
+
+  it('on a Mac, Alt + arrows in a text field move its caret; outside one they still step', async () => {
+    vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel')
+    await openDeck()
+    expect(fireEvent.keyDown(updateField(), { key: 'ArrowRight', altKey: true })).toBe(true)
+    expect(cardTitle()).toBe(FIRST)
+    railRow(FIRST).focus()
+    fireEvent.keyDown(railRow(FIRST), { key: 'ArrowRight', altKey: true })
+    expect(cardTitle()).toBe(SECOND)
+  })
+
+  it('in the notes editor Alt + arrows are its own (never the browser’s Back)', async () => {
+    await openDeck()
+    const content = document.querySelector<HTMLElement>('.cm-content')!
+    expect(fireEvent.keyDown(content, { key: 'ArrowRight', altKey: true })).toBe(false)
+    expect(cardTitle()).toBe(FIRST)
+  })
+
+  it('Back and Skip: their names without the key hint, their keys in aria-keyshortcuts', async () => {
+    await openDeck()
+    const back = screen.getByRole('button', { name: 'Back' })
+    expect(back).toHaveAttribute('aria-keyshortcuts', 'K Alt+ArrowLeft')
+    expect(screen.getByRole('button', { name: 'Skip' })).toHaveAttribute('aria-keyshortcuts', 'S Alt+ArrowRight')
+  })
+
+  it('a grouped review: each rail row names its group', async () => {
+    useReviewStore.getState().start({
+      source: { kind: 'list', title: 'Aisha 1:1', description: 'list · Status · Manual' },
+      ids,
+      dividers: [{ index: 0, label: 'Waiting' }, { index: 2, label: 'Doing' }],
+    })
+    render(<><ReviewDeck /><ConfirmPromptHost /></>)
+    expect(railRow(FIRST)).toHaveAccessibleName(/, in Waiting$/)
+    expect(railRow(SECOND)).toHaveAccessibleName(/, in Waiting$/)
+    expect(railRow('Retention addendum')).toHaveAccessibleName(/, in Doing$/)
+  })
+
+  it('Esc in the status picker closes only the picker', async () => {
+    await openDeck()
+    fireEvent.click(screen.getByRole('button', { name: /^Status:/ }))
+    expect(screen.getByText('No Status')).toBeInTheDocument()
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
+    await waitFor(() => expect(screen.queryByText('No Status')).toBeNull())
+    expect(useReviewStore.getState().open).toBe(true)
+  })
+
   it('Esc while the editor is open is the editor’s', async () => {
     await openDeck()
     act(() => useUIStore.getState().openEditPopup(ids[0]!))
@@ -296,7 +417,7 @@ describe('the review deck', () => {
     expect(cardTitle()).toBe('Retention addendum')
     fireEvent.click(markButton())
     expect(cardTitle()).toBe('Retention addendum')
-    expect(screen.getByTestId('review-position')).toHaveTextContent('All 3 reviewed')
+    await waitFor(() => expect(screen.getByTestId('review-position')).toHaveTextContent('All 3 reviewed'))
     expect(updateField()).toHaveFocus()
   })
 

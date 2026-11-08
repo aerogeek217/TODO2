@@ -47,6 +47,8 @@ interface ReviewState {
   marks: Readonly<Record<number, ReviewMark>>
   /** The Status update field's text per task, kept while the review is open (Back brings it back). */
   drafts: Readonly<Record<number, string>>
+  /** The Next follow-up field's text per task while it is typed and not set yet (Back brings it back). */
+  nextDrafts: Readonly<Record<number, string>>
 
   /** Opens a review of `start` (replacing one that is open), on its first card. */
   start: (start: ReviewStart) => void
@@ -58,6 +60,8 @@ interface ReviewState {
   /** Marks task `id`; a task followed up stays `done` (a later Skip doesn't take it back). */
   mark: (id: number, mark: ReviewMark) => void
   setDraft: (id: number, text: string) => void
+  /** Sets (or with `null`, drops) the Next follow-up text typed for `id` and not set yet. */
+  setNextDraft: (id: number, text: string | null) => void
   /** Drops the tasks not in `live` (deleted meanwhile), keeping the current card where it can. */
   prune: (live: ReadonlySet<number>) => void
 }
@@ -70,6 +74,7 @@ const CLOSED = {
   index: 0,
   marks: {} as Readonly<Record<number, ReviewMark>>,
   drafts: {} as Readonly<Record<number, string>>,
+  nextDrafts: {} as Readonly<Record<number, string>>,
 }
 
 const clamp = (i: number, n: number) => Math.max(0, Math.min(n - 1, i))
@@ -141,6 +146,15 @@ export const useReviewStore = create<ReviewState>((set, get) => ({
     set({ drafts: next })
   },
 
+  setNextDraft(id, text) {
+    const nextDrafts = get().nextDrafts
+    if (text === null ? !(id in nextDrafts) : nextDrafts[id] === text) return
+    const next = { ...nextDrafts }
+    if (text === null) delete next[id]
+    else next[id] = text
+    set({ nextDrafts: next })
+  },
+
   prune(live) {
     const s = get()
     if (!s.open || s.ids.every((id) => live.has(id))) return
@@ -155,19 +169,42 @@ useTodoStore.subscribe((state, prev) => {
 })
 
 /**
- * The tasks of the review whose Status update line holds text not recorded
- * yet (a draft of only spaces counts as none), in queue order.
+ * The tasks of the review whose field (`drafts`: the Status update line's,
+ * `nextDrafts`: the Next follow-up field's) holds text not recorded or set
+ * yet (only spaces count as none), in queue order.
  */
 export function unrecordedDraftIds(drafts: Readonly<Record<number, string>>, ids: readonly number[]): number[] {
   return ids.filter((id) => (drafts[id] ?? '').trim() !== '')
 }
 
-/** How many tasks of the review are followed up in it. */
-export function followedUpCount(marks: Readonly<Record<number, ReviewMark>>, ids: readonly number[]): number {
-  return ids.filter((id) => marks[id] === 'done').length
+/**
+ * Task `id`'s mark as the deck shows it: `done` only while the task is still
+ * followed up today (`followedUpToday`) — an undo of the follow-up takes the
+ * ✓ away (no mark then) —; `skipped` as marked.
+ */
+export function shownMark(
+  marks: Readonly<Record<number, ReviewMark>>,
+  id: number,
+  followedUpToday: (id: number) => boolean,
+): ReviewMark | undefined {
+  const mark = marks[id]
+  return mark === 'done' && !followedUpToday(id) ? undefined : mark
 }
 
-/** Every task of the review has a mark (followed up or skipped). */
-export function allReviewed(marks: Readonly<Record<number, ReviewMark>>, ids: readonly number[]): boolean {
-  return ids.length > 0 && ids.every((id) => marks[id] != null)
+/** How many tasks of the review are followed up in it (and still followed up today). */
+export function followedUpCount(
+  marks: Readonly<Record<number, ReviewMark>>,
+  ids: readonly number[],
+  followedUpToday: (id: number) => boolean,
+): number {
+  return ids.filter((id) => shownMark(marks, id, followedUpToday) === 'done').length
+}
+
+/** Every task of the review has a mark as shown (followed up or skipped). */
+export function allReviewed(
+  marks: Readonly<Record<number, ReviewMark>>,
+  ids: readonly number[],
+  followedUpToday: (id: number) => boolean,
+): boolean {
+  return ids.length > 0 && ids.every((id) => shownMark(marks, id, followedUpToday) != null)
 }

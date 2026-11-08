@@ -2,9 +2,12 @@ import { useCallback, useEffect, type RefObject, useId, useLayoutEffect, useMemo
 import { DEFAULT_STATUS_ICON, STATUS_UPDATE_TEXT_MAX, type PersistedTodoItem } from '../../models'
 import { NEXT_FOLLOWUP_PLACEHOLDER, useFollowupInput } from '../../hooks/use-followup-input'
 import { useToday } from '../../hooks/use-today'
+import { useLatestRef } from '../../hooks/use-latest-ref'
+import { useSelectAllOnFocus } from '../../hooks/use-select-all-on-focus'
+import { isMacLike } from '../../utils/platform'
 import { markFollowedUpWithUpdate } from '../../services/mark-followed-up'
 import { unrecordedReviewPrompt } from '../../services/review'
-import { allReviewed, followedUpCount, unrecordedDraftIds, useReviewStore, type ReviewDivider, type ReviewMark } from '../../stores/review-store'
+import { allReviewed, followedUpCount, shownMark, unrecordedDraftIds, useReviewStore, type ReviewDivider, type ReviewMark } from '../../stores/review-store'
 import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
@@ -63,9 +66,11 @@ import styles from './ReviewDeck.module.css'
  * Every edit is its own undo step, after the notes typed so far; Back and
  * Skip write nothing (a typed update waits for the task's card). Keys,
  * inside the deck: ⏎ in the update line marks followed up, ⏎ in the Next
- * field sets that date, Alt + ← / → anywhere go Back / Skip, J / K / S
- * outside a text field go next / back / skip; Esc closes (an open picker or
- * the editor takes it first). It sits on the overlay tier, as the task
+ * field sets that date, Alt + ← / → go Back / Skip (in the update and Next
+ * fields too, except on a Mac, where they move the caret by word; never in
+ * the notes editor, whose keys they are), J / K / S outside a text field go
+ * next / back / skip; Esc closes (an open picker or the editor takes it
+ * first) — asking first while a task holds text not recorded yet. It sits on the overlay tier, as the task
  * dialog does, so the pickers and the editor open above it.
  */
 export function ReviewDeck() {
@@ -74,6 +79,12 @@ export function ReviewDeck() {
 }
 
 const editorIsOpen = () => useUIStore.getState().editPopupMode != null
+
+/** Alt + ← / → are the focused field's own: the notes editor's, or (on a Mac) any text field's. */
+function altArrowIsTheFields(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement) || !isTextEntry(target)) return false
+  return isMacLike() || target.isContentEditable || target.closest('[contenteditable="true"], [contenteditable=""]') !== null
+}
 
 /** A key typed into a field (J / K / S are text there). */
 function isTextEntry(target: EventTarget | null): boolean {
@@ -116,20 +127,33 @@ function ReviewDeckPanel() {
     }
   }, [editPopupMode])
 
-  // Alt + ← / → anywhere in the deck — the notes editor too, before its own keys.
+  // Alt + ← / → step the cards — before a field's own keys, except where
+  // they are the field's: the notes editor's (CodeMirror binds them), and on
+  // a Mac any text field's (Option + arrows move by word). Elsewhere a text
+  // field has no use for them, and the browser would go back in its history.
   useEffect(() => {
     const panel = panelRef.current
     if (!panel) return
+    const isAltArrow = (e: KeyboardEvent) =>
+      e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')
     const onKey = (e: KeyboardEvent) => {
-      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight')) return
+      if (!isAltArrow(e) || altArrowIsTheFields(e.target)) return
       e.preventDefault()
       e.stopPropagation()
       const store = useReviewStore.getState()
       if (e.key === 'ArrowLeft') store.back()
       else skipCurrent()
     }
+    // Left to the notes editor and unused there: not the browser's Back either (a Mac's word move stays).
+    const afterField = (e: KeyboardEvent) => {
+      if (isAltArrow(e) && !e.defaultPrevented && !isMacLike()) e.preventDefault()
+    }
     panel.addEventListener('keydown', onKey, true)
-    return () => panel.removeEventListener('keydown', onKey, true)
+    panel.addEventListener('keydown', afterField)
+    return () => {
+      panel.removeEventListener('keydown', onKey, true)
+      panel.removeEventListener('keydown', afterField)
+    }
   }, [])
 
   const onKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -146,8 +170,14 @@ function ReviewDeckPanel() {
   const n = ids.length
   const currentId = ids[index]
   const todo = currentId != null ? todoById.get(currentId) : undefined
-  const done = followedUpCount(marks, ids)
-  const finished = allReviewed(marks, ids)
+  const today = useToday()
+  // ✓ only while the task is still followed up today: an undo takes it away.
+  const followedUpToday = useCallback((id: number) => {
+    const t = todoById.get(id)
+    return t != null && isFollowedUpToday(t, today)
+  }, [todoById, today])
+  const done = followedUpCount(marks, ids, followedUpToday)
+  const finished = allReviewed(marks, ids, followedUpToday)
 
   return (
     <DialogFrame
@@ -183,7 +213,7 @@ function ReviewDeckPanel() {
         <span className={styles.followedUp} data-testid="review-followed-up">{done} followed up</span>
         <button type="button" className={styles.closeBtn} aria-label="Close review" onClick={close}>×</button>
       </header>
-      <ReviewRail ids={ids} dividers={dividers} index={index} marks={marks} todoById={todoById} />
+      <ReviewRail ids={ids} dividers={dividers} index={index} marks={marks} todoById={todoById} followedUpToday={followedUpToday} />
       {todo ? (
         <ReviewCard key={todo.id} todo={todo} isLast={index === n - 1} />
       ) : (
@@ -200,27 +230,29 @@ function ReviewDeckPanel() {
 let askingToClose = false
 
 /**
- * Closes the deck (Esc, ×, the backdrop) — at once, unless a task's Status
- * update line holds text not recorded yet: then it asks first. Discard
- * closes, the text gone; Keep reviewing (the default) stays, on a card with
- * text (this one if it has some) and its update line focused. Nothing is
- * ever recorded on close.
+ * Closes the deck (Esc, ×, the backdrop) — at once, unless a task holds
+ * text not recorded yet (its Status update line's, or a date typed in its
+ * Next follow-up field and not set): then it asks first. Discard closes,
+ * the text gone; Keep reviewing (the default) stays, on a card with text
+ * (this one if it has some), the field that holds it focused. Nothing is
+ * ever recorded or set on close.
  */
 async function requestCloseReview(panelRef: RefObject<HTMLDivElement | null>): Promise<void> {
   if (askingToClose) return
-  const { ids, drafts } = useReviewStore.getState()
-  const pending = unrecordedDraftIds(drafts, ids)
-  if (pending.length === 0) {
+  const { ids, drafts, nextDrafts } = useReviewStore.getState()
+  const updates = unrecordedDraftIds(drafts, ids)
+  const nextDates = unrecordedDraftIds(nextDrafts, ids)
+  if (updates.length === 0 && nextDates.length === 0) {
     useReviewStore.getState().close()
     return
   }
   const titleOf = new Map(useTodoStore.getState().todos.map((t) => [t.id, t.title]))
-  const titles = pending.map((id) => titleOf.get(id) ?? 'Untitled task')
+  const titles = (pending: readonly number[]) => pending.map((id) => titleOf.get(id) ?? 'Untitled task')
   askingToClose = true
   let discard: boolean
   try {
     discard = await useUIStore.getState().askConfirmation({
-      ...unrecordedReviewPrompt(titles),
+      ...unrecordedReviewPrompt({ updates: titles(updates), nextDates: titles(nextDates) }),
       confirmLabel: 'Discard',
       cancelLabel: 'Keep reviewing',
       danger: true,
@@ -234,14 +266,19 @@ async function requestCloseReview(panelRef: RefObject<HTMLDivElement | null>): P
     store.close()
     return
   }
-  // Keep reviewing: on a card that holds text, its update line focused once the prompt has gone.
+  // Keep reviewing: on a card that holds text (this one if it does), the
+  // field that holds it focused once the prompt has gone — the update line
+  // first.
+  const hasText = (drafts: Readonly<Record<number, string>>, id: number) => (drafts[id] ?? '').trim() !== ''
+  const holdsText = (id: number) => hasText(store.drafts, id) || hasText(store.nextDrafts, id)
   const current = store.ids[store.index]
-  if (current == null || (store.drafts[current] ?? '').trim() === '') {
-    const at = store.ids.findIndex((id) => (store.drafts[id] ?? '').trim() !== '')
-    if (at >= 0) store.go(at)
-  }
+  let at = current != null && holdsText(current) ? store.index : store.ids.findIndex(holdsText)
+  if (at < 0) at = store.index
+  store.go(at)
+  const target = store.ids[at]
+  const field = target != null && !hasText(store.drafts, target) && hasText(store.nextDrafts, target) ? '[data-review-next]' : '[data-review-update]'
   window.setTimeout(() => {
-    panelRef.current?.querySelector<HTMLInputElement>('[data-review-update]')?.focus()
+    panelRef.current?.querySelector<HTMLInputElement>(field)?.focus()
   }, 0)
 }
 registerModuleReset(() => { askingToClose = false })
@@ -256,18 +293,25 @@ function skipCurrent() {
 
 // ── The queue rail ─────────────────────────────────────────────────────────
 
-function ReviewRail({ ids, dividers, index, marks, todoById }: {
+function ReviewRail({ ids, dividers, index, marks, todoById, followedUpToday }: {
   ids: readonly number[]
   dividers: readonly ReviewDivider[]
   index: number
   marks: Readonly<Record<number, ReviewMark>>
   todoById: ReadonlyMap<number, PersistedTodoItem>
+  followedUpToday: (id: number) => boolean
 }) {
   const today = useToday()
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const rowDates = useSettingsStore((s) => s.rowDates)
   const listRef = useRef<HTMLOListElement>(null)
   const dividerAt = useMemo(() => new Map(dividers.map((d) => [d.index, d.label])), [dividers])
+  /** Each row's group (the label of the divider before it), for its accessible name. */
+  const groupAt = useMemo(() => {
+    const out: (string | null)[] = []
+    for (let i = 0; i < ids.length; i++) out.push(dividerAt.get(i) ?? out[i - 1] ?? null)
+    return out
+  }, [ids, dividerAt])
 
   // The current row stays in view as the review moves on; the focus in the
   // rail (stepping with J / K there) moves with it.
@@ -283,9 +327,10 @@ function ReviewRail({ ids, dividers, index, marks, todoById }: {
       <ol ref={listRef} className={styles.railList}>
         {ids.flatMap((id, i) => {
           const todo = todoById.get(id)
-          if (!todo) return []
           const label = dividerAt.get(i)
-          const mark = marks[id]
+          const group = groupAt[i] ?? null
+          if (!todo) return []
+          const mark = shownMark(marks, id, followedUpToday)
           const current = i === index
           const followup = todo.nextFollowupAt
           const due = todo.dueDate
@@ -299,7 +344,7 @@ function ReviewRail({ ids, dividers, index, marks, todoById }: {
                 type="button"
                 className={styles.railRow}
                 aria-current={current ? 'true' : undefined}
-                aria-label={`${todo.title}${fuText ? `, follow-up ${fuText}` : ''}${dueText ? `, due ${dueText}` : ''}${todo.isCompleted ? ', completed' : ''}${markWords}`}
+                aria-label={`${todo.title}${fuText ? `, follow-up ${fuText}` : ''}${dueText ? `, due ${dueText}` : ''}${todo.isCompleted ? ', completed' : ''}${markWords}${group != null ? `, in ${group}` : ''}`}
                 data-review-row={id}
                 data-mark={mark}
                 // A click doesn't take the focus: the card it opens puts it in its update line.
@@ -315,6 +360,7 @@ function ReviewRail({ ids, dividers, index, marks, todoById }: {
             </li>
           )
           return label != null
+            // The group is in each row's name (`, in Aisha`); the divider is its picture.
             ? [<li key={`divider-${i}`} className={styles.railDivider} aria-hidden="true">{label}</li>, row]
             : [row]
         })}
@@ -363,6 +409,7 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
   const statuses = useStatusStore((s) => s.statuses)
   const tags = useTagStore((s) => s.assignedTagsMap.get(todoId))
   const draft = useReviewStore((s) => s.drafts[todoId] ?? '')
+  const selectOnFocus = useSelectAllOnFocus()
   const uid = useId()
 
   // Notes: one edit session, written before any other write to the task.
@@ -391,6 +438,22 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
   const current = todo.nextFollowupAt ?? null
   const ruled = nextAfterFollowup(current, today, proposal)
   const input = useFollowupInput(ruled ?? undefined, 'next', today)
+  // A date typed and not set yet is kept for the task (Back brings it back; a close asks over it).
+  const typeNext = (text: string) => {
+    input.change(text)
+    useReviewStore.getState().setNextDraft(todoId, text.trim() === '' ? null : text)
+  }
+  const settleNext = (date: Date | null) => {
+    if (date) input.settle(date)
+    else input.change('')
+    useReviewStore.getState().setNextDraft(todoId, null)
+  }
+  // Coming back to the card: the date typed before, as typed.
+  const inputLatest = useLatestRef(input)
+  useLayoutEffect(() => {
+    const typed = useReviewStore.getState().nextDrafts[todoId]
+    if (typed != null) inputLatest.current.change(typed)
+  }, [todoId, inputLatest])
   const s = input.state
   const untouched = s.kind === 'unchanged'
   const fieldDate: Date | null | 'invalid' =
@@ -402,13 +465,12 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
   /** A date for the next follow-up (⏎ in the field, a quick button): set now, the field showing it; then on to the update line. */
   const apply = (date: Date | null) => {
     setNext(date)
-    if (date) input.settle(date)
-    else input.change('')
+    settleNext(date)
     updateRef.current?.focus()
   }
   /** None: no next follow-up, at once; the field stays empty (Mark followed up then leaves none). */
   const clearNext = () => {
-    input.change('')
+    settleNext(null)
     if (current !== null) setNext(null)
   }
   const onNextKeyDown = (e: ReactKeyboardEvent<HTMLInputElement>) => {
@@ -419,23 +481,40 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
     else updateRef.current?.focus()
   }
 
-  /** Mark followed up: the notes first, then the follow-up (with the update line's text: one undo step); then the next card. */
+  /**
+   * Mark followed up: the notes first, then the follow-up (with the update
+   * line's text: one undo step); the next card opens at once. Once the
+   * follow-up is written the task is marked ✓ and its typed text cleared —
+   * a write that fails leaves both, the text there to try again.
+   */
   const followUp = () => {
     if (fieldDate === 'invalid') return
     const options = untouched ? {} : { next: fieldDate }
     const text = draft
-    afterNotes(() => markFollowedUpWithUpdate([todoId], options, text).catch((err: unknown) => {
-      console.error('[review] the follow-up could not be recorded', err)
-    }))
-    const store = useReviewStore.getState()
-    store.setDraft(todoId, '')
-    store.mark(todoId, 'done')
+    const nextText = useReviewStore.getState().nextDrafts[todoId]
+    const before = useTodoStore.getState().todos.find((t) => t.id === todoId)?.lastFollowupAt?.getTime()
+    afterNotes(async () => {
+      try {
+        await markFollowedUpWithUpdate([todoId], options, text)
+      } catch (err: unknown) {
+        console.error('[review] the follow-up could not be recorded', err)
+        return
+      }
+      // Written: the task's last follow-up moved (a failed write leaves it, and says so itself).
+      const after = useTodoStore.getState().todos.find((t) => t.id === todoId)?.lastFollowupAt?.getTime()
+      if (after == null || after === before) return
+      const store = useReviewStore.getState()
+      store.mark(todoId, 'done')
+      // Only the text that was sent: what was typed since stays.
+      if ((store.drafts[todoId] ?? '') === text) store.setDraft(todoId, '')
+      if (store.nextDrafts[todoId] === nextText) store.setNextDraft(todoId, null)
+    })
     if (isLast) {
       // The last card stays: it shows what it wrote.
       if (!untouched && fieldDate) input.settle(fieldDate)
       updateRef.current?.focus()
     }
-    store.next()
+    useReviewStore.getState().next()
   }
 
   const toggleComplete = () => {
@@ -588,8 +667,9 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
                 className={`${styles.nextInput} ${s.kind === 'invalid' ? styles.nextInputError : ''}`}
                 value={input.text}
                 placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
-                onChange={(e) => input.change(e.target.value)}
-                onFocus={(e) => e.currentTarget.select()}
+                onChange={(e) => typeNext(e.target.value)}
+                {...selectOnFocus}
+                data-review-next=""
                 onKeyDown={onNextKeyDown}
                 aria-invalid={s.kind === 'invalid'}
                 aria-describedby={`${uid}-next-help`}
@@ -621,11 +701,11 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
         </button>
         <span className={styles.spacer} />
         <span className={styles.hint} data-testid="review-hint">{hint}</span>
-        <button type="button" className={styles.secondaryBtn} onClick={() => useReviewStore.getState().back()}>
-          <ChevronLeftIcon /> Back <kbd className={styles.key}>K</kbd>
+        <button type="button" className={styles.secondaryBtn} aria-keyshortcuts="K Alt+ArrowLeft" onClick={() => useReviewStore.getState().back()}>
+          <ChevronLeftIcon /> Back <kbd className={styles.key} aria-hidden="true">K</kbd>
         </button>
-        <button type="button" className={styles.secondaryBtn} onClick={skipCurrent}>
-          Skip <ChevronRightIcon /> <kbd className={styles.key}>S</kbd>
+        <button type="button" className={styles.secondaryBtn} aria-keyshortcuts="S Alt+ArrowRight" onClick={skipCurrent}>
+          Skip <ChevronRightIcon /> <kbd className={styles.key} aria-hidden="true">S</kbd>
         </button>
         <MarkFollowedUpButton
           className={styles.markBtn}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { allReviewed, followedUpCount, pruneQueue, unrecordedDraftIds, useReviewStore } from '../../stores/review-store'
+import { allReviewed, followedUpCount, pruneQueue, shownMark, unrecordedDraftIds, useReviewStore } from '../../stores/review-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { makeTodo } from '../helpers'
 
@@ -67,10 +67,27 @@ describe('review-store', () => {
   })
 
   it('counts: followed up, and all reviewed once every task has a mark', () => {
-    expect(followedUpCount({ 1: 'done', 2: 'skipped' }, [1, 2, 3])).toBe(1)
-    expect(allReviewed({ 1: 'done', 2: 'skipped' }, [1, 2, 3])).toBe(false)
-    expect(allReviewed({ 1: 'done', 2: 'skipped', 3: 'done' }, [1, 2, 3])).toBe(true)
-    expect(allReviewed({}, [])).toBe(false)
+    const yes = () => true
+    expect(followedUpCount({ 1: 'done', 2: 'skipped' }, [1, 2, 3], yes)).toBe(1)
+    expect(allReviewed({ 1: 'done', 2: 'skipped' }, [1, 2, 3], yes)).toBe(false)
+    expect(allReviewed({ 1: 'done', 2: 'skipped', 3: 'done' }, [1, 2, 3], yes)).toBe(true)
+    expect(allReviewed({}, [], yes)).toBe(false)
+  })
+
+  it('a done mark shows only while the task is still followed up today (an undo takes it away)', () => {
+    const marks = { 1: 'done', 2: 'done', 3: 'skipped' } as const
+    const onlyOne = (id: number) => id === 1
+    expect([1, 2, 3].map((id) => shownMark(marks, id, onlyOne))).toEqual(['done', undefined, 'skipped'])
+    expect(followedUpCount(marks, [1, 2, 3], onlyOne)).toBe(1)
+    expect(allReviewed(marks, [1, 2, 3], onlyOne)).toBe(false)
+  })
+
+  it('next drafts: kept per task, null drops one', () => {
+    startWith([1, 2])
+    store().setNextDraft(1, '2w')
+    expect(store().nextDrafts).toEqual({ 1: '2w' })
+    store().setNextDraft(1, null)
+    expect(store().nextDrafts).toEqual({})
   })
 })
 
