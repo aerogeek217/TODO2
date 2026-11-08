@@ -95,6 +95,41 @@ describe('Graphical | Expression', () => {
     expect(screen.getByRole('button', { name: /Filter/ })).toBeTruthy()
   })
 
+  it('Expression, Edit expression and Clear and use Graphical leave the focus on what replaced them, never <body> (cr33 U6)', () => {
+    const log: TodoPredicate[] = []
+    const { unmount } = render(<Harness initial={{ ...emptyPredicate(), statusIds: [2] }} log={log} />)
+    fireEvent.click(mode('Expression'))
+    expect(document.activeElement).toBe(field())
+    unmount()
+    render(<Harness initial={{ ...emptyPredicate(), expression: RULE }} log={log} />)
+    fireEvent.click(mode('Graphical'))
+    const edit = screen.getByRole('button', { name: 'Edit expression' })
+    edit.focus()
+    fireEvent.click(edit)
+    expect(document.activeElement).toBe(field())
+    fireEvent.click(mode('Graphical'))
+    const clear = screen.getByRole('button', { name: 'Clear and use Graphical' })
+    clear.focus()
+    fireEvent.click(clear)
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: /Filter/ }))
+  })
+
+  it('the switch is one tab stop; the arrows move the choice and the focus (cr33 U9)', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={{ ...emptyPredicate(), statusIds: [2] }} log={log} />)
+    expect(mode('Graphical')).toHaveAttribute('tabindex', '0')
+    expect(mode('Expression')).toHaveAttribute('tabindex', '-1')
+    mode('Graphical').focus()
+    fireEvent.keyDown(mode('Graphical'), { key: 'ArrowRight' })
+    expect(mode('Expression')).toHaveAttribute('aria-checked', 'true')
+    expect(mode('Expression')).toHaveAttribute('tabindex', '0')
+    expect(document.activeElement).toBe(mode('Expression'))
+    expect(log.at(-1)?.expression).toEqual({ kind: 'status', id: 2 })
+    fireEvent.keyDown(mode('Expression'), { key: 'ArrowLeft' })
+    expect(mode('Graphical')).toHaveAttribute('aria-checked', 'true')
+    expect(document.activeElement).toBe(mode('Graphical'))
+  })
+
   it('refuses to switch a filter past the expression cap: it stays Graphical, saying why (cr33 M1)', () => {
     const log: TodoPredicate[] = []
     const tags = Array.from({ length: EXPRESSION_NODES_MAX }, (_, i) => i + 1)
