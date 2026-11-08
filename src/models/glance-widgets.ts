@@ -12,20 +12,20 @@ function includes<T extends string | number>(list: readonly T[], v: unknown): v 
 
 // ── Numbers ─────────────────────────────────────────────────────────────────
 
-/** The tile metrics (`services/stats/tiles`), in catalog order: every one is a Number metric. */
-export const TILE_METRIC_IDS = [
+/** The metrics `services/stats/metrics` counts, in catalog order: every Number metric but Closed this week. */
+export const METRIC_IDS = [
   'open', 'focus', 'urgent', 'overdue', 'followupDue', 'dueToday', 'dueNext7', 'noFollowup',
 ] as const
-export type TileMetricId = (typeof TILE_METRIC_IDS)[number]
+export type MetricId = (typeof METRIC_IDS)[number]
 
-/** What a Number widget counts: a tile's count, or the tasks closed this week. */
-export const NUMBER_METRICS = [...TILE_METRIC_IDS, 'closedThisWeek'] as const
+/** What a Number widget counts: a counted metric, or the tasks closed this week. */
+export const NUMBER_METRICS = [...METRIC_IDS, 'closedThisWeek'] as const
 export type NumberMetric = (typeof NUMBER_METRICS)[number]
 
 /** A new Number counts the late tasks. */
 export const DEFAULT_NUMBER_METRIC: NumberMetric = 'overdue'
 
-/** Each metric's name: its tile's label, its menu choice, its tab title. */
+/** Each metric's name: its Number's label, its menu choice, its tab title. */
 export const NUMBER_METRIC_LABELS: Record<NumberMetric, string> = {
   open: 'Open',
   focus: 'Focus',
@@ -42,8 +42,8 @@ export function isNumberMetric(v: unknown): v is NumberMetric {
   return includes(NUMBER_METRICS, v)
 }
 
-export function isTileMetric(v: unknown): v is TileMetricId {
-  return includes(TILE_METRIC_IDS, v)
+export function isMetricId(v: unknown): v is MetricId {
+  return includes(METRIC_IDS, v)
 }
 
 /** What a Number's large face breaks its tasks down by (D25 R): their people, their tags, or nothing. */

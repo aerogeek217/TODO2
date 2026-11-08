@@ -1,6 +1,6 @@
 import type { TrendRange } from '../../../models/glance-widgets'
 import type { HistoryAgainst } from '../../../services/stats/metric-history'
-import type { TileStats } from '../../../services/stats/tiles'
+import type { MetricStats } from '../../../services/stats/metrics'
 import { formatFollowupDate, formatFollowupDay, formatWeekdayNumeric } from '../../../utils/followup'
 import { addDays } from '../../../utils/calendar-grid'
 import { formatDateWith } from '../../../utils/date'
@@ -54,7 +54,7 @@ export interface MetricCopyContext {
 }
 
 /** The sub-line under a Number's count. Empty = none. */
-export function metricSubLine(id: keyof TileStats, tiles: TileStats, ctx: MetricCopyContext): string {
+export function metricSubLine(id: keyof MetricStats, metrics: MetricStats, ctx: MetricCopyContext): string {
   switch (id) {
     case 'open': {
       if (ctx.trendNet == null) return ''
@@ -62,32 +62,32 @@ export function metricSubLine(id: keyof TileStats, tiles: TileStats, ctx: Metric
       return ctx.trendNet === 0 ? `No change in ${range}` : `${signed(ctx.trendNet)} in ${range}`
     }
     case 'urgent': {
-      const { flagged, byDate } = tiles.urgent
+      const { flagged, byDate } = metrics.urgent
       const parts: string[] = []
       if (flagged > 0) parts.push(`${flagged} flagged`)
       if (byDate > 0) parts.push(`${byDate} by due date`)
       return parts.length > 0 ? parts.join(' · ') : 'Nothing urgent'
     }
     case 'overdue': {
-      const { oldest, oldestDaysLate } = tiles.overdue
+      const { oldest, oldestDaysLate } = metrics.overdue
       if (!oldest) return 'Nothing overdue'
       return `Oldest ${formatFollowupDay(oldest, ctx.today)} · ${oldestDaysLate}d late`
     }
     case 'followupDue': {
-      const { late, today, upcoming } = tiles.followupDue
+      const { late, today, upcoming } = metrics.followupDue
       if (late > 0 && upcoming > 0) return `${late} late · ${upcoming} more in 7 days`
       if (late > 0) return today > 0 ? `${late} late · ${today} today` : `${late} late`
       if (today > 0) return upcoming > 0 ? `${upcoming} more in the next 7 days` : 'All due today'
       // None due yet: when the next one is.
-      const { next } = tiles.followupDue
+      const { next } = metrics.followupDue
       return next ? `Next one ${formatWeekdayNumeric(next)}` : 'Nothing due'
     }
     case 'focus': {
-      const n = tiles.focus.dueToday
+      const n = metrics.focus.dueToday
       return n > 0 ? `${n} due today` : 'None due today'
     }
     case 'dueToday': {
-      const n = tiles.dueToday.upcoming
+      const n = metrics.dueToday.upcoming
       return n > 0 ? `${n} more in the next 7 days` : 'None in the next 7 days'
     }
     case 'dueNext7':
@@ -128,7 +128,7 @@ export interface MetricDescriptionContext {
  * What a metric counts, in words — the task dialog's line under its
  * title: `Urgent = flagged urgent, or due within 3 days (Settings › Tasks).`
  */
-export function metricDescription(id: keyof TileStats, ctx: MetricDescriptionContext): string {
+export function metricDescription(id: keyof MetricStats, ctx: MetricDescriptionContext): string {
   switch (id) {
     case 'open':
       return 'Every open task.'

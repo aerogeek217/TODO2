@@ -1,4 +1,4 @@
-import { NUMBER_METRIC_LABELS, type NumberMetric, type TileMetricId } from '../../../models/glance-widgets'
+import { NUMBER_METRIC_LABELS, type NumberMetric, type MetricId } from '../../../models/glance-widgets'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 
 /** A Number metric's look and its task dialog's title. */
@@ -20,8 +20,8 @@ const aboveZero = (count: number) => count > 0
 const never = () => false
 const L = NUMBER_METRIC_LABELS
 
-/** The metrics counted from the tile stats (`services/stats/tiles`). */
-export const TILE_DEFS: Record<TileMetricId, NumberDef> = {
+/** The metrics `services/stats/metrics` counts (every Number metric but Closed this week). */
+export const METRIC_DEFS: Record<MetricId, NumberDef> = {
   open: { label: L.open, title: 'Open tasks', glyph: 'open', color: 'var(--color-accent)', litWhen: never },
   urgent: { label: L.urgent, title: 'Urgent tasks', glyph: 'urgent', color: 'var(--color-danger)', litWhen: aboveZero },
   overdue: { label: L.overdue, title: 'Overdue tasks', glyph: 'overdue', color: 'var(--color-overdue)', litWhen: aboveZero },
@@ -32,9 +32,9 @@ export const TILE_DEFS: Record<TileMetricId, NumberDef> = {
   noFollowup: { label: L.noFollowup, title: 'No follow-up date', glyph: 'followup', color: 'var(--color-text-muted)', litWhen: never },
 }
 
-/** Every Number metric: the tile stats', and Closed this week (good news: never lit). */
+/** Every Number metric: the counted ones, and Closed this week (good news: never lit). */
 export const NUMBER_DEFS: Record<NumberMetric, NumberDef> = {
-  ...TILE_DEFS,
+  ...METRIC_DEFS,
   closedThisWeek: { label: L.closedThisWeek, title: 'Closed this week', glyph: 'done', color: 'var(--color-accent)', litWhen: never },
 }
 

@@ -10,7 +10,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { applyFilter } from '../../../utils/filter-match'
-import { computeTiles } from '../../../services/stats/tiles'
+import { computeMetrics } from '../../../services/stats/metrics'
 import { computeTagStats } from '../../../services/stats/tags'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
@@ -24,9 +24,9 @@ vi.mock('../../../utils/filter-match', async (importOriginal) => {
   return { ...actual, applyFilter: vi.fn(actual.applyFilter) }
 })
 // And two statistics' runs: what a write recomputes.
-vi.mock('../../../services/stats/tiles', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../services/stats/tiles')>()
-  return { ...actual, computeTiles: vi.fn(actual.computeTiles) }
+vi.mock('../../../services/stats/metrics', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/stats/metrics')>()
+  return { ...actual, computeMetrics: vi.fn(actual.computeMetrics) }
 })
 vi.mock('../../../services/stats/tags', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/stats/tags')>()
@@ -86,7 +86,7 @@ describe('glance widgets share their data', () => {
       createTab('followup', 'f') as GlanceTab,
     ]
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
-    vi.mocked(computeTiles).mockClear()
+    vi.mocked(computeMetrics).mockClear()
     vi.mocked(computeTagStats).mockClear()
     vi.mocked(applyFilter).mockClear()
     act(() => { useStatusUpdateStore.setState({ byTodo: new Map([[SAMPLE_TASKS[0]!.id, []]]) }) })
@@ -94,18 +94,18 @@ describe('glance widgets share their data', () => {
     // The screen filter reads the text again (it may search the updates)…
     expect(vi.mocked(applyFilter)).toHaveBeenCalledTimes(2)
     // …but keeps the same tasks, so every part hits its memo.
-    expect(vi.mocked(computeTiles)).not.toHaveBeenCalled()
+    expect(vi.mocked(computeMetrics)).not.toHaveBeenCalled()
     expect(vi.mocked(computeTagStats)).not.toHaveBeenCalled()
   })
 
   it('a screen filter change recomputes the shown half only; the every-task totals stay', () => {
     const tabs: GlanceTab[] = [{ id: 'n', kind: 'number', config: { metric: 'open' } }, createTab('tags', 't') as GlanceTab]
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
-    vi.mocked(computeTiles).mockClear()
+    vi.mocked(computeMetrics).mockClear()
     vi.mocked(computeTagStats).mockClear()
     act(() => { useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, tags: new Set([TAGS[0]!.id]) }) })
-    expect(vi.mocked(computeTiles)).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(computeTiles).mock.calls[0]![0].length).toBeLessThan(SAMPLE_TASKS.length)
+    expect(vi.mocked(computeMetrics)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(computeMetrics).mock.calls[0]![0].length).toBeLessThan(SAMPLE_TASKS.length)
     expect(vi.mocked(computeTagStats)).toHaveBeenCalledTimes(1)
   })
 })

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   countOf, nextDayLabels, signed, metricSubLine, trendBucketLabel,
 } from '../../../components/workspace/glance/glance-copy'
-import { computeTiles } from '../../../services/stats/tiles'
+import { computeMetrics } from '../../../services/stats/metrics'
 import { SAMPLE_CTX } from '../../fixtures/glance-sample'
 import { makeTodo } from '../../helpers'
 import { filterChips, listFilterHint, predicateLineItems } from '../../../utils/filter-chips'
@@ -16,7 +16,7 @@ describe('glance copy', () => {
   })
 
   it('Number sub-lines when nothing matches', () => {
-    const tiles = computeTiles([makeTodo({ id: 1 })], SAMPLE_CTX)
+    const tiles = computeMetrics([makeTodo({ id: 1 })], SAMPLE_CTX)
     const ctx = { today: SAMPLE_CTX.today, trendNet: 0, trendRange: '4w' as const }
     expect(metricSubLine('open', tiles, ctx)).toBe('No change in the last 4 weeks')
     expect(metricSubLine('open', tiles, { ...ctx, trendNet: null })).toBe('')
@@ -32,13 +32,13 @@ describe('glance copy', () => {
     const today = SAMPLE_CTX.today
     const at = (n: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + n)
     const ctx = { today, trendNet: 0, trendRange: '4w' as const }
-    const tiles = computeTiles([makeTodo({ id: 1, nextFollowupAt: at(12) }), makeTodo({ id: 2, nextFollowupAt: at(2) })], SAMPLE_CTX)
+    const tiles = computeMetrics([makeTodo({ id: 1, nextFollowupAt: at(12) }), makeTodo({ id: 2, nextFollowupAt: at(2) })], SAMPLE_CTX)
     const d = at(2)
     const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()]
     const mmdd = `${String(d.getMonth() + 1).padStart(2, '0')}/${String(d.getDate()).padStart(2, '0')}`
     expect(metricSubLine('followupDue', tiles, ctx)).toBe(`Next one ${weekday} ${mmdd}`)
     // Due today with more this week still says so.
-    const busy = computeTiles([makeTodo({ id: 1, nextFollowupAt: at(0) }), makeTodo({ id: 2, nextFollowupAt: at(2) })], SAMPLE_CTX)
+    const busy = computeMetrics([makeTodo({ id: 1, nextFollowupAt: at(0) }), makeTodo({ id: 2, nextFollowupAt: at(2) })], SAMPLE_CTX)
     expect(metricSubLine('followupDue', busy, ctx)).toBe('1 more in the next 7 days')
   })
 

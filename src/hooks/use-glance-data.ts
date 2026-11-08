@@ -16,7 +16,7 @@ import { computeStaleTasks, type StaleTasks } from '../services/stats/stale'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { selectStatusBreakdown, type StatusBreakdownEntry } from '../services/stats/status-breakdown'
 import { computeTagStats, type TagStats } from '../services/stats/tags'
-import { computeTiles, type TileStats } from '../services/stats/tiles'
+import { computeMetrics, type MetricStats } from '../services/stats/metrics'
 import { computeTodayPicks, openFocusIds, type TodayPicks } from '../services/stats/today-picks'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { useListDefinitionStore } from '../stores/list-definition-store'
@@ -145,10 +145,10 @@ function shownOfTotalMemo<O extends readonly unknown[], T>(compute: (tasks: Task
   return (shown: Tasks, todos: Tasks, ...opts: O): ShownOfTotal<T> => pair(shownHalf(shown, ...opts), totalHalf(todos, ...opts))
 }
 
-const tilesMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeTiles(tasks, ctx))
-/** The tiles' counts (every Number metric but Closed this week). */
-export function useTileStats(base: StatsBase): ShownOfTotal<TileStats> {
-  return tilesMemo(base.shown, base.todos, base.ctx)
+const metricsMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeMetrics(tasks, ctx))
+/** The counted metrics (every Number metric but Closed this week). */
+export function useMetricStats(base: StatsBase): ShownOfTotal<MetricStats> {
+  return metricsMemo(base.shown, base.todos, base.ctx)
 }
 
 const closedMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeClosedThisWeek(tasks, ctx))

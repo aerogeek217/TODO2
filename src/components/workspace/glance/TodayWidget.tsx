@@ -1,6 +1,6 @@
 import { useEffect, useMemo } from 'react'
 import type { TodayTab } from '../../../models/workspace-layout'
-import { useStatsBase, useTileStats, useTodayPicks, useTodayRows } from '../../../hooks/use-glance-data'
+import { useStatsBase, useMetricStats, useTodayPicks, useTodayRows } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import type { TodayReason, TodayPicks } from '../../../services/stats/today-picks'
 import { pickForToday } from '../../../services/today-focus'
@@ -68,7 +68,7 @@ export function TodayWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TodayT
   const base = useStatsBase()
   const rows = useGlanceRows(tab)
   const picks = useTodayPicks(base)
-  const tiles = useTileStats(base)
+  const metrics = useMetricStats(base)
   const lingering = useTodayRows(base, picks, rows.leaving)
   const [faceRef, face] = useWidgetFace()
   const openEditPopup = useUIStore((s) => s.openEditPopup)
@@ -80,7 +80,7 @@ export function TodayWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TodayT
 
   const drill = glanceDrill(onDrill, base.filtered)
   const count = picks.focusIds.length
-  const openFocus = drill ? () => drill({ ...metricDrill('focus', { tiles, ctx: base.ctx }), title: 'Today' }) : undefined
+  const openFocus = drill ? () => drill({ ...metricDrill('focus', { metrics, ctx: base.ctx }), title: 'Today' }) : undefined
 
   if (face === 'small') {
     const content = (

@@ -1,15 +1,15 @@
 import type { Person } from '../../../models'
-import type { TileMetricId } from '../../../models/glance-widgets'
+import type { MetricId } from '../../../models/glance-widgets'
 import type { Change } from '../../../services/stats/changes'
 import type { ClosedThisWeek } from '../../../services/stats/closed-this-week'
 import type { StatsContext } from '../../../services/stats/stats-context'
-import type { TileStats } from '../../../services/stats/tiles'
+import type { MetricStats } from '../../../services/stats/metrics'
 import type { TaskDialogGroup } from '../../../stores/task-dialog-payload'
 import { formatFollowupDay } from '../../../utils/followup'
 import { STUCK_STATUS_DAYS } from '../../../utils/trend-window'
 import { metricDescription, trendBucketLabel } from './glance-copy'
 import type { GlanceDrill } from './glance-types'
-import { NUMBER_DEFS, TILE_DEFS } from './number-defs'
+import { NUMBER_DEFS, METRIC_DEFS } from './number-defs'
 
 /**
  * What a glance widget's click opens in the task dialog (`GlanceDrill`):
@@ -34,9 +34,9 @@ const todos = (todoIds: readonly number[]) => ({ kind: 'todos' as const, todoIds
 // ── Numbers ─────────────────────────────────────────────────────────────────
 
 /** A metric's tasks (a Number, a section's count). */
-export function metricDrill(id: TileMetricId, data: { tiles: { shown: TileStats }; ctx: StatsContext }): GlanceDrill {
-  const def = TILE_DEFS[id]
-  return { title: def.title, glyph: def.glyph, description: metricDescription(id, data.ctx), source: todos(data.tiles.shown[id].ids) }
+export function metricDrill(id: MetricId, data: { metrics: { shown: MetricStats }; ctx: StatsContext }): GlanceDrill {
+  const def = METRIC_DEFS[id]
+  return { title: def.title, glyph: def.glyph, description: metricDescription(id, data.ctx), source: todos(data.metrics.shown[id].ids) }
 }
 
 /** Closed this week's tasks. */

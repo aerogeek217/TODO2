@@ -6,7 +6,7 @@ import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import type { GlanceResult } from '../../../components/workspace/glance/glance-hooks'
 import type { GlanceDrill } from '../../../components/workspace/glance/glance-types'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
-import type { TileMetricId } from '../../../models/glance-widgets'
+import type { MetricId } from '../../../models/glance-widgets'
 import { createTab, type GlanceTab, type GlanceWidgetKind } from '../../../models/workspace-layout'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -34,12 +34,12 @@ import {
 const results = new Map<string, GlanceResult>()
 const lines = (tabId: string) => results.get(tabId)?.summary.plain.split('\n')
 
-const num = (metric: TileMetricId): GlanceTab => ({ id: metric, kind: 'number', config: { metric } })
+const num = (metric: MetricId): GlanceTab => ({ id: metric, kind: 'number', config: { metric } })
 const of = (kind: GlanceWidgetKind, config?: object): GlanceTab => {
   const tab = createTab(kind, kind) as GlanceTab
   return (config ? { ...tab, config: { ...tab.config, ...config } } : tab) as GlanceTab
 }
-const DEFAULT_TILES: TileMetricId[] = ['open', 'focus', 'urgent', 'overdue', 'followupDue']
+const DEFAULT_TILES: MetricId[] = ['open', 'focus', 'urgent', 'overdue', 'followupDue']
 /** A new Dashboard's parts, as widgets: its tiles and its sections. */
 const defaults = (): GlanceTab[] => [...DEFAULT_TILES.map(num), of('followup'), of('next7'), of('trend'), of('status'), of('people')]
 
