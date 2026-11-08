@@ -80,7 +80,7 @@ import {
   pickPanes,
   readPanesSetting,
 } from '../data/eisenhower-shape'
-import { readFresh, reportLoadFailure } from './store-helpers'
+import { readFresh, reportLoadFailure, trackWrite } from './store-helpers'
 import {
   settingWriter,
   type SettingRows,
@@ -146,6 +146,13 @@ interface SettingsData {
   purgePromptIntervalDays: number
   /** When that launch prompt last showed; `null` = never. */
   purgePromptLastAt: Date | null
+  /**
+   * When this database began logging the history log H3's events (D26:
+   * follow-ups, markers, people, tags); `null` = not stamped yet
+   * (`stampHistoryLogSince`). A replay's days before it read those fields
+   * as they were when the log began (`services/stats/task-history`).
+   */
+  historyLogSince: Date | null
   /** "Fade tasks untouched for": days without a change after which an open task's row is drawn faded; 0 = off. */
   staleAfterDays: number
   /** What a list tab's badges count, unless the list has its own (`utils/tab-badges`). */
@@ -225,6 +232,14 @@ interface SettingsState extends SettingsData {
   setPurgePromptIntervalDays: (days: number) => Promise<void>
   /** Records that the purge prompt showed at `at` (an internal stamp: no undo step, no notice — a failure is only logged). */
   setPurgePromptLastAt: (at: Date) => Promise<void>
+  /**
+   * Stamps `historyLogSince` with `now` unless the database has the row
+   * already (it is read afresh, so a store that failed to load never
+   * overwrites one) — launch and every data replace run it. An internal
+   * stamp: no undo step, no notice; a failure is only logged (the next
+   * launch tries again).
+   */
+  stampHistoryLogSince: (now?: Date) => Promise<void>
   /** Fade tasks untouched for `days` (0–365 whole days, 0 = off; anything else is ignored); stored only when not 30. */
   setStaleAfterDays: (days: number) => Promise<void>
   setTabBadges: (ranges: TabBadgeRanges) => Promise<void>
@@ -394,6 +409,12 @@ function setting<K extends keyof SettingsData>(
 /** A setting only read here (written elsewhere: the status seed, the Eisenhower list, the lens seed). */
 function stored<K extends keyof SettingsData>(fields: readonly K[], read: (rows: StoredRows) => Pick<SettingsState, K>): StoredSetting<SettingsState, K> {
   return { fields, read }
+}
+
+/** A stored ISO date-time, or `null` when it doesn't read as one. */
+function parseStamp(value: string): Date | null {
+  const at = new Date(value)
+  return Number.isNaN(at.getTime()) ? null : at
 }
 
 /** One row's value as stored, or what an absent row reads as. */
@@ -572,6 +593,8 @@ export const SETTINGS = {
     rows: ({ purgePromptLastAt: at }) => ({ [K.purgePromptLastAt]: at ? at.toISOString() : null }),
     label: 'when the purge prompt showed',
   }),
+  // Written once, by `stampHistoryLogSince` (never through a writer: nothing changes it after).
+  historyLogSince: stored(['historyLogSince'], (rows) => ({ historyLogSince: rowOr(rows, K.historyLogSince, null, parseStamp) })),
   staleAfterDays: setting(['staleAfterDays'], {
     read: (rows) => ({ staleAfterDays: rowOr(rows, K.staleAfterDays, DEFAULT_STALE_AFTER_DAYS, (v) => parseStaleAfterDays(v) ?? DEFAULT_STALE_AFTER_DAYS) }),
     rows: ({ staleAfterDays: days }) => rowUnlessDefault(K.staleAfterDays, String(days), days === DEFAULT_STALE_AFTER_DAYS),
@@ -760,6 +783,15 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setPurgePromptLastAt(at) {
     if (!Number.isNaN(at.getTime())) await SETTINGS.purgePromptLastAt.write({ purgePromptLastAt: new Date(at.getTime()) })
+  },
+
+  async stampHistoryLogSince(now = new Date()) {
+    try {
+      const value = await trackWrite(() => settingsRepository.putIfAbsent(K.historyLogSince, now.toISOString()))
+      set({ historyLogSince: parseStamp(value) })
+    } catch (e) {
+      console.error('Failed to stamp when the history log began:', e)
+    }
   },
 
   async setStaleAfterDays(days) {

@@ -30,7 +30,8 @@ export interface AppStartupOptions {
  * 2. the sync file — its load decision, and when its handle needs
  *    permission the launch question: this waits for the user's answer, so
  *    nothing below reads, purges or backs up this browser's data before the
- *    user chose between the file and this browser;
+ *    user chose between the file and this browser; then, on the data that
+ *    won, the history log's start is stamped once (`historyLogSince`);
  * 3. persistent storage, then people / statuses / tags, and the
  *    Eisenhower's own list (made when the data has none);
  * 4. the completed tasks past retention (asked about, never purged
@@ -46,6 +47,7 @@ export async function runAppStartup({ onPurgeCheck }: AppStartupOptions = {}): P
   })
   await useSettingsStore.getState().load()
   await useFileStorageStore.getState().initialize()
+  await useSettingsStore.getState().stampHistoryLogSince()
   await navigator.storage?.persist?.().catch(() => false)
   await Promise.all([
     usePersonStore.getState().ensureLoaded(),

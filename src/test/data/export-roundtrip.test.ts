@@ -119,6 +119,7 @@ function buildSeed(): Seed {
       { key: 'newListGroup', value: 'tag' },
       { key: 'purgePromptIntervalDays', value: '14' },
       { key: 'purgePromptLastAt', value: '2026-09-14T08:30:00.000Z' },
+      { key: 'historyLogSince', value: '2026-09-01T07:00:00.000Z' },
       { key: 'staleAfterDays', value: '45' },
       { key: 'rowDensity', value: 'comfortable' },
       { key: 'rowDates', value: 'numeric' },
