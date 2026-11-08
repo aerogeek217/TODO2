@@ -167,16 +167,30 @@ describe('structural edits and dirty state', () => {
     const inserted = ws().insertTrack('top')
     expect(picture(ws().working!)).toEqual([`${inserted} ${inserted}`, 'ka kb'])
     // No one neighbour shares its whole edge, but the two below cover it together: they grow back
-    // over it. (Its row track's id stays — the merged track keeps the first's —, so still a change.)
+    // over it — the saved arrangement again, its own track ids and sizes, so no change.
     ws().closeCell(inserted!)
     expect(picture(ws().working!)).toEqual(['ka kb'])
-    expect(ws().isDirty).toBe(true)
-    ws().discard()
+    expect(ws().working!.grid.rows.map((t) => t.id)).toEqual(['R'])
+    expect(ws().isDirty).toBe(false)
     expect(ws().mergeCells('ka', 'kb')).toBe(true)
     expect(tabsOf(ws().working, 'ka')).toEqual(['a1', 'a2', 'b1'])
     expect(ws().isDirty).toBe(true)
     ws().discard()
     expect(ws().mergeCells('ka', 'zz')).toBe(false)
+  })
+
+  it('a column inserted and closed again is the saved layout: its track ids and sizes back, not unsaved', async () => {
+    await seedAndInit(twoColumns('Daily', {}, { cols: [300, 700] }))
+    const inserted = ws().insertTrack('left')
+    expect(picture(ws().working!)).toEqual([`${inserted} ka kb`])
+    expect(ws().isDirty).toBe(true)
+    ws().closeCell(inserted!)
+    expect(ws().working!.grid.columns.map((t) => [t.id, t.weight])).toEqual([['A', 300], ['B', 700]])
+    expect(ws().isDirty).toBe(false)
+    // Another arrangement keeps its own ids: a split stays a change.
+    const split = ws().splitCell('ka', 'right')
+    expect(picture(ws().working!)).toEqual([`ka ${split} kb`])
+    expect(ws().isDirty).toBe(true)
   })
 
   it('tab config / change kind are layout changes', async () => {

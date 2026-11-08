@@ -100,6 +100,31 @@ export function layoutStructureKey(body: LayoutBody): string {
   })
 }
 
+/** The structural part of a layout's body without its tracks' ids: how many tracks, and the cells (`layoutStructureKey` less the ids). */
+function arrangementKey(body: LayoutBody): string {
+  return JSON.stringify({
+    columns: body.grid.columns.length,
+    rows: body.grid.rows.length,
+    cells: body.cells.map(cellKey),
+  })
+}
+
+/**
+ * `body` with `model`'s track ids, when the two are the same arrangement —
+ * as many tracks on each axis, the same cells in the same areas with the
+ * same tabs — but some track ids differ: an edit that came back to `model`
+ * by another way (a row inserted and closed again, whose merged track kept
+ * the inserted one's id, `workspace-grid.mergeTracks`) is `model` again.
+ * The same object otherwise.
+ */
+export function withTrackIdsOf<B extends LayoutBody>(body: B, model: LayoutBody): B {
+  const sameIds = (axis: 'columns' | 'rows') => body.grid[axis].every((t, i) => t.id === model.grid[axis][i]?.id)
+  if (sameIds('columns') && sameIds('rows')) return body
+  if (arrangementKey(body) !== arrangementKey(model)) return body
+  const ids = (axis: 'columns' | 'rows') => body.grid[axis].map((t, i) => ({ ...t, id: model.grid[axis][i]?.id ?? t.id }))
+  return { ...body, grid: { columns: ids('columns'), rows: ids('rows') } }
+}
+
 /** True when two layout bodies differ only in view state (i.e. the working copy has no unsaved changes). */
 export function layoutStructureEqual(a: LayoutBody, b: LayoutBody): boolean {
   if (a === b) return true

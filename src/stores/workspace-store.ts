@@ -28,7 +28,7 @@ import {
   type WidgetKind,
   type WorkspaceLayout,
 } from '../models/workspace-layout'
-import { findCell, layoutPanels, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
+import { findCell, layoutPanels, layoutIds, layoutStructureEqual, withTrackIdsOf } from '../utils/workspace-layout-queries'
 import { layoutListRefs, listIdChanges, repointLayoutLists } from '../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes } from '../utils/workspace-layout-sizes'
 import {
@@ -618,6 +618,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       console.warn('[workspace] refused an edit showing lists of another layout:', foreign)
       return false
     }
+    if (saved) next = withTrackIdsOf(next, saved)
     if (saved && layoutStructureEqual(next, saved)) next = copySizes(next, saved, 'all')
     set({ working: next, isDirty: dirty(next, saved) })
     keepDraft()
