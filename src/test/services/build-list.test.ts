@@ -289,12 +289,12 @@ describe('applyRuntimeFilter — an expression picks as Graphical does', () => {
     .filter((t) => matchesFilter(predicateToCriteria(p), t, people.get(t.id) ?? []))
     .map((t) => t.id)
 
-  it.each([
+  it.each<[string, TodoPredicate]>([
     ['People is Alice', { ...emptyPredicate(), personIds: [ALICE] }],
     ['People is not Alice', { ...emptyPredicate(), personIds: [ALICE], negate: { personIds: true } }],
     ['People is Alice or Unassigned', { ...emptyPredicate(), personIds: [ALICE, 0] }],
     ['People is Alice, Focus', { ...emptyPredicate(), personIds: [ALICE], markers: [{ values: ['focus' as const] }] }],
-  ])('%s, Bob picked: the same tasks in both modes', (_name, graphical: TodoPredicate) => {
+  ])('%s, Bob picked: the same tasks in both modes', (_name, graphical) => {
     const spec = { field: 'person' as const }
     const fromGraphical = kept(applyRuntimeFilter(graphical, spec, [BOB]))
     const expression = asExpression(graphical)
