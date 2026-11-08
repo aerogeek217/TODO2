@@ -219,12 +219,19 @@ function useWorkspaceDragState() {
   return { drag, start, end }
 }
 
+/** What an insert at each layout edge makes. */
+const INSERT_LABELS = {
+  top: 'Insert row · full width, at the top',
+  bottom: 'Insert row · full width, at the bottom',
+  left: 'Insert column · full height, at the left',
+  right: 'Insert column · full height, at the right',
+} as const
+
 /** The label pill beside the ghost for an accepted target that has no other label (the zones label the rest). */
 function dropLabel(drag: WorkspaceDragState): string | null {
   const { hit } = drag
   if (!hit || !drag.accepts) return null
-  if (hit.kind === 'column-edge') return 'New column'
-  if (hit.kind === 'new-band') return `New band ${hit.edge === 'top' ? 'above' : 'below'} all columns`
+  if (hit.kind === 'insert') return INSERT_LABELS[hit.edge]
   if (hit.kind === 'tab-strip' && drag.source.type === 'panel') return `Insert ${tabsCount(drag.tabs.length)}`
   return null
 }

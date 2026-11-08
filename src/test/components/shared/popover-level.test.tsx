@@ -16,7 +16,7 @@ import { emptyPredicate } from '../../../models'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { makePerson } from '../../helpers'
-import { rowOf } from '../../helpers/layout-builders'
+import { single } from '../../helpers/layout-builders'
 
 /** The popover level an element's root carries. */
 const level = (el: Element) => el.getAttribute(POPOVER_LEVEL_ATTR)
@@ -75,7 +75,7 @@ describe('popover levels (D21)', () => {
     }
     const layout: PersistedWorkspaceLayout = {
       id: 1, sortOrder: 0, name: 'Default', createdAt: new Date(), modifiedAt: new Date(),
-      columns: [{ id: 'col', weight: 1, rows: [rowOf({ id: 'c1', weight: 1, tabs: [{ id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }] })] }],
+      ...single({ id: 'c1', tabs: [{ id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }] }),
     }
 
     beforeEach(() => {

@@ -8,7 +8,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { resetDb } from '../../helpers'
-import { rowOf } from '../../helpers/layout-builders'
+import { single } from '../../helpers/layout-builders'
 
 /**
  * The combined Save / Discard prompt with a layout's list made for the
@@ -23,7 +23,7 @@ async function setup(): Promise<{ layoutId: number; fresh: number }> {
   await resetDb()
   const layoutId = await layoutRepository.insert({
     name: 'A', createdAt: T0, modifiedAt: T0,
-    columns: [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [createTab('notes', 'n')] })] }],
+    ...single({ id: 'k', tabs: [createTab('notes', 'n')] }),
   })
   await layoutRepository.setActiveId(layoutId)
   await useListDefinitionStore.getState().load()

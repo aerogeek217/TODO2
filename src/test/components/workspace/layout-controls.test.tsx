@@ -9,7 +9,7 @@ import { LayoutControls } from '../../../components/workspace/LayoutControls'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { resetDb } from '../../helpers'
-import { rowOf } from '../../helpers/layout-builders'
+import { emptyBody, single } from '../../helpers/layout-builders'
 
 /**
  * The top bar's layout controls: the layouts as tabs (click opens one, the
@@ -22,7 +22,7 @@ const ws = () => useWorkspaceStore.getState()
 
 const layout = (name: string): Omit<WorkspaceLayout, 'id' | 'sortOrder'> => ({
   name, createdAt: T0, modifiedAt: T0,
-  columns: [{ id: 'A', weight: 1, rows: [rowOf({ id: 'ka', weight: 1, tabs: [createTab('notes', `${name}-n`)] })] }],
+  ...single({ id: 'ka', tabs: [createTab('notes', `${name}-n`)] }),
 })
 
 async function seed(...names: string[]): Promise<number[]> {
@@ -137,7 +137,7 @@ describe('LayoutControls — tabs', () => {
 
   it('a kept new layout from an older build: the open tab after the saved ones; Save asks its name', async () => {
     await seed('Main')
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: { columns: [] } })
+    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: { ...emptyBody() } })
     useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
     await ws().init()
     render(<LayoutControls mode="tabs" />)

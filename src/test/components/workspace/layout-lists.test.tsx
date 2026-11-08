@@ -15,7 +15,7 @@ import type { PersistedListDefinition } from '../../../models/list-definition'
 import { emptyPredicate } from '../../../models'
 import { db } from '../../../data/database'
 import { resetDb, resetEntityStores } from '../../helpers'
-import { rowOf } from '../../helpers/layout-builders'
+import { single } from '../../helpers/layout-builders'
 
 /**
  * A layout's lists in the workspace: a new list widget makes a blank list
@@ -25,7 +25,7 @@ import { rowOf } from '../../helpers/layout-builders'
  */
 
 const AT = new Date(2026, 0, 1)
-const CELL: LayoutCell = { id: 'k', weight: 1, tabs: [{ id: 'mine', kind: 'lens', config: { listDefinitionId: 2 } }] }
+const CELL: LayoutCell = { id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 'mine', kind: 'lens', config: { listDefinitionId: 2 } }] }
 
 const def = (id: number, name: string, extra: Partial<PersistedListDefinition> = {}): PersistedListDefinition => ({
   id, name, sortOrder: id, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: emptyPredicate() }, ...extra,
@@ -35,7 +35,7 @@ beforeEach(async () => {
   await resetDb()
   resetEntityStores()
   useUIStore.setState(useUIStore.getInitialState(), true)
-  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, columns: [{ id: 'c', weight: 1, rows: [rowOf(CELL)] }] }
+  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...single(CELL) }
   useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
   const lists = [def(1, 'Other', { owner: { layoutId: 1 } }), def(2, 'Mine', { owner: { layoutId: 1 } }), def(3, 'Theirs', { owner: { layoutId: 9 } }), def(4, 'No owner')]
   await db.listDefinitions.bulkAdd(lists)
@@ -45,7 +45,7 @@ beforeEach(async () => {
 afterEach(cleanup)
 
 function openTabMenu(): HTMLElement {
-  render(<DndContext><WorkspaceCell cell={CELL} rowId={`${CELL.id}-r`} collapsed={false} /></DndContext>)
+  render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
   fireEvent.contextMenu(document.querySelector('[data-ws-tab="mine"]')!)
   return screen.getByRole('menu', { name: 'Change widget' })
 }
@@ -88,7 +88,7 @@ describe('a layout’s lists in the workspace', () => {
   async function addedListTab(): Promise<{ tabId: string; listId: number }> {
     let found: { tabId: string; listId: number } | null = null
     await waitFor(() => {
-      const tabs = useWorkspaceStore.getState().working!.columns.flatMap((c) => c.rows.flatMap((r) => r.cells.flatMap((k) => k.tabs)))
+      const tabs = useWorkspaceStore.getState().working!.cells.flatMap((k) => k.tabs)
       const tab = tabs.find((t) => t.id !== 'mine')
       expect(tab?.kind).toBe('lens')
       const listId = tab?.kind === 'lens' ? tab.config.listDefinitionId : undefined
@@ -99,7 +99,7 @@ describe('a layout’s lists in the workspace', () => {
   }
 
   it('the add-tab + › List: a new blank list of the layout in a new tab, its Edit list open — no list picker', async () => {
-    render(<DndContext><WorkspaceCell cell={CELL} rowId={`${CELL.id}-r`} collapsed={false} /></DndContext>)
+    render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
     fireEvent.click(screen.getByRole('button', { name: 'Add widget as tab' }))
     fireEvent.click(within(screen.getByRole('menu', { name: 'Add widget' })).getByRole('menuitem', { name: /^List/ }))
     expect(screen.queryByText('Add list')).toBeNull()
@@ -134,7 +134,7 @@ describe('a layout’s lists in the workspace', () => {
     // A read after every list write the clicks started.
     const stored = await db.listDefinitions.toArray()
     expect(stored.filter((d) => d.name.startsWith('New list')).map((d) => d.id)).toEqual([listId])
-    const tabs = useWorkspaceStore.getState().working!.columns.flatMap((c) => c.rows.flatMap((r) => r.cells.flatMap((k) => k.tabs)))
+    const tabs = useWorkspaceStore.getState().working!.cells.flatMap((k) => k.tabs)
     expect(tabs.filter((t) => t.id !== 'mine')).toHaveLength(1)
   })
 
@@ -143,19 +143,19 @@ describe('a layout’s lists in the workspace', () => {
     await db.listDefinitions.add(eisenhowerList)
     useListDefinitionStore.setState({ listDefinitions: [...useListDefinitionStore.getState().listDefinitions, eisenhowerList] })
     useSettingsStore.setState({ eisenhowerListId: 5 })
-    const cell: LayoutCell = { id: 'k', weight: 1, tabs: [{ id: 'eis', kind: 'eisenhower', config: {} }] }
-    const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, columns: [{ id: 'c', weight: 1, rows: [rowOf(cell)] }] }
+    const cell: LayoutCell = { id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 'eis', kind: 'eisenhower', config: {} }] }
+    const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...single(cell) }
     useWorkspaceStore.setState({ layouts: [layout], working: layout, saved: layout })
     useListDraftStore.getState().edit(5, (d) => ({ ...d, membership: { kind: 'custom', predicate: { ...emptyPredicate(), searchText: 'q4' } } }))
 
-    render(<DndContext><WorkspaceCell cell={cell} rowId={`${cell.id}-r`} collapsed={false} /></DndContext>)
+    render(<DndContext><WorkspaceCell cell={cell} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
     fireEvent.contextMenu(document.querySelector('[data-ws-tab="eis"]')!)
     fireEvent.click(within(screen.getByRole('menu', { name: 'Change widget' })).getByRole('menuitemradio', { name: /^List/ }))
     const prompt = await screen.findByRole('dialog', { name: 'Save changes to list “Eisenhower”?' })
     fireEvent.click(within(prompt).getByRole('button', { name: /^Cancel/ }))
 
     expect(screen.queryByRole('dialog', { name: /^Save changes to list/ })).toBeNull()
-    const tabs = useWorkspaceStore.getState().working!.columns.flatMap((c) => c.rows.flatMap((r) => r.cells.flatMap((k) => k.tabs)))
+    const tabs = useWorkspaceStore.getState().working!.cells.flatMap((k) => k.tabs)
     expect(tabs.map((t) => [t.id, t.kind])).toEqual([['eis', 'eisenhower']])
     expect((await db.listDefinitions.toArray()).filter((d) => d.name.startsWith('New list'))).toEqual([])
     expect(useListDraftStore.getState().drafts[5]).toBeDefined()
