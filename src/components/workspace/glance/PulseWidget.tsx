@@ -3,7 +3,7 @@ import type { PulseTab } from '../../../models/workspace-layout'
 import { usePulse, useStatsBase } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { cumulative, lateShareText, momentumText, worstPulseCard, type PulseCard } from '../../../services/stats/pulse'
-import { tagSectionDialog } from './glance-drills'
+import { tagRowDrill } from './glance-drills'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { SummaryPart } from './glance-summary'
 import type { OnGlanceDrill } from './glance-types'
@@ -72,7 +72,7 @@ function PulseCardView({ card, onDrill }: { card: PulseCard; onDrill: OnGlanceDr
   const label = `#${name}: ${countsText(card)}. ${momentumText(card)}.`
   const common = { className: styles.card, 'data-pulse-card': card.tag.id }
   return onDrill
-    ? <button type="button" {...common} aria-label={`${label} Show open tasks`} onClick={() => onDrill(tagSectionDialog(card.tag, card.openIds))}>{content}</button>
+    ? <button type="button" {...common} aria-label={`${label} Show open tasks`} onClick={() => onDrill(tagRowDrill(card.tag, card.openIds))}>{content}</button>
     : <div {...common} role="group" aria-label={label}>{content}</div>
 }
 
@@ -91,7 +91,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
   const lines = useMemo(() => pulseLines(cards), [cards])
   useReportLines(onResult, lines)
   const drill = glanceDrill(onDrill, base.filtered)
-  const openTag = (card: PulseCard) => drill?.(tagSectionDialog(card.tag, card.openIds))
+  const openTag = (card: PulseCard) => drill?.(tagRowDrill(card.tag, card.openIds))
   // Picks that make no card: the picked tags were deleted since.
   const picked = tab.config.tagIds.length > 0
 

@@ -2,7 +2,7 @@ import { useEffect, useMemo } from 'react'
 import { DEFAULT_STALE_DAYS } from '../../../models/glance-widgets'
 import type { StaleTab } from '../../../models/workspace-layout'
 import { useStaleRows, useStaleStats, useStatsBase, type ShownOfTotal } from '../../../hooks/use-glance-data'
-import { staleTasksDialog } from './glance-drills'
+import { staleDrill } from './glance-drills'
 import type { StaleTasks } from '../../../services/stats/stale'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
@@ -34,7 +34,7 @@ function StaleSection({ data, rows, onDrill, style, className }: RowSectionProps
       style={style}
       className={className}
       count={countOf(shown.ids.length, total.ids.length)}
-      onCount={onDrill ? () => onDrill(staleTasksDialog(shown.ids, days)) : undefined}
+      onCount={onDrill ? () => onDrill(staleDrill(shown.ids, days)) : undefined}
       sub={staleSubLine(days, shown.oldestDays)}
     >
       <div ref={trackScrollEdges} className={styles.panelBody}>

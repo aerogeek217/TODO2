@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import type { TagsTab } from '../../../models/workspace-layout'
 import type { TagsTabConfig } from '../../../models/glance-widgets'
 import { useStatsBase, useTagStats, type ShownOfTotal } from '../../../hooks/use-glance-data'
-import { tagSectionDialog, tagsSectionDialog } from './glance-drills'
+import { tagRowDrill, tagsDrill } from './glance-drills'
 import type { TagStats } from '../../../services/stats/tags'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
@@ -40,7 +40,7 @@ function TagsSection({ data, config, onDrill, style, className }: SectionProps<T
       className={`${styles.tagsPanel}${className ? ` ${className}` : ''}`}
       count={`${countOf(shown.taggedIds.length, total.taggedIds.length)} tagged`}
       // Each tag's tasks in their own order, as a person's are.
-      onCount={onDrill ? () => onDrill(tagsSectionDialog(shown.rows.map((r) => ({ tag: r.tag, todoIds: inSortOrder(r.ids, data) })))) : undefined}
+      onCount={onDrill ? () => onDrill(tagsDrill(shown.rows.map((r) => ({ tag: r.tag, todoIds: inSortOrder(r.ids, data) })))) : undefined}
       sub="Open tasks by tag"
     >
       {all.length === 0 ? (
@@ -75,7 +75,7 @@ function TagsSection({ data, config, onDrill, style, className }: SectionProps<T
                   className={cls}
                   data-tag-row={key}
                   aria-label={`${name}: ${openLabel} open, ${priorityWords(stats.priority)}${stats.followupDueIds.length} follow-up due`}
-                  onClick={() => onDrill(tagSectionDialog(tag, inSortOrder(stats.ids, data)))}
+                  onClick={() => onDrill(tagRowDrill(tag, inSortOrder(stats.ids, data)))}
                 >
                   {content}
                 </button>

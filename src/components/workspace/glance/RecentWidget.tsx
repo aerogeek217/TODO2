@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { DEFAULT_RECENT_DAYS } from '../../../models/glance-widgets'
 import type { RecentTab } from '../../../models/workspace-layout'
 import { useRecentStats, useStatsBase, type ShownOfTotal } from '../../../hooks/use-glance-data'
-import { recentlyCompletedDialog } from './glance-drills'
+import { recentDrill } from './glance-drills'
 import type { RecentlyCompleted } from '../../../services/stats/recently-completed'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
@@ -33,7 +33,7 @@ function RecentSection({ data, rows, onDrill, style, className }: RowSectionProp
       style={style}
       className={className}
       count={countOf(ids.length, total.ids.length)}
-      onCount={onDrill ? () => onDrill(recentlyCompletedDialog(ids, days)) : undefined}
+      onCount={onDrill ? () => onDrill(recentDrill(ids, days)) : undefined}
       sub={`Last ${days} days`}
     >
       <div ref={trackScrollEdges} className={styles.panelBody}>
