@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { useAmbience } from '../../hooks/use-ambience'
-import { useResolvedTheme } from '../../hooks/use-resolved-theme'
 import { useTodoStore } from '../../stores/todo-store'
 import { attrSelector, TODO_ID_ATTR } from '../../utils/dom-contract'
-import { cumulusBackground, CUMULUS_SHAPES, moonPath, rgba, skyBackground, type SkyScene } from '../../utils/sky'
+import { cumulusBackground, CUMULUS_SHAPES, moonPath, skyBackground, withAlpha, type SkyScene } from '../../utils/sky'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { Particle, Weather } from './Weather'
 import { BAR_COUNTS, burstParticles, type ParticleKind, type ParticleSpec } from './weather-particles'
@@ -34,7 +33,7 @@ const STARS = (() => {
 const pct = (v: number) => `${(v * 100).toFixed(2)}%`
 
 /** The moon's disc and lit part, soft-edged. */
-function Moon({ scene, dark }: { scene: SkyScene; dark: boolean }) {
+function Moon({ scene }: { scene: SkyScene }) {
   return (
     <svg
       className={styles.moon}
@@ -43,8 +42,8 @@ function Moon({ scene, dark }: { scene: SkyScene; dark: boolean }) {
       aria-hidden="true"
       focusable="false"
     >
-      <circle cx={6} cy={6} r={5} fill={dark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(40, 50, 80, 0.08)'} />
-      <path d={moonPath(scene.moonAge, scene.south, 6, 6, 5)} fill={dark ? '#e9edf5' : '#8a95ad'} />
+      <circle className={styles.moonDisc} cx={6} cy={6} r={5} />
+      <path className={styles.moonLit} d={moonPath(scene.moonAge, scene.south, 6, 6, 5)} />
     </svg>
   )
 }
@@ -56,8 +55,8 @@ function hairlineStyles(scene: SkyScene): { line: CSSProperties; glow: CSSProper
   const x = h.x * 100
   const spread = h.glowAlpha > 0 ? 26 : 20
   return {
-    line: { background: `linear-gradient(to right, transparent ${(x - spread).toFixed(1)}%, ${rgba(h.color, h.alpha)} ${x.toFixed(1)}%, transparent ${(x + spread).toFixed(1)}%)` },
-    glow: { background: h.glowAlpha > 0 ? `radial-gradient(ellipse 16% 100% at ${x.toFixed(1)}% 100%, ${rgba(h.color, h.glowAlpha)}, transparent 75%)` : 'none' },
+    line: { background: `linear-gradient(to right, transparent ${(x - spread).toFixed(1)}%, ${withAlpha(h.color, h.alpha)} ${x.toFixed(1)}%, transparent ${(x + spread).toFixed(1)}%)` },
+    glow: { background: h.glowAlpha > 0 ? `radial-gradient(ellipse 16% 100% at ${x.toFixed(1)}% 100%, ${withAlpha(h.color, h.glowAlpha)}, transparent 75%)` : 'none' },
   }
 }
 
@@ -102,7 +101,6 @@ function useCompletedCheckboxes(active: boolean, onComplete: (rects: DOMRect[]) 
  */
 export function AmbienceSky() {
   const ambience = useAmbience()
-  const dark = useResolvedTheme() === 'dark'
   const hairlineRef = useRef<HTMLDivElement>(null)
   const [ripples, setRipples] = useState<Ripple[]>([])
   const [bursts, setBursts] = useState<Burst[]>([])
@@ -133,7 +131,7 @@ export function AmbienceSky() {
         height: c.h,
         top: c.base - 0.85 * c.h,
         marginLeft: -w / 2,
-        background: cumulusBackground(CUMULUS_SHAPES[i] ?? [], w, c.h, scene.cloud, scene.cloudShade),
+        background: cumulusBackground(CUMULUS_SHAPES[i] ?? [], w, c.h),
         '--dur': `${c.dur}s`,
         // Started part way along, so the clouds open spread across the bar.
         '--delay': `${(-(c.start + 0.15) / 1.3 * c.dur).toFixed(1)}s`,
@@ -152,7 +150,7 @@ export function AmbienceSky() {
       <div className={`${styles.layer} ${still ? styles.still : ''}`} aria-hidden="true" data-ambience="sky">
         <div className={styles.sky} style={{ background: skyBackground(scene), opacity: o.sky }} />
         {o.clouds > 0 && clouds && (
-          <div className={styles.clouds} style={{ opacity: o.clouds }}>
+          <div className={styles.clouds} style={{ opacity: o.clouds, '--sky-horizon': scene.horizon, '--sky-night': scene.night } as CSSProperties}>
             {clouds.map((c, i) => <div key={i} className={styles.cloud} style={c.style} />)}
           </div>
         )}
@@ -160,13 +158,13 @@ export function AmbienceSky() {
         {o.sunGlow > 0 && (
           <div
             className={styles.sunGlow}
-            style={{ left: sunX, top: scene.sunY, opacity: o.sunGlow, background: `radial-gradient(circle, ${rgba(scene.sun, 0.95)} 0%, ${rgba(scene.sun, 0.35)} 35%, ${rgba(scene.sun, 0)} 70%)` }}
+            style={{ left: sunX, top: scene.sunY, opacity: o.sunGlow, background: `radial-gradient(circle, ${withAlpha(scene.sun, 0.95)} 0%, ${withAlpha(scene.sun, 0.35)} 35%, transparent 70%)` }}
           />
         )}
         {o.sunDisc > 0 && (
           <div
             className={styles.sunDisc}
-            style={{ left: sunX, top: scene.sunY, opacity: o.sunDisc, background: `radial-gradient(circle, ${rgba(scene.sun, 0.9)} 0%, ${rgba(scene.sun, 0.55)} 40%, ${rgba(scene.sun, 0)} 72%)` }}
+            style={{ left: sunX, top: scene.sunY, opacity: o.sunDisc, background: `radial-gradient(circle, ${withAlpha(scene.sun, 0.9)} 0%, ${withAlpha(scene.sun, 0.55)} 40%, transparent 72%)` }}
           />
         )}
         {o.stars > 0 && (
@@ -176,18 +174,12 @@ export function AmbienceSky() {
             ))}
           </div>
         )}
-        {o.moon > 0 && <Moon scene={scene} dark={dark} />}
+        {o.moon > 0 && <Moon scene={scene} />}
         {o.mist > 0 && (
-          <div
-            className={styles.mist}
-            style={{
-              opacity: o.mist,
-              '--mist': dark ? 'rgba(215, 225, 240, 0.5)' : 'rgba(150, 165, 190, 0.45)',
-            } as CSSProperties}
-          />
+          <div className={styles.mist} style={{ opacity: o.mist }} />
         )}
         {!still && scene.weather && o.weather > 0 && (
-          <Weather kind={scene.weather} count={BAR_COUNTS[scene.weather]} tall={false} dark={dark} opacity={o.weather} />
+          <Weather kind={scene.weather} count={BAR_COUNTS[scene.weather]} tall={false} opacity={o.weather} />
         )}
       </div>
       <div ref={hairlineRef} className={styles.hairline} aria-hidden="true" data-ambience="hairline">
@@ -203,7 +195,7 @@ export function AmbienceSky() {
         ))}
       </div>
       {bursts.length > 0 && createPortal(
-        <div className={styles.bursts} aria-hidden="true" style={{ '--flake': dark ? '#eef3fa' : '#8ea3bd', '--seed': dark ? 'rgba(255, 255, 255, 0.8)' : 'rgba(120, 110, 95, 0.7)' } as CSSProperties}>
+        <div className={styles.bursts} aria-hidden="true">
           {bursts.map((b) => (
             <div key={b.id} onAnimationEnd={(e) => { if (e.target === e.currentTarget.lastChild) setBursts((bs) => bs.filter((x) => x.id !== b.id)) }}>
               {b.particles.map((p, i) => <Particle key={i} spec={p} className={styles.burst} />)}

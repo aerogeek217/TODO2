@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest'
+import { skyColors, sunColor } from '../../utils/sky'
 import { declarations, sourceFiles, themeTokens, TOKENS_CSS } from './css-source'
 
 /** A selector that forks a rule per theme (`[data-theme="light"] .x`, `:global([data-theme='light']) .x`). */
@@ -14,6 +15,44 @@ describe('theming lives in tokens.css', () => {
         .filter((line) => THEME_FORK.test(line))
         .map((line) => `${path}: ${line.trim()}`))
     expect(forks).toEqual([])
+  })
+
+  describe('the ambience takes every colour from tokens.css (cr33 A1)', () => {
+    const files = sourceFiles(/\.(tsx?|css)$/)
+      .filter(([path]) => path.startsWith('components/ambience/') || path === 'utils/sky.ts')
+    /** A colour written out: hex, a colour function, or a common colour name. */
+    const LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|\b(?:white|black|red|green|blue|yellow|orange|pink|purple|gr[ae]y|silver|gold)\b/i
+    const code = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '')
+
+    it('no ambience file writes a colour (a mask, whose colour is only its alpha, aside)', () => {
+      expect(files.map(([path]) => path)).toEqual(expect.arrayContaining(['utils/sky.ts', 'components/ambience/AmbienceSky.tsx', 'components/ambience/Weather.module.css']))
+      const literals = files.flatMap(([path, text]) => code(text)
+        .split('\n')
+        // A custom property's name (`--ambience-cloud-white`) is no colour.
+        .filter((line) => LITERAL.test(line.replace(/--[\w-]+/g, '')) && !/^\s*mask(-image)?:/.test(line))
+        .map((line) => `${path}: ${line.trim()}`))
+      expect(literals).toEqual([])
+    })
+
+    it('no ambience component reads the theme', () => {
+      const readers = files
+        .filter(([path, text]) => path.startsWith('components/') && /useResolvedTheme|data-theme/.test(code(text)))
+        .map(([path]) => path)
+      expect(readers).toEqual([])
+    })
+
+    it.each(['dark', 'light'] as const)('%s: every --ambience-* token the ambience reads is defined', (theme) => {
+      const tokens = themeTokens(theme)
+      // Written out in full (a name built from a stop's index is read through the ramps below).
+      const named = files.flatMap(([, text]) => [...code(text).matchAll(/var\((--ambience-[\w-]*\w)\)/g)].map((m) => m[1] ?? ''))
+      const ramps = Array.from({ length: 181 }, (_, i) => i - 90).flatMap((altitude) => {
+        const { zenith, horizon } = skyColors(altitude)
+        return [zenith, horizon, sunColor(altitude)]
+      }).flatMap((colour) => [...colour.matchAll(/var\((--ambience-[\w-]+)\)/g)].map((m) => m[1] ?? ''))
+      const read = new Set([...named, ...ramps])
+      expect(read.size).toBeGreaterThan(30)
+      expect([...read].filter((name) => !tokens.has(name))).toEqual([])
+    })
   })
 
   it('popovers sit two tones above the surface in the dark theme and on white in the light one (D21); dialogs keep the raised surface', () => {

@@ -137,6 +137,56 @@
   /* The colour wheel a colour picker's custom swatch shows (any colour, not a
      preset) — the same in both themes. */
   --gradient-any-color: conic-gradient(#ef5350, #f5c242, #66bb6a, #4fc3f7, #5c6bc0, #ba68c8, #ef5350);
+
+  /* Ambience (`components/ambience`, `utils/sky`): the colours the same in
+     both themes; each theme's own are at the end of its block. The sky's
+     zenith and horizon at each of `utils/sky`'s altitude stops (−90°, −18°,
+     −10°, −4°, 0°, 4°, 10°, 25°, 90°), mixed between the two nearest. */
+  --ambience-sky-zenith-0: #070a18;
+  --ambience-sky-horizon-0: #0b1024;
+  --ambience-sky-zenith-1: #0a0f26;
+  --ambience-sky-horizon-1: #151b3e;
+  --ambience-sky-zenith-2: #141c44;
+  --ambience-sky-horizon-2: #3b2f63;
+  --ambience-sky-zenith-3: #24316b;
+  --ambience-sky-horizon-3: #a3527a;
+  --ambience-sky-zenith-4: #36508a;
+  --ambience-sky-horizon-4: #e57a58;
+  --ambience-sky-zenith-5: #4a72ad;
+  --ambience-sky-horizon-5: #f2a55e;
+  --ambience-sky-zenith-6: #5f93cc;
+  --ambience-sky-horizon-6: #f1cf9c;
+  --ambience-sky-zenith-7: #69a5dc;
+  --ambience-sky-horizon-7: #c3e1f1;
+  --ambience-sky-zenith-8: #5c9fe0;
+  --ambience-sky-horizon-8: #a9d4f0;
+  /* The sun at −6°, 0°, 6°, 15° and 40°. */
+  --ambience-sun-0: #ff6a3d;
+  --ambience-sun-1: #ff8a4c;
+  --ambience-sun-2: #ffb35e;
+  --ambience-sun-3: #ffe2a0;
+  --ambience-sun-4: #fff6d8;
+  /* The moon's point on the hairline. */
+  --ambience-moon-point: #c8d4ea;
+  /* What the clouds' lit side lifts toward (the share is the theme's). */
+  --ambience-cloud-white: #ffffff;
+  --ambience-star: #f2f5fb;
+  /* The winter aurora's ribbon: green, blue, violet, green. */
+  --ambience-aurora-1: rgba(80, 230, 170, 0.9);
+  --ambience-aurora-2: rgba(110, 200, 255, 0.55);
+  --ambience-aurora-3: rgba(170, 120, 240, 0.8);
+  --ambience-aurora-4: rgba(80, 230, 170, 0.6);
+  --ambience-leaf-1: #c8743a;
+  --ambience-leaf-2: #b5542e;
+  --ambience-leaf-3: #d9a441;
+  --ambience-leaf-4: #9c6b2e;
+  --ambience-petal-1: #f2b6c6;
+  --ambience-petal-2: #f7d2dc;
+  --ambience-petal-3: #eaa3b8;
+  --ambience-firefly: #fbef9a;
+  --ambience-firefly-glow: rgba(246, 226, 122, 0.8);
+  /* A night completion's burst star. */
+  --ambience-star-burst: #fff6d0;
 }
 
 /*
@@ -437,6 +487,27 @@
     0 4px 12px rgba(0, 0, 0, 0.4),
     0 12px 32px rgba(0, 0, 0, 0.3),
     0 0 0 1px var(--color-accent-shadow-subtle);
+
+  /* Ambience (the shared colours are in `:root`) */
+  --ambience-moon-disc: rgba(255, 255, 255, 0.07);
+  --ambience-moon-lit: #e9edf5;
+  --ambience-mist: rgba(215, 225, 240, 0.5);
+  --ambience-flake: #eef3fa;
+  --ambience-seed: rgba(255, 255, 255, 0.8);
+  /* The sunbeam's three bands and its stray. */
+  --ambience-sunbeam-1: rgba(255, 190, 110, 0.14);
+  --ambience-sunbeam-2: rgba(255, 190, 110, 0.24);
+  --ambience-sunbeam-3: rgba(255, 190, 110, 0.12);
+  --ambience-sunbeam-4: rgba(255, 190, 110, 0.11);
+  --ambience-lamp: rgba(255, 170, 95, 0.075);
+  /* A cloud: the horizon lifted this share toward white, then tinted by
+     (base + night × the sky's night) — here it darkens with the night —, its
+     base shaded 28 % further. */
+  --ambience-cloud-lift: 50%;
+  --ambience-cloud-tint: #465070;
+  --ambience-cloud-tint-base: 0;
+  --ambience-cloud-tint-night: 1;
+  --ambience-cloud-shade: #282e42;
 }
 
 /* ═══════════════════════════════════════════
@@ -653,6 +724,24 @@
     0 4px 12px rgba(60, 45, 20, 0.1),
     0 12px 32px rgba(60, 45, 20, 0.08),
     0 0 0 1px var(--color-accent-shadow-subtle);
+
+  /* Ambience (the shared colours are in `:root`) */
+  --ambience-moon-disc: rgba(40, 50, 80, 0.08);
+  --ambience-moon-lit: #8a95ad;
+  --ambience-mist: rgba(150, 165, 190, 0.45);
+  --ambience-flake: #8ea3bd;
+  --ambience-seed: rgba(120, 110, 95, 0.7);
+  --ambience-sunbeam-1: rgba(255, 170, 80, 0.16);
+  --ambience-sunbeam-2: rgba(255, 170, 80, 0.26);
+  --ambience-sunbeam-3: rgba(255, 170, 80, 0.14);
+  --ambience-sunbeam-4: rgba(255, 170, 80, 0.13);
+  --ambience-lamp: rgba(255, 150, 60, 0.08);
+  /* A cloud on paper: lifted less, and tinted the same share all day and night. */
+  --ambience-cloud-lift: 20%;
+  --ambience-cloud-tint: #6e7d9e;
+  --ambience-cloud-tint-base: 0.55;
+  --ambience-cloud-tint-night: 0;
+  --ambience-cloud-shade: #5a647d;
 }
 
 /* ═══════════════════════════════════════════
