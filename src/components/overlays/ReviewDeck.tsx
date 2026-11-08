@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, type RefObject, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { DEFAULT_STATUS_ICON, STATUS_UPDATE_TEXT_MAX, type PersistedTodoItem } from '../../models'
 import { NEXT_FOLLOWUP_PLACEHOLDER, useFollowupInput } from '../../hooks/use-followup-input'
 import { useToday } from '../../hooks/use-today'
 import { markFollowedUpWithUpdate } from '../../services/mark-followed-up'
-import { allReviewed, followedUpCount, useReviewStore, type ReviewDivider, type ReviewMark } from '../../stores/review-store'
+import { unrecordedReviewPrompt } from '../../services/review'
+import { allReviewed, followedUpCount, unrecordedDraftIds, useReviewStore, type ReviewDivider, type ReviewMark } from '../../stores/review-store'
 import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
@@ -24,6 +25,7 @@ import { MARKER_LABELS, markerSummary, type MarkerSummary } from '../../utils/ma
 import { dueDateChanges } from '../../utils/recurrence'
 import { dueState, followupState } from '../../utils/row-date-state'
 import { statusUpdateText } from '../../utils/status-updates'
+import { registerModuleReset } from '../../utils/module-reset'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { DeadlinePicker } from '../shared/DeadlinePicker'
 import { DialogFrame } from '../shared/Dialog'
@@ -94,7 +96,7 @@ function ReviewDeckPanel() {
   const titleId = useId()
   const descriptionId = useId()
   const panelRef = useRef<HTMLDivElement>(null)
-  const close = useCallback(() => useReviewStore.getState().close(), [])
+  const close = useCallback(() => { void requestCloseReview(panelRef) }, [])
 
   // The checklist and the status updates load on demand.
   useEffect(() => {
@@ -193,6 +195,56 @@ function ReviewDeckPanel() {
     </DialogFrame>
   )
 }
+
+/** A close asked while its question is on screen (a second Esc reaches the prompt, not here; × or the backdrop might). */
+let askingToClose = false
+
+/**
+ * Closes the deck (Esc, ×, the backdrop) — at once, unless a task's Status
+ * update line holds text not recorded yet: then it asks first. Discard
+ * closes, the text gone; Keep reviewing (the default) stays, on a card with
+ * text (this one if it has some) and its update line focused. Nothing is
+ * ever recorded on close.
+ */
+async function requestCloseReview(panelRef: RefObject<HTMLDivElement | null>): Promise<void> {
+  if (askingToClose) return
+  const { ids, drafts } = useReviewStore.getState()
+  const pending = unrecordedDraftIds(drafts, ids)
+  if (pending.length === 0) {
+    useReviewStore.getState().close()
+    return
+  }
+  const titleOf = new Map(useTodoStore.getState().todos.map((t) => [t.id, t.title]))
+  const titles = pending.map((id) => titleOf.get(id) ?? 'Untitled task')
+  askingToClose = true
+  let discard: boolean
+  try {
+    discard = await useUIStore.getState().askConfirmation({
+      ...unrecordedReviewPrompt(titles),
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep reviewing',
+      danger: true,
+      cancelIsDefault: true,
+    })
+  } finally {
+    askingToClose = false
+  }
+  const store = useReviewStore.getState()
+  if (discard) {
+    store.close()
+    return
+  }
+  // Keep reviewing: on a card that holds text, its update line focused once the prompt has gone.
+  const current = store.ids[store.index]
+  if (current == null || (store.drafts[current] ?? '').trim() === '') {
+    const at = store.ids.findIndex((id) => (store.drafts[id] ?? '').trim() !== '')
+    if (at >= 0) store.go(at)
+  }
+  window.setTimeout(() => {
+    panelRef.current?.querySelector<HTMLInputElement>('[data-review-update]')?.focus()
+  }, 0)
+}
+registerModuleReset(() => { askingToClose = false })
 
 /** Skip: the current task marked skipped (unless followed up here), then the next card. Writes nothing. */
 function skipCurrent() {

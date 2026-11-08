@@ -177,3 +177,28 @@ test('the person task dialog’s envelope › Review: the deck opens over the di
   await page.keyboard.press('Escape')
   await expect(taskDialog).toHaveCount(0)
 })
+
+test('closing with an update typed asks first: Keep reviewing keeps the text, Discard closes', async ({ page }) => {
+  await openDeck(page)
+  await updateLine(page).fill('Legal has it, back Thursday')
+  await page.keyboard.press('Escape')
+  const prompt = page.getByRole('dialog', { name: 'Discard the unrecorded update?' })
+  await expect(prompt).toBeVisible()
+  await expect(prompt).toContainText('“Answer Northwind on the SLA” hasn’t been recorded')
+  await expect(prompt.getByRole('button', { name: /Keep reviewing/ })).toBeFocused()
+
+  await prompt.getByRole('button', { name: /Keep reviewing/ }).click()
+  await expect(prompt).toHaveCount(0)
+  await expect(deck(page)).toBeVisible()
+  await expect(updateLine(page)).toHaveValue('Legal has it, back Thursday')
+  await expect(updateLine(page)).toBeFocused()
+
+  await page.keyboard.press('Escape')
+  await expect(prompt).toBeVisible()
+  await prompt.getByRole('button', { name: 'Discard' }).click()
+  await expect(deck(page)).toHaveCount(0)
+  const task = await storedTask(page, 'Answer Northwind on the SLA')
+  expect(task?.lastFollowupAt).toBeUndefined()
+  const updates = await readStore<{ todoId: number }>(page, 'statusUpdates')
+  expect(updates.filter((u) => u.todoId === task?.id)).toEqual([])
+})

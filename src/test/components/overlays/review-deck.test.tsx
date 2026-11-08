@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { EditorView } from '@codemirror/view'
 import { ReviewDeck } from '../../../components/overlays/ReviewDeck'
+import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
 import { todoRepository } from '../../../data'
 import { statusUpdateRepository } from '../../../data/status-update-repository'
 import { useReviewStore } from '../../../stores/review-store'
@@ -42,7 +43,7 @@ async function openDeck(over: { ids?: number[] } = {}) {
     source: { kind: 'list', title: 'Aisha 1:1', description: 'list · Manual' },
     ids: over.ids ?? ids,
   })
-  render(<ReviewDeck />)
+  render(<><ReviewDeck /><ConfirmPromptHost /></>)
   await act(async () => { await Promise.resolve() })
 }
 
@@ -217,6 +218,62 @@ describe('the review deck', () => {
     fireEvent.keyDown(updateField(), { key: 'Escape' })
     expect(useReviewStore.getState().open).toBe(false)
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('×, with only spaces typed, closes at once (nothing to lose)', async () => {
+    await openDeck()
+    fireEvent.change(updateField(), { target: { value: '   ' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close review' }))
+    expect(useReviewStore.getState().open).toBe(false)
+  })
+
+  it('closing with an update typed asks first; Keep reviewing keeps the text and the focus in its line', async () => {
+    await openDeck()
+    fireEvent.change(updateField(), { target: { value: 'Legal has it' } })
+    fireEvent.keyDown(updateField(), { key: 'Escape' })
+    const prompt = await screen.findByRole('dialog', { name: 'Discard the unrecorded update?' })
+    expect(prompt).toHaveTextContent('The update typed for “Answer Northwind” hasn’t been recorded. Nothing is marked followed up.')
+    // Keep reviewing is the default.
+    expect(within(prompt).getByRole('button', { name: /Keep reviewing/ })).toHaveFocus()
+    expect(useReviewStore.getState().open).toBe(true)
+    fireEvent.click(within(prompt).getByRole('button', { name: /Keep reviewing/ }))
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: /unrecorded/ })).toBeNull())
+    expect(useReviewStore.getState().open).toBe(true)
+    expect(updateField()).toHaveValue('Legal has it')
+    await waitFor(() => expect(updateField()).toHaveFocus())
+  })
+
+  it('Discard closes the deck, the text gone, nothing recorded', async () => {
+    const [first] = ids as [number]
+    const followUps = vi.spyOn(useTodoStore.getState(), 'markFollowedUp')
+    const entryWrites = [vi.spyOn(statusUpdateRepository, 'add'), vi.spyOn(statusUpdateRepository, 'addMany')]
+    await openDeck()
+    fireEvent.change(updateField(), { target: { value: 'Legal has it' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Close review' }))
+    const prompt = await screen.findByRole('dialog', { name: 'Discard the unrecorded update?' })
+    fireEvent.click(within(prompt).getByRole('button', { name: 'Discard' }))
+    await waitFor(() => expect(useReviewStore.getState().open).toBe(false))
+    expect(useReviewStore.getState().drafts).toEqual({})
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(followUps).not.toHaveBeenCalled()
+    for (const w of entryWrites) expect(w).not.toHaveBeenCalled()
+    expect(todo(first)?.lastFollowupAt).toBeUndefined()
+  })
+
+  it('several tasks with text: the count and their titles; Keep reviewing goes to a card that holds text', async () => {
+    await openDeck()
+    fireEvent.change(updateField(), { target: { value: 'First note' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    fireEvent.change(updateField(), { target: { value: 'Second note' } })
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    expect(cardTitle()).toBe('Retention addendum')
+    fireEvent.keyDown(updateField(), { key: 'Escape' })
+    const prompt = await screen.findByRole('dialog', { name: 'Discard 2 unrecorded updates?' })
+    expect(prompt).toHaveTextContent('The updates typed for “Answer Northwind” and “Map integration points” haven’t been recorded.')
+    fireEvent.click(within(prompt).getByRole('button', { name: /Keep reviewing/ }))
+    await waitFor(() => expect(cardTitle()).toBe(FIRST))
+    expect(updateField()).toHaveValue('First note')
+    await waitFor(() => expect(updateField()).toHaveFocus())
   })
 
   it('Esc while the editor is open is the editor’s', async () => {

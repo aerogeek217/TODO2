@@ -127,3 +127,21 @@ export function peopleReview(people: readonly Pick<Person, 'id' | 'name'>[]): Re
   }
   return { kind: 'people', title: `${people.length} people`, description: dialog.description, ids: personIds.length > 0 ? dialogIds(dialog) : [] }
 }
+
+/** `“A”`, `“A” and “B”`, `“A”, “B” and “C”`. */
+function quotedTitles(titles: readonly string[]): string {
+  const quoted = titles.map((t) => `“${t}”`)
+  return quoted.length <= 1 ? quoted.join('') : `${quoted.slice(0, -1).join(', ')} and ${quoted.at(-1) ?? ''}`
+}
+
+/**
+ * What closing the deck asks while tasks' Status update lines hold text not
+ * recorded yet (`titles`: those tasks): Discard the unrecorded update(s)?
+ */
+export function unrecordedReviewPrompt(titles: readonly string[]): { title: string; message: string } {
+  const one = titles.length === 1
+  return {
+    title: one ? 'Discard the unrecorded update?' : `Discard ${titles.length} unrecorded updates?`,
+    message: `${one ? 'The update typed for' : 'The updates typed for'} ${quotedTitles(titles)} ${one ? 'hasn’t' : 'haven’t'} been recorded. Nothing is marked followed up.`,
+  }
+}

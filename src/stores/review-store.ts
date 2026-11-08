@@ -154,6 +154,14 @@ useTodoStore.subscribe((state, prev) => {
   useReviewStore.getState().prune(new Set(state.todos.map((t) => t.id)))
 })
 
+/**
+ * The tasks of the review whose Status update line holds text not recorded
+ * yet (a draft of only spaces counts as none), in queue order.
+ */
+export function unrecordedDraftIds(drafts: Readonly<Record<number, string>>, ids: readonly number[]): number[] {
+  return ids.filter((id) => (drafts[id] ?? '').trim() !== '')
+}
+
 /** How many tasks of the review are followed up in it. */
 export function followedUpCount(marks: Readonly<Record<number, ReviewMark>>, ids: readonly number[]): number {
   return ids.filter((id) => marks[id] === 'done').length

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { allReviewed, followedUpCount, pruneQueue, useReviewStore } from '../../stores/review-store'
+import { allReviewed, followedUpCount, pruneQueue, unrecordedDraftIds, useReviewStore } from '../../stores/review-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { makeTodo } from '../helpers'
 
@@ -71,6 +71,13 @@ describe('review-store', () => {
     expect(allReviewed({ 1: 'done', 2: 'skipped' }, [1, 2, 3])).toBe(false)
     expect(allReviewed({ 1: 'done', 2: 'skipped', 3: 'done' }, [1, 2, 3])).toBe(true)
     expect(allReviewed({}, [])).toBe(false)
+  })
+})
+
+describe('unrecordedDraftIds', () => {
+  it('the tasks with text typed, in queue order; spaces only, or a task not in the queue, count as none', () => {
+    expect(unrecordedDraftIds({ 3: 'later', 1: 'now', 2: '   ', 9: 'gone' }, [1, 2, 3])).toEqual([1, 3])
+    expect(unrecordedDraftIds({}, [1, 2])).toEqual([])
   })
 })
 
