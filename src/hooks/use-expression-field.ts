@@ -35,7 +35,9 @@ interface ExpressionFieldOptions {
  * Quick Add's `@ # ! /` popup. A text that reads is written to the filter
  * once typing rests (`EXPRESSION_WRITE_MS`) and at once on blur / ⏎; one
  * that doesn't is never written — the filter keeps its last version that
- * read. On blur the text that reads is shown in its canonical form (bare
+ * read; the first press outside it (one that would close its editor) is
+ * held then, saying so, and the next goes through (`holdClose`). On blur
+ * the text that reads is shown in its canonical form (bare
  * words quoted, names in full). The filter changing elsewhere (undo, the
  * mode switch) shows here.
  *
@@ -200,11 +202,24 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
     return false
   }, [ac, settle, text, stored])
 
+  // A text that doesn't read is dropped when the field goes. The first press
+  // that would close its editor is held, saying so; the next one goes
+  // through (the popover rule, ARCHITECTURE › Dismissing a popover; cr33 U5).
+  const [heldFor, setHeldFor] = useState<string | null>(null)
+  const unreadable = !parse.ok && text !== stored
+  const closeHeld = unreadable && heldFor === text
+  /** Holds a close once for the text that doesn't read: true when it held this one. */
+  const holdClose = useCallback((): boolean => {
+    if (!unreadable || heldFor === text) return false
+    setHeldFor(text)
+    return true
+  }, [unreadable, heldFor, text])
+
   const view = ac.state.visible ? ac.state.view : null
   const tints: TintSpan[] = useMemo(
     () => expressionTints(parse.spans, parse.ok ? null : parse.error, view ? { start: view.anchor, end: view.to } : undefined),
     [parse, view],
   )
 
-  return { text, parse, tints, names, ac, onTextChange, onSelect, onKeyDown, onBlur }
+  return { text, parse, tints, names, ac, onTextChange, onSelect, onKeyDown, onBlur, closeHeld, holdClose }
 }

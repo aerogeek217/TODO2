@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import type { FilterAtom, FilterExpr, TodoPredicate } from '../../../models'
-import { useExpressionField } from '../../../hooks/use-expression-field'
+import { EXPRESSION_WRITE_MS, useExpressionField } from '../../../hooks/use-expression-field'
+import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { mirrorCharX, useNlpPopupAnchor } from '../../../hooks/use-nlp-popup-anchor'
 import { describeDateMatch } from '../../../utils/filter-chips'
 import { topLevelTerms, type ExpressionNames } from '../../../utils/filter-expression'
@@ -45,9 +46,21 @@ export function ExpressionField({ predicate, onChange, allowPeople = true, allow
   const errorId = useId()
   const [syntaxOpen, setSyntaxOpen] = useState(false)
   const field = useExpressionField({ predicate, onChange, inputRef, allowPeople, allowCompleted, allowDone })
-  const { text, parse, tints, ac } = field
+  const { text, parse, tints, ac, closeHeld } = field
   const error = parse.ok ? null : parse.error
   const errorTip = useTooltip(error?.hint ?? null)
+
+  // The live region is always there, and takes its text once typing rests:
+  // one inserted with its text, or changed on every keystroke, is announced
+  // unreliably (cr33 U10). A held close is said at once.
+  const message = closeHeld ? `${error?.message ?? ''}. ${CLOSE_HELD}` : error?.message ?? ''
+  const [announced, setAnnounced] = useState('')
+  useEffect(() => {
+    const t = setTimeout(() => setAnnounced(message), EXPRESSION_WRITE_MS)
+    return () => clearTimeout(t)
+  }, [message])
+  const live = closeHeld ? message : announced
+
 
   useEffect(() => {
     if (autoFocus) inputRef.current?.focus()
@@ -83,10 +96,41 @@ export function ExpressionField({ predicate, onChange, allowPeople = true, allow
     () => (mirrorRef.current && anchorIndex != null ? mirrorCharX(mirrorRef.current, anchorIndex) : null),
     [anchorIndex],
   )
-  const { setPopupEl, style: popupStyle } = useNlpPopupAnchor(inputRef, ac.state, { x: caretX, key: text })
+  const { popupRef, setPopupEl, style: popupStyle } = useNlpPopupAnchor(inputRef, ac.state, { x: caretX, key: text })
+
+  // The first press outside while the text doesn't read is held (its click
+  // swallowed, the focus kept here), saying so; the next goes through (U5).
+  const rootRef = useRef<HTMLDivElement>(null)
+  const holdRef = useLatestRef(field.holdClose)
+  const syntaxOpenRef = useLatestRef(syntaxOpen)
+  useEffect(() => {
+    let held = false
+    const outside = (t: EventTarget | null) => t instanceof Node && !rootRef.current?.contains(t) && !popupRef.current?.contains(t)
+    const press = (e: Event) => {
+      if (!held && (syntaxOpenRef.current || !outside(e.target) || !holdRef.current())) return
+      held = true
+      if (e.type === 'mousedown') e.preventDefault()
+      e.stopPropagation()
+    }
+    const click = (e: MouseEvent) => {
+      if (!held) return
+      held = false
+      if (!outside(e.target)) return
+      e.preventDefault()
+      e.stopPropagation()
+    }
+    window.addEventListener('pointerdown', press, true)
+    window.addEventListener('mousedown', press, true)
+    window.addEventListener('click', click, true)
+    return () => {
+      window.removeEventListener('pointerdown', press, true)
+      window.removeEventListener('mousedown', press, true)
+      window.removeEventListener('click', click, true)
+    }
+  }, [holdRef, syntaxOpenRef, popupRef])
 
   return (
-    <div className={styles.root} data-testid="expression-field">
+    <div ref={rootRef} className={styles.root} data-testid="expression-field">
       <div className={`${styles.field} ${error ? styles.fieldError : ''}`}>
         <div ref={mirrorRef} className={styles.mirror} aria-hidden="true">
           <TintedText text={text} spans={tints} />
@@ -118,11 +162,13 @@ export function ExpressionField({ predicate, onChange, allowPeople = true, allow
       </div>
       <div className={styles.under}>
         {error ? (
-          <span id={errorId} className={styles.error} role="status" {...errorTip.triggerProps}>
+          <span id={errorId} className={styles.error} data-testid="expression-error" {...errorTip.triggerProps}>
             {error.message}
+            {closeHeld && <span className={styles.held}> — {CLOSE_HELD}</span>}
             {errorTip.tooltip}
           </span>
         ) : <span />}
+        <span className={styles.announce} aria-live="polite" data-testid="expression-announce">{live}</span>
         <button type="button" className={styles.syntax} onClick={() => setSyntaxOpen(true)}>Syntax…</button>
       </div>
       {parse.ok && parse.expression && <ReadsAs expression={parse.expression} names={field.names} />}
@@ -146,6 +192,9 @@ export function ExpressionField({ predicate, onChange, allowPeople = true, allow
     </div>
   )
 }
+
+/** The close held once for a text that doesn't read (U5). */
+export const CLOSE_HELD = 'This doesn’t read, so it isn’t saved — close again to drop it'
 
 /** A Completed date inside an `or` / `not` keeps no open task, and completed tasks aren't let in (cr33 F10). */
 export const COMPLETED_HINT_DONE = 'A Completed date inside or / not matches completed tasks only — add “and done” to show them'

@@ -3,7 +3,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
 import { PredicateChips, SWITCH_REFUSED } from '../../../../components/shared/filters/PredicateChips'
 import { EXPRESSION_WRITE_MS } from '../../../../hooks/use-expression-field'
-import { COMPLETED_HINT_DONE } from '../../../../components/shared/filters/ExpressionField'
+import { CLOSE_HELD, COMPLETED_HINT_DONE } from '../../../../components/shared/filters/ExpressionField'
 import { EXPRESSION_NODES_MAX, emptyPredicate, type FilterExpr, type TodoPredicate } from '../../../../models'
 import { usePersonStore } from '../../../../stores/person-store'
 import { useStatusStore } from '../../../../stores/status-store'
@@ -144,7 +144,54 @@ describe('the expression field', () => {
     fireEvent.blur(field())
     expect(log).toEqual([])
     expect(field()).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.getByRole('status')).toHaveTextContent('No person named Zed')
+    expect(screen.getByTestId('expression-error')).toHaveTextContent('No person named Zed')
+  })
+
+  it('announces the error from a live region that is always there, once typing rests (cr33 U10)', () => {
+    vi.useFakeTimers()
+    render(<Harness initial={{ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }} log={[]} />)
+    const region = screen.getByTestId('expression-announce')
+    expect(region).toHaveAttribute('aria-live', 'polite')
+    expect(region.textContent).toBe('')
+    type('(/focus or')
+    expect(region.textContent).toBe('')
+    act(() => { vi.advanceTimersByTime(EXPRESSION_WRITE_MS) })
+    expect(screen.getByTestId('expression-announce')).toBe(region)
+    expect(region).toHaveTextContent('“or” needs something after it')
+  })
+
+  it('holds the first press outside while the text doesn’t read, saying so; the next goes through (cr33 U5)', () => {
+    const log: TodoPredicate[] = []
+    const closed = vi.fn()
+    render(
+      <>
+        <Harness initial={{ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }} log={log} />
+        <button type="button" onClick={closed}>Close</button>
+      </>,
+    )
+    const close = screen.getByRole('button', { name: 'Close' })
+    const press = () => {
+      fireEvent.pointerDown(close)
+      fireEvent.mouseDown(close)
+      fireEvent.click(close)
+    }
+    // A text that reads holds nothing.
+    type('(/focus or #work)')
+    press()
+    expect(closed).toHaveBeenCalledTimes(1)
+    type('(/focus or')
+    press()
+    expect(closed).toHaveBeenCalledTimes(1)
+    expect(screen.getByTestId('expression-error')).toHaveTextContent(CLOSE_HELD)
+    expect(screen.getByTestId('expression-announce')).toHaveTextContent(CLOSE_HELD)
+    // Closing again drops it: the press goes through.
+    press()
+    expect(closed).toHaveBeenCalledTimes(2)
+    // A press inside the field is never held.
+    type('(/focus or (')
+    fireEvent.mouseDown(field())
+    fireEvent.click(field())
+    expect(screen.getByTestId('expression-error')).not.toHaveTextContent(CLOSE_HELD)
   })
 
   it('on blur writes at once and shows the text in its canonical form', () => {
@@ -234,7 +281,7 @@ describe('the expression field', () => {
     type('@Alice')
     fireEvent.blur(field())
     expect(log).toEqual([])
-    expect(screen.getByRole('status')).toHaveTextContent('Leave people out')
+    expect(screen.getByTestId('expression-error')).toHaveTextContent('Leave people out')
   })
 })
 
