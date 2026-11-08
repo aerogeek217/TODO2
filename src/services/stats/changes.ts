@@ -1,10 +1,11 @@
-import type { PersistedTodoItem, Tag, TodoEvent, TodoEventType } from '../../models'
+import type { PersistedTodoItem, Tag, TodoEvent } from '../../models'
 import type { TaskDialogPayload } from '../../stores/task-dialog-payload'
 import { addDays, weekStartOf } from '../../utils/calendar-grid'
 import { daysUntil } from '../../utils/effective-date'
 import { CHANGES_EVENT_TYPES, STUCK_STATUS_DAYS } from '../../utils/trend-window'
 import { completionOf } from './closed-this-week'
 import { idsByDate, openTasks, type StatsContext } from './stats-context'
+import { eventsByTask, taskReplay, type TaskEvents } from './task-history'
 
 /**
  * What changed (D25 L, the morning brief's text): template sentences —
@@ -53,69 +54,21 @@ function averageText(avg: number): string {
   return Number.isInteger(r) ? String(r) : r.toFixed(1)
 }
 
-type TaskState = 'absent' | 'open' | 'done'
-
-/** A task's state just before an event of `type` (a state event). */
-function stateBefore(type: TodoEventType): TaskState {
-  if (type === 'created') return 'absent'
-  return type === 'completed' ? 'open' : 'done'
-}
-
-const STATE_TYPES: ReadonlySet<TodoEventType> = new Set(['created', 'completed', 'reopened'])
-
-interface DatedEvent {
-  type: TodoEventType
-  time: number
-  id: number
-  /** Days from today (0 = today, negative = before). */
-  day: number
-  fromValue: string | number | null
-}
-
-/** The events of each task in `ids`, oldest first (the types What changed reads). */
-function eventsByTask(events: readonly TodoEvent[], ids: ReadonlySet<number>, today: Date): Map<number, DatedEvent[]> {
-  const types = new Set(CHANGES_EVENT_TYPES)
-  const out = new Map<number, DatedEvent[]>()
-  for (const e of events) {
-    if (!ids.has(e.todoId) || !types.has(e.type)) continue
-    const at = new Date(e.timestamp)
-    const time = at.getTime()
-    if (Number.isNaN(time)) continue
-    const list = out.get(e.todoId) ?? []
-    list.push({ type: e.type, time, id: e.id ?? 0, day: daysUntil(at, today) ?? 0, fromValue: e.fromValue })
-    out.set(e.todoId, list)
-  }
-  for (const list of out.values()) list.sort((a, b) => a.time - b.time || a.id - b.id)
-  return out
-}
-
-function dateOf(v: string | number | null): Date | null {
-  if (typeof v !== 'string') return null
-  const d = new Date(v)
-  return Number.isNaN(d.getTime()) ? null : d
-}
-
 /**
- * Whether an open task late now was already late at yesterday's end: it
- * was there and open then (the state before its first state event today,
- * else as now — not there before its `createdAt`), and its due date then
- * (the `from` of its first `deadline` event today, else as now) was before
+ * Whether an open task late now was already late at yesterday's end: there
+ * and open then, with its due date then (`task-history`'s replay) before
  * yesterday.
  */
-function lateYesterday(task: PersistedTodoItem, list: readonly DatedEvent[], today: Date): boolean {
-  const yesterday = addDays(today, -1)
-  if ((daysUntil(task.createdAt, today) ?? 0) >= 0) return false
-  const nextState = list.find((e) => e.day >= 0 && STATE_TYPES.has(e.type))
-  if (nextState && stateBefore(nextState.type) !== 'open') return false
-  const nextDeadline = list.find((e) => e.day >= 0 && e.type === 'deadline')
-  const due = nextDeadline ? dateOf(nextDeadline.fromValue) : (task.dueDate ?? null)
-  const dueIn = daysUntil(due, yesterday)
+function lateYesterday(task: PersistedTodoItem, events: TaskEvents | undefined, today: Date): boolean {
+  const was = taskReplay(task, events, today)(-1)
+  if (was.state !== 'open') return false
+  const dueIn = daysUntil(was.due, addDays(today, -1))
   return dueIn != null && dueIn < 0
 }
 
 /** When an open task took its status: its last `status` event, else its creation inside the window, else before the window. */
-function statusSince(task: PersistedTodoItem, list: readonly DatedEvent[]): Date | null {
-  const last = list.filter((e) => e.type === 'status').at(-1)
+function statusSince(task: PersistedTodoItem, events: TaskEvents | undefined): Date | null {
+  const last = events?.all.filter((e) => e.type === 'status').at(-1)
   if (last) return new Date(last.time)
   return task.createdAt ? new Date(task.createdAt) : null
 }
@@ -137,12 +90,12 @@ export function computeChanges(
 ): Change[] {
   const { today } = ctx
   const open = openTasks(tasks)
-  const byTask = eventsByTask(events, new Set(open.map((t) => t.id)), today)
+  const byTask = eventsByTask(events, new Set(open.map((t) => t.id)), CHANGES_EVENT_TYPES, today)
   const out: Change[] = []
 
   // 1. Went late since yesterday: late now, not late at yesterday's end.
   const late = open.filter((t) => (daysUntil(t.dueDate, today) ?? 0) < 0)
-  const wentLate = late.filter((t) => !lateYesterday(t, byTask.get(t.id) ?? [], today))
+  const wentLate = late.filter((t) => !lateYesterday(t, byTask.get(t.id), today))
   if (wentLate.length > 0) {
     out.push({
       id: 'late',
@@ -217,7 +170,7 @@ export function computeChanges(
   const stuck = new Map<number, PersistedTodoItem[]>()
   for (const t of open) {
     if (t.statusId == null) continue
-    const since = statusSince(t, byTask.get(t.id) ?? [])
+    const since = statusSince(t, byTask.get(t.id))
     const held = since ? -(daysUntil(since, today) ?? 0) : STUCK_STATUS_DAYS
     if (held < STUCK_STATUS_DAYS) continue
     const list = stuck.get(t.statusId) ?? []
