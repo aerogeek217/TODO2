@@ -168,11 +168,9 @@ interface TodoState {
   bulkSetImportant: (ids: number[], on: boolean) => Promise<void>
   /**
    * Writes per-task Urgent / Important / Focus changes (e.g. an Eisenhower drop) as
-   * one undo step with the undo snackbar (`description`). `stamp: false`: a
-   * housekeeping write (Clear Focus…) that leaves every task's `modifiedAt`
-   * as it is — on the write, its undo and its redo.
+   * one undo step with the undo snackbar (`description`).
    */
-  setMarkerFlags: (changes: readonly MarkerFlagChange[], description: string, opts?: { stamp?: boolean }) => Promise<void>
+  setMarkerFlags: (changes: readonly MarkerFlagChange[], description: string) => Promise<void>
   /** Removes the due date from every task in `ids`. One undo step, with the undo snackbar. */
   bulkClearDueDate: (ids: number[]) => Promise<void>
   /**
@@ -502,7 +500,7 @@ export const useTodoStore = create<TodoState>((set, get) => {
 
   /**
    * `setMarkerFlags`, stamping now — or, given `stamp` (a redo), the step's
-   * stamp put back; an empty step stamps nothing (Clear Focus…).
+   * stamp put back.
    */
   function writeMarkerFlags(changes: readonly MarkerFlagChange[], description: string, stamp?: StampChanges): Promise<void> {
     const byId = new Map(changes.map((c) => [c.todoId, c]))
@@ -843,9 +841,8 @@ export const useTodoStore = create<TodoState>((set, get) => {
     await bulkUpdateField(ids, 'important', on ? true : undefined, label, get, set)
   },
 
-  setMarkerFlags(changes, description, opts) {
-    // No stamp: an empty step's stamps (`utils/task-stamps`) leave every task's own.
-    return writeMarkerFlags(changes, description, opts?.stamp === false ? new Map() : undefined)
+  setMarkerFlags(changes, description) {
+    return writeMarkerFlags(changes, description)
   },
 
   async bulkClearDueDate(ids: number[]) {

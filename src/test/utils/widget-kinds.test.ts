@@ -15,16 +15,16 @@ import { single } from '../helpers/layout-builders'
 /** The widget-kind table and what derives from it. */
 describe('widget kinds', () => {
   it('lists the kinds in menu order, with their names', () => {
+    // Tasks (List, Notes), then Numbers & charts — the Calendar, the Eisenhower and the Neglect map last (D26).
     expect(WIDGET_KINDS).toEqual([
-      'lens', 'calendar', 'notes', 'eisenhower', 'neglect',
-      'number', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhowerSummary',
-      'changes', 'today', 'pulse',
+      'lens', 'notes',
+      'number', 'trend', 'status', 'people', 'tags', 'pulse', 'calendar', 'eisenhower', 'neglect',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
-      'List', 'Calendar', 'Notes', 'Eisenhower', 'Neglect map',
-      'Number', 'Needs follow-up', 'Next 7 days', 'Created vs completed', 'Status', 'People', 'Tags', 'Stale tasks',
-      'Recently completed', 'Eisenhower summary', 'What changed', 'Today', 'Project pulse',
+      'List', 'Notes',
+      'Number', 'Created vs completed', 'Status', 'People', 'Tags', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
     ])
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'notes'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])
   })
 

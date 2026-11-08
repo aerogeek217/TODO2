@@ -115,7 +115,7 @@ const EVERY_KIND = {
       { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2, titles: true } },
       { id: 't3', kind: 'notes', config: {} },
       { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'], detailsWidth: 0 } },
-      { id: 't5', kind: 'stale', config: { staleDays: 30 }, viewState: { detailsWidth: 4000 } },
+      { id: 't5', kind: 'trend', config: { range: '4w' } },
     ] },
     { id: 'k3', area: { col: 2, row: 0, colSpan: 1, rowSpan: 2 }, tabs: [
       { id: 't6', kind: 'notes', config: {} },
@@ -196,11 +196,11 @@ describe('layouts row validation', () => {
     }])
   })
 
-  it('import keeps a list, Eisenhower or row widget tab’s details width, rounded', () => {
+  it('import keeps a list or Eisenhower tab’s details width, rounded', () => {
     const body = oneTab({ id: 't1', kind: 'lens', config: {}, viewState: { detailsWidth: 262.6 } })
     ;(body.cells as Array<{ tabs: unknown[] }>)[0]!.tabs.push(
       { id: 't2', kind: 'eisenhower', config: {}, viewState: { detailsWidth: 180 } },
-      { id: 't3', kind: 'recent', config: { recentDays: 7 }, viewState: { detailsWidth: 0.4 } },
+      { id: 't3', kind: 'eisenhower', config: {}, viewState: { detailsWidth: 0.4 } },
       // Only tabs that show task rows keep it.
       { id: 't4', kind: 'notes', config: {}, viewState: { detailsWidth: 200 } },
     )

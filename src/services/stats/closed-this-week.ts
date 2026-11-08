@@ -18,8 +18,7 @@ export function completionOf(task: Pick<PersistedTodoItem, 'completedAt' | 'modi
 
 /**
  * Tasks completed this week: from the week's first day (Settings' week
- * start) through today, by local day — as Recently completed reads a
- * completion (`completionOf`).
+ * start) through today, by local day (`completionOf`: its completion day).
  */
 export function computeClosedThisWeek(
   tasks: readonly PersistedTodoItem[],

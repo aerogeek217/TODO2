@@ -58,28 +58,13 @@ export function historyEventsStart(today: Date, weekStartsOn: WeekStart): Date {
 }
 
 /**
- * A status held this many days or more is stuck (What changed). The
- * widget's events reach back as far: a task with no `status` event since
- * then has held its status at least this long.
- */
-export const STUCK_STATUS_DAYS = 21
-
-/**
- * The event types What changed reads: each task's state and due date at
- * yesterday's end (what went late), and when it took its status.
- */
-export const CHANGES_EVENT_TYPES: readonly TodoEventType[] = [...HISTORY_EVENT_TYPES, 'status']
-
-/**
  * What the history cache reads (`trend-events-store`): a trend range's
- * window, `history` — a Number's 14 days —, or `changes` — What changed's
- * last `STUCK_STATUS_DAYS` days.
+ * window, or `history` — a Number's 14 days.
  */
-export type EventsWindow = TrendRange | 'history' | 'changes'
+export type EventsWindow = TrendRange | 'history'
 
 /** The first day and the event types `window` reads. */
 export function eventsWindowRead(window: EventsWindow, today: Date, weekStartsOn: WeekStart): { start: Date; types: readonly TodoEventType[] } {
   if (window === 'history') return { start: historyEventsStart(today, weekStartsOn), types: HISTORY_EVENT_TYPES }
-  if (window === 'changes') return { start: addDays(today, -STUCK_STATUS_DAYS), types: CHANGES_EVENT_TYPES }
   return { start: trendWindow(window, today, weekStartsOn).start, types: TREND_EVENT_TYPES }
 }

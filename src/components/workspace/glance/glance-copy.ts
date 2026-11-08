@@ -107,13 +107,6 @@ export function trendBucketLabel(start: Date, granularity: 'day' | 'week'): stri
   return start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-/** A Next 7 days column's labels: `Late` / `–`, `Today` / `10`, `Sun` / `11`. */
-export function nextDayLabels(date: Date | null, index: number): [string, string] {
-  if (date == null) return ['Late', '–']
-  if (index === 1) return ['Today', String(date.getDate())]
-  return [date.toLocaleDateString('en-US', { weekday: 'short' }), String(date.getDate())]
-}
-
 // ── The task dialog's words ──────────────────────────────────────────────────
 
 const SETTINGS_NOTE = '(Settings › Tasks)'
@@ -149,12 +142,6 @@ export function metricDescription(id: keyof MetricStats, ctx: MetricDescriptionC
     case 'noFollowup':
       return 'Open tasks with no next follow-up date.'
   }
-}
-
-/** The Stale tasks header: `Not changed in 14 days or more · oldest 39 days`. */
-export function staleSubLine(days: number, oldestDays: number | null): string {
-  const base = `Not changed in ${days} days or more`
-  return oldestDays == null ? base : `${base} · oldest ${oldestDays} days`
 }
 
 /** A dialog line under the top-bar filter: it counts only what the filter shows. */

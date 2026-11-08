@@ -47,17 +47,10 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
     case 'neglect':
       return <NeglectMapWidget tab={tab} />
     case 'number':
-    case 'followup':
-    case 'next7':
     case 'trend':
     case 'status':
     case 'people':
     case 'tags':
-    case 'stale':
-    case 'recent':
-    case 'eisenhowerSummary':
-    case 'changes':
-    case 'today':
     case 'pulse':
       return (
         <GlanceWidget

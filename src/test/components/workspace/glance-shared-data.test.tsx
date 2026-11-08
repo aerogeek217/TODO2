@@ -19,8 +19,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { applyFilter } from '../../../utils/filter-match'
 import { computeMetrics } from '../../../services/stats/metrics'
 import { computeTagStats } from '../../../services/stats/tags'
-import { computeFollowupGroups } from '../../../services/stats/followup-groups'
-import { computeStaleTasks } from '../../../services/stats/stale'
+import { computePulse } from '../../../services/stats/pulse'
 import { SHARED_MEMO_WARNING } from '../../../utils/shared-memo'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
@@ -42,14 +41,10 @@ vi.mock('../../../services/stats/tags', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/stats/tags')>()
   return { ...actual, computeTagStats: vi.fn(actual.computeTagStats) }
 })
-// And two with options: a memo keeps one input set per choice (A9).
-vi.mock('../../../services/stats/followup-groups', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../services/stats/followup-groups')>()
-  return { ...actual, computeFollowupGroups: vi.fn(actual.computeFollowupGroups) }
-})
-vi.mock('../../../services/stats/stale', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../services/stats/stale')>()
-  return { ...actual, computeStaleTasks: vi.fn(actual.computeStaleTasks) }
+// And one with options: a memo keeps one input set per choice (A9).
+vi.mock('../../../services/stats/pulse', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/stats/pulse')>()
+  return { ...actual, computePulse: vi.fn(actual.computePulse) }
 })
 
 beforeEach(() => {
@@ -72,11 +67,12 @@ afterEach(() => {
 
 describe('glance widgets share their data', () => {
   it('fifteen glance widgets filter the tasks once, and once again after a task changes', () => {
-    const kinds: GlanceWidgetKind[] = [...WIDGET_KINDS.filter(isGlanceKind), 'number', 'number']
+    const glanceKinds = WIDGET_KINDS.filter(isGlanceKind)
+    const kinds: GlanceWidgetKind[] = [...glanceKinds, ...Array.from({ length: 15 - glanceKinds.length }, (): GlanceWidgetKind => 'number')]
     const tabs = kinds.map((k, i) => (k === 'number' ? { id: `w${i}`, kind: 'number', config: { metric: i % 2 ? 'open' : 'overdue' } } : createTab(k, `w${i}`)) as GlanceTab)
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
     expect(document.querySelectorAll('[data-glance]')).toHaveLength(15)
-    // Once for the shared base (the Eisenhower summary's own list isn't loaded: it reads the base).
+    // Once for the shared base.
     expect(vi.mocked(applyFilter)).toHaveBeenCalledTimes(1)
 
     vi.mocked(applyFilter).mockClear()
@@ -102,7 +98,7 @@ describe('glance widgets share their data', () => {
     const tabs: GlanceTab[] = [
       { id: 'n', kind: 'number', config: { metric: 'open' } },
       createTab('tags', 't') as GlanceTab,
-      createTab('followup', 'f') as GlanceTab,
+      createTab('pulse', 'p') as GlanceTab,
     ]
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
     vi.mocked(computeMetrics).mockClear()
@@ -130,34 +126,32 @@ describe('glance widgets share their data', () => {
 
   it('a dozen widgets, options differing, still hit on a re-render: no part recomputes and no memo warns', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
-    vi.mocked(computeFollowupGroups).mockClear()
-    vi.mocked(computeStaleTasks).mockClear()
+    vi.mocked(computePulse).mockClear()
     const tabs: GlanceTab[] = [
-      ...WIDGET_KINDS.filter(isGlanceKind).filter((k) => k !== 'followup' && k !== 'stale').map((k) => createTab(k, `w-${k}`) as GlanceTab),
-      { id: 'f3', kind: 'followup', config: { lookAhead: 3 } },
-      { id: 'f7', kind: 'followup', config: { lookAhead: 7 } },
-      { id: 'f14', kind: 'followup', config: { lookAhead: 14 } },
-      { id: 's7', kind: 'stale', config: { staleDays: 7 } },
-      { id: 's30', kind: 'stale', config: { staleDays: 30 } },
+      ...WIDGET_KINDS.filter(isGlanceKind).filter((k) => k !== 'pulse').map((k) => createTab(k, `w-${k}`) as GlanceTab),
+      { id: 'n2', kind: 'number', config: { metric: 'focus' } },
+      { id: 'n3', kind: 'number', config: { metric: 'dueToday' } },
+      { id: 'p1', kind: 'pulse', config: { tagIds: [TAGS[0]!.id!] } },
+      { id: 'p2', kind: 'pulse', config: { tagIds: [TAGS[1]!.id!] } },
+      { id: 'p12', kind: 'pulse', config: { tagIds: [TAGS[0]!.id!, TAGS[1]!.id!] } },
+      { id: 'p0', kind: 'pulse', config: { tagIds: [] } },
+      { id: 'p3', kind: 'pulse', config: { tagIds: [TAGS[2]!.id!] } },
     ]
     expect(tabs.length).toBeGreaterThanOrEqual(12)
     const tree = () => <DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>
     const { rerender } = render(tree())
-    // Each half once per look-ahead / threshold on screen.
-    expect(vi.mocked(computeFollowupGroups)).toHaveBeenCalledTimes(6)
-    expect(vi.mocked(computeStaleTasks)).toHaveBeenCalledTimes(4)
-    for (const fn of [applyFilter, computeMetrics, computeTagStats, computeFollowupGroups, computeStaleTasks]) vi.mocked(fn).mockClear()
+    // Once per tag pick on screen.
+    expect(vi.mocked(computePulse)).toHaveBeenCalledTimes(5)
+    for (const fn of [applyFilter, computeMetrics, computeTagStats, computePulse]) vi.mocked(fn).mockClear()
     for (let i = 0; i < 4; i++) rerender(tree())
     expect(vi.mocked(applyFilter)).not.toHaveBeenCalled()
     expect(vi.mocked(computeMetrics)).not.toHaveBeenCalled()
     expect(vi.mocked(computeTagStats)).not.toHaveBeenCalled()
-    expect(vi.mocked(computeFollowupGroups)).not.toHaveBeenCalled()
-    expect(vi.mocked(computeStaleTasks)).not.toHaveBeenCalled()
+    expect(vi.mocked(computePulse)).not.toHaveBeenCalled()
     // A task write: each part recomputes once per option on screen, never per widget.
     act(() => { useTodoStore.setState({ todos: SAMPLE_TASKS.map((t) => (t.id === SAMPLE_TASKS[0]!.id ? { ...t, title: 'Renamed' } : t)) }) })
     for (let i = 0; i < 4; i++) rerender(tree())
-    expect(vi.mocked(computeFollowupGroups)).toHaveBeenCalledTimes(6)
-    expect(vi.mocked(computeStaleTasks)).toHaveBeenCalledTimes(4)
+    expect(vi.mocked(computePulse)).toHaveBeenCalledTimes(5)
     expect(warn.mock.calls.filter((c) => String(c[0]).includes(SHARED_MEMO_WARNING))).toEqual([])
     warn.mockRestore()
   })

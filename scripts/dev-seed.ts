@@ -23,9 +23,9 @@
  * table (D26) — Default (tall cells over a collapsed row, a fit row of
  * Numbers, a fixed strip of glance widgets) and Planning (a fit row of
  * Numbers across the top, lists — a tab at each zoom —, the Eisenhower, a
- * Neglect map by project, glance widgets — Needs follow-up, Created vs
- * completed, Today, Project pulse —, a fixed strip with the month and What
- * changed) — each owning its lists, with list prompts, an "is not"
+ * Neglect map by project, glance widgets — Tags, Created vs completed,
+ * Status, Project pulse —, a fixed strip with the month and a second
+ * Eisenhower) — each owning its lists, with list prompts, an "is not"
  * filter, a descending sort, Priority filters (several values, "is not") and manual orders; the
  * Eisenhower's own list with one renamed pane; a check-in filter.
  *
@@ -952,7 +952,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         L: cell('cell-late', [number('tab-late', 'overdue')]),
         U: cell('cell-followup-due', [number('tab-followup-due', 'followupDue')]),
         D: cell('cell-due-today', [number('tab-due-today', 'dueToday')]),
-        X: cell('cell-next7', [{ id: 'tab-next7', kind: 'next7', config: {} }]),
+        X: cell('cell-status', [{ id: 'tab-status', kind: 'status', config: {} }]),
         T: cell('cell-trend', [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }]),
         E: cell('cell-people', [{ id: 'tab-people', kind: 'people', config: { showUnassigned: true } }]),
       }, [280, 220, 220, 280], [400, 250, { weight: 150, collapsed: true }, { fit: true }, { px: 240 }]),
@@ -964,7 +964,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       id: IDS.layouts.planning,
       name: 'Planning',
       sortOrder: 1,
-      // The table (D26): a fit row of Numbers across the top, columns of lists and glance widgets, a fixed strip with the month and What changed.
+      // The table (D26): a fit row of Numbers across the top, columns of lists and glance widgets, a fixed strip with the month and an Eisenhower.
       ...table('planning', [
         'a b c d e',
         'H F M G G',
@@ -982,8 +982,8 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         H: cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], 'tab-rest'),
         F: cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]),
         M: cell('cell-matrix', [{ id: 'tab-matrix2', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }]),
-        // Glance widgets (D25 N + L): Needs follow-up, Created vs completed, Today, Project pulse.
-        G: cell('cell-g-followup', [{ id: 'tab-g-followup', kind: 'followup', config: { lookAhead: 7 } }]),
+        // Glance widgets (D25 N + L): Tags, Created vs completed, Status, Project pulse.
+        G: cell('cell-g-tags', [{ id: 'tab-g-tags', kind: 'tags', config: { showUntagged: true } }]),
         // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is.
         N: cell('cell-neglect', [{
           id: 'tab-neglect',
@@ -994,10 +994,10 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         S: cell('cell-someday', [lens('tab-someday', L.someday)]),
         W: cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
         T: cell('cell-stats', [lens('tab-hot', L.hot), lens('tab-recent', L.recentlyAdded), lens('tab-done', L.doneThisWeek)]),
-        Y: cell('cell-today', [{ id: 'tab-today', kind: 'today', config: {} }]),
+        Y: cell('cell-g-status', [{ id: 'tab-g-status', kind: 'status', config: {} }]),
         Z: cell('cell-pulse', [{ id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } }]),
         K: cell('cell-month', [calendar('tab-month', 'month', 0, false)]),
-        Q: cell('cell-changes', [{ id: 'tab-changes', kind: 'changes', config: { tagIds: [...IDS.projectTags] } }]),
+        Q: cell('cell-matrix3', [{ id: 'tab-matrix3', kind: 'eisenhower', config: {} }]),
       }, [250, 250, 250, 125, 125], [{ fit: true }, 300, 200, 150, 150, { px: 220 }]),
       createdAt: iso(at(-60, 10)),
       modifiedAt: iso(at(-8, 16, 45)),

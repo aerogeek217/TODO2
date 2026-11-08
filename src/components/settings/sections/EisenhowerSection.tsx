@@ -42,8 +42,7 @@ function patchPane(q: EisenhowerQuadrant, patch: Parameters<typeof withPaneConfi
 }
 
 /**
- * Settings › Tasks › Eisenhower: what every Eisenhower (and the Eisenhower summary's
- * Eisenhower section) considers — the Eisenhower's own list, its filter as
+ * Settings › Tasks › Eisenhower: what every Eisenhower (at every face) considers — the Eisenhower's own list, its filter as
  * the filter line every Eisenhower shows (`ListFilterRow`: the same list and
  * unsaved edits, Revert · Save while unsaved) — and its four
  * panes as a 2×2 of cards: each with its name, its filter as the list filter
@@ -76,7 +75,7 @@ export function EisenhowerSection() {
     <div className={sectionStyles.section}>
       <SettingRow
         label="Tasks"
-        help="What every Eisenhower and Eisenhower summary sort into the panes: the Eisenhower’s own list. No filter = every task."
+        help="What every Eisenhower sorts into the panes: the Eisenhower’s own list. No filter = every task."
         column
       >
         {source.list && (
@@ -121,7 +120,7 @@ export function EisenhowerSection() {
       <ConfirmDialog
         open={confirmReset}
         title="Reset all panes?"
-        message="Every pane goes back to its default name and filter (Do, Schedule, Delegate, Drop), in every Eisenhower and Eisenhower summary."
+        message="Every pane goes back to its default name and filter (Do, Schedule, Delegate, Drop), in every Eisenhower."
         confirmLabel="Reset all panes"
         onConfirm={() => {
           setConfirmReset(false)

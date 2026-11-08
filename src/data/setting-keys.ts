@@ -53,7 +53,7 @@ export const SETTING_KEYS = {
    */
   keyboardShortcuts: 'keyboardShortcuts',
   /**
-   * The Eisenhower panes (every Eisenhower tab and Eisenhower summary):
+   * The Eisenhower panes (every Eisenhower tab, at every face):
    * JSON object of the panes that differ from their defaults, by position —
    * `{"delegate":{"name":"Hand off","filter":{…}}}` (`data/eisenhower-shape`).
    * Absent = the four default quadrants.

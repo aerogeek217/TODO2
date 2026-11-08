@@ -65,19 +65,11 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   ),
   // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`GLANCE_GLYPH`).
   number: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
-  followup: <path d={GLANCE_GLYPH.followup} />,
-  next7: <path d={GLANCE_GLYPH.calendar} />,
   trend: <path d={GLANCE_GLYPH.chart} />,
   status: <path d={GLANCE_GLYPH.status} />,
   people: <path d={GLANCE_GLYPH.people} />,
   tags: <path d={GLANCE_GLYPH.tag} />,
-  stale: <path d={GLANCE_GLYPH.stale} />,
-  recent: <path d={GLANCE_GLYPH.done} />,
-  eisenhowerSummary: <path d={GLANCE_GLYPH.matrix} />,
-  // The brief's parts: What changed is lines of text under a spark; Today the
-  // Focus target; Project pulse a ring with its late share as a wedge.
-  changes: <path d="M2.5 4.5h7M2.5 8h11M2.5 11.5h9M12.5 2.2v3.6M10.7 4h3.6" />,
-  today: <path d={GLANCE_GLYPH.focus} />,
+  // Project pulse: a ring with its late share as a wedge.
   pulse: <path d="M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11zM8 2.5V8h5.5" />,
 }
 

@@ -2,15 +2,11 @@ import { describe, expect, it } from 'vitest'
 import type { FilterCriteria } from '../../../utils/filter-criteria'
 import { applyFilter } from '../../../utils/filter-match'
 import { computeMetrics } from '../../../services/stats/metrics'
-import { computeFollowupGroups } from '../../../services/stats/followup-groups'
-import { computeNextSevenDays } from '../../../services/stats/next-seven-days'
 import { computeTrend } from '../../../services/stats/trend'
 import { computePeopleStats } from '../../../services/stats/people'
 import { selectStatusBreakdown } from '../../../services/stats/status-breakdown'
 import { statsFilter } from '../../../services/stats/stats-context'
 import { computeTagStats } from '../../../services/stats/tags'
-import { computeStaleTasks } from '../../../services/stats/stale'
-import { computeRecentlyCompleted } from '../../../services/stats/recently-completed'
 import { computeEisenhowerSummary } from '../../../services/stats/eisenhower-summary'
 import { emptyFilterCriteria, statsPaneContext, testLookups } from '../../helpers'
 import { resolvePanes } from '../../../utils/eisenhower-panes'
@@ -72,21 +68,6 @@ describe('glance sample data — no screen filter', () => {
     expect(tiles.noFollowup.ids).toHaveLength(14)
   })
 
-  it('Needs follow-up 5: Late (Vendor contract) · Today (Chase venue deposit invoice) · Next 7 days (3)', () => {
-    const groups = computeFollowupGroups(tasks, SAMPLE_CTX, 7)
-    expect(titles(groups.late)).toEqual(['Vendor contract'])
-    expect(titles(groups.today)).toEqual(['Chase venue deposit invoice'])
-    expect(titles(groups.upcoming)).toEqual(['Vendor contract redlines', 'Sign off on new logo', 'Book venue for offsite'])
-  })
-
-  it('Next 7 days: due / follow-up per column, Late then Sat 10 … Fri 16', () => {
-    const cols = computeNextSevenDays(tasks, SAMPLE_CTX)
-    expect(cols.map((c) => c.date?.getDate() ?? 'late')).toEqual(['late', 10, 11, 12, 13, 14, 15, 16])
-    expect(cols.map((c) => [c.dueIds.length, c.followupIds.length])).toEqual([
-      [2, 1], [3, 1], [1, 0], [1, 1], [1, 1], [1, 0], [3, 1], [0, 0],
-    ])
-  })
-
   it('Created vs completed, 14 days: 17 created, 14 completed, +3 open since Sun 27 Sep, the drawn bars and sparkline', () => {
     const trend = computeTrend(tasks, SAMPLE_EVENTS, SAMPLE_CTX, '14d')
     expect(trend.created).toBe(17)
@@ -133,14 +114,6 @@ describe('glance sample data — top-bar Tags filter q4 (shown of total)', () =>
     expect(tiles.focus.dueToday).toBe(0)
   })
 
-  it('Needs follow-up 1 (Next 7 days); Next 7 days Sun 11 · Wed 14 · Thu 15', () => {
-    const groups = computeFollowupGroups(tasks, SAMPLE_CTX, 7)
-    expect(groups).toEqual({ late: [], today: [], upcoming: [4] })
-    expect(computeNextSevenDays(tasks, SAMPLE_CTX).map((c) => [c.dueIds.length, c.followupIds.length])).toEqual([
-      [0, 0], [0, 0], [1, 0], [0, 0], [0, 0], [1, 0], [1, 1], [0, 0],
-    ])
-  })
-
   it('trend: 4 created, 3 completed, +1, the drawn bars and sparkline', () => {
     const trend = computeTrend(tasks, SAMPLE_EVENTS, SAMPLE_CTX, '14d')
     expect([trend.created, trend.completed, trend.net]).toEqual([4, 3, 1])
@@ -157,7 +130,7 @@ describe('glance sample data — top-bar Tags filter q4 (shown of total)', () =>
   })
 })
 
-describe('glance sample data — the Tags, Stale tasks, Recently completed and Eisenhower sections', () => {
+describe('glance sample data — the Tags section and the Eisenhower’s counts', () => {
   const all = screened(NO_FILTER)
   const q4 = screened(Q4_FILTER)
 
@@ -167,18 +140,6 @@ describe('glance sample data — the Tags, Stale tasks, Recently completed and E
     expect(tags.untagged.ids).toHaveLength(10)
     // Under the q4 filter only the q4 row is left.
     expect(computeTagStats(q4, SAMPLE_CTX).rows.map((r) => [r.tag.name, r.ids.length])).toEqual([['q4', 5]])
-  })
-
-  it('Stale tasks (14 days): the open tasks from before the window, oldest first', () => {
-    expect(computeStaleTasks(all, SAMPLE_CTX, 14)).toEqual({ ids: [17, 19], oldestDays: 39 })
-    expect(computeStaleTasks(q4, SAMPLE_CTX, 14).ids).toEqual([17])
-  })
-
-  it('Recently completed (7 days): completed since Sun 4 Oct, newest first', () => {
-    expect(titles(computeRecentlyCompleted(all, SAMPLE_CTX, 7).ids)).toEqual([
-      'Ship release notes', 'Order team swag', 'Interview debrief', 'Q4 OKR draft', 'Car service', 'Fix login bug', 'Team lunch booking',
-    ])
-    expect(titles(computeRecentlyCompleted(q4, SAMPLE_CTX, 7).ids)).toEqual(['Q4 OKR draft'])
   })
 
   it('Eisenhower: Do 3 · Schedule 1 · Delegate 5 · Drop 10 (Urgent 8 = Do + Delegate)', () => {

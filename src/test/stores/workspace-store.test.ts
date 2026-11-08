@@ -138,7 +138,7 @@ describe('structural edits and dirty state', () => {
     expect(tabs().find((t) => t.id === seeded)?.config).toEqual({ colourBy: { kind: 'tags', tagIds: [5] }, untouchedDays: 14 })
   })
 
-  it('a new What changed or Project pulse — added, or a tab changed to one — reads the `Project: …` tags', async () => {
+  it('a new Project pulse — added, or a tab changed to one — reads the `Project: …` tags', async () => {
     useTagStore.setState({ tags: [
       { id: 4, name: 'Project: Alpha', color: '#111111' },
       { id: 5, name: 'home', color: '#222222' },
@@ -146,7 +146,7 @@ describe('structural edits and dirty state', () => {
     ] })
     await seedAndInit(twoColumns())
     const tabs = () => ws().working!.cells.flatMap((k) => k.tabs)
-    for (const kind of ['changes', 'pulse'] as const) {
+    for (const kind of ['pulse'] as const) {
       const tabId = ws().addWidget(kind, { kind: 'cell', cellId: 'kb' })
       expect(tabs().find((t) => t.id === tabId)).toEqual({ id: tabId, kind, config: { tagIds: [4, 6] } })
       const seeded = ws().addWidget(kind, { kind: 'cell', cellId: 'kb' }, { tagIds: [5] })
@@ -190,12 +190,12 @@ describe('structural edits and dirty state', () => {
 
   it('a glance tab: changing to it and editing its config are layout changes', async () => {
     await seedAndInit(twoColumns())
-    ws().changeTabKind('b1', 'stale')
-    expect(cellOf(ws().working, 'kb')!.tabs[0]).toEqual(createTab('stale', 'b1'))
+    ws().changeTabKind('b1', 'trend')
+    expect(cellOf(ws().working, 'kb')!.tabs[0]).toEqual(createTab('trend', 'b1'))
     expect(ws().isDirty).toBe(true)
     await ws().save()
     expect(ws().isDirty).toBe(false)
-    ws().patchTabConfig('b1', 'stale', { staleDays: 30 })
+    ws().patchTabConfig('b1', 'trend', { range: '4w' })
     expect(ws().isDirty).toBe(true)
   })
 

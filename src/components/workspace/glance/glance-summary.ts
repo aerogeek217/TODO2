@@ -1,10 +1,6 @@
 import type { EisenhowerSetup, ShownOfTotal } from '../../../hooks/use-glance-data'
 import type { EisenhowerSummary } from '../../../services/stats/eisenhower-summary'
-import type { FollowupGroups } from '../../../services/stats/followup-groups'
-import type { NextDaysColumn } from '../../../services/stats/next-seven-days'
 import type { PeopleStats } from '../../../services/stats/people'
-import type { RecentlyCompleted } from '../../../services/stats/recently-completed'
-import type { StaleTasks } from '../../../services/stats/stale'
 import type { StatusBreakdownEntry } from '../../../services/stats/status-breakdown'
 import type { TagStats } from '../../../services/stats/tags'
 import type { TrendStats } from '../../../services/stats/trend'
@@ -41,16 +37,6 @@ export function tagsLine(data: TagsSummaryData, showUntagged: boolean): SummaryP
   return parts
 }
 
-/** Stale tasks: `Stale tasks 4`. */
-export function staleLine(data: { stale: ShownOfTotal<StaleTasks> }): SummaryPart[] {
-  return [{ label: 'Stale tasks', count: countOf(data.stale.shown.ids.length, data.stale.total.ids.length) }]
-}
-
-/** Recently completed: `Recently completed 6`. */
-export function recentLine(data: { recent: ShownOfTotal<RecentlyCompleted> }): SummaryPart[] {
-  return [{ label: 'Recently completed', count: countOf(data.recent.shown.ids.length, data.recent.total.ids.length) }]
-}
-
 /** The Eisenhower: each pane's name and count — `Do 3 · Schedule 1 · …`. */
 export function eisenhowerLine(data: EisenhowerSummaryData): SummaryPart[] {
   return data.eisenhowerSetup.panes.map((p) => ({
@@ -59,7 +45,7 @@ export function eisenhowerLine(data: EisenhowerSummaryData): SummaryPart[] {
   }))
 }
 
-/** What the Eisenhower summary counts: each pane's tasks, and the panes. */
+/** What the Eisenhower's small face counts: each pane's tasks, and the panes. */
 export interface EisenhowerSummaryData {
   eisenhower: ShownOfTotal<EisenhowerSummary>
   eisenhowerSetup: EisenhowerSetup
@@ -68,28 +54,6 @@ export interface EisenhowerSummaryData {
 // ── A glance widget's lines (its tab menu's Copy) ────────────────────────────
 // Each starts with the widget's title and its headline count, then the
 // line its count makes, or its parts.
-
-/** Needs follow-up: `Needs follow-up 5`, then `Late 2 · Today 1 · Next 7 days 2`. */
-export function followupLines(followup: ShownOfTotal<FollowupGroups>, lookAhead: number): SummaryPart[][] {
-  const { shown, total } = followup
-  const n = (g: typeof shown) => g.late.length + g.today.length + g.upcoming.length
-  return [
-    [{ label: 'Needs follow-up', count: countOf(n(shown), n(total)) }],
-    [
-      { label: 'Late', count: String(shown.late.length) },
-      { label: 'Today', count: String(shown.today.length) },
-      { label: `Next ${lookAhead} days`, count: String(shown.upcoming.length) },
-    ],
-  ]
-}
-
-/** Next 7 days: a part per column, `Late 2 due, 1 follow-up · Today 1 due, 0 follow-up · …`. */
-export function nextDaysLines(nextDays: readonly NextDaysColumn[], labels: (date: Date | null, i: number) => string): SummaryPart[][] {
-  return [
-    [{ label: 'Next 7 days', count: '' }],
-    nextDays.map((c, i) => ({ label: labels(c.date, i), count: `${c.dueIds.length} due, ${c.followupIds.length} follow-up` })),
-  ]
-}
 
 /** Created vs completed: `Created vs completed Last 14 days`, then `Completed 5 · Created 8 · Net +3`. */
 export function trendLines(trend: TrendStats | null, rangeLabel: string, signedNet: (n: number) => string): SummaryPart[][] {
@@ -127,7 +91,7 @@ export function tagsLines(data: TagsSummaryData, showUntagged: boolean): Summary
   return [[{ label: 'Tags', count: `${countOf(shown.taggedIds.length, total.taggedIds.length)} tagged` }], tagsLine(data, showUntagged)]
 }
 
-/** The Eisenhower summary: `Eisenhower 9 open`, then each pane's count. */
+/** The Eisenhower (its small and medium faces): `Eisenhower 9 open`, then each pane's count. */
 export function eisenhowerLines(data: EisenhowerSummaryData): SummaryPart[][] {
   const sum = (s: EisenhowerSummary) => EISENHOWER_QUADRANTS.reduce((n, q) => n + s[q].ids.length, 0)
   return [

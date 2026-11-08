@@ -1,23 +1,17 @@
 import { useMemo } from 'react'
 import type { PersistedTodoItem, Tag, TodoEvent } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
-import { LOOK_AHEAD_CHOICES, RECENT_DAYS_CHOICES, STALE_DAYS_CHOICES, TREND_RANGES, type LookAhead, type TrendRange } from '../models/glance-widgets'
+import { TREND_RANGES, type TrendRange } from '../models/glance-widgets'
 import { groupRestrictions } from '../services/build-list'
-import { computeChanges, type Change } from '../services/stats/changes'
 import { computeClosedThisWeek, type ClosedThisWeek } from '../services/stats/closed-this-week'
 import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
-import { computeFollowupGroups, type FollowupGroups } from '../services/stats/followup-groups'
 import { computeMetricHistory, type MetricHistory } from '../services/stats/metric-history'
-import { computeNextSevenDays, type NextDaysColumn } from '../services/stats/next-seven-days'
 import { computePeopleStats, type PeopleStats } from '../services/stats/people'
 import { computePulse, type PulseCard } from '../services/stats/pulse'
-import { computeRecentlyCompleted, type RecentlyCompleted } from '../services/stats/recently-completed'
-import { computeStaleTasks, type StaleTasks } from '../services/stats/stale'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { selectStatusBreakdown, type StatusBreakdownEntry } from '../services/stats/status-breakdown'
 import { computeTagStats, type TagStats } from '../services/stats/tags'
 import { computeMetrics, type MetricStats } from '../services/stats/metrics'
-import { computeTodayPicks, openFocusIds, type TodayPicks } from '../services/stats/today-picks'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListDraftStore } from '../stores/list-draft-store'
@@ -38,7 +32,6 @@ import { applyFilter, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { WeekStart } from '../utils/effective-date'
 import { sameElements, sharedMemo } from '../utils/shared-memo'
-import { keptOf, restoreLeaving, type LeavingRows } from './use-leaving-rows'
 import { useToday } from './use-today'
 import { useTrendEvents } from './use-trend-events'
 
@@ -54,9 +47,8 @@ import { useTrendEvents } from './use-trend-events'
  */
 
 /**
- * Input sets kept by a memo whose callers differ by a free choice (What
- * changed's and Project pulse's tag picks, one per tab): a few tabs on
- * screen each hit.
+ * Input sets kept by a memo whose callers differ by a free choice (Project
+ * pulse's tag picks, one per tab): a few tabs on screen each hit.
  */
 const OPTION_SLOTS = 8
 
@@ -182,16 +174,6 @@ export function useClosedThisWeek(base: StatsBase): ShownOfTotal<ClosedThisWeek>
   return closedMemo(base.shown, base.todos, base.ctx)
 }
 
-const followupMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, lookAhead: LookAhead) => computeFollowupGroups(tasks, ctx, lookAhead), LOOK_AHEAD_CHOICES.length)
-export function useFollowupStats(base: StatsBase, lookAhead: LookAhead): ShownOfTotal<FollowupGroups> {
-  return followupMemo(base.shown, base.todos, base.ctx, lookAhead)
-}
-
-const nextDaysMemo = sharedMemo((shown: Tasks, ctx: StatsContext): NextDaysColumn[] => computeNextSevenDays(shown, ctx))
-export function useNextDays(base: StatsBase): NextDaysColumn[] {
-  return nextDaysMemo(base.shown, base.ctx)
-}
-
 const statusMemo = shownOfTotalMemo((tasks: Tasks, statuses: StatsContext['statuses']) => selectStatusBreakdown(tasks, statuses))
 export function useStatusStats(base: StatsBase): ShownOfTotal<StatusBreakdownEntry[]> {
   return statusMemo(base.shown, base.todos, base.ctx.statuses)
@@ -212,16 +194,6 @@ const tagsTotalMemo = sharedMemo((todos: Tasks, ctx: StatsContext): TagStats => 
 const tagsPairMemo = sharedMemo((shown: TagStats, total: TagStats): ShownOfTotal<TagStats> => ({ shown, total }))
 export function useTagStats(base: StatsBase): ShownOfTotal<TagStats> {
   return tagsPairMemo(tagsShownMemo(base.shown, base.ctx, base.screen), tagsTotalMemo(base.todos, base.ctx))
-}
-
-const staleMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, days: number) => computeStaleTasks(tasks, ctx, days), STALE_DAYS_CHOICES.length)
-export function useStaleStats(base: StatsBase, days: number): ShownOfTotal<StaleTasks> {
-  return staleMemo(base.shown, base.todos, base.ctx, days)
-}
-
-const recentMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, days: number) => computeRecentlyCompleted(tasks, ctx, days), RECENT_DAYS_CHOICES.length)
-export function useRecentStats(base: StatsBase, days: number): ShownOfTotal<RecentlyCompleted> {
-  return recentMemo(base.shown, base.todos, base.ctx, days)
 }
 
 const trendMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext, range: TrendRange): TrendStats => (
@@ -250,21 +222,7 @@ export function useMetricHistory(base: StatsBase): { history: MetricHistory; tre
   return { history: historyMemo(base.shown, events, base.ctx), trend: historyTrendMemo(base.shown, events, base.ctx) }
 }
 
-// ── The brief's parts (D25 L) ───────────────────────────────────────────────
-
-const changesMemo = sharedMemo((
-  shown: Tasks,
-  events: readonly TodoEvent[],
-  ctx: StatsContext,
-  tagIds: readonly number[],
-  retentionDays: number | null,
-): Change[] => computeChanges(shown, events, ctx, tagIds, retentionDays), OPTION_SLOTS)
-/** What changed's sentences over the screen-filtered tasks; `null` until its events have been read. */
-export function useChanges(base: StatsBase, tagIds: readonly number[]): Change[] | null {
-  const events = useTrendEvents('changes')
-  const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
-  return events ? changesMemo(base.shown, events, base.ctx, tagIds, retentionDays) : null
-}
+// ── Project pulse (D25 L) ───────────────────────────────────────────────────
 
 const pulseMemo = sharedMemo((shown: Tasks, tags: readonly Tag[], ctx: StatsContext, tagIds: readonly number[], staleAfterDays: number): PulseCard[] => (
   computePulse(shown, tags, ctx, tagIds, staleAfterDays)
@@ -276,15 +234,9 @@ export function usePulse(base: StatsBase, tagIds: readonly number[]): PulseCard[
   return pulseMemo(base.shown, tags, base.ctx, tagIds, staleAfterDays)
 }
 
-const todayMemo = sharedMemo((shown: Tasks, ctx: StatsContext): TodayPicks => computeTodayPicks(shown, ctx))
-/** Today's Focus tasks and suggestions over the screen-filtered tasks. */
-export function useTodayPicks(base: StatsBase): TodayPicks {
-  return todayMemo(base.shown, base.ctx)
-}
+// ── The Eisenhower's counts (its small and medium faces) ────────────────────
 
-// ── The Eisenhower summary ──────────────────────────────────────────────────
-
-/** The Eisenhower settings as the Eisenhower summary uses them. */
+/** The Eisenhower settings as its small and medium faces count with them. */
 export interface EisenhowerSetup {
   /** The four panes, in position order. */
   panes: readonly EisenhowerPane[]
@@ -354,7 +306,7 @@ const eisenhowerMemo = sharedMemo((
 })
 
 /**
- * The Eisenhower summary: the Eisenhower's own list's members (its unsaved
+ * The Eisenhower's counts (its small and medium faces): its own list's members (its unsaved
  * draft included; every task until it is loaded) sorted by the app-wide
  * panes, and the setup it counts with.
  */
@@ -374,74 +326,4 @@ export function useEisenhowerStats(base: StatsBase): { eisenhower: ShownOfTotal<
   const paneCtx = paneCtxMemo(base.ctx, base.markerSettings, people, tags, statusUpdatesByTodo, subtasksByTodo)
   const eisenhower = eisenhowerMemo(base.todos, base.shown, base.screen, base.lookups, base.markerSettings, list, panes, paneCtx)
   return { eisenhower, eisenhowerSetup }
-}
-
-// ── Task rows that linger (D19) ─────────────────────────────────────────────
-
-const NO_IDS: ReadonlySet<number> = new Set()
-
-/** Rows of a task-row part, and the lingering tasks they keep as they were. */
-export interface LingeringRows<R> {
-  rows: R
-  kept: ReadonlySet<number>
-}
-
-/**
- * A task-row part's rows: `now` — or, while a just-completed task lingers
- * (D19), the rows rebuilt from the tasks as they were before (`asWas`),
- * keeping that task in its place. `ids` lists a rows value's task ids.
- */
-export function lingeringRows<R>(
-  base: StatsBase,
-  now: R,
-  ids: (rows: R) => readonly number[],
-  asWas: (tasks: PersistedTodoItem[]) => R,
-  leaving: LeavingRows | undefined,
-): LingeringRows<R> {
-  if (!leaving || leaving.size === 0) return { rows: now, kept: NO_IDS }
-  const tasks = applyFilter(statsFilter(base.screen), restoreLeaving(base.todos, leaving), base.lookups, base.ctx.today, base.markerSettings)
-  const before = asWas(tasks)
-  const inRows = new Set(ids(before))
-  const kept = keptOf(leaving, new Set(ids(now)))
-  for (const id of kept) if (!inRows.has(id)) kept.delete(id)
-  return kept.size > 0 ? { rows: before, kept } : { rows: now, kept: NO_IDS }
-}
-
-/** A Needs follow-up group's task ids, in row order. */
-export function followupRowIds(g: FollowupGroups): number[] {
-  return [...g.late, ...g.today, ...g.upcoming]
-}
-
-/** Needs follow-up's rows (`followup.shown`, a lingering task kept in place). */
-export function useFollowupRows(
-  base: StatsBase,
-  followup: ShownOfTotal<FollowupGroups>,
-  lookAhead: LookAhead,
-  leaving: LeavingRows | undefined,
-): LingeringRows<FollowupGroups> {
-  return useMemo(
-    () => lingeringRows(base, followup.shown, followupRowIds, (tasks) => computeFollowupGroups(tasks, base.ctx, lookAhead), leaving),
-    [base, followup, lookAhead, leaving],
-  )
-}
-
-/** Today's Focus rows (`picks.focusIds`, a lingering completion kept in place). */
-export function useTodayRows(base: StatsBase, picks: TodayPicks, leaving: LeavingRows | undefined): LingeringRows<number[]> {
-  return useMemo(
-    () => lingeringRows(base, picks.focusIds, (ids) => ids, (tasks) => openFocusIds(tasks), leaving),
-    [base, picks, leaving],
-  )
-}
-
-/** Stale tasks' rows (`stale.shown.ids`, a lingering task kept in place). */
-export function useStaleRows(
-  base: StatsBase,
-  stale: ShownOfTotal<StaleTasks>,
-  days: number,
-  leaving: LeavingRows | undefined,
-): LingeringRows<number[]> {
-  return useMemo(
-    () => lingeringRows(base, stale.shown.ids, (ids) => ids, (tasks) => computeStaleTasks(tasks, base.ctx, days).ids, leaving),
-    [base, stale, days, leaving],
-  )
 }

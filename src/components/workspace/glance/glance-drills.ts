@@ -1,14 +1,12 @@
 import type { Person, Tag } from '../../../models'
 import type { MetricId } from '../../../models/glance-widgets'
 import type { EisenhowerQuadrant } from '../../../models/workspace-layout'
-import type { Change } from '../../../services/stats/changes'
 import type { ClosedThisWeek } from '../../../services/stats/closed-this-week'
 import type { StatsContext } from '../../../services/stats/stats-context'
 import type { MetricStats } from '../../../services/stats/metrics'
 import type { TaskDialogGroup } from '../../../stores/task-dialog-payload'
 import { QUADRANT_COLOR, type EisenhowerPane } from '../../../utils/eisenhower-panes'
 import { formatFollowupDay } from '../../../utils/followup'
-import { STUCK_STATUS_DAYS } from '../../../utils/trend-window'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 import { metricDescription, trendBucketLabel } from './glance-copy'
 import type { GlanceDrill } from './glance-types'
@@ -57,44 +55,6 @@ export function breakdownDrill(title: string, by: 'people' | 'tags', entry: { ke
 }
 
 // ── Sections ────────────────────────────────────────────────────────────────
-
-/** Needs follow-up's count: its groups (Late, Today, Next N days) under their headings. */
-export function followupDrill(lookAhead: number, groups: readonly TaskDialogGroup[]): GlanceDrill {
-  return {
-    title: 'Needs follow-up',
-    glyph: 'followup',
-    description: `Open tasks whose next follow-up is late, today or in the next ${lookAhead} days.`,
-    source: { kind: 'groups', groups },
-  }
-}
-
-/** A Next 7 days column: its due and follow-up tasks. `date` `null` = the Late column; `index` 1 = today. */
-export function nextDayDrill(date: Date | null, index: number, today: Date, ids: { due: readonly number[]; followup: readonly number[] }): GlanceDrill {
-  let title: string
-  let description: string
-  if (date == null) {
-    title = 'Late'
-    description = 'Open tasks due, or to follow up, before today.'
-  } else if (index === 1) {
-    title = 'Today'
-    description = 'Open tasks due, or to follow up, today.'
-  } else {
-    title = formatFollowupDay(date, today)
-    description = `Open tasks due, or to follow up, on ${title}.`
-  }
-  return {
-    title,
-    glyph: 'calendar',
-    description,
-    source: {
-      kind: 'groups',
-      groups: [
-        { key: 'due', label: 'Due', color: 'var(--color-overdue)', todoIds: ids.due },
-        { key: 'followup', label: 'Follow-up', color: 'var(--color-followup)', todoIds: ids.followup },
-      ],
-    },
-  }
-}
 
 /** Created vs completed's totals: the tasks completed, or created, in the range (`rangeWords`: `the last 14 days`). */
 export function trendTotalDrill(which: 'completed' | 'created', rangeWords: string, ids: readonly number[]): GlanceDrill {
@@ -193,24 +153,6 @@ export function slippingDrill(todoIds: readonly number[], days: number): GlanceD
   }
 }
 
-export function staleDrill(todoIds: readonly number[], days: number): GlanceDrill {
-  return {
-    title: 'Stale tasks',
-    glyph: 'stale',
-    description: `Open tasks not changed in ${days} days or more, oldest first.`,
-    source: { kind: 'todos', todoIds },
-  }
-}
-
-export function recentDrill(todoIds: readonly number[], days: number): GlanceDrill {
-  return {
-    title: 'Recently completed',
-    glyph: 'done',
-    description: `Tasks completed in the last ${days} days, newest first.`,
-    source: { kind: 'todos', todoIds },
-  }
-}
-
 const QUADRANT_WORDS: Record<EisenhowerQuadrant, string> = {
   do: 'urgent and important',
   schedule: 'important, not urgent',
@@ -239,7 +181,7 @@ function ofList(listName: string | null): string {
 }
 
 /**
- * An Eisenhower summary pane: its open tasks. A default pane is described
+ * An Eisenhower pane (its small or medium face): its open tasks. A default pane is described
  * by its quadrant (`Open tasks that are urgent and important.`), a custom
  * one by its filter in words (`subtitle`).
  */
@@ -260,7 +202,7 @@ export function eisenhowerPaneDrill(
   }
 }
 
-/** The Eisenhower summary's count: every pane under its heading. */
+/** The Eisenhower's open count (its medium face): every pane under its heading. */
 export function eisenhowerDrill(
   panes: readonly EisenhowerPane[],
   ids: Readonly<Record<EisenhowerQuadrant, readonly number[]>>,
@@ -277,46 +219,5 @@ export function eisenhowerDrill(
       kind: 'groups',
       groups: panes.map((p) => ({ key: p.id, label: p.name, color: QUADRANT_COLOR[p.id], todoIds: ids[p.id] })),
     },
-  }
-}
-
-// ── What changed ────────────────────────────────────────────────────────────
-
-/** A What changed sentence's tasks; `null` when it has none to open. */
-export function changeDrill(change: Change): GlanceDrill | null {
-  if (change.ids.length === 0) return null
-  const source = todos(change.ids)
-  switch (change.id) {
-    case 'late':
-      return {
-        title: 'Went late since yesterday',
-        glyph: 'overdue',
-        description: 'Open tasks that are late now and weren’t at the end of yesterday (tasks added since aren’t counted).',
-        source,
-      }
-    case 'followups':
-      return { title: 'Follow-ups due', glyph: 'followup', description: 'Open tasks whose next follow-up is today or earlier.', source }
-    case 'tag':
-      return { title: `Late in #${change.subject}`, glyph: 'tag', description: `Open tasks tagged #${change.subject} that are late.`, source }
-    case 'status':
-      return {
-        title: `Stuck in ${change.subject}`,
-        glyph: 'status',
-        description: `Open tasks whose status has been ${change.subject} for ${STUCK_STATUS_DAYS} days or more.`,
-        source,
-      }
-    case 'dueToday':
-      return { title: 'Due today', glyph: 'calendar', description: 'Open tasks due today.', source }
-    case 'closed': {
-      const weeks = change.averageWeeks
-      return {
-        title: 'Closed this week',
-        glyph: 'done',
-        description: weeks == null
-          ? 'Tasks completed this week, newest first.'
-          : `Tasks completed this week, newest first. The usual is the average of the last ${weeks === 1 ? 'week' : `${weeks} weeks`}.`,
-        source,
-      }
-    }
   }
 }

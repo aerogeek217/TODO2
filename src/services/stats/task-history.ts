@@ -4,8 +4,8 @@ import { completionOf } from './closed-this-week'
 
 /**
  * A task as it was at a past day's end, replayed from its `todoEvents` — the
- * one replay a Number's history, What changed and Created vs completed's
- * open series read, so they agree on every day.
+ * one replay a Number's history and Created vs completed's open series
+ * read, so they agree on every day.
  *
  * At a day's end a task is in the state just before its next state event
  * (before `created` = not there yet, before `completed` = open, before

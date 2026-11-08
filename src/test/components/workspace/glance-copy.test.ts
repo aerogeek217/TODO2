@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
-  countOf, nextDayLabels, signed, metricSubLine, trendBucketLabel,
+  countOf, signed, metricSubLine, trendBucketLabel,
 } from '../../../components/workspace/glance/glance-copy'
 import { computeMetrics } from '../../../services/stats/metrics'
 import { SAMPLE_CTX } from '../../fixtures/glance-sample'
@@ -42,10 +42,7 @@ describe('glance copy', () => {
     expect(metricSubLine('followupDue', busy, ctx)).toBe('1 more in the next 7 days')
   })
 
-  it('day and bar labels', () => {
-    expect(nextDayLabels(null, 0)).toEqual(['Late', '–'])
-    expect(nextDayLabels(new Date(2026, 9, 10), 1)).toEqual(['Today', '10'])
-    expect(nextDayLabels(new Date(2026, 9, 11), 2)).toEqual(['Sun', '11'])
+  it('bar labels', () => {
     expect(trendBucketLabel(new Date(2026, 8, 27), 'day')).toBe('27')
     expect(trendBucketLabel(new Date(2026, 8, 27), 'week')).toBe('Sep 27')
   })

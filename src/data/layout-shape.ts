@@ -25,11 +25,8 @@ import {
 import {
   GLANCE_CONFIG_FIELDS,
   isNumberBreakdown,
-  pickFollowupConfig,
   pickNumberConfig,
   pickPeopleConfig,
-  pickRecentConfig,
-  pickStaleConfig,
   pickTagPicksConfig,
   pickTagsConfig,
   pickTrendConfig,
@@ -127,7 +124,7 @@ export function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixe
 }
 
 /** The kinds whose tabs show task rows: they keep a details width (`TaskRowsViewState`). */
-const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens', 'eisenhower', 'followup', 'stale', 'recent', 'today'])
+const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens', 'eisenhower'])
 
 /** A tab's config / view state for its kind (a case per kind: a new kind doesn't compile without one). */
 function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | string {
@@ -171,23 +168,16 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       // Its breakdown: absent (none) or a known one; then its metric, as below.
       if (config.breakdown !== undefined && !isNumberBreakdown(config.breakdown)) return `${path}.config.breakdown`
       return GLANCE_CONFIG_FIELDS.number.ok(config.metric) ? true : `${path}.config.metric`
-    case 'followup':
     case 'trend':
     case 'people':
     case 'tags':
-    case 'stale':
-    case 'recent':
-    case 'changes':
     case 'pulse': {
       // One config field, a known value.
       const field = GLANCE_CONFIG_FIELDS[kind]
       return field.ok(config[field.key]) ? true : `${path}.config.${field.key}`
     }
     case 'notes':
-    case 'next7':
     case 'status':
-    case 'eisenhowerSummary':
-    case 'today':
       return true
   }
 }
@@ -322,8 +312,11 @@ interface PickedCell {
  * but a stale `activeTabId` (= first tab), duplicate collapsed quadrants, an
  * out-of-range calendar offset (clamped), and any key of an Eisenhower tab's
  * config (it has none — reported in `fixes`); a details width is rounded,
- * and the cells come in reading order. A `dashboard` tab (the retired kind:
- * v77 converted every one) is an unknown kind, dropped like one.
+ * and the cells come in reading order. A tab of a retired kind — `dashboard`
+ * (v77 converted every one), and `followup`, `next7`, `stale`, `recent`,
+ * `changes`, `today` and `eisenhowerSummary` (v78 dropped or converted
+ * every one) — is an unknown kind, dropped like one, and a cell it leaves
+ * without tabs closes.
  *
  * Past `LAYOUT_PART_LIMIT` tracks, cells or tabs in the layout, the rest are
  * dropped and reported in `fixes`.
@@ -378,11 +371,6 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     const glance = <C,>(picked: PickedConfig<C>): C => {
       if (picked.fixed) fix('settings')
       return picked.config
-    }
-    /** `t` with the task rows' view state, when there is one. */
-    const withRowsView = <T extends LayoutTab>(t: T): T => {
-      const v = rowsView()
-      return v ? { ...t, viewState: v } : t
     }
     switch (tab.kind) {
       case 'lens': {
@@ -442,31 +430,19 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       case 'notes':
         return { id, kind: 'notes', config: {} }
       // The glance kinds: a bad or missing setting is reset to its default;
-      // the row widgets keep a details width; no other view state.
+      // no view state.
       case 'number':
         return { id, kind: 'number', config: glance(pickNumberConfig(config)) }
-      case 'followup':
-        return withRowsView({ id, kind: 'followup', config: glance(pickFollowupConfig(config)) })
       case 'trend':
         return { id, kind: 'trend', config: glance(pickTrendConfig(config)) }
       case 'people':
         return { id, kind: 'people', config: glance(pickPeopleConfig(config)) }
       case 'tags':
         return { id, kind: 'tags', config: glance(pickTagsConfig(config)) }
-      case 'stale':
-        return withRowsView({ id, kind: 'stale', config: glance(pickStaleConfig(config)) })
-      case 'recent':
-        return withRowsView({ id, kind: 'recent', config: glance(pickRecentConfig(config)) })
-      case 'changes':
-        return { id, kind: 'changes', config: glance(pickTagPicksConfig(config)) }
       case 'pulse':
         return { id, kind: 'pulse', config: glance(pickTagPicksConfig(config)) }
-      case 'today':
-        return withRowsView({ id, kind: 'today', config: {} })
-      case 'next7':
       case 'status':
-      case 'eisenhowerSummary':
-        return { id, kind: tab.kind, config: {} }
+        return { id, kind: 'status', config: {} }
     }
   }
 
