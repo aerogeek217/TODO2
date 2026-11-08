@@ -91,6 +91,12 @@ describe('Number widget', () => {
     expect(within(number()).getByTestId('number-delta').textContent).toMatch(/vs yesterday$/)
   })
 
+  it('Closed this week’s change is against the same point of last week', () => {
+    setup({ id: 'n', kind: 'number', config: { metric: 'closedThisWeek' } }, undefined, 'medium')
+    expect(within(number()).getByTestId('number-delta').textContent).toMatch(/vs last Sat$/)
+    expect(number().getAttribute('aria-label')).toMatch(/vs last Sat\.$/)
+  })
+
   it('a count that asks for nothing stays neutral; metrics without a log have no line', () => {
     setup({ id: 'n', kind: 'number', config: { metric: 'focus' } })
     expect(numberCount()).toBe('3')

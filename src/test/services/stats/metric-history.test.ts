@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../../models'
 import { computeClosedThisWeek } from '../../../services/stats/closed-this-week'
-import { computeMetricHistory, hasHistory, historyDelta } from '../../../services/stats/metric-history'
+import { computeMetricHistory, hasHistory, HISTORY_AGAINST, historyDelta } from '../../../services/stats/metric-history'
 import { computeTiles } from '../../../services/stats/tiles'
 import { computeTrend } from '../../../services/stats/trend'
 import { historyEventsStart } from '../../../utils/trend-window'
@@ -124,6 +124,26 @@ describe('historyDelta / historyEventsStart', () => {
     expect(historyDelta([1, 2, 5])).toBe(3)
     expect(historyDelta([4, 2])).toBe(-2)
     expect(historyDelta([4])).toBeNull()
+  })
+
+  it('Closed this week against the same point of last week: a new week’s first day reads no drop', () => {
+    expect(HISTORY_AGAINST.closedThisWeek).toBe('lastWeek')
+    expect(HISTORY_AGAINST.open).toBe('yesterday')
+    // Sun 4 Oct is the week's first day (index 7 of a history ending then).
+    const sunday = { today: new Date(2026, 9, 4), weekStartsOn: 0 as const }
+    const sd = (n: number, hour = 12) => new Date(2026, 8, 21 + n, hour) // day n of that history (0 = Mon 21 Sep)
+    const tasks = [
+      task({ id: 1, isCompleted: true, completedAt: sd(7) }), // Mon 28 Sep, last week
+      task({ id: 2, isCompleted: true, completedAt: sd(9) }), // Wed 30 Sep, last week
+      task({ id: 3, isCompleted: true, completedAt: sd(13, 9) }), // this morning
+    ]
+    const series = computeMetricHistory(tasks, [], sunday).series.closedThisWeek
+    expect(series.slice(-2)).toEqual([2, 1])
+    expect(historyDelta(series)).toBe(-1) // the rollover, against yesterday
+    // Last Sunday's end: nothing closed yet that week (Sun 27 Sep).
+    expect(series.at(-8)).toBe(0)
+    expect(historyDelta(series, 'lastWeek')).toBe(1)
+    expect(historyDelta([1, 2, 3, 4, 5, 6, 7], 'lastWeek')).toBeNull()
   })
 
   it('reads events from the first day’s week start', () => {

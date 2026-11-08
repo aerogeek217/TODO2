@@ -1,7 +1,9 @@
 import type { TrendRange } from '../../../models/glance-widgets'
+import type { HistoryAgainst } from '../../../services/stats/metric-history'
 import type { TileStats } from '../../../services/stats/tiles'
 import { formatFollowupDate, formatFollowupDay, formatWeekdayNumeric } from '../../../utils/followup'
 import { addDays } from '../../../utils/calendar-grid'
+import { formatDateWith } from '../../../utils/date'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 
 /**
@@ -185,7 +187,12 @@ export function closedSubLine(weekStart: Date, today: Date): string {
   return `Since ${formatFollowupDay(weekStart, today)}`
 }
 
-/** A Number's change since yesterday: `+2 vs yesterday`, `No change vs yesterday`. */
-export function deltaLabel(delta: number): string {
-  return delta === 0 ? 'No change vs yesterday' : `${signed(delta)} vs yesterday`
+/**
+ * A Number's change: since yesterday (`+2 vs yesterday`, `No change vs
+ * yesterday`), or — Closed this week — since the same point of last week
+ * (`+2 vs last Wed`).
+ */
+export function deltaLabel(delta: number, against: HistoryAgainst = 'yesterday', today?: Date): string {
+  const then = against === 'lastWeek' && today ? `last ${formatDateWith(today, { weekday: 'short' })}` : 'yesterday'
+  return delta === 0 ? `No change vs ${then}` : `${signed(delta)} vs ${then}`
 }

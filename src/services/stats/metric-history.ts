@@ -82,9 +82,26 @@ export function computeMetricHistory(
   return { days, series }
 }
 
-/** Today's value against yesterday's: `today − yesterday`; `null` with fewer than two days. */
-export function historyDelta(values: readonly number[]): number | null {
+/**
+ * What a metric's change compares against: yesterday's end — or, for Closed
+ * this week, the same point of last week (closed by that weekday's end), so
+ * a new week's first day doesn't read as a drop.
+ */
+export type HistoryAgainst = 'yesterday' | 'lastWeek'
+
+export const HISTORY_AGAINST: Record<HistoryMetric, HistoryAgainst> = {
+  open: 'yesterday',
+  overdue: 'yesterday',
+  dueToday: 'yesterday',
+  closedThisWeek: 'lastWeek',
+}
+
+/**
+ * Today's value against yesterday's (`today − yesterday`), or against the
+ * value 7 days back (`lastWeek`); `null` when the line doesn't reach it.
+ */
+export function historyDelta(values: readonly number[], against: HistoryAgainst = 'yesterday'): number | null {
   const today = values.at(-1)
-  const yesterday = values.at(-2)
-  return today == null || yesterday == null ? null : today - yesterday
+  const then = values.at(against === 'lastWeek' ? -8 : -2)
+  return today == null || then == null ? null : today - then
 }
