@@ -20,9 +20,9 @@ interface DragState {
   max: number
 }
 
-/** The band's drawn height and the tallest it may get (the column area keeps its minimum). */
+/** The band's drawn height (its row's, `[data-ws-band-row]`) and the tallest it may get (the column area keeps its minimum). */
 function measure(edge: BandEdge): { height: number; max: number } | null {
-  const bandEl = document.querySelector<HTMLElement>(`[data-ws-band="${edge}"]`)
+  const bandEl = document.querySelector<HTMLElement>(`[data-ws-band-row="${edge}"]`)
   const columnsEl = document.querySelector<HTMLElement>('[data-ws-columns]')
   if (!bandEl || !columnsEl) return null
   const height = bandEl.getBoundingClientRect().height
