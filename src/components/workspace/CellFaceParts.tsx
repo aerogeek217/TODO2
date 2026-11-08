@@ -67,7 +67,8 @@ export function WidgetFacePopover({ tab, anchorRef, onClose }: {
     panelRef(el)
   }, [panelRef])
   // Focus goes in once it is placed, and back to where it was (the cell) when it closes from inside —
-  // to the cell's active tab when that is gone (the small face's opener, when the face grew).
+  // to the cell's active tab (alone in its cell, its widget's top line) when that is gone (the small
+  // face's opener, when the face grew).
   useEffect(() => {
     if (!placed) return
     const before = document.activeElement
@@ -79,7 +80,7 @@ export function WidgetFacePopover({ tab, anchorRef, onClose }: {
       if (!(before instanceof HTMLElement) || before === document.body) return
       const back = before.isConnected
         ? before
-        : anchor?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]:not([aria-hidden="true"])')
+        : anchor?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]:not([aria-hidden="true"]), [data-widget-top-line][data-ws-tab]')
       back?.focus({ preventScroll: true })
     }
   }, [placed, anchorRef])

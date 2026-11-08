@@ -128,13 +128,20 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const [guard, setGuard] = useState<{ listIds: number[]; lead: string; run: () => void } | null>(null)
   const [menu, setMenu] = useState<{ tabId: string; at: MenuAt } | null>(null)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number }; where: AddWhere } | null>(null)
-  // The ⋯ button (in the strip's header, or a top line's slot): kept as state, so the menu anchors to whichever is drawn.
-  const [moreEl, setMoreEl] = useState<HTMLButtonElement | null>(null)
-  const moreRef = useMemo(() => ({ current: moreEl }), [moreEl])
-  // A ⋯ going (the cell's own slot, once a top line takes it) leaves the one still drawn.
+  // The ⋯ buttons drawn (the strip's header's, a top line's slot, the cell's own while no top line
+  // holds one — briefly two): the menu anchors to the one still in the page.
+  const [moreEls] = useState(() => new Set<HTMLButtonElement>())
+  const moreRef = useMemo(() => ({
+    get current(): HTMLButtonElement | null {
+      for (const el of moreEls) if (el.isConnected) return el
+      return null
+    },
+  }), [moreEls])
   const setMoreButton = useCallback((el: HTMLButtonElement | null) => {
-    setMoreEl((prev) => el ?? (prev?.isConnected ? prev : null))
-  }, [])
+    if (!el) return undefined
+    moreEls.add(el)
+    return () => { moreEls.delete(el) }
+  }, [moreEls])
   /** Top lines holding the controls slot: none, and the cell draws its own (a face without one). */
   const [claims, setClaims] = useState(0)
   const claim = useCallback(() => {

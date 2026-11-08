@@ -69,6 +69,7 @@ import { openEisenhowerSettings } from './eisenhower-settings-link'
 import { SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { WidgetNameLine } from '../WidgetTopLine'
+import { useIsListDirty } from '../../../hooks/use-list-draft'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -455,6 +456,7 @@ interface BodyProps extends WidgetProps {
 
 function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, shownIdsRef }: BodyProps) {
   const isMobile = useIsMobile()
+  const listUnsaved = useIsListDirty(list?.definition.id)
   // A pane divider's width while it is dragged: every pane follows it live.
   // (A store, not state: the drag re-renders the row lists, not the widget.)
   const [liveDetailsWidth] = useState(() => createValueStore<number | null>(null))
@@ -562,7 +564,9 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
       data-touch-chips={list && isMobile ? '' : undefined}
     >
       {/* Alone in its cell, its top line (D26 AA1): a slim name line. */}
-      <WidgetNameLine name="Eisenhower" />
+      <WidgetNameLine name="Eisenhower" unsaved={listUnsaved}>
+        <span className={styles.lineCount} data-testid="eisenhower-line-count">{countLabel}</span>
+      </WidgetNameLine>
       {list && <ListFilterRow tabId={tab.id} definition={list.definition} summary={false} />}
       <div
         ref={setRootRef}

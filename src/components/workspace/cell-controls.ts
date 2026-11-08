@@ -20,8 +20,8 @@ export interface CellControlsValue {
   title: string
   /** Touch layout (the phone): no grip, the ⋯ always shown. */
   touch: boolean
-  /** Takes the ⋯ button (a callback ref): the menu opens under it. */
-  setMoreButton: (el: HTMLButtonElement | null) => void
+  /** Takes the ⋯ button (a callback ref, with its cleanup): the menu opens under it. */
+  setMoreButton: (el: HTMLButtonElement | null) => (() => void) | undefined
   /** The ⋯ menu is open: the slot stays shown. */
   menuOpen: boolean
   /** The ⋯ was pressed. */

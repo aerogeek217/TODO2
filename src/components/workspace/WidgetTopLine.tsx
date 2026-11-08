@@ -9,16 +9,20 @@ import styles from './WidgetTopLine.module.css'
 /**
  * The grip: drags the whole cell (5px to start, as a tab), as the strip's
  * panel handle does. Not focusable — the ⋯ menu's Split, Merge and Insert
- * are the keyboard way.
+ * are the keyboard way. The cell's own (`floating`) has a draggable id of its
+ * own: drawn for a moment beside a top line's before that one claims the
+ * slot, its going would otherwise unregister the top line's (dnd-kit keeps
+ * one node per id).
  */
-function Grip({ value }: { value: CellControlsValue }) {
+function Grip({ value, floating }: { value: CellControlsValue; floating: boolean }) {
   const titles = useTabTitles(value.tabs)
   const data: WorkspacePanelDragData = {
     type: WORKSPACE_PANEL_DRAG,
     panelId: value.cellId,
     tabs: value.tabs.map((t, i) => ({ id: t.id, kind: t.kind, title: titles[i] ?? '' })),
   }
-  const { setNodeRef, listeners } = useDraggable({ id: workspacePanelDragId(value.cellId), data })
+  const id = workspacePanelDragId(value.cellId)
+  const { setNodeRef, listeners } = useDraggable({ id: floating ? `${id}:floating` : id, data })
   return (
     <span
       ref={setNodeRef}
@@ -65,7 +69,7 @@ export function CellControls({ value, floating = false }: { value: CellControlsV
         </button>
       )}
       <span className={styles.controls}>
-        {!touch && <Grip value={value} />}
+        {!touch && <Grip value={value} floating={floating} />}
         <button
           ref={setMoreButton}
           type="button"
@@ -116,7 +120,8 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
   const value = useContext(CellControlsContext)
   const inline = value != null && controls === 'inline'
   // Before paint: the cell drops its own floating controls in the same frame.
-  useLayoutEffect(() => (inline ? value.claim() : undefined), [inline, value])
+  const claim = value?.claim
+  useLayoutEffect(() => (inline && claim ? claim() : undefined), [inline, claim])
   if (alone && value == null) return null
   const Tag = as
   return (
@@ -125,6 +130,9 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
       style={style}
       {...{ [TOP_LINE_ATTR]: '' }}
       data-ws-tab={value?.tabId}
+      // Standing for the tab, it takes the focus a closing surface hands back to the tab (Edit list, the face
+      // popover) — not inside a button (a Number's label).
+      tabIndex={inline ? -1 : undefined}
       data-testid={rest['data-testid']}
     >
       {value != null && lead}
@@ -134,10 +142,24 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
   )
 }
 
-/** A slim name line (Notes, the Eisenhower, the Neglect map): the widget's name, and `children` after it. Alone in its cell only. */
-export function WidgetNameLine({ name, children }: { name: string; children?: ReactNode }) {
+/**
+ * A slim name line (Notes, the Eisenhower, the Neglect map): the widget's
+ * name — with the unsaved dot while the list it shows has unsaved edits (the
+ * Eisenhower's own), as its tab would — and `children` after it. Alone in
+ * its cell only.
+ */
+export function WidgetNameLine({ name, unsaved = false, children }: { name: string; unsaved?: boolean; children?: ReactNode }) {
   return (
-    <WidgetTopLine alone className={styles.nameLine} lead={<span className={styles.name}>{name}</span>}>
+    <WidgetTopLine
+      alone
+      className={styles.nameLine}
+      lead={(
+        <>
+          <span className={styles.name} data-testid="top-line-name">{name}</span>
+          {unsaved && <span className={styles.unsavedDot} role="img" aria-label="unsaved list changes" />}
+        </>
+      )}
+    >
       {children}
     </WidgetTopLine>
   )

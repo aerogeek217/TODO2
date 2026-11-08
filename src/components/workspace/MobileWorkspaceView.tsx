@@ -355,12 +355,20 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
   const [eisenhowerSheet, setEisenhowerSheet] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   // The ⋯ button (in the strip's header, or a top line's slot): kept as state, so the menu anchors to whichever is drawn.
-  const [moreEl, setMoreEl] = useState<HTMLButtonElement | null>(null)
-  const moreRef = useMemo(() => ({ current: moreEl }), [moreEl])
-  // A ⋯ going (the cell's own slot, once a top line takes it) leaves the one still drawn.
+  // The ⋯ buttons drawn (the strip's header's, a top line's slot, the cell's own while no top line
+  // holds one — briefly two): the menu anchors to the one still in the page.
+  const [moreEls] = useState(() => new Set<HTMLButtonElement>())
+  const moreRef = useMemo(() => ({
+    get current(): HTMLButtonElement | null {
+      for (const el of moreEls) if (el.isConnected) return el
+      return null
+    },
+  }), [moreEls])
   const setMoreButton = useCallback((el: HTMLButtonElement | null) => {
-    setMoreEl((prev) => el ?? (prev?.isConnected ? prev : null))
-  }, [])
+    if (!el) return undefined
+    moreEls.add(el)
+    return () => { moreEls.delete(el) }
+  }, [moreEls])
   const cellRef = useRef<HTMLElement | null>(null)
   /** Tabs only when there's a choice (D26 AA1). */
   const stripShown = cell.tabs.length > 1
