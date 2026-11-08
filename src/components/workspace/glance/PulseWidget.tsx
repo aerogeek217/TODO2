@@ -92,6 +92,8 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
   useReportLines(onResult, lines)
   const drill = glanceDrill(onDrill, base.filtered)
   const openTag = (card: PulseCard) => drill?.(tagSectionDialog(card.tag, card.openIds))
+  // Picks that make no card: the picked tags were deleted since.
+  const picked = tab.config.tagIds.length > 0
 
   if (face === 'small') {
     const worst = worstPulseCard(cards)
@@ -105,7 +107,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
       : (
         <>
           <span className={styles.pulseSmallName}>Project pulse</span>
-          <span className={styles.quiet}>{cards.length === 0 ? 'No tags picked' : 'Nothing late'}</span>
+          <span className={styles.quiet}>{cards.length > 0 ? 'Nothing late' : picked ? 'Picked tags deleted' : 'No tags picked'}</span>
         </>
       )
     return (
@@ -124,7 +126,9 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
       <div ref={faceRef} className={styles.face} data-face={face}>
         <Panel def={PULSE_DEF} className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks">
           {cards.length === 0 ? (
-            <Empty title="No tags picked" hint="Pick the tags to follow in the tab menu’s Tags." />
+            picked
+              ? <Empty title="The picked tags were deleted" hint="Pick the tags to follow in the tab menu’s Tags." />
+              : <Empty title="No tags picked" hint="Pick the tags to follow in the tab menu’s Tags." />
           ) : face === 'medium' ? (
             <ul className={styles.pulseList} aria-label="Project pulse">
               {cards.map((c) => {

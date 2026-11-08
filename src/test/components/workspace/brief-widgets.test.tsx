@@ -223,6 +223,16 @@ describe('Project pulse', () => {
     setup(createTab('pulse', 'p'))
     expect(root('pulse').textContent).toContain('No tags picked')
   })
+
+  it('the picked tags deleted since: says so, not that none are picked', () => {
+    setup(createTab('pulse', 'p', { tagIds: [98, 99] }))
+    expect(root('pulse').textContent).toContain('The picked tags were deleted')
+    expect(root('pulse').textContent).not.toContain('No tags picked')
+    cleanup()
+    faceState.face = 'small'
+    setup(createTab('pulse', 'p', { tagIds: [98, 99] }))
+    expect(root('pulse').textContent).toContain('Picked tags deleted')
+  })
 })
 
 describe('the brief parts’ tab menus', () => {
