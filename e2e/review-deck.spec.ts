@@ -202,3 +202,26 @@ test('closing with an update typed asks first: Keep reviewing keeps the text, Di
   const updates = await readStore<{ todoId: number }>(page, 'statusUpdates')
   expect(updates.filter((u) => u.todoId === task?.id)).toEqual([])
 })
+
+test('over the person task dialog: the editor opened from the deck closes back into the deck, not the dialog', async ({ page }) => {
+  await seedWorkspace(page, PEOPLE_SEED)
+  await wsListWidget(page, TAB).waitFor({ state: 'visible' })
+  const row = wsListWidget(page, TAB).locator('[data-todo-id]').filter({ hasText: 'Answer Northwind' })
+  await row.locator('[data-person-avatar="Aisha Rahman"]').click({ button: 'right' })
+  await page.getByRole('menu', { name: '@Aisha Rahman' }).getByRole('menuitem', { name: 'Show tasks' }).click()
+  const taskDialog = page.locator('[data-task-dialog]')
+  await taskDialog.getByRole('button', { name: 'Email check-in options for Aisha Rahman' }).click()
+  await page.getByRole('menu', { name: 'Check-in for Aisha Rahman' }).getByRole('menuitem', { name: 'Review with Aisha Rahman…' }).click()
+  await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
+
+  await personDeck(page).getByRole('button', { name: 'Open in editor' }).click()
+  const editor = page.getByRole('dialog', { name: 'Edit task' })
+  await expect(editor).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(editor).toHaveCount(0)
+  // The focus is the deck's, in its update line: the task dialog underneath doesn't take it.
+  await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(personDeck(page)).toHaveCount(0)
+  await expect(taskDialog).toBeVisible()
+})
