@@ -46,12 +46,12 @@ import { ChevronDownIcon, PlusIcon, SortIcon } from '../../shared/icons'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { DropSlot, ListWidgetRow, type ListRowDragLook } from './ListWidgetRow'
 import { ListBulkBar } from './ListBulkBar'
-import { MenuPopover } from '../../shared/MenuPopover'
-import { ListGroupHeader } from './ListGroupHeader'
-import { groupPerson, listGroupMenu, type GroupPerson } from './person-group'
+import { ListGroupHeader, ListGroupMenu } from './ListGroupHeader'
+import { groupPerson, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { ListFilterRow } from './ListFilterRow'
 import { useScreenChips } from './use-screen-chips'
+import { useShownListReport } from './use-shown-list'
 import { openEditList } from '../widget-hooks'
 import { useListRowDrag, type ListRowDragState } from './use-list-row-drag'
 import { TaskDropLandingContext } from '../../task/dnd/task-drop-landing'
@@ -277,6 +277,8 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
       grouped,
     })
   }, [tabCount, lensMark, definition.id, sections, grouped, onResultRef])
+  // The tasks as shown, for a review of the tab (its menu, the shortcut, the palette).
+  useShownListReport(tab.id, definition, runtimeFilterPending ? null : sections)
 
   // ── Selection: one widget at a time, rows addressed by occurrence ──
   const rows = useMemo<ScopedRow[]>(
@@ -588,12 +590,10 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
         />
       )}
       {headerMenu && (
-        <MenuPopover
-          point={headerMenu.at}
-          label={`${headerMenu.section.label} group`}
-          closeOnScroll
-          restoreFocus
-          entries={listGroupMenu(sections.find((s) => s.key === headerMenu.section.key) ?? headerMenu.section, headerMenu.person)}
+        <ListGroupMenu
+          section={sections.find((s) => s.key === headerMenu.section.key) ?? headerMenu.section}
+          person={headerMenu.person}
+          at={headerMenu.at}
           onClose={() => setHeaderMenu(null)}
         />
       )}

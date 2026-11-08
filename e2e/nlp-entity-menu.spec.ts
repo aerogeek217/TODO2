@@ -5,7 +5,7 @@ import { readStore } from './fixtures/db'
 import { taskRowByTitle } from './fixtures/seed'
 
 /**
- * The person / tag menu (Show tasks · Edit… · Delete…) on the person / tag
+ * The person / tag menu (Review · the check-ins · Show tasks · Edit… · Delete…) on the person / tag
  * rows of the `@ #` popups in Quick Add and the notes editor: right-click or
  * Shift+F10 on the active row, nothing picked, the text and caret kept; Esc
  * closes only the menu; Edit… / Delete… stack above with the popup still open
@@ -139,7 +139,7 @@ test.describe('notes editor', () => {
     await expect(popup(page).getByRole('option')).toHaveText(['Anna', 'Andy Ross', /Create @an$/])
     await popup(page).getByRole('option', { name: 'Andy Ross' }).click({ button: 'right' })
     const menu = page.getByRole('menu', { name: '@Andy Ross' })
-    await expect(menu.getByRole('menuitem')).toHaveText(['Show tasks', 'Edit…', 'Delete…'])
+    await expect(menu.getByRole('menuitem')).toHaveText(['Review with Andy Ross…', 'Email check-in to Andy Ross', 'Paste reply from Andy Ross…', 'Show tasks', 'Edit…', 'Delete…'])
     expect(await isOnTop(menu)).toBe(true)
     // The editor lost the focus to the menu; the popup stays.
     await expect(popup(page)).toBeVisible()

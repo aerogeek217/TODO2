@@ -11,6 +11,22 @@ export function makeRecurrenceRule(type: RecurrenceType, dueDate?: Date | null):
   return rule
 }
 
+/**
+ * What a new due date writes on a task (the editor's due date, the review
+ * deck's): the date, and the repeat rule anchored to it — a repeating task
+ * keeps repeating, from the new date; clearing the date drops the rule (it
+ * is anchored to the due date).
+ */
+export function dueDateChanges(
+  next: Date | null,
+  recurrenceType: RecurrenceType | '' | undefined,
+): Pick<TodoItem, 'dueDate' | 'recurrenceRule'> {
+  return {
+    dueDate: next ?? undefined,
+    recurrenceRule: recurrenceType && next ? makeRecurrenceRule(recurrenceType, next) : undefined,
+  }
+}
+
 const WEEKDAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
 
 function ordinal(n: number): string {

@@ -324,7 +324,7 @@
   cursor: default;
 }
 
-/* ── People picker footer: Email check-in ───────────────────────────────── */
+/* ── People picker footer: Review, Email check-in ───────────────────────── */
 
 .checkinAction {
   display: flex;
@@ -344,9 +344,14 @@
   cursor: pointer;
 }
 
-.checkinAction:hover,
+.checkinAction:hover:not(:disabled),
 .checkinAction:focus-visible {
   background: var(--color-accent-bg-medium);
+}
+
+.checkinAction:disabled {
+  color: var(--color-text-muted);
+  cursor: default;
 }
 
 .checkinHint {

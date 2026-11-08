@@ -108,7 +108,7 @@ describe('the top bar’s People picker: Email check-in for an "is not" filter',
   it('is not everyone: nobody to email, a hint', () => {
     openPeople({ ...emptyPredicate(), personIds: [1, 2, 3], negate: { personIds: true } })
     expect(ticked()).toEqual(['Alice', 'Bob', 'Cara'])
-    expect(screen.getByText('Narrow to some people to email them.')).toBeInTheDocument()
+    expect(screen.getByText('Narrow to some people to review or email them.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^Email check-in/ })).toBeNull()
   })
 
@@ -116,7 +116,7 @@ describe('the top bar’s People picker: Email check-in for an "is not" filter',
     openPeople(emptyPredicate())
     choose('People', 'Is not')
     expect(ticked()).toEqual([])
-    expect(screen.getByText('Narrow to some people to email them.')).toBeInTheDocument()
+    expect(screen.getByText('Narrow to some people to review or email them.')).toBeInTheDocument()
   })
 })
 

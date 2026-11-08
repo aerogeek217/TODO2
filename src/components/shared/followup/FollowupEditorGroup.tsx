@@ -4,9 +4,10 @@ import { useSelectAllOnFocus } from '../../../hooks/use-select-all-on-focus'
 import { useToday } from '../../../hooks/use-today'
 import { addFollowupInterval, formatFollowupDate, relativeDayPhrase, QUICK_FOLLOWUP_INTERVALS } from '../../../utils/followup'
 import { startOfDay } from '../../../utils/date'
-import { FollowedUpIcon, FollowupFlagIcon } from '../FollowupIcons'
+import { FollowupFlagIcon } from '../FollowupIcons'
 import { FollowupDateButton } from './FollowupDateButton'
 import { FollowupQuickButtons } from './FollowupQuickButtons'
+import { MarkFollowedUpButton } from './MarkFollowedUpButton'
 import styles from './Followup.module.css'
 
 interface FollowupEditorGroupProps {
@@ -180,15 +181,7 @@ export function FollowupEditorGroup({
           fallback={lastIsToday ? '✓ Today' : (lastInput.storedHint ?? '')}
           fallbackClass={lastIsToday ? styles.editorHintAccent : undefined}
         />
-        <button
-          type="button"
-          className={`${styles.followedUpSecondary} ${lastIsToday ? styles.followedUpDone : ''}`}
-          onClick={onFollowedUp}
-          data-done-today={lastIsToday ? 'true' : undefined}
-        >
-          <FollowedUpIcon />
-          Mark followed up
-        </button>
+        <MarkFollowedUpButton doneToday={lastIsToday} onClick={onFollowedUp} />
       </div>}
     </div>
   )

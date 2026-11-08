@@ -1,8 +1,11 @@
 import { useRef, useState, type ReactNode } from 'react'
 import { useTooltip } from '../../shared/use-tooltip'
 import { EnvelopeIcon } from '../../shared/icons'
+import { MenuPopover } from '../../shared/MenuPopover'
+import { useEntityMenuOffers } from '../../shared/person-menu-entries'
 import { PersonCheckinMenu } from '../../shared/PersonCheckinMenu'
-import type { GroupPerson } from './person-group'
+import type { Section } from '../../../services/list-sections'
+import { listGroupMenu, type GroupPerson } from './person-group'
 import styles from './ListWidget.module.css'
 
 /**
@@ -68,5 +71,29 @@ function CheckinButton({ person }: { person: GroupPerson }) {
       {tooltip}
       {open && <PersonCheckinMenu person={person} anchorRef={ref} placement="bottom-end" onClose={() => setOpen(false)} />}
     </>
+  )
+}
+
+/**
+ * A list group header's menu at `at` (`listGroupMenu`): a People group's
+ * person menu, then Copy N tasks — what it offers read where it renders.
+ */
+export function ListGroupMenu({ section, person, at, onClose }: {
+  section: Section
+  person: GroupPerson | null
+  at: { x: number; y: number }
+  onClose: () => void
+}) {
+  const offers = useEntityMenuOffers()
+  return (
+    <MenuPopover
+      point={at}
+      label={`${section.label} group`}
+      width={person ? 240 : undefined}
+      closeOnScroll
+      restoreFocus
+      entries={listGroupMenu(section, person, offers)}
+      onClose={onClose}
+    />
   )
 }

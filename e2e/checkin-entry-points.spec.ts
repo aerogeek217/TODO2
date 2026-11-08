@@ -6,7 +6,7 @@ import { emptyPredicate, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow 
 /**
  * The ways into an email check-in, in a real browser. Every entry that names
  * one person sends that person's check-in from the click (or Enter) — the
- * envelope menus' Send check-in (the person task dialog's footer, a People
+ * envelope menus' Email check-in (the person task dialog's footer, a People
  * group header's envelope), the palette's per-person commands, the
  * right-click / Shift+F10 menu on a People group header (placement near the
  * window's edges included), and the top-bar People filter's footer when it
@@ -153,11 +153,11 @@ test('A: the person task dialog’s Email check-in menu: Send sends at once — 
   await trigger.click()
   // Anchored to its button, with the caret; nothing sent yet.
   const menu = checkinMenu(page, 'Bob Stone')
-  await expect(menu.getByRole('menuitem')).toHaveText(['Send check-in to Bob Stone', 'Paste reply from Bob Stone…'])
+  await expect(menu.getByRole('menuitem')).toHaveText(['Review with Bob Stone…', 'Email check-in to Bob Stone', 'Paste reply from Bob Stone…'])
   await expect(menu.locator('[data-popover-caret]')).toHaveCount(1)
   await expect(trigger).toHaveAttribute('aria-expanded', 'true')
   expect(await mailtoLinks(page)).toEqual([])
-  await menu.getByRole('menuitem', { name: 'Send check-in to Bob Stone' }).click()
+  await menu.getByRole('menuitem', { name: 'Email check-in to Bob Stone' }).click()
   await expect(menu).toHaveCount(0)
   await expectSent(page, {
     mailto: 'mailto:bob@example.com?subject=Task%20check-in%3A%202%20open%20tasks',
@@ -174,7 +174,7 @@ test('A: the person task dialog’s Email check-in menu: Send sends at once — 
   await page.locator('[data-glance-tab="dash"] [data-person-row]').filter({ hasText: 'Cy Young' }).click()
   await expect(taskDialog.getByRole('heading')).toHaveText('Cy Young')
   await taskDialog.getByRole('button', { name: 'Email check-in options for Cy Young' }).click()
-  await checkinMenu(page, 'Cy Young').getByRole('menuitem', { name: 'Send check-in to Cy Young' }).click()
+  await checkinMenu(page, 'Cy Young').getByRole('menuitem', { name: 'Email check-in to Cy Young' }).click()
   await expectSent(page, { mailto: 'mailto:?subject=Task%20check-in%3A%201%20open%20task', person: 'Cy Young', titles: ['Cy only'] })
 })
 
@@ -225,10 +225,10 @@ test('C: a People group header shows its envelope on hover and on keyboard focus
   await page.keyboard.press('Tab')
   await expect(envelope(page, 'Ada Lovelace')).toBeFocused()
   await expect.poll(() => opacity(envelope(page, 'Ada Lovelace'))).toBe(1)
-  // Enter opens the menu, focus on Send; the envelope stays shown while it is open.
+  // Enter opens the menu, focus on Review (the first); the envelope stays shown while it is open.
   await page.keyboard.press('Enter')
   const menu = checkinMenu(page, 'Ada Lovelace')
-  await expect(menu.getByRole('menuitem', { name: 'Send check-in to Ada Lovelace' })).toBeFocused()
+  await expect(menu.getByRole('menuitem', { name: 'Review with Ada Lovelace…' })).toBeFocused()
   await page.mouse.move(5, 5)
   await expect.poll(() => opacity(envelope(page, 'Ada Lovelace'))).toBe(1)
   // Under the envelope, its caret pointing up at it.
@@ -236,7 +236,9 @@ test('C: a People group header shows its envelope on hover and on keyboard focus
   const mb = (await menu.boundingBox())!
   expect(mb.y).toBeGreaterThanOrEqual(eb.y + eb.height)
   await expect(menu.locator('[data-popover-caret="top"]')).toHaveCount(1)
-  // Enter on Send: the copy and the link ride the key press's user activation.
+  // ↓ to Email check-in, Enter: the copy and the link ride the key press's user activation.
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitem', { name: 'Email check-in to Ada Lovelace' })).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(menu).toHaveCount(0)
   await expect(envelope(page, 'Ada Lovelace')).toBeFocused()
@@ -259,15 +261,18 @@ test('C: the header menu opens at the pointer or under the header, inside the wi
   expect(vw - at.x).toBeLessThan(120)
   await page.mouse.click(at.x, at.y, { button: 'right' })
   await expect(menu).toBeVisible()
-  await expect(menu.getByRole('menuitem')).toHaveText(['Email check-in: Bob Stone', 'Paste check-in reply…', 'Show all of Bob Stone’s tasks', 'Copy 2 tasks'])
+  await expect(menu.getByRole('menuitem')).toHaveText([
+    'Review with Bob Stone…', 'Email check-in to Bob Stone', 'Paste reply from Bob Stone…',
+    'Show tasks', 'Edit…', 'Delete…', 'Copy 2 tasks',
+  ])
   await expect(menu.getByRole('menuitem').first()).toBeFocused()
   const m = (await menu.boundingBox())!
   expect(m.x + m.width).toBeLessThanOrEqual(vw)
   expect(m.x + m.width).toBeLessThanOrEqual(at.x + 1)
   expect(Math.abs(m.y - at.y)).toBeLessThan(8)
 
-  // Show all → the person's task dialog.
-  await menu.getByRole('menuitem', { name: 'Show all of Bob Stone’s tasks' }).click()
+  // Show tasks → the person's task dialog.
+  await menu.getByRole('menuitem', { name: 'Show tasks' }).click()
   const taskDialog = page.locator('[data-task-dialog]')
   await expect(taskDialog.getByRole('heading')).toHaveText('Bob Stone')
   await expect(taskDialog.locator('[data-todo-id]')).toHaveCount(2)
@@ -283,6 +288,9 @@ test('C: the header menu opens at the pointer or under the header, inside the wi
   const kb = (await menu.boundingBox())!
   expect(kb.y).toBeGreaterThanOrEqual(hb.y + hb.height)
   expect(kb.y - (hb.y + hb.height)).toBeLessThan(12)
+  // Review first; ↓ to Email check-in.
+  await expect(menu.getByRole('menuitem', { name: 'Review with Bob Stone…' })).toBeFocused()
+  await page.keyboard.press('ArrowDown')
   await page.keyboard.press('Enter')
   await expectSent(page, {
     mailto: 'mailto:bob@example.com?subject=Task%20check-in%3A%202%20open%20tasks',
@@ -318,7 +326,7 @@ test('D: the top-bar People filter emails the one person it is narrowed to, or o
   const peopleButton = page.getByRole('button', { name: /^People filter/ })
   await peopleButton.click()
   // Not narrowed: a hint.
-  await expect(page.getByText('Narrow to some people to email them.')).toBeVisible()
+  await expect(page.getByText('Narrow to some people to review or email them.')).toBeVisible()
   // One person (the first pick replaces "everyone"): sends at once and closes the picker.
   await page.getByRole('option', { name: 'Ada Lovelace' }).click()
   await expect(page.getByRole('button', { name: 'Paste reply from Ada Lovelace…' })).toBeVisible()
@@ -367,7 +375,7 @@ test('fallback: a refused clipboard opens nothing and opens the dialog for the p
   })
   await groupHeader(page, 'Bob Stone').hover()
   await envelope(page, 'Bob Stone').click()
-  await checkinMenu(page, 'Bob Stone').getByRole('menuitem', { name: 'Send check-in to Bob Stone' }).click()
+  await checkinMenu(page, 'Bob Stone').getByRole('menuitem', { name: 'Email check-in to Bob Stone' }).click()
   await expectTicked(page, ['Bob Stone'])
   await expect(checkinDialog(page).getByRole('status'))
     .toHaveText('Couldn’t copy the email to the clipboard, so nothing was opened. Try again.')
@@ -383,7 +391,7 @@ test('.eml method: the one-click send downloads the draft (no To header without 
   await expect(taskDialog.getByRole('heading')).toHaveText('Cy Young')
   await taskDialog.getByRole('button', { name: 'Email check-in options for Cy Young' }).click()
   const downloadPromise = page.waitForEvent('download')
-  await checkinMenu(page, 'Cy Young').getByRole('menuitem', { name: 'Send check-in to Cy Young' }).click()
+  await checkinMenu(page, 'Cy Young').getByRole('menuitem', { name: 'Email check-in to Cy Young' }).click()
   const download = await downloadPromise
   expect(download.suggestedFilename()).toMatch(/^Check-in - Cy Young - \d{4}-\d{2}-\d{2}\.eml$/)
   const eml = await readFile((await download.path())!, 'utf8')
@@ -410,9 +418,9 @@ test('paste a reply: the envelope menus, the header menu and the People footer o
   await expect(importDialog(page)).toHaveCount(0)
   await expect(envelope(page, 'Bob Stone')).toBeFocused()
 
-  // The header's right-click menu: Paste check-in reply….
+  // The header's right-click menu: Paste reply from <name>….
   await groupHeader(page, 'Ada Lovelace').click({ button: 'right' })
-  await page.getByRole('menu', { name: 'Ada Lovelace group' }).getByRole('menuitem', { name: 'Paste check-in reply…' }).click()
+  await page.getByRole('menu', { name: 'Ada Lovelace group' }).getByRole('menuitem', { name: 'Paste reply from Ada Lovelace…' }).click()
   await expect(importDialog(page)).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(importDialog(page)).toHaveCount(0)

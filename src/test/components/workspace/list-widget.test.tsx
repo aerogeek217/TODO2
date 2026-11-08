@@ -12,6 +12,7 @@ import { usePersonStore } from '../../../stores/person-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useReviewStore } from '../../../stores/review-store'
 import { useUndoStore } from '../../../stores/undo-store'
 import { useListOrderStore } from '../../../stores/list-order-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -764,10 +765,10 @@ describe('ListWidget People group headers: email check-in', () => {
     expect(bob).toHaveAttribute('aria-expanded', 'true')
     const menu = screen.getByRole('menu', { name: 'Check-in for Bob' })
     expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent))
-      .toEqual(['Send check-in to Bob', 'Paste reply from Bob…'])
-    // Nothing sent until Send is picked.
+      .toEqual(['Review with Bob…', 'Email check-in to Bob', 'Paste reply from Bob…'])
+    // Nothing sent until Email check-in is picked.
     expect(useUIStore.getState().checkinDialog).toBeNull()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Send check-in to Bob' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in to Bob' }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(bob).toHaveAttribute('aria-expanded', 'false')
     await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [2], notice: expect.stringMatching(/clipboard/) }))
@@ -792,24 +793,43 @@ describe('ListWidget People group headers: email check-in', () => {
     await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ notice: true, description: 'Copied 4 tasks' }))
   })
 
-  it('right-click on a person’s header opens its menu; Show all opens the person’s task dialog', () => {
+  it('right-click on a person’s header opens the person menu, then Copy; Show tasks opens the person’s task dialog', () => {
     setup(def({ grouping: 'people' }))
     fireEvent.contextMenu(header('person-1'), { clientX: 40, clientY: 60 })
     const menu = screen.getByRole('menu', { name: 'Alice group' })
-    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent))
-      .toEqual(['Email check-in: Alice', 'Paste check-in reply…', 'Show all of Alice’s tasks', 'Copy 2 tasks'])
-    // The person's items, a separator, then Copy.
-    expect(menu.querySelector('[role="separator"]')).not.toBeNull()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Show all of Alice’s tasks' }))
+    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent)).toEqual([
+      'Review with Alice…', 'Email check-in to Alice', 'Paste reply from Alice…',
+      'Show tasks', 'Edit…', 'Delete…', 'Copy 2 tasks',
+    ])
+    // The person menu's groups, then a separator before Copy.
+    expect(menu.querySelectorAll('[role="separator"]')).toHaveLength(3)
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Show tasks' }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Alice', personId: 1 })
     expect(useUIStore.getState().checkinDialog).toBeNull()
   })
 
+  it('the header menu’s Review with X… opens the deck on the person’s open tasks', () => {
+    setup(def({ grouping: 'people' }))
+    fireEvent.contextMenu(header('person-2'), { clientX: 40, clientY: 60 })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Bob…' }))
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Bob' } })
+    expect(useReviewStore.getState().ids).toEqual([2, 3])
+  })
+
+  it('while the deck is open, the header menu has no Review', () => {
+    useReviewStore.getState().start({ source: { kind: 'list', title: 'L', description: '' }, ids: [1] })
+    setup(def({ grouping: 'people' }))
+    fireEvent.contextMenu(header('person-1'), { clientX: 40, clientY: 60 })
+    expect(screen.queryByRole('menuitem', { name: /^Review/ })).toBeNull()
+    expect(screen.getByRole('menuitem', { name: 'Email check-in to Alice' })).toBeInTheDocument()
+  })
+
   it('Shift+F10 (or the context-menu key) on a header opens the menu from the keyboard', async () => {
     setup(def({ grouping: 'people' }))
     fireEvent.keyDown(header('person-2'), { key: 'F10', shiftKey: true })
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in: Bob' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in to Bob' }))
     await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [2] }))
     fireEvent.keyDown(screen.getByRole('button', { name: 'Email check-in options for Alice' }), { key: 'ContextMenu' })
     expect(screen.getByRole('menu', { name: 'Alice group' })).toBeInTheDocument()
@@ -818,7 +838,7 @@ describe('ListWidget People group headers: email check-in', () => {
   it('keys and right-clicks in the envelope’s (portaled) menu never open the group menu', () => {
     setup(def({ grouping: 'people' }))
     fireEvent.click(screen.getByRole('button', { name: 'Email check-in options for Alice' }))
-    const item = screen.getByRole('menuitem', { name: 'Send check-in to Alice' })
+    const item = screen.getByRole('menuitem', { name: 'Email check-in to Alice' })
     fireEvent.keyDown(item, { key: 'F10', shiftKey: true })
     fireEvent.keyDown(item, { key: 'ContextMenu' })
     fireEvent.contextMenu(item)
@@ -826,7 +846,7 @@ describe('ListWidget People group headers: email check-in', () => {
     expect(screen.getByRole('menu', { name: 'Check-in for Alice' })).toBeInTheDocument()
   })
 
-  it('the envelope’s Paste reply — and the header menu’s Paste check-in reply… — open the check-in reply import', () => {
+  it('the envelope’s Paste reply — and the header menu’s — open the check-in reply import', () => {
     setup(def({ grouping: 'people' }))
     useUIStore.setState({ checkinImportOpen: false })
     fireEvent.click(screen.getByRole('button', { name: 'Email check-in options for Alice' }))
@@ -837,7 +857,7 @@ describe('ListWidget People group headers: email check-in', () => {
 
     useUIStore.setState({ checkinImportOpen: false })
     fireEvent.contextMenu(header('person-2'), { clientX: 40, clientY: 60 })
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Paste check-in reply…' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Paste reply from Bob…' }))
     expect(screen.queryByRole('menu')).toBeNull()
     expect(useUIStore.getState().checkinImportOpen).toBe(true)
     expect(useUIStore.getState().checkinImportPersonId).toBe(2)
