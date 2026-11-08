@@ -1111,6 +1111,21 @@ describe('validateImportData — Date revival', () => {
     }
   })
 
+  it('accepts the history log H3’s event types (D26) and refuses a person / tag event without exactly one id', () => {
+    const ev = (type: string, fromValue: unknown, toValue: unknown) => ({ id: 1, todoId: 1, type, fromValue, toValue, timestamp: iso })
+    for (const e of [
+      ev('followup', null, iso), ev('followedUp', iso, null), ev('marker', 'urgent', 'urgent,focus'),
+      ev('person', null, 3), ev('tag', 4, null),
+    ]) {
+      const result = validateImportData({ settings: [], todos: [makeTodo()], todoEvents: [e] })
+      expect(result.ok, `${e.type} is accepted`).toBe(true)
+      if (result.ok) expect(result.data.todoEvents[0]).toMatchObject({ type: e.type, fromValue: e.fromValue, toValue: e.toValue })
+    }
+    for (const e of [ev('person', null, null), ev('tag', 2, 3), ev('person', null, 'Ann'), ev('tag', null, -1), ev('mystery', null, null)]) {
+      expect(validateImportData({ settings: [], todos: [makeTodo()], todoEvents: [e] }).ok, JSON.stringify(e)).toBe(false)
+    }
+  })
+
   it('leaves todoEvents.timestamp a string', () => {
     const result = validateImportData({
       settings: [],

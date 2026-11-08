@@ -53,7 +53,9 @@ function byNameIndex<T extends { id?: number; name: string }>(rows: readonly T[]
  *   (trimmed, case-insensitive); missing ones are created from the file's
  *   row.
  * - Join rows (`todoPeople` / `todoTags`), the tasks' `todoEvents` history
- *   (status-change event values at the resolved status ids), their
+ *   (status-change event values at the resolved status ids, person / tag
+ *   events at the resolved people and tags — one naming neither is left
+ *   out), their
  *   `statusUpdates` and their `subtasks` are re-pointed at the new ids.
  * - Tasks whose `choices` entry is `skip` are left out with their rows.
  *
@@ -192,10 +194,35 @@ export async function appendImportTasks(
       const row = incomingStatuses.get(v)
       return (row && statusesByName.get(nameKey(row.name))) ?? null
     }
+    // A person / tag event's id resolves the same way (lookup only); one
+    // that resolves to nothing is left out — an add or remove of nobody
+    // says nothing.
+    const remapEntityValue = (
+      v: string | number | null,
+      resolved: ReadonlyMap<number, number>,
+      incoming: ReadonlyMap<number | undefined, { name: string }>,
+      byName: ReadonlyMap<string, number>,
+    ): number | null => {
+      if (typeof v !== 'number') return null
+      const hit = resolved.get(v)
+      if (hit != null) return hit
+      const row = incoming.get(v)
+      return (row && byName.get(nameKey(row.name))) ?? null
+    }
     const events: TodoEvent[] = []
     for (const e of data.todoEvents) {
       const todoId = todoIdMap.get(e.todoId)
       if (todoId == null) continue
+      if (e.type === 'person' || e.type === 'tag') {
+        const [resolved, incoming, byName] = e.type === 'person'
+          ? [personMap, incomingPeople, peopleByName] as const
+          : [tagMap, incomingTags, tagsByName] as const
+        const id = remapEntityValue(e.toValue ?? e.fromValue, resolved, incoming, byName)
+        if (id == null) continue
+        const added = e.toValue != null
+        events.push({ todoId, type: e.type, fromValue: added ? null : id, toValue: added ? id : null, timestamp: e.timestamp })
+        continue
+      }
       const isStatus = e.type === 'status'
       events.push({
         todoId,
