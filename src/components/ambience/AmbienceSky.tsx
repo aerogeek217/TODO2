@@ -66,25 +66,29 @@ interface Burst { id: number; particles: ParticleSpec[] }
 
 /**
  * Tasks completed on screen (one to three at once): where each one's checkbox
- * is, by its row's `data-todo-id` (the first one showing).
+ * is, by its row's `data-todo-id` (the first one showing). Subscribed to the
+ * todo store only while `active`, so ambience off (or still) costs nothing.
  */
-function useCompletedCheckboxes(onComplete: (rects: DOMRect[]) => void): void {
+function useCompletedCheckboxes(active: boolean, onComplete: (rects: DOMRect[]) => void): void {
   const latest = useLatestRef(onComplete)
-  useEffect(() => useTodoStore.subscribe((state, prev) => {
-    if (state.todos === prev.todos) return
-    const wasOpen = new Set(prev.todos.filter((t) => !t.isCompleted).map((t) => t.id))
-    const done = state.todos.filter((t) => t.isCompleted && wasOpen.has(t.id))
-    if (done.length === 0 || done.length > 3) return
-    const rects: DOMRect[] = []
-    for (const t of done) {
-      const boxes = document.querySelectorAll(`${attrSelector(TODO_ID_ATTR, String(t.id))} input[type="checkbox"]`)
-      for (const box of boxes) {
-        const r = box.getBoundingClientRect()
-        if (r.width > 0 && r.bottom > 0 && r.top < window.innerHeight) { rects.push(r); break }
+  useEffect(() => {
+    if (!active) return undefined
+    return useTodoStore.subscribe((state, prev) => {
+      if (state.todos === prev.todos) return
+      const wasOpen = new Set(prev.todos.filter((t) => !t.isCompleted).map((t) => t.id))
+      const done = state.todos.filter((t) => t.isCompleted && wasOpen.has(t.id))
+      if (done.length === 0 || done.length > 3) return
+      const rects: DOMRect[] = []
+      for (const t of done) {
+        const boxes = document.querySelectorAll(`${attrSelector(TODO_ID_ATTR, String(t.id))} input[type="checkbox"]`)
+        for (const box of boxes) {
+          const r = box.getBoundingClientRect()
+          if (r.width > 0 && r.bottom > 0 && r.top < window.innerHeight) { rects.push(r); break }
+        }
       }
-    }
-    if (rects.length > 0) latest.current(rects)
-  }), [latest])
+      if (rects.length > 0) latest.current(rects)
+    })
+  }, [active, latest])
 }
 
 /**
@@ -106,7 +110,7 @@ export function AmbienceSky() {
 
   const scene = ambience?.scene
   const moving = !!ambience && !ambience.still
-  useCompletedCheckboxes((rects) => {
+  useCompletedCheckboxes(moving, (rects) => {
     if (!scene || !moving) return
     const bar = hairlineRef.current?.getBoundingClientRect()
     if (bar) setRipples((rs) => [...rs, ...rects.map((r) => ({ id: nextId.current++, x: r.left + r.width / 2 - bar.left }))])
