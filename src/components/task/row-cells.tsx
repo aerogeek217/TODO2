@@ -2,10 +2,10 @@ import { useMemo, type CSSProperties, type InputHTMLAttributes, type MouseEvent,
 import { type PersistedTodoItem, type Person, type Status, type StatusUpdate, type Tag, DEFAULT_STATUS_ICON } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useSettingsStore } from '../../stores/settings-store'
-import { formatRowDate, startOfDay, toDateInputValue } from '../../utils/date'
-import { dueTooltip, isDeadlinePast } from '../../utils/effective-date'
-import { isUrgentByDate } from '../../utils/urgency'
-import { followupPillLabel, followupTooltip, formatFollowupDate, isFollowupOverdue } from '../../utils/followup'
+import { formatRowDate, toDateInputValue } from '../../utils/date'
+import { dueTooltip } from '../../utils/effective-date'
+import { followupPillLabel, followupTooltip, formatFollowupDate } from '../../utils/followup'
+import { dueState, followupState } from '../../utils/row-date-state'
 import type { MarkerSummary } from '../../utils/markers'
 import { statusNotesPreview } from '../../utils/notes-preview'
 import { datesParts, peopleFit, tagsFit, TASK_ROW, type PeopleFit } from '../../utils/task-row-columns'
@@ -351,16 +351,15 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
 }) {
   const due = todo.dueDate
   const { triggerProps, tooltip } = useTooltip(due ? dueTooltip(todo, today) : null)
-  const past = isDeadlinePast(todo, today)
   // One tint step: muted until the date is inside the Settings "due soon" range (the one that makes a task urgent), then the deadline colour.
   const range = useSettingsStore((s) => s.urgentDueWithinDays)
-  const soon = isUrgentByDate(todo, today, range)
+  const { past, soon } = dueState(todo, today, range)
   const repeats = todo.recurrenceRule != null
   // The date alone; the repeat glyph (smaller, with the padding given up) stays before a repeating task's date.
   const dateOnly = due && showDate
   const rowDates = useSettingsStore((s) => s.rowDates)
   const text = due ? formatRowDate(due, today, rowDates) : ''
-  // Another year's MM/DD/YY takes the whole part: a repeating task's glyph gives way (its tooltip says it repeats).
+  // `MM/DD` at most (another year's too, with no year: the tooltip and name carry it), so a repeating task's glyph always fits beside it.
   return (
     <span className={styles.datePart} style={{ width }}>
       <button
@@ -413,9 +412,8 @@ function FollowupPart({ todo, today, width, showDate, anchorRef, open, onToggle,
 }) {
   const next = todo.nextFollowupAt
   const { triggerProps, tooltip } = useTooltip(next ? followupTooltip(todo, today) : null)
-  const late = isFollowupOverdue(todo, today)
-  const isToday = !!next && !todo.isCompleted && startOfDay(new Date(next)).getTime() === startOfDay(today).getTime()
-  const state = !next ? undefined : late ? 'late' : isToday ? 'today' : 'upcoming'
+  const state = followupState(todo, today)
+  const late = state === 'late'
   const rowDates = useSettingsStore((s) => s.rowDates)
   const text = next ? formatRowDate(next, today, rowDates) : ''
   return (
