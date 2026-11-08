@@ -359,6 +359,15 @@ describe('MobileTaskRow', () => {
       expect(document.querySelector('[data-priority-ring]')).toBeNull()
     })
 
+    it('rolls its due date over at midnight without new props (cr33 M10)', () => {
+      vi.setSystemTime(new Date(2026, 3, 11, 23, 59))
+      render(<MobileTaskRow todo={makeTodo({ id: 1, dueDate: new Date(2026, 3, 11) })} />)
+      const chip = () => document.querySelector('[data-pill="due"]')?.textContent
+      expect(chip()).toBe('Today')
+      act(() => { vi.advanceTimersByTime(10 * 60_000) })
+      expect(chip()).toBe('04/11')
+    })
+
     it('shows a set follow-up as its flag only (the day in its name)', () => {
       render(<MobileTaskRow todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 3, 20) })} />)
       const pill = screen.getByRole('button', { name: /^Follow-up: / })

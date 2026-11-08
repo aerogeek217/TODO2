@@ -4,7 +4,8 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useSubtaskStore } from '../../stores/subtask-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
-import { startOfToday, toDateInputValue } from '../../utils/date'
+import { useToday } from '../../hooks/use-today'
+import { toDateInputValue } from '../../utils/date'
 import { lineDate, rowSummaryText, rowTone } from '../../utils/list-zoom'
 import { markerSummary } from '../../utils/markers'
 import { isStale } from '../../utils/stale'
@@ -82,7 +83,7 @@ export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect,
   const [actions, setActions] = useState(false)
   // Clicks in the menu and its pickers (portaled, but children here) aren't the line's.
   const own = (e: React.SyntheticEvent) => e.target instanceof Node && e.currentTarget.contains(e.target)
-  const today = startOfToday()
+  const today = useToday()
   const { tone, stale, markers, date, rowDates } = useLineState(todo, today)
   const tags = useTagStore((s) => s.assignedTagsMap.get(todo.id))
   const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))

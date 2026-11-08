@@ -14,7 +14,8 @@ import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-up
 import { useSubtaskStore } from '../../stores/subtask-store'
 import { describeSubtaskCount, formatSubtaskCount, subtaskCount } from '../../utils/subtasks'
 import subtaskStyles from './subtasks/Subtasks.module.css'
-import { formatDateNumeric, startOfToday, toDateInputValue } from '../../utils/date'
+import { useToday } from '../../hooks/use-today'
+import { formatDateNumeric, toDateInputValue } from '../../utils/date'
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { PriorityRing } from '../shared/PriorityRing'
 import { rowCue } from '../../utils/priority-cues'
@@ -50,7 +51,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({
 }: MobileTaskRowProps) {
   const people = assignedPeople ?? NO_PEOPLE
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
-  const today = startOfToday()
+  const today = useToday()
   const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
   const primaryRowRef = useRef<HTMLDivElement>(null)

@@ -102,6 +102,26 @@ describe('TaskRow', () => {
       }
     })
 
+    it('rolls over at midnight without new props: Today in the due-soon tint becomes the late MM/DD; the follow-up today becomes late (cr33 M10)', () => {
+      vi.setSystemTime(new Date(2026, 3, 16, 23, 59))
+      const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 16), nextFollowupAt: new Date(2026, 3, 16) })
+      for (const stacked of [false, true]) {
+        const { unmount } = render(<TaskRow todo={todo} stacked={stacked} />)
+        const due = screen.getByRole('button', { name: 'Due Thu 16 Apr' })
+        const followup = document.querySelector('[data-row-cell="followup"]')
+        expect(due).toHaveTextContent(/^Today$/)
+        expect(due).toHaveAttribute('data-due-soon', 'true')
+        expect(due).not.toHaveAttribute('data-due-past')
+        expect(followup).toHaveAttribute('data-followup', 'today')
+        act(() => { vi.advanceTimersByTime(10 * 60_000) })
+        expect(due).toHaveTextContent(/^04\/16$/)
+        expect(due).toHaveAttribute('data-due-past', 'true')
+        expect(followup).toHaveAttribute('data-followup', 'late')
+        unmount()
+        vi.setSystemTime(new Date(2026, 3, 16, 23, 59))
+      }
+    })
+
     it('another year’s date is MM/DD with the repeat glyph, its name keeping the year', () => {
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2027, 0, 15), recurrenceRule: { type: 'yearly' } })} />)
       const due = screen.getByRole('button', { name: 'Due Fri 15 Jan 2027' })
