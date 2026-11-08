@@ -3,7 +3,9 @@ import { SETTING_KEYS } from './setting-keys'
 import { rowFixes, sanitizeRow } from './import-validation'
 import {
   DEFAULT_LAYOUT_NAME,
+  DEFAULT_WEIGHT,
   createTab,
+  emptyLayoutBody,
   layoutBodyOf,
   type PersistedWorkspaceLayout,
   type WorkspaceLayout,
@@ -33,7 +35,7 @@ export interface ReadLayout {
  * (`pickLayoutBody` via the `layouts` picker): an unknown widget kind, a
  * bad or repeated id, a bad size or tab setting is dropped or reset, so the
  * workspace never renders data this build can't. A layout can come out with
- * no columns (the workspace then shows its empty-layout tiles); it is never
+ * no cells (the workspace then shows its empty-layout tiles); it is never
  * dropped.
  */
 function readable(stored: PersistedWorkspaceLayout): ReadLayout {
@@ -325,7 +327,8 @@ export const layoutRepository = {
         const now = new Date()
         const layoutId = await layoutRepository.insert({
           name: RECOVERED_LISTS_LAYOUT_NAME,
-          columns: [{ id: 'col-1', weight: 1, rows: [{ id: 'row-1', weight: 1, cells: [{ id: 'cell-1', weight: 1, tabs, activeTabId: tabs[0]?.id }] }] }],
+          grid: { columns: [{ id: 'col-1', weight: DEFAULT_WEIGHT }], rows: [{ id: 'row-1', weight: DEFAULT_WEIGHT }] },
+          cells: [{ id: 'cell-1', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs, ...(tabs[0] ? { activeTabId: tabs[0].id } : {}) }],
           createdAt: now,
           modifiedAt: now,
         })
@@ -387,7 +390,7 @@ export const layoutRepository = {
     await db.transaction('rw', db.layouts, db.settings, async () => {
       if ((await db.layouts.count()) > 0) return
       const now = new Date()
-      const id = await db.layouts.add({ name: DEFAULT_LAYOUT_NAME, sortOrder: 0, columns: [], createdAt: now, modifiedAt: now })
+      const id = await db.layouts.add({ name: DEFAULT_LAYOUT_NAME, sortOrder: 0, ...emptyLayoutBody(), createdAt: now, modifiedAt: now })
       await db.settings.put({ key: SETTING_KEYS.activeLayoutId, value: String(id) })
     })
   },

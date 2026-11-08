@@ -19,7 +19,7 @@ import { parsePurgePromptIntervalDays } from '../utils/completed-at'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { isLayoutHue } from '../utils/layout-hue'
-import { checkLayoutBody, isId, pickLayoutBody } from './layout-shape'
+import { checkLayoutBody, pickLayoutBody } from './layout-shape'
 import { formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
 import { formatLensesSetting, isLensId, readLensesSetting } from './lens-shape'
@@ -329,7 +329,6 @@ function checkLayout(v: unknown): CheckResult {
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
     ['lastUsedAt', isOptDateLike(v.lastUsedAt)],
-    ['activeColumnId', v.activeColumnId === undefined || isId(v.activeColumnId)],
     ['hue', v.hue === undefined || isLayoutHue(v.hue)],
   ])
   if (fields !== true) return fields
@@ -654,7 +653,6 @@ function layoutFixes(v: Raw): string[] {
   if (name) fixes.push(name)
   if (!isFiniteNum(v.sortOrder)) fixes.push('order reset')
   if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
-  if (v.activeColumnId !== undefined && !isId(v.activeColumnId)) fixes.push('phone column reset')
   if (v.hue !== undefined && !isLayoutHue(v.hue)) fixes.push('hue reset')
   return [...fixes, ...pickLayoutBody(v).fixes]
 }
@@ -674,13 +672,11 @@ function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
     id: optNum(v.id),
     name: layoutName(v.name).name,
     sortOrder: isFiniteNum(v.sortOrder) ? v.sortOrder : LAYOUT_ORDER_RESET,
-    columns: body.columns,
-    top: body.top,
-    bottom: body.bottom,
+    grid: body.grid,
+    cells: body.cells,
     createdAt: isDateLike(v.createdAt) ? toDate(v.createdAt) : now,
     modifiedAt: isDateLike(v.modifiedAt) ? toDate(v.modifiedAt) : now,
     lastUsedAt: isDateLike(v.lastUsedAt) ? toDate(v.lastUsedAt) : undefined,
-    activeColumnId: isId(v.activeColumnId) ? v.activeColumnId : undefined,
     hue: isLayoutHue(v.hue) ? v.hue : undefined,
   } satisfies AllFields<WorkspaceLayout>
 }

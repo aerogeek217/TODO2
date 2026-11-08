@@ -8,20 +8,21 @@ import {
   WIDGET_KIND_SPECS,
   WIDGET_KINDS,
   type GlanceWidgetKind,
+  type LayoutTab,
   type WorkspaceLayout,
 } from '../../models/workspace-layout'
-import { rowOf } from '../helpers/layout-builders'
+import { single } from '../helpers/layout-builders'
 
 const DATE = '2026-09-01T09:00:00.000Z'
 
 function layoutRow(tab: Record<string, unknown>): Record<string, unknown> {
   return {
     id: 1, name: 'Glance', sortOrder: 0, createdAt: DATE, modifiedAt: DATE,
-    columns: [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [tab] })] }],
+    ...single({ id: 'k', tabs: [tab as unknown as LayoutTab] }),
   }
 }
 
-const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.rows[0]!.cells[0]!.tabs[0]
+const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0]
 
 /** Each glance kind with a setting: a config it keeps (not its default), one it repairs, and the default. */
 const SETTINGS: Array<[GlanceWidgetKind, string, unknown, unknown, unknown]> = [
@@ -72,7 +73,7 @@ describe('glance widget kinds', () => {
       expect(tabOf(layoutRow({ id: 't', kind, config: { tagIds: [2, 1, 2] } }))).toEqual({ id: 't', kind, config: { tagIds: [2, 1] } })
       expect(rowFixes('layouts', layoutRow({ id: 't', kind, config: { tagIds: [2, 1, 2] } }))).toEqual([])
       const mixed = layoutRow({ id: 't', kind, config: { tagIds: [2, 'x', null, 5] } })
-      expect(checkLayoutBody({ columns: mixed.columns })).toBe('columns[0].rows[0].cells[0].tabs[0].config.tagIds')
+      expect(checkLayoutBody(mixed)).toBe('cells[0].tabs[0].config.tagIds')
       expect(rowFixes('layouts', mixed)).toEqual(['tab or cell settings reset'])
       expect(tabOf(mixed)).toEqual({ id: 't', kind, config: { tagIds: [2, 5] } })
     }
@@ -86,7 +87,7 @@ describe('glance widget kinds', () => {
 
     for (const config of [{ [key]: bad }, {}]) {
       const row = layoutRow({ id: 't', kind, config })
-      expect(checkLayoutBody({ columns: row.columns })).toBe(`columns[0].rows[0].cells[0].tabs[0].config.${key}`)
+      expect(checkLayoutBody(row)).toBe(`cells[0].tabs[0].config.${key}`)
       expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
       expect(tabOf(row)).toEqual({ id: 't', kind, config: { [key]: fallback } })
     }
@@ -108,7 +109,7 @@ describe('glance widget kinds', () => {
     expect(tabOf(old)).toEqual({ id: 't', kind: 'number', config: { metric: 'open' } })
     for (const breakdown of ['status', 1, null]) {
       const bad = layoutRow({ id: 't', kind: 'number', config: { metric: 'open', breakdown } })
-      expect(checkLayoutBody({ columns: bad.columns })).toBe('columns[0].rows[0].cells[0].tabs[0].config.breakdown')
+      expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.breakdown')
       expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
       expect(tabOf(bad)).toEqual({ id: 't', kind: 'number', config: { metric: 'open' } })
     }
@@ -120,7 +121,7 @@ describe('glance widget kinds', () => {
   it('the kinds without settings keep an empty config, any key dropped', () => {
     for (const kind of ['next7', 'status', 'eisenhowerSummary'] as const) {
       const row = layoutRow({ id: 't', kind, config: { stray: 1 }, viewState: { detailsWidth: 300 } })
-      expect(checkLayoutBody({ columns: row.columns })).toBe(true)
+      expect(checkLayoutBody(row)).toBe(true)
       expect(tabOf(row)).toEqual({ id: 't', kind, config: {} })
     }
   })
@@ -130,7 +131,7 @@ describe('glance widget kinds', () => {
       const tab = { ...createTab(kind, 't'), viewState: { detailsWidth: 280 } }
       expect(tabOf(layoutRow(tab))).toEqual(tab)
       const bad = layoutRow({ ...tab, viewState: { detailsWidth: -1 } })
-      expect(checkLayoutBody({ columns: bad.columns })).toBe('columns[0].rows[0].cells[0].tabs[0].viewState.detailsWidth')
+      expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].viewState.detailsWidth')
       expect(tabOf(bad)).toEqual(createTab(kind, 't'))
     }
     expect(tabOf(layoutRow({ ...createTab('number', 't'), viewState: { detailsWidth: 280 } }))).toEqual(createTab('number', 't'))
@@ -138,8 +139,8 @@ describe('glance widget kinds', () => {
 
   it('every glance kind’s new tab passes the check unchanged', () => {
     const tabs = WIDGET_KINDS.filter(isGlanceKind).map((k) => createTab(k, `t-${k}`))
-    const columns = [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs })] }]
-    expect(checkLayoutBody({ columns })).toBe(true)
-    expect(pickLayoutBody({ columns })).toEqual({ columns, fixes: [] })
+    const body = single({ id: 'k', tabs })
+    expect(checkLayoutBody(body)).toBe(true)
+    expect(pickLayoutBody(body)).toEqual({ ...body, fixes: [] })
   })
 })

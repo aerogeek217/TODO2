@@ -7,6 +7,8 @@ import { rowFixes } from '../../data/import-validation'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
 import type { LayoutBody } from '../../models/workspace-layout'
+import { layoutTableOf } from '../../data/upgrades/v78/layout-table'
+import { picture } from '../helpers/layout-builders'
 
 const DATE = '2026-11-01T09:00:00.000Z'
 type Obj = Record<string, unknown>
@@ -18,7 +20,9 @@ const one = (rowId: string, cellId: string, tabs: unknown[], extra: Obj = {}) =>
 const numberCell = (d: string, i: number, metric: string) => ({ id: `${d}-c${i}`, weight: 1, tabs: [{ id: `${d}-n${i}`, kind: 'number', config: { metric } }] })
 const partCell = (d: string, i: number, weight: number, kind: string, config: Obj = {}, extra: Obj = {}) => ({ id: `${d}-c${i}`, weight, tabs: [{ id: `${d}-n${i}`, kind, config, ...extra }] })
 const rowsOf = (out: DataRow, col = 0) => (out.columns as Array<{ rows: Obj[] }>)[col]!.rows
-const noFixes = (out: DataRow) => expect(rowFixes('layouts', out)).toEqual([])
+/** A v77 layout row as the rest of the chain makes it: a v78 table. */
+const asV78 = (row: DataRow): DataRow => layoutTableOf(row)
+const noFixes = (out: DataRow) => expect(rowFixes('layouts', asV78(out))).toEqual([])
 
 describe('v77 — the Dashboard as widgets', () => {
   it('is registered as the v77 step', () => {
@@ -101,7 +105,7 @@ describe('v77 — the Dashboard as widgets', () => {
       ] },
     ])
     // The layout still names the lists it showed.
-    expect([...layoutListRefs(out as unknown as LayoutBody)].sort()).toEqual([4, 7])
+    expect([...layoutListRefs(asV78(out) as unknown as LayoutBody)].sort()).toEqual([4, 7])
     noFixes(out)
   })
 
@@ -285,10 +289,9 @@ describe('v77 — the Dashboard as widgets', () => {
     const result = prepareImport(JSON.parse(JSON.stringify(file)))
     if (!result.ok) throw new Error(result.error)
     expect(result.warnings).toEqual([])
-    expect(result.data.layouts[0]?.columns).toEqual([{ id: 'A', weight: 1, rows: [
-      { id: 'd-r1', weight: 1, cells: [numberCell('d', 1, 'overdue')] },
-      { id: 'd-r2', weight: 2, cells: [partCell('d', 2, 12, 'eisenhowerSummary')] },
-    ] }])
+    // Through v77's rows to v78's table: the Number's fit row over the section's.
+    expect(picture(result.data.layouts[0]!)).toEqual(['d-c1', 'd-c2'])
+    expect(result.data.layouts[0]!.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'eisenhowerSummary'])
   })
 
   it('runs in the chain from the floor', () => {
@@ -310,12 +313,13 @@ describe('a layout draft kept at v76', () => {
       { id: 'd-r1', weight: 1, cells: [numberCell('d', 1, 'open')] },
       { id: 'd-r2', weight: 1, cells: [partCell('d', 2, 12, 'status')] },
     ]
-    expect(readLayoutDraft()).toEqual({
-      kind: 'saved',
-      layoutId: 2,
-      base: { columns: [{ id: 'A', weight: 1, rows: widgets }] },
-      body: { columns: [{ id: 'A', weight: 1, rows: [...widgets, one('m-r', 'm', [notes('n')])] }] },
-    })
+    const draft = readLayoutDraft()
+    expect(draft?.kind).toBe('saved')
+    if (draft?.kind !== 'saved') return
+    expect(picture(draft.base)).toEqual(['d-c1', 'd-c2'])
+    expect(picture(draft.body)).toEqual(['d-c1', 'd-c2', 'm'])
     expect(rowsOf(upgraded(layout({ columns: v76Base })))).toEqual(widgets)
+    const stored = asV78(upgraded(layout({ columns: v76Base }))) as unknown as LayoutBody
+    expect(draft.base).toEqual({ grid: stored.grid, cells: stored.cells })
   })
 })

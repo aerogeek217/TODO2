@@ -5,7 +5,7 @@ import { auditData, cleanupIssues, MAX_SAMPLES_PER_ISSUE } from '../../data/audi
 import { emptyPredicate } from '../../models'
 import { makeTodo } from '../helpers'
 import { buildJsonExport, exportImportProblem } from '../../services/data-files'
-import { rowOf } from '../helpers/layout-builders'
+import { emptyBody } from '../helpers/layout-builders'
 
 beforeEach(async () => {
   await db.delete()
@@ -23,7 +23,7 @@ describe('auditData', () => {
     const { todoId } = await seedBase()
     const personId = await db.people.add({ name: 'Alice', initials: 'A', color: '#000' } as any)
     await db.todoPeople.add({ todoId, personId })
-    const layoutId = await db.layouts.add({ name: 'Main', sortOrder: 0, columns: [], createdAt: new Date(), modifiedAt: new Date() })
+    const layoutId = await db.layouts.add({ name: 'Main', sortOrder: 0, ...emptyBody(), createdAt: new Date(), modifiedAt: new Date() })
     const listDefinitionId = await db.listDefinitions.add({
       name: 'Focus', sortOrder: 0, sort: 'manual', grouping: 'none',
       membership: { kind: 'custom', predicate: { ...emptyPredicate(), markers: [{ values: ['focus'] }] } },
@@ -476,8 +476,14 @@ describe('sanitisable-row audit', () => {
 describe('layouts audit', () => {
   const at = new Date('2026-09-01T09:00:00.000Z')
   const notes = (id: string) => ({ id, kind: 'notes', config: {} })
-  const layout = (name: string, columns: unknown) => ({ name, sortOrder: 0, columns, createdAt: at, modifiedAt: at })
-  const good = () => [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, tabs: [notes('t1')] })] }]
+  const layout = (name: string, body: unknown) => ({ name, sortOrder: 0, ...(body as object), createdAt: at, modifiedAt: at })
+  const AREA = { col: 0, row: 0, colSpan: 1, rowSpan: 1 }
+  /** One column c1, one row r1, one cell k1 holding `tabs`; `row` patched into the row track. */
+  const oneCell = (tabs: unknown[], row: Record<string, unknown> = {}, cell: Record<string, unknown> = {}) => ({
+    grid: { columns: [{ id: 'c1', weight: 1000 }], rows: [{ id: 'r1', weight: 1000, ...row }] },
+    cells: [{ id: 'k1', area: AREA, tabs, ...cell }],
+  })
+  const good = () => oneCell([notes('t1')])
 
   it('does not flag a valid layout', async () => {
     await db.layouts.add(layout('Daily', good()) as any)
@@ -485,24 +491,19 @@ describe('layouts audit', () => {
   })
 
   it('reports a layout the schema cannot read for repair, naming what cleanup drops', async () => {
-    const id = await db.layouts.add(layout('Broken', [
-      { id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, tabs: [notes('t1'), { id: 't2', kind: 'taskboard', config: {} }] }, { weight: -1 })] },
-    ]) as any)
+    const id = await db.layouts.add(layout('Broken', oneCell([notes('t1'), { id: 't2', kind: 'taskboard', config: {} }], { weight: -1 })) as any)
     await db.layouts.add(layout('Daily', good()) as any)
 
     const report = await auditData()
     expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
     const sample = report.issues[0]!.samples![0]!
-    expect(sample.badFields).toEqual(['columns[0].rows[0].weight'])
-    expect(sample.note).toBe('Schema validator rejected this row: columns[0].rows[0].weight. Cleanup: size reset, tab dropped')
+    expect(sample.badFields).toEqual(['grid.rows[0].weight'])
+    expect(sample.note).toBe('Schema validator rejected this row: grid.rows[0].weight. Cleanup: size reset, tab dropped')
   })
 
   it('cleanup repairs a corrupt active layout instead of deleting it, keeping its good parts', async () => {
-    const id = await db.layouts.add(layout('  ', [
-      { id: 'c1', weight: 2, rows: [rowOf({ id: 'k1', weight: 1, activeTabId: 't9', tabs: [notes('t1'), { id: 't1', kind: 'notes', config: {} }] })] },
-      { id: 'c2', weight: 1, rows: [] },
-      'not a column',
-    ]) as any) as number
+    const broken = oneCell([notes('t1'), { id: 't1', kind: 'notes', config: {} }], {}, { activeTabId: 't9' })
+    const id = await db.layouts.add(layout('  ', { ...broken, grid: { ...broken.grid, columns: [{ id: 'c1', weight: 2000 }, 'not a track'] } }) as any) as number
     await db.settings.put({ key: 'activeLayoutId', value: String(id) })
 
     await cleanupIssues((await auditData()).issues)
@@ -511,20 +512,21 @@ describe('layouts audit', () => {
     expect(await db.settings.get('activeLayoutId')).toEqual({ key: 'activeLayoutId', value: String(id) })
     expect(await db.layouts.get(id)).toEqual({
       id, name: 'Layout', sortOrder: 0, createdAt: at, modifiedAt: at,
-      columns: [{ id: 'c1', weight: 2, rows: [rowOf({ id: 'k1', weight: 1, tabs: [notes('t1')] })] }],
+      grid: { columns: [{ id: 'c1', weight: 1000 }], rows: [{ id: 'r1', weight: 1000 }] },
+      cells: [{ id: 'k1', area: AREA, tabs: [notes('t1')] }],
     })
     expect((await auditData()).issues).toEqual([])
   })
 
   it('an Eisenhower tab’s config key (its list and panes are settings) is reported; cleanup drops it', async () => {
-    const eis = (config: unknown) => [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'eisenhower', config }] })] }]
+    const eis = (config: unknown) => oneCell([{ id: 't1', kind: 'eisenhower', config }])
     await db.layouts.add(layout('Plain', eis({})) as any)
     expect((await auditData()).issues).toEqual([])
     const id = await db.layouts.add(layout('Old', eis({ listDefinitionId: 3, panes: { drop: { name: 'Someday' } } })) as any) as number
     const report = await auditData()
     expect(report.issues).toEqual([expect.objectContaining({ table: 'layouts', fix: 'sanitize', count: 1, ids: [id] })])
     await cleanupIssues(report.issues)
-    expect((await db.layouts.get(id))?.columns[0]?.rows[0]?.cells[0]?.tabs[0]).toEqual({ id: 't1', kind: 'eisenhower', config: {} })
+    expect((await db.layouts.get(id))?.cells[0]?.tabs[0]).toEqual({ id: 't1', kind: 'eisenhower', config: {} })
     expect((await auditData()).issues).toEqual([])
   })
 
@@ -534,7 +536,7 @@ describe('layouts audit', () => {
     await cleanupIssues((await auditData()).issues)
 
     const row = await db.layouts.get(id)
-    expect(row).toMatchObject({ id, name: 'Only', columns: [], modifiedAt: at })
+    expect(row).toMatchObject({ id, name: 'Only', ...emptyBody(), modifiedAt: at })
     expect(row!.createdAt).toBeInstanceOf(Date)
     expect((await auditData()).issues).toEqual([])
   })

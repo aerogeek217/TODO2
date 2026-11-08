@@ -118,7 +118,7 @@ describe('dev seed generator', () => {
   it('gives every list an owner: a layout that shows it, or the Eisenhower', () => {
     const seed = seedFor()
     const shown = new Map(seed.layouts.map((l) => [l.id, new Set(
-      [...l.columns.flatMap((c) => c.rows.flatMap((r) => r.cells)), ...(l.top?.cells ?? []), ...(l.bottom?.cells ?? [])]
+      l.cells
         .flatMap((p) => p.tabs.flatMap((t) => (t.kind === 'lens' && t.config.listDefinitionId !== undefined ? [t.config.listDefinitionId] : []))),
     )]))
     for (const def of seed.listDefinitions) {
@@ -131,16 +131,18 @@ describe('dev seed generator', () => {
     expect(eisenhower.map((d) => d.id)).toEqual([DEV_SEED_IDS.lists.eisenhower])
     expect(setting(seed, 'eisenhowerSource')).toBe(`list:${DEV_SEED_IDS.lists.eisenhower}`)
     expect(setting(seed, 'activeLayoutId')).toBe(String(DEV_SEED_IDS.layouts.default))
-    expect(seed.layouts.some((l) => l.top) && seed.layouts.some((l) => l.bottom), 'bands').toBe(true)
-    const kinds = new Set(seed.layouts.flatMap((l) => [...l.columns.flatMap((c) => c.rows.flatMap((r) => r.cells)), ...(l.top?.cells ?? []), ...(l.bottom?.cells ?? [])])
+    // Tables with a fixed row, a collapsed row, cells spanning tracks (D26).
+    expect(seed.layouts.some((l) => l.grid.rows.some((t) => t.px != null)), 'a fixed row').toBe(true)
+    expect(seed.layouts.some((l) => l.grid.rows.some((t) => t.collapsed === true)), 'a collapsed row').toBe(true)
+    expect(seed.layouts.some((l) => l.cells.some((c) => c.area.rowSpan > 1)), 'a cell spanning rows').toBe(true)
+    const kinds = new Set(seed.layouts.flatMap((l) => l.cells)
       .flatMap((p) => p.tabs.map((t) => t.kind)))
     expect([...kinds].sort()).toEqual(['calendar', 'changes', 'eisenhower', 'followup', 'lens', 'neglect', 'next7', 'notes', 'number', 'people', 'pulse', 'today', 'trend'])
   })
 
   it('shows a list tab at each zoom and a Neglect map by project, kept whole by the layout repair (D25)', () => {
     const seed = seedFor()
-    const tabsOf = (l: DevSeed['layouts'][number]) => [...l.columns.flatMap((c) => c.rows.flatMap((r) => r.cells)), ...(l.top?.cells ?? []), ...(l.bottom?.cells ?? [])]
-      .flatMap((p) => p.tabs)
+    const tabsOf = (l: DevSeed['layouts'][number]) => l.cells.flatMap((p) => p.tabs)
     const tabs = seed.layouts.flatMap(tabsOf)
     const zooms = tabs.flatMap((t) => (t.kind === 'lens' && t.viewState?.zoom ? [t.viewState.zoom] : []))
     expect([...new Set(zooms)].sort()).toEqual(['lines', 'rows', 'stacked'])
