@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { pickSplit, seedWorkspace, wsCell, wsRow, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { pickSplit, seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * The glance widgets (D25 N) in a real browser: a Number and a Created vs
@@ -34,7 +34,9 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await header.getByRole('button', { name: 'Cell options' }).click()
   await pickSplit(page, 'Below')
   const empty = page.getByRole('region', { name: 'Empty cell' })
-  await expect(empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Calendar' })).toBeVisible()
+  // Tasks: List and Notes; the Calendar is in Numbers & charts (D26).
+  await expect(empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Notes' })).toBeVisible()
+  await expect(empty.getByRole('group', { name: 'Numbers & charts' }).getByRole('button', { name: 'Calendar' })).toBeVisible()
   await empty.getByRole('group', { name: 'Numbers & charts' }).getByRole('button', { name: 'Number', exact: true }).click()
   await expect(number(page)).toHaveAttribute('data-number-metric', 'overdue')
   await expect(number(page).getByTestId('number-count')).toHaveText('2')
@@ -78,26 +80,4 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await number(page).click()
   await expect(dialog(page).getByRole('heading')).toHaveText('Open tasks')
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(4)
-})
-
-test('Needs follow-up as a widget: its rows select in its own scope, two show its bulk bar', async ({ page }) => {
-  await seedWorkspace(page, {
-    tasks: TASKS,
-    layouts: [{ name: 'Glance', columns: [
-      { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'fu', kind: 'followup', glance: { lookAhead: 3 } }] })] },
-      { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'num', kind: 'number', glance: { metric: 'followupDue' } }] })] },
-    ] }],
-  })
-  const section = page.locator('[data-glance="followup"] [data-glance-section="followup"]')
-  await expect(section).toContainText('Late, today and the next 3 days')
-  const rows = section.locator('[data-row-key]')
-  await expect(rows).toHaveCount(3)
-  await rows.nth(0).locator('[data-task-title]').click()
-  await rows.nth(1).locator('[data-task-title]').click({ modifiers: ['Control'] })
-  await expect(section.locator('[data-selected="true"]')).toHaveCount(2)
-  const bar = page.locator('[data-glance="followup"]').getByRole('toolbar', { name: 'Selected tasks' })
-  await expect(bar).toBeVisible()
-  // The Number beside it is a widget of its own: Follow-up due counts the late and today ones.
-  await expect(wsTab(page, 'num')).toContainText('Follow-up due')
-  await expect(page.locator('[data-glance="number"]').getByTestId('number-count')).toHaveText('2')
 })

@@ -24,11 +24,8 @@ const calendar = (id: string) => createTab('calendar', id)
 const number = (id: string) => createTab('number', id)
 
 describe('the kind flags', () => {
-  it('the glance kinds are the Number, the sections and the brief’s parts; only the Number fits its height', () => {
-    expect(WIDGET_KINDS.filter(isGlanceKind)).toEqual([
-      'number', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhowerSummary',
-      'changes', 'today', 'pulse',
-    ])
+  it('the glance kinds are the Number, the sections and Project pulse; only the Number fits its height', () => {
+    expect(WIDGET_KINDS.filter(isGlanceKind)).toEqual(['number', 'trend', 'status', 'people', 'tags', 'pulse'])
     expect(WIDGET_KINDS.filter(isFitHeightKind)).toEqual(['number'])
   })
 

@@ -178,13 +178,13 @@ interface SettingsData {
   shortcutOverrides: ShortcutOverrides
   /**
    * The Eisenhower panes that differ from their defaults (every Eisenhower
-   * tab and Eisenhower summary), in their stored form; `{}` = the four
+   * tab, at every face), in their stored form; `{}` = the four
    * default quadrants.
    */
   eisenhowerPanes: EisenhowerPanes
   /**
    * The Eisenhower's own list (a hidden list, `owner: { eisenhower: true }`)
-   * whose tasks every Eisenhower tab and Eisenhower summary consider —
+   * whose tasks every Eisenhower tab considers, at every face —
    * the `eisenhowerSource` setting, kept naming it by
    * `useListDefinitionStore.ensureEisenhowerList` (app startup, a data
    * replace). Until then it is what the stored setting names — `null`

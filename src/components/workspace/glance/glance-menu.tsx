@@ -1,17 +1,13 @@
 import {
   DEFAULT_NUMBER_BREAKDOWN,
-  LOOK_AHEAD_CHOICES,
   NUMBER_BREAKDOWN_LABELS,
   NUMBER_BREAKDOWNS,
   NUMBER_METRIC_LABELS,
   NUMBER_METRICS,
-  RECENT_DAYS_CHOICES,
-  STALE_DAYS_CHOICES,
   TREND_RANGES,
 } from '../../../models/glance-widgets'
 import type { GlanceTab } from '../../../models/workspace-layout'
 import { wrapClipboardHtml, writeRichClipboard } from '../../../services/rich-clipboard'
-import { clearFocus } from '../../../services/today-focus'
 import { COPY_REFUSED_NOTICE } from '../../../services/task-copy'
 import { useTagStore } from '../../../stores/tag-store'
 import { useUndoStore } from '../../../stores/undo-store'
@@ -19,7 +15,6 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
-import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from '../eisenhower/eisenhower-settings-link'
 import { trendRangeLabel } from './glance-copy'
 import type { GlanceSummary } from './glance-summary'
 import {
@@ -27,11 +22,11 @@ import {
 } from './menu-entries'
 
 /**
- * What changed's and Project pulse's **Tags ›**: a checkbox per tag, in the
- * tags' order (a tick adds it at the end of the picks; the submenu stays
- * open while ticking). Layout config, as any tab setting.
+ * Project pulse's **Tags ›**: a checkbox per tag, in the tags' order (a
+ * tick adds it at the end of the picks; the submenu stays open while
+ * ticking). Layout config, as any tab setting.
  */
-function tagPicksEntry(tab: Extract<GlanceTab, { kind: 'changes' | 'pulse' }>, note: string): MenuEntry {
+function tagPicksEntry(tab: Extract<GlanceTab, { kind: 'pulse' }>, note: string): MenuEntry {
   const tags = useTagStore.getState().tags
   const picked = tab.config.tagIds
   const count = knownTagCount(picked, tags)
@@ -50,7 +45,6 @@ function tagPicksEntry(tab: Extract<GlanceTab, { kind: 'changes' | 'pulse' }>, n
   }
 }
 
-const days = <N extends number>(n: N): Choice<N> => ({ value: n, label: `${n} days` })
 const SHOWN_HIDDEN: readonly Choice<boolean>[] = [{ value: true, label: 'Shown' }, { value: false, label: 'Hidden' }]
 
 /** A glance tab's settings, as its tab menu lists them first (each its section's options, as Customize had them). */
@@ -67,9 +61,6 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
           (breakdown) => ws().patchTabConfig(tab.id, 'number', { breakdown }),
           'Shown under the count when the cell has room for the whole widget.'),
       ]
-    case 'followup':
-      return [settingEntry('Look ahead', LOOK_AHEAD_CHOICES.map(days), tab.config.lookAhead,
-        (lookAhead) => ws().patchTabConfig(tab.id, 'followup', { lookAhead }))]
     case 'trend':
       return [settingEntry('Range', TREND_RANGES.map((r) => ({ value: r, label: trendRangeLabel(r).replace(/^Last /, '') })), tab.config.range,
         (range) => ws().patchTabConfig(tab.id, 'trend', { range }))]
@@ -79,32 +70,14 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
     case 'tags':
       return [settingEntry('No tag', SHOWN_HIDDEN, tab.config.showUntagged,
         (showUntagged) => ws().patchTabConfig(tab.id, 'tags', { showUntagged }))]
-    case 'stale':
-      return [settingEntry('Older than', STALE_DAYS_CHOICES.map(days), tab.config.staleDays,
-        (staleDays) => ws().patchTabConfig(tab.id, 'stale', { staleDays }))]
-    case 'recent':
-      return [settingEntry('Last', RECENT_DAYS_CHOICES.map(days), tab.config.recentDays,
-        (recentDays) => ws().patchTabConfig(tab.id, 'recent', { recentDays }))]
-    case 'eisenhowerSummary':
-      return [{ kind: 'item', label: CUSTOMIZE_PANES_LABEL, icon: <GlanceGlyph name="sliders" />, onSelect: () => openEisenhowerSettings() }]
-    case 'changes':
-      return [tagPicksEntry(tab, 'The tag with the most late tasks among these gets a sentence.')]
     case 'pulse':
       return [tagPicksEntry(tab, 'A card per tag, in the order picked.')]
-    case 'next7':
     case 'status':
-    case 'today':
       return []
   }
 }
 
-/** A glance tab's own actions, before Copy: Today's Clear Focus…. */
-function kindActions(tab: GlanceTab): WidgetMenuAction[] {
-  if (tab.kind !== 'today') return []
-  return [{ label: 'Clear Focus…', icon: <GlanceGlyph name="focus" />, onSelect: () => void clearFocus() }]
-}
-
-/** What a glance tab's menu adds: its settings (first) and its actions (Today's Clear Focus…, Copy). */
+/** What a glance tab's menu adds: its settings (first) and its actions (Copy). */
 export interface GlanceMenu {
   settingEntries: MenuEntry[]
   actions: WidgetMenuAction[]
@@ -117,7 +90,7 @@ export interface GlanceMenu {
  */
 export function glanceMenu(tab: GlanceTab | undefined, summary: GlanceSummary | undefined): GlanceMenu | undefined {
   if (!tab) return undefined
-  const actions: WidgetMenuAction[] = [...kindActions(tab), ...(summary ? [{
+  const actions: WidgetMenuAction[] = summary ? [{
     label: 'Copy',
     icon: <GlanceGlyph name="copy" />,
     onSelect: () => {
@@ -125,6 +98,6 @@ export function glanceMenu(tab: GlanceTab | undefined, summary: GlanceSummary | 
         if (!ok) useUndoStore.getState().notify(COPY_REFUSED_NOTICE)
       })
     },
-  }] : [])]
+  }] : []
   return { settingEntries: settingEntries(tab), actions }
 }

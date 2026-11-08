@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, fireEvent, within, act } from '@testing-library/react'
+import { render, cleanup, fireEvent, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import type { GlanceResult } from '../../../components/workspace/glance/glance-hooks'
@@ -44,8 +44,7 @@ const GLANCE_KINDS = WIDGET_KINDS.filter(isGlanceKind) as GlanceWidgetKind[]
 
 /** The section id each section kind renders. */
 const SECTION_OF: Partial<Record<GlanceWidgetKind, string>> = {
-  followup: 'followup', next7: 'next7', trend: 'trend', status: 'status', people: 'people',
-  tags: 'tags', stale: 'stale', recent: 'recent', eisenhowerSummary: 'eisenhower',
+  trend: 'trend', status: 'status', people: 'people', tags: 'tags',
 }
 
 beforeEach(() => {
@@ -166,25 +165,13 @@ describe('section widgets', () => {
     expect(lastResult?.summary.plain.length).toBeGreaterThan(0)
   })
 
-  it('the row widgets are each their own selection scope; the others are none', () => {
+  it('no glance widget is a selection scope (none shows task rows)', () => {
     for (const kind of GLANCE_KINDS) {
       const { unmount } = setup(createTab(kind, `w-${kind}`) as GlanceTab)
       const root = document.querySelector<HTMLElement>(`[data-glance="${kind}"]`)!
-      expect(root.hasAttribute('data-selection-scope')).toBe(['followup', 'stale', 'recent', 'today'].includes(kind))
+      expect(root.hasAttribute('data-selection-scope')).toBe(false)
       unmount()
     }
-  })
-
-  it('Needs follow-up: its rows select in its own scope, two show the bulk bar', () => {
-    setup(createTab('followup', 'fu'))
-    const rows = document.querySelectorAll<HTMLElement>('[data-glance="followup"] [data-row-key]')
-    expect(rows.length).toBeGreaterThan(1)
-    const title = (row: HTMLElement) => row.querySelector('[data-todo-id] span[data-task-title]')!
-    act(() => { fireEvent.click(title(rows[0]!)) })
-    act(() => { fireEvent.click(title(rows[1]!), { ctrlKey: true }) })
-    expect(useUIStore.getState().selectionScope).toBe('fu')
-    expect(useUIStore.getState().selectedTodoIds.size).toBe(2)
-    expect(document.querySelector('[data-glance="followup"] [role="toolbar"]')).not.toBeNull()
   })
 
   it('People and Tags narrow by the top bar’s @ / # picks, as a list grouped by them does', () => {
@@ -206,10 +193,7 @@ describe('section widgets', () => {
     expect(rows('data-tag-row')).toEqual(['1'])
   })
 
-  it('options come from the config: look ahead, range, the Unassigned and No tag rows, the day spans', () => {
-    setup({ id: 'w', kind: 'followup', config: { lookAhead: 3 } })
-    expect(document.querySelector('[data-glance-section="followup"]')!.textContent).toContain('Late, today and the next 3 days')
-    cleanup()
+  it('options come from the config: range, the Unassigned and No tag rows', () => {
     setup({ id: 'w', kind: 'trend', config: { range: '4w' } })
     expect(document.querySelector('[data-glance-section="trend"]')!.textContent).toContain('Last 4 weeks')
     cleanup()
@@ -219,17 +203,14 @@ describe('section widgets', () => {
     setup({ id: 'w', kind: 'people', config: { showUnassigned: true } })
     expect(document.querySelector('[data-person-row="none"]')).not.toBeNull()
     cleanup()
-    setup({ id: 'w', kind: 'stale', config: { staleDays: 30 } })
-    expect(document.querySelector('[data-glance-section="stale"]')!.textContent).toContain('Not changed in 30 days or more')
-    cleanup()
-    setup({ id: 'w', kind: 'recent', config: { recentDays: 14 } })
-    expect(document.querySelector('[data-glance-section="recent"]')!.textContent).toContain('Last 14 days')
+    setup({ id: 'w', kind: 'tags', config: { showUntagged: false } })
+    expect(document.querySelector('[data-tag-row="none"]')).toBeNull()
   })
 
   it('a section’s count opens its tasks', () => {
     const onDrill = vi.fn()
-    setup(createTab('stale', 's'), onDrill)
-    fireEvent.click(within(document.querySelector<HTMLElement>('[data-glance-section="stale"]')!).getByTestId('glance-section-count'))
+    setup(createTab('status', 's'), onDrill)
+    fireEvent.click(within(document.querySelector<HTMLElement>('[data-glance-section="status"]')!).getByTestId('glance-section-count'))
     expect(onDrill).toHaveBeenCalledTimes(1)
   })
 })
@@ -244,12 +225,9 @@ describe('glance tab menus', () => {
   it.each([
     ['number', 'Metric', 'Closed this week', { metric: 'closedThisWeek' }],
     ['number', 'Breakdown', 'By tag', { breakdown: 'tags' }],
-    ['followup', 'Look ahead', '14 days', { lookAhead: 14 }],
     ['trend', 'Range', '12 weeks', { range: '12w' }],
     ['people', 'Unassigned', 'Hidden', { showUnassigned: false }],
     ['tags', 'No tag', 'Hidden', { showUntagged: false }],
-    ['stale', 'Older than', '60 days', { staleDays: 60 }],
-    ['recent', 'Last', '30 days', { recentDays: 30 }],
   ] as const)('%s: %s › %s patches its config', (kind, label, choice, patch) => {
     const patchTabConfig = vi.fn()
     useWorkspaceStore.setState({ patchTabConfig })
@@ -269,16 +247,15 @@ describe('glance tab menus', () => {
     expect(patchTabConfig).not.toHaveBeenCalled()
     expect(glanceMenu(tab, undefined)!.actions).toEqual([])
     expect(glanceMenu(tab, { plain: 'Overdue 2', html: '<p>x</p>' })!.actions.map((a) => a.label)).toEqual(['Copy'])
-    // The kinds without a setting have none; the Eisenhower summary links to its panes.
+    // The kinds without a setting have none.
     expect(glanceMenu(createTab('status', 's'), undefined)!.settingEntries).toEqual([])
-    expect(glanceMenu(createTab('eisenhowerSummary', 'e'), undefined)!.settingEntries.map((e) => (e as MenuItemEntry).label)).toEqual(['Customize panes…'])
     expect(glanceMenu(undefined, undefined)).toBeUndefined()
   })
 })
 
 describe('faces (D25 R)', () => {
-  // The section widgets' faces; the Number and the brief's widgets (brief-widgets.test) draw their own.
-  const SECTION_FACE_KINDS = GLANCE_KINDS.filter((k) => k !== 'number' && k !== 'changes' && k !== 'today' && k !== 'pulse')
+  // The section widgets' faces; the Number and Project pulse (pulse-widget.test) draw their own.
+  const SECTION_FACE_KINDS = GLANCE_KINDS.filter((k) => k !== 'number' && k !== 'pulse')
   const smallFace = () => document.querySelector<HTMLElement>('[data-testid="glance-small-face"]')
   const smallValue = () => within(smallFace()!).getByTestId('glance-small-value').textContent
 
@@ -345,7 +322,7 @@ describe('faces (D25 R)', () => {
     expect(document.querySelector(`[data-glance-section="${SECTION_OF[kind]}"]`)).not.toBeNull()
   })
 
-  it('the headlines: the late follow-ups, the Stale and Recently completed counts, the top person, the Do count, the net', () => {
+  it('the headlines: the top person, the net', () => {
     const headline = (kind: GlanceWidgetKind) => {
       setup(createTab(kind, 'w') as GlanceTab, undefined, 'small')
       const out = { value: smallValue(), label: smallFace()!.getAttribute('aria-label') }
@@ -358,21 +335,8 @@ describe('faces (D25 R)', () => {
       cleanup()
       return out
     }
-    const late = large('followup', (el) => within(el).getByRole('group', { name: 'Late' }).querySelectorAll('[data-todo-id]').length)
-    expect(headline('followup').value).toBe(String(late))
-    expect(headline('stale').value).toBe(large('stale', (el) => within(el).getByTestId('glance-section-count').textContent))
-    expect(headline('recent').value).toBe(large('recent', (el) => within(el).getByTestId('glance-section-count').textContent))
     const topPerson = large('people', (el) => el.querySelector('[data-person-row]')!.getAttribute('aria-label')!.match(/^(.+): (\d+) open/)!)
     expect(headline('people').label).toBe(`People: ${topPerson[1]}: ${topPerson[2]} open`)
-    expect(headline('eisenhowerSummary').value).toBe(large('eisenhowerSummary', (el) => el.querySelector('[data-eis-cell="do"] [data-testid="glance-eis-count"]')!.textContent))
     expect(headline('trend').label).toMatch(/^Created vs completed: [+−]?\d+ net · 14 days$/)
-  })
-
-  it('a small row widget is no selection scope and draws no bulk bar (its full widget in the popover is)', () => {
-    useUIStore.setState({ selectionScope: 'w', selectedTodoIds: new Set([1, 2]) })
-    setup(createTab('followup', 'w') as GlanceTab, undefined, 'small')
-    const root = document.querySelector<HTMLElement>('[data-glance]')!
-    expect(root.hasAttribute('data-selection-scope')).toBe(false)
-    expect(within(root).queryByRole('toolbar', { name: 'Selected tasks' })).toBeNull()
   })
 })

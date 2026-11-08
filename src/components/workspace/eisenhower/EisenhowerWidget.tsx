@@ -7,6 +7,7 @@ import {
   type EisenhowerTab,
 } from '../../../models/workspace-layout'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { usePaneContext } from '../../../hooks/use-pane-context'
 import { useEqualValue } from '../../../hooks/use-equal-value'
@@ -58,6 +59,7 @@ import { DropSlot, ListWidgetRow, type ListRowDragLook, type ListRowSelectMods }
 import { dragTasks } from './eisenhower-drag'
 import { RefusalTooltip } from '../../shared/RefusalTooltip'
 import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
+import { EisenhowerFace } from './EisenhowerFace'
 import styles from './EisenhowerWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { ListFilterRow } from '../list/ListFilterRow'
@@ -388,9 +390,24 @@ interface WidgetProps {
  * between panes (and in from other widgets) to get what the pane's filter
  * implies; a drop that wouldn't land the task there is refused, with why.
  * Each pane's "+" opens Quick Add with the same writes (and the list's
- * defaults).
+ * defaults). That is its large face; its small and medium faces (D26 P4,
+ * `useWidgetFace`) are the panes' counts (`EisenhowerFace`), a click on the
+ * small one opening the whole widget over the cell.
  */
 export function EisenhowerWidget({ tab, onResult }: WidgetProps) {
+  // Its face (D26 P4), measured on a host the body's size: small and medium are the counts (`EisenhowerFace`).
+  const [faceRef, face] = useWidgetFace()
+  return (
+    <div ref={faceRef} className={styles.faceHost}>
+      {face === 'large'
+        ? <EisenhowerFull tab={tab} onResult={onResult} />
+        : <EisenhowerFace face={face} tabId={tab.id} onCount={onResult ? (countLabel) => onResult({ countLabel }) : undefined} />}
+    </div>
+  )
+}
+
+/** The whole widget (its large face). */
+function EisenhowerFull({ tab, onResult }: WidgetProps) {
   const isMobile = useIsMobile()
   // A row completed here lingers, then folds, before it drops out (D19; desktop rows).
   const shownIdsRef = useRef<ReadonlySet<number>>(new Set())

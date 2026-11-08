@@ -18,13 +18,13 @@ export interface WsTabSeed {
   titles?: boolean
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
-  /** List / Eisenhower / row widget tabs: the task rows' details width (view state). */
+  /** List / Eisenhower tabs: the task rows' details width (view state). */
   detailsWidth?: number
   /** List tabs: the zoom (view state; absent = the Settings default; `strips`, a removed level, opens as `lines`). */
   zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
   /** Glance tabs (Number, the sections): config fields over the kind's defaults, e.g. `{ metric: 'open' }`. */
   glance?: Record<string, unknown>
-  /** What changed / Project pulse tabs: the picked tags (names from `tags`; default none). */
+  /** Project pulse tabs: the picked tags (names from `tags`; default none). */
   tagNames?: string[]
   /** Neglect map tabs: the config (defaults: colour by no tags, 14 days). */
   neglect?: {
@@ -387,7 +387,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         else if (n.colourBy) config.colourBy = { kind: 'tags', tagIds: n.colourBy.tags.map((name) => tagIds.get(name)).filter((id) => id != null) }
         if (n.untouchedDays != null) config.untouchedDays = n.untouchedDays
       }
-      if ((tab.kind === 'changes' || tab.kind === 'pulse') && tab.tagNames) {
+      if (tab.kind === 'pulse' && tab.tagNames) {
         config.tagIds = tab.tagNames.map((name) => tagIds.get(name)).filter((id) => id != null)
       }
       if (tab.glance) Object.assign(config, tab.glance)

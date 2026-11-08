@@ -200,19 +200,12 @@ function buildSeed(): Seed {
             { id: 't6', kind: 'lens', config: {} },
             { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
-            // The glance widgets, each with a setting off its default; the row widgets with a details width.
+            // The glance widgets, each with a setting off its default.
             { id: 'g1', kind: 'number', config: { metric: 'closedThisWeek' } },
-            { id: 'g2', kind: 'followup', config: { lookAhead: 3 }, viewState: { detailsWidth: 240 } },
-            { id: 'g3', kind: 'next7', config: {} },
             { id: 'g4', kind: 'trend', config: { range: '12w' } },
             { id: 'g5', kind: 'status', config: {} },
             { id: 'g6', kind: 'people', config: { showUnassigned: false } },
             { id: 'g7', kind: 'tags', config: { showUntagged: false } },
-            { id: 'g8', kind: 'stale', config: { staleDays: 30 } },
-            { id: 'g9', kind: 'recent', config: { recentDays: 14 }, viewState: { detailsWidth: 0 } },
-            { id: 'g10', kind: 'eisenhowerSummary', config: {} },
-            { id: 'g11', kind: 'changes', config: { tagIds: [1] } },
-            { id: 'g12', kind: 'today', config: {}, viewState: { detailsWidth: 300 } },
             { id: 'g13', kind: 'pulse', config: { tagIds: [1] } },
           ])
           const k4 = cell('k4')

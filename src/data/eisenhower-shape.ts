@@ -98,7 +98,7 @@ function parseJson(value: string): unknown {
  * The longest `eisenhowerPanes` text read (a million characters). Names and
  * filters have no length limit of their own; this bounds the whole value,
  * so an imported one of many megabytes can't slow every Eisenhower header,
- * the Eisenhower summary and each pane edit down — far above anything four panes
+ * the Eisenhower's faces and each pane edit down — far above anything four panes
  * hold.
  */
 export const PANES_SETTING_MAX_LEN = 1_000_000

@@ -508,12 +508,13 @@ test.describe('adding and changing widgets', () => {
     await expect.poll(async () => (await wsShape(page)).flat(2).length).toBe(1)
 
     await page.getByRole('button', { name: 'Add widget as tab' }).click()
-    await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'Calendar' }).click()
+    // Calendar: in Numbers & charts (D26).
+    await pickWidgetKind(page, 'Add widget', 'Calendar')
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true')
 
     await page.getByRole('tab', { name: 'Calendar' }).click({ button: 'right' })
     const changeWidget = page.getByRole('menu', { name: 'Change widget' })
-    await expect(changeWidget.getByRole('menuitemradio', { name: 'Calendar' })).toHaveAttribute('aria-checked', 'true')
+    await expect(changeWidget.getByRole('menuitem', { name: /^Numbers & charts/ })).toContainText('Calendar')
     // A Numbers & charts kind, from its submenu.
     await pickWidgetKind(page, 'Change widget', 'Created vs completed')
     await expect(page.getByRole('tab', { name: /Created vs completed/ })).toBeVisible()

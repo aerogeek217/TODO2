@@ -232,11 +232,11 @@ function randomId(): string {
 
 /**
  * A new tab's seed: a Neglect map with no tags given colours by the
- * `Project: …` tags; a What changed or Project pulse with none reads them.
+ * `Project: …` tags; a Project pulse with none reads them.
  */
 function seedFor(kind: WidgetKind, seed: TabSeed | undefined): TabSeed | undefined {
   if (kind === 'neglect' && !seed?.neglectTagIds) return { ...seed, neglectTagIds: projectTagIds(useTagStore.getState().tags) }
-  if ((kind === 'changes' || kind === 'pulse') && !seed?.tagIds) return { ...seed, tagIds: projectTagIds(useTagStore.getState().tags) }
+  if (kind === 'pulse' && !seed?.tagIds) return { ...seed, tagIds: projectTagIds(useTagStore.getState().tags) }
   return seed
 }
 

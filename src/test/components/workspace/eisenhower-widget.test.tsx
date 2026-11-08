@@ -155,6 +155,8 @@ describe('EisenhowerWidget', () => {
 
   it('stacks below 560px: sections collapse as view state, never dirty', () => {
     vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(420)
+    // Tall enough for the whole widget (its large face, D26 P4).
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(600)
     setup()
     expect(document.querySelector('[data-eisenhower]')?.getAttribute('data-layout')).toBe('stacked')
     const toggle = within(quadrant('schedule')).getByRole('button', { expanded: true })

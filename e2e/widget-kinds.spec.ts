@@ -26,7 +26,7 @@ function body(cell: Locator, kind: WidgetKind): Locator {
 
 /** A kind's tab title: a list tab shows its list, a Number its metric. */
 const title = (kind: WidgetKind) => (kind === 'lens' ? LIST : kindTabTitle(createTab(kind, 't')))
-/** A kind's tab (its name may go on with a count — not with another kind's longer title, e.g. Eisenhower summary). */
+/** A kind's tab (its name may go on with a count — not with another kind's longer title). */
 const tab = (page: Page, kind: WidgetKind) => {
   const mine = title(kind)
   const longer = WIDGET_KINDS.map(title).filter((t) => t !== mine && t.startsWith(mine)).map((t) => t.slice(mine.length))
@@ -40,7 +40,7 @@ test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
   test('every kind can be added as a tab, switched to and closed', async ({ page }) => {
-    // It walks every kind twice (add, then switch): eighteen kinds outlast the default timeout under load.
+    // It walks every kind twice (add, then switch): that outlasts the default timeout under load.
     test.slow()
     // (A layout's lists are the ones it shows: the list tab makes its own.)
     await seedWorkspace(page, {

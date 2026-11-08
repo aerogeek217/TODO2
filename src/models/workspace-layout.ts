@@ -23,17 +23,11 @@
  */
 
 import {
-  DEFAULT_LOOK_AHEAD,
   DEFAULT_NUMBER_METRIC,
-  DEFAULT_RECENT_DAYS,
-  DEFAULT_STALE_DAYS,
   DEFAULT_TREND_RANGE,
   NUMBER_METRIC_LABELS,
-  type FollowupTabConfig,
   type NumberTabConfig,
   type PeopleTabConfig,
-  type RecentTabConfig,
-  type StaleTabConfig,
   type TagPicksTabConfig,
   type TagsTabConfig,
   type TrendTabConfig,
@@ -43,19 +37,18 @@ import {
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
  * list widget (its old name; renaming it would need a migration). The glance
  * kinds (D25 N) are the retired Dashboard's pieces as widgets of their own
- * (v77 made every Dashboard tab these): `number` (one count), one per section
- * (`followup` … `eisenhowerSummary`), and the morning brief's parts (D25 L):
- * `changes` (What changed), `today` (the Focus tasks and suggestions) and
- * `pulse` (Project pulse).
+ * (v77 made every Dashboard tab these): `number` (one count), the charts
+ * (`trend`, `status`, `people`, `tags`) and `pulse` (Project pulse). v78
+ * (D26 P4) retired Needs follow-up, Next 7 days, Stale tasks, Recently
+ * completed, What changed and Today, and made the Eisenhower summary the
+ * Eisenhower's small face.
  */
 export type WidgetKind =
   | 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'neglect'
   | GlanceWidgetKind
 
-/** The glance widget kinds (D25 N): a Number, the old Dashboard's sections and the brief's parts, each a widget. */
-export type GlanceWidgetKind =
-  | 'number' | 'followup' | 'next7' | 'trend' | 'status' | 'people' | 'tags' | 'stale' | 'recent' | 'eisenhowerSummary'
-  | 'changes' | 'today' | 'pulse'
+/** The glance widget kinds (D25 N): a Number, the charts and Project pulse, each a widget. */
+export type GlanceWidgetKind = 'number' | 'trend' | 'status' | 'people' | 'tags' | 'pulse'
 
 export type CalendarView = 'week' | 'month'
 
@@ -235,23 +228,14 @@ export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
 export type NumberTab = TabOf<'number', NumberTabConfig, NoTabSettings>
-export type FollowupTab = TabOf<'followup', FollowupTabConfig, TaskRowsViewState>
-export type Next7Tab = TabOf<'next7', NoTabSettings, NoTabSettings>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
 export type StatusTab = TabOf<'status', NoTabSettings, NoTabSettings>
 export type PeopleTab = TabOf<'people', PeopleTabConfig, NoTabSettings>
 export type TagsTab = TabOf<'tags', TagsTabConfig, NoTabSettings>
-export type StaleTab = TabOf<'stale', StaleTabConfig, TaskRowsViewState>
-export type RecentTab = TabOf<'recent', RecentTabConfig, TaskRowsViewState>
-export type EisenhowerSummaryTab = TabOf<'eisenhowerSummary', NoTabSettings, NoTabSettings>
-export type ChangesTab = TabOf<'changes', TagPicksTabConfig, NoTabSettings>
-export type TodayTab = TabOf<'today', NoTabSettings, TaskRowsViewState>
 export type PulseTab = TabOf<'pulse', TagPicksTabConfig, NoTabSettings>
 
 /** A glance widget's tab (D25 N). */
-export type GlanceTab =
-  | NumberTab | FollowupTab | Next7Tab | TrendTab | StatusTab | PeopleTab | TagsTab | StaleTab | RecentTab | EisenhowerSummaryTab
-  | ChangesTab | TodayTab | PulseTab
+export type GlanceTab = NumberTab | TrendTab | StatusTab | PeopleTab | TagsTab | PulseTab
 
 export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | NeglectTab | GlanceTab
 
@@ -401,11 +385,15 @@ export interface TabSeed {
   listDefinitionId?: number
   /** The tags a new Neglect map colours by (the workspace store passes the `Project: …` tags). */
   neglectTagIds?: readonly number[]
-  /** The tags a new What changed or Project pulse reads (the workspace store passes the `Project: …` tags). */
+  /** The tags a new Project pulse reads (the workspace store passes the `Project: …` tags). */
   tagIds?: readonly number[]
 }
 
-/** The add-widget menus' groups: the task widgets, and the numbers and charts. */
+/**
+ * The add-widget menus' groups: the task widgets (List, Notes), and the
+ * numbers and charts (every other kind — the Calendar, the Eisenhower and
+ * the Neglect map among them, D26; the grouping is the menus' only).
+ */
 export type WidgetKindGroup = 'tasks' | 'glance'
 
 /** The groups in menu order, with their headings. */
@@ -423,7 +411,7 @@ export interface WidgetKindSpec<K extends WidgetKind> {
   /** Its group in the add-widget menus. */
   group: WidgetKindGroup
   /**
-   * A glance widget (a Number, a section, What changed): a cell holding one
+   * A glance widget (a Number, a section, Project pulse): a cell holding one
    * tab of it is headless — its tab strip slides in on hover or focus
    * (`utils/workspace-rows`) — and a track of only glance cells may shrink
    * to `GLANCE_ROW_MIN_PX`.
@@ -458,19 +446,26 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'lens', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
   },
+  notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
+  number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: { metric: DEFAULT_NUMBER_METRIC } }), true),
+  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
+  status: glanceSpec('Status', (id) => ({ id, kind: 'status', config: {} })),
+  people: glanceSpec('People', (id) => ({ id, kind: 'people', config: { showUnassigned: true } })),
+  tags: glanceSpec('Tags', (id) => ({ id, kind: 'tags', config: { showUntagged: true } })),
+  pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
+  // Calendar, Eisenhower and Neglect map: in Numbers & charts (D26), but whole widgets, not glance ones.
   calendar: {
     label: 'Calendar',
     showsList: false,
-    group: 'tasks',
+    group: 'glance',
     glance: false,
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'calendar', config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }),
   },
-  notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
   eisenhower: {
     label: 'Eisenhower',
     showsList: false,
-    group: 'tasks',
+    group: 'glance',
     glance: false,
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'eisenhower', config: {} }),
@@ -478,24 +473,11 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   neglect: {
     label: 'Neglect map',
     showsList: false,
-    group: 'tasks',
+    group: 'glance',
     glance: false,
     fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'neglect', config: defaultNeglectConfig(seed.neglectTagIds) }),
   },
-  number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: { metric: DEFAULT_NUMBER_METRIC } }), true),
-  followup: glanceSpec('Needs follow-up', (id) => ({ id, kind: 'followup', config: { lookAhead: DEFAULT_LOOK_AHEAD } })),
-  next7: glanceSpec('Next 7 days', (id) => ({ id, kind: 'next7', config: {} })),
-  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
-  status: glanceSpec('Status', (id) => ({ id, kind: 'status', config: {} })),
-  people: glanceSpec('People', (id) => ({ id, kind: 'people', config: { showUnassigned: true } })),
-  tags: glanceSpec('Tags', (id) => ({ id, kind: 'tags', config: { showUntagged: true } })),
-  stale: glanceSpec('Stale tasks', (id) => ({ id, kind: 'stale', config: { staleDays: DEFAULT_STALE_DAYS } })),
-  recent: glanceSpec('Recently completed', (id) => ({ id, kind: 'recent', config: { recentDays: DEFAULT_RECENT_DAYS } })),
-  eisenhowerSummary: glanceSpec('Eisenhower summary', (id) => ({ id, kind: 'eisenhowerSummary', config: {} })),
-  changes: glanceSpec('What changed', (id, seed) => ({ id, kind: 'changes', config: { tagIds: [...(seed.tagIds ?? [])] } })),
-  today: glanceSpec('Today', (id) => ({ id, kind: 'today', config: {} })),
-  pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
 }
 
 /** Every widget kind, in menu order. */

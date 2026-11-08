@@ -8,8 +8,8 @@ import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
  * (1 month — Settings' automatic next follow-up is on; `followup-default.spec`
  * covers it off). Covers
  * the row's follow-up pill (planned and late), the empty-slot flag, the
- * task menu, the bulk bar's ⋯ More and its follow-up popover, a Needs follow-up
- * Needs follow-up row and the phone row. (There is no keyboard shortcut for
+ * task menu, the bulk bar's ⋯ More and its follow-up popover, and the phone
+ * row. (There is no keyboard shortcut for
  * it; the check-in reply's Record a follow-up is in `checkin-import.spec`.)
  * The popover opened from a row's pill or flag, or the bulk bar, opens with
  * focus on **Mark followed up**, so ⏎ records; the Next follow-up field still
@@ -57,13 +57,11 @@ const SEED: WorkspaceSeed = {
     { title: 'Bulk two', followupInDays: 12 },
     { title: 'Bulk pop one', followupInDays: 20 },
     { title: 'Bulk pop two', followupInDays: 21 },
-    { title: 'Widget late', followupInDays: -4 },
   ],
   layouts: [{
     name: 'Main',
     columns: [
       { id: 'c1', weight: 2, rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
-      { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'dash', kind: 'followup' }] })] },
     ],
   }],
 }
@@ -170,13 +168,6 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await page.keyboard.press('Enter')
     await expect.poll(() => followupOf(page, 'Bulk pop one')).toEqual(kept('2026-10-30'))
     await expect.poll(() => followupOf(page, 'Bulk pop two')).toEqual(kept('2026-10-31'))
-  })
-
-  test('a Needs follow-up widget row', async ({ page }) => {
-    const dash = page.locator('[data-glance-tab="dash"]')
-    await rowIn(dash, 'Widget late').getByRole('button', { name: /^Follow-up: Tue 6/ }).click()
-    await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
-    await expect.poll(() => followupOf(page, 'Widget late')).toEqual(RECORDED)
   })
 })
 

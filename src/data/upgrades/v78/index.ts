@@ -1,5 +1,6 @@
 import type { DataSet, SchemaUpgrade } from '../../schema-upgrades'
 import { upgradeLayoutTable } from './layout-table'
+import { upgradeWidgetSet } from './widget-set'
 
 /**
  * v78 — Dashboard building (D26). One schema step holds every part of it,
@@ -19,7 +20,7 @@ import { upgradeLayoutTable } from './layout-table'
  */
 const PARTS: readonly SchemaUpgrade[] = [
   upgradeLayoutTable,
-  // P4: upgradeWidgetSet (`./widget-set`)
+  upgradeWidgetSet,
   // P5: upgradeNumbers (`./numbers`)
   // P8: upgradeBreakdown (`./breakdown`)
 ]
