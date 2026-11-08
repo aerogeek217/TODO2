@@ -3,6 +3,7 @@ import type { PersistedTodoItem, Status, Tag, TodoEvent, TodoEventType } from '.
 import { computeChanges, type Change, type ChangeId } from '../../../services/stats/changes'
 import { eventsWindowRead, STUCK_STATUS_DAYS } from '../../../utils/trend-window'
 import { makeTodo } from '../../helpers'
+import { DST_ZONE, pinTimeZone } from '../../time-zone'
 
 const today = new Date(2026, 10, 11) // Wed 11 Nov; the week (Sunday first) began Sun 8 Nov
 const day = (n: number, hour = 12) => new Date(2026, 10, 11 + n, hour)
@@ -236,5 +237,41 @@ describe('computeChanges', () => {
     const read = eventsWindowRead('changes', today, 0)
     expect(read.start).toEqual(new Date(2026, 9, 21))
     expect([...read.types].sort()).toEqual(['completed', 'created', 'deadline', 'reopened', 'status'])
+  })
+})
+
+describe('computeChanges in a daylight-saving zone', () => {
+  pinTimeZone(DST_ZONE)
+
+  it('yesterday was the 25-hour fall-back day: late, closed and the weeks read by local day', () => {
+    const today = new Date(2026, 10, 2) // Mon 2 Nov; Sun 1 Nov (yesterday, the week's first day) was 25 hours
+    const old = new Date(2026, 0, 1)
+    const t = (o: Partial<PersistedTodoItem> & { id: number }) => makeTodo({ createdAt: old, modifiedAt: old, ...o })
+    const tasks = [
+      t({ id: 1, dueDate: new Date(2026, 10, 1) }), // due yesterday: went late
+      t({ id: 2, dueDate: new Date(2026, 9, 31) }), // late already
+      t({ id: 3, isCompleted: true, completedAt: new Date(2026, 10, 1, 0, 30) }), // this week
+      t({ id: 4, isCompleted: true, completedAt: new Date(2026, 9, 31, 23, 30) }), // last week
+      t({ id: 5, isCompleted: true, completedAt: new Date(2026, 9, 25, 0, 30) }), // last week's first hour
+      t({ id: 6, isCompleted: true, completedAt: new Date(2026, 9, 24, 23, 30) }), // the week before
+    ]
+    const changes = computeChanges(tasks, [], { today, weekStartsOn: 0, assignedTagsMap: new Map(), statuses: [] }, [])
+    expect(of(changes, 'late')?.ids).toEqual([1])
+    const closed = of(changes, 'closed')
+    expect(closed?.ids).toEqual([3])
+    // Weeks of 25 Oct (2), 18 Oct (1), 11 Oct and 4 Oct (0): 0.75 a week.
+    expect(closed?.text).toBe('1 closed this week, about your usual 0.8 a week.')
+  })
+
+  it('today is the 23-hour spring-forward day: due today and gone late by local day', () => {
+    const today = new Date(2026, 2, 8) // Sun 8 Mar
+    const old = new Date(2026, 0, 1)
+    const tasks = [
+      makeTodo({ id: 1, createdAt: old, modifiedAt: old, dueDate: new Date(2026, 2, 8, 23, 30) }),
+      makeTodo({ id: 2, createdAt: old, modifiedAt: old, dueDate: new Date(2026, 2, 7) }),
+    ]
+    const changes = computeChanges(tasks, [], { today, weekStartsOn: 0, assignedTagsMap: new Map(), statuses: [] }, [])
+    expect(of(changes, 'dueToday')?.ids).toEqual([1])
+    expect(of(changes, 'late')?.ids).toEqual([2])
   })
 })

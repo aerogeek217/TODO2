@@ -6,6 +6,7 @@ import { computeTiles } from '../../../services/stats/tiles'
 import { computeTrend } from '../../../services/stats/trend'
 import { historyEventsStart } from '../../../utils/trend-window'
 import { makeTodo } from '../../helpers'
+import { DST_ZONE, pinTimeZone } from '../../time-zone'
 
 const today = new Date(2026, 9, 10) // Sat 10 Oct
 const ctx = { today, weekStartsOn: 0 as const }
@@ -165,5 +166,39 @@ describe('computeClosedThisWeek', () => {
     expect(c.ids).toEqual([3, 5, 1])
     expect(c.weekStart).toEqual(new Date(2026, 9, 4))
     expect(computeClosedThisWeek(tasks, { today, weekStartsOn: 1 }).ids).toEqual([3, 5])
+  })
+})
+
+describe('computeMetricHistory in a daylight-saving zone', () => {
+  pinTimeZone(DST_ZONE)
+
+  it('14 local midnights across the fall-back day; each day’s end read by local day', () => {
+    const today = new Date(2026, 10, 6) // Fri 6 Nov: the history runs Sat 24 Oct – today, Sun 1 Nov is 25 hours
+    const old = new Date(2026, 0, 1)
+    const tasks = [
+      makeTodo({ id: 1, createdAt: old, modifiedAt: old, isCompleted: true, completedAt: new Date(2026, 9, 31, 23, 30) }), // Sat 31 Oct, late
+      makeTodo({ id: 2, createdAt: old, modifiedAt: old, isCompleted: true, completedAt: new Date(2026, 10, 1, 0, 30) }), // Sun 1 Nov, early
+      makeTodo({ id: 3, createdAt: old, modifiedAt: old, dueDate: new Date(2026, 10, 1) }), // due on the change
+    ]
+    const h = computeMetricHistory(tasks, [], { today, weekStartsOn: 0 })
+    expect(h.days.map((d) => [d.getDate(), d.getHours()])).toEqual(
+      [24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6].map((n) => [n, 0]),
+    )
+    // Day 7 = Sat 31 Oct (the week of 25 Oct), day 8 = Sun 1 Nov (a new week).
+    expect(h.series.closedThisWeek).toEqual([0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1])
+    expect(h.series.open).toEqual([3, 3, 3, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1, 1])
+    expect(h.series.dueToday).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
+    expect(h.series.overdue).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1])
+  })
+
+  it('across the spring-forward day (23 hours) too', () => {
+    const today = new Date(2026, 2, 12) // Thu 12 Mar; Sun 8 Mar is 23 hours
+    const old = new Date(2026, 0, 1)
+    const t = makeTodo({ id: 1, createdAt: old, modifiedAt: old, dueDate: new Date(2026, 2, 8) })
+    const h = computeMetricHistory([t], [], { today, weekStartsOn: 0 })
+    expect(h.days.every((d) => d.getHours() === 0)).toBe(true)
+    expect(h.days.at(-5)?.getDate()).toBe(8)
+    expect(h.series.dueToday.slice(-5)).toEqual([1, 0, 0, 0, 0])
+    expect(h.series.overdue.slice(-5)).toEqual([0, 1, 1, 1, 1])
   })
 })

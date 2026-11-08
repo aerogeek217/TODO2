@@ -4,6 +4,7 @@ import { computeMetricHistory } from '../../../services/stats/metric-history'
 import { computeTrend } from '../../../services/stats/trend'
 import { trendWindow } from '../../../utils/trend-window'
 import { makeTodo } from '../../helpers'
+import { DST_ZONE, pinTimeZone } from '../../time-zone'
 
 const today = new Date(2026, 9, 10) // Sat
 const ctx = { today, weekStartsOn: 0 as const }
@@ -157,6 +158,11 @@ describe('computeTrend', () => {
     expect(t.openSeries.at(-1)).toBe(2)
   })
 
+})
+
+describe('computeTrend in a daylight-saving zone', () => {
+  pinTimeZone(DST_ZONE)
+
   it('works across a daylight-saving change (per-day buckets by local calendar day)', () => {
     let change: Date | null = null
     for (let i = 0; i < 366 && !change; i++) {
@@ -164,7 +170,8 @@ describe('computeTrend', () => {
       // The change happens during day `d` (its midnight and the next differ).
       if (d.getTimezoneOffset() !== new Date(2026, 0, 2 + i).getTimezoneOffset()) change = d
     }
-    if (!change) return // no DST in this time zone
+    expect(change).not.toBeNull()
+    if (!change) return
     const end = new Date(change.getFullYear(), change.getMonth(), change.getDate() + 3)
     const at = (offset: number, hour: number, minute = 0) =>
       new Date(change.getFullYear(), change.getMonth(), change.getDate() + offset, hour, minute)
@@ -179,5 +186,17 @@ describe('computeTrend', () => {
     expect(t.buckets[9]?.createdIds).toEqual([1])
     expect(t.buckets[10]?.createdIds).toEqual([2, 3])
     expect(t.openSeries.slice(8, 12)).toEqual([0, 1, 3, 3])
+  })
+
+  it('weekly bars across the fall-back change: the week starting on the 25-hour day is 7 local days', () => {
+    const today = new Date(2026, 10, 7) // Sat 7 Nov; the week began Sun 1 Nov, the change
+    const tasks = [task({ id: 1, isCompleted: true }), task({ id: 2, isCompleted: true })]
+    const t = computeTrend(tasks, [
+      ev(1, 'completed', new Date(2026, 9, 31, 23, 30)), // Sat 31 Oct: the week before
+      ev(2, 'completed', new Date(2026, 10, 1, 0, 30)), // Sun 1 Nov: this week
+    ], { today, weekStartsOn: 0 }, '4w')
+    expect(t.window.bucketStarts.map((d) => [d.getMonth(), d.getDate(), d.getHours()])).toEqual([[9, 11, 0], [9, 18, 0], [9, 25, 0], [10, 1, 0]])
+    expect(t.window.days).toHaveLength(28)
+    expect(t.buckets.map((b) => b.completedIds)).toEqual([[], [], [1], [2]])
   })
 })
