@@ -6,26 +6,24 @@ import * as queries from '../../utils/workspace-layout-queries'
 import * as sizes from '../../utils/workspace-layout-sizes'
 
 /**
- * `utils/workspace-layout-ops` split along its seams (cr33 A10): the
- * reducers, the location queries, the list refs and the sizes, over the
- * setters they share. A pure move — every function the one module exported
- * is exported by exactly one of them.
+ * The layout modules split along their seams (cr33 A10; the table, D26):
+ * the reducers, the queries, the list refs and the sizes, over the setters
+ * they share. Every function is exported by exactly one of them.
  */
 
 const MODULES = { edit, lists, ops, queries, sizes }
 
-/** Every function `workspace-layout-ops` exported before the split. */
-const BEFORE = [
-  'addTab', 'cellAt', 'cellSizeGroups', 'closeCell', 'closeTab', 'copySizes', 'countListTabs', 'extractTab', 'findCell', 'findRow',
-  'findTab', 'getTab', 'layoutIds', 'layoutListRefs', 'layoutPanels', 'layoutRows', 'layoutStructureEqual', 'layoutStructureKey',
-  'layoutTabs', 'listIdChanges', 'movePanel', 'moveTab', 'panelOfTab', 'patchTabConfig', 'patchTabViewState', 'repointLayoutLists',
-  'replaceTab', 'rowAt', 'rowOfCell', 'rowSizeGroups', 'setActiveTab', 'setBandHeight', 'setCellStripShown', 'setCellWeights',
-  'setColumnWeights', 'setLayoutActiveColumn', 'setLayoutHue', 'setRowCollapsed', 'setRowWeights', 'splitCell',
+/** Every function the layout modules export (bar the shared setters). */
+const ALL = [
+  'addTab', 'cellRowTracks', 'closeCell', 'closeTab', 'copySizes', 'countListTabs', 'extractTab', 'findCell', 'findTab', 'getTab',
+  'insertTrack', 'isCellCollapsed', 'layoutIds', 'layoutListRefs', 'layoutPanels', 'layoutStructureEqual', 'layoutStructureKey',
+  'layoutTabs', 'listIdChanges', 'mergeCells', 'moveEdge', 'movePanel', 'moveTab', 'panelOfTab', 'patchTabConfig', 'patchTabViewState',
+  'repointLayoutLists', 'replaceTab', 'setActiveTab', 'setLayoutHue', 'setTrackCollapsed', 'setTrackSizes', 'splitCell', 'trackAxes',
 ]
 
 describe('the layout modules (A10)', () => {
-  it('every function the old module exported lives in exactly one of them', () => {
-    for (const name of BEFORE) {
+  it('every function lives in exactly one of them', () => {
+    for (const name of ALL) {
       const homes = Object.entries(MODULES).filter(([, m]) => typeof (m as Record<string, unknown>)[name] === 'function').map(([k]) => k)
       expect(homes, name).toHaveLength(1)
     }
@@ -33,14 +31,11 @@ describe('the layout modules (A10)', () => {
 
   it('each seam holds its own kind: queries read, lists name lists, sizes size, ops reduce', () => {
     expect(Object.keys(queries).sort()).toEqual([
-      'cellAt', 'findCell', 'findRow', 'findTab', 'getTab', 'layoutIds', 'layoutPanels', 'layoutRows', 'layoutStructureEqual',
-      'layoutStructureKey', 'layoutTabs', 'panelOfTab', 'rowAt', 'rowLocOf', 'rowOfCell',
+      'findCell', 'findTab', 'getTab', 'layoutIds', 'layoutPanels', 'layoutStructureEqual', 'layoutStructureKey', 'layoutTabs', 'panelOfTab',
     ])
     expect(Object.keys(lists).sort()).toEqual(['countListTabs', 'layoutListRefs', 'listIdChanges', 'repointLayoutLists'])
-    expect(Object.keys(sizes).sort()).toEqual(['cellSizeGroups', 'copySizes', 'rowSizeGroups', 'setBandHeight', 'setCellWeights', 'setColumnWeights', 'setRowWeights'])
+    expect(Object.keys(sizes).sort()).toEqual(['GRID_AXES', 'copySizes', 'setTrackSizes', 'trackAxes'])
     expect(Object.keys(ops)).not.toContain('findCell')
-    expect(Object.keys(edit).sort()).toEqual([
-      'expanded', 'insertAllAt', 'insertAt', 'isPositive', 'removeAt', 'replaceAt', 'setCellAt', 'setColumnRow', 'setRowAt', 'withBand', 'withColumns',
-    ])
+    expect(Object.keys(edit).sort()).toEqual(['insertAllAt', 'insertAt', 'isPositive', 'removeAt', 'replaceAt', 'setCell', 'withCells', 'withTracks'])
   })
 })

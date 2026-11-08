@@ -10,7 +10,7 @@ import {
 } from '../../models/workspace-layout'
 import { checkLayoutBody, pickLayoutBody } from '../../data/layout-shape'
 import { tabTitle } from '../../components/workspace/widget-hooks'
-import { rowOf } from '../helpers/layout-builders'
+import { single } from '../helpers/layout-builders'
 
 /** The widget-kind table and what derives from it. */
 describe('widget kinds', () => {
@@ -33,10 +33,10 @@ describe('widget kinds', () => {
     for (const v of ['taskboard', 'list', 'List', 'toString', '__proto__', 'constructor', '', 3, null, undefined]) {
       expect(isWidgetKind(v)).toBe(false)
     }
-    const layout = (kind: unknown) => [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 't', kind, config: {} }] })] }]
-    expect(checkLayoutBody({ columns: layout('taskboard') })).toBe('columns[0].rows[0].cells[0].tabs[0].kind')
-    expect(checkLayoutBody({ columns: layout('toString') })).toBe('columns[0].rows[0].cells[0].tabs[0].kind')
-    expect(pickLayoutBody({ columns: layout('taskboard') }).fixes).toEqual(['tab dropped'])
+    const layout = (kind: unknown) => single({ id: 'k', tabs: [{ id: 't', kind, config: {} } as never] })
+    expect(checkLayoutBody(layout('taskboard'))).toBe('cells[0].tabs[0].kind')
+    expect(checkLayoutBody(layout('toString'))).toBe('cells[0].tabs[0].kind')
+    expect(pickLayoutBody(layout('taskboard')).fixes).toEqual(['tab dropped'])
   })
 
   it('makes each kind’s new tab with its defaults', () => {
@@ -58,9 +58,9 @@ describe('widget kinds', () => {
   })
 
   it('every new tab passes the layout check', () => {
-    const columns = [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: WIDGET_KINDS.map((k) => createTab(k, `t-${k}`)) })] }]
-    expect(checkLayoutBody({ columns })).toBe(true)
-    expect(pickLayoutBody({ columns })).toEqual({ columns, fixes: [] })
+    const body = single({ id: 'k', tabs: WIDGET_KINDS.map((k) => createTab(k, `t-${k}`)) })
+    expect(checkLayoutBody(body)).toBe(true)
+    expect(pickLayoutBody(body)).toEqual({ ...body, fixes: [] })
   })
 
   it('titles a list tab by its list, “(Deleted list)” when the list is gone, every other tab by kind', () => {

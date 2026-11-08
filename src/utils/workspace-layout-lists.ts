@@ -1,6 +1,5 @@
 import {
   tabListId,
-  type LayoutBand,
   type LayoutBody,
   type LayoutCell,
   type LayoutTab,
@@ -44,38 +43,13 @@ export function layoutListRefs(layout: LayoutBody): Set<number> {
   return ids
 }
 
-/** `cells` with `fn` applied to each; `cells` itself when no cell changes. */
-function mapCells(cells: readonly LayoutCell[], fn: (cell: LayoutCell) => LayoutCell): LayoutCell[] | null {
-  const next = cells.map(fn)
-  return next.every((c, i) => c === cells[i]) ? null : next
-}
-
 /**
- * `layout` with `fn` applied to every cell (in columns and bands); the same
- * object when no cell changes.
+ * `layout` with `fn` applied to every cell; the same object when no cell
+ * changes.
  */
 function mapLayoutCells<B extends LayoutBody>(layout: B, fn: (cell: LayoutCell) => LayoutCell): B {
-  let changed = false
-  const columns = layout.columns.map((col) => {
-    const rows = col.rows.map((row) => {
-      const cells = mapCells(row.cells, fn)
-      return cells ? { ...row, cells } : row
-    })
-    if (rows.every((r, i) => r === col.rows[i])) return col
-    return { ...col, rows }
-  })
-  if (columns.some((c, i) => c !== layout.columns[i])) changed = true
-  const bandOf = (band: LayoutBand | undefined): LayoutBand | undefined => {
-    if (!band) return band
-    const cells = mapCells(band.cells, fn)
-    if (!cells) return band
-    changed = true
-    return { ...band, cells }
-  }
-  const top = bandOf(layout.top)
-  const bottom = bandOf(layout.bottom)
-  if (!changed) return layout
-  return { ...layout, columns, ...(top ? { top } : {}), ...(bottom ? { bottom } : {}) }
+  const cells = layout.cells.map(fn)
+  return cells.every((c, i) => c === layout.cells[i]) ? layout : { ...layout, cells }
 }
 
 /**
