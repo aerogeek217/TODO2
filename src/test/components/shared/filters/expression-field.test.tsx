@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { useState } from 'react'
+import { Profiler, useState } from 'react'
 import { PredicateChips, SWITCH_REFUSED } from '../../../../components/shared/filters/PredicateChips'
 import { EXPRESSION_WRITE_MS } from '../../../../hooks/use-expression-field'
 import { CLOSE_HELD, COMPLETED_HINT_DONE } from '../../../../components/shared/filters/ExpressionField'
@@ -158,6 +158,26 @@ describe('Graphical | Expression', () => {
 })
 
 describe('the expression field', () => {
+  // The popup's `compute` was a new function each render, and the popup
+  // re-reads its text whenever that changes: an open popup re-rendered the
+  // field forever (a hung test worker; a busy loop in a browser). The
+  // Profiler turns the loop into a failure instead of a hang.
+  it.each(['#wo', '#work and /fo', '@al'])('settles with the popup open on %s', (text) => {
+    let commits = 0
+    const log: TodoPredicate[] = []
+    render(
+      <Profiler id="field" onRender={() => { if (++commits > 50) throw new Error(`still rendering after ${commits} commits`) }}>
+        <Harness initial={{ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }} log={log} />
+      </Profiler>,
+    )
+    commits = 0
+    type(text)
+    expect(commits).toBeLessThan(10)
+    expect(screen.getByRole('listbox')).toBeInTheDocument()
+    fireEvent.keyDown(field(), { key: 'Tab' })
+    expect(field().value).toBe({ '#wo': '#work ', '#work and /fo': '#work and /focus ', '@al': '@Alice ' }[text])
+  }, 5000)
+
   it('writes a text that reads once typing rests, and shows how it reads', () => {
     vi.useFakeTimers()
     const log: TodoPredicate[] = []

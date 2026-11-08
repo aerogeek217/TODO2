@@ -53,6 +53,16 @@ describe('search-tokens: the D16 spec table', () => {
     expect(clausesOf('!"In progress" ')).toEqual([{ field: 'statusIds', id: 21 }])
   })
 
+  // cr33 M12: a name holding `"`, typed as the autocomplete and the expression field write it.
+  it('a quoted name with an escaped quote resolves', () => {
+    const odd = { people: [...people, { id: 3, name: 'Ann "AJ" Lee', initials: 'AL' }], tags: [...tags, { id: 12, name: 'say "hi"', color: '#888' }], statuses: [...statuses, { id: 22, name: 'On "hold"', color: '#888', sortOrder: 2 }], today }
+    expect(parseSearch('@"Ann \\"AJ\\" Lee" #"say \\"hi\\"" !"On \\"hold\\"" report', odd).tokens.map((t) => t.clause)).toEqual([
+      { field: 'personIds', id: 3 },
+      { field: 'tags', id: 12 },
+      { field: 'statusIds', id: 22 },
+    ])
+  })
+
   it('several ! are one clause each (they OR in the Status chip)', () => {
     expect(clausesOf('!waiting !"In progress" ')).toEqual([
       { field: 'statusIds', id: 20 },
