@@ -184,6 +184,15 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent);
 }
 
+/* The focus ring (tokens.css): inset, the rail being a scroller that would clip it; over the row's own shadow. */
+.railRow:focus-visible {
+  box-shadow: inset 0 -1px 0 var(--color-border-muted), var(--focus-ring-inset);
+}
+
+.railRow[aria-current='true']:focus-visible {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-accent) 45%, transparent), var(--focus-ring-inset);
+}
+
 .railRow[aria-current='true'] .railTitle {
   font-weight: var(--font-weight-semibold);
 }
@@ -574,6 +583,10 @@
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
+}
+
+.noneBtn:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--focus-ring);
 }
 
 .noneBtn:hover {
