@@ -14,6 +14,13 @@
   stroke-linecap: butt;
 }
 
+/* The name alone (`PriorityRing` with a label and nothing to draw): fills the box's wrapper, draws nothing, clicks through. */
+.name {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
 /* Focus's glow (`PriorityRing`): the box's shape, lit from outside; under the ring, clicks through to the box. */
 .glow {
   position: absolute;

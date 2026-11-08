@@ -242,7 +242,7 @@
   cursor: pointer;
 }
 
-.stepButton:hover:not(:disabled),
+.stepButton:hover:not([aria-disabled="true"]),
 .stepButton:focus-visible {
   background: var(--color-tint-8);
   color: var(--color-text-primary);
@@ -252,7 +252,8 @@
   box-shadow: var(--focus-ring-inset);
 }
 
-.stepButton:disabled {
+/* The value's end: still focusable (it may hold the focus), the press ignored. */
+.stepButton[aria-disabled="true"] {
   opacity: 0.35;
   cursor: default;
 }
