@@ -81,8 +81,17 @@ export function isId(v: unknown): v is string {
   return typeof v === 'string' && v.length > 0 && v.length <= MAX_ID_LEN
 }
 
+/**
+ * The largest weight (and band height, in px) a layout part keeps: far past
+ * anything the dividers make (they keep a pair's sum), and small enough that
+ * no sum of a layout's parts reaches `Infinity` — two weights near
+ * `Number.MAX_VALUE` summed to it, every share became 0 and no divider could
+ * resize them back (cr33 S4). A larger one is a bad size (repaired to 1).
+ */
+export const LAYOUT_SIZE_MAX = 1_000_000
+
 function isWeight(v: unknown): v is number {
-  return typeof v === 'number' && Number.isFinite(v) && v > 0
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= LAYOUT_SIZE_MAX
 }
 
 function isFiniteNum(v: unknown): v is number {
