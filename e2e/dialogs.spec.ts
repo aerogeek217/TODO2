@@ -70,30 +70,78 @@ async function animationsSettled(el: Locator) {
 const focusInside = (dialog: Locator) => dialog.evaluate((panel) => panel.contains(document.activeElement))
 
 /**
- * Tab / Shift+Tab wrap at the panel's ends, and a full lap of Tab never
- * leaves it. Ends are the rendered controls the frame cycles through.
+ * Marks the panel's ends — the rendered controls the frame cycles through —
+ * once that set holds still. A dialog's rows can re-lay out after the open
+ * (a row's columns come from a ResizeObserver, which shows or hides a cell's
+ * control), so the set is read again two frames later until two reads agree.
+ * Returns how many controls there are.
  */
-async function expectFocusTrapped(page: Page, dialog: Locator) {
-  const count = await dialog.evaluate((panel) => {
+function markEnds(dialog: Locator): Promise<number> {
+  return dialog.evaluate(async (panel) => {
     const sel = 'button:not([disabled]),[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
-    const items = Array.from(panel.querySelectorAll<HTMLElement>(sel)).filter((el) => el.getClientRects().length > 0)
+    const read = () => Array.from(panel.querySelectorAll<HTMLElement>(sel)).filter((el) => el.getClientRects().length > 0)
+    const twoFrames = () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())))
+    let items = read()
+    for (let i = 0; i < 30; i++) {
+      await twoFrames()
+      const next = read()
+      const same = next.length === items.length && next.every((el, k) => el === items[k])
+      items = next
+      if (same) break
+    }
     panel.querySelectorAll('[data-e2e-end]').forEach((el) => el.removeAttribute('data-e2e-end'))
     items.at(0)?.setAttribute('data-e2e-end', 'first')
     items.at(-1)?.setAttribute('data-e2e-end', items.length === 1 ? 'first last' : 'last')
     return items.length
   })
-  expect(count).toBeGreaterThan(0)
+}
+
+interface LapWatch { escaped: string[]; stop: () => void }
+
+/**
+ * Tab / Shift+Tab wrap at the panel's ends, and a full lap of Tab never
+ * leaves it. The ends are marked once the panel's controls hold still, and
+ * marked again before the lap. The lap is watched in the page — any focus
+ * landing outside the panel, or leaving it for nothing — so it costs one key
+ * press per stop and one read at the end, not a round trip of reads per stop.
+ */
+async function expectFocusTrapped(page: Page, dialog: Locator) {
   const first = dialog.locator('[data-e2e-end~="first"]')
   const last = dialog.locator('[data-e2e-end~="last"]')
+  expect(await markEnds(dialog)).toBeGreaterThan(0)
   await last.focus()
   await page.keyboard.press('Tab')
   await expect(first).toBeFocused()
   await page.keyboard.press('Shift+Tab')
   await expect(last).toBeFocused()
-  for (let i = 0; i <= count; i++) {
-    await page.keyboard.press('Tab')
-    expect(await focusInside(dialog)).toBe(true)
-  }
+
+  const count = await markEnds(dialog)
+  await dialog.evaluate((panel) => {
+    const escaped: string[] = []
+    const name = (el: EventTarget | null) => (el instanceof Element ? `${el.tagName.toLowerCase()} "${el.getAttribute('aria-label') ?? el.textContent?.slice(0, 40) ?? ''}"` : String(el))
+    const onIn = (e: FocusEvent) => { if (e.target instanceof Node && !panel.contains(e.target)) escaped.push(`focus went to ${name(e.target)}`) }
+    const onOut = (e: FocusEvent) => { if (!(e.relatedTarget instanceof Node)) escaped.push(`focus left ${name(e.target)} for nothing`) }
+    document.addEventListener('focusin', onIn, true)
+    panel.addEventListener('focusout', onOut)
+    const watch: LapWatch = {
+      escaped,
+      stop: () => {
+        document.removeEventListener('focusin', onIn, true)
+        panel.removeEventListener('focusout', onOut)
+      },
+    }
+    ;(window as unknown as { __e2eLap?: LapWatch }).__e2eLap = watch
+  })
+  for (let i = 0; i <= count; i++) await page.keyboard.press('Tab')
+  const escaped = await dialog.evaluate((panel) => {
+    const w = window as unknown as { __e2eLap?: LapWatch }
+    w.__e2eLap?.stop()
+    const out = [...(w.__e2eLap?.escaped ?? [])]
+    delete w.__e2eLap
+    if (!panel.contains(document.activeElement)) out.push('focus is outside the panel after the lap')
+    return out
+  })
+  expect(escaped).toEqual([])
   await first.focus()
 }
 
