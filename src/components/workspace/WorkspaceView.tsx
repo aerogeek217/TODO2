@@ -1,12 +1,16 @@
-import type { CSSProperties } from 'react'
-import type { GridTrack, LayoutBody, WorkspaceLayout } from '../../models/workspace-layout'
-import { geometryCells, type WorkspaceDropHit, type WorkspaceGeometry } from '../../utils/workspace-drop'
+import { useMemo, type CSSProperties } from 'react'
+import { getActiveTab, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
+import { edgeStretches, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
+import { isCellCollapsedIn, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
 import { isFitTrack } from '../../utils/workspace-rows'
+import { pairPercent } from '../../utils/workspace-resize'
 import { WorkspaceCell } from './WorkspaceCell'
+import { WorkspaceDivider } from './WorkspaceDivider'
 import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { useWorkspaceDrag } from './workspace-drag'
+import { useTabTitles } from './widget-hooks'
 import { AmbienceBackdrop, AmbienceLamp } from '../ambience/AmbienceWorkspace'
 import styles from './WorkspaceView.module.css'
 
@@ -23,110 +27,132 @@ function EmptyLayout() {
   )
 }
 
-/** The weighted tracks' weights summed (fixed, fit and collapsed tracks don't share the free space). */
-function weightedTotal(tracks: readonly GridTrack[], shares: (i: number) => boolean): number {
-  return tracks.reduce((sum, t, i) => (shares(i) ? sum + (t.weight ?? 0) : sum), 0)
+/** Whether a stretch gets a divider: a row line beside a fit or collapsed track has nothing to resize. */
+function resizable(layout: WorkspaceLayout, stretch: EdgeStretch): boolean {
+  if (stretch.axis === 'columns') return true
+  return [stretch.line - 1, stretch.line].every((t) => {
+    const kind = trackSizing(layout, 'rows', t).kind
+    return kind === 'weighted' || kind === 'fixed'
+  })
+}
+
+/** The share (%) the track before a stretch's line has of it and the track after (weights, or px for fixed ones). */
+function lineShare(layout: WorkspaceLayout, stretch: EdgeStretch): number {
+  const tracks = layout.grid[stretch.axis]
+  const size = (i: number) => {
+    const t = tracks[i]
+    return t ? (t.px ?? t.weight ?? 0) : 0
+  }
+  return pairPercent(size(stretch.line - 1), size(stretch.line))
+}
+
+/** Where a divider sits in the grid: the gutter before the track after its line, along its stretch. */
+function dividerPlacement(stretch: EdgeStretch): CSSProperties {
+  const { line, from, to } = stretch
+  return stretch.axis === 'columns'
+    ? { gridColumn: `${line + 1} / span 1`, gridRow: `${from + 1} / ${to + 1}` }
+    : { gridRow: `${line + 1} / span 1`, gridColumn: `${from + 1} / ${to + 1}` }
+}
+
+/** One divider per stretch of grid line between cells (`edgeStretches`), labelled with the cells beside it. */
+function Dividers({ layout }: { layout: WorkspaceLayout }) {
+  const active = useMemo(() => layout.cells.map((c) => getActiveTab(c)).filter((t): t is LayoutTab => t != null), [layout.cells])
+  const titles = useTabTitles(active)
+  const titleOf = (cellId: string | undefined) => {
+    const cell = layout.cells.find((c) => c.id === cellId)
+    const tab = cell ? getActiveTab(cell) : undefined
+    const i = tab ? active.indexOf(tab) : -1
+    return i >= 0 ? (titles[i] ?? '') : 'Empty cell'
+  }
+  return (
+    <>
+      {edgeStretches(layout).filter((s) => resizable(layout, s)).map((stretch) => {
+        const { before, after } = stretchCells(layout, stretch)
+        const a = before[0]
+        const b = after[0]
+        if (!a || !b) return null
+        return (
+          <WorkspaceDivider
+            key={`${stretch.axis}:${stretch.line}:${stretch.from}`}
+            stretch={stretch}
+            beforeId={a.id}
+            afterId={b.id}
+            label={`Resize ${titleOf(a.id)} and ${titleOf(b.id)}`}
+            valueNow={lineShare(layout, stretch)}
+            style={dividerPlacement(stretch)}
+          />
+        )
+      })}
+    </>
+  )
 }
 
 /**
- * The grid's template on one axis: a fixed track its px, a weighted one its
- * share of the free space as `fr` (scaled so the shares sum to 100: `fr`
- * under 1 in total would leave space empty; no minimum of its own — a
- * track can be part of a cell, so the minimums are the cells', which the
- * dividers keep, D26 P2); a row track that fits its content or is
- * collapsed `auto`.
- */
-function template(body: LayoutBody, axis: 'columns' | 'rows'): string {
-  const tracks = body.grid[axis]
-  const auto = (i: number) => axis === 'rows' && (tracks[i]?.collapsed === true || isFitTrack(body, i))
-  const shares = (i: number) => tracks[i]?.px == null && !auto(i)
-  const total = weightedTotal(tracks, shares) || 1
-  return tracks.map((t, i) => {
-    if (auto(i)) return 'auto'
-    if (t.px != null) return `${t.px}px`
-    const fr = ((t.weight ?? 0) / total) * 100
-    return `minmax(0, ${fr}fr)`
-  }).join(' ')
-}
-
-/**
- * The layout's table as one CSS grid: each track sized by `template`, each
- * cell placed on its area. (D26 P1: a plain grid; the dividers, the drop
- * ghost and the cell menu's table words come with P2.)
+ * The layout's table as one CSS grid (D26): each track sized by
+ * `workspace-table.trackTemplate` (weights as `fr` never under the cells'
+ * minimums — the table scrolls when they don't fit —, px, a fit row
+ * `auto`, a collapsed row its header), each cell placed on its area, and a
+ * divider in the gutter along each stretch of grid line.
  */
 function Table({ layout }: { layout: WorkspaceLayout }) {
   const { rows } = layout.grid
   return (
     <div
       className={styles.table}
-      style={{ gridTemplateColumns: template(layout, 'columns'), gridTemplateRows: template(layout, 'rows') }}
+      style={{
+        gridTemplateColumns: trackTemplate(layout, 'columns', WORKSPACE_GUTTER_PX),
+        gridTemplateRows: trackTemplate(layout, 'rows', WORKSPACE_GUTTER_PX),
+      }}
       data-ws-table
+      data-ws-row-tracks={rows.map((t) => t.id).join(' ')}
     >
       {layout.cells.map((cell) => {
         const { col, row, colSpan, rowSpan } = cell.area
         const tracks = rows.slice(row, row + rowSpan)
-        const collapsed = tracks.length > 0 && tracks.every((t) => t.collapsed === true)
-        const fitRow = rowSpan === 1 && isFitTrack(layout, row)
         return (
           <WorkspaceCell
             key={cell.id}
             cell={cell}
             rowTrackIds={tracks.map((t) => t.id)}
-            collapsed={collapsed}
-            fitRow={fitRow}
+            collapsed={isCellCollapsedIn(layout, cell)}
+            fitRow={rowSpan === 1 && isFitTrack(layout, row)}
             style={{ gridArea: `${row + 1} / ${col + 1} / span ${rowSpan} / span ${colSpan}` }}
           />
         )
       })}
+      <Dividers layout={layout} />
     </div>
   )
 }
 
-/** Where a split's new cell goes: a bar along that side of the cell. */
-function splitBar(geo: WorkspaceGeometry, hit: WorkspaceDropHit | null): { style: CSSProperties; vertical: boolean } | null {
-  if (hit?.kind !== 'cell-body' || hit.zone === 'middle') return null
-  const cell = geometryCells(geo).find((c) => c.id === hit.cellId)
-  if (!cell) return null
-  const r = cell.rect
-  if (hit.zone === 'left' || hit.zone === 'right') {
-    const x = hit.zone === 'left' ? r.left - 4.5 : r.right + 1.5
-    return { vertical: true, style: { left: x, top: r.top, height: r.bottom - r.top } }
-  }
-  const y = hit.zone === 'top' ? r.top - 4.5 : r.bottom + 1.5
-  return { vertical: false, style: { left: r.left, top: y, width: r.right - r.left } }
-}
-
 /**
- * Drag feedback drawn over the workspace: the insert-row / insert-column
- * strip along the layout's edge, and a split's bar beside the cell.
+ * Drag feedback drawn over the workspace (D26 board T): one ghost at the
+ * place and size the drop will produce (`workspace-drop.dropGhost`),
+ * labelled in words. Hidden from assistive tech: the drop is said by the
+ * drag's announcements.
  */
 function DragOverlayLayer() {
   const drag = useWorkspaceDrag()
   if (!drag) return null
-  const { geometry: geo, hit, accepts } = drag
-  const gutter = 6
-  const bar = accepts ? splitBar(geo, hit) : null
-  const insert = accepts && hit?.kind === 'insert' ? hit.edge : null
-  const { area } = geo
+  const ghost = drag.accepts ? drag.ghost : null
   return (
     <div className={styles.dragLayer} aria-hidden="true">
-      {(insert === 'top' || insert === 'bottom') && (
+      {ghost && (
         <div
-          className={styles.newBandStrip}
-          data-testid="ws-insert-row"
-          data-edge={insert}
-          style={{ left: area.left + gutter, width: area.right - area.left - gutter * 2, top: insert === 'top' ? area.top + 2 : area.bottom - 34 }}
-        />
+          // A new ghost per drop spot: each fades in (reduced motion: at once).
+          key={`${ghost.rect.left},${ghost.rect.top},${ghost.rect.right},${ghost.rect.bottom}`}
+          className={styles.ghost}
+          data-testid="ws-drop-ghost"
+          style={{
+            left: ghost.rect.left,
+            top: ghost.rect.top,
+            width: ghost.rect.right - ghost.rect.left,
+            height: ghost.rect.bottom - ghost.rect.top,
+          }}
+        >
+          <span className={styles.ghostLabel} data-testid="ws-drop-label">{ghost.label}</span>
+        </div>
       )}
-      {(insert === 'left' || insert === 'right') && (
-        <div
-          className={styles.edgeBand}
-          data-testid="ws-insert-column"
-          data-edge={insert}
-          style={{ left: insert === 'left' ? area.left + 2 : area.right - 34, top: area.top + gutter, height: area.bottom - area.top - gutter * 2 }}
-        />
-      )}
-      {bar && <div className={bar.vertical ? styles.cellBarV : styles.cellBar} style={bar.style} data-testid="ws-new-cell-bar" data-axis={bar.vertical ? 'vertical' : 'horizontal'} />}
     </div>
   )
 }

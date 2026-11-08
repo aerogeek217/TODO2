@@ -35,9 +35,11 @@
 }
 
 /* The layout's table: one grid, its tracks from the layout (D26); only it
-   scrolls when the tracks don't fit. */
+   scrolls when the cells' minimums don't fit. Tracks sit at the start: an
+   all-`auto` table (every row fit or collapsed) doesn't stretch them. */
 .table {
   display: grid;
+  align-content: start;
   gap: var(--workspace-gutter);
   flex: 1 1 0;
   min-height: 0;
@@ -124,56 +126,36 @@
   pointer-events: none;
 }
 
-/* The insert-row zone, lit: a 32px strip across the workspace's top / bottom edge. */
-.newBandStrip {
+/* The drop ghost (D26 board T): where the drop lands, at the size it will
+   take, its words in the middle. Fades in at each new spot. */
+.ghost {
   position: fixed;
-  height: 32px;
-  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: var(--radius-card);
   background: var(--color-accent-bg);
-  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+  box-shadow: inset 0 0 0 1.5px var(--color-accent), var(--shadow-card);
+  animation: ghost-in var(--transition-fast) both;
+  overflow: hidden;
 }
 
-.newBandStrip::after {
-  content: '';
-  position: absolute;
-  top: calc(50% - 1.5px);
-  left: 6px;
-  right: 6px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--color-accent);
+.ghostLabel {
+  max-width: calc(100% - 16px);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-accent), var(--shadow-card);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* The insert-column zone, lit: a 32px strip down the workspace's left / right edge. */
-.edgeBand {
-  position: fixed;
-  width: 32px;
-  border-radius: var(--radius-md);
-  background: var(--color-accent-bg);
-  box-shadow: inset 0 0 0 1.5px var(--color-accent);
-}
-
-.edgeBand::after {
-  content: '';
-  position: absolute;
-  left: calc(50% - 1.5px);
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--color-accent);
-}
-
-.cellBar {
-  position: fixed;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--color-accent);
-}
-
-.cellBarV {
-  position: fixed;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--color-accent);
+@keyframes ghost-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

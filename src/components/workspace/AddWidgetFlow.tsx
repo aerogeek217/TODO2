@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
+import type { MenuEntry } from '../shared/MenuPopover'
+import { ADD_WHERE_OPTIONS, addWhereTarget, isAddWhere, type AddWhere } from './add-widget-where'
 import { WidgetKindIcon } from '../shared/icons'
 import { createListThenEdit, NO_LIST_LAYOUT_REASON, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
 import styles from './AddWidgetFlow.module.css'
@@ -32,20 +35,36 @@ function useUnavailableKinds(): Partial<Record<WidgetKind, string>> | undefined 
 }
 
 interface AddWidgetFlowProps {
-  target: LayoutDropTarget
+  /** The cell it is added from. */
+  cellId: string
+  /** Where it goes until the user picks another (default a tab). */
+  initialWhere?: AddWhere
   anchor: { x: number; y: number }
   onClose: () => void
 }
 
-/** The add-tab `+` menu: picks a kind and adds that widget at `target` (`useAddKind`). */
-export function AddWidgetFlow({ target, anchor, onClose }: AddWidgetFlowProps) {
-  const addKind = useAddKind(target)
+/**
+ * Add widget from a cell (its ⋯ menu, its strip's `+`): where first — Tab ·
+ * Right · Below · Row · Column (`addWhereTarget`) —, then the kinds; a pick
+ * adds that widget there (`useAddKind`).
+ */
+export function AddWidgetFlow({ cellId, initialWhere = 'tab', anchor, onClose }: AddWidgetFlowProps) {
+  const [where, setWhere] = useState<AddWhere>(initialWhere)
+  const addKind = useAddKind(addWhereTarget(cellId, where))
+  const lead: MenuEntry[] = [{
+    kind: 'segmented',
+    label: 'Where',
+    options: ADD_WHERE_OPTIONS,
+    value: where,
+    onChange: (value) => { if (isAddWhere(value)) setWhere(value) },
+  }]
   return (
     <WidgetKindMenu
       anchor={anchor}
       heading="Add widget"
       unavailableKinds={useUnavailableKinds()}
       onChangeKind={addKind}
+      leadEntries={lead}
       onClose={onClose}
     />
   )

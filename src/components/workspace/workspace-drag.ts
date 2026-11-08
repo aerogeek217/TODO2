@@ -2,7 +2,7 @@ import { createContext, useContext } from 'react'
 import { useUndoStore } from '../../stores/undo-store'
 import type { WidgetKind } from '../../models/workspace-layout'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
-import type { WorkspaceDragSource, WorkspaceDropHit, WorkspaceGeometry } from '../../utils/workspace-drop'
+import type { DropGhost, WorkspaceDragSource, WorkspaceDropHit, WorkspaceGeometry } from '../../utils/workspace-drop'
 
 /** `active.data.current.type` of a dragged workspace tab. */
 export const WORKSPACE_TAB_DRAG = 'workspace-tab'
@@ -64,6 +64,8 @@ export interface WorkspaceDragState {
   target: LayoutDropTarget | null
   /** False for no-op targets (e.g. the dragged panel itself), which stay plain. */
   accepts: boolean
+  /** Where the drop lands, at its size, and its words (`workspace-drop.dropGhost`); none for a no-op. */
+  ghost: DropGhost | null
   /** The workspace as measured when the drag started (viewport px). */
   geometry: WorkspaceGeometry
 }
@@ -74,7 +76,7 @@ export function useWorkspaceDrag(): WorkspaceDragState | null {
   return useContext(WorkspaceDragContext)
 }
 
-/** The drop label for `n` dragged tabs of a panel drag ("Merge 2 tabs here"). */
+/** `n` dragged tabs ("2 tabs"): a panel ghost's badge. */
 export function tabsCount(n: number): string {
   return `${n} ${n === 1 ? 'tab' : 'tabs'}`
 }

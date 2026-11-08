@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useRef, useState, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import {
   getActiveTab,
@@ -18,6 +18,7 @@ import { WidgetKindMenu, type WidgetMenuAction } from '../shared/WidgetKindMenu'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
+import type { AddWhere } from './add-widget-where'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
 import { layoutTabs } from '../../utils/workspace-layout-queries'
 import { createListThenEdit, NO_LIST_LAYOUT_REASON, openEditList, useListOwnerLayoutId, useTabTitle, useTabTitles } from './widget-hooks'
@@ -34,6 +35,7 @@ import {
   SplitBelowIcon,
   SplitRightIcon,
 } from '../shared/icons'
+import { mergeNeighbour, type Side } from '../../utils/workspace-grid'
 import {
   tabsCount,
   useWorkspaceDrag,
@@ -50,40 +52,21 @@ import { GlanceGlyph } from '../shared/GlanceGlyph'
 import styles from './WorkspaceCell.module.css'
 import type { WorkspaceCellProps } from './WorkspaceCell'
 import { trackScrollEdges } from '../../utils/scroll-edges'
-import type { CellZone } from '../../utils/workspace-drop'
 import { isHeadlessCell } from '../../utils/workspace-rows'
 import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { CELL_HEADER_PX, smallFaceClick, useCellFace } from './cell-face'
 import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
 import { transitionName, withViewTransition } from '../shared/view-transition'
 
+/** The cell across `side` that cell `cellId` merges with into a rectangle (Merge with ▸), in the open layout. */
+function mergeTarget(cellId: string, side: Side): string | undefined {
+  const layout = useWorkspaceStore.getState().working
+  return layout ? mergeNeighbour(layout, cellId, side)?.id : undefined
+}
+
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
   const r = ref.current?.getBoundingClientRect()
   return r ? { x: r.left, y: r.bottom + 4 } : { x: 100, y: 100 }
-}
-
-/** What the middle of a body adds while a tab or a panel is dragged over it. */
-function joinLabel(panelDrag: boolean, count: number) {
-  return panelDrag ? <>Merge {tabsCount(count)} here</> : <><PlusIcon size={12} strokeWidth={2} /> Add as tab</>
-}
-
-/**
- * Scrim + drop zones over a cell body while a tab or panel is dragged over
- * it: a split on each side, and the middle that joins it. Drawn in the hit
- * test's proportions (`SIDE_ZONE_SHARE`, quarters). (D26 P2 replaces them
- * with one ghost where the drop lands.)
- */
-function DropZones({ zone, accepts, join }: { zone: CellZone; accepts: boolean; join: ReactNode }) {
-  const cls = (z: CellZone) => `${styles.zone} ${styles[`zone_${z}`] ?? ''} ${accepts && zone === z ? styles.zoneActive : ''}`
-  return (
-    <div className={`${styles.zones} ${styles.cellZones}`} aria-hidden="true" data-testid="ws-drop-zones" data-active-zone={accepts ? zone : ''}>
-      <div className={cls('left')}><span className={styles.zoneSideLabel}>Split left</span></div>
-      <div className={cls('top')}>Split above</div>
-      <div className={cls('middle')}>{join}</div>
-      <div className={cls('bottom')}>Split below</div>
-      <div className={cls('right')}><span className={styles.zoneSideLabel}>Split right</span></div>
-    </div>
-  )
 }
 
 /**
@@ -135,17 +118,31 @@ function listsLosingLastWidget(tabIds: readonly string[]): number[] {
   return [...out]
 }
 
+/** Merge with ▸ Right / Below: why the item is off when the cell doesn't merge that way. */
+const NO_MERGE_REASON = 'Only cells that make a rectangle together merge'
+
+/** Insert ▸: a full-width row or a full-height column at an edge of the layout. */
+const INSERT_ITEMS: ReadonlyArray<{ label: string; edge: Side }> = [
+  { label: 'Row at the top', edge: 'top' },
+  { label: 'Row at the bottom', edge: 'bottom' },
+  { label: 'Column at the left', edge: 'left' },
+  { label: 'Column at the right', edge: 'right' },
+]
+
 /**
  * A cell of the layout's table holding tabs: its header (the tab strip, the
  * panel handle, collapse and the ⋯ menu), its active widget's body at its
- * face (D25 R; headless as `utils/workspace-rows` says), the drop zones
- * while a tab or panel is dragged over it, and its menus.
+ * face (D25 R; headless as `utils/workspace-rows` says), and its menus —
+ * the cell menu in the table's words (D26 board V): Add widget…, Split
+ * cell ▸, Merge with ▸, Insert ▸, Collapse row, Close tab, Close cell.
  */
 export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const closeTab = useWorkspaceStore((s) => s.closeTab)
   const closeCell = useWorkspaceStore((s) => s.closeCell)
   const splitCell = useWorkspaceStore((s) => s.splitCell)
+  const mergeCells = useWorkspaceStore((s) => s.mergeCells)
+  const insertTrack = useWorkspaceStore((s) => s.insertTrack)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
   const patchTabConfig = useWorkspaceStore((s) => s.patchTabConfig)
@@ -174,7 +171,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const [guard, setGuard] = useState<{ listIds: number[]; lead: string; run: () => void } | null>(null)
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
   const [cellMenuOpen, setCellMenuOpen] = useState(false)
-  const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number } } | null>(null)
+  const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number }; where: AddWhere } | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
   /** A menu of the cell is open: a headless cell keeps its strip in while it is. */
   const stripPinned = cellMenuOpen || tabMenu != null || addFlow != null
@@ -192,12 +189,10 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const closeCellGuarded = () => guarded(cell.tabs.map((t) => t.id), 'You’re closing the last widget that shows them.', () => closeCell(cell.id))
 
   const hit = drag?.hit
-  const bodyHit = hit?.kind === 'cell-body' && hit.cellId === cell.id ? hit : null
   const stripHit = hit?.kind === 'tab-strip' && hit.cellId === cell.id && drag?.accepts ? hit : null
-  const joining = drag?.accepts === true && bodyHit?.zone === 'middle'
-  const ghosts = joining && drag ? drag.tabs : null
-  const panelDrag = drag?.source.type === 'panel'
-  const join = joinLabel(panelDrag, drag?.tabs.length ?? 0)
+  // Joining it (its body's middle): the tabs show in its strip as ghosts.
+  const joining = drag?.accepts === true && hit?.kind === 'cell-body' && hit.cellId === cell.id && hit.zone === 'middle'
+  const ghosts = joining ? drag.tabs : null
   const isDragSource = drag?.source.type === 'panel' && drag.source.panelId === cell.id
 
   const menuTab = tabMenu ? cell.tabs.find((t) => t.id === tabMenu.tabId) : undefined
@@ -249,19 +244,39 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
     ] : []),
     {
       kind: 'item',
-      label: 'Add widget',
+      label: 'Add widget…',
       icon: <PlusIcon />,
       submenu: true,
-      onSelect: () => setAddFlow({ anchor: anchorBelow(moreRef) }),
+      onSelect: () => setAddFlow({ anchor: anchorBelow(moreRef), where: 'tab' }),
     },
+    { kind: 'separator' },
     {
       kind: 'item',
-      label: 'Split',
+      label: 'Split cell',
       icon: <SplitRightIcon />,
       children: [
         { kind: 'item', label: 'Right', icon: <SplitRightIcon />, onSelect: () => { splitCell(cell.id, 'right') } },
         { kind: 'item', label: 'Below', icon: <SplitBelowIcon />, onSelect: () => { splitCell(cell.id, 'bottom') } },
       ],
+    },
+    {
+      kind: 'item',
+      label: 'Merge with',
+      children: (['right', 'bottom'] as const).map((side): MenuEntry => {
+        const other = cellMenuOpen ? mergeTarget(cell.id, side) : undefined
+        return {
+          kind: 'item',
+          label: side === 'right' ? 'Right' : 'Below',
+          disabled: other == null,
+          title: other == null ? NO_MERGE_REASON : undefined,
+          onSelect: () => { if (other) mergeCells(cell.id, other) },
+        }
+      }),
+    },
+    {
+      kind: 'item',
+      label: 'Insert',
+      children: INSERT_ITEMS.map(({ label, edge }): MenuEntry => ({ kind: 'item', label, onSelect: () => { insertTrack(edge) } })),
     },
     {
       kind: 'item',
@@ -291,6 +306,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       ].join(' ')}
       style={{ ...style, viewTransitionName: transitionName('ws-cell', cell.id) }}
       data-ws-cell={cell.id}
+      data-ws-cell-title={activeTitle}
       data-headless={headless ? 'true' : undefined}
       data-face={!collapsed && active ? cellFace.face : undefined}
       aria-label={`${activeTitle} ${noun}`}
@@ -321,7 +337,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
           }}
           onClose={closeTabGuarded}
           onOpenTabMenu={(tabId, p) => setTabMenu({ tabId, ...p })}
-          onAddTab={(ref) => setAddFlow({ anchor: anchorBelow(ref) })}
+          onAddTab={(ref) => setAddFlow({ anchor: anchorBelow(ref), where: 'tab' })}
         />
         {stripHit && drag?.insertLeft != null && (
           <span className={styles.insertLine} style={{ left: drag.insertLeft }} aria-hidden="true" data-testid="ws-tab-insert-line" />
@@ -366,7 +382,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         )}
       </div>
       {!collapsed && active && (
-        // The drop zones sit beside the body, over it, so a body its widget scrolls keeps them in view (cr33 W7).
         <div className={styles.bodyFrame}>
           <div
             ref={trackScrollEdges}
@@ -386,7 +401,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
               />
             </WidgetFaceContext.Provider>
           </div>
-          {bodyHit && <DropZones zone={bodyHit.zone} accepts={drag?.accepts === true} join={join} />}
         </div>
       )}
 
@@ -402,7 +416,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       )}
       {addFlow && (
         <AddWidgetFlow
-          target={{ kind: 'cell', cellId: cell.id }}
+          cellId={cell.id}
+          initialWhere={addFlow.where}
           anchor={addFlow.anchor}
           onClose={() => setAddFlow(null)}
         />

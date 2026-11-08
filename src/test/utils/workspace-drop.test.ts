@@ -1,7 +1,11 @@
 import { describe, it, expect } from 'vitest'
 import { createTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import {
+  bodyZone,
+  cellRectIn,
   dropChangesLayout,
+  dropGhost,
+  dropLabel,
   dropTargetForHit,
   hitTestWorkspace,
   sameDropHit,
@@ -10,7 +14,7 @@ import {
   type WorkspaceGeometry,
 } from '../../utils/workspace-drop'
 import { cell as spec, grid, type CellSpec } from '../helpers/layout-builders'
-import { evenPair, pairPercent, resizePair } from '../../utils/workspace-resize'
+import { pairPercent } from '../../utils/workspace-resize'
 
 function rect(left: number, top: number, right: number, bottom: number): Rect {
   return { left, top, right, bottom }
@@ -77,7 +81,7 @@ describe('hitTestWorkspace', () => {
     expect(hitTestWorkspace(geo, { x: 300, y: 20 })).toEqual({ kind: 'tab-strip', cellId: 'a1', index: 2, lineX: 171 })
   })
 
-  it('a cell body → its sides (20%, at most 120px), top / bottom quarter, or the middle', () => {
+  it('a cell body → its sides (20% each way, at most 120px), or the middle', () => {
     expect(hitTestWorkspace(geo, { x: 60, y: 200 })).toEqual({ kind: 'cell-body', cellId: 'a1', zone: 'left' })
     expect(hitTestWorkspace(geo, { x: 450, y: 200 })).toEqual({ kind: 'cell-body', cellId: 'a1', zone: 'right' })
     expect(hitTestWorkspace(geo, { x: 250, y: 40 })).toEqual({ kind: 'cell-body', cellId: 'a1', zone: 'top' })
@@ -100,6 +104,93 @@ describe('hitTestWorkspace', () => {
     const g: WorkspaceGeometry = { area: geo.area, cells: [h] }
     expect(hitTestWorkspace(g, { x: 250, y: 12 })).toEqual({ kind: 'cell-body', cellId: 'n1', zone: 'top' })
     expect(hitTestWorkspace(g, { x: 250, y: -10 })).toEqual({ kind: 'insert', edge: 'top' })
+  })
+})
+
+describe('bodyZone', () => {
+  const body = rect(0, 0, 500, 300)
+
+  it('the outer 20% on every side splits that way; the rest joins', () => {
+    expect(bodyZone(body, { x: 99, y: 150 })).toBe('left')
+    expect(bodyZone(body, { x: 101, y: 150 })).toBe('middle')
+    expect(bodyZone(body, { x: 401, y: 150 })).toBe('right')
+    expect(bodyZone(body, { x: 250, y: 59 })).toBe('top')
+    expect(bodyZone(body, { x: 250, y: 61 })).toBe('middle')
+    expect(bodyZone(body, { x: 250, y: 241 })).toBe('bottom')
+  })
+
+  it('in a corner, the side the pointer is deeper into wins', () => {
+    // 10px into a 100px side zone (0.9 deep), 30px into a 60px top zone (0.5 deep).
+    expect(bodyZone(body, { x: 10, y: 30 })).toBe('left')
+    // 90px into the side zone (0.1 deep), 6px into the top zone (0.9 deep).
+    expect(bodyZone(body, { x: 90, y: 6 })).toBe('top')
+  })
+
+  it('a big body’s zones stop at 120px', () => {
+    const big = rect(0, 0, 2000, 1000)
+    expect(bodyZone(big, { x: 119, y: 500 })).toBe('left')
+    expect(bodyZone(big, { x: 121, y: 500 })).toBe('middle')
+    expect(bodyZone(big, { x: 1000, y: 119 })).toBe('top')
+    expect(bodyZone(big, { x: 1000, y: 121 })).toBe('middle')
+  })
+})
+
+describe('the drop ghost', () => {
+  /** The table under `geometry()`: its content from (6, 6), 994 × 694, 6px gaps. */
+  const table = { left: 6, top: 6, width: 994, height: 694, gap: 6, rowPx: {} }
+  const geo: WorkspaceGeometry = { ...geometry(), cells: geometry().cells.map((c) => ({ ...c, title: c.id === 'b1' ? 'Late' : 'Notes' })), table }
+
+  it('labels a split with the cell’s title and side, an insert with what it makes, a join with Add as tab', () => {
+    expect(dropLabel(geo, { kind: 'split', cellId: 'b1', side: 'top' }, 1)).toBe('Split Late · above')
+    expect(dropLabel(geo, { kind: 'split', cellId: 'b1', side: 'left' }, 1)).toBe('Split Late · left')
+    expect(dropLabel(geo, { kind: 'insert', edge: 'bottom' }, 1)).toBe('Insert row · full width')
+    expect(dropLabel(geo, { kind: 'insert', edge: 'right' }, 1)).toBe('Insert column · full height')
+    expect(dropLabel(geo, { kind: 'cell', cellId: 'b1' }, 1)).toBe('Add as tab')
+    expect(dropLabel(geo, { kind: 'cell', cellId: 'b1' }, 3)).toBe('Add 3 tabs')
+  })
+
+  it('places each cell where the view draws it, from the measured table', () => {
+    const l = layout()
+    for (const c of geometry().cells) {
+      const r = cellRectIn(l, c.id, table)!
+      expect(r.left).toBeCloseTo(c.rect.left)
+      expect(r.right).toBeCloseTo(c.rect.right)
+      expect(r.top).toBeCloseTo(c.rect.top)
+      expect(r.bottom).toBeCloseTo(c.rect.bottom)
+    }
+  })
+
+  it('a split above b1: the upper half of its place', () => {
+    const ghost = dropGhost(layout(), geo, { type: 'tab', tabId: 't2' }, { kind: 'split', cellId: 'b1', side: 'top' }, ['t2'])!
+    expect(ghost.label).toBe('Split Late · above')
+    expect(ghost.rect.left).toBeCloseTo(506)
+    expect(ghost.rect.right).toBeCloseTo(1000)
+    expect(ghost.rect.top).toBeCloseTo(6)
+    expect(ghost.rect.bottom).toBeCloseTo(350)
+  })
+
+  it('a move that closes its cell: the result as a whole (a2 goes, a1 takes its place, a new column at the right)', () => {
+    const ghost = dropGhost(layout(), geo, { type: 'tab', tabId: 't3' }, { kind: 'insert', edge: 'right' }, ['t3'])!
+    // Columns 1000 · 500 · 500 share 982px: 491 · 245.5 · 245.5.
+    expect(ghost.rect.left).toBeCloseTo(6 + 491 + 6 + 245.5 + 6)
+    expect(ghost.rect.right).toBeCloseTo(1000)
+    expect(ghost.rect.top).toBeCloseTo(6)
+    expect(ghost.rect.bottom).toBeCloseTo(700)
+  })
+
+  it('no ghost for a drop that changes nothing; the whole area when no table was measured', () => {
+    expect(dropGhost(layout(), geo, { type: 'tab', tabId: 't3' }, { kind: 'cell', cellId: 'a2' }, ['t3'])).toBeNull()
+    expect(dropGhost(layout(), { area: geo.area, cells: geo.cells }, { type: 'tab', tabId: 't2' }, { kind: 'cell', cellId: 'b1' }, ['t2'])?.rect).toEqual(geo.area)
+  })
+
+  it('a fit row keeps the height it was drawn at', () => {
+    const n1 = spec('n1', [createTab('number', 'num1')])
+    const n2 = spec('n2', [createTab('number', 'num2')])
+    const big = cell('big', ['t9'])
+    const fit: WorkspaceLayout = { sortOrder: 0, name: 'L', ...grid([[n1, n2], [big, big]]), createdAt: new Date(0), modifiedAt: new Date(0) }
+    const r = cellRectIn(fit, 'big', { ...table, rowPx: { r1: 70 } })!
+    expect(r.top).toBeCloseTo(6 + 70 + 6)
+    expect(r.bottom).toBeCloseTo(700)
   })
 })
 
@@ -156,30 +247,8 @@ describe('dropChangesLayout', () => {
   })
 })
 
-describe('resizePair', () => {
-  it('splits the pair weight by the new pixel sizes, leaving the total alone', () => {
-    const r = resizePair({ sizeA: 400, sizeB: 400, weightA: 1, weightB: 3, delta: 100, min: 280 })
-    expect(r.sizeA).toBe(500)
-    expect(r.sizeB).toBe(300)
-    expect(r.weightA + r.weightB).toBeCloseTo(4)
-    expect(r.weightA / r.weightB).toBeCloseTo(500 / 300)
-  })
-
-  it('clamps at the minimum and reports how far past it the pointer went', () => {
-    const r = resizePair({ sizeA: 400, sizeB: 400, weightA: 1, weightB: 1, delta: 200, min: 280 })
-    expect(r.sizeB).toBe(280)
-    expect(r.rawB).toBe(200)
-  })
-
-  it('each neighbour keeps its own minimum (`minB`); both scale down when the pair can’t hold them', () => {
-    const r = resizePair({ sizeA: 200, sizeB: 200, weightA: 1, weightB: 1, delta: -180, min: 64, minB: 112 })
-    expect(r.sizeA).toBe(64)
-    const t = resizePair({ sizeA: 50, sizeB: 50, weightA: 1, weightB: 1, delta: -40, min: 64, minB: 112 })
-    expect(t.sizeA).toBeCloseTo(100 * 64 / 176)
-  })
-
-  it('double-click evens the pair; percent rounds the first share', () => {
-    expect(evenPair(1, 3)).toEqual({ weightA: 2, weightB: 2 })
+describe('pairPercent', () => {
+  it('rounds the first share', () => {
     expect(pairPercent(300, 100)).toBe(75)
     expect(pairPercent(0, 0)).toBe(50)
   })

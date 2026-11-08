@@ -88,6 +88,8 @@ export interface WidgetKindMenuProps {
    * (`listChoiceEntries`). Omit: none.
    */
   listLayoutId?: number
+  /** Entries before everything else (Add widget's where: Tab · Right · Below · Row · Column). */
+  leadEntries?: readonly MenuEntry[]
 }
 
 const CHANGE_LIST_WIDTH_PX = 240
@@ -119,6 +121,7 @@ export function WidgetKindMenu({
   settingEntries,
   sourceActions,
   listLayoutId,
+  leadEntries,
 }: WidgetKindMenuProps) {
   const listDefinitions = useListDefinitionStore((s) => s.listDefinitions)
   const showChangeList = currentKind === 'lens' && pickListForLens != null
@@ -129,7 +132,7 @@ export function WidgetKindMenu({
     [listDefinitions, pickListForLens, listLayoutId],
   )
 
-  const entries: MenuEntry[] = []
+  const entries: MenuEntry[] = leadEntries && leadEntries.length > 0 ? [...leadEntries, { kind: 'separator' }] : []
   const changeList: MenuItemEntry = {
     kind: 'item',
     label: listFirst ? 'Change list' : 'Change list…',

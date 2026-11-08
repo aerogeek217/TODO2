@@ -3,7 +3,6 @@ import type { LayoutCell } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { AddWidgetButtons } from './AddWidgetFlow'
 import { CloseIcon, PlusIcon } from '../shared/icons'
-import { useWorkspaceDrag } from './workspace-drag'
 import { FilledCell } from './FilledCell'
 import styles from './WorkspaceCell.module.css'
 
@@ -22,13 +21,12 @@ export interface WorkspaceCellProps {
 /** An empty cell (right after a split): kind buttons, "or drag a tab here", and a close ×. */
 function EmptyCell({ cell, style }: { cell: LayoutCell; style?: CSSProperties }) {
   const closeCell = useWorkspaceStore((s) => s.closeCell)
-  const drag = useWorkspaceDrag()
-  const over = drag?.hit?.kind === 'empty-cell' && drag.hit.cellId === cell.id && drag.accepts
   return (
     <section
-      className={`${styles.emptyCell} ${over ? styles.emptyCellOver : ''}`}
+      className={styles.emptyCell}
       style={style}
       data-ws-cell={cell.id}
+      data-ws-cell-title="Empty cell"
       data-empty="true"
       aria-label="Empty cell"
     >

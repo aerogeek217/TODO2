@@ -1,7 +1,8 @@
-import type { WorkspaceLayout } from '../models/workspace-layout'
+import type { LayoutBody, WorkspaceLayout } from '../models/workspace-layout'
 import { findTab } from './workspace-layout-queries'
 import { movePanel, moveTab, type LayoutDropTarget } from './workspace-layout-ops'
-import type { Side } from './workspace-grid'
+import { cellById, spanOf, type Side } from './workspace-grid'
+import { spanPx, tableTrackSizes, trackStart } from './workspace-table'
 
 /**
  * Hit testing for dragging a workspace tab or a whole cell (by its header).
@@ -18,11 +19,15 @@ import type { Side } from './workspace-grid'
  *    never over a cell (its strip and its body's zones win).
  * 3. A cell's header (its tab strip) → insert at that position. A headless
  *    cell's hidden strip is none (`dropStrip`).
- * 4. A cell body → its outer {@link SIDE_ZONE_SHARE} left / right (at most
- *    {@link SIDE_ZONE_MAX_PX}): split it that side; of the middle that is
- *    left, the top quarter / bottom quarter: split it above / below; the
- *    middle half: join as tab(s). An empty cell is one target.
+ * 4. A cell body → its outer {@link SIDE_ZONE_SHARE} on each side (at
+ *    most {@link SIDE_ZONE_MAX_PX}): split it that side (in a corner, the
+ *    side the pointer is deeper into); the middle: join as tab(s). An
+ *    empty cell is one target.
  * 5. The empty area of a layout with no cells → its first cell.
+ *
+ * What a drop will make is drawn as one ghost (`dropGhost`): the op run on
+ * a probe copy of the layout, and the cell that ends up holding what is
+ * dragged placed from the table's tracks as measured when the drag started.
  */
 
 export interface Rect {
@@ -34,6 +39,8 @@ export interface Rect {
 
 export interface CellGeometry {
   id: string
+  /** Its active tab's title (a split's ghost names it). */
+  title?: string
   /** The whole cell card. */
   rect: Rect
   /** The header (tab strip) as drawn; absent for an empty cell. A headless cell's is out of view (see `headless`). */
@@ -51,11 +58,27 @@ export interface CellGeometry {
   tabs: ReadonlyArray<{ id: string; rect: Rect }>
 }
 
+/** The table's grid as measured when the drag started: what the ghost's rectangle is placed from. */
+export interface TableMetrics {
+  /** The viewport point of its content's top-left corner (where track 0 starts; its scroll counted). */
+  left: number
+  top: number
+  /** Its content box (px): the room the tracks share. */
+  width: number
+  height: number
+  /** The gap between tracks (px). */
+  gap: number
+  /** Each row track's drawn height (px), by id: a fit row keeps it. */
+  rowPx: Readonly<Record<string, number>>
+}
+
 export interface WorkspaceGeometry {
   /** The workspace area (the table and its padding). */
   area: Rect
   /** Every cell of the table, as drawn. */
   cells: readonly CellGeometry[]
+  /** The table's grid; absent for an empty layout. */
+  table?: TableMetrics
 }
 
 /** Width of the insert-column zone just inside the workspace's left / right edge. */
@@ -64,9 +87,9 @@ export const EDGE_ZONE_OUTER_PX = 24
 export const INSERT_EDGE_ZONE_PX = 24
 /** How far the insert-row zones reach past the workspace's top edge (over the top bar) and its bottom edge. */
 export const INSERT_EDGE_OUTSIDE_PX = 16
-/** A cell body's left / right split zones: this share of its width each … */
+/** A cell body's split zones: this share of its width (height) on each side … */
 export const SIDE_ZONE_SHARE = 0.2
-/** … but no wider than this (px), so a wide cell's middle stays the bigger part. */
+/** … but no deeper than this (px), so a big cell's middle stays the bigger part. */
 export const SIDE_ZONE_MAX_PX = 120
 
 /** A cell body's zones: a split on that side (`left` / `right` / `top` / `bottom`), or joining it. */
@@ -199,21 +222,26 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
   return null
 }
 
-/** The left / right split zone of `body` that `p` is in: its outer `SIDE_ZONE_SHARE` (at most `SIDE_ZONE_MAX_PX`) each side. */
-function sideZone(body: Rect, p: Point): 'left' | 'right' | null {
-  const side = Math.min((body.right - body.left) * SIDE_ZONE_SHARE, SIDE_ZONE_MAX_PX)
-  if (p.x < body.left + side) return 'left'
-  if (p.x > body.right - side) return 'right'
-  return null
-}
-
-/** A cell body's zone at `p`: a side, else the top / bottom quarter or the middle half of its height. */
-function bodyZone(body: Rect, p: Point): CellZone {
-  const side = sideZone(body, p)
-  if (side) return side
-  const h = body.bottom - body.top
-  const rel = h > 0 ? (p.y - body.top) / h : 0.5
-  return rel < 0.25 ? 'top' : rel > 0.75 ? 'bottom' : 'middle'
+/**
+ * A cell body's zone at `p`: a split on the side whose zone it is in — its
+ * outer `SIDE_ZONE_SHARE` that way, at most `SIDE_ZONE_MAX_PX` —, in a
+ * corner the side it is deeper into (by the share of that zone); else the
+ * middle.
+ */
+export function bodyZone(body: Rect, p: Point): CellZone {
+  const zw = Math.min((body.right - body.left) * SIDE_ZONE_SHARE, SIDE_ZONE_MAX_PX)
+  const zh = Math.min((body.bottom - body.top) * SIDE_ZONE_SHARE, SIDE_ZONE_MAX_PX)
+  // How deep into each side's zone the point is: 1 at the edge, 0 at the zone's inner end, below 0 past it.
+  const depth = (gap: number, zone: number) => (zone > 0 ? 1 - gap / zone : -1)
+  const sides: Array<[Side, number]> = [
+    ['left', depth(p.x - body.left, zw)],
+    ['right', depth(body.right - p.x, zw)],
+    ['top', depth(p.y - body.top, zh)],
+    ['bottom', depth(body.bottom - p.y, zh)],
+  ]
+  let best: [Side, number] | null = null
+  for (const s of sides) if (s[1] > 0 && (!best || s[1] > best[1])) best = s
+  return best ? best[0] : 'middle'
 }
 
 /**
@@ -247,10 +275,84 @@ export function dropTargetForHit(
 
 /** Whether dropping what is dragged on `target` would change the layout. */
 export function dropChangesLayout(layout: WorkspaceLayout, source: WorkspaceDragSource, target: LayoutDropTarget): boolean {
+  return probeDrop(layout, source, target) !== layout
+}
+
+/** The layout a drop would make (the same object when it changes nothing), with throwaway ids. */
+function probeDrop(layout: WorkspaceLayout, source: WorkspaceDragSource, target: LayoutDropTarget): WorkspaceLayout {
   let n = 0
   const genId = () => `probe-${++n}`
-  const next = source.type === 'tab'
+  return source.type === 'tab'
     ? moveTab(layout, source.tabId, target, genId)
     : movePanel(layout, source.panelId, target, genId)
-  return next !== layout
+}
+
+// ── The ghost ───────────────────────────────────────────────────────────────
+
+/** What a drop will make, drawn where it lands: a rectangle (viewport px) and its words. */
+export interface DropGhost {
+  rect: Rect
+  label: string
+}
+
+/** The side words of a split's label ("Split Late · above"). */
+const SIDE_WORDS: Record<Side, string> = { left: 'left', right: 'right', top: 'above', bottom: 'below' }
+
+/** What a drop on `target` says: "Split Late · above", "Insert row · full width", "Add as tab". */
+export function dropLabel(geo: WorkspaceGeometry, target: LayoutDropTarget, tabCount: number): string {
+  switch (target.kind) {
+    case 'split': {
+      const title = geo.cells.find((c) => c.id === target.cellId)?.title
+      return `Split ${title ? `${title} · ` : ''}${SIDE_WORDS[target.side]}`
+    }
+    case 'insert':
+      return target.edge === 'top' || target.edge === 'bottom' ? 'Insert row · full width' : 'Insert column · full height'
+    case 'cell':
+      return tabCount > 1 ? `Add ${tabCount} tabs` : 'Add as tab'
+    case 'layout':
+      return 'First cell'
+  }
+}
+
+/**
+ * The rectangle (viewport px) cell `cellId` of `body` takes in the table
+ * measured as `table`: its tracks sized as the view sizes them
+ * (`workspace-table.tableTrackSizes`; a fit row as it was drawn), from the
+ * table's content corner. `null` for an unknown cell.
+ */
+export function cellRectIn(body: LayoutBody, cellId: string, table: TableMetrics): Rect | null {
+  const cell = cellById(body, cellId)
+  if (!cell) return null
+  const cols = tableTrackSizes(body, 'columns', table.width, table.gap)
+  const rows = tableTrackSizes(body, 'rows', table.height, table.gap, new Map(Object.entries(table.rowPx)))
+  const [c0, c1] = spanOf(cell.area, 'columns')
+  const [r0, r1] = spanOf(cell.area, 'rows')
+  const left = table.left + trackStart(cols, c0, table.gap)
+  const top = table.top + trackStart(rows, r0, table.gap)
+  return { left, top, right: left + spanPx(cols, c0, c1, table.gap), bottom: top + spanPx(rows, r0, r1, table.gap) }
+}
+
+/**
+ * The ghost of a drop of what is dragged (`source`; `tabIds` its tabs) on
+ * `target`: the move run on a probe copy of the layout, and the cell that
+ * then holds the first dragged tab placed from the geometry measured when
+ * the drag started (`cellRectIn`) — the place and size the drop will
+ * produce — with its words (`dropLabel`). An empty layout's first cell is
+ * the whole area. `null` when the drop changes nothing.
+ */
+export function dropGhost(
+  layout: WorkspaceLayout,
+  geo: WorkspaceGeometry,
+  source: WorkspaceDragSource,
+  target: LayoutDropTarget,
+  tabIds: readonly string[],
+): DropGhost | null {
+  const next = probeDrop(layout, source, target)
+  if (next === layout) return null
+  const label = dropLabel(geo, target, tabIds.length)
+  if (layout.cells.length === 0 || !geo.table) return { rect: geo.area, label }
+  const first = tabIds[0] ?? (source.type === 'tab' ? source.tabId : undefined)
+  const holder = first != null ? findTab(next, first)?.cellId : undefined
+  const rect = holder != null ? cellRectIn(next, holder, geo.table) : null
+  return rect ? { rect, label } : null
 }

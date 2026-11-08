@@ -1,139 +1,173 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
-import { evenPair, pairPercent, resizePair } from '../../utils/workspace-resize'
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import type { GridAxis, LayoutBody } from '../../models/workspace-layout'
+import { useWorkspaceStore } from '../../stores/workspace-store'
+import { cellById, spanOf, type EdgeStretch } from '../../utils/workspace-grid'
+import { moveEdge, type MoveEdgeOptions } from '../../utils/workspace-layout-ops'
+import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
+import { cellMinPx, tableTrackSizes, trackStart } from '../../utils/workspace-table'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import styles from './WorkspaceDivider.module.css'
 import { shortcutScope } from '../../utils/dom-contract'
-import type { ResizeOptions } from '../../stores/workspace-store'
+import { measureTableElement } from './measure'
+import styles from './WorkspaceDivider.module.css'
 
 /** Keyboard step for a focused divider (px). */
 const KEY_STEP_PX = 16
-/** How far past a row's minimum height the pointer must go to collapse it (px). */
-const COLLAPSE_SLACK_PX = 24
 
 interface WorkspaceDividerProps {
-  /**
-   * `columns`: between two columns (drags left/right); `rows`: between two
-   * rows of a column (drags up/down); `cells`: between two cells of a row
-   * (drags left/right).
-   */
-  between: DividerBetween
-  aId: string
-  bId: string
-  weightA: number
-  weightB: number
-  /** Smallest size (px) of the first neighbour (and of the second, unless `minB` says). */
-  min: number
-  /** Smallest size (px) of the second neighbour; default `min`. */
-  minB?: number
-  /** New weights; `live` while dragging (each frame), then `onResizeEnd` once at the end. */
-  onResize: (weightById: Record<string, number>, opts?: ResizeOptions) => void
-  /** The drag ended (save the result: the frames weren't). */
-  onResizeEnd?: () => void
-  /** Rows only: dragging past a row's minimum collapses it to its headers. */
-  onCollapse?: (id: string) => void
+  /** The stretch of grid line it moves (`workspace-grid.edgeStretches`). */
+  stretch: EdgeStretch
+  /** The first cells on either side (its `data-ws-divider`, `<before>|<after>`). */
+  beforeId: string
+  afterId: string
+  /** "Resize Notes and Calendar". */
   label: string
+  /** The share (%) of the two tracks beside it that the first has (`aria-valuenow`). */
+  valueNow: number
+  /** Where it sits in the table's grid (the gutter before the track after it). */
+  style: CSSProperties
 }
 
+/** What a divider drag keeps from its start. */
 interface DragState {
   pointerId: number
   start: number
-  sizeA: number
-  sizeB: number
-  weightA: number
-  weightB: number
+  layout: LayoutBody
+  opts: MoveEdgeOptions
+  /** The table's room and gap along the axis, and its rows' drawn heights (for the preview). */
+  available: number
+  gap: number
+  rowPx: ReadonlyMap<string, number>
+  /** The last frame changed the structure (part of a line moved): drawn as a preview, applied on release. */
+  structural: boolean
+  delta: number
 }
 
-type DividerBetween = 'columns' | 'rows' | 'cells'
+/** The table's tracks along `axis` as drawn (px), from its computed grid template. */
+function drawnSizes(table: HTMLElement, axis: GridAxis): number[] {
+  const style = getComputedStyle(table)
+  const template = axis === 'columns' ? style.gridTemplateColumns : style.gridTemplateRows
+  return template.split(' ').map((v) => Number.parseFloat(v)).filter((n) => Number.isFinite(n))
+}
 
-const MEASURED: Record<DividerBetween, string> = { columns: 'data-ws-column', rows: 'data-ws-row', cells: 'data-ws-cell' }
+/** Each cell's minimum along an axis (`workspace-table.cellMinPx`: a collapsed cell's is its header). */
+function minPxIn(layout: LayoutBody): MoveEdgeOptions['minPx'] {
+  return (cell, axis) => cellMinPx(layout, cell, axis)
+}
 
-function measure(between: DividerBetween, id: string): number | null {
-  const attr = MEASURED[between]
-  const el = document.querySelector<HTMLElement>(`[${attr}="${CSS.escape(id)}"]`)
-  if (!el) return null
-  const r = el.getBoundingClientRect()
-  return between === 'rows' ? r.height : r.width
+/** Throwaway ids for a preview's probe (never stored). */
+function probeIds(): () => string {
+  let n = 0
+  return () => `probe-${++n}`
 }
 
 /**
- * The gutter between two columns, rows or cells, as a resize handle: drag to
- * move it (rAF-throttled; only the two neighbours change; the frames are
- * `live` edits, saved once at the end — sizes are view state), double-click to
- * even them out, ←/→ (↑/↓) to move it 16px. Neither neighbour goes below
- * its minimum (`min`, `minB`); dragging a row well past its minimum
- * collapses it instead.
+ * The px offset along the axis the stretch's line moves to in `next` from
+ * where it is in `layout` (the first cell before it keeps its id and ends
+ * on it): a preview of a move that changes the structure.
  */
-export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, minB = min, onResize, onResizeEnd, onCollapse, label }: WorkspaceDividerProps) {
-  const axisX = between !== 'rows'
+function previewOffset(drag: DragState, stretch: EdgeStretch, next: LayoutBody, beforeId: string): number {
+  const { axis } = stretch
+  const cell = cellById(next, beforeId)
+  if (!cell) return drag.delta
+  const sizes = tableTrackSizes(next, axis, drag.available, drag.gap, drag.rowPx)
+  const line = spanOf(cell.area, axis)[1]
+  const at = trackStart(sizes, line, drag.gap)
+  const was = trackStart(drag.opts.sizes, stretch.line, drag.gap)
+  return at - was
+}
+
+/**
+ * The gutter between the cells on either side of a stretch of grid line, as
+ * a resize handle (D26 P2). A drag moves the stretch (`moveEdge`, snapping
+ * onto another line within 8px, every cell kept at its minimum): when it is
+ * the whole line, the two tracks beside it share their size anew, live,
+ * saved once at the end as view state; when only part of it moves (a new
+ * line), it previews where the line goes and makes that unsaved edit on
+ * release. ←/→ (↑/↓) move it 16px; a double-click evens a whole line's two
+ * tracks.
+ */
+export function WorkspaceDivider({ stretch, beforeId, afterId, label, valueNow, style }: WorkspaceDividerProps) {
+  const axisX = stretch.axis === 'columns'
   const dragRef = useRef<DragState | null>(null)
   const rafRef = useRef<number | null>(null)
-  const pendingRef = useRef<Record<string, number> | null>(null)
+  const pendingRef = useRef<number | null>(null)
   const [dragging, setDragging] = useState(false)
-
-  const flush = useCallback(() => {
-    rafRef.current = null
-    const next = pendingRef.current
-    pendingRef.current = null
-    if (next) onResize(next, { live: true })
-  }, [onResize])
-
-  const schedule = useCallback((next: Record<string, number>) => {
-    pendingRef.current = next
-    if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush)
-  }, [flush])
+  const [preview, setPreview] = useState<number | null>(null)
 
   // Gone mid-drag: what the frames applied is kept all the same.
-  const onResizeEndRef = useLatestRef(onResizeEnd)
+  const endRef = useLatestRef(() => { void useWorkspaceStore.getState().endResize() })
   useEffect(() => () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
-    if (dragRef.current) onResizeEndRef.current?.()
-  }, [onResizeEndRef])
+    if (dragRef.current) endRef.current()
+  }, [endRef])
 
-  const endDrag = (el: HTMLElement, pointerId: number) => {
-    dragRef.current = null
-    setDragging(false)
-    if (el.hasPointerCapture?.(pointerId)) el.releasePointerCapture(pointerId)
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current)
-      flush()
-    }
-    onResizeEnd?.()
+  /** Applies one frame: a whole-line move live; a structural one only previewed (the sizes back to the start). */
+  const frame = (delta: number) => {
+    const drag = dragRef.current
+    if (!drag) return
+    drag.delta = delta
+    const store = useWorkspaceStore.getState()
+    const next = moveEdge(drag.layout, stretch, delta, drag.opts, probeIds())
+    const structural = next !== drag.layout && !layoutStructureEqual(next, drag.layout)
+    const sizesOf = (body: LayoutBody) => Object.fromEntries(body.grid[stretch.axis].map((t) => [t.id, t.px ?? t.weight ?? 0]))
+    void store.setTrackSizes(sizesOf(structural ? drag.layout : next), { live: true })
+    drag.structural = structural
+    setPreview(structural ? previewOffset(drag, stretch, next, beforeId) : null)
+  }
+
+  const flush = () => {
+    rafRef.current = null
+    const delta = pendingRef.current
+    pendingRef.current = null
+    if (delta != null) frame(delta)
   }
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
-    const sizeA = measure(between, aId)
-    const sizeB = measure(between, bId)
-    if (sizeA == null || sizeB == null) return
+    const layout = useWorkspaceStore.getState().working
+    const table = e.currentTarget.closest<HTMLElement>('[data-ws-table]')
+    if (!layout || !table) return
+    const sizes = drawnSizes(table, stretch.axis)
+    if (sizes.length !== layout.grid[stretch.axis].length) return
+    const metrics = measureTableElement(table)
     e.preventDefault()
     e.currentTarget.setPointerCapture?.(e.pointerId)
-    dragRef.current = { pointerId: e.pointerId, start: axisX ? e.clientX : e.clientY, sizeA, sizeB, weightA, weightB }
+    dragRef.current = {
+      pointerId: e.pointerId,
+      start: axisX ? e.clientX : e.clientY,
+      layout,
+      opts: { sizes, minPx: minPxIn(layout) },
+      available: axisX ? metrics.width : metrics.height,
+      gap: metrics.gap,
+      rowPx: new Map(Object.entries(metrics.rowPx)),
+      structural: false,
+      delta: 0,
+    }
     setDragging(true)
   }
 
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== e.pointerId) return
-    const delta = (axisX ? e.clientX : e.clientY) - drag.start
-    const r = resizePair({ ...drag, delta, min, minB })
-    if (onCollapse) {
-      const collapseId = r.rawA < min - COLLAPSE_SLACK_PX ? aId : r.rawB < minB - COLLAPSE_SLACK_PX ? bId : null
-      if (collapseId) {
-        pendingRef.current = null
-        // Back to the drag's start as a frame, so the drag's end saves only that.
-        onResize({ [aId]: drag.weightA, [bId]: drag.weightB }, { live: true })
-        endDrag(e.currentTarget, e.pointerId)
-        onCollapse(collapseId)
-        return
-      }
-    }
-    schedule({ [aId]: r.weightA, [bId]: r.weightB })
+    pendingRef.current = (axisX ? e.clientX : e.clientY) - drag.start
+    if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush)
   }
 
   const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== e.pointerId) return
-    endDrag(e.currentTarget, e.pointerId)
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current)
+      flush()
+    }
+    dragRef.current = null
+    setDragging(false)
+    setPreview(null)
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
+    const store = useWorkspaceStore.getState()
+    // The live frames' sizes saved first (a structural move put them back to the start).
+    void store.endResize()
+    if (drag.structural && e.type === 'pointerup') void store.moveEdge(stretch, drag.delta, drag.opts)
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -141,29 +175,40 @@ export function WorkspaceDivider({ between, aId, bId, weightA, weightB, min, min
     const shrink = axisX ? 'ArrowLeft' : 'ArrowUp'
     if (e.key !== grow && e.key !== shrink) return
     e.preventDefault()
-    const sizeA = measure(between, aId)
-    const sizeB = measure(between, bId)
-    if (sizeA == null || sizeB == null) return
-    const r = resizePair({ sizeA, sizeB, weightA, weightB, delta: e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, min, minB })
-    onResize({ [aId]: r.weightA, [bId]: r.weightB })
+    const layout = useWorkspaceStore.getState().working
+    const table = e.currentTarget.closest<HTMLElement>('[data-ws-table]')
+    if (!layout || !table) return
+    const sizes = drawnSizes(table, stretch.axis)
+    if (sizes.length !== layout.grid[stretch.axis].length) return
+    void useWorkspaceStore.getState().moveEdge(stretch, e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, { sizes, minPx: minPxIn(layout) })
   }
 
+  /** A whole line's two weighted tracks share their size evenly. */
   const onDoubleClick = () => {
-    const even = evenPair(weightA, weightB)
-    onResize({ [aId]: even.weightA, [bId]: even.weightB })
+    const layout = useWorkspaceStore.getState().working
+    const tracks = layout?.grid[stretch.axis]
+    const a = tracks?.[stretch.line - 1]
+    const b = tracks?.[stretch.line]
+    if (!a || !b || a.px != null || b.px != null) return
+    const half = ((a.weight ?? 0) + (b.weight ?? 0)) / 2
+    void useWorkspaceStore.getState().setTrackSizes({ [a.id]: half, [b.id]: half })
   }
 
+  const shift = preview != null ? (axisX ? `translateX(${preview}px)` : `translateY(${preview}px)`) : undefined
   return (
     <div
       className={`${styles.divider} ${axisX ? styles.betweenColumns : styles.betweenCells} ${dragging ? styles.dragging : ''}`}
+      style={{ ...style, ...(shift ? { transform: shift } : {}) }}
       role="separator"
       aria-orientation={axisX ? 'vertical' : 'horizontal'}
-      aria-valuenow={pairPercent(weightA, weightB)}
+      aria-valuenow={valueNow}
       aria-valuemin={0}
       aria-valuemax={100}
       aria-label={label}
       tabIndex={0}
-      data-ws-divider={`${aId}|${bId}`}
+      data-ws-divider={`${beforeId}|${afterId}`}
+      data-axis={stretch.axis}
+      data-preview={preview != null ? '' : undefined}
       // Its arrow keys move it; none of the app shortcuts (↑ / ↓ select tasks).
       {...shortcutScope('none')}
       onPointerDown={onPointerDown}

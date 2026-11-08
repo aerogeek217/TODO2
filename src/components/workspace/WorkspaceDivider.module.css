@@ -1,8 +1,8 @@
-/* The gutter between two columns / cells. The visible gutter is 6px; the hit
- * area reaches 2px into each neighbour (10px). */
+/* A divider (D26 P2): a grid item of the table, in the gutter before the
+ * track after its line, along its stretch. The visible gutter is 6px; the
+ * hit area reaches 2px into each neighbour (10px). */
 .divider {
   position: relative;
-  flex: 0 0 var(--workspace-gutter);
   z-index: var(--z-above-2);
   outline: none;
   touch-action: none;
@@ -13,8 +13,11 @@
   position: absolute;
 }
 
+/* An upright line, between columns: drags left / right. */
 .betweenColumns {
+  justify-self: start;
   width: var(--workspace-gutter);
+  margin-left: calc(-1 * var(--workspace-gutter));
   cursor: col-resize;
 }
 
@@ -25,8 +28,11 @@
   right: -2px;
 }
 
+/* A level line, between rows: drags up / down. */
 .betweenCells {
+  align-self: start;
   height: var(--workspace-gutter);
+  margin-top: calc(-1 * var(--workspace-gutter));
   cursor: row-resize;
 }
 

@@ -62,20 +62,6 @@ export function isGlanceCell(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = 
   return cell.tabs.length > 0 && cell.tabs.every((tab) => glance(tab.kind))
 }
 
-/** Whether row track `row`'s cells (those lying only in it) hold only glance widgets. */
-export function isGlanceTrack(body: LayoutBody, row: number, glance: KindFlag = isGlanceKind): boolean {
-  const cells = cellsOnlyInRow(body, row)
-  return cells.length > 0 && cells.every((cell) => isGlanceCell(cell, glance))
-}
-
-/**
- * The smallest height (px) a divider may size row track `row` to:
- * `GLANCE_ROW_MIN_PX` for a glance track, else `CELL_MIN_PX`.
- */
-export function trackMinHeightPx(body: LayoutBody, row: number, glance: KindFlag = isGlanceKind): number {
-  return isGlanceTrack(body, row, glance) ? GLANCE_ROW_MIN_PX : CELL_MIN_PX
-}
-
 /** The smallest height (px) a cell may take: `GLANCE_ROW_MIN_PX` for a glance cell, else `CELL_MIN_PX`. */
 export function cellMinHeightPx(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): number {
   return isGlanceCell(cell, glance) ? GLANCE_ROW_MIN_PX : CELL_MIN_PX
