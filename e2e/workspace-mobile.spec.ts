@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsTab, type WsLayoutSeed } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsTab, type WsLayoutSeed, wsRow } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
@@ -13,18 +13,18 @@ test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true
 const weekly: WsLayoutSeed = {
   name: 'Weekly review',
   columns: [
-    { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'todayTab', kind: 'lens', listDefIdx: 0 }] }] },
-    { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }, { id: 'b2', tabs: [{ id: 'notesTab', kind: 'notes' }] }] },
+    { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'todayTab', kind: 'lens', listDefIdx: 0 }] })] },
+    { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }), wsRow({ id: 'b2', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
     {
       id: 'colC',
-      cells: [{ id: 'c1', tabs: [{ id: 'waitTab', kind: 'lens', listDefIdx: 1 }, { id: 'eisTab', kind: 'eisenhower' }] }],
+      rows: [wsRow({ id: 'c1', tabs: [{ id: 'waitTab', kind: 'lens', listDefIdx: 1 }, { id: 'eisTab', kind: 'eisenhower' }] })],
     },
   ],
 }
 
 const daily: WsLayoutSeed = {
   name: 'Daily',
-  columns: [{ id: 'colD', cells: [{ id: 'd1', tabs: [{ id: 'dailyNotes', kind: 'notes' }] }] }],
+  columns: [{ id: 'colD', rows: [wsRow({ id: 'd1', tabs: [{ id: 'dailyNotes', kind: 'notes' }] })] }],
 }
 
 async function seed(page: Page): Promise<void> {

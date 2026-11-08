@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box, pointIn, type Box } from './fixtures/geometry'
-import { drag, seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The desktop task row's columns: every row of a list shares one set of
@@ -33,15 +33,15 @@ function seed(tab: Omit<WsTabSeed, 'id'>, width: number, tasks = TASKS): Workspa
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'w', weight: width, cells: [{ id: 'cell', tabs: [{ id: 'tab', ...tab }] }] },
-        { id: 'rest', weight: 1280 - width, cells: [{ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] }] },
+        { id: 'w', weight: width, rows: [wsRow({ id: 'cell', tabs: [{ id: 'tab', ...tab }] })] },
+        { id: 'rest', weight: 1280 - width, rows: [wsRow({ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] })] },
       ],
     }],
   }
 }
 
-/** A row date's text (D25 D1): `Today`, a weekday, `Nov 20` or another year's `MM/DD/YY`. */
-const ROW_DATE = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|[A-Z][a-z]{2} \d{1,2}|\d\d\/\d\d\/\d\d)$/
+/** A row date's text (D25 D1): `Today`, a weekday, or `11/20` (no year). */
+const ROW_DATE = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|\d\d\/\d\d|\d\d\/\d\d\/\d\d)$/
 
 const CELLS = ['markers', 'checkbox', 'notes', 'people', 'tags', 'dates', 'due', 'followup', 'status'] as const
 
@@ -73,8 +73,8 @@ async function laidOutDetails(r: Locator): Promise<number> {
 }
 
 async function storedTabView(page: Page, tabId: string): Promise<Record<string, unknown> | undefined> {
-  const layouts = await readStore<{ columns: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }>(page, 'layouts')
-  for (const l of layouts) for (const c of l.columns) for (const k of c.cells) for (const t of k.tabs) if (t.id === tabId) return t.viewState
+  const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }> }>(page, 'layouts')
+  for (const l of layouts) for (const c of l.columns) for (const r of c.rows) for (const k of r.cells) for (const t of k.tabs) if (t.id === tabId) return t.viewState
   return undefined
 }
 
@@ -109,9 +109,9 @@ test('status is the last column, flush with the row’s right padding; the defau
     expect(await laidOutDetails(r)).toBe(300)
   }
   const busy = row(widget, 'Draft the Q4 roadmap review deck')
-  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(55)
-  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(83)
-  expect(Math.round((await box(busy.locator('[data-row-cell="dates"]'))).width)).toBe(106)
+  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(61)
+  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(91)
+  expect(Math.round((await box(busy.locator('[data-row-cell="dates"]'))).width)).toBe(92)
   await expect(busy.locator('[data-row-cell="due"]')).toHaveText(ROW_DATE)
   await expect(busy.locator('[data-row-cell="followup"]')).toHaveText(ROW_DATE)
   await expect(widget.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
@@ -167,7 +167,7 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   // People and tags grew; the dates / status didn't.
   await expect.poll(() => storedTabView(page, 'tab')).toEqual({ detailsWidth: 360 })
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
-  expect(Math.round((await box(first.locator('[data-row-cell="dates"]'))).width)).toBe(106)
+  expect(Math.round((await box(first.locator('[data-row-cell="dates"]'))).width)).toBe(92)
 
   await page.reload()
   await expect(first).toBeVisible()
@@ -223,7 +223,7 @@ test('a 280px column: the title keeps 80px and nothing passes the row edge', asy
   expect(await storedTabView(page, 'tab')).toEqual({ detailsWidth: 4000 })
 })
 
-test('Eisenhower quadrants and dashboard sections use their tab’s value', async ({ page }) => {
+test('Eisenhower quadrants and a Needs follow-up widget use their tab’s value', async ({ page }) => {
   await seedWorkspace(page, {
     people: PEOPLE,
     tags: TAGS,
@@ -232,8 +232,8 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'a', weight: 1, cells: [{ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] }] },
-        { id: 'b', weight: 1, cells: [{ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', detailsWidth: 200, dashboard: { tiles: [], sections: [{ id: 'followup' }] } }] }] },
+        { id: 'a', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] })] },
+        { id: 'b', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'dash', kind: 'followup', detailsWidth: 200 }] })] },
       ],
     }],
   })
@@ -260,10 +260,10 @@ test('Eisenhower quadrants and dashboard sections use their tab’s value', asyn
   await expect.poll(() => storedTabView(page, 'eis')).toEqual({ detailsWidth: 148 })
   for (const d of await eis.locator('[data-task-row-divider]').all()) expect(Number(await d.getAttribute('aria-valuenow'))).toBe(148)
   for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(148)
-  // The dashboard keeps its own.
+  // The Needs follow-up widget keeps its own.
   for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
 
-  // The dashboard's Needs follow-up section shares its value live too.
+  // Its rows share its value live too.
   const followup = page.locator('[data-dash-section="followup"]')
   const dFrom = await pointIn(divider(followup))
   await page.mouse.move(dFrom.x, dFrom.y)

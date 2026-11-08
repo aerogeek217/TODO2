@@ -11,9 +11,10 @@ import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from '../../data/data
 import { createTab, type LayoutBand, type LayoutColumn } from '../../models/workspace-layout'
 import { emptyPredicate, type TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
+import { rowOf } from '../helpers/layout-builders'
 
-const columns: LayoutColumn[] = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'n', tabs: [createTab('notes', 'n')] }] }]
-const other: LayoutColumn[] = [{ id: 'B', weight: 1, cells: [{ id: 'k2', weight: 1, activeTabId: 'c', tabs: [createTab('calendar', 'c')] }] }]
+const columns: LayoutColumn[] = [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', weight: 1, activeTabId: 'n', tabs: [createTab('notes', 'n')] })] }]
+const other: LayoutColumn[] = [{ id: 'B', weight: 1, rows: [rowOf({ id: 'k2', weight: 1, activeTabId: 'c', tabs: [createTab('calendar', 'c')] })] }]
 const savedDraft = { kind: 'saved', layoutId: 2, base: { columns: other }, body: { columns } } as const
 
 function listDef(over: Partial<PersistedListDefinition> = {}): PersistedListDefinition {
@@ -42,8 +43,8 @@ describe('draft storage', () => {
   })
 
   it('keeps the bands of a layout draft and of its base', () => {
-    const top: LayoutBand = { id: 'T', height: 200, activeTabId: 't', tabs: [createTab('dashboard', 't')] }
-    const bottom: LayoutBand = { id: 'B2', height: 90, collapsed: true, tabs: [createTab('notes', 'b')] }
+    const top: LayoutBand = { id: 'T', height: 200, cells: [{ id: 'T-c', weight: 1, activeTabId: 't', tabs: [createTab('trend', 't')] }] }
+    const bottom: LayoutBand = { id: 'B2', height: 90, collapsed: true, cells: [{ id: 'B2-c', weight: 1, tabs: [createTab('notes', 'b')] }] }
     const record = { kind: 'saved', layoutId: 2, base: { columns: other, bottom }, body: { columns, top } } as const
     writeLayoutDraft(record)
     const stored = JSON.parse(localStorage.getItem('todo2-unsaved-layout')!)
@@ -68,20 +69,20 @@ describe('draft storage', () => {
   })
 
   it('a current draft whose Eisenhower tab holds a config key (it has none) is no draft', () => {
-    const bad = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: { listDefinitionId: 3 } }] }] }]
+    const bad = [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: { listDefinitionId: 3 } }] })] }]
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns: bad, schemaVersion: CURRENT_DB_VERSION }))
     expect(readLayoutDraft()).toBeNull()
   })
 
   it('reads a band the layout repair would change as no layout draft', () => {
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns, top: { id: 'T', height: 100, tabs: [] }, schemaVersion: CURRENT_DB_VERSION }))
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns, top: { id: 'T', height: 100, cells: [] }, schemaVersion: CURRENT_DB_VERSION }))
     expect(readLayoutDraft()).toBeNull()
   })
 
   it.each([
     ['not JSON', '{oops'],
     ['an unknown kind', JSON.stringify({ kind: 'other', columns })],
-    ['columns the layout repair would change', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: columns, columns: [{ id: 'A', weight: 1, cells: [{ id: 'k', tabs: [{ id: 'x', kind: 'nope' }] }] }] })],
+    ['columns the layout repair would change', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: columns, columns: [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', tabs: [{ id: 'x', kind: 'nope' }] })] }] })],
     ['a bad layout id', JSON.stringify({ kind: 'saved', layoutId: 0, baseColumns: columns, columns })],
     ['a new layout without a name', JSON.stringify({ kind: 'new', name: ' ', columns, listNames: {} })],
   ])('reads %s as no layout draft', (_what, raw) => {
@@ -159,18 +160,20 @@ describe('draft storage', () => {
     expect(read?.kind === 'custom' ? read.predicate.markers : undefined).toEqual([{ values: ['urgent'] }, { values: ['important'], not: true }])
   })
 
-  it('a layout draft an older build kept loses its dashboards’ Hot tile and section, the body and the base', () => {
-    const dash = (id: string) => createTab('dashboard', id)
-    const withHot = (id: string) => {
-      const tab = dash(id)
-      return { ...tab, config: { ...tab.config, tiles: [...tab.config.tiles, 'hot'], sections: [...tab.config.sections, { id: 'hot' }] } }
-    }
-    const cols = (tab: unknown) => [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'd', tabs: [tab] }] }]
+  it('a layout draft an older build kept loses its dashboards’ Hot tile and section, then its dashboards turn into widgets, the body and the base', () => {
+    const withHot = (id: string) => ({ id, kind: 'dashboard', config: { tiles: ['open', 'hot'], listTiles: [], sections: [{ id: 'hot' }, { id: 'status' }] } })
+    // Written in the v73 shape (a column's cells, a band's tabs): read back in today's (rows, a band's cells — v76; widgets — v77).
+    const v73Cols = (tab: unknown) => [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'd', tabs: [tab] }] }]
+    const part = (d: string, i: number, weight: number, kind: string, config: object) => ({ id: `${d}-c${i}`, weight, tabs: [{ id: `${d}-n${i}`, kind, config }] })
+    const cols = [{ id: 'A', weight: 1, rows: [
+      { id: 'd-r1', weight: 1, cells: [part('d', 1, 1, 'number', { metric: 'open' })] },
+      { id: 'd-r2', weight: 1, cells: [part('d', 2, 12, 'status', {})] },
+    ] }]
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({
-      kind: 'saved', layoutId: 2, columns: cols(withHot('d')), baseColumns: cols(withHot('d')), top: { id: 'T', height: 100, tabs: [withHot('t')] }, schemaVersion: 73,
+      kind: 'saved', layoutId: 2, columns: v73Cols(withHot('d')), baseColumns: v73Cols(withHot('d')), top: { id: 'T', height: 100, tabs: [withHot('t')] }, schemaVersion: 73,
     }))
     expect(readLayoutDraft()).toEqual({
-      kind: 'saved', layoutId: 2, base: { columns: cols(dash('d')) }, body: { columns: cols(dash('d')), top: { id: 'T', height: 100, tabs: [dash('t')] } },
+      kind: 'saved', layoutId: 2, base: { columns: cols }, body: { columns: cols, top: { id: 'T', height: 100, cells: [part('t', 1, 1, 'number', { metric: 'open' }), part('t', 2, 3, 'status', {})] } },
     })
   })
 

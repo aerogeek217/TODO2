@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { seedTaskList, seedWorkspace } from './fixtures/workspace'
+import { seedTaskList, seedWorkspace, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -8,7 +8,7 @@ import { readStore } from './fixtures/db'
  * the row stays put for a beat, then folds away out of a list that hides
  * completed tasks — with the undo snackbar, whose Undo brings it back.
  * Under reduced motion the row leaves at once (no fold); the snackbar stays.
- * The dashboard's task-row sections do the same.
+ * The glance row widgets (Stale tasks …) do the same.
  */
 
 const TASKS = [{ title: 'Write the review' }, { title: 'Collect sign-offs' }, { title: 'Plan learning time' }]
@@ -56,7 +56,7 @@ test('a stale row lingers too, though completing it moves its modified date to n
     ],
     layouts: [{
       name: 'Dash',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'stale' }] } }] }] }],
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'stale' }] })] }],
     }],
   })
   const stale = page.locator('[data-dash-section="stale"]')

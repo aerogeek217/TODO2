@@ -224,7 +224,7 @@ describe('todoStore', () => {
   })
 
   it('todosVersion bumps on id-set changes but not on field edits', async () => {
-    // Dashboard/ListView memoize assignment-load effects on
+    // The glance widgets / ListView memoize assignment-load effects on
     // `${todos.length}:${todosVersion}`, so the bump contract is load-bearing:
     // add / remove / bulkRemove / restore / purge should tick the counter,
     // update / toggleComplete / bulk-field setters should not.

@@ -135,7 +135,7 @@ describe('the calendar heat map (D18) reads on every step', () => {
   })
 })
 
-describe('a Lines tick / Strips bar (D25 I1) tells plain from stale', () => {
+describe('a Lines tick (D25 I1) tells plain from stale', () => {
   /** A tone token (the muted text at an alpha) composited over `bg`. */
   function toneOver(theme: ThemeName, tone: string, bg: string): number {
     const tokens = themeTokens(theme)

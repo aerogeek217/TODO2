@@ -36,7 +36,7 @@ export function makePaneContext(today: Date, range: UrgentDueWithinDays, extra: 
 }
 
 /**
- * The pane context a dashboard statistic's context (`StatsContext`) gives
+ * The pane context a glance statistic's context (`StatsContext`) gives
  * — what the Eisenhower summary classifies with in tests.
  */
 export function statsPaneContext(ctx: StatsContext, extra: Partial<PaneContext> = {}): PaneContext {

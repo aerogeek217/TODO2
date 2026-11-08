@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace } from './fixtures/workspace'
+import { seedWorkspace, wsRow } from './fixtures/workspace'
 
 /**
  * Tab / ⇧Tab indent and outdent list lines in the notes editors (cr28, T6).
@@ -9,7 +9,7 @@ import { seedWorkspace } from './fixtures/workspace'
  */
 
 const NOTES_LAYOUT = {
-  layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] })] }] }],
 }
 
 async function writeNote(page: Page, text: string): Promise<Locator> {

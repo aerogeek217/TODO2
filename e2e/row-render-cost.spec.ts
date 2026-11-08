@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { expectCounterLive, installRenderCounter, readRenderCounts, resetRenderCounts } from './fixtures/render-count'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * What a row click, a row hover and a task write render, held without timing (render
@@ -40,8 +40,8 @@ const SEED: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'a', cells: [{ id: 'ca', tabs: [{ id: 'plain', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'b', cells: [{ id: 'cb', tabs: [{ id: 'grouped', kind: 'lens', listDefIdx: 1 }] }] },
+      { id: 'a', rows: [wsRow({ id: 'ca', tabs: [{ id: 'plain', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'b', rows: [wsRow({ id: 'cb', tabs: [{ id: 'grouped', kind: 'lens', listDefIdx: 1 }] })] },
     ],
   }],
 }
@@ -104,7 +104,7 @@ test('a row hover renders the rows it leaves and enters, not the editor host whi
   await installRenderCounter(page, WATCHED)
   await seedWorkspace(page, {
     ...SEED,
-    layouts: [{ name: 'Main', columns: [{ id: 'a', cells: [{ id: 'ca', tabs: [{ id: 'plain', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'a', rows: [wsRow({ id: 'ca', tabs: [{ id: 'plain', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   const plain = wsListWidget(page, 'plain')
   await expect(plain.locator('[data-todo-id]')).toHaveCount(ROWS)

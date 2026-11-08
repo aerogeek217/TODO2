@@ -476,8 +476,8 @@ function chipHint(c: FilterChip): string {
 }
 
 /**
- * A list's filters in a few words, for a hint under its name (a dashboard
- * list tile, Copy from's rows): `Status: Waiting`, `@Priya`, `#q4`, an
+ * A list's filters in a few words, for a hint under its name (Copy from's
+ * rows): `Status: Waiting`, `@Priya`, `#q4`, an
  * expression as its text; `All tasks` with none.
  */
 export function listFilterHint(items: readonly (FilterChip | LineItem)[]): string {

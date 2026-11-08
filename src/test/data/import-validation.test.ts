@@ -557,8 +557,8 @@ describe('validateImportData', () => {
         ['staleAfterDays', '-1', 'staleAfterDays must be a day count 0–365'],
         ['staleAfterDays', '07', 'staleAfterDays must be a day count 0–365'],
         ['staleAfterDays', '', 'staleAfterDays must be a day count 0–365'],
-        ['rowDensity', 'cosy', 'rowDensity must be stacked, rows, lines or strips'],
-        ['rowDensity', 'Rows', 'rowDensity must be stacked, rows, lines or strips'],
+        ['rowDensity', 'cosy', 'rowDensity must be stacked, rows or lines — or strips, comfortable or compact'],
+        ['rowDensity', 'Rows', 'rowDensity must be stacked, rows or lines — or strips, comfortable or compact'],
         ['rowDates', 'short', 'rowDates must be relative or numeric'],
         ['rowDates', '', 'rowDates must be relative or numeric'],
       ] as const) {

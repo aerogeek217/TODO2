@@ -8,13 +8,13 @@ afterEach(cleanup)
 
 // Stored data isn't typed: a tab of a kind this build doesn't know must not
 // crash the cell (the layout load repair drops such tabs; this is the last guard).
-const retired = { id: 'old', kind: 'status', config: {} } as unknown as LayoutTab
+const retired = { id: 'old', kind: 'taskboard', config: {} } as unknown as LayoutTab
 
 describe('a tab of an unknown kind', () => {
   it('renders a note in the cell body', () => {
     const { container } = render(<WidgetBody tab={retired} />)
     const note = container.querySelector('[data-unknown-widget]')
-    expect(note).toHaveAttribute('data-unknown-widget', 'status')
+    expect(note).toHaveAttribute('data-unknown-widget', 'taskboard')
     expect(note).toHaveTextContent("This widget can't be shown in this version of TODO2.")
   })
 

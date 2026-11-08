@@ -1,0 +1,56 @@
+/* Settings › Appearance › Ambience: what sections.module.css doesn't have. */
+
+/* The rows under the switch; faded (still editable) while ambience is off. */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  transition: opacity var(--transition-medium);
+}
+
+.rowsOff {
+  opacity: 0.5;
+}
+
+.placeLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.field {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.coordinate {
+  width: 80px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.coordinate[aria-invalid='true'] {
+  box-shadow: inset 0 0 0 1px var(--color-danger);
+}
+
+/* Header motion: Settings' first slider — the browser's own, in the accent (the global focus ring applies). */
+.slider {
+  width: 180px;
+  height: 20px;
+  margin: 4px 0 0;
+  background: transparent;
+  accent-color: var(--color-accent);
+  cursor: pointer;
+}
+
+.sliderValue {
+  min-width: 36px;
+  margin-top: 4px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-secondary);
+}

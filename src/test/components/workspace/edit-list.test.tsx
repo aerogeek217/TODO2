@@ -10,6 +10,7 @@ import { useSettingsStore } from '../../../stores/settings-store'
 import type { PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { emptyPredicate } from '../../../models'
 import type { PersistedListDefinition } from '../../../models/list-definition'
+import { rowOf } from '../../helpers/layout-builders'
 
 const saved: PersistedListDefinition = {
   id: 7, name: 'Waiting on', sortOrder: 0,
@@ -37,7 +38,7 @@ const draft = () => useListDraftStore.getState().drafts[7]
 
 const layout: PersistedWorkspaceLayout = {
   id: 1, sortOrder: 0, name: 'Default', createdAt: new Date(), modifiedAt: new Date(),
-  columns: [{ id: 'col', weight: 1, cells: [{ id: 'c1', weight: 1, tabs: [{ id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }] }] }],
+  columns: [{ id: 'col', weight: 1, rows: [rowOf({ id: 'c1', weight: 1, tabs: [{ id: 't1', kind: 'lens', config: { listDefinitionId: 7 } }] })] }],
 }
 
 beforeEach(() => {
@@ -223,7 +224,7 @@ describe('Edit list', () => {
     open()
     const switched: PersistedWorkspaceLayout = {
       ...layout,
-      columns: [{ id: 'col', weight: 1, cells: [{ id: 'c1', weight: 1, tabs: [{ id: 't1', kind: 'lens', config: { listDefinitionId: 9 } }] }] }],
+      columns: [{ id: 'col', weight: 1, rows: [rowOf({ id: 'c1', weight: 1, tabs: [{ id: 't1', kind: 'lens', config: { listDefinitionId: 9 } }] })] }],
     }
     act(() => useWorkspaceStore.setState({ working: switched }))
     expect(useUIStore.getState().listEditor).toBeNull()

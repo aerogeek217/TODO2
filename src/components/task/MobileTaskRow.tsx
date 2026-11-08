@@ -18,7 +18,7 @@ import { formatDateNumeric, startOfToday, toDateInputValue } from '../../utils/d
 import { daysUntil, dateIntensity } from '../../utils/effective-date'
 import { PriorityRing } from '../shared/PriorityRing'
 import { rowCue } from '../../utils/priority-cues'
-import { markerSummary, priorityRing } from '../../utils/markers'
+import { markerSummary } from '../../utils/markers'
 import { isStale } from '../../utils/stale'
 import { useTaskRowPickers } from './use-task-row-pickers'
 import { keepRowTextUnselected } from './row-events'
@@ -157,8 +157,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({
             aria-label="Toggle complete"
           />
           <PriorityRing summary={markers} completed={todo.isCompleted} size={CHECKBOX_BOX} label={markers.label} />
-          {/* Focus under another ring: the desktop gutter's dot, here on the box's corner (the row has no gutter). */}
-          {priorityRing(markers, todo.isCompleted).focusDot && <span className={styles.focusDot} data-gutter-dot="focus" aria-hidden="true" />}
         </span>
 
         <button

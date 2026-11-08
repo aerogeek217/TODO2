@@ -86,14 +86,14 @@ describe('TaskRow', () => {
       expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent(/^04\/20$/)
     })
 
-    it('relative words: Today, the next six days’ weekday, then the month and day; overdue keeps its month and day; another year MM/DD/YY', () => {
+    it('relative words: Today, the next six days’ weekday, then MM/DD; overdue keeps its MM/DD; another year MM/DD too', () => {
       const cases: Array<[Date, string, string]> = [
         [new Date(2026, 3, 16), 'Due Thu 16 Apr', 'Today'],
         [new Date(2026, 3, 17), 'Due Fri 17 Apr', 'Fri'],
         [new Date(2026, 3, 22), 'Due Wed 22 Apr', 'Wed'],
-        [new Date(2026, 3, 23), 'Due Thu 23 Apr', 'Apr 23'],
-        [new Date(2026, 3, 10), 'Due Fri 10 Apr', 'Apr 10'],
-        [new Date(2027, 0, 15), 'Due Fri 15 Jan 2027', '01/15/27'],
+        [new Date(2026, 3, 23), 'Due Thu 23 Apr', '04/23'],
+        [new Date(2026, 3, 10), 'Due Fri 10 Apr', '04/10'],
+        [new Date(2027, 0, 15), 'Due Fri 15 Jan 2027', '01/15'],
       ]
       for (const [dueDate, name, text] of cases) {
         const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, dueDate })} />)
@@ -102,11 +102,11 @@ describe('TaskRow', () => {
       }
     })
 
-    it('another year’s MM/DD/YY takes the whole part: a repeating task’s glyph gives way, its tooltip still names the repeat', () => {
+    it('another year’s date is MM/DD with the repeat glyph, its name keeping the year', () => {
       render(<TaskRow todo={makeTodo({ id: 1, dueDate: new Date(2027, 0, 15), recurrenceRule: { type: 'yearly' } })} />)
       const due = screen.getByRole('button', { name: 'Due Fri 15 Jan 2027' })
-      expect(due.textContent).toBe('01/15/27')
-      expect(due.querySelectorAll('svg')).toHaveLength(0)
+      expect(due.textContent).toBe('01/15')
+      expect(due.querySelectorAll('svg')).toHaveLength(1)
     })
 
     it('a set date is its text alone (no clock); a repeating task keeps the repeat glyph before it', () => {
@@ -247,7 +247,7 @@ describe('TaskRow', () => {
     it('shows both dates beside their icons, each part its own button', () => {
       render(inList(528))
       expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('Mon')
-      expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' })).toHaveTextContent('Apr 24')
+      expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' })).toHaveTextContent('04/24')
       expect(document.querySelector('[data-row-cell="dates"]')).toHaveAttribute('data-dates-tier', 'both')
     })
 
@@ -429,26 +429,27 @@ describe('TaskRow', () => {
       useSettingsStore.setState({ urgentDueWithinDays: 3 })
     })
 
-    it('one button named by the markers before the checkbox: a flag (shown on hover), the ring on the checkbox, the Focus dot under another ring', () => {
+    it('one button named by the markers before the checkbox: a flag (shown on hover), the ring on the checkbox, Focus under another ring its halo', () => {
       render(<TaskRow todo={makeTodo({ id: 1, title: 'All three', urgent: true, important: true, focus: true })} />)
       const gutter = screen.getByRole('button', { name: 'Priority: Focus, Urgent, Important' })
       expect(gutter.querySelector('[data-gutter-flag]')).not.toBeNull()
-      expect(gutter.querySelector('[data-gutter-dot="focus"]')).not.toBeNull()
       expect(gutter.compareDocumentPosition(screen.getByRole('checkbox')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       // The ring is drawn over the checkbox, decorative (the gutter names it).
       const ring = screen.getByRole('checkbox').parentElement!.querySelector('[data-priority-ring]')
       expect(ring).toHaveAttribute('data-priority-ring', 'split')
       expect(ring).toHaveAttribute('aria-hidden', 'true')
+      // Focus: the glow around the box, beside the ring.
+      expect(screen.getByRole('checkbox').parentElement!.querySelector('[data-focus-glow]')).not.toBeNull()
     })
 
-    it('Focus alone: its ring, no gutter dot; no priority: no ring, an empty gutter', () => {
+    it('Focus alone: the glow, no ring (the box keeps its border); no priority: neither, an empty gutter', () => {
       const { unmount } = render(<TaskRow todo={makeTodo({ id: 1, focus: true })} />)
-      expect(document.querySelector('[data-priority-ring]')).toHaveAttribute('data-priority-ring', 'focus')
-      expect(document.querySelector('[data-gutter-dot]')).toBeNull()
+      expect(document.querySelector('[data-priority-ring]')).toBeNull()
+      expect(document.querySelector('[data-focus-glow]')).not.toBeNull()
       unmount()
       render(<TaskRow todo={makeTodo({ id: 1 })} />)
       expect(document.querySelector('[data-priority-ring]')).toBeNull()
-      expect(document.querySelector('[data-gutter-dot]')).toBeNull()
+      expect(document.querySelector('[data-focus-glow]')).toBeNull()
     })
 
     it('urgent only by its due date is the dashed ring, named and explained in the tooltip', () => {

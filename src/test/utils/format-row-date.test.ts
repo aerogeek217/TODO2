@@ -1,5 +1,5 @@
 // A task row's date (D25 D1): `Today`, the weekday for the next six days,
-// `Nov 20` in this calendar year, `01/15/27` in another — or `MM/DD`. Runs
+// `11/20` in this calendar year, `01/15/27` in another — or `MM/DD`. Runs
 // in a DST zone (US Eastern, 2026: clocks go forward Sun 8 Mar, back Sun
 // 1 Nov), so the day counts are checked across both transitions.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
@@ -38,32 +38,32 @@ describe('formatRowDate — relative', () => {
   })
 
   it('a week out is the month and day', () => {
-    expect(rel(new Date(2026, 10, 13), today)).toBe('Nov 13')
-    expect(rel(new Date(2026, 10, 20), today)).toBe('Nov 20')
-    expect(rel(new Date(2026, 11, 31), today)).toBe('Dec 31')
+    expect(rel(new Date(2026, 10, 13), today)).toBe('11/13')
+    expect(rel(new Date(2026, 10, 20), today)).toBe('11/20')
+    expect(rel(new Date(2026, 11, 31), today)).toBe('12/31')
   })
 
-  it('a past day (overdue) keeps its month and day — never a weekday', () => {
-    expect(rel(new Date(2026, 10, 5), today)).toBe('Nov 5')
-    expect(rel(new Date(2026, 9, 27), today)).toBe('Oct 27')
-    expect(rel(new Date(2026, 0, 1), today)).toBe('Jan 1')
+  it('a past day (overdue) keeps its MM/DD — never a weekday', () => {
+    expect(rel(new Date(2026, 10, 5), today)).toBe('11/05')
+    expect(rel(new Date(2026, 9, 27), today)).toBe('10/27')
+    expect(rel(new Date(2026, 0, 1), today)).toBe('01/01')
   })
 
-  it('another calendar year is MM/DD/YY', () => {
-    expect(rel(new Date(2027, 0, 15), today)).toBe('01/15/27')
-    expect(rel(new Date(2025, 2, 4), today)).toBe('03/04/25')
-    expect(rel(new Date(2030, 11, 9), today)).toBe('12/09/30')
+  it('another calendar year is MM/DD too, no year (the tooltip and name carry it)', () => {
+    expect(rel(new Date(2027, 0, 15), today)).toBe('01/15')
+    expect(rel(new Date(2025, 2, 4), today)).toBe('03/04')
+    expect(rel(new Date(2030, 11, 9), today)).toBe('12/09')
   })
 
-  it('across the year end: the next six days stay weekdays, then the other year’s MM/DD/YY', () => {
+  it('across the year end: the next six days stay weekdays, then MM/DD', () => {
     const newYearsEve = new Date(2026, 11, 31, 18) // Thursday
     expect(rel(new Date(2026, 11, 31), newYearsEve)).toBe('Today')
     expect(rel(new Date(2027, 0, 1), newYearsEve)).toBe('Fri')
     expect(rel(new Date(2027, 0, 6), newYearsEve)).toBe('Wed')
-    expect(rel(new Date(2027, 0, 7), newYearsEve)).toBe('01/07/27')
-    expect(rel(new Date(2026, 11, 30), newYearsEve)).toBe('Dec 30')
+    expect(rel(new Date(2027, 0, 7), newYearsEve)).toBe('01/07')
+    expect(rel(new Date(2026, 11, 30), newYearsEve)).toBe('12/30')
     // The day before New Year's Day is last year's.
-    expect(rel(new Date(2026, 11, 31), new Date(2027, 0, 1, 9))).toBe('12/31/26')
+    expect(rel(new Date(2026, 11, 31), new Date(2027, 0, 1, 9))).toBe('12/31')
   })
 
   it('counts calendar days over the 25-hour day (clocks back Sun 1 Nov)', () => {
@@ -71,15 +71,15 @@ describe('formatRowDate — relative', () => {
     expect(rel(new Date(2026, 10, 1), lateSaturday)).toBe('Sun')
     expect(rel(new Date(2026, 10, 1, 23), new Date(2026, 9, 31))).toBe('Sun')
     expect(rel(new Date(2026, 10, 6), lateSaturday)).toBe('Fri')
-    expect(rel(new Date(2026, 10, 7), lateSaturday)).toBe('Nov 7')
+    expect(rel(new Date(2026, 10, 7), lateSaturday)).toBe('11/07')
   })
 
   it('counts calendar days over the 23-hour day (clocks forward Sun 8 Mar)', () => {
     const lateSaturday = new Date(2026, 2, 7, 23, 30)
     expect(rel(new Date(2026, 2, 8), lateSaturday)).toBe('Sun')
     expect(rel(new Date(2026, 2, 13, 23, 59), lateSaturday)).toBe('Fri')
-    expect(rel(new Date(2026, 2, 14), lateSaturday)).toBe('Mar 14')
-    expect(rel(new Date(2026, 2, 7), new Date(2026, 2, 8, 12))).toBe('Mar 7')
+    expect(rel(new Date(2026, 2, 14), lateSaturday)).toBe('03/14')
+    expect(rel(new Date(2026, 2, 7), new Date(2026, 2, 8, 12))).toBe('03/07')
   })
 })
 

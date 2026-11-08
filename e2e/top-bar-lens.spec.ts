@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * cr22: the top bar's lens control is its own part of the bar, between the
@@ -27,7 +27,7 @@ const SEED: WorkspaceSeed = {
     { id: 'lens-long', name: 'Customer escalations this quarter', predicate: { searchText: 'e' } },
   ],
   layouts: [
-    { name: 'Default', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] },
+    { name: 'Default', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] },
     { name: 'Lists from upgrade', columns: [] },
   ],
 }

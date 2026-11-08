@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { rowFixes, sanitizeRow, validateImportData, validateRow } from '../../data/import-validation'
 import { addTab } from '../../utils/workspace-layout-ops'
 import type { LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
+import { rowOf } from '../helpers/layout-builders'
 
 const DATE = '2026-09-01T09:00:00.000Z'
 
@@ -10,7 +11,7 @@ function layoutRow(columns: unknown, extra: Record<string, unknown> = {}): Recor
 }
 
 function oneTab(tab: Record<string, unknown>, cell: Record<string, unknown> = {}): unknown[] {
-  return [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [tab], ...cell }] }]
+  return [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [tab], ...cell })] }]
 }
 
 /** Layout rows `checkLayout` rejects: label, row, the bad field it names. */
@@ -20,86 +21,101 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['phone column not an id', layoutRow([], { activeColumnId: '' }), 'activeColumnId'],
   ['hue neither a preset name nor a hex colour', layoutRow([], { hue: 'mauve' }), 'hue'],
   ['columns not an array', layoutRow({}), 'columns'],
-  ['column without cells', layoutRow([{ id: 'c', weight: 1, cells: [] }]), 'columns[0].cells'],
-  ['zero weight', layoutRow([{ id: 'c', weight: 0, cells: [] }]), 'columns[0].weight'],
-  ['unknown kind', layoutRow(oneTab({ id: 't', kind: 'horizons', config: {} })), 'columns[0].cells[0].tabs[0].kind'],
-  ['retired Status widget', layoutRow(oneTab({ id: 't', kind: 'status', config: {} })), 'columns[0].cells[0].tabs[0].kind'],
-  ['dashboard tiles not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { tiles: 'open' } })), 'columns[0].cells[0].tabs[0].config.tiles'],
-  ['dashboard list tiles not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles: 3 } })), 'columns[0].cells[0].tabs[0].config.listTiles'],
-  ['dashboard sections not a list', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { sections: {} } })), 'columns[0].cells[0].tabs[0].config.sections'],
-  ['missing config', layoutRow(oneTab({ id: 't', kind: 'notes' })), 'columns[0].cells[0].tabs[0].config'],
-  ['calendar date types not booleans', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: 1, followup: false } } })), 'columns[0].cells[0].tabs[0].config.dateTypes'],
-  ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'columns[0].cells[0].tabs[0].viewState.view'],
-  ['calendar titles not a boolean', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { titles: 'on' } })), 'columns[0].cells[0].tabs[0].viewState.titles'],
-  ['bad Eisenhower collapsed', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['later'] } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
-  ['Eisenhower collapsed not a list', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: 'do' } })), 'columns[0].cells[0].tabs[0].viewState.collapsed'],
-  ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'columns[0].cells[0].tabs[0].config.listDefinitionId'],
-  ['bad collapsed', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }, { collapsed: 'yes' })), 'columns[0].cells[0].collapsed'],
-  ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].cells[0].tabs[0].id'],
-  ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
-  ['negative details width', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { detailsWidth: -1 } })), 'columns[0].cells[0].tabs[0].viewState.detailsWidth'],
-  ['unknown list zoom', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'huge' } })), 'columns[0].cells[0].tabs[0].viewState.zoom'],
+  ['column without rows', layoutRow([{ id: 'c', weight: 1, rows: [] }]), 'columns[0].rows'],
+  ['column in the v75 shape (cells, no rows)', layoutRow([{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [] }] }]), 'columns[0].rows'],
+  ['row without cells', layoutRow([{ id: 'c', weight: 1, rows: [{ id: 'r', weight: 1, cells: [] }] }]), 'columns[0].rows[0].cells'],
+  ['row not an object', layoutRow([{ id: 'c', weight: 1, rows: ['r'] }]), 'columns[0].rows[0]'],
+  ['row weight zero', layoutRow([{ id: 'c', weight: 1, rows: [{ ...rowOf({ id: 'k', weight: 1, tabs: [] }), weight: 0 }] }]), 'columns[0].rows[0].weight'],
+  ['row id repeats its column id', layoutRow([{ id: 'c', weight: 1, rows: [{ ...rowOf({ id: 'k', weight: 1, tabs: [] }), id: 'c' }] }]), 'columns[0].rows[0].id'],
+  ['cell id repeats its row id', layoutRow([{ id: 'c', weight: 1, rows: [rowOf({ id: 'k-r', weight: 1, tabs: [] }, { id: 'k-r' })] }]), 'columns[0].rows[0].cells[0].id'],
+  ['cell weight zero', layoutRow([{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 0, tabs: [] })] }]), 'columns[0].rows[0].cells[0].weight'],
+  ['strip shown not a boolean', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }, { stripShown: 'yes' })), 'columns[0].rows[0].cells[0].stripShown'],
+  ['zero weight', layoutRow([{ id: 'c', weight: 0, rows: [] }]), 'columns[0].weight'],
+  ['unknown kind', layoutRow(oneTab({ id: 't', kind: 'horizons', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
+  ['retired Taskboard widget', layoutRow(oneTab({ id: 't', kind: 'taskboard', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
+  // Retired in v77 (its tabs became glance widgets): past v77 an unknown kind.
+  ['retired Dashboard widget', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { tiles: ['open'], listTiles: [], sections: [] } })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
+  ['missing config', layoutRow(oneTab({ id: 't', kind: 'notes' })), 'columns[0].rows[0].cells[0].tabs[0].config'],
+  ['calendar date types not booleans', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: 1, followup: false } } })), 'columns[0].rows[0].cells[0].tabs[0].config.dateTypes'],
+  ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.view'],
+  ['calendar titles not a boolean', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { titles: 'on' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.titles'],
+  ['bad Eisenhower collapsed', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['later'] } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.collapsed'],
+  ['Eisenhower collapsed not a list', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: 'do' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.collapsed'],
+  ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'columns[0].rows[0].cells[0].tabs[0].config.listDefinitionId'],
+  ['bad row collapsed', layoutRow([{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [] }, { collapsed: 'yes' })] }]), 'columns[0].rows[0].collapsed'],
+  ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].id'],
+  ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.detailsWidth'],
+  ['negative details width', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { detailsWidth: -1 } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.detailsWidth'],
+  ['unknown list zoom', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'huge' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.zoom'],
   ['band not an object', layoutRow([], { bottom: 'yes' }), 'bottom'],
-  ['band with no tabs', layoutRow([], { top: { id: 'b', height: 160, tabs: [] } }), 'top.tabs'],
-  ['band tabs not a list', layoutRow([], { top: { id: 'b', height: 160, tabs: {} } }), 'top.tabs'],
-  ['band without a height', layoutRow([], { top: { id: 'b', tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'top.height'],
-  ['band height zero', layoutRow([], { top: { id: 'b', height: 0, tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'top.height'],
-  ['band id repeats a cell id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { top: { id: 'k', height: 160, tabs: [{ id: 't2', kind: 'notes', config: {} }] } }), 'top.id'],
-  ['band tab id repeats a tab id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { bottom: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'bottom.tabs[0].id'],
-  ['the two bands share an id', layoutRow([], { top: { id: 'b', height: 160, tabs: [{ id: 't1', kind: 'notes', config: {} }] }, bottom: { id: 'b', height: 160, tabs: [{ id: 't2', kind: 'notes', config: {} }] } }), 'bottom.id'],
-  ['unknown band tab kind', layoutRow([], { bottom: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'status', config: {} }] } }), 'bottom.tabs[0].kind'],
-  ['bad band collapsed', layoutRow([], { top: { id: 'b', height: 160, collapsed: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'top.collapsed'],
-  ['bad band tab settings', layoutRow([], { top: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'calendar', config: {} }] } }), 'top.tabs[0].config.dateTypes'],
-  ['Neglect map without colourBy', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { untouchedDays: 14 } })), 'columns[0].cells[0].tabs[0].config.colourBy'],
-  ['Neglect map colouring by an unknown kind', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'status' }, untouchedDays: 14 } })), 'columns[0].cells[0].tabs[0].config.colourBy'],
-  ['Neglect map tags not a list', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: 3 }, untouchedDays: 14 } })), 'columns[0].cells[0].tabs[0].config.colourBy'],
-  ['Neglect map threshold past the cap', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 60 } })), 'columns[0].cells[0].tabs[0].config.untouchedDays'],
-  ['Neglect map threshold not whole', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 2.5 } })), 'columns[0].cells[0].tabs[0].config.untouchedDays'],
+  ['band with no cells', layoutRow([], { top: { id: 'b', height: 160, cells: [] } }), 'top.cells'],
+  ['band in the v75 shape (tabs, no cells)', layoutRow([], { top: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'top.cells'],
+  ['band cell tabs not a list', layoutRow([], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: {} }] } }), 'top.cells[0].tabs'],
+  ['band without a height', layoutRow([], { top: { id: 'b', cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.height'],
+  ['band height zero', layoutRow([], { top: { id: 'b', height: 0, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.height'],
+  ['band id repeats a cell id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { top: { id: 'k', height: 160, cells: [{ id: 'k-c', weight: 1, tabs: [{ id: 't2', kind: 'notes', config: {} }] }] } }), 'top.id'],
+  ['band tab id repeats a tab id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'bottom.cells[0].tabs[0].id'],
+  ['the two bands share an id', layoutRow([], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] }, bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't2', kind: 'notes', config: {} }] }] } }), 'bottom.id'],
+  ['unknown band tab kind', layoutRow([], { bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'taskboard', config: {} }] }] } }), 'bottom.cells[0].tabs[0].kind'],
+  ['bad band collapsed', layoutRow([], { top: { id: 'b', height: 160, collapsed: 1, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.collapsed'],
+  ['bad band tab settings', layoutRow([], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'calendar', config: {} }] }] } }), 'top.cells[0].tabs[0].config.dateTypes'],
+  ['Neglect map without colourBy', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { untouchedDays: 14 } })), 'columns[0].rows[0].cells[0].tabs[0].config.colourBy'],
+  ['Neglect map colouring by an unknown kind', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'status' }, untouchedDays: 14 } })), 'columns[0].rows[0].cells[0].tabs[0].config.colourBy'],
+  ['Neglect map tags not a list', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: 3 }, untouchedDays: 14 } })), 'columns[0].rows[0].cells[0].tabs[0].config.colourBy'],
+  ['Neglect map threshold past the cap', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 60 } })), 'columns[0].rows[0].cells[0].tabs[0].config.untouchedDays'],
+  ['Neglect map threshold not whole', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 2.5 } })), 'columns[0].rows[0].cells[0].tabs[0].config.untouchedDays'],
 ]
 
-/** A top band (dashboard + a list) and a bottom band (a week calendar), as the layout row stores them. */
+/** A top band (a Number + a list) and a bottom band (a week calendar), as the layout row stores them. */
 const BANDS = {
-  top: { id: 'b1', height: 112, activeTabId: 'bt2', tabs: [
-    { id: 'bt1', kind: 'dashboard', config: { tiles: ['open'], listTiles: [], sections: [] } },
+  top: { id: 'b1', height: 112, cells: [{ id: 'b1-c', weight: 1, activeTabId: 'bt2', tabs: [
+    { id: 'bt1', kind: 'number', config: { metric: 'open' } },
     { id: 'bt2', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 280 } },
-  ] },
-  bottom: { id: 'b2', height: 150, collapsed: true, tabs: [
+  ] }] },
+  bottom: { id: 'b2', height: 150, collapsed: true, cells: [{ id: 'b2-c', weight: 1, tabs: [
     { id: 'bt3', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week' } },
-  ] },
+  ] }] },
 }
 
-/** Columns holding every kind, an empty cell, view state and a collapsed cell. */
+/** Columns holding every kind, an empty cell, view state, a collapsed row and a row of two cells. */
 const EVERY_KIND = [
-  { id: 'c1', weight: 1, cells: [
-    { id: 'k1', weight: 1, activeTabId: 't2', collapsed: true, tabs: [
+  { id: 'c1', weight: 1, rows: [
+    rowOf({ id: 'k1', weight: 1, activeTabId: 't2', tabs: [
       { id: 't1', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 300 } },
       { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2, titles: true } },
       { id: 't3', kind: 'notes', config: {} },
       { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'], detailsWidth: 0 } },
-      { id: 't5', kind: 'dashboard', config: { tiles: ['open'], listTiles: [2], sections: [{ id: 'trend', options: { range: '4w' } }] }, viewState: { detailsWidth: 4000 } },
+      { id: 't5', kind: 'stale', config: { staleDays: 30 }, viewState: { detailsWidth: 4000 } },
+    ] }, { collapsed: true }),
+    rowOf({ id: 'k2', weight: 1, tabs: [] }, { weight: 0.5 }),
+    // Two cells side by side, one headless.
+    { id: 'r3', weight: 1, cells: [
+      { id: 'k4', weight: 2, stripShown: false, tabs: [{ id: 't8', kind: 'notes', config: {} }] },
+      { id: 'k5', weight: 1, stripShown: true, tabs: [{ id: 't9', kind: 'notes', config: {} }] },
     ] },
-    { id: 'k2', weight: 0.5, tabs: [] },
   ] },
-  { id: 'c2', weight: 2, cells: [{ id: 'k3', weight: 1, tabs: [
+  { id: 'c2', weight: 2, rows: [rowOf({ id: 'k3', weight: 1, tabs: [
     { id: 't6', kind: 'notes', config: {} },
     { id: 't7', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 9] }, untouchedDays: 21 } },
-  ] }] },
+  ] })] },
 ]
 
 describe('layouts row validation', () => {
-  it('accepts a layout with many columns, cells and tabs, as the workspace reducers build it', () => {
+  it('accepts a layout with many columns, rows, cells and tabs, as the workspace reducers build it', () => {
     // Nothing in the workspace limits the counts; import keeps up to 1,000 of each.
     let n = 0
     const genId = () => `w-${n++}`
     let layout: WorkspaceLayout = { id: 1, sortOrder: 0, name: 'Big', columns: [], createdAt: new Date(DATE), modifiedAt: new Date(DATE) }
     const notes = (): LayoutTab => ({ id: genId(), kind: 'notes', config: {} })
     for (let c = 0; c < 40; c++) layout = addTab(layout, notes(), { kind: 'layout' }, genId)
-    const firstCell = layout.columns[0]!.cells[0]!.id
+    const firstCell = layout.columns[0]!.rows[0]!.cells[0]!.id
     for (let t = 0; t < 40; t++) layout = addTab(layout, notes(), { kind: 'cell', cellId: firstCell }, genId)
     for (let k = 0; k < 40; k++) layout = addTab(layout, notes(), { kind: 'cell-edge', cellId: firstCell, edge: 'bottom' }, genId)
+    for (let k = 0; k < 10; k++) layout = addTab(layout, notes(), { kind: 'cell-edge', cellId: firstCell, edge: 'right' }, genId)
     expect(layout.columns).toHaveLength(40)
-    expect(layout.columns[0]!.cells).toHaveLength(41)
-    expect(layout.columns[0]!.cells.find((cell) => cell.id === firstCell)!.tabs).toHaveLength(41)
+    expect(layout.columns[0]!.rows).toHaveLength(41)
+    expect(layout.columns[0]!.rows[0]!.cells).toHaveLength(11)
+    expect(layout.columns[0]!.rows[0]!.cells.find((cell) => cell.id === firstCell)!.tabs).toHaveLength(41)
 
     const row = JSON.parse(JSON.stringify(layout)) as Record<string, unknown>
     expect(validateRow('layouts', row)).toBe(true)
@@ -110,15 +126,15 @@ describe('layouts row validation', () => {
 
   it('accepts every kind, an empty cell and an empty layout', () => {
     const columns = [
-      { id: 'c1', weight: 1, cells: [
-        { id: 'k1', weight: 1, activeTabId: 't2', collapsed: true, tabs: [
+      { id: 'c1', weight: 1, rows: [
+        rowOf({ id: 'k1', weight: 1, activeTabId: 't2', tabs: [
           { id: 't1', kind: 'lens', config: { listDefinitionId: 3 } },
           { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2 } },
           { id: 't3', kind: 'notes', config: {} },
           { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
-          { id: 't5', kind: 'dashboard', config: { tiles: ['open'], listTiles: [2], sections: [{ id: 'trend', options: { range: '4w' } }] } },
-        ] },
-        { id: 'k2', weight: 0.5, tabs: [] },
+          { id: 't5', kind: 'trend', config: { range: '4w' } },
+        ] }, { collapsed: true }),
+        rowOf({ id: 'k2', weight: 1, tabs: [] }, { weight: 0.5 }),
       ] },
     ]
     expect(validateRow('layouts', layoutRow(columns, { lastUsedAt: DATE, activeColumnId: 'c1', hue: 'violet' }))).toBe(true)
@@ -141,16 +157,16 @@ describe('layouts row validation', () => {
   })
 
   it('import keeps only a band’s model keys and drops its stale activeTabId', () => {
-    const top = { id: 'b', height: 90.5, activeTabId: 'gone', collapsed: false, stray: 1, tabs: [{ id: 't', kind: 'notes', config: { x: 1 } }] }
+    const top = { id: 'b', height: 90.5, collapsed: false, stray: 1, cells: [{ id: 'b-c', weight: 1, activeTabId: 'gone', tabs: [{ id: 't', kind: 'notes', config: { x: 1 } }] }] }
     const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow([], { top })] })
     if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.top).toEqual({ id: 'b', height: 90.5, tabs: [{ id: 't', kind: 'notes', config: {} }] })
+    expect(res.data.layouts[0]!.top).toEqual({ id: 'b', height: 90.5, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] })
   })
 
   it('import keeps only model keys and drops a stale activeTabId', () => {
     const columns = [{
-      id: 'c', weight: 2, extra: 1, cells: [{
-        id: 'k', weight: 1, activeTabId: 'gone', collapsed: false, junk: true,
+      id: 'c', weight: 2, extra: 1, rows: [rowOf({
+        id: 'k', weight: 1, activeTabId: 'gone', junk: true,
         tabs: [
           { id: 't1', kind: 'notes', config: { stray: 1 }, viewState: { stray: 2 } },
           // A list tab saves no prompt picks.
@@ -160,33 +176,33 @@ describe('layouts row validation', () => {
           { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop', 'do', 'drop'], stray: 1 } },
           { id: 't5', kind: 'eisenhower', config: {}, viewState: { collapsed: [] } },
         ],
-      }],
+      }, { collapsed: false })],
     }]
     const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(columns, { stray: 'x' })] })
     if (!res.ok) throw new Error(res.error)
     expect(res.data.layouts).toEqual([{
       id: 1, name: 'Daily', sortOrder: 0, createdAt: new Date(DATE), modifiedAt: new Date(DATE),
-      columns: [{ id: 'c', weight: 2, cells: [{ id: 'k', weight: 1, tabs: [
+      columns: [{ id: 'c', weight: 2, rows: [rowOf({ id: 'k', weight: 1, tabs: [
         { id: 't1', kind: 'notes', config: {} },
         { id: 't3', kind: 'lens', config: { listDefinitionId: 4 } },
         { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { offset: 104 } },
         { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
         { id: 't5', kind: 'eisenhower', config: {} },
-      ] }] }],
+      ] })] }],
     }])
   })
 
-  it('import keeps a list, Eisenhower or dashboard tab’s details width, rounded', () => {
-    const columns = [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [
+  it('import keeps a list, Eisenhower or row widget tab’s details width, rounded', () => {
+    const columns = [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [
       { id: 't1', kind: 'lens', config: {}, viewState: { detailsWidth: 262.6 } },
       { id: 't2', kind: 'eisenhower', config: {}, viewState: { detailsWidth: 180 } },
-      { id: 't3', kind: 'dashboard', config: { tiles: [], listTiles: [], sections: [] }, viewState: { detailsWidth: 0.4 } },
+      { id: 't3', kind: 'recent', config: { recentDays: 7 }, viewState: { detailsWidth: 0.4 } },
       // Only tabs that show task rows keep it.
       { id: 't4', kind: 'notes', config: {}, viewState: { detailsWidth: 200 } },
-    ] }] }]
+    ] })] }]
     const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(columns)] })
     if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs.map((t) => t.viewState)).toEqual([
+    expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs.map((t) => t.viewState)).toEqual([
       { detailsWidth: 263 }, { detailsWidth: 180 }, { detailsWidth: 0 }, undefined,
     ])
   })
@@ -198,88 +214,7 @@ describe('layouts row validation', () => {
     expect(rowFixes('layouts', row)).toEqual([])
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })
     if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 4000 })
-  })
-
-  it('import keeps a dashboard config’s known ids (once, in order) and options, drops the rest', () => {
-    const config = {
-      tiles: ['focus', 'nope', 'hot', 'open', 'focus'],
-      listTiles: [3, '4', 3, 1.5, -1, 7],
-      sections: [
-        { id: 'people', options: { showUnassigned: false, range: '4w' } },
-        { id: 'gone' },
-        'junk',
-        { id: 'trend', options: { range: '12w' } },
-        { id: 'followup', options: { lookAhead: 5 } },
-        { id: 'trend' },
-      ],
-      stray: true,
-    }
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config, viewState: { x: 1 } }))] })
-    if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({
-      id: 't',
-      kind: 'dashboard',
-      config: {
-        tiles: ['focus', 'open'],
-        listTiles: [3, 7],
-        sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'trend', options: { range: '12w' } }, { id: 'followup' }],
-      },
-    })
-  })
-
-  it('import keeps the Tags / Stale tasks / Recently completed / Eisenhower sections and their own options only', () => {
-    const config = {
-      tiles: ['open'],
-      listTiles: [],
-      sections: [
-        { id: 'eisenhower', options: { staleDays: 30 } },
-        { id: 'stale', options: { staleDays: 30, recentDays: 14 } },
-        { id: 'recent', options: { recentDays: 14, staleDays: 7 } },
-        { id: 'tags', options: { showUntagged: false, showUnassigned: false } },
-        { id: 'stale' },
-      ],
-    }
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config }))] })
-    if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({
-      id: 't',
-      kind: 'dashboard',
-      config: {
-        tiles: ['open'],
-        listTiles: [],
-        sections: [
-          { id: 'eisenhower' },
-          { id: 'stale', options: { staleDays: 30 } },
-          { id: 'recent', options: { recentDays: 14 } },
-          { id: 'tags', options: { showUntagged: false } },
-        ],
-      },
-    })
-  })
-
-  it('import drops option values a section doesn’t offer', () => {
-    const config = {
-      sections: [{ id: 'stale', options: { staleDays: 15 } }, { id: 'recent', options: { recentDays: '7' } }, { id: 'tags', options: { showUntagged: 'no' } }],
-    }
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config }))] })
-    if (!res.ok) throw new Error(res.error)
-    const tab = res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]!
-    expect(tab.kind === 'dashboard' && tab.config.sections).toEqual([{ id: 'stale' }, { id: 'recent' }, { id: 'tags' }])
-  })
-
-  it('import fills a dashboard config’s missing parts with the defaults', () => {
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles: [2] } }))] })
-    if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({
-      id: 't',
-      kind: 'dashboard',
-      config: {
-        tiles: ['open', 'focus', 'urgent', 'overdue', 'followupDue'],
-        listTiles: [2],
-        sections: ['followup', 'next7', 'trend', 'status', 'people'].map((id) => ({ id })),
-      },
-    })
+    expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 4000 })
   })
 
   it('validates the activeLayoutId setting as a number', () => {
@@ -288,11 +223,11 @@ describe('layouts row validation', () => {
   })
 })
 
-describe('a layout past the limit of 1,000 columns, cells or tabs', () => {
+describe('a layout past the limit of 1,000 columns, rows, cells or tabs', () => {
   const notes = (id: string) => ({ id, kind: 'notes', config: {} })
 
   it('imports with the parts past the limit dropped, and a warning that says so', () => {
-    const columns = Array.from({ length: 1003 }, (_, c) => ({ id: `c${c}`, weight: 1, cells: [{ id: `k${c}`, weight: 1, tabs: [] }] }))
+    const columns = Array.from({ length: 1003 }, (_, c) => ({ id: `c${c}`, weight: 1, rows: [rowOf({ id: `k${c}`, weight: 1, tabs: [] })] }))
     const row = layoutRow(columns)
     expect(validateRow('layouts', row)).toBe(true)
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })
@@ -302,31 +237,29 @@ describe('a layout past the limit of 1,000 columns, cells or tabs', () => {
     expect(res.warnings).toEqual(['Fixed 1 layout: "Daily" (3 columns past the limit of 1,000 dropped)'])
   })
 
-  it('counts cells and tabs over the whole layout, bands included', () => {
+  it('counts rows, cells and tabs over the whole layout, bands included', () => {
     const many = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => notes(`${prefix}${i}`))
     const row = layoutRow([
-      { id: 'c0', weight: 1, cells: [{ id: 'k0', weight: 1, tabs: many('a', 600) }] },
-      { id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: many('b', 600) }] },
-    ], { top: { id: 'b', height: 160, tabs: many('t', 2) } })
+      { id: 'c0', weight: 1, rows: [rowOf({ id: 'k0', weight: 1, tabs: many('a', 600) })] },
+      { id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, tabs: many('b', 600) })] },
+    ], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: many('t', 2) }] } })
     expect(validateRow('layouts', row)).toBe(true)
-    expect(rowFixes('layouts', row)).toEqual(['202 tabs past the limit of 1,000 dropped', 'band dropped'])
+    expect(rowFixes('layouts', row)).toEqual(['202 tabs past the limit of 1,000 dropped'])
     const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
-    expect(repaired.columns[1]!.cells[0]!.tabs).toHaveLength(400)
-    expect('top' in repaired).toBe(false)
+    expect(repaired.columns[1]!.rows[0]!.cells[0]!.tabs).toHaveLength(400)
+    // The band's cell keeps its place, empty (as a column's cell would).
+    expect(repaired.top?.cells).toEqual([{ id: 'b-c', weight: 1, tabs: [] }])
 
+    // Cells side by side in one row count as any others.
     const cells = Array.from({ length: 1001 }, (_, k) => ({ id: `k${k}`, weight: 1, tabs: [] }))
-    expect(rowFixes('layouts', layoutRow([{ id: 'c', weight: 1, cells }, { id: 'd', weight: 1, cells: [{ id: 'x', weight: 1, tabs: [] }] }])))
-      .toEqual(['2 cells past the limit of 1,000 dropped', 'column past the limit of 1,000 dropped'])
+    expect(rowFixes('layouts', layoutRow([{ id: 'c', weight: 1, rows: [{ id: 'r', weight: 1, cells }] }, { id: 'd', weight: 1, rows: [rowOf({ id: 'x', weight: 1, tabs: [] })] }])))
+      .toEqual(['2 cells past the limit of 1,000 dropped', 'row past the limit of 1,000 dropped', 'column past the limit of 1,000 dropped'])
+    // Rows past the limit go; a column left without rows by it too.
+    const rows = Array.from({ length: 1001 }, (_, r) => rowOf({ id: `k${r}`, weight: 1, tabs: [] }))
+    expect(rowFixes('layouts', layoutRow([{ id: 'c', weight: 1, rows }, { id: 'd', weight: 1, rows: [rowOf({ id: 'x', weight: 1, tabs: [] })] }])))
+      .toEqual(['2 rows past the limit of 1,000 dropped', 'column past the limit of 1,000 dropped'])
   })
 
-  it('a dashboard tab keeps its first 1,000 list tiles', () => {
-    const listTiles = Array.from({ length: 1005 }, (_, i) => i + 1)
-    const row = layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { listTiles } }))
-    expect(validateRow('layouts', row)).toBe(true)
-    expect(rowFixes('layouts', row)).toEqual(['5 list tiles past the limit of 1,000 dropped'])
-    const tab = (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.cells[0]!.tabs[0]!
-    expect(tab.kind === 'dashboard' && tab.config.listTiles).toEqual(listTiles.slice(0, 1000))
-  })
 })
 
 describe('repairing a layout row the schema rejects (audit cleanup)', () => {
@@ -365,10 +298,10 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
 
   it('counts each kind of fix', () => {
     const row = layoutRow([
-      { id: 'c1', weight: 0, cells: [
-        { id: 'k1', weight: 'big', collapsed: 'yes', tabs: [{ id: 't1', kind: 'nope', config: {} }, { id: 't2', kind: 'status', config: {} }, 5] },
+      { id: 'c1', weight: 0, rows: [
+        rowOf({ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'nope', config: {} }, { id: 't2', kind: 'taskboard', config: {} }, 5] }, { weight: 'big', collapsed: 'yes' }),
       ] },
-      { id: 'c1', weight: 1, cells: [] },
+      { id: 'c1', weight: 1, rows: [] },
     ], { name: '', createdAt: 'never' })
     expect(rowFixes('layouts', row)).toEqual([
       'name reset', 'dates reset', '2 sizes reset', '3 tabs dropped', 'tab or cell settings reset', 'column dropped',
@@ -382,24 +315,29 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })
     if (!res.ok) throw new Error(res.error)
     expect(res.warnings).toEqual(['Fixed 1 layout: "Daily" (2 Eisenhower tab settings dropped)'])
-    expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do'] } })
+    expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do'] } })
     // Not an object: the tab's settings reset, as for any kind.
     expect(rowFixes('layouts', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: 7 })))).toEqual(['tab or cell settings reset'])
   })
 
   it('a list tab’s zoom round-trips with its details width; an unknown one is dropped (the tab opens at the Settings default)', () => {
-    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.cells[0]!.tabs[0]
-    for (const zoom of ['stacked', 'rows', 'lines', 'strips']) {
+    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.rows[0]!.cells[0]!.tabs[0]
+    for (const zoom of ['stacked', 'rows', 'lines']) {
       const row = layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 280, zoom } }))
       expect(validateRow('layouts', row), zoom).toBe(true)
       expect(rowFixes('layouts', row)).toEqual([])
       const res = validateImportData({ todos: [], settings: [], layouts: [row] })
       if (!res.ok) throw new Error(res.error)
-      expect(res.data.layouts[0]!.columns[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 280, zoom })
+      expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 280, zoom })
     }
     // A zoom alone is view state enough.
-    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } }))))
-      .toEqual({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } })
+    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'lines' } }))))
+      .toEqual({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'lines' } })
+    // Strips, a level once, opens at Lines: valid, no repair (view state).
+    const strips = layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } }))
+    expect(validateRow('layouts', strips)).toBe(true)
+    expect(rowFixes('layouts', strips)).toEqual([])
+    expect(tabOf(strips)).toEqual({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'lines' } })
     // Repaired: an unknown level dropped, the details width kept; with nothing left, no view state.
     const bad = layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 300, zoom: 'mosaic' } }))
     expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
@@ -409,7 +347,7 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
   })
 
   it('a Neglect map’s config keeps only its keys; a bad part falls back to its default', () => {
-    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.cells[0]!.tabs[0]
+    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.rows[0]!.cells[0]!.tabs[0]
     // Valid: kept as is, a repeated tag once, stray keys and view state dropped (no fix).
     const valid = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [3, 3, 5], extra: 1 }, untouchedDays: 7, x: 1 }, viewState: { detailsWidth: 300 } }))
     expect(rowFixes('layouts', valid)).toEqual([])
@@ -427,14 +365,14 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
       .toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } })
   })
 
-  it('a bad band is dropped, a band left without tabs too; a bad height becomes the default', () => {
+  it('a bad band is dropped, a band left without cells too; a bad height becomes the default', () => {
     const row = layoutRow([], {
-      top: { id: 'b1', height: -5, tabs: [{ id: 't1', kind: 'notes', config: {} }, { id: 't2', kind: 'nope', config: {} }] },
-      bottom: { id: 'b2', height: 160, tabs: [{ id: 't1', kind: 'notes', config: {} }] },
+      top: { id: 'b1', height: -5, cells: [{ id: 'b1-c', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }, { id: 't2', kind: 'nope', config: {} }] }] },
+      bottom: { id: 'b2', height: 160, cells: [{ id: 'b1', weight: 1, tabs: [{ id: 't3', kind: 'notes', config: {} }] }] },
     })
-    expect(rowFixes('layouts', row)).toEqual(['size reset', '2 tabs dropped', 'band dropped'])
+    expect(rowFixes('layouts', row)).toEqual(['size reset', 'tab dropped', 'cell dropped', 'band dropped'])
     const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
-    expect(repaired.top).toEqual({ id: 'b1', height: 160, tabs: [{ id: 't1', kind: 'notes', config: {} }] })
+    expect(repaired.top).toEqual({ id: 'b1', height: 160, cells: [{ id: 'b1-c', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] })
     expect('bottom' in repaired).toBe(false)
     expect(rowFixes('layouts', layoutRow([], { bottom: 7 }))).toEqual(['band dropped'])
   })

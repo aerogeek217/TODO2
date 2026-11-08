@@ -23,7 +23,7 @@ import { emptyFilterCriteria, makeTodo, statsPaneContext, lookupsFor } from '../
  * Data without the Eisenhower's own list gets a new list with no filter as
  * its own (`ensureEisenhowerList`). That list must show exactly the tasks
  * "All tasks" showed — open and completed, under any screen filter — in the
- * Eisenhower widget and in the dashboard's Eisenhower section. The list is
+ * Eisenhower widget and in the Eisenhower summary. The list is
  * the one the repository makes, so a change to what it makes is checked
  * here too.
  */
@@ -95,11 +95,11 @@ describe('the Eisenhower’s new list (no filter) shows what All tasks showed', 
     expect(own.shown.some((t) => t.isCompleted)).toBe(screen.showCompleted === true && all.shown.some((t) => t.isCompleted))
   })
 
-  it.each(SCREENS)('on the dashboard, under %s: the same counts per pane, shown and in total', (_what, screen) => {
+  it.each(SCREENS)('in the Eisenhower summary, under %s: the same counts per pane, shown and in total', (_what, screen) => {
     const criteria: FilterCriteria = { ...emptyFilterCriteria, ...screen }
     const settings = { urgentRange: 3 as const, weekStartsOn: 1 as const }
     const lookups = lookupsFor({ assignedPeopleMap, statusesById: new Map([[2, waiting]]) })
-    // The dashboard's screen-filtered tasks (completed included).
+    // The glance widgets' screen-filtered tasks (completed included).
     const shownAll = applyFilter(statsFilter(criteria), todos, lookups, today, settings)
     const opts = { screen: statsFilter(criteria), lookups, today, settings }
     const all = eisenhowerSourceTasks(todos, shownAll, undefined, opts)

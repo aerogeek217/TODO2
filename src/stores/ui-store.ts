@@ -17,7 +17,7 @@ export type SettingsSectionId =
   | 'shortcuts'
   | 'about'
 
-/** The headed parts of the merged sections (Tasks, Database). */
+/** The headed parts of the merged sections (Tasks, Database, Appearance). */
 export type SettingsPartId =
   | 'task-defaults'
   | 'lenses'
@@ -27,9 +27,13 @@ export type SettingsPartId =
   | 'backups'
   | 'import-export'
   | 'data-integrity'
+  | 'theme-and-lists'
+  | 'ambience'
 
 /** The section each part sits in. */
 export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSectionId>> = {
+  'theme-and-lists': 'appearance',
+  ambience: 'appearance',
   'task-defaults': 'tasks',
   lenses: 'tasks',
   eisenhower: 'tasks',
@@ -217,7 +221,7 @@ interface UIState {
    */
   confirmPrompts: PendingConfirmPrompt[]
   /**
-   * The task dialog (`TaskDialog`): the tasks behind a dashboard number or a
+   * The task dialog (`TaskDialog`): the tasks behind a glance widget's number or a
    * person chip. `null` = closed.
    */
   taskDialog: TaskDialogPayload | null
@@ -462,7 +466,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   quickAddDraft: null,
   recentlyCreated: null,
   settingsOpen: false,
-  settingsSection: 'appearance',
+  settingsSection: 'database',
   settingsPart: null,
   settingsFocus: null,
   checkinDialog: null,

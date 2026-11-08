@@ -5,6 +5,7 @@ import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { toDate, toOptDate } from './date-revive'
 import { STATUS_ICON_KEYS, type StatusIconKey } from '../models/status'
 import { parsePriorityCues } from '../utils/priority-cues'
+import { parseAmbienceSettings } from '../utils/ambience-settings'
 import { parseTabBadgeRange, pickListTabBadges } from '../utils/tab-badges'
 import { ALL_SETTING_KEYS, SETTING_KEYS } from './setting-keys'
 import { parseFollowupInterval } from '../utils/followup'
@@ -433,7 +434,10 @@ function checkSetting(v: unknown): CheckResult {
   if (v.key === SETTING_KEYS.rowDensity) {
     return parseListZoomSetting(v.value) !== undefined
       ? true
-      : 'value (rowDensity must be stacked, rows, lines or strips — or comfortable or compact)'
+      : 'value (rowDensity must be stacked, rows or lines — or strips, comfortable or compact)'
+  }
+  if (v.key === SETTING_KEYS.ambience) {
+    return parseAmbienceSettings(v.value as string) !== undefined ? true : 'value (ambience must be a JSON object)'
   }
   if (v.key === SETTING_KEYS.rowDates) {
     return isRowDates(v.value) ? true : 'value (rowDates must be relative or numeric)'

@@ -54,6 +54,16 @@ import { DEFAULT_STALE_AFTER_DAYS, isStaleAfterDays, parseStaleAfterDays } from 
 import { DEFAULT_LIST_ZOOM, LIST_ZOOM_LABELS, parseListZoomSetting } from '../utils/list-zoom'
 import { isListZoom, type ListZoom } from '../models/workspace-layout'
 import { DEFAULT_ROW_DATES, isRowDates, type RowDates } from '../utils/row-dates'
+import { DEFAULT_AMBIENCE, SKY_STRENGTH_LABELS, type AmbienceSettings } from '../models/ambience'
+import {
+  formatAmbienceSettings,
+  isAmbienceMotion,
+  isAmbiencePlace,
+  isDefaultAmbience,
+  isSkyStrength,
+  parseAmbienceSettings,
+  roundCoordinate,
+} from '../utils/ambience-settings'
 import type { Lens } from '../utils/lens'
 import { formatLensesSetting, isLensId, readLensesSetting } from '../data/lens-shape'
 import type { ShortcutChord, ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
@@ -146,6 +156,8 @@ interface SettingsData {
   listZoom: ListZoom
   /** How the task rows show their due and follow-up dates (`utils/row-dates`). */
   rowDates: RowDates
+  /** Ambience: the time of day and the season in the chrome (Settings › Appearance › Ambience; `models/ambience`). */
+  ambience: AmbienceSettings
   /** The lenses (named screen filters, picked in the top bar — `utils/lens`), in Settings' order. */
   lenses: readonly Lens[]
   /** The preset lenses were seeded once (`seedLensPresets`); nothing seeds them again. */
@@ -159,13 +171,13 @@ interface SettingsData {
   shortcutOverrides: ShortcutOverrides
   /**
    * The Eisenhower panes that differ from their defaults (every Eisenhower
-   * tab and the dashboard section), in their stored form; `{}` = the four
+   * tab and Eisenhower summary), in their stored form; `{}` = the four
    * default quadrants.
    */
   eisenhowerPanes: EisenhowerPanes
   /**
    * The Eisenhower's own list (a hidden list, `owner: { eisenhower: true }`)
-   * whose tasks every Eisenhower tab and the dashboard section consider —
+   * whose tasks every Eisenhower tab and Eisenhower summary consider —
    * the `eisenhowerSource` setting, kept naming it by
    * `useListDefinitionStore.ensureEisenhowerList` (app startup, a data
    * replace). Until then it is what the stored setting names — `null`
@@ -221,6 +233,13 @@ interface SettingsState extends SettingsData {
   setListZoom: (zoom: ListZoom) => Promise<void>
   /** How the task rows show dates (an unknown value is ignored); stored only when not `relative`. */
   setRowDates: (dates: RowDates) => Promise<void>
+  /**
+   * Changes ambience settings (a field out of range is ignored; a place is
+   * kept to two decimals, `null` = guessed from the time zone); stored only
+   * when not all defaults. Each change is an undo step named for it; writes
+   * passing the same `mergeKey` (the Header motion slider as it moves) stay one.
+   */
+  setAmbience: (changes: Partial<AmbienceSettings>, options?: Pick<SettingWriteOptions, 'mergeKey'>) => Promise<void>
   // The lens edits and the top bar's pick are `stores/lens-actions`' (cr31 A5).
   /**
    * Gives `id` new keys (no undo step). Resolves the reason when they are
@@ -600,6 +619,13 @@ export const SETTINGS = {
     failure: 'Couldn’t save how rows show dates.',
     undo: ({ rowDates }) => (rowDates === 'relative' ? 'Relative dates on rows' : 'MM/DD dates on rows'),
   }),
+  ambience: setting(['ambience'], {
+    read: (rows) => ({ ambience: rowOr(rows, K.ambience, DEFAULT_AMBIENCE, (v) => parseAmbienceSettings(v) ?? DEFAULT_AMBIENCE) }),
+    rows: ({ ambience }) => rowUnlessDefault(K.ambience, formatAmbienceSettings(ambience), isDefaultAmbience(ambience)),
+    label: 'the ambience',
+    failure: 'Couldn’t save the ambience settings.',
+    undo: ({ ambience: a }) => (!a.enabled ? 'Ambience off' : `Ambience: ${SKY_STRENGTH_LABELS[a.sky]}, ${a.seasons ? 'with' : 'without'} seasons`),
+  }),
   // The lenses and the pick are written by `stores/lens-actions` (its undo names are the edit's).
   lenses: setting(['lenses'], {
     read: (rows) => ({ lenses: rowOr<readonly Lens[]>(rows, K.lenses, [], (v) => readLensesSetting(v).lenses) }),
@@ -754,6 +780,28 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   async setRowDates(dates) {
     if (isRowDates(dates)) await SETTINGS.rowDates.write({ rowDates: dates })
+  },
+
+  async setAmbience(changes, options) {
+    const current = get().ambience
+    const next: AmbienceSettings = {
+      enabled: typeof changes.enabled === 'boolean' ? changes.enabled : current.enabled,
+      place: changes.place === undefined ? current.place
+        : changes.place === null ? null
+          : isAmbiencePlace(changes.place) ? { lat: roundCoordinate(changes.place.lat), lon: roundCoordinate(changes.place.lon) } : current.place,
+      sky: isSkyStrength(changes.sky) ? changes.sky : current.sky,
+      motion: isAmbienceMotion(changes.motion) ? changes.motion : current.motion,
+      seasons: typeof changes.seasons === 'boolean' ? changes.seasons : current.seasons,
+    }
+    if (formatAmbienceSettings(next) === formatAmbienceSettings(current)) return
+    // The undo step names what changed.
+    let description: string | undefined
+    if (next.enabled !== current.enabled) description = next.enabled ? 'Ambience on' : 'Ambience off'
+    else if (next.seasons !== current.seasons) description = next.seasons ? 'Seasonal ambience on' : 'Seasonal ambience off'
+    else if (next.sky !== current.sky) description = `Ambience sky: ${SKY_STRENGTH_LABELS[next.sky]}`
+    else if (next.place !== current.place) description = next.place ? `Ambience place ${next.place.lat}, ${next.place.lon}` : 'Ambience place from the time zone'
+    else description = `Header motion ${next.motion}%`
+    await SETTINGS.ambience.write({ ambience: next }, { ...options, description })
   },
 
   async setShortcut(id, chord) {

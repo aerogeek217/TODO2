@@ -20,9 +20,10 @@
  * with `completed` events, one with no event, one reopened (with the 30-day
  * retention setting the old ones trigger the purge prompt); notes and
  * status updates (a few per task, one added with a follow-up); the global note; two layouts — Default (columns plus a
- * dashboard band) and Planning (a calendar band, lists — a tab at each
- * zoom —, the Eisenhower, a Neglect map by project, a dashboard) — each
- * owning its lists, with list prompts, an "is not"
+ * band of glance widgets) and Planning (a band of Numbers and What changed,
+ * lists — a tab at each zoom —, the Eisenhower, a Neglect map by project, a
+ * column of glance widgets — Needs follow-up beside Created vs completed,
+ * Today, Project pulse —, a calendar band) — each owning its lists, with list prompts, an "is not"
  * filter, a descending sort, Priority filters (several values, "is not") and manual orders; the
  * Eisenhower's own list with one renamed pane; a check-in filter.
  *
@@ -47,13 +48,13 @@ import type { RecurrenceType } from '../src/models/recurrence'
 import type { ListDefinition } from '../src/models/list-definition'
 import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-predicate'
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
-import type { DashboardTabConfig } from '../src/models/dashboard-config'
 import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
-import type { LayoutBand, LayoutCell, LayoutColumn, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
+import type { NumberMetric } from '../src/models/glance-widgets'
+import type { LayoutBand, LayoutCell, LayoutColumn, LayoutRow as LayoutCellRow, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 75
+export const DEV_SEED_SCHEMA_VERSION = 77
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -125,6 +126,7 @@ type SubtaskRow = Json<Subtask>
 type LayoutRow = Json<WorkspaceLayout>
 type TabRow = Json<LayoutTab>
 type CellRow = Json<LayoutCell>
+type RowRow = Json<LayoutCellRow>
 type ColumnRow = Json<LayoutColumn>
 type BandRow = Json<LayoutBand>
 interface SettingRow {
@@ -876,12 +878,16 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   const calendar = (id: string, view: 'week' | 'month', offset: number, followup = true): TabRow =>
     ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup } }, viewState: { view, offset } })
   const notes = (id: string): TabRow => ({ id, kind: 'notes', config: {} })
-  const dashboard = (id: string, config: DashboardTabConfig): TabRow => ({ id, kind: 'dashboard', config })
+  const number = (id: string, metric: NumberMetric): TabRow => ({ id, kind: 'number', config: { metric } })
   const cell = (id: string, tabs: TabRow[], extra: Partial<CellRow> = {}): CellRow =>
     ({ id, weight: 1, tabs, activeTabId: tabs[0]?.id, ...extra })
-  const column = (id: string, cells: CellRow[], weight = 1): ColumnRow => ({ id, weight, cells })
-  const band = (id: string, height: number, tabs: TabRow[], extra: Partial<BandRow> = {}): BandRow =>
-    ({ id, height, tabs, activeTabId: tabs[0]?.id, ...extra })
+  /** A row of one cell (every row the seed has): `extra` its height share, its collapse. */
+  const row = (id: string, only: CellRow, extra: Partial<RowRow> = {}): RowRow => ({ id, weight: 1, cells: [only], ...extra })
+  /** A row of cells side by side. */
+  const rowOfCells = (id: string, cells: CellRow[], extra: Partial<RowRow> = {}): RowRow => ({ id, weight: 1, cells, ...extra })
+  const column = (id: string, rows: RowRow[], weight = 1): ColumnRow => ({ id, weight, rows })
+  const band = (id: string, height: number, cells: CellRow[], extra: Partial<BandRow> = {}): BandRow =>
+    ({ id, height, cells, ...extra })
 
   const layouts: LayoutRow[] = [
     {
@@ -890,20 +896,24 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       sortOrder: 0,
       columns: [
         column('col-focus', [
-          cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), notes('tab-notes')], { weight: 2 }),
-          cell('cell-cal', [calendar('tab-cal', 'week', 0)]),
+          row('row-focus', cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), notes('tab-notes')]), { weight: 2 }),
+          row('row-cal', cell('cell-cal', [calendar('tab-cal', 'week', 0)])),
         ], 1.4),
-        column('col-person', [cell('cell-person', [lens('tab-person', L.byPerson)])]),
+        column('col-person', [row('row-person', cell('cell-person', [lens('tab-person', L.byPerson)]))]),
         column('col-board', [
-          cell('cell-board', [lens('tab-board', L.focus), { id: 'tab-matrix', kind: 'eisenhower', config: {} }]),
-          cell('cell-soon', [lens('tab-soon', L.dueSoon)], { collapsed: true }),
+          row('row-board', cell('cell-board', [lens('tab-board', L.focus), { id: 'tab-matrix', kind: 'eisenhower', config: {} }])),
+          row('row-soon', cell('cell-soon', [lens('tab-soon', L.dueSoon)]), { collapsed: true }),
         ]),
       ],
-      bottom: band('band-dash', 260, [dashboard('tab-dash', {
-        tiles: ['open', 'focus', 'urgent', 'overdue', 'followupDue'],
-        listTiles: [L.focus, L.dueSoon],
-        sections: [{ id: 'followup' }, { id: 'next7' }, { id: 'trend', options: { range: '4w' } }, { id: 'status' }, { id: 'people' }],
-      })]),
+      // A band of glance widgets (D25 N): three Numbers, Next 7 days, Created vs completed and People.
+      bottom: band('band-glance', 260, [
+        cell('cell-open', [number('tab-open', 'open')]),
+        cell('cell-late', [number('tab-late', 'overdue')]),
+        cell('cell-followup-due', [number('tab-followup-due', 'followupDue')]),
+        cell('cell-next7', [{ id: 'tab-next7', kind: 'next7', config: {} }], { weight: 3 }),
+        cell('cell-trend', [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }], { weight: 5 }),
+        cell('cell-people', [{ id: 'tab-people', kind: 'people', config: { showUnassigned: true } }], { weight: 4 }),
+      ]),
       createdAt: longAgo,
       modifiedAt: iso(at(-3, 17, 20)),
       lastUsedAt: iso(at(0, 8, 0)),
@@ -912,35 +922,48 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       id: IDS.layouts.planning,
       name: 'Planning',
       sortOrder: 1,
-      top: band('band-cal', 220, [calendar('tab-month', 'month', 0, false)]),
+      // A band of Numbers and What changed (D25 N + L).
+      top: band('band-numbers', 150, [
+        cell('cell-n-late', [number('tab-n-late', 'overdue')]),
+        cell('cell-n-followup', [number('tab-n-followup', 'followupDue')]),
+        cell('cell-n-today', [number('tab-n-today', 'dueToday')]),
+        cell('cell-n-open', [number('tab-n-open', 'open')]),
+        cell('cell-n-closed', [number('tab-n-closed', 'closedThisWeek')]),
+        cell('cell-changes', [{ id: 'tab-changes', kind: 'changes', config: { tagIds: [...IDS.projectTags] } }], { weight: 4 }),
+      ]),
+      bottom: band('band-cal', 220, [cell('cell-month', [calendar('tab-month', 'month', 0, false)])]),
       columns: [
         column('col-horizon', [
-          // A list tab at each zoom (D25 C + I1): Stacked, Rows, Lines, and Strips below.
-          cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], { activeTabId: 'tab-rest' }),
-          cell('cell-someday', [lens('tab-someday', L.someday, 'strips')]),
+          // A list tab at each zoom (D25 C + I1): Stacked, Rows and Lines.
+          row('row-horizon', cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], { activeTabId: 'tab-rest' })),
+          row('row-someday', cell('cell-someday', [lens('tab-someday', L.someday)])),
         ]),
         column('col-people', [
-          cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)], { weight: 2 }),
+          row('row-followups', cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]), { weight: 2 }),
           // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is.
-          cell('cell-neglect', [{
+          row('row-neglect', cell('cell-neglect', [{
             id: 'tab-neglect',
             kind: 'neglect',
             config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
-          }], { weight: 2 }),
-          cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
+          }]), { weight: 2 }),
+          row('row-northwind', cell('cell-northwind', [lens('tab-northwind', L.northwind)])),
         ]),
         column('col-matrix', [
-          cell('cell-matrix', [{ id: 'tab-matrix2', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }]),
-          cell('cell-stats', [
-            dashboard('tab-stats', {
-              tiles: ['open', 'overdue', 'followupDue', 'dueToday', 'dueNext7'],
-              listTiles: [L.hot],
-              sections: [{ id: 'eisenhower' }, { id: 'tags', options: { showUntagged: false } }, { id: 'stale', options: { staleDays: 30 } }, { id: 'recent', options: { recentDays: 14 } }],
-            }),
+          row('row-matrix', cell('cell-matrix', [{ id: 'tab-matrix2', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }])),
+          row('row-stats', cell('cell-stats', [
             lens('tab-hot', L.hot),
             lens('tab-recent', L.recentlyAdded),
             lens('tab-done', L.doneThisWeek),
-          ]),
+          ])),
+        ], 1.2),
+        // Glance widgets (D25 N + L): Needs follow-up beside Created vs completed in one row, Today, Project pulse.
+        column('col-glance', [
+          rowOfCells('row-glance', [
+            cell('cell-g-followup', [{ id: 'tab-g-followup', kind: 'followup', config: { lookAhead: 7 } }]),
+            cell('cell-g-trend', [{ id: 'tab-g-trend', kind: 'trend', config: { range: '14d' } }]),
+          ], { weight: 2 }),
+          row('row-today', cell('cell-today', [{ id: 'tab-today', kind: 'today', config: {} }]), { weight: 1.5 }),
+          row('row-pulse', cell('cell-pulse', [{ id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } }]), { weight: 1.5 }),
         ], 1.2),
       ],
       createdAt: iso(at(-60, 10)),

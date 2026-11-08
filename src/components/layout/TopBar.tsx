@@ -34,6 +34,7 @@ import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
 import { tabAcross } from '../../utils/focusables'
 import { trayExpansion, type TrayExpansion } from './tray-expansion'
 import { PopoverRoot } from '../shared/PopoverRoot'
+import { AmbienceSky } from '../ambience/AmbienceSky'
 
 /** Keys that move the search box's caret (the `@ # ! /` popup follows it). */
 const CARET_KEYS = new Set(['ArrowLeft', 'ArrowRight', 'Home', 'End'])
@@ -283,6 +284,8 @@ export function TopBar() {
           }
         }}
       >
+        {/* Ambience: the sky over the glass, under the controls (absolute: the fold skips it). */}
+        <AmbienceSky />
         {isWorkspace && (
           <div className={styles.layoutSlot} data-fold-part={FOLD_PART.layout}>
             <LayoutControls mode={tabsFolded(fold) || manyLayouts ? 'menu' : 'tabs'} />

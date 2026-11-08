@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace } from './fixtures/workspace'
+import { seedWorkspace, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -17,8 +17,8 @@ const TWO_NOTES_LAYOUT = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'left', cells: [{ id: 'left-cell', tabs: [{ id: 'notes-a', kind: 'notes' as const }] }] },
-      { id: 'right', cells: [{ id: 'right-cell', tabs: [{ id: 'notes-b', kind: 'notes' as const }] }] },
+      { id: 'left', rows: [wsRow({ id: 'left-cell', tabs: [{ id: 'notes-a', kind: 'notes' as const }] })] },
+      { id: 'right', rows: [wsRow({ id: 'right-cell', tabs: [{ id: 'notes-b', kind: 'notes' as const }] })] },
     ],
   }],
 }

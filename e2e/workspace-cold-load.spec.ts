@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { gotoSettingsDeepLink, openSettings, seedWorkspace, wsCell } from './fixtures/workspace'
+import { gotoSettingsDeepLink, openSettings, seedWorkspace, wsCell, wsRow } from './fixtures/workspace'
 
 /**
  * Widgets must show people / tag chips and person groups whatever route the
@@ -11,7 +11,7 @@ const seed = {
   tags: ['home'],
   listDefinitions: [{ name: 'By person', grouping: 'people' }],
   tasks: [{ title: 'Water the plants', people: ['Alice'], tags: ['home'] }, { title: 'Nobody’s task' }],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens' as const, listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens' as const, listDefIdx: 0 }] })] }] }],
 }
 
 async function expectChipsAndGroups(page: import('@playwright/test').Page) {

@@ -25,11 +25,6 @@ export type TaskDialogSource =
   /** The tasks matching a predicate, in `sortOrder` (a person's open tasks). */
   | { kind: 'predicate'; predicate: TodoPredicate }
   /**
-   * A list's members under the screen filter (narrowing clauses AND,
-   * as in a List widget), with the list's own sort and grouping.
-   */
-  | { kind: 'list'; listDefinitionId: number }
-  /**
    * The tasks the screen filter matches (open ones, completed too while its
    * Show completed is on), sorted and grouped by Settings' new-list
    * defaults. Resolved again whenever the screen filter changes.
@@ -42,8 +37,6 @@ export interface TaskDialogPayload {
   /** What is counted, in words. */
   description: string
   source: TaskDialogSource
-  /** The widget tab it was opened from: `Open as tab` adds the list's tab to that tab's cell. */
-  fromTabId?: string
   /** A person's tasks: the footer offers `Email check-in` to that person. */
   personId?: number
 }

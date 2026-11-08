@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { ADD_FILTER, seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, seedWorkspace, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -29,7 +29,7 @@ const seed: WorkspaceSeed = {
   layouts: [
     {
       name: 'Main',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, { id: 'n1', kind: 'notes' }] }] }],
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, { id: 'n1', kind: 'notes' }] })] }],
     },
   ],
 }

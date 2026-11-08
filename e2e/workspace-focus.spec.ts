@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { dragRow, readListOrders, seedWorkspace, wsListWidget } from './fixtures/workspace'
+import { dragRow, readListOrders, seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 
 /**
@@ -27,8 +27,8 @@ test('putting tasks in focus fills the Focus list, whose order persists', async 
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'all', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'focus', kind: 'lens', listDefIdx: 1 }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'all', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'focus', kind: 'lens', listDefIdx: 1 }] })] },
       ],
     }],
   })

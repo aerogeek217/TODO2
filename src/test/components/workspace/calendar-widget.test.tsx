@@ -11,6 +11,9 @@ import { useUIStore } from '../../../stores/ui-store'
 import type { CalendarTab, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 import { dayKey } from '../../../utils/date'
+import { rowOf } from '../../helpers/layout-builders'
+import { WidgetFaceContext } from '../../../hooks/use-widget-face'
+import type { WidgetFace } from '../../../utils/widget-face'
 
 const TODAY = new Date(2026, 9, 14, 10) // Wed 14 Oct 2026
 const day = (d: number, m = 9) => new Date(2026, m, d)
@@ -22,7 +25,7 @@ function layoutWith(tab: CalendarTab): PersistedWorkspaceLayout {
     sortOrder: 0, name: 'Main',
     createdAt: now,
     modifiedAt: now,
-    columns: [{ id: 'c1', weight: 1, cells: [{ id: 'x1', weight: 1, tabs: [tab] }] }],
+    columns: [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'x1', weight: 1, tabs: [tab] })] }],
   }
 }
 
@@ -33,7 +36,7 @@ function calendarTab(over: Partial<CalendarTab> = {}): CalendarTab {
 
 /** Renders the calendar tab as the workspace store holds it (so config / view-state edits show). */
 function Host() {
-  const tab = useWorkspaceStore((s) => s.working?.columns[0]?.cells[0]?.tabs[0])
+  const tab = useWorkspaceStore((s) => s.working?.columns[0]?.rows[0]?.cells[0]?.tabs[0])
   return tab?.kind === 'calendar' ? <CalendarWidget tab={tab} /> : null
 }
 
@@ -43,7 +46,7 @@ function setup(tab: CalendarTab = calendarTab()) {
   render(<DndContext><Host /></DndContext>)
 }
 
-const workingTab = () => useWorkspaceStore.getState().working?.columns[0]?.cells[0]?.tabs[0] as CalendarTab
+const workingTab = () => useWorkspaceStore.getState().working?.columns[0]?.rows[0]?.cells[0]?.tabs[0] as CalendarTab
 const dayCell = (d: Date) => document.querySelector<HTMLElement>(`[data-day="${dayKey(d)}"]`)
 const label = () => screen.getByTestId('calendar-range-label').textContent
 
@@ -291,5 +294,61 @@ describe('CalendarDropChooser', () => {
     renderChooser((t) => picks3.push(t))
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(picks3).toEqual([null])
+  })
+})
+
+describe('CalendarWidget faces (D25 R)', () => {
+  function setupAt(face: WidgetFace, tab: CalendarTab = calendarTab()) {
+    const layout = layoutWith(tab)
+    useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+    render(<DndContext><WidgetFaceContext.Provider value={{ forced: face }}><Host /></WidgetFaceContext.Provider></DndContext>)
+  }
+
+  beforeEach(() => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Due today', dueDate: day(14), sortOrder: 1 }),
+        makeTodo({ id: 2, title: 'Follow up today', nextFollowupAt: day(14), sortOrder: 2 }),
+        makeTodo({ id: 3, title: 'Late due', dueDate: day(12), sortOrder: 3 }),
+        makeTodo({ id: 4, title: 'Friday', dueDate: day(16), sortOrder: 4 }),
+        makeTodo({ id: 5, title: 'Next week', dueDate: day(21), sortOrder: 5 }),
+      ],
+    })
+  })
+
+  it('small: today’s count of the tab’s date types and this week’s heat strip, today marked', () => {
+    setupAt('small')
+    expect(screen.getByTestId('calendar-face-today')).toHaveTextContent('2')
+    expect(document.querySelector('[data-calendar-face]')!.textContent).toContain('due or to follow up today')
+    const strip = [...document.querySelectorAll<HTMLElement>('[data-calendar-face] [data-heat]')]
+    // Mon 12 – Sun 18 (the week starts on Monday): 1, 0, 2, 0, 1, 0, 0.
+    expect(strip.map((d) => d.dataset.heat)).toEqual(['1', '0', '1', '0', '1', '0', '0'])
+    expect(strip.findIndex((d) => d.dataset.today === 'true')).toBe(2)
+    expect(strip[0]!.dataset.late).toBe('due')
+    expect(document.querySelector('[data-calendar-widget]')).toBeNull()
+  })
+
+  it('small, due only: today’s due tasks', () => {
+    setupAt('small', calendarTab({ config: { dateTypes: { due: true, followup: false } } }))
+    expect(screen.getByTestId('calendar-face-today')).toHaveTextContent('1')
+    expect(document.querySelector('[data-calendar-face]')!.textContent).toContain('due today')
+  })
+
+  it('medium: this week as seven day cells with their counts; a day opens its entries', () => {
+    setupAt('medium')
+    const days = [...document.querySelectorAll<HTMLElement>('[data-calendar-face] [data-day]')]
+    expect(days.map((d) => d.dataset.day)).toEqual([12, 13, 14, 15, 16, 17, 18].map((n) => dayKey(day(n))))
+    expect(days.map((d) => within(d).getByTestId('calendar-face-count').textContent)).toEqual(['1', '–', '2', '–', '1', '–', '–'])
+    expect(dayCell(day(14))!.getAttribute('aria-label')).toBe('Wed 14 Oct, today: 2 tasks')
+    fireEvent.click(dayCell(day(14))!)
+    const popover = screen.getByTestId('calendar-day-popover')
+    expect(popover.textContent).toContain('Due today')
+    expect(popover.textContent).toContain('Follow up today')
+  })
+
+  it('large: the calendar itself', () => {
+    setupAt('large')
+    expect(document.querySelector('[data-calendar-face]')).toBeNull()
+    expect(document.querySelector('[data-calendar-widget]')).not.toBeNull()
   })
 })

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, wsListWidget } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 import { box, expectInsideViewport } from './fixtures/geometry'
 
 /**
@@ -23,9 +23,9 @@ async function seedRightColumnList(page: Page, tasks: Parameters<typeof seedWork
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'n1', tabs: [{ id: 'notes1', kind: 'notes' }] }] },
-        { id: 'c2', cells: [{ id: 'n2', tabs: [{ id: 'cal', kind: 'calendar' }] }] },
-        { id: 'c3', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'n1', tabs: [{ id: 'notes1', kind: 'notes' }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'n2', tabs: [{ id: 'cal', kind: 'calendar' }] })] },
+        { id: 'c3', rows: [wsRow({ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] })] },
       ],
     }],
   })

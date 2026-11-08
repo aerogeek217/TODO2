@@ -12,6 +12,7 @@ import {
   wsShape,
   wsTab,
   type WsLayoutSeed,
+  wsRow,
 } from './fixtures/workspace'
 import { box, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -35,14 +36,14 @@ const SAVED = 'Layout saved'
 const threeCells: WsLayoutSeed = {
   name: 'Main',
   columns: [
-    { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] }] },
-    { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }, { id: 'b2', tabs: [{ id: 'dashTab', kind: 'dashboard' }] }] },
+    { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] })] },
+    { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] }), wsRow({ id: 'b2', tabs: [{ id: 'dashTab', kind: 'notes' }] })] },
   ],
 }
 
 const withTopBand: WsLayoutSeed = {
   ...threeCells,
-  top: { id: 'tb', height: 160, tabs: [{ id: 'topNotes', kind: 'notes' }] },
+  top: { id: 'tb-band', height: 160, cells: [{ id: 'tb', tabs: [{ id: 'topNotes', kind: 'notes' }] }] },
 }
 
 async function areaBox(page: Page) {
@@ -306,7 +307,7 @@ test.describe('panel drags', () => {
   })
 
   test('a band dragged by its header: into a cell, then a panel into the band', async ({ page }) => {
-    await seedWorkspace(page, { layouts: [{ ...withTopBand, top: { id: 'tb', height: 160, tabs: [{ id: 'topNotes', kind: 'notes' }, { id: 'topEis', kind: 'eisenhower' }] } }] })
+    await seedWorkspace(page, { layouts: [{ ...withTopBand, top: { id: 'tb-band', height: 160, cells: [{ id: 'tb', tabs: [{ id: 'topNotes', kind: 'notes' }, { id: 'topEis', kind: 'eisenhower' }] }] } }] })
     // A panel into the band's body: merge.
     const bandBody = await pointIn(wsBand(page, 'top').locator('[data-ws-cell-body]'), 0.5, 0.6)
     await dragPanel(page, 'b1', bandBody, {
@@ -370,7 +371,11 @@ test.describe('band height, collapse and menus', () => {
     const header = wsBand(page, 'top').locator('[data-ws-cell-header]')
     await header.hover()
     await header.getByRole('button', { name: 'Band options' }).click()
-    await expect(page.getByRole('menuitem', { name: 'Split right' })).toHaveCount(0)
+    // A band splits beside only: Split ▸ Right, no Below or New column.
+    await page.getByRole('menuitem', { name: 'Split', exact: true }).hover()
+    await expect(page.getByRole('menuitem', { name: 'Right', exact: true })).toBeVisible()
+    await expect(page.getByRole('menuitem', { name: 'Below', exact: true })).toHaveCount(0)
+    await expect(page.getByRole('menuitem', { name: 'New column', exact: true })).toHaveCount(0)
     await page.getByRole('menuitem', { name: 'Move to bottom band' }).click()
     await expect(wsBand(page, 'top')).toHaveCount(0)
     await expect.poll(() => wsBandTabs(page, 'bottom')).toEqual(['topNotes'])
@@ -401,7 +406,7 @@ test.describe('band height, collapse and menus', () => {
   })
 
   test('only bands, no columns: the column area offers widgets and takes a dropped tab as the first column', async ({ page }) => {
-    await seedWorkspace(page, { layouts: [{ name: 'Bands', columns: [], top: { id: 'tb', tabs: [{ id: 't1', kind: 'notes' }, { id: 't2', kind: 'eisenhower' }] } }] })
+    await seedWorkspace(page, { layouts: [{ name: 'Bands', columns: [], top: { id: 'tb-band', cells: [{ id: 'tb', tabs: [{ id: 't1', kind: 'notes' }, { id: 't2', kind: 'eisenhower' }] }] } }] })
     const empty = page.getByRole('region', { name: 'No columns' })
     await expect(empty).toBeVisible()
     await dragTab(page, wsTab(page, 't2'), await pointIn(empty), async () => {
@@ -418,9 +423,9 @@ test.describe('narrow windows, reload, phone', () => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Wide',
-        top: { id: 'tb', tabs: [{ id: 'topNotes', kind: 'notes' }] },
-        bottom: { id: 'bb', height: 120, tabs: [{ id: 'botNotes', kind: 'notes' }] },
-        columns: ['c1', 'c2', 'c3', 'c4', 'c5'].map((id) => ({ id, cells: [{ id: `${id}k`, tabs: [{ id: `${id}t`, kind: 'notes' as const }] }] })),
+        top: { id: 'tb-band', cells: [{ id: 'tb', tabs: [{ id: 'topNotes', kind: 'notes' }] }] },
+        bottom: { id: 'bb-band', height: 120, cells: [{ id: 'bb', tabs: [{ id: 'botNotes', kind: 'notes' }] }] },
+        columns: ['c1', 'c2', 'c3', 'c4', 'c5'].map((id) => ({ id, rows: [wsRow({ id: `${id}k`, tabs: [{ id: `${id}t`, kind: 'notes' as const }] })] })),
       }],
     })
     const top = await box(wsBand(page, 'top'))
@@ -451,7 +456,8 @@ test.describe('narrow windows, reload, phone', () => {
     await seedWorkspace(page, {
       listDefinitions: [{ name: 'Team', predicate: { searchText: 'a' } }],
       tasks: [{ title: 'Alpha' }],
-      layouts: [{ ...threeCells, top: { id: 'tb', height: 220, tabs: [{ id: 'bandList', kind: 'lens', listDefIdx: 0 }] } }],
+      // Tall enough for the full list (a body over 260px; shorter shows its face, D25 R).
+      layouts: [{ ...threeCells, top: { id: 'tb-band', height: 300, cells: [{ id: 'tb', tabs: [{ id: 'bandList', kind: 'lens', listDefIdx: 0 }] }] } }],
     })
     await expect(wsListWidget(page, 'bandList')).toBeVisible()
     await wsTab(page, 'bandList').click({ button: 'right' })
@@ -469,12 +475,12 @@ test.describe('phone', () => {
     await seedWorkspace(page, {
       layouts: [{
         ...threeCells,
-        top: { id: 'tb', tabs: [{ id: 'topDash', kind: 'dashboard' }] },
-        bottom: { id: 'bb', tabs: [{ id: 'botCal', kind: 'calendar' }] },
+        top: { id: 'tb-band', cells: [{ id: 'tb', tabs: [{ id: 'topDash', kind: 'trend' }] }] },
+        bottom: { id: 'bb-band', cells: [{ id: 'bb', tabs: [{ id: 'botCal', kind: 'calendar' }] }] },
       }],
     })
     const names = page.getByRole('tablist', { name: 'Columns' }).getByRole('tab')
-    await expect(names).toHaveText(['Dashboard', 'Notes', 'Calendar', 'Calendar'])
+    await expect(names).toHaveText(['Created vs completed', 'Notes', 'Calendar', 'Calendar'])
     await expect(names.first()).toHaveAttribute('data-ws-band-name', 'top')
     await expect(names.last()).toHaveAttribute('data-ws-band-name', 'bottom')
     await expect(names.first().locator('svg')).toBeVisible()

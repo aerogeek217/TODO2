@@ -1,13 +1,13 @@
 import type { TodoEventType } from '../models'
-import type { DashboardTrendRange } from '../models/dashboard-config'
+import type { TrendRange } from '../models/glance-widgets'
 import { addDays, weekStartOf } from './calendar-grid'
 import { daysUntil, type WeekStart } from './effective-date'
 
-/** The event types the dashboard trend reads. */
+/** The event types Created vs completed reads. */
 export const TREND_EVENT_TYPES: readonly TodoEventType[] = ['created', 'completed', 'reopened']
 
 export interface TrendWindow {
-  range: DashboardTrendRange
+  range: TrendRange
   granularity: 'day' | 'week'
   /** First day of the window (local midnight). */
   start: Date
@@ -21,11 +21,56 @@ export interface TrendWindow {
  * The days a trend range covers, ending today: 14 days = today and the 13
  * before; 4 / 12 weeks = this week (so far) and the 3 / 11 before it.
  */
-export function trendWindow(range: DashboardTrendRange, today: Date, weekStartsOn: WeekStart): TrendWindow {
+export function trendWindow(range: TrendRange, today: Date, weekStartsOn: WeekStart): TrendWindow {
   const weeks = range === '4w' ? 4 : range === '12w' ? 12 : 0
   const start = weeks === 0 ? addDays(today, -13) : addDays(weekStartOf(today, weekStartsOn), -7 * (weeks - 1))
   const dayCount = (daysUntil(today, start) ?? 0) + 1
   const days = Array.from({ length: dayCount }, (_, i) => addDays(start, i))
   const bucketStarts = weeks === 0 ? days : Array.from({ length: weeks }, (_, i) => addDays(start, 7 * i))
   return { range, granularity: weeks === 0 ? 'day' : 'week', start, days, bucketStarts }
+}
+
+/** Days in a Number's history line: today and the 13 before. */
+export const METRIC_HISTORY_DAYS = 14
+
+/**
+ * The event types a Number's history reads: the trend's (each day's open /
+ * done state) and `deadline` (each day's due date).
+ */
+export const HISTORY_EVENT_TYPES: readonly TodoEventType[] = [...TREND_EVENT_TYPES, 'deadline']
+
+/**
+ * The first day a Number's history needs events from: its first day's week
+ * start (Closed this week counts from the week's start), else the first day.
+ */
+export function historyEventsStart(today: Date, weekStartsOn: WeekStart): Date {
+  const first = addDays(today, -(METRIC_HISTORY_DAYS - 1))
+  return weekStartOf(first, weekStartsOn)
+}
+
+/**
+ * A status held this many days or more is stuck (What changed). The
+ * widget's events reach back as far: a task with no `status` event since
+ * then has held its status at least this long.
+ */
+export const STUCK_STATUS_DAYS = 21
+
+/**
+ * The event types What changed reads: each task's state and due date at
+ * yesterday's end (what went late), and when it took its status.
+ */
+export const CHANGES_EVENT_TYPES: readonly TodoEventType[] = [...HISTORY_EVENT_TYPES, 'status']
+
+/**
+ * What the history cache reads (`trend-events-store`): a trend range's
+ * window, `history` — a Number's 14 days —, or `changes` — What changed's
+ * last `STUCK_STATUS_DAYS` days.
+ */
+export type EventsWindow = TrendRange | 'history' | 'changes'
+
+/** The first day and the event types `window` reads. */
+export function eventsWindowRead(window: EventsWindow, today: Date, weekStartsOn: WeekStart): { start: Date; types: readonly TodoEventType[] } {
+  if (window === 'history') return { start: historyEventsStart(today, weekStartsOn), types: HISTORY_EVENT_TYPES }
+  if (window === 'changes') return { start: addDays(today, -STUCK_STATUS_DAYS), types: CHANGES_EVENT_TYPES }
+  return { start: trendWindow(window, today, weekStartsOn).start, types: TREND_EVENT_TYPES }
 }

@@ -1,6 +1,7 @@
 import type { ComponentType } from 'react'
 import type { SettingsPartId, SettingsSectionId } from '../../../stores/ui-store'
 import { AppearanceSection } from './AppearanceSection'
+import { AmbienceSection } from './AmbienceSection'
 import { TaskDefaultsSection } from './TaskDefaultsSection'
 import { EntitiesSection } from './EntitiesSection'
 import { CompletedTasksSection } from './CompletedTasksSection'
@@ -53,14 +54,40 @@ function single(id: SettingsSectionId, label: string, Icon: ComponentType, Body:
 
 const LENSES_HELP = 'A lens is a saved filter with a name, picked in the top bar: every widget shows only what it keeps, on every layout. Edit it like a list’s filters — the same pickers, with their “is not” switch for what to leave out. Filters set in the top bar apply on top of it.'
 
-const EISENHOWER_HELP = 'A task shows in the first pane whose filter it matches, checked in order: top left, top right, bottom left, bottom right. Dropping a task on a pane gives it what the filter sets. The panes are the same in every Eisenhower and on the dashboard; changes are saved at once.'
+const EISENHOWER_HELP = 'A task shows in the first pane whose filter it matches, checked in order: top left, top right, bottom left, bottom right. Dropping a task on a pane gives it what the filter sets. The panes are the same in every Eisenhower and Eisenhower summary; changes are saved at once.'
 
 const BACKUPS_HELP = 'Taken automatically every day, before destructive operations, and before the sync file is rewritten. Restoring one backs up the data it replaces first.'
 
-const APPEARANCE = single('appearance', 'Appearance', AppearanceIcon, AppearanceSection, true)
+const AMBIENCE_HELP = 'Quiet signs of the time of day and the season in the top bar and the space around your lists: the sky, the sun and the moon, weather. Nothing changes on your tasks. Desktop only.'
 
-/** The Settings sections, in list order. The modal and the mobile page both render from this. */
+// Theme and lists on every surface; Ambience on desktop only (a phone sees the first part, without its heading).
+const APPEARANCE: SettingsSectionDef = {
+  id: 'appearance',
+  label: 'Appearance',
+  Icon: AppearanceIcon,
+  parts: [
+    { id: 'theme-and-lists', label: 'Theme and lists', Body: AppearanceSection, mobile: true },
+    { id: 'ambience', label: 'Ambience', Body: AmbienceSection, mobile: false, help: AMBIENCE_HELP },
+  ],
+}
+
+/**
+ * The Settings sections, in list order. The modal and the mobile page both
+ * render from this. Database leads (Settings opens on it), Import / Export
+ * first in it: exporting is the most common errand here.
+ */
 export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
+  {
+    id: 'database',
+    label: 'Database',
+    Icon: DatabaseIcon,
+    parts: [
+      { id: 'import-export', label: 'Import / Export', Body: ImportExportSection, mobile: true },
+      { id: 'file-storage', label: 'File storage', Body: FileStorageSection, mobile: true },
+      { id: 'backups', label: 'Backups', Body: BackupsSection, mobile: false, help: BACKUPS_HELP },
+      { id: 'data-integrity', label: 'Data integrity', Body: DataIntegritySection, mobile: false },
+    ],
+  },
   APPEARANCE,
   {
     id: 'tasks',
@@ -75,17 +102,6 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
   },
   // The phone shows only its Unused people & tags row (`EntitiesSection`).
   single('entities', 'People, statuses & tags', EntitiesIcon, EntitiesSection, true),
-  {
-    id: 'database',
-    label: 'Database',
-    Icon: DatabaseIcon,
-    parts: [
-      { id: 'file-storage', label: 'File storage', Body: FileStorageSection, mobile: true },
-      { id: 'backups', label: 'Backups', Body: BackupsSection, mobile: false, help: BACKUPS_HELP },
-      { id: 'import-export', label: 'Import / Export', Body: ImportExportSection, mobile: true },
-      { id: 'data-integrity', label: 'Data integrity', Body: DataIntegritySection, mobile: false },
-    ],
-  },
   single('shortcuts', 'Keyboard shortcuts', KeyboardIcon, ShortcutsSection, false),
   single('about', 'About', AboutIcon, AboutSection, true),
 ]

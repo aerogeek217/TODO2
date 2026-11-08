@@ -6,7 +6,7 @@ import { formatRowDate, startOfDay, toDateInputValue } from '../../utils/date'
 import { dueTooltip, isDeadlinePast } from '../../utils/effective-date'
 import { isUrgentByDate } from '../../utils/urgency'
 import { followupPillLabel, followupTooltip, formatFollowupDate, isFollowupOverdue } from '../../utils/followup'
-import { priorityRing, type MarkerSummary } from '../../utils/markers'
+import type { MarkerSummary } from '../../utils/markers'
 import { statusNotesPreview } from '../../utils/notes-preview'
 import { datesParts, peopleFit, tagsFit, TASK_ROW, type PeopleFit } from '../../utils/task-row-columns'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
@@ -53,26 +53,14 @@ function Placeholder({ children }: { children: ReactNode }) {
 
 // ── Marker gutter ───────────────────────────────────────────────────────────
 
-/** The gutter's at-rest mark: the accent dot when Focus sits under another ring (D25 B), else nothing. */
-function GutterMarks({ summary, completed }: { summary: MarkerSummary; completed: boolean }) {
-  const { focusDot } = priorityRing(summary, completed)
-  return (
-    <>
-      {focusDot && <span className={styles.gutterDot} data-gutter-dot="focus" aria-hidden="true" />}
-      <span className={styles.gutterFlag} aria-hidden="true" data-gutter-flag=""><FlagIcon size={10} /></span>
-    </>
-  )
-}
-
 /**
  * The priority menu's trigger (D25 B): a slim gutter before the checkbox,
- * empty at rest (an accent dot when Focus sits under another ring) and a
- * small flag while the row is hovered or focused or the menu is open. The
- * priority itself is the ring on the checkbox (`RowCheckbox`); the gutter
- * carries its name and tooltip.
+ * empty at rest and a small flag while the row is hovered or focused or the
+ * menu is open. The priority itself is the ring on the checkbox
+ * (`RowCheckbox`, Focus under another ring its halo); the gutter carries
+ * its name and tooltip.
  */
-export function MarkerGutter({ todo, summary, anchorRef, open, onToggle }: {
-  todo: PersistedTodoItem
+export function MarkerGutter({ summary, anchorRef, open, onToggle }: {
   summary: MarkerSummary
   anchorRef: RefObject<HTMLButtonElement | null>
   open: boolean
@@ -91,20 +79,15 @@ export function MarkerGutter({ todo, summary, anchorRef, open, onToggle }: {
       onClick={cellClick(onToggle)}
       {...triggerProps}
     >
-      <GutterMarks summary={summary} completed={todo.isCompleted} />
+      <span className={styles.gutterFlag} aria-hidden="true" data-gutter-flag=""><FlagIcon size={10} /></span>
       {tooltip}
     </button>
   )
 }
 
-/** The gutter on a row that can't open the menu (the drag overlay's copy): its at-rest look, named. */
-export function MarkerGutterStatic({ todo, summary }: { todo: PersistedTodoItem; summary: MarkerSummary }) {
-  const { focusDot } = priorityRing(summary, todo.isCompleted)
-  return (
-    <span className={styles.gutter} role="img" aria-label={summary.label}>
-      {focusDot && <span className={styles.gutterDot} data-gutter-dot="focus" aria-hidden="true" />}
-    </span>
-  )
+/** The gutter on a row that can't open the menu (the drag overlay's copy): its at-rest look (empty), named. */
+export function MarkerGutterStatic({ summary }: { summary: MarkerSummary }) {
+  return <span className={styles.gutter} role="img" aria-label={summary.label} />
 }
 
 /**
@@ -285,7 +268,7 @@ export function TagsCell({ tags, anchorRef, open, onToggle, onTagContextMenu, on
 
 /**
  * The dates cell: the due date and the next follow-up as Settings ›
- * Appearance › Dates says (`formatRowDate`: `Today` / `Sat` / `Nov 20`, or
+ * Appearance › Dates says (`formatRowDate`: `Today` / `Sat` / `11/20`, or
  * `MM/DD`; the aria-label and tooltip keep the full date), two parts
  * with their own click target, picker, tooltip and colours. A set date shows
  * its text alone (no clock or flag beside it; a repeating task's due date
@@ -340,14 +323,6 @@ export function DatesCell({
   )
 }
 
-/**
- * A row date's text longer than any word or month and day: another year's
- * `MM/DD/YY` (`formatRowDate`), drawn in the part's padding (`.dateLong`).
- */
-function isLongRowDate(text: string): boolean {
-  return text.length > 6
-}
-
 /** A date part's clear ×: over the part's right end on hover — takes no width. */
 function DateClear({ label, cell, onClear }: { label: string; cell: string; onClear: () => void }) {
   return (
@@ -386,12 +361,11 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
   const rowDates = useSettingsStore((s) => s.rowDates)
   const text = due ? formatRowDate(due, today, rowDates) : ''
   // Another year's MM/DD/YY takes the whole part: a repeating task's glyph gives way (its tooltip says it repeats).
-  const long = !!dateOnly && isLongRowDate(text)
   return (
     <span className={styles.datePart} style={{ width }}>
       <button
         type="button"
-        className={`${styles.cell} ${styles.datePartButton} ${dateOnly ? '' : styles.cellCenter} ${dateOnly && repeats && !long ? styles.dueRepeat : ''} ${long ? styles.dateLong : ''} ${styles.due} ${past ? styles.duePast : ''}`}
+        className={`${styles.cell} ${styles.datePartButton} ${dateOnly ? '' : styles.cellCenter} ${dateOnly && repeats ? styles.dueRepeat : ''} ${styles.due} ${past ? styles.duePast : ''}`}
         aria-label={due ? `Due ${formatFollowupDate(due, today)}` : 'Set due date'}
         data-row-cell="due"
         data-due-soon={soon || undefined}
@@ -402,7 +376,7 @@ function DuePart({ todo, today, width, showDate, inputRef, onOpen, onClear, onIn
         {due ? (
           showDate ? (
             <>
-              {repeats && !long && <RepeatIcon size={10} />}
+              {repeats && <RepeatIcon size={10} />}
               <span className={styles.dateText}>{text}</span>
             </>
           ) : (
@@ -444,13 +418,12 @@ function FollowupPart({ todo, today, width, showDate, anchorRef, open, onToggle,
   const state = !next ? undefined : late ? 'late' : isToday ? 'today' : 'upcoming'
   const rowDates = useSettingsStore((s) => s.rowDates)
   const text = next ? formatRowDate(next, today, rowDates) : ''
-  const long = !!next && showDate && isLongRowDate(text)
   return (
     <span className={styles.datePart} style={{ width }}>
       <button
         ref={anchorRef}
         type="button"
-        className={`${styles.cell} ${styles.datePartButton} ${showDate && next ? '' : styles.cellCenter} ${long ? styles.dateLong : ''} ${styles.followup} ${open ? styles.cellOpen : ''}`}
+        className={`${styles.cell} ${styles.datePartButton} ${showDate && next ? '' : styles.cellCenter} ${styles.followup} ${open ? styles.cellOpen : ''}`}
         aria-label={next ? `Follow-up: ${followupPillLabel(todo, today)}${late ? ', late' : ''}` : 'Set follow-up'}
         aria-haspopup="dialog"
         aria-expanded={open}

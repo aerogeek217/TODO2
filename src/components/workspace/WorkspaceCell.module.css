@@ -1,7 +1,8 @@
 .cell {
   display: flex;
   flex-direction: column;
-  min-height: calc(var(--cell-header-height) + var(--cell-body-min-height));
+  /* A glance row sets --cell-min-height (64px). */
+  min-height: var(--cell-min-height, calc(var(--cell-header-height) + var(--cell-body-min-height)));
   min-width: 0;
   background: var(--color-surface);
   border-radius: var(--radius-card);
@@ -100,17 +101,44 @@
   scrollbar-color: var(--color-tint-8) transparent;
 }
 
-/* Drop zones over a cell body while a tab is dragged over it. */
+/* Drop zones over a cell body while a tab is dragged over it: the sides
+   (SIDE_ZONE_SHARE of the width, at most SIDE_ZONE_MAX_PX), and between them
+   the top quarter, the middle half and the bottom quarter. */
 .zones {
+  --zone-side: min(20%, 120px);
   position: absolute;
   inset: 0;
   z-index: var(--z-above-3);
   display: grid;
-  grid-template-rows: 1fr 2fr 1fr;
   gap: 4px;
   padding: 8px;
   background: var(--color-scrim);
   pointer-events: none;
+}
+
+.cellZones {
+  grid-template-columns: var(--zone-side) 1fr var(--zone-side);
+  grid-template-rows: 1fr 2fr 1fr;
+  grid-template-areas:
+    'left top right'
+    'left middle right'
+    'left bottom right';
+}
+
+.zone_left { grid-area: left; }
+.zone_right { grid-area: right; }
+.zone_top { grid-area: top; }
+.zone_middle { grid-area: middle; }
+.zone_bottom { grid-area: bottom; }
+
+/* A side zone's label runs up its narrow height. */
+.zoneSideLabel {
+  writing-mode: vertical-rl;
+  transform: rotate(180deg);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-height: 100%;
 }
 
 .zone {
@@ -279,12 +307,52 @@
   background: var(--color-inset);
 }
 
-/* A band body takes one zone (a band never splits). */
+/* A band body: the sides and the middle (a band is one row: no top or bottom). */
 .bandZones {
+  grid-template-columns: var(--zone-side) 1fr var(--zone-side);
   grid-template-rows: 1fr;
+  grid-template-areas: 'left middle right';
+}
+
+/* A headless cell (one glance tab, or its strip hidden in the cell menu):
+   the strip is out of view, and slides in — 24px, over the body's top — on
+   hover, on keyboard focus inside the cell and while a menu of it is open.
+   Not during a tab or cell drag: the drop zones cover the whole body. */
+.headless > .header {
+  --cell-header-height: 24px;
+  --cell-tab-height: 22px;
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-above-2);
+  transform: translateY(-100%);
+  opacity: 0;
+  box-shadow: var(--shadow-card);
+  transition: transform var(--transition-fast), opacity var(--transition-fast);
+}
+
+.headless:hover > .header,
+.headless:focus-within > .header,
+.headless > .stripPinned {
+  transform: none;
+  opacity: 1;
+}
+
+.headlessQuiet > .header,
+.headlessQuiet:hover > .header,
+.headlessQuiet:focus-within > .header {
+  transform: translateY(-100%);
+  opacity: 0;
 }
 
 /* The column area of a layout with only bands. */
 .emptyColumns {
   flex: 1 1 auto;
+}
+
+/* A small face (D25 R): the whole body opens its full widget. */
+.bodySmall {
+  overflow: hidden;
+  cursor: pointer;
 }

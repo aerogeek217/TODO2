@@ -1,5 +1,5 @@
 import { test, type Page } from '@playwright/test'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Not a regression: screenshots of one grouped list at each zoom level
@@ -32,13 +32,13 @@ const TASKS: NonNullable<WorkspaceSeed['tasks']> = TITLES.flatMap((t, i) => [
   },
 ])
 
-function seed(zoom: 'stacked' | 'rows' | 'lines' | 'strips'): WorkspaceSeed {
+function seed(zoom: 'stacked' | 'rows' | 'lines'): WorkspaceSeed {
   return {
     people: ['Aisha', 'Ben', 'Cy', 'Dana'],
     tags: ['docs', 'customer', 'q4'],
     tasks: TASKS,
     listDefinitions: [{ name: 'All open', grouping: 'people', sort: 'deadline' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0, zoom }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0, zoom }] })] }] }],
   }
 }
 
@@ -53,9 +53,9 @@ async function setTheme(page: Page, mode: 'dark' | 'light') {
 
 test.use({ viewport: { width: 760, height: 820 } })
 
-for (const zoom of ['stacked', 'rows', 'lines', 'strips'] as const) {
+for (const zoom of ['stacked', 'rows', 'lines'] as const) {
   for (const theme of ['dark', 'light'] as const) {
-    if (theme === 'light' && (zoom === 'rows' || zoom === 'strips')) continue
+    if (theme === 'light' && zoom === 'rows') continue
     test(`${zoom} · ${theme}`, async ({ page }) => {
       // No theme cross-fade mid-shot.
       await page.emulateMedia({ reducedMotion: 'reduce' })

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, fireEvent, act, screen } from '@testing-library/react'
+import { render, cleanup, fireEvent, screen, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { ListWidget } from '../../../components/workspace/list/ListWidget'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -17,10 +17,11 @@ import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { LensTab, ListZoom } from '../../../models/workspace-layout'
 import type { Person } from '../../../models'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
+import { rowOf } from '../../helpers/layout-builders'
 
 /**
  * A list tab at each zoom (D25 C + I1), as far as JSDOM shows it: what each
- * level draws for a task, Strips' click, Ctrl + wheel's step and the
+ * level draws for a task, Ctrl + wheel's step and the
  * palette's commands. Heights, the wheel's page zoom and focus are the real
  * browser's (`e2e/list-zoom.spec.ts`).
  */
@@ -115,17 +116,46 @@ describe('a list tab’s zoom', () => {
     expect(useUIStore.getState().selectedTodoIds).toEqual(new Set([1, 2]))
   })
 
-  it('Strips: a bar per task in its tone; a click zooms the tab to Rows on that task, selected', async () => {
-    const patch = vi.fn().mockResolvedValue(undefined)
-    useWorkspaceStore.setState({ patchTabViewState: patch })
-    show('strips')
-    const bar = document.querySelector('[data-task-strip][data-todo-id="1"]')!
-    expect(bar).toHaveAttribute('data-tone', 'late')
-    expect(bar).toHaveAttribute('aria-label', 'Late one')
-    await act(async () => { fireEvent.click(bar) })
-    expect(patch).toHaveBeenCalledWith('t1', 'lens', { zoom: 'rows' })
-    expect(useUIStore.getState().selectedTodoIds).toEqual(new Set([1]))
-    expect(useUIStore.getState().selectionScope).toBe('t1')
+  it('Lines: the box’s ring is the priority and its fill the date state; the date that matters ends the line', () => {
+    useTodoStore.setState({
+      todos: [
+        makeTodo({ id: 1, title: 'Late one', sortOrder: 1, dueDate: new Date(Date.now() - 2 * DAY) }),
+        makeTodo({ id: 2, title: 'Plain one', sortOrder: 2 }),
+        makeTodo({ id: 3, title: 'Focus and important', sortOrder: 3, focus: true, important: true }),
+      ],
+    })
+    show('lines')
+    const line = (id: number) => document.querySelector<HTMLElement>(`[data-row-key] [data-todo-id="${id}"]`)!
+    // Late: urgent by its due date (the dashed ring), filled late, its due date bold at the end.
+    expect(line(1)).toHaveAttribute('data-tone', 'late')
+    expect(line(1).querySelector('[data-line-box] [data-priority-ring]')).toHaveAttribute('data-priority-ring', 'urgent')
+    expect(line(1).querySelector('[data-line-date]')).toHaveAttribute('data-line-date', 'due')
+    expect(line(1).querySelector('[data-line-date]')).toHaveAttribute('data-date-tone', 'late')
+    // Plain: no ring, no date.
+    expect(line(2).querySelector('[data-priority-ring]')).toBeNull()
+    expect(line(2).querySelector('[data-line-date]')).toBeNull()
+    // Focus and Important: the important ring with the Focus glow, as a row's checkbox.
+    expect(line(3).querySelector('[data-line-box] [data-priority-ring]')).toHaveAttribute('data-priority-ring', 'important')
+    expect(line(3).querySelector('[data-line-box] [data-focus-glow]')).not.toBeNull()
+  })
+
+  it('Lines: a right-click opens the task menu, as a row’s does; its pickers open at the line, and a click in them is not the line’s', () => {
+    const open = vi.fn()
+    useUIStore.setState({ openEditPopup: open })
+    show('lines')
+    const line = document.querySelector<HTMLElement>('[data-row-key] [data-todo-id="2"]')!
+    fireEvent.contextMenu(line, { button: 2, clientX: 40, clientY: 50 })
+    const menu = screen.getByRole('menu', { name: 'Task actions' })
+    for (const name of ['Open', 'Mark complete', 'Set due date…', 'Assign people…', 'Add tag…', 'Delete']) {
+      expect(within(menu).getByRole('menuitem', { name })).toBeInTheDocument()
+    }
+    expect(open).not.toHaveBeenCalled()
+    // Assign people…: the picker opens (at the line); clicking in it neither opens the editor nor selects.
+    fireEvent.click(within(menu).getByRole('menuitem', { name: 'Assign people…' }))
+    const picker = screen.getByPlaceholderText('Search or create people…')
+    fireEvent.click(picker)
+    expect(open).not.toHaveBeenCalled()
+    expect(useUIStore.getState().selectedTodoIds.size).toBe(0)
   })
 
   it('Ctrl + wheel over the body steps the zoom, its default prevented; a plain wheel is left alone', () => {
@@ -146,7 +176,7 @@ describe('a list tab’s zoom', () => {
   it('the palette offers Zoom List In / Out for the list on screen, each with its step', () => {
     const tab = tabAt('rows')
     useWorkspaceStore.setState({
-      working: { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(), modifiedAt: new Date(), columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [tab] }] }] },
+      working: { id: 1, name: 'Main', sortOrder: 0, createdAt: new Date(), modifiedAt: new Date(), columns: [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [tab] })] }] },
     })
     render(<DndContext><ListWidget tab={tab} /></DndContext>)
     expect(paletteCommands().filter((c) => c.id.startsWith('list-zoom-')).map((c) => [c.name, c.hint])).toEqual([

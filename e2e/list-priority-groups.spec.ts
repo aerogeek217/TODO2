@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
 
@@ -21,7 +21,7 @@ function seed(list: Partial<NonNullable<WorkspaceSeed['listDefinitions']>[number
     ],
     layouts: [{
       name: 'Main',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }],
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }],
     }],
   }
 }
@@ -95,7 +95,7 @@ test('dragging a task urgent by its due date out of Urgent is refused, saying wh
     await expect(tip).toContainText(/Renewal is due .+, within 3 days, so it counts as urgent\./)
     await expect(tip).toContainText('Change its due date or the due-soon range first.')
     await expect(page.getByTestId('cross-group-preview')).toHaveCount(0)
-    await expect(widget(page).locator('[data-drop-line]')).toHaveCount(0)
+    await expect(widget(page).locator('[data-drop-slot]')).toHaveCount(0)
   })
   await expect(page.getByTestId('list-drop-refusal')).toHaveCount(0)
   await expect.poll(() => titlesIn(page, 'priority-urgent')).toEqual(['Launch', 'Report', 'Renewal'])

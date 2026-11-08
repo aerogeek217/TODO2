@@ -39,7 +39,7 @@
   padding-left: 4px;
 }
 
-/* The grip (Customize dashboard's): dim at rest, chip tint on hover, accent while held. */
+/* The grip: dim at rest, chip tint on hover, accent while held. */
 .grip {
   display: inline-flex;
   align-items: center;

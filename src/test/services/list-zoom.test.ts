@@ -6,6 +6,7 @@ import { listTabZoom, setListTabZoom, stepListTabZoom } from '../../services/lis
 import { useSettingsStore } from '../../stores/settings-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { resetDb } from '../helpers'
+import { rowOf } from '../helpers/layout-builders'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 const ws = () => useWorkspaceStore.getState()
@@ -13,7 +14,7 @@ const ws = () => useWorkspaceStore.getState()
 async function open(): Promise<number> {
   const layout: Omit<WorkspaceLayout, 'id'> = {
     sortOrder: 0, name: 'Daily', createdAt: T0, modifiedAt: T0,
-    columns: [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'l1', tabs: [createTab('lens', 'l1'), createTab('notes', 'n1')] }] }],
+    columns: [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', weight: 1, activeTabId: 'l1', tabs: [createTab('lens', 'l1'), createTab('notes', 'n1')] })] }],
   }
   const id = await layoutRepository.insert(layout)
   await layoutRepository.setActiveId(id)
@@ -23,7 +24,7 @@ async function open(): Promise<number> {
 
 async function storedTab(id: number): Promise<LensTab> {
   const row = await db.layouts.get(id)
-  return row!.columns[0]!.cells[0]!.tabs[0] as LensTab
+  return row!.columns[0]!.rows[0]!.cells[0]!.tabs[0] as LensTab
 }
 
 beforeEach(async () => {
@@ -34,7 +35,7 @@ describe('a list tab’s zoom (D25 C + I1)', () => {
   it('without its own, a tab shows the Settings default', () => {
     useSettingsStore.setState({ listZoom: 'lines' })
     expect(listTabZoom({})).toBe('lines')
-    expect(listTabZoom({ viewState: { zoom: 'strips' } })).toBe('strips')
+    expect(listTabZoom({ viewState: { zoom: 'stacked' } })).toBe('stacked')
   })
 
   it('is view state: saved at once on the stored layout, never an unsaved edit', async () => {
@@ -50,8 +51,7 @@ describe('a list tab’s zoom (D25 C + I1)', () => {
     await stepListTabZoom('l1', 'out')
     expect((await storedTab(id)).viewState?.zoom).toBe('lines')
     await stepListTabZoom('l1', 'out')
-    await stepListTabZoom('l1', 'out')
-    expect((await storedTab(id)).viewState?.zoom).toBe('strips')
+    expect((await storedTab(id)).viewState?.zoom).toBe('lines')
     await stepListTabZoom('n1', 'in')
     expect(ws().isDirty).toBe(false)
   })

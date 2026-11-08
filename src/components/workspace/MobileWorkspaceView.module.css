@@ -220,6 +220,15 @@
 
 /* ── Cells ── */
 
+/* A fit row (glance numbers): its cells two up while two fit (each at least
+   140px), else one to a line. */
+.fitRow {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(max(140px, calc((100% - 8px) / 2)), 1fr));
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
 .cell {
   display: flex;
   flex-direction: column;
@@ -294,6 +303,14 @@
 .cellBody[data-kind='notes'] {
   height: 50vh;
   height: 50dvh;
+}
+
+/* Next 7 days' and Created vs completed's bars scale to the height they are
+   given: sized to their content they would grow with every task. They take
+   the old Dashboard's one-column section height. */
+.cellBody[data-kind='next7'],
+.cellBody[data-kind='trend'] {
+  height: 320px;
 }
 
 .cellFill .cellBody {
@@ -494,4 +511,17 @@
 /* A second section's heading in a sheet. */
 .sheetSectionTitle {
   margin-top: 16px;
+}
+
+/* A glance cell (a glance widget, or any at its small face, D25 R): a slim
+   header — its tabs keep their touch target (`.touch::after`), so the tab
+   sheet's long-press is still there — and a body as short as its face. */
+.cellCompact {
+  --cell-header-height: 30px;
+  --cell-tab-height: 26px;
+  --cell-body-min-height: 56px;
+}
+
+.cellCompact .cellAction {
+  width: 36px;
 }

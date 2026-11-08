@@ -68,32 +68,32 @@ export function markerSummary(
 }
 
 /**
- * How a task row's checkbox draws its priority (D25 B): one ring — Urgent,
- * Important or Focus —, or Urgent and Important as a split ring (top-right
- * urgent, bottom-left important). Urgent only by its due date is dashed.
- * Focus under another ring adds an accent dot in the marker gutter. A
- * completed task has none.
+ * How a task's checkbox draws its priority (D25 B), the same at every zoom:
+ * Urgent and Important are outlines — one ring, or a split ring for both
+ * (top-right urgent, bottom-left important), urgent only by its due date
+ * dashed —, and Focus is never an outline but a glow around the box, with
+ * a ring or without (the box keeping its plain border). A completed task
+ * has neither.
  */
 export interface PriorityRingSpec {
-  kind: 'none' | 'urgent' | 'important' | 'focus' | 'split'
+  kind: 'none' | 'urgent' | 'important' | 'split'
   /** The urgent ring (or the split's urgent half) is dashed: urgent only by the due date. */
   urgentDashed: boolean
-  /** Focus sits under another ring: the gutter's accent dot. */
-  focusDot: boolean
+  /** Focus: the glow around the box. */
+  focusGlow: boolean
 }
 
-const NO_RING: PriorityRingSpec = { kind: 'none', urgentDashed: false, focusDot: false }
+const NO_RING: PriorityRingSpec = { kind: 'none', urgentDashed: false, focusGlow: false }
 
-/** The ring for a task's markers (`markerSummary`); `completed` = the checked box, no ring. */
+/** The ring and glow for a task's markers (`markerSummary`); `completed` = the checked box, neither. */
 export function priorityRing(summary: Pick<MarkerSummary, 'focus' | 'urgent' | 'important'>, completed: boolean): PriorityRingSpec {
   if (completed) return NO_RING
   const urgent = summary.urgent !== null
   const kind = urgent && summary.important ? 'split'
     : urgent ? 'urgent'
       : summary.important ? 'important'
-        : summary.focus ? 'focus'
-          : 'none'
-  return { kind, urgentDashed: summary.urgent === 'date', focusDot: summary.focus && kind !== 'focus' && kind !== 'none' }
+        : 'none'
+  return { kind, urgentDashed: summary.urgent === 'date', focusGlow: summary.focus }
 }
 
 /**

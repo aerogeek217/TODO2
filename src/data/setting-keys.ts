@@ -53,7 +53,7 @@ export const SETTING_KEYS = {
    */
   keyboardShortcuts: 'keyboardShortcuts',
   /**
-   * The Eisenhower panes (every Eisenhower tab and the dashboard section):
+   * The Eisenhower panes (every Eisenhower tab and Eisenhower summary):
    * JSON object of the panes that differ from their defaults, by position —
    * `{"delegate":{"name":"Hand off","filter":{…}}}` (`data/eisenhower-shape`).
    * Absent = the four default quadrants.
@@ -95,11 +95,12 @@ export const SETTING_KEYS = {
   /** What each priority adds to a task's row (`utils/priority-cues`): JSON; absent = the default. */
   priorityCues: 'priorityCues',
   /**
-   * The default list zoom (Settings › Appearance; a list tab that hasn't picked one): `stacked`, `rows`, `lines` or
-   * `strips`; the densities before it read as levels (`comfortable` → `stacked`, `compact` → `rows`). Absent = `rows`.
+   * The default list zoom (Settings › Appearance; a list tab that hasn't picked one): `stacked`, `rows` or `lines`;
+   * the removed `strips` reads as `lines`, the densities before it as levels (`comfortable` → `stacked`,
+   * `compact` → `rows`). Absent = `rows`.
    */
   rowDensity: 'rowDensity',
-  /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `Nov 20`) or `numeric` (`MM/DD`). Absent = `relative`. */
+  /** How the task rows show their due and follow-up dates: `relative` (`Today`, `Sat`, `11/20`) or `numeric` (`MM/DD`). Absent = `relative`. */
   rowDates: 'rowDates',
   /**
    * The lenses (named screen filters, picked in the top bar — `activeLensId`): JSON array of
@@ -117,6 +118,13 @@ export const SETTING_KEYS = {
    * id (`lenses`). Absent = No lens; an id no lens has reads as No lens.
    */
   activeLensId: 'activeLensId',
+  /**
+   * Ambience (Settings › Appearance › Ambience): JSON
+   * `{ enabled, place: { lat, lon } | null, sky, motion, seasons }` (`utils/ambience-settings`);
+   * a field missing or out of range reads as its default. Absent = all defaults (on, place
+   * guessed from the time zone, Whisper, 40 %, seasons on).
+   */
+  ambience: 'ambience',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]

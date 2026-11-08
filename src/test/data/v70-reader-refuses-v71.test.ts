@@ -4,6 +4,7 @@ import { readLayoutDraft, readListDrafts } from '../../data/draft-storage'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { db } from '../../data/database'
 import { checkTooNewDB } from '../../services/migration-check'
+import { rowOf } from '../helpers/layout-builders'
 
 /**
  * A build whose schema is v70 — the last one without "is not" on a date
@@ -26,7 +27,7 @@ const orGroups = [{
     followup: { match: 'range', start: { kind: 'relative', token: 'today' }, end: { kind: 'offset', days: 14 }, not: true },
   },
 }]
-const columns = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'l', kind: 'lens', config: { listDefinitionId: 4 } }] }] }]
+const columns = [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 'l', kind: 'lens', config: { listDefinitionId: 4 } }] })] }]
 const list = {
   id: 4, name: 'Follow-ups to chase', sortOrder: 0, sort: 'manual', grouping: 'none', owner: { layoutId: 1 },
   membership: { kind: 'custom', predicate: { showCompleted: false, ...clauses, dates: {}, orGroups } },

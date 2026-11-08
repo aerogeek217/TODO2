@@ -41,7 +41,7 @@ export interface RuntimeFilterSpec {
 }
 
 /**
- * Who a list belongs to: one layout (whose tabs and dashboard tiles show
+ * Who a list belongs to: one layout (whose tabs show
  * it, and whose list choosers offer it — `isListedList`), or the Eisenhower
  * (the list of tasks it sorts into its panes, offered by no chooser). Every
  * list has one; a list without (older data, or a file edited by hand) is

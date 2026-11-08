@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   drag, layoutTab, layoutTabNames, openLayoutTab, openLayoutTabMenu, readListDefinitions, seedWorkspace, wsShape, wsTab,
   type WorkspaceSeed, type WsLayoutSeed,
+  wsRow,
 } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -17,7 +18,7 @@ import { readStore } from './fixtures/db'
 
 const layout = (name: string, tabId: string): WsLayoutSeed => ({
   name,
-  columns: [{ id: `col-${tabId}`, cells: [{ id: `cell-${tabId}`, tabs: [{ id: tabId, kind: 'notes' }, { id: `${tabId}-cal`, kind: 'calendar' }] }] }],
+  columns: [{ id: `col-${tabId}`, rows: [wsRow({ id: `cell-${tabId}`, tabs: [{ id: tabId, kind: 'notes' }, { id: `${tabId}-cal`, kind: 'calendar' }] })] }],
 })
 
 const three: WorkspaceSeed = { layouts: [layout('Main', 'm'), layout('Second', 's'), layout('Third', 't')] }
@@ -199,7 +200,12 @@ async function barState(page: Page) {
     const parts = Array.from(bar.querySelectorAll<HTMLElement>('button, [role="tab"], input'))
       .filter((el) => el.offsetParent !== null)
       .map((el) => el.getBoundingClientRect())
-    const sorted = Array.from(bar.children).map((c) => c.getBoundingClientRect()).filter((c) => c.width > 0)
+    // The parts in the bar's flow — as the fold measures them (`measureTopBar`): an absolute or
+    // fixed child (the ambience layers, spanning the whole bar) is no part and overlaps nothing.
+    const sorted = Array.from(bar.children)
+      .filter((c) => !['absolute', 'fixed'].includes(getComputedStyle(c).position))
+      .map((c) => c.getBoundingClientRect())
+      .filter((c) => c.width > 0)
     const overlap = sorted.some((c, i) => i > 0 && c.left < sorted[i - 1]!.right - 0.5)
     return {
       height: r.height,

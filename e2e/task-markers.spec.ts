@@ -32,9 +32,9 @@ test('the marker gutter names the priority the checkbox ring draws; urgent by du
   const gutter = (title: string) => row(widget, title).locator('[data-row-cell="markers"]')
   const ring = (title: string) => row(widget, title).locator('[data-priority-ring]')
   await expect(gutter('Flagged')).toHaveAccessibleName('Priority: Focus, Urgent, Important')
-  // Urgent + Important: the split ring; Focus under it, the gutter's dot.
+  // Urgent + Important: the split ring; Focus, the glow around it.
   await expect(ring('Flagged')).toHaveAttribute('data-priority-ring', 'split')
-  await expect(gutter('Flagged').locator('[data-gutter-dot="focus"]')).toBeVisible()
+  await expect(row(widget, 'Flagged').locator('[data-focus-glow]')).toHaveCount(1)
   await expect(gutter('Due soon')).toHaveAccessibleName('Priority: Urgent (due soon)')
   await expect(gutter('Overdue')).toHaveAccessibleName('Priority: Urgent (due soon)')
   // Urgent by date: the urgent ring, finely dashed, no fill.

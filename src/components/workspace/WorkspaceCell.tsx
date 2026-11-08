@@ -1,12 +1,12 @@
-import { useCallback, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import {
   getActiveTab,
+  isGlanceTab,
   tabListId,
   WIDGET_KIND_SPECS,
   type BandEdge,
   type LayoutCell,
-  type LayoutPanel,
   type LayoutTab,
   type WidgetKind,
 } from '../../models/workspace-layout'
@@ -33,9 +33,11 @@ import {
   CloseIcon,
   GripIcon,
   MoreIcon,
+  NewColumnIcon,
   PlusIcon,
   SplitBelowIcon,
   SplitRightIcon,
+  TabStripIcon,
 } from '../shared/icons'
 import {
   tabsCount,
@@ -45,14 +47,18 @@ import {
   type WorkspacePanelDragData,
 } from './workspace-drag'
 import { useUrgentRangeSetting } from './eisenhower/urgent-range-setting'
-import { CustomizeDashboardDialog } from './dashboard/CustomizeDashboardDialog'
 import { CUSTOMIZE_PANES_LABEL, openEisenhowerSettings } from './eisenhower/eisenhower-settings-link'
-import { useDashboardMenuActions } from './dashboard/dashboard-menu'
 import { useNeglectMenuEntries } from './neglect/neglect-menu'
+import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
 import { DashGlyph } from '../shared/DashGlyph'
 import styles from './WorkspaceCell.module.css'
 import { trackScrollEdges } from '../../utils/scroll-edges'
+import type { BandZone, CellZone } from '../../utils/workspace-drop'
+import { isHeadlessCell, stripShownChoice } from '../../utils/workspace-rows'
+import { WidgetFaceContext } from '../../hooks/use-widget-face'
+import { CELL_HEADER_PX, smallFaceClick, useCellFace } from './cell-face'
+import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
 import { transitionName, withViewTransition } from '../shared/view-transition'
 
 function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number } {
@@ -61,15 +67,23 @@ function anchorBelow(ref: RefObject<HTMLElement | null>): { x: number; y: number
 }
 
 interface WorkspaceCellProps {
-  /** A cell of a column, or (with `band`) a band. */
-  cell: LayoutPanel
-  /** Set when `cell` is the band at that edge. */
+  /** A cell of a column's row, or (with `band`) of a band. */
+  cell: LayoutCell
+  /** Set when `cell` is in the band at that edge. */
   band?: BandEdge
+  /** The id of its row (a column's row, or the band): what collapses. */
+  rowId: string
+  /** Its row is collapsed: the cell shows only its header. */
+  collapsed: boolean
+  /** Its row holds other cells too: collapsing folds the whole row. */
+  multiRow?: boolean
+  /** Its row fits its content (`isFitRow`): the widget shows its small face (D25 R). */
+  fitRow?: boolean
   style?: CSSProperties
 }
 
 /** An empty cell (right after a split): kind buttons, "or drag a tab here", and a close ×. */
-function EmptyCell({ cell, style }: { cell: LayoutCell; style?: CSSProperties }) {
+function EmptyCell({ cell, band, style }: { cell: LayoutCell; band?: BandEdge; style?: CSSProperties }) {
   const closeCell = useWorkspaceStore((s) => s.closeCell)
   const drag = useWorkspaceDrag()
   const over = drag?.hit?.kind === 'empty-cell' && drag.hit.cellId === cell.id && drag.accepts
@@ -78,6 +92,7 @@ function EmptyCell({ cell, style }: { cell: LayoutCell; style?: CSSProperties })
       className={`${styles.emptyCell} ${over ? styles.emptyCellOver : ''}`}
       style={style}
       data-ws-cell={cell.id}
+      data-ws-band={band}
       data-empty="true"
       aria-label="Empty cell"
     >
@@ -122,23 +137,34 @@ function joinLabel(panelDrag: boolean, count: number) {
   return panelDrag ? <>Merge {tabsCount(count)} here</> : <><PlusIcon size={12} strokeWidth={2} /> Add as tab</>
 }
 
-/** Scrim + three drop zones shown over a cell body while a tab or panel is dragged over it. */
-function DropZones({ zone, accepts, join }: { zone: 'top' | 'middle' | 'bottom'; accepts: boolean; join: ReactNode }) {
-  const cls = (z: typeof zone) => `${styles.zone} ${accepts && zone === z ? styles.zoneActive : ''}`
+/**
+ * Scrim + drop zones over a cell body while a tab or panel is dragged over
+ * it: beside it left / right, a row above / below (its own row's, `multi`:
+ * the row holds other cells too), and the middle that joins it. Drawn in the
+ * hit test's proportions (`SIDE_ZONE_SHARE`, quarters).
+ */
+function DropZones({ zone, accepts, join, multi }: { zone: CellZone; accepts: boolean; join: ReactNode; multi: boolean }) {
+  const cls = (z: CellZone) => `${styles.zone} ${styles[`zone_${z}`] ?? ''} ${accepts && zone === z ? styles.zoneActive : ''}`
+  const noun = multi ? 'row' : 'cell'
   return (
-    <div className={styles.zones} aria-hidden="true" data-testid="ws-drop-zones" data-active-zone={accepts ? zone : ''}>
-      <div className={cls('top')}>New cell above</div>
+    <div className={`${styles.zones} ${styles.cellZones}`} aria-hidden="true" data-testid="ws-drop-zones" data-active-zone={accepts ? zone : ''}>
+      <div className={cls('left')}><span className={styles.zoneSideLabel}>New cell left</span></div>
+      <div className={cls('top')}>New {noun} above</div>
       <div className={cls('middle')}>{join}</div>
-      <div className={cls('bottom')}>New cell below</div>
+      <div className={cls('bottom')}>New {noun} below</div>
+      <div className={cls('right')}><span className={styles.zoneSideLabel}>New cell right</span></div>
     </div>
   )
 }
 
-/** Scrim + the one drop zone over a band body (a band never splits). */
-function BandDropZone({ accepts, join }: { accepts: boolean; join: ReactNode }) {
+/** Scrim + a band body's zones: beside it left / right, and the middle that joins it (a band is one row). */
+function BandDropZone({ zone, accepts, join }: { zone: BandZone; accepts: boolean; join: ReactNode }) {
+  const cls = (z: BandZone) => `${styles.zone} ${styles[`zone_${z}`] ?? ''} ${accepts && zone === z ? styles.zoneActive : ''}`
   return (
-    <div className={`${styles.zones} ${styles.bandZones}`} aria-hidden="true" data-testid="ws-band-drop-zone" data-active={accepts ? 'true' : ''}>
-      <div className={`${styles.zone} ${accepts ? styles.zoneActive : ''}`}>{join}</div>
+    <div className={`${styles.zones} ${styles.bandZones}`} aria-hidden="true" data-testid="ws-band-drop-zone" data-active={accepts ? 'true' : ''} data-active-zone={accepts ? zone : ''}>
+      <div className={cls('left')}><span className={styles.zoneSideLabel}>New cell left</span></div>
+      <div className={cls('middle')}>{join}</div>
+      <div className={cls('right')}><span className={styles.zoneSideLabel}>New cell right</span></div>
     </div>
   )
 }
@@ -192,38 +218,53 @@ function listsLosingLastWidget(tabIds: readonly string[]): number[] {
   return [...out]
 }
 
-/** A cell (an empty one after a split, else its tabs) or a band. */
-export function WorkspaceCell({ cell, band, style }: WorkspaceCellProps) {
-  if (!band && cell.tabs.length === 0 && 'weight' in cell) return <EmptyCell cell={cell} style={style} />
-  return <FilledCell cell={cell} band={band} style={style} />
+/** A cell, in a column's row or a band: an empty one after a split, else its tabs. */
+export function WorkspaceCell(props: WorkspaceCellProps) {
+  const { cell, band, style } = props
+  if (cell.tabs.length === 0) return <EmptyCell cell={cell} band={band} style={style} />
+  return <FilledCell {...props} />
 }
 
-function FilledCell({ cell, band, style }: WorkspaceCellProps) {
+function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = false, style }: WorkspaceCellProps) {
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const closeTab = useWorkspaceStore((s) => s.closeTab)
   const closeCell = useWorkspaceStore((s) => s.closeCell)
   const splitCell = useWorkspaceStore((s) => s.splitCell)
-  const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
+  const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
   const patchTabConfig = useWorkspaceStore((s) => s.patchTabConfig)
   const movePanel = useWorkspaceStore((s) => s.movePanel)
+  const setCellStripShown = useWorkspaceStore((s) => s.setCellStripShown)
   const hasTop = useWorkspaceStore((s) => s.working?.top != null)
   const hasBottom = useWorkspaceStore((s) => s.working?.bottom != null)
   const drag = useWorkspaceDrag()
   const urgentRangeSetting = useUrgentRangeSetting()
   const noun = band ? 'band' : 'cell'
-
+  /** What collapses with this cell: its band, its row (shared with other cells) or just it. */
+  const rowNoun = band ? 'band' : multiRow ? 'row' : 'cell'
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
-  const collapsed = cell.collapsed === true
+  /** Headless whatever its face (one glance tab, or its strip hidden in the menu). */
+  const headlessByWidget = isHeadlessCell(cell)
+  // The active widget's face (D25 R): a fit row's is small; a cell headless
+  // only at its small face lends the body its header's room (measured as if headed).
+  const cellFace = useCellFace(active, {
+    forced: fitRow ? 'small' : undefined,
+    smallAllowancePx: !headlessByWidget && cell.tabs.length === 1 && cell.stripShown !== true ? CELL_HEADER_PX : undefined,
+  })
+  const smallFace = cellFace.face === 'small'
+  /** Headless: the strip is hidden until hover / focus (never while collapsed: the header is all it shows). */
+  const headless = !collapsed && isHeadlessCell(cell, undefined, smallFace)
+  const cellRef = useRef<HTMLElement | null>(null)
   /** What the active tab's widget last reported (any kind): its count label, shown sections or summary. */
   const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
   const [guard, setGuard] = useState<{ listIds: number[]; lead: string; run: () => void } | null>(null)
   const [tabMenu, setTabMenu] = useState<{ tabId: string; x: number; y: number } | null>(null)
   const [cellMenuOpen, setCellMenuOpen] = useState(false)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number } } | null>(null)
-  const [customize, setCustomize] = useState<string | null>(null)
   const moreRef = useRef<HTMLButtonElement | null>(null)
+  /** A menu of the cell is open: a headless cell keeps its strip in while it is. */
+  const stripPinned = cellMenuOpen || tabMenu != null || addFlow != null
 
   const activeResult = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result : undefined
   const activeCount = activeResult?.countLabel
@@ -236,13 +277,12 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
   }
   const closeTabGuarded = (tabId: string) => guarded([tabId], 'You’re closing the last widget that shows it.', () => closeTab(tabId))
   const closeCellGuarded = () => guarded(cell.tabs.map((t) => t.id), 'You’re closing the last widget that shows them.', () => closeCell(cell.id))
-  const closeCustomize = useCallback(() => setCustomize(null), [])
 
   const hit = drag?.hit
   const bodyHit = !band && hit?.kind === 'cell-body' && hit.cellId === cell.id ? hit : null
-  const bandHit = band && hit?.kind === 'band-body' && hit.edge === band ? hit : null
+  const bandHit = band && hit?.kind === 'band-body' && hit.cellId === cell.id ? hit : null
   const stripHit = hit?.kind === 'tab-strip' && hit.cellId === cell.id && drag?.accepts ? hit : null
-  const joining = drag?.accepts === true && (bodyHit?.zone === 'middle' || bandHit != null)
+  const joining = drag?.accepts === true && (bodyHit?.zone === 'middle' || bandHit?.zone === 'middle')
   const ghosts = joining && drag ? drag.tabs : null
   const panelDrag = drag?.source.type === 'panel'
   const join = joinLabel(panelDrag, drag?.tabs.length ?? 0)
@@ -290,22 +330,14 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
 
   const neglectEntries = useNeglectMenuEntries(menuTab?.kind === 'neglect' ? menuTab : undefined)
   const zoomEntries = useListZoomMenuEntries(menuTab?.kind === 'lens' ? menuTab : undefined)
-  const dashboardActions = useDashboardMenuActions({
-    onCustomize: () => { if (menuTab) setCustomize(menuTab.id) },
-    summary: menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result.summary : undefined,
-  })
+  // A glance widget's settings and Copy (its lines, while it is the cell's active tab).
+  const glance = glanceMenu(
+    menuTab && isGlanceTab(menuTab) ? menuTab : undefined,
+    menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result.summary : undefined,
+  )
 
   const cellMenuEntries: MenuEntry[] = [
     // The active widget's own setup, when it has one.
-    ...(active?.kind === 'dashboard' ? [
-      {
-        kind: 'item' as const,
-        label: 'Customize dashboard…',
-        icon: <DashGlyph name="sliders" />,
-        onSelect: () => setCustomize(active.id),
-      },
-      { kind: 'separator' as const },
-    ] : []),
     ...(active?.kind === 'eisenhower' ? [
       {
         kind: 'item' as const,
@@ -322,20 +354,38 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
       submenu: true,
       onSelect: () => setAddFlow({ anchor: anchorBelow(moreRef) }),
     },
+    {
+      kind: 'item',
+      label: 'Split',
+      icon: <SplitRightIcon />,
+      children: [
+        { kind: 'item', label: 'Right', icon: <SplitRightIcon />, onSelect: () => { splitCell(cell.id, 'right') } },
+        // A band is one row: it splits beside only.
+        ...(band ? [] : [
+          { kind: 'item' as const, label: 'Below', icon: <SplitBelowIcon />, onSelect: () => { splitCell(cell.id, 'below') } },
+          { kind: 'item' as const, label: 'New column', icon: <NewColumnIcon />, onSelect: () => { splitCell(cell.id, 'new-column') } },
+        ]),
+      ],
+    },
     ...(band ? [
       bandMoveEntry(band === 'top' ? 'bottom' : 'top'),
-      { kind: 'item' as const, label: 'Move to a new column', icon: <SplitRightIcon />, onSelect: () => movePanel(cell.id, { kind: 'layout' }) },
+      { kind: 'item' as const, label: 'Move to a new column', icon: <NewColumnIcon />, onSelect: () => movePanel(cell.id, { kind: 'layout' }) },
     ] : [
-      { kind: 'item' as const, label: 'Split right', icon: <SplitRightIcon />, onSelect: () => { splitCell(cell.id, 'right') } },
-      { kind: 'item' as const, label: 'Split below', icon: <SplitBelowIcon />, onSelect: () => { splitCell(cell.id, 'below') } },
       bandMoveEntry('top'),
       bandMoveEntry('bottom'),
     ]),
+    // One tab: its strip can hide (headless) or show; the way its widget has it is the default, written as no choice.
+    ...(cell.tabs.length === 1 ? [{
+      kind: 'item' as const,
+      label: headless ? 'Show tab strip' : 'Hide tab strip',
+      icon: <TabStripIcon />,
+      onSelect: () => setCellStripShown(cell.id, stripShownChoice(cell, headless, undefined, smallFace)),
+    }] : []),
     {
       kind: 'item',
-      label: collapsed ? `Expand ${noun}` : `Collapse ${noun}`,
+      label: collapsed ? `Expand ${rowNoun}` : `Collapse ${rowNoun}`,
       icon: collapsed ? <ChevronDownIcon size={14} /> : <ChevronUpIcon />,
-      onSelect: () => { void setCellCollapsed(cell.id, !collapsed) },
+      onSelect: () => { void setRowCollapsed(rowId, !collapsed) },
     },
     { kind: 'separator' },
     ...(active ? [{ kind: 'item' as const, label: `Close tab “${activeTitle}”`, icon: <CloseIcon size={14} strokeWidth={1.6} />, onSelect: () => closeTabGuarded(active.id) }] : []),
@@ -349,15 +399,32 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
 
   return (
     <section
-      className={`${styles.cell} ${collapsed ? styles.collapsed : ''} ${isDragSource ? styles.dragSource : ''}`}
+      ref={cellRef}
+      className={[
+        styles.cell,
+        collapsed ? styles.collapsed : '',
+        isDragSource ? styles.dragSource : '',
+        headless ? styles.headless : '',
+        headless && drag ? styles.headlessQuiet : '',
+      ].join(' ')}
       style={{ ...style, viewTransitionName: transitionName('ws-cell', cell.id) }}
       data-ws-cell={cell.id}
       data-ws-band={band}
+      data-headless={headless ? 'true' : undefined}
+      data-face={!collapsed && active ? cellFace.face : undefined}
       aria-label={`${activeTitle} ${noun}`}
+      onContextMenu={headless ? (e) => {
+        // A headless cell's right-click is its tab's menu (a widget's own menu, e.g. a row's, goes first).
+        // Not one from the full widget's popover (portaled, but in this React tree).
+        if (e.defaultPrevented || !active || !(e.target instanceof Node) || !e.currentTarget.contains(e.target)) return
+        e.preventDefault()
+        setTabMenu({ tabId: active.id, x: e.clientX, y: e.clientY })
+      } : undefined}
     >
       <div
-        className={`${styles.header} ${cellMenuOpen ? styles.headerMenuOpen : ''}`}
+        className={[styles.header, cellMenuOpen ? styles.headerMenuOpen : '', headless && stripPinned ? styles.stripPinned : ''].join(' ')}
         data-ws-cell-header={cell.id}
+        data-strip-hidden={headless ? '' : undefined}
       >
         <CellTabStrip
           cell={cell}
@@ -368,7 +435,7 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           onActivate={(tabId) => {
             withViewTransition(() => {
               void setActiveTab(tabId)
-              if (collapsed) void setCellCollapsed(cell.id, false)
+              if (collapsed) void setRowCollapsed(rowId, false)
             })
           }}
           onClose={closeTabGuarded}
@@ -383,10 +450,10 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           <button
             type="button"
             className={styles.expand}
-            aria-label={`Expand ${noun}`}
+            aria-label={`Expand ${rowNoun}`}
             aria-expanded={false}
-            title={`Expand ${noun}`}
-            onClick={() => { void setCellCollapsed(cell.id, false) }}
+            title={`Expand ${rowNoun}`}
+            onClick={() => { void setRowCollapsed(rowId, false) }}
           >
             <ChevronDownIcon size={14} />
           </button>
@@ -395,10 +462,10 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             <button
               type="button"
               className={styles.action}
-              aria-label={`Collapse ${noun}`}
+              aria-label={`Collapse ${rowNoun}`}
               aria-expanded={true}
               title="Collapse"
-              onClick={() => { void setCellCollapsed(cell.id, true) }}
+              onClick={() => { void setRowCollapsed(rowId, true) }}
             >
               <ChevronUpIcon />
             </button>
@@ -420,19 +487,23 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
       {!collapsed && active && (
         <div
           ref={trackScrollEdges}
-          className={styles.body}
+          className={`${styles.body} ${smallFace ? styles.bodySmall : ''}`}
           role="tabpanel"
           aria-labelledby={`ws-tab-${active.id}`}
           data-ws-cell-body={cell.id}
+          // A small face opens its full widget (a widget's own click goes first).
+          onClick={drag ? undefined : smallFaceClick(cellFace)}
         >
-          <WidgetBody
-            key={active.id}
-            tab={active}
-            onResult={(result) => setWidgetResult({ tabId: active.id, result })}
-            onCustomize={active.kind === 'dashboard' ? () => setCustomize(active.id) : undefined}
-          />
-          {bodyHit && <DropZones zone={bodyHit.zone} accepts={drag?.accepts === true} join={join} />}
-          {bandHit && <BandDropZone accepts={drag?.accepts === true} join={join} />}
+          {smallFace && !drag && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
+          <WidgetFaceContext.Provider value={cellFace.host}>
+            <WidgetBody
+              key={active.id}
+              tab={active}
+              onResult={(result) => setWidgetResult({ tabId: active.id, result })}
+            />
+          </WidgetFaceContext.Provider>
+          {bodyHit && <DropZones zone={bodyHit.zone} multi={bodyHit.multi} accepts={drag?.accepts === true} join={join} />}
+          {bandHit && <BandDropZone zone={bandHit.zone} accepts={drag?.accepts === true} join={join} />}
         </div>
       )}
 
@@ -474,8 +545,8 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
             ? [{ label: CUSTOMIZE_PANES_LABEL, onSelect: () => openEisenhowerSettings() }]
             : undefined}
           widgetSetting={menuTab.kind === 'eisenhower' ? urgentRangeSetting : undefined}
-          settingEntries={menuTab.kind === 'neglect' ? neglectEntries : menuTab.kind === 'lens' ? zoomEntries : undefined}
-          widgetActions={menuTab.kind === 'dashboard' ? dashboardActions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
+          settingEntries={menuTab.kind === 'neglect' ? neglectEntries : menuTab.kind === 'lens' ? zoomEntries : glance?.settingEntries}
+          widgetActions={glance ? glance.actions : menuTab.kind === 'lens' && widgetResult && widgetResult.tabId === menuTab.id
             ? [
                 // The top bar's lens on this list, while one applies there: on / off here (saved at once).
                 ...(widgetResult.result.lens ? [lensSwitchAction(widgetResult.result.lens)] : []),
@@ -515,7 +586,9 @@ function FilledCell({ cell, band, style }: WorkspaceCellProps) {
           onCancel={() => setGuard(null)}
         />
       )}
-      {customize && <CustomizeDashboardDialog tabId={customize} onClose={closeCustomize} />}
+      {cellFace.fullOpen && active && !collapsed && (
+        <WidgetFacePopover tab={active} anchorRef={cellRef} onClose={cellFace.closeFull} />
+      )}
     </section>
   )
 }

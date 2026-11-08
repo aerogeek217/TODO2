@@ -9,6 +9,7 @@ import { LayoutControls } from '../../../components/workspace/LayoutControls'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { resetDb } from '../../helpers'
+import { rowOf } from '../../helpers/layout-builders'
 
 /**
  * The top bar's layout controls: the layouts as tabs (click opens one, the
@@ -21,7 +22,7 @@ const ws = () => useWorkspaceStore.getState()
 
 const layout = (name: string): Omit<WorkspaceLayout, 'id' | 'sortOrder'> => ({
   name, createdAt: T0, modifiedAt: T0,
-  columns: [{ id: 'A', weight: 1, cells: [{ id: 'ka', weight: 1, tabs: [createTab('notes', `${name}-n`)] }] }],
+  columns: [{ id: 'A', weight: 1, rows: [rowOf({ id: 'ka', weight: 1, tabs: [createTab('notes', `${name}-n`)] })] }],
 })
 
 async function seed(...names: string[]): Promise<number[]> {

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, drag, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, drag, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -8,7 +8,7 @@ import { readStore } from './fixtures/db'
  * filter line (`No filters` = every task); editing it makes the list
  * unsaved — the tab's dot, Revert · Save — and Save writes it, still the
  * Eisenhower's; Edit list… from the tab menu
- * opens beside the panel and its Save is what the dashboard's Eisenhower
+ * opens beside the panel and its Save is what the Eisenhower summary
  * section counts; drags between quadrants still set the flags and "+" adds
  * with the list's defaults; an Eisenhower switched to List picks a list —
  * never the Eisenhower's; closing the last widget on its unsaved list asks
@@ -27,8 +27,8 @@ const SEED: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'colB', weight: 2, cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] }] },
+      { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'colB', weight: 2, rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] })] },
     ],
   }],
 }
@@ -40,7 +40,7 @@ const ON_TEAM: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] }] },
+      { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] })] },
     ],
   }],
 }
@@ -122,18 +122,18 @@ test.describe('desktop', () => {
     await expect(filterLine(page)).toContainText('not Waiting')
   })
 
-  test('Edit list… → a filter → Save list: the dashboard’s Eisenhower section counts what the widget shows', async ({ page }) => {
+  test('Edit list… → a filter → Save list: the Eisenhower summary counts what the widget shows', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }] },
-          { id: 'colC', cells: [{ id: 'c1', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: ['open'], sections: [{ id: 'eisenhower' }] } }] }] },
+          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] },
+          { id: 'colC', rows: [wsRow({ id: 'c1', tabs: [{ id: 'dash', kind: 'eisenhowerSummary' }] })] },
         ],
       }],
     })
-    const dashDo = page.locator('[data-dashboard="dash"] [data-dash-section="eisenhower"] [data-eis-cell="do"]').getByTestId('dash-eis-count')
+    const dashDo = page.locator('[data-glance-tab="dash"] [data-dash-section="eisenhower"] [data-eis-cell="do"]').getByTestId('dash-eis-count')
     await expect(dashDo).toHaveText('2')
     await (await openTabMenu(page, 'eisTab')).getByRole('menuitem', { name: 'Edit list…' }).click()
     const editList = page.getByTestId('edit-list')
@@ -193,8 +193,8 @@ test.describe('desktop', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'colB', cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] }] },
-          { id: 'colC', cells: [{ id: 'c1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 1 }] }] },
+          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }, { id: 'notesTab', kind: 'notes' }] })] },
+          { id: 'colC', rows: [wsRow({ id: 'c1', tabs: [{ id: 'otherTab', kind: 'lens', listDefIdx: 1 }] })] },
         ],
       }],
     })
@@ -207,7 +207,7 @@ test.describe('desktop', () => {
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: /^Edit list/ })).toHaveCount(0)
     // Back to Eisenhower: its own list's filter line.
-    await (await openTabMenu(page, 'eisTab')).getByRole('menuitemradio', { name: 'Eisenhower' }).click()
+    await (await openTabMenu(page, 'eisTab')).getByRole('menuitemradio', { name: 'Eisenhower', exact: true }).click()
     await expect(widget(page)).toBeVisible()
     await expect(filterLine(page)).toContainText('No filters')
   })

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readListDefinitions, seedWorkspace, wsCell, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { readListDefinitions, seedWorkspace, wsCell, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 import { rowTitles } from './fixtures/seed'
 
@@ -7,7 +7,7 @@ import { rowTitles } from './fixtures/seed'
  * A list's sort direction: Edit list's ↑ / ↓ toggle beside Sort by (none for
  * Manual) re-sorts the list live in every widget showing it, the filter
  * line's summary shows `↓`, and the direction saves, reloads and reverts
- * like the list's other edits. Lists drilled from the dashboard follow it.
+ * like the list's other edits.
  */
 
 const ASCENDING = ['Overdue', 'Soon', 'Later', 'Undated']
@@ -25,9 +25,8 @@ function seed(list: NonNullable<WorkspaceSeed['listDefinitions']>[number]): Work
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c3', cells: [{ id: 'k3', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [0] } }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 0 }] })] },
       ],
     }],
   }
@@ -130,14 +129,6 @@ test.describe('desktop', () => {
     await expect(summary(page, 't2')).toHaveText('Due date ↓')
     await expect(wsListWidget(page, 't2').getByTestId('save-list')).toHaveCount(0)
     await expect(wsTab(page, 't2').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
-  })
-
-  test('the dashboard list tile’s task dialog lists the tasks in the list’s direction', async ({ page }) => {
-    await seedWorkspace(page, seed({ name: 'Team', sort: 'deadline', sortDirection: 'desc' }))
-    await page.locator('[data-dashboard="dash"]').locator('[data-dash-list-tile]').click()
-    const dialog = page.locator('[data-task-dialog]')
-    await expect(dialog).toBeVisible()
-    await expect.poll(() => rowTitles(dialog)).toEqual(DESCENDING)
   })
 
 })

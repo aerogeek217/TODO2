@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace } from './fixtures/workspace'
+import { seedWorkspace, wsRow } from './fixtures/workspace'
 
 /**
  * Clearing the next follow-up in the popover sticks: its × clears the stored
@@ -36,7 +36,7 @@ test.describe('clearing the next follow-up in the popover', () => {
     await seedWorkspace(page, {
       listDefinitions: [{ name: 'All' }],
       tasks: [{ title: 'Later', followupInDays: 3 }, { title: 'Overdue', followupInDays: -2 }],
-      layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'k', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] }] }],
+      layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'k', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] }] }],
     })
   })
 

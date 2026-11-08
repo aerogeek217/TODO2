@@ -41,7 +41,7 @@ export function computeEisenhowerSummary(
 }
 
 export interface EisenhowerSourceOptions {
-  /** The screen filter as the dashboard applies it (`statsFilter`). */
+  /** The screen filter as the glance widgets apply it (`statsFilter`). */
   screen: FilterCriteria
   /** Assignments + status names (tag clauses need `assignedTagsMap` loaded). */
   lookups: TodoNameLookups
@@ -50,12 +50,12 @@ export interface EisenhowerSourceOptions {
 }
 
 /**
- * The tasks the Eisenhower considers, as the dashboard counts them: `shown`
+ * The tasks the Eisenhower considers, as the summary counts them: `shown`
  * passes the screen filter too, `total` doesn't (the `of N`). The
  * Eisenhower's own list (`definition`: its unsaved draft, if any): its
  * members — the list's own filter, its prompt ignored —, through the same
  * evaluators a list widget uses (`createScreenComposedEvaluator`); before
- * it is loaded, every task (`shownAll`: the dashboard's screen-filtered
+ * it is loaded, every task (`shownAll`: the screen-filtered
  * tasks).
  */
 export function eisenhowerSourceTasks(

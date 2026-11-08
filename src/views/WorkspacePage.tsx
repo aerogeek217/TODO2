@@ -28,7 +28,7 @@ import { buildRescheduleUpdate } from '../utils/reschedule'
 import { applyPaneDrop, currentPaneContext, currentPanes } from '../services/eisenhower-drop'
 import { startOfToday } from '../utils/date'
 import { dragTasks } from '../components/workspace/eisenhower/eisenhower-drag'
-import { dropChangesLayout, dropTargetForHit, hitTestWorkspace, sameDropHit } from '../utils/workspace-drop'
+import { dropChangesLayout, dropTargetForHit, geometryCells, hitTestWorkspace, sameDropHit } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
@@ -148,7 +148,7 @@ function useWorkspaceDragState() {
     const accepts = target != null && dropChangesLayout(layout, current.source, target)
     let insertLeft: number | null = null
     if (hit?.kind === 'tab-strip') {
-      const panel = [...geo.bands, ...geo.columns.flatMap((c) => c.cells)].find((c) => c.id === hit.cellId)
+      const panel = geometryCells(geo).find((c) => c.id === hit.cellId)
       if (panel?.header) insertLeft = hit.lineX - panel.header.left
     }
     if (sameDropHit(hit, current.hit) && accepts === current.accepts && insertLeft === current.insertLeft) return

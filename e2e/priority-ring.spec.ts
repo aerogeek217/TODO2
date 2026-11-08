@@ -64,13 +64,13 @@ async function ringContrasts(widget: Locator): Promise<Record<string, number>> {
 test.describe('the priority ring and the row spine (D25 B)', () => {
   test.use({ viewport: { width: 1100, height: 800 } })
 
-  test('each priority is its ring on the checkbox: solid, dashed for urgent by date, split for both, the Focus dot under another', async ({ page }) => {
+  test('Urgent and Important are rings on the checkbox — solid, dashed for urgent by date, split for both —, Focus a tight glow, never a ring', async ({ page }) => {
     const widget = await seedTaskList(page, { tasks: TASKS })
     await expect(row(widget, 'Plain')).toBeVisible()
     await expect(ringOf(widget, 'Plain')).toHaveCount(0)
     await expect(ringOf(widget, 'Urgent')).toHaveAttribute('data-priority-ring', 'urgent')
     await expect(ringOf(widget, 'Important')).toHaveAttribute('data-priority-ring', 'important')
-    await expect(ringOf(widget, 'Focus')).toHaveAttribute('data-priority-ring', 'focus')
+    await expect(ringOf(widget, 'Focus')).toHaveCount(0)
     await expect(ringOf(widget, 'Urgent and important')).toHaveAttribute('data-priority-ring', 'split')
     await expect(row(widget, 'Urgent and important').locator('[data-ring-part]')).toHaveCount(2)
 
@@ -93,10 +93,20 @@ test.describe('the priority ring and the row spine (D25 B)', () => {
     expect(fit.dw).toBeLessThan(0.5)
     expect(fit.border).toBe('rgba(0, 0, 0, 0)')
 
-    // Focus under another ring: the accent dot in the gutter at rest, gone on hover (the flag shows).
-    const dot = row(widget, 'Focus and urgent').locator('[data-gutter-dot="focus"]')
-    await expect(dot).toBeVisible()
-    await expect(row(widget, 'Focus').locator('[data-gutter-dot]')).toHaveCount(0)
+    // Focus: a glow the box's shape around it, with a ring or alone (the box keeping its own border), tight: 4px blur.
+    for (const title of ['Focus', 'Focus and urgent']) {
+      const glow = await row(widget, title).locator('[data-row-cell="checkbox"]').evaluate((box) => {
+        const g = box.parentElement!.querySelector<HTMLElement>('[data-focus-glow]')!
+        const gb = g.getBoundingClientRect()
+        const b = box.getBoundingClientRect()
+        return { dx: Math.abs(gb.x - b.x), dw: Math.abs(gb.width - b.width), shadow: getComputedStyle(g).boxShadow, border: getComputedStyle(box).borderTopColor }
+      })
+      expect(glow.dx).toBeLessThan(0.5)
+      expect(glow.dw).toBeLessThan(0.5)
+      expect(glow.shadow).toMatch(/ 0px 0px 4px 1px$/)
+      if (title === 'Focus') expect(glow.border).not.toBe('rgba(0, 0, 0, 0)')
+    }
+    await expect(row(widget, 'Urgent').locator('[data-focus-glow]')).toHaveCount(0)
   })
 
   test('the gutter: empty at rest, a flag on row hover, and a click opens the priority menu', async ({ page }) => {
@@ -170,10 +180,10 @@ test.describe('the priority ring and the row spine (D25 B)', () => {
   for (const mode of ['dark', 'light'] as const) {
     test(`the ring colours stand out from the surface in the ${mode} theme (≥ 3:1)`, async ({ page }) => {
       const widget = await seedTaskList(page, { tasks: TASKS })
-      await expect(ringOf(widget, 'Focus')).toBeVisible()
+      await expect(ringOf(widget, 'Urgent')).toBeVisible()
       await setTheme(page, mode)
       const contrasts = await ringContrasts(widget)
-      expect(Object.keys(contrasts).sort()).toEqual(['focus', 'important', 'urgent'])
+      expect(Object.keys(contrasts).sort()).toEqual(['important', 'urgent'])
       for (const [part, ratio] of Object.entries(contrasts)) {
         expect(ratio, `${part} ring in ${mode}`).toBeGreaterThanOrEqual(3)
       }

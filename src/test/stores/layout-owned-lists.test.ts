@@ -12,6 +12,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { layoutListRefs } from '../../utils/workspace-layout-ops'
 import { writeLayoutDraft } from '../../data/draft-storage'
 import { resetDb } from '../helpers'
+import { rowOf } from '../helpers/layout-builders'
 
 /**
  * A layout's lists live and die with it: a layout Save deletes the ones no
@@ -26,7 +27,7 @@ const ws = () => useWorkspaceStore.getState()
 const lens = (id: string, listDefinitionId: number): LayoutTab => createTab('lens', id, { listDefinitionId })
 
 function layoutWith(name: string, tabs: LayoutTab[]): Omit<WorkspaceLayout, 'id' | 'sortOrder'> {
-  return { name, createdAt: T0, modifiedAt: T0, columns: [{ id: `c-${name}`, weight: 1, cells: [{ id: `k-${name}`, weight: 1, tabs }] }] }
+  return { name, createdAt: T0, modifiedAt: T0, columns: [{ id: `c-${name}`, weight: 1, rows: [rowOf({ id: `k-${name}`, weight: 1, tabs })] }] }
 }
 
 function def(name: string, owner?: ListOwner, extra: Partial<ListDefinition> = {}): Omit<ListDefinition, 'id'> {
@@ -221,8 +222,7 @@ describe('layout Save', () => {
 })
 
 describe('a layout shows only its own lists', () => {
-  const dashboard = (id: string) => createTab('dashboard', id)
-  const tabsOf = () => ws().working!.columns.flatMap((c) => c.cells.flatMap((k) => k.tabs))
+  const tabsOf = () => ws().working!.columns.flatMap((c) => c.rows.flatMap((r) => r.cells.flatMap((k) => k.tabs)))
 
   it('a new tab on another layout’s or the Eisenhower’s list is refused; on its own, added', async () => {
     const w = await world()
@@ -243,16 +243,6 @@ describe('a layout shows only its own lists', () => {
     expect(ws().isDirty).toBe(false)
     ws().patchTabConfig('s', 'lens', { listDefinitionId: w.mine2 })
     expect(tabsOf().find((t) => t.id === 's')?.config).toMatchObject({ listDefinitionId: w.mine2 })
-  })
-
-  it('a dashboard’s list tiles: another layout’s list is refused, its own added', async () => {
-    const w = await world()
-    await db.layouts.update(w.a, layoutWith('A', [lens('s', w.saved), dashboard('d')]))
-    await ws().init()
-    ws().patchTabConfig('d', 'dashboard', { listTiles: [w.saved, w.theirs] })
-    expect(tabsOf().find((t) => t.id === 'd')?.config).toMatchObject({ listTiles: [] })
-    ws().patchTabConfig('d', 'dashboard', { listTiles: [w.saved] })
-    expect(tabsOf().find((t) => t.id === 'd')?.config).toMatchObject({ listTiles: [w.saved] })
   })
 
   it('a list that no longer exists is no one’s: a tab may still name it (it shows as deleted)', async () => {
@@ -278,16 +268,6 @@ describe('page load', () => {
     expect(layoutListRefs(ws().working!).has(kept)).toBe(true)
     expect(await storedListIds()).toEqual([w.saved, w.mine1, w.mine2, w.theirs, w.eisenhower, kept])
     expect(storeListIds()).not.toContain(unshown)
-  })
-
-  it('a kept new layout whose dashboard tile names a list is not taken back either', async () => {
-    const w = await world()
-    const dash = createTab('dashboard', 'd')
-    const withTile = { ...dash, config: { ...dash.config, listTiles: [w.theirs] } } as LayoutTab
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: layoutBodyOf(layoutWith('N', [withTile])) })
-    await reload()
-    expect(ws().saved?.id).toBe(w.a)
-    expect(useUndoStore.getState().snackbar?.description).toBe('The unsaved new layout “Untitled layout” was dropped: a layout shows only its own lists, and it wasn’t stored yet.')
   })
 
   it('a kept new layout (an older build’s) that shows a list is not taken back (every list is a stored layout’s), and says so', async () => {
@@ -321,7 +301,7 @@ describe('page load', () => {
     expect(ws().saved?.id).toBe(w.b)
     expect(ws().isDirty).toBe(true)
     expect([...layoutListRefs(ws().working!)].sort((x, y) => x - y)).toEqual([w.theirs, copy].sort((x, y) => x - y))
-    expect(ws().working!.columns[0]!.cells[0]!.tabs.map((t) => t.id)).toEqual(['t', 'm1b', 'nb'])
+    expect(ws().working!.columns[0]!.rows[0]!.cells[0]!.tabs.map((t) => t.id)).toEqual(['t', 'm1b', 'nb'])
   })
 
   it('a kept draft that shows another layout’s list is dropped, and says so', async () => {
@@ -383,8 +363,8 @@ describe('a list of the layout another layout names (data edited by hand)', () =
   async function repairedWorld(): Promise<World> {
     const w = await world()
     const row = await stored(w.a)
-    const cell = row.columns[0]!.cells[0]!
-    await db.layouts.put({ ...row, columns: [{ ...row.columns[0]!, cells: [{ ...cell, tabs: [...cell.tabs.filter((t) => t.id !== 'm2'), { ...lens('x', w.mine2), id: 7 as unknown as string }] }] }] })
+    const cell = row.columns[0]!.rows[0]!.cells[0]!
+    await db.layouts.put({ ...row, columns: [{ ...row.columns[0]!, rows: [{ ...row.columns[0]!.rows[0]!, cells: [{ ...cell, tabs: [...cell.tabs.filter((t) => t.id !== 'm2'), { ...lens('x', w.mine2), id: 7 as unknown as string }] }] }] }] })
     useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
     await ws().init()
     expect(ws().repairedIds.has(w.a)).toBe(true)
@@ -406,8 +386,8 @@ describe('a list of the layout another layout names (data edited by hand)', () =
     const w = await world()
     // A tab this build can't read (a number id) that shows Mine 2: the layout opens repaired, without it.
     const row = await stored(w.a)
-    const cell = row.columns[0]!.cells[0]!
-    await db.layouts.put({ ...row, columns: [{ ...row.columns[0]!, cells: [{ ...cell, tabs: [...cell.tabs.filter((t) => t.id !== 'm2'), { ...lens('x', w.mine2), id: 7 as unknown as string }] }] }] })
+    const cell = row.columns[0]!.rows[0]!.cells[0]!
+    await db.layouts.put({ ...row, columns: [{ ...row.columns[0]!, rows: [{ ...row.columns[0]!.rows[0]!, cells: [{ ...cell, tabs: [...cell.tabs.filter((t) => t.id !== 'm2'), { ...lens('x', w.mine2), id: 7 as unknown as string }] }] }] }] })
     useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
     await ws().init()
     expect(ws().repairedIds.has(w.a)).toBe(true)

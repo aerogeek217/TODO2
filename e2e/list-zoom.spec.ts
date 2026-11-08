@@ -1,16 +1,16 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
-import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
- * D25 C + I1 · a list tab's zoom, in the real browser: the four levels'
+ * D25 C + I1 · a list tab's zoom, in the real browser: the three levels'
  * row heights and group headers, Stacked's details line under the title,
  * Ctrl + wheel stepping the level without zooming the page, the tab menu's
- * − / +, the palette's Zoom List In / Out, a Strips click landing on its
- * row at Rows (focused), a drag reorder and keyboard navigation at Lines,
- * the level surviving a reload, and the Settings default for a tab that
- * hasn't picked one.
+ * − / +, the palette's Zoom List In / Out, a drag reorder, keyboard
+ * navigation and the task menu at Lines, the level surviving a reload, the
+ * Settings default for a tab that hasn't picked one, and a tab stored at the
+ * removed Strips opening at Lines.
  */
 
 type Zoom = 'stacked' | 'rows' | 'lines' | 'strips'
@@ -19,7 +19,6 @@ const TAB = 'z1'
 const widget = (page: Page) => wsListWidget(page, TAB)
 const grid = (page: Page) => widget(page).locator('[data-task-row-grid]')
 const rowOf = (page: Page, title: string) => widget(page).locator('[data-row-key]').filter({ hasText: title })
-const stripOf = (page: Page, title: string) => widget(page).locator(`[data-row-key]:has([data-task-strip][aria-label="${title}"])`)
 const titles = (page: Page) => widget(page).locator('[data-row-key]').evaluateAll((rows) =>
   rows.map((r) => r.querySelector('[data-task-title]')?.getAttribute('data-task-title') ?? r.querySelector('[aria-label]')?.getAttribute('aria-label') ?? ''))
 
@@ -43,7 +42,7 @@ function seed(opts: {
     listDefinitions: [{ name: 'Zoomed', grouping: opts.grouping ?? 'none', sort: opts.sort ?? 'manual' }],
     layouts: [{
       name: 'Main',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: TAB, kind: 'lens', listDefIdx: 0, ...(opts.zoom ? { zoom: opts.zoom } : {}) }] }] }],
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: TAB, kind: 'lens', listDefIdx: 0, ...(opts.zoom ? { zoom: opts.zoom } : {}) }] })] }],
     }],
   }
 }
@@ -55,8 +54,8 @@ async function open(page: Page, opts: Parameters<typeof seed>[0] = {}): Promise<
 
 /** The list tab's stored zoom (the saved layout's view state). */
 async function storedZoom(page: Page): Promise<unknown> {
-  const layouts = await readStore<{ columns: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: { zoom?: unknown } }> }> }> }>(page, 'layouts')
-  const tab = layouts.flatMap((l) => l.columns.flatMap((c) => c.cells.flatMap((k) => k.tabs))).find((t) => t.id === TAB)
+  const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: { zoom?: unknown } }> }> }> }> }>(page, 'layouts')
+  const tab = layouts.flatMap((l) => l.columns.flatMap((c) => c.rows.flatMap((r) => r.cells.flatMap((k) => k.tabs)))).find((t) => t.id === TAB)
   return tab?.viewState?.zoom
 }
 
@@ -73,14 +72,13 @@ const heightOf = async (row: Locator) => (await box(row)).height
 
 test.use({ viewport: { width: 1000, height: 700 } })
 
-const LEVELS: Record<Zoom, { row: number; header: number }> = {
+const LEVELS: Record<Exclude<Zoom, 'strips'>, { row: number; header: number }> = {
   stacked: { row: 44, header: 28 },
   rows: { row: 30, header: 28 },
   lines: { row: 15, header: 20 },
-  strips: { row: 4, header: 14 },
 }
 
-for (const zoom of ['stacked', 'rows', 'lines', 'strips'] as const) {
+for (const zoom of ['stacked', 'rows', 'lines'] as const) {
   test(`${zoom}: rows ${LEVELS[zoom].row}px, group headers ${LEVELS[zoom].header}px, the top fade under the sticky header`, async ({ page }) => {
     await open(page, { zoom, grouping: 'people' })
     await expect(grid(page)).toHaveAttribute('data-zoom', zoom)
@@ -134,12 +132,12 @@ test('Ctrl + wheel over the list steps the zoom without zooming the page, saved 
 
   await ctrlWheel(page, 100)
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
-  await ctrlWheel(page, 100)
-  await expect(grid(page)).toHaveAttribute('data-zoom', 'strips')
   // Clamped at the end.
   await ctrlWheel(page, 100)
-  await expect(grid(page)).toHaveAttribute('data-zoom', 'strips')
+  await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
   await ctrlWheel(page, -100)
+  await expect(grid(page)).toHaveAttribute('data-zoom', 'rows')
+  await ctrlWheel(page, 100)
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
   expect(await scale()).toEqual(before)
 
@@ -161,11 +159,10 @@ test('the tab menu steps the zoom with − / +, each disabled at its end, the me
   await expect(zoom.getByRole('button', { name: 'Zoom in' })).toBeDisabled()
   await zoom.getByRole('button', { name: 'Zoom out' }).click()
   await zoom.getByRole('button', { name: 'Zoom out' }).click()
-  await zoom.getByRole('button', { name: 'Zoom out' }).click()
-  await expect(zoom.locator('[data-menu-stepper-value]')).toHaveText('Strips')
+  await expect(zoom.locator('[data-menu-stepper-value]')).toHaveText('Lines')
   await expect(zoom.getByRole('button', { name: 'Zoom out' })).toBeDisabled()
-  await expect(grid(page)).toHaveAttribute('data-zoom', 'strips')
-  await expect.poll(() => storedZoom(page)).toBe('strips')
+  await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
+  await expect.poll(() => storedZoom(page)).toBe('lines')
 })
 
 test('the palette’s Zoom List Out / In act on the list on screen', async ({ page }) => {
@@ -182,23 +179,30 @@ test('the palette’s Zoom List Out / In act on the list on screen', async ({ pa
   await expect(grid(page)).toHaveAttribute('data-zoom', 'rows')
 })
 
-test('a Strips click zooms to Rows on that task: scrolled into view, selected and focused', async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 420 })
-  const tasks = Array.from({ length: 60 }, (_, i) => ({ title: `Task ${String(i + 1).padStart(2, '0')}` }))
-  await open(page, { zoom: 'strips', tasks, sort: 'title' })
-  const strip = stripOf(page, 'Task 55')
-  await strip.hover()
-  await expect(page.getByRole('tooltip')).toHaveText('Task 55')
-  await strip.click()
-  await expect(grid(page)).toHaveAttribute('data-zoom', 'rows')
-  const row = rowOf(page, 'Task 55')
-  await expect(row).toBeInViewport()
-  await expect(row).toBeFocused()
-  await expect(row).toHaveAttribute('data-selected', 'true')
+test('Lines: a right-click opens the task menu at the pointer; Add tag… opens the tag picker under the line', async ({ page }) => {
+  await open(page, { zoom: 'lines' })
+  const line = rowOf(page, 'Charlie').locator('[data-task-line]')
+  const l = await box(line)
+  await line.click({ button: 'right', position: { x: 60, y: l.height / 2 } })
+  const menu = page.getByRole('menu', { name: 'Task actions' })
+  await expect(menu).toBeVisible()
+  const m = await box(menu)
+  expect(Math.abs(m.x - (l.x + 60))).toBeLessThanOrEqual(12)
+  await menu.getByRole('menuitem', { name: 'Add tag…' }).click()
+  const search = page.getByPlaceholder('Search tags...')
+  await expect(search).toBeVisible()
+  // Under the line, not somewhere else on the page.
+  const s = await box(search)
+  expect(s.y).toBeGreaterThan(l.y)
+  expect(s.y - (l.y + l.height)).toBeLessThan(80)
+  // Typing in the picker opens no editor.
+  await search.fill('docs')
+  await expect(page.getByRole('dialog', { name: 'Edit task' })).toHaveCount(0)
+  await page.keyboard.press('Escape')
 })
 
 for (const theme of ['dark', 'light'] as const) {
-  test(`Lines (${theme}): a plain task's tick is a visible neutral, a stale one's plainly dimmer`, async ({ page }) => {
+  test(`Lines (${theme}): a plain task's box has a visible neutral border, a stale one's fill is plainly dimmer`, async ({ page }) => {
     const ago = new Date(Date.now() - 40 * 86_400_000)
     const pad = (n: number) => String(n).padStart(2, '0')
     const modifiedAt = `${ago.getFullYear()}-${pad(ago.getMonth() + 1)}-${pad(ago.getDate())}T09:00`
@@ -212,9 +216,11 @@ for (const theme of ['dark', 'light'] as const) {
     await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
     await expect(rowOf(page, 'Stale').locator('[data-task-line]')).toHaveAttribute('data-tone', 'stale')
     await expect(rowOf(page, 'Plain').locator('[data-task-line]')).toHaveAttribute('data-tone', 'none')
-    // The tick's colour painted over the cell's surface (a canvas does the
-    // compositing, whatever syntax the computed colour is in), and that surface: the luminance of each.
-    const lum = (title: string) => rowOf(page, title).locator('[data-task-line] > span').first().evaluate((tick) => {
+    // The box's mark painted over the cell's surface (a canvas does the
+    // compositing, whatever syntax the computed colour is in), and that
+    // surface: the luminance of each. A plain box's mark is its neutral
+    // border (no fill); a stale one's is its fill.
+    const lum = (title: string) => rowOf(page, title).locator('[data-line-box]').evaluate((box) => {
       const ctx = document.createElement('canvas').getContext('2d')!
       const paint = (...colors: string[]) => {
         ctx.clearRect(0, 0, 1, 1)
@@ -223,8 +229,18 @@ for (const theme of ['dark', 'light'] as const) {
       }
       const lin = (v: number) => { const s = v / 255; return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 }
       const L = ([r = 0, g = 0, b = 0]: number[]) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
-      const surface = getComputedStyle(tick.closest('[data-ws-cell]') ?? document.body).backgroundColor
-      return { tick: L(paint(surface, getComputedStyle(tick).backgroundColor)), surface: L(paint(surface)) }
+      const surface = getComputedStyle(box.closest('[data-ws-cell]') ?? document.body).backgroundColor
+      const fill = getComputedStyle(box).backgroundColor
+      let mark = fill
+      if (fill === 'rgba(0, 0, 0, 0)') {
+        // No fill: the border, the neutral token resolved on a probe.
+        const probe = document.createElement('span')
+        probe.style.background = 'var(--color-row-tone-plain)'
+        box.append(probe)
+        mark = getComputedStyle(probe).backgroundColor
+        probe.remove()
+      }
+      return { tick: L(paint(surface, mark)), surface: L(paint(surface)) }
     })
     const ratio = (x: number, y: number) => (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
     const plain = await lum('Plain')
@@ -299,6 +315,14 @@ test('a tab that hasn’t picked a zoom shows the Settings default; the old Comf
   await open(page, { settings: { rowDensity: 'comfortable' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'stacked')
   // A tab's own pick wins.
-  await open(page, { zoom: 'strips', settings: { rowDensity: 'comfortable' } })
-  await expect(grid(page)).toHaveAttribute('data-zoom', 'strips')
+  await open(page, { zoom: 'lines', settings: { rowDensity: 'comfortable' } })
+  await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
+})
+
+test('a tab, or the Settings default, stored at the removed Strips opens at Lines, the layout not unsaved', async ({ page }) => {
+  await open(page, { zoom: 'strips' })
+  await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await open(page, { settings: { rowDensity: 'strips' } })
+  await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
 })

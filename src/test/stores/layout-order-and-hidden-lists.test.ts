@@ -10,12 +10,13 @@ import { useListDraftStore } from '../../stores/list-draft-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
+import { rowOf } from '../helpers/layout-builders'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
 const layout = (name: string): Omit<WorkspaceLayout, 'id' | 'sortOrder'> => ({
   name, createdAt: T0, modifiedAt: T0,
-  columns: [{ id: 'A', weight: 1, cells: [{ id: 'ka', weight: 1, tabs: [createTab('notes', `${name}-n`)] }] }],
+  columns: [{ id: 'A', weight: 1, rows: [rowOf({ id: 'ka', weight: 1, tabs: [createTab('notes', `${name}-n`)] })] }],
 })
 
 async function seedLayouts(...names: string[]): Promise<number[]> {

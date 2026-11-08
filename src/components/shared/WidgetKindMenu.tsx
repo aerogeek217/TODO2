@@ -1,5 +1,5 @@
 import { useMemo, type ReactNode } from 'react'
-import { WIDGET_KINDS, widgetKindLabel, type WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KIND_GROUPS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { listChoiceEntries } from './list-choice-entries'
 import { WidgetKindIcon } from './icons'
@@ -93,13 +93,16 @@ export interface WidgetKindMenuProps {
 const CHANGE_LIST_WIDTH_PX = 240
 const CHANGE_LIST_MAX_HEIGHT_PX = 320
 const SETTING_SUBMENU_WIDTH_PX = 248
+const KIND_SUBMENU_WIDTH_PX = 240
 
 /**
  * A tab's menu (right-click or Shift+F10 / the Menu key on a tab) and the
  * add-tab menu, as a {@link MenuPopover} at the pointer: the widget's own
  * items first (a list's Edit list… / Change list ›, a
  * widget setting's radio submenu, widget actions), then the kinds under "Change widget" (radio items, the
- * current one checked) or "Add widget".
+ * current one checked) or "Add widget": the task kinds inline, the numbers
+ * and charts in their own submenu (`Numbers & charts ›`, the current one's
+ * name as its note), so the menu fits a short window under a tab.
  */
 export function WidgetKindMenu({
   anchor,
@@ -142,7 +145,7 @@ export function WidgetKindMenu({
     ...(a.checked !== undefined ? { checkbox: true, checked: a.checked } : {}),
     onSelect: a.onSelect,
   }))
-  const kinds: MenuItemEntry[] = WIDGET_KINDS.map((k) => ({
+  const kindItem = (k: WidgetKind): MenuItemEntry => ({
     kind: 'item',
     label: widgetKindLabel(k),
     icon: <WidgetKindIcon kind={k} />,
@@ -152,7 +155,24 @@ export function WidgetKindMenu({
     disabled: k !== currentKind && unavailableKinds?.[k] != null ? true : undefined,
     description: k !== currentKind ? unavailableKinds?.[k] : undefined,
     onSelect: () => onChangeKind(k),
-  }))
+  })
+  // The kinds by group: the first (Tasks) inline — changing a widget, under
+  // the menu's heading, which says what a pick does —, every other (Numbers &
+  // charts) a submenu of its own.
+  const kinds: MenuEntry[] = WIDGET_KIND_GROUPS.flatMap(({ group, label }, i): MenuEntry[] => {
+    const items = widgetKindsOf(group).map(kindItem)
+    if (i === 0) return [{ kind: 'label', text: currentKind != null ? heading : label }, ...items]
+    const current = currentKind != null && widgetKindsOf(group).includes(currentKind) ? currentKind : undefined
+    return [{ kind: 'separator' }, {
+      kind: 'item',
+      label,
+      // The chart glyph (Created vs completed's): the item lines up with the kinds above it.
+      icon: <WidgetKindIcon kind="trend" />,
+      note: current ? widgetKindLabel(current) : undefined,
+      childrenWidth: KIND_SUBMENU_WIDTH_PX,
+      children: [{ kind: 'label', text: label }, ...items],
+    }]
+  })
 
   if (listFirst) {
     entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList?.() })
@@ -160,7 +180,7 @@ export function WidgetKindMenu({
     entries.push({ kind: 'separator' })
     if (settingEntries && settingEntries.length > 0) entries.push(...settingEntries, { kind: 'separator' })
     if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
-    entries.push({ kind: 'label', text: heading }, ...kinds)
+    entries.push(...kinds)
   } else {
     if (onEditList || (sourceActions?.length ?? 0) > 0) {
       if (onEditList) entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList() })
@@ -190,7 +210,7 @@ export function WidgetKindMenu({
       }, { kind: 'separator' })
     }
     if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
-    entries.push({ kind: 'label', text: heading }, ...kinds)
+    entries.push(...kinds)
     if (showChangeList) entries.push({ kind: 'separator' }, changeList)
   }
 

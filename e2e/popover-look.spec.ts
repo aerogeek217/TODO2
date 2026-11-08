@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
-import { ADD_FILTER, openSettings, seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, openSettings, seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Popovers stand off the page (D21): a popover over the page (level 1) and
@@ -28,7 +28,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Ann two', people: ['Ann'] },
     { title: 'Ann three', people: ['Ann'] },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 /** The design's surfaces (D21 board E). */
@@ -247,8 +247,8 @@ test.describe('the filter line does not clip an open or focused trigger’s ring
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] })] },
       ],
     }],
   }
@@ -306,13 +306,15 @@ test('a chip’s picker flipped above it: searching shortens it, it stays on its
   const people = ['Ann', ...Array.from({ length: 14 }, (_, n) => `Person number ${n + 1}`)]
   await seedWorkspace(page, {
     people,
-    listDefinitions: [{ name: 'Notes' }, { name: 'Team', people: ['Ann'] }],
+    // Team asks for a tag first: its prompt row puts the filter line lower in the band.
+    listDefinitions: [{ name: 'Notes' }, { name: 'Team', people: ['Ann'], runtimeFilter: { field: 'tag' } }],
     tasks: [{ title: 'Ann one', people: ['Ann'] }],
     layouts: [{
       name: 'Main',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'n1', kind: 'notes' }] }] }],
-      // A list in the bottom band: its filter line sits low, so the picker flips above the chip.
-      bottom: { id: 'bb', height: 200, tabs: [{ id: 'band', kind: 'lens', listDefIdx: 1 }] },
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'n1', kind: 'notes' }] })] }],
+      // A list in the bottom band (the shortest that shows the full list: a body over 260px,
+      // D25 R): its filter line sits low, so the picker flips above the chip.
+      bottom: { id: 'bb-band', height: 296, cells: [{ id: 'bb', tabs: [{ id: 'band', kind: 'lens', listDefIdx: 1 }] }] },
     }],
   })
   const chip = wsListWidget(page, 'band').getByTestId('list-filter-chip')
@@ -321,8 +323,9 @@ test('a chip’s picker flipped above it: searching shortens it, it stays on its
   await expect(picker.getByRole('option', { name: 'Person number 14' })).toBeVisible()
   await expectCaretAt(picker, chip, 'bottom')
   const before = await box(picker)
-  await page.keyboard.type('Ann')
-  await expect(picker.getByRole('option', { name: 'Person number 14' })).toHaveCount(0)
+  // A search that keeps a few (still too tall for the room under the chip).
+  await page.keyboard.type('number 1')
+  await expect(picker.getByRole('option', { name: 'Person number 9' })).toHaveCount(0)
   await expect.poll(async () => (await box(picker)).height).toBeLessThan(before.height)
   await expectCaretAt(picker, chip, 'bottom')
 })
@@ -332,7 +335,7 @@ test('a late follow-up cell takes the open trigger’s text accent while its pop
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'All' }],
     tasks: [{ title: 'Chase the vendor', followupInDays: -2 }],
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   const followupColour = await page.evaluate(() => {
     const probe = document.createElement('div')
@@ -364,7 +367,7 @@ test('the task editor’s glass People dropdown keeps the page surface as the fo
     people: ['Ann', 'Bob'],
     listDefinitions: [{ name: 'All' }],
     tasks: [{ title: 'Fix the sink' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   await taskRowByTitle(page, 'Fix the sink').locator('span[data-task-title="Fix the sink"]').dblclick()
   const peopleLabel = page.getByText('People', { exact: true }).and(page.locator(':not([data-filter-row] *)'))
@@ -410,9 +413,9 @@ test.describe('carets on a row’s note popover', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'c1', cells: [{ id: 'n1', tabs: [{ id: 'notes1', kind: 'notes' }] }] },
-          { id: 'c2', cells: [{ id: 'n2', tabs: [{ id: 'cal', kind: 'calendar' }] }] },
-          { id: 'c3', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] }] },
+          { id: 'c1', rows: [wsRow({ id: 'n1', tabs: [{ id: 'notes1', kind: 'notes' }] })] },
+          { id: 'c2', rows: [wsRow({ id: 'n2', tabs: [{ id: 'cal', kind: 'calendar' }] })] },
+          { id: 'c3', rows: [wsRow({ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] })] },
         ],
       }],
     })

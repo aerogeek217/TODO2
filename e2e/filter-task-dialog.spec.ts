@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 
 /**
@@ -26,7 +26,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Bob task', people: ['Bob'], tags: ['q4'] },
     { title: 'Nobody task' },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 const ALL = ['Ann plan', 'Ann call', 'Bob task', 'Nobody task']

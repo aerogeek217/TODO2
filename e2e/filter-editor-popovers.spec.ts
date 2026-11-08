@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * A list's filters in Edit list: a chip row opens its picker as a popover
@@ -16,7 +16,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Ann calm', people: ['Ann'] },
     { title: 'Nobody calm' },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 test.use({ viewport: { width: 1600, height: 900 } })

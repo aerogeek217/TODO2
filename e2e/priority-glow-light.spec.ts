@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace } from './fixtures/workspace'
+import { seedWorkspace, wsRow } from './fixtures/workspace'
 
 /**
  * A priority's row glow is visible in the light theme too, and still quiet
@@ -17,7 +17,7 @@ const SEED = {
     { title: 'C important task', important: true },
     { title: 'D due today', dueInDays: 0 },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens' as const, listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens' as const, listDefIdx: 0 }] })] }] }],
 }
 
 async function setTheme(page: Page, mode: 'dark' | 'light') {

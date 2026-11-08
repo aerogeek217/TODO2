@@ -1,9 +1,9 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Task rows fit their container at every width: a row is never wider than
- * the list widget, Eisenhower quadrant or dashboard panel it sits in, and its
+ * the list widget, Eisenhower quadrant or glance row widget it sits in, and its
  * cells and status stay inside it — the people / tags, the dates (to icons)
  * and the title give way instead. Layout-dependent, so a real browser is the
  * authoritative surface.
@@ -41,8 +41,8 @@ function seed(tab: Omit<WsTabSeed, 'id'>, width: number): WorkspaceSeed {
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'w', weight: width, cells: [{ id: 'cell', tabs: [{ id: 'tab', ...tab }] }] },
-        { id: 'rest', weight: 1280 - width, cells: [{ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] }] },
+        { id: 'w', weight: width, rows: [wsRow({ id: 'cell', tabs: [{ id: 'tab', ...tab }] })] },
+        { id: 'rest', weight: 1280 - width, rows: [wsRow({ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] })] },
       ],
     }],
   }
@@ -85,11 +85,11 @@ async function rowOverflow(page: Page): Promise<{ rows: number; widths: number[]
 
 /**
  * A row's due and follow-up parts in `tier`: a shown date is its text alone
- * (`Today`, a weekday, `Nov 20`, `MM/DD/YY` — D25 D1), a dropped one its
+ * (`Today`, a weekday, `11/20` — D25 D1), a dropped one its
  * icon (the clock, the flag) — in view either way.
  */
 async function expectDateParts(row: Locator, tier: string): Promise<void> {
-  const date = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|[A-Z][a-z]{2} \d{1,2}|\d\d\/\d\d\/\d\d)$/
+  const date = /^(Today|Mon|Tue|Wed|Thu|Fri|Sat|Sun|\d\d\/\d\d|\d\d\/\d\d\/\d\d)$/
   const due = row.locator('[data-row-cell="due"]')
   const followup = row.locator('[data-row-cell="followup"]')
   await expect(due).toBeInViewport()
@@ -101,7 +101,7 @@ async function expectDateParts(row: Locator, tier: string): Promise<void> {
 }
 
 /** Which dates the rows show, per column width: the narrower, the fewer. */
-const DATES_TIER: Record<number, string> = { 300: 'icons', 340: 'due', 360: 'due', 380: 'both', 455: 'both', 560: 'both' }
+const DATES_TIER: Record<number, string> = { 300: 'icons', 340: 'due', 360: 'both', 380: 'both', 455: 'both', 560: 'both' }
 
 test.describe('task rows fit their container', () => {
   for (const width of [300, 340, 360, 380, 455, 560]) {
@@ -127,8 +127,8 @@ test.describe('task rows fit their container', () => {
     expect(problems).toEqual([])
   })
 
-  test('dashboard panels', async ({ page }) => {
-    await seedWorkspace(page, seed({ kind: 'dashboard', dashboard: { sections: [{ id: 'followup' }, { id: 'stale' }] } }, 380))
+  test('a Needs follow-up widget', async ({ page }) => {
+    await seedWorkspace(page, seed({ kind: 'followup' }, 380))
     await expect(page.locator('[data-todo-id]').first()).toBeVisible()
     const { rows, problems } = await rowOverflow(page)
     expect(rows).toBeGreaterThan(0)

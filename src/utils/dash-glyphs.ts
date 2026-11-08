@@ -1,5 +1,5 @@
 /**
- * The dashboard's stroke glyphs (16×16 viewBox, stroke 1.6, round caps and
+ * The glance widgets' stroke glyphs (16×16 viewBox, stroke 1.6, round caps and
  * joins, `currentColor`), also the task dialog's header glyph. Decorative:
  * the control that shows one carries the accessible name.
  */

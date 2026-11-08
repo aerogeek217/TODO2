@@ -353,7 +353,7 @@
 
 /*
  * Marker gutter (D25 B): the priority menu's trigger before the checkbox —
- * empty at rest (the Focus dot when Focus sits under another ring), a small
+ * empty at rest, a small
  * flag while the row is hovered or focused or the menu is open. Its hit area
  * reaches into the row's left padding (10px from the row's edge).
  */
@@ -404,38 +404,21 @@
   box-shadow: var(--focus-ring);
 }
 
-/* The flag and the Focus dot share the column's centre. */
-.gutterFlag,
-.gutterDot {
+/* The flag, at the column's centre. */
+.gutterFlag {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -50%);
-  transition: opacity var(--transition-fast);
-}
-
-.gutterFlag {
   display: inline-flex;
+  transform: translate(-50%, -50%);
   opacity: 0;
-}
-
-.gutterDot {
-  width: 4px;
-  height: 4px;
-  border-radius: 50%;
-  background: var(--color-marker-focus);
+  transition: opacity var(--transition-fast);
 }
 
 .row:hover .gutterFlag,
 .row:focus-within .gutterFlag,
 .rowDropdownOpen .gutterFlag {
   opacity: 1;
-}
-
-.row:hover .gutterDot,
-.row:focus-within .gutterDot,
-.rowDropdownOpen .gutterDot {
-  opacity: 0;
 }
 
 /*
@@ -518,7 +501,7 @@
 
 /*
  * Dates: the due part and the follow-up part (each its date's text alone —
- * `Today`, `Sat`, `Nov 20` or `MM/DD`, D25 D1) side
+ * `Today`, `Sat` or `MM/DD`, D25 D1) side
  * by side, each part its own button with its own width (set inline per
  * tier); a narrow list shows a part as its icon alone, as an absent date's
  * placeholder is.
@@ -538,27 +521,17 @@
 .datePartButton {
   flex: 1;
   gap: 3px;
-  padding: 0 6px;
+  padding: 0 5px;
 }
 
 .dateText {
   min-width: 0;
 }
 
-/* A repeating task's due part with its date: the repeat glyph takes the padding's room (10 + 2 + 40 = 52). */
+/* A repeating task's due part with its date: the repeat glyph takes the padding's room (10 + 1 + 34 in 45). */
 .dueRepeat {
-  gap: 2px;
+  gap: 1px;
   padding: 0;
-}
-
-/* Another year's `MM/DD/YY` (D25 D1): the text takes the padding's room, at 11px (50.7 bold in 52). */
-.dateLong {
-  justify-content: center;
-  padding: 0;
-}
-
-.dateLong .dateText {
-  font-size: 11px;
 }
 
 /*

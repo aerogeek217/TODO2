@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
 import { expectCounterLive, installRenderCounter, readRenderCounts, resetRenderCounts } from './fixtures/render-count'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 
 /**
  * What a divider drag costs, held where it is observable without timing.
@@ -22,7 +22,7 @@ const PEOPLE = ['Alice Chen', 'Ben Ortiz', 'Carla Diaz', 'Dee King', 'Eli Moss']
 const TAGS = ['planning', 'q4', 'exec', 'finance', 'hiring', 'ops']
 const ROWS = 40
 
-/** Rows with every kind of cell filled, spread over the Eisenhower quadrants and the dashboard's follow-up section. */
+/** Rows with every kind of cell filled, spread over the Eisenhower quadrants and the Needs follow-up widget. */
 const TASKS: NonNullable<WorkspaceSeed['tasks']> = Array.from({ length: ROWS }, (_, i) => ({
   title: `Task ${i} with a reasonably long title to cut`,
   people: PEOPLE.slice(0, i % 5),
@@ -36,7 +36,7 @@ const TASKS: NonNullable<WorkspaceSeed['tasks']> = Array.from({ length: ROWS }, 
   focus: i % 7 === 0,
 }))
 
-const WATCHED = ['TaskRow', 'PeopleCell', 'TagsCell', 'DatesCell', 'ListWidget', 'EisenhowerWidget', 'DashboardWidget']
+const WATCHED = ['TaskRow', 'PeopleCell', 'TagsCell', 'DatesCell', 'ListWidget', 'EisenhowerWidget', 'FollowupWidget']
 
 function seed(tab: Omit<WsTabSeed, 'id'>): WorkspaceSeed {
   return {
@@ -48,8 +48,8 @@ function seed(tab: Omit<WsTabSeed, 'id'>): WorkspaceSeed {
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'w', weight: 900, cells: [{ id: 'cell', tabs: [{ id: 'tab', ...tab }] }] },
-        { id: 'rest', weight: 380, cells: [{ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] }] },
+        { id: 'w', weight: 900, rows: [wsRow({ id: 'cell', tabs: [{ id: 'tab', ...tab }] })] },
+        { id: 'rest', weight: 380, rows: [wsRow({ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] })] },
       ],
     }],
   }
@@ -63,8 +63,8 @@ async function laidOutDetails(r: Locator): Promise<number> {
 }
 
 async function storedViewState(page: Page): Promise<Record<string, unknown> | undefined> {
-  const layouts = await readStore<{ columns: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }>(page, 'layouts')
-  for (const l of layouts) for (const c of l.columns) for (const k of c.cells) for (const t of k.tabs) if (t.id === 'tab') return t.viewState
+  const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }> }>(page, 'layouts')
+  for (const l of layouts) for (const c of l.columns) for (const r of c.rows) for (const k of r.cells) for (const t of k.tabs) if (t.id === 'tab') return t.viewState
   return undefined
 }
 
@@ -191,9 +191,9 @@ test('Eisenhower: every quadrant follows the drag without the widget or its rows
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
 })
 
-test('dashboard: a task-row section follows the drag without the widget or its rows re-rendering', async ({ page }) => {
+test('Needs follow-up: its rows follow the drag without the widget or its rows re-rendering', async ({ page }) => {
   await installRenderCounter(page, WATCHED)
-  await seedWorkspace(page, seed({ kind: 'dashboard', dashboard: { tiles: [], sections: [{ id: 'followup' }] } }))
+  await seedWorkspace(page, seed({ kind: 'followup' }))
   await expect(page.locator('[data-dash-section="followup"] [data-todo-id]').first()).toBeVisible()
   await settled(page.locator('[data-dash-section="followup"]'))
   await expectCounterLive(page, 'TaskRow')
@@ -202,7 +202,7 @@ test('dashboard: a task-row section follows the drag without the widget or its r
     await expectDetails(page.locator('[data-ws-area]'), '[data-dash-section="followup"]', 240)
     const counts = await readRenderCounts(page)
     expect(counts.TaskRow).toBe(0)
-    expect(counts.DashboardWidget).toBe(0)
+    expect(counts.FollowupWidget).toBe(0)
   })
   await expect.poll(() => storedViewState(page)).toEqual({ detailsWidth: 240 })
   // The release writes the view state: the widget re-renders once, its (memoised) rows don't.
@@ -228,7 +228,7 @@ test('a column or band divider drag: no task row re-renders, nothing is written 
   await countStorageWrites(page)
   await countLayoutWrites(page)
   const layout = seed({ kind: 'lens', listDefIdx: 0 })
-  layout.layouts[0]!.top = { id: 'tb', height: 140, tabs: [{ id: 'topnotes', kind: 'notes' }] }
+  layout.layouts[0]!.top = { id: 'tb-band', height: 140, cells: [{ id: 'tb', tabs: [{ id: 'topnotes', kind: 'notes' }] }] }
   await seedWorkspace(page, layout)
   const widget = wsListWidget(page, 'tab')
   await expect(widget.locator('[data-todo-id]')).toHaveCount(ROWS)

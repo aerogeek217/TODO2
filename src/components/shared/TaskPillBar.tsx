@@ -55,7 +55,7 @@ interface TaskPillDatesProps extends PillCommon {
   today: Date
   /**
    * `'short'` = `Oct 20` (default), `'numeric'` = `10/20`, `'relative'` =
-   * `Today` / `Sat` / `Nov 20` (`formatRowDate` — the phone row, by
+   * `Today` / `Sat` / `11/20` (`formatRowDate` — the phone row, by
    * Settings › Appearance › Dates).
    */
   dateFormat?: PillDateFormat

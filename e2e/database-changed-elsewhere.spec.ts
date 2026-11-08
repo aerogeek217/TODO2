@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { seedWorkspace } from './fixtures/workspace'
+import { seedWorkspace, wsRow } from './fixtures/workspace'
 
 /**
  * A tab left open while another opens the database at a newer version (a
@@ -10,7 +10,7 @@ import { seedWorkspace } from './fixtures/workspace'
  */
 
 test('the database opened at a newer version in another tab blocks this one with Reload', async ({ page, context }) => {
-  await seedWorkspace(page, { layouts: [{ name: 'Daily', columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 'n1', kind: 'notes' }] }] }] }] })
+  await seedWorkspace(page, { layouts: [{ name: 'Daily', columns: [{ id: 'c1', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'n1', kind: 'notes' }] })] }] }] })
   await expect(page.getByRole('region', { name: 'Notes cell' })).toBeVisible()
 
   // Another tab of the same origin, standing in for a newer build: opens the

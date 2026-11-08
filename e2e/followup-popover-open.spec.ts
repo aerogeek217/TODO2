@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The follow-up popover stays open across a date and a Mark followed up — the
@@ -29,7 +29,7 @@ async function stored(page: Page, title: string): Promise<{ next?: number; last?
 }
 
 const layouts: WorkspaceSeed['layouts'] = [
-  { name: 'Main', columns: [{ id: 'c', cells: [{ id: 'k', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] }] },
+  { name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'k', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] }] },
 ]
 
 test.describe('the follow-up popover stays open', () => {

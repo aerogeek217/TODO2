@@ -10,6 +10,14 @@ const RADIUS = 4
 /** Urgent only by its due date: a fine dash, px (finer than `border: dashed` can draw). */
 const DASH = 2
 const GAP = 1.5
+/**
+ * Focus's glow around the box, as shares of its side: the blur (4px at a
+ * row's 18px box, 2.5px at a Lines box's 11px) and the spread (1px / 0.5px)
+ * — tight, so it reads as the box's own light, not a haze over its row.
+ */
+const GLOW_BLUR = 0.22
+const GLOW_SPREAD = 0.05
+const half = (n: number) => Math.round(n * 2) / 2
 
 /** The fills under a lone Urgent / Important ring (about 10% / 8% of its colour). */
 const FILL: Partial<Record<MarkerKey, string>> = {
@@ -23,13 +31,15 @@ function dashedLength(length: number): number {
 }
 
 /**
- * A task's priority drawn on its checkbox (D25 B): an SVG over the box,
- * `size` px square — one 2px ring in the marker's colour (Urgent and
- * Important with a faint fill, Focus without), or Urgent + Important as a
- * split ring (top-right urgent, bottom-left important); urgent only by its
- * due date is finely dashed. Nothing for no priority or a completed task
- * (the checked box as it is). Decorative unless `label` names it — the
- * desktop row's marker gutter carries the name.
+ * A task's priority drawn on its checkbox (D25 B), the same at every zoom:
+ * Urgent and Important as an SVG ring over the box, `size` px square — one
+ * 2px ring in the marker's colour with a faint fill, or Urgent + Important
+ * as a split ring (top-right urgent, bottom-left important); urgent only by
+ * its due date finely dashed —, and Focus as a tight glow in the Focus
+ * colour around the box (`[data-focus-glow]`), never an outline: with a
+ * ring, or around the box's own plain border. Nothing for no priority or a
+ * completed task (the checked box as it is). Decorative unless `label`
+ * names it — the desktop row's marker gutter carries the name.
  */
 export function PriorityRing({ summary, completed, size, label }: {
   summary: Pick<MarkerSummary, 'focus' | 'urgent' | 'important'>
@@ -40,7 +50,22 @@ export function PriorityRing({ summary, completed, size, label }: {
   label?: string
 }) {
   const ring = priorityRing(summary, completed)
-  if (ring.kind === 'none') return null
+  if (ring.kind === 'none' && !ring.focusGlow) return null
+  const named = label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true as const }
+  const glow = ring.focusGlow && (
+    <span
+      className={styles.glow}
+      style={{
+        // The box's corner: a row's checkbox 5px, a Lines box 4px.
+        borderRadius: size >= 16 ? RADIUS + STROKE / 2 : RADIUS,
+        boxShadow: `0 0 ${half(size * GLOW_BLUR)}px ${half(size * GLOW_SPREAD)}px var(--color-marker-focus-glow)`,
+      }}
+      data-focus-glow=""
+      // Named here when there is no ring to carry the name.
+      {...(ring.kind === 'none' ? named : { 'aria-hidden': true })}
+    />
+  )
+  if (ring.kind === 'none') return glow
   const lo = STROKE / 2
   const hi = size - STROKE / 2
   const side = hi - lo
@@ -77,17 +102,20 @@ export function PriorityRing({ summary, completed, size, label }: {
   }
 
   return (
-    <svg
-      className={styles.ring}
-      width={size}
-      height={size}
-      viewBox={`0 0 ${size} ${size}`}
-      strokeWidth={STROKE}
-      data-priority-ring={ring.kind}
-      {...(label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true })}
-      focusable="false"
-    >
-      {body}
-    </svg>
+    <>
+      {glow}
+      <svg
+        className={styles.ring}
+        width={size}
+        height={size}
+        viewBox={`0 0 ${size} ${size}`}
+        strokeWidth={STROKE}
+        data-priority-ring={ring.kind}
+        {...named}
+        focusable="false"
+      >
+        {body}
+      </svg>
+    </>
   )
 }

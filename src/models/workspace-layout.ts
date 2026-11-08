@@ -1,8 +1,9 @@
 /**
- * Workspace layouts: a row of columns, each a vertical stack of cells, each
- * cell a strip of widget tabs — plus at most one full-width band above the
- * columns and one below (`top` / `bottom`), each a cell spanning the
- * workspace. Two levels only — no recursive splits, no other rows.
+ * Workspace layouts: three levels — a row of **columns**, each a vertical
+ * stack of **rows**, each row one or more **cells** side by side, each cell a
+ * strip of widget tabs — plus at most one full-width band above the columns
+ * and one below (`top` / `bottom`), each one fixed-height row of cells
+ * spanning the workspace. No deeper: a cell in a row never splits again.
  *
  * Every tab carries its own settings, split in two by how they are saved:
  *
@@ -11,20 +12,50 @@
  *   the saved layout, i.e. "unsaved changes".
  * - `viewState` — **view state**: written straight onto the stored layout
  *   (last write wins) and never counts as an unsaved change. Same for a cell's
- *   (and a band's) `activeTabId` and `collapsed`, and for the sizes (a
- *   column's or cell's `weight`, a band's `height`).
+ *   `activeTabId`, a row's (and a band's) `collapsed`, and for the sizes (a
+ *   column's, row's or cell's `weight`, a band's `height`).
  *
  * A layout stores structure only; what a widget shows (list definitions,
  * tasks, the note) lives in its own tables.
  */
 
-import { defaultDashboardConfig, type DashboardTabConfig } from './dashboard-config'
+import {
+  DEFAULT_LOOK_AHEAD,
+  DEFAULT_NUMBER_METRIC,
+  DEFAULT_RECENT_DAYS,
+  DEFAULT_STALE_DAYS,
+  DEFAULT_TREND_RANGE,
+  NUMBER_METRIC_LABELS,
+  type FollowupTabConfig,
+  type NumberTabConfig,
+  type PeopleTabConfig,
+  type RecentTabConfig,
+  type StaleTabConfig,
+  type TagPicksTabConfig,
+  type TagsTabConfig,
+  type TrendTabConfig,
+} from './glance-widgets'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
- * list widget (its old name; renaming it would need a migration).
+ * list widget (its old name; renaming it would need a migration). The glance
+ * kinds (D25 N) are the retired Dashboard's pieces as widgets of their own
+ * (v77 made every Dashboard tab these): `number` (one count), one per section
+ * (`followup` … `eisenhowerSummary`), and the morning brief's parts (D25 L):
+ * `changes` (What changed), `today` (the Focus tasks and suggestions) and
+ * `pulse` (Project pulse).
  */
-export type WidgetKind = 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'dashboard' | 'neglect'
+export type WidgetKind =
+  | 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'neglect'
+  | GlanceWidgetKind
+
+/** The glance widget kinds (D25 N): a Number, the old Dashboard's sections and the brief's parts, each a widget. */
+export type GlanceWidgetKind =
+  | 'number' | 'followup' | 'next7' | 'trend' | 'status' | 'people' | 'tags' | 'stale' | 'recent' | 'eisenhowerSummary'
+  | 'changes' | 'today' | 'pulse'
+
+/** The glance kinds that show task rows (each its own selection scope and bulk bar). */
+export type GlanceRowsKind = 'followup' | 'stale' | 'recent' | 'today'
 
 export type CalendarView = 'week' | 'month'
 
@@ -110,16 +141,24 @@ export interface TaskRowsViewState {
  * How a list tab draws its tasks (D25 C + I1), most detail first:
  * `stacked` — the title on its own line (up to two), the details on a line
  * under it; `rows` — one row per task, its cells in columns (the default);
- * `lines` — 15px lines, a state tick and the title only; `strips` — a 3px
- * bar per task in the tick's colours.
+ * `lines` — 15px lines, a state tick and the title only.
  */
-export type ListZoom = 'stacked' | 'rows' | 'lines' | 'strips'
+export type ListZoom = 'stacked' | 'rows' | 'lines'
 
 /** The zoom levels, most detail first: zooming out steps right, zooming in steps left. */
-export const LIST_ZOOMS: readonly ListZoom[] = ['stacked', 'rows', 'lines', 'strips']
+export const LIST_ZOOMS: readonly ListZoom[] = ['stacked', 'rows', 'lines']
 
 export function isListZoom(v: unknown): v is ListZoom {
   return typeof v === 'string' && (LIST_ZOOMS as readonly string[]).includes(v)
+}
+
+/**
+ * A stored zoom as a level: a level, or `strips` — a level once, a bar per
+ * task, removed — as `lines`, the nearest; `undefined` for anything else.
+ */
+export function readListZoom(v: unknown): ListZoom | undefined {
+  if (isListZoom(v)) return v
+  return v === 'strips' ? 'lines' : undefined
 }
 
 /** A list tab's view state: the rows' details width and its zoom. */
@@ -194,10 +233,27 @@ export type LensTab = TabOf<'lens', LensTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
-export type DashboardTab = TabOf<'dashboard', DashboardTabConfig, TaskRowsViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
+export type NumberTab = TabOf<'number', NumberTabConfig, NoTabSettings>
+export type FollowupTab = TabOf<'followup', FollowupTabConfig, TaskRowsViewState>
+export type Next7Tab = TabOf<'next7', NoTabSettings, NoTabSettings>
+export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
+export type StatusTab = TabOf<'status', NoTabSettings, NoTabSettings>
+export type PeopleTab = TabOf<'people', PeopleTabConfig, NoTabSettings>
+export type TagsTab = TabOf<'tags', TagsTabConfig, NoTabSettings>
+export type StaleTab = TabOf<'stale', StaleTabConfig, TaskRowsViewState>
+export type RecentTab = TabOf<'recent', RecentTabConfig, TaskRowsViewState>
+export type EisenhowerSummaryTab = TabOf<'eisenhowerSummary', NoTabSettings, NoTabSettings>
+export type ChangesTab = TabOf<'changes', TagPicksTabConfig, NoTabSettings>
+export type TodayTab = TabOf<'today', NoTabSettings, TaskRowsViewState>
+export type PulseTab = TabOf<'pulse', TagPicksTabConfig, NoTabSettings>
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | DashboardTab | NeglectTab
+/** A glance widget's tab (D25 N). */
+export type GlanceTab =
+  | NumberTab | FollowupTab | Next7Tab | TrendTab | StatusTab | PeopleTab | TagsTab | StaleTab | RecentTab | EisenhowerSummaryTab
+  | ChangesTab | TodayTab | PulseTab
+
+export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | NeglectTab | GlanceTab
 
 export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -206,7 +262,7 @@ export type TabViewStateOf<K extends WidgetKind> = NonNullable<TabOfKind<K>['vie
 export interface LayoutCell {
   /** Unique within the layout. */
   id: string
-  /** Share of the column's height among its cells (any positive number). */
+  /** Share of its row's width among the row's cells (any positive number). */
   weight: number
   /**
    * Tabs in strip order. Empty only for a cell just made by "split" that has
@@ -215,8 +271,27 @@ export interface LayoutCell {
   tabs: LayoutTab[]
   /** View state. Absent (or stale) = the first tab. */
   activeTabId?: string
-  /** View state. Collapsed cells show only their header. */
+  /**
+   * Layout config: whether the cell shows its tab strip — `true` always,
+   * `false` never (headless: the strip slides in on hover or focus);
+   * absent = by its widget.
+   */
+  stripShown?: boolean
+}
+
+/**
+ * A row of a column: its cells side by side. A row whose last cell goes is
+ * removed; collapsing it folds every cell of it to its header.
+ */
+export interface LayoutRow {
+  /** Unique within the layout. */
+  id: string
+  /** Share of the column's height among its rows (any positive number). */
+  weight: number
+  /** View state. A collapsed row shows only its cells' headers. */
   collapsed?: boolean
+  /** Never empty — a row whose last cell goes is removed. */
+  cells: LayoutCell[]
 }
 
 export interface LayoutColumn {
@@ -224,8 +299,8 @@ export interface LayoutColumn {
   id: string
   /** Share of the workspace width among the columns (any positive number). */
   weight: number
-  /** Never empty — a column whose last cell goes is removed. */
-  cells: LayoutCell[]
+  /** Never empty — a column whose last row goes is removed. */
+  rows: LayoutRow[]
 }
 
 /** Which band: the one above the columns or the one below. */
@@ -237,12 +312,12 @@ export const BAND_EDGES: readonly BandEdge[] = ['top', 'bottom']
 export const BAND_DEFAULT_HEIGHT = 160
 
 /**
- * A full-width band above or below the columns: a cell that spans the
- * workspace. It never splits and never holds more than one panel; a band
- * whose last tab goes is removed (the layout's key is then absent).
+ * A full-width band above or below the columns: one fixed-height row of
+ * cells spanning the workspace. It never holds another row; a band whose
+ * last cell goes is removed (the layout's key is then absent).
  */
 export interface LayoutBand {
-  /** Unique within the layout (columns, cells, tabs and bands share the id space). */
+  /** Unique within the layout (columns, rows, cells, tabs and bands share the id space). */
   id: string
   /**
    * Height in px (header included) when expanded: any positive number. It
@@ -250,16 +325,17 @@ export interface LayoutBand {
    * drawn, and the stored value is kept.
    */
   height: number
-  /** Tabs in strip order; never empty. */
-  tabs: LayoutTab[]
-  /** View state. Absent (or stale) = the first tab. */
-  activeTabId?: string
-  /** View state. A collapsed band shows only its header. */
+  /** View state. A collapsed band shows only its cells' headers. */
   collapsed?: boolean
+  /** Its cells, side by side; never empty. */
+  cells: LayoutCell[]
 }
 
-/** A panel: a cell or a band — what holds a tab strip. */
-export type LayoutPanel = LayoutCell | LayoutBand
+/** A row of cells: a column's row, or a band (one row). */
+export type LayoutCellRow = LayoutRow | LayoutBand
+
+/** A panel: what holds a tab strip — a cell, in a column's row or in a band. */
+export type LayoutPanel = LayoutCell
 
 /**
  * The parts of a layout that Save writes and an edit can leave unsaved: its
@@ -349,7 +425,7 @@ export const LAYOUT_NAME_MAX = 200
  */
 export const UNSAVED_LAYOUT_ID = 0
 
-/** Default weight of a new column / cell. */
+/** Default weight of a new column / row / cell. */
 export const DEFAULT_WEIGHT = 1
 
 /** Default calendar date types: both. */
@@ -361,7 +437,18 @@ export interface TabSeed {
   listDefinitionId?: number
   /** The tags a new Neglect map colours by (the workspace store passes the `Project: …` tags). */
   neglectTagIds?: readonly number[]
+  /** The tags a new What changed or Project pulse reads (the workspace store passes the `Project: …` tags). */
+  tagIds?: readonly number[]
 }
+
+/** The add-widget menus' groups: the task widgets, and the numbers and charts. */
+export type WidgetKindGroup = 'tasks' | 'glance'
+
+/** The groups in menu order, with their headings. */
+export const WIDGET_KIND_GROUPS: ReadonlyArray<{ group: WidgetKindGroup; label: string }> = [
+  { group: 'tasks', label: 'Tasks' },
+  { group: 'glance', label: 'Numbers & charts' },
+]
 
 /** What the app knows about one widget kind. */
 export interface WidgetKindSpec<K extends WidgetKind> {
@@ -369,8 +456,28 @@ export interface WidgetKindSpec<K extends WidgetKind> {
   label: string
   /** A new tab of this kind shows a list (one of the layout's), picked before the tab is added. */
   showsList: boolean
+  /** Its group in the add-widget menus. */
+  group: WidgetKindGroup
+  /**
+   * A glance widget (a Number, a section, What changed): a cell holding one
+   * tab of it is headless unless its `stripShown` says otherwise — its tab
+   * strip slides in on hover or focus (`utils/workspace-rows`) — and a row of
+   * only glance cells may shrink to `GLANCE_ROW_MIN_PX`.
+   */
+  glance: boolean
+  /**
+   * Its content sets its height (a Number): a row whose every cell holds one
+   * tab of such a kind fits its content instead of taking a share of the
+   * column (`utils/workspace-rows.isFitRow`).
+   */
+  fitHeight: boolean
   /** A new tab of this kind, with its default config. */
   newTab: (id: string, seed: TabSeed) => TabOfKind<K>
+}
+
+/** A glance kind's spec: in the Numbers & charts group, headless when alone in its cell. */
+function glanceSpec<K extends GlanceWidgetKind>(label: string, newTab: (id: string, seed: TabSeed) => TabOfKind<K>, fitHeight = false): WidgetKindSpec<K> {
+  return { label, showsList: false, group: 'glance', glance: true, fitHeight, newTab }
 }
 
 /**
@@ -382,25 +489,49 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   lens: {
     label: 'List',
     showsList: true,
+    group: 'tasks',
+    glance: false,
+    fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'lens', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
   },
   calendar: {
     label: 'Calendar',
     showsList: false,
+    group: 'tasks',
+    glance: false,
+    fitHeight: false,
     newTab: (id) => ({ id, kind: 'calendar', config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }),
   },
-  notes: { label: 'Notes', showsList: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
+  notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
   eisenhower: {
     label: 'Eisenhower',
     showsList: false,
+    group: 'tasks',
+    glance: false,
+    fitHeight: false,
     newTab: (id) => ({ id, kind: 'eisenhower', config: {} }),
   },
-  dashboard: { label: 'Dashboard', showsList: false, newTab: (id) => ({ id, kind: 'dashboard', config: defaultDashboardConfig() }) },
   neglect: {
     label: 'Neglect map',
     showsList: false,
+    group: 'tasks',
+    glance: false,
+    fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'neglect', config: defaultNeglectConfig(seed.neglectTagIds) }),
   },
+  number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: { metric: DEFAULT_NUMBER_METRIC } }), true),
+  followup: glanceSpec('Needs follow-up', (id) => ({ id, kind: 'followup', config: { lookAhead: DEFAULT_LOOK_AHEAD } })),
+  next7: glanceSpec('Next 7 days', (id) => ({ id, kind: 'next7', config: {} })),
+  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
+  status: glanceSpec('Status', (id) => ({ id, kind: 'status', config: {} })),
+  people: glanceSpec('People', (id) => ({ id, kind: 'people', config: { showUnassigned: true } })),
+  tags: glanceSpec('Tags', (id) => ({ id, kind: 'tags', config: { showUntagged: true } })),
+  stale: glanceSpec('Stale tasks', (id) => ({ id, kind: 'stale', config: { staleDays: DEFAULT_STALE_DAYS } })),
+  recent: glanceSpec('Recently completed', (id) => ({ id, kind: 'recent', config: { recentDays: DEFAULT_RECENT_DAYS } })),
+  eisenhowerSummary: glanceSpec('Eisenhower summary', (id) => ({ id, kind: 'eisenhowerSummary', config: {} })),
+  changes: glanceSpec('What changed', (id, seed) => ({ id, kind: 'changes', config: { tagIds: [...(seed.tagIds ?? [])] } })),
+  today: glanceSpec('Today', (id) => ({ id, kind: 'today', config: {} })),
+  pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
 }
 
 /** Every widget kind, in menu order. */
@@ -416,6 +547,30 @@ export const UNKNOWN_WIDGET_LABEL = 'Unknown widget'
 /** A widget kind's name (`List`, `Calendar`, …; `UNKNOWN_WIDGET_LABEL` for a kind this build doesn't know). */
 export function widgetKindLabel(kind: WidgetKind): string {
   return isWidgetKind(kind) ? WIDGET_KIND_SPECS[kind].label : UNKNOWN_WIDGET_LABEL
+}
+
+/** The kinds of `group`, in menu order. */
+export function widgetKindsOf(group: WidgetKindGroup): WidgetKind[] {
+  return WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === group)
+}
+
+/** A glance widget kind (`WidgetKindSpec.glance`). */
+export function isGlanceKind(kind: WidgetKind): kind is GlanceWidgetKind {
+  return isWidgetKind(kind) && WIDGET_KIND_SPECS[kind].glance
+}
+
+/** A glance widget's tab. */
+export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
+  return isGlanceKind(tab.kind)
+}
+
+/**
+ * A non-list tab's title: a Number's is its metric (`Overdue`), every
+ * other kind's its kind's name.
+ */
+export function kindTabTitle(tab: LayoutTab): string {
+  if (tab.kind === 'number') return NUMBER_METRIC_LABELS[tab.config.metric] ?? widgetKindLabel(tab.kind)
+  return widgetKindLabel(tab.kind)
 }
 
 /** A new tab of `kind` with that kind's default config. */
@@ -434,7 +589,7 @@ export function tabListId(tab: LayoutTab, eisenhowerListId: number | null): numb
   return tab.kind === 'eisenhower' ? (eisenhowerListId ?? undefined) : undefined
 }
 
-/** A cell's (or band's) active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */
+/** A cell's active tab: `activeTabId`, else the first tab; `undefined` for an empty cell. */
 export function getActiveTab(cell: Pick<LayoutCell, 'tabs' | 'activeTabId'>): LayoutTab | undefined {
   return cell.tabs.find((t) => t.id === cell.activeTabId) ?? cell.tabs[0]
 }

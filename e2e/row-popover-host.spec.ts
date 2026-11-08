@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * A row's checklist and notes popovers stay open when what is written in
@@ -17,7 +17,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Q4 budget', modifiedInDays: -20, notes: 'Some notes', subtasks: [{ title: 'Headcount' }, { title: 'Travel' }] },
     { title: 'Other', modifiedInDays: -20 },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 test('a check in the row’s checklist that takes the row out of its list leaves the popover open', async ({ page }) => {

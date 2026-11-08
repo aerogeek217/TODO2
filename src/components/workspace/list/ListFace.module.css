@@ -1,0 +1,185 @@
+/* A list tab's small and medium faces (D25 R): the name and count line,
+   and (medium) the top rows under it. */
+
+.face {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.small {
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px 12px;
+  text-align: center;
+}
+
+.small .line {
+  align-items: center;
+  max-width: 100%;
+}
+
+.small .figures {
+  max-width: 100%;
+}
+
+.medium {
+  padding: 8px 8px 6px;
+  gap: 4px;
+}
+
+.line {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.medium .line {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+  padding: 0 4px;
+}
+
+.name {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 16px;
+  color: var(--color-text-secondary);
+}
+
+.icon {
+  display: inline-flex;
+  flex: none;
+  color: var(--color-text-muted);
+}
+
+.nameText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.figures {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.count {
+  flex: none;
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.medium .count {
+  font-size: 18px;
+  line-height: 22px;
+}
+
+.of {
+  flex: none;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.meta {
+  min-width: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.late {
+  color: var(--color-overdue);
+  font-weight: var(--font-weight-semibold);
+}
+
+.rows {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow: hidden;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 24px;
+  padding: 0 4px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-primary);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  text-align: left;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--color-tint-6);
+}
+
+.rowDone {
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.rowTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rowDate {
+  flex: none;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.more {
+  align-self: flex-start;
+  flex: none;
+  height: 20px;
+  padding: 0 4px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-accent-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+}
+
+button.more {
+  cursor: pointer;
+}
+
+button.more:hover {
+  background: var(--color-tint-6);
+}

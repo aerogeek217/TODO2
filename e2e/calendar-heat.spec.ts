@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * D18 calendar heat map in a real browser: with Titles off (the default) a
@@ -16,7 +16,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Tomorrow', dueInDays: 1 },
     { title: 'Late', dueInDays: -1 },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'calTab', kind: 'calendar' }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] }] }],
 }
 
 const calendar = (page: Page) => page.locator('[data-calendar-widget="calTab"]')
@@ -97,31 +97,47 @@ test('titles off: the month is a heat map; Titles brings the bars back and survi
 })
 
 test('a short cell: the month rows keep their least height, the grid scrolls and opens on today', async ({ page }) => {
+  // The shortest cell that still shows the full calendar (a body over 260px, D25 R):
+  // with titles on, six rows of a number and one slot don't fit, so the grid scrolls.
+  // (The heat map's rows are shorter: at that height they fit, and any shorter cell
+  // shows the calendar's medium face — below.)
   await seedWorkspace(page, {
     ...SEED,
     layouts: [{
       name: 'Main',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'notes', kind: 'notes' }] }] }],
-      bottom: { id: 'band', height: 160, tabs: [{ id: 'calTab', kind: 'calendar' }] },
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'notes', kind: 'notes' }] })] }],
+      bottom: { id: 'band-band', height: 300, cells: [{ id: 'band', tabs: [{ id: 'calTab', kind: 'calendar', titles: true }] }] },
     }],
   })
   const grid = calendar(page).locator('[data-cal-grid="month"]')
   await expect(grid).toHaveAttribute('data-scrolls', 'true')
+  await expect(grid).not.toHaveAttribute('data-heat-map', 'true')
   const geometry = () => grid.evaluate((g) => {
     const box = g.getBoundingClientRect()
     const today = g.querySelector('[data-today="true"]')!.getBoundingClientRect()
     const heights = Array.from(g.children, (c) => c.getBoundingClientRect().height)
     return { scrollable: g.scrollHeight > g.clientHeight, least: Math.min(...heights), todayTop: today.top - box.top, todayBottom: today.bottom - box.top, height: box.height }
   })
-  const heat = await geometry()
-  expect(heat.scrollable).toBe(true)
-  expect(heat.least).toBeGreaterThanOrEqual(22)
+  const titled = await geometry()
+  expect(titled.scrollable).toBe(true)
+  // The number and one `+N more` slot.
+  expect(titled.least).toBeGreaterThanOrEqual(41)
   // Today's week is in view.
-  expect(heat.todayTop).toBeGreaterThanOrEqual(0)
-  expect(heat.todayBottom).toBeLessThanOrEqual(heat.height)
+  expect(titled.todayTop).toBeGreaterThanOrEqual(0)
+  expect(titled.todayBottom).toBeLessThanOrEqual(titled.height)
+})
 
-  // Titles on: the number and one `+N more` slot.
-  await calendar(page).getByRole('button', { name: 'Titles' }).click()
-  await expect(grid).not.toHaveAttribute('data-heat-map', 'true')
-  expect((await geometry()).least).toBeGreaterThanOrEqual(41)
+test('a shorter cell shows the calendar’s medium face: this week’s days with their counts, in the heat’s tints', async ({ page }) => {
+  await seedWorkspace(page, {
+    ...SEED,
+    layouts: [{
+      name: 'Main',
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'notes', kind: 'notes' }] })] }],
+      bottom: { id: 'band-band', height: 160, cells: [{ id: 'band', tabs: [{ id: 'calTab', kind: 'calendar' }] }] },
+    }],
+  })
+  const face = page.locator('[data-calendar-face="medium"]')
+  await expect(face.locator('[data-day]')).toHaveCount(7)
+  await expect(face.locator('[data-day][data-today="true"]')).toHaveCount(1)
+  await expect(calendar(page)).toHaveCount(0)
 })

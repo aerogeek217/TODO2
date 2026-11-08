@@ -8,7 +8,6 @@ import { admitsCompleted, completedAdmitters, countActiveFilters, predicateToCri
 import { createPredicateEvaluator, createScreenComposedEvaluator, matchesFilterWithLookups, type FilterSettings } from '../utils/filter-match'
 import type { WeekStart } from '../utils/effective-date'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
-import type { ListRanks } from '../utils/list-order'
 import type { MarkerSettings } from '../utils/markers'
 import { bySortOrder } from '../utils/sort-order'
 import { startOfToday } from '../utils/date'
@@ -19,9 +18,6 @@ import type { CopyTaskSection } from './task-copy'
 import type { TaskDialogPayload, TaskDialogSource } from '../stores/task-dialog-payload'
 import { useFilterStore } from '../stores/filter-store'
 import { currentAppliedLens, currentScreenFilter } from '../stores/screen-filter'
-import { useListDefinitionStore } from '../stores/list-definition-store'
-import { useListDraftStore } from '../stores/list-draft-store'
-import { useListOrderStore } from '../stores/list-order-store'
 import { usePersonStore } from '../stores/person-store'
 import { currentFilterSettings, useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
@@ -31,7 +27,7 @@ import { useStatusUpdateStore } from '../stores/status-update-store'
 import { useSubtaskStore } from '../stores/subtask-store'
 
 /**
- * The task dialog: the tasks behind a number (a dashboard count) or an
+ * The task dialog: the tasks behind a number (a glance widget's count) or an
  * attribute (a person chip), as a modal list. A payload says what to show
  * and in words what was counted; its source is resolved to rows once, when
  * the dialog opens, so rows stay in place (a completed one struck through)
@@ -61,11 +57,8 @@ export interface TaskDialogEnv {
   statusUpdatesByTodo: ReadonlyMap<number, readonly PersistedStatusUpdate[]>
   /** Each task's checklist (text search reads its titles). */
   subtasksByTodo: ReadonlyMap<number, readonly PersistedSubtask[]>
-  /** List definitions as shown (unsaved drafts over the stored ones). */
-  listDefinitions: readonly PersistedListDefinition[]
-  /** The top-bar filter (list and screen sources compose it in). */
+  /** The top-bar filter (the screen source composes it in). */
   screen: FilterCriteria
-  listRanks: ReadonlyMap<number, ListRanks>
   /** Settings' sort and grouping for a new list: how the screen filter's tasks are shown. */
   newListView: NewListView
 }
@@ -79,7 +72,6 @@ export interface NewListView {
 
 /** The stores as they are now: what a source is resolved with. */
 export function currentTaskDialogEnv(): TaskDialogEnv {
-  const drafts = useListDraftStore.getState().drafts
   const people = usePersonStore.getState()
   const tags = useTagStore.getState()
   const settings = useSettingsStore.getState()
@@ -94,9 +86,7 @@ export function currentTaskDialogEnv(): TaskDialogEnv {
     statuses: useStatusStore.getState().statuses,
     statusUpdatesByTodo: useStatusUpdateStore.getState().byTodo,
     subtasksByTodo: useSubtaskStore.getState().byTodo,
-    listDefinitions: useListDefinitionStore.getState().listDefinitions.map((d) => drafts[d.id] ?? d),
     screen: currentScreenFilter(),
-    listRanks: useListOrderStore.getState().ranks,
     newListView: { sort: settings.newListSort, sortDirection: settings.newListSortDirection, grouping: settings.newListGroup },
   }
 }
@@ -122,11 +112,6 @@ export function resolveTaskDialog(source: TaskDialogSource, env: TaskDialogEnv):
       const matches = createPredicateEvaluator(lookupsOf(env), env.today, filterSettingsOf(env))
       const todoIds = env.todos.filter((t) => matches(source.predicate, t)).sort(bySortOrder).map((t) => t.id)
       return [{ key: 'all', label: null, todoIds }]
-    }
-    case 'list': {
-      const def = env.listDefinitions.find((d) => d.id === source.listDefinitionId)
-      if (!def) return []
-      return groupsOfList(buildList(def, env.todos, { ...listBuildContext(env), ranks: env.listRanks.get(def.id) ?? new Map() }))
     }
     case 'screen':
       // No manual order of its own: a Manual sort is the tasks' `sortOrder`.
@@ -313,7 +298,7 @@ export function personTaskDialog(person: Pick<Person, 'id' | 'name'>): TaskDialo
   }
 }
 
-// ── Dashboard sections ──────────────────────────────────────────────────────
+// ── Glance sections ─────────────────────────────────────────────────────────────
 // The tasks are the ones the section counted (screen-filtered), in its order.
 
 /** A Tags row: that tag's open tasks; `null` = the No tag row. */

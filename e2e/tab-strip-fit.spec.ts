@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { releaseDrag, seedWorkspace, wsCell, wsTab, type WsTabSeed } from './fixtures/workspace'
+import { releaseDrag, seedWorkspace, wsCell, wsTab, type WsTabSeed, wsRow } from './fixtures/workspace'
 import { pointIn } from './fixtures/geometry'
 
 /**
@@ -13,7 +13,7 @@ import { pointIn } from './fixtures/geometry'
 const TABS: WsTabSeed[] = [
   { id: 'n1', kind: 'notes' },
   { id: 'c1', kind: 'calendar' },
-  { id: 'd1', kind: 'dashboard' },
+  { id: 'd1', kind: 'trend' },
   { id: 'e1', kind: 'eisenhower' },
   { id: 'c2', kind: 'calendar' },
 ]
@@ -26,8 +26,8 @@ async function seed(page: Page, width: number) {
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'col1', weight: 1, cells: [{ id: 'k1', tabs: TABS, activeTabId: 'n1' }] },
-        { id: 'col2', weight: 1, cells: [{ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] }] },
+        { id: 'col1', weight: 1, rows: [wsRow({ id: 'k1', tabs: TABS, activeTabId: 'n1' })] },
+        { id: 'col2', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] })] },
       ],
     }],
   })
@@ -124,8 +124,8 @@ test('a band header fits its tabs the same way', async ({ page }) => {
   await seedWorkspace(page, {
     layouts: [{
       name: 'Main',
-      top: { id: 'band', tabs: bandTabs, activeTabId: 'n1' },
-      columns: [{ id: 'col1', cells: [{ id: 'k1', tabs: [{ id: 'n2', kind: 'notes' }] }] }],
+      top: { id: 'top-band', cells: [{ id: 'band', tabs: bandTabs, activeTabId: 'n1' }] },
+      columns: [{ id: 'col1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'n2', kind: 'notes' }] })] }],
     }],
   })
   const state = await stripState(page, 'band')
@@ -139,14 +139,14 @@ test('a band header fits its tabs the same way', async ({ page }) => {
 
 test('at the narrowest column a long active tab still shows (squeezed beside +N), never no tab at all', async ({ page }) => {
   await page.setViewportSize({ width: 860, height: 800 })
-  const narrow = (id: string): { id: string; weight: number; cells: Array<{ id: string; tabs: WsTabSeed[]; activeTabId?: string }> } =>
-    ({ id: `col-${id}`, weight: 1, cells: [{ id, tabs: [{ id: `n-${id}`, kind: 'notes' }] }] })
+  const narrow = (id: string) =>
+    ({ id: `col-${id}`, weight: 1, rows: [wsRow({ id, tabs: [{ id: `n-${id}`, kind: 'notes' }] })] })
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'A list with a very long name for a narrow column' }],
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'col1', weight: 1, cells: [{ id: 'k1', tabs: [{ id: 'l1', kind: 'lens', listDefIdx: 0 }, ...TABS], activeTabId: 'l1' }] },
+        { id: 'col1', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'l1', kind: 'lens', listDefIdx: 0 }, ...TABS], activeTabId: 'l1' })] },
         narrow('k2'),
         narrow('k3'),
       ],
@@ -177,12 +177,12 @@ test('the +N menu lists the folded tabs, and picking one shows it', async ({ pag
 
 /** Cell k1's tabs in the layout on screen (the working copy while edited, else the saved one). */
 const k1Tabs = (page: Page) => page.evaluate(async () => {
-  type L = { columns: Array<{ cells: Array<{ tabs: Array<{ id: string }> }> }> } | null
+  type L = { columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string }> }> }> }> } | null
   const ws = (await import(/* @vite-ignore */ '/src/stores/workspace-store.ts' as string)) as {
     useWorkspaceStore: { getState: () => { working: L; saved: L } }
   }
   const s = ws.useWorkspaceStore.getState()
-  return (s.working ?? s.saved)?.columns[0]?.cells[0]?.tabs.map((t) => t.id)
+  return (s.working ?? s.saved)?.columns[0]?.rows[0]?.cells[0]?.tabs.map((t) => t.id)
 })
 
 /**
@@ -208,8 +208,8 @@ async function seedFolded(page: Page) {
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'col1', weight: 1, cells: [{ id: 'k1', tabs: TABS, activeTabId: 'c2' }] },
-        { id: 'col2', weight: 1, cells: [{ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] }] },
+        { id: 'col1', weight: 1, rows: [wsRow({ id: 'k1', tabs: TABS, activeTabId: 'c2' })] },
+        { id: 'col2', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] })] },
       ],
     }],
   })

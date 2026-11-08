@@ -18,7 +18,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, PRIYA, SAMPLE_LISTS, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, STATUSES, TAGS,
-} from '../../fixtures/dashboard-sample'
+} from '../../fixtures/glance-sample'
 
 /**
  * The top bar's filtered-tasks panel: Show N tasks (and the palette's
@@ -112,7 +112,6 @@ describe('FilteredTasksPanel', () => {
     expect(within(tray()).queryByRole('button', { name: /^Filters/ })).toBeNull()
     // Footer: Copy tasks and Close.
     expect(within(panel()!).getByRole('button', { name: /Copy tasks/ })).toBeTruthy()
-    expect(within(panel()!).queryByRole('button', { name: 'Open as tab' })).toBeNull()
   })
 
   it('a filter change in the tray re-resolves the rows; between changes they stay fixed (a completed one struck through)', () => {
