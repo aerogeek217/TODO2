@@ -66,7 +66,10 @@ export function isGlanceRow(row: Pick<LayoutCellRow, 'cells'>, glance: KindFlag 
   return row.cells.length > 0 && row.cells.every((cell) => cell.tabs.length > 0 && cell.tabs.every((tab) => glance(tab.kind)))
 }
 
-/** The smallest height (px) a row's divider may size it to: `GLANCE_ROW_MIN_PX` for a glance row, else `CELL_MIN_PX`. */
+/**
+ * The smallest height (px) a row's divider may size it to — a band's too:
+ * `GLANCE_ROW_MIN_PX` for a glance row, else `CELL_MIN_PX`.
+ */
 export function rowMinHeightPx(row: Pick<LayoutCellRow, 'cells'>, glance: KindFlag = isGlanceKind): number {
   return isGlanceRow(row, glance) ? GLANCE_ROW_MIN_PX : CELL_MIN_PX
 }

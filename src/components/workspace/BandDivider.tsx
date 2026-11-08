@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { BAND_DEFAULT_HEIGHT, type BandEdge, type LayoutBand } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { BAND_MIN_PX, COLUMN_AREA_MIN_PX, resizeBand } from '../../utils/workspace-resize'
+import { COLUMN_AREA_MIN_PX, resizeBand } from '../../utils/workspace-resize'
+import { rowMinHeightPx } from '../../utils/workspace-rows'
 import styles from './WorkspaceDivider.module.css'
 import { shortcutScope } from '../../utils/dom-contract'
 
@@ -35,11 +36,13 @@ function measure(edge: BandEdge): { height: number; max: number } | null {
  * the bottom band), as a resize handle for the band's height: drag to move
  * it (rAF-throttled; the columns take the rest; the frames are `live`
  * edits, saved once at the end), double-click for the default height,
- * ↑ / ↓ to move it 16px. The band stays at least `BAND_MIN_PX`; dragging
- * well past that collapses it instead. The height is view state: saved at
- * once, it never makes the layout unsaved.
+ * ↑ / ↓ to move it 16px. The band stays at least its row minimum
+ * (`rowMinHeightPx`: `BAND_MIN_PX`, 64px for a band of glance widgets);
+ * dragging well past that collapses it instead. The height is view state:
+ * saved at once, it never makes the layout unsaved.
  */
 export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }) {
+  const min = rowMinHeightPx(band)
   const setBandHeight = useWorkspaceStore((s) => s.setBandHeight)
   const endResize = useWorkspaceStore((s) => s.endResize)
   const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
@@ -86,8 +89,8 @@ export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }
   const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
     const drag = dragRef.current
     if (!drag || drag.pointerId !== e.pointerId) return
-    const r = resizeBand({ edge, startHeight: drag.startHeight, delta: e.clientY - drag.startY, max: drag.max })
-    if (r.raw < BAND_MIN_PX - COLLAPSE_SLACK_PX) {
+    const r = resizeBand({ edge, startHeight: drag.startHeight, delta: e.clientY - drag.startY, max: drag.max, min })
+    if (r.raw < min - COLLAPSE_SLACK_PX) {
       pendingRef.current = null
       // Back to the drag's start as a frame, so the drag's end saves only that.
       void setBandHeight(edge, drag.storedHeight, { live: true })
@@ -111,7 +114,7 @@ export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }
     const m = measure(edge)
     if (!m) return
     const delta = e.key === 'ArrowDown' ? KEY_STEP_PX : -KEY_STEP_PX
-    setBandHeight(edge, resizeBand({ edge, startHeight: m.height, delta, max: m.max }).height)
+    setBandHeight(edge, resizeBand({ edge, startHeight: m.height, delta, max: m.max, min }).height)
   }
 
   return (
@@ -120,7 +123,7 @@ export function BandDivider({ edge, band }: { edge: BandEdge; band: LayoutBand }
       role="separator"
       aria-orientation="horizontal"
       aria-valuenow={Math.round(band.height)}
-      aria-valuemin={BAND_MIN_PX}
+      aria-valuemin={min}
       aria-label={`Resize ${edge} band`}
       tabIndex={0}
       data-ws-band-divider={edge}

@@ -2,7 +2,7 @@ import { Fragment, type CSSProperties } from 'react'
 import type { BandEdge, LayoutBand, LayoutCellRow, LayoutColumn, WorkspaceLayout } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { columnEdgeXs, EDGE_ZONE_GUTTER_PX, freeBandEdges, type RowGeometry, type WorkspaceDropHit, type WorkspaceGeometry } from '../../utils/workspace-drop'
-import { BAND_MIN_PX, CELL_MIN_WIDTH_PX, COLUMN_MIN_PX, expandedWeight } from '../../utils/workspace-resize'
+import { CELL_MIN_WIDTH_PX, COLUMN_MIN_PX, expandedWeight } from '../../utils/workspace-resize'
 import { isFitRow, isFixedHeightRow, isGlanceRow, rowDividerAt, rowMinHeightPx } from '../../utils/workspace-rows'
 import { EmptyColumnArea, WorkspaceCell } from './WorkspaceCell'
 import { WorkspaceDivider } from './WorkspaceDivider'
@@ -125,13 +125,14 @@ function Column({ column, widthShare }: { column: LayoutColumn; widthShare: numb
 
 /**
  * A full-width band: a row of cells spanning the workspace. Its stored
- * height is drawn at least `BAND_MIN_PX`; when the window is short it
- * shrinks (down to its header) so the column area keeps its minimum.
+ * height is drawn at least its row minimum (`rowMinHeightPx`: `BAND_MIN_PX`,
+ * 64px for a band of glance widgets); when the window is short it shrinks
+ * (down to its header) so the column area keeps its minimum.
  */
 function Band({ edge, band }: { edge: BandEdge; band: LayoutBand }) {
   const style: CSSProperties = band.collapsed
     ? { flex: '0 0 auto' }
-    : { flex: `0 1 ${Math.max(BAND_MIN_PX, band.height)}px` }
+    : { flex: `0 1 ${Math.max(rowMinHeightPx(band), band.height)}px` }
   return <CellRow row={band} band={edge} style={style} />
 }
 
