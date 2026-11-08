@@ -23,7 +23,8 @@ const popover = (page: Page) => page.getByTestId('widget-face-popover')
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('a List row shrunk by its divider shows the small face, headless; a click opens the full list over it, Esc closes it', async ({ page }) => {
+  // D26 P2: drags a row divider (none drawn until P2).
+  test.fixme('a List row shrunk by its divider shows the small face, headless; a click opens the full list over it, Esc closes it', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: TASKS,
       listDefinitions: [{ name: 'Everything' }],

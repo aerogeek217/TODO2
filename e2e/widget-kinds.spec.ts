@@ -87,13 +87,13 @@ test.describe('desktop', () => {
       await expect(body(cell, kind)).toBeVisible()
     }
 
-    // Close: every tab, last one closes the cell.
+    // Close: every tab; the last one closes the cell — with no neighbour to take its space, it stays an empty cell (D26).
     for (const kind of WIDGET_KINDS) {
       const t = tab(page, kind).first()
       await t.click()
       await t.getByRole('button', { name: `Close ${title(kind)}` }).click()
     }
-    await expect(page.getByText('This layout is empty')).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
   })
 
   test('a list tab whose list was deleted reads “(Deleted list)” in the overflow menu', async ({ page }) => {
@@ -161,7 +161,8 @@ test.describe('desktop', () => {
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('the column view shows every kind', async ({ page }) => {
+  // D26 P2: the phone shows every cell in one scroll (no column strip).
+  test.fixme('the column view shows every kind', async ({ page }) => {
     const layout: WsLayoutSeed = {
       name: 'Kinds',
       columns: WIDGET_KINDS.map((kind, i) => ({ id: `col${i}`, rows: [wsRow({ id: `cell${i}`, tabs: [{ id: `tab${i}`, kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }] })] })),
