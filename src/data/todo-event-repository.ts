@@ -2,10 +2,12 @@ import { db } from './database'
 import type { TodoEvent, TodoEventType } from '../models'
 
 /**
- * Append-only `todoEvents` repository. Writes flow exclusively through
- * `todo-repository` (which composes events into the same transaction as the
- * todo write). The rows are an append-only history that travels with exports
- * and task archives.
+ * Append-only `todoEvents` repository. Events are written in the same
+ * transaction as the change they log: a task's fields by `todo-repository`,
+ * its people and tags by the assignment writes (`join-helpers`, the person /
+ * tag deletes and their undo, `entity-removal`) through
+ * `logAssignmentEvents`. The rows are an append-only history that travels
+ * with exports and task archives.
  */
 export const todoEventRepository = {
   /**
@@ -50,4 +52,45 @@ export function encodeDateValue(d: Date | undefined | null): string | null {
     return isNaN(t) ? null : new Date(t).toISOString()
   }
   return null
+}
+
+/** The event types of a task's assignments. */
+export type AssignmentEventType = 'person' | 'tag'
+
+/**
+ * One `person` / `tag` event per assignment in `rows` (`id` = the person's /
+ * tag's id): an add logs the id as `toValue`, a remove as `fromValue`
+ * (`models/todo-event`).
+ */
+export function assignmentEvents(
+  type: AssignmentEventType,
+  rows: readonly { todoId: number; id: number }[],
+  change: 'add' | 'remove',
+  timestamp: string,
+): Omit<TodoEvent, 'id'>[] {
+  return rows.map(({ todoId, id }) => ({
+    todoId,
+    type,
+    fromValue: change === 'remove' ? id : null,
+    toValue: change === 'add' ? id : null,
+    timestamp,
+  }))
+}
+
+/**
+ * Logs `rows`' assignment changes now — only for the tasks that exist (an
+ * assignment row can outlive its task until the audit). Runs inside the
+ * caller's transaction, which must hold `todos` and `todoEvents`.
+ */
+export async function logAssignmentEvents(
+  type: AssignmentEventType,
+  rows: readonly { todoId: number; id: number }[],
+  change: 'add' | 'remove',
+  at: Date = new Date(),
+): Promise<void> {
+  if (rows.length === 0) return
+  const todoIds = [...new Set(rows.map((r) => r.todoId))]
+  const present = new Set((await db.todos.bulkGet(todoIds)).flatMap((t) => (t?.id != null ? [t.id] : [])))
+  const events = assignmentEvents(type, rows.filter((r) => present.has(r.todoId)), change, at.toISOString())
+  if (events.length > 0) await db.todoEvents.bulkAdd(events as TodoEvent[])
 }

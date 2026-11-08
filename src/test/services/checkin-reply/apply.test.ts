@@ -124,9 +124,10 @@ describe('applyCheckinUpdates', () => {
     expect((await row(4)).lastFollowupAt).toBeUndefined()
     expect((await row(4)).nextFollowupAt).toEqual(new Date(2026, 10, 1))
 
-    // History: the completion is logged as for a manual edit.
+    // History: the completion and the follow-up are logged as for a manual edit.
     const events = await db.todoEvents.where('todoId').equals(2).toArray()
-    expect(events.map((e) => e.type)).toEqual(['completed'])
+    expect(events.map((e) => e.type)).toEqual(['completed', 'followup', 'followedUp'])
+    expect(events.find((e) => e.type === 'followedUp')).toMatchObject({ fromValue: null, toValue: NOW.toISOString() })
 
     const undo = useUndoStore.getState()
     expect(undo.undoStack).toHaveLength(1)
@@ -152,7 +153,9 @@ describe('applyCheckinUpdates', () => {
         expect(t.nextFollowupAt).toEqual(original.nextFollowupAt)
       }
     }
-    expect((await db.todoEvents.where('todoId').equals(2).toArray()).map((e) => e.type)).toEqual(['completed', 'reopened'])
+    // The undo logs the reversing changes.
+    expect((await db.todoEvents.where('todoId').equals(2).toArray()).map((e) => e.type))
+      .toEqual(['completed', 'followup', 'followedUp', 'followup', 'followedUp', 'reopened'])
 
     await useUndoStore.getState().redo()
     expect(newest(1)?.text).toBe('section 4 done')

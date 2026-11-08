@@ -1,6 +1,7 @@
 import Dexie, { type Table } from 'dexie'
 import { db } from './database'
 import { touchTodoIds, type TaskTouch } from './touch-todos'
+import { logAssignmentEvents, type AssignmentEventType } from './todo-event-repository'
 
 /**
  * One row of join-table data to be captured pre-delete and restored on undo.
@@ -39,10 +40,14 @@ type JoinTableRow<AK extends string, BK extends string> =
  * task's (`todoPeople`, `todoTags`). An assignment is activity on its task:
  * given a `touch`, each write stamps the `modifiedAt` of the tasks whose rows
  * it changed (none when the row was already there / already gone), in its
- * own transaction, and records what it stamped (`touch-todos`).
+ * own transaction, and records what it stamped (`touch-todos`). Each row it
+ * adds or deletes is logged as an `eventType` add / remove in the same
+ * transaction (`todoEvents`, the history log H3) — an undo or redo too,
+ * which runs these again.
  * @param table The Dexie join table (e.g., db.todoPeople)
  * @param aKey The task's foreign key field name ('todoId')
  * @param bKey The second foreign key field name (e.g., 'personId')
+ * @param eventType The event a row change logs ('person' / 'tag')
  */
 export function createJoinOps<
   AK extends string,
@@ -52,6 +57,7 @@ export function createJoinOps<
   table: Table<T, number>,
   aKey: AK,
   bKey: BK,
+  eventType: AssignmentEventType,
 ) {
   const ops = {
     async assign(aId: number, bId: number, touch?: TaskTouch): Promise<void> {
@@ -65,7 +71,7 @@ export function createJoinOps<
     /** `assign` for each of `aIds`, in one transaction: all of them, or none. */
     async bulkAssign(aIds: readonly number[], bId: number, touch?: TaskTouch): Promise<void> {
       if (aIds.length === 0) return
-      await db.transaction('rw', [table, db.todos], async () => {
+      await db.transaction('rw', [table, db.todos, db.todoEvents], async () => {
         const existing = await table
           .where(aKey).anyOf([...aIds])
           .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
@@ -76,6 +82,7 @@ export function createJoinOps<
         // is a same-shape cast, not a force-through-unknown.
         const rows = added.map((aId) => ({ [aKey]: aId, [bKey]: bId }) as Record<AK | BK, number>)
         if (rows.length > 0) await table.bulkAdd(rows as T[])
+        await logAssignmentEvents(eventType, added.map((aId) => ({ todoId: aId, id: bId })), 'add')
         await touchTodoIds(added, touch)
       })
     },
@@ -83,13 +90,14 @@ export function createJoinOps<
     /** `unassign` for each of `aIds`, in one transaction. */
     async bulkUnassign(aIds: readonly number[], bId: number, touch?: TaskTouch): Promise<void> {
       if (aIds.length === 0) return
-      await db.transaction('rw', [table, db.todos], async () => {
+      await db.transaction('rw', [table, db.todos, db.todoEvents], async () => {
         const rows = await table
           .where(aKey).anyOf([...aIds])
           .filter((l) => (l as Record<string, unknown>)[bKey] === bId)
           .toArray()
         if (rows.length === 0) return
         await table.bulkDelete(rows.map((l) => (l as Record<string, unknown>).id as number))
+        await logAssignmentEvents(eventType, rows.map((l) => ({ todoId: (l as Record<string, unknown>)[aKey] as number, id: bId })), 'remove')
         await touchTodoIds(rows.map((l) => (l as Record<string, unknown>)[aKey] as number), touch)
       })
     },
@@ -153,40 +161,71 @@ async function readAssignmentMap<L, E extends { id?: number }>(
 }
 
 /**
+ * The task join table of a person or tag: the table, its entity's key, its
+ * task's key, and the event a row change logs (`todoEvents`, H3).
+ */
+export interface EntityLink {
+  table: Table
+  entityKey: string
+  linkKey: string
+  event: AssignmentEventType
+}
+
+/** The task assignments an entity's delete takes, logged as removes (in the caller's transaction, which holds `todos` and `todoEvents`). */
+export async function logEntityJoinsRemoved(link: EntityLink, rows: readonly unknown[]): Promise<void> {
+  await logAssignmentEvents(link.event, rows.map((r) => {
+    const row = r as Record<string, unknown>
+    return { todoId: row[link.linkKey] as number, id: row[link.entityKey] as number }
+  }), 'remove')
+}
+
+/**
  * Undo-restore for an entity delete (a person, a tag): re-insert the row
  * (keeping its id, name and every field) and the captured join rows, in one
  * transaction. A same-named entity created meanwhile (trimmed, any case — an
  * `@ann` typed after deleting Ann) is folded into the restored one instead of
  * leaving two: its join rows move to the restored id (one per task) and its
- * row goes.
+ * row goes. Each assignment that comes back or moves is logged (`link.event`:
+ * an add of the restored id, a remove of the folded one's).
  */
 export async function restoreNamedEntityWithJoins<E extends { id?: number; name: string }>(
   entityTable: Table<E, number>,
   entity: E,
-  link: { table: Table; entityKey: string; linkKey: string },
+  link: EntityLink,
   joins: JoinCapture[],
 ): Promise<void> {
-  await db.transaction('rw', [entityTable, link.table, ...joins.map((j) => j.table)], async () => {
+  await db.transaction('rw', [entityTable, link.table, db.todos, db.todoEvents, ...joins.map((j) => j.table)], async () => {
     const target = entity.name.trim().toLowerCase()
     const meanwhile = (await entityTable.toArray())
       .filter((e) => e.id != null && e.id !== entity.id && e.name.trim().toLowerCase() === target)
     await entityTable.add(entity)
     const linked = new Set<unknown>()
+    const added: { todoId: number; id: number }[] = []
+    const removed: { todoId: number; id: number }[] = []
     for (const { table, rows } of joins) {
       if (rows.length) await table.bulkAdd(rows)
-      if (table === link.table) for (const row of rows) linked.add((row as Record<string, unknown>)[link.linkKey])
+      if (table !== link.table) continue
+      for (const row of rows) {
+        const linkId = (row as Record<string, unknown>)[link.linkKey]
+        linked.add(linkId)
+        added.push({ todoId: linkId as number, id: entity.id! })
+      }
     }
     for (const other of meanwhile) {
       const rows = await link.table.where(link.entityKey).equals(other.id!).toArray() as Array<Record<string, unknown>>
       for (const row of rows) {
         const linkId = row[link.linkKey]
+        removed.push({ todoId: linkId as number, id: other.id! })
         if (linked.has(linkId)) await link.table.delete(row.id as number)
         else {
           await link.table.update(row.id as number, { [link.entityKey]: entity.id })
           linked.add(linkId)
+          added.push({ todoId: linkId as number, id: entity.id! })
         }
       }
       await entityTable.delete(other.id!)
     }
+    await logAssignmentEvents(link.event, removed, 'remove')
+    await logAssignmentEvents(link.event, added, 'add')
   })
 }
