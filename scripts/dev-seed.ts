@@ -19,11 +19,13 @@
  * day); Focus / Urgent / Important flags; completed tasks old and recent
  * with `completed` events, one with no event, one reopened (with the 30-day
  * retention setting the old ones trigger the purge prompt); notes and
- * status updates (a few per task, one added with a follow-up); the global note; two layouts — Default (columns plus a
- * band of glance widgets) and Planning (a band of Numbers and What changed,
- * lists — a tab at each zoom —, the Eisenhower, a Neglect map by project, a
- * column of glance widgets — Needs follow-up beside Created vs completed,
- * Today, Project pulse —, a calendar band) — each owning its lists, with list prompts, an "is not"
+ * status updates (a few per task, one added with a follow-up); the global note; two layouts, each a
+ * table (D26) — Default (tall cells over a collapsed row, a fit row of
+ * Numbers, a fixed strip of glance widgets) and Planning (a fit row of
+ * Numbers across the top, lists — a tab at each zoom —, the Eisenhower, a
+ * Neglect map by project, glance widgets — Needs follow-up, Created vs
+ * completed, Today, Project pulse —, a fixed strip with the month and What
+ * changed) — each owning its lists, with list prompts, an "is not"
  * filter, a descending sort, Priority filters (several values, "is not") and manual orders; the
  * Eisenhower's own list with one renamed pane; a check-in filter.
  *
@@ -50,11 +52,11 @@ import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
 import type { NumberMetric } from '../src/models/glance-widgets'
-import type { LayoutBand, LayoutCell, LayoutColumn, LayoutRow as LayoutCellRow, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
+import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 
 /** The schema the seed is written in (`CURRENT_DB_VERSION`; the test keeps them equal). */
-export const DEV_SEED_SCHEMA_VERSION = 77
+export const DEV_SEED_SCHEMA_VERSION = 78
 
 // ── Deterministic randomness ────────────────────────────────────────────
 
@@ -126,9 +128,7 @@ type SubtaskRow = Json<Subtask>
 type LayoutRow = Json<WorkspaceLayout>
 type TabRow = Json<LayoutTab>
 type CellRow = Json<LayoutCell>
-type RowRow = Json<LayoutCellRow>
-type ColumnRow = Json<LayoutColumn>
-type BandRow = Json<LayoutBand>
+type TrackRow = Json<GridTrack>
 interface SettingRow {
   key: SettingKey | `color.${'dark' | 'light'}.${string}`
   value: string
@@ -879,41 +879,74 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup } }, viewState: { view, offset } })
   const notes = (id: string): TabRow => ({ id, kind: 'notes', config: {} })
   const number = (id: string, metric: NumberMetric): TabRow => ({ id, kind: 'number', config: { metric } })
-  const cell = (id: string, tabs: TabRow[], extra: Partial<CellRow> = {}): CellRow =>
-    ({ id, weight: 1, tabs, activeTabId: tabs[0]?.id, ...extra })
-  /** A row of one cell (every row the seed has): `extra` its height share, its collapse. */
-  const row = (id: string, only: CellRow, extra: Partial<RowRow> = {}): RowRow => ({ id, weight: 1, cells: [only], ...extra })
-  /** A row of cells side by side. */
-  const rowOfCells = (id: string, cells: CellRow[], extra: Partial<RowRow> = {}): RowRow => ({ id, weight: 1, cells, ...extra })
-  const column = (id: string, rows: RowRow[], weight = 1): ColumnRow => ({ id, weight, rows })
-  const band = (id: string, height: number, cells: CellRow[], extra: Partial<BandRow> = {}): BandRow =>
-    ({ id, height, cells, ...extra })
+  /** A cell's contents: its id and tabs (the first active unless `activeTabId` says); its area comes from `table`. */
+  const cell = (id: string, tabs: TabRow[], activeTabId = tabs[0]?.id): Omit<CellRow, 'area'> =>
+    ({ id, tabs, ...(activeTabId ? { activeTabId } : {}) })
+  /**
+   * A layout's table (D26) drawn as text: each string a row track, each
+   * word a column track, each letter a cell — a letter over several tracks
+   * spans them. `cols` the column weights; `rows` each row track's weight,
+   * or `{ px }` (fixed), `{ fit: true }` (a row of Numbers: its weight a
+   * nominal 95, it fits its content), `collapsed` on either.
+   */
+  const table = (
+    prefix: string,
+    template: readonly string[],
+    cells: Readonly<Record<string, Omit<CellRow, 'area'>>>,
+    cols: readonly number[],
+    rows: ReadonlyArray<number | { px: number; collapsed?: boolean } | { weight: number; collapsed?: boolean } | { fit: true }>,
+  ): Pick<LayoutRow, 'grid' | 'cells'> => {
+    const grid = template.map((line) => line.trim().split(/\s+/))
+    const area = (key: string) => {
+      const at = grid.flatMap((line, r) => line.flatMap((k, c) => (k === key ? [[r, c] as const] : [])))
+      const rs = at.map(([r]) => r)
+      const cs = at.map(([, c]) => c)
+      const row = Math.min(...rs)
+      const col = Math.min(...cs)
+      return { col, row, colSpan: Math.max(...cs) - col + 1, rowSpan: Math.max(...rs) - row + 1 }
+    }
+    const track = (id: string, spec: (typeof rows)[number]): TrackRow => {
+      if (typeof spec === 'number') return { id, weight: spec }
+      if ('fit' in spec) return { id, weight: 95 }
+      return { id, ...spec }
+    }
+    return {
+      grid: {
+        columns: cols.map((weight, i) => ({ id: `${prefix}-c${i + 1}`, weight })),
+        rows: rows.map((spec, i) => track(`${prefix}-r${i + 1}`, spec)),
+      },
+      cells: Object.entries(cells)
+        .map(([key, c]) => ({ ...c, area: area(key) }))
+        .sort((a, b) => a.area.row - b.area.row || a.area.col - b.area.col),
+    }
+  }
 
   const layouts: LayoutRow[] = [
     {
       id: IDS.layouts.default,
       name: 'Default',
       sortOrder: 0,
-      columns: [
-        column('col-focus', [
-          row('row-focus', cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), notes('tab-notes')]), { weight: 2 }),
-          row('row-cal', cell('cell-cal', [calendar('tab-cal', 'week', 0)])),
-        ], 1.4),
-        column('col-person', [row('row-person', cell('cell-person', [lens('tab-person', L.byPerson)]))]),
-        column('col-board', [
-          row('row-board', cell('cell-board', [lens('tab-board', L.focus), { id: 'tab-matrix', kind: 'eisenhower', config: {} }])),
-          row('row-soon', cell('cell-soon', [lens('tab-soon', L.dueSoon)]), { collapsed: true }),
-        ]),
-      ],
-      // A band of glance widgets (D25 N): three Numbers, Next 7 days, Created vs completed and People.
-      bottom: band('band-glance', 260, [
-        cell('cell-open', [number('tab-open', 'open')]),
-        cell('cell-late', [number('tab-late', 'overdue')]),
-        cell('cell-followup-due', [number('tab-followup-due', 'followupDue')]),
-        cell('cell-next7', [{ id: 'tab-next7', kind: 'next7', config: {} }], { weight: 3 }),
-        cell('cell-trend', [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }], { weight: 5 }),
-        cell('cell-people', [{ id: 'tab-people', kind: 'people', config: { showUnassigned: true } }], { weight: 4 }),
-      ]),
+      // The table (D26): three tall cells over a collapsed row (Due soon), a fit row of Numbers, and a fixed strip of glance widgets.
+      ...table('default', [
+        'F F P B',
+        'C C P B',
+        'C C P S',
+        'O L U D',
+        'X X T E',
+      ], {
+        F: cell('cell-focus', [lens('tab-who', L.tasksFor), lens('tab-week', L.thisWeek), notes('tab-notes')]),
+        P: cell('cell-person', [lens('tab-person', L.byPerson)]),
+        B: cell('cell-board', [lens('tab-board', L.focus), { id: 'tab-matrix', kind: 'eisenhower', config: {} }]),
+        C: cell('cell-cal', [calendar('tab-cal', 'week', 0)]),
+        S: cell('cell-soon', [lens('tab-soon', L.dueSoon)]),
+        O: cell('cell-open', [number('tab-open', 'open')]),
+        L: cell('cell-late', [number('tab-late', 'overdue')]),
+        U: cell('cell-followup-due', [number('tab-followup-due', 'followupDue')]),
+        D: cell('cell-due-today', [number('tab-due-today', 'dueToday')]),
+        X: cell('cell-next7', [{ id: 'tab-next7', kind: 'next7', config: {} }]),
+        T: cell('cell-trend', [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }]),
+        E: cell('cell-people', [{ id: 'tab-people', kind: 'people', config: { showUnassigned: true } }]),
+      }, [280, 220, 220, 280], [400, 250, { weight: 150, collapsed: true }, { fit: true }, { px: 240 }]),
       createdAt: longAgo,
       modifiedAt: iso(at(-3, 17, 20)),
       lastUsedAt: iso(at(0, 8, 0)),
@@ -922,50 +955,41 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
       id: IDS.layouts.planning,
       name: 'Planning',
       sortOrder: 1,
-      // A band of Numbers and What changed (D25 N + L).
-      top: band('band-numbers', 150, [
-        cell('cell-n-late', [number('tab-n-late', 'overdue')]),
-        cell('cell-n-followup', [number('tab-n-followup', 'followupDue')]),
-        cell('cell-n-today', [number('tab-n-today', 'dueToday')]),
-        cell('cell-n-open', [number('tab-n-open', 'open')]),
-        cell('cell-n-closed', [number('tab-n-closed', 'closedThisWeek')]),
-        cell('cell-changes', [{ id: 'tab-changes', kind: 'changes', config: { tagIds: [...IDS.projectTags] } }], { weight: 4 }),
-      ]),
-      bottom: band('band-cal', 220, [cell('cell-month', [calendar('tab-month', 'month', 0, false)])]),
-      columns: [
-        column('col-horizon', [
-          // A list tab at each zoom (D25 C + I1): Stacked, Rows and Lines.
-          row('row-horizon', cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], { activeTabId: 'tab-rest' })),
-          row('row-someday', cell('cell-someday', [lens('tab-someday', L.someday)])),
-        ]),
-        column('col-people', [
-          row('row-followups', cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]), { weight: 2 }),
-          // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is.
-          row('row-neglect', cell('cell-neglect', [{
-            id: 'tab-neglect',
-            kind: 'neglect',
-            config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
-          }]), { weight: 2 }),
-          row('row-northwind', cell('cell-northwind', [lens('tab-northwind', L.northwind)])),
-        ]),
-        column('col-matrix', [
-          row('row-matrix', cell('cell-matrix', [{ id: 'tab-matrix2', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }])),
-          row('row-stats', cell('cell-stats', [
-            lens('tab-hot', L.hot),
-            lens('tab-recent', L.recentlyAdded),
-            lens('tab-done', L.doneThisWeek),
-          ])),
-        ], 1.2),
-        // Glance widgets (D25 N + L): Needs follow-up beside Created vs completed in one row, Today, Project pulse.
-        column('col-glance', [
-          rowOfCells('row-glance', [
-            cell('cell-g-followup', [{ id: 'tab-g-followup', kind: 'followup', config: { lookAhead: 7 } }]),
-            cell('cell-g-trend', [{ id: 'tab-g-trend', kind: 'trend', config: { range: '14d' } }]),
-          ], { weight: 2 }),
-          row('row-today', cell('cell-today', [{ id: 'tab-today', kind: 'today', config: {} }]), { weight: 1.5 }),
-          row('row-pulse', cell('cell-pulse', [{ id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } }]), { weight: 1.5 }),
-        ], 1.2),
-      ],
+      // The table (D26): a fit row of Numbers across the top, columns of lists and glance widgets, a fixed strip with the month and What changed.
+      ...table('planning', [
+        'a b c d e',
+        'H F M G G',
+        'H N M R R',
+        'S W T Y Y',
+        'S W T Z Z',
+        'K K K Q Q',
+      ], {
+        a: cell('cell-n-late', [number('tab-n-late', 'overdue')]),
+        b: cell('cell-n-followup', [number('tab-n-followup', 'followupDue')]),
+        c: cell('cell-n-today', [number('tab-n-today', 'dueToday')]),
+        d: cell('cell-n-open', [number('tab-n-open', 'open')]),
+        e: cell('cell-n-closed', [number('tab-n-closed', 'closedThisWeek')]),
+        // A list tab at each zoom (D25 C + I1): Stacked, Rows and Lines.
+        H: cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], 'tab-rest'),
+        F: cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]),
+        M: cell('cell-matrix', [{ id: 'tab-matrix2', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }]),
+        // Glance widgets (D25 N + L): Needs follow-up, Created vs completed, Today, Project pulse.
+        G: cell('cell-g-followup', [{ id: 'tab-g-followup', kind: 'followup', config: { lookAhead: 7 } }]),
+        // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is.
+        N: cell('cell-neglect', [{
+          id: 'tab-neglect',
+          kind: 'neglect',
+          config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
+        }]),
+        R: cell('cell-g-trend', [{ id: 'tab-g-trend', kind: 'trend', config: { range: '14d' } }]),
+        S: cell('cell-someday', [lens('tab-someday', L.someday)]),
+        W: cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
+        T: cell('cell-stats', [lens('tab-hot', L.hot), lens('tab-recent', L.recentlyAdded), lens('tab-done', L.doneThisWeek)]),
+        Y: cell('cell-today', [{ id: 'tab-today', kind: 'today', config: {} }]),
+        Z: cell('cell-pulse', [{ id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } }]),
+        K: cell('cell-month', [calendar('tab-month', 'month', 0, false)]),
+        Q: cell('cell-changes', [{ id: 'tab-changes', kind: 'changes', config: { tagIds: [...IDS.projectTags] } }]),
+      }, [250, 250, 250, 125, 125], [{ fit: true }, 300, 200, 150, 150, { px: 220 }]),
       createdAt: iso(at(-60, 10)),
       modifiedAt: iso(at(-8, 16, 45)),
       lastUsedAt: iso(at(-1, 14, 10)),

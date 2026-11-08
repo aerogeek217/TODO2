@@ -212,7 +212,7 @@ test('a drop into another group shows a blank slot there, then settles and fades
 for (const zoom of ['stacked', 'rows', 'lines'] as const) {
   test(`${zoom}: a sorted list's drop is a blank slot a row high, dashed, saying the drop switches it to manual`, async ({ page }) => {
     const s = seed({ name: 'Sorted', sort: 'name' })
-    const tab = s.layouts?.[0]?.columns[0]?.rows[0]?.cells[0]?.tabs[0]
+    const tab = s.layouts?.[0]?.columns?.[0]?.rows[0]?.cells[0]?.tabs[0]
     if (tab) tab.zoom = zoom
     await seedWorkspace(page, s)
     await expect(row(page, 'Delta')).toBeVisible()

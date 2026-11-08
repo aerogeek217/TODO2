@@ -271,7 +271,7 @@ test.describe('a headless cell', () => {
     name: 'Main',
     columns: [
       { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
-      { id: 'colB', rows: [wsRow({ id: 'h1', stripShown: false, tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
+      { id: 'colB', rows: [wsRow({ id: 'h1', tabs: [{ id: 'calTab', kind: 'trend' }] })] },
     ],
   }
   const strip = (page: Page) => wsCell(page, 'h1').locator('[data-ws-cell-header]')

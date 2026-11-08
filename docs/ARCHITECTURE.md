@@ -67,7 +67,7 @@ Two layers, picked by what's being verified (setup, fixtures and helpers: [archi
 
 **Diagnosis vs. regression.** The Chrome DevTools MCP server (`mcp__chrome-devtools__*`) is a *spike* tool — drive an interaction live in real Chromium, then codify the regression in Playwright. See CLAUDE.md "Tools — Chrome DevTools MCP".
 
-**Manual-testing seed.** `npm run seed:dev` writes a realistic export in the current schema to `dev-data/seed-v77.json` (gitignored) for Settings → Import / Export → Import JSON.
+**Manual-testing seed.** `npm run seed:dev` writes a realistic export in the current schema to `dev-data/seed-v78.json` (gitignored) for Settings → Import / Export → Import JSON.
 
 ## Detail References
 
