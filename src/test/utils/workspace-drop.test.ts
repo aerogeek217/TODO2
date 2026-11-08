@@ -251,15 +251,25 @@ function layoutWithTopBand(): WorkspaceLayout {
 }
 
 describe('bands in the hit test', () => {
-  it('the top / bottom 24px of the workspace offer a new band while there is none — where no tab strip is', () => {
+  it('the top / bottom 24px of the workspace offer a new band while there is none — where no cell is', () => {
     const geo = geometry()
     // The workspace's top padding, above the panels.
     expect(hitTestWorkspace(geo, { x: 300, y: 3 })).toEqual({ kind: 'new-band', edge: 'top' })
     expect(hitTestWorkspace(geo, { x: 4, y: 4 })).toEqual({ kind: 'new-band', edge: 'top' })
     // The gap between two columns, near the top.
     expect(hitTestWorkspace(geo, { x: 503, y: 20 })).toEqual({ kind: 'new-band', edge: 'top' })
-    // Bodies near the bottom edge are no strips: the bottom band zone.
-    expect(hitTestWorkspace(geo, { x: 300, y: 706 - 24 })).toEqual({ kind: 'new-band', edge: 'bottom' })
+    // The bottom padding, below the panels; and a little past the bottom edge.
+    expect(hitTestWorkspace(geo, { x: 300, y: 703 })).toEqual({ kind: 'new-band', edge: 'bottom' })
+    expect(hitTestWorkspace(geo, { x: 300, y: 706 + 16 })).toEqual({ kind: 'new-band', edge: 'bottom' })
+    expect(hitTestWorkspace(geo, { x: 300, y: 706 + 17 })).toBeNull()
+  })
+
+  it('a body near the bottom edge keeps its bottom zone: a new row below, not a band (cr33 M9)', () => {
+    const geo = geometry()
+    // a2's body 388..700: its bottom quarter is > 622, the old band zone 682..706.
+    for (const y of [682, 690, 699]) {
+      expect(hitTestWorkspace(geo, { x: 300, y })).toEqual({ kind: 'cell-body', cellId: 'a2', rowId: 'a2-r', multi: false, zone: 'bottom' })
+    }
   })
 
   it('a tab strip always wins over the band edge', () => {
@@ -289,8 +299,8 @@ describe('bands in the hit test', () => {
     expect(hitTestWorkspace(geo, { x: 300, y: 10 })).toMatchObject({ kind: 'tab-strip', cellId: 'tb', index: 1 })
     expect(hitTestWorkspace(geo, { x: 30, y: 30 })).toMatchObject({ kind: 'tab-strip', cellId: 'tb', index: 0 })
     expect(hitTestWorkspace(geo, { x: 300, y: 100 })).toEqual({ kind: 'band-body', edge: 'top', cellId: 'tb', zone: 'middle' })
-    // The bottom edge is still free.
-    expect(hitTestWorkspace(geo, { x: 300, y: 700 })).toEqual({ kind: 'new-band', edge: 'bottom' })
+    // The bottom edge is still free (its padding, below the cells).
+    expect(hitTestWorkspace(geo, { x: 300, y: 703 })).toEqual({ kind: 'new-band', edge: 'bottom' })
   })
 
   it('column-edge zones span the column area only, not the bands', () => {
@@ -470,6 +480,40 @@ describe('a headless cell (no header measured)', () => {
     const g: WorkspaceGeometry = { ...base, columns: [base.columns[0]!, colGeo('b', rect(506, 6, 1000, 700), [h])] }
     expect(hitTestWorkspace(g, { x: 750, y: 30 })).toMatchObject({ kind: 'cell-body', cellId: 'b1', zone: 'top' })
     expect(hitTestWorkspace(g, { x: 750, y: 300 })).toMatchObject({ kind: 'cell-body', cellId: 'b1', zone: 'middle' })
+  })
+
+  /**
+   * Column a's first row a fit row of one headless Number (6..76, its strip
+   * measured out of view above it, -18..6), then a2 (82..700); column b as in
+   * `geometry()`.
+   */
+  function headlessFirstRow(): WorkspaceGeometry {
+    const base = geometry()
+    const n: CellGeometry = { id: 'n1', rect: rect(6, 6, 500, 76), header: rect(6, -18, 500, 6), headless: true, body: rect(6, 6, 500, 76), empty: false, tabs: [{ id: 'num', rect: rect(10, -16, 90, 6) }] }
+    const a: ColumnGeometry = { id: 'a', rect: rect(6, 6, 500, 700), rows: [{ id: 'n1-r', rect: n.rect, cells: [n] }, { id: 'a2-r', rect: rect(6, 82, 500, 700), cells: [cellGeo('a2', 6, 500, 82, 700, ['t3'])] }] }
+    return { ...base, columns: [a, base.columns[1]!] }
+  }
+
+  it('a headless cell’s strip, measured out of view, is no target: the point above it is the band zone (`headless`)', () => {
+    const g = headlessFirstRow()
+    expect(hitTestWorkspace(g, { x: 50, y: 0 })).toEqual({ kind: 'new-band', edge: 'top' })
+    expect(hitTestWorkspace(g, { x: 50, y: -10 })).toEqual({ kind: 'new-band', edge: 'top' })
+  })
+
+  it('a headless first-row cell keeps its whole top quarter: New row above, not a band (cr33 M9)', () => {
+    const g = headlessFirstRow()
+    // n1's body 6..76: its top quarter is < 23.5 — all of it inside the old band zone (..24).
+    for (const y of [6, 12, 18, 23]) {
+      expect(hitTestWorkspace(g, { x: 250, y })).toEqual({ kind: 'cell-body', cellId: 'n1', rowId: 'n1-r', multi: false, zone: 'top' })
+    }
+    expect(hitTestWorkspace(g, { x: 250, y: 3 })).toEqual({ kind: 'new-band', edge: 'top' })
+    expect(dropTargetForHit(layout(), g, { kind: 'cell-body', cellId: 'n1', rowId: 'n1-r', multi: false, zone: 'top' }, { type: 'tab', tabId: 't4' })).toEqual({ kind: 'cell-edge', cellId: 'n1', edge: 'top' })
+  })
+
+  it('a headed cell’s strip still wins where it is measured', () => {
+    const g = headlessFirstRow()
+    const shown: WorkspaceGeometry = { ...g, columns: [{ ...g.columns[0]!, rows: g.columns[0]!.rows.map((r) => ({ ...r, cells: r.cells.map((c) => (c.id === 'n1' ? { ...c, headless: false, header: rect(6, 6, 500, 30), tabs: [{ id: 'num', rect: rect(10, 8, 90, 30) }] } : c)) })) }, g.columns[1]!] }
+    expect(hitTestWorkspace(shown, { x: 50, y: 20 })).toMatchObject({ kind: 'tab-strip', cellId: 'n1' })
   })
 })
 
