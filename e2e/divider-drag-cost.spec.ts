@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
 import { expectCounterLive, installRenderCounter, readRenderCounts, resetRenderCounts } from './fixtures/render-count'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 
 /**
  * What a divider drag costs, held where it is observable without timing.
@@ -220,8 +220,7 @@ async function countLayoutWrites(page: Page): Promise<void> {
 }
 const layoutWrites = (page: Page) => page.evaluate(() => (window as unknown as { __layoutWrites: number }).__layoutWrites)
 
-// D26 P2: the table’s dividers (none drawn until P2).
-test.fixme('a column or band divider drag: no task row re-renders, nothing is written until the release, which saves the size once', async ({ page }) => {
+test('a column or fixed-row divider drag: no task row re-renders, nothing is written until the release, which saves the size once', async ({ page }) => {
   // Two drags and two full loads of 40 rich rows under the render counter
   // (the seed and the reload): ~6 s alone, past 30 s under a full parallel run.
   test.slow()
@@ -229,6 +228,7 @@ test.fixme('a column or band divider drag: no task row re-renders, nothing is wr
   await countStorageWrites(page)
   await countLayoutWrites(page)
   const layout = seed({ kind: 'lens', listDefIdx: 0 })
+  // A fixed row on top (a former band, 140px).
   layout.layouts[0]!.top = { id: 'tb-band', height: 140, cells: [{ id: 'tb', tabs: [{ id: 'topnotes', kind: 'notes' }] }] }
   await seedWorkspace(page, layout)
   const widget = wsListWidget(page, 'tab')
@@ -241,7 +241,7 @@ test.fixme('a column or band divider drag: no task row re-renders, nothing is wr
   await resetRenderCounts(page)
 
   // The column divider: the list narrows live (its titles give way), nothing written until the release.
-  const d = await box(page.locator('[data-ws-divider="w|rest"]'))
+  const d = await box(page.locator('[data-ws-divider="cell|n"]'))
   const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
   await page.mouse.move(from.x, from.y)
   await page.mouse.down()
@@ -253,13 +253,14 @@ test.fixme('a column or band divider drag: no task row re-renders, nothing is wr
   await expect.poll(() => layoutWrites(page)).toBe(dbWritesBefore + 1)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 
-  // The band divider: the same.
-  const b = await box(page.locator('[data-ws-band-divider="top"]'))
+  // The fixed row's divider: the same.
+  const bandDivider = page.locator('[data-ws-divider="tb|cell"]')
+  const b = await box(bandDivider)
   const bFrom = { x: b.x + b.width / 2, y: b.y + b.height / 2 }
   await page.mouse.move(bFrom.x, bFrom.y)
   await page.mouse.down()
   for (let i = 1; i <= 10; i++) await page.mouse.move(bFrom.x, bFrom.y + 4 * i)
-  await expect.poll(async () => Number(await page.locator('[data-ws-band-divider="top"]').getAttribute('aria-valuenow'))).toBe(180)
+  await expect.poll(async () => Number(await bandDivider.getAttribute('aria-valuenow'))).toBe(180)
   expect(await layoutWrites(page)).toBe(dbWritesBefore + 1)
   await page.mouse.up()
   await expect.poll(() => layoutWrites(page)).toBe(dbWritesBefore + 2)
@@ -269,10 +270,10 @@ test.fixme('a column or band divider drag: no task row re-renders, nothing is wr
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 
   // Both come back after a reload, saved.
-  const widthAfter = (await box(page.locator('[data-ws-column="w"]'))).width
+  const widthAfter = (await box(wsCell(page, 'cell'))).width
   await page.reload()
   await expect(widget.locator('[data-todo-id]')).toHaveCount(ROWS)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
-  expect(Math.round((await box(page.locator('[data-ws-column="w"]'))).width)).toBe(Math.round(widthAfter))
-  await expect(page.locator('[data-ws-band-divider="top"]')).toHaveAttribute('aria-valuenow', '180')
+  expect(Math.round((await box(wsCell(page, 'cell'))).width)).toBe(Math.round(widthAfter))
+  await expect(bandDivider).toHaveAttribute('aria-valuenow', '180')
 })

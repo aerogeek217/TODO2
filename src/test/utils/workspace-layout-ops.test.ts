@@ -189,6 +189,38 @@ describe('closeCell (the absorb rule)', () => {
     expect(closeCell(lone, 'a').cells).toEqual([{ id: 'a', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] }])
   })
 
+  it('with no single whole-edge neighbour, the neighbours along a side that cover its whole edge together grow across it', () => {
+    const a = cell('a')
+    const b = cell('b')
+    const c = cell('c')
+    const d = cell('d')
+    // a b      Closing `b`: a and c together cover its left edge (each part of it).
+    // c b
+    const tall = layout(grid([[a, b], [c, b]]))
+    expect(picture(closeCell(tall, 'b'))).toEqual(['a', 'c'])
+    // a b      Closing `a`: no whole-edge neighbour; on its right b and d together cover it.
+    // a d
+    const left = layout(grid([[a, b], [a, d]]))
+    expect(picture(closeCell(left, 'a'))).toEqual(['b', 'd'])
+    // x a b    Closing `e`: on its left x sticks out past it (taller), and f below is wider;
+    // x e e    above, a and b together cover its top edge: both grow down (the row line goes).
+    // f f f
+    const x = cell('x')
+    const e = cell('e')
+    const f = cell('f')
+    const out = closeCell(layout(grid([[x, a, b], [x, e, e], [f, f, f]])), 'e')
+    expect(picture(out)).toEqual(['x a b', 'f f f'])
+    expectValid(out)
+    // A single whole-edge neighbour still comes first: closing `e`, h below takes it alone
+    //   c d d     (above, c and d wouldn't: d sticks out past e's right end).
+    //   e e g
+    //   h h g
+    const g = cell('g')
+    const h = cell('h')
+    const out2 = closeCell(layout(grid([[c, d, d], [e, e, g], [h, h, g]])), 'e')
+    expect(picture(out2)).toEqual(['c d d', 'h h g'])
+  })
+
   it('a merge drops the line no cell edge lies on any more, adding the weights', () => {
     const a = cell('a')
     const b = cell('b')
@@ -470,7 +502,7 @@ describe('random op sequences keep the table valid', () => {
   }
   const SIDES: Side[] = ['left', 'top', 'right', 'bottom']
 
-  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]) {
     it(`seed ${seed}`, () => {
       const rand = rng(seed)
       const pick = <T,>(xs: readonly T[]): T | undefined => xs[Math.floor(rand() * xs.length)]
@@ -509,6 +541,14 @@ describe('random op sequences keep the table valid', () => {
           case 8: body = closeTab(body, pick(tabIds) ?? ''); break
         }
         expectValid(body)
+        // A close leaves an empty cell only where no side can take its space (a pinwheel's centre).
+        if (op === 3 || op === 8) {
+          for (const c of body.cells) {
+            if (c.tabs.length > 0 || before.cells.some((p) => p.id === c.id && p.tabs.length === 0)) continue
+            // Emptied by this close: closing it again finds no taker either.
+            expect(closeCell(body, c.id)).toBe(body)
+          }
+        }
         // Every tab survives every op but a close.
         if (op !== 8 && op !== 3) {
           expect(body.cells.flatMap((c) => c.tabs.map((t) => t.id)).sort()).toEqual(

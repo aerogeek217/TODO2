@@ -1,5 +1,5 @@
 import { isGlanceKind as isGlanceWidgetKind, isWidgetKind, WIDGET_KIND_SPECS, type LayoutBody, type LayoutCell, type WidgetKind } from '../models/workspace-layout'
-import { CELL_MIN_PX } from './workspace-resize'
+import { CELL_MIN_PX, CELL_MIN_WIDTH_PX } from './workspace-resize'
 
 /**
  * How a cell and a row track draw, by what they hold: whether a cell hides
@@ -19,6 +19,8 @@ export const isFitHeightKind: KindFlag = (kind) => isWidgetKind(kind) && WIDGET_
 
 /** The smallest height (px) of a row track whose cells hold only glance widgets. */
 export const GLANCE_ROW_MIN_PX = 64
+/** The smallest width (px) of a glance cell: a Number's small face reads in it, so a row of them needn't scroll the table. */
+export const GLANCE_CELL_MIN_WIDTH_PX = 72
 
 /** The kind of a cell's only tab; `null` for an empty cell or one with several tabs. */
 function onlyKind(cell: Pick<LayoutCell, 'tabs'>): WidgetKind | null {
@@ -62,21 +64,12 @@ export function isGlanceCell(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = 
   return cell.tabs.length > 0 && cell.tabs.every((tab) => glance(tab.kind))
 }
 
-/** Whether row track `row`'s cells (those lying only in it) hold only glance widgets. */
-export function isGlanceTrack(body: LayoutBody, row: number, glance: KindFlag = isGlanceKind): boolean {
-  const cells = cellsOnlyInRow(body, row)
-  return cells.length > 0 && cells.every((cell) => isGlanceCell(cell, glance))
-}
-
-/**
- * The smallest height (px) a divider may size row track `row` to:
- * `GLANCE_ROW_MIN_PX` for a glance track, else `CELL_MIN_PX`.
- */
-export function trackMinHeightPx(body: LayoutBody, row: number, glance: KindFlag = isGlanceKind): number {
-  return isGlanceTrack(body, row, glance) ? GLANCE_ROW_MIN_PX : CELL_MIN_PX
-}
-
 /** The smallest height (px) a cell may take: `GLANCE_ROW_MIN_PX` for a glance cell, else `CELL_MIN_PX`. */
 export function cellMinHeightPx(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): number {
   return isGlanceCell(cell, glance) ? GLANCE_ROW_MIN_PX : CELL_MIN_PX
+}
+
+/** The smallest width (px) a cell may take: `GLANCE_CELL_MIN_WIDTH_PX` for a glance cell, else `CELL_MIN_WIDTH_PX`. */
+export function cellMinWidthPx(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): number {
+  return isGlanceCell(cell, glance) ? GLANCE_CELL_MIN_WIDTH_PX : CELL_MIN_WIDTH_PX
 }

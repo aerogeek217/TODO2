@@ -86,7 +86,6 @@
   --mobile-row-min-height: 48px;
   --mobile-fab-bottom: 16px;
   --mobile-topbar-height: 52px;
-  --mobile-column-strip-height: 40px;
   /* A touch target tall above its 1px bottom rule (the tabs take taps across it). */
   --mobile-cell-header-height: 45px;
   --mobile-cell-tab-height: 34px;
@@ -443,8 +442,6 @@
 
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.55);
-  /* Dims a workspace cell body under its drop zones while a tab is dragged over it */
-  --color-scrim: rgba(17, 17, 16, 0.74);
 
   /* Card glass */
   --color-card-glass-from: rgba(38, 36, 34, 0.97);
@@ -697,7 +694,6 @@
 
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.35);
-  --color-scrim: rgba(247, 246, 243, 0.78);
 
   /* Card glass */
   --color-card-glass-from: rgba(252, 251, 249, 0.98);

@@ -11,10 +11,11 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { cell, grid, picture, single, type CellSpec } from '../../helpers/layout-builders'
 
 /**
- * The cell menu's Split ▸ Right / Below, and a headless cell (one glance
- * tab, or a widget at its small face): its strip marked hidden, its
- * right-click the tab menu. (D26 P2 / P3 bring the table's menu words and
- * tabs on demand.)
+ * The cell menu in the table's words (D26 P2): Split cell ▸ Right / Below,
+ * Merge with ▸ (only into a rectangle), Insert ▸ a row or column at an
+ * edge, Add widget… with where first; and a headless cell (one glance tab,
+ * or a widget at its small face): its strip marked hidden, its right-click
+ * the tab menu. (P3 brings tabs on demand.)
  */
 
 const AT = new Date(2026, 0, 1)
@@ -55,22 +56,75 @@ beforeEach(() => {
 afterEach(cleanup)
 
 describe('the cell menu', () => {
-  it('Split ▸ Right puts an empty cell beside it; Below one under it', () => {
+  /** Opens the cell menu's `item` submenu (the last menu open). */
+  function submenu(item: string): HTMLElement {
+    fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: item }))
+    return screen.getAllByRole('menu').at(-1)!
+  }
+
+  it('lists the table’s words in order', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     renderCell(k)
-    const split = () => {
-      const menu = cellMenu()
-      fireEvent.click(within(menu).getByRole('menuitem', { name: 'Split' }))
-      return screen.getAllByRole('menu').at(-1)!
-    }
-    const sub = split()
+    const labels = within(cellMenu()).getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))
+    expect(labels).toEqual(['Add widget…', 'Split cell', 'Merge with', 'Insert', 'Collapse row', 'Close tab “Notes”', 'Close cell (1 tab)'])
+  })
+
+  it('Split cell ▸ Right puts an empty cell beside it; Below one under it', () => {
+    const k = cell('k', [createTab('notes', 'n')])
+    open(single(k))
+    renderCell(k)
+    const sub = submenu('Split cell')
     expect(within(sub).getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Right', 'Below'])
     fireEvent.click(within(sub).getByRole('menuitem', { name: 'Right' }))
     expect(working().cells.map((x) => x.tabs.length)).toEqual([1, 0])
-    fireEvent.click(within(split()).getByRole('menuitem', { name: 'Below' }))
+    fireEvent.click(within(submenu('Split cell')).getByRole('menuitem', { name: 'Below' }))
     expect(picture(working())).toHaveLength(2)
     expect(working().cells).toHaveLength(3)
+  })
+
+  it('Merge with ▸ Right joins the cell beside it into one, its tabs after; Below is off when no rectangle', () => {
+    const k = cell('k', [createTab('notes', 'n')])
+    const m = cell('m', [createTab('notes', 'm1')])
+    const w = cell('w', [createTab('notes', 'w1')])
+    // k | m over w spanning both: k merges right with m, but nothing below makes a rectangle with it alone.
+    open(grid([[k, m], [w, w]]))
+    renderCell(k)
+    const sub = submenu('Merge with')
+    expect(within(sub).getByRole('menuitem', { name: 'Below' })).toBeDisabled()
+    fireEvent.click(within(sub).getByRole('menuitem', { name: 'Right' }))
+    expect(picture(working())).toEqual(['k', 'w'])
+    expect(working().cells[0]?.tabs.map((t) => t.id)).toEqual(['n', 'm1'])
+  })
+
+  it('Insert ▸ Column at the left adds a full-height empty column', () => {
+    const k = cell('k', [createTab('notes', 'n')])
+    const m = cell('m', [createTab('notes', 'm1')])
+    open(grid([[k], [m]]))
+    renderCell(k)
+    const sub = submenu('Insert')
+    expect(within(sub).getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
+      .toEqual(['Row at the top', 'Row at the bottom', 'Column at the left', 'Column at the right'])
+    fireEvent.click(within(sub).getByRole('menuitem', { name: 'Column at the left' }))
+    const added = working().cells.find((c) => c.tabs.length === 0)
+    expect(added?.area).toEqual({ col: 0, row: 0, colSpan: 1, rowSpan: 2 })
+  })
+
+  it('Add widget… asks where first: Below puts the widget in a new cell under it', () => {
+    const k = cell('k', [createTab('notes', 'n')])
+    open(single(k))
+    renderCell(k)
+    fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Add widget…' }))
+    const add = screen.getByRole('menu', { name: 'Add widget' })
+    const where = within(add).getByRole('group', { name: 'Where' })
+    expect(within(where).getAllByRole('menuitemradio').map((el) => el.textContent)).toEqual(['Tab', 'Right', 'Below', 'Row', 'Column'])
+    expect(within(where).getByRole('menuitemradio', { name: 'Tab' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(within(where).getByRole('menuitemradio', { name: 'Below' }))
+    expect(within(where).getByRole('menuitemradio', { name: 'Below' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(within(add).getByRole('menuitem', { name: 'Notes' }))
+    expect(working().cells).toHaveLength(2)
+    expect(working().cells[1]?.area.row).toBe(1)
+    expect(working().cells[1]?.tabs[0]?.kind).toBe('notes')
   })
 
   it('Collapse row collapses the row tracks the cell covers', () => {

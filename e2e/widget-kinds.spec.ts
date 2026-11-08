@@ -161,17 +161,14 @@ test.describe('desktop', () => {
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  // D26 P2: the phone shows every cell in one scroll (no column strip).
-  test.fixme('the column view shows every kind', async ({ page }) => {
+  test('the one scroll shows every kind', async ({ page }) => {
     const layout: WsLayoutSeed = {
       name: 'Kinds',
       columns: WIDGET_KINDS.map((kind, i) => ({ id: `col${i}`, rows: [wsRow({ id: `cell${i}`, tabs: [{ id: `tab${i}`, kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }] })] })),
     }
     await seedWorkspace(page, { listDefinitions: [{ name: LIST }], tasks: [{ title: 'A task' }], layouts: [layout] })
-    const strip = page.getByRole('tablist', { name: 'Columns' })
     for (const [i, kind] of WIDGET_KINDS.entries()) {
-      await strip.getByRole('tab', { name: title(kind), exact: true }).tap()
-      await expect(strip.getByRole('tab', { name: title(kind), exact: true })).toHaveAttribute('aria-selected', 'true')
+      await wsCell(page, `cell${i}`).scrollIntoViewIfNeeded()
       await expect(body(wsCell(page, `cell${i}`), kind)).toBeInViewport()
     }
   })

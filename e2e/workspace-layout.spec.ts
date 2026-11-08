@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
-  drag, dragTab, expectOpenLayout, pickSplit, pickWidgetKind, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, withSpareLayouts, wsCell, wsShape, wsTab,
+  drag, dragTab, expectOpenLayout, openCellMenu, pickCellMenu, pickSplit, pickWidgetKind, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, withSpareLayouts, wsCell, wsDivider, wsGhost, wsShape, wsTab,
   type WsLayoutSeed,
   wsRow,
 } from './fixtures/workspace'
@@ -8,11 +8,12 @@ import { box, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
 /**
- * Workspace layout editing in a real browser: the three tab drop targets
- * (cell middle / cell edge / column edge) plus tab-strip insertion, column
- * and cell resizing, collapse, and the saved-layout flow (save icon, the
- * Save / Discard / Cancel prompt on layout switch and on leaving the route,
- * none when Settings opens over the workspace, persistence across reload).
+ * Workspace layout editing in a real browser: the tab drop targets (a
+ * cell's middle and edges, the layout's edge, a tab strip) with the drop
+ * ghost, the dividers (view state), collapse, and the saved-layout flow
+ * (save icon, the Save / Discard / Cancel prompt on layout switch and on
+ * leaving the route, none when Settings opens over the workspace,
+ * persistence across reload).
  */
 
 const twoColumns: WsLayoutSeed = {
@@ -25,8 +26,8 @@ const twoColumns: WsLayoutSeed = {
 
 const saveButton = (page: Page) => page.getByTestId('layout-save')
 
-function bodyPoint(page: Page, cellId: string, fy: number): Promise<Point> {
-  return pointIn(wsCell(page, cellId).locator('[data-ws-cell-body]'), 0.5, fy)
+function bodyPoint(page: Page, cellId: string, fy: number, fx = 0.5): Promise<Point> {
+  return pointIn(wsCell(page, cellId).locator('[data-ws-cell-body]'), fx, fy)
 }
 
 test.describe('tab drop targets', () => {
@@ -34,7 +35,7 @@ test.describe('tab drop targets', () => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const to = await bodyPoint(page, 'b1', 0.5)
     await dragTab(page, wsTab(page, 'eisTab'), to, async () => {
-      await expect(wsCell(page, 'b1').getByTestId('ws-drop-zones')).toHaveAttribute('data-active-zone', 'middle')
+      await expect(page.getByTestId('ws-drop-label')).toHaveText('Add as tab')
       await expect(wsCell(page, 'b1').getByTestId('ws-ghost-tab')).toBeVisible()
     })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'eisTab']]])
@@ -42,38 +43,31 @@ test.describe('tab drop targets', () => {
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   })
 
-  // D26 P2: the drop zones and the new-column edge are the table hit test and ghost.
-  test.fixme('cell top / bottom edge makes a new cell in that column', async ({ page }) => {
+  test('cell top / bottom edge splits it above / below; a vacated cell goes to the cells along a side that cover it', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    const top = await bodyPoint(page, 'b1', 0.1)
-    await dragTab(page, wsTab(page, 'eisTab'), top, async () => {
-      await expect(wsCell(page, 'b1').getByTestId('ws-drop-zones')).toHaveAttribute('data-active-zone', 'top')
-      await expect(page.getByTestId('ws-new-cell-bar')).toBeVisible()
+    await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.1), async () => {
+      await expect(page.getByTestId('ws-drop-label')).toHaveText('Split Calendar · above')
     })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['eisTab'], ['calTab']]])
 
-    const bottom = await bodyPoint(page, 'b1', 0.92)
-    await dragTab(page, wsTab(page, 'notesTab'), bottom)
+    // a1's place: no one cell shares its whole right edge, but the two there cover it together: both grow across it.
+    await dragTab(page, wsTab(page, 'notesTab'), await bodyPoint(page, 'b1', 0.92))
     await expect.poll(() => wsShape(page)).toEqual([[['eisTab'], ['calTab'], ['notesTab']]])
+    await expect(page.getByRole('region', { name: 'Empty cell' })).toHaveCount(0)
   })
 
-  // D26 P2: the drop zones and the new-column edge are the table hit test and ghost.
-  test.fixme('column edge makes a new column; the empty column goes away', async ({ page }) => {
+  test('a cell’s side edge makes a new column beside it; the layout’s outer edge a new column there', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    const a = await page.locator('[data-ws-column="colA"]').boundingBox()
-    const b = await page.locator('[data-ws-column="colB"]').boundingBox()
-    if (!a || !b) throw new Error('no columns')
-    const gutterX = (a.x + a.width + b.x) / 2
-    await dragTab(page, wsTab(page, 'eisTab'), { x: gutterX + 6, y: a.y + a.height / 2 }, async () => {
-      await expect(page.getByTestId('ws-new-column-band')).toBeVisible()
-      await expect(page.getByText('New column')).toBeVisible()
+    await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.5, 0.05), async () => {
+      await expect(page.getByTestId('ws-drop-label')).toHaveText('Split Calendar · left')
     })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['eisTab']], [['calTab']]])
 
-    // The outer right edge, from the middle column (its only tab): that column empties and is removed.
-    const area = await page.locator('[data-ws-area]').boundingBox()
-    if (!area) throw new Error('no area')
-    await dragTab(page, wsTab(page, 'eisTab'), { x: area.x + area.width - 10, y: area.y + area.height / 2 })
+    // The outer right edge, from the middle column (its only tab): its place goes to the column on its left.
+    const area = await box(page.locator('[data-ws-area]'))
+    await dragTab(page, wsTab(page, 'eisTab'), { x: area.x + area.width - 10, y: area.y + area.height / 2 }, async () => {
+      await expect(page.getByTestId('ws-drop-label')).toHaveText('Insert column · full height')
+    })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']], [['eisTab']]])
   })
 
@@ -87,10 +81,10 @@ test.describe('tab drop targets', () => {
     })
     await expect.poll(() => wsShape(page)).toEqual([[['eisTab', 'notesTab']], [['calTab']]])
 
-    // Dropping a single-tab cell's tab on its own body changes nothing (and stays plain).
+    // Dropping a single-tab cell's tab on its own body changes nothing (and draws no ghost).
     const own = await bodyPoint(page, 'b1', 0.5)
     await dragTab(page, wsTab(page, 'calTab'), own, async () => {
-      await expect(wsCell(page, 'b1').getByTestId('ws-drop-zones')).toHaveAttribute('data-active-zone', '')
+      await expect(wsGhost(page)).toHaveCount(0)
     })
     await expect.poll(() => wsShape(page)).toEqual([[['eisTab', 'notesTab']], [['calTab']]])
   })
@@ -112,35 +106,26 @@ test.describe('tab drop targets', () => {
 })
 
 test.describe('resize and collapse', () => {
-  // D26 P2: the dividers are per edge stretch now (none drawn until P2).
-  test.fixme('dragging the column divider resizes both neighbours (saved at once, never unsaved) and respects the 280px minimum', async ({ page }) => {
+  test('dragging the column divider resizes both neighbours (saved at once, never unsaved) and respects the 120px minimum', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    const divider = page.getByRole('separator', { name: 'Resize columns' })
-    const before = await page.locator('[data-ws-column="colA"]').boundingBox()
-    const d = await divider.boundingBox()
-    if (!before || !d) throw new Error('no geometry')
-    await page.mouse.move(d.x + d.width / 2, d.y + d.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(d.x + d.width / 2 + 120, d.y + d.height / 2, { steps: 6 })
-    await page.mouse.up()
-    await expect.poll(async () => Math.round((await page.locator('[data-ws-column="colA"]').boundingBox())!.width - before.width)).toBeGreaterThan(100)
+    const divider = page.getByRole('separator', { name: 'Resize Notes and Calendar' })
+    const before = await box(wsCell(page, 'a1'))
+    const d = await box(divider)
+    await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 + 120, y: d.y + d.height / 2 })
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'a1'))).width - before.width)).toBeGreaterThan(100)
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-    const resized = Math.round((await page.locator('[data-ws-column="colA"]').boundingBox())!.width)
+    const resized = Math.round((await box(wsCell(page, 'a1'))).width)
     await page.reload()
-    await expect.poll(async () => Math.round((await page.locator('[data-ws-column="colA"]').boundingBox())!.width)).toBe(resized)
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'a1'))).width)).toBe(resized)
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 
-    // Far past the other column's minimum: it stops at 280px.
-    const d2 = await divider.boundingBox()
-    await page.mouse.move(d2!.x + 3, d2!.y + 300)
-    await page.mouse.down()
-    await page.mouse.move(d2!.x + 2000, d2!.y + 300, { steps: 6 })
-    await page.mouse.up()
-    await expect.poll(async () => Math.round((await page.locator('[data-ws-column="colB"]').boundingBox())!.width)).toBe(280)
+    // Far past the other cell's minimum: it stops at 120px.
+    const d2 = await box(divider)
+    await drag(page, { x: d2.x + 3, y: d2.y + 300 }, { x: d2.x + 2000, y: d2.y + 300 })
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'b1'))).width)).toBe(120)
   })
 
-  // D26 P2: the dividers are per edge stretch now (none drawn until P2).
-  test.fixme('cell divider resizes; dragging past the minimum collapses the cell; neither is an unsaved change', async ({ page }) => {
+  test('the row divider resizes; past the minimum it stops there; neither is an unsaved change', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -150,31 +135,18 @@ test.describe('resize and collapse', () => {
         ] }],
       }],
     })
-    const divider = page.getByRole('separator', { name: 'Resize rows' })
-    const top = await wsCell(page, 'a1').boundingBox()
-    const d = await divider.boundingBox()
-    if (!top || !d) throw new Error('no geometry')
-    await page.mouse.move(d.x + 200, d.y + d.height / 2)
-    await page.mouse.down()
-    await page.mouse.move(d.x + 200, d.y + d.height / 2 - 100, { steps: 5 })
-    await page.mouse.up()
-    await expect.poll(async () => Math.round(top.height - (await wsCell(page, 'a1').boundingBox())!.height)).toBeGreaterThan(80)
+    const divider = page.getByRole('separator', { name: 'Resize Notes and Eisenhower' })
+    const top = await box(wsCell(page, 'a1'))
+    const d = await box(divider)
+    await drag(page, { x: d.x + 200, y: d.y + d.height / 2 }, { x: d.x + 200, y: d.y + d.height / 2 - 100 })
+    await expect.poll(async () => Math.round(top.height - (await box(wsCell(page, 'a1'))).height)).toBeGreaterThan(80)
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 
-    // Drag far up: the top cell collapses to its header.
-    const d2 = await divider.boundingBox()
-    await page.mouse.move(d2!.x + 200, d2!.y + 3)
-    await page.mouse.down()
-    await page.mouse.move(d2!.x + 200, 0, { steps: 10 })
-    await page.mouse.up()
-    await expect(wsCell(page, 'a1').getByRole('button', { name: 'Expand cell' })).toBeVisible()
+    // Far up: the top cell stops at its minimum (112px).
+    const d2 = await box(divider)
+    await drag(page, { x: d2.x + 200, y: d2.y + 3 }, { x: d2.x + 200, y: 0 })
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'a1'))).height)).toBe(112)
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-
-    // Collapsed state is saved automatically.
-    await page.reload()
-    await expect(wsCell(page, 'a1').getByRole('button', { name: 'Expand cell' })).toBeVisible()
-    await wsCell(page, 'a1').getByRole('button', { name: 'Expand cell' }).click()
-    await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
   })
 
   test('cell header Collapse button and the cell menu split / close', async ({ page }) => {
@@ -196,28 +168,25 @@ test.describe('resize and collapse', () => {
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   })
 
-  // D26 P2: the dividers are per edge stretch now (none drawn until P2).
-  test.fixme('with an unsaved new column, a column resize stays unsaved with it (kept over a reload); Save keeps the widths', async ({ page }) => {
+  test('with an unsaved new column, a column resize stays unsaved with it (kept over a reload); Save keeps the widths', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    const header = wsCell(page, 'b1').locator('[data-ws-cell-header]')
-    await header.hover()
-    await header.getByRole('button', { name: 'Cell options' }).click()
-    await pickSplit(page, 'New column')
+    await openCellMenu(page, 'b1')
+    await pickCellMenu(page, 'Insert', 'Column at the right')
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
 
-    const colA = page.locator('[data-ws-column="colA"]')
-    const before = (await box(colA)).width
-    const d = await box(page.locator('[data-ws-divider="colA|colB"]'))
+    const a1 = wsCell(page, 'a1')
+    const before = (await box(a1)).width
+    const d = await box(wsDivider(page, 'a1', 'b1'))
     await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 - 100, y: d.y + d.height / 2 })
-    await expect.poll(async () => Math.round(before - (await box(colA)).width)).toBeGreaterThan(80)
+    await expect.poll(async () => Math.round(before - (await box(a1)).width)).toBeGreaterThan(80)
     await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
-    const widths = async () => Promise.all((await page.locator('[data-ws-column]').all()).map(async (c) => Math.round((await box(c)).width)))
+    const widths = async () => Promise.all((await page.locator('[data-ws-cell]').all()).map(async (c) => Math.round((await box(c)).width)))
     const resized = await widths()
     // The stored layout has neither the column nor the widths yet.
-    const storedWeights = async () => ((await readStore<{ columns: Array<{ weight: number }> }>(page, 'layouts'))[0]?.columns ?? []).map((c) => c.weight)
-    expect(await storedWeights()).toEqual([1, 1])
+    const storedWeights = async () => ((await readStore<{ grid: { columns: Array<{ weight: number }> } }>(page, 'layouts'))[0]?.grid.columns ?? []).map((c) => c.weight)
+    expect(await storedWeights()).toEqual([500, 500])
 
     await page.reload()
     await expect.poll(widths).toEqual(resized)
@@ -232,42 +201,32 @@ test.describe('resize and collapse', () => {
 })
 
 test.describe('a pane that goes leaves no void', () => {
-  /** Unfilled px of the column area, right of its last column (its padding not counted). */
-  const voidRight = (page: Page) => page.evaluate(() => {
-    const area = document.querySelector<HTMLElement>('[data-ws-columns]')
-    const last = Array.from(document.querySelectorAll('[data-ws-column]')).at(-1)
-    if (!area || !last) throw new Error('no columns')
-    return area.getBoundingClientRect().right - parseFloat(getComputedStyle(area).paddingRight) - last.getBoundingClientRect().right
-  })
-  /** Unfilled px of a column, below its last cell. */
-  const voidBelow = (page: Page, columnId: string) => page.evaluate((id) => {
-    const col = document.querySelector(`[data-ws-column="${id}"]`)
-    const last = col && Array.from(col.querySelectorAll('[data-ws-cell]')).at(-1)
-    if (!col || !last) throw new Error('no cells')
-    return col.getBoundingClientRect().bottom - last.getBoundingClientRect().bottom
-  }, columnId)
+  /** Unfilled px of the table, right of `cellId` (its padding not counted). */
+  const voidRight = (page: Page, cellId: string) => page.evaluate((id) => {
+    const table = document.querySelector<HTMLElement>('[data-ws-table]')
+    const cell = document.querySelector(`[data-ws-cell="${id}"]`)
+    if (!table || !cell) throw new Error('no table')
+    return table.getBoundingClientRect().right - parseFloat(getComputedStyle(table).paddingRight) - cell.getBoundingClientRect().right
+  }, cellId)
+  /** Unfilled px of the table, below `cellId`. */
+  const voidBelow = (page: Page, cellId: string) => page.evaluate((id) => {
+    const table = document.querySelector<HTMLElement>('[data-ws-table]')
+    const cell = document.querySelector(`[data-ws-cell="${id}"]`)
+    if (!table || !cell) throw new Error('no table')
+    return table.getBoundingClientRect().bottom - parseFloat(getComputedStyle(table).paddingBottom) - cell.getBoundingClientRect().bottom
+  }, cellId)
 
-  // D26 P2: measures columns (`data-ws-column`); the table has none.
-  test.fixme('a cell split off, whose last tab then joins another pane, gives its height back', async ({ page }) => {
-    await seedWorkspace(page, {
-      layouts: [{
-        name: 'Main',
-        columns: [
-          { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] })] },
-          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
-        ],
-      }],
-    })
+  test('a cell split off, whose last tab then joins another pane, gives its height back', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [twoColumns] })
     await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'a1', 0.92))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['eisTab']], [['calTab']]])
 
     await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.5))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'eisTab']]])
-    await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
+    await expect.poll(() => voidBelow(page, 'a1')).toBeLessThan(1)
   })
 
-  // D26 P2: measures columns (`data-ws-column`); the table has none.
-  test.fixme('a column whose last tab joins another column gives its width back', async ({ page }) => {
+  test('a column whose last tab joins another column gives its width back', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -279,43 +238,40 @@ test.describe('a pane that goes leaves no void', () => {
     })
     await dragTab(page, wsTab(page, 'calTab'), await bodyPoint(page, 'a1', 0.5))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'calTab']]])
-    await expect.poll(() => voidRight(page)).toBeLessThan(1)
+    await expect.poll(() => voidRight(page, 'a1')).toBeLessThan(1)
   })
 
-  // D26 P2: measures columns (`data-ws-column`); the table has none.
-  test.fixme('a layout stored with weights under 1 fills the workspace', async ({ page }) => {
+  test('a layout stored with weights under 1 fills the workspace', async ({ page }) => {
+    await seedWorkspace(page, {
+      layouts: [{ name: 'Main', table: { areas: ['a1'], cols: [0.5], rows: [0.25], cells: [{ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }] } }],
+    })
+    await expect.poll(() => voidRight(page, 'a1')).toBeLessThan(1)
+    await expect.poll(() => voidBelow(page, 'a1')).toBeLessThan(1)
+  })
+
+  test('beside a collapsed row, the expanded cells take all the free height', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
-        columns: [{ id: 'colA', weight: 0.5, rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { weight: 0.25 })] }],
+        table: {
+          areas: ['a1 b1', 'a2 b1', 'a3 b1'],
+          rows: [{ weight: 250, collapsed: true }, 250, 500],
+          cells: [
+            { id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] },
+            { id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
+            { id: 'a3', tabs: [{ id: 'dashTab', kind: 'notes' }] },
+            { id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] },
+          ],
+        },
       }],
     })
-    await expect.poll(() => voidRight(page)).toBeLessThan(1)
-    await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
-  })
-
-  // D26 P2: collapse is a row track’s now; rewrite for the table.
-  test.fixme('beside a collapsed cell, the expanded cell takes all the free height', async ({ page }) => {
-    await seedWorkspace(page, {
-      layouts: [{
-        name: 'Main',
-        columns: [
-          { id: 'colA', rows: [
-            wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { weight: 0.25, collapsed: true }),
-            wsRow({ id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }, { weight: 0.25 }),
-            wsRow({ id: 'a3', tabs: [{ id: 'dashTab', kind: 'notes' }] }, { weight: 0.5 }),
-          ] },
-          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
-        ],
-      }],
-    })
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'a1'))).height)).toBe(32)
     await dragTab(page, wsTab(page, 'dashTab'), await bodyPoint(page, 'b1', 0.5))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['eisTab']], [['calTab', 'dashTab']]])
-    await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
+    await expect.poll(() => voidBelow(page, 'a2')).toBeLessThan(1)
   })
 
-  // D26 P2: collapse is a row track’s now; rewrite for the table.
-  test.fixme('the last expanded cell going expands the collapsed one left', async ({ page }) => {
+  test('the last expanded cell going expands the collapsed one left', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -331,7 +287,7 @@ test.describe('a pane that goes leaves no void', () => {
     await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.5))
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'eisTab']]])
     await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
-    await expect.poll(() => voidBelow(page, 'colA')).toBeLessThan(1)
+    await expect.poll(() => voidBelow(page, 'a1')).toBeLessThan(1)
   })
 })
 

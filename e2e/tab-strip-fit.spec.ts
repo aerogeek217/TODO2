@@ -118,7 +118,7 @@ test('narrowing shrinks the tabs before any folds into +N, and widening brings t
   for (const t of back.shown) expect(Math.abs(t.width - (fullWidths.get(t.id) ?? 0))).toBeLessThanOrEqual(1)
 })
 
-test('a band header fits its tabs the same way', async ({ page }) => {
+test('a full-width fixed row (a former band) fits its tabs the same way', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 800 })
   const bandTabs = [...TABS, ...TABS.map((t) => ({ ...t, id: `${t.id}b` }))]
   await seedWorkspace(page, {

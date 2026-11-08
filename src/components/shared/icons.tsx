@@ -268,16 +268,6 @@ export function TabStripIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-/** A full-width band: a rounded rect with a thick bar along its top (or bottom) edge. */
-export function BandIcon({ edge, size = 14 }: { edge: 'top' | 'bottom'; size?: number }) {
-  return (
-    <Svg size={size}>
-      <rect x="2" y="2.5" width="12" height="11" rx="2" />
-      <path d={edge === 'top' ? 'M3.5 5h9' : 'M3.5 11h9'} strokeWidth={2.6} />
-    </Svg>
-  )
-}
-
 /** Six dots in two rows of three: a panel header's drag grip. */
 export function GripIcon() {
   return (

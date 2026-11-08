@@ -166,9 +166,10 @@ describe('structural edits and dirty state', () => {
     expect(ws().isDirty).toBe(false)
     const inserted = ws().insertTrack('top')
     expect(picture(ws().working!)).toEqual([`${inserted} ${inserted}`, 'ka kb'])
-    // No neighbour shares its whole edge: closed, it stays an empty cell.
+    // No one neighbour shares its whole edge, but the two below cover it together: they grow back
+    // over it. (Its row track's id stays — the merged track keeps the first's —, so still a change.)
     ws().closeCell(inserted!)
-    expect(ws().working!.cells.find((c) => c.id === inserted)?.tabs).toEqual([])
+    expect(picture(ws().working!)).toEqual(['ka kb'])
     expect(ws().isDirty).toBe(true)
     ws().discard()
     expect(ws().mergeCells('ka', 'kb')).toBe(true)

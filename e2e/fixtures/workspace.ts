@@ -609,15 +609,44 @@ export function wsPanelHandle(page: Page, panelId: string): Locator {
   return page.locator(`[data-ws-panel-handle="${panelId}"]`)
 }
 
-/** The band at an edge: its row of cells. */
-export function wsBand(page: Page, edge: 'top' | 'bottom'): Locator {
-  return page.locator(`[data-ws-band-row="${edge}"]`)
+/** Picks Split cell ▸ `item` (Right / Below) in the open cell menu. */
+export async function pickSplit(page: Page, item: 'Right' | 'Below'): Promise<void> {
+  await pickCellMenu(page, 'Split cell', item)
 }
 
-/** Picks Split ▸ `item` (Right / Below / New column) in the open cell (or band) menu. */
-export async function pickSplit(page: Page, item: 'Right' | 'Below' | 'New column'): Promise<void> {
-  await page.getByRole('menuitem', { name: 'Split', exact: true }).click()
+/** Picks `parent` ▸ `item` in the open cell menu (Split cell, Merge with, Insert). */
+export async function pickCellMenu(page: Page, parent: 'Split cell' | 'Merge with' | 'Insert', item: string): Promise<void> {
+  await page.getByRole('menuitem', { name: parent, exact: true }).click()
   await page.getByRole('menuitem', { name: item, exact: true }).click()
+}
+
+/** Opens cell `cellId`'s ⋯ menu (over the cell first: a headless cell's strip slides in on hover). */
+export async function openCellMenu(page: Page, cellId: string): Promise<void> {
+  await wsCell(page, cellId).hover()
+  await wsCell(page, cellId).locator('[data-ws-cell-header]').getByRole('button', { name: 'Cell options' }).click()
+}
+
+/** The drop ghost while a tab or cell is dragged (D26 board T). */
+export function wsGhost(page: Page): Locator {
+  return page.getByTestId('ws-drop-ghost')
+}
+
+/** A box's edges, rounded to the px, for comparing a ghost with the cell that lands there. */
+export async function edges(locator: Locator): Promise<{ left: number; top: number; right: number; bottom: number }> {
+  const b = await box(locator)
+  return { left: b.x, top: b.y, right: b.x + b.width, bottom: b.y + b.height }
+}
+
+/** Expects two boxes' edges within `tolerance` px of each other. */
+export function expectSameEdges(a: { left: number; top: number; right: number; bottom: number }, b: typeof a, tolerance = 2): void {
+  for (const k of ['left', 'top', 'right', 'bottom'] as const) {
+    expect(Math.abs(a[k] - b[k]), `${k}: ${a[k]} vs ${b[k]}`).toBeLessThanOrEqual(tolerance)
+  }
+}
+
+/** The divider between cells `a` and `b` (the first cells on either side of its stretch). */
+export function wsDivider(page: Page, a: string, b: string): Locator {
+  return page.locator(`[data-ws-divider="${a}|${b}"]`)
 }
 
 /** The Numbers & charts kinds' names: the add-widget and Change widget menus list them in a submenu. */
@@ -636,13 +665,6 @@ export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Chang
     menu = page.getByRole('menu', { name: 'Numbers & charts' })
   }
   await menu.getByRole(role, { name: label, exact: true }).click()
-}
-
-/** Tab ids of the band at `edge` (empty when there is none). */
-export async function wsBandTabs(page: Page, edge: 'top' | 'bottom'): Promise<string[]> {
-  return page.evaluate((e) =>
-    Array.from(document.querySelectorAll<HTMLElement>(`[data-ws-band="${e}"] [data-ws-tab]`)).map((t) => t.dataset.wsTab ?? ''),
-  edge)
 }
 
 /**

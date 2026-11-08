@@ -81,9 +81,23 @@ export interface MenuStepperEntry {
   onIncrement?: () => void
 }
 
+/**
+ * A choice among a few values side by side (e.g. where Add widget puts the
+ * widget): each a `menuitemradio`, the picked one checked; a pick keeps
+ * the menu open.
+ */
+export interface MenuSegmentedEntry {
+  kind: 'segmented'
+  label: string
+  options: ReadonlyArray<{ value: string; label: string; title?: string }>
+  value: string
+  onChange: (value: string) => void
+}
+
 export type MenuEntry =
   | MenuItemEntry
   | MenuStepperEntry
+  | MenuSegmentedEntry
   | { kind: 'separator' }
   | { kind: 'label'; text: string }
   /** A muted, wrapping footnote. */
@@ -126,14 +140,15 @@ const MENU_PADDING_PX = 4
 const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
 
 /**
- * The panel's focusable items in order: its item buttons, and a stepper's
- * − / + buttons — one at its end (`aria-disabled`) only while it has the
- * focus, so the arrows go on from where it is.
+ * The panel's focusable items in order: its item buttons, a segmented
+ * choice's buttons, and a stepper's − / + buttons — one at its end
+ * (`aria-disabled`) only while it has the focus, so the arrows go on from
+ * where it is.
  */
 function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
   return panel
     ? Array.from(panel.querySelectorAll<HTMLButtonElement>(
-      ':scope > button:not([disabled]), :scope > [data-menu-stepper] > button:not([aria-disabled="true"]), :scope > [data-menu-stepper] > button:focus',
+      ':scope > button:not([disabled]), :scope > [data-menu-segmented] > button, :scope > [data-menu-stepper] > button:not([aria-disabled="true"]), :scope > [data-menu-stepper] > button:focus',
     ))
     : []
 }
@@ -387,6 +402,7 @@ function MenuPanel({ panelRef, entries, label, className, style, caret, openInde
     if (entry.kind === 'label') return <div key={i} className={styles.groupLabel} role="presentation">{entry.text}</div>
     if (entry.kind === 'note') return <div key={i} className={styles.footnote}>{entry.text}</div>
     if (entry.kind === 'stepper') return <MenuStepper key={i} entry={entry} />
+    if (entry.kind === 'segmented') return <MenuSegmented key={i} entry={entry} />
     const props: MenuItemButtonProps = {
       entry,
       index: i,
@@ -457,6 +473,28 @@ function MenuStepper({ entry }: { entry: MenuStepperEntry }) {
       <StepButton label={entry.decrementLabel} onStep={entry.onDecrement}><MinusIcon size={12} /></StepButton>
       <span className={styles.stepValue} aria-live="polite" data-menu-stepper-value="">{entry.value}</span>
       <StepButton label={entry.incrementLabel} onStep={entry.onIncrement}><PlusIcon size={12} /></StepButton>
+    </div>
+  )
+}
+
+/** A segmented row: its label, then its options side by side, the picked one pressed. */
+function MenuSegmented({ entry }: { entry: MenuSegmentedEntry }) {
+  return (
+    <div className={styles.segmented} role="group" aria-label={entry.label} data-menu-segmented="">
+      <span className={styles.segmentedLabel}>{entry.label}</span>
+      {entry.options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="menuitemradio"
+          aria-checked={o.value === entry.value}
+          className={`${styles.segment} ${o.value === entry.value ? styles.segmentOn : ''}`}
+          title={o.title}
+          onClick={() => entry.onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   )
 }

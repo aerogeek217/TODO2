@@ -491,14 +491,14 @@ function MobileTable({ layout }: { layout: WorkspaceLayout }) {
   }
   return (
     <div
-      className={styles.pager}
+      className={styles.scroll}
       // The layout's hue (D19), as the desktop workspace: the cell headers' tint and the focus ring.
-      style={{ '--ws-pager-gap': '8px', '--layout-hue': hueColor(layout.hue) } as CSSProperties}
+      style={{ '--layout-hue': hueColor(layout.hue) } as CSSProperties}
       data-layout-hue={hueAttr(layout.hue)}
       data-ws-area
-      data-ws-pager
+      data-ws-scroll
     >
-      <section className={styles.column} aria-label={layout.name} data-ws-table>
+      <section className={styles.table} aria-label={layout.name} data-ws-table>
         {groups.map((group) => {
           const first = group[0]
           if (!first) return null

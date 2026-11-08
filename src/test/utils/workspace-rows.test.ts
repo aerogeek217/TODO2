@@ -8,9 +8,7 @@ import {
   isFitHeightKind,
   isFitTrack,
   isGlanceKind,
-  isGlanceTrack,
   isHeadlessCell,
-  trackMinHeightPx,
   type KindFlag,
 } from '../../utils/workspace-rows'
 import { CELL_MIN_PX } from '../../utils/workspace-resize'
@@ -70,10 +68,7 @@ describe('fit tracks', () => {
     expect(isFitTrack(spanning, 0)).toBe(false)
   })
 
-  it('a glance track may shrink to 64px, any other to CELL_MIN_PX', () => {
-    expect(isGlanceTrack(body, 0)).toBe(true)
-    expect(trackMinHeightPx(body, 0)).toBe(GLANCE_ROW_MIN_PX)
-    expect(trackMinHeightPx(body, 1)).toBe(CELL_MIN_PX)
+  it('a glance cell may shrink to 64px, any other to CELL_MIN_PX', () => {
     expect(cellMinHeightPx(n1)).toBe(GLANCE_ROW_MIN_PX)
     expect(cellMinHeightPx(L)).toBe(CELL_MIN_PX)
   })
