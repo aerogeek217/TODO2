@@ -307,4 +307,19 @@ test.describe('on a phone', () => {
     expect(c2.y).toBeGreaterThan(c1.y + c1.height - 1)
     expect(a2.y).toBeGreaterThan(c2.y + c2.height - 1)
   })
+
+  test('a cell of a multi-cell row offers Collapse row, which folds the whole row (cr33 W4)', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [sideBySide] })
+    await wsCell(page, 'c1').getByRole('button', { name: 'Cell options' }).tap()
+    const menu = page.getByRole('menu', { name: 'Cell options' })
+    await expect(menu.getByRole('menuitem')).toHaveText(['Collapse row'])
+    await menu.getByRole('menuitem', { name: 'Collapse row' }).tap()
+    for (const id of ['c1', 'c2']) {
+      await expect(wsCell(page, id).locator('[data-ws-cell-body]')).toHaveCount(0)
+      await expect(wsCell(page, id).getByRole('button', { name: 'Expand row' })).toBeVisible()
+    }
+    // A one-cell row's cell still says cell.
+    await wsCell(page, 'a2').getByRole('button', { name: 'Cell options' }).tap()
+    await expect(page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem')).toHaveText(['Collapse cell'])
+  })
 })
