@@ -14,5 +14,4 @@ export const SECTION_META: Record<SectionId, SectionMeta> = {
   status: { id: 'status', title: 'Status', glyph: 'status', glyphColor: 'var(--color-accent)' },
   people: { id: 'people', title: 'People', glyph: 'people', glyphColor: 'var(--color-accent)' },
   tags: { id: 'tags', title: 'Tags', glyph: 'tag', glyphColor: 'var(--color-accent)' },
-  eisenhower: { id: 'eisenhower', title: 'Eisenhower', glyph: 'matrix', glyphColor: 'var(--color-danger)' },
 }

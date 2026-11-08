@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
-  breakdownDrill, eisenhowerDrill, eisenhowerPaneDrill, personRowDrill, slippingDrill,
+  breakdownDrill, eisenhowerPaneDrill, personRowDrill, slippingDrill,
   statusRowDrill, tagRowDrill, tagsDrill, trendBucketDrill, trendTotalDrill,
 } from '../../../components/workspace/glance/glance-drills'
 import { defaultPaneFilter, resolvePanes } from '../../../utils/eisenhower-panes'
@@ -65,17 +65,6 @@ describe('glance section payloads (moved from services/task-dialog)', () => {
     })
     expect(eisenhowerPaneDrill(doPane!, '', [1], all(null)).description).toBe('Open tasks that are urgent and important.')
     expect(eisenhowerPaneDrill(drop!, '', [1], all(0)).description).toBe('Open tasks that are neither urgent nor important. Urgent includes tasks due today or earlier.')
-    const summary = eisenhowerDrill(resolvePanes({}), { do: [1], schedule: [], delegate: [5], drop: [6] }, all(7))
-    expect(summary).toMatchObject({ title: 'Eisenhower', glyph: 'matrix', description: 'Open tasks by urgent × important. Urgent includes tasks due within 1 week.' })
-    expect(summary.source).toEqual({
-      kind: 'groups',
-      groups: [
-        { key: 'do', label: 'Do', color: 'var(--color-danger)', todoIds: [1] },
-        { key: 'schedule', label: 'Schedule', color: 'var(--color-followup)', todoIds: [] },
-        { key: 'delegate', label: 'Delegate', color: 'var(--color-text-secondary)', todoIds: [5] },
-        { key: 'drop', label: 'Drop', color: 'var(--color-text-muted)', todoIds: [6] },
-      ],
-    })
   })
 
   it('custom panes and a list source: the pane names, the filter in words, the list named', () => {
@@ -90,9 +79,6 @@ describe('glance section payloads (moved from services/task-dialog)', () => {
     })
     expect(eisenhowerPaneDrill(panes[0]!, '', [1], source).description)
       .toBe('Open tasks of “Team” that are urgent and important. Urgent includes tasks due within 3 days.')
-    const summary = eisenhowerDrill(panes, { do: [1], schedule: [], delegate: [5], drop: [] }, source)
-    expect(summary.description).toBe('Open tasks of “Team” by pane, each in the first pane it matches. Urgent includes tasks due within 3 days.')
-    expect(summary.source).toMatchObject({ kind: 'groups', groups: [{ label: 'Do' }, { label: 'Schedule' }, { label: 'Hand off', todoIds: [5] }, { label: 'Drop' }] })
   })
 })
 

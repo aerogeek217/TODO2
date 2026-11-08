@@ -72,11 +72,8 @@ export type TrendRange = (typeof TREND_RANGES)[number]
 
 export const DEFAULT_TREND_RANGE: TrendRange = '14d'
 
-/**
- * The sections, in catalog order: each a glance kind, and `eisenhower` the
- * Eisenhower's small face (the old Eisenhower summary, D26).
- */
-export const SECTION_IDS = ['trend', 'status', 'people', 'tags', 'eisenhower'] as const
+/** The sections, in catalog order: each a glance kind. */
+export const SECTION_IDS = ['trend', 'status', 'people', 'tags'] as const
 export type SectionId = (typeof SECTION_IDS)[number]
 
 // ── The glance widget kinds' configs ────────────────────────────────────────

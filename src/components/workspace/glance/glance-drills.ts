@@ -5,7 +5,7 @@ import type { ClosedThisWeek } from '../../../services/stats/closed-this-week'
 import type { StatsContext } from '../../../services/stats/stats-context'
 import type { MetricStats } from '../../../services/stats/metrics'
 import type { TaskDialogGroup } from '../../../stores/task-dialog-payload'
-import { QUADRANT_COLOR, type EisenhowerPane } from '../../../utils/eisenhower-panes'
+import type { EisenhowerPane } from '../../../utils/eisenhower-panes'
 import { formatFollowupDay } from '../../../utils/followup'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 import { metricDescription, trendBucketLabel } from './glance-copy'
@@ -199,25 +199,5 @@ export function eisenhowerPaneDrill(
     glyph: 'matrix',
     description,
     source: { kind: 'todos', todoIds },
-  }
-}
-
-/** The Eisenhower's open count (its medium face): every pane under its heading. */
-export function eisenhowerDrill(
-  panes: readonly EisenhowerPane[],
-  ids: Readonly<Record<EisenhowerQuadrant, readonly number[]>>,
-  { urgentRange, listName }: EisenhowerDrillSource,
-): GlanceDrill {
-  const custom = panes.some((p) => p.customFilter)
-  return {
-    title: 'Eisenhower',
-    glyph: 'matrix',
-    description: custom
-      ? `Open tasks${ofList(listName)} by pane, each in the first pane it matches.${urgentIncludes(urgentRange)}`
-      : `Open tasks${ofList(listName)} by urgent × important.${urgentIncludes(urgentRange)}`,
-    source: {
-      kind: 'groups',
-      groups: panes.map((p) => ({ key: p.id, label: p.name, color: QUADRANT_COLOR[p.id], todoIds: ids[p.id] })),
-    },
   }
 }

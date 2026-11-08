@@ -1,10 +1,8 @@
-import type { EisenhowerSetup, ShownOfTotal } from '../../../hooks/use-glance-data'
-import type { EisenhowerSummary } from '../../../services/stats/eisenhower-summary'
+import type { ShownOfTotal } from '../../../hooks/use-glance-data'
 import type { PeopleStats } from '../../../services/stats/people'
 import type { StatusBreakdownEntry } from '../../../services/stats/status-breakdown'
 import type { TagStats } from '../../../services/stats/tags'
 import type { TrendStats } from '../../../services/stats/trend'
-import { EISENHOWER_QUADRANTS } from '../../../models/workspace-layout'
 import { escapeHtml } from '../../../utils/html'
 import { countOf } from './glance-copy'
 
@@ -35,20 +33,6 @@ export function tagsLine(data: TagsSummaryData, showUntagged: boolean): SummaryP
     parts.push({ label: 'No tag', count: countOf(shown.untagged.ids.length, total.untagged.ids.length) })
   }
   return parts
-}
-
-/** The Eisenhower: each pane's name and count — `Do 3 · Schedule 1 · …`. */
-export function eisenhowerLine(data: EisenhowerSummaryData): SummaryPart[] {
-  return data.eisenhowerSetup.panes.map((p) => ({
-    label: p.name,
-    count: countOf(data.eisenhower.shown[p.id].ids.length, data.eisenhower.total[p.id].ids.length),
-  }))
-}
-
-/** What the Eisenhower's small face counts: each pane's tasks, and the panes. */
-export interface EisenhowerSummaryData {
-  eisenhower: ShownOfTotal<EisenhowerSummary>
-  eisenhowerSetup: EisenhowerSetup
 }
 
 // ── A glance widget's lines (its tab menu's Copy) ────────────────────────────
@@ -89,15 +73,6 @@ export function peopleLines(people: PeopleStats, showUnassigned: boolean): Summa
 export function tagsLines(data: TagsSummaryData, showUntagged: boolean): SummaryPart[][] {
   const { shown, total } = data.tags
   return [[{ label: 'Tags', count: `${countOf(shown.taggedIds.length, total.taggedIds.length)} tagged` }], tagsLine(data, showUntagged)]
-}
-
-/** The Eisenhower (its small and medium faces): `Eisenhower 9 open`, then each pane's count. */
-export function eisenhowerLines(data: EisenhowerSummaryData): SummaryPart[][] {
-  const sum = (s: EisenhowerSummary) => EISENHOWER_QUADRANTS.reduce((n, q) => n + s[q].ids.length, 0)
-  return [
-    [{ label: 'Eisenhower', count: `${countOf(sum(data.eisenhower.shown), sum(data.eisenhower.total))} open` }],
-    eisenhowerLine(data),
-  ]
 }
 
 /** A Number: `Overdue 3`, then its sub-line (when it has one). */
