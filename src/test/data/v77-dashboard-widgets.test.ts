@@ -7,7 +7,7 @@ import { rowFixes } from '../../data/import-validation'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { layoutListRefs } from '../../utils/workspace-layout-lists'
 import type { LayoutBody } from '../../models/workspace-layout'
-import { layoutTableOf } from '../../data/upgrades/v78/layout-table'
+import { upgradeV78 } from '../../data/upgrades/v78'
 import { picture } from '../helpers/layout-builders'
 
 const DATE = '2026-11-01T09:00:00.000Z'
@@ -20,8 +20,8 @@ const one = (rowId: string, cellId: string, tabs: unknown[], extra: Obj = {}) =>
 const numberCell = (d: string, i: number, metric: string) => ({ id: `${d}-c${i}`, weight: 1, tabs: [{ id: `${d}-n${i}`, kind: 'number', config: { metric } }] })
 const partCell = (d: string, i: number, weight: number, kind: string, config: Obj = {}, extra: Obj = {}) => ({ id: `${d}-c${i}`, weight, tabs: [{ id: `${d}-n${i}`, kind, config, ...extra }] })
 const rowsOf = (out: DataRow, col = 0) => (out.columns as Array<{ rows: Obj[] }>)[col]!.rows
-/** A v77 layout row as the rest of the chain makes it: a v78 table. */
-const asV78 = (row: DataRow): DataRow => layoutTableOf(row)
+/** A v77 layout row as the rest of the chain makes it: a v78 table (the kinds v78 retired gone). */
+const asV78 = (row: DataRow): DataRow => upgradeV78({ layouts: [row] }).layouts![0]!
 const noFixes = (out: DataRow) => expect(rowFixes('layouts', asV78(out))).toEqual([])
 
 describe('v77 — the Dashboard as widgets', () => {
@@ -291,7 +291,8 @@ describe('v77 — the Dashboard as widgets', () => {
     expect(result.warnings).toEqual([])
     // Through v77's rows to v78's table: the Number's fit row over the section's.
     expect(picture(result.data.layouts[0]!)).toEqual(['d-c1', 'd-c2'])
-    expect(result.data.layouts[0]!.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'eisenhowerSummary'])
+    // …and v78 makes the Eisenhower summary the Eisenhower (its small face).
+    expect(result.data.layouts[0]!.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'eisenhower'])
   })
 
   it('runs in the chain from the floor', () => {
