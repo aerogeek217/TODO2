@@ -210,6 +210,28 @@ for (const theme of ['dark', 'light'] as const) {
       await lit.click()
       await expectRinged(page, lit, true)
     })
+
+    test('a filter picker with a caret only fades in: the caret stays on its edge every frame (cr33 U2)', async ({ page }) => {
+      await page.getByRole('button', { name: 'People filter' }).click()
+      // Per frame from the open, through the fade: the caret's centre against the panel's top edge (+1).
+      const offsets = await page.evaluate(() => new Promise<number[]>((resolve) => {
+        const out: number[] = []
+        const start = performance.now()
+        const frame = () => {
+          const caret = document.querySelector('[data-popover-caret="top"]')
+          const panel = caret?.parentElement
+          if (caret && panel) {
+            const c = caret.getBoundingClientRect()
+            out.push(c.top + c.height / 2 - (panel.getBoundingClientRect().top + 1))
+          }
+          if (performance.now() - start < 250) requestAnimationFrame(frame)
+          else resolve(out)
+        }
+        frame()
+      }))
+      expect(offsets.length).toBeGreaterThan(3)
+      for (const o of offsets) expect(Math.abs(o)).toBeLessThan(1)
+    })
   })
 }
 
