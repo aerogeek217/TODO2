@@ -200,6 +200,22 @@ describe('computeChanges', () => {
       expect(c?.drill?.description).toContain('the last 2 weeks')
     })
 
+    it('only weeks inside the completed-task retention: a purge emptied the older ones', () => {
+      // 2 a week, but with 14 days' retention the purge left only the last full week (and part of the one before).
+      const kept = [...week(1, 2, 100), done(200, new Date(2026, 9, 30))]
+      const now = [done(1, day(0, 9)), done(2, day(0, 10))]
+      expect(of(computeChanges([...kept, ...now], [], ctxWith(), []), 'closed')?.text)
+        .toBe('2 closed this week, above your usual 0.8 a week.')
+      const c = of(computeChanges([...kept, ...now], [], ctxWith(), [], 14), 'closed')
+      expect(c?.text).toBe('2 closed this week, about your usual 2 a week.')
+      expect(c?.drill?.description).toContain('the last week')
+      // 7 days: no full week is inside it, so no usual.
+      expect(of(computeChanges([...kept, ...now], [], ctxWith(), [], 7), 'closed')?.text).toBe('2 closed this week.')
+      // Kept forever (`null`): every week, as before.
+      expect(of(computeChanges([...kept, ...now], [], ctxWith(), [], null), 'closed')?.text)
+        .toBe('2 closed this week, above your usual 0.8 a week.')
+    })
+
     it('nothing closed and no history: no sentence', () => {
       expect(of(computeChanges([makeTodo({ id: 1, createdAt: day(0, 9) })], [], ctxWith(), []), 'closed')).toBeUndefined()
     })

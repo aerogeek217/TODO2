@@ -116,6 +116,18 @@ describe('What changed', () => {
     expect(drill.source).toEqual({ kind: 'todos', todoIds: [4, 1] })
   })
 
+  it('the closed sentence’s usual reads only the weeks inside Settings’ completed-task retention', () => {
+    const closedOn = (id: number, at: Date) => task({ id, isCompleted: true, completedAt: at })
+    useTodoStore.setState({ todos: [...TASKS, closedOn(10, day(-9)), closedOn(11, day(-9)), closedOn(12, day(-15))] })
+    const closed = () => root('changes').querySelector('[data-change="closed"]')!.textContent
+    setup(createTab('changes', 'c'))
+    expect(closed()).toBe('1 closed this week, about your usual 0.8 a week.')
+    cleanup()
+    useSettingsStore.setState({ completedRetentionDays: 14 })
+    setup(createTab('changes', 'c'))
+    expect(closed()).toBe('1 closed this week, below your usual 2 a week.')
+  })
+
   it('nothing to say: a quiet line', () => {
     useTodoStore.setState({ todos: [task({ id: 6 })] })
     setup(createTab('changes', 'c'))

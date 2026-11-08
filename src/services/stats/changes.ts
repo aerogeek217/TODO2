@@ -83,13 +83,17 @@ const todos = (todoIds: readonly number[]) => ({ kind: 'todos' as const, todoIds
  * reads them) — usually the screen-filtered tasks. `events` must hold every
  * created / completed / reopened / deadline / status event of the last
  * `STUCK_STATUS_DAYS` days (`eventsWindowRead('changes')`; more is fine).
- * `tagIds` are the picked tags, in pick order. Pure.
+ * `tagIds` are the picked tags, in pick order. `retentionDays` is Settings'
+ * completed-task retention (`null` = kept forever): the weekly average
+ * reads only weeks inside it, as older completions may have been purged.
+ * Pure.
  */
 export function computeChanges(
   tasks: readonly PersistedTodoItem[],
   events: readonly TodoEvent[],
   ctx: ChangesContext,
   tagIds: readonly number[],
+  retentionDays: number | null = null,
 ): Change[] {
   const { today } = ctx
   const open = openTasks(tasks)
@@ -203,7 +207,8 @@ export function computeChanges(
   }
 
   // 6. Closed this week, against the average of the full weeks before it
-  // (up to four, only weeks the tasks' history covers: from the first task's creation).
+  // (up to four, only weeks the tasks' history covers: from the first task's
+  // creation, and inside the completed-task retention — a purge empties older weeks).
   const weekStart = weekStartOf(today, ctx.weekStartsOn)
   const closedIn = (start: Date, end: Date) => tasks.filter((t) => {
     if (!t.isCompleted) return false
@@ -220,6 +225,8 @@ export function computeChanges(
   for (let k = 1; k <= CLOSED_AVERAGE_WEEKS; k++) {
     const start = addDays(weekStart, -7 * k)
     if (first == null || (daysUntil(new Date(first), start) ?? 1) > 0) break
+    // The purge deletes completions from before `today − retentionDays`: a week starting that day or earlier may have lost some.
+    if (retentionDays != null && (daysUntil(start, today) ?? 0) <= -retentionDays) break
     weeks.push(closedIn(start, addDays(start, 6)).length)
   }
   const avg = weeks.length > 0 ? weeks.reduce((n, w) => n + w, 0) / weeks.length : null

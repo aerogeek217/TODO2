@@ -218,13 +218,18 @@ export function useMetricHistory(base: StatsBase): { history: MetricHistory; tre
 
 // ── The brief's parts (D25 L) ───────────────────────────────────────────────
 
-const changesMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext, tagIds: readonly number[]): Change[] => (
-  computeChanges(shown, events, ctx, tagIds)
-))
+const changesMemo = sharedMemo((
+  shown: Tasks,
+  events: readonly TodoEvent[],
+  ctx: StatsContext,
+  tagIds: readonly number[],
+  retentionDays: number | null,
+): Change[] => computeChanges(shown, events, ctx, tagIds, retentionDays))
 /** What changed's sentences over the screen-filtered tasks; `null` until its events have been read. */
 export function useChanges(base: StatsBase, tagIds: readonly number[]): Change[] | null {
   const events = useTrendEvents('changes')
-  return events ? changesMemo(base.shown, events, base.ctx, tagIds) : null
+  const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
+  return events ? changesMemo(base.shown, events, base.ctx, tagIds, retentionDays) : null
 }
 
 const pulseMemo = sharedMemo((shown: Tasks, tags: readonly Tag[], ctx: StatsContext, tagIds: readonly number[], staleAfterDays: number): PulseCard[] => (
