@@ -17,7 +17,7 @@ import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import { formatLensesSetting } from '../../data/lens-shape'
 import type { EisenhowerPanes } from '../../models/eisenhower-settings'
 import { makeTodo, resetDb } from '../helpers'
-import { cell, emptyBody, grid } from '../helpers/layout-builders'
+import { cell, emptyBody, grid, numberTab } from '../helpers/layout-builders'
 
 /**
  * Export → JSON → import round-trip guarantee.
@@ -196,12 +196,12 @@ function buildSeed(): Seed {
           ], { activeTabId: 't2' })
           const k2 = cell('k2', [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }])
           const k3 = cell('k3', [
-            { id: 't5', kind: 'number', config: { metric: 'noFollowup', breakdown: 'tags' } },
+            numberTab('t5', 'noFollowup', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 4 }),
             { id: 't6', kind: 'lens', config: {} },
             { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
             // The glance widgets, each with a setting off its default.
-            { id: 'g1', kind: 'number', config: { metric: 'closedThisWeek' } },
+            numberTab('g1', 'closedThisWeek'),
             { id: 'g4', kind: 'trend', config: { range: '12w' } },
             { id: 'g5', kind: 'status', config: {} },
             { id: 'g6', kind: 'people', config: { showUnassigned: false } },

@@ -33,7 +33,7 @@ const SEED: WorkspaceSeed = {
   }],
 }
 
-const focusTile = (page: Page) => page.locator('[data-glance-tab="dash"] [data-number-metric="focus"]')
+const focusTile = (page: Page) => page.locator('[data-glance-tab="dash"] [data-number]')
 const taskDialog = (page: Page) => page.locator('[data-task-dialog]')
 const checkin = (page: Page) => page.getByRole('dialog', { name: 'Email task check-ins' })
 const editorTitle = (page: Page) => page.getByRole('textbox', { name: 'Task title' })

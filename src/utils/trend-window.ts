@@ -31,29 +31,25 @@ export function trendWindow(range: TrendRange, today: Date, weekStartsOn: WeekSt
 }
 
 /** Days in a Number's history line: today and the 13 before. */
-export const METRIC_HISTORY_DAYS = 14
+export const NUMBER_HISTORY_DAYS = 14
 
 /**
- * The event types a Number's history reads: the trend's (each day's open /
- * done state) and `deadline` (each day's due date).
- */
-export const HISTORY_EVENT_TYPES: readonly TodoEventType[] = [...TREND_EVENT_TYPES, 'deadline']
-
-/**
- * The event types a filter's history reads (`services/stats/filter-history`):
- * every one that moves a field a filter can test — the state, the due date,
- * the status and the history log H3's follow-ups, markers, people and tags.
+ * The event types a filter's history reads (`services/stats/filter-history`,
+ * a Number's line): every one that moves a field a filter can test — the
+ * trend's (each day's open / done state), the due date, the status and the
+ * history log H3's follow-ups, markers, people and tags.
  */
 export const FILTER_HISTORY_EVENT_TYPES: readonly TodoEventType[] = [
-  ...HISTORY_EVENT_TYPES, 'status', 'followup', 'followedUp', 'marker', 'person', 'tag',
+  ...TREND_EVENT_TYPES, 'deadline', 'status', 'followup', 'followedUp', 'marker', 'person', 'tag',
 ]
 
 /**
  * The first day a Number's history needs events from: its first day's week
- * start (Closed this week counts from the week's start), else the first day.
+ * start (a range from the week's start, as `completed this week`, reaches
+ * back to it), else the first day.
  */
 export function historyEventsStart(today: Date, weekStartsOn: WeekStart): Date {
-  const first = addDays(today, -(METRIC_HISTORY_DAYS - 1))
+  const first = addDays(today, -(NUMBER_HISTORY_DAYS - 1))
   return weekStartOf(first, weekStartsOn)
 }
 
@@ -65,6 +61,6 @@ export type EventsWindow = TrendRange | 'history'
 
 /** The first day and the event types `window` reads. */
 export function eventsWindowRead(window: EventsWindow, today: Date, weekStartsOn: WeekStart): { start: Date; types: readonly TodoEventType[] } {
-  if (window === 'history') return { start: historyEventsStart(today, weekStartsOn), types: HISTORY_EVENT_TYPES }
+  if (window === 'history') return { start: historyEventsStart(today, weekStartsOn), types: FILTER_HISTORY_EVENT_TYPES }
   return { start: trendWindow(window, today, weekStartsOn).start, types: TREND_EVENT_TYPES }
 }

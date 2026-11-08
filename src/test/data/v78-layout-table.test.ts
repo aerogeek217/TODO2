@@ -9,13 +9,13 @@ import { LAYOUT_PART_LIMIT } from '../../data/layout-shape'
 import { isNormalized, validateTiling } from '../../utils/workspace-grid'
 import { isFitTrack } from '../../utils/workspace-rows'
 import type { LayoutBody } from '../../models/workspace-layout'
-import { picture } from '../helpers/layout-builders'
+import { numberTab, picture } from '../helpers/layout-builders'
 
 type Obj = Record<string, unknown>
 
 const DATE = '2026-11-01T09:00:00.000Z'
 const notes = (id: string): Obj => ({ id, kind: 'notes', config: {} })
-const number = (id: string): Obj => ({ id, kind: 'number', config: { metric: 'open' } })
+const number = (id: string): Obj => numberTab(id) as unknown as Obj
 const cellOf = (id: string, tabs: Obj[] = [notes(`${id}-t`)], extra: Obj = {}): Obj => ({ id, weight: 1, tabs, ...extra })
 const rowOf = (id: string, cells: Obj[], extra: Obj = {}): Obj => ({ id, weight: 1, cells, ...extra })
 const col = (id: string, rows: Obj[], weight = 1): Obj => ({ id, weight, rows })

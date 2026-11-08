@@ -1,6 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { createTab, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
 import { layoutTableOf } from '../../src/data/upgrades/v78/layout-table'
+import { isV77Metric, numberConfigOfMetric } from '../../src/data/upgrades/v78/number-metrics'
 import { DB_NAME, readStore } from './db'
 import { box, pointIn, type Point } from './geometry'
 
@@ -22,7 +23,11 @@ export interface WsTabSeed {
   detailsWidth?: number
   /** List tabs: the zoom (view state; absent = the Settings default; `strips`, a removed level, opens as `lines`). */
   zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
-  /** Glance tabs (Number, the sections): config fields over the kind's defaults, e.g. `{ metric: 'open' }`. */
+  /**
+   * Glance tabs (Number, the sections): config fields over the kind's defaults. A Number's
+   * `metric` (a v77 one, e.g. `{ metric: 'open' }`) seeds the config v78 converts it to
+   * (`numberConfigOfMetric`), its other fields over that.
+   */
   glance?: Record<string, unknown>
   /** Project pulse tabs: the picked tags (names from `tags`; default none). */
   tagNames?: string[]
@@ -156,6 +161,21 @@ export function wsTableOf(layout: WsLayoutSeed): WsTable {
   return layoutTableOf(v77) as unknown as WsTable
 }
 
+/** `table` with each Number seeded by a v77 `metric` given the config v78 converts it to. */
+function withNumberConfigs(table: WsTable): WsTable {
+  return {
+    ...table,
+    cells: table.cells.map((cell) => ({
+      ...cell,
+      tabs: cell.tabs.map((tab) => {
+        const { metric, ...rest } = tab.glance ?? {}
+        if (tab.kind !== 'number' || !isV77Metric(metric)) return tab
+        return { ...tab, glance: { ...numberConfigOfMetric(metric), ...rest } }
+      }),
+    })),
+  }
+}
+
 /** The app-wide Eisenhower panes (a filter is merged over the empty predicate). */
 export type EisenhowerPanesSeed = Partial<Record<'do' | 'schedule' | 'delegate' | 'drop', { name?: string; filter?: Record<string, unknown> }>>
 
@@ -259,7 +279,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   // Every kind's new tab, as the app makes it: the seeded tabs start from these.
   const newTabs = Object.fromEntries(WIDGET_KINDS.map((kind) => [kind, createTab(kind, '')])) as Record<WidgetKind, LayoutTab>
-  const payload = { ...seed, tables: seed.layouts.map(wsTableOf), predicate: emptyPredicate(), newTabs }
+  const payload = { ...seed, tables: seed.layouts.map(wsTableOf).map(withNumberConfigs), predicate: emptyPredicate(), newTabs }
   await page.evaluate(async ({ db, seed }) => {
     const idb = await new Promise<IDBDatabase>((resolve, reject) => {
       const req = indexedDB.open(db)

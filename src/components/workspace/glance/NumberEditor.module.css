@@ -1,0 +1,166 @@
+/* Edit number (D26 P5, board X): a popover beside the Number. */
+
+.editor {
+  z-index: var(--z-overlay);
+  display: flex;
+  flex-direction: column;
+  width: min(440px, calc(100vw - 16px));
+  max-height: calc(100vh - 24px);
+  border-radius: 10px;
+  background: var(--color-popover-bg);
+  box-shadow: var(--shadow-dropdown);
+  color: var(--color-text-primary);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  padding: 10px 8px 4px 14px;
+}
+
+.title {
+  flex: 1 1 auto;
+  font-size: var(--font-size-body);
+  font-weight: var(--font-weight-bold);
+}
+
+.close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.close:hover,
+.close:focus-visible {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+  padding: 4px 14px 14px;
+  overflow-y: auto;
+}
+
+.field,
+.fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.label {
+  padding: 0;
+  font-size: 11px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.input,
+.select,
+.number {
+  height: 30px;
+  min-width: 0;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-body);
+}
+
+.input:focus-visible,
+.select:focus-visible,
+.number:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
+}
+
+.select {
+  cursor: pointer;
+}
+
+.number {
+  width: 72px;
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.colors {
+  display: flex;
+  align-items: center;
+}
+
+/* Auto: a ringed dot before the presets (as the layout dialog's None). */
+.auto {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--color-text-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.auto:checked {
+  box-shadow: inset 0 0 0 1.5px var(--color-text-muted), 0 0 0 2px var(--color-popover-bg), 0 0 0 3.5px var(--color-text-primary);
+}
+
+.auto:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--color-text-muted), var(--focus-ring);
+}
+
+.hint {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--color-text-muted);
+}
+
+.filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.noFilter {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 14px;
+}
+
+.litRow {
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.litRow .select {
+  flex: 1 1 auto;
+}

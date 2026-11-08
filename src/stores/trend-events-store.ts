@@ -8,7 +8,8 @@ import { dayKey } from '../utils/date'
 /**
  * The `todoEvents` Created vs completed and the Numbers' history read, cached
  * per (window, day): one indexed read of every created / completed /
- * reopened event (and, for a Number's history, `deadline`) since the
+ * reopened event (and, for a Number's history, every type a filter's
+ * history reads — `trend-window.FILTER_HISTORY_EVENT_TYPES`) since the
  * window's first day. `invalidate` (on any event write, or after a restore)
  * marks every entry stale; a stale entry keeps its events on show until the
  * re-read lands, so the chart never blanks.

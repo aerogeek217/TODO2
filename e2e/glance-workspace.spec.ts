@@ -43,7 +43,7 @@ function seedWith(extraColumns: WorkspaceSeed['layouts'][number]['columns'] = []
   }
 }
 
-const count = (page: Page, metric: string) => page.locator(`[data-glance-tab="${metric}"] [data-number-metric]`).getByTestId('number-count')
+const count = (page: Page, metric: string) => page.locator(`[data-glance-tab="${metric}"] [data-number]`).getByTestId('number-count')
 const section = (page: Page, id: string) => page.locator(`[data-glance-section="${id}"]`)
 const saveButton = (page: Page) => page.getByTestId('layout-save')
 

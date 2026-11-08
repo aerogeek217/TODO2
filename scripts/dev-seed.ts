@@ -51,7 +51,7 @@ import type { ListDefinition } from '../src/models/list-definition'
 import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-predicate'
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
-import type { NumberMetric } from '../src/models/glance-widgets'
+import { numberConfigOfMetric, type V77NumberMetric } from '../src/data/upgrades/v78/number-metrics'
 import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 
@@ -887,7 +887,7 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
   const calendar = (id: string, view: 'week' | 'month', offset: number, followup = true): TabRow =>
     ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup } }, viewState: { view, offset } })
   const notes = (id: string): TabRow => ({ id, kind: 'notes', config: {} })
-  const number = (id: string, metric: NumberMetric): TabRow => ({ id, kind: 'number', config: { metric } })
+  const number = (id: string, metric: V77NumberMetric): TabRow => ({ id, kind: 'number', config: numberConfigOfMetric(metric) }) as TabRow
   /** A cell's contents: its id and tabs (the first active unless `activeTabId` says); its area comes from `table`. */
   const cell = (id: string, tabs: TabRow[], activeTabId = tabs[0]?.id): Omit<CellRow, 'area'> =>
     ({ id, tabs, ...(activeTabId ? { activeTabId } : {}) })

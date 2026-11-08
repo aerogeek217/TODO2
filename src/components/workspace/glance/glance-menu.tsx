@@ -2,8 +2,6 @@ import {
   DEFAULT_NUMBER_BREAKDOWN,
   NUMBER_BREAKDOWN_LABELS,
   NUMBER_BREAKDOWNS,
-  NUMBER_METRIC_LABELS,
-  NUMBER_METRICS,
   TREND_RANGES,
 } from '../../../models/glance-widgets'
 import type { GlanceTab } from '../../../models/workspace-layout'
@@ -15,6 +13,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
+import { openNumberEditor } from '../widget-hooks'
 import { trendRangeLabel } from './glance-copy'
 import type { GlanceSummary } from './glance-summary'
 import {
@@ -53,9 +52,7 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
   switch (tab.kind) {
     case 'number':
       return [
-        settingEntry('Metric', NUMBER_METRICS.map((m) => ({ value: m, label: NUMBER_METRIC_LABELS[m] })), tab.config.metric,
-          (metric) => ws().patchTabConfig(tab.id, 'number', { metric }),
-          'Open, Overdue, Due today and Closed this week show their last 14 days.'),
+        { kind: 'item', label: 'Edit number…', onSelect: () => openNumberEditor(tab.id) },
         settingEntry('Breakdown', NUMBER_BREAKDOWNS.map((b) => ({ value: b, label: NUMBER_BREAKDOWN_LABELS[b] })),
           tab.config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN,
           (breakdown) => ws().patchTabConfig(tab.id, 'number', { breakdown }),

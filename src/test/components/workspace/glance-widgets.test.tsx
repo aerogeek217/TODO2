@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, fireEvent, within } from '@testing-library/react'
+import { act, render, cleanup, fireEvent, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import type { GlanceResult } from '../../../components/workspace/glance/glance-hooks'
@@ -19,6 +19,9 @@ import { trendEventsKey, useTrendEventsStore } from '../../../stores/trend-event
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
+import { numberTab, single } from '../../helpers/layout-builders'
+import { NumberEditorHost } from '../../../components/workspace/glance/NumberEditor'
+import type { PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { WidgetFace } from '../../../utils/widget-face'
 import {
@@ -37,7 +40,7 @@ function setup(tab: GlanceTab, onDrill?: (d: GlanceDrill) => void, face?: Widget
   )
 }
 
-const number = () => document.querySelector<HTMLElement>('[data-number-metric]')!
+const number = () => document.querySelector<HTMLElement>('[data-number]')!
 const numberCount = () => within(number()).getByTestId('number-count').textContent
 
 const GLANCE_KINDS = WIDGET_KINDS.filter(isGlanceKind) as GlanceWidgetKind[]
@@ -78,79 +81,142 @@ afterEach(() => {
 })
 
 describe('Number widget', () => {
-  it('a new Number counts Overdue, lit: label, count, sub-line, its 14 days and the change since yesterday', () => {
+  it('a new Number counts every open task, never lit, with its 14 days and the change since yesterday', () => {
     setup(createTab('number', 'n'))
-    expect(number().dataset.numberMetric).toBe('overdue')
-    expect(numberCount()).toBe('2')
-    expect(number().dataset.lit).toBe('true')
-    expect(within(number()).getByTestId('number-count').style.color).toBe('var(--color-overdue)')
-    expect(number().textContent).toContain('Overdue')
-    expect(number().textContent).toContain('Oldest Wed 7 · 3d late')
+    expect(number().dataset.number).toBe('n')
+    expect(numberCount()).toBe('19')
+    expect(number().dataset.lit).toBeUndefined()
+    expect(number().textContent).toContain('Open')
     expect(number().querySelector('[data-sparkline] polyline')).not.toBeNull()
     expect(within(number()).getByTestId('number-delta').textContent).toMatch(/vs yesterday$/)
+    // State alone: the line is exact.
+    expect(within(number()).queryByTestId('number-approximate')).toBeNull()
   })
 
-  it('Closed this week’s change is against the same point of last week', () => {
-    setup({ id: 'n', kind: 'number', config: { metric: 'closedThisWeek' } }, undefined, 'medium')
+  it('Overdue (converted): lit above 0 in its colour', () => {
+    setup(numberTab('n', 'overdue'))
+    expect(numberCount()).toBe('2')
+    expect(number().dataset.lit).toBe('true')
+    expect(within(number()).getByTestId('number-count').style.color).toBe('rgb(232, 107, 240)')
+    expect(number().textContent).toContain('Overdue')
+  })
+
+  it('lit above / below a threshold; Auto lights in the accent', () => {
+    setup(numberTab('n', 'open', { litWhen: 'above', litAt: 18 }))
+    expect(number().dataset.lit).toBe('true')
+    expect(within(number()).getByTestId('number-count').style.color).toBe('var(--color-accent)')
+    cleanup()
+    setup(numberTab('n', 'open', { litWhen: 'above', litAt: 19 }))
+    expect(number().dataset.lit).toBeUndefined()
+    cleanup()
+    setup(numberTab('n', 'open', { litWhen: 'below', litAt: 20 }))
+    expect(number().dataset.lit).toBe('true')
+  })
+
+  it('compares with the same point of last week, or with nothing', () => {
+    setup(numberTab('n', 'closedThisWeek'), undefined, 'medium')
     expect(within(number()).getByTestId('number-delta').textContent).toMatch(/vs last Sat$/)
     expect(number().getAttribute('aria-label')).toMatch(/vs last Sat\.$/)
-  })
-
-  it('a count that asks for nothing stays neutral; metrics without a log have no line', () => {
-    setup({ id: 'n', kind: 'number', config: { metric: 'focus' } })
-    expect(numberCount()).toBe('3')
-    expect(number().dataset.lit).toBeUndefined()
-    expect(within(number()).getByTestId('number-count').style.color).toBe('var(--color-text-primary)')
-    expect(number().querySelector('[data-sparkline]')).toBeNull()
+    cleanup()
+    setup(numberTab('n', 'open', { compare: 'none' }), undefined, 'medium')
+    expect(number().querySelector('[data-sparkline]')).not.toBeNull()
     expect(within(number()).queryByTestId('number-delta')).toBeNull()
   })
 
-  it('Open reads its trend sub-line from the history', () => {
-    setup({ id: 'n', kind: 'number', config: { metric: 'open' } })
-    expect(numberCount()).toBe('19')
-    expect(number().textContent).toContain('+3 in the last 14 days')
+  it('a filter reading what the log didn’t hold for the whole line is marked ≈', () => {
+    setup(numberTab('n', 'focus'))
+    expect(numberCount()).toBe('3')
+    expect(number().dataset.lit).toBeUndefined()
+    expect(within(number()).getByTestId('number-count').style.color).toBe('var(--color-text-primary)')
     expect(number().querySelector('[data-sparkline]')).not.toBeNull()
+    expect(within(number()).getByTestId('number-approximate').getAttribute('title')).toMatch(/priorities/)
+    // Once the log covers the whole line, it is exact.
+    cleanup()
+    useSettingsStore.setState({ historyLogSince: new Date(2026, 8, 1) })
+    setup(numberTab('n', 'focus'))
+    expect(within(number()).queryByTestId('number-approximate')).toBeNull()
   })
 
-  it('a click opens the tile’s tasks in the task dialog', () => {
+  it('a click opens its tasks in the task dialog, titled by its name and saying what it counts', () => {
     const onDrill = vi.fn()
-    setup(createTab('number', 'n'), onDrill)
+    setup(numberTab('n', 'overdue', { name: 'Late' }), onDrill)
     fireEvent.click(number())
     expect(onDrill).toHaveBeenCalledTimes(1)
     const drill = onDrill.mock.calls[0]![0] as GlanceDrill
-    expect(drill.title).toBe('Overdue tasks')
-    if (drill.source.kind !== 'todos') throw new Error('a tile opens its tasks')
+    expect(drill.title).toBe('Late')
+    expect(drill.description).toBe('Open tasks where Due before today.')
+    if (drill.source.kind !== 'todos') throw new Error('a Number opens its tasks')
     expect(drill.source.todoIds).toHaveLength(2)
   })
 
   it('without a host to open tasks it is a plain group, not a button', () => {
-    setup(createTab('number', 'n'))
+    setup(numberTab('n', 'overdue'))
     expect(number().tagName).toBe('DIV')
     expect(number().getAttribute('aria-label')).toMatch(/^Overdue: 2\./)
   })
 
-  it('Closed this week: completions since the week began, never lit; its drill says since when', () => {
-    const onDrill = vi.fn()
-    setup({ id: 'n', kind: 'number', config: { metric: 'closedThisWeek' } }, onDrill)
-    expect(number().textContent).toContain('Closed this week')
-    expect(number().textContent).toContain('Since Sun 4')
-    expect(number().dataset.lit).toBeUndefined()
-    fireEvent.click(number())
-    expect((onDrill.mock.calls[0]![0] as GlanceDrill).description).toBe('Tasks completed since Sun 4.')
+  it('a blank name reads Number', () => {
+    setup(numberTab('n', 'open', { name: ' ' }))
+    expect(number().getAttribute('aria-label')).toMatch(/^Number: 19\./)
   })
 
   it('under the screen filter: shown of total, and the dialog says so', () => {
     useFilterStore.setState((s) => ({ filters: { ...s.filters, tags: new Set([Q4]) } }))
     const onDrill = vi.fn()
-    setup({ id: 'n', kind: 'number', config: { metric: 'open' } }, onDrill)
+    setup(numberTab('n'), onDrill)
     expect(numberCount()).toMatch(/^\d+of 19$/)
     fireEvent.click(number())
     expect((onDrill.mock.calls[0]![0] as GlanceDrill).description).toMatch(/Only tasks the top-bar filter shows\.$/)
   })
 
-  it('reports its lines for Copy', () => {
-    setup(createTab('number', 'n'))
-    expect(lastResult?.summary.plain).toBe('Overdue 2\nOldest Wed 7 · 3d late')
+  it('the top bar’s lens narrows it unless it ignores the lens, as a list can', () => {
+    const lens = { id: 'lens-q4', name: 'Q4', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: [Q4] } }
+    useSettingsStore.setState({ lenses: [lens], activeLensId: lens.id })
+    const onDrill = vi.fn()
+    setup(numberTab('n'), onDrill)
+    expect(numberCount()).toMatch(/^\d+of 19$/)
+    cleanup()
+    setup(numberTab('n', 'open', { ignoreLens: true }), onDrill)
+    expect(numberCount()).toBe('19')
+    fireEvent.click(number())
+    // Nothing narrows it: the dialog doesn't say the top bar's filter does.
+    expect((onDrill.mock.calls[0]![0] as GlanceDrill).description).toBe('Every open task.')
+  })
+
+  it('reports its lines for Copy: its name and count, then its change', () => {
+    setup(numberTab('n', 'overdue'))
+    expect(lastResult?.summary.plain).toMatch(/^Overdue 2\n([+−]\d+|No change) vs yesterday$/)
+  })
+
+  it('Edit number… opens its editor beside it; its controls write the tab’s config', () => {
+    const tab = numberTab('n', 'overdue')
+    const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [tab] }) }
+    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
+    render(<DndContext><GlanceWidget tab={tab} /><NumberEditorHost /></DndContext>)
+    expect(document.querySelector('[data-number-editor]')).toBeNull()
+    act(() => { useUIStore.getState().openNumberEditor('n') })
+    const editor = document.querySelector<HTMLElement>('[data-number-editor="n"]')!
+    expect(editor).not.toBeNull()
+    expect(within(editor).getByRole('textbox', { name: 'Name' })).toHaveValue('Overdue')
+    fireEvent.change(within(editor).getByRole('textbox', { name: 'Name' }), { target: { value: 'Late' } })
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Compare with' }), { target: { value: 'lastWeek' } })
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Top-bar lens' }), { target: { value: 'ignore' } })
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Light up when' }), { target: { value: 'below' } })
+    fireEvent.change(within(editor).getByRole('spinbutton', { name: 'Light up when below' }), { target: { value: '7' } })
+    fireEvent.click(within(editor).getByRole('radio', { name: /^Auto/ }))
+    const config = (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as typeof tab).config
+    expect(config).toMatchObject({ name: 'Late', compare: 'lastWeek', ignoreLens: true, litWhen: 'below', litAt: 7 })
+    expect(config).not.toHaveProperty('color')
+    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    // Never drops the threshold; Follow drops ignoreLens.
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Light up when' }), { target: { value: 'never' } })
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Top-bar lens' }), { target: { value: 'follow' } })
+    const after = (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as typeof tab).config
+    expect(after).not.toHaveProperty('litAt')
+    expect(after).not.toHaveProperty('ignoreLens')
+    // ×: closed.
+    fireEvent.click(within(editor).getByRole('button', { name: 'Close' }))
+    expect(document.querySelector('[data-number-editor]')).toBeNull()
   })
 })
 
@@ -223,7 +289,6 @@ describe('glance tab menus', () => {
   }
 
   it.each([
-    ['number', 'Metric', 'Closed this week', { metric: 'closedThisWeek' }],
     ['number', 'Breakdown', 'By tag', { breakdown: 'tags' }],
     ['trend', 'Range', '12 weeks', { range: '12w' }],
     ['people', 'Unassigned', 'Hidden', { showUnassigned: false }],
@@ -239,11 +304,17 @@ describe('glance tab menus', () => {
     expect(patchTabConfig).toHaveBeenCalledWith('w', kind, patch)
   })
 
+  it('a Number’s menu opens its editor: Edit number…', () => {
+    const entry = item(glanceMenu(createTab('number', 'n'), undefined)!.settingEntries, 'Edit number…')
+    entry.onSelect!()
+    expect(useUIStore.getState().numberEditorTabId).toBe('n')
+  })
+
   it('picking the current value changes nothing; Copy is offered once the widget has reported its lines', () => {
     const patchTabConfig = vi.fn()
     useWorkspaceStore.setState({ patchTabConfig })
     const tab = createTab('number', 'n')
-    choose(glanceMenu(tab, undefined)!.settingEntries, 'Metric', 'Overdue')
+    choose(glanceMenu(tab, undefined)!.settingEntries, 'Breakdown', 'None')
     expect(patchTabConfig).not.toHaveBeenCalled()
     expect(glanceMenu(tab, undefined)!.actions).toEqual([])
     expect(glanceMenu(tab, { plain: 'Overdue 2', html: '<p>x</p>' })!.actions.map((a) => a.label)).toEqual(['Copy'])
@@ -259,26 +330,24 @@ describe('faces (D25 R)', () => {
   const smallFace = () => document.querySelector<HTMLElement>('[data-testid="glance-small-face"]')
   const smallValue = () => within(smallFace()!).getByTestId('glance-small-value').textContent
 
-  it('a small Number is its label and count: no sub-line, no 14-day line', () => {
-    setup(createTab('number', 'n'), undefined, 'small')
+  it('a small Number is its label and count: no 14-day line', () => {
+    setup(numberTab('n', 'overdue'), undefined, 'small')
     expect(numberCount()).toBe('2')
     expect(number().textContent).toContain('Overdue')
-    expect(number().textContent).not.toContain('Oldest')
     expect(number().querySelector('[data-sparkline]')).toBeNull()
     expect(within(number()).queryByTestId('number-delta')).toBeNull()
     expect(document.querySelector('[data-glance]')!.getAttribute('data-face')).toBe('small')
   })
 
-  it('a medium Number adds its sub-line and its line, but no breakdown', () => {
-    setup({ id: 'n', kind: 'number', config: { metric: 'open', breakdown: 'people' } }, undefined, 'medium')
-    expect(number().textContent).toContain('+3 in the last 14 days')
+  it('a medium Number adds its line, but no breakdown', () => {
+    setup(numberTab('n', 'open', { breakdown: 'people' }), undefined, 'medium')
     expect(number().querySelector('[data-sparkline]')).not.toBeNull()
     expect(document.querySelector('[data-testid="number-breakdown"]')).toBeNull()
   })
 
   it('a large Number breaks its tasks down by the config’s pick, most first, Unassigned last; a line opens its tasks', () => {
     const onDrill = vi.fn()
-    setup({ id: 'n', kind: 'number', config: { metric: 'open', breakdown: 'people' } }, onDrill, 'large')
+    setup(numberTab('n', 'open', { breakdown: 'people' }), onDrill, 'large')
     const rows = [...document.querySelectorAll<HTMLElement>('[data-breakdown]')]
     expect(rows.length).toBeGreaterThan(1)
     const count = (r: HTMLElement) => Number(r.lastElementChild!.textContent)
@@ -287,22 +356,22 @@ describe('faces (D25 R)', () => {
     expect(rows.findIndex((r) => r.dataset.breakdown === 'none')).toBeOneOf([-1, rows.length - 1])
     fireEvent.click(rows[0]!)
     const drill = onDrill.mock.calls[0]![0] as GlanceDrill
-    expect(drill.title).toMatch(/^Open tasks · /)
+    expect(drill.title).toMatch(/^Open · /)
     if (drill.source.kind !== 'todos') throw new Error('a line opens its tasks')
     expect(drill.source.todoIds).toHaveLength(count(rows[0]!))
   })
 
   it('a large Number with no breakdown (absent or none) draws none', () => {
-    setup({ id: 'n', kind: 'number', config: { metric: 'open' } }, undefined, 'large')
+    setup(numberTab('n'), undefined, 'large')
     expect(document.querySelector('[data-testid="number-breakdown"]')).toBeNull()
     cleanup()
-    setup({ id: 'n', kind: 'number', config: { metric: 'open', breakdown: 'none' } }, undefined, 'large')
+    setup(numberTab('n', 'open', { breakdown: 'none' }), undefined, 'large')
     expect(document.querySelector('[data-testid="number-breakdown"]')).toBeNull()
   })
 
   it('a small Number’s own click drills and marks the click handled (not the cell’s popover)', () => {
     const onDrill = vi.fn()
-    setup(createTab('number', 'n'), onDrill, 'small')
+    setup(numberTab('n', 'overdue'), onDrill, 'small')
     const click = new MouseEvent('click', { bubbles: true, cancelable: true })
     number().dispatchEvent(click)
     expect(onDrill).toHaveBeenCalledTimes(1)

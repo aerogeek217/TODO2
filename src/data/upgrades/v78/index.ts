@@ -1,5 +1,6 @@
 import type { DataSet, SchemaUpgrade } from '../../schema-upgrades'
 import { upgradeLayoutTable } from './layout-table'
+import { upgradeNumbers } from './numbers'
 import { upgradeWidgetSet } from './widget-set'
 
 /**
@@ -21,7 +22,7 @@ import { upgradeWidgetSet } from './widget-set'
 const PARTS: readonly SchemaUpgrade[] = [
   upgradeLayoutTable,
   upgradeWidgetSet,
-  // P5: upgradeNumbers (`./numbers`)
+  upgradeNumbers,
   // P8: upgradeBreakdown (`./breakdown`)
 ]
 

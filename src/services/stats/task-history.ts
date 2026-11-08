@@ -1,6 +1,5 @@
 import { decodeMarkerFlags, encodeMarkerFlags, type MarkerFlags, type PersistedTodoItem, type TodoEvent, type TodoEventType } from '../../models'
 import { daysUntil } from '../../utils/effective-date'
-import { completionOf } from './closed-this-week'
 
 /**
  * A task as it was at a past day's end, replayed from its `todoEvents` — the
@@ -27,6 +26,11 @@ import { completionOf } from './closed-this-week'
  * change's `from`, or what it is now. `filter-history.historyExactness` says
  * when a filter's past counts are exact.
  */
+
+/** When a completed task was completed: `completedAt`, or `modifiedAt` for a row without one. */
+export function completionOf(task: Pick<PersistedTodoItem, 'completedAt' | 'modifiedAt'>): Date {
+  return new Date(task.completedAt ?? task.modifiedAt)
+}
 
 export type TaskState = 'absent' | 'open' | 'done'
 

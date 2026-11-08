@@ -1,17 +1,16 @@
 import { useMemo } from 'react'
-import type { PersistedTodoItem, Tag, TodoEvent } from '../models'
+import type { PersistedTodoItem, Tag, TodoEvent, TodoPredicate } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
-import { TREND_RANGES, type TrendRange } from '../models/glance-widgets'
+import { TREND_RANGES, type NumberConfig, type TrendRange } from '../models/glance-widgets'
 import { groupRestrictions } from '../services/build-list'
-import { computeClosedThisWeek, type ClosedThisWeek } from '../services/stats/closed-this-week'
 import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
-import { computeMetricHistory, type MetricHistory } from '../services/stats/metric-history'
+import { filterHistory, historyExactness, type HistoryExactness } from '../services/stats/filter-history'
+import { numberHistoryDays, numberIds, numberStages } from '../services/stats/number-count'
 import { computePeopleStats, type PeopleStats } from '../services/stats/people'
 import { computePulse, type PulseCard } from '../services/stats/pulse'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { selectStatusBreakdown, type StatusBreakdownEntry } from '../services/stats/status-breakdown'
 import { computeTagStats, type TagStats } from '../services/stats/tags'
-import { computeMetrics, type MetricStats } from '../services/stats/metrics'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListDraftStore } from '../stores/list-draft-store'
@@ -27,11 +26,11 @@ import type { PaneContext } from '../utils/eisenhower'
 import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import { hasNarrowingFilters } from '../utils/filter-chips'
-import { admitsCompleted, countActiveFilters, type FilterCriteria } from '../utils/filter-criteria'
-import { applyFilter, type FilterSettings } from '../utils/filter-match'
+import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
+import { applyFilter, readsText, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { WeekStart } from '../utils/effective-date'
-import { sameElements, sharedMemo } from '../utils/shared-memo'
+import { sameElements, sharedMemo, sharedMemoByKey } from '../utils/shared-memo'
 import { useToday } from './use-today'
 import { useTrendEvents } from './use-trend-events'
 
@@ -163,17 +162,6 @@ function shownOfTotalMemo<O extends readonly unknown[], T>(compute: (tasks: Task
   return (shown: Tasks, todos: Tasks, ...opts: O): ShownOfTotal<T> => pair(shownHalf(shown, ...opts), totalHalf(todos, ...opts))
 }
 
-const metricsMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeMetrics(tasks, ctx))
-/** The counted metrics (every Number metric but Closed this week). */
-export function useMetricStats(base: StatsBase): ShownOfTotal<MetricStats> {
-  return metricsMemo(base.shown, base.todos, base.ctx)
-}
-
-const closedMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeClosedThisWeek(tasks, ctx))
-export function useClosedThisWeek(base: StatsBase): ShownOfTotal<ClosedThisWeek> {
-  return closedMemo(base.shown, base.todos, base.ctx)
-}
-
 const statusMemo = shownOfTotalMemo((tasks: Tasks, statuses: StatsContext['statuses']) => selectStatusBreakdown(tasks, statuses))
 export function useStatusStats(base: StatsBase): ShownOfTotal<StatusBreakdownEntry[]> {
   return statusMemo(base.shown, base.todos, base.ctx.statuses)
@@ -205,21 +193,132 @@ export function useTrendStats(base: StatsBase, range: TrendRange): TrendStats | 
   return events ? trendMemo(base.shown, events, base.ctx, range) : null
 }
 
-const historyMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext): MetricHistory => (
-  computeMetricHistory(shown, events, ctx)
-))
-const historyTrendMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext): TrendStats => (
-  computeTrend(shown, events, ctx, '14d')
-))
+// ── A Number (D26 P5) ──────────────────────────────────────────────────────
+
+const NO_TEXT = new Map<number, never[]>()
+
 /**
- * The Numbers' 14-day history over the screen-filtered tasks, and the
- * 14-day trend read from the same events (the Open sub-line's net);
- * `null` until the history has been read.
+ * The lookups a filter that reads no text needs (people, tags, statuses):
+ * a status update or subtask write, which changes the full lookups,
+ * leaves these, so a Number not searching text keeps its count.
  */
-export function useMetricHistory(base: StatsBase): { history: MetricHistory; trend: TrendStats } | null {
+const idLookupsMemo = sharedMemo(function idLookups(
+  assignedPeopleMap: StatsContext['assignedPeopleMap'],
+  assignedTagsMap: StatsContext['assignedTagsMap'],
+  statuses: StatsContext['statuses'],
+) {
+  return todoNameLookups({ assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo: NO_TEXT, subtasksByTodo: NO_TEXT })
+})
+
+/** The lookups `filters` need: the full ones when one reads text, else the id ones (`idLookupsMemo`). */
+function lookupsFor(base: StatsBase, ...filters: FilterCriteria[]): TodoNameLookups {
+  return filters.some(readsText) ? base.lookups : idLookupsMemo(base.ctx.assignedPeopleMap, base.ctx.assignedTagsMap, base.ctx.statuses)
+}
+
+// Each Number's parts are memoized per its filter (`sharedMemoByKey`): a
+// dashboard of Numbers never evict one another.
+const numberCriteriaMemo = sharedMemoByKey(function numberCriteria(filter: TodoPredicate): FilterCriteria {
+  return predicateToCriteria(filter)
+})
+
+/** The screen filter without its lens (a Number that ignores it). */
+const withoutLensMemo = sharedMemo(function withoutLens(screen: FilterCriteria): FilterCriteria {
+  const { lens: _lens, ...rest } = screen
+  void _lens
+  return rest
+})
+
+/** The tasks the screen filter without its lens shows (completed included, `statsFilter`). */
+const noLensShownMemo = sharedMemo(function noLensShown(
+  screen: FilterCriteria,
+  todos: Tasks,
+  lookups: TodoNameLookups,
+  ctx: StatsContext,
+  settings: FilterSettings,
+) {
+  return applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings)
+}, 1, sameElements)
+
+const numberIdsShownMemo = sharedMemoByKey(function numberIdsShown(filter: FilterCriteria, tasks: Tasks, lookups: TodoNameLookups, ctx: StatsContext, settings: FilterSettings) {
+  return numberIds(filter, tasks, lookups, ctx.today, settings)
+}, sameElements)
+const numberIdsTotalMemo = sharedMemoByKey(function numberIdsTotal(filter: FilterCriteria, tasks: Tasks, lookups: TodoNameLookups, ctx: StatsContext, settings: FilterSettings) {
+  return numberIds(filter, tasks, lookups, ctx.today, settings)
+}, sameElements)
+
+/** What a Number counts, under the screen filter it follows. */
+export interface NumberCount {
+  /** Its filter (`NumberConfig.filter`) as criteria. */
+  filter: FilterCriteria
+  /** The screen filter it counts under: the base's, or without the lens when it ignores it. */
+  screen: FilterCriteria
+  /** That screen filter narrows the tasks. */
+  filtered: boolean
+  /** The tasks it keeps among the ones the top bar shows, in dialog order (the count), and among every task (the `of N`). */
+  ids: ShownOfTotal<number[]>
+}
+
+const numberCountMemo = sharedMemoByKey(function numberCount(filter: FilterCriteria, screen: FilterCriteria, shown: number[], total: number[]): NumberCount {
+  return { filter, screen, filtered: countActiveFilters({ ...screen, showCompleted: false }) > 0, ids: { shown, total } }
+})
+
+/**
+ * A Number's count (`services/stats/number-count`): its filter over the
+ * tasks the top bar shows — the lens left out when the Number ignores it,
+ * as a list does — and over every task.
+ */
+export function useNumberCount(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'ignoreLens'>): NumberCount {
+  const filter = numberCriteriaMemo(config.filter)
+  const dropLens = config.ignoreLens === true && base.screen.lens != null
+  const screen = dropLens ? withoutLensMemo(base.screen) : base.screen
+  const tasks = dropLens ? noLensShownMemo(screen, base.todos, base.lookups, base.ctx, base.markerSettings) : base.shown
+  const lookups = lookupsFor(base, filter)
+  const shown = numberIdsShownMemo(filter, tasks, lookups, base.ctx, base.markerSettings)
+  const total = numberIdsTotalMemo(filter, base.todos, lookups, base.ctx, base.markerSettings)
+  return numberCountMemo(filter, screen, shown, total)
+}
+
+/** A Number's line: what it counted at the end of each of the last 14 days (today last), and whether that is exact. */
+export interface NumberHistory {
+  days: Date[]
+  series: number[]
+  exactness: HistoryExactness
+}
+
+const historyDaysMemo = sharedMemo(function historyDays(todayMs: number) {
+  return numberHistoryDays(new Date(todayMs))
+})
+
+const numberHistoryMemo = sharedMemoByKey(function numberHistory(
+  filter: FilterCriteria,
+  screen: FilterCriteria,
+  todos: Tasks,
+  events: readonly TodoEvent[],
+  days: Date[],
+  lookups: TodoNameLookups,
+  settings: FilterSettings,
+  historyLogSince: Date | null,
+): NumberHistory {
+  const stages = numberStages(screen, filter)
+  const firstDay = days[0] ?? new Date(0)
+  return {
+    days,
+    series: filterHistory(stages, todos, events, days, { lookups, settings }),
+    exactness: historyExactness(stages, firstDay, historyLogSince),
+  }
+})
+
+/**
+ * A Number's 14-day line (`filter-history`): its filter under its screen
+ * filter, every task replayed to each day's end; `null` until the history
+ * has been read.
+ */
+export function useNumberHistory(base: StatsBase, count: NumberCount): NumberHistory | null {
   const events = useTrendEvents('history')
+  const historyLogSince = useSettingsStore((s) => s.historyLogSince)
+  const days = historyDaysMemo(base.ctx.today.getTime())
   if (!events) return null
-  return { history: historyMemo(base.shown, events, base.ctx), trend: historyTrendMemo(base.shown, events, base.ctx) }
+  return numberHistoryMemo(count.filter, count.screen, base.todos, events, days, lookupsFor(base, count.screen, count.filter), base.markerSettings, historyLogSince)
 }
 
 // ── Project pulse (D25 L) ───────────────────────────────────────────────────

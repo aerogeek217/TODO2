@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import type { Person, PersistedTodoItem, Tag, TodoEvent, TodoEventType } from '../../../models'
-import { computeMetricHistory } from '../../../services/stats/metric-history'
+import { computeMetricHistory } from '../../fixtures/v77-metrics'
 import { filterHistory, filterHistoryFields, historyExactness, type FilterHistoryOptions } from '../../../services/stats/filter-history'
 import { eventsByTask, taskAsOf, taskFieldReplay } from '../../../services/stats/task-history'
 import { composeScreenFilter, type FilterCriteria } from '../../../utils/filter-criteria'
 import { addDays } from '../../../utils/calendar-grid'
-import { FILTER_HISTORY_EVENT_TYPES, METRIC_HISTORY_DAYS } from '../../../utils/trend-window'
+import { FILTER_HISTORY_EVENT_TYPES, NUMBER_HISTORY_DAYS } from '../../../utils/trend-window'
 import { emptyFilterCriteria, lookupsFor, makeTodo } from '../../helpers'
 
 /**
@@ -18,7 +18,7 @@ const today = new Date(2026, 9, 10) // Sat 10 Oct
 /** Day `n` of the 14-day window (0 = Sun 27 Sep, 13 = today), at `hour`. */
 const hd = (n: number, hour = 12) => new Date(2026, 8, 27 + n, hour)
 const first = hd(0, 0)
-const DAYS = Array.from({ length: METRIC_HISTORY_DAYS }, (_, i) => addDays(first, i))
+const DAYS = Array.from({ length: NUMBER_HISTORY_DAYS }, (_, i) => addDays(first, i))
 const OLD = new Date(2026, 0, 1)
 const ANN = 1
 const BEN = 2

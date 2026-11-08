@@ -4,6 +4,7 @@ import { prepareImport } from '../../data/import-pipeline'
 import { emptyFilterClauses, emptyPredicate } from '../../models'
 import { browserMatchesFile } from '../../services/file-sync-compare'
 import { resetDb } from '../helpers'
+import { numberConfigOfMetric } from '../../data/upgrades/v78/number-metrics'
 
 /**
  * v74 through the browser's own upgrade (cr31 data S3-1(a), tests 3.7): a
@@ -108,10 +109,10 @@ describe('the browser database’s v74 upgrade', () => {
     expect(panes.do.filter.markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['urgent', 'important'] }])
     const checkin = JSON.parse(String((await db.settings.get('checkinTaskFilter'))?.value)) as { markers: unknown }
     expect(checkin.markers).toEqual([{ values: ['focus'], not: true }])
-    // v74 took the dashboard's Hot tile and section; v77 made the rest widgets; v78 a table of them.
+    // v74 took the dashboard's Hot tile and section; v77 made the rest widgets; v78 a table of them, its Numbers filters.
     const cells = (await db.layouts.get(1))?.cells
     expect(cells?.map((c) => [c.area.row, c.tabs[0]])).toEqual([
-      [0, { id: 'd-n1', kind: 'number', config: { metric: 'open' } }],
+      [0, { id: 'd-n1', kind: 'number', config: numberConfigOfMetric('open') }],
       [1, { id: 'd-n2', kind: 'people', config: { showUnassigned: false } }],
     ])
     // The subtasks a v73 build stored as they were: the empty one gone, the long one cut, each one line.

@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { FilterCriteria } from '../../../utils/filter-criteria'
 import { applyFilter } from '../../../utils/filter-match'
-import { computeMetrics } from '../../../services/stats/metrics'
+import { numberConfigOfMetric, type V77NumberMetric } from '../../../data/upgrades/v78/number-metrics'
+import type { TodoPredicate } from '../../../models'
+import { numberIds } from '../../../services/stats/number-count'
+import { predicateToCriteria } from '../../../utils/filter-criteria'
 import { computeTrend } from '../../../services/stats/trend'
 import { computePeopleStats } from '../../../services/stats/people'
 import { selectStatusBreakdown } from '../../../services/stats/status-breakdown'
@@ -27,45 +30,46 @@ function screened(screen: FilterCriteria) {
 
 const titles = (ids: readonly number[]) => ids.map((id) => SAMPLE_TASKS.find((t) => t.id === id)?.title)
 
+/** What the Number its v77 metric became counts over `tasks` (ids in dialog order). */
+function numberOf(metric: V77NumberMetric, tasks: typeof SAMPLE_TASKS): number[] {
+  const filter = predicateToCriteria(numberConfigOfMetric(metric).filter as unknown as TodoPredicate)
+  return numberIds(filter, tasks, lookups, SAMPLE_TODAY, markerSettings)
+}
+
 describe('glance sample data — no screen filter', () => {
   const tasks = screened(NO_FILTER)
-  const tiles = computeMetrics(tasks, SAMPLE_CTX)
+  const n = (metric: V77NumberMetric) => numberOf(metric, tasks)
 
   it('Open 19', () => {
-    expect(tiles.open.ids).toHaveLength(19)
+    expect(n('open')).toHaveLength(19)
   })
 
-  it('Urgent 8 = 3 flagged + 5 by due date', () => {
-    expect(tiles.urgent.ids).toHaveLength(8)
-    expect(tiles.urgent.flagged).toBe(3)
-    expect(tiles.urgent.byDate).toBe(5)
-    expect(titles(tiles.urgent.ids)).toEqual(expect.arrayContaining([
+  it('Urgent 8 (3 flagged, 5 by due date)', () => {
+    expect(titles(n('urgent'))).toEqual(expect.arrayContaining([
       'Fix checkout outage', 'Headcount request', 'Review analytics dashboard',
       'Draft homepage copy', 'Call plumber about water heater', 'Budget review with finance', '1:1 with Ben', 'Pick up prescriptions',
     ]))
+    expect(n('urgent')).toHaveLength(8)
   })
 
-  it('Overdue 2, oldest Wed 7 · 3d late', () => {
-    expect(tiles.overdue.ids).toHaveLength(2)
-    expect(tiles.overdue.oldest).toEqual(new Date(2026, 9, 7))
-    expect(tiles.overdue.oldestDaysLate).toBe(3)
+  it('Overdue 2, the oldest first', () => {
+    const ids = n('overdue')
+    expect(ids).toHaveLength(2)
+    expect(SAMPLE_TASKS.find((t) => t.id === ids[0])?.dueDate).toEqual(new Date(2026, 9, 7))
   })
 
-  it('Follow-up due 2: 1 late · (1 today) · 3 more in 7 days', () => {
-    expect(titles(tiles.followupDue.ids)).toEqual(['Vendor contract', 'Chase venue deposit invoice'])
-    expect(tiles.followupDue).toMatchObject({ late: 1, today: 1, upcoming: 3 })
+  it('Follow-up due 2, by next follow-up', () => {
+    expect(titles(n('followupDue'))).toEqual(['Vendor contract', 'Chase venue deposit invoice'])
   })
 
-  it('Focus 3, 2 due today', () => {
-    expect(tiles.focus.ids).toHaveLength(3)
-    expect(tiles.focus.dueToday).toBe(2)
+  it('Focus 3', () => {
+    expect(n('focus')).toHaveLength(3)
   })
 
-  it('Due today 3 · 7 more in the next 7 days; due in the next 7 days 10; 14 without a follow-up date', () => {
-    expect(tiles.dueToday.ids).toHaveLength(3)
-    expect(tiles.dueToday.upcoming).toBe(7)
-    expect(tiles.dueNext7.ids).toHaveLength(10)
-    expect(tiles.noFollowup.ids).toHaveLength(14)
+  it('Due today 3; due in the next 7 days 10; 14 without a follow-up date', () => {
+    expect(n('dueToday')).toHaveLength(3)
+    expect(n('dueNext7')).toHaveLength(10)
+    expect(n('noFollowup')).toHaveLength(14)
   })
 
   it('Created vs completed, 14 days: 17 created, 14 completed, +3 open since Sun 27 Sep, the drawn bars and sparkline', () => {
@@ -101,17 +105,14 @@ describe('glance sample data — no screen filter', () => {
 
 describe('glance sample data — top-bar Tags filter q4 (shown of total)', () => {
   const tasks = screened(Q4_FILTER)
-  const tiles = computeMetrics(tasks, SAMPLE_CTX)
 
-  it('tiles: Open 5 · Urgent 1 (by date) · Overdue 0 · Follow-up due 0 (1 more) · Focus 1 (none due today)', () => {
-    expect(tiles.open.ids).toHaveLength(5)
-    expect(tiles.urgent).toMatchObject({ flagged: 0, byDate: 1 })
-    expect(tiles.overdue.ids).toHaveLength(0)
-    expect(tiles.overdue.oldest).toBeNull()
-    expect(tiles.followupDue.ids).toHaveLength(0)
-    expect(tiles.followupDue.upcoming).toBe(1)
-    expect(tiles.focus.ids).toHaveLength(1)
-    expect(tiles.focus.dueToday).toBe(0)
+  it('Numbers: Open 5 · Urgent 1 (by date) · Overdue 0 · Follow-up due 0 · Focus 1', () => {
+    const n = (metric: V77NumberMetric) => numberOf(metric, tasks)
+    expect(n('open')).toHaveLength(5)
+    expect(n('urgent')).toHaveLength(1)
+    expect(n('overdue')).toHaveLength(0)
+    expect(n('followupDue')).toHaveLength(0)
+    expect(n('focus')).toHaveLength(1)
   })
 
   it('trend: 4 created, 3 completed, +1, the drawn bars and sparkline', () => {

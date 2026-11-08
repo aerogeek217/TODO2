@@ -30,7 +30,7 @@ const SEED: WorkspaceSeed = {
 }
 
 /** The Number of `metric` (its tab's id). */
-const tile = (page: Page, metric: string) => page.locator(`[data-glance-tab="${metric}"] [data-number-metric]`)
+const tile = (page: Page, metric: string) => page.locator(`[data-glance-tab="${metric}"] [data-number]`)
 const tileCount = (page: Page, metric: string) => tile(page, metric).getByTestId('number-count')
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
 const dialogRow = (page: Page, title: string) => dialog(page).locator('[data-todo-id]').filter({ hasText: title })
@@ -44,9 +44,9 @@ test('a Number opens its tasks; a completed row stays, struck through, while the
 
   await tile(page, 'urgent').click()
   await expect(dialog(page)).toBeVisible()
-  await expect(dialog(page).getByRole('heading')).toHaveText('Urgent tasks')
+  await expect(dialog(page).getByRole('heading')).toHaveText('Urgent')
   await expect(dialog(page).getByTestId('task-dialog-count')).toHaveText('3')
-  await expect(dialog(page)).toContainText('Urgent = flagged urgent, or due within 3 days (Settings › Tasks).')
+  await expect(dialog(page)).toContainText('Open tasks where Priority Urgent.')
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(3)
 
   const outage = dialogRow(page, 'Fix checkout outage')

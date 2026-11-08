@@ -1,8 +1,10 @@
 /**
- * The glance widgets' settings (D25 N): a Number's metric and each section
+ * The glance widgets' settings (D25 N): a Number's config (D26 P5) and each section
  * widget's options — the choices a tab menu offers, their defaults, and the
  * pickers that read them from untrusted input (a stored layout, an import).
  */
+
+import type { TodoPredicate } from './filter-predicate'
 
 type Obj = Record<string, unknown>
 
@@ -12,38 +14,122 @@ function includes<T extends string | number>(list: readonly T[], v: unknown): v 
 
 // ── Numbers ─────────────────────────────────────────────────────────────────
 
-/** The metrics `services/stats/metrics` counts, in catalog order: every Number metric but Closed this week. */
-export const METRIC_IDS = [
-  'open', 'focus', 'urgent', 'overdue', 'followupDue', 'dueToday', 'dueNext7', 'noFollowup',
-] as const
-export type MetricId = (typeof METRIC_IDS)[number]
+/** What a Number shows of the tasks its filter keeps (D26 P5: the count; P6 adds the other shapes). */
+export const NUMBER_SHOWS = ['count'] as const
+export type NumberShow = (typeof NUMBER_SHOWS)[number]
 
-/** What a Number widget counts: a counted metric, or the tasks closed this week. */
-export const NUMBER_METRICS = [...METRIC_IDS, 'closedThisWeek'] as const
-export type NumberMetric = (typeof NUMBER_METRICS)[number]
+/** When a Number lights up in its colour (D18): never, or while its count is above / below `litAt`. */
+export const NUMBER_LIT_WHEN = ['never', 'above', 'below'] as const
+export type NumberLitWhen = (typeof NUMBER_LIT_WHEN)[number]
 
-/** A new Number counts the late tasks. */
-export const DEFAULT_NUMBER_METRIC: NumberMetric = 'overdue'
+/** What a Number's change is against: yesterday's end, the same point of last week, or nothing (no change shown). */
+export const NUMBER_COMPARES = ['yesterday', 'lastWeek', 'none'] as const
+export type NumberCompare = (typeof NUMBER_COMPARES)[number]
 
-/** Each metric's name: its Number's label, its menu choice, its tab title. */
-export const NUMBER_METRIC_LABELS: Record<NumberMetric, string> = {
-  open: 'Open',
-  focus: 'Focus',
-  urgent: 'Urgent',
-  overdue: 'Overdue',
-  followupDue: 'Follow-up due',
-  dueToday: 'Due today',
-  dueNext7: 'Due in the next 7 days',
-  noFollowup: 'No follow-up date',
-  closedThisWeek: 'Closed this week',
+/** A new Number's name: its empty filter counts every open task. */
+export const DEFAULT_NUMBER_NAME = 'Open'
+
+/** The longest Number name kept. */
+export const NUMBER_NAME_MAX = 80
+
+/** The largest `litAt` kept. */
+export const NUMBER_LIT_AT_MAX = 1_000_000
+
+/**
+ * A Number (D26 P5, board X): the tasks a filter keeps — composed with the
+ * top bar's filter, as a list's is — shown as their count.
+ */
+export interface NumberConfig {
+  /** Its label and tab title (may be blank while it's being typed: the tab then reads `Number`). */
+  name: string
+  /** Its colour when lit, a hex (`#rgb` / `#rrggbb`, used as it is in both themes); absent = Auto (neutral, lit in the accent). */
+  color?: string
+  /** What it counts: a Graphical or expression filter, as a list's (an empty one keeps every open task). */
+  filter: TodoPredicate
+  show: NumberShow
+  litWhen: NumberLitWhen
+  /** The threshold of `above` / `below` (a whole number); absent with `never`. */
+  litAt?: number
+  compare: NumberCompare
+  /** The top bar's lens doesn't apply to it (as `ListDefinition.ignoreLens`); stored only when true. */
+  ignoreLens?: true
+  /** Its large face's breakdown; absent = `none`. */
+  breakdown?: NumberBreakdown
 }
 
-export function isNumberMetric(v: unknown): v is NumberMetric {
-  return includes(NUMBER_METRICS, v)
+/** A new Number's config: an empty filter (every open task), never lit, against yesterday. */
+export function newNumberConfig(filter: TodoPredicate): NumberConfig {
+  return { name: DEFAULT_NUMBER_NAME, filter, show: 'count', litWhen: 'never', compare: 'yesterday' }
 }
 
-export function isMetricId(v: unknown): v is MetricId {
-  return includes(METRIC_IDS, v)
+const HEX_COLOR = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/
+
+/** A Number's stored colour: a hex. */
+export function isNumberColor(v: unknown): v is string {
+  return typeof v === 'string' && HEX_COLOR.test(v)
+}
+
+/** A Number's stored threshold: a whole number from 0 to `NUMBER_LIT_AT_MAX`. */
+export function isNumberLitAt(v: unknown): v is number {
+  return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= NUMBER_LIT_AT_MAX
+}
+
+function isNumberName(v: unknown): v is string {
+  return typeof v === 'string' && v.length <= NUMBER_NAME_MAX
+}
+
+/** Whether `count` lights a Number up (`litWhen` against `litAt`, 0 when absent). */
+export function numberIsLit(config: Pick<NumberConfig, 'litWhen' | 'litAt'>, count: number): boolean {
+  const at = config.litAt ?? 0
+  if (config.litWhen === 'above') return count > at
+  if (config.litWhen === 'below') return count < at
+  return false
+}
+
+/**
+ * Where a stored Number config goes wrong (its scalar fields — the filter
+ * is the caller's: `data/predicate-shape`): the bad key, or `null`.
+ */
+export function numberConfigProblem(raw: Obj): string | null {
+  if (!isNumberName(raw.name)) return 'name'
+  if (raw.color !== undefined && !isNumberColor(raw.color)) return 'color'
+  if (!includes(NUMBER_SHOWS, raw.show)) return 'show'
+  if (!includes(NUMBER_LIT_WHEN, raw.litWhen)) return 'litWhen'
+  if (raw.litWhen === 'never' ? raw.litAt !== undefined : !isNumberLitAt(raw.litAt)) return 'litAt'
+  if (!includes(NUMBER_COMPARES, raw.compare)) return 'compare'
+  if (raw.ignoreLens !== undefined && raw.ignoreLens !== true) return 'ignoreLens'
+  if (raw.breakdown !== undefined && !isNumberBreakdown(raw.breakdown)) return 'breakdown'
+  return null
+}
+
+/**
+ * A Number's config read from untrusted input, `filter` already picked (the
+ * caller's predicate read): a bad or missing field gets its default
+ * (`fixed`) — the name `Number`, Auto, a count, never lit (a threshold of
+ * 0 when `above` / `below` lacks one), against yesterday —; an unknown
+ * colour, breakdown or a non-true `ignoreLens` is dropped (`fixed`).
+ */
+export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>): PickedConfig<NumberConfig> {
+  let fixed = filter.fixed
+  const pick = <V,>(v: unknown, ok: (v: unknown) => v is V, fallback: V): V => {
+    if (ok(v)) return v
+    fixed = true
+    return fallback
+  }
+  const name = pick(raw.name, isNumberName, 'Number')
+  const show = pick(raw.show, (v): v is NumberShow => includes(NUMBER_SHOWS, v), 'count')
+  const litWhen = pick(raw.litWhen, (v): v is NumberLitWhen => includes(NUMBER_LIT_WHEN, v), 'never')
+  const compare = pick(raw.compare, (v): v is NumberCompare => includes(NUMBER_COMPARES, v), 'yesterday')
+  const config: NumberConfig = { name, filter: filter.config, show, litWhen, compare }
+  if (isNumberColor(raw.color)) config.color = raw.color
+  else if (raw.color !== undefined) fixed = true
+  if (litWhen !== 'never') config.litAt = pick(raw.litAt, isNumberLitAt, 0)
+  else if (raw.litAt !== undefined) fixed = true
+  if (raw.ignoreLens === true) config.ignoreLens = true
+  else if (raw.ignoreLens !== undefined) fixed = true
+  if (isNumberBreakdown(raw.breakdown)) config.breakdown = raw.breakdown
+  else if (raw.breakdown !== undefined) fixed = true
+  return { config, fixed }
 }
 
 /** What a Number's large face breaks its tasks down by (D25 R): their people, their tags, or nothing. */
@@ -77,12 +163,6 @@ export const SECTION_IDS = ['trend', 'status', 'people', 'tags'] as const
 export type SectionId = (typeof SECTION_IDS)[number]
 
 // ── The glance widget kinds' configs ────────────────────────────────────────
-
-export interface NumberTabConfig {
-  metric: NumberMetric
-  /** Its large face's breakdown; absent = `none` (a tab from before P4 has none). */
-  breakdown?: NumberBreakdown
-}
 
 export interface TrendTabConfig {
   range: TrendRange
@@ -121,16 +201,6 @@ function pickOne<V>(v: unknown, ok: (v: unknown) => v is V, fallback: V): { valu
   return ok(v) ? { value: v, fixed: false } : { value: fallback, fixed: true }
 }
 
-/**
- * A Number's config: a known metric, else Overdue (`fixed`); a known
- * breakdown kept, an unknown one dropped (`fixed`: it reads as none).
- */
-export function pickNumberConfig(raw: Obj): PickedConfig<NumberTabConfig> {
-  const { value, fixed } = pickOne(raw.metric, isNumberMetric, DEFAULT_NUMBER_METRIC)
-  if (isNumberBreakdown(raw.breakdown)) return { config: { metric: value, breakdown: raw.breakdown }, fixed }
-  return { config: { metric: value }, fixed: fixed || raw.breakdown !== undefined }
-}
-
 /** A Created vs completed's config: a known range, else 14 days (`fixed`). */
 export function pickTrendConfig(raw: Obj): PickedConfig<TrendTabConfig> {
   const { value, fixed } = pickOne(raw.range, isTrendRange, DEFAULT_TREND_RANGE)
@@ -162,7 +232,6 @@ export function pickTagPicksConfig(raw: Obj): PickedConfig<TagPicksTabConfig> {
 
 /** Each glance kind's one config field and whether a stored value is one it keeps (the layout check). */
 export const GLANCE_CONFIG_FIELDS = {
-  number: { key: 'metric', ok: isNumberMetric },
   trend: { key: 'range', ok: isTrendRange },
   people: { key: 'showUnassigned', ok: isBool },
   tags: { key: 'showUntagged', ok: isBool },

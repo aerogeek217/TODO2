@@ -10,7 +10,8 @@ import {
 } from '../../models/workspace-layout'
 import { checkLayoutBody, pickLayoutBody } from '../../data/layout-shape'
 import { tabTitle } from '../../components/workspace/widget-hooks'
-import { single } from '../helpers/layout-builders'
+import { numberTab, single } from '../helpers/layout-builders'
+import { emptyPredicate } from '../../models/filter-predicate'
 
 /** The widget-kind table and what derives from it. */
 describe('widget kinds', () => {
@@ -47,7 +48,8 @@ describe('widget kinds', () => {
     expect(createTab('eisenhower', 'd')).toEqual({ id: 'd', kind: 'eisenhower', config: {} })
     // An Eisenhower tab has no config: its panes and source are app-wide settings.
     expect(createTab('eisenhower', 'd', { listDefinitionId: 4 })).toEqual({ id: 'd', kind: 'eisenhower', config: {} })
-    expect(createTab('number', 'e')).toEqual({ id: 'e', kind: 'number', config: { metric: 'overdue' } })
+    // A Number: an empty filter (every open task), named Open, never lit, against yesterday.
+    expect(createTab('number', 'e')).toEqual({ id: 'e', kind: 'number', config: { name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' } })
     // A Neglect map colours by the tags it is given (the store passes the `Project: …` ones), 14 days.
     expect(createTab('neglect', 'f')).toEqual({ id: 'f', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [] }, untouchedDays: 14 } })
     expect(createTab('neglect', 'f', { neglectTagIds: [3, 8] }).config).toEqual({ colourBy: { kind: 'tags', tagIds: [3, 8] }, untouchedDays: 14 })
@@ -70,9 +72,10 @@ describe('widget kinds', () => {
     expect(tabTitle(createTab('eisenhower', 'b'), undefined)).toBe('Eisenhower')
     // The Eisenhower reads Eisenhower whatever its list.
     expect(tabTitle(createTab('eisenhower', 'b'), 'Team')).toBe('Eisenhower')
-    // A Number reads its metric.
-    expect(tabTitle(createTab('number', 'n'), undefined)).toBe('Overdue')
-    expect(tabTitle({ id: 'n', kind: 'number', config: { metric: 'closedThisWeek' } }, undefined)).toBe('Closed this week')
+    // A Number reads its name (a blank one: Number).
+    expect(tabTitle(createTab('number', 'n'), undefined)).toBe('Open')
+    expect(tabTitle(numberTab('n', 'closedThisWeek'), undefined)).toBe('Closed this week')
+    expect(tabTitle(numberTab('n', 'open', { name: '  ' }), undefined)).toBe('Number')
     expect(tabTitle(createTab('trend', 't'), undefined)).toBe('Created vs completed')
   })
 
