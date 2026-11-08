@@ -4,6 +4,7 @@ import {
   computePulse, cumulative, lateShareText, momentumText, pulseMomentum, worstPulseCard,
 } from '../../../services/stats/pulse'
 import { makeTodo } from '../../helpers'
+import { DST_ZONE, pinTimeZone } from '../../time-zone'
 
 const today = new Date(2026, 10, 11) // Wed 11 Nov; weeks (Sunday first) from 18 Oct, 25 Oct, 1 Nov, 8 Nov
 const OLD = new Date(2026, 0, 1)
@@ -82,5 +83,28 @@ describe('computePulse', () => {
     expect(worstPulseCard(cards)?.tag.id).toBe(2)
     expect(worstPulseCard(cards.filter((c) => c.tag.id === 3))).toBeNull()
     expect(worstPulseCard([])).toBeNull()
+  })
+})
+
+describe('computePulse in a daylight-saving zone', () => {
+  pinTimeZone(DST_ZONE)
+
+  it('its 4 weeks across the fall-back change: added and closed counted by local day', () => {
+    const today = new Date(2026, 10, 4) // Wed 4 Nov; weeks from 11 Oct, 18 Oct, 25 Oct and Sun 1 Nov (25 hours)
+    const old = new Date(2026, 0, 1)
+    const t = (o: Partial<PersistedTodoItem> & { id: number }) => makeTodo({ createdAt: old, modifiedAt: today, ...o })
+    const tasks = [
+      t({ id: 1, createdAt: new Date(2026, 9, 31, 23, 30) }), // Sat 31 Oct: week 3
+      t({ id: 2, createdAt: new Date(2026, 10, 1, 0, 30) }), // Sun 1 Nov: week 4
+      t({ id: 3, isCompleted: true, completedAt: new Date(2026, 10, 1, 23, 30) }), // the change's last hour: week 4
+      t({ id: 4, isCompleted: true, completedAt: new Date(2026, 9, 11, 0, 30) }), // the first week's first hour
+      t({ id: 5, dueDate: new Date(2026, 10, 3) }), // due yesterday: late
+      t({ id: 6, dueDate: new Date(2026, 10, 4) }), // due today: not late
+    ]
+    const assignedTagsMap = new Map(tasks.map((x) => [x.id, [ATLAS]]))
+    const [card] = computePulse(tasks, TAGS, { today, weekStartsOn: 0, assignedTagsMap }, [1], 30)
+    expect(card?.added).toEqual([0, 0, 1, 1])
+    expect(card?.closed).toEqual([1, 0, 0, 1])
+    expect(card?.lateIds).toEqual([5])
   })
 })

@@ -1,7 +1,7 @@
-import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../models'
+import type { PersistedTodoItem, TodoEvent } from '../../models'
 import type { TrendRange } from '../../models/glance-widgets'
-import { daysUntil } from '../../utils/effective-date'
 import type { StatsContext } from './stats-context'
+import { eventsByTask, taskReplay, type DatedEvent } from './task-history'
 import { TREND_EVENT_TYPES, trendWindow, type TrendWindow } from '../../utils/trend-window'
 
 /**
@@ -40,22 +40,6 @@ export interface TrendStats {
   net: number
 }
 
-type TaskState = 'absent' | 'open' | 'done'
-
-/** A task's state just before an event of `type`. */
-function stateBefore(type: TodoEventType): TaskState {
-  if (type === 'created') return 'absent'
-  return type === 'completed' ? 'open' : 'done'
-}
-
-interface DatedEvent {
-  type: TodoEventType
-  /** Calendar days from the window start (negative = before it). */
-  day: number
-  time: number
-  id: number
-}
-
 /**
  * The trend over `range` for `tasks` — the tasks passing the screen filter
  * now, completed ones included. `events` must hold every created / completed
@@ -63,10 +47,9 @@ interface DatedEvent {
  * other types' events are ignored). Pure: one pass over the events, no
  * per-task reads.
  *
- * The open series runs backwards from each task's current state: at any
- * moment a task is in the state it was in just before its next event
- * (before `created` = not there yet, before `completed` = open, before
- * `reopened` = done), or in its current state when no event follows.
+ * The open series reads each task at each day's end through
+ * `task-history`'s replay — the one a Number's history reads, so the Open
+ * Number's line and its sub-line's net agree.
  */
 export function computeTrend(
   tasks: readonly PersistedTodoItem[],
@@ -75,19 +58,7 @@ export function computeTrend(
   range: TrendRange,
 ): TrendStats {
   const window = trendWindow(range, ctx.today, ctx.weekStartsOn)
-  const byId = new Map(tasks.map((t) => [t.id, t]))
-  const types = new Set(TREND_EVENT_TYPES)
-
-  const perTask = new Map<number, DatedEvent[]>()
-  for (const e of events) {
-    if (!byId.has(e.todoId) || !types.has(e.type)) continue
-    const at = new Date(e.timestamp)
-    const time = at.getTime()
-    if (Number.isNaN(time)) continue
-    const list = perTask.get(e.todoId) ?? []
-    list.push({ type: e.type, day: daysUntil(at, window.start) ?? 0, time, id: e.id ?? 0 })
-    perTask.set(e.todoId, list)
-  }
+  const byTask = eventsByTask(events, new Set(tasks.map((t) => t.id)), TREND_EVENT_TYPES, window.start)
 
   const bucketOf = (day: number): number | null => {
     if (day < 0 || day >= window.days.length) return null
@@ -96,23 +67,15 @@ export function computeTrend(
   const buckets: TrendBucket[] = window.bucketStarts.map((start) => ({ start, createdIds: [], completedIds: [] }))
 
   const dayCount = window.days.length
-  // A task without events keeps its current state across the whole window.
-  let constantOpen = 0
   const series = new Array<number>(dayCount).fill(0)
   let openAtStart = 0
 
   for (const task of tasks) {
-    const list = perTask.get(task.id)
-    const current: TaskState = task.isCompleted ? 'done' : 'open'
-    if (!list) {
-      if (current === 'open') constantOpen++
-      continue
-    }
-    list.sort((a, b) => a.time - b.time || a.id - b.id)
+    const list = byTask.get(task.id)
 
     // Bars: created, and completions not undone by a later reopen.
     const pending: DatedEvent[] = []
-    for (const e of list) {
+    for (const e of list?.all ?? []) {
       if (e.type === 'created') {
         const b = bucketOf(e.day)
         if (b != null) buckets[b]?.createdIds.push(task.id)
@@ -127,19 +90,15 @@ export function computeTrend(
       if (b != null) buckets[b]?.completedIds.push(task.id)
     }
 
-    // Series: the state at a moment is the state before the next event.
-    const stateAfterDay = (lastDay: number): TaskState => {
-      const next = list.find((e) => e.day > lastDay)
-      return next ? stateBefore(next.type) : current
-    }
-    if (stateAfterDay(-1) === 'open') openAtStart++
+    // Series: the task at each day's end.
+    const at = taskReplay(task, list, window.start)
+    if (at(-1).state === 'open') openAtStart++
     for (let i = 0; i < dayCount; i++) {
-      if (stateAfterDay(i) === 'open') series[i] = (series[i] ?? 0) + 1
+      if (at(i).state === 'open') series[i] = (series[i] ?? 0) + 1
     }
   }
 
-  const openSeries = series.map((n) => n + constantOpen)
-  openAtStart += constantOpen
+  const openSeries = series
   const created = buckets.reduce((n, b) => n + b.createdIds.length, 0)
   const completed = buckets.reduce((n, b) => n + b.completedIds.length, 0)
   const openNow = openSeries.at(-1) ?? openAtStart

@@ -3,16 +3,17 @@ import { DEFAULT_NUMBER_BREAKDOWN, isTileMetric, type NumberMetric } from '../..
 import type { NumberTab } from '../../../models/workspace-layout'
 import { useClosedThisWeek, useMetricHistory, useStatsBase, useTileStats } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { hasHistory, historyDelta } from '../../../services/stats/metric-history'
+import { HISTORY_AGAINST, hasHistory, historyDelta } from '../../../services/stats/metric-history'
 import { numberBreakdown, type BreakdownEntry } from '../../../services/stats/number-breakdown'
 import { DashGlyph } from '../../shared/DashGlyph'
 import { closedSubLine, countOf, deltaLabel, metricSubLine } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { numberLines } from './glance-summary'
-import type { GlanceDrill, OnGlanceDrill } from './glance-types'
+import { breakdownDrill, closedThisWeekDrill, metricDrill } from './glance-drills'
+import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { Sparkline } from './Sparkline'
-import { closedThisWeekDrill, NUMBER_DEFS, numberColors, metricDrill } from './number-defs'
+import { NUMBER_DEFS, numberColors } from './number-defs'
 import styles from './NumberWidget.module.css'
 
 /** The large face's breakdown lists this many people / tags; the rest fold into one line. */
@@ -66,25 +67,13 @@ function Breakdown({ entries, by, total, title, onDrill }: {
   )
 }
 
-/** One breakdown line's tasks for the task dialog. */
-function breakdownDrill(title: string, by: 'people' | 'tags', entry: BreakdownEntry): GlanceDrill {
-  const which = entry.key === 'none'
-    ? (by === 'tags' ? 'with no tag' : 'with nobody assigned')
-    : (by === 'tags' ? `tagged ${entry.label}` : `assigned to ${entry.label}`)
-  return {
-    title: `${title} · ${entry.label}`,
-    glyph: by === 'tags' ? 'tag' : 'people',
-    description: `${title}: the ones ${which}.`,
-    source: { kind: 'todos', todoIds: entry.ids },
-  }
-}
-
 /**
  * The Number widget (D25 N): one count — a tile metric's, or Closed
  * this week — over the screen filter (`shown of total`). By its face (D25
  * R): small is the label and the count (a fit row's, ~76px); medium adds
  * its sub-line and, for Open, Overdue, Due today and Closed this week, a
- * 14-day line with the change since yesterday; large draws it bigger and
+ * 14-day line with the change since yesterday (Closed this week: since the
+ * same point of last week); large draws it bigger and
  * adds the breakdown its config picks (by person or tag). Lit in its
  * colour when the count asks for action (D18). A click opens its tasks,
  * as the tile does — at the small face too (the cell's full-widget
@@ -107,7 +96,9 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
     ? metricSubLine(metric, tiles.shown, { today: base.ctx.today, trendNet: history?.trend.net ?? null, trendRange: '14d' })
     : closedSubLine(closed.shown.weekStart, base.ctx.today)
   const series = history && hasHistory(metric) ? history.history.series[metric] : null
-  const delta = series ? historyDelta(series) : null
+  const against = hasHistory(metric) ? HISTORY_AGAINST[metric] : 'yesterday'
+  const delta = series ? historyDelta(series, against) : null
+  const deltaText = delta == null ? null : deltaLabel(delta, against, base.ctx.today)
   const colors = numberColors(metric, shown)
   const count = countOf(shown, total)
   const large = face === 'large'
@@ -134,14 +125,14 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
         {series && !small && (
           <span className={styles.history}>
             <Sparkline series={series} width={large ? 120 : 64} height={large ? 36 : 22} className={styles.spark} />
-            {delta != null && <span className={styles.delta} data-testid="number-delta">{deltaLabel(delta)}</span>}
+            {deltaText != null && <span className={styles.delta} data-testid="number-delta">{deltaText}</span>}
           </span>
         )}
       </span>
       {sub && !small && <span className={styles.sub}>{sub}</span>}
     </>
   )
-  const name = `${def.label}: ${count}.${sub && !small ? ` ${sub}.` : ''}${delta != null && !small ? ` ${deltaLabel(delta)}.` : ''}`
+  const name = `${def.label}: ${count}.${sub && !small ? ` ${sub}.` : ''}${deltaText != null && !small ? ` ${deltaText}.` : ''}`
   const common = {
     className: `${styles.number}${large ? ` ${styles.large}` : ''}`,
     'data-number-metric': metric,

@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { PersistedTodoItem, Tag, TodoEvent } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import type { LookAhead, TrendRange } from '../models/glance-widgets'
+import { groupRestrictions } from '../services/build-list'
 import { computeChanges, type Change } from '../services/stats/changes'
 import { computeClosedThisWeek, type ClosedThisWeek } from '../services/stats/closed-this-week'
 import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
@@ -36,7 +37,7 @@ import { countActiveFilters, type FilterCriteria } from '../utils/filter-criteri
 import { applyFilter, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { WeekStart } from '../utils/effective-date'
-import { sharedMemo } from '../utils/shared-memo'
+import { sameElements, sharedMemo } from '../utils/shared-memo'
 import { keptOf, restoreLeaving, type LeavingRows } from './use-leaving-rows'
 import { useToday } from './use-today'
 import { useTrendEvents } from './use-trend-events'
@@ -91,13 +92,15 @@ const lookupsMemo = sharedMemo((
   subtasksByTodo: TodoNameLookups['subtasksByTodo'],
 ) => todoNameLookups({ assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo, subtasksByTodo }))
 
+// The same tasks as last time (a status update or subtask write the text
+// search doesn't change the outcome of) keep the same array, so no part keyed on it recomputes.
 const shownMemo = sharedMemo((
   screen: FilterCriteria,
   todos: readonly PersistedTodoItem[],
   lookups: TodoNameLookups,
   ctx: StatsContext,
   settings: FilterSettings,
-) => applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings))
+) => applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings), 8, sameElements)
 
 const byIdMemo = sharedMemo((todos: readonly PersistedTodoItem[]) => new Map(todos.map((t) => [t.id, t])))
 
@@ -130,24 +133,30 @@ export function useStatsBase(): StatsBase {
 
 type Tasks = readonly PersistedTodoItem[]
 
-const tilesMemo = sharedMemo((shown: Tasks, todos: Tasks, ctx: StatsContext): ShownOfTotal<TileStats> => (
-  { shown: computeTiles(shown, ctx), total: computeTiles(todos, ctx) }
-))
+/**
+ * A statistic over the screen-filtered tasks and over every task, each half
+ * memoized on its own tasks: a screen filter change recomputes only the
+ * shown half, and the pair keeps its identity while both halves do.
+ */
+function shownOfTotalMemo<O extends readonly unknown[], T>(compute: (tasks: Tasks, ...opts: O) => T) {
+  const shownHalf = sharedMemo((tasks: Tasks, ...opts: O) => compute(tasks, ...opts))
+  const totalHalf = sharedMemo((tasks: Tasks, ...opts: O) => compute(tasks, ...opts))
+  const pair = sharedMemo((shown: T, total: T): ShownOfTotal<T> => ({ shown, total }))
+  return (shown: Tasks, todos: Tasks, ...opts: O): ShownOfTotal<T> => pair(shownHalf(shown, ...opts), totalHalf(todos, ...opts))
+}
+
+const tilesMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeTiles(tasks, ctx))
 /** The tiles' counts (every Number metric but Closed this week). */
 export function useTileStats(base: StatsBase): ShownOfTotal<TileStats> {
   return tilesMemo(base.shown, base.todos, base.ctx)
 }
 
-const closedMemo = sharedMemo((shown: Tasks, todos: Tasks, ctx: StatsContext): ShownOfTotal<ClosedThisWeek> => (
-  { shown: computeClosedThisWeek(shown, ctx), total: computeClosedThisWeek(todos, ctx) }
-))
+const closedMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeClosedThisWeek(tasks, ctx))
 export function useClosedThisWeek(base: StatsBase): ShownOfTotal<ClosedThisWeek> {
   return closedMemo(base.shown, base.todos, base.ctx)
 }
 
-const followupMemo = sharedMemo((shown: Tasks, todos: Tasks, ctx: StatsContext, lookAhead: LookAhead): ShownOfTotal<FollowupGroups> => (
-  { shown: computeFollowupGroups(shown, ctx, lookAhead), total: computeFollowupGroups(todos, ctx, lookAhead) }
-))
+const followupMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, lookAhead: LookAhead) => computeFollowupGroups(tasks, ctx, lookAhead))
 export function useFollowupStats(base: StatsBase, lookAhead: LookAhead): ShownOfTotal<FollowupGroups> {
   return followupMemo(base.shown, base.todos, base.ctx, lookAhead)
 }
@@ -157,35 +166,34 @@ export function useNextDays(base: StatsBase): NextDaysColumn[] {
   return nextDaysMemo(base.shown, base.ctx)
 }
 
-const statusMemo = sharedMemo((shown: Tasks, todos: Tasks, statuses: StatsContext['statuses']): ShownOfTotal<StatusBreakdownEntry[]> => (
-  { shown: selectStatusBreakdown(shown, statuses), total: selectStatusBreakdown(todos, statuses) }
-))
+const statusMemo = shownOfTotalMemo((tasks: Tasks, statuses: StatsContext['statuses']) => selectStatusBreakdown(tasks, statuses))
 export function useStatusStats(base: StatsBase): ShownOfTotal<StatusBreakdownEntry[]> {
   return statusMemo(base.shown, base.todos, base.ctx.statuses)
 }
 
-const peopleMemo = sharedMemo((shown: Tasks, ctx: StatsContext): PeopleStats => computePeopleStats(shown, ctx))
+// The People / Tags rows narrow by the top bar's `@` / `#` picks (its chips' and its lens's), as a list grouped so does.
+const peopleMemo = sharedMemo((shown: Tasks, ctx: StatsContext, screen: FilterCriteria): PeopleStats => (
+  computePeopleStats(shown, ctx, groupRestrictions('personIds', undefined, screen))
+))
 export function usePeopleStats(base: StatsBase): PeopleStats {
-  return peopleMemo(base.shown, base.ctx)
+  return peopleMemo(base.shown, base.ctx, base.screen)
 }
 
-const tagsMemo = sharedMemo((shown: Tasks, todos: Tasks, ctx: StatsContext): ShownOfTotal<TagStats> => (
-  { shown: computeTagStats(shown, ctx), total: computeTagStats(todos, ctx) }
+const tagsShownMemo = sharedMemo((shown: Tasks, ctx: StatsContext, screen: FilterCriteria): TagStats => (
+  computeTagStats(shown, ctx, groupRestrictions('tags', undefined, screen))
 ))
+const tagsTotalMemo = sharedMemo((todos: Tasks, ctx: StatsContext): TagStats => computeTagStats(todos, ctx))
+const tagsPairMemo = sharedMemo((shown: TagStats, total: TagStats): ShownOfTotal<TagStats> => ({ shown, total }))
 export function useTagStats(base: StatsBase): ShownOfTotal<TagStats> {
-  return tagsMemo(base.shown, base.todos, base.ctx)
+  return tagsPairMemo(tagsShownMemo(base.shown, base.ctx, base.screen), tagsTotalMemo(base.todos, base.ctx))
 }
 
-const staleMemo = sharedMemo((shown: Tasks, todos: Tasks, ctx: StatsContext, days: number): ShownOfTotal<StaleTasks> => (
-  { shown: computeStaleTasks(shown, ctx, days), total: computeStaleTasks(todos, ctx, days) }
-))
+const staleMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, days: number) => computeStaleTasks(tasks, ctx, days))
 export function useStaleStats(base: StatsBase, days: number): ShownOfTotal<StaleTasks> {
   return staleMemo(base.shown, base.todos, base.ctx, days)
 }
 
-const recentMemo = sharedMemo((shown: Tasks, todos: Tasks, ctx: StatsContext, days: number): ShownOfTotal<RecentlyCompleted> => (
-  { shown: computeRecentlyCompleted(shown, ctx, days), total: computeRecentlyCompleted(todos, ctx, days) }
-))
+const recentMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, days: number) => computeRecentlyCompleted(tasks, ctx, days))
 export function useRecentStats(base: StatsBase, days: number): ShownOfTotal<RecentlyCompleted> {
   return recentMemo(base.shown, base.todos, base.ctx, days)
 }
@@ -218,13 +226,18 @@ export function useMetricHistory(base: StatsBase): { history: MetricHistory; tre
 
 // ── The brief's parts (D25 L) ───────────────────────────────────────────────
 
-const changesMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext, tagIds: readonly number[]): Change[] => (
-  computeChanges(shown, events, ctx, tagIds)
-))
+const changesMemo = sharedMemo((
+  shown: Tasks,
+  events: readonly TodoEvent[],
+  ctx: StatsContext,
+  tagIds: readonly number[],
+  retentionDays: number | null,
+): Change[] => computeChanges(shown, events, ctx, tagIds, retentionDays))
 /** What changed's sentences over the screen-filtered tasks; `null` until its events have been read. */
 export function useChanges(base: StatsBase, tagIds: readonly number[]): Change[] | null {
   const events = useTrendEvents('changes')
-  return events ? changesMemo(base.shown, events, base.ctx, tagIds) : null
+  const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
+  return events ? changesMemo(base.shown, events, base.ctx, tagIds, retentionDays) : null
 }
 
 const pulseMemo = sharedMemo((shown: Tasks, tags: readonly Tag[], ctx: StatsContext, tagIds: readonly number[], staleAfterDays: number): PulseCard[] => (

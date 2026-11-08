@@ -12,7 +12,7 @@ import { currentTaskDialogEnv } from './task-dialog'
  * (`pickForToday`) and **Clear Focus…** (`clearFocus`).
  */
 
-/** Puts a suggested task in Focus: one undo step, with the snackbar. */
+/** Puts a suggested task in Focus: one undo step, with the snackbar. Activity on the task, as every priority flag: it stamps `modifiedAt`. */
 export function pickForToday(todo: Pick<PersistedTodoItem, 'id' | 'title'>): Promise<void> {
   return useTodoStore.getState().setMarkerFlags([{ todoId: todo.id, focus: true }], `Added “${todo.title}” to Focus`)
 }
@@ -43,10 +43,14 @@ export function screenFocusTasks(): { open: PersistedTodoItem[]; done: Persisted
 
 const tasks = (n: number) => (n === 1 ? '1 task' : `${n} tasks`)
 
-/** Takes Focus off `ids`, one undo step. */
+/**
+ * Takes Focus off `ids`, one undo step. Housekeeping, not activity on the
+ * tasks: no `modifiedAt` moves (the stale fade, the Modified filter and the
+ * Neglect map's days untouched stay as they were).
+ */
 function unfocus(ids: readonly PersistedTodoItem[], description: string): Promise<void> {
   if (ids.length === 0) return Promise.resolve()
-  return useTodoStore.getState().setMarkerFlags(ids.map((t) => ({ todoId: t.id, focus: false })), description)
+  return useTodoStore.getState().setMarkerFlags(ids.map((t) => ({ todoId: t.id, focus: false })), description, { stamp: false })
 }
 
 /**

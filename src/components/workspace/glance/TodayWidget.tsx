@@ -13,7 +13,7 @@ import type { SummaryPart } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
 import type { TodoLookup } from './section-data'
 import { Empty, Panel, RowsGrid, TaskRows, type PanelDef } from './section-parts'
-import { metricDrill } from './number-defs'
+import { metricDrill } from './glance-drills'
 import styles from './BriefWidgets.module.css'
 import sectionStyles from './GlanceSections.module.css'
 

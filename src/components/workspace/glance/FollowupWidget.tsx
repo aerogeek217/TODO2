@@ -6,6 +6,7 @@ import type { FollowupGroups } from '../../../services/stats/followup-groups'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { countOf } from './glance-copy'
+import { followupDrill } from './glance-drills'
 import { GLANCE_PANEL_CLASS, glanceDrill, useGlanceRows, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { followupLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
@@ -41,12 +42,9 @@ export function FollowupSection({ data, options, rows, onDrill, style, className
       style={style}
       className={className}
       count={countOf(shownCount, totalCount)}
-      onCount={onDrill ? () => onDrill({
-        title: 'Needs follow-up',
-        glyph: 'followup',
-        description: `Open tasks whose next follow-up is late, today or in the next ${lookAhead} days.`,
-        source: { kind: 'groups', groups: groups.map((g) => ({ key: g.key, label: g.name, color: g.dot, todoIds: g.ids })) },
-      }) : undefined}
+      onCount={onDrill
+        ? () => onDrill(followupDrill(lookAhead, groups.map((g) => ({ key: g.key, label: g.name, color: g.dot, todoIds: g.ids }))))
+        : undefined}
       sub={`Late, today and the next ${lookAhead} days`}
     >
       <div ref={trackScrollEdges} className={styles.panelBody}>

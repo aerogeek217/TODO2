@@ -3,31 +3,25 @@ import {
   type NeglectColourBy,
   type NeglectTab,
 } from '../../../models/workspace-layout'
+import type { Tag } from '../../../models'
 import { useTagStore } from '../../../stores/tag-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { projectTagIds } from '../../../utils/neglect-map'
 import type { MenuEntry } from '../../shared/MenuPopover'
-import styles from './NeglectMapWidget.module.css'
+import { knownTagCount, settingEntry, TAG_PICKS_MAX_HEIGHT_PX, TAG_PICKS_WIDTH_PX, tagPickEntries } from '../glance/menu-entries'
 
-const COLOUR_BY_WIDTH_PX = 248
-const COLOUR_BY_MAX_HEIGHT_PX = 360
 const UNTOUCHED_WIDTH_PX = 200
 
-/** `Tags (2)` / `People` / `None`: the Colour by item's value. */
-export function colourByLabel(colourBy: NeglectColourBy): string {
+/** `Tags (2)` / `People` / `None`: the Colour by item's value (the picked tags that still exist). */
+export function colourByLabel(colourBy: NeglectColourBy, tags: readonly Tag[]): string {
   if (colourBy.kind === 'people') return 'People'
   if (colourBy.kind === 'none') return 'None'
-  return `Tags (${colourBy.tagIds.length})`
+  return `Tags (${knownTagCount(colourBy.tagIds, tags)})`
 }
 
 /** `14 days` (`1 day`). */
 export function untouchedLabel(days: number): string {
   return days === 1 ? '1 day' : `${days} days`
-}
-
-/** `ids` with `id` added (at the end) or taken out. */
-function toggled(ids: readonly number[], id: number): number[] {
-  return ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]
 }
 
 /**
@@ -62,17 +56,7 @@ export function useNeglectMenuEntries(tab: NeglectTab | undefined): MenuEntry[] 
     })),
     { kind: 'separator' },
     { kind: 'label', text: 'Tags' },
-    ...(tags.length === 0
-      ? [{ kind: 'note', text: 'No tags yet.' } as const]
-      : tags.flatMap(({ id, name, color }): MenuEntry[] => (id == null ? [] : [{
-          kind: 'item',
-          label: name,
-          icon: <span className={styles.menuSwatch} style={{ background: color }} aria-hidden="true" />,
-          checkbox: true,
-          checked: colourBy.kind === 'tags' && pickedTags.includes(id),
-          keepOpen: true,
-          onSelect: () => patch({ colourBy: { kind: 'tags', tagIds: toggled(pickedTags, id) } }),
-        }]))),
+    ...tagPickEntries(tags, pickedTags, (tagIds) => patch({ colourBy: { kind: 'tags', tagIds } }), colourBy.kind === 'tags'),
     { kind: 'separator' },
     { kind: 'note', text: 'A task with several picked tags takes the first one’s colour.' },
   ]
@@ -84,29 +68,18 @@ export function useNeglectMenuEntries(tab: NeglectTab | undefined): MenuEntry[] 
     {
       kind: 'item',
       label: 'Colour by',
-      note: colourByLabel(colourBy),
+      note: colourByLabel(colourBy, tags),
       children: colourEntries,
-      childrenWidth: COLOUR_BY_WIDTH_PX,
-      childrenMaxHeight: COLOUR_BY_MAX_HEIGHT_PX,
+      childrenWidth: TAG_PICKS_WIDTH_PX,
+      childrenMaxHeight: TAG_PICKS_MAX_HEIGHT_PX,
     },
-    {
-      kind: 'item',
-      label: 'Untouched after',
-      note: untouchedLabel(untouchedDays),
-      childrenWidth: UNTOUCHED_WIDTH_PX,
-      children: [
-        { kind: 'label', text: 'Untouched after' },
-        ...choices.map((d): MenuEntry => ({
-          kind: 'item',
-          label: untouchedLabel(d),
-          radio: true,
-          indicator: 'radio',
-          checked: d === untouchedDays,
-          onSelect: () => { if (d !== untouchedDays) patch({ untouchedDays: d }) },
-        })),
-        { kind: 'separator' },
-        { kind: 'note', text: 'Days since a task last changed. Due soon or late and untouched this long is Slipping.' },
-      ],
-    },
+    settingEntry(
+      'Untouched after',
+      choices.map((d) => ({ value: d, label: untouchedLabel(d) })),
+      untouchedDays,
+      (d) => patch({ untouchedDays: d }),
+      'Days since a task last changed. Due soon or late and untouched this long is Slipping.',
+      UNTOUCHED_WIDTH_PX,
+    ),
   ]
 }

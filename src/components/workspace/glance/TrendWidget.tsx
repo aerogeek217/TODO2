@@ -7,8 +7,9 @@ import { useStatsBase, useTrendStats } from '../../../hooks/use-glance-data'
 import type { StatsContext } from '../../../services/stats/stats-context'
 import type { TrendStats } from '../../../services/stats/trend'
 import {
-  signed, sinceLabel, trendBucketDialogWords, trendBucketLabel, trendRangeLabel, trendRangeWords,
+  signed, sinceLabel, trendBucketLabel, trendRangeLabel, trendRangeWords,
 } from './glance-copy'
+import { trendBucketDrill, trendTotalDrill } from './glance-drills'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { trendLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
@@ -53,12 +54,9 @@ export function TrendSection({ data, onDrill, style, className }: SectionProps<T
             className={styles.trendStat}
             data-testid="dash-trend-completed"
             label={`${trend?.completed ?? 0} completed in ${rangeWords}. Show tasks`}
-            onClick={onDrill && trend ? () => onDrill({
-              title: 'Completed',
-              glyph: 'chart',
-              description: `Tasks completed in ${rangeWords}.`,
-              source: { kind: 'todos', todoIds: buckets.flatMap((b) => b.completedIds) },
-            }) : undefined}
+            onClick={onDrill && trend
+              ? () => onDrill(trendTotalDrill('completed', rangeWords, buckets.flatMap((b) => b.completedIds)))
+              : undefined}
           >
             <b style={{ color: 'var(--color-accent-text)' }}>{trend?.completed ?? 0}</b>completed
           </Clickable>
@@ -67,12 +65,9 @@ export function TrendSection({ data, onDrill, style, className }: SectionProps<T
             className={styles.trendStat}
             data-testid="dash-trend-created"
             label={`${trend?.created ?? 0} created in ${rangeWords}. Show tasks`}
-            onClick={onDrill && trend ? () => onDrill({
-              title: 'Created',
-              glyph: 'chart',
-              description: `Tasks created in ${rangeWords}.`,
-              source: { kind: 'todos', todoIds: buckets.flatMap((b) => b.createdIds) },
-            }) : undefined}
+            onClick={onDrill && trend
+              ? () => onDrill(trendTotalDrill('created', rangeWords, buckets.flatMap((b) => b.createdIds)))
+              : undefined}
           >
             <b>{trend?.created ?? 0}</b>created
           </Clickable>
@@ -83,24 +78,15 @@ export function TrendSection({ data, onDrill, style, className }: SectionProps<T
             const label = trendBucketLabel(b.start, granularity)
             const c = b.createdIds.length
             const k = b.completedIds.length
-            const words = trendBucketDialogWords(b.start, granularity, ctx.today)
             return (
               <Clickable
                 key={i}
                 as="div"
                 className={styles.trendGroup}
                 label={`${label}: ${c} created, ${k} completed. Show tasks`}
-                onClick={onDrill && c + k > 0 ? () => onDrill({
-                  ...words,
-                  glyph: 'chart',
-                  source: {
-                    kind: 'groups',
-                    groups: [
-                      { key: 'completed', label: 'Completed', color: 'var(--color-accent)', todoIds: b.completedIds },
-                      { key: 'created', label: 'Created', color: 'var(--color-chart-created)', todoIds: b.createdIds },
-                    ],
-                  },
-                }) : undefined}
+                onClick={onDrill && c + k > 0
+                  ? () => onDrill(trendBucketDrill(b.start, granularity, ctx.today, { completed: b.completedIds, created: b.createdIds }))
+                  : undefined}
               >
                 <span className={styles.trendBar} style={{ height: c * unit, background: 'var(--color-chart-created)' }} />
                 <span className={styles.trendBar} style={{ height: k * unit, background: 'var(--color-accent)' }} />

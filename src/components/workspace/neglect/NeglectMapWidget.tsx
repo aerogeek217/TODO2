@@ -3,14 +3,14 @@ import type { PersistedTodoItem } from '../../../models'
 import type { NeglectTab } from '../../../models/workspace-layout'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../../constants'
 import { useElementSize } from '../../../hooks/use-element-size'
-import { useFilterSettings } from '../../../hooks/use-filter-settings'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
+import { useStatsBase } from '../../../hooks/use-glance-data'
 import { useToday } from '../../../hooks/use-today'
-import { useTodoNameLookups } from '../../../hooks/use-todo-name-lookups'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import type { WidgetFace } from '../../../utils/widget-face'
-import { slippingTasksDialog } from '../../../services/task-dialog'
+import type { StatsContext } from '../../../services/stats/stats-context'
+import { slippingTasksDialog } from '../glance/glance-drills'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
@@ -20,7 +20,6 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { ROW_KEY_ATTR, ROW_TODO_ATTR, SELECTION_SCOPE_ATTR, TODO_ID_ATTR } from '../../../utils/dom-contract'
 import { countActiveFilters } from '../../../utils/filter-criteria'
-import { applyFilter } from '../../../utils/filter-match'
 import { isFollowupOverdue } from '../../../utils/followup'
 import {
   buildNeglectMap,
@@ -35,6 +34,8 @@ import {
   type NeglectZone,
 } from '../../../utils/neglect-map'
 import { rowKey, type ScopedRow } from '../../../utils/scoped-selection'
+import { sharedMemo } from '../../../utils/shared-memo'
+import type { UrgentDueWithinDays } from '../../../utils/urgency'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useTooltip } from '../../shared/use-tooltip'
 import { ListBulkBar } from '../list/ListBulkBar'
@@ -238,20 +239,22 @@ export function NeglectMapWidget({ tab }: { tab: NeglectTab }) {
   )
 }
 
-/** Every open task the screen filter keeps, placed on the map (the full map's and its faces'). */
-function useNeglectMap(tab: NeglectTab) {
-  const today = useToday()
-  const todos = useTodoStore((s) => s.todos)
-  const lookups = useTodoNameLookups()
-  const { filters: screen } = useScreenFilter()
-  const markerSettings = useFilterSettings()
+const neglectMemo = sharedMemo((
+  shown: readonly PersistedTodoItem[],
+  ctx: StatsContext,
+  untouchedDays: number,
+  dueSoonDays: UrgentDueWithinDays,
+): NeglectMap<PersistedTodoItem> => buildNeglectMap(shown, { today: ctx.today, untouchedDays, dueSoonDays }))
+
+/**
+ * Every open task the screen filter keeps, placed on the map (the full
+ * map's and its faces'): the glance widgets' shared base (`useStatsBase`),
+ * so the tasks are filtered once for all of them, and a map per threshold.
+ */
+function useNeglectMap(tab: NeglectTab): NeglectMap<PersistedTodoItem> {
+  const base = useStatsBase()
   const dueSoonDays = useSettingsStore((s) => s.urgentDueWithinDays)
-  const { untouchedDays } = tab.config
-  const shown = useMemo(
-    () => applyFilter(screen, todos, lookups, today, markerSettings),
-    [screen, todos, lookups, today, markerSettings],
-  )
-  return useMemo(() => buildNeglectMap(shown, { today, untouchedDays, dueSoonDays }), [shown, today, untouchedDays, dueSoonDays])
+  return neglectMemo(base.shown, base.ctx, tab.config.untouchedDays, dueSoonDays)
 }
 
 /**

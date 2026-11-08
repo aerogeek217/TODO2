@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { TagsTab } from '../../../models/workspace-layout'
 import { useStatsBase, useTagStats, type ShownOfTotal } from '../../../hooks/use-glance-data'
-import { tagSectionDialog, tagsSectionDialog } from '../../../services/task-dialog'
+import { tagSectionDialog, tagsSectionDialog } from './glance-drills'
 import type { TagStats } from '../../../services/stats/tags'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'

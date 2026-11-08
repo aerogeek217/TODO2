@@ -1,7 +1,9 @@
 import type { TrendRange } from '../../../models/glance-widgets'
+import type { HistoryAgainst } from '../../../services/stats/metric-history'
 import type { TileStats } from '../../../services/stats/tiles'
 import { formatFollowupDate, formatFollowupDay, formatWeekdayNumeric } from '../../../utils/followup'
 import { addDays } from '../../../utils/calendar-grid'
+import { formatDateWith } from '../../../utils/date'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 
 /**
@@ -160,24 +162,6 @@ export function withScreenNote(description: string): string {
   return `${description} Only tasks the top-bar filter shows.`
 }
 
-/** A Next 7 days column's dialog: title and line. `index` 0 = Late, 1 = today. */
-export function nextDayDialogWords(date: Date | null, index: number, today: Date): { title: string; description: string } {
-  if (date == null) return { title: 'Late', description: 'Open tasks due, or to follow up, before today.' }
-  if (index === 1) return { title: 'Today', description: 'Open tasks due, or to follow up, today.' }
-  const day = formatFollowupDay(date, today)
-  return { title: day, description: `Open tasks due, or to follow up, on ${day}.` }
-}
-
-/** A trend bar's dialog: title and line (`Thu 8`, or `Week of Sep 28`). */
-export function trendBucketDialogWords(start: Date, granularity: 'day' | 'week', today: Date): { title: string; description: string } {
-  if (granularity === 'day') {
-    const day = formatFollowupDay(start, today)
-    return { title: day, description: `Tasks completed or created on ${day}.` }
-  }
-  const week = `Week of ${trendBucketLabel(start, 'week')}`
-  return { title: week, description: `Tasks completed or created in the week of ${trendBucketLabel(start, 'week')}.` }
-}
-
 // ── The Number widget's words ────────────────────────────────────────────────
 
 /** Closed this week's sub-line: `Since Sun 4`. */
@@ -185,7 +169,12 @@ export function closedSubLine(weekStart: Date, today: Date): string {
   return `Since ${formatFollowupDay(weekStart, today)}`
 }
 
-/** A Number's change since yesterday: `+2 vs yesterday`, `No change vs yesterday`. */
-export function deltaLabel(delta: number): string {
-  return delta === 0 ? 'No change vs yesterday' : `${signed(delta)} vs yesterday`
+/**
+ * A Number's change: since yesterday (`+2 vs yesterday`, `No change vs
+ * yesterday`), or — Closed this week — since the same point of last week
+ * (`+2 vs last Wed`).
+ */
+export function deltaLabel(delta: number, against: HistoryAgainst = 'yesterday', today?: Date): string {
+  const then = against === 'lastWeek' && today ? `last ${formatDateWith(today, { weekday: 'short' })}` : 'yesterday'
+  return delta === 0 ? `No change vs ${then}` : `${signed(delta)} vs ${then}`
 }

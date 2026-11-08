@@ -7,6 +7,7 @@ import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { countOf } from './glance-copy'
+import { statusDrill, statusRowDrill } from './glance-drills'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { statusLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
@@ -34,20 +35,12 @@ export function StatusSection({ data, onDrill, style, className }: SectionProps<
       style={style}
       className={className}
       count={`${countOf(open, openTotal)} open`}
-      onCount={onDrill ? () => onDrill({
-        title: 'Open tasks',
-        glyph: 'status',
-        description: 'Open tasks by status.',
-        source: {
-          kind: 'groups',
-          groups: entries.filter((e) => e.count > 0).map((e) => ({
-            key: String(e.id ?? 'none'),
-            label: e.label,
-            color: e.color,
-            todoIds: openIds(data.shown, (t) => (t.statusId ?? null) === e.id),
-          })),
-        },
-      }) : undefined}
+      onCount={onDrill ? () => onDrill(statusDrill(entries.filter((e) => e.count > 0).map((e) => ({
+        key: String(e.id ?? 'none'),
+        label: e.label,
+        color: e.color,
+        todoIds: openIds(data.shown, (t) => (t.statusId ?? null) === e.id),
+      })))) : undefined}
     >
       {openTotal === 0 ? (
         <Empty title="No open tasks" hint="Open tasks show here by status." />
@@ -68,12 +61,7 @@ export function StatusSection({ data, onDrill, style, className }: SectionProps<
                 data-status-key={String(e.id ?? 'unset')}
                 label={`${e.label}: ${e.count}. Show tasks`}
                 onClick={onDrill && e.count > 0
-                  ? () => onDrill({
-                    title: e.label,
-                    glyph: 'status',
-                    description: e.id == null ? 'Open tasks with no status.' : `Status: ${e.label}.`,
-                    source: { kind: 'todos', todoIds: openIds(data.shown, (t) => (t.statusId ?? null) === e.id) },
-                  })
+                  ? () => onDrill(statusRowDrill(e, openIds(data.shown, (t) => (t.statusId ?? null) === e.id)))
                   : undefined}
               >
                 <span style={{ color: e.color, display: 'inline-flex' }}><StatusIcon icon={e.icon} filled /></span>

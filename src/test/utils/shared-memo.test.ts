@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { sharedMemo } from '../../utils/shared-memo'
+import { sameElements, sharedMemo } from '../../utils/shared-memo'
 
 describe('sharedMemo', () => {
   it('computes once per set of inputs, compared by identity', () => {
@@ -29,5 +29,17 @@ describe('sharedMemo', () => {
     expect(compute).toHaveBeenCalledTimes(3)
     memo(xs, 3)
     expect(compute).toHaveBeenCalledTimes(4)
+  })
+
+  it('`same`: a new input set that computes the same as the newest value returns that value again', () => {
+    const a = { id: 1 }
+    const b = { id: 2 }
+    const memo = sharedMemo((xs: readonly object[], key: object) => (key ? xs.filter(() => true) : []), 8, sameElements)
+    const first = memo([a, b], {})
+    expect(memo([a, b], {})).toBe(first)
+    expect(memo([a], {})).not.toBe(first)
+    expect(sameElements([a, b], [a, b])).toBe(true)
+    expect(sameElements([a, b], [b, a])).toBe(false)
+    expect(sameElements([a], [a, b])).toBe(false)
   })
 })

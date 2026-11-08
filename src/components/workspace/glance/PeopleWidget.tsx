@@ -5,6 +5,7 @@ import { usePeopleStats, useStatsBase } from '../../../hooks/use-glance-data'
 import type { PeopleStats } from '../../../services/stats/people'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
+import { personRowDrill } from './glance-drills'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { peopleLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
@@ -42,15 +43,7 @@ export function PeopleSection({ data, options, onDrill, style, className }: Sect
               const name = person ? person.name : 'Unassigned'
               const open = stats.ids.length
               // In each task's own order, as the person chip lists them.
-              const onClick = onDrill
-                ? () => onDrill({
-                  title: name,
-                  glyph: 'people',
-                  description: person ? `Open tasks assigned to ${person.name}.` : 'Open tasks with nobody assigned.',
-                  source: { kind: 'todos', todoIds: inSortOrder(stats.ids, data) },
-                  ...(person?.id != null ? { personId: person.id } : {}),
-                })
-                : null
+              const onClick = onDrill ? () => onDrill(personRowDrill(person, inSortOrder(stats.ids, data))) : null
               const content = (
                 <>
                   <span className={styles.personName}>
