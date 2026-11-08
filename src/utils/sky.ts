@@ -37,32 +37,49 @@ export function withAlpha(c: CssColor, alpha: number): CssColor {
   return `color-mix(in srgb, ${c} ${share(alpha)}, transparent)`
 }
 
-/** Interpolates the colours at `altitudes` (the `stop(i)` tokens) at `x`. */
-function ramp(altitudes: readonly number[], stop: (i: number) => CssColor, x: number): CssColor {
-  if (x <= (altitudes[0] ?? 0)) return stop(0)
-  for (let i = 1; i < altitudes.length; i++) {
-    const hi = altitudes[i] ?? 0
-    const lo = altitudes[i - 1] ?? 0
-    if (x > hi) continue
-    return mixColor(stop(i - 1), stop(i), (x - lo) / (hi - lo))
+type Stop = readonly [altitude: number, ...colours: CssColor[]]
+
+/** Interpolates colour `k` of a ramp of `[altitude, ...colours]` stops at `x`. */
+function ramp(stops: readonly Stop[], k: number, x: number): CssColor {
+  const colour = (stop: Stop | undefined): CssColor => stop?.[k + 1] as CssColor | undefined ?? 'transparent'
+  const first = stops[0]
+  if (!first || x <= first[0]) return colour(first)
+  for (let i = 1; i < stops.length; i++) {
+    const hi = stops[i]
+    const lo = stops[i - 1]
+    if (!hi || !lo || x > hi[0]) continue
+    return mixColor(colour(lo), colour(hi), (x - lo[0]) / (hi[0] - lo[0]))
   }
-  return stop(altitudes.length - 1)
+  return colour(stops.at(-1))
 }
 
-/** The sky's stops by the sun's altitude (`--ambience-sky-zenith-N` / `-horizon-N`). */
-const SKY_ALTITUDES = [-90, -18, -10, -4, 0, 4, 10, 25, 90] as const
-/** The sun's colour stops by its altitude (`--ambience-sun-N`). */
-const SUN_ALTITUDES = [-6, 0, 6, 15, 40] as const
+/** The sky by the sun's altitude: [altitude°, zenith, horizon]. */
+const SKY_STOPS: readonly Stop[] = [
+  [-90, 'var(--ambience-sky-zenith-0)', 'var(--ambience-sky-horizon-0)'],
+  [-18, 'var(--ambience-sky-zenith-1)', 'var(--ambience-sky-horizon-1)'],
+  [-10, 'var(--ambience-sky-zenith-2)', 'var(--ambience-sky-horizon-2)'],
+  [-4, 'var(--ambience-sky-zenith-3)', 'var(--ambience-sky-horizon-3)'],
+  [0, 'var(--ambience-sky-zenith-4)', 'var(--ambience-sky-horizon-4)'],
+  [4, 'var(--ambience-sky-zenith-5)', 'var(--ambience-sky-horizon-5)'],
+  [10, 'var(--ambience-sky-zenith-6)', 'var(--ambience-sky-horizon-6)'],
+  [25, 'var(--ambience-sky-zenith-7)', 'var(--ambience-sky-horizon-7)'],
+  [90, 'var(--ambience-sky-zenith-8)', 'var(--ambience-sky-horizon-8)'],
+]
+/** The sun's colour by its altitude. */
+const SUN_STOPS: readonly Stop[] = [
+  [-6, 'var(--ambience-sun-0)'],
+  [0, 'var(--ambience-sun-1)'],
+  [6, 'var(--ambience-sun-2)'],
+  [15, 'var(--ambience-sun-3)'],
+  [40, 'var(--ambience-sun-4)'],
+]
 
 export function skyColors(altitude: number): { zenith: CssColor; horizon: CssColor } {
-  return {
-    zenith: ramp(SKY_ALTITUDES, (i) => `var(--ambience-sky-zenith-${i})`, altitude),
-    horizon: ramp(SKY_ALTITUDES, (i) => `var(--ambience-sky-horizon-${i})`, altitude),
-  }
+  return { zenith: ramp(SKY_STOPS, 0, altitude), horizon: ramp(SKY_STOPS, 1, altitude) }
 }
 
 export function sunColor(altitude: number): CssColor {
-  return ramp(SUN_ALTITUDES, (i) => `var(--ambience-sun-${i})`, altitude)
+  return ramp(SUN_STOPS, 0, altitude)
 }
 
 /** How much of the sky shows through the top bar's glass at each strength (the glass's complement). */

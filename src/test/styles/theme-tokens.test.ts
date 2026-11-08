@@ -43,7 +43,7 @@ describe('theming lives in tokens.css', () => {
 
     it.each(['dark', 'light'] as const)('%s: every --ambience-* token the ambience reads is defined', (theme) => {
       const tokens = themeTokens(theme)
-      // Written out in full (a name built from a stop's index is read through the ramps below).
+      // Every name written in the files, and every one the sky's and sun's ramps hand out.
       const named = files.flatMap(([, text]) => [...code(text).matchAll(/var\((--ambience-[\w-]*\w)\)/g)].map((m) => m[1] ?? ''))
       const ramps = Array.from({ length: 181 }, (_, i) => i - 90).flatMap((altitude) => {
         const { zenith, horizon } = skyColors(altitude)
