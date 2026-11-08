@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import type { PersistedTodoItem, Tag, TodoEvent } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import type { LookAhead, TrendRange } from '../models/glance-widgets'
+import { groupRestrictions } from '../services/build-list'
 import { computeChanges, type Change } from '../services/stats/changes'
 import { computeClosedThisWeek, type ClosedThisWeek } from '../services/stats/closed-this-week'
 import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
@@ -164,16 +165,19 @@ export function useStatusStats(base: StatsBase): ShownOfTotal<StatusBreakdownEnt
   return statusMemo(base.shown, base.todos, base.ctx.statuses)
 }
 
-const peopleMemo = sharedMemo((shown: Tasks, ctx: StatsContext): PeopleStats => computePeopleStats(shown, ctx))
+// The People / Tags rows narrow by the top bar's `@` / `#` picks (its chips' and its lens's), as a list grouped so does.
+const peopleMemo = sharedMemo((shown: Tasks, ctx: StatsContext, screen: FilterCriteria): PeopleStats => (
+  computePeopleStats(shown, ctx, groupRestrictions('personIds', undefined, screen))
+))
 export function usePeopleStats(base: StatsBase): PeopleStats {
-  return peopleMemo(base.shown, base.ctx)
+  return peopleMemo(base.shown, base.ctx, base.screen)
 }
 
-const tagsMemo = sharedMemo((shown: Tasks, todos: Tasks, ctx: StatsContext): ShownOfTotal<TagStats> => (
-  { shown: computeTagStats(shown, ctx), total: computeTagStats(todos, ctx) }
+const tagsMemo = sharedMemo((shown: Tasks, todos: Tasks, ctx: StatsContext, screen: FilterCriteria): ShownOfTotal<TagStats> => (
+  { shown: computeTagStats(shown, ctx, groupRestrictions('tags', undefined, screen)), total: computeTagStats(todos, ctx) }
 ))
 export function useTagStats(base: StatsBase): ShownOfTotal<TagStats> {
-  return tagsMemo(base.shown, base.todos, base.ctx)
+  return tagsMemo(base.shown, base.todos, base.ctx, base.screen)
 }
 
 const staleMemo = sharedMemo((shown: Tasks, todos: Tasks, ctx: StatsContext, days: number): ShownOfTotal<StaleTasks> => (

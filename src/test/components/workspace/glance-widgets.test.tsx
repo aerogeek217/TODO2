@@ -187,6 +187,25 @@ describe('section widgets', () => {
     expect(document.querySelector('[data-glance="followup"] [role="toolbar"]')).not.toBeNull()
   })
 
+  it('People and Tags narrow by the top bar’s @ / # picks, as a list grouped by them does', () => {
+    const [dana, alice] = [PEOPLE.find((p) => p.id === 1)!, PEOPLE.find((p) => p.id === 5)!]
+    const [q4, home] = [TAGS.find((t) => t.id === 1)!, TAGS.find((t) => t.id === 3)!]
+    // "Sign off on new logo" is Alice's and Dana's; "Budget review" is #q4 and #home.
+    usePersonStore.setState({ assignedPeopleMap: new Map([...ASSIGNED_PEOPLE, [8, [alice, dana]]]) })
+    useTagStore.setState({ assignedTagsMap: new Map([...ASSIGNED_TAGS, [7, [q4, home]]]) })
+    const rows = (attr: string) => [...document.querySelectorAll(`[${attr}]`)].map((el) => el.getAttribute(attr))
+    setup({ id: 'w', kind: 'people', config: { showUnassigned: true } })
+    expect(rows('data-person-row')).toContain('1')
+    cleanup()
+    useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, personIds: new Set([5]) })
+    setup({ id: 'w', kind: 'people', config: { showUnassigned: true } })
+    expect(rows('data-person-row')).toEqual(['5'])
+    cleanup()
+    useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, personIds: null, tags: new Set([1]) })
+    setup({ id: 'w', kind: 'tags', config: { showUntagged: true } })
+    expect(rows('data-tag-row')).toEqual(['1'])
+  })
+
   it('options come from the config: look ahead, range, the Unassigned and No tag rows, the day spans', () => {
     setup({ id: 'w', kind: 'followup', config: { lookAhead: 3 } })
     expect(document.querySelector('[data-dash-section="followup"]')!.textContent).toContain('Late, today and the next 3 days')
