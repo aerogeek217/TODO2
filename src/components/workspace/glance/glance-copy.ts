@@ -1,7 +1,9 @@
 import type { TrendRange } from '../../../models/glance-widgets'
-import type { TileStats } from '../../../services/stats/tiles'
+import type { HistoryAgainst } from '../../../services/stats/metric-history'
+import type { MetricStats } from '../../../services/stats/metrics'
 import { formatFollowupDate, formatFollowupDay, formatWeekdayNumeric } from '../../../utils/followup'
 import { addDays } from '../../../utils/calendar-grid'
+import { formatDateWith } from '../../../utils/date'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 
 /**
@@ -52,7 +54,7 @@ export interface MetricCopyContext {
 }
 
 /** The sub-line under a Number's count. Empty = none. */
-export function metricSubLine(id: keyof TileStats, tiles: TileStats, ctx: MetricCopyContext): string {
+export function metricSubLine(id: keyof MetricStats, metrics: MetricStats, ctx: MetricCopyContext): string {
   switch (id) {
     case 'open': {
       if (ctx.trendNet == null) return ''
@@ -60,32 +62,32 @@ export function metricSubLine(id: keyof TileStats, tiles: TileStats, ctx: Metric
       return ctx.trendNet === 0 ? `No change in ${range}` : `${signed(ctx.trendNet)} in ${range}`
     }
     case 'urgent': {
-      const { flagged, byDate } = tiles.urgent
+      const { flagged, byDate } = metrics.urgent
       const parts: string[] = []
       if (flagged > 0) parts.push(`${flagged} flagged`)
       if (byDate > 0) parts.push(`${byDate} by due date`)
       return parts.length > 0 ? parts.join(' · ') : 'Nothing urgent'
     }
     case 'overdue': {
-      const { oldest, oldestDaysLate } = tiles.overdue
+      const { oldest, oldestDaysLate } = metrics.overdue
       if (!oldest) return 'Nothing overdue'
       return `Oldest ${formatFollowupDay(oldest, ctx.today)} · ${oldestDaysLate}d late`
     }
     case 'followupDue': {
-      const { late, today, upcoming } = tiles.followupDue
+      const { late, today, upcoming } = metrics.followupDue
       if (late > 0 && upcoming > 0) return `${late} late · ${upcoming} more in 7 days`
       if (late > 0) return today > 0 ? `${late} late · ${today} today` : `${late} late`
       if (today > 0) return upcoming > 0 ? `${upcoming} more in the next 7 days` : 'All due today'
       // None due yet: when the next one is.
-      const { next } = tiles.followupDue
+      const { next } = metrics.followupDue
       return next ? `Next one ${formatWeekdayNumeric(next)}` : 'Nothing due'
     }
     case 'focus': {
-      const n = tiles.focus.dueToday
+      const n = metrics.focus.dueToday
       return n > 0 ? `${n} due today` : 'None due today'
     }
     case 'dueToday': {
-      const n = tiles.dueToday.upcoming
+      const n = metrics.dueToday.upcoming
       return n > 0 ? `${n} more in the next 7 days` : 'None in the next 7 days'
     }
     case 'dueNext7':
@@ -126,7 +128,7 @@ export interface MetricDescriptionContext {
  * What a metric counts, in words — the task dialog's line under its
  * title: `Urgent = flagged urgent, or due within 3 days (Settings › Tasks).`
  */
-export function metricDescription(id: keyof TileStats, ctx: MetricDescriptionContext): string {
+export function metricDescription(id: keyof MetricStats, ctx: MetricDescriptionContext): string {
   switch (id) {
     case 'open':
       return 'Every open task.'
@@ -160,24 +162,6 @@ export function withScreenNote(description: string): string {
   return `${description} Only tasks the top-bar filter shows.`
 }
 
-/** A Next 7 days column's dialog: title and line. `index` 0 = Late, 1 = today. */
-export function nextDayDialogWords(date: Date | null, index: number, today: Date): { title: string; description: string } {
-  if (date == null) return { title: 'Late', description: 'Open tasks due, or to follow up, before today.' }
-  if (index === 1) return { title: 'Today', description: 'Open tasks due, or to follow up, today.' }
-  const day = formatFollowupDay(date, today)
-  return { title: day, description: `Open tasks due, or to follow up, on ${day}.` }
-}
-
-/** A trend bar's dialog: title and line (`Thu 8`, or `Week of Sep 28`). */
-export function trendBucketDialogWords(start: Date, granularity: 'day' | 'week', today: Date): { title: string; description: string } {
-  if (granularity === 'day') {
-    const day = formatFollowupDay(start, today)
-    return { title: day, description: `Tasks completed or created on ${day}.` }
-  }
-  const week = `Week of ${trendBucketLabel(start, 'week')}`
-  return { title: week, description: `Tasks completed or created in the week of ${trendBucketLabel(start, 'week')}.` }
-}
-
 // ── The Number widget's words ────────────────────────────────────────────────
 
 /** Closed this week's sub-line: `Since Sun 4`. */
@@ -185,7 +169,12 @@ export function closedSubLine(weekStart: Date, today: Date): string {
   return `Since ${formatFollowupDay(weekStart, today)}`
 }
 
-/** A Number's change since yesterday: `+2 vs yesterday`, `No change vs yesterday`. */
-export function deltaLabel(delta: number): string {
-  return delta === 0 ? 'No change vs yesterday' : `${signed(delta)} vs yesterday`
+/**
+ * A Number's change: since yesterday (`+2 vs yesterday`, `No change vs
+ * yesterday`), or — Closed this week — since the same point of last week
+ * (`+2 vs last Wed`).
+ */
+export function deltaLabel(delta: number, against: HistoryAgainst = 'yesterday', today?: Date): string {
+  const then = against === 'lastWeek' && today ? `last ${formatDateWith(today, { weekday: 'short' })}` : 'yesterday'
+  return delta === 0 ? `No change vs ${then}` : `${signed(delta)} vs ${then}`
 }

@@ -141,8 +141,9 @@ describe('ListWidget', () => {
       dates: { completed: { match: 'range', start: { kind: 'relative', token: 'today' }, end: null } },
     }))
     expect(titles()).toEqual(['Done today'])
-    // Of the list's 3 open tasks and its 2 completed ones (the range opens its gate too): 1 shown.
-    expect(screen.getByTestId('list-count')).toHaveTextContent('1 of 5')
+    // Of the list's 3 open tasks and the one completed task the range admits (as the top bar's
+    // counter counts, cr33 M3 — not the completed task outside it): 1 shown.
+    expect(screen.getByTestId('list-count')).toHaveTextContent('1 of 4')
   })
 
   it('screen filters hiding everything: says so and offers to clear them', () => {

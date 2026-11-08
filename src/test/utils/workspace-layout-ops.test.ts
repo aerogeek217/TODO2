@@ -1,35 +1,39 @@
 import { describe, it, expect } from 'vitest'
 import { BAND_DEFAULT_HEIGHT, createTab, type LayoutBand, type LayoutCell, type LayoutColumn, type LayoutRow, type WorkspaceLayout } from '../../models/workspace-layout'
 import {
-  addTab,
-  closeCell,
-  cellSizeGroups,
-  closeTab,
-  copySizes,
-  countListTabs,
   findCell,
   findRow,
   findTab,
   getTab,
   layoutPanels,
   layoutRows,
-  movePanel,
   panelOfTab,
   rowOfCell,
-  rowSizeGroups,
-  setBandHeight,
   layoutIds,
   layoutStructureEqual,
+} from '../../utils/workspace-layout-queries'
+import { countListTabs } from '../../utils/workspace-layout-lists'
+import {
+  cellSizeGroups,
+  copySizes,
+  rowSizeGroups,
+  setBandHeight,
+  setCellWeights,
+  setColumnWeights,
+  setRowWeights,
+} from '../../utils/workspace-layout-sizes'
+import {
+  addTab,
+  closeCell,
+  closeTab,
+  movePanel,
   moveTab,
   patchTabConfig,
   patchTabViewState,
   replaceTab,
   setActiveTab,
   setCellStripShown,
-  setCellWeights,
-  setColumnWeights,
   setRowCollapsed,
-  setRowWeights,
   splitCell,
 } from '../../utils/workspace-layout-ops'
 import { row, rowOf } from '../helpers/layout-builders'
@@ -287,6 +291,49 @@ describe('closeTab / closeCell / splitCell', () => {
     const filled = moveTab(split, 'c1', { kind: 'cell', cellId: cellId! }, seqIds())
     expect(shape(filled)).toEqual([[['a1', 'a2'], ['a3']], [['b1'], ['c1']]])
     expect(shape(closeTab(filled, 'c1'))).toEqual([[['a1', 'a2'], ['a3']], [['b1']]])
+  })
+})
+
+describe('a fit row takes no weight from its neighbours (cr33 M8)', () => {
+  const weights = (l: WorkspaceLayout) => l.columns[0]!.rows.map((r) => r.weight)
+  const number = (id: string) => createTab('number', id)
+
+  it('a Number dropped on a row’s top / bottom zone makes a fit row; the row keeps its weight', () => {
+    const below = addTab(base(), number('x'), { kind: 'cell-edge', cellId: 'ka', edge: 'bottom' }, seqIds())
+    expect(shape(below)[0]).toEqual([['a1', 'a2'], ['x'], ['a3']])
+    expect(weights(below)).toEqual([1, 0.5, 1])
+    const above = addTab(base(), number('x'), { kind: 'row-edge', rowId: 'kb-r', edge: 'top' }, seqIds())
+    expect(weights(above)).toEqual([1, 0.5, 1])
+    // A Number cell dragged whole onto a row's edge too.
+    const withNumber = addTab(base(), number('x'), { kind: 'column-edge', columnId: 'C', edge: 'right' }, seqIds())
+    const numberCell = withNumber.columns[3]!.rows[0]!.cells[0]!.id
+    const moved = movePanel(withNumber, numberCell, { kind: 'cell-edge', cellId: 'kb', edge: 'top' }, seqIds())
+    expect(weights(moved)).toEqual([1, 0.5, 1])
+    // Any other widget still splits the row.
+    expect(weights(addTab(base(), createTab('notes', 'x'), { kind: 'cell-edge', cellId: 'ka', edge: 'bottom' }, seqIds()))).toEqual([0.5, 0.5, 1])
+  })
+
+  it('Split ▸ Below then a Number in the new cell: the split row gets its half back', () => {
+    const { layout: split, cellId } = splitCell(base(), 'ka', 'below', seqIds())
+    expect(weights(split)).toEqual([0.5, 0.5, 1])
+    const filled = addTab(split, number('x'), { kind: 'cell', cellId: cellId! }, seqIds())
+    expect(shape(filled)[0]).toEqual([['a1', 'a2'], ['x'], ['a3']])
+    expect(weights(filled)).toEqual([1, 0.5, 1])
+    expectInvariants(filled)
+    // A Number tab dragged into it does the same.
+    const withNumber = addTab(split, number('y'), { kind: 'cell', cellId: 'kc' }, seqIds())
+    expect(weights(moveTab(withNumber, 'y', { kind: 'cell', cellId: cellId! }, seqIds()))).toEqual([1, 0.5, 1])
+    // A Notes tab in it leaves the split as it is.
+    expect(weights(addTab(split, createTab('notes', 'x'), { kind: 'cell', cellId: cellId! }, seqIds()))).toEqual([0.5, 0.5, 1])
+  })
+
+  it('the half goes to the nearest row above that doesn’t fit, past other fit rows, else below', () => {
+    // [A: (n1: Number) (ka) (empty)] — the empty cell's row is under ka.
+    const l = layout({ id: 'A', weight: 1, rows: [rowOf({ id: 'kn', weight: 1, tabs: [number('n1')], activeTabId: 'n1' }), rowOf(cell('ka', ['a1'])), rowOf({ id: 'ke', weight: 1, tabs: [] }, { weight: 0.5 })] })
+    expect(weights(addTab(l, number('x'), { kind: 'cell', cellId: 'ke' }, seqIds()))).toEqual([1, 1.5, 0.5])
+    // Only a fit row above: the row below takes it.
+    const top = layout({ id: 'A', weight: 1, rows: [rowOf({ id: 'kn', weight: 1, tabs: [number('n1')], activeTabId: 'n1' }), rowOf({ id: 'ke', weight: 1, tabs: [] }, { weight: 0.5 }), rowOf(cell('ka', ['a1']))] })
+    expect(weights(addTab(top, number('x'), { kind: 'cell', cellId: 'ke' }, seqIds()))).toEqual([1, 0.5, 1.5])
   })
 })
 

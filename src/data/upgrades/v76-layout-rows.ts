@@ -1,4 +1,5 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { idMinter } from './id-minter'
 
 /**
  * v76 — every column is rows: a layout becomes columns → rows → cells, and a
@@ -45,21 +46,6 @@ function collectIds(node: unknown, into: Set<string>): void {
   for (const [key, value] of Object.entries(node)) if (key !== 'id') collectIds(value, into)
 }
 
-/** Mints `<base><suffix>`, unique against `taken` (and every id it minted before). */
-function idMinter(taken: Set<string>): (base: unknown, suffix: string) => string {
-  return (base, suffix) => {
-    const stem = typeof base === 'string' && base !== '' ? base : 'part'
-    for (let n = 1; ; n++) {
-      const tail = n === 1 ? suffix : `${suffix}${n}`
-      const id = `${stem.slice(0, MAX_ID_LEN - tail.length)}${tail}`
-      if (!taken.has(id)) {
-        taken.add(id)
-        return id
-      }
-    }
-  }
-}
-
 type Mint = ReturnType<typeof idMinter>
 
 /** A column's cell as a one-cell row; a cell that isn't an object passes through. */
@@ -93,7 +79,7 @@ function upgradeLayout(row: DataRow): DataRow {
   if (!isRecord(row)) return row
   const taken = new Set<string>()
   collectIds([row.columns, row.top, row.bottom], taken)
-  const mint = idMinter(taken)
+  const mint = idMinter(taken, MAX_ID_LEN, '')
   let out: DataRow = row
   if (Array.isArray(row.columns)) {
     const columns = (row.columns as unknown[]).map((col) => upgradeColumn(col, mint))

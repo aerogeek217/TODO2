@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { computePeopleStats } from '../../../services/stats/people'
+import { computeTagStats } from '../../../services/stats/tags'
 import type { StatsContext } from '../../../services/stats/stats-context'
 import { makePerson, makeTodo } from '../../helpers'
 
@@ -55,5 +56,43 @@ describe('computePeopleStats', () => {
     const out = computePeopleStats([makeTodo({ id: 1, isCompleted: true })], ctx(new Map([[1, [amy]]])))
     expect(out.rows).toEqual([])
     expect(computePeopleStats([], ctx(new Map())).unassigned).toEqual({ ids: [], priority: { focus: 0, urgent: 0, important: 0 }, followupDueIds: [] })
+  })
+})
+
+describe('the top bar’s @ / # picks narrow the rows, as a list grouped by them', () => {
+  const tasks = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 }), makeTodo({ id: 4 })]
+  // 1: Amy and Bob · 2: Bob and Zed · 3: Zed alone · 4: nobody.
+  const map = new Map([[1, [amy, bob]], [2, [bob, zed]], [3, [zed]]])
+  const rows = (r: number[][]) => computePeopleStats(tasks, ctx(map), r).rows.map((row) => [row.person.name, row.ids])
+
+  it('one pick: a task counts under the picked people alone; no Unassigned row', () => {
+    expect(rows([[2]])).toEqual([['Amy', [1]]])
+    expect(computePeopleStats(tasks, ctx(map), [[2]]).unassigned.ids).toEqual([])
+  })
+
+  it('several picks of one filter (an or): each task under the ones it has', () => {
+    expect(rows([[2, 3]])).toEqual([['Bob', [1, 2]], ['Amy', [1]]])
+  })
+
+  it('the chips and the lens both pick: those both pick win, else any one', () => {
+    // Chips Amy or Bob, lens Bob: task 1 shows under Bob only; Zed never shows.
+    expect(rows([[2, 3], [3]])).toEqual([['Bob', [1, 2]]])
+  })
+
+  it('the Unassigned pick (0) keeps the Unassigned row while every pick has it', () => {
+    expect(computePeopleStats(tasks, ctx(map), [[0, 2]]).unassigned.ids).toEqual([4])
+    expect(computePeopleStats(tasks, ctx(map), [[0, 2], [2]]).unassigned.ids).toEqual([])
+    expect(computePeopleStats(tasks, ctx(map), []).unassigned.ids).toEqual([4])
+  })
+
+  it('tags alike: the # picks narrow the Tags rows and their tagged ids', () => {
+    const atlas = { id: 1, name: 'Atlas', color: '#111' }
+    const beta = { id: 2, name: 'Beta', color: '#222' }
+    const tagCtx = { ...ctx(new Map()), assignedTagsMap: new Map([[1, [atlas, beta]], [2, [beta]]]) }
+    const out = computeTagStats(tasks, tagCtx, [[1]])
+    expect(out.rows.map((r) => [r.tag.name, r.ids])).toEqual([['Atlas', [1]]])
+    expect(out.taggedIds).toEqual([1])
+    expect(out.untagged.ids).toEqual([])
+    expect(computeTagStats(tasks, tagCtx).rows.map((r) => r.tag.name)).toEqual(['Beta', 'Atlas'])
   })
 })

@@ -1,16 +1,16 @@
 import { describe, it, expect } from 'vitest'
-import { TILE_DEFS, numberColors } from '../../../components/workspace/glance/number-defs'
-import { TILE_METRIC_IDS } from '../../../models/glance-widgets'
+import { METRIC_DEFS, numberColors } from '../../../components/workspace/glance/number-defs'
+import { METRIC_IDS } from '../../../models/glance-widgets'
 
 const MUTED = 'var(--color-text-muted)'
 const TEXT = 'var(--color-text-primary)'
 
 describe('a Number’s colour: lit only when the number asks for action (D18)', () => {
   it('Overdue, Follow-up due, Urgent and Due today light above 0; the rest never', () => {
-    const lit = TILE_METRIC_IDS.filter((id) => TILE_DEFS[id].litWhen(1))
+    const lit = METRIC_IDS.filter((id) => METRIC_DEFS[id].litWhen(1))
     expect(lit.sort()).toEqual(['dueToday', 'followupDue', 'overdue', 'urgent'])
-    for (const id of TILE_METRIC_IDS) expect(TILE_DEFS[id].litWhen(0)).toBe(false)
-    expect(TILE_DEFS.open.litWhen(500)).toBe(false)
+    for (const id of METRIC_IDS) expect(METRIC_DEFS[id].litWhen(0)).toBe(false)
+    expect(METRIC_DEFS.open.litWhen(500)).toBe(false)
   })
 
   it('lit: label, glyph and count in the metric’s colour', () => {

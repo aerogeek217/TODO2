@@ -1,18 +1,12 @@
-import { NUMBER_METRIC_LABELS, type NumberMetric, type TileMetricId } from '../../../models/glance-widgets'
-import type { ClosedThisWeek } from '../../../services/stats/closed-this-week'
-import type { StatsContext } from '../../../services/stats/stats-context'
-import type { TileStats } from '../../../services/stats/tiles'
-import type { DashGlyphName } from '../../../utils/dash-glyphs'
-import { formatFollowupDay } from '../../../utils/followup'
-import { metricDescription } from './glance-copy'
-import type { GlanceDrill } from './glance-types'
+import { NUMBER_METRIC_LABELS, type NumberMetric, type MetricId } from '../../../models/glance-widgets'
+import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 
 /** A Number metric's look and its task dialog's title. */
 export interface NumberDef {
   label: string
   /** The task dialog's title. */
   title: string
-  glyph: DashGlyphName
+  glyph: GlanceGlyphName
   /** The metric's colour: its label's, glyph's and count's when lit. */
   color: string
   /**
@@ -26,8 +20,8 @@ const aboveZero = (count: number) => count > 0
 const never = () => false
 const L = NUMBER_METRIC_LABELS
 
-/** The metrics counted from the tile stats (`services/stats/tiles`). */
-export const TILE_DEFS: Record<TileMetricId, NumberDef> = {
+/** The metrics `services/stats/metrics` counts (every Number metric but Closed this week). */
+export const METRIC_DEFS: Record<MetricId, NumberDef> = {
   open: { label: L.open, title: 'Open tasks', glyph: 'open', color: 'var(--color-accent)', litWhen: never },
   urgent: { label: L.urgent, title: 'Urgent tasks', glyph: 'urgent', color: 'var(--color-danger)', litWhen: aboveZero },
   overdue: { label: L.overdue, title: 'Overdue tasks', glyph: 'overdue', color: 'var(--color-overdue)', litWhen: aboveZero },
@@ -38,9 +32,9 @@ export const TILE_DEFS: Record<TileMetricId, NumberDef> = {
   noFollowup: { label: L.noFollowup, title: 'No follow-up date', glyph: 'followup', color: 'var(--color-text-muted)', litWhen: never },
 }
 
-/** Every Number metric: the tile stats', and Closed this week (good news: never lit). */
+/** Every Number metric: the counted ones, and Closed this week (good news: never lit). */
 export const NUMBER_DEFS: Record<NumberMetric, NumberDef> = {
-  ...TILE_DEFS,
+  ...METRIC_DEFS,
   closedThisWeek: { label: L.closedThisWeek, title: 'Closed this week', glyph: 'done', color: 'var(--color-accent)', litWhen: never },
 }
 
@@ -50,26 +44,4 @@ export function numberColors(id: NumberMetric, count: number): { lit: boolean; l
   if (def.litWhen(count)) return { lit: true, label: def.color, glyph: def.color, count: def.color }
   const muted = 'var(--color-text-muted)'
   return { lit: false, label: muted, glyph: muted, count: count === 0 ? muted : 'var(--color-text-primary)' }
-}
-
-/** A metric's tasks for the task dialog (a section's count may open one). */
-export function metricDrill(id: TileMetricId, data: { tiles: { shown: TileStats }; ctx: StatsContext }): GlanceDrill {
-  const def = TILE_DEFS[id]
-  return {
-    title: def.title,
-    glyph: def.glyph,
-    description: metricDescription(id, data.ctx),
-    source: { kind: 'todos', todoIds: data.tiles.shown[id].ids },
-  }
-}
-
-/** Closed this week's tasks for the task dialog. */
-export function closedThisWeekDrill(closed: ClosedThisWeek, today: Date): GlanceDrill {
-  const def = NUMBER_DEFS.closedThisWeek
-  return {
-    title: def.title,
-    glyph: def.glyph,
-    description: `Tasks completed since ${formatFollowupDay(closed.weekStart, today)}.`,
-    source: { kind: 'todos', todoIds: closed.ids },
-  }
 }

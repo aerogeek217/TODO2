@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { parseInput, removeSpans } from '../../services/natural-language-parser'
+import { mentionToken, statusToken, tagToken } from '../../utils/name-tokens'
 
 // Sat 10 Oct 2026, local time.
 const TODAY = new Date(2026, 9, 10)
@@ -100,6 +101,21 @@ describe('parseInput — people', () => {
   it('a bare name stops at punctuation; quotes take any name', () => {
     expect(parse('ask @Mary-Jane').persons).toEqual(['Mary'])
     expect(parse('ask @"Mary-Jane"').persons).toEqual(['Mary-Jane'])
+  })
+
+  // cr33 M12: the quoted names read `name-tokens`' escapes, as the expression field does.
+  it('a quoted name reads \\" and \\\\ back, as mentionToken / tagToken / statusToken write them', () => {
+    const name = 'Ann "AJ" Lee'
+    const r = parse(`call ${mentionToken(name)} ${tagToken('say "hi"')} ${statusToken('On "hold"')} now`)
+    expect(r.persons).toEqual([name])
+    expect(r.tags).toEqual(['say "hi"'])
+    expect(r.status).toBe('On "hold"')
+    expect(r.title).toBe('call now')
+    expect(r.tokens.map((t) => t.raw)).toEqual(['@"Ann \\"AJ\\" Lee"', '#"say \\"hi\\""', '!"On \\"hold\\""'])
+    expect(parse(`${mentionToken('back\\')} x`).persons).toEqual(['back\\'])
+    expect(parse(`${mentionToken('a\\"b')} x`).persons).toEqual(['a\\"b'])
+    // A backslash before any other character is itself.
+    expect(parse('#"C:\\docs" x').tags).toEqual(['C:\\docs'])
   })
 
   it('a person named like a date is just a person', () => {

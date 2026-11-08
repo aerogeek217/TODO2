@@ -101,10 +101,11 @@ test.describe('tab drags and bands', () => {
     await expect(wsBand(page, 'top')).toHaveCount(0)
   })
 
-  test('the bottom 24px make a new bottom band; idle edge bars show where no band is', async ({ page }) => {
+  test('the padding below the panels makes a new bottom band; idle edge bars show where no band is', async ({ page }) => {
     await seedWorkspace(page, { layouts: [withTopBand] })
     const a = await areaBox(page)
-    await dragTab(page, wsTab(page, 'calTab'), { x: a.x + 300, y: a.y + a.height - 6 }, async () => {
+    // The workspace's 6px bottom padding (a cell's own bottom zone is a new row below, cr33 M9).
+    await dragTab(page, wsTab(page, 'calTab'), { x: a.x + 300, y: a.y + a.height - 3 }, async () => {
       await expect(page.getByTestId('ws-new-band-strip')).toHaveAttribute('data-edge', 'bottom')
       await expect(page.getByTestId('ws-drop-label')).toHaveText('New band below all columns')
     })
@@ -270,7 +271,7 @@ test.describe('panel drags', () => {
   test('panel → new bottom band; near the window’s bottom the ghost flips above the pointer', async ({ page }) => {
     await seedWorkspace(page, { layouts: [threeCells] })
     const a = await areaBox(page)
-    const to = { x: a.x + 300, y: a.y + a.height - 6 }
+    const to = { x: a.x + 300, y: a.y + a.height - 3 }
     await dragPanel(page, 'a1', to, {
       during: async () => {
         await expect(page.getByTestId('ws-new-band-strip')).toHaveAttribute('data-edge', 'bottom')
@@ -364,6 +365,29 @@ test.describe('band height, collapse and menus', () => {
     // A click on a flat tab expands it.
     await wsTab(page, 'topNotes').click()
     await expect.poll(async () => Math.round((await box(wsBand(page, 'top'))).height)).toBe(144)
+  })
+
+  test('a band of glance widgets shrinks to 64px, like a glance row (cr33 W5)', async ({ page }) => {
+    await seedWorkspace(page, {
+      layouts: [{
+        ...threeCells,
+        top: { id: 'tb-band', height: 150, cells: [{ id: 'n1', tabs: [{ id: 'num1', kind: 'number' }] }, { id: 'n2', tabs: [{ id: 'num2', kind: 'number', glance: { metric: 'overdue' } }] }] },
+      }],
+    })
+    const divider = page.getByRole('separator', { name: 'Resize top band' })
+    await expect(divider).toHaveAttribute('aria-valuemin', '64')
+    const d = await box(divider)
+    // Up 70px: 80px, below the 112px a band of other widgets keeps.
+    await page.mouse.move(d.x + 300, d.y + d.height / 2)
+    await page.mouse.down()
+    await page.mouse.move(d.x + 300, d.y + d.height / 2 - 70, { steps: 6 })
+    await page.mouse.up()
+    await expect.poll(async () => Math.round((await box(wsBand(page, 'top'))).height)).toBe(80)
+    // Arrows stop at 64.
+    await divider.focus()
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowUp')
+    await expect.poll(async () => Math.round((await box(wsBand(page, 'top'))).height)).toBe(64)
+    await expect(wsBand(page, 'top').getByRole('button', { name: 'Expand band' })).toHaveCount(0)
   })
 
   test('the band ⋯ menu moves the band to the other edge, out as a column, and closes it', async ({ page }) => {

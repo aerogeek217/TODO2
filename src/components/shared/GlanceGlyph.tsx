@@ -1,9 +1,9 @@
 import type { CSSProperties } from 'react'
-import { DASH_GLYPH, type DashGlyphName } from '../../utils/dash-glyphs'
+import { GLANCE_GLYPH, type GlanceGlyphName } from '../../utils/glance-glyphs'
 
 /** A glance glyph (decorative: the control that shows it carries the name). */
-export function DashGlyph({ name, size = 14, color, strokeWidth = 1.6, className }: {
-  name: DashGlyphName
+export function GlanceGlyph({ name, size = 14, color, strokeWidth = 1.6, className }: {
+  name: GlanceGlyphName
   size?: number
   color?: string
   strokeWidth?: number
@@ -25,7 +25,7 @@ export function DashGlyph({ name, size = 14, color, strokeWidth = 1.6, className
       focusable="false"
       style={{ flex: 'none', ...style }}
     >
-      <path d={DASH_GLYPH[name]} />
+      <path d={GLANCE_GLYPH[name]} />
     </svg>
   )
 }

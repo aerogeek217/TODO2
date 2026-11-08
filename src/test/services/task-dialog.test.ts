@@ -1,14 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { emptyPredicate, type DateMatch, type PersistedTodoItem, type Person, type Tag, type TodoPredicate } from '../../models'
 import {
-  eisenhowerQuadrantDialog,
-  eisenhowerSummaryDialog,
   noPaneTaskDialog,
   personTaskDialog,
-  recentlyCompletedDialog,
-  staleTasksDialog,
-  tagSectionDialog,
-  tagsSectionDialog,
   resolveTaskDialog,
   screenTaskCount,
   screenTaskCounts,
@@ -22,7 +16,6 @@ import {
 import type { TaskDialogSource } from '../../stores/task-dialog-payload'
 import { buildTasksPlain } from '../../services/task-copy'
 import { emptyFilterCriteria } from '../helpers'
-import { defaultPaneFilter, resolvePanes } from '../../utils/eisenhower-panes'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, BEN, PEOPLE, PLANNING, PRIYA, Q4, SAMPLE_OPEN_COUNT, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
 } from '../fixtures/glance-sample'
@@ -263,6 +256,21 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
       expect(hides(PRIYA_LENS)).toEqual({ counter: SAMPLE_OPEN_COUNT - 4, picker: SAMPLE_OPEN_COUNT - 4 })
     })
 
+    it('while the chips admit completed tasks, the lens still hides the picker’s number: open tasks only', () => {
+      const picker = lensHideCounts(env(), [PRIYA_LENS]).hides.get(PRIYA_LENS.id)
+      expect(picker).toBe(SAMPLE_OPEN_COUNT - 4)
+      for (const chips of [
+        { ...emptyFilterCriteria, showCompleted: true },
+        { ...emptyFilterCriteria, dates: { completed: thisWeek } },
+      ]) {
+        const counts = screenTaskCounts(env({ screen: withLens(chips, PRIYA_LENS) }))
+        // The total keeps the completed tasks the chips admit (cr32) …
+        expect(counts.total).toBeGreaterThan(SAMPLE_OPEN_COUNT)
+        // … and none of them counts as hidden by the lens.
+        expect(counts.total - counts.lensKeeps).toBe(picker)
+      }
+    })
+
     it('the description’s "hides N" is the same number', () => {
       const counts = screenTaskCounts(env({ screen: withLens(emptyFilterCriteria, DONE_WEEK) }))
       const total = SAMPLE_OPEN_COUNT + doneThisWeek.length
@@ -310,82 +318,6 @@ describe('taskDialogCount / taskDialogCopySections', () => {
   it('a flat list copies without a heading', () => {
     const sections = taskDialogCopySections([{ key: 'all', label: null, todoIds: [17] }], byId)
     expect(sections).toEqual([{ todos: [byId.get(17)] }])
-  })
-})
-
-describe('glance section payloads', () => {
-  it('a tag row: that tag’s open tasks; the untagged row; the Tags count: a heading per tag', () => {
-    expect(tagSectionDialog({ id: 4, name: 'q4' }, [3, 1])).toEqual({
-      title: '#q4', glyph: 'tag', description: 'Open tasks tagged #q4.', source: { kind: 'todos', todoIds: [3, 1] },
-    })
-    expect(tagSectionDialog(null, [7])).toEqual({
-      title: 'No tag', glyph: 'tag', description: 'Open tasks with no tag.', source: { kind: 'todos', todoIds: [7] },
-    })
-    expect(tagsSectionDialog([
-      { tag: { id: 4, name: 'q4', color: '#123' }, todoIds: [3, 1] },
-      { tag: null, todoIds: [7] },
-    ])).toEqual({
-      title: 'Tagged tasks',
-      glyph: 'tag',
-      description: 'Open tasks by tag. A task with several tags shows under each.',
-      source: {
-        kind: 'groups',
-        groups: [
-          { key: 'tag-4', label: '#q4', color: '#123', todoIds: [3, 1] },
-          { key: 'untagged', label: 'No tag', todoIds: [7] },
-        ],
-      },
-    })
-  })
-
-  it('Stale tasks and Recently completed say their window', () => {
-    expect(staleTasksDialog([5, 2], 14)).toEqual({
-      title: 'Stale tasks', glyph: 'stale', description: 'Open tasks not changed in 14 days or more, oldest first.', source: { kind: 'todos', todoIds: [5, 2] },
-    })
-    expect(recentlyCompletedDialog([9], 7)).toEqual({
-      title: 'Recently completed', glyph: 'done', description: 'Tasks completed in the last 7 days, newest first.', source: { kind: 'todos', todoIds: [9] },
-    })
-  })
-
-  it('an Eisenhower quadrant, and every quadrant under headings, saying what Urgent includes', () => {
-    const [doPane, schedule, , drop] = resolvePanes({})
-    const all = (urgentRange: number | null) => ({ urgentRange, listName: null })
-    expect(eisenhowerQuadrantDialog(schedule!, 'Important, not urgent', [4], all(3))).toEqual({
-      title: 'Schedule',
-      glyph: 'matrix',
-      description: 'Open tasks that are important, not urgent. Urgent includes tasks due within 3 days.',
-      source: { kind: 'todos', todoIds: [4] },
-    })
-    expect(eisenhowerQuadrantDialog(doPane!, '', [1], all(null)).description).toBe('Open tasks that are urgent and important.')
-    expect(eisenhowerQuadrantDialog(drop!, '', [1], all(0)).description).toBe('Open tasks that are neither urgent nor important. Urgent includes tasks due today or earlier.')
-    const summary = eisenhowerSummaryDialog(resolvePanes({}), { do: [1], schedule: [], delegate: [5], drop: [6] }, all(7))
-    expect(summary).toMatchObject({ title: 'Eisenhower', glyph: 'matrix', description: 'Open tasks by urgent × important. Urgent includes tasks due within 1 week.' })
-    expect(summary.source).toEqual({
-      kind: 'groups',
-      groups: [
-        { key: 'do', label: 'Do', color: 'var(--color-danger)', todoIds: [1] },
-        { key: 'schedule', label: 'Schedule', color: 'var(--color-followup)', todoIds: [] },
-        { key: 'delegate', label: 'Delegate', color: 'var(--color-text-secondary)', todoIds: [5] },
-        { key: 'drop', label: 'Drop', color: 'var(--color-text-muted)', todoIds: [6] },
-      ],
-    })
-  })
-
-  it('custom panes and a list source: the pane names, the filter in words, the list named', () => {
-    const panes = resolvePanes({ delegate: { name: 'Hand off', filter: { ...defaultPaneFilter('delegate'), statusIds: [3], negate: { statusIds: true } } } })
-    const source = { urgentRange: 3, listName: 'Team' }
-    const delegate = panes[2]!
-    expect(eisenhowerQuadrantDialog(delegate, 'Urgent · not Important · not Waiting', [5], source)).toEqual({
-      title: 'Hand off',
-      glyph: 'matrix',
-      description: 'Open tasks of “Team” in “Hand off” (Urgent · not Important · not Waiting) — the first pane each matches.',
-      source: { kind: 'todos', todoIds: [5] },
-    })
-    expect(eisenhowerQuadrantDialog(panes[0]!, '', [1], source).description)
-      .toBe('Open tasks of “Team” that are urgent and important. Urgent includes tasks due within 3 days.')
-    const summary = eisenhowerSummaryDialog(panes, { do: [1], schedule: [], delegate: [5], drop: [] }, source)
-    expect(summary.description).toBe('Open tasks of “Team” by pane, each in the first pane it matches. Urgent includes tasks due within 3 days.')
-    expect(summary.source).toMatchObject({ kind: 'groups', groups: [{ label: 'Do' }, { label: 'Schedule' }, { label: 'Hand off', todoIds: [5] }, { label: 'Drop' }] })
   })
 })
 

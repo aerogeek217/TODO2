@@ -62,6 +62,19 @@ async function laidOutDetails(r: Locator): Promise<number> {
   return Math.round(rb.x + rb.width - 8 - nb.x)
 }
 
+/**
+ * `laidOutDetails` for every row of `rows`, read in one pass in the page —
+ * one round trip, not two per row (40 rows read row by row cost a slow
+ * machine most of the test's budget). A row without a notes cell reads `NaN`.
+ */
+function everyLaidOutDetails(rows: Locator): Promise<number[]> {
+  return rows.evaluateAll((els) => els.map((r) => {
+    const rb = r.getBoundingClientRect()
+    const nb = r.querySelector('[data-row-cell="notes"]')?.getBoundingClientRect()
+    return nb ? Math.round(rb.x + rb.width - 8 - nb.x) : Number.NaN
+  }))
+}
+
 async function storedViewState(page: Page): Promise<Record<string, unknown> | undefined> {
   const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }> }>(page, 'layouts')
   for (const l of layouts) for (const c of l.columns) for (const r of c.rows) for (const k of r.cells) for (const t of k.tabs) if (t.id === 'tab') return t.viewState
@@ -77,12 +90,11 @@ async function settled(scope: Locator): Promise<void> {
   await expect(scope.locator('[data-tag-name]').first()).toBeVisible()
 }
 
-/** Every row of `scope` laid out with `details` (the first few of each list: enough to see they all follow). */
+/** Every row of each of `scope`'s `lists` laid out with `details`. */
 async function expectDetails(scope: Locator, lists: string, details: number): Promise<void> {
   for (const list of await scope.locator(lists).all()) {
-    const rows = list.locator('[data-todo-id]')
-    const n = Math.min(await rows.count(), 4)
-    for (let i = 0; i < n; i++) expect(await laidOutDetails(rows.nth(i))).toBe(details)
+    const each = await everyLaidOutDetails(list.locator('[data-todo-id]'))
+    expect(each).toEqual(Array<number>(each.length).fill(details))
   }
 }
 
@@ -117,6 +129,9 @@ async function dragDivider(page: Page, scope: Locator, dx: number, steps: number
 }
 
 test('a list: the drag re-lays the rows out live without re-rendering them or the widget; stored on release', async ({ page }) => {
+  // 40 rich rows under the render counter, a 20-step drag and the release's
+  // writes: ~5 s alone, past 30 s under a full parallel run.
+  test.slow()
   await installRenderCounter(page, WATCHED)
   await countStorageWrites(page)
   await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }))
@@ -132,7 +147,7 @@ test('a list: the drag re-lays the rows out live without re-rendering them or th
   const steps = 20
   await dragDivider(page, widget, -80, steps, async () => {
     // Live: every row follows the drag.
-    for (const r of await widget.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(380)
+    expect(await everyLaidOutDetails(widget.locator('[data-todo-id]'))).toEqual(Array<number>(ROWS).fill(380))
     const counts = await readRenderCounts(page)
     expect(counts.TaskRow, 'task rows re-rendered during the drag').toBe(0)
     expect(counts.ListWidget, 'the list widget re-rendered during the drag').toBe(0)
@@ -149,7 +164,7 @@ test('a list: the drag re-lays the rows out live without re-rendering them or th
   // counter sees — an update, not a mount), its (memoised) rows don't.
   await expect.poll(async () => (await readRenderCounts(page)).ListWidget).toBeGreaterThan(0)
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
-  for (const r of await widget.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(380)
+  expect(await everyLaidOutDetails(widget.locator('[data-todo-id]'))).toEqual(Array<number>(ROWS).fill(380))
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 })
 
@@ -194,12 +209,12 @@ test('Eisenhower: every quadrant follows the drag without the widget or its rows
 test('Needs follow-up: its rows follow the drag without the widget or its rows re-rendering', async ({ page }) => {
   await installRenderCounter(page, WATCHED)
   await seedWorkspace(page, seed({ kind: 'followup' }))
-  await expect(page.locator('[data-dash-section="followup"] [data-todo-id]').first()).toBeVisible()
-  await settled(page.locator('[data-dash-section="followup"]'))
+  await expect(page.locator('[data-glance-section="followup"] [data-todo-id]').first()).toBeVisible()
+  await settled(page.locator('[data-glance-section="followup"]'))
   await expectCounterLive(page, 'TaskRow')
   await resetRenderCounts(page)
-  await dragDivider(page, page.locator('[data-dash-section="followup"]'), 60, 10, async () => {
-    await expectDetails(page.locator('[data-ws-area]'), '[data-dash-section="followup"]', 240)
+  await dragDivider(page, page.locator('[data-glance-section="followup"]'), 60, 10, async () => {
+    await expectDetails(page.locator('[data-ws-area]'), '[data-glance-section="followup"]', 240)
     const counts = await readRenderCounts(page)
     expect(counts.TaskRow).toBe(0)
     expect(counts.FollowupWidget).toBe(0)
@@ -224,6 +239,9 @@ async function countLayoutWrites(page: Page): Promise<void> {
 const layoutWrites = (page: Page) => page.evaluate(() => (window as unknown as { __layoutWrites: number }).__layoutWrites)
 
 test('a column or band divider drag: no task row re-renders, nothing is written until the release, which saves the size once', async ({ page }) => {
+  // Two drags and two full loads of 40 rich rows under the render counter
+  // (the seed and the reload): ~6 s alone, past 30 s under a full parallel run.
+  test.slow()
   await installRenderCounter(page, WATCHED)
   await countStorageWrites(page)
   await countLayoutWrites(page)

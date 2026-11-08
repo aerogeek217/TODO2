@@ -7,6 +7,7 @@ import {
   isGlanceKind,
   isGlanceRow,
   isHeadlessCell,
+  rowDividerAt,
   rowMinHeightPx,
   stripShownByWidget,
   stripShownChoice,
@@ -117,5 +118,32 @@ describe('glance rows', () => {
     expect(isGlanceRow(mixed, calendarOnly)).toBe(false)
     expect(rowMinHeightPx(mixed, calendarOnly)).toBe(CELL_MIN_PX)
     expect(isGlanceRow(row('r', [cell('a', [])]), calendarOnly)).toBe(false)
+  })
+})
+
+describe('rowDividerAt (cr33 M8)', () => {
+  const weighted = (id: string) => row(id, [cell(`${id}k`, [notes(`${id}t`)])])
+  const fit = (id: string) => row(id, [cell(`${id}k`, [calendar(`${id}t`)])])
+  const ids = (pair: { above: { id: string }; below: { id: string } } | null) => (pair ? [pair.above.id, pair.below.id] : null)
+
+  it('two weighted rows: the gap between them is their divider', () => {
+    const rows = [weighted('A'), weighted('B')]
+    expect(ids(rowDividerAt(rows, 1, calendarOnly))).toEqual(['A', 'B'])
+    expect(rowDividerAt(rows, 0, calendarOnly)).toBeNull()
+  })
+
+  it('fit rows between two weighted rows: the gap under the upper one resizes the two across them; the others are plain', () => {
+    const rows = [weighted('A'), fit('F1'), fit('F2'), weighted('B')]
+    expect(ids(rowDividerAt(rows, 1, calendarOnly))).toEqual(['A', 'B'])
+    expect(rowDividerAt(rows, 2, calendarOnly)).toBeNull()
+    expect(rowDividerAt(rows, 3, calendarOnly)).toBeNull()
+  })
+
+  it('fit rows with a weighted row on one side only, or a collapsed row between: plain gaps', () => {
+    expect(rowDividerAt([fit('F'), weighted('B')], 1, calendarOnly)).toBeNull()
+    expect(rowDividerAt([weighted('A'), fit('F')], 1, calendarOnly)).toBeNull()
+    const collapsed = [weighted('A'), fit('F'), { ...weighted('C'), collapsed: true }, weighted('B')]
+    expect(collapsed.map((_, i) => rowDividerAt(collapsed, i, calendarOnly))).toEqual([null, null, null, null])
+    expect(rowDividerAt([{ ...weighted('A'), collapsed: true }, weighted('B')], 1, calendarOnly)).toBeNull()
   })
 })

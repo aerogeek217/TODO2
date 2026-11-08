@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { DEFAULT_RECENT_DAYS } from '../../../models/glance-widgets'
 import type { RecentTab } from '../../../models/workspace-layout'
 import { useRecentStats, useStatsBase, type ShownOfTotal } from '../../../hooks/use-glance-data'
-import { recentlyCompletedDialog } from '../../../services/task-dialog'
+import { recentDrill } from './glance-drills'
 import type { RecentlyCompleted } from '../../../services/stats/recently-completed'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
@@ -17,13 +17,13 @@ import { Empty, Panel, RowsGrid, TaskRows, type RowSectionProps } from './sectio
 import styles from './GlanceSections.module.css'
 
 /** What Recently completed reads. */
-export interface RecentSectionData extends TodoLookup {
+interface RecentSectionData extends TodoLookup {
   recent: ShownOfTotal<RecentlyCompleted>
   recentDays: number
 }
 
 /** Recently completed: tasks completed in the last few days, newest first, as task rows. */
-export function RecentSection({ data, rows, onDrill, style, className }: RowSectionProps<RecentSectionData>) {
+function RecentSection({ data, rows, onDrill, style, className }: RowSectionProps<RecentSectionData>) {
   const { shown, total } = data.recent
   const days = data.recentDays
   const ids = shown.ids
@@ -33,7 +33,7 @@ export function RecentSection({ data, rows, onDrill, style, className }: RowSect
       style={style}
       className={className}
       count={countOf(ids.length, total.ids.length)}
-      onCount={onDrill ? () => onDrill(recentlyCompletedDialog(ids, days)) : undefined}
+      onCount={onDrill ? () => onDrill(recentDrill(ids, days)) : undefined}
       sub={`Last ${days} days`}
     >
       <div ref={trackScrollEdges} className={styles.panelBody}>
@@ -66,7 +66,6 @@ export function RecentWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Recen
         />
       ) : <RecentSection
         data={{ recent, recentDays, todoById: base.todoById }}
-        options={{ recentDays }}
         rows={rows.kit}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}

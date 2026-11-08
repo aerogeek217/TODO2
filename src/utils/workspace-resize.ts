@@ -96,15 +96,17 @@ export interface BandResizeInput {
   delta: number
   /** The tallest the band may get (px): the column area keeps its minimum. */
   max: number
+  /** The smallest it may get (px); default `BAND_MIN_PX` (a band of glance widgets: `GLANCE_ROW_MIN_PX`, `workspace-rows.rowMinHeightPx`). */
+  min?: number
 }
 
 /**
  * A band divider drag: the divider follows the pointer, so a top band grows
  * as it goes down and a bottom band as it goes up. `height` is clamped to
- * `BAND_MIN_PX` … `max`; `raw` (unclamped) says how far past the minimum the
+ * `min` … `max`; `raw` (unclamped) says how far past the minimum the
  * pointer went.
  */
-export function resizeBand({ edge, startHeight, delta, max }: BandResizeInput): { height: number; raw: number } {
+export function resizeBand({ edge, startHeight, delta, max, min = BAND_MIN_PX }: BandResizeInput): { height: number; raw: number } {
   const raw = edge === 'top' ? startHeight + delta : startHeight - delta
-  return { height: Math.max(BAND_MIN_PX, Math.min(Math.max(BAND_MIN_PX, max), raw)), raw }
+  return { height: Math.max(min, Math.min(Math.max(min, max), raw)), raw }
 }

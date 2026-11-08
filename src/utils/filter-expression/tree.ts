@@ -18,7 +18,8 @@ export function normalizeExpression(e: FilterExpr): FilterExpr {
       const items: FilterExpr[] = []
       for (const item of e.items) {
         const n = normalizeExpression(item)
-        if (n.kind === e.kind) items.push(...n.items)
+        // One by one, not spread: a wide one would pass too many arguments.
+        if (n.kind === e.kind) for (const inner of n.items) items.push(inner)
         else items.push(n)
       }
       return items.length === 1 && items[0] ? items[0] : { kind: e.kind, items }
@@ -46,7 +47,7 @@ export function expressionSize(e: FilterExpr): number {
 export function expressionDepth(e: FilterExpr): number {
   switch (e.kind) {
     case 'and':
-    case 'or': return 1 + Math.max(0, ...e.items.map(expressionDepth))
+    case 'or': return 1 + e.items.reduce((d, item) => Math.max(d, expressionDepth(item)), 0)
     case 'not': return 1 + expressionDepth(e.item)
     default: return 1
   }

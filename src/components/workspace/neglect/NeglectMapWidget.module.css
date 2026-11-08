@@ -505,14 +505,6 @@
   color: var(--color-text-primary);
 }
 
-/* A tag's colour beside its name in the tab menu's Colour by. */
-.menuSwatch {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}
-
 /* Phones: bigger dots to tap. */
 .touch .dot {
   --dot-size: 12px;

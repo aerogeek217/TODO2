@@ -1,24 +1,13 @@
-import { useContext, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import type { CalendarTab } from '../../../models/workspace-layout'
-import { useFilterSettings } from '../../../hooks/use-filter-settings'
-import { useIsMobile } from '../../../hooks/use-is-mobile'
-import { useTodoNameLookups } from '../../../hooks/use-todo-name-lookups'
-import { useToday } from '../../../hooks/use-today'
-import { buildEntries, type CalendarEntry } from '../../../services/calendar-entries'
-import { usePersonStore } from '../../../stores/person-store'
-import { useScreenFilter } from '../../../stores/screen-filter'
-import { useSettingsStore } from '../../../stores/settings-store'
-import { useStatusStore } from '../../../stores/status-store'
-import { useTodoStore } from '../../../stores/todo-store'
-import { useUIStore } from '../../../stores/ui-store'
+import type { CalendarEntry } from '../../../services/calendar-entries'
 import { calendarRange, dayLabel, weekdayLabels } from '../../../utils/calendar-grid'
 import { dayHeat, heatHue, heatSummary } from '../../../utils/calendar-heat'
 import { dayKey } from '../../../utils/date'
-import { applyFilter } from '../../../utils/filter-match'
 import type { WidgetFace } from '../../../utils/widget-face'
 import { TodayIcon } from '../../shared/icons'
-import { calendarScope, PendingCalendarDropContext } from './calendar-drag'
-import { dayClasses, type DayContext, useDayTarget, useTaskDrag } from './calendar-day'
+import { dayClasses, type DayContext, useDayTarget } from './calendar-day'
+import { useCalendarEntries, useCalendarSetup } from './calendar-data'
 import { DropLabel, EntryItem } from './CalendarDayParts'
 import { CalendarDayPopover } from './CalendarDayPopover'
 import calStyles from './CalendarWidget.module.css'
@@ -77,38 +66,13 @@ export function CalendarFace({ tab, face, faceRef }: {
   face: Exclude<WidgetFace, 'large'>
   faceRef: (el: HTMLElement | null) => void
 }) {
-  const isMobile = useIsMobile()
-  const today = useToday()
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
-  const todos = useTodoStore((s) => s.todos)
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const statuses = useStatusStore((s) => s.statuses)
-  const lookups = useTodoNameLookups()
-  const { filters: screen } = useScreenFilter()
-  const markerSettings = useFilterSettings()
-  const openEditPopup = useUIStore((s) => s.openEditPopup)
-  const pending = useContext(PendingCalendarDropContext)
-  const drag = useTaskDrag()
+  const { ctx, today, weekStartsOn } = useCalendarSetup(tab)
+  const drag = ctx.drag
   const [open, setOpen] = useState<{ dayMs: number; at: { x: number; y: number } } | null>(null)
 
   const dateTypes = tab.config.dateTypes
-  const scope = calendarScope(tab.id)
   const range = useMemo(() => calendarRange('week', 0, today, weekStartsOn), [today, weekStartsOn])
-  const shown = useMemo(() => applyFilter(screen, todos, lookups, today, markerSettings), [screen, todos, lookups, today, markerSettings])
-  const entriesByDay = useMemo(
-    () => buildEntries(shown, range.days, { assignedPeopleMap, statuses, dateTypes }),
-    [shown, range.days, assignedPeopleMap, statuses, dateTypes],
-  )
-  const ctx = useMemo<DayContext>(() => ({
-    tabId: tab.id,
-    scope,
-    dateTypes,
-    today,
-    drag,
-    pendingMs: pending?.scope === scope ? pending.dateMs : null,
-    noDrag: isMobile,
-    onOpen: openEditPopup,
-  }), [tab.id, scope, dateTypes, today, drag, pending, isMobile, openEditPopup])
+  const entriesByDay = useCalendarEntries(tab, range.days)
 
   const entriesOf = (day: Date) => entriesByDay.get(dayKey(day)) ?? []
   const todayCount = entriesOf(today).length

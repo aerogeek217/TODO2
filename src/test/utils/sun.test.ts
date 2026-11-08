@@ -49,6 +49,13 @@ describe('sunDay', () => {
     expect(sunDay(new Date(2026, 5, 21), { lat: 78, lon: 15 }).polar).toBe('day')
     expect(sunDay(new Date(2026, 5, 21), { lat: 78, lon: 15 }).daylight).toBe(24)
   })
+
+  it('puts the sun overhead, not NaN, where its noon height rounds past 90° (cr33 security I3)', () => {
+    // March 12 at this latitude: the sine of the noon altitude rounds to 1.0000000000000002.
+    const day = sunDay(new Date(2026, 2, 12), { lat: -4.114458, lon: 0 })
+    expect(day.maxAltitude).toBeCloseTo(90, 5)
+    expect(day.altitude(day.noon)).toBeCloseTo(90, 5)
+  })
 })
 
 describe('the moon', () => {

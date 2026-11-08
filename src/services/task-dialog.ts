@@ -1,9 +1,6 @@
 import { emptyPredicate, type PersistedStatusUpdate, type PersistedSubtask, type PersistedTodoItem, type Person, type Status, type Tag } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import type { TodoGroupBy, TodoSortBy, TodoSortDirection } from '../models/todo-sort-group'
-import type { EisenhowerQuadrant } from '../models/workspace-layout'
-import { QUADRANT_COLOR, type EisenhowerPane } from '../utils/eisenhower-panes'
-import { urgentRangeLabel, type UrgentDueWithinDays } from '../utils/urgency'
 import { admitsCompleted, completedAdmitters, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
 import { createPredicateEvaluator, createScreenComposedEvaluator, matchesFilterWithLookups, type FilterSettings } from '../utils/filter-match'
 import type { WeekStart } from '../utils/effective-date'
@@ -192,11 +189,10 @@ export interface ScreenTaskCounts {
    */
   total: number
   /**
-   * What the lens alone keeps of `total` (`total` without a lens), so
-   * `total - lensKeeps` is what the lens hides. A lens that admits completed
-   * tasks by its own Completed range admits only those it keeps, so it hides
-   * open tasks alone — the same number the lens picker shows
-   * (`lenses.lensHideCounts`).
+   * What the lens alone keeps of `total` (`total` without a lens): the open
+   * tasks it keeps, and every completed task `total` counts — so
+   * `total - lensKeeps` is the open tasks the lens hides, whatever the chips
+   * admit, the same number the lens picker shows (`lenses.lensHideCounts`).
    */
   lensKeeps: number
   /**
@@ -222,8 +218,9 @@ const NO_BADGE_COUNTS: TabBadgeCounts = { due: 0, dueOverdue: 0, followup: 0, fo
  * count narrows by); the lens, when a Completed range of its own lets
  * completed tasks through, the ones the whole lens keeps — so it never
  * hides a completed task it admitted, and its hide count is the picker's.
+ * A list's `of M` counts its completed tasks by the same rule (`useBuiltList`).
  */
-function admitsCompletedTask(
+export function admitsCompletedTask(
   screen: FilterCriteria,
   lookups: TodoNameLookups,
   today: Date,
@@ -256,7 +253,8 @@ export function screenTaskCounts(env: ScreenCountEnv, badgeRanges?: TabBadgeRang
   for (const t of env.todos) {
     if (t.isCompleted && !admitted?.(t)) continue
     counts.total++
-    if (!lens || lens(OPEN_TASKS, t)) counts.lensKeeps++
+    // The lens's hide count is of open tasks (the picker's): a completed task counted here counts as kept.
+    if (!lens || t.isCompleted || lens(OPEN_TASKS, t)) counts.lensKeeps++
     if (shown(OPEN_TASKS, t)) {
       counts.shown++
       if (badgeRanges && inTabBadgeRange(t, badgeRanges, env.today)) badged.push(t)
@@ -295,131 +293,6 @@ export function personTaskDialog(person: Pick<Person, 'id' | 'name'>): TaskDialo
       predicate: { ...emptyPredicate(), personIds: [person.id!] },
     },
     ...(person.id != null ? { personId: person.id } : {}),
-  }
-}
-
-// ── Glance sections ─────────────────────────────────────────────────────────────
-// The tasks are the ones the section counted (screen-filtered), in its order.
-
-/** A Tags row: that tag's open tasks; `null` = the No tag row. */
-export function tagSectionDialog(tag: Pick<Tag, 'id' | 'name'> | null, todoIds: readonly number[]): TaskDialogPayload {
-  return {
-    title: tag ? `#${tag.name}` : 'No tag',
-    glyph: 'tag',
-    description: tag ? `Open tasks tagged #${tag.name}.` : 'Open tasks with no tag.',
-    source: { kind: 'todos', todoIds },
-  }
-}
-
-/** The Tags count: every row under its own heading. */
-export function tagsSectionDialog(rows: ReadonlyArray<{ tag: Tag | null; todoIds: readonly number[] }>): TaskDialogPayload {
-  return {
-    title: 'Tagged tasks',
-    glyph: 'tag',
-    description: 'Open tasks by tag. A task with several tags shows under each.',
-    source: {
-      kind: 'groups',
-      groups: rows.map(({ tag, todoIds }) => (tag
-        ? { key: `tag-${tag.id}`, label: `#${tag.name}`, ...(tag.color ? { color: tag.color } : {}), todoIds }
-        : { key: 'untagged', label: 'No tag', todoIds })),
-    },
-  }
-}
-
-/** A Neglect map's Slipping tasks (latest first), untouched for `days` or more. */
-export function slippingTasksDialog(todoIds: readonly number[], days: number): TaskDialogPayload {
-  return {
-    title: 'Slipping',
-    glyph: 'stale',
-    description: `Open tasks due soon or late and not changed in ${days} days or more, latest first.`,
-    source: { kind: 'todos', todoIds },
-  }
-}
-
-export function staleTasksDialog(todoIds: readonly number[], days: number): TaskDialogPayload {
-  return {
-    title: 'Stale tasks',
-    glyph: 'stale',
-    description: `Open tasks not changed in ${days} days or more, oldest first.`,
-    source: { kind: 'todos', todoIds },
-  }
-}
-
-export function recentlyCompletedDialog(todoIds: readonly number[], days: number): TaskDialogPayload {
-  return {
-    title: 'Recently completed',
-    glyph: 'done',
-    description: `Tasks completed in the last ${days} days, newest first.`,
-    source: { kind: 'todos', todoIds },
-  }
-}
-
-const QUADRANT_WORDS: Record<EisenhowerQuadrant, string> = {
-  do: 'urgent and important',
-  schedule: 'important, not urgent',
-  delegate: 'urgent, not important',
-  drop: 'neither urgent nor important',
-}
-
-/** What the app-wide urgent range adds to Urgent, as a sentence (empty when it's off). */
-function urgentIncludes(range: UrgentDueWithinDays): string {
-  if (range == null) return ''
-  if (range === 0) return ' Urgent includes tasks due today or earlier.'
-  return ` Urgent includes tasks due within ${urgentRangeLabel(range)}.`
-}
-
-/** What the Eisenhower counts are taken from, for a dialog's description. */
-export interface EisenhowerDialogSource {
-  /** The app-wide urgent range (what Urgent includes). */
-  urgentRange: UrgentDueWithinDays
-  /** The Eisenhower's list's name while its filter narrows the tasks; `null` = every task. */
-  listName: string | null
-}
-
-/** ` of “Team”` for a list source, else nothing. */
-function ofList(listName: string | null): string {
-  return listName == null ? '' : ` of “${listName}”`
-}
-
-/**
- * An Eisenhower summary pane: its open tasks. A default pane is described
- * by its quadrant (`Open tasks that are urgent and important.`), a custom
- * one by its filter in words (`subtitle`).
- */
-export function eisenhowerQuadrantDialog(
-  pane: EisenhowerPane,
-  subtitle: string,
-  todoIds: readonly number[],
-  { urgentRange, listName }: EisenhowerDialogSource,
-): TaskDialogPayload {
-  const description = pane.customFilter
-    ? `Open tasks${ofList(listName)} in “${pane.name}” (${subtitle}) — the first pane each matches.`
-    : `Open tasks${ofList(listName)} that are ${QUADRANT_WORDS[pane.id]}.${urgentIncludes(urgentRange)}`
-  return {
-    title: pane.name,
-    glyph: 'matrix',
-    description,
-    source: { kind: 'todos', todoIds },
-  }
-}
-
-/** The Eisenhower summary's count: every pane under its heading. */
-export function eisenhowerSummaryDialog(
-  panes: readonly EisenhowerPane[],
-  ids: Readonly<Record<EisenhowerQuadrant, readonly number[]>>,
-  { urgentRange, listName }: EisenhowerDialogSource,
-): TaskDialogPayload {
-  const custom = panes.some((p) => p.customFilter)
-  return {
-    title: 'Eisenhower',
-    glyph: 'matrix',
-    description: custom
-      ? `Open tasks${ofList(listName)} by pane, each in the first pane it matches.${urgentIncludes(urgentRange)}`
-      : `Open tasks${ofList(listName)} by urgent × important.${urgentIncludes(urgentRange)}`,
-    source: {
-      kind: 'groups',
-      groups: panes.map((p) => ({ key: p.id, label: p.name, color: QUADRANT_COLOR[p.id], todoIds: ids[p.id] })),
-    },
   }
 }
 

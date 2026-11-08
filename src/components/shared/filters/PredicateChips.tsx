@@ -1,5 +1,5 @@
-import { Fragment, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { TodoPredicate } from '../../../models'
+import { Fragment, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { EXPRESSION_TEXT_MAX, type TodoPredicate } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import { createPendingNotMemory, DatePendingNotContext } from './date-pending-not'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
@@ -74,6 +74,12 @@ interface PredicateChipsProps {
    * the chip only shows it.
    */
   onOpenExpression?: () => void
+  /**
+   * `false`: an expression's `done` is refused (an error line), for the
+   * filters that never show completed tasks by it — a lens, an Eisenhower
+   * pane, the check-in — which would drop it silently (cr33 F9).
+   */
+  allowDone?: boolean
 }
 
 /**
@@ -102,6 +108,17 @@ export function PredicateChips(props: PredicateChipsProps) {
   }
   const names = useChipNames()
   const text = useMemo(() => expressionText(predicate, names), [predicate, names])
+  // Edit expression / Clear and use Graphical replace the block their button is
+  // in: the focus goes to the field / + Filter, never <body>, where Esc would
+  // close the editor (cr33 U6).
+  const [focusNext, setFocusNext] = useState<'field' | 'add' | null>(null)
+  /** Why the switch to Expression was refused (until the filter or the mode changes). */
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const [refusedFor, setRefusedFor] = useState(predicate)
+  if (refusedFor !== predicate) {
+    setRefusedFor(predicate)
+    setRefusal(null)
+  }
 
   if (layout !== 'stack') {
     if (!isExpression) return <GraphicalChips {...props} />
@@ -114,21 +131,43 @@ export function PredicateChips(props: PredicateChipsProps) {
   }
 
   const toGraphical = () => {
+    setRefusal(null)
+    setFocusNext(null)
     setMode('graphical')
     const graphical = asGraphical(predicate)
     if (graphical && graphical !== predicate) onChange(graphical)
   }
-  const toExpression = () => {
-    setMode('expression')
+  /** `byArrow`: the switch's arrow keys, which keep the focus on the switch. */
+  const toExpression = (byArrow = false) => {
     if (!isExpression) {
       const next = asExpression(predicate)
+      // Past the caps no expression reads back: stay Graphical, saying why.
+      if (!next || expressionText(next, names).length > EXPRESSION_TEXT_MAX) {
+        setRefusal(SWITCH_REFUSED)
+        return
+      }
       if (next.expression) onChange(next)
     }
+    setRefusal(null)
+    // A click on Expression goes on into the field.
+    setFocusNext(byArrow ? null : 'field')
+    setMode('expression')
   }
   const allowPeople = !(omitFields ?? []).includes('people')
+  // A host without the Completed date (the check-in) refuses it in an expression too.
+  const allowCompleted = !(props.dateHost?.omit ?? []).includes('completed')
   let body: ReactNode
   if (mode === 'expression') {
-    body = <ExpressionField predicate={predicate} onChange={onChange} allowPeople={allowPeople} autoFocus={!isExpression} />
+    body = (
+      <ExpressionField
+        predicate={predicate}
+        onChange={onChange}
+        allowPeople={allowPeople}
+        allowCompleted={allowCompleted}
+        allowDone={props.allowDone ?? true}
+        autoFocus={focusNext === 'field'}
+      />
+    )
   } else if (isExpression) {
     // Graphical over an expression no chips say.
     body = (
@@ -136,11 +175,23 @@ export function PredicateChips(props: PredicateChipsProps) {
         <span className={styles.expressionLockedTitle}>This filter is an expression</span>
         <span className={styles.expressionLockedText} title={text}>{text}</span>
         <div className={styles.expressionLockedButtons}>
-          <button type="button" className={styles.expressionPrimary} onClick={() => setMode('expression')}>Edit expression</button>
+          <button
+            type="button"
+            className={styles.expressionPrimary}
+            onClick={() => {
+              setFocusNext('field')
+              setMode('expression')
+            }}
+          >
+            Edit expression
+          </button>
           <button
             type="button"
             className={styles.expressionSecondary}
-            onClick={() => onChange(withExpression(predicate, null))}
+            onClick={() => {
+              setFocusNext('add')
+              onChange(withExpression(predicate, null))
+            }}
           >
             Clear and use Graphical
           </button>
@@ -148,11 +199,11 @@ export function PredicateChips(props: PredicateChipsProps) {
       </div>
     )
   } else {
-    body = <GraphicalChips {...props} />
+    body = <GraphicalChips {...props} autoFocusAdd={focusNext === 'add'} />
   }
   return (
     <div className={styles.modeBlock}>
-      <FilterModeSwitch mode={mode} onGraphical={toGraphical} onExpression={toExpression} />
+      <FilterModeSwitch mode={mode} onGraphical={toGraphical} onExpression={toExpression} refusal={refusal} />
       {body}
     </div>
   )
@@ -160,18 +211,65 @@ export function PredicateChips(props: PredicateChipsProps) {
 
 type FilterMode = 'graphical' | 'expression'
 
+/** The switch to Expression refused: the filter is past what an expression holds (`EXPRESSION_NODES_MAX` / `EXPRESSION_TEXT_MAX`). */
+export const SWITCH_REFUSED = 'Too many values to write as an expression — it stays Graphical'
+
 const MODE_HELP = 'Graphical: a chip per field; every chip must match\nSeveral values in a chip: any of them\nExpression: or / not across fields, nested groups'
 
 /** Graphical | Expression, with what each is in a tooltip. */
-function FilterModeSwitch({ mode, onGraphical, onExpression }: { mode: FilterMode; onGraphical: () => void; onExpression: () => void }) {
+function FilterModeSwitch({ mode, onGraphical, onExpression, refusal }: {
+  mode: FilterMode
+  onGraphical: () => void
+  onExpression: (byArrow?: boolean) => void
+  /** Why the switch to Expression was refused; announced (the region is always there). */
+  refusal: string | null
+}) {
   const help = useTooltip(MODE_HELP)
+  // A radio group: one tab stop (the checked radio), the arrows move the
+  // choice and the focus with it (cr33 U9).
+  const graphicalRef = useRef<HTMLButtonElement>(null)
+  const expressionRef = useRef<HTMLButtonElement>(null)
+  const focusChecked = useRef(false)
+  useLayoutEffect(() => {
+    if (!focusChecked.current) return
+    focusChecked.current = false
+    ;(mode === 'graphical' ? graphicalRef : expressionRef).current?.focus()
+  })
+  const onKeyDown = (e: React.KeyboardEvent) => {
+    const to: FilterMode | null = e.key === 'ArrowLeft' || e.key === 'ArrowUp' || e.key === 'Home' ? 'graphical'
+      : e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === 'End' ? 'expression' : null
+    if (!to) return
+    e.preventDefault()
+    // Two radios: an arrow past the end comes round to the other.
+    const next = e.key === 'Home' || e.key === 'End' ? to : mode === 'graphical' ? 'expression' : 'graphical'
+    focusChecked.current = true
+    if (next === mode) (mode === 'graphical' ? graphicalRef : expressionRef).current?.focus()
+    else if (next === 'graphical') onGraphical()
+    else onExpression(true)
+  }
   return (
     <div className={styles.modeRow}>
-      <div className={styles.modeSwitch} role="radiogroup" aria-label="Filter mode">
-        <button type="button" role="radio" aria-checked={mode === 'graphical'} className={mode === 'graphical' ? styles.modeOn : styles.mode} onClick={onGraphical}>
+      <div className={styles.modeSwitch} role="radiogroup" aria-label="Filter mode" onKeyDown={onKeyDown}>
+        <button
+          ref={graphicalRef}
+          type="button"
+          role="radio"
+          aria-checked={mode === 'graphical'}
+          tabIndex={mode === 'graphical' ? 0 : -1}
+          className={mode === 'graphical' ? styles.modeOn : styles.mode}
+          onClick={onGraphical}
+        >
           Graphical
         </button>
-        <button type="button" role="radio" aria-checked={mode === 'expression'} className={mode === 'expression' ? styles.modeOn : styles.mode} onClick={onExpression}>
+        <button
+          ref={expressionRef}
+          type="button"
+          role="radio"
+          aria-checked={mode === 'expression'}
+          tabIndex={mode === 'expression' ? 0 : -1}
+          className={mode === 'expression' ? styles.modeOn : styles.mode}
+          onClick={() => onExpression()}
+        >
           Expression
         </button>
       </div>
@@ -179,6 +277,7 @@ function FilterModeSwitch({ mode, onGraphical, onExpression }: { mode: FilterMod
         <InfoIcon size={14} />
       </button>
       {help.tooltip}
+      <span className={styles.modeRefusal} role="alert">{refusal}</span>
     </div>
   )
 }
@@ -211,8 +310,8 @@ function ExpressionChip({ text, onOpen }: { text: string; onOpen?: () => void })
  * Filter, and the open chip's picker.
  */
 function GraphicalChips({
-  predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false, omitFields, dateHost, layout = 'line',
-}: PredicateChipsProps) {
+  predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false, omitFields, dateHost, layout = 'line', autoFocusAdd = false,
+}: PredicateChipsProps & { autoFocusAdd?: boolean }) {
   const stack = layout === 'stack'
   // Outlives the date panel: an Is not chosen before a range has an end stays chosen.
   const [pendingNot] = useState(createPendingNotMemory)
@@ -236,6 +335,9 @@ function GraphicalChips({
   // where Esc would close Edit list.
   const owner = useId()
   const addFilterRef = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (autoFocusAdd) addFilterRef.current?.focus()
+  }, [autoFocusAdd])
   const refocus = useRef<{ index: number; el: HTMLElement } | null>(null)
   const [keepFocusOnChip] = useState(() => (from?: Element) => {
     const chips = Array.from(document.querySelectorAll<HTMLElement>(`[data-chips-owner="${owner}"][data-testid="list-filter-chip"]`))

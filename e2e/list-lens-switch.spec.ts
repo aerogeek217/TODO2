@@ -74,6 +74,25 @@ test('the lens’s switch sits just left of the count at the line’s end; off f
   await expect(rows(page)).toHaveCount(2)
 })
 
+test('applying a lens that hides nothing here keeps the switch under the focus, its name fixed', async ({ page }) => {
+  // Aisha's list ignores the Aisha lens: applied, it would hide nothing here.
+  await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', people: ['Aisha Rahman'], ignoreLens: true }] })
+  await pickLens(page, 'Aisha')
+  await expect(rows(page)).toHaveCount(2)
+  await expect(lensSwitch(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect(lensSwitch(page)).toHaveAccessibleName('Apply the lens “Aisha” here')
+  await lensSwitch(page).focus()
+  await page.keyboard.press('Enter')
+  await expect(lensSwitch(page)).toHaveAttribute('aria-pressed', 'true')
+  await expect(lensSwitch(page)).toHaveText('−0')
+  await expect(lensSwitch(page)).toHaveAccessibleName('Apply the lens “Aisha” here')
+  await expect(lensSwitch(page)).toBeFocused()
+  // And back off from the keyboard.
+  await page.keyboard.press('Enter')
+  await expect(lensSwitch(page)).toHaveAttribute('aria-pressed', 'false')
+  await expect(lensSwitch(page)).toBeFocused()
+})
+
 test('with the filter line hidden, the tab shows the lens beside its count, and its menu turns the lens off here', async ({ page }) => {
   await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', showFilterLine: false }] })
   await pickLens(page, 'Aisha')

@@ -32,6 +32,17 @@
   to { opacity: 1; margin-top: 0; }
 }
 
+/* With a caret the panel only fades: a slide would move it away from its
+ * `position: fixed` caret, which stays at the anchor (cr33 U2). */
+.dropdownPanel:has(> [data-popover-caret]) {
+  animation-name: fadeIn;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 .dropdownActions {
   display: flex;
   align-items: center;

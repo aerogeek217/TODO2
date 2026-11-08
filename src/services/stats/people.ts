@@ -24,25 +24,57 @@ export interface PeopleStats {
   unassigned: PeopleRowStats
 }
 
-export function computePeopleStats(tasks: readonly PersistedTodoItem[], ctx: StatsContext): PeopleStats {
+/**
+ * The person (or tag) "is" picks that narrow the People (Tags) rows, one
+ * list per filter — the top bar's chips and its lens
+ * (`build-list.groupRestrictions`) —, as they narrow a list grouped by
+ * People or Tag. Id `0` is the Unassigned (No tags) pick.
+ */
+export type RowRestrictions = ReadonlyArray<ReadonlyArray<number>>
+
+/**
+ * The rows a task with `ids` (its people or tags, each once) counts under,
+ * as `list-sections` groups it: with no restriction, each of its own; else
+ * only the picked ones — those every restriction picks when it has any,
+ * else those any one picks —, so `@Alice` counts a task of Alice and Bob
+ * under Alice alone. Empty: the task has only ids nothing picks.
+ */
+export function restrictedRows(ids: readonly number[], restrictions: RowRestrictions): number[] {
+  const picks = restrictions.filter((r) => r.length > 0)
+  if (picks.length === 0) return [...ids]
+  const anyPicks = ids.filter((id) => picks.some((r) => r.includes(id)))
+  const everyPicks = anyPicks.filter((id) => picks.every((r) => r.includes(id)))
+  return everyPicks.length > 0 ? everyPicks : anyPicks
+}
+
+/** Whether a task with no person (tag) keeps its Unassigned (No tag) row under `restrictions`. */
+export function keepsNoneRow(restrictions: RowRestrictions): boolean {
+  return restrictions.filter((r) => r.length > 0).every((r) => r.includes(0))
+}
+
+export function computePeopleStats(tasks: readonly PersistedTodoItem[], ctx: StatsContext, restrictions: RowRestrictions = []): PeopleStats {
   const { assignedPeopleMap } = ctx
   const byPerson = new Map<number, { person: Person & { id: number }; tasks: PersistedTodoItem[] }>()
   const unassigned: PersistedTodoItem[] = []
+  const keepNone = keepsNoneRow(restrictions)
 
   for (const t of openTasks(tasks)) {
-    const people = assignedPeopleMap.get(t.id) ?? []
-    const seen = new Set<number>()
-    for (const p of people) {
-      if (p.id == null || seen.has(p.id)) continue
-      seen.add(p.id)
-      let entry = byPerson.get(p.id)
+    const people = new Map<number, Person>()
+    for (const p of assignedPeopleMap.get(t.id) ?? []) if (p.id != null && !people.has(p.id)) people.set(p.id, p)
+    if (people.size === 0) {
+      if (keepNone) unassigned.push(t)
+      continue
+    }
+    for (const id of restrictedRows([...people.keys()], restrictions)) {
+      const p = people.get(id)
+      if (!p) continue
+      let entry = byPerson.get(id)
       if (!entry) {
-        entry = { person: { ...p, id: p.id }, tasks: [] }
-        byPerson.set(p.id, entry)
+        entry = { person: { ...p, id }, tasks: [] }
+        byPerson.set(id, entry)
       }
       entry.tasks.push(t)
     }
-    if (seen.size === 0) unassigned.push(t)
   }
 
   const rows = [...byPerson.values()]

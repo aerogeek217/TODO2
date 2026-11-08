@@ -3,6 +3,7 @@ import type { PersistedTodoItem, Status, Tag, TodoEvent, TodoEventType } from '.
 import { computeChanges, type Change, type ChangeId } from '../../../services/stats/changes'
 import { eventsWindowRead, STUCK_STATUS_DAYS } from '../../../utils/trend-window'
 import { makeTodo } from '../../helpers'
+import { DST_ZONE, pinTimeZone } from '../../time-zone'
 
 const today = new Date(2026, 10, 11) // Wed 11 Nov; the week (Sunday first) began Sun 8 Nov
 const day = (n: number, hour = 12) => new Date(2026, 10, 11 + n, hour)
@@ -35,7 +36,7 @@ function ctxWith(tags: Record<number, Tag[]> = {}, statuses: Status[] = [WAITING
 
 const ids = (changes: readonly Change[]) => changes.map((c) => c.id)
 const of = (changes: readonly Change[], id: ChangeId) => changes.find((c) => c.id === id)
-const drillIds = (c: Change | undefined) => (c?.drill?.source.kind === 'todos' ? c.drill.source.todoIds : null)
+const drillIds = (c: Change | undefined) => c?.ids ?? null
 
 describe('computeChanges', () => {
   it('no tasks and no events: nothing to say', () => {
@@ -71,38 +72,55 @@ describe('computeChanges', () => {
       expect(drillIds(of(computeChanges(tasks, events, ctxWith(), []), 'late'))).toEqual([1])
     })
 
-    it('a task reopened or created today that is late went late; completed ones never count', () => {
+    it('a task reopened today that is late went late; completed ones never count', () => {
       const tasks = [
         task({ id: 1, dueDate: day(-4) }),
-        makeTodo({ id: 2, createdAt: day(0, 8), modifiedAt: day(0, 8), dueDate: day(-1) }),
         task({ id: 3, dueDate: day(-1), isCompleted: true, completedAt: day(0, 9) }),
       ]
       const events = [ev(1, 'completed', day(-6)), ev(1, 'reopened', day(0, 9))]
       const c = of(computeChanges(tasks, events, ctxWith(), []), 'late')
-      expect(c?.text).toBe('2 tasks went late since yesterday.')
-      expect(drillIds(c)).toEqual([1, 2])
+      expect(c?.text).toBe('1 task went late since yesterday.')
+      expect(drillIds(c)).toEqual([1])
+    })
+
+    it('a task that wasn’t there at yesterday’s end came in late: a duplicate, a Quick Add with a past date, an append import', () => {
+      const tasks = [
+        // A duplicate of a late task, or a Quick Add due yesterday: created today.
+        makeTodo({ id: 2, createdAt: day(0, 8), modifiedAt: day(0, 8), dueDate: day(-1) }),
+        // An append import: its own old createdAt, its `created` event today.
+        task({ id: 4, dueDate: day(-1) }),
+        // The one that did go late.
+        task({ id: 5, dueDate: day(-1) }),
+      ]
+      const events = [ev(2, 'created', day(0, 8)), ev(4, 'created', day(0, 9))]
+      const c = of(computeChanges(tasks, events, ctxWith(), []), 'late')
+      expect(c?.text).toBe('1 task went late since yesterday.')
+      expect(drillIds(c)).toEqual([5])
     })
   })
 
-  describe('follow-ups due against yesterday', () => {
+  describe('follow-ups due', () => {
     const fu = (id: number, next: Date | undefined, last?: Date) => task({ id, nextFollowupAt: next, lastFollowupAt: last })
 
-    it('holding: as many due as were (late now + followed up today)', () => {
-      const tasks = [fu(1, day(-2)), fu(2, today), fu(3, day(7), today)]
-      expect(of(computeChanges(tasks, [], ctxWith(), []), 'followups')?.text).toBe('Follow-ups due are holding at 2.')
+    it('how many are due today or late, and how many of them are late; no comparison with yesterday', () => {
+      const tasks = [fu(1, day(-2)), fu(2, today), fu(3, today), fu(4, day(7), today)]
+      const c = of(computeChanges(tasks, [], ctxWith(), []), 'followups')
+      expect(c?.text).toBe('3 follow-ups are due (1 late).')
+      expect(drillIds(c)).toEqual([1, 2, 3])
+      expect(of(computeChanges([fu(1, today)], [], ctxWith(), []), 'followups')?.text).toBe('1 follow-up is due.')
     })
 
-    it('growing and falling', () => {
-      expect(of(computeChanges([fu(1, day(-2)), fu(2, today), fu(3, today)], [], ctxWith(), []), 'followups')?.text)
-        .toBe('Follow-ups due grew to 3, 2 more than yesterday.')
-      expect(of(computeChanges([fu(1, day(-2)), fu(2, day(3), today), fu(3, day(3), today)], [], ctxWith(), []), 'followups')?.text)
-        .toBe('Follow-ups due fell to 1, 2 fewer than yesterday.')
+    it('the sentence doesn’t move through the day: following up today’s or completing a late one only lowers the count', () => {
+      // Morning: 2 late, 1 due today.
+      const morning = [fu(1, day(-2)), fu(2, day(-1)), fu(3, today)]
+      expect(of(computeChanges(morning, [], ctxWith(), []), 'followups')?.text).toBe('3 follow-ups are due (2 late).')
+      // Today's followed up, a late one completed.
+      const evening = [fu(1, day(-2)), task({ id: 2, nextFollowupAt: day(-1), isCompleted: true, completedAt: day(0, 15) }), fu(3, day(7), today)]
+      expect(of(computeChanges(evening, [], ctxWith(), []), 'followups')?.text).toBe('1 follow-up is due (1 late).')
     })
 
-    it('none due now, some yesterday: says so, nothing to open; none either day: no sentence', () => {
-      const c = of(computeChanges([fu(1, day(3), today)], [], ctxWith(), []), 'followups')
-      expect(c?.text).toBe('No follow-ups are due, down from 1 yesterday.')
-      expect(c?.drill).toBeNull()
+    it('none due: no sentence, even after following some up today', () => {
+      expect(of(computeChanges([fu(1, day(3), today)], [], ctxWith(), []), 'followups')).toBeUndefined()
       expect(of(computeChanges([fu(1, day(3))], [], ctxWith(), []), 'followups')).toBeUndefined()
     })
   })
@@ -171,7 +189,7 @@ describe('computeChanges', () => {
       expect(of(computeChanges([...past, ...now(1)], [], ctxWith(), []), 'closed')?.text).toBe('1 closed this week, below your usual 4 a week.')
       const none = of(computeChanges(past, [], ctxWith(), []), 'closed')
       expect(none?.text).toBe('Nothing closed this week yet; you usually close 4 a week.')
-      expect(none?.drill).toBeNull()
+      expect(none?.ids).toEqual([])
     })
 
     it('fewer than four weeks of history: the average of the full weeks there are', () => {
@@ -180,7 +198,23 @@ describe('computeChanges', () => {
       const tasks = [first, ...week(1, 3, 100), ...week(2, 2, 200), done(1, day(0, 9))].map((t) => (t.id === 50 ? t : { ...t, createdAt: new Date(2026, 9, 20) }))
       const c = of(computeChanges(tasks, [], ctxWith(), []), 'closed')
       expect(c?.text).toBe('1 closed this week, below your usual 2.5 a week.')
-      expect(c?.drill?.description).toContain('the last 2 weeks')
+      expect(c?.averageWeeks).toBe(2)
+    })
+
+    it('only weeks inside the completed-task retention: a purge emptied the older ones', () => {
+      // 2 a week, but with 14 days' retention the purge left only the last full week (and part of the one before).
+      const kept = [...week(1, 2, 100), done(200, new Date(2026, 9, 30))]
+      const now = [done(1, day(0, 9)), done(2, day(0, 10))]
+      expect(of(computeChanges([...kept, ...now], [], ctxWith(), []), 'closed')?.text)
+        .toBe('2 closed this week, above your usual 0.8 a week.')
+      const c = of(computeChanges([...kept, ...now], [], ctxWith(), [], 14), 'closed')
+      expect(c?.text).toBe('2 closed this week, about your usual 2 a week.')
+      expect(c?.averageWeeks).toBe(1)
+      // 7 days: no full week is inside it, so no usual.
+      expect(of(computeChanges([...kept, ...now], [], ctxWith(), [], 7), 'closed')?.text).toBe('2 closed this week.')
+      // Kept forever (`null`): every week, as before.
+      expect(of(computeChanges([...kept, ...now], [], ctxWith(), [], null), 'closed')?.text)
+        .toBe('2 closed this week, above your usual 0.8 a week.')
     })
 
     it('nothing closed and no history: no sentence', () => {
@@ -196,12 +230,48 @@ describe('computeChanges', () => {
     ]
     const changes = computeChanges(tasks, [], ctxWith({ 1: [ATLAS] }), [1])
     expect(ids(changes)).toEqual(['late', 'followups', 'tag', 'status', 'dueToday', 'closed'])
-    expect(changes.every((c) => c.drill != null)).toBe(true)
+    expect(changes.every((c) => c.ids.length > 0)).toBe(true)
   })
 
   it('reads its window: the last STUCK_STATUS_DAYS days of state, due-date and status events', () => {
     const read = eventsWindowRead('changes', today, 0)
     expect(read.start).toEqual(new Date(2026, 9, 21))
     expect([...read.types].sort()).toEqual(['completed', 'created', 'deadline', 'reopened', 'status'])
+  })
+})
+
+describe('computeChanges in a daylight-saving zone', () => {
+  pinTimeZone(DST_ZONE)
+
+  it('yesterday was the 25-hour fall-back day: late, closed and the weeks read by local day', () => {
+    const today = new Date(2026, 10, 2) // Mon 2 Nov; Sun 1 Nov (yesterday, the week's first day) was 25 hours
+    const old = new Date(2026, 0, 1)
+    const t = (o: Partial<PersistedTodoItem> & { id: number }) => makeTodo({ createdAt: old, modifiedAt: old, ...o })
+    const tasks = [
+      t({ id: 1, dueDate: new Date(2026, 10, 1) }), // due yesterday: went late
+      t({ id: 2, dueDate: new Date(2026, 9, 31) }), // late already
+      t({ id: 3, isCompleted: true, completedAt: new Date(2026, 10, 1, 0, 30) }), // this week
+      t({ id: 4, isCompleted: true, completedAt: new Date(2026, 9, 31, 23, 30) }), // last week
+      t({ id: 5, isCompleted: true, completedAt: new Date(2026, 9, 25, 0, 30) }), // last week's first hour
+      t({ id: 6, isCompleted: true, completedAt: new Date(2026, 9, 24, 23, 30) }), // the week before
+    ]
+    const changes = computeChanges(tasks, [], { today, weekStartsOn: 0, assignedTagsMap: new Map(), statuses: [] }, [])
+    expect(of(changes, 'late')?.ids).toEqual([1])
+    const closed = of(changes, 'closed')
+    expect(closed?.ids).toEqual([3])
+    // Weeks of 25 Oct (2), 18 Oct (1), 11 Oct and 4 Oct (0): 0.75 a week.
+    expect(closed?.text).toBe('1 closed this week, about your usual 0.8 a week.')
+  })
+
+  it('today is the 23-hour spring-forward day: due today and gone late by local day', () => {
+    const today = new Date(2026, 2, 8) // Sun 8 Mar
+    const old = new Date(2026, 0, 1)
+    const tasks = [
+      makeTodo({ id: 1, createdAt: old, modifiedAt: old, dueDate: new Date(2026, 2, 8, 23, 30) }),
+      makeTodo({ id: 2, createdAt: old, modifiedAt: old, dueDate: new Date(2026, 2, 7) }),
+    ]
+    const changes = computeChanges(tasks, [], { today, weekStartsOn: 0, assignedTagsMap: new Map(), statuses: [] }, [])
+    expect(of(changes, 'dueToday')?.ids).toEqual([1])
+    expect(of(changes, 'late')?.ids).toEqual([2])
   })
 })

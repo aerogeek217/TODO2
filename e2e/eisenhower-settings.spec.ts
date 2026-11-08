@@ -38,8 +38,8 @@ const SEED: WorkspaceSeed = {
 
 const quadrant = (page: Page, tabId: string, q: string) => page.locator(`[data-eisenhower="${tabId}"] [data-eis-quadrant="${q}"]`)
 const row = (scope: Locator, title: string) => scope.locator('[data-row-key]').filter({ hasText: title })
-const dashQuadrantCount = (page: Page, q: string) =>
-  page.locator('[data-glance-tab="dash"] [data-dash-section="eisenhower"]').locator(`[data-eis-cell="${q}"]`).getByTestId('dash-eis-count')
+const glanceQuadrantCount = (page: Page, q: string) =>
+  page.locator('[data-glance-tab="dash"] [data-glance-section="eisenhower"]').locator(`[data-eis-cell="${q}"]`).getByTestId('glance-eis-count')
 const settingsDialog = (page: Page) => page.getByRole('dialog', { name: 'Settings', exact: true })
 const part = (page: Page) => settingsDialog(page).getByRole('region', { name: 'Eisenhower', exact: true })
 const card = (page: Page, q: string) => part(page).locator(`[data-pane-card="${q}"]`)
@@ -64,7 +64,7 @@ test.describe('desktop', () => {
   test('Delegate gets Status is not Delegated: every Eisenhower and the summary follow; Esc closes the picker only; Undo; reload', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toBeVisible()
-    await expect(dashQuadrantCount(page, 'delegate')).toHaveText('2')
+    await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('2')
 
     await openSettings(page, 'Eisenhower')
     await expect(part(page)).toBeInViewport()
@@ -86,7 +86,7 @@ test.describe('desktop', () => {
     // This layout's Eisenhower and the summary; a setting — the layout stays saved.
     await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toHaveCount(0)
     await expect(quadrant(page, 'eisTab', 'delegate').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent · not Important · not Delegated')
-    await expect(dashQuadrantCount(page, 'delegate')).toHaveText('1')
+    await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('1')
     await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
     // The other layout's Eisenhower.
     await switchLayout(page, 'Second')
@@ -109,12 +109,12 @@ test.describe('desktop', () => {
     await switchLayout(page, 'Main')
     await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Review analytics')).toBeVisible()
     await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toHaveCount(0)
-    await expect(dashQuadrantCount(page, 'delegate')).toHaveText('1')
+    await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('1')
   })
 
   test('its list’s filter: Settings edits the same draft as every Eisenhower’s filter line; Save; the summary follows; reload', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    await expect(dashQuadrantCount(page, 'delegate')).toHaveText('2')
+    await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('2')
     await openSettings(page, 'Eisenhower')
     // No Show › choice: the Eisenhower's own list, its filter as chips.
     await expect(part(page).getByTestId('eisenhower-source')).toHaveCount(0)
@@ -139,7 +139,7 @@ test.describe('desktop', () => {
     await expect(widgetLine).toContainText('not Delegated')
     await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
     await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toHaveCount(0)
-    await expect(dashQuadrantCount(page, 'delegate')).toHaveText('1')
+    await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('1')
     // Save from the widget: Settings' line is saved too.
     await widgetLine.getByTestId('save-list').click()
     await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
@@ -155,7 +155,7 @@ test.describe('desktop', () => {
 
     // Kept across a reload; the other layout's Eisenhower too.
     await page.reload()
-    await expect(dashQuadrantCount(page, 'delegate')).toHaveText('1')
+    await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('1')
     await switchLayout(page, 'Second')
     await expect(row(quadrant(page, 'eis2', 'delegate'), 'Review analytics')).toBeVisible()
     await expect(row(quadrant(page, 'eis2', 'delegate'), 'Chase vendor')).toHaveCount(0)

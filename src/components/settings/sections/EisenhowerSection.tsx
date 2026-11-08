@@ -192,6 +192,7 @@ function PaneCard({ pane, names, count, onRename, onFilter, onReset }: PaneCardP
           onChange={onFilter}
           addLabel="Add a filter to this pane"
           layout="stack"
+          allowDone={false}
           dateHost={PANE_DATE_HOST}
           inDialog
           before={hasChips ? undefined : <span className={styles.noFilter}>No filter — every task</span>}

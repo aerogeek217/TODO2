@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { computeNextSevenDays } from '../../../services/stats/next-seven-days'
 import { makeTodo } from '../../helpers'
+import { DST_ZONE, pinTimeZone } from '../../time-zone'
 
 const today = new Date(2026, 9, 10)
 const day = (n: number) => new Date(2026, 9, 10 + n)
 
-/** Midnight of a day with a daylight-saving change in this zone, if it has one. */
+/** Midnight of 2026's first day with a daylight-saving change in this zone, if it has one. */
 function dstChangeDay(): Date | null {
   for (let i = 0; i < 366; i++) {
     const d = new Date(2026, 0, 1 + i)
@@ -36,9 +37,15 @@ describe('computeNextSevenDays', () => {
     expect(cols.map((c) => c.dueIds.length + c.followupIds.length)).toEqual([0, 0, 0, 0, 0, 0, 0, 0])
   })
 
+})
+
+describe('computeNextSevenDays in a daylight-saving zone', () => {
+  pinTimeZone(DST_ZONE)
+
   it('columns are local midnights, also across a daylight-saving change', () => {
     const start = dstChangeDay()
-    if (!start) return // no DST in this time zone
+    expect(start).not.toBeNull()
+    if (!start) return
     const cols = computeNextSevenDays([
       makeTodo({ id: 1, dueDate: new Date(start.getFullYear(), start.getMonth(), start.getDate() + 1, 23, 30) }),
     ], { today: start })
@@ -47,5 +54,16 @@ describe('computeNextSevenDays', () => {
       expect(c.date?.getMinutes()).toBe(0)
     }
     expect(cols[2]?.dueIds).toEqual([1])
+  })
+
+  it('the fall-back day (25 hours) is one column: 23:30 on it is that day, 00:30 the next is the next', () => {
+    const today = new Date(2026, 9, 31) // Sat 31 Oct; Sun 1 Nov is 25 hours long
+    const cols = computeNextSevenDays([
+      makeTodo({ id: 1, dueDate: new Date(2026, 10, 1, 23, 30) }),
+      makeTodo({ id: 2, nextFollowupAt: new Date(2026, 10, 2, 0, 30) }),
+    ], { today })
+    expect(cols.slice(1).map((c) => c.date?.getDate())).toEqual([31, 1, 2, 3, 4, 5, 6])
+    expect(cols[2]?.dueIds).toEqual([1])
+    expect(cols[3]?.followupIds).toEqual([2])
   })
 })

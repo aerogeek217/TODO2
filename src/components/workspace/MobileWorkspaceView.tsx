@@ -351,7 +351,7 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
  * only collapses (its row), a list tab's long-press opens its list sheet. No
  * layout editing.
  */
-function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false }: {
+function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false, multiRow = false }: {
   cell: LayoutCell
   /** Its row's id (a column's row, or the band): what collapses. */
   rowId: string
@@ -360,8 +360,12 @@ function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false
   /** Its row fits its content (glance numbers two up): the widget shows its small face. */
   fitRow?: boolean
   band?: boolean
+  /** Its row holds other cells too: collapsing folds the whole row. */
+  multiRow?: boolean
 }) {
   const noun = band ? 'band' : 'cell'
+  /** What collapses with this cell: its band, its row (shared with other cells) or just it — as on desktop. */
+  const rowNoun = band ? 'band' : multiRow ? 'row' : 'cell'
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
   const active = getActiveTab(cell)
@@ -391,7 +395,7 @@ function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false
   const eisenhowerTab = sheetTab?.kind === 'eisenhower' ? sheetTab : undefined
 
   const menuEntries: MenuEntry[] = [
-    { kind: 'item', label: `Collapse ${noun}`, icon: <ChevronUpIcon />, onSelect: () => { void setRowCollapsed(rowId, true) } },
+    { kind: 'item', label: `Collapse ${rowNoun}`, icon: <ChevronUpIcon />, onSelect: () => { void setRowCollapsed(rowId, true) } },
   ]
 
   return (
@@ -425,7 +429,7 @@ function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false
           <button
             type="button"
             className={styles.cellAction}
-            aria-label={`Expand ${noun}`}
+            aria-label={`Expand ${rowNoun}`}
             aria-expanded={false}
             onClick={() => { void setRowCollapsed(rowId, false) }}
           >
@@ -523,7 +527,7 @@ function MobilePage({ page, index }: { page: PagerPage; index: number }) {
       {column.rows.map((row) => {
         const fit = isFitRow(row)
         const cells = row.cells.map((cell) => (
-          <MobileCell key={cell.id} cell={cell} rowId={row.id} collapsed={row.collapsed === true} fill={fill} fitRow={fit} />
+          <MobileCell key={cell.id} cell={cell} rowId={row.id} collapsed={row.collapsed === true} fill={fill} fitRow={fit} multiRow={row.cells.length > 1} />
         ))
         // A fit row (glance numbers) stays side by side, two up while two fit; any other row's cells stack.
         return fit

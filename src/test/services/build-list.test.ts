@@ -9,7 +9,9 @@ import { MS_PER_DAY, startOfDay } from '../../utils/date'
 import type { Person, PersistedTodoItem, Tag, TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { emptyPredicate } from '../../models'
-import type { FilterCriteria } from '../../utils/filter-criteria'
+import { predicateToCriteria, type FilterCriteria } from '../../utils/filter-criteria'
+import { asExpression } from '../../utils/predicate-expression'
+import type { FilterExpr } from '../../models/filter-expression'
 import { createPredicateEvaluator, createScreenComposedEvaluator } from '../../utils/filter-match'
 import { emptyFilterCriteria, makeTodo, matchesFilterNow as matchesFilter, testLookups } from '../helpers'
 
@@ -274,6 +276,48 @@ describe('buildList — runtime filter', () => {
     })
     const list = buildList(def, todos, ctx)
     expect(list.todos.map((t) => t.id)).toEqual([10])
+  })
+})
+
+describe('applyRuntimeFilter — an expression picks as Graphical does', () => {
+  const ALICE = 1
+  const BOB = 2
+  // 10 Alice, 11 Bob, 12 Alice and Bob, 13 unassigned.
+  const people = new Map<number, number[]>([[10, [ALICE]], [11, [BOB]], [12, [ALICE, BOB]]])
+  const todos = [10, 11, 12, 13].map((id) => makeTodo({ id }))
+  const kept = (p: TodoPredicate) => todos
+    .filter((t) => matchesFilter(predicateToCriteria(p), t, people.get(t.id) ?? []))
+    .map((t) => t.id)
+
+  it.each<[string, TodoPredicate]>([
+    ['People is Alice', { ...emptyPredicate(), personIds: [ALICE] }],
+    ['People is not Alice', { ...emptyPredicate(), personIds: [ALICE], negate: { personIds: true } }],
+    ['People is Alice or Unassigned', { ...emptyPredicate(), personIds: [ALICE, 0] }],
+    ['People is Alice, Focus', { ...emptyPredicate(), personIds: [ALICE], markers: [{ values: ['focus' as const] }] }],
+  ])('%s, Bob picked: the same tasks in both modes', (_name, graphical) => {
+    const spec = { field: 'person' as const }
+    const fromGraphical = kept(applyRuntimeFilter(graphical, spec, [BOB]))
+    const expression = asExpression(graphical)
+    if (!expression) throw new Error('under the cap, the switch converts')
+    expect(expression.expression).toBeDefined()
+    expect(kept(applyRuntimeFilter(expression, spec, [BOB]))).toEqual(fromGraphical)
+  })
+
+  it('the pick replaces every top-level term on its field; a mixed term stays', () => {
+    const mixed: FilterExpr = { kind: 'or', items: [{ kind: 'person', id: ALICE }, { kind: 'tag', id: 4 }] }
+    const p: TodoPredicate = {
+      ...emptyPredicate(),
+      expression: { kind: 'and', items: [{ kind: 'person', id: ALICE }, { kind: 'not', item: { kind: 'person', id: 3 } }, mixed, { kind: 'status', id: 2 }] },
+    }
+    expect(applyRuntimeFilter(p, { field: 'person' }, [BOB]).expression).toEqual({
+      kind: 'and',
+      items: [mixed, { kind: 'status', id: 2 }, { kind: 'person', id: BOB }],
+    })
+  })
+
+  it('an expression only on the field becomes the pick', () => {
+    const p: TodoPredicate = { ...emptyPredicate(), expression: { kind: 'or', items: [{ kind: 'tag', id: 1 }, { kind: 'tag', id: 2 }] } }
+    expect(applyRuntimeFilter(p, { field: 'tag' }, [5, 6]).expression).toEqual({ kind: 'or', items: [{ kind: 'tag', id: 5 }, { kind: 'tag', id: 6 }] })
   })
 })
 

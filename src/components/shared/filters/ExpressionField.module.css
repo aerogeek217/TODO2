@@ -92,6 +92,21 @@
   color: var(--color-danger-text);
 }
 
+/* The held close's line, after the error (cr33 U5). */
+.held {
+  font-weight: var(--font-weight-semibold);
+}
+
+/* The error's live region: always there, read out, not seen (the error line shows it). */
+.announce {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .syntax {
   flex-shrink: 0;
   padding: 0;

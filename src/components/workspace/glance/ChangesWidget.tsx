@@ -5,6 +5,7 @@ import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { NOTHING_CHANGED, type Change } from '../../../services/stats/changes'
 import { formatDateWith } from '../../../utils/date'
 import type { WidgetFace } from '../../../utils/widget-face'
+import { changeDrill } from './glance-drills'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { SummaryPart } from './glance-summary'
 import type { OnGlanceDrill } from './glance-types'
@@ -23,7 +24,7 @@ function changeLines(changes: readonly Change[] | null): SummaryPart[][] {
 
 function Sentence({ change, headline, onDrill }: { change: Change; headline: boolean; onDrill: OnGlanceDrill | undefined }) {
   const className = `${styles.sentence}${headline ? ` ${styles.headline}` : ''}`
-  const { drill } = change
+  const drill = changeDrill(change)
   if (drill && onDrill) {
     return (
       <button type="button" className={`${styles.drill} ${className}`} data-change={change.id} onClick={() => onDrill(drill)}>

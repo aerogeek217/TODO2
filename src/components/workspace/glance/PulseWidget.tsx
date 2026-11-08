@@ -3,7 +3,7 @@ import type { PulseTab } from '../../../models/workspace-layout'
 import { usePulse, useStatsBase } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { cumulative, lateShareText, momentumText, worstPulseCard, type PulseCard } from '../../../services/stats/pulse'
-import { tagSectionDialog } from '../../../services/task-dialog'
+import { tagRowDrill } from './glance-drills'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { SummaryPart } from './glance-summary'
 import type { OnGlanceDrill } from './glance-types'
@@ -72,7 +72,7 @@ function PulseCardView({ card, onDrill }: { card: PulseCard; onDrill: OnGlanceDr
   const label = `#${name}: ${countsText(card)}. ${momentumText(card)}.`
   const common = { className: styles.card, 'data-pulse-card': card.tag.id }
   return onDrill
-    ? <button type="button" {...common} aria-label={`${label} Show open tasks`} onClick={() => onDrill(tagSectionDialog(card.tag, card.openIds))}>{content}</button>
+    ? <button type="button" {...common} aria-label={`${label} Show open tasks`} onClick={() => onDrill(tagRowDrill(card.tag, card.openIds))}>{content}</button>
     : <div {...common} role="group" aria-label={label}>{content}</div>
 }
 
@@ -91,7 +91,9 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
   const lines = useMemo(() => pulseLines(cards), [cards])
   useReportLines(onResult, lines)
   const drill = glanceDrill(onDrill, base.filtered)
-  const openTag = (card: PulseCard) => drill?.(tagSectionDialog(card.tag, card.openIds))
+  const openTag = (card: PulseCard) => drill?.(tagRowDrill(card.tag, card.openIds))
+  // Picks that make no card: the picked tags were deleted since.
+  const picked = tab.config.tagIds.length > 0
 
   if (face === 'small') {
     const worst = worstPulseCard(cards)
@@ -105,7 +107,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
       : (
         <>
           <span className={styles.pulseSmallName}>Project pulse</span>
-          <span className={styles.quiet}>{cards.length === 0 ? 'No tags picked' : 'Nothing late'}</span>
+          <span className={styles.quiet}>{cards.length > 0 ? 'Nothing late' : picked ? 'Picked tags deleted' : 'No tags picked'}</span>
         </>
       )
     return (
@@ -124,7 +126,9 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
       <div ref={faceRef} className={styles.face} data-face={face}>
         <Panel def={PULSE_DEF} className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks">
           {cards.length === 0 ? (
-            <Empty title="No tags picked" hint="Pick the tags to follow in the tab menu’s Tags." />
+            picked
+              ? <Empty title="The picked tags were deleted" hint="Pick the tags to follow in the tab menu’s Tags." />
+              : <Empty title="No tags picked" hint="Pick the tags to follow in the tab menu’s Tags." />
           ) : face === 'medium' ? (
             <ul className={styles.pulseList} aria-label="Project pulse">
               {cards.map((c) => {

@@ -9,7 +9,7 @@ import { useUndoStore, type UndoGroupToken } from '../stores/undo-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { dropDescription, type PaneChange, type PaneContext } from '../utils/eisenhower'
 import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
-import { getTab } from '../utils/workspace-layout-ops'
+import { getTab } from '../utils/workspace-layout-queries'
 
 /**
  * Eisenhower pane drops against the stores: what the pane filters are

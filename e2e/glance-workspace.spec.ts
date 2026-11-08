@@ -45,7 +45,7 @@ function seedWith(extraColumns: WorkspaceSeed['layouts'][number]['columns'] = []
 }
 
 const count = (page: Page, metric: string) => page.locator(`[data-glance-tab="${metric}"] [data-number-metric]`).getByTestId('number-count')
-const section = (page: Page, id: string) => page.locator(`[data-dash-section="${id}"]`)
+const section = (page: Page, id: string) => page.locator(`[data-glance-section="${id}"]`)
 const saveButton = (page: Page) => page.getByTestId('layout-save')
 
 test('a cold-loaded layout of glance widgets renders their counts and the rows’ chips', async ({ page }) => {
@@ -135,7 +135,7 @@ test('narrow section cells keep their parts inside: People keeps the names, Crea
   const people = page.locator('[data-glance-tab="narrow-people-tab"]')
   const trend = page.locator('[data-glance-tab="narrow-trend-tab"]')
   await expect(people.locator('[data-person-row]').first()).toBeVisible()
-  await expect(trend.locator('[data-dash-section="trend"]')).toBeVisible()
+  await expect(trend.locator('[data-glance-section="trend"]')).toBeVisible()
 
   // Nothing drawn past a section's right edge (a cut title's ellipsis box excepted).
   const spill = (root: typeof people) => root.evaluate((el) => {

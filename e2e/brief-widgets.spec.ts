@@ -18,7 +18,8 @@ const TASKS: WorkspaceSeed['tasks'] = [
   { title: 'Book the venue', focus: true, tags: ['Project: Beta'] },
   { title: 'Write the notes', focus: true, completedInDays: 0 },
   { title: 'Pay the invoice', dueInDays: 0, tags: ['Project: Atlas'] },
-  { title: 'Renew the domain', dueInDays: -1, tags: ['Project: Atlas'] },
+  // There since before yesterday (a task created today with a past due date came in late; it didn't go late).
+  { title: 'Renew the domain', dueInDays: -1, modifiedInDays: -10, tags: ['Project: Atlas'] },
   { title: 'Plan the offsite', tags: ['Project: Beta'] },
 ]
 

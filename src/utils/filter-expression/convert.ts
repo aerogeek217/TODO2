@@ -179,6 +179,24 @@ export function splitTopLevel(e: FilterExpr | null | undefined, { markerChips = 
   return { clauses, rest }
 }
 
+/**
+ * The ids of each top-level `and` term of `e` that is an "is" pick of `kind`
+ * — `@a`, or `@a or @b` —, one list per term, in order: `@a and @b` is
+ * `[[a], [b]]`, a task needing both. `splitTopLevel` reads only the first
+ * such term as the field's chip (Graphical holds one per field); the seeds
+ * and the People / Tag group narrowing read them all (cr33 F12). An "is
+ * not" term (`not @a`) isn't one.
+ */
+export function topLevelIdPicks(e: FilterExpr | null | undefined, kind: 'person' | 'tag'): number[][] {
+  if (!e) return []
+  const out: number[][] = []
+  for (const term of topLevelTerms(normalizeExpression(e))) {
+    const ids = idsOf(term)
+    if (ids?.kind === kind) out.push(ids.ids)
+  }
+  return out
+}
+
 /** `e` as Graphical clauses, or null when a term isn't a chip. */
 export function expressionToClauses(e: FilterExpr | null | undefined): FilterClauses | null {
   const { clauses, rest } = splitTopLevel(e)

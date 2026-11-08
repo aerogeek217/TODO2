@@ -11,10 +11,10 @@ import type {
   RuntimeFilterSpec,
 } from '../models/list-definition'
 import type { WeekStart } from '../utils/effective-date'
-import { topLevelCriteria, type FilterCriteria } from '../utils/filter-criteria'
+import type { FilterCriteria } from '../utils/filter-criteria'
 import type { FilterExpr, IdAtomKind } from '../models/filter-expression'
-import { normalizeExpression } from '../utils/filter-expression'
-import { topLevelPredicate, withExpression } from '../utils/predicate-expression'
+import { normalizeExpression, topLevelIdPicks, topLevelTerms } from '../utils/filter-expression'
+import { withExpression } from '../utils/predicate-expression'
 import { startOfDay } from '../utils/date'
 import { isNegated, withIdFilter, type NegatableClauses } from '../utils/filter-negation'
 import { buildListSections, listSortComparator, type Section } from './list-sections'
@@ -80,8 +80,10 @@ export interface ListContents {
  * of the list's own clause on that field, and is always "is" (a list's "is
  * not" switch on the field goes with the clause it switched). Empty `values`
  * is a no-op so "user cleared all chips" doesn't short-circuit to "match
- * nothing". An expression gets the pick as one more top-level term
- * (`and (@a or @b)`).
+ * nothing". An expression the same way: the pick takes the place of its
+ * top-level `and` terms on the field (`@a`, `@a or @b`, `not @a` — what a
+ * chip on it says) and joins as one more term (`and (@a or @b)`); a term
+ * mixing fields stays.
  */
 export function applyRuntimeFilter(
   predicate: TodoPredicate,
@@ -92,13 +94,21 @@ export function applyRuntimeFilter(
   if (predicate.expression) {
     const kind: IdAtomKind = spec.field
     const pick: FilterExpr = { kind: 'or', items: values.map((id): FilterExpr => ({ kind, id })) }
-    return withExpression(predicate, normalizeExpression({ kind: 'and', items: [predicate.expression, pick] }))
+    const kept = topLevelTerms(normalizeExpression(predicate.expression)).filter((term) => !isIdTermOn(term, kind))
+    return withExpression(predicate, normalizeExpression({ kind: 'and', items: [...kept, pick] }))
   }
   switch (spec.field) {
     case 'person': return withIdFilter(predicate, 'personIds', [...values], false)
     case 'status': return withIdFilter(predicate, 'statusIds', [...values], false)
     case 'tag': return withIdFilter(predicate, 'tags', [...values], false)
   }
+}
+
+/** Whether `term` names only `kind` ids, as one chip would: an atom or an `or` of atoms of that kind, or `not` one. */
+function isIdTermOn(term: FilterExpr, kind: IdAtomKind): boolean {
+  const inner = term.kind === 'not' ? term.item : term
+  const atoms = inner.kind === 'or' ? inner.items : [inner]
+  return atoms.length > 0 && atoms.every((a) => a.kind === kind)
 }
 
 /**
@@ -169,23 +179,28 @@ export function buildList(
  * filter's chips and of its lens — every filter a member passes. An "is
  * not" pick doesn't narrow: its members have none of the picked people /
  * tags, so their groups never show anyway. Of an expression only the
- * top-level `and` terms narrow them: a pick inside an `or` may not be what a
- * member has. The
+ * top-level `and` terms narrow them, each "is" term a pick of its own
+ * (`@a and @b` is two, intersected — cr33 F12): a pick inside an `or` may
+ * not be what a member has. The
  * 0 pick (Unassigned / No tags) keeps the trailing section, as in
  * `buildListSections`, which intersects several.
  */
 export function groupRestrictions(
   field: 'personIds' | 'tags',
-  predicate: NegatableClauses | undefined,
+  predicate: (NegatableClauses & { expression?: FilterExpr }) | undefined,
   screen: FilterCriteria | undefined,
 ): number[][] {
   const out: number[][] = []
-  // An expression narrows by its top-level terms that are chips (`topLevelPredicate`).
-  const lens = screen?.lens && topLevelCriteria(screen.lens)
-  const own = predicate && 'expression' in predicate && predicate.expression ? topLevelPredicate(predicate as TodoPredicate) : predicate
-  for (const c of [own, screen, lens]) {
-    const ids = c?.[field]
-    if (!c || ids == null || isNegated(c, field)) continue
+  const kind = field === 'personIds' ? 'person' : 'tag'
+  for (const c of [predicate, screen, screen?.lens]) {
+    if (!c) continue
+    // An expression narrows by its top-level "is" terms only (as `topLevelPredicate`, its own clauses aside).
+    if (c.expression) {
+      out.push(...topLevelIdPicks(c.expression, kind))
+      continue
+    }
+    const ids = c[field]
+    if (ids == null || isNegated(c, field)) continue
     const picks = [...ids]
     if (picks.length > 0) out.push(picks)
   }

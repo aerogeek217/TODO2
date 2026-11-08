@@ -401,11 +401,3 @@
   text-overflow: ellipsis;
   color: var(--color-text-secondary);
 }
-
-/* A tag's colour in the Tags › submenu. */
-.menuSwatch {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-}

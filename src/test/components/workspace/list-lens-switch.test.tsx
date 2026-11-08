@@ -98,14 +98,15 @@ describe('a list’s lens switch', () => {
     const on = lensSwitch()!
     expect(on).toHaveAttribute('aria-pressed', 'true')
     expect(on).toHaveTextContent('−1')
-    expect(on).toHaveAccessibleName('The lens “Alice only” hides 1 here. Ignore it in this list')
+    expect(on).toHaveAccessibleName('Apply the lens “Alice only” here')
 
     fireEvent.click(on)
     await waitFor(() => expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task']))
     expect(count()).toBe('3')
     const off = lensSwitch()!
     expect(off).toHaveAttribute('aria-pressed', 'false')
-    expect(off).toHaveAccessibleName('This list ignores the lens “Alice only”. Apply it here')
+    // The same name: a toggle's state is its `aria-pressed` alone (U7).
+    expect(off).toHaveAccessibleName('Apply the lens “Alice only” here')
     expect(off).not.toHaveTextContent('−')
     // Saved, not a draft: the list isn't unsaved, and the row is stored.
     expect(useListDraftStore.getState().drafts[7]).toBeUndefined()
@@ -116,6 +117,28 @@ describe('a list’s lens switch', () => {
     fireEvent.click(lensSwitch()!)
     await waitFor(() => expect(titles()).toEqual(['Alice task', 'Shared task']))
     await waitFor(async () => expect('ignoreLens' in ((await db.listDefinitions.get(7)) ?? {})).toBe(false))
+  })
+
+  it('a click that leaves the lens nothing to hide here keeps the switch, and the focus on it (U7)', async () => {
+    // Alice or Bob: hides nothing here; the list ignores it, so the switch shows to turn it back on.
+    pickAliceLens({ ...emptyPredicate(), personIds: [1, 2] })
+    await setup(def({ ignoreLens: true }))
+    const off = lensSwitch()!
+    expect(off).toHaveAttribute('aria-pressed', 'false')
+    off.focus()
+    fireEvent.click(off)
+    await waitFor(() => expect(useListDefinitionStore.getState().listDefinitions[0]?.ignoreLens).toBeUndefined())
+    const on = lensSwitch()
+    expect(on).toBe(off)
+    expect(on).toHaveAttribute('aria-pressed', 'true')
+    expect(on).toHaveTextContent('−0')
+    expect(document.activeElement).toBe(on)
+    // Another lens picked: the switch is back to its rule (nothing hidden here, so none).
+    act(() => useSettingsStore.setState({
+      lenses: [{ id: 'lens-b', name: 'Everyone', predicate: { ...emptyPredicate(), personIds: [1, 2] } }],
+      activeLensId: 'lens-b',
+    }))
+    expect(lensSwitch()).toBeNull()
   })
 
   it('off, the chips still apply; the lens lifted at the top bar shows no switch', async () => {

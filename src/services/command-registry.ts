@@ -7,7 +7,7 @@ import { shortcutLabel } from '../utils/shortcut-bindings'
 import type { ShortcutId, ShortcutOverrides } from '../models/keyboard-shortcut'
 import { runShortcutCommand, type ShortcutCallbacks } from './keyboard-shortcuts'
 import { copySelectedTasks } from './task-copy'
-import { listTabZoom, setListTabZoom, zoomTargetTab } from './list-zoom'
+import { listTabZoom, stepListTabZoom, zoomTargetTab } from './list-zoom'
 import { LIST_ZOOM_LABELS, stepListZoom } from '../utils/list-zoom'
 
 /** `task` = task actions (New Task, Undo …); `search-results` = tasks found by the palette's search. */
@@ -223,7 +223,7 @@ function listZoomCommands(): Command[] {
       name: dir === 'in' ? 'Zoom List In' : 'Zoom List Out',
       hint: `${LIST_ZOOM_LABELS[zoom]} → ${LIST_ZOOM_LABELS[next]}`,
       category: 'navigation',
-      action: () => { void setListTabZoom(tab.id, next) },
+      action: () => { void stepListTabZoom(tab, dir) },
     }]
   })
 }
