@@ -125,10 +125,16 @@ const SUBMENU_GAP_PX = 2
 const MENU_PADDING_PX = 4
 const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
 
-/** The panel's focusable items in order: its item buttons, and a stepper's − / + buttons. */
+/**
+ * The panel's focusable items in order: its item buttons, and a stepper's
+ * − / + buttons — one at its end (`aria-disabled`) only while it has the
+ * focus, so the arrows go on from where it is.
+ */
 function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
   return panel
-    ? Array.from(panel.querySelectorAll<HTMLButtonElement>(':scope > button:not([disabled]), :scope > [data-menu-stepper] > button:not([disabled])'))
+    ? Array.from(panel.querySelectorAll<HTMLButtonElement>(
+      ':scope > button:not([disabled]), :scope > [data-menu-stepper] > button:not([aria-disabled="true"]), :scope > [data-menu-stepper] > button:focus',
+    ))
     : []
 }
 
@@ -437,36 +443,37 @@ function MenuReorder({ ids, onReorder, children }: {
 
 /**
  * A stepper row: its label, then − · the value · +. The buttons are the
- * menu's items for ↑↓ (Enter or Space presses one); a press keeps the menu
- * open.
+ * menu's items (`menuitem`) for ↑↓ (Enter or Space presses one); a press
+ * keeps the menu open. A step without its handler (the value's end) is
+ * `aria-disabled` and ignores the press, so a button that reaches the end
+ * keeps the focus — a `disabled` one would drop it to the page, and the
+ * menu's keys with it.
  */
 function MenuStepper({ entry }: { entry: MenuStepperEntry }) {
   return (
     <div className={styles.stepper} role="group" aria-label={entry.label} data-menu-stepper="">
       {entry.icon && <span className={styles.icon}>{entry.icon}</span>}
       <span className={styles.label}>{entry.label}</span>
-      <button
-        type="button"
-        className={styles.stepButton}
-        aria-label={entry.decrementLabel}
-        title={entry.decrementLabel}
-        disabled={!entry.onDecrement}
-        onClick={() => entry.onDecrement?.()}
-      >
-        <MinusIcon size={12} />
-      </button>
+      <StepButton label={entry.decrementLabel} onStep={entry.onDecrement}><MinusIcon size={12} /></StepButton>
       <span className={styles.stepValue} aria-live="polite" data-menu-stepper-value="">{entry.value}</span>
-      <button
-        type="button"
-        className={styles.stepButton}
-        aria-label={entry.incrementLabel}
-        title={entry.incrementLabel}
-        disabled={!entry.onIncrement}
-        onClick={() => entry.onIncrement?.()}
-      >
-        <PlusIcon size={12} />
-      </button>
+      <StepButton label={entry.incrementLabel} onStep={entry.onIncrement}><PlusIcon size={12} /></StepButton>
     </div>
+  )
+}
+
+function StepButton({ label, onStep, children }: { label: string; onStep?: () => void; children: ReactNode }) {
+  return (
+    <button
+      type="button"
+      role="menuitem"
+      className={styles.stepButton}
+      aria-label={label}
+      title={label}
+      aria-disabled={onStep ? undefined : true}
+      onClick={() => onStep?.()}
+    >
+      {children}
+    </button>
   )
 }
 
