@@ -17,14 +17,14 @@ import { Empty, Panel, RowsGrid, TaskRows, type RowSectionProps } from './sectio
 import styles from './GlanceSections.module.css'
 
 /** What Stale tasks reads: its count, its threshold and its rows (a lingering completion kept in place). */
-export interface StaleSectionData extends TodoLookup {
+interface StaleSectionData extends TodoLookup {
   stale: ShownOfTotal<StaleTasks>
   staleDays: number
   rows: { stale: readonly number[]; kept: ReadonlySet<number> }
 }
 
 /** Stale tasks: open tasks not changed for a while, oldest first, as task rows. */
-export function StaleSection({ data, rows, onDrill, style, className }: RowSectionProps<StaleSectionData>) {
+function StaleSection({ data, rows, onDrill, style, className }: RowSectionProps<StaleSectionData>) {
   const { shown, total } = data.stale
   const days = data.staleDays
   const ids = data.rows.stale
@@ -71,7 +71,6 @@ export function StaleWidget({ tab, onResult, onDrill }: GlanceWidgetProps<StaleT
         />
       ) : <StaleSection
         data={data}
-        options={{ staleDays }}
         rows={rows.kit}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}

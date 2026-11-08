@@ -18,7 +18,7 @@ import { Clickable, Legend, Panel, type SectionProps } from './section-parts'
 import styles from './GlanceSections.module.css'
 
 /** What Next 7 days reads. */
-export interface NextDaysSectionData {
+interface NextDaysSectionData {
   nextDays: NextDaysColumn[]
   ctx: StatsContext
 }
@@ -29,7 +29,7 @@ const DAY_UNIT_PX = 22
 const DAY_CHROME_PX = 80
 
 /** Next 7 days: due dates and follow-ups per day, late first, as bars. */
-export function NextDaysSection({ data, onDrill, style, className }: SectionProps<NextDaysSectionData>) {
+function NextDaysSection({ data, onDrill, style, className }: SectionProps<NextDaysSectionData>) {
   const [ref, size] = useElementSize()
   const cols = data.nextDays
   const tallest = Math.max(1, ...cols.map((c) => c.dueIds.length + c.followupIds.length))
@@ -107,7 +107,6 @@ export function NextDaysWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Nex
         />
       ) : <NextDaysSection
         data={{ nextDays, ctx: base.ctx }}
-        options={{}}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
       />}

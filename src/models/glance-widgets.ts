@@ -93,22 +93,6 @@ export const SECTION_IDS = [
 ] as const
 export type SectionId = (typeof SECTION_IDS)[number]
 
-/** Section options; each belongs to one section (others ignore it). */
-export interface SectionOptions {
-  /** Needs follow-up (default 7). */
-  lookAhead?: LookAhead
-  /** Created vs completed (default `14d`). */
-  range?: TrendRange
-  /** People: show the Unassigned row (default `true`). */
-  showUnassigned?: boolean
-  /** Tags: show the No tag row (default `true`). */
-  showUntagged?: boolean
-  /** Stale tasks (default 14). */
-  staleDays?: StaleDays
-  /** Recently completed (default 7). */
-  recentDays?: RecentDays
-}
-
 // ── The glance widget kinds' configs ────────────────────────────────────────
 
 export interface NumberTabConfig {

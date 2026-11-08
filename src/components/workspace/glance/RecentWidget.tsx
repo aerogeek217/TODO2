@@ -17,13 +17,13 @@ import { Empty, Panel, RowsGrid, TaskRows, type RowSectionProps } from './sectio
 import styles from './GlanceSections.module.css'
 
 /** What Recently completed reads. */
-export interface RecentSectionData extends TodoLookup {
+interface RecentSectionData extends TodoLookup {
   recent: ShownOfTotal<RecentlyCompleted>
   recentDays: number
 }
 
 /** Recently completed: tasks completed in the last few days, newest first, as task rows. */
-export function RecentSection({ data, rows, onDrill, style, className }: RowSectionProps<RecentSectionData>) {
+function RecentSection({ data, rows, onDrill, style, className }: RowSectionProps<RecentSectionData>) {
   const { shown, total } = data.recent
   const days = data.recentDays
   const ids = shown.ids
@@ -66,7 +66,6 @@ export function RecentWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Recen
         />
       ) : <RecentSection
         data={{ recent, recentDays, todoById: base.todoById }}
-        options={{ recentDays }}
         rows={rows.kit}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}

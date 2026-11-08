@@ -17,14 +17,14 @@ import { Clickable, Panel, type SectionProps } from './section-parts'
 import styles from './GlanceSections.module.css'
 
 /** What the Eisenhower summary reads. */
-export interface EisenhowerSectionData {
+interface EisenhowerSectionData {
   eisenhower: ShownOfTotal<EisenhowerSummary>
   eisenhowerSetup: EisenhowerSetup
   ctx: StatsContext
 }
 
 /** The Eisenhower summary: the app-wide panes' counts, a 2×2 in the quadrants' tints. */
-export function EisenhowerSection({ data, onDrill, style, className }: SectionProps<EisenhowerSectionData>) {
+function EisenhowerSection({ data, onDrill, style, className }: SectionProps<EisenhowerSectionData>) {
   const { shown, total } = data.eisenhower
   const { panes, listName } = data.eisenhowerSetup
   const names = useChipNames()
@@ -97,7 +97,6 @@ export function EisenhowerSummaryWidget({ tab, onResult, onDrill }: GlanceWidget
         />
       ) : <EisenhowerSection
         data={{ eisenhower, eisenhowerSetup, ctx: base.ctx }}
-        options={{}}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
       />}

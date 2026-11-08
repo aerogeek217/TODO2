@@ -19,7 +19,7 @@ import { Clickable, Legend, Panel, type SectionProps } from './section-parts'
 import styles from './GlanceSections.module.css'
 
 /** What Created vs completed reads. */
-export interface TrendSectionData {
+interface TrendSectionData {
   /** `null` until the history has been read. */
   trend: TrendStats | null
   trendRange: TrendRange
@@ -30,7 +30,7 @@ export interface TrendSectionData {
 const TREND_UNIT_PX = 36
 
 /** Created vs completed: bars per day or week over the range, and the open count's change. */
-export function TrendSection({ data, onDrill, style, className }: SectionProps<TrendSectionData>) {
+function TrendSection({ data, onDrill, style, className }: SectionProps<TrendSectionData>) {
   const [ref, size] = useElementSize()
   const { trend, trendRange, ctx } = data
   const buckets = trend?.buckets ?? []
@@ -124,7 +124,6 @@ export function TrendWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TrendT
         />
       ) : <TrendSection
         data={{ trend, trendRange: range, ctx: base.ctx }}
-        options={{ range }}
         onDrill={glanceDrill(onDrill, base.filtered)}
         className={GLANCE_PANEL_CLASS}
       />}

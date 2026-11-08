@@ -1,5 +1,4 @@
 import type { CSSProperties, ReactNode } from 'react'
-import type { SectionOptions } from '../../../models/glance-widgets'
 import { MARKER_KEYS, type MarkerKey } from '../../../models'
 import { MARKER_COLOR, MARKER_LABELS } from '../../../utils/markers'
 import { usePersonStore } from '../../../stores/person-store'
@@ -17,12 +16,11 @@ import styles from './GlanceSections.module.css'
 
 /**
  * What every section is rendered with, as its glance widget. `D` is the
- * part of the glance data it reads.
+ * part of the glance data it reads; a section with options also takes its
+ * widget's typed config (`FollowupTabConfig` …).
  */
 export interface SectionProps<D> {
   data: D
-  /** The section's options (the widget's config). */
-  options: SectionOptions
   onDrill?: OnGlanceDrill
   /** Extra style for its panel. */
   style?: CSSProperties
