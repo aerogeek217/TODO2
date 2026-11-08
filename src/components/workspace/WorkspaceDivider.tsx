@@ -13,6 +13,13 @@ import styles from './WorkspaceDivider.module.css'
 /** Keyboard step for a focused divider (px). */
 const KEY_STEP_PX = 16
 
+/** A divider's `aria-valuenow`, with its `aria-valuemax` (none for a px size) and `aria-valuetext`. */
+export interface DividerValue {
+  now: number
+  max?: number
+  text?: string
+}
+
 interface WorkspaceDividerProps {
   /** The stretch of grid line it moves (`workspace-grid.edgeStretches`). */
   stretch: EdgeStretch
@@ -21,8 +28,8 @@ interface WorkspaceDividerProps {
   afterId: string
   /** "Resize Notes and Calendar". */
   label: string
-  /** The share (%) of the two tracks beside it that the first has (`aria-valuenow`). */
-  valueNow: number
+  /** Its value for assistive tech (`aria-valuenow` …). */
+  value: DividerValue
   /** Where it sits in the table's grid (the gutter before the track after it). */
   style: CSSProperties
 }
@@ -86,7 +93,7 @@ function previewOffset(drag: DragState, stretch: EdgeStretch, next: LayoutBody, 
  * release. ←/→ (↑/↓) move it 16px; a double-click evens a whole line's two
  * tracks.
  */
-export function WorkspaceDivider({ stretch, beforeId, afterId, label, valueNow, style }: WorkspaceDividerProps) {
+export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, style }: WorkspaceDividerProps) {
   const axisX = stretch.axis === 'columns'
   const dragRef = useRef<DragState | null>(null)
   const rafRef = useRef<number | null>(null)
@@ -201,9 +208,10 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, valueNow, 
       style={{ ...style, ...(shift ? { transform: shift } : {}) }}
       role="separator"
       aria-orientation={axisX ? 'vertical' : 'horizontal'}
-      aria-valuenow={valueNow}
+      aria-valuenow={Math.round(value.now)}
       aria-valuemin={0}
-      aria-valuemax={100}
+      aria-valuemax={value.max}
+      aria-valuetext={value.text}
       aria-label={label}
       tabIndex={0}
       data-ws-divider={`${beforeId}|${afterId}`}

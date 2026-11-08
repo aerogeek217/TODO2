@@ -33,7 +33,7 @@ function working(): LayoutBody {
 function renderDivider(stretch: EdgeStretch, rows: string, columns = '600px') {
   const { container } = render(
     <div data-ws-table="" style={{ gridTemplateRows: rows, gridTemplateColumns: columns }}>
-      <WorkspaceDivider stretch={stretch} beforeId="a" afterId="b" label="Resize a and b" valueNow={50} style={{}} />
+      <WorkspaceDivider stretch={stretch} beforeId="a" afterId="b" label="Resize a and b" value={{ now: 50, max: 100 }} style={{}} />
     </div>,
   )
   const table = container.querySelector<HTMLElement>('[data-ws-table]')!

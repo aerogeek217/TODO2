@@ -5,7 +5,7 @@ import { isCellCollapsedIn, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } fr
 import { isFitTrack } from '../../utils/workspace-rows'
 import { pairPercent } from '../../utils/workspace-resize'
 import { WorkspaceCell } from './WorkspaceCell'
-import { WorkspaceDivider } from './WorkspaceDivider'
+import { WorkspaceDivider, type DividerValue } from './WorkspaceDivider'
 import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
@@ -36,14 +36,18 @@ function resizable(layout: WorkspaceLayout, stretch: EdgeStretch): boolean {
   })
 }
 
-/** The share (%) the track before a stretch's line has of it and the track after (weights, or px for fixed ones). */
-function lineShare(layout: WorkspaceLayout, stretch: EdgeStretch): number {
+/**
+ * A divider's value for assistive tech: a whole line between two weighted
+ * tracks, the first one's share (%) of the two; beside a fixed track (a
+ * former band), that track's height in px.
+ */
+function dividerValue(layout: WorkspaceLayout, stretch: EdgeStretch): DividerValue {
   const tracks = layout.grid[stretch.axis]
-  const size = (i: number) => {
-    const t = tracks[i]
-    return t ? (t.px ?? t.weight ?? 0) : 0
-  }
-  return pairPercent(size(stretch.line - 1), size(stretch.line))
+  const a = tracks[stretch.line - 1]
+  const b = tracks[stretch.line]
+  const fixed = a?.px != null ? a : b?.px != null ? b : undefined
+  if (fixed?.px != null) return { now: fixed.px, text: `${fixed.px}px` }
+  return { now: pairPercent(a?.weight ?? 0, b?.weight ?? 0), max: 100 }
 }
 
 /** Where a divider sits in the grid: the gutter before the track after its line, along its stretch. */
@@ -78,7 +82,7 @@ function Dividers({ layout }: { layout: WorkspaceLayout }) {
             beforeId={a.id}
             afterId={b.id}
             label={`Resize ${titleOf(a.id)} and ${titleOf(b.id)}`}
-            valueNow={lineShare(layout, stretch)}
+            value={dividerValue(layout, stretch)}
             style={dividerPlacement(stretch)}
           />
         )

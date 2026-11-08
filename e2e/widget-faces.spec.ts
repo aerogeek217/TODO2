@@ -23,8 +23,7 @@ const popover = (page: Page) => page.getByTestId('widget-face-popover')
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  // D26 P2: drags a row divider (none drawn until P2).
-  test.fixme('a List row shrunk by its divider shows the small face, headless; a click opens the full list over it, Esc closes it', async ({ page }) => {
+  test('a List row shrunk by its divider shows the small face, headless; a click opens the full list over it, Esc closes it', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: TASKS,
       listDefinitions: [{ name: 'Everything' }],
@@ -44,7 +43,7 @@ test.describe('desktop', () => {
     await expect(cell).not.toHaveAttribute('data-headless', 'true')
 
     // Drag the row divider up to the row's minimum (112px: a body of 80px), short of collapsing it.
-    const divider = page.getByRole('separator', { name: 'Resize rows' })
+    const divider = page.getByRole('separator', { name: 'Resize Everything and Notes' })
     const d = await box(divider)
     const top = (await box(cell)).y
     await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2, y: top + 116 })
