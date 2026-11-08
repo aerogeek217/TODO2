@@ -263,6 +263,21 @@ describe('resolveTaskDialog — the screen filter’s tasks', () => {
       expect(hides(PRIYA_LENS)).toEqual({ counter: SAMPLE_OPEN_COUNT - 4, picker: SAMPLE_OPEN_COUNT - 4 })
     })
 
+    it('while the chips admit completed tasks, the lens still hides the picker’s number: open tasks only', () => {
+      const picker = lensHideCounts(env(), [PRIYA_LENS]).hides.get(PRIYA_LENS.id)
+      expect(picker).toBe(SAMPLE_OPEN_COUNT - 4)
+      for (const chips of [
+        { ...emptyFilterCriteria, showCompleted: true },
+        { ...emptyFilterCriteria, dates: { completed: thisWeek } },
+      ]) {
+        const counts = screenTaskCounts(env({ screen: withLens(chips, PRIYA_LENS) }))
+        // The total keeps the completed tasks the chips admit (cr32) …
+        expect(counts.total).toBeGreaterThan(SAMPLE_OPEN_COUNT)
+        // … and none of them counts as hidden by the lens.
+        expect(counts.total - counts.lensKeeps).toBe(picker)
+      }
+    })
+
     it('the description’s "hides N" is the same number', () => {
       const counts = screenTaskCounts(env({ screen: withLens(emptyFilterCriteria, DONE_WEEK) }))
       const total = SAMPLE_OPEN_COUNT + doneThisWeek.length

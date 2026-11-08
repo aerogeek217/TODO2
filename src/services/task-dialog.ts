@@ -192,11 +192,10 @@ export interface ScreenTaskCounts {
    */
   total: number
   /**
-   * What the lens alone keeps of `total` (`total` without a lens), so
-   * `total - lensKeeps` is what the lens hides. A lens that admits completed
-   * tasks by its own Completed range admits only those it keeps, so it hides
-   * open tasks alone — the same number the lens picker shows
-   * (`lenses.lensHideCounts`).
+   * What the lens alone keeps of `total` (`total` without a lens): the open
+   * tasks it keeps, and every completed task `total` counts — so
+   * `total - lensKeeps` is the open tasks the lens hides, whatever the chips
+   * admit, the same number the lens picker shows (`lenses.lensHideCounts`).
    */
   lensKeeps: number
   /**
@@ -256,7 +255,8 @@ export function screenTaskCounts(env: ScreenCountEnv, badgeRanges?: TabBadgeRang
   for (const t of env.todos) {
     if (t.isCompleted && !admitted?.(t)) continue
     counts.total++
-    if (!lens || lens(OPEN_TASKS, t)) counts.lensKeeps++
+    // The lens's hide count is of open tasks (the picker's): a completed task counted here counts as kept.
+    if (!lens || t.isCompleted || lens(OPEN_TASKS, t)) counts.lensKeeps++
     if (shown(OPEN_TASKS, t)) {
       counts.shown++
       if (badgeRanges && inTabBadgeRange(t, badgeRanges, env.today)) badged.push(t)
