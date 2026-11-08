@@ -64,6 +64,7 @@ import { EntityActionHost } from '../components/settings/EntityActionHost'
 import { CheckinDialog } from '../components/checkin/CheckinDialog'
 import { CheckinImportDialog } from '../components/checkin/CheckinImportDialog'
 import { TaskDialog } from '../components/overlays/TaskDialog'
+import { ReviewDeck } from '../components/overlays/ReviewDeck'
 import { DragOverlayTask } from '../components/workspace/DragOverlayTask'
 import { createTaskDropAnimation } from '../components/workspace/task-drop-animation'
 import { TaskDropLandingContext } from '../components/task/dnd/task-drop-landing'
@@ -516,6 +517,7 @@ export function WorkspacePage() {
       )}
 
       <TaskDialog />
+      <ReviewDeck />
       <CheckinDialog />
       <CheckinImportDialog />
       <TaskEditPopupHost />
