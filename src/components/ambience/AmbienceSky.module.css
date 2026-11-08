@@ -50,6 +50,14 @@
   overflow: visible;
 }
 
+.moonDisc {
+  fill: var(--ambience-moon-disc);
+}
+
+.moonLit {
+  fill: var(--ambience-moon-lit);
+}
+
 .stars {
   position: absolute;
   inset: 0;
@@ -61,7 +69,7 @@
   height: 1.5px;
   border-radius: 50%;
   /* A cool star-white; the stars show in the dark theme only (`utils/sky`). */
-  background: #f2f5fb;
+  background: var(--ambience-star);
   animation: twinkle 4s ease-in-out infinite;
 }
 
@@ -75,11 +83,23 @@
   50% { opacity: 0.25; }
 }
 
-/* Cumulus drifting across: each crossing from just off the left to just off the right. */
+/*
+ * Cumulus drifting across: each crossing from just off the left to just off
+ * the right. Their colours (`utils/sky.cumulusBackground`) come from the
+ * sky's horizon (`--sky-horizon`, set with `--sky-night` by the component):
+ * lifted toward white by the theme's share, then tinted by the theme's
+ * (base + night × `--sky-night`); the base shaded 28 % further.
+ */
 .clouds {
   position: absolute;
   inset: 0;
   container-type: size;
+  --cloud: color-mix(
+    in srgb,
+    color-mix(in srgb, var(--sky-horizon), var(--ambience-cloud-white) var(--ambience-cloud-lift)),
+    var(--ambience-cloud-tint) calc((var(--ambience-cloud-tint-base) + var(--ambience-cloud-tint-night) * var(--sky-night, 0)) * 100%)
+  );
+  --cloud-shade: color-mix(in srgb, var(--cloud), var(--ambience-cloud-shade) 28%);
 }
 
 .cloud {
@@ -103,7 +123,7 @@
   top: -8px;
   height: 34px;
   filter: blur(6px);
-  background: linear-gradient(to right, transparent 4%, rgba(80, 230, 170, 0.9) 22%, rgba(110, 200, 255, 0.55) 42%, rgba(170, 120, 240, 0.8) 62%, rgba(80, 230, 170, 0.6) 78%, transparent 94%);
+  background: linear-gradient(to right, transparent 4%, var(--ambience-aurora-1) 22%, var(--ambience-aurora-2) 42%, var(--ambience-aurora-3) 62%, var(--ambience-aurora-4) 78%, transparent 94%);
   mask: linear-gradient(to bottom, #000 20%, transparent);
   animation: aurora 16s ease-in-out infinite alternate;
 }
@@ -121,8 +141,8 @@
   bottom: 0;
   height: 24px;
   background-image:
-    radial-gradient(ellipse 70px 9px at 50% 100%, var(--mist, rgba(215, 225, 240, 0.5)), transparent),
-    linear-gradient(to top, var(--mist, rgba(215, 225, 240, 0.5)), transparent);
+    radial-gradient(ellipse 70px 9px at 50% 100%, var(--ambience-mist), transparent),
+    linear-gradient(to top, var(--ambience-mist), transparent);
   background-size: 140px 100%, 100% 100%;
   background-repeat: repeat-x, no-repeat;
   animation: mist-drift 28s linear infinite;

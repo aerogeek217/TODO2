@@ -2,7 +2,7 @@
 // layer's opacity follows Sky strength, Header motion and Seasons.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { DEFAULT_AMBIENCE, type AmbienceSettings } from '../../models/ambience'
-import { cumulusBackground, CUMULUS_SHAPES, moonPath, skyBackground, skyScene } from '../../utils/sky'
+import { cumulusBackground, CUMULUS_SHAPES, mixColor, moonPath, skyBackground, skyColors, skyScene, sunColor, withAlpha } from '../../utils/sky'
 
 const originalZone = Intl.DateTimeFormat().resolvedOptions().timeZone
 beforeAll(() => { process.env.TZ = 'America/Chicago' })
@@ -92,6 +92,33 @@ describe('skyScene', () => {
   })
 })
 
+describe('colours', () => {
+  it('mixes the sky\'s and the sun\'s tokens by the time of day, the same in both themes (tokens.css picks them, cr33 A1)', () => {
+    const sunset = at(2026, 10, 7, 16, 35)
+    const dark = skyScene(sunset, CHICAGO, settings(), 'dark')
+    const light = skyScene(sunset, CHICAGO, settings(), 'light')
+    expect(dark.zenith).toMatch(/^color-mix\(in srgb, var\(--ambience-sky-zenith-\d\), var\(--ambience-sky-zenith-\d\) [\d.]+%\)$/)
+    expect(dark.sun).toMatch(/^color-mix\(in srgb, var\(--ambience-sun-\d\), var\(--ambience-sun-\d\) [\d.]+%\)$/)
+    expect([light.zenith, light.horizon, light.sun, light.hairline]).toEqual([dark.zenith, dark.horizon, dark.sun, dark.hairline])
+    expect(skyScene(at(2026, 10, 7, 23), CHICAGO, settings(), 'dark').hairline?.color).toBe('var(--ambience-moon-point)')
+  })
+
+  it('takes a stop as it is at its altitude, and the ends past them', () => {
+    expect(skyColors(-90)).toEqual({ zenith: 'var(--ambience-sky-zenith-0)', horizon: 'var(--ambience-sky-horizon-0)' })
+    expect(skyColors(0).zenith).toBe('var(--ambience-sky-zenith-4)')
+    expect(sunColor(60)).toBe('var(--ambience-sun-4)')
+    expect(sunColor(-30)).toBe('var(--ambience-sun-0)')
+  })
+
+  it('mixes and fades as rgba() did', () => {
+    expect(mixColor('var(--a)', 'var(--b)', 0.25)).toBe('color-mix(in srgb, var(--a), var(--b) 25%)')
+    expect(mixColor('var(--a)', 'var(--b)', 0)).toBe('var(--a)')
+    expect(withAlpha('var(--a)', 0.35)).toBe('color-mix(in srgb, var(--a) 35%, transparent)')
+    expect(withAlpha('var(--a)', 0)).toBe('transparent')
+    expect(withAlpha('var(--a)', 1)).toBe('var(--a)')
+  })
+})
+
 describe('drawing helpers', () => {
   it('builds the sky as a glow over a sweep', () => {
     const bg = skyBackground(skyScene(at(2026, 10, 7, 16), CHICAGO, settings(), 'dark'))
@@ -108,7 +135,7 @@ describe('drawing helpers', () => {
 
   it('makes a cumulus of puffs over a base', () => {
     const shape = CUMULUS_SHAPES[2] ?? []
-    const bg = cumulusBackground(shape, 75, 30, [255, 255, 255], [200, 200, 200])
+    const bg = cumulusBackground(shape, 75, 30)
     expect(bg.match(/radial-gradient\(circle/g)).toHaveLength(shape.length)
     expect(bg).toContain('radial-gradient(ellipse')
   })

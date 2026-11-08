@@ -27,7 +27,7 @@
 /* Snow: falls with a sway. */
 .flake {
   top: 0;
-  background: var(--flake, #eef3fa);
+  background: var(--ambience-flake);
   animation-name: fall;
 }
 
@@ -41,7 +41,7 @@
 .leaf {
   left: 0;
   height: calc(var(--size, 7px) * 0.47);
-  background: var(--color, #c8743a);
+  background: var(--color, var(--ambience-leaf-1));
   animation-name: blow;
 }
 
@@ -54,7 +54,7 @@
 .petal {
   left: 0;
   height: calc(var(--size, 4px) * 0.57);
-  background: var(--color, #f2b6c6);
+  background: var(--color, var(--ambience-petal-1));
   animation-name: drift;
 }
 
@@ -66,7 +66,7 @@
 /* A summer day's seed: rises slowly, drifting. */
 .seed {
   top: 0;
-  background: var(--seed, rgba(255, 255, 255, 0.8));
+  background: var(--ambience-seed);
   animation-name: rise;
 }
 
@@ -77,8 +77,8 @@
 
 /* A summer night's firefly: wanders and blinks. */
 .firefly {
-  background: #fbef9a;
-  box-shadow: 0 0 6px 1px rgba(246, 226, 122, 0.8);
+  background: var(--ambience-firefly);
+  box-shadow: 0 0 6px 1px var(--ambience-firefly-glow);
   animation:
     wander var(--dur, 12s) ease-in-out var(--delay, 0s) infinite alternate,
     blink var(--blink, 2.4s) ease-in-out infinite alternate;
@@ -98,7 +98,7 @@
 /* A night completion's burst: a four-point star. */
 .star {
   border-radius: 0;
-  background: #fff6d0;
+  background: var(--ambience-star-burst);
   clip-path: polygon(50% 0, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%, 0 50%, 40% 40%);
 }
 

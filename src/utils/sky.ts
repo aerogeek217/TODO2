@@ -3,11 +3,17 @@
  * and the moon are over the top bar, the sky's colours, and how visible each
  * layer is once Sky strength and Header motion are applied. Pure — the
  * components only draw it.
+ *
+ * Its colours are CSS, never literals: the `--ambience-*` tokens in
+ * `tokens.css` (where each theme defines its own), mixed by the time of day
+ * with `color-mix()` — so the theme picks every colour and the scene only
+ * says how much of each.
  */
 import type { AmbiencePlace, AmbienceSettings, Season, SkyStrength, WeatherKind } from '../models/ambience'
 import { moonAge, seasonAt, sunDay, SYNODIC_MONTH, type SunDay } from './sun'
 
-export type Rgb = readonly [number, number, number]
+/** A CSS colour: an `--ambience-*` token, or a `color-mix()` over them. */
+export type CssColor = string
 
 const clamp = (v: number, lo: number, hi: number): number => Math.min(hi, Math.max(lo, v))
 const clamp01 = (v: number): number => clamp(v, 0, 1)
@@ -15,49 +21,65 @@ const clamp01 = (v: number): number => clamp(v, 0, 1)
 /** The top bar's height the sun and moon move in (`--topbar-height`). */
 export const BAR_HEIGHT = 40
 
-export function rgba(c: Rgb, alpha = 1): string {
-  return `rgba(${Math.round(c[0])}, ${Math.round(c[1])}, ${Math.round(c[2])}, ${Number(alpha.toFixed(3))})`
+const share = (v: number): string => `${Number((v * 100).toFixed(3))}%`
+
+/** `a` mixed toward `b` by `t` (0 = `a`, 1 = `b`), channel by channel in sRGB. */
+export function mixColor(a: CssColor, b: CssColor, t: number): CssColor {
+  if (t <= 0) return a
+  if (t >= 1) return b
+  return `color-mix(in srgb, ${a}, ${b} ${share(t)})`
 }
 
-export function mixRgb(a: Rgb, b: Rgb, t: number): Rgb {
-  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t]
+/** The opaque colour `c` at `alpha`, as `rgba()` would draw it. */
+export function withAlpha(c: CssColor, alpha: number): CssColor {
+  if (alpha >= 1) return c
+  if (alpha <= 0) return 'transparent'
+  return `color-mix(in srgb, ${c} ${share(alpha)}, transparent)`
 }
 
-function hex(h: string): Rgb {
-  return [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)]
-}
+type Stop = readonly [altitude: number, ...colours: CssColor[]]
 
-/** Interpolates a ramp of `[altitude, ...colours]` stops at `x`. */
-function ramp(stops: readonly (readonly [number, ...string[]])[], x: number): Rgb[] {
+/** Interpolates colour `k` of a ramp of `[altitude, ...colours]` stops at `x`. */
+function ramp(stops: readonly Stop[], k: number, x: number): CssColor {
+  const colour = (stop: Stop | undefined): CssColor => stop?.[k + 1] as CssColor | undefined ?? 'transparent'
   const first = stops[0]
-  const last = stops[stops.length - 1]
-  if (!first || !last) return []
-  if (x <= first[0]) return first.slice(1).map((c) => hex(c as string))
+  if (!first || x <= first[0]) return colour(first)
   for (let i = 1; i < stops.length; i++) {
     const hi = stops[i]
     const lo = stops[i - 1]
     if (!hi || !lo || x > hi[0]) continue
-    const t = (x - lo[0]) / (hi[0] - lo[0])
-    return hi.slice(1).map((c, k) => mixRgb(hex(lo[k + 1] as string), hex(c as string), t))
+    return mixColor(colour(lo), colour(hi), (x - lo[0]) / (hi[0] - lo[0]))
   }
-  return last.slice(1).map((c) => hex(c as string))
+  return colour(stops.at(-1))
 }
 
 /** The sky by the sun's altitude: [altitude°, zenith, horizon]. */
-const SKY_STOPS = [
-  [-90, '#070a18', '#0b1024'], [-18, '#0a0f26', '#151b3e'], [-10, '#141c44', '#3b2f63'], [-4, '#24316b', '#a3527a'],
-  [0, '#36508a', '#e57a58'], [4, '#4a72ad', '#f2a55e'], [10, '#5f93cc', '#f1cf9c'], [25, '#69a5dc', '#c3e1f1'], [90, '#5c9fe0', '#a9d4f0'],
-] as const
+const SKY_STOPS: readonly Stop[] = [
+  [-90, 'var(--ambience-sky-zenith-0)', 'var(--ambience-sky-horizon-0)'],
+  [-18, 'var(--ambience-sky-zenith-1)', 'var(--ambience-sky-horizon-1)'],
+  [-10, 'var(--ambience-sky-zenith-2)', 'var(--ambience-sky-horizon-2)'],
+  [-4, 'var(--ambience-sky-zenith-3)', 'var(--ambience-sky-horizon-3)'],
+  [0, 'var(--ambience-sky-zenith-4)', 'var(--ambience-sky-horizon-4)'],
+  [4, 'var(--ambience-sky-zenith-5)', 'var(--ambience-sky-horizon-5)'],
+  [10, 'var(--ambience-sky-zenith-6)', 'var(--ambience-sky-horizon-6)'],
+  [25, 'var(--ambience-sky-zenith-7)', 'var(--ambience-sky-horizon-7)'],
+  [90, 'var(--ambience-sky-zenith-8)', 'var(--ambience-sky-horizon-8)'],
+]
 /** The sun's colour by its altitude. */
-const SUN_STOPS = [[-6, '#ff6a3d'], [0, '#ff8a4c'], [6, '#ffb35e'], [15, '#ffe2a0'], [40, '#fff6d8']] as const
+const SUN_STOPS: readonly Stop[] = [
+  [-6, 'var(--ambience-sun-0)'],
+  [0, 'var(--ambience-sun-1)'],
+  [6, 'var(--ambience-sun-2)'],
+  [15, 'var(--ambience-sun-3)'],
+  [40, 'var(--ambience-sun-4)'],
+]
 
-export function skyColors(altitude: number): { zenith: Rgb; horizon: Rgb } {
-  const [zenith = [0, 0, 0], horizon = [0, 0, 0]] = ramp(SKY_STOPS, altitude)
-  return { zenith, horizon }
+export function skyColors(altitude: number): { zenith: CssColor; horizon: CssColor } {
+  return { zenith: ramp(SKY_STOPS, 0, altitude), horizon: ramp(SKY_STOPS, 1, altitude) }
 }
 
-export function sunColor(altitude: number): Rgb {
-  return ramp(SUN_STOPS, altitude)[0] ?? [255, 200, 120]
+export function sunColor(altitude: number): CssColor {
+  return ramp(SUN_STOPS, 0, altitude)
 }
 
 /** How much of the sky shows through the top bar's glass at each strength (the glass's complement). */
@@ -88,15 +110,15 @@ export interface SkyScene {
   moonX: number
   moonY: number
   moonAge: number
-  zenith: Rgb
-  horizon: Rgb
-  sun: Rgb
+  zenith: CssColor
+  horizon: CssColor
+  sun: CssColor
   /** How much of the horizon's glow shows around the sun (0 at night). */
   glow: number
+  /** How deep into the night, 0–1 (the dark theme's clouds darken by it: `--ambience-cloud-tint-night`). */
+  night: number
   /** The angle the sunbeam falls at, degrees (leaning away from the sun). */
   beamAngle: number
-  cloud: Rgb
-  cloudShade: Rgb
   /** What falls in the bar and behind the cells; `null` when Seasons is off. */
   weather: WeatherKind | null
   /** Each layer's opacity, Sky strength and Header motion applied (0 = not drawn). */
@@ -117,7 +139,7 @@ export interface SkyScene {
     behind: number
   }
   /** The bright point on the hairline: under the sun by day, the moon by night; `null` when neither shows. */
-  hairline: { x: number; color: Rgb; alpha: number; glowAlpha: number } | null
+  hairline: { x: number; color: CssColor; alpha: number; glowAlpha: number } | null
 }
 
 /** Local clock hours of `d` (fractional). */
@@ -139,7 +161,11 @@ function nightProgress(day: SunDay, hours: number): number {
   return (h - day.set) / (24 - (day.set - day.rise))
 }
 
-/** The ambience at `now` at `place`, drawn in `theme`. */
+/**
+ * The ambience at `now` at `place`. `theme` changes no colour (`tokens.css`
+ * picks those), only two strengths: the stars show in the dark theme alone,
+ * and the moon a little brighter there.
+ */
 export function skyScene(now: Date, place: AmbiencePlace, settings: AmbienceSettings, theme: 'dark' | 'light'): SkyScene {
   const day = sunDay(now, place)
   const hours = clockHours(now)
@@ -170,11 +196,6 @@ export function skyScene(now: Date, place: AmbiencePlace, settings: AmbienceSett
   const seasons = settings.seasons
   const winter = season === 'winter'
 
-  const cloud = dark
-    ? mixRgb(mixRgb(horizon, [255, 255, 255], 0.5), [70, 80, 112], night)
-    : mixRgb(mixRgb(horizon, [255, 255, 255], 0.2), [110, 125, 158], 0.55)
-  const cloudShade = mixRgb(cloud, dark ? [40, 46, 66] : [90, 100, 125], 0.28)
-
   let weather: WeatherKind | null = null
   if (seasons) {
     weather = season === 'winter' ? 'flake' : season === 'autumn' ? 'leaf' : season === 'spring' ? 'petal' : altitude < -3 ? 'firefly' : 'seed'
@@ -184,7 +205,7 @@ export function skyScene(now: Date, place: AmbiencePlace, settings: AmbienceSett
   if (altitude > -5) {
     hairline = { x: sunX, color: sun, alpha: clamp01((altitude + 5) / 8) * (0.55 + 0.45 * golden), glowAlpha: 0.4 * golden * LIGHT[strength] }
   } else if (moonUp > 0) {
-    hairline = { x: moonX, color: [200, 212, 234], alpha: 0.5 * moonUp, glowAlpha: 0 }
+    hairline = { x: moonX, color: 'var(--ambience-moon-point)', alpha: 0.5 * moonUp, glowAlpha: 0 }
   }
 
   return {
@@ -200,9 +221,8 @@ export function skyScene(now: Date, place: AmbiencePlace, settings: AmbienceSett
     horizon,
     sun,
     glow,
+    night,
     beamAngle: 90 + (clamp01(frac) - 0.5) * 80,
-    cloud,
-    cloudShade,
     weather,
     opacity: {
       sky: SKY_SHOW[strength],
@@ -226,11 +246,11 @@ export function skyScene(now: Date, place: AmbiencePlace, settings: AmbienceSett
 export function skyBackground(scene: SkyScene): string {
   const { zenith, horizon, glow, sunX } = scene
   const x = (sunX * 100).toFixed(1)
-  const edge = mixRgb(zenith, horizon, 0.35 * glow)
+  const edge = mixColor(zenith, horizon, 0.35 * glow)
   const left = sunX < 0.5 ? edge : zenith
   const right = sunX < 0.5 ? zenith : edge
-  return `radial-gradient(ellipse 34% 320% at ${x}% 120%, ${rgba(horizon, 0.95 * glow)} 0%, ${rgba(horizon, 0)} 100%), `
-    + `linear-gradient(to right, ${rgba(left)}, ${rgba(zenith)} 50%, ${rgba(right)})`
+  return `radial-gradient(ellipse 34% 320% at ${x}% 120%, ${withAlpha(horizon, 0.95 * glow)} 0%, transparent 100%), `
+    + `linear-gradient(to right, ${left}, ${zenith} 50%, ${right})`
 }
 
 /**
@@ -257,10 +277,14 @@ export const CUMULUS_SHAPES: readonly (readonly (readonly [number, number, numbe
   [[0.16, 0.72, 0.2], [0.3, 0.58, 0.3], [0.47, 0.44, 0.4], [0.64, 0.5, 0.34], [0.8, 0.66, 0.24]],
 ]
 
-/** A cumulus `w` × `h` as CSS backgrounds: soft round puffs over a flat, slightly darker base. */
-export function cumulusBackground(shape: readonly (readonly [number, number, number])[], w: number, h: number, lit: Rgb, shade: Rgb): string {
+/**
+ * A cumulus `w` × `h` as CSS backgrounds: soft round puffs over a flat,
+ * slightly darker base, in the clouds layer's `--cloud` and `--cloud-shade`
+ * (`AmbienceSky.module.css`, from the sky's horizon and the theme's tokens).
+ */
+export function cumulusBackground(shape: readonly (readonly [number, number, number])[], w: number, h: number): string {
   const puffs = shape.map(([x, y, r]) =>
-    `radial-gradient(circle ${(r * h).toFixed(1)}px at ${(x * 100).toFixed(1)}% ${(y * 100).toFixed(1)}%, ${rgba(lit)} 52%, ${rgba(lit, 0)} 100%)`)
-  const base = `radial-gradient(ellipse ${(0.42 * w).toFixed(1)}px ${(0.17 * h).toFixed(1)}px at 51% 78%, ${rgba(shade)} 55%, ${rgba(shade, 0)} 100%)`
+    `radial-gradient(circle ${(r * h).toFixed(1)}px at ${(x * 100).toFixed(1)}% ${(y * 100).toFixed(1)}%, var(--cloud) 52%, transparent 100%)`)
+  const base = `radial-gradient(ellipse ${(0.42 * w).toFixed(1)}px ${(0.17 * h).toFixed(1)}px at 51% 78%, var(--cloud-shade) 55%, transparent 100%)`
   return [...puffs, base].join(', ')
 }

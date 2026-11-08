@@ -12,9 +12,20 @@
   pointer-events: none;
 }
 
+/* Three warm bands and a stray, falling at `--beam-angle` (leaning away from the sun). */
 .sunbeam {
   position: absolute;
   inset: 0;
+  background: linear-gradient(
+    var(--beam-angle, 90deg),
+    transparent 30%,
+    var(--ambience-sunbeam-1) 42%,
+    var(--ambience-sunbeam-2) 47%,
+    var(--ambience-sunbeam-3) 52%,
+    transparent 58%,
+    var(--ambience-sunbeam-4) 64%,
+    transparent 69%
+  );
   transition: opacity 800ms ease;
 }
 
@@ -22,5 +33,6 @@
   position: absolute;
   inset: 0;
   pointer-events: none;
+  background: radial-gradient(ellipse 70% 90% at 0% 0%, var(--ambience-lamp), transparent 70%);
   transition: opacity 800ms ease;
 }

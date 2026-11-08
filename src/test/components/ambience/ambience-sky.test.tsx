@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, act } from '@testing-library/react'
 import { AmbienceSky } from '../../../components/ambience/AmbienceSky'
 import { AmbienceBackdrop, AmbienceLamp } from '../../../components/ambience/AmbienceWorkspace'
@@ -25,6 +25,24 @@ describe('AmbienceSky', () => {
     useSettingsStore.setState({ ambience: { ...DEFAULT_AMBIENCE, enabled: false } })
     const { container } = render(<header><AmbienceSky /><AmbienceBackdrop /><AmbienceLamp /></header>)
     expect(container.querySelector('[data-ambience]')).toBeNull()
+  })
+
+  it('listens for completed tasks only while on (cr33 security I1)', () => {
+    useSettingsStore.setState({ ambience: { ...DEFAULT_AMBIENCE, enabled: false } })
+    const real = useTodoStore.subscribe
+    const unsubscribe = vi.fn()
+    const subscribe = vi.spyOn(useTodoStore, 'subscribe').mockImplementation((listener) => {
+      const off = real(listener)
+      return () => { unsubscribe(); off() }
+    })
+    render(<header><AmbienceSky /></header>)
+    expect(subscribe).not.toHaveBeenCalled()
+    act(() => { useSettingsStore.setState({ ambience: DEFAULT_AMBIENCE }) })
+    expect(subscribe).toHaveBeenCalledTimes(1)
+    // Switched off again: the listener goes, and no other comes.
+    act(() => { useSettingsStore.setState({ ambience: { ...DEFAULT_AMBIENCE, enabled: false } }) })
+    expect(unsubscribe).toHaveBeenCalledTimes(1)
+    expect(subscribe).toHaveBeenCalledTimes(1)
   })
 
   it('sends a ripple along the hairline and a burst from the box when a task on screen is completed', () => {
