@@ -298,6 +298,7 @@ describe('applyRuntimeFilter — an expression picks as Graphical does', () => {
     const spec = { field: 'person' as const }
     const fromGraphical = kept(applyRuntimeFilter(graphical, spec, [BOB]))
     const expression = asExpression(graphical)
+    if (!expression) throw new Error('under the cap, the switch converts')
     expect(expression.expression).toBeDefined()
     expect(kept(applyRuntimeFilter(expression, spec, [BOB]))).toEqual(fromGraphical)
   })
