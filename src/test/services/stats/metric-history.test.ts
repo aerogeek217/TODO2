@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../../models'
 import { computeClosedThisWeek } from '../../../services/stats/closed-this-week'
-import { computeMetricHistory, hasHistory, historyDelta } from '../../../services/stats/metric-history'
-import { computeTiles } from '../../../services/stats/tiles'
+import { computeMetricHistory, hasHistory, HISTORY_AGAINST, historyDelta } from '../../../services/stats/metric-history'
+import { computeMetrics } from '../../../services/stats/metrics'
 import { computeTrend } from '../../../services/stats/trend'
 import { historyEventsStart } from '../../../utils/trend-window'
 import { makeTodo } from '../../helpers'
+import { DST_ZONE, pinTimeZone } from '../../time-zone'
 
 const today = new Date(2026, 9, 10) // Sat 10 Oct
 const ctx = { today, weekStartsOn: 0 as const }
@@ -47,7 +48,7 @@ describe('computeMetricHistory', () => {
     // Task 2 is late from Fri 2 Oct (day 5) on; due today only today for task 3, due on day 4 for task 2.
     expect(h.series.overdue).toEqual([0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 1])
     expect(h.series.dueToday).toEqual([0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1])
-    const tiles = computeTiles(tasks, fullCtx)
+    const tiles = computeMetrics(tasks, fullCtx)
     expect(h.series.open.at(-1)).toBe(tiles.open.ids.length)
     expect(h.series.overdue.at(-1)).toBe(tiles.overdue.ids.length)
     expect(h.series.dueToday.at(-1)).toBe(tiles.dueToday.ids.length)
@@ -126,6 +127,26 @@ describe('historyDelta / historyEventsStart', () => {
     expect(historyDelta([4])).toBeNull()
   })
 
+  it('Closed this week against the same point of last week: a new week’s first day reads no drop', () => {
+    expect(HISTORY_AGAINST.closedThisWeek).toBe('lastWeek')
+    expect(HISTORY_AGAINST.open).toBe('yesterday')
+    // Sun 4 Oct is the week's first day (index 7 of a history ending then).
+    const sunday = { today: new Date(2026, 9, 4), weekStartsOn: 0 as const }
+    const sd = (n: number, hour = 12) => new Date(2026, 8, 21 + n, hour) // day n of that history (0 = Mon 21 Sep)
+    const tasks = [
+      task({ id: 1, isCompleted: true, completedAt: sd(7) }), // Mon 28 Sep, last week
+      task({ id: 2, isCompleted: true, completedAt: sd(9) }), // Wed 30 Sep, last week
+      task({ id: 3, isCompleted: true, completedAt: sd(13, 9) }), // this morning
+    ]
+    const series = computeMetricHistory(tasks, [], sunday).series.closedThisWeek
+    expect(series.slice(-2)).toEqual([2, 1])
+    expect(historyDelta(series)).toBe(-1) // the rollover, against yesterday
+    // Last Sunday's end: nothing closed yet that week (Sun 27 Sep).
+    expect(series.at(-8)).toBe(0)
+    expect(historyDelta(series, 'lastWeek')).toBe(1)
+    expect(historyDelta([1, 2, 3, 4, 5, 6, 7], 'lastWeek')).toBeNull()
+  })
+
   it('reads events from the first day’s week start', () => {
     expect(historyEventsStart(today, 0)).toEqual(new Date(2026, 8, 27)) // Sun 27 Sep, the first day
     expect(historyEventsStart(today, 1)).toEqual(new Date(2026, 8, 21)) // Mon 21 Sep
@@ -145,5 +166,39 @@ describe('computeClosedThisWeek', () => {
     expect(c.ids).toEqual([3, 5, 1])
     expect(c.weekStart).toEqual(new Date(2026, 9, 4))
     expect(computeClosedThisWeek(tasks, { today, weekStartsOn: 1 }).ids).toEqual([3, 5])
+  })
+})
+
+describe('computeMetricHistory in a daylight-saving zone', () => {
+  pinTimeZone(DST_ZONE)
+
+  it('14 local midnights across the fall-back day; each day’s end read by local day', () => {
+    const today = new Date(2026, 10, 6) // Fri 6 Nov: the history runs Sat 24 Oct – today, Sun 1 Nov is 25 hours
+    const old = new Date(2026, 0, 1)
+    const tasks = [
+      makeTodo({ id: 1, createdAt: old, modifiedAt: old, isCompleted: true, completedAt: new Date(2026, 9, 31, 23, 30) }), // Sat 31 Oct, late
+      makeTodo({ id: 2, createdAt: old, modifiedAt: old, isCompleted: true, completedAt: new Date(2026, 10, 1, 0, 30) }), // Sun 1 Nov, early
+      makeTodo({ id: 3, createdAt: old, modifiedAt: old, dueDate: new Date(2026, 10, 1) }), // due on the change
+    ]
+    const h = computeMetricHistory(tasks, [], { today, weekStartsOn: 0 })
+    expect(h.days.map((d) => [d.getDate(), d.getHours()])).toEqual(
+      [24, 25, 26, 27, 28, 29, 30, 31, 1, 2, 3, 4, 5, 6].map((n) => [n, 0]),
+    )
+    // Day 7 = Sat 31 Oct (the week of 25 Oct), day 8 = Sun 1 Nov (a new week).
+    expect(h.series.closedThisWeek).toEqual([0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 1])
+    expect(h.series.open).toEqual([3, 3, 3, 3, 3, 3, 3, 2, 1, 1, 1, 1, 1, 1])
+    expect(h.series.dueToday).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0])
+    expect(h.series.overdue).toEqual([0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1])
+  })
+
+  it('across the spring-forward day (23 hours) too', () => {
+    const today = new Date(2026, 2, 12) // Thu 12 Mar; Sun 8 Mar is 23 hours
+    const old = new Date(2026, 0, 1)
+    const t = makeTodo({ id: 1, createdAt: old, modifiedAt: old, dueDate: new Date(2026, 2, 8) })
+    const h = computeMetricHistory([t], [], { today, weekStartsOn: 0 })
+    expect(h.days.every((d) => d.getHours() === 0)).toBe(true)
+    expect(h.days.at(-5)?.getDate()).toBe(8)
+    expect(h.series.dueToday.slice(-5)).toEqual([1, 0, 0, 0, 0])
+    expect(h.series.overdue.slice(-5)).toEqual([0, 1, 1, 1, 1])
   })
 })

@@ -7,7 +7,8 @@ import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { uniqueListName } from '../../utils/list-copy'
 import { registerModuleReset } from '../../utils/module-reset'
-import { panelOfTab, rowOfCell, type LayoutDropTarget } from '../../utils/workspace-layout-ops'
+import { panelOfTab, rowOfCell } from '../../utils/workspace-layout-queries'
+import { type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
 
 /**

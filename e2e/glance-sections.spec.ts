@@ -40,11 +40,11 @@ function seedWith(extraColumns: WorkspaceSeed['layouts'][number]['columns'] = []
   }
 }
 
-const section = (page: Page, id: string) => page.locator(`[data-dash-section="${id}"]`)
-const sectionCount = (page: Page, id: string) => section(page, id).getByTestId('dash-section-count')
+const section = (page: Page, id: string) => page.locator(`[data-glance-section="${id}"]`)
+const sectionCount = (page: Page, id: string) => section(page, id).getByTestId('glance-section-count')
 const tagRow = (page: Page, key: string) => section(page, 'tags').locator(`[data-tag-row="${key}"]`)
 const quadrant = (page: Page, q: string) => section(page, 'eisenhower').locator(`[data-eis-cell="${q}"]`)
-const quadrantCount = (page: Page, q: string) => quadrant(page, q).getByTestId('dash-eis-count')
+const quadrantCount = (page: Page, q: string) => quadrant(page, q).getByTestId('glance-eis-count')
 const rowTitles = (root: Locator) => root.locator('[data-row-todo]').evaluateAll((rows) =>
   rows.map((r) => r.querySelector('[data-task-title]')?.textContent ?? ''))
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
@@ -60,7 +60,7 @@ test('the four widgets render their counts and rows; the top-bar filter makes th
   await expect(section(page, 'tags').locator('[data-tag-row]')).toHaveCount(3)
   await expect(tagRow(page, 'none')).toContainText('No tag')
   await expect(section(page, 'tags').locator('[data-tag-row]').first()).toContainText('#q4')
-  await expect(section(page, 'tags').locator('[data-tag-row]').first().getByTestId('dash-tag-open')).toHaveText('2')
+  await expect(section(page, 'tags').locator('[data-tag-row]').first().getByTestId('glance-tag-open')).toHaveText('2')
 
   // Stale tasks: oldest first, real task rows.
   await expect(sectionCount(page, 'stale')).toHaveText('2')

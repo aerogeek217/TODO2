@@ -55,4 +55,18 @@ describe('a list tab’s zoom (D25 C + I1)', () => {
     await stepListTabZoom('n1', 'in')
     expect(ws().isDirty).toBe(false)
   })
+
+  it('every control steps through it: the tab menu’s − / + and the palette step the tab they show', async () => {
+    useSettingsStore.setState({ listZoom: 'rows' })
+    const id = await open()
+    // The tab as a control shows it: stepped from its own level.
+    await stepListTabZoom({ id: 'l1', viewState: { zoom: 'stacked' } }, 'out')
+    expect((await storedTab(id)).viewState?.zoom).toBe('rows')
+    await stepListTabZoom({ id: 'l1' }, 'in')
+    expect((await storedTab(id)).viewState?.zoom).toBe('stacked')
+    // At the end: nothing written.
+    await stepListTabZoom({ id: 'l1', viewState: { zoom: 'stacked' } }, 'in')
+    expect((await storedTab(id)).viewState?.zoom).toBe('stacked')
+    expect(ws().isDirty).toBe(false)
+  })
 })

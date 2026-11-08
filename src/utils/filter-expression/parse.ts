@@ -2,7 +2,9 @@ import type { DateField } from '../../models/app-view'
 import type { DateAnchor, DateMatch, MarkerKey } from '../../models/filter-predicate'
 import { EXPRESSION_DEPTH_MAX, EXPRESSION_NODES_MAX, EXPRESSION_TEXT_MAX, type FilterExpr, type IdAtomKind } from '../../models/filter-expression'
 import { PREDICATE_SEARCH_TEXT_MAX } from '../../models/filter-predicate'
+import { startOfDay } from '../date'
 import { parseDatePhrase, parseNumericDate } from '../date-phrase'
+import { quoteText, readQuoted } from '../name-tokens'
 import {
   BEFORE_TODAY,
   DATE_WORD,
@@ -11,6 +13,7 @@ import {
   dateTypeIsOptional,
   dayAnchor,
   fixedAnchorOf,
+  looksBack,
   periodRange,
   range,
   shiftAnchor,
@@ -26,7 +29,8 @@ import { expressionDepth, expressionSize, normalizeExpression } from './tree'
  * first, then `and`, then `or`):
  *
  * - `"budget review"` — text the task contains (bare words side by side are
- *   one phrase, read as if quoted; inside quotes nothing is a keyword);
+ *   one phrase, read as if quoted; inside quotes nothing is a keyword, and
+ *   `\"` is a quote — `utils/name-tokens.readQuoted`, names alike);
  * - `@Aisha` `@"Aisha Rahman"` · `#q4` `#"R&D"` · `!Waiting` `!"On Hold"` ·
  *   `/urgent` `/important` `/focus`;
  * - `no person|tag|status|priority`, `any person|tag|status|priority`;
@@ -46,11 +50,15 @@ export interface ExpressionNameResolver {
 }
 
 export interface ExpressionParseOptions {
-  /** Today, for the day words that are fixed dates (`fri`, `11/30`). */
+  /** Today, for the day words that are fixed dates (`fri`, `11/30`: the next one on Due / Next follow-up, on the others the last weekday and this year's day). */
   today: Date
   names: ExpressionNameResolver
-  /** `false`: `@` terms are refused (the check-in filter: a check-in goes to one person). */
+  /** `false`: `@`, `no person` and `any person` are refused (the check-in filter: a check-in goes to one person). */
   allowPeople?: boolean
+  /** `false`: Completed dates are refused (the check-in filter: it takes open tasks only). */
+  allowCompleted?: boolean
+  /** `false`: `done` is refused (a lens, an Eisenhower pane, the check-in: they never show completed tasks by it). */
+  allowDone?: boolean
 }
 
 /** What a span of the text is, for tinting. */
@@ -114,12 +122,12 @@ function lex(text: string): Lex[] {
       continue
     }
     if (ch === '"') {
-      const close = text.indexOf('"', i + 1)
+      const { value, close } = readQuoted(text, i)
       if (close < 0) {
-        out.push({ kind: 'quoted', start: i, end: n, value: text.slice(i + 1), open: true })
+        out.push({ kind: 'quoted', start: i, end: n, value, open: true })
         i = n
       } else {
-        out.push({ kind: 'quoted', start: i, end: close + 1, value: text.slice(i + 1, close) })
+        out.push({ kind: 'quoted', start: i, end: close + 1, value })
         i = close + 1
       }
       continue
@@ -128,12 +136,12 @@ function lex(text: string): Lex[] {
       const start = i
       i++
       if (text.charAt(i) === '"') {
-        const close = text.indexOf('"', i + 1)
+        const { value, close } = readQuoted(text, i)
         if (close < 0) {
-          out.push({ kind: 'name', sigil: ch, start, end: n, value: text.slice(i + 1), open: true })
+          out.push({ kind: 'name', sigil: ch, start, end: n, value, open: true })
           i = n
         } else {
-          out.push({ kind: 'name', sigil: ch, start, end: close + 1, value: text.slice(i + 1, close) })
+          out.push({ kind: 'name', sigil: ch, start, end: close + 1, value })
           i = close + 1
         }
         continue
@@ -189,8 +197,17 @@ function fail(start: number, end: number, message: string, hint?: string): never
 
 const lower = (t: Lex | undefined) => (t?.kind === 'word' ? t.value.toLowerCase() : null)
 
+/**
+ * Deepest `(` / `not` nesting the text may have while it is read: far past
+ * `EXPRESSION_DEPTH_MAX` (normal form folds `((x))` and `not not x`), and
+ * well inside the call stack, so a long text of `(`s is an error, never a
+ * `RangeError`.
+ */
+const NESTING_MAX = 64
+
 class Parser {
   private pos = 0
+  private nesting = 0
   readonly spans: ExpressionSpan[] = []
 
   constructor(private readonly tokens: Lex[], private readonly opts: ExpressionParseOptions, private readonly length: number) {}
@@ -225,7 +242,7 @@ class Parser {
   }
 
   private tokenText(t: Lex): string {
-    if (t.kind === 'quoted') return `"${t.value}"`
+    if (t.kind === 'quoted') return quoteText(t.value)
     if (t.kind === 'name') return `${t.sigil ?? ''}${t.value}`
     if (t.kind === 'slash') return `/${t.value}`
     return t.value
@@ -257,11 +274,20 @@ class Parser {
     return items.length === 1 ? (items[0] as Node) : { kind: 'and', items: items as FilterExpr[] }
   }
 
+  /** Into one more `(` / `not` (`NESTING_MAX`). */
+  private nest(t: Lex): void {
+    if (++this.nesting > NESTING_MAX) fail(t.start, t.end, 'This nests too deep', 'Fewer ( and not inside each other')
+  }
+
   private parseUnary(after?: Lex): Node {
     if (this.isWord('not')) {
       const op = this.next()
-      if (op) this.span(op, 'operator')
+      if (op) {
+        this.span(op, 'operator')
+        this.nest(op)
+      }
       const item = this.parseUnary(op)
+      this.nesting--
       if (item.kind === 'done') fail(item.start, item.end, 'done goes at the top level', 'Add “and done” to show completed tasks too')
       return { kind: 'not', item }
     }
@@ -281,7 +307,9 @@ class Parser {
           const close = this.next()
           fail(t.start, close?.end ?? t.end, 'Nothing between ( and )')
         }
+        this.nest(t)
         const inner = this.parseOr()
+        this.nesting--
         const close = this.next()
         if (close?.kind !== 'rparen') fail(t.start, t.end, 'Missing )', 'Close the ( that starts here')
         this.span(close, 'paren')
@@ -311,13 +339,16 @@ class Parser {
     if (t.open) fail(t.start, t.end, 'Missing closing "')
     const name = t.value.trim()
     if (!name) fail(t.start, t.end, `Pick a ${KIND_NOUN[kind]} after ${t.sigil ?? '@'}`)
-    if (kind === 'person' && this.opts.allowPeople === false) {
-      fail(t.start, t.end, 'Leave people out', 'A check-in already goes to one person')
-    }
+    if (kind === 'person') this.refusePeople(t.start, t.end)
     const id = this.opts.names[kind](name)
     if (id == null) fail(t.start, t.end, `No ${KIND_NOUN[kind]} named ${name}`)
     this.span(t, kind)
     return { kind, id }
+  }
+
+  /** A people term where the filter can't name people (`allowPeople`). */
+  private refusePeople(start: number, end: number): void {
+    if (this.opts.allowPeople === false) fail(start, end, 'Leave people out', 'A check-in already goes to one person')
   }
 
   private priority(t: Lex): FilterExpr {
@@ -331,6 +362,7 @@ class Parser {
     const w = t.value.toLowerCase()
     if (w === 'and' || w === 'or') fail(t.start, t.end, `“${w}” needs something before it`)
     if (w === 'done') {
+      if (this.opts.allowDone === false) fail(t.start, t.end, 'done has no say here', 'This filter never shows completed tasks by it')
       this.span(t, 'done')
       return { kind: 'done', start: t.start, end: t.end }
     }
@@ -374,6 +406,7 @@ class Parser {
     const w = lower(what)
     const kind = w ? ENTITY_KINDS.get(w) : undefined
     if (what && kind) {
+      if (kind === 'person') this.refusePeople(t.start, what.end)
       this.next()
       this.span({ start: t.start, end: what.end }, 'none')
       return { kind, id: 0 }
@@ -400,6 +433,7 @@ class Parser {
     const w = lower(what)
     const kind = w ? ENTITY_KINDS.get(w) : undefined
     if (what && kind) {
+      if (kind === 'person') this.refusePeople(t.start, what.end)
       this.next()
       this.span({ start: t.start, end: what.end }, 'none')
       return { kind: 'not', item: { kind, id: 0 } }
@@ -413,6 +447,7 @@ class Parser {
   }
 
   private dateTerm(t: Lex, field: DateField): FilterExpr {
+    if (field === 'completed' && this.opts.allowCompleted === false) fail(t.start, t.end, 'Leave completed out', 'A check-in takes open tasks only')
     const kind: ExpressionSpanKind = field === 'deadline' ? 'due' : field === 'followup' || field === 'lastFollowup' ? 'followup' : 'date'
     const startPos = this.pos
     const match = this.when(t, field)
@@ -441,7 +476,7 @@ class Parser {
     }
     if (w === 'before' || w === 'by' || w === 'after' || w === 'from') {
       this.next()
-      const day = this.day()
+      const day = this.day(field)
       if (w === 'by') return range(null, day.anchor)
       if (w === 'from') return range(day.anchor, null)
       const moved = shiftAnchor(day.anchor, w === 'before' ? -1 : 1)
@@ -466,17 +501,30 @@ class Parser {
       this.next()
       return periodRange(period, field)
     }
-    const from = this.day()
+    const fromWord = lower(this.peek())
+    const from = this.day(field)
     if (this.peek()?.kind === 'dotdot') {
       this.next()
-      const to = this.day()
+      const toWord = lower(this.peek())
+      const to = this.day(field)
+      // Two year-less days: one range, read together (`12/20..1/5` runs into the next year).
+      if (fromWord && toWord && YEARLESS.test(fromWord) && YEARLESS.test(toWord)) {
+        const year = this.opts.today.getFullYear()
+        const days = yearlessRange(
+          parseNumericDate(`${fromWord}/${year}`, this.opts.today),
+          parseNumericDate(`${toWord}/${year}`, this.opts.today),
+          !looksBack(field),
+          startOfDay(this.opts.today),
+        )
+        if (days) return range(fixedAnchorOf(days.start), fixedAnchorOf(days.end))
+      }
       return range(from.anchor, to.anchor)
     }
     return range(from.anchor, from.anchor)
   }
 
   /** One day: `today`, `fri`, `next fri`, `in 3 days`, `3 days ago`, `11/30`, `start of next week`, `end of month + 3`. */
-  private day(): { anchor: DateAnchor; start: number; end: number } {
+  private day(field: DateField): { anchor: DateAnchor; start: number; end: number } {
     const t = this.next()
     if (!t) fail(this.length, this.length, 'A day goes here', DAY_HINT)
     if (t.kind !== 'word') fail(t.start, t.end, `Can't read “${this.tokenText(t)}” as a day`, DAY_HINT)
@@ -523,13 +571,58 @@ class Parser {
       if (!date || !day) fail(t.start, day?.end ?? t.end, 'next what?', 'next fri; next week goes after a date type')
       return done(fixedAnchorOf(date), day.end)
     }
-    // A year-less date is this year's (a filter looks back as often as ahead); the printer writes the year.
-    const date = /^\d{1,2}\/\d{1,2}$/.test(w)
-      ? parseNumericDate(`${w}/${this.opts.today.getFullYear()}`, this.opts.today)
-      : parseDatePhrase(w, this.opts.today)
+    // A year-less date rolls forward on the dates that look ahead (due, the
+    // next follow-up), as the search box reads it; on the others it is this
+    // year's. A bare weekday is the next one there, and the last one on the
+    // dates that look back (`created fri`). The printer writes the year.
+    const back = looksBack(field)
+    const weekday = weekdayOf(w)
+    const date = YEARLESS.test(w)
+      ? parseNumericDate(back ? `${w}/${this.opts.today.getFullYear()}` : w, this.opts.today)
+      : back && weekday >= 0 ? lastWeekday(this.opts.today, weekday) : parseDatePhrase(w, this.opts.today)
     if (!date) fail(t.start, t.end, `Can't read “${t.value}”`, DAY_HINT)
     return done(fixedAnchorOf(date))
   }
+}
+
+/** A day typed without its year (`11/30`). */
+const YEARLESS = /^\d{1,2}\/\d{1,2}$/
+
+/**
+ * A range of two year-less days, each this year's (`start`, `end`), as one:
+ * an end before its start is the next year's (on the dates that look back,
+ * the start the year before); then, on the dates that look ahead, a range
+ * already over is next year's, as a single day rolls forward. Null when
+ * either isn't a day.
+ */
+function yearlessRange(start: Date | null, end: Date | null, ahead: boolean, today: Date): { start: Date; end: Date } | null {
+  if (!start || !end) return null
+  const shift = (d: Date, years: number) => new Date(d.getFullYear() + years, d.getMonth(), d.getDate())
+  let s = start
+  let e = end
+  if (e < s) {
+    if (ahead) e = shift(e, 1)
+    else s = shift(s, -1)
+  }
+  if (ahead && e < today) {
+    s = shift(s, 1)
+    e = shift(e, 1)
+  }
+  return { start: s, end: e }
+}
+
+const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'] as const
+
+/** A weekday's index for its name or 3-letter abbreviation (`fri`, `friday`), else -1 (as `utils/date-phrase` reads them). */
+function weekdayOf(word: string): number {
+  return WEEKDAYS.findIndex((d) => d === word || d.slice(0, 3) === word)
+}
+
+/** The last `weekday` strictly before `today` (never today, as the next one never is). */
+function lastWeekday(today: Date, weekday: number): Date {
+  let back = today.getDay() - weekday
+  if (back <= 0) back += 7
+  return new Date(today.getFullYear(), today.getMonth(), today.getDate() - back)
 }
 
 /** A whole count of days (`3`), or null. */

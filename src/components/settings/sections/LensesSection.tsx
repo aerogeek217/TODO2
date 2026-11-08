@@ -226,6 +226,7 @@ function LensRow({ lens, unsaved, names, inUse, keeps, open, expanded, renaming,
               onChange={(next) => useLensDraftStore.getState().edit(lens.id, next)}
               addLabel="Add a filter to this lens"
               layout="stack"
+              allowDone={false}
               inDialog
               before={hasChips ? undefined : <span className={styles.noFilter}>No filter — every task</span>}
             />

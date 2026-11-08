@@ -5,7 +5,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useInlineEdit } from '../../hooks/use-inline-edit'
-import { startOfToday } from '../../utils/date'
+import { useToday } from '../../hooks/use-today'
 import { rowCue } from '../../utils/priority-cues'
 import { markerSummary } from '../../utils/markers'
 import { isStale, staleTooltipLine } from '../../utils/stale'
@@ -139,7 +139,7 @@ export const TaskRow = memo(function TaskRow({
     save: saveTitle, handleKeyDown: handleTitleKeyDown, scheduleEdit, cancelScheduledEdit,
   } = useInlineEdit(todo.title, handleSaveTitle)
 
-  const today = startOfToday()
+  const today = useToday()
   const priorityCues = useSettingsStore((s) => s.priorityCues)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const cue = rowCue(todo, priorityCues, today, urgentRange)

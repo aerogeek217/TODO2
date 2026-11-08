@@ -54,9 +54,6 @@ export type GlanceWidgetKind =
   | 'number' | 'followup' | 'next7' | 'trend' | 'status' | 'people' | 'tags' | 'stale' | 'recent' | 'eisenhowerSummary'
   | 'changes' | 'today' | 'pulse'
 
-/** The glance kinds that show task rows (each its own selection scope and bulk bar). */
-export type GlanceRowsKind = 'followup' | 'stale' | 'recent' | 'today'
-
 export type CalendarView = 'week' | 'month'
 
 /** Max absolute calendar offset (weeks in week view, months in month view). */
@@ -333,9 +330,6 @@ export interface LayoutBand {
 
 /** A row of cells: a column's row, or a band (one row). */
 export type LayoutCellRow = LayoutRow | LayoutBand
-
-/** A panel: what holds a tab strip — a cell, in a column's row or in a band. */
-export type LayoutPanel = LayoutCell
 
 /**
  * The parts of a layout that Save writes and an edit can leave unsaved: its

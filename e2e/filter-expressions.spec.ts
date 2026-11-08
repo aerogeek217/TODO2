@@ -56,7 +56,7 @@ test('Edit list: type an expression with an autocomplete pick; an error writes n
   // A text that doesn't read says why and writes nothing; Esc puts the written text back.
   await field.press('End')
   await field.pressSequentially(' and (')
-  await expect(editList.getByRole('status')).toBeVisible()
+  await expect(editList.getByTestId('expression-error')).toBeVisible()
   await expect(field).toHaveAttribute('aria-invalid', 'true')
   await expect.poll(() => sorted(page)).toEqual(['Ann active', 'Ann waiting', 'Bob waiting'])
   await field.press('Escape')
@@ -88,6 +88,77 @@ test('Edit list: type an expression with an autocomplete pick; an error writes n
   await expect(chip).toContainText('@Ann or !Waiting')
   await chip.click()
   await expect(page.getByTestId('edit-list').getByRole('textbox', { name: 'Filter expression' })).toHaveValue('@Ann or !Waiting')
+})
+
+test('Edit list: a text that doesn’t read holds the first close, saying so, and the next drops it; the focus never falls to the page (cr33 U5, U6)', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  await expect.poll(() => sorted(page)).toEqual(['Ann active', 'Ann waiting'])
+  await wsListWidget(page, 't1').getByTestId('list-summary').click()
+  const editList = page.getByTestId('edit-list')
+  await editList.getByRole('radiogroup', { name: 'Filter mode' }).getByRole('radio', { name: 'Expression' }).click()
+  const field = editList.getByRole('textbox', { name: 'Filter expression' })
+  await expect(field).toBeFocused()
+
+  // An or Graphical can't say: locked; Edit expression goes back into the field.
+  await field.fill('@Ann or !Waiting')
+  await field.blur()
+  await expect.poll(() => sorted(page)).toEqual(['Ann active', 'Ann waiting', 'Bob waiting'])
+  await editList.getByRole('radio', { name: 'Graphical' }).click()
+  await editList.getByTestId('expression-locked').getByRole('button', { name: 'Edit expression' }).click()
+  await expect(field).toBeFocused()
+
+  // A text that doesn't read: the first close is held, saying so; the second closes, the filter as it last read.
+  await field.press('End')
+  await field.pressSequentially(' and (')
+  const close = editList.getByRole('button', { name: 'Close Edit list' })
+  await close.click()
+  await expect(editList).toBeVisible()
+  await expect(editList.getByTestId('expression-error')).toContainText('close again to drop it')
+  await expect(field).toBeFocused()
+  await close.click()
+  await expect(editList).toHaveCount(0)
+  await expect.poll(() => sorted(page)).toEqual(['Ann active', 'Ann waiting', 'Bob waiting'])
+
+  // Clear and use Graphical leaves the focus on + Filter.
+  await wsListWidget(page, 't1').getByTestId('list-filter-expression').click()
+  await page.getByTestId('edit-list').getByRole('radio', { name: 'Graphical' }).click()
+  await page.getByTestId('edit-list').getByRole('button', { name: 'Clear and use Graphical' }).click()
+  await expect(page.getByTestId('edit-list').getByRole('button', { name: /Filter/ })).toBeFocused()
+})
+
+/** Whether the page goes idle within `ms`: a render loop keeps the main thread busy, so its idle callback only times out. */
+const goesIdle = (page: Page, ms: number) => page.evaluate((timeout) => new Promise<boolean>((resolve) => {
+  requestIdleCallback((deadline) => resolve(!deadline.didTimeout), { timeout })
+}), ms)
+
+test('the field settles while its popup is open: no render loop (cr33 wave 2)', async ({ page }) => {
+  // The popup's compute was a new function each render, and the popup re-reads its text whenever that changes.
+  await page.addInitScript(() => {
+    const w = window as unknown as { measured: number }
+    w.measured = 0
+    const measure = CanvasRenderingContext2D.prototype.measureText
+    CanvasRenderingContext2D.prototype.measureText = function (text: string) {
+      w.measured++
+      return measure.call(this, text)
+    }
+  })
+  await seedWorkspace(page, SEED)
+  await expect.poll(() => sorted(page)).toEqual(['Ann active', 'Ann waiting'])
+  await wsListWidget(page, 't1').getByTestId('list-summary').click()
+  const editList = page.getByTestId('edit-list')
+  await editList.getByRole('radiogroup', { name: 'Filter mode' }).getByRole('radio', { name: 'Expression' }).click()
+  const field = editList.getByRole('textbox', { name: 'Filter expression' })
+  await field.press('End')
+  await field.pressSequentially(' and /fo')
+  await expect(page.getByRole('listbox').getByRole('option', { name: /Focus/ })).toBeVisible()
+  expect(await goesIdle(page, 3000)).toBe(true)
+  // Idle, the popup measures its anchor no more.
+  const measured = () => page.evaluate(() => (window as unknown as { measured: number }).measured)
+  const before = await measured()
+  expect(await goesIdle(page, 3000)).toBe(true)
+  expect(await measured()).toBe(before)
+  await field.press('Tab')
+  await expect(field).toHaveValue(/^@Ann and \/focus\s*$/)
 })
 
 test('a lens holding an expression filters the lists under the top bar', async ({ page }) => {

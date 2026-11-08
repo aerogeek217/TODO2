@@ -4,7 +4,7 @@ import { useUIStore } from '../stores/ui-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { attrSelector, LIST_WIDGET_ATTR } from '../utils/dom-contract'
 import { stepListZoom, type ZoomDirection } from '../utils/list-zoom'
-import { getTab } from '../utils/workspace-layout-ops'
+import { getTab } from '../utils/workspace-layout-queries'
 
 /**
  * A list tab's zoom (D25 C + I1) as the controls change it — Ctrl + wheel
@@ -48,11 +48,15 @@ export function zoomTargetTab(): LensTab | null {
   return id ? lensTab(id) : null
 }
 
-/** Steps list tab `tabId`'s zoom one level `dir` (nothing past the ends). */
-export function stepListTabZoom(tabId: string, dir: ZoomDirection): Promise<void> {
-  const tab = lensTab(tabId)
-  if (!tab) return Promise.resolve()
-  const zoom = listTabZoom(tab)
+/**
+ * Steps a list tab's zoom one level `dir` (nothing past the ends) — every
+ * control's step (the wheel, the tab menu's − / +, the palette): `tab` as
+ * the control shows it, or the open layout's list tab of that id.
+ */
+export function stepListTabZoom(tab: string | Pick<LensTab, 'id' | 'viewState'>, dir: ZoomDirection): Promise<void> {
+  const shown = typeof tab === 'string' ? lensTab(tab) : tab
+  if (!shown) return Promise.resolve()
+  const zoom = listTabZoom(shown)
   const next = stepListZoom(zoom, dir)
-  return next === zoom ? Promise.resolve() : setListTabZoom(tabId, next)
+  return next === zoom ? Promise.resolve() : setListTabZoom(shown.id, next)
 }

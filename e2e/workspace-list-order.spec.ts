@@ -13,6 +13,7 @@ import {
 } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 import { box } from './fixtures/geometry'
+import { readStore } from './fixtures/db'
 
 /**
  * List widget rows: selection (click / Shift / Ctrl, arrow keys, bulk bar),
@@ -51,6 +52,24 @@ function row(page: Page, title: string, group?: string): Locator {
   return scope.locator('[data-row-key]', { has: page.locator(`span[data-task-title="${title}"]`) })
 }
 
+/** The titles of list `listName`'s ranked tasks, by their stored rank (ties by id, as the app orders them). */
+async function storedOrder(page: Page, listName: string): Promise<string[]> {
+  const listId = (await readStore<{ id: number; name: string }>(page, 'listDefinitions')).find((d) => d.name === listName)?.id
+  const todos = await readStore<{ id: number; title: string }>(page, 'todos')
+  return (await readListOrders(page))
+    .filter((r) => r.listDefinitionId === listId)
+    .sort((a, b) => a.rank - b.rank || a.todoId - b.todoId)
+    .map((r) => todos.find((t) => t.id === r.todoId)?.title ?? `#${r.todoId}`)
+}
+
+/** Whether the page's list-order store has read the stored ranks. */
+const listOrderLoaded = (page: Page) => page.evaluate(async () => {
+  const m = (await import(/* @vite-ignore */ '/src/stores/list-order-store.ts' as string)) as {
+    useListOrderStore: { getState: () => { loaded: boolean } }
+  }
+  return m.useListOrderStore.getState().loaded
+})
+
 /** Viewport y just inside the top of `target` (lands before it). */
 async function above(target: Locator): Promise<number> {
   return (await box(target)).y + 4
@@ -67,9 +86,15 @@ test('reordering a manual list saves at once and survives a reload', async ({ pa
   await expect.poll(() => titles(page)).toEqual(['Alpha', 'Delta', 'Bravo', 'Charlie'])
   // Not a list edit: nothing unsaved.
   await expect(wsCell(page, 'k1').getByTestId('save-list')).toHaveCount(0)
-  await expect.poll(async () => (await readListOrders(page)).length).toBeGreaterThan(0)
+  // Stored: the ranks alone give the order shown.
+  await expect.poll(() => storedOrder(page, 'Order')).toEqual(['Alpha', 'Delta', 'Bravo', 'Charlie'])
 
   await page.reload()
+  // The rows show from the task store first; the ranks follow once the
+  // list-order store has read them — a read that waits for the startup's
+  // tracked writes to settle (`readFresh`), slow on a loaded machine. So wait
+  // on that load, not on the default 5 s of a title poll.
+  await expect.poll(() => listOrderLoaded(page), { timeout: 15_000 }).toBe(true)
   await expect.poll(() => titles(page)).toEqual(['Alpha', 'Delta', 'Bravo', 'Charlie'])
 
   // A second move writes one rank.

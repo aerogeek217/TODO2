@@ -1,0 +1,7 @@
+/* A tag's colour beside its name in a tab menu's tag picks. */
+.swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}

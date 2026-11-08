@@ -20,12 +20,16 @@ import { makeTodo, resetDb } from '../helpers'
 // days (Settings › Tasks › Completed tasks, 7 by default), counted from the
 // day it last showed, whatever was answered.
 
-const DAY = 86_400_000
+/** This time of day, `n` calendar days ago: the interval counts calendar days, so a fixed 24 h step would come up a day short across a DST change. */
+function daysAgo(n: number): Date {
+  const now = new Date()
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() - n, now.getHours(), now.getMinutes(), now.getSeconds())
+}
 let expiredUid = ''
 
 beforeEach(async () => {
   await resetDb()
-  const old = new Date(Date.now() - 90 * DAY)
+  const old = daysAgo(90)
   const todo = makeTodo({ id: 1, title: 'Old done', isCompleted: true, completedAt: old, createdAt: old, modifiedAt: old })
   expiredUid = todo.uid
   await db.todos.add(todo)
@@ -62,14 +66,14 @@ describe('nextPurgePromptDay', () => {
 describe('the purge check (launch, and after a sync-file load)', () => {
   it('finds the expired tasks while the prompt never showed, or showed the interval ago', async () => {
     expect(await expiredCompletedUids()).toEqual(new Set([expiredUid]))
-    useSettingsStore.setState({ purgePromptLastAt: new Date(Date.now() - 7 * DAY) })
+    useSettingsStore.setState({ purgePromptLastAt: daysAgo(7) })
     expect(await expiredCompletedUids()).toEqual(new Set([expiredUid]))
   })
 
   it('skips while the prompt showed less than the interval ago, whatever the interval', async () => {
-    useSettingsStore.setState({ purgePromptLastAt: new Date(Date.now() - 6 * DAY) })
+    useSettingsStore.setState({ purgePromptLastAt: daysAgo(6) })
     expect(await expiredCompletedUids()).toBeNull()
-    useSettingsStore.setState({ purgePromptIntervalDays: 30, purgePromptLastAt: new Date(Date.now() - 20 * DAY) })
+    useSettingsStore.setState({ purgePromptIntervalDays: 30, purgePromptLastAt: daysAgo(20) })
     expect(await expiredCompletedUids()).toBeNull()
     useSettingsStore.setState({ purgePromptIntervalDays: 14 })
     expect(await expiredCompletedUids()).toEqual(new Set([expiredUid]))
@@ -78,9 +82,9 @@ describe('the purge check (launch, and after a sync-file load)', () => {
   it('launch: no prompt to show while inside the interval (read from the stored setting)', async () => {
     vi.spyOn(fileStorageService, 'initialize').mockResolvedValue(undefined)
     vi.spyOn(backupScheduler, 'start').mockImplementation(() => {})
-    await db.settings.put({ key: SETTING_KEYS.purgePromptLastAt, value: new Date(Date.now() - 2 * DAY).toISOString() })
+    await db.settings.put({ key: SETTING_KEYS.purgePromptLastAt, value: daysAgo(2).toISOString() })
     await expect(runAppStartup()).resolves.toEqual({ expiredUids: null })
-    await db.settings.put({ key: SETTING_KEYS.purgePromptLastAt, value: new Date(Date.now() - 8 * DAY).toISOString() })
+    await db.settings.put({ key: SETTING_KEYS.purgePromptLastAt, value: daysAgo(8).toISOString() })
     await expect(runAppStartup()).resolves.toEqual({ expiredUids: new Set([expiredUid]) })
   })
 
@@ -170,12 +174,12 @@ describe('Settings › Completed tasks — Ask at most every', () => {
 
   it('the past-retention line says when the prompt will ask, inside the interval', () => {
     useSettingsStore.setState({ completedRetentionDays: 30 })
-    useTodoStore.setState({ todos: [makeTodo({ id: 1, isCompleted: true, completedAt: new Date(Date.now() - 90 * DAY) })] })
+    useTodoStore.setState({ todos: [makeTodo({ id: 1, isCompleted: true, completedAt: daysAgo(90) })] })
     const view = render(<CompletedTasksSection />)
     expect(screen.getByText(/1 completed task past retention \(you'll be asked on next launch\)/)).toBeInTheDocument()
     view.unmount()
 
-    const shown = new Date(Date.now() - 2 * DAY)
+    const shown = daysAgo(2)
     useSettingsStore.setState({ purgePromptLastAt: shown })
     render(<CompletedTasksSection />)
     const from = new Date(shown.getFullYear(), shown.getMonth(), shown.getDate() + 7)

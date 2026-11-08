@@ -79,6 +79,36 @@ test.describe('desktop', () => {
     await expect(popover(page)).toHaveCount(0)
   })
 
+  test('the face growing closes the popover, and focus goes to the cell’s tab, not the page (cr33 W6)', async ({ page }) => {
+    await page.setViewportSize({ width: 1000, height: 900 })
+    await seedWorkspace(page, {
+      tasks: TASKS,
+      listDefinitions: [{ name: 'Everything' }],
+      layouts: [{
+        name: 'Faces',
+        // The List small by its width (≤ 180px) beside the notes; wider windows make it grow.
+        columns: [{ id: 'c1', rows: [{ id: 'r1', cells: [
+          { id: 'k1', weight: 1, tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] },
+          { id: 'k2', weight: 6, tabs: [{ id: 'notes', kind: 'notes' }] },
+        ] }] }],
+      }],
+    })
+    const cell = wsCell(page, 'k1')
+    await expect(cell).toHaveAttribute('data-face', 'small')
+    // Opened from the keyboard: focus moves into it.
+    await cell.getByRole('button', { name: 'Open Everything' }).focus()
+    await page.keyboard.press('Enter')
+    await expect(popover(page)).toBeVisible()
+    await expect.poll(() => page.evaluate(() => document.activeElement?.closest('[data-testid="widget-face-popover"]') != null)).toBe(true)
+
+    // The cell grows past the small face: the popover closes, the opener is gone with the small face.
+    await page.setViewportSize({ width: 1800, height: 900 })
+    await expect(cell).not.toHaveAttribute('data-face', 'small')
+    await expect(popover(page)).toHaveCount(0)
+    await expect(cell.getByRole('button', { name: 'Open Everything' })).toHaveCount(0)
+    await expect.poll(() => page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.wsTab ?? document.activeElement?.tagName)).toBe('list')
+  })
+
   test('a row editor inside the popover opens over it and leaves it open', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: TASKS,

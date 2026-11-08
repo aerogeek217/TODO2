@@ -1,5 +1,5 @@
-import type { DashGlyphName } from '../../../utils/dash-glyphs'
-import { DashGlyph } from '../../shared/DashGlyph'
+import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
+import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import styles from './GlanceWidget.module.css'
 
 /**
@@ -9,7 +9,7 @@ import styles from './GlanceWidget.module.css'
  * widget on a click.
  */
 export function GlanceSmallFace({ glyph, glyphColor, title, value, valueColor, caption, entry }: {
-  glyph: DashGlyphName
+  glyph: GlanceGlyphName
   glyphColor: string
   title: string
   /** The headline: a count, or a signed net (`+3`). */
@@ -25,7 +25,7 @@ export function GlanceSmallFace({ glyph, glyphColor, title, value, valueColor, c
   return (
     <div className={styles.smallFace} role="group" aria-label={words} data-testid="glance-small-face">
       <span className={styles.smallTitle}>
-        <DashGlyph name={glyph} size={12} color={glyphColor} />
+        <GlanceGlyph name={glyph} size={12} color={glyphColor} />
         <span className={styles.smallTitleText}>{title}</span>
       </span>
       <span className={styles.smallFigures}>

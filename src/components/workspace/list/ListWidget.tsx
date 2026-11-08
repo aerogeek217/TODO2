@@ -65,7 +65,7 @@ import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { LIST_SECTION_ATTR, LIST_WIDGET_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
-import { listTabZoom, setListTabZoom } from '../../../services/list-zoom'
+import { listTabZoom, stepListTabZoom } from '../../../services/list-zoom'
 import { zoomOnCtrlWheel } from './zoom-wheel'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { transitionName, withViewTransition } from '../../shared/view-transition'
@@ -161,7 +161,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const defaultZoom = useSettingsStore((s) => s.listZoom)
   const zoom: ListZoom = isMobile ? 'rows' : listTabZoom(tab, defaultZoom)
   const zoomRef = useLatestRef(isMobile ? null : zoom)
-  const tabIdRef = useLatestRef(tab.id)
+  const tabRef = useLatestRef(tab)
   const picks = useListWidgetStore((s) => s.picks[tab.id])
   const setPicks = useListWidgetStore((s) => s.setPicks)
   const collapsed = useListWidgetStore((s) => s.collapsed[tab.id])
@@ -180,22 +180,28 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const filterSettings = useFilterSettings()
   const scrollRef = useRef<HTMLDivElement>(null)
   const runtimeInputRef = useRef<HTMLInputElement>(null)
-  // The drag hook reads the scroller through `scrollRef`; the edge fades track it; Ctrl + wheel over it zooms.
+  // The drag hook reads the scroller through `scrollRef`; the edge fades track it.
   const setScrollEl = useCallback((el: HTMLDivElement | null) => {
     scrollRef.current = el
     const stop = trackScrollEdges(el)
-    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current, (z) => void setListTabZoom(tabIdRef.current, z)) : undefined
     return () => {
       scrollRef.current = null
       stop?.()
-      stopWheel?.()
     }
-  }, [zoomRef, tabIdRef])
+  }, [])
   const widgetRef = useRef<HTMLDivElement | null>(null)
+  // Ctrl + wheel anywhere over the widget zooms the list — its prompt, filter line and footer
+  // too, never the page.
   const setWidgetEl = useCallback((el: HTMLDivElement | null) => {
     widgetRef.current = el
     faceRef(el)
-  }, [faceRef])
+    const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current != null, (dir) => void stepListTabZoom(tabRef.current, dir)) : undefined
+    return () => {
+      widgetRef.current = null
+      faceRef(null)
+      stopWheel?.()
+    }
+  }, [faceRef, zoomRef, tabRef])
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)
@@ -243,17 +249,23 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
 
   // The lens on this list, while one applies at the top bar: shown while
   // it hides something here, or while the list ignores it (so it can be
-  // turned back on).
+  // turned back on) — and, once used, for as long as that lens stays picked,
+  // so a click that leaves it nothing to hide doesn't take it from under the
+  // focus (U7).
   const lensName = screenFor.lens?.name
+  const lensId = screenFor.lens?.id
+  const [switchUsedFor, setSwitchUsedFor] = useState<string | null>(null)
+  const switchUsed = lensId != null && switchUsedFor === lensId
   const lensMark = useMemo<ListLensMark | undefined>(
-    () => (lensName != null && !runtimeFilterPending && (screenFor.ignoresLens || lensHides > 0)
+    () => (lensName != null && !runtimeFilterPending && (screenFor.ignoresLens || lensHides > 0 || switchUsed)
       ? { name: lensName, ignored: screenFor.ignoresLens, hides: lensHides }
       : undefined),
-    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides],
+    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides, switchUsed],
   )
   const toggleLens = useCallback(() => {
+    if (lensId != null) setSwitchUsedFor(lensId)
     void useListDefinitionStore.getState().setIgnoreLens(definition.id, !screenFor.ignoresLens)
-  }, [definition.id, screenFor.ignoresLens])
+  }, [definition.id, screenFor.ignoresLens, lensId])
 
   const onResultRef = useLatestRef(onResult)
   const tabCount = filterLineShown ? undefined : countLabel

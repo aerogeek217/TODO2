@@ -40,8 +40,12 @@ const cut = (tab: Locator) => tab.locator('[data-tab-title]').evaluate(async (el
   return el.scrollWidth > el.clientWidth
 })
 
-/** Whether the strip shrinks its tabs, with none folded into `+N`. */
-const shrunk = (page: Page) => page.evaluate(() => {
+/**
+ * Whether the strip shrinks its tabs, with none folded into `+N` — read after
+ * two frames (the settle, in the same round trip: the sweep makes one per width).
+ */
+const shrunk = (page: Page) => page.evaluate(async () => {
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
   const cell = document.querySelector('[data-ws-cell="k1"]')
   if (!cell || cell.querySelector('[aria-label$="more tabs"]')) return false
   return Array.from(cell.querySelectorAll('[data-ws-tab] [data-tab-title]')).some((t) => t.scrollWidth > t.clientWidth)
@@ -67,9 +71,11 @@ const settle = (page: Page) => page.evaluate(() => new Promise((r) => requestAni
  * `change` and records whether the active tab's title is cut, then `undo`.
  * Sweeping widths: at some, a change happens to resize the strip by a
  * rounding pixel (and the ResizeObserver fits again); at others nothing
- * resizes.
+ * resizes. Sixty-one widths, each a resize and a few settles: ~10 s alone,
+ * so the sweep's test takes the slow budget (it ran past 30 s in a full parallel run).
  */
 async function sweep(page: Page, change: () => Promise<void>, undo: () => Promise<void>): Promise<number[]> {
+  test.slow()
   await seed(page, 1800)
   const active = wsTab(page, 'l1')
   await expect(active).toContainText('5')
@@ -77,7 +83,6 @@ async function sweep(page: Page, change: () => Promise<void>, undo: () => Promis
   let tried = 0
   for (let width = 1700; width >= 1100; width -= 10) {
     await page.setViewportSize({ width, height: 800 })
-    await settle(page)
     if (!(await shrunk(page))) continue
     tried++
     expect(await cut(active), `${width}: whole before`).toBe(false)

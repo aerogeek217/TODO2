@@ -1,13 +1,8 @@
 import {
   BAND_DEFAULT_HEIGHT,
-  BAND_EDGES,
   DEFAULT_WEIGHT,
-  tabListId,
   type BandEdge,
-  type LayoutBand,
-  type LayoutBody,
   type LayoutCell,
-  type LayoutCellRow,
   type LayoutColumn,
   type LayoutRow,
   type LayoutTab,
@@ -16,6 +11,9 @@ import {
   type WidgetKind,
   type WorkspaceLayout,
 } from '../models/workspace-layout'
+import { isFitRow } from './workspace-rows'
+import { cellAt, type CellLocation, findCell, findRow, findTab, layoutIds, rowAt, rowLocOf } from './workspace-layout-queries'
+import { expanded, insertAllAt, insertAt, removeAt, replaceAt, setCellAt, setRowAt, withBand, withColumns } from './workspace-layout-edit'
 
 /**
  * Pure reducers over a `WorkspaceLayout`. Each returns the **same object**
@@ -66,320 +64,6 @@ export type LayoutDropTarget =
   | { kind: 'layout' }
   | { kind: 'band'; edge: BandEdge; index?: number }
   | { kind: 'new-band'; edge: BandEdge }
-
-/** Where a row of cells is: a column's row, or a band. */
-export type RowLocation =
-  | { kind: 'column'; colIdx: number; rowIdx: number }
-  | { kind: 'band'; edge: BandEdge }
-
-/** Where a cell is: in a column's row, or in a band. */
-export type CellLocation =
-  | { kind: 'column'; colIdx: number; rowIdx: number; cellIdx: number }
-  | { kind: 'band'; edge: BandEdge; cellIdx: number }
-
-/** Where a tab is: its cell and its index in that cell's strip. */
-export interface TabLocation {
-  cell: CellLocation
-  cellId: string
-  tabIdx: number
-}
-
-/** The row (or band) part of a cell's location. */
-function rowLocOf(loc: CellLocation): RowLocation {
-  return loc.kind === 'band' ? { kind: 'band', edge: loc.edge } : { kind: 'column', colIdx: loc.colIdx, rowIdx: loc.rowIdx }
-}
-
-/** Where the row (a column's row, or a band) with id `rowId` is. */
-export function findRow(layout: LayoutBody, rowId: string): RowLocation | null {
-  for (const edge of BAND_EDGES) {
-    if (layout[edge]?.id === rowId) return { kind: 'band', edge }
-  }
-  for (let colIdx = 0; colIdx < layout.columns.length; colIdx++) {
-    const rows = layout.columns[colIdx]?.rows ?? []
-    const rowIdx = rows.findIndex((r) => r.id === rowId)
-    if (rowIdx !== -1) return { kind: 'column', colIdx, rowIdx }
-  }
-  return null
-}
-
-export function rowAt(layout: LayoutBody, loc: RowLocation): LayoutCellRow | undefined {
-  return loc.kind === 'band' ? layout[loc.edge] : layout.columns[loc.colIdx]?.rows[loc.rowIdx]
-}
-
-/** Where the cell with id `cellId` is (in a column's row or in a band). */
-export function findCell(layout: LayoutBody, cellId: string): CellLocation | null {
-  for (const edge of BAND_EDGES) {
-    const cellIdx = layout[edge]?.cells.findIndex((c) => c.id === cellId) ?? -1
-    if (cellIdx !== -1) return { kind: 'band', edge, cellIdx }
-  }
-  for (let colIdx = 0; colIdx < layout.columns.length; colIdx++) {
-    const rows = layout.columns[colIdx]?.rows ?? []
-    for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
-      const cellIdx = rows[rowIdx]?.cells.findIndex((c) => c.id === cellId) ?? -1
-      if (cellIdx !== -1) return { kind: 'column', colIdx, rowIdx, cellIdx }
-    }
-  }
-  return null
-}
-
-export function cellAt(layout: LayoutBody, loc: CellLocation): LayoutCell | undefined {
-  return rowAt(layout, rowLocOf(loc))?.cells[loc.cellIdx]
-}
-
-/** The row (a column's row, or a band) holding cell `cellId`, if any. */
-export function rowOfCell(layout: LayoutBody, cellId: string): LayoutCellRow | undefined {
-  const loc = findCell(layout, cellId)
-  return loc ? rowAt(layout, rowLocOf(loc)) : undefined
-}
-
-/** Every cell, the top band's first, then the columns' rows' cells in order, then the bottom band's. */
-export function layoutPanels(layout: LayoutBody): LayoutCell[] {
-  const out: LayoutCell[] = []
-  if (layout.top) out.push(...layout.top.cells)
-  for (const col of layout.columns) for (const row of col.rows) out.push(...row.cells)
-  if (layout.bottom) out.push(...layout.bottom.cells)
-  return out
-}
-
-/** Every row of cells: the top band, the columns' rows in order, the bottom band. */
-export function layoutRows(layout: LayoutBody): LayoutCellRow[] {
-  const out: LayoutCellRow[] = []
-  if (layout.top) out.push(layout.top)
-  for (const col of layout.columns) out.push(...col.rows)
-  if (layout.bottom) out.push(layout.bottom)
-  return out
-}
-
-export function findTab(layout: LayoutBody, tabId: string): TabLocation | null {
-  for (const cell of layoutPanels(layout)) {
-    const tabIdx = cell.tabs.findIndex((t) => t.id === tabId)
-    if (tabIdx === -1) continue
-    const loc = findCell(layout, cell.id)
-    return loc ? { cell: loc, cellId: cell.id, tabIdx } : null
-  }
-  return null
-}
-
-/** The cell holding tab `tabId`, if any. */
-export function panelOfTab(layout: LayoutBody, tabId: string): LayoutCell | undefined {
-  const loc = findTab(layout, tabId)
-  return loc ? cellAt(layout, loc.cell) : undefined
-}
-
-/** The tab with id `tabId`, if any. */
-export function getTab(layout: LayoutBody, tabId: string): LayoutTab | undefined {
-  const loc = findTab(layout, tabId)
-  return loc ? cellAt(layout, loc.cell)?.tabs[loc.tabIdx] : undefined
-}
-
-/** Every tab, cell by cell (`layoutPanels` order). */
-export function layoutTabs(layout: LayoutBody): LayoutTab[] {
-  return layoutPanels(layout).flatMap((p) => p.tabs)
-}
-
-/**
- * How many tabs in `layout` show list `listDefinitionId` — its list tabs,
- * and its Eisenhower tabs when it is the Eisenhower's own list
- * (`eisenhowerListId`; `tabListId`) —, not counting the tabs in
- * `exceptTabIds` (e.g. the ones about to be closed).
- */
-export function countListTabs(
-  layout: LayoutBody,
-  listDefinitionId: number,
-  eisenhowerListId: number | null,
-  exceptTabIds: ReadonlySet<string> = new Set(),
-): number {
-  let n = 0
-  for (const tab of layoutTabs(layout)) {
-    if (tabListId(tab, eisenhowerListId) === listDefinitionId && !exceptTabIds.has(tab.id)) n++
-  }
-  return n
-}
-
-/**
- * The ids of the lists a layout itself names: its list tabs' lists (an
- * Eisenhower tab's list is the Eisenhower's, not the layout's).
- */
-export function layoutListRefs(layout: LayoutBody): Set<number> {
-  const ids = new Set<number>()
-  for (const tab of layoutTabs(layout)) {
-    if (tab.kind === 'lens' && tab.config.listDefinitionId != null) ids.add(tab.config.listDefinitionId)
-  }
-  return ids
-}
-
-/** `cells` with `fn` applied to each; `cells` itself when no cell changes. */
-function mapCells(cells: readonly LayoutCell[], fn: (cell: LayoutCell) => LayoutCell): LayoutCell[] | null {
-  const next = cells.map(fn)
-  return next.every((c, i) => c === cells[i]) ? null : next
-}
-
-/**
- * `layout` with `fn` applied to every cell (in columns and bands); the same
- * object when no cell changes.
- */
-function mapLayoutCells<B extends LayoutBody>(layout: B, fn: (cell: LayoutCell) => LayoutCell): B {
-  let changed = false
-  const columns = layout.columns.map((col) => {
-    const rows = col.rows.map((row) => {
-      const cells = mapCells(row.cells, fn)
-      return cells ? { ...row, cells } : row
-    })
-    if (rows.every((r, i) => r === col.rows[i])) return col
-    return { ...col, rows }
-  })
-  if (columns.some((c, i) => c !== layout.columns[i])) changed = true
-  const bandOf = (band: LayoutBand | undefined): LayoutBand | undefined => {
-    if (!band) return band
-    const cells = mapCells(band.cells, fn)
-    if (!cells) return band
-    changed = true
-    return { ...band, cells }
-  }
-  const top = bandOf(layout.top)
-  const bottom = bandOf(layout.bottom)
-  if (!changed) return layout
-  return { ...layout, columns, ...(top ? { top } : {}), ...(bottom ? { bottom } : {}) }
-}
-
-/**
- * The layout with the lists it names (`layoutListRefs`) renamed by `ids`
- * (old id → new id; ids it doesn't hold stay). The same object when
- * nothing changes.
- */
-export function repointLayoutLists<B extends LayoutBody>(layout: B, ids: ReadonlyMap<number, number>): B {
-  if (ids.size === 0) return layout
-  const tabOf = (tab: LayoutTab): LayoutTab => {
-    if (tab.kind === 'lens') {
-      const to = tab.config.listDefinitionId != null ? ids.get(tab.config.listDefinitionId) : undefined
-      return to == null ? tab : { ...tab, config: { ...tab.config, listDefinitionId: to } }
-    }
-    return tab
-  }
-  return mapLayoutCells(layout, (cell) => {
-    const tabs = cell.tabs.map(tabOf)
-    return tabs.every((t, i) => t === cell.tabs[i]) ? cell : { ...cell, tabs }
-  })
-}
-
-/**
- * The lists `after` shows where `before` showed other ones at the same tab
- * (matched by tab id): old id → new id, e.g. a layout given its own copies of the
- * lists it shared with another one. `null` when an old id would become two
- * different ones.
- */
-export function listIdChanges(before: LayoutBody, after: LayoutBody): Map<number, number> | null {
-  const afterTabs = new Map(layoutTabs(after).map((t) => [t.id, t]))
-  const changes = new Map<number, number>()
-  const note = (from: number | undefined, to: number | undefined): boolean => {
-    if (from == null || to == null || from === to) return true
-    const known = changes.get(from)
-    if (known != null && known !== to) return false
-    changes.set(from, to)
-    return true
-  }
-  for (const tab of layoutTabs(before)) {
-    const other = afterTabs.get(tab.id)
-    if (tab.kind === 'lens' && other?.kind === 'lens') {
-      if (!note(tab.config.listDefinitionId, other.config.listDefinitionId)) return null
-    }
-  }
-  return changes
-}
-
-/** Every column / row / cell / band / tab id in the layout (new ids must not repeat one). */
-export function layoutIds(layout: LayoutBody): Set<string> {
-  const ids = new Set<string>()
-  for (const col of layout.columns) ids.add(col.id)
-  for (const row of layoutRows(layout)) ids.add(row.id)
-  for (const cell of layoutPanels(layout)) {
-    ids.add(cell.id)
-    for (const tab of cell.tabs) ids.add(tab.id)
-  }
-  return ids
-}
-
-function withColumns<L extends WorkspaceLayout>(layout: L, columns: LayoutColumn[]): L {
-  return { ...layout, columns }
-}
-
-/** `layout` with the band at `edge` replaced (`null` removes it: the key goes). */
-function withBand<L extends WorkspaceLayout>(layout: L, edge: BandEdge, band: LayoutBand | null): L {
-  const next = { ...layout }
-  if (band) next[edge] = band
-  else delete next[edge]
-  return next
-}
-
-function replaceAt<T>(arr: readonly T[], idx: number, value: T): T[] {
-  const next = arr.slice()
-  next[idx] = value
-  return next
-}
-
-function insertAt<T>(arr: readonly T[], idx: number, value: T): T[] {
-  return insertAllAt(arr, idx, [value])
-}
-
-function insertAllAt<T>(arr: readonly T[], idx: number, values: readonly T[]): T[] {
-  const clamped = Math.max(0, Math.min(idx, arr.length))
-  return [...arr.slice(0, clamped), ...values, ...arr.slice(clamped)]
-}
-
-function removeAt<T>(arr: readonly T[], idx: number): T[] {
-  return [...arr.slice(0, idx), ...arr.slice(idx + 1)]
-}
-
-function isPositive(n: unknown): n is number {
-  return typeof n === 'number' && Number.isFinite(n) && n > 0
-}
-
-/** `row` without `collapsed` (expanded). */
-function expanded<R extends LayoutCellRow>(row: R): R {
-  const { collapsed: _drop, ...rest } = row
-  void _drop
-  return rest as R
-}
-
-/**
- * Replaces one row of a column; a row given as `null` is removed (and its
- * column, when that empties). When the removed row was the column's last
- * expanded one, the row above it (else the new first) expands: nothing else
- * would fill the column.
- */
-function setColumnRow<L extends WorkspaceLayout>(layout: L, colIdx: number, rowIdx: number, row: LayoutRow | null): L {
-  const col = layout.columns[colIdx]
-  if (!col) return layout
-  if (row) return withColumns(layout, replaceAt(layout.columns, colIdx, { ...col, rows: replaceAt(col.rows, rowIdx, row) }))
-  const rows = removeAt(col.rows, rowIdx)
-  if (rows.length === 0) return withColumns(layout, removeAt(layout.columns, colIdx))
-  const lostLastExpanded = col.rows[rowIdx]?.collapsed !== true && rows.every((r) => r.collapsed === true)
-  const heirIdx = rows[rowIdx - 1] ? rowIdx - 1 : 0
-  const heir = rows[heirIdx]
-  const kept = lostLastExpanded && heir ? replaceAt(rows, heirIdx, expanded(heir)) : rows
-  return withColumns(layout, replaceAt(layout.columns, colIdx, { ...col, rows: kept }))
-}
-
-/** Replaces one row of cells (a column's row or a band); `null` removes it (a band's key goes). */
-function setRowAt<L extends WorkspaceLayout>(layout: L, loc: RowLocation, row: LayoutCellRow | null): L {
-  if (loc.kind === 'band') {
-    if (!layout[loc.edge]) return layout
-    return withBand(layout, loc.edge, row as LayoutBand | null)
-  }
-  return setColumnRow(layout, loc.colIdx, loc.rowIdx, row as LayoutRow | null)
-}
-
-/**
- * Replaces one cell; a cell given as `null` is removed — and its row (or
- * band) when that empties, and a column left without rows (`setColumnRow`).
- */
-function setCellAt<L extends WorkspaceLayout>(layout: L, loc: CellLocation, cell: LayoutCell | null): L {
-  const rowLoc = rowLocOf(loc)
-  const row = rowAt(layout, rowLoc)
-  if (!row?.cells[loc.cellIdx]) return layout
-  const cells = cell ? replaceAt(row.cells, loc.cellIdx, cell) : removeAt(row.cells, loc.cellIdx)
-  return setRowAt(layout, rowLoc, cells.length === 0 ? null : { ...row, cells })
-}
 
 /** The strip part of a cell: what `setStrip` replaces. */
 type CellStrip = Pick<LayoutCell, 'tabs' | 'activeTabId'>
@@ -464,7 +148,12 @@ function insertColumnAtGutter<L extends WorkspaceLayout>(layout: L, gutter: numb
   return withColumns(layout, insertAt(columns, gutter, makeColumn(weight)))
 }
 
-/** A new row directly above / below row `rowIdx` of column `colIdx`; the two split that row's weight evenly. */
+/**
+ * A new row directly above / below row `rowIdx` of column `colIdx`; the two
+ * split that row's weight evenly — unless the new row fits its content
+ * (`isFitRow`, a Number's): it takes no share of the column's height, so the
+ * row keeps its weight (the new one's half counts only once it stops fitting).
+ */
 function insertRowBeside<L extends WorkspaceLayout>(
   layout: L,
   colIdx: number,
@@ -476,9 +165,36 @@ function insertRowBeside<L extends WorkspaceLayout>(
   const hovered = col?.rows[rowIdx]
   if (!col || !hovered) return layout
   const half = hovered.weight / 2
-  const rows = replaceAt(col.rows, rowIdx, { ...hovered, weight: half })
+  const row = makeRow(half)
+  const rows = isFitRow(row) ? col.rows : replaceAt(col.rows, rowIdx, { ...hovered, weight: half })
   const at = edge === 'top' ? rowIdx : rowIdx + 1
-  return withColumns(layout, replaceAt(layout.columns, colIdx, { ...col, rows: insertAt(rows, at, makeRow(half)) }))
+  return withColumns(layout, replaceAt(layout.columns, colIdx, { ...col, rows: insertAt(rows, at, row) }))
+}
+
+/**
+ * After tabs joined the cell at `loc`: when that cell was empty and alone in
+ * its column row (a Split ▸ Below's new row, which took half of the row it
+ * split) and the row now fits its content, its weight goes back to the
+ * nearest row above that doesn't fit (else below) — a fit row takes no share
+ * of the column's height, so the split leaves the other rows as they were.
+ * Its own weight stays, counted only once it stops fitting.
+ */
+function handBackFitRowWeight<L extends WorkspaceLayout>(layout: L, loc: CellLocation, wasLoneEmpty: boolean): L {
+  if (!wasLoneEmpty || loc.kind !== 'column') return layout
+  const col = layout.columns[loc.colIdx]
+  const row = col?.rows[loc.rowIdx]
+  if (!col || !row || !isFitRow(row)) return layout
+  const weighted = (i: number) => {
+    const r = col.rows[i]
+    return r != null && !isFitRow(r)
+  }
+  let heir = -1
+  for (let i = loc.rowIdx - 1; i >= 0 && heir === -1; i--) if (weighted(i)) heir = i
+  for (let i = loc.rowIdx + 1; i < col.rows.length && heir === -1; i++) if (weighted(i)) heir = i
+  const heirRow = col.rows[heir]
+  if (!heirRow) return layout
+  const rows = replaceAt(col.rows, heir, { ...heirRow, weight: heirRow.weight + row.weight })
+  return withColumns(layout, replaceAt(layout.columns, loc.colIdx, { ...col, rows }))
 }
 
 /** A new cell directly left / right of the cell at `loc`, in its row; the two split that cell's width evenly. */
@@ -544,7 +260,9 @@ function placeTabs<L extends WorkspaceLayout>(
       const cell = loc ? cellAt(layout, loc) : undefined
       if (!loc || !cell) return null
       const at = target.index ?? cell.tabs.length
-      return setStrip(layout, loc, { ...stripOf(cell), tabs: insertAllAt(cell.tabs, at, tabs), activeTabId: first.id })
+      const loneEmpty = cell.tabs.length === 0 && rowAt(layout, rowLocOf(loc))?.cells.length === 1
+      const joined = setStrip(layout, loc, { ...stripOf(cell), tabs: insertAllAt(cell.tabs, at, tabs), activeTabId: first.id })
+      return handBackFitRowWeight(joined, loc, loneEmpty)
     }
     case 'new-band': {
       if (layout[target.edge]) return null
@@ -682,14 +400,6 @@ export function movePanel<L extends WorkspaceLayout>(layout: L, cellId: string, 
   return placeTabs(without, cell.tabs, target, genId, cell.activeTabId, config) ?? layout
 }
 
-/** A band's height (px, rounded). No band there or a bad height → unchanged. */
-export function setBandHeight<L extends WorkspaceLayout>(layout: L, edge: BandEdge, height: number): L {
-  const band = layout[edge]
-  if (!band || !isPositive(height)) return layout
-  const rounded = Math.max(1, Math.round(height))
-  return rounded === band.height ? layout : withBand(layout, edge, { ...band, height: rounded })
-}
-
 /**
  * Where a split puts the new empty cell: `right` — beside the cell, in its
  * row (or band); `below` — a new row under the cell's row; `new-column` — a
@@ -725,139 +435,6 @@ export function splitCell<L extends WorkspaceLayout>(
   const id = genId()
   const next = insertColumnAtGutter(layout, loc.colIdx + 1, (weight) => ({ id: colId, weight, rows: [newRow(rowId, DEFAULT_WEIGHT, newCell(id, DEFAULT_WEIGHT))] }))
   return { layout: next, cellId: id }
-}
-
-/** `parts` with the weights `weightById` names (positive, finite, changed); `null` when none applies. */
-function weighted<P extends { id: string; weight: number }>(parts: readonly P[], weightById: Readonly<Record<string, number>>): P[] | null {
-  let changed = false
-  const next = parts.map((part) => {
-    const w = weightById[part.id]
-    if (!isPositive(w) || w === part.weight) return part
-    changed = true
-    return { ...part, weight: w }
-  })
-  return changed ? next : null
-}
-
-/**
- * Batched resize: sets the weight of every listed column (by id) at once, so
- * a divider drag updates its two neighbours together. Unknown ids and
- * non-positive / non-finite weights are ignored.
- */
-export function setColumnWeights<L extends WorkspaceLayout>(layout: L, weightById: Readonly<Record<string, number>>): L {
-  const columns = weighted(layout.columns, weightById)
-  return columns ? withColumns(layout, columns) : layout
-}
-
-/** Batched resize of rows (by id, in any columns: their share of the column's height). Same rules as `setColumnWeights`. */
-export function setRowWeights<L extends WorkspaceLayout>(layout: L, weightById: Readonly<Record<string, number>>): L {
-  let changed = false
-  const columns = layout.columns.map((col) => {
-    const rows = weighted(col.rows, weightById)
-    if (!rows) return col
-    changed = true
-    return { ...col, rows }
-  })
-  return changed ? withColumns(layout, columns) : layout
-}
-
-/** Batched resize of cells (by id, in any rows and bands: their share of the row's width). Same rules as `setColumnWeights`. */
-export function setCellWeights<L extends WorkspaceLayout>(layout: L, weightById: Readonly<Record<string, number>>): L {
-  let next = layout
-  for (const row of layoutRows(layout)) {
-    const cells = weighted(row.cells, weightById)
-    const loc = cells ? findRow(next, row.id) : null
-    if (cells && loc) next = setRowAt(next, loc, { ...row, cells })
-  }
-  return next
-}
-
-/**
- * Sizes that resize together, as one divider moves them: the columns'
- * weights, one column's rows' weights, one row's (or band's) cells' weights,
- * or a band's height.
- */
-export type SizeGroup =
-  | { kind: 'columns' }
-  | { kind: 'rows'; columnId: string }
-  | { kind: 'cells'; rowId: string }
-  | { kind: 'band'; edge: BandEdge }
-
-/** The size groups of the rows `rowIds` (their columns' rows), in `layout`. */
-export function rowSizeGroups(layout: LayoutBody, rowIds: Iterable<string>): SizeGroup[] {
-  const ids = new Set(rowIds)
-  return layout.columns
-    .filter((col) => col.rows.some((row) => ids.has(row.id)))
-    .map((col) => ({ kind: 'rows', columnId: col.id }))
-}
-
-/** The size groups of the cells `cellIds` (their rows' or bands' cells), in `layout`. */
-export function cellSizeGroups(layout: LayoutBody, cellIds: Iterable<string>): SizeGroup[] {
-  const ids = new Set(cellIds)
-  return layoutRows(layout)
-    .filter((row) => row.cells.some((cell) => ids.has(cell.id)))
-    .map((row) => ({ kind: 'cells', rowId: row.id }))
-}
-
-function sameIds(a: readonly { id: string }[], b: readonly { id: string }[]): boolean {
-  return a.length === b.length && a.every((x, i) => x.id === b[i]?.id)
-}
-
-/** Every size group of `layout`: the columns, each column's rows, each row's and band's cells, each band. */
-function allSizeGroups(layout: LayoutBody): SizeGroup[] {
-  return [
-    { kind: 'columns' },
-    ...layout.columns.map((col): SizeGroup => ({ kind: 'rows', columnId: col.id })),
-    ...layoutRows(layout).map((row): SizeGroup => ({ kind: 'cells', rowId: row.id })),
-    ...BAND_EDGES.map((edge): SizeGroup => ({ kind: 'band', edge })),
-  ]
-}
-
-/**
- * `target` with the sizes of `groups` (`all`: every column, row, cell and
- * band size) copied from `source` — each group only where both have the same
- * parts: the columns' weights when both have the same columns (by id, in
- * order), a column's rows' weights when that column has the same rows in
- * both, a row's (or band's) cells' weights when that row has the same cells
- * in both, a band's height when both have that band. Other sizes stay. The
- * same object when nothing changes.
- */
-export function copySizes<L extends WorkspaceLayout>(target: L, source: LayoutBody, groups: readonly SizeGroup[] | 'all'): L {
-  const list = groups === 'all' ? allSizeGroups(target) : groups
-  let next = target
-  for (const group of list) {
-    switch (group.kind) {
-      case 'band': {
-        const from = source[group.edge]
-        if (from && next[group.edge]?.id === from.id) next = setBandHeight(next, group.edge, from.height)
-        break
-      }
-      case 'columns':
-        if (sameIds(next.columns, source.columns)) {
-          next = setColumnWeights(next, Object.fromEntries(source.columns.map((col) => [col.id, col.weight])))
-        }
-        break
-      case 'rows': {
-        const from = source.columns.find((col) => col.id === group.columnId)
-        const to = next.columns.find((col) => col.id === group.columnId)
-        if (from && to && sameIds(to.rows, from.rows)) {
-          next = setRowWeights(next, Object.fromEntries(from.rows.map((row) => [row.id, row.weight])))
-        }
-        break
-      }
-      case 'cells': {
-        const fromLoc = findRow(source, group.rowId)
-        const toLoc = findRow(next, group.rowId)
-        const from = fromLoc ? rowAt(source, fromLoc) : undefined
-        const to = toLoc ? rowAt(next, toLoc) : undefined
-        if (from && to && sameIds(to.cells, from.cells)) {
-          next = setCellWeights(next, Object.fromEntries(from.cells.map((cell) => [cell.id, cell.weight])))
-        }
-        break
-      }
-    }
-  }
-  return next
 }
 
 function updateCellStrip<L extends WorkspaceLayout>(layout: L, cellId: string, fn: (strip: CellStrip) => CellStrip): L {
@@ -982,56 +559,4 @@ export function patchTabViewState<L extends WorkspaceLayout, K extends WidgetKin
     const viewState = Object.fromEntries(Object.entries(patched).filter(([, v]) => v !== undefined))
     return { ...tab, viewState } as LayoutTab
   })
-}
-
-/** Recursively key-sorted copy with `undefined` values dropped. */
-function canonical(v: unknown): unknown {
-  if (Array.isArray(v)) return v.map(canonical)
-  if (v !== null && typeof v === 'object' && !(v instanceof Date)) {
-    const out: Record<string, unknown> = {}
-    for (const k of Object.keys(v).sort()) {
-      const val = (v as Record<string, unknown>)[k]
-      if (val !== undefined) out[k] = canonical(val)
-    }
-    return out
-  }
-  return v
-}
-
-/** The structural part of a cell: its id, its layout config and its tabs' config (its width and active tab are view state). */
-function cellKey(cell: LayoutCell): unknown {
-  return {
-    id: cell.id,
-    ...(cell.stripShown !== undefined ? { stripShown: cell.stripShown } : {}),
-    tabs: cell.tabs.map((tab) => ({ id: tab.id, kind: tab.kind, config: canonical(tab.config) })),
-  }
-}
-
-/** The structural part of a band: its id and cells (its height and collapsed are view state). */
-function bandKey(band: LayoutBand | undefined): unknown {
-  if (!band) return null
-  return { id: band.id, cells: band.cells.map(cellKey) }
-}
-
-/**
- * The structural part of a layout's body — its columns, rows, cells, bands
- * and tabs with their config — without view state (sizes, active tab,
- * collapsed, `viewState`).
- */
-export function layoutStructureKey(body: LayoutBody): string {
-  return JSON.stringify({
-    top: bandKey(body.top),
-    columns: body.columns.map((col) => ({
-      id: col.id,
-      rows: col.rows.map((row) => ({ id: row.id, cells: row.cells.map(cellKey) })),
-    })),
-    bottom: bandKey(body.bottom),
-  })
-}
-
-/** True when two layout bodies differ only in view state (i.e. the working copy has no unsaved changes). */
-export function layoutStructureEqual(a: LayoutBody, b: LayoutBody): boolean {
-  if (a === b) return true
-  if (a.columns === b.columns && a.top === b.top && a.bottom === b.bottom) return true
-  return layoutStructureKey(a) === layoutStructureKey(b)
 }

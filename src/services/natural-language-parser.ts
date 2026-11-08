@@ -9,6 +9,7 @@ import {
   type SlashCommandName,
 } from './slash-commands'
 import { collapseWhitespace } from '../utils/text'
+import { readQuoted } from '../utils/name-tokens'
 
 export { BARE_MENTION_NAME, BARE_TAG_NAME, mentionToken, statusToken, tagToken } from '../utils/name-tokens'
 
@@ -90,22 +91,30 @@ export interface ParsedInput {
 // `@` mentions name a person. Whitespace-anchored like `#tag` and `/command`
 // (group 1 = the separator), so `bob@acme.com`, `a@b` or `(@Dana` are plain
 // text. A bare name is letters (with their accents), digits and `_` in any
-// script (`@José`, `@Zoë`); any other name is quoted (`@"Mary-Jane"`). The
+// script (`@José`, `@Zoë`); any other name is quoted (`@"Mary-Jane"`), with
+// `utils/name-tokens`' escapes inside (`@"Ann \"AJ\" Lee"`: a `\"` doesn't
+// close it; `quotedName` reads them). The
 // parser stays store-free and emits `'person'`-typed tokens; `nlp-resolver.ts`
 // looks the names up.
-const MENTION_PATTERN = /(^|\s)@(?:"([^"]+)"|([\p{L}\p{M}\p{N}_]+))/gu
+const MENTION_PATTERN = /(^|\s)@(?:"((?:[^"\\]|\\.)+)"|([\p{L}\p{M}\p{N}_]+))/gu
 
 
 // `!` names the status: `@`'s bare names and quoting (`!Waiting`,
 // `!"On Hold"`), whitespace-anchored the same way, so `Hi!`, `!!!` or `a!b`
 // are plain text. Group 1 = the separator, 2 = a quoted name, 3 = a bare one.
-const STATUS_PATTERN = /(^|\s)!(?:"([^"]+)"|([\p{L}\p{M}\p{N}_]+))/gu
+const STATUS_PATTERN = /(^|\s)!(?:"((?:[^"\\]|\\.)+)"|([\p{L}\p{M}\p{N}_]+))/gu
 
 // Whitespace-anchored #tag — group 1 is the leading separator (empty at start
 // of input); group 2 a quoted name (`#"R&D"`, `#"Q4 plan"` — any tag name a
-// bare slug can't spell), group 3 the bare slug (ASCII). Separator stays in
-// the remaining title after token removal.
-const TAG_PATTERN = /(^|\s)#(?:"([^"]+)"|([A-Za-z0-9_-]+))/g
+// bare slug can't spell; escaped as `@`'s), group 3 the bare slug (ASCII).
+// Separator stays in the remaining title after token removal.
+const TAG_PATTERN = /(^|\s)#(?:"((?:[^"\\]|\\.)+)"|([A-Za-z0-9_-]+))/g
+
+/** A pattern match's name: its quoted group with the escapes read (`readQuoted`), else its bare one. */
+function quotedName(match: RegExpExecArray): string | undefined {
+  const quoted = match[2]
+  return quoted != null ? readQuoted(`"${quoted}"`, 0).value : match[3]
+}
 
 // Whitespace-anchored `/word` (group 2) running to whitespace or the end.
 const SLASH_PATTERN = /(^|\s)\/(\S+)/g
@@ -254,7 +263,7 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
   const persons: string[] = []
   MENTION_PATTERN.lastIndex = 0
   while ((match = MENTION_PATTERN.exec(text)) !== null) {
-    const value = match[2] ?? match[3]
+    const value = quotedName(match)
     const start = match.index + (match[1]?.length ?? 0)
     const end = match.index + match[0].length
     if (value == null || inCommand(start, end)) continue
@@ -269,7 +278,7 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
   TAG_PATTERN.lastIndex = 0
   while ((match = TAG_PATTERN.exec(text)) !== null) {
     const sep = match[1]
-    const name = match[2] ?? match[3]
+    const name = quotedName(match)
     if (sep == null || name == null) continue
     const start = match.index + sep.length
     const end = match.index + match[0].length
@@ -291,7 +300,7 @@ export function parseInput(input: string, today: Date = new Date()): ParsedInput
   let status: string | undefined
   STATUS_PATTERN.lastIndex = 0
   while ((match = STATUS_PATTERN.exec(text)) !== null) {
-    const value = (match[2] ?? match[3])?.trim()
+    const value = quotedName(match)?.trim()
     const start = match.index + (match[1]?.length ?? 0)
     const end = match.index + match[0].length
     if (!value || inCommand(start, end)) continue

@@ -40,8 +40,9 @@ export interface CellFace {
 
 /**
  * The face of a cell's active tab (`tab`, keyed by its id and kind: a kind
- * change starts over) and its full-widget popover, open while the face isn't
- * `large` (a cell grown to large closes it; so does another active tab).
+ * change starts over) and its full-widget popover, which opens from the
+ * small face and stays open only while the face is small: the face growing
+ * (to medium or large) closes it, as does another active tab.
  */
 export function useCellFace(tab: LayoutTab | undefined, opts: CellFaceOptions): CellFace {
   const key = tab ? `${tab.id}|${tab.kind}` : null
@@ -54,8 +55,8 @@ export function useCellFace(tab: LayoutTab | undefined, opts: CellFaceOptions): 
   const openFull = useCallback(() => setOpenKey(key), [key])
   const closeFull = useCallback(() => setOpenKey(null), [])
   const face: WidgetFace = opts.forced ?? (report && report.key === key ? report.face : 'large')
-  const fullOpen = openKey != null && openKey === key && face !== 'large'
-  // Closed for good once the face grows to large or another tab is active (not back when it shrinks again).
+  const fullOpen = openKey != null && openKey === key && face === 'small'
+  // Closed for good once the face grows or another tab is active (not back when it shrinks again).
   if (openKey != null && !fullOpen) setOpenKey(null)
   const { forced, heightFree } = opts
   const heightAllowancePx = face === 'small' ? opts.smallAllowancePx : undefined

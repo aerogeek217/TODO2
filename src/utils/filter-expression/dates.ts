@@ -37,8 +37,8 @@ export function dateTypeIsOptional(field: DateField): boolean {
   return field === 'deadline' || field === 'followup' || field === 'lastFollowup'
 }
 
-/** The date types that look back (a period on them runs to today, not from it). */
-function looksBack(field: DateField): boolean {
+/** The date types that look back (a period on them runs to today, not from it; a bare weekday is the last one). */
+export function looksBack(field: DateField): boolean {
   return field === 'lastFollowup' || field === 'created' || field === 'modified' || field === 'completed'
 }
 

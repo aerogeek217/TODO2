@@ -11,6 +11,8 @@ import {
   type ExpressionNames,
   type ExpressionParse,
 } from '../../utils/filter-expression'
+import { expressionResolver } from '../../services/filter-expression-field'
+import { makePerson } from '../helpers'
 
 const PEOPLE = new Map([[1, 'Aisha'], [2, 'Ben'], [3, 'Ann Lee']])
 const TAGS = new Map([[1, 'q4'], [2, 'R&D']])
@@ -137,6 +139,32 @@ describe('filter expressions — parse', () => {
     expect((tree('modified before 30 days ago') as { match: unknown }).match).toEqual({ match: 'range', start: null, end: { kind: 'offset', days: -31 } })
   })
 
+  it('rolls a year-less day forward on the dates that look ahead; a weekday is the last one on those that look back (cr33 Answer 12)', () => {
+    const match = (text: string) => (tree(text) as { match: unknown }).match
+    const day = (y: number, m: number, d: number) => ({ match: 'range', start: fixed(y, m, d), end: fixed(y, m, d) })
+    // Friday 6 Nov 2026: 11/1 and 1/5 are past this year.
+    expect(match('due 11/1')).toEqual(day(2027, 11, 1))
+    expect(match('due 1/5')).toEqual(day(2027, 1, 5))
+    expect(match('followup by 1/5')).toEqual({ match: 'range', start: null, end: fixed(2027, 1, 5) })
+    expect(match('due 11/6')).toEqual(day(2026, 11, 6))
+    // A look-back date keeps this year's.
+    expect(match('created 1/5')).toEqual(day(2026, 1, 5))
+    expect(match('completed 11/1')).toEqual(day(2026, 11, 1))
+    // A range of two year-less days is read as one.
+    expect(match('due 12/20..1/5')).toEqual({ match: 'range', start: fixed(2026, 12, 20), end: fixed(2027, 1, 5) })
+    expect(match('due 11/1..11/5')).toEqual({ match: 'range', start: fixed(2027, 11, 1), end: fixed(2027, 11, 5) })
+    expect(match('created 12/20..1/5')).toEqual({ match: 'range', start: fixed(2025, 12, 20), end: fixed(2026, 1, 5) })
+    // A weekday: the next on Due / Next follow-up, the last on the others (never today).
+    expect(match('due fri')).toEqual(day(2026, 11, 13))
+    expect(match('followup mon')).toEqual(day(2026, 11, 9))
+    expect(match('created fri')).toEqual(day(2026, 10, 30))
+    expect(match('followed mon')).toEqual(day(2026, 11, 2))
+    expect(match('modified by thursday')).toEqual({ match: 'range', start: null, end: fixed(2026, 11, 5) })
+    expect(match('completed from wed')).toEqual({ match: 'range', start: fixed(2026, 11, 4), end: null })
+    // next fri is the next one on every date.
+    expect(match('created next fri')).toEqual(day(2026, 11, 13))
+  })
+
   it('makes a top-level done Show completed', () => {
     const r = parse('@Ben and done')
     expect(r.ok && r.expression).toEqual({ kind: 'person', id: 2 })
@@ -162,9 +190,32 @@ describe('filter expressions — parse', () => {
     expect(!r.ok && [r.error.start, r.error.end]).toEqual([0, 4])
   })
 
+  it('refuses a text that nests too deep with an error, never a RangeError (cr33 S3)', () => {
+    expect(errorOf(`${'('.repeat(5000)}#q4${')'.repeat(5000)}`)).toBe('This nests too deep')
+    expect(errorOf(`${'not '.repeat(3000)}#q4`)).toBe('This nests too deep')
+    // Parentheses the normal form folds away are fine while they don't nest that deep.
+    expect(tree(`${'('.repeat(40)}#q4${')'.repeat(40)}`)).toEqual({ kind: 'tag', id: 1 })
+  })
+
   it('refuses people where a filter can’t name them', () => {
     const r = parse('@Aisha', false)
     expect(!r.ok && r.error.message).toBe('Leave people out')
+    // `no person` / `any person` too: a check-in's tasks all have its person (cr33 F11).
+    for (const text of ['#q4 or no person', 'any person']) {
+      const n = parse(text, false)
+      expect(!n.ok && n.error.message).toBe('Leave people out')
+    }
+  })
+
+  it('refuses Completed dates and done where the filter asks (cr33 F9, F11)', () => {
+    const with_ = (text: string, opts: { allowCompleted?: boolean; allowDone?: boolean }) =>
+      parseExpression(text, { today: TODAY, names: { person: resolver(PEOPLE), tag: resolver(TAGS), status: resolver(STATUSES) }, ...opts })
+    const completed = with_('#q4 or completed this week', { allowCompleted: false })
+    expect(!completed.ok && completed.error.message).toBe('Leave completed out')
+    const done = with_('#q4 and done', { allowDone: false })
+    expect(!done.ok && done.error.message).toBe('done has no say here')
+    expect(!done.ok && [done.error.start, done.error.end]).toEqual([8, 12])
+    expect(with_('#q4 and done', {}).ok).toBe(true)
   })
 
   it('tints what it read', () => {
@@ -204,6 +255,31 @@ describe('filter expressions — print', () => {
     expect(canonical('due fri')).toBe('due 11/13/2026')
     expect(canonical('due tmr or no follow-up')).toBe('due tomorrow or no followup')
     expect(canonical('not not @Ben')).toBe('@Ben')
+  })
+
+  it('escapes a " in a name or a text, so it reads back as itself (cr33 M12)', () => {
+    // The real resolver, as the field uses it.
+    const people = [makePerson({ id: 1, name: 'Ann "AJ" Lee' }), makePerson({ id: 2, name: 'C:\\docs\\' })]
+    const tags = [{ id: 1, name: 'say "hi"', color: '#f00' }, { id: 2, name: 'back\\"slash', color: '#f00' }]
+    const statuses = [{ id: 1, name: 'On "Hold"', color: '#888', sortOrder: 1, icon: 'circle' as const }]
+    const realNames: ExpressionNames = {
+      person: (id) => people.find((p) => p.id === id)?.name,
+      tag: (id) => tags.find((t) => t.id === id)?.name,
+      status: (id) => statuses.find((s) => s.id === id)?.name,
+    }
+    const opts = { today: TODAY, names: expressionResolver(people, tags, statuses) }
+    const e: FilterExpr = { kind: 'and', items: [
+      { kind: 'person', id: 1 },
+      { kind: 'or', items: [{ kind: 'person', id: 2 }, { kind: 'tag', id: 1 }, { kind: 'tag', id: 2 }] },
+      { kind: 'status', id: 1 },
+      { kind: 'text', text: 'say "hi" \\ there' },
+    ] }
+    const text = printExpression(e, false, realNames)
+    expect(text).toBe('@"Ann \\"AJ\\" Lee" and (@"C:\\docs\\\\" or #"say \\"hi\\"" or #"back\\\\\\"slash") and !"On \\"Hold\\"" and "say \\"hi\\" \\ there"')
+    const read = parseExpression(text, opts)
+    if (!read.ok) throw new Error(read.error.message)
+    expect(read.expression).toEqual(e)
+    expect(printExpression(read.expression, false, realNames)).toBe(text)
   })
 
   it('names a deleted id so it reads as an error until fixed', () => {

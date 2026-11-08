@@ -16,8 +16,9 @@ export interface ParticleSpec {
   style: CSSProperties
 }
 
-const LEAVES = ['#c8743a', '#b5542e', '#d9a441', '#9c6b2e']
-const PETALS = ['#f2b6c6', '#f7d2dc', '#eaa3b8']
+/** A leaf's and a petal's colour, each particle one of its season's (`tokens.css`). */
+const LEAVES = ['var(--ambience-leaf-1)', 'var(--ambience-leaf-2)', 'var(--ambience-leaf-3)', 'var(--ambience-leaf-4)']
+const PETALS = ['var(--ambience-petal-1)', 'var(--ambience-petal-2)', 'var(--ambience-petal-3)']
 
 /** A small seeded generator (Park–Miller), so a field draws the same each render. */
 function seeded(seed: number): () => number {
@@ -53,11 +54,11 @@ export function weatherParticles(kind: WeatherKind, count: number, tall: boolean
       }
       case 'leaf': {
         const dur = (26 + rnd() * 22) * (tall ? 1.4 : 1)
-        return { kind, style: { top, '--size': px(6 + rnd() * 2), '--drop': px((tall ? 120 : 10) * (0.4 + rnd())), '--spin': `${Math.round((rnd() - 0.5) * 1080)}deg`, '--dur': sec(dur), '--delay': sec(-rnd() * dur), '--color': LEAVES[Math.floor(rnd() * LEAVES.length)] ?? '#c8743a' } as CSSProperties }
+        return { kind, style: { top, '--size': px(6 + rnd() * 2), '--drop': px((tall ? 120 : 10) * (0.4 + rnd())), '--spin': `${Math.round((rnd() - 0.5) * 1080)}deg`, '--dur': sec(dur), '--delay': sec(-rnd() * dur), '--color': LEAVES[Math.floor(rnd() * LEAVES.length)] ?? 'var(--ambience-leaf-1)' } as CSSProperties }
       }
       case 'petal': {
         const dur = (20 + rnd() * 18) * (tall ? 1.4 : 1)
-        return { kind, style: { top, '--size': px(4 + rnd() * 1.5), '--drop': px((tall ? 160 : 14) * (0.4 + rnd())), '--spin': `${Math.round((rnd() - 0.5) * 900)}deg`, '--dur': sec(dur), '--delay': sec(-rnd() * dur), '--color': PETALS[Math.floor(rnd() * PETALS.length)] ?? '#f2b6c6' } as CSSProperties }
+        return { kind, style: { top, '--size': px(4 + rnd() * 1.5), '--drop': px((tall ? 160 : 14) * (0.4 + rnd())), '--spin': `${Math.round((rnd() - 0.5) * 900)}deg`, '--dur': sec(dur), '--delay': sec(-rnd() * dur), '--color': PETALS[Math.floor(rnd() * PETALS.length)] ?? 'var(--ambience-petal-1)' } as CSSProperties }
       }
       case 'seed': {
         const dur = (10 + rnd() * 8) * slow
@@ -96,7 +97,7 @@ export function burstParticles(kind: ParticleKind, x: number, y: number, seed: n
       '--dx': px((rnd() - 0.5) * (rises ? 32 : 44)),
       '--dy': px(rises ? -(30 + rnd() * 20) : 22 + rnd() * 16),
       '--spin': `${Math.round((rnd() - 0.5) * 540)}deg`,
-      '--color': kind === 'leaf' ? (LEAVES[i] ?? '#c8743a') : kind === 'petal' ? (PETALS[i] ?? '#f2b6c6') : undefined,
+      '--color': kind === 'leaf' ? (LEAVES[i] ?? 'var(--ambience-leaf-1)') : kind === 'petal' ? (PETALS[i] ?? 'var(--ambience-petal-1)') : undefined,
     } as CSSProperties,
   }))
 }

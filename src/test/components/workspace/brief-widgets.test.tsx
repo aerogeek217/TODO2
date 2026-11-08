@@ -116,6 +116,18 @@ describe('What changed', () => {
     expect(drill.source).toEqual({ kind: 'todos', todoIds: [4, 1] })
   })
 
+  it('the closed sentence’s usual reads only the weeks inside Settings’ completed-task retention', () => {
+    const closedOn = (id: number, at: Date) => task({ id, isCompleted: true, completedAt: at })
+    useTodoStore.setState({ todos: [...TASKS, closedOn(10, day(-9)), closedOn(11, day(-9)), closedOn(12, day(-15))] })
+    const closed = () => root('changes').querySelector('[data-change="closed"]')!.textContent
+    setup(createTab('changes', 'c'))
+    expect(closed()).toBe('1 closed this week, about your usual 0.8 a week.')
+    cleanup()
+    useSettingsStore.setState({ completedRetentionDays: 14 })
+    setup(createTab('changes', 'c'))
+    expect(closed()).toBe('1 closed this week, below your usual 2 a week.')
+  })
+
   it('nothing to say: a quiet line', () => {
     useTodoStore.setState({ todos: [task({ id: 6 })] })
     setup(createTab('changes', 'c'))
@@ -211,6 +223,16 @@ describe('Project pulse', () => {
     setup(createTab('pulse', 'p'))
     expect(root('pulse').textContent).toContain('No tags picked')
   })
+
+  it('the picked tags deleted since: says so, not that none are picked', () => {
+    setup(createTab('pulse', 'p', { tagIds: [98, 99] }))
+    expect(root('pulse').textContent).toContain('The picked tags were deleted')
+    expect(root('pulse').textContent).not.toContain('No tags picked')
+    cleanup()
+    faceState.face = 'small'
+    setup(createTab('pulse', 'p', { tagIds: [98, 99] }))
+    expect(root('pulse').textContent).toContain('Picked tags deleted')
+  })
 })
 
 describe('the brief parts’ tab menus', () => {
@@ -257,7 +279,7 @@ describe('Clear Focus', () => {
     await answer(true)
     await done
     expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
-    expect(setMarkerFlags).toHaveBeenCalledWith([{ todoId: 5, focus: false }], 'Cleared Focus from 1 done task')
+    expect(setMarkerFlags).toHaveBeenCalledWith([{ todoId: 5, focus: false }], 'Cleared Focus from 1 done task', { stamp: false })
   })
 
   it('the prompt names the open count; Clear all clears every Focus task, open and done, in one step', async () => {

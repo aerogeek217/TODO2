@@ -1,5 +1,5 @@
-import type { Person, Status, Tag } from '../models'
-import type { ExpressionError, ExpressionNameResolver, ExpressionSpan, ExpressionSpanKind } from '../utils/filter-expression'
+import type { FilterExpr, Person, Status, Tag } from '../models'
+import { expressionAtoms, type ExpressionError, type ExpressionNameResolver, type ExpressionSpan, type ExpressionSpanKind } from '../utils/filter-expression'
 import { computeAutocomplete, type AutocompleteSources, type AutocompleteView } from './nlp-autocomplete'
 import { matchPerson, matchStatus, matchTag } from './nlp-resolver'
 import type { TintSpan, TokenTint } from './nlp-token-tints'
@@ -10,12 +10,41 @@ import type { TintSpan, TokenTint } from './nlp-token-tints'
  * Add's `@ # ! /` popup cut to what an expression takes, and its tints.
  */
 
-/** Names → ids as Quick Add reads a typed `@` / `#` / `!` name (exact, initials, a prefix). */
-export function expressionResolver(people: readonly Person[], tags: readonly Tag[], statuses: readonly Status[]): ExpressionNameResolver {
+/** The ids the filter already names, by kind (`expressionResolver`'s `prefer`). */
+export interface NamedIds {
+  person: ReadonlySet<number>
+  tag: ReadonlySet<number>
+  status: ReadonlySet<number>
+}
+
+/** The ids `e` names, by kind. */
+export function namedIds(e: FilterExpr | null | undefined): NamedIds {
+  const out = { person: new Set<number>(), tag: new Set<number>(), status: new Set<number>() }
+  for (const a of e ? expressionAtoms(e) : []) if (a.kind === 'person' || a.kind === 'tag' || a.kind === 'status') out[a.kind].add(a.id)
+  return out
+}
+
+/**
+ * Names → ids as Quick Add reads a typed `@` / `#` / `!` name (exact,
+ * initials, a prefix). Two people may share a name: a name that matches one
+ * the filter already names (`prefer`, its ids) stays that one, so `@Alex`
+ * naming the second Alex doesn't switch to the first on the next write
+ * (cr33 F5).
+ */
+export function expressionResolver(
+  people: readonly Person[],
+  tags: readonly Tag[],
+  statuses: readonly Status[],
+  prefer?: NamedIds,
+): ExpressionNameResolver {
+  const pick = <T extends { id?: number; name: string }>(hit: T | undefined, items: readonly T[], ids: ReadonlySet<number> | undefined): number | undefined => {
+    if (!hit || !ids || ids.size === 0 || (hit.id !== undefined && ids.has(hit.id))) return hit?.id
+    return items.find((i) => i.id !== undefined && ids.has(i.id) && i.name === hit.name)?.id ?? hit.id
+  }
   return {
-    person: (name) => matchPerson(name, people)?.id,
-    tag: (name) => matchTag(name, tags)?.id,
-    status: (name) => matchStatus(name, statuses)?.id,
+    person: (name) => pick(matchPerson(name, people), people, prefer?.person),
+    tag: (name) => pick(matchTag(name, tags), tags, prefer?.tag),
+    status: (name) => pick(matchStatus(name, statuses), statuses, prefer?.status),
   }
 }
 

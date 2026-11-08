@@ -1,5 +1,5 @@
 import type { LensTab } from '../../../models/workspace-layout'
-import { listTabZoom, setListTabZoom } from '../../../services/list-zoom'
+import { listTabZoom, stepListTabZoom } from '../../../services/list-zoom'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { LIST_ZOOM_LABELS, stepListZoom } from '../../../utils/list-zoom'
 import type { MenuEntry } from '../../shared/MenuPopover'
@@ -21,7 +21,7 @@ export function useListZoomMenuEntries(tab: LensTab | undefined): MenuEntry[] {
     value: LIST_ZOOM_LABELS[zoom],
     decrementLabel: 'Zoom out',
     incrementLabel: 'Zoom in',
-    onDecrement: out !== zoom ? () => void setListTabZoom(tab.id, out) : undefined,
-    onIncrement: into !== zoom ? () => void setListTabZoom(tab.id, into) : undefined,
+    onDecrement: out !== zoom ? () => void stepListTabZoom(tab, 'out') : undefined,
+    onIncrement: into !== zoom ? () => void stepListTabZoom(tab, 'in') : undefined,
   }]
 }

@@ -1,13 +1,21 @@
 import { describe, expect, it } from 'vitest'
-import type { TodoEvent, TodoEventType } from '../../../models'
+import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../../models'
+import { computeMetricHistory } from '../../../services/stats/metric-history'
 import { computeTrend } from '../../../services/stats/trend'
 import { trendWindow } from '../../../utils/trend-window'
 import { makeTodo } from '../../helpers'
+import { DST_ZONE, pinTimeZone } from '../../time-zone'
 
 const today = new Date(2026, 9, 10) // Sat
 const ctx = { today, weekStartsOn: 0 as const }
 /** Day `n` of the 14-day window (0 = Sun 27 Sep), at `hour`. */
 const wd = (n: number, hour = 12, minute = 0) => new Date(2026, 8, 27 + n, hour, minute)
+
+/** A task there since long before the window (its events say when it came, if it did). */
+const OLD = new Date(2026, 0, 1)
+function task(overrides: Partial<PersistedTodoItem> & { id: number }): PersistedTodoItem {
+  return makeTodo({ createdAt: OLD, modifiedAt: OLD, ...overrides })
+}
 
 let seq = 0
 function ev(todoId: number, type: TodoEventType, at: Date): TodoEvent {
@@ -47,13 +55,13 @@ describe('computeTrend', () => {
     expect([empty.created, empty.completed, empty.net, empty.openAtStart]).toEqual([0, 0, 0, 0])
     expect(empty.openSeries).toEqual(new Array(14).fill(0))
 
-    const quiet = computeTrend([makeTodo({ id: 1 }), makeTodo({ id: 2, isCompleted: true })], [], ctx, '14d')
+    const quiet = computeTrend([task({ id: 1 }), task({ id: 2, isCompleted: true })], [], ctx, '14d')
     expect(quiet.openSeries).toEqual(new Array(14).fill(1))
     expect(quiet.net).toBe(0)
   })
 
   it('created and completed per day; the open series counts back from now', () => {
-    const tasks = [makeTodo({ id: 1 }), makeTodo({ id: 2, isCompleted: true })]
+    const tasks = [task({ id: 1 }), task({ id: 2, isCompleted: true })]
     const events = [ev(1, 'created', wd(2)), ev(2, 'created', wd(-5)), ev(2, 'completed', wd(4))]
     const t = computeTrend(tasks, events, ctx, '14d')
     expect(t.buckets[2]?.createdIds).toEqual([1])
@@ -65,14 +73,14 @@ describe('computeTrend', () => {
   })
 
   it('a reopened completion does not count; the series still dips while it was done', () => {
-    const tasks = [makeTodo({ id: 1 })]
+    const tasks = [task({ id: 1 })]
     const t = computeTrend(tasks, [ev(1, 'completed', wd(3)), ev(1, 'reopened', wd(5))], ctx, '14d')
     expect(t.completed).toBe(0)
     expect(t.openSeries.slice(2, 6)).toEqual([1, 0, 0, 1])
   })
 
   it('completed, reopened, completed again: one completion, on the last day', () => {
-    const tasks = [makeTodo({ id: 1, isCompleted: true })]
+    const tasks = [task({ id: 1, isCompleted: true })]
     const t = computeTrend(tasks, [
       ev(1, 'completed', wd(3)), ev(1, 'reopened', wd(5)), ev(1, 'completed', wd(8)),
     ], ctx, '14d')
@@ -82,7 +90,7 @@ describe('computeTrend', () => {
   })
 
   it('a reopen of a completion from before the window adds no bar but counts in the series and net', () => {
-    const t = computeTrend([makeTodo({ id: 1 })], [ev(1, 'reopened', wd(6))], ctx, '14d')
+    const t = computeTrend([task({ id: 1 })], [ev(1, 'reopened', wd(6))], ctx, '14d')
     expect(t.completed).toBe(0)
     expect(t.openAtStart).toBe(0)
     expect(t.openSeries[5]).toBe(0)
@@ -91,21 +99,34 @@ describe('computeTrend', () => {
   })
 
   it('created and completed the same day: both bars, no change in the day’s closing count', () => {
-    const t = computeTrend([makeTodo({ id: 1, isCompleted: true })], [
+    const t = computeTrend([task({ id: 1, isCompleted: true })], [
       ev(1, 'created', wd(4, 9)), ev(1, 'completed', wd(4, 16)),
     ], ctx, '14d')
     expect(t.buckets[4]).toMatchObject({ createdIds: [1], completedIds: [1] })
     expect(t.openSeries.every((n) => n === 0)).toBe(true)
   })
 
+  it('a task without events (an old or hand-made file) reads its own dates, as a Number’s history does', () => {
+    const tasks = [
+      makeTodo({ id: 1, createdAt: wd(10, 9), modifiedAt: wd(10, 9) }), // created on day 10
+      task({ id: 2, isCompleted: true, completedAt: wd(12) }), // completed on day 12
+    ]
+    const t = computeTrend(tasks, [], ctx, '14d')
+    expect(t.openSeries).toEqual([1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 2, 2, 1, 1])
+    expect(t.openAtStart).toBe(1)
+    expect(t.net).toBe(0)
+    expect(computeTrend([tasks[0]!], [], ctx, '14d').net).toBe(1)
+    expect(computeMetricHistory(tasks, [], ctx).series.open).toEqual(t.openSeries)
+  })
+
   it('a task inserted already completed is never open', () => {
-    const t = computeTrend([makeTodo({ id: 1, isCompleted: true })], [ev(1, 'created', wd(4))], ctx, '14d')
+    const t = computeTrend([task({ id: 1, isCompleted: true })], [ev(1, 'created', wd(4))], ctx, '14d')
     expect(t.created).toBe(1)
     expect(t.openSeries.every((n) => n === 0)).toBe(true)
   })
 
   it('purged history: events of tasks not in the set, and other event types, are ignored', () => {
-    const t = computeTrend([makeTodo({ id: 1 })], [
+    const t = computeTrend([task({ id: 1 })], [
       ev(99, 'created', wd(3)), ev(99, 'completed', wd(4)),
       { ...ev(1, 'status', wd(5)), fromValue: 1, toValue: 2 },
       { ...ev(1, 'deadline', wd(6)), toValue: wd(9).toISOString() },
@@ -115,7 +136,7 @@ describe('computeTrend', () => {
   })
 
   it('day boundaries are local: 23:59 counts for that day, 00:00 for the next', () => {
-    const tasks = [makeTodo({ id: 1 }), makeTodo({ id: 2 })]
+    const tasks = [task({ id: 1 }), task({ id: 2 })]
     const t = computeTrend(tasks, [ev(1, 'created', wd(3, 23, 59)), ev(2, 'created', wd(4, 0, 0))], ctx, '14d')
     expect(t.buckets[3]?.createdIds).toEqual([1])
     expect(t.buckets[4]?.createdIds).toEqual([2])
@@ -123,7 +144,7 @@ describe('computeTrend', () => {
   })
 
   it('weekly bars sum each week; the series stays per day', () => {
-    const tasks = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3, isCompleted: true })]
+    const tasks = [task({ id: 1 }), task({ id: 2 }), task({ id: 3, isCompleted: true })]
     const t = computeTrend(tasks, [
       ev(1, 'created', new Date(2026, 8, 14, 10)), // week of Sun 13 Sep
       ev(2, 'created', new Date(2026, 8, 19, 23, 30)), // Sat 19, same week
@@ -137,6 +158,11 @@ describe('computeTrend', () => {
     expect(t.openSeries.at(-1)).toBe(2)
   })
 
+})
+
+describe('computeTrend in a daylight-saving zone', () => {
+  pinTimeZone(DST_ZONE)
+
   it('works across a daylight-saving change (per-day buckets by local calendar day)', () => {
     let change: Date | null = null
     for (let i = 0; i < 366 && !change; i++) {
@@ -144,11 +170,12 @@ describe('computeTrend', () => {
       // The change happens during day `d` (its midnight and the next differ).
       if (d.getTimezoneOffset() !== new Date(2026, 0, 2 + i).getTimezoneOffset()) change = d
     }
-    if (!change) return // no DST in this time zone
+    expect(change).not.toBeNull()
+    if (!change) return
     const end = new Date(change.getFullYear(), change.getMonth(), change.getDate() + 3)
     const at = (offset: number, hour: number, minute = 0) =>
       new Date(change.getFullYear(), change.getMonth(), change.getDate() + offset, hour, minute)
-    const tasks = [makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 })]
+    const tasks = [task({ id: 1 }), task({ id: 2 }), task({ id: 3 })]
     const t = computeTrend(tasks, [
       ev(1, 'created', at(-1, 23, 30)),
       ev(2, 'created', at(0, 0, 30)),
@@ -159,5 +186,17 @@ describe('computeTrend', () => {
     expect(t.buckets[9]?.createdIds).toEqual([1])
     expect(t.buckets[10]?.createdIds).toEqual([2, 3])
     expect(t.openSeries.slice(8, 12)).toEqual([0, 1, 3, 3])
+  })
+
+  it('weekly bars across the fall-back change: the week starting on the 25-hour day is 7 local days', () => {
+    const today = new Date(2026, 10, 7) // Sat 7 Nov; the week began Sun 1 Nov, the change
+    const tasks = [task({ id: 1, isCompleted: true }), task({ id: 2, isCompleted: true })]
+    const t = computeTrend(tasks, [
+      ev(1, 'completed', new Date(2026, 9, 31, 23, 30)), // Sat 31 Oct: the week before
+      ev(2, 'completed', new Date(2026, 10, 1, 0, 30)), // Sun 1 Nov: this week
+    ], { today, weekStartsOn: 0 }, '4w')
+    expect(t.window.bucketStarts.map((d) => [d.getMonth(), d.getDate(), d.getHours()])).toEqual([[9, 11, 0], [9, 18, 0], [9, 25, 0], [10, 1, 0]])
+    expect(t.window.days).toHaveLength(28)
+    expect(t.buckets.map((b) => b.completedIds)).toEqual([[], [], [1], [2]])
   })
 })

@@ -4,7 +4,8 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useSubtaskStore } from '../../stores/subtask-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useUIStore } from '../../stores/ui-store'
-import { startOfToday, toDateInputValue } from '../../utils/date'
+import { useToday } from '../../hooks/use-today'
+import { toDateInputValue } from '../../utils/date'
 import { lineDate, rowSummaryText, rowTone } from '../../utils/list-zoom'
 import { markerSummary } from '../../utils/markers'
 import { isStale } from '../../utils/stale'
@@ -26,6 +27,9 @@ export interface LineSelectMods {
   ctrl: boolean
 }
 
+/** Where a line's task menu opens: at the pointer, or under the line (`'line'`, from the keyboard). */
+type LineMenuAt = { x: number; y: number } | 'line'
+
 /** The Lines box's side, px: a row's 18px checkbox scaled to the 15px line. */
 const LINE_BOX = 11
 
@@ -43,7 +47,6 @@ function useLineState(todo: PersistedTodoItem, today: Date) {
     stale: isStale(todo, today, staleAfterDays),
     markers: markerSummary(todo, today, urgentRange),
     date: lineDate(todo, today, { urgentRange, rowDates }),
-    rowDates,
   }
 }
 
@@ -64,11 +67,13 @@ const NO_PEOPLE: readonly Person[] = []
  * soon, follow-up late, stale or none: `rowTone`), the title at 10.5px
  * starting where a row's title does, and at the line's end the one date
  * that matters (`lineDate`), coloured as the Rows date cells colour it. No
- * other cells: hovering shows what they'd say (`rowSummaryText`), a
- * click opens the editor (and selects the task); Shift / Ctrl-click only
- * selects; a right-click (or the context-menu key) opens the task menu, as
- * a row's does (`LineActions`). Its list wraps it as the drag source, as a
- * row.
+ * other cells: hovering or focusing it shows what they'd say, each date in
+ * full (`rowSummaryText`), a click (or Enter on the focused line) opens
+ * the editor (and selects the task); Shift / Ctrl-click only selects; a
+ * right-click opens the task menu at the pointer, and Shift+F10 / the
+ * context-menu key on the focused line (a tab stop, as a row's cells are)
+ * under it, the focus back on the line after (`LineActions`). Its list
+ * wraps it as the drag source, as a row.
  */
 export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect, onOpenDetail }: {
   todo: PersistedTodoItem
@@ -77,19 +82,18 @@ export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect,
   onOpenDetail?: (todoId: number) => void
 }) {
   const lineRef = useRef<HTMLDivElement>(null)
-  // The task menu at the pointer; its pickers mount on the first right-click and stay (a pick opens one after the menu closes).
-  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  // The task menu at the pointer, or under the line from the keyboard; its pickers mount on the first one and stay (a pick opens one after the menu closes).
+  const [menuAt, setMenuAt] = useState<LineMenuAt | null>(null)
   const [actions, setActions] = useState(false)
   // Clicks in the menu and its pickers (portaled, but children here) aren't the line's.
   const own = (e: React.SyntheticEvent) => e.target instanceof Node && e.currentTarget.contains(e.target)
-  const today = startOfToday()
-  const { tone, stale, markers, date, rowDates } = useLineState(todo, today)
+  const today = useToday()
+  const { tone, stale, markers, date } = useLineState(todo, today)
   const tags = useTagStore((s) => s.assignedTagsMap.get(todo.id))
   const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
   const people = assignedPeople ?? NO_PEOPLE
   const tip = rowSummaryText(todo, today, {
-    rowDates,
     people: people.map((p) => p.name),
     tags: (tags ?? []).map((t) => t.name),
     count: subtasks && subtasks.length > 0 ? subtaskCount(subtasks) : null,
@@ -105,9 +109,18 @@ export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect,
       data-stale={stale || undefined}
       data-hovered-synced={hoveredSynced ? 'true' : undefined}
       data-task-line=""
+      // A tab stop, as a row's cells are: Shift+F10 / the context-menu key on it opens the task menu.
+      tabIndex={0}
       {...hoverProps(todo.id)}
       {...triggerProps}
       onMouseDown={(e) => { if (own(e)) keepRowTextUnselected(e) }}
+      onKeyDown={(e) => {
+        // Enter on the focused line is its click (the app's Enter would act on the list's cursor row instead).
+        if (e.key !== 'Enter' || e.target !== e.currentTarget || e.shiftKey || e.ctrlKey || e.metaKey || e.altKey) return
+        e.preventDefault()
+        onSelect?.(todo.id, { shift: false, ctrl: false })
+        onOpenDetail?.(todo.id)
+      }}
       onClick={(e) => {
         e.stopPropagation()
         if (!own(e)) return
@@ -119,12 +132,10 @@ export const TaskLine = memo(function TaskLine({ todo, assignedPeople, onSelect,
         e.preventDefault()
         e.stopPropagation()
         if (!own(e)) return
-        // From the keyboard (no pointer position): under the line's start.
-        const at = e.button === 2 || e.clientX !== 0 || e.clientY !== 0
-          ? { x: e.clientX, y: e.clientY }
-          : (() => { const r = e.currentTarget.getBoundingClientRect(); return { x: r.left, y: r.bottom } })()
+        // From the keyboard on the focused line (no right button; Chromium reports -1): under the line, the focus back on it after.
+        const keyboard = e.button !== 2 && e.currentTarget === document.activeElement
         setActions(true)
-        setMenuAt(at)
+        setMenuAt(keyboard ? 'line' : { x: e.clientX, y: e.clientY })
       }}
     >
       <span className={styles.box} aria-hidden="true" data-line-box="">
@@ -162,7 +173,7 @@ function LineActions({ todo, assignedPeople, lineRef, menuAt, onCloseMenu, onOpe
   todo: PersistedTodoItem
   assignedPeople?: readonly Person[]
   lineRef: RefObject<HTMLDivElement | null>
-  menuAt: { x: number; y: number } | null
+  menuAt: LineMenuAt | null
   onCloseMenu: () => void
   onOpenDetail?: (todoId: number) => void
 }) {
@@ -203,7 +214,15 @@ function LineActions({ todo, assignedPeople, lineRef, menuAt, onCloseMenu, onOpe
           onClose={closeTagPicker}
         />
       )}
-      {menuAt && <TaskMenu todo={todo} point={menuAt} handlers={menuHandlers} onClose={onCloseMenu} />}
+      {menuAt && (
+        <TaskMenu
+          todo={todo}
+          anchorRef={menuAt === 'line' ? lineRef : undefined}
+          point={menuAt === 'line' ? undefined : menuAt}
+          handlers={menuHandlers}
+          onClose={onCloseMenu}
+        />
+      )}
     </>
   )
 }

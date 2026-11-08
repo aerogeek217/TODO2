@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { FilterCriteria } from '../../../utils/filter-criteria'
 import { applyFilter } from '../../../utils/filter-match'
-import { computeTiles } from '../../../services/stats/tiles'
+import { computeMetrics } from '../../../services/stats/metrics'
 import { computeFollowupGroups } from '../../../services/stats/followup-groups'
 import { computeNextSevenDays } from '../../../services/stats/next-seven-days'
 import { computeTrend } from '../../../services/stats/trend'
@@ -33,7 +33,7 @@ const titles = (ids: readonly number[]) => ids.map((id) => SAMPLE_TASKS.find((t)
 
 describe('glance sample data — no screen filter', () => {
   const tasks = screened(NO_FILTER)
-  const tiles = computeTiles(tasks, SAMPLE_CTX)
+  const tiles = computeMetrics(tasks, SAMPLE_CTX)
 
   it('Open 19', () => {
     expect(tiles.open.ids).toHaveLength(19)
@@ -120,7 +120,7 @@ describe('glance sample data — no screen filter', () => {
 
 describe('glance sample data — top-bar Tags filter q4 (shown of total)', () => {
   const tasks = screened(Q4_FILTER)
-  const tiles = computeTiles(tasks, SAMPLE_CTX)
+  const tiles = computeMetrics(tasks, SAMPLE_CTX)
 
   it('tiles: Open 5 · Urgent 1 (by date) · Overdue 0 · Follow-up due 0 (1 more) · Focus 1 (none due today)', () => {
     expect(tiles.open.ids).toHaveLength(5)

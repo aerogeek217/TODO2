@@ -128,7 +128,7 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, co
 /**
  * The top bar's lens on this list: on — glasses and `−N`, what it hides
  * here; off — slashed glasses. A click turns it off / on for this list
- * (saved at once).
+ * (saved at once). A toggle button: its name is fixed, `aria-pressed` its state.
  */
 function LensSwitch({ lens, onToggle }: { lens: ListLensMark; onToggle: () => void }) {
   const tip = lens.ignored
@@ -140,10 +140,9 @@ function LensSwitch({ lens, onToggle }: { lens: ListLensMark; onToggle: () => vo
       <button
         type="button"
         className={`${styles.lensSwitch} ${lens.ignored ? styles.lensSwitchOff : ''}`}
+        // A toggle's name stays put; `aria-pressed` says whether it applies, the tooltip what it hides.
         aria-pressed={!lens.ignored}
-        aria-label={lens.ignored
-          ? `This list ignores the lens “${lens.name}”. Apply it here`
-          : `The lens “${lens.name}” hides ${lens.hides} here. Ignore it in this list`}
+        aria-label={`Apply the lens “${lens.name}” here`}
         data-testid="list-lens-switch"
         onClick={onToggle}
         {...triggerProps}

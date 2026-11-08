@@ -38,8 +38,9 @@ function dashedLength(length: number): number {
  * its due date finely dashed —, and Focus as a tight glow in the Focus
  * colour around the box (`[data-focus-glow]`), never an outline: with a
  * ring, or around the box's own plain border. Nothing for no priority or a
- * completed task (the checked box as it is). Decorative unless `label`
- * names it — the desktop row's marker gutter carries the name.
+ * completed task (the checked box as it is) — only, with a `label`, an
+ * empty element that carries the name. Decorative unless `label` names it —
+ * the desktop row's marker gutter carries the name.
  */
 export function PriorityRing({ summary, completed, size, label }: {
   summary: Pick<MarkerSummary, 'focus' | 'urgent' | 'important'>
@@ -50,8 +51,9 @@ export function PriorityRing({ summary, completed, size, label }: {
   label?: string
 }) {
   const ring = priorityRing(summary, completed)
-  if (ring.kind === 'none' && !ring.focusGlow) return null
   const named = label ? { role: 'img', 'aria-label': label } : { 'aria-hidden': true as const }
+  // Nothing to draw (no priority, a completed task): a named ring still says it — `No priority`, or a completed task's own.
+  if (ring.kind === 'none' && !ring.focusGlow) return label ? <span className={styles.name} {...named} data-priority-name="" /> : null
   const glow = ring.focusGlow && (
     <span
       className={styles.glow}

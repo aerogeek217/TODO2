@@ -1,30 +1,21 @@
-import { useCallback, useContext, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import { clampCalendarOffset, toggleCalendarDateType, type CalendarDateType, type CalendarTab, type CalendarView } from '../../../models/workspace-layout'
 import { useTodoStore } from '../../../stores/todo-store'
-import { useTodoNameLookups } from '../../../hooks/use-todo-name-lookups'
-import { usePersonStore } from '../../../stores/person-store'
-import { useStatusStore } from '../../../stores/status-store'
-import { useSettingsStore } from '../../../stores/settings-store'
-import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { admitsCompleted, countActiveFilters } from '../../../utils/filter-criteria'
-import { applyFilter } from '../../../utils/filter-match'
-import { useIsMobile } from '../../../hooks/use-is-mobile'
-import { useToday } from '../../../hooks/use-today'
-import { useFilterSettings } from '../../../hooks/use-filter-settings'
 import { buildEntries } from '../../../services/calendar-entries'
 import { CALENDAR_BREAKPOINTS, calendarRange, calendarRangeLabel, calendarRangeName, convertCalendarOffset, weekdayLabels } from '../../../utils/calendar-grid'
 import { heatHue } from '../../../utils/calendar-heat'
 import { dayKey } from '../../../utils/date'
 import { ChevronLeftIcon, ChevronRightIcon, TodayIcon } from '../../shared/icons'
 import { CalendarDayPopover } from './CalendarDayPopover'
-import { calendarScope, PendingCalendarDropContext } from './calendar-drag'
 import { useElementSize } from '../../../hooks/use-element-size'
 import styles from './CalendarWidget.module.css'
-import { type CalendarMode, type DayContext, useTaskDrag } from './calendar-day'
+import type { CalendarMode } from './calendar-day'
+import { useCalendarEntries, useCalendarSetup } from './calendar-data'
 import { EntryItem } from './CalendarDayParts'
 import { MonthGrid } from './CalendarMonth'
 import { WeekRows, WeekColumn } from './CalendarWeek'
@@ -57,20 +48,12 @@ export function CalendarWidget({ tab }: { tab: CalendarTab }) {
 
 /** The full calendar (its large face). */
 function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLElement | null) => void }) {
-  const isMobile = useIsMobile()
-  const today = useToday()
-  const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
+  const { ctx, today, weekStartsOn, isMobile } = useCalendarSetup(tab)
+  const drag = ctx.drag
   const todos = useTodoStore((s) => s.todos)
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const lookups = useTodoNameLookups()
-  const statuses = useStatusStore((s) => s.statuses)
   const { filters: screen, active: screenActive } = useScreenFilter()
   const lens = useAppliedLens()
   const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
-  const markerSettings = useFilterSettings()
-  const openEditPopup = useUIStore((s) => s.openEditPopup)
-  const pending = useContext(PendingCalendarDropContext)
-  const drag = useTaskDrag()
   const [sizeRef, rootSize] = useElementSize()
   const rootRef = useCallback((el: HTMLElement | null) => {
     sizeRef(el)
@@ -83,7 +66,6 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
   const view: CalendarView = tab.viewState?.view ?? 'month'
   const offset = clampCalendarOffset(tab.viewState?.offset ?? 0)
   const titles = tab.viewState?.titles === true
-  const scope = calendarScope(tab.id)
   const width = rootSize.width > 0 ? rootSize.width : UNMEASURED_WIDTH
   const narrow = width < CALENDAR_BREAKPOINTS.compactMonth
   const mode: CalendarMode = view === 'month'
@@ -93,15 +75,7 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
   const range = useMemo(() => calendarRange(view, offset, today, weekStartsOn), [view, offset, today, weekStartsOn])
   const month = range.start.getMonth()
 
-  const shownTodos = useMemo(
-    () => applyFilter(screen, todos, lookups, today, markerSettings),
-    [screen, todos, lookups, today, markerSettings],
-  )
-
-  const entriesByDay = useMemo(
-    () => buildEntries(shownTodos, range.days, { assignedPeopleMap, statuses, dateTypes }),
-    [shownTodos, range.days, assignedPeopleMap, statuses, dateTypes],
-  )
+  const entriesByDay = useCalendarEntries(tab, range.days)
   const entryCount = useMemo(() => {
     let n = 0
     for (const list of entriesByDay.values()) n += list.length
@@ -118,17 +92,6 @@ function CalendarFull({ tab, faceRef }: { tab: CalendarTab; faceRef: (el: HTMLEl
     for (const list of buildEntries(base, range.days, { dateTypes }).values()) for (const e of list) ids.add(e.todo.id)
     return ids.size
   }, [entryCount, screenActive, todos, withCompleted, range.days, dateTypes])
-
-  const ctx = useMemo<DayContext>(() => ({
-    tabId: tab.id,
-    scope,
-    dateTypes,
-    today,
-    drag,
-    pendingMs: pending?.scope === scope ? pending.dateMs : null,
-    noDrag: isMobile,
-    onOpen: openEditPopup,
-  }), [tab.id, scope, dateTypes, today, drag, pending, isMobile, openEditPopup])
 
   const setView = useCallback((next: CalendarView) => {
     if (next === view) return

@@ -122,6 +122,38 @@ test.describe('drops beside a cell', () => {
   })
 })
 
+test.describe('a body its widget scrolls', () => {
+  test('the drop zones cover the body where it is on screen, however far it is scrolled (cr33 W7)', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await seedWorkspace(page, {
+      layouts: [{
+        name: 'Main',
+        columns: [
+          // A narrow (≈ 300px) column, the Calendar's row a third of it.
+          { id: 'colA', weight: 1, rows: [wsRow({ id: 'kc', tabs: [{ id: 'calTab', kind: 'calendar' }] }, { weight: 3 }), wsRow({ id: 'ka', tabs: [{ id: 'notesA', kind: 'notes' }] }, { weight: 7 })] },
+          { id: 'colB', weight: 3, rows: [wsRow({ id: 'b1', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
+        ],
+      }],
+    })
+    const body = wsCell(page, 'kc').locator('[data-ws-cell-body]')
+    // The Calendar's month is taller than this body: the body itself scrolls.
+    const scroll = await body.evaluate((el) => ({ sh: el.scrollHeight, ch: el.clientHeight }))
+    expect(scroll.sh).toBeGreaterThan(scroll.ch + 20)
+    await body.evaluate((el) => { el.scrollTop = el.scrollHeight })
+    await expect.poll(() => body.evaluate((el) => el.scrollTop)).toBeGreaterThan(20)
+    await dragTab(page, wsTab(page, 'notesTab'), await bodyPoint(page, 'kc', 0.5, 0.5), async () => {
+      const zones = wsCell(page, 'kc').getByTestId('ws-drop-zones')
+      await expect(zones).toHaveAttribute('data-active-zone', 'middle')
+      const z = await box(zones)
+      const b = await box(body)
+      expect(Math.abs(z.y - b.y)).toBeLessThanOrEqual(1)
+      expect(Math.abs(z.height - b.height)).toBeLessThanOrEqual(1)
+      await expect(zones.getByText('Add as tab')).toBeInViewport()
+    })
+    await expect.poll(() => wsShape(page)).toEqual([[['calTab', 'notesTab'], ['notesA']]])
+  })
+})
+
 test.describe('sizes and collapse of a row of cells', () => {
   test('the divider between two cells resizes them, saved at once and kept over a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [sideBySide] })
@@ -306,5 +338,20 @@ test.describe('on a phone', () => {
     expect(Math.round(c1.width)).toBe(Math.round(c2.width))
     expect(c2.y).toBeGreaterThan(c1.y + c1.height - 1)
     expect(a2.y).toBeGreaterThan(c2.y + c2.height - 1)
+  })
+
+  test('a cell of a multi-cell row offers Collapse row, which folds the whole row (cr33 W4)', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [sideBySide] })
+    await wsCell(page, 'c1').getByRole('button', { name: 'Cell options' }).tap()
+    const menu = page.getByRole('menu', { name: 'Cell options' })
+    await expect(menu.getByRole('menuitem')).toHaveText(['Collapse row'])
+    await menu.getByRole('menuitem', { name: 'Collapse row' }).tap()
+    for (const id of ['c1', 'c2']) {
+      await expect(wsCell(page, id).locator('[data-ws-cell-body]')).toHaveCount(0)
+      await expect(wsCell(page, id).getByRole('button', { name: 'Expand row' })).toBeVisible()
+    }
+    // A one-cell row's cell still says cell.
+    await wsCell(page, 'a2').getByRole('button', { name: 'Cell options' }).tap()
+    await expect(page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem')).toHaveText(['Collapse cell'])
   })
 })

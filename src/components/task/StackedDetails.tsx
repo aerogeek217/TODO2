@@ -2,10 +2,10 @@ import type { CSSProperties, MouseEvent, ReactNode, RefObject } from 'react'
 import type { PersistedTodoItem, Person, Tag } from '../../models'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { useSettingsStore } from '../../stores/settings-store'
-import { formatRowDate, startOfDay, toDateInputValue } from '../../utils/date'
-import { dueTooltip, isDeadlinePast } from '../../utils/effective-date'
-import { followupPillLabel, followupTooltip, formatFollowupDate, isFollowupOverdue } from '../../utils/followup'
-import { isUrgentByDate } from '../../utils/urgency'
+import { formatRowDate, toDateInputValue } from '../../utils/date'
+import { dueTooltip } from '../../utils/effective-date'
+import { followupPillLabel, followupTooltip, formatFollowupDate } from '../../utils/followup'
+import { dueState, followupState } from '../../utils/row-date-state'
 import type { SubtaskCount } from '../../utils/subtasks'
 import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { RepeatIcon } from '../shared/icons'
@@ -87,9 +87,8 @@ export function StackedDetails(props: StackedDetailsProps) {
 function StackedDue({ todo, today, ghost, deadlineInputRef, onOpenDue, onDueInputChange }: StackedDetailsProps) {
   const due = todo.dueDate
   const { triggerProps, tooltip } = useTooltip(due ? dueTooltip(todo, today) : null)
-  const past = isDeadlinePast(todo, today)
   const range = useSettingsStore((s) => s.urgentDueWithinDays)
-  const soon = isUrgentByDate(todo, today, range)
+  const { past, soon } = dueState(todo, today, range)
   const rowDates = useSettingsStore((s) => s.rowDates)
   const repeats = todo.recurrenceRule != null
   return (
@@ -131,9 +130,8 @@ function StackedDue({ todo, today, ghost, deadlineInputRef, onOpenDue, onDueInpu
 function StackedFollowup({ todo, today, ghost, followupAnchorRef, followupOpen, onToggleFollowup }: StackedDetailsProps) {
   const next = todo.nextFollowupAt
   const { triggerProps, tooltip } = useTooltip(next ? followupTooltip(todo, today) : null)
-  const late = isFollowupOverdue(todo, today)
-  const isToday = !!next && !todo.isCompleted && startOfDay(new Date(next)).getTime() === startOfDay(today).getTime()
-  const state = !next ? undefined : late ? 'late' : isToday ? 'today' : 'upcoming'
+  const state = followupState(todo, today)
+  const late = state === 'late'
   const rowDates = useSettingsStore((s) => s.rowDates)
   return (
     <button

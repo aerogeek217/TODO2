@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { rowFixes, sanitizeRow, validateImportData, validateRow } from '../../data/import-validation'
 import { addTab } from '../../utils/workspace-layout-ops'
+import { LAYOUT_SIZE_MAX } from '../../data/layout-shape'
 import type { LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
 import { rowOf } from '../helpers/layout-builders'
 
@@ -31,6 +32,10 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['cell weight zero', layoutRow([{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 0, tabs: [] })] }]), 'columns[0].rows[0].cells[0].weight'],
   ['strip shown not a boolean', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }, { stripShown: 'yes' })), 'columns[0].rows[0].cells[0].stripShown'],
   ['zero weight', layoutRow([{ id: 'c', weight: 0, rows: [] }]), 'columns[0].weight'],
+  // Two of these summed to Infinity: every share 0, no divider could recover (cr33 S4).
+  ['column weight past the size cap', layoutRow([{ id: 'c', weight: 9e307, rows: [rowOf({ id: 'k', weight: 1, tabs: [] })] }]), 'columns[0].weight'],
+  ['row weight past the size cap', layoutRow([{ id: 'c', weight: 1, rows: [{ ...rowOf({ id: 'k', weight: 1, tabs: [] }), weight: 1e7 }] }]), 'columns[0].rows[0].weight'],
+  ['cell weight past the size cap', layoutRow([{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 9e307, tabs: [] })] }]), 'columns[0].rows[0].cells[0].weight'],
   ['unknown kind', layoutRow(oneTab({ id: 't', kind: 'horizons', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
   ['retired Taskboard widget', layoutRow(oneTab({ id: 't', kind: 'taskboard', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
   // Retired in v77 (its tabs became glance widgets): past v77 an unknown kind.
@@ -52,6 +57,7 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['band in the v75 shape (tabs, no cells)', layoutRow([], { top: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'top.cells'],
   ['band cell tabs not a list', layoutRow([], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: {} }] } }), 'top.cells[0].tabs'],
   ['band without a height', layoutRow([], { top: { id: 'b', cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.height'],
+  ['band height past the size cap', layoutRow([], { top: { id: 'b', height: 1e308, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.height'],
   ['band height zero', layoutRow([], { top: { id: 'b', height: 0, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.height'],
   ['band id repeats a cell id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { top: { id: 'k', height: 160, cells: [{ id: 'k-c', weight: 1, tabs: [{ id: 't2', kind: 'notes', config: {} }] }] } }), 'top.id'],
   ['band tab id repeats a tab id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'bottom.cells[0].tabs[0].id'],
@@ -260,6 +266,24 @@ describe('a layout past the limit of 1,000 columns, rows, cells or tabs', () => 
       .toEqual(['2 rows past the limit of 1,000 dropped', 'column past the limit of 1,000 dropped'])
   })
 
+})
+
+describe('layout sizes are bounded (cr33 S4)', () => {
+  it('keeps a weight up to LAYOUT_SIZE_MAX, and repairs one past it to 1, so no sum of weights is Infinity', () => {
+    const at = layoutRow([
+      { id: 'a', weight: LAYOUT_SIZE_MAX, rows: [rowOf({ id: 'k1', weight: LAYOUT_SIZE_MAX, tabs: [] })] },
+      { id: 'b', weight: 1, rows: [rowOf({ id: 'k2', weight: 1, tabs: [] })] },
+    ])
+    expect(validateRow('layouts', at)).toBe(true)
+    const past = layoutRow([
+      { id: 'a', weight: 9e307, rows: [rowOf({ id: 'k1', weight: 1, tabs: [] })] },
+      { id: 'b', weight: 9e307, rows: [rowOf({ id: 'k2', weight: 1, tabs: [] })] },
+    ])
+    expect(rowFixes('layouts', past).length).toBeGreaterThan(0)
+    const repaired = sanitizeRow('layouts', past) as unknown as WorkspaceLayout
+    expect(repaired.columns.map((c) => c.weight)).toEqual([1, 1])
+    expect(Number.isFinite(repaired.columns.reduce((n, c) => n + c.weight, 0))).toBe(true)
+  })
 })
 
 describe('repairing a layout row the schema rejects (audit cleanup)', () => {

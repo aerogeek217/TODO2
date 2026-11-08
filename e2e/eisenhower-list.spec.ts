@@ -133,8 +133,8 @@ test.describe('desktop', () => {
         ],
       }],
     })
-    const dashDo = page.locator('[data-glance-tab="dash"] [data-dash-section="eisenhower"] [data-eis-cell="do"]').getByTestId('dash-eis-count')
-    await expect(dashDo).toHaveText('2')
+    const glanceDo = page.locator('[data-glance-tab="dash"] [data-glance-section="eisenhower"] [data-eis-cell="do"]').getByTestId('glance-eis-count')
+    await expect(glanceDo).toHaveText('2')
     await (await openTabMenu(page, 'eisTab')).getByRole('menuitem', { name: 'Edit list…' }).click()
     const editList = page.getByTestId('edit-list')
     await expect(editList).toBeVisible()
@@ -151,11 +151,11 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('list-filter-picker')).toHaveCount(0)
     // The draft counts already, in both.
     await expect(row(quadrant(page, 'do'), 'Fix checkout outage')).toHaveCount(0)
-    await expect(dashDo).toHaveText('1')
+    await expect(glanceDo).toHaveText('1')
     await editList.getByRole('button', { name: 'Save list' }).click()
     await expect(editList).toHaveCount(0)
     await expect(unsavedDot(wsTab(page, 'eisTab'))).toHaveCount(0)
-    await expect(dashDo).toHaveText('1')
+    await expect(glanceDo).toHaveText('1')
     await expect(row(quadrant(page, 'do'), 'Waiting on legal')).toBeVisible()
     await expect.poll(async () => ((await eisenhowerList(page))?.membership as { predicate: { statusIds: unknown } } | undefined)?.predicate.statusIds)
       .toHaveLength(1)

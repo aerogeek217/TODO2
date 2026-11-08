@@ -333,22 +333,31 @@ export function pickPredicate(raw: unknown): PickedPredicate {
 /** An expression this build can't read: the whole expression goes (which way it filtered is unknown). */
 class BadExpression extends Error {}
 
+/** How far a stored expression's read has got: the nodes read so far (`EXPRESSION_NODES_MAX`). */
+interface ReadBudget { nodes: number }
+
 /**
  * One node of a stored expression (`TodoPredicate.expression`), rebuilt from
  * its known keys; throws `BadExpression` on anything it can't read. A date
  * atom's "is not" and "or none" become `not` / `or … none` nodes; a text
- * longer than the cap is shortened (one fix).
+ * longer than the cap is shortened (one fix). `depth` is the node's (the
+ * root's 1): past `EXPRESSION_DEPTH_MAX`, or past `EXPRESSION_NODES_MAX`
+ * nodes read, it throws before reading further, so a deep or wide stored
+ * tree is refused, never a `RangeError` (cr33 S3).
  */
-function readExpressionNode(v: unknown, fixes: PredicateFix[]): FilterExpr {
+function readExpressionNode(v: unknown, fixes: PredicateFix[], depth: number, budget: ReadBudget): FilterExpr {
+  if (depth > EXPRESSION_DEPTH_MAX || ++budget.nodes > EXPRESSION_NODES_MAX) throw new BadExpression()
   if (!isRecord(v)) throw new BadExpression()
   switch (v.kind) {
     case 'and':
     case 'or': {
       if (!Array.isArray(v.items) || v.items.length === 0 || v.items.length > EXPRESSION_NODES_MAX) throw new BadExpression()
-      return { kind: v.kind, items: (v.items as unknown[]).map((item) => readExpressionNode(item, fixes)) }
+      const items: FilterExpr[] = []
+      for (const item of v.items as unknown[]) items.push(readExpressionNode(item, fixes, depth + 1, budget))
+      return { kind: v.kind, items }
     }
     case 'not':
-      return { kind: 'not', item: readExpressionNode(v.item, fixes) }
+      return { kind: 'not', item: readExpressionNode(v.item, fixes, depth + 1, budget) }
     case 'person':
     case 'tag':
     case 'status': {
@@ -387,13 +396,14 @@ function readExpressionNode(v: unknown, fixes: PredicateFix[]): FilterExpr {
 /**
  * The stored expression in its normal form; `undefined` when absent (or
  * `null`) or dropped — anything it can't read, or past the caps
- * (`EXPRESSION_NODES_MAX`, `EXPRESSION_DEPTH_MAX`), drops it with a fix.
+ * (`EXPRESSION_NODES_MAX`, `EXPRESSION_DEPTH_MAX`: the editor's, so what
+ * the editor and v75 write reads back), drops it with a fix.
  */
 function readExpression(raw: unknown, fixes: PredicateFix[]): FilterExpr | undefined {
   if (raw === undefined || raw === null) return undefined
   const own: PredicateFix[] = []
   try {
-    const e = normalizeExpression(readExpressionNode(raw, own))
+    const e = normalizeExpression(readExpressionNode(raw, own, 1, { nodes: 0 }))
     if (expressionSize(e) > EXPRESSION_NODES_MAX || expressionDepth(e) > EXPRESSION_DEPTH_MAX) throw new BadExpression()
     fixes.push(...own)
     return e

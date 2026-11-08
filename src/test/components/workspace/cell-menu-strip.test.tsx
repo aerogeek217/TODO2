@@ -9,7 +9,7 @@ import { emptyPredicate } from '../../../models'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { band, cell, col, row } from '../../helpers/layout-builders'
-import { cellAt, findCell } from '../../../utils/workspace-layout-ops'
+import { cellAt, findCell } from '../../../utils/workspace-layout-queries'
 
 /**
  * The cell menu's Split ▸ Right / Below / New column (a band's: Right only),

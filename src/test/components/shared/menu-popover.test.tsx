@@ -29,13 +29,43 @@ describe('MenuPopover — the popover menu', () => {
     ]} />)
     const group = screen.getByRole('group', { name: 'Zoom' })
     expect(group).toHaveTextContent('Stacked')
-    expect(screen.getByRole('button', { name: 'Zoom in' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Zoom out' }))
+    // The end's step is aria-disabled, not disabled: it keeps the focus it may have; a press does nothing.
+    const zoomIn = screen.getByRole('menuitem', { name: 'Zoom in' })
+    expect(zoomIn).toHaveAttribute('aria-disabled', 'true')
+    expect(zoomIn).not.toBeDisabled()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Zoom out' }))
     expect(onDecrement).toHaveBeenCalledOnce()
     expect(onClose).not.toHaveBeenCalled()
     expect(screen.getByRole('menuitem', { name: 'Copy' })).toHaveFocus()
+    // ↑↓ skip a step at its end…
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' })
-    expect(screen.getByRole('button', { name: 'Zoom out' })).toHaveFocus()
+    expect(screen.getByRole('menuitem', { name: 'Zoom out' })).toHaveFocus()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' })
+    expect(screen.getByRole('menuitem', { name: 'Copy' })).toHaveFocus()
+  })
+
+  it('a stepper button that reaches its end keeps the focus, and ↑↓ go on from it', () => {
+    const entries = (onIncrement?: () => void) => [
+      item('Copy'),
+      { kind: 'stepper' as const, label: 'Zoom', value: onIncrement ? 'Rows' : 'Stacked', decrementLabel: 'Zoom out', incrementLabel: 'Zoom in', onDecrement: vi.fn(), onIncrement },
+      item('Rename'),
+    ]
+    const onIncrement = vi.fn()
+    const { rerender } = render(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={vi.fn()} entries={entries(onIncrement)} />)
+    const zoomIn = screen.getByRole('menuitem', { name: 'Zoom in' })
+    zoomIn.focus()
+    fireEvent.click(zoomIn)
+    expect(onIncrement).toHaveBeenCalledOnce()
+    // The step reached the end: the button stays, aria-disabled, with the focus.
+    rerender(<MenuPopover point={{ x: 0, y: 0 }} label="m" onClose={vi.fn()} entries={entries()} />)
+    expect(zoomIn).toHaveAttribute('aria-disabled', 'true')
+    expect(zoomIn).toHaveFocus()
+    fireEvent.click(zoomIn)
+    expect(onIncrement).toHaveBeenCalledOnce()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowDown' })
+    expect(screen.getByRole('menuitem', { name: 'Rename' })).toHaveFocus()
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowUp' })
+    expect(screen.getByRole('menuitem', { name: 'Zoom out' })).toHaveFocus()
   })
 
   it('checkbox items: aria-checked true / false / mixed with a note', () => {

@@ -23,7 +23,7 @@ export interface TodaySuggestion {
 }
 
 export interface TodayPicks {
-  /** The open Focus tasks, by due date (the Focus tile's order). */
+  /** The open Focus tasks, by due date (the Focus Number's order). */
   focusIds: number[]
   /** Up to `TODAY_SUGGESTIONS`: due today (by due date), then Slipping (latest first). */
   suggestions: TodaySuggestion[]

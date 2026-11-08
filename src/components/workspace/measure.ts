@@ -7,14 +7,15 @@ function rectOf(el: Element): Rect {
 }
 
 /**
- * A cell card (`[data-ws-cell]`): its header, body and visible tabs. A
- * headless cell's strip (`[data-strip-hidden]`) counts as no header, so its
- * body — the whole card — takes every drop but a tab-strip one.
+ * A cell card (`[data-ws-cell]`): its header, body and visible tabs, and
+ * whether it is headless (`[data-headless]`) — what that means for a drop
+ * the hit test decides (`workspace-drop.dropStrip`).
  */
 function measureCell(cellEl: HTMLElement): CellGeometry {
   const id = cellEl.dataset.wsCell ?? ''
   const empty = cellEl.dataset.empty === 'true'
-  const headerEl = cellEl.querySelector('[data-ws-cell-header]:not([data-strip-hidden])')
+  const headless = cellEl.dataset.headless === 'true'
+  const headerEl = cellEl.querySelector('[data-ws-cell-header]')
   const bodyEl = cellEl.querySelector('[data-ws-cell-body]')
   const header = headerEl ? rectOf(headerEl) : null
   const listEl = headerEl?.querySelector('[role="tablist"]')
@@ -24,7 +25,7 @@ function measureCell(cellEl: HTMLElement): CellGeometry {
         .map((t) => ({ id: t.dataset.wsTab ?? '', rect: rectOf(t) }))
         .filter((t) => t.rect.right <= visibleRight + 0.5 && t.rect.right > t.rect.left)
     : []
-  return { id, rect: rectOf(cellEl), header, body: bodyEl ? rectOf(bodyEl) : null, empty, tabs }
+  return { id, rect: rectOf(cellEl), header, headless, body: bodyEl ? rectOf(bodyEl) : null, empty, tabs }
 }
 
 /** A row of cells (`[data-ws-row]`, a column's or a band's): its box and its cells. */
