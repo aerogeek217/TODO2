@@ -3,7 +3,7 @@ import { EISENHOWER_QUADRANTS, type EisenhowerSummaryTab } from '../../../models
 import { useEisenhowerStats, useStatsBase, type EisenhowerSetup, type ShownOfTotal } from '../../../hooks/use-glance-data'
 import type { EisenhowerSummary } from '../../../services/stats/eisenhower-summary'
 import type { StatsContext } from '../../../services/stats/stats-context'
-import { eisenhowerQuadrantDialog, eisenhowerSummaryDialog } from '../../../services/task-dialog'
+import { eisenhowerQuadrantDialog, eisenhowerSummaryDialog } from './glance-drills'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { paneSubtitle, QUADRANT_COLOR } from '../../../utils/eisenhower-panes'
 import { useChipNames } from '../../shared/filters/filter-menu'

@@ -162,24 +162,6 @@ export function withScreenNote(description: string): string {
   return `${description} Only tasks the top-bar filter shows.`
 }
 
-/** A Next 7 days column's dialog: title and line. `index` 0 = Late, 1 = today. */
-export function nextDayDialogWords(date: Date | null, index: number, today: Date): { title: string; description: string } {
-  if (date == null) return { title: 'Late', description: 'Open tasks due, or to follow up, before today.' }
-  if (index === 1) return { title: 'Today', description: 'Open tasks due, or to follow up, today.' }
-  const day = formatFollowupDay(date, today)
-  return { title: day, description: `Open tasks due, or to follow up, on ${day}.` }
-}
-
-/** A trend bar's dialog: title and line (`Thu 8`, or `Week of Sep 28`). */
-export function trendBucketDialogWords(start: Date, granularity: 'day' | 'week', today: Date): { title: string; description: string } {
-  if (granularity === 'day') {
-    const day = formatFollowupDay(start, today)
-    return { title: day, description: `Tasks completed or created on ${day}.` }
-  }
-  const week = `Week of ${trendBucketLabel(start, 'week')}`
-  return { title: week, description: `Tasks completed or created in the week of ${trendBucketLabel(start, 'week')}.` }
-}
-
 // ── The Number widget's words ────────────────────────────────────────────────
 
 /** Closed this week's sub-line: `Since Sun 4`. */

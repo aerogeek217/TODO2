@@ -1,5 +1,4 @@
 import type { PersistedTodoItem, Tag, TodoEvent } from '../../models'
-import type { TaskDialogPayload } from '../../stores/task-dialog-payload'
 import { addDays, weekStartOf } from '../../utils/calendar-grid'
 import { daysUntil } from '../../utils/effective-date'
 import { CHANGES_EVENT_TYPES, STUCK_STATUS_DAYS } from '../../utils/trend-window'
@@ -23,11 +22,18 @@ import { eventsByTask, taskReplay, type TaskEvents } from './task-history'
 
 export type ChangeId = 'late' | 'followups' | 'tag' | 'status' | 'dueToday' | 'closed'
 
-/** One sentence, and the tasks behind it (its drill; `null` = none to open). */
+/**
+ * One sentence, and the tasks behind it in dialog order (empty = none to
+ * open). The widget makes them its task dialog (`glance-drills.changeDrill`).
+ */
 export interface Change {
   id: ChangeId
   text: string
-  drill: TaskDialogPayload | null
+  ids: number[]
+  /** The tag (`tag`) or status (`status`) the sentence names. */
+  subject?: string
+  /** `closed`: how many full weeks its usual averages; `null` = no usual. */
+  averageWeeks?: number | null
 }
 
 /** Weeks the closed sentence averages over, at most. */
@@ -76,8 +82,6 @@ function statusSince(task: PersistedTodoItem, events: TaskEvents | undefined): D
   return task.createdAt ? new Date(task.createdAt) : null
 }
 
-const todos = (todoIds: readonly number[]) => ({ kind: 'todos' as const, todoIds: [...todoIds] })
-
 /**
  * The sentences over `tasks` (completed ones included: the closed count
  * reads them) — usually the screen-filtered tasks. `events` must hold every
@@ -107,12 +111,7 @@ export function computeChanges(
     out.push({
       id: 'late',
       text: `${tasksWord(wentLate.length)} went late since yesterday.`,
-      drill: {
-        title: 'Went late since yesterday',
-        glyph: 'overdue',
-        description: 'Open tasks that are late now and weren’t at the end of yesterday (tasks added since aren’t counted).',
-        source: todos(idsByDate(wentLate, 'deadline')),
-      },
+      ids: idsByDate(wentLate, 'deadline'),
     })
   }
 
@@ -125,12 +124,7 @@ export function computeChanges(
     out.push({
       id: 'followups',
       text: `${n === 1 ? '1 follow-up is' : `${n} follow-ups are`} due${lateFollowups > 0 ? ` (${lateFollowups} late)` : ''}.`,
-      drill: {
-        title: 'Follow-ups due',
-        glyph: 'followup',
-        description: 'Open tasks whose next follow-up is today or earlier.',
-        source: todos(idsByDate(due, 'followup')),
-      },
+      ids: idsByDate(due, 'followup'),
     })
   }
 
@@ -152,12 +146,8 @@ export function computeChanges(
       out.push({
         id: 'tag',
         text: `#${top.tag.name} has the most late tasks (${top.tasks.length}).`,
-        drill: {
-          title: `Late in #${top.tag.name}`,
-          glyph: 'tag',
-          description: `Open tasks tagged #${top.tag.name} that are late.`,
-          source: todos(idsByDate(top.tasks, 'deadline')),
-        },
+        ids: idsByDate(top.tasks, 'deadline'),
+        subject: top.tag.name,
       })
     }
   }
@@ -182,12 +172,8 @@ export function computeChanges(
     out.push({
       id: 'status',
       text: `${status.name} has held ${tasksWord(held.length)} for 3+ weeks.`,
-      drill: {
-        title: `Stuck in ${status.name}`,
-        glyph: 'status',
-        description: `Open tasks whose status has been ${status.name} for ${STUCK_STATUS_DAYS} days or more.`,
-        source: todos(idsByDate(held, 'deadline')),
-      },
+      ids: idsByDate(held, 'deadline'),
+      subject: status.name,
     })
   }
 
@@ -197,12 +183,7 @@ export function computeChanges(
     out.push({
       id: 'dueToday',
       text: dueToday.length === 1 ? '1 task is due today.' : `${dueToday.length} tasks are due today.`,
-      drill: {
-        title: 'Due today',
-        glyph: 'calendar',
-        description: 'Open tasks due today.',
-        source: todos(idsByDate(dueToday, 'deadline')),
-      },
+      ids: idsByDate(dueToday, 'deadline'),
     })
   }
 
@@ -240,14 +221,8 @@ export function computeChanges(
     out.push({
       id: 'closed',
       text,
-      drill: n === 0 ? null : {
-        title: 'Closed this week',
-        glyph: 'done',
-        description: avg == null
-          ? 'Tasks completed this week, newest first.'
-          : `Tasks completed this week, newest first. The usual is the average of the last ${weeks.length === 1 ? 'week' : `${weeks.length} weeks`}.`,
-        source: todos(closedNow.map((t) => t.id)),
-      },
+      ids: closedNow.map((t) => t.id),
+      averageWeeks: avg == null ? null : weeks.length,
     })
   }
 

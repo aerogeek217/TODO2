@@ -6,7 +6,8 @@ import { useNextDays, useStatsBase } from '../../../hooks/use-glance-data'
 import type { NextDaysColumn } from '../../../services/stats/next-seven-days'
 import type { StatsContext } from '../../../services/stats/stats-context'
 import { DashGlyph } from '../../shared/DashGlyph'
-import { nextDayDialogWords, nextDayLabels } from './glance-copy'
+import { nextDayLabels } from './glance-copy'
+import { nextDayDrill } from './glance-drills'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { nextDaysLines } from './glance-summary'
 import { GlanceFrame } from './GlanceFrame'
@@ -46,7 +47,6 @@ export function NextDaysSection({ data, onDrill, style, className }: SectionProp
           const [name, num] = nextDayLabels(c.date, i)
           const d = c.dueIds.length
           const f = c.followupIds.length
-          const words = nextDayDialogWords(c.date, i, data.ctx.today)
           return (
             <Clickable
               key={i}
@@ -56,17 +56,9 @@ export function NextDaysSection({ data, onDrill, style, className }: SectionProp
               data-today={i === 1 ? 'true' : undefined}
               data-testid="dash-day"
               label={`${name} ${num}: ${d} due, ${f} follow-up. Show tasks`}
-              onClick={onDrill ? () => onDrill({
-                ...words,
-                glyph: 'calendar',
-                source: {
-                  kind: 'groups',
-                  groups: [
-                    { key: 'due', label: 'Due', color: 'var(--color-overdue)', todoIds: c.dueIds },
-                    { key: 'followup', label: 'Follow-up', color: 'var(--color-followup)', todoIds: c.followupIds },
-                  ],
-                },
-              }) : undefined}
+              onClick={onDrill
+                ? () => onDrill(nextDayDrill(c.date, i, data.ctx.today, { due: c.dueIds, followup: c.followupIds }))
+                : undefined}
             >
               <span className={styles.dayCounts}>
                 {d + f === 0 && <span className={styles.muted}>–</span>}

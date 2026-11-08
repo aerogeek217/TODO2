@@ -9,10 +9,11 @@ import { DashGlyph } from '../../shared/DashGlyph'
 import { closedSubLine, countOf, deltaLabel, metricSubLine } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { numberLines } from './glance-summary'
-import type { GlanceDrill, OnGlanceDrill } from './glance-types'
+import { breakdownDrill, closedThisWeekDrill, metricDrill } from './glance-drills'
+import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { Sparkline } from './Sparkline'
-import { closedThisWeekDrill, NUMBER_DEFS, numberColors, metricDrill } from './number-defs'
+import { NUMBER_DEFS, numberColors } from './number-defs'
 import styles from './NumberWidget.module.css'
 
 /** The large face's breakdown lists this many people / tags; the rest fold into one line. */
@@ -64,19 +65,6 @@ function Breakdown({ entries, by, total, title, onDrill }: {
       {rest > 0 && <span className={styles.breakdownMore}>{rest} more</span>}
     </div>
   )
-}
-
-/** One breakdown line's tasks for the task dialog. */
-function breakdownDrill(title: string, by: 'people' | 'tags', entry: BreakdownEntry): GlanceDrill {
-  const which = entry.key === 'none'
-    ? (by === 'tags' ? 'with no tag' : 'with nobody assigned')
-    : (by === 'tags' ? `tagged ${entry.label}` : `assigned to ${entry.label}`)
-  return {
-    title: `${title} · ${entry.label}`,
-    glyph: by === 'tags' ? 'tag' : 'people',
-    description: `${title}: the ones ${which}.`,
-    source: { kind: 'todos', todoIds: entry.ids },
-  }
 }
 
 /**

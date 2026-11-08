@@ -35,7 +35,7 @@ function ctxWith(tags: Record<number, Tag[]> = {}, statuses: Status[] = [WAITING
 
 const ids = (changes: readonly Change[]) => changes.map((c) => c.id)
 const of = (changes: readonly Change[], id: ChangeId) => changes.find((c) => c.id === id)
-const drillIds = (c: Change | undefined) => (c?.drill?.source.kind === 'todos' ? c.drill.source.todoIds : null)
+const drillIds = (c: Change | undefined) => c?.ids ?? null
 
 describe('computeChanges', () => {
   it('no tasks and no events: nothing to say', () => {
@@ -188,7 +188,7 @@ describe('computeChanges', () => {
       expect(of(computeChanges([...past, ...now(1)], [], ctxWith(), []), 'closed')?.text).toBe('1 closed this week, below your usual 4 a week.')
       const none = of(computeChanges(past, [], ctxWith(), []), 'closed')
       expect(none?.text).toBe('Nothing closed this week yet; you usually close 4 a week.')
-      expect(none?.drill).toBeNull()
+      expect(none?.ids).toEqual([])
     })
 
     it('fewer than four weeks of history: the average of the full weeks there are', () => {
@@ -197,7 +197,7 @@ describe('computeChanges', () => {
       const tasks = [first, ...week(1, 3, 100), ...week(2, 2, 200), done(1, day(0, 9))].map((t) => (t.id === 50 ? t : { ...t, createdAt: new Date(2026, 9, 20) }))
       const c = of(computeChanges(tasks, [], ctxWith(), []), 'closed')
       expect(c?.text).toBe('1 closed this week, below your usual 2.5 a week.')
-      expect(c?.drill?.description).toContain('the last 2 weeks')
+      expect(c?.averageWeeks).toBe(2)
     })
 
     it('only weeks inside the completed-task retention: a purge emptied the older ones', () => {
@@ -208,7 +208,7 @@ describe('computeChanges', () => {
         .toBe('2 closed this week, above your usual 0.8 a week.')
       const c = of(computeChanges([...kept, ...now], [], ctxWith(), [], 14), 'closed')
       expect(c?.text).toBe('2 closed this week, about your usual 2 a week.')
-      expect(c?.drill?.description).toContain('the last week')
+      expect(c?.averageWeeks).toBe(1)
       // 7 days: no full week is inside it, so no usual.
       expect(of(computeChanges([...kept, ...now], [], ctxWith(), [], 7), 'closed')?.text).toBe('2 closed this week.')
       // Kept forever (`null`): every week, as before.
@@ -229,7 +229,7 @@ describe('computeChanges', () => {
     ]
     const changes = computeChanges(tasks, [], ctxWith({ 1: [ATLAS] }), [1])
     expect(ids(changes)).toEqual(['late', 'followups', 'tag', 'status', 'dueToday', 'closed'])
-    expect(changes.every((c) => c.drill != null)).toBe(true)
+    expect(changes.every((c) => c.ids.length > 0)).toBe(true)
   })
 
   it('reads its window: the last STUCK_STATUS_DAYS days of state, due-date and status events', () => {
