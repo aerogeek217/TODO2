@@ -30,11 +30,13 @@ export interface CellControlsValue {
   collapsed: boolean
   onExpand: () => void
   /**
-   * A top line holding the slot mounted: the cell then draws none of its own
-   * (a face without one gets the cell's, floating at its top-right corner).
-   * Returns its unmount.
+   * A top line mounted (`holdsSlot`: holding the slot): the cell draws no
+   * slot of its own while one holds it — a face without one gets the cell's,
+   * floating at its top-right corner, which also stands for the tab while no
+   * top line does (a face with no line of its own: the Eisenhower's, the
+   * calendar's). Returns its unmount.
    */
-  claim: () => () => void
+  claim: (holdsSlot: boolean) => () => void
 }
 
 export const CellControlsContext = createContext<CellControlsValue | null>(null)

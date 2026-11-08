@@ -343,6 +343,20 @@ describe('a cell’s widget faces (D25 R)', () => {
     expect(document.querySelector('[data-glance]')!.getAttribute('data-face')).toBe('small')
   })
 
+  it('a face with no top line of its own (the Eisenhower’s small one): the cell’s slot stands for the tab', () => {
+    stubSize(400, 80)
+    const k = cell('k', [createTab('eisenhower', 'e')])
+    open(single(k))
+    renderCell(k)
+    expect(cellEl('k').dataset.face).toBe('small')
+    const slot = document.querySelector<HTMLElement>('[data-ws-cell="k"] > [data-cell-controls]')!
+    expect(slot).toHaveAttribute('data-ws-tab', 'e')
+    expect(slot).toHaveAttribute('data-widget-top-line')
+    expect(document.querySelectorAll('[data-ws-tab="e"]')).toHaveLength(1)
+    fireEvent.contextMenu(slot)
+    expect(screen.getByRole('menu', { name: 'Cell options' })).toBeInTheDocument()
+  })
+
   it('a widget without faces (Notes) is large and never opens a popover', () => {
     stubSize(400, 60)
     const k = cell('k', [createTab('notes', 'n')])

@@ -142,11 +142,16 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
     moreEls.add(el)
     return () => { moreEls.delete(el) }
   }, [moreEls])
-  /** Top lines holding the controls slot: none, and the cell draws its own (a face without one). */
-  const [claims, setClaims] = useState(0)
-  const claim = useCallback(() => {
-    setClaims((n) => n + 1)
-    return () => setClaims((n) => n - 1)
+  /**
+   * The widget's top lines mounted, and those holding the controls slot: with
+   * none holding it, the cell draws its own (a face without one); with no top
+   * line at all, that one stands for the tab too.
+   */
+  const [claims, setClaims] = useState({ lines: 0, slots: 0 })
+  const claim = useCallback((holdsSlot: boolean) => {
+    const step = (d: number) => setClaims((c) => ({ lines: c.lines + d, slots: c.slots + (holdsSlot ? d : 0) }))
+    step(1)
+    return () => step(-1)
   }, [])
 
   const activeResult = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result : undefined
@@ -331,7 +336,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
           </div>
         </div>
       )}
-      {controls && claims === 0 && <CellControls value={controls} floating />}
+      {controls && claims.slots === 0 && <CellControls value={controls} floating standsForTab={claims.lines === 0} />}
 
       {menu && menuEntries && (
         <MenuPopover

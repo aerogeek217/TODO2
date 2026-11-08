@@ -48,14 +48,25 @@ function Grip({ value, floating }: { value: CellControlsValue; floating: boolean
  * the cell's own over its top-right corner, for a face without a top line
  * that holds it.
  */
-export function CellControls({ value, floating = false }: { value: CellControlsValue; floating?: boolean }) {
-  const { setMoreButton, menuOpen, touch, collapsed, onExpand, onMore } = value
+export function CellControls({ value, floating = false, standsForTab = false }: {
+  value: CellControlsValue
+  floating?: boolean
+  /** No top line in the widget's face: the slot is its top line (`data-ws-tab`, its right-click and Shift+F10 the menu). */
+  standsForTab?: boolean
+}) {
+  const { setMoreButton, menuOpen, touch, collapsed, onExpand, onMore, tabId } = value
   const stop = (e: MouseEvent) => {
     // The body's small-face click (it opens the full widget) is not this one.
     e.preventDefault()
   }
   return (
-    <span className={`${styles.slot} ${floating ? styles.floating : ''}`} data-cell-controls="" data-open={menuOpen ? '' : undefined} data-touch={touch ? '' : undefined}>
+    <span
+      className={`${styles.slot} ${floating ? styles.floating : ''}`}
+      data-cell-controls=""
+      data-open={menuOpen ? '' : undefined}
+      data-touch={touch ? '' : undefined}
+      {...(standsForTab ? { [TOP_LINE_ATTR]: '', 'data-ws-tab': tabId } : {})}
+    >
       {collapsed && (
         <button
           type="button"
@@ -121,7 +132,7 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
   const inline = value != null && controls === 'inline'
   // Before paint: the cell drops its own floating controls in the same frame.
   const claim = value?.claim
-  useLayoutEffect(() => (inline && claim ? claim() : undefined), [inline, claim])
+  useLayoutEffect(() => (claim ? claim(inline) : undefined), [inline, claim])
   if (alone && value == null) return null
   const Tag = as
   return (
