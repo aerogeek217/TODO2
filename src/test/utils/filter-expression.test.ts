@@ -11,6 +11,8 @@ import {
   type ExpressionNames,
   type ExpressionParse,
 } from '../../utils/filter-expression'
+import { expressionResolver } from '../../services/filter-expression-field'
+import { makePerson } from '../helpers'
 
 const PEOPLE = new Map([[1, 'Aisha'], [2, 'Ben'], [3, 'Ann Lee']])
 const TAGS = new Map([[1, 'q4'], [2, 'R&D']])
@@ -211,6 +213,31 @@ describe('filter expressions — print', () => {
     expect(canonical('due fri')).toBe('due 11/13/2026')
     expect(canonical('due tmr or no follow-up')).toBe('due tomorrow or no followup')
     expect(canonical('not not @Ben')).toBe('@Ben')
+  })
+
+  it('escapes a " in a name or a text, so it reads back as itself (cr33 M12)', () => {
+    // The real resolver, as the field uses it.
+    const people = [makePerson({ id: 1, name: 'Ann "AJ" Lee' }), makePerson({ id: 2, name: 'C:\\docs\\' })]
+    const tags = [{ id: 1, name: 'say "hi"', color: '#f00' }, { id: 2, name: 'back\\"slash', color: '#f00' }]
+    const statuses = [{ id: 1, name: 'On "Hold"', color: '#888', sortOrder: 1, icon: 'circle' as const }]
+    const realNames: ExpressionNames = {
+      person: (id) => people.find((p) => p.id === id)?.name,
+      tag: (id) => tags.find((t) => t.id === id)?.name,
+      status: (id) => statuses.find((s) => s.id === id)?.name,
+    }
+    const opts = { today: TODAY, names: expressionResolver(people, tags, statuses) }
+    const e: FilterExpr = { kind: 'and', items: [
+      { kind: 'person', id: 1 },
+      { kind: 'or', items: [{ kind: 'person', id: 2 }, { kind: 'tag', id: 1 }, { kind: 'tag', id: 2 }] },
+      { kind: 'status', id: 1 },
+      { kind: 'text', text: 'say "hi" \\ there' },
+    ] }
+    const text = printExpression(e, false, realNames)
+    expect(text).toBe('@"Ann \\"AJ\\" Lee" and (@"C:\\docs\\\\" or #"say \\"hi\\"" or #"back\\\\\\"slash") and !"On \\"Hold\\"" and "say \\"hi\\" \\ there"')
+    const read = parseExpression(text, opts)
+    if (!read.ok) throw new Error(read.error.message)
+    expect(read.expression).toEqual(e)
+    expect(printExpression(read.expression, false, realNames)).toBe(text)
   })
 
   it('names a deleted id so it reads as an error until fixed', () => {

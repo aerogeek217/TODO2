@@ -1,5 +1,5 @@
 import type { FilterAtom, FilterExpr } from '../../models/filter-expression'
-import { mentionToken, statusToken, tagToken } from '../name-tokens'
+import { mentionToken, quoteText, statusToken, tagToken } from '../name-tokens'
 import { dateClauseWords } from './dates'
 
 /**
@@ -27,8 +27,8 @@ function atomText(a: FilterAtom, names: ExpressionNames): string {
     case 'tag': return a.id === 0 ? 'no tag' : tagToken(names.tag(a.id) ?? GONE.tag)
     case 'status': return a.id === 0 ? 'no status' : statusToken(names.status(a.id) ?? GONE.status)
     case 'priority': return a.value === 'none' ? 'no priority' : `/${a.value}`
-    // A quote can't sit inside quotes: it is written as an apostrophe.
-    case 'text': return `"${a.text.replace(/"/g, "'")}"`
+    // A quote inside is escaped (`\"`), so the text reads back as itself.
+    case 'text': return quoteText(a.text)
     case 'date': return dateClauseWords(a.field, a.match)
   }
 }

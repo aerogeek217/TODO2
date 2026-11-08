@@ -3,6 +3,7 @@ import type { DateAnchor, DateMatch, MarkerKey } from '../../models/filter-predi
 import { EXPRESSION_DEPTH_MAX, EXPRESSION_NODES_MAX, EXPRESSION_TEXT_MAX, type FilterExpr, type IdAtomKind } from '../../models/filter-expression'
 import { PREDICATE_SEARCH_TEXT_MAX } from '../../models/filter-predicate'
 import { parseDatePhrase, parseNumericDate } from '../date-phrase'
+import { quoteText, readQuoted } from '../name-tokens'
 import {
   BEFORE_TODAY,
   DATE_WORD,
@@ -26,7 +27,8 @@ import { expressionDepth, expressionSize, normalizeExpression } from './tree'
  * first, then `and`, then `or`):
  *
  * - `"budget review"` — text the task contains (bare words side by side are
- *   one phrase, read as if quoted; inside quotes nothing is a keyword);
+ *   one phrase, read as if quoted; inside quotes nothing is a keyword, and
+ *   `\"` is a quote — `utils/name-tokens.readQuoted`, names alike);
  * - `@Aisha` `@"Aisha Rahman"` · `#q4` `#"R&D"` · `!Waiting` `!"On Hold"` ·
  *   `/urgent` `/important` `/focus`;
  * - `no person|tag|status|priority`, `any person|tag|status|priority`;
@@ -114,12 +116,12 @@ function lex(text: string): Lex[] {
       continue
     }
     if (ch === '"') {
-      const close = text.indexOf('"', i + 1)
+      const { value, close } = readQuoted(text, i)
       if (close < 0) {
-        out.push({ kind: 'quoted', start: i, end: n, value: text.slice(i + 1), open: true })
+        out.push({ kind: 'quoted', start: i, end: n, value, open: true })
         i = n
       } else {
-        out.push({ kind: 'quoted', start: i, end: close + 1, value: text.slice(i + 1, close) })
+        out.push({ kind: 'quoted', start: i, end: close + 1, value })
         i = close + 1
       }
       continue
@@ -128,12 +130,12 @@ function lex(text: string): Lex[] {
       const start = i
       i++
       if (text.charAt(i) === '"') {
-        const close = text.indexOf('"', i + 1)
+        const { value, close } = readQuoted(text, i)
         if (close < 0) {
-          out.push({ kind: 'name', sigil: ch, start, end: n, value: text.slice(i + 1), open: true })
+          out.push({ kind: 'name', sigil: ch, start, end: n, value, open: true })
           i = n
         } else {
-          out.push({ kind: 'name', sigil: ch, start, end: close + 1, value: text.slice(i + 1, close) })
+          out.push({ kind: 'name', sigil: ch, start, end: close + 1, value })
           i = close + 1
         }
         continue
@@ -234,7 +236,7 @@ class Parser {
   }
 
   private tokenText(t: Lex): string {
-    if (t.kind === 'quoted') return `"${t.value}"`
+    if (t.kind === 'quoted') return quoteText(t.value)
     if (t.kind === 'name') return `${t.sigil ?? ''}${t.value}`
     if (t.kind === 'slash') return `/${t.value}`
     return t.value
