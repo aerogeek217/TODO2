@@ -33,7 +33,7 @@ import type { PaneContext } from '../utils/eisenhower'
 import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import { hasNarrowingFilters } from '../utils/filter-chips'
-import { countActiveFilters, type FilterCriteria } from '../utils/filter-criteria'
+import { admitsCompleted, countActiveFilters, type FilterCriteria } from '../utils/filter-criteria'
 import { applyFilter, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { WeekStart } from '../utils/effective-date'
@@ -136,6 +136,22 @@ export function useStatsBase(): StatsBase {
     () => ({ ctx, todos, shown, filtered, todoById, screen, lookups, markerSettings }),
     [ctx, todos, shown, filtered, todoById, screen, lookups, markerSettings],
   )
+}
+
+const screenTasksMemo = sharedMemo((shown: PersistedTodoItem[], withCompleted: boolean): PersistedTodoItem[] => (
+  withCompleted ? shown : shown.filter((t) => !t.isCompleted)
+))
+
+/**
+ * The tasks the screen filter shows, as a list, the calendar and the
+ * Eisenhower show them: the shared base's `shown` (filtered once for every
+ * widget on screen), its completed tasks kept only while the screen filter
+ * lets them through (`admitsCompleted`: Show completed, or a Completed
+ * range) — the same tasks `applyFilter(screen, …)` keeps.
+ */
+export function useScreenTasks(): PersistedTodoItem[] {
+  const base = useStatsBase()
+  return screenTasksMemo(base.shown, admitsCompleted(base.screen))
 }
 
 // ── The parts ───────────────────────────────────────────────────────────────

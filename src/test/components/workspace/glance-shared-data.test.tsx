@@ -1,9 +1,16 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, act } from '@testing-library/react'
+import { render, renderHook, cleanup, act } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import { NeglectMapWidget } from '../../../components/workspace/neglect/NeglectMapWidget'
-import { createTab, isGlanceKind, WIDGET_KINDS, type GlanceTab, type GlanceWidgetKind, type NeglectTab } from '../../../models/workspace-layout'
+import { CalendarWidget } from '../../../components/workspace/calendar/CalendarWidget'
+import { useEisenhowerSource } from '../../../hooks/use-eisenhower-source'
+import { useScreenTasks } from '../../../hooks/use-glance-data'
+import { WidgetFaceContext } from '../../../hooks/use-widget-face'
+import { useTodoNameLookups } from '../../../hooks/use-todo-name-lookups'
+import { useFilterSettings } from '../../../hooks/use-filter-settings'
+import { useScreenFilter } from '../../../stores/screen-filter'
+import { createTab, isGlanceKind, WIDGET_KINDS, type CalendarTab, type GlanceTab, type GlanceWidgetKind, type NeglectTab } from '../../../models/workspace-layout'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -153,5 +160,43 @@ describe('glance widgets share their data', () => {
     expect(vi.mocked(computeStaleTasks)).toHaveBeenCalledTimes(4)
     expect(warn.mock.calls.filter((c) => String(c[0]).includes(SHARED_MEMO_WARNING))).toEqual([])
     warn.mockRestore()
+  })
+
+  it('the calendars (full and face) and the Eisenhower read the same base: still one screen-filter pass (A6)', () => {
+    const calendar = createTab('calendar', 'cal') as CalendarTab
+    function Eisenhower() {
+      useEisenhowerSource()
+      return null
+    }
+    render(
+      <DndContext>
+        <GlanceWidget tab={{ id: 'n', kind: 'number', config: { metric: 'open' } }} />
+        <CalendarWidget tab={calendar} />
+        <WidgetFaceContext.Provider value={{ forced: 'medium' }}>
+          <CalendarWidget tab={{ ...calendar, id: 'cal2' }} />
+        </WidgetFaceContext.Provider>
+        <Eisenhower />
+      </DndContext>,
+    )
+    expect(document.querySelector('[data-calendar-widget="cal"]')).not.toBeNull()
+    expect(document.querySelector('[data-calendar-face-tab="cal2"]')).not.toBeNull()
+    expect(vi.mocked(applyFilter)).toHaveBeenCalledTimes(1)
+  })
+
+  it('useScreenTasks keeps what applyFilter(screen) keeps: completed tasks only while the screen filter lets them through', () => {
+    const done = { ...SAMPLE_TASKS[0]!, id: 9001, isCompleted: true, completedAt: new Date(2026, 9, 9) }
+    useTodoStore.setState({ todos: [...SAMPLE_TASKS, done] })
+    const { result, rerender } = renderHook(() => {
+      const screen = useScreenFilter().filters
+      const lookups = useTodoNameLookups()
+      const settings = useFilterSettings()
+      return { tasks: useScreenTasks(), expected: vi.mocked(applyFilter).getMockImplementation()!(screen, useTodoStore.getState().todos, lookups, new Date(2026, 9, 10), settings) }
+    })
+    expect(result.current.tasks.map((t) => t.id)).toEqual(result.current.expected.map((t) => t.id))
+    expect(result.current.tasks.some((t) => t.id === 9001)).toBe(false)
+    act(() => { useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, showCompleted: true }) })
+    rerender()
+    expect(result.current.tasks.map((t) => t.id)).toEqual(result.current.expected.map((t) => t.id))
+    expect(result.current.tasks.some((t) => t.id === 9001)).toBe(true)
   })
 })
