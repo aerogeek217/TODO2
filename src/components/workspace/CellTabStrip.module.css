@@ -238,7 +238,7 @@
 }
 
 /* Touch layout (mobile): taller tabs, and a swipe that starts on a tab still
-   scrolls the column pager (tabs aren't drag handles here). */
+   scrolls the page (tabs aren't drag handles here). */
 .touch {
   padding: 0 12px;
   touch-action: auto;

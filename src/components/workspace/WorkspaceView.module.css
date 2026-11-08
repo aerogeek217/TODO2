@@ -1,4 +1,4 @@
-/* The workspace: top band · column area · bottom band, top to bottom. */
+/* The workspace: the layout's table (or the empty layout), its grain and ambience, and the drag layer. */
 .area {
   display: flex;
   flex-direction: column;

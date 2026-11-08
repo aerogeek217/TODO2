@@ -1,4 +1,4 @@
-/* Mobile workspace: top bar, column strip, column pager. */
+/* Mobile workspace: top bar, then every cell of the table in one scroll. */
 
 .root {
   /* Space kept clear of the floating quick-add button (44px + 16px). */
@@ -120,88 +120,19 @@
   color: var(--color-danger-text);
 }
 
-/* ── Column strip ── */
+/* ── The table, in reading order ── */
 
-.strip {
-  position: relative;
+.scroll {
   display: flex;
-  align-items: stretch;
-  height: var(--mobile-column-strip-height);
-  flex-shrink: 0;
-  padding: 0 8px;
-  border-bottom: 1px solid var(--color-border-muted);
-  overflow-x: auto;
-  overflow-y: hidden;
-  scrollbar-width: none;
-}
-
-.strip::-webkit-scrollbar {
-  display: none;
-}
-
-.stripItem {
-  flex-shrink: 0;
-  height: 100%;
-  max-width: 200px;
-  padding: 0 12px;
-  border: none;
-  background: transparent;
-  color: var(--color-text-muted);
-  font: inherit;
-  font-size: var(--font-size-body);
-  font-weight: var(--font-weight-semibold);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.stripItemActive {
-  color: var(--color-text-primary);
-}
-
-.stripItem:focus-visible {
-  box-shadow: var(--focus-ring-inset);
-  border-radius: var(--radius-md);
-}
-
-/* Positioned (left / width) from the pager's scroll position. */
-.underline {
-  position: absolute;
-  left: 0;
-  bottom: 0;
-  width: 0;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--color-accent);
-  pointer-events: none;
-}
-
-/* ── Pager ── */
-
-.pager {
-  display: flex;
-  gap: var(--ws-pager-gap);
   flex: 1 1 auto;
   min-height: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  overscroll-behavior-x: contain;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
 }
 
-.pager::-webkit-scrollbar {
-  display: none;
-}
-
-.column {
+.table {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  flex: 0 0 100%;
+  flex: 1 1 100%;
   min-width: 0;
   min-height: 0;
   box-sizing: border-box;
@@ -209,19 +140,18 @@
   overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior-y: contain;
-  scroll-snap-align: start;
-  scroll-snap-stop: always;
+  -webkit-overflow-scrolling: touch;
 }
 
-/* A single cell fills the column and scrolls inside itself. */
-.column:has(> .cellFill:only-child) {
+/* A single cell fills the screen and scrolls inside itself. */
+.table:has(> .cellFill:only-child) {
   padding-bottom: 8px;
 }
 
 /* ── Cells ── */
 
-/* A fit row (glance numbers): its cells two up while two fit (each at least
-   140px), else one to a line. */
+/* A run of Number cells: two up while two fit (each at least 140px), else
+   one to a line. */
 .fitRow {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(max(140px, calc((100% - 8px) / 2)), 1fr));
@@ -247,7 +177,7 @@
 
 /* A layout with a hue (D19), as on desktop: every cell header takes 7 % of
    it, and a tab's label steps up to the secondary text. */
-.pager:not([data-layout-hue='none']) {
+.scroll:not([data-layout-hue='none']) {
   --cell-header-tint: color-mix(in srgb, var(--layout-hue) 7%, transparent);
   --cell-tab-text: var(--color-text-secondary);
 }
@@ -485,28 +415,6 @@
   color: var(--color-text-muted);
 }
 
-
-/* A band's page name: a band glyph before its active tab's title. */
-.stripItemBand {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.stripName {
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.bandGlyph {
-  display: inline-flex;
-  flex-shrink: 0;
-  color: var(--color-text-muted);
-}
-
-.stripItemActive .bandGlyph {
-  color: var(--color-accent-text);
-}
 
 /* A second section's heading in a sheet. */
 .sheetSectionTitle {

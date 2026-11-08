@@ -6,7 +6,7 @@ import type { DropGhost, WorkspaceDragSource, WorkspaceDropHit, WorkspaceGeometr
 
 /** `active.data.current.type` of a dragged workspace tab. */
 export const WORKSPACE_TAB_DRAG = 'workspace-tab'
-/** `active.data.current.type` of a whole panel (cell or band) dragged by its header. */
+/** `active.data.current.type` of a whole panel (a cell) dragged by its header. */
 export const WORKSPACE_PANEL_DRAG = 'workspace-panel'
 
 /** dnd-kit draggable id of a workspace tab. */

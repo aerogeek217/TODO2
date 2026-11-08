@@ -205,7 +205,7 @@ function GhostTab({ kind, title }: { kind: WidgetKind; title: string }) {
 }
 
 interface CellTabStripProps {
-  /** The cell or band whose tabs these are. */
+  /** The cell whose tabs these are. */
   cell: Pick<LayoutCell, 'tabs' | 'activeTabId'>
   collapsed: boolean
   /** Task count of the active tab (list / Eisenhower: `N`, `shown of total`, or `—`). */
