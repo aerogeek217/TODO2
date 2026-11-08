@@ -165,6 +165,63 @@ describe('layout Save', () => {
     expect(await storedListIds()).toContain(w.mine1)
   })
 
+  it('Undo puts each tab back where it was: its cell, at its index (cr33 W3)', async () => {
+    const w = await world()
+    ws().closeTab('m1')
+    ws().closeTab('m2')
+    await ws().save()
+    expect(useUndoStore.getState().snackbar?.description).toBe('Removed 2 lists')
+    await useUndoStore.getState().undo()
+    const strip = ws().working!.columns[0]!.rows[0]!.cells[0]!
+    expect(strip.id).toBe('k-A')
+    const listOf = (t: LayoutTab) => (t.kind === 'lens' ? t.config.listDefinitionId : t.kind)
+    expect(strip.tabs.map(listOf)).toEqual([w.saved, w.mine1, w.mine2, 'eisenhower'])
+  })
+
+  it('its cell gone: the tab goes to the first cell that isn’t a glance widget’s, not a Number’s fit row (cr33 W3)', async () => {
+    const w = await world()
+    // A: a fit row of a Number first, then a Notes cell, then the cell of lists.
+    const A = ws().working!
+    useWorkspaceStore.setState({
+      working: {
+        ...A,
+        columns: [{
+          ...A.columns[0]!,
+          rows: [
+            rowOf({ id: 'kn', weight: 1, tabs: [createTab('number', 'num')], activeTabId: 'num' }),
+            rowOf({ id: 'kt', weight: 1, tabs: [createTab('notes', 'nt')], activeTabId: 'nt' }),
+            ...A.columns[0]!.rows,
+          ],
+        }],
+      },
+    })
+    await ws().save()
+    // The list's cell goes whole.
+    ws().closeCell('k-A')
+    await ws().save()
+    await useUndoStore.getState().undo()
+    const rows = ws().working!.columns[0]!.rows
+    expect(rows).toHaveLength(2)
+    expect(rows[0]!.cells[0]!.tabs.map((t) => t.id)).toEqual(['num'])
+    expect(rows[1]!.cells[0]!.id).toBe('kt')
+    expect(rows[1]!.cells[0]!.tabs.map((t) => (t.kind === 'lens' ? t.config.listDefinitionId : t.id))).toEqual(['nt', w.saved, w.mine1, w.mine2])
+  })
+
+  it('every cell a glance widget’s: a new row under the first column', async () => {
+    const w = await world()
+    const A = ws().working!
+    const numberRow = rowOf({ id: 'kn', weight: 1, tabs: [createTab('number', 'num')], activeTabId: 'num' })
+    useWorkspaceStore.setState({ working: { ...A, columns: [{ ...A.columns[0]!, rows: [numberRow, ...A.columns[0]!.rows] }] } })
+    await ws().save()
+    ws().closeCell('k-A')
+    await ws().save()
+    await useUndoStore.getState().undo()
+    const rows = ws().working!.columns[0]!.rows
+    expect(rows).toHaveLength(2)
+    expect(rows[0]!.cells[0]!.tabs.map((t) => t.id)).toEqual(['num'])
+    expect(rows[1]!.cells[0]!.tabs.map((t) => (t.kind === 'lens' ? t.config.listDefinitionId : null)).sort()).toEqual([w.saved, w.mine1, w.mine2].sort())
+  })
+
   it('Undo once the layout is gone brings nothing back, and says so', async () => {
     const w = await world()
     ws().closeTab('m1')

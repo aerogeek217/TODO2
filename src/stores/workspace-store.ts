@@ -15,6 +15,7 @@ import {
   LAYOUT_NAME_MAX,
   UNSAVED_LAYOUT_ID,
   createTab,
+  isGlanceTab,
   layoutBodyOf,
   withLayoutBody,
   type BandEdge,
@@ -32,6 +33,8 @@ import {
   closeTab,
   copySizes,
   cellSizeGroups,
+  findCell,
+  layoutPanels,
   rowSizeGroups,
   layoutIds,
   layoutListRefs,
@@ -384,10 +387,34 @@ async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promi
   }
 }
 
-/** Where Undo puts back a removed list's tab: the layout's first column's first cell, else a new column. */
-function restoredTabTarget(layout: Layout): LayoutDropTarget {
-  const cell = layout.columns[0]?.rows[0]?.cells[0]
-  return cell ? { kind: 'cell', cellId: cell.id } : { kind: 'layout' }
+/** Where a list tab was: its cell and its index in that cell's strip. */
+interface TabPlace {
+  cellId: string
+  index: number
+}
+
+/** Where `body` shows list `listId` (its first list tab), if it does. */
+function listTabPlace(body: LayoutBody, listId: number): TabPlace | undefined {
+  for (const cell of layoutPanels(body)) {
+    const index = cell.tabs.findIndex((t) => t.kind === 'lens' && t.config.listDefinitionId === listId)
+    if (index !== -1) return { cellId: cell.id, index }
+  }
+  return undefined
+}
+
+/**
+ * Where Undo puts back a removed list's tab: where it was (`place`, its cell
+ * and index) while that cell is still there; else the first cell that isn't
+ * a glance widget's (a Number's fit row would stop fitting); else a new row
+ * under the first column, or a new column.
+ */
+function restoredTabTarget(layout: Layout, place: TabPlace | undefined): LayoutDropTarget {
+  if (place && findCell(layout, place.cellId)) return { kind: 'cell', cellId: place.cellId, index: place.index }
+  const cells = [...layout.columns.flatMap((c) => c.rows.flatMap((r) => r.cells)), ...(['top', 'bottom'] as const).flatMap((edge) => layout[edge]?.cells ?? [])]
+  const cell = cells.find((k) => k.tabs.length === 0 || k.tabs.some((t) => !isGlanceTab(t)))
+  if (cell) return { kind: 'cell', cellId: cell.id }
+  const lastRow = layout.columns[0]?.rows.at(-1)
+  return lastRow ? { kind: 'row-edge', rowId: lastRow.id, edge: 'bottom' } : { kind: 'layout' }
 }
 
 /**
@@ -395,14 +422,18 @@ function restoredTabTarget(layout: Layout): LayoutDropTarget {
  * from layout `layoutId`: Undo brings them back as its lists, with their
  * manual order, each in a tab of the layout again (an unsaved edit: nothing
  * shows them otherwise, so the next Save or page load would remove them
- * again). It runs only while that layout is open (else it says to open it
- * and stays to try again) and brings nothing back once the layout is gone
- * (it says so). Redo closes those tabs and removes the lists again unless
- * the layout shows them otherwise by then.
+ * again) — where `before` (the layout as saved before) showed it, else as
+ * `restoredTabTarget` says. It runs only while that layout is open (else it
+ * says to open it and stays to try again) and brings nothing back once the
+ * layout is gone (it says so). Redo closes those tabs and removes the lists
+ * again unless the layout shows them otherwise by then.
  */
-function recordRemovedLists(layoutId: number, removed: OwnedListsRemoved | null, shownNow: () => ReadonlySet<number>): void {
-  const defs = removed?.rows.defs ?? []
-  const [first] = defs
+function recordRemovedLists(layoutId: number, removed: OwnedListsRemoved | null, shownNow: () => ReadonlySet<number>, before: LayoutBody | null): void {
+  const removedDefs = removed?.rows.defs ?? []
+  const places = new Map(removedDefs.map((d) => [d.id, before ? listTabPlace(before, d.id) : undefined]))
+  // Back in the order they sat, so each lands at its own index.
+  const defs = [...removedDefs].sort((a, b) => (places.get(a.id)?.index ?? Infinity) - (places.get(b.id)?.index ?? Infinity))
+  const [first] = removedDefs
   if (!removed || !first) return
   const description = defs.length === 1
     ? `Removed the list “${first.name}”`
@@ -436,9 +467,11 @@ function recordRemovedLists(layoutId: number, removed: OwnedListsRemoved | null,
       await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
       const open = useWorkspaceStore.getState()
       if (open.saved?.id !== layoutId || !open.working) return
-      const target = restoredTabTarget(open.working)
       restoredTabs = defs
-        .map((d) => open.addWidget('lens', target, { listDefinitionId: d.id }))
+        .map((d) => {
+          const working = useWorkspaceStore.getState().working
+          return working ? open.addWidget('lens', restoredTabTarget(working, places.get(d.id)), { listDefinitionId: d.id }) : null
+        })
         .filter((id): id is string => id != null)
     },
     true,
@@ -845,7 +878,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       recordRemovedLists(next.id, await pruneOwnedLists(next.id, next, kept), () => {
         const current = get().working
         return current ? layoutListRefs(current) : new Set<number>()
-      })
+      }, stored)
       return true
     },
 
