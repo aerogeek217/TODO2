@@ -323,7 +323,7 @@ export const layoutRepository = {
         const now = new Date()
         const layoutId = await layoutRepository.insert({
           name: RECOVERED_LISTS_LAYOUT_NAME,
-          columns: [{ id: 'col-1', weight: 1, cells: [{ id: 'cell-1', weight: 1, tabs, activeTabId: tabs[0]?.id }] }],
+          columns: [{ id: 'col-1', weight: 1, rows: [{ id: 'row-1', weight: 1, cells: [{ id: 'cell-1', weight: 1, tabs, activeTabId: tabs[0]?.id }] }] }],
           createdAt: now,
           modifiedAt: now,
         })

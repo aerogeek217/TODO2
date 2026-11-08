@@ -13,6 +13,7 @@ import {
   type TaskRowsViewState,
   type LayoutCell,
   type LayoutColumn,
+  type LayoutRow,
   type LayoutTab,
   type LensTabConfig,
   type ListTabViewState,
@@ -24,12 +25,25 @@ import {
   type NeglectColourBy,
   type NeglectTabConfig,
 } from '../models/workspace-layout'
-import { normalizeDashboardConfig } from '../models/dashboard-config'
+import {
+  GLANCE_CONFIG_FIELDS,
+  isNumberBreakdown,
+  pickFollowupConfig,
+  pickNumberConfig,
+  pickPeopleConfig,
+  pickRecentConfig,
+  pickStaleConfig,
+  pickTagPicksConfig,
+  pickTagsConfig,
+  pickTrendConfig,
+  type PickedConfig,
+} from '../models/glance-widgets'
 import { isRecord } from '../utils/is-record'
 
 /**
  * Shape check + whitelist reconstruction for the nested part of a `layouts`
- * row: `WorkspaceLayout.columns` and the optional `top` / `bottom` bands.
+ * row: `WorkspaceLayout.columns` (columns → rows → cells → tabs) and the
+ * optional `top` / `bottom` bands (each a row of cells).
  * Used by import validation (`checkLayout` / `pickLayout` in
  * `import-validation.ts`), so a layout from a file only reaches Dexie with
  * known kinds, known keys and unique ids.
@@ -44,14 +58,14 @@ export interface RawLayoutBody {
 }
 
 /**
- * Longest column / cell / tab id. The app's ids are short (`w-` + 8
+ * Longest column / row / cell / band / tab id. The app's ids are short (`w-` + 8
  * characters; the v56 seed's are the old rail ids, deduplicated).
  */
 const MAX_ID_LEN = 100
 
 /**
- * The most columns, cells and tabs a layout keeps (each counted over the
- * whole layout, bands included), and list tiles a dashboard tab keeps. Far
+ * The most columns, rows, cells and tabs a layout keeps (each counted over the
+ * whole layout, bands included). Far
  * past anything one builds by hand, so nothing the app makes is cut; a file
  * holding more (one a hand edit or a hostile file made, which would leave
  * the app unable to show the workspace on every launch) still loads — the
@@ -105,6 +119,9 @@ export function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixe
   return { config: { colourBy, untouchedDays }, fixed }
 }
 
+/** The kinds whose tabs show task rows: they keep a details width (`TaskRowsViewState`). */
+const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens', 'eisenhower', 'followup', 'stale', 'recent', 'today'])
+
 /** A tab's config / view state for its kind (a case per kind: a new kind doesn't compile without one). */
 function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | string {
   const config = tab.config
@@ -112,7 +129,7 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   const view = tab.viewState
   if (view !== undefined && !isRecord(view)) return `${path}.viewState`
   // Tabs showing task rows: the details width, a number in range.
-  if ((kind === 'lens' || kind === 'eisenhower' || kind === 'dashboard')
+  if (ROWS_KINDS.has(kind)
     && view?.detailsWidth !== undefined && pickDetailsWidth(view.detailsWidth) === undefined) {
     return `${path}.viewState.detailsWidth`
   }
@@ -139,17 +156,31 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       }
       return true
     }
-    case 'dashboard':
-      // Unknown ids / options inside are dropped by the pick, not rejected.
-      for (const key of ['tiles', 'listTiles', 'sections'] as const) {
-        if (config[key] !== undefined && !Array.isArray(config[key])) return `${path}.config.${key}`
-      }
-      return true
     case 'neglect':
       if (!isNeglectColourBy(config.colourBy)) return `${path}.config.colourBy`
       if (!isNeglectUntouchedDays(config.untouchedDays)) return `${path}.config.untouchedDays`
       return true
+    case 'number':
+      // Its breakdown: absent (none) or a known one; then its metric, as below.
+      if (config.breakdown !== undefined && !isNumberBreakdown(config.breakdown)) return `${path}.config.breakdown`
+      return GLANCE_CONFIG_FIELDS.number.ok(config.metric) ? true : `${path}.config.metric`
+    case 'followup':
+    case 'trend':
+    case 'people':
+    case 'tags':
+    case 'stale':
+    case 'recent':
+    case 'changes':
+    case 'pulse': {
+      // One config field, a known value.
+      const field = GLANCE_CONFIG_FIELDS[kind]
+      return field.ok(config[field.key]) ? true : `${path}.config.${field.key}`
+    }
     case 'notes':
+    case 'next7':
+    case 'status':
+    case 'eisenhowerSummary':
+    case 'today':
       return true
   }
 }
@@ -178,6 +209,27 @@ function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) =
   return true
 }
 
+/** `true` when a cell is valid, else the path of its first bad field. */
+function checkCell(cell: unknown, path: string, fresh: (id: string) => boolean): true | string {
+  if (!isRecord(cell)) return path
+  if (!isId(cell.id) || !fresh(cell.id)) return `${path}.id`
+  if (!isWeight(cell.weight)) return `${path}.weight`
+  if (cell.activeTabId !== undefined && !isId(cell.activeTabId)) return `${path}.activeTabId`
+  if (cell.stripShown !== undefined && typeof cell.stripShown !== 'boolean') return `${path}.stripShown`
+  if (!Array.isArray(cell.tabs)) return `${path}.tabs`
+  return checkTabs(cell.tabs, path, fresh)
+}
+
+/** `true` when every cell of a row (or band) is valid and there is at least one, else the path of the first bad field. */
+function checkCells(cells: unknown, path: string, fresh: (id: string) => boolean): true | string {
+  if (!Array.isArray(cells) || cells.length === 0) return `${path}.cells`
+  for (let k = 0; k < cells.length; k++) {
+    const res = checkCell(cells[k], `${path}.cells[${k}]`, fresh)
+    if (res !== true) return res
+  }
+  return true
+}
+
 function checkColumns(columns: unknown, fresh: (id: string) => boolean): true | string {
   if (!Array.isArray(columns)) return 'columns'
   for (let c = 0; c < columns.length; c++) {
@@ -186,40 +238,37 @@ function checkColumns(columns: unknown, fresh: (id: string) => boolean): true | 
     if (!isRecord(col)) return cp
     if (!isId(col.id) || !fresh(col.id)) return `${cp}.id`
     if (!isWeight(col.weight)) return `${cp}.weight`
-    if (!Array.isArray(col.cells) || col.cells.length === 0) return `${cp}.cells`
-    for (let k = 0; k < col.cells.length; k++) {
-      const cell: unknown = col.cells[k]
-      const kp = `${cp}.cells[${k}]`
-      if (!isRecord(cell)) return kp
-      if (!isId(cell.id) || !fresh(cell.id)) return `${kp}.id`
-      if (!isWeight(cell.weight)) return `${kp}.weight`
-      if (cell.activeTabId !== undefined && !isId(cell.activeTabId)) return `${kp}.activeTabId`
-      if (cell.collapsed !== undefined && typeof cell.collapsed !== 'boolean') return `${kp}.collapsed`
-      if (!Array.isArray(cell.tabs)) return `${kp}.tabs`
-      const tabs = checkTabs(cell.tabs, kp, fresh)
-      if (tabs !== true) return tabs
+    if (!Array.isArray(col.rows) || col.rows.length === 0) return `${cp}.rows`
+    for (let r = 0; r < col.rows.length; r++) {
+      const row: unknown = col.rows[r]
+      const rp = `${cp}.rows[${r}]`
+      if (!isRecord(row)) return rp
+      if (!isId(row.id) || !fresh(row.id)) return `${rp}.id`
+      if (!isWeight(row.weight)) return `${rp}.weight`
+      if (row.collapsed !== undefined && typeof row.collapsed !== 'boolean') return `${rp}.collapsed`
+      const cells = checkCells(row.cells, rp, fresh)
+      if (cells !== true) return cells
     }
   }
   return true
 }
 
-/** A band (absent is fine): an id, a positive height and at least one tab. */
+/** A band (absent is fine): an id, a positive height and at least one cell. */
 function checkBand(band: unknown, path: string, fresh: (id: string) => boolean): true | string {
   if (band === undefined) return true
   if (!isRecord(band)) return path
   if (!isId(band.id) || !fresh(band.id)) return `${path}.id`
   if (!isWeight(band.height)) return `${path}.height`
-  if (band.activeTabId !== undefined && !isId(band.activeTabId)) return `${path}.activeTabId`
   if (band.collapsed !== undefined && typeof band.collapsed !== 'boolean') return `${path}.collapsed`
-  if (!Array.isArray(band.tabs) || band.tabs.length === 0) return `${path}.tabs`
-  return checkTabs(band.tabs, path, fresh)
+  return checkCells(band.cells, path, fresh)
 }
 
 /**
  * `true` when a layout row's columns and bands are valid, else the path of
- * the first bad field (`columns[0].weight`, `top.tabs`, …). A band is
- * optional; one that is there needs an id, a positive height and at least one
- * tab. Ids are unique across the columns and both bands.
+ * the first bad field (`columns[0].weight`, `top.cells`, …). A column needs
+ * at least one row, a row and a band at least one cell. A band is optional;
+ * one that is there needs an id and a positive height. Ids are unique across
+ * the columns, rows, cells, tabs and both bands.
  */
 export function checkLayoutBody(body: RawLayoutBody): true | string {
   const fresh = idTracker()
@@ -233,12 +282,13 @@ export function checkLayoutBody(body: RawLayoutBody): true | string {
 }
 
 /** A part `pickLayoutBody` dropped or reset, counted. */
-type LayoutFix = 'columns' | 'column' | 'cell' | 'band' | 'tab' | 'size' | 'settings' | 'eisenhower'
-  | 'columnLimit' | 'cellLimit' | 'tabLimit' | 'listTileLimit'
+type LayoutFix = 'columns' | 'column' | 'row' | 'cell' | 'band' | 'tab' | 'size' | 'settings' | 'eisenhower'
+  | 'columnLimit' | 'rowLimit' | 'cellLimit' | 'tabLimit'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   columns: ['columns reset', 'columns reset'],
   column: ['column dropped', 'columns dropped'],
+  row: ['row dropped', 'rows dropped'],
   cell: ['cell dropped', 'cells dropped'],
   band: ['band dropped', 'bands dropped'],
   tab: ['tab dropped', 'tabs dropped'],
@@ -246,9 +296,9 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   settings: ['tab or cell settings reset', 'tab or cell settings reset'],
   eisenhower: ['Eisenhower tab setting dropped', 'Eisenhower tab settings dropped'],
   columnLimit: ['column past the limit of 1,000 dropped', 'columns past the limit of 1,000 dropped'],
+  rowLimit: ['row past the limit of 1,000 dropped', 'rows past the limit of 1,000 dropped'],
   cellLimit: ['cell past the limit of 1,000 dropped', 'cells past the limit of 1,000 dropped'],
   tabLimit: ['tab past the limit of 1,000 dropped', 'tabs past the limit of 1,000 dropped'],
-  listTileLimit: ['list tile past the limit of 1,000 dropped', 'list tiles past the limit of 1,000 dropped'],
 }
 
 export interface PickedLayoutBody extends LayoutBody {
@@ -263,21 +313,23 @@ export interface PickedLayoutBody extends LayoutBody {
 /**
  * Rebuilds a layout body (columns + bands) with only the model's keys. For a
  * body that passes `checkLayoutBody` (all import ever picks) nothing is
- * dropped but a stale `activeTabId` (= first tab), unknown dashboard ids /
- * options, duplicate collapsed quadrants, an out-of-range calendar offset
- * (clamped), and any key of an Eisenhower tab's config (it has none —
- * reported in `fixes`); a details width is rounded.
+ * dropped but a stale `activeTabId` (= first tab), duplicate collapsed
+ * quadrants, an out-of-range calendar offset (clamped), and any key of an
+ * Eisenhower tab's config (it has none — reported in `fixes`); a details
+ * width is rounded. A `dashboard` tab (the retired kind: v77 converted every
+ * one) is an unknown kind, dropped like one.
  *
- * Past `LAYOUT_PART_LIMIT` columns, cells or tabs in the layout (or list
- * tiles in a dashboard tab), the rest are dropped and reported in `fixes`.
+ * Past `LAYOUT_PART_LIMIT` columns, rows, cells or tabs in the layout, the
+ * rest are dropped and reported in `fixes`.
  *
  * Anything else becomes a valid body, its bad parts reported in `fixes`, so
  * the audit can repair a stored layout instead of deleting it: a column /
- * cell / band / tab that isn't an object, has a bad or repeated id, or (tab)
- * an unknown kind is dropped, as is a column left without cells and a band
- * left without tabs; a bad size becomes 1 (a band's height
- * `BAND_DEFAULT_HEIGHT`); bad tab settings fall back to the kind's
- * defaults; a bad `activeTabId` / `collapsed` is dropped.
+ * row / cell / band / tab that isn't an object, has a bad or repeated id
+ * (ids are unique across every level), or (tab) an unknown kind is dropped,
+ * as is a column left without rows, and a row or a band left without cells; a
+ * bad size becomes 1 (a band's height `BAND_DEFAULT_HEIGHT`); bad tab
+ * settings fall back to the kind's defaults; a bad `activeTabId` /
+ * `collapsed` / `stripShown` is dropped.
  */
 export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
   const raw = body.columns
@@ -291,6 +343,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
   }
   // Parts kept so far, over the whole layout (`LAYOUT_PART_LIMIT`).
   let columnsKept = 0
+  let rowsKept = 0
   let cellsKept = 0
   let tabsKept = 0
   const weightOf = (v: unknown, fallback = DEFAULT_WEIGHT): number => {
@@ -316,6 +369,16 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       const width = pickDetailsWidth(view?.detailsWidth)
       if (width === undefined && view?.detailsWidth !== undefined) fix('settings')
       return width === undefined ? undefined : { detailsWidth: width }
+    }
+    /** A glance config as picked, a reset reported. */
+    const glance = <C,>(picked: PickedConfig<C>): C => {
+      if (picked.fixed) fix('settings')
+      return picked.config
+    }
+    /** `t` with the task rows' view state, when there is one. */
+    const withRowsView = <T extends LayoutTab>(t: T): T => {
+      const v = rowsView()
+      return v ? { ...t, viewState: v } : t
     }
     switch (tab.kind) {
       case 'lens': {
@@ -366,20 +429,6 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         if (Object.keys(eisenhowerView).length > 0) eisenhower.viewState = eisenhowerView
         return eisenhower
       }
-      case 'dashboard': {
-        // Unknown ids / options inside are dropped, missing parts defaulted.
-        for (const key of ['tiles', 'listTiles', 'sections'] as const) {
-          if (config[key] !== undefined && !Array.isArray(config[key])) fix('settings')
-        }
-        const dashboardView = rowsView()
-        const dashboardConfig = normalizeDashboardConfig(config)
-        const extraTiles = dashboardConfig.listTiles.length - LAYOUT_PART_LIMIT
-        for (let i = 0; i < extraTiles; i++) fix('listTileLimit')
-        if (extraTiles > 0) dashboardConfig.listTiles = dashboardConfig.listTiles.slice(0, LAYOUT_PART_LIMIT)
-        const dashboard: LayoutTab = { id, kind: 'dashboard', config: dashboardConfig }
-        if (dashboardView) dashboard.viewState = dashboardView
-        return dashboard
-      }
       case 'neglect': {
         // No view state of its own: any is dropped.
         const neglect = pickNeglectConfig(config)
@@ -388,6 +437,32 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
+      // The glance kinds: a bad or missing setting is reset to its default;
+      // the row widgets keep a details width; no other view state.
+      case 'number':
+        return { id, kind: 'number', config: glance(pickNumberConfig(config)) }
+      case 'followup':
+        return withRowsView({ id, kind: 'followup', config: glance(pickFollowupConfig(config)) })
+      case 'trend':
+        return { id, kind: 'trend', config: glance(pickTrendConfig(config)) }
+      case 'people':
+        return { id, kind: 'people', config: glance(pickPeopleConfig(config)) }
+      case 'tags':
+        return { id, kind: 'tags', config: glance(pickTagsConfig(config)) }
+      case 'stale':
+        return withRowsView({ id, kind: 'stale', config: glance(pickStaleConfig(config)) })
+      case 'recent':
+        return withRowsView({ id, kind: 'recent', config: glance(pickRecentConfig(config)) })
+      case 'changes':
+        return { id, kind: 'changes', config: glance(pickTagPicksConfig(config)) }
+      case 'pulse':
+        return { id, kind: 'pulse', config: glance(pickTagPicksConfig(config)) }
+      case 'today':
+        return withRowsView({ id, kind: 'today', config: {} })
+      case 'next7':
+      case 'status':
+      case 'eisenhowerSummary':
+        return { id, kind: tab.kind, config: {} }
     }
   }
 
@@ -405,14 +480,20 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     }
     return tabs
   }
-  /** A cell's or band's view state: a known `activeTabId` and `collapsed`. */
-  const pickView = (raw: Obj, tabs: readonly LayoutTab[]): Pick<LayoutCell, 'activeTabId' | 'collapsed'> => {
-    const out: Pick<LayoutCell, 'activeTabId' | 'collapsed'> = {}
+  /** A cell's view state and config: a known `activeTabId`, a boolean `stripShown`. */
+  const pickCellView = (raw: Obj, tabs: readonly LayoutTab[]): Pick<LayoutCell, 'activeTabId' | 'stripShown'> => {
+    const out: Pick<LayoutCell, 'activeTabId' | 'stripShown'> = {}
     if (typeof raw.activeTabId === 'string' && tabs.some((t) => t.id === raw.activeTabId)) out.activeTabId = raw.activeTabId
     else if (raw.activeTabId !== undefined && !isId(raw.activeTabId)) fix('settings')
-    if (raw.collapsed === true) out.collapsed = true
-    else if (raw.collapsed !== undefined && typeof raw.collapsed !== 'boolean') fix('settings')
+    if (typeof raw.stripShown === 'boolean') out.stripShown = raw.stripShown
+    else if (raw.stripShown !== undefined) fix('settings')
     return out
+  }
+  /** A row's or band's `collapsed`: kept only when `true`. */
+  const pickCollapsed = (raw: Obj): { collapsed?: true } => {
+    if (raw.collapsed === true) return { collapsed: true }
+    if (raw.collapsed !== undefined && typeof raw.collapsed !== 'boolean') fix('settings')
+    return {}
   }
 
   const pickCell = (cell: unknown): LayoutCell | null => {
@@ -423,22 +504,54 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     const id = cell.id
     const weight = weightOf(cell.weight)
     const tabs = pickTabs(cell.tabs as unknown[])
-    return { id, weight, tabs, ...pickView(cell, tabs) }
+    return { id, weight, tabs, ...pickCellView(cell, tabs) }
+  }
+
+  /** The cells of a row or band that are kept (`LAYOUT_PART_LIMIT` over the layout). */
+  const pickCells = (raw: unknown[]): LayoutCell[] => {
+    const cells: LayoutCell[] = []
+    for (const cell of raw) {
+      if (cellsKept >= LAYOUT_PART_LIMIT) {
+        fix('cellLimit')
+        continue
+      }
+      const picked = pickCell(cell)
+      if (!picked) continue
+      cells.push(picked)
+      cellsKept++
+    }
+    return cells
+  }
+
+  const pickRow = (row: unknown): LayoutRow | null => {
+    if (!isRecord(row) || !fresh(row.id) || !Array.isArray(row.cells)) {
+      fix('row')
+      return null
+    }
+    const id = row.id
+    const weight = weightOf(row.weight)
+    const cells = pickCells(row.cells as unknown[])
+    if (cells.length === 0) {
+      // Left without cells: by the cell limit, or by its own bad cells.
+      fix(cellsKept >= LAYOUT_PART_LIMIT ? 'rowLimit' : 'row')
+      return null
+    }
+    return { id, weight, ...pickCollapsed(row), cells }
   }
 
   const pickBand = (band: unknown): LayoutBand | null => {
-    if (!isRecord(band) || !fresh(band.id) || !Array.isArray(band.tabs)) {
+    if (!isRecord(band) || !fresh(band.id) || !Array.isArray(band.cells)) {
       fix('band')
       return null
     }
     const id = band.id
     const height = weightOf(band.height, BAND_DEFAULT_HEIGHT)
-    const tabs = pickTabs(band.tabs as unknown[])
-    if (tabs.length === 0) {
+    const cells = pickCells(band.cells as unknown[])
+    if (cells.length === 0) {
       fix('band')
       return null
     }
-    return { id, height, tabs, ...pickView(band, tabs) }
+    return { id, height, ...pickCollapsed(band), cells }
   }
 
   const columns: LayoutColumn[] = []
@@ -448,29 +561,29 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         fix('columnLimit')
         continue
       }
-      if (!isRecord(col) || !fresh(col.id) || !Array.isArray(col.cells)) {
+      if (!isRecord(col) || !fresh(col.id) || !Array.isArray(col.rows)) {
         fix('column')
         continue
       }
       const id = col.id
       const weight = weightOf(col.weight)
-      const cells: LayoutCell[] = []
-      for (const cell of col.cells as unknown[]) {
-        if (cellsKept >= LAYOUT_PART_LIMIT) {
-          fix('cellLimit')
+      const rows: LayoutRow[] = []
+      for (const row of col.rows as unknown[]) {
+        if (rowsKept >= LAYOUT_PART_LIMIT) {
+          fix('rowLimit')
           continue
         }
-        const picked = pickCell(cell)
+        const picked = pickRow(row)
         if (!picked) continue
-        cells.push(picked)
-        cellsKept++
+        rows.push(picked)
+        rowsKept++
       }
-      if (cells.length === 0) {
-        // Left without cells: by the cell limit, or by its own bad cells.
-        fix(cellsKept >= LAYOUT_PART_LIMIT ? 'columnLimit' : 'column')
+      if (rows.length === 0) {
+        // Left without rows: by a limit, or by its own bad rows.
+        fix(rowsKept >= LAYOUT_PART_LIMIT || cellsKept >= LAYOUT_PART_LIMIT ? 'columnLimit' : 'column')
         continue
       }
-      columns.push({ id, weight, cells })
+      columns.push({ id, weight, rows })
       columnsKept++
     }
   } else {

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Native `<select>` drop-downs are readable in both themes: every option is
@@ -11,7 +11,7 @@ import { openSettings, seedWorkspace, type WorkspaceSeed } from './fixtures/work
 const SEED: WorkspaceSeed = {
   listDefinitions: [{ name: 'Team' }],
   tasks: [{ title: 'A task' }],
-  layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'k', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'k', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 async function setTheme(page: Page, mode: 'dark' | 'light') {

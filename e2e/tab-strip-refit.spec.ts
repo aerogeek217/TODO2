@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { editListDraft, seedWorkspace, wsTab, type WsTabSeed } from './fixtures/workspace'
+import { editListDraft, seedWorkspace, wsTab, type WsTabSeed, wsRow } from './fixtures/workspace'
 
 /**
  * A shrunk tab strip fits again when a tab's own content changes, not only
@@ -12,7 +12,7 @@ import { editListDraft, seedWorkspace, wsTab, type WsTabSeed } from './fixtures/
 const OTHERS: WsTabSeed[] = [
   { id: 'n1', kind: 'notes' },
   { id: 'c1', kind: 'calendar' },
-  { id: 'd1', kind: 'dashboard' },
+  { id: 'd1', kind: 'trend' },
   { id: 'e1', kind: 'eisenhower' },
   { id: 'c2', kind: 'calendar' },
   { id: 'n3', kind: 'notes' },
@@ -27,8 +27,8 @@ async function seed(page: Page, width: number) {
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'col1', weight: 1, cells: [{ id: 'k1', tabs: [{ id: 'l1', kind: 'lens', listDefIdx: 0 }, ...OTHERS], activeTabId: 'l1' }] },
-        { id: 'col2', weight: 1, cells: [{ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] }] },
+        { id: 'col1', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'l1', kind: 'lens', listDefIdx: 0 }, ...OTHERS], activeTabId: 'l1' })] },
+        { id: 'col2', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] })] },
       ],
     }],
   })

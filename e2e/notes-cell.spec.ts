@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The task row's notes cell holds the task's status updates and Notes: a
@@ -25,8 +25,8 @@ function seed(tab: Omit<WsTabSeed, 'id'>, tasks = TASKS): WorkspaceSeed {
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'w', weight: 760, cells: [{ id: 'cell', tabs: [{ id: 'tab', ...tab }] }] },
-        { id: 'rest', weight: 520, cells: [{ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] }] },
+        { id: 'w', weight: 760, rows: [wsRow({ id: 'cell', tabs: [{ id: 'tab', ...tab }] })] },
+        { id: 'rest', weight: 520, rows: [wsRow({ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] })] },
       ],
     }],
   }
@@ -181,8 +181,8 @@ test('the popover keeps inside the window near its right edge, ending at the cel
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'a', weight: 900, cells: [{ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] }] },
-        { id: 'b', weight: 380, cells: [{ id: 'cell', tabs: [{ id: 'tab', kind: 'lens', listDefIdx: 0 }] }] },
+        { id: 'a', weight: 900, rows: [wsRow({ id: 'n', tabs: [{ id: 'notes', kind: 'notes' }] })] },
+        { id: 'b', weight: 380, rows: [wsRow({ id: 'cell', tabs: [{ id: 'tab', kind: 'lens', listDefIdx: 0 }] })] },
       ],
     }],
   })

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Recording a follow-up from a row means "I followed up today": every way
@@ -8,7 +8,7 @@ import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
  * (1 month — Settings' automatic next follow-up is on; `followup-default.spec`
  * covers it off). Covers
  * the row's follow-up pill (planned and late), the empty-slot flag, the
- * task menu, the bulk bar's ⋯ More and its follow-up popover, a dashboard
+ * task menu, the bulk bar's ⋯ More and its follow-up popover, a Needs follow-up
  * Needs follow-up row and the phone row. (There is no keyboard shortcut for
  * it; the check-in reply's Record a follow-up is in `checkin-import.spec`.)
  * The popover opened from a row's pill or flag, or the bulk bar, opens with
@@ -57,13 +57,13 @@ const SEED: WorkspaceSeed = {
     { title: 'Bulk two', followupInDays: 12 },
     { title: 'Bulk pop one', followupInDays: 20 },
     { title: 'Bulk pop two', followupInDays: 21 },
-    { title: 'Dashboard late', followupInDays: -4 },
+    { title: 'Widget late', followupInDays: -4 },
   ],
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'c1', weight: 2, cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'c2', weight: 2, cells: [{ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { tiles: [], sections: [{ id: 'followup' }] } }] }] },
+      { id: 'c1', weight: 2, rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'dash', kind: 'followup' }] })] },
     ],
   }],
 }
@@ -172,11 +172,11 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await expect.poll(() => followupOf(page, 'Bulk pop two')).toEqual(kept('2026-10-31'))
   })
 
-  test('a dashboard Needs follow-up row', async ({ page }) => {
-    const dash = page.locator('[data-dashboard="dash"]')
-    await rowIn(dash, 'Dashboard late').getByRole('button', { name: /^Follow-up: Tue 6/ }).click()
+  test('a Needs follow-up widget row', async ({ page }) => {
+    const dash = page.locator('[data-glance-tab="dash"]')
+    await rowIn(dash, 'Widget late').getByRole('button', { name: /^Follow-up: Tue 6/ }).click()
     await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
-    await expect.poll(() => followupOf(page, 'Dashboard late')).toEqual(RECORDED)
+    await expect.poll(() => followupOf(page, 'Widget late')).toEqual(RECORDED)
   })
 })
 

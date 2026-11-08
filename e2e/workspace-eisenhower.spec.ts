@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -18,8 +18,8 @@ function layoutWith(eis: Omit<WsTabSeed, 'id' | 'kind'> = {}, opts: { listWeight
   return [{
     name: 'Main',
     columns: [
-      { id: 'colA', weight: opts.listWeight ?? 1, cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'colB', weight: 2, cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower', ...eis }] }] },
+      { id: 'colA', weight: opts.listWeight ?? 1, rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'colB', weight: 2, rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower', ...eis }] })] },
     ],
   }]
 }

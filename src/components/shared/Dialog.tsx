@@ -11,7 +11,7 @@ import { shortcutScope } from '../../utils/dom-contract'
 /**
  * Which tier a dialog (backdrop + panel) sits on, lowest first:
  * - `overlay` — the big workspace dialogs (task dialog, check-ins, Settings,
- *   Customize dashboard); row pickers and menus open above them.
+ *   Settings); row pickers and menus open above them.
  * - `dialog` — the default for the small titled dialogs.
  * - `raised` — the task editor stacked over another dialog (`nested`).
  * - `nested` — over any other dialog (confirms asked from inside one).

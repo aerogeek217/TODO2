@@ -10,7 +10,7 @@ import { useUIStore } from './ui-store'
  * the same on every layout) composed under them (`utils/lens.withLens`) —
  * unless it is lifted for now (`ui-store`).
  * Everything that filters by the screen filter reads it here (lists, the
- * Eisenhower, the dashboard, the calendar, the counter and the filtered
+ * Eisenhower, the glance widgets, the calendar, the counter and the filtered
  * tasks); what edits the chips, counts them or seeds a new task from them
  * reads `filter-store` itself.
  */

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The top bar shrinks its filter tray before it folds anything: short of
@@ -21,7 +21,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Plan the offsite', people: ['Marcus Chen'], tags: ['customer'] },
   ],
   layouts: [
-    { name: 'Default', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] },
+    { name: 'Default', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] },
     { name: 'Lists from upgrade', columns: [] },
   ],
 }

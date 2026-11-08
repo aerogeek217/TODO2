@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace } from './fixtures/workspace'
+import { openSettings, seedWorkspace, wsRow } from './fixtures/workspace'
 import { readStore, readStores, writeStores } from './fixtures/db'
 
 /**
@@ -9,17 +9,17 @@ import { readStore, readStores, writeStores } from './fixtures/db'
  * deletes a layout, so the active one survives with its good tabs.
  */
 
-interface StoredLayout { id: number; columns: Array<{ cells: Array<{ weight: unknown; tabs: unknown[] }> }> }
+interface StoredLayout { id: number; columns: Array<{ rows: Array<{ cells: Array<{ weight: unknown; tabs: unknown[] }> }> }> }
 
 /** Rewrites the stored active layout's columns straight in IndexedDB. */
 async function corruptActiveLayout(page: Page): Promise<number> {
   const { layouts, settings } = await readStores(page, ['layouts', 'settings'])
   const active = Number(settings?.find((s) => s.key === 'activeLayoutId')?.value)
   const layout = (layouts as unknown as StoredLayout[] | undefined)?.find((l) => l.id === active)
-  const cell = layout?.columns[0]?.cells[0]
+  const cell = layout?.columns[0]?.rows[0]?.cells[0]
   if (!layout || !cell) throw new Error('no active layout')
   cell.weight = -1
-  cell.tabs.push({ id: 'retired', kind: 'status', config: {} })
+  cell.tabs.push({ id: 'retired', kind: 'taskboard', config: {} })
   await writeStores(page, { put: { layouts: [layout] } })
   return active
 }
@@ -29,7 +29,7 @@ test('the audit repairs a corrupt active layout instead of deleting it', async (
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
   page.on('pageerror', (e) => errors.push(e.message))
   await seedWorkspace(page, {
-    layouts: [{ name: 'Daily', columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 'n1', kind: 'notes' }] }] }] }],
+    layouts: [{ name: 'Daily', columns: [{ id: 'c1', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'n1', kind: 'notes' }] })] }] }],
   })
   const active = await corruptActiveLayout(page)
   await page.reload()
@@ -57,7 +57,7 @@ test('the audit repairs a corrupt active layout instead of deleting it', async (
     id: active,
     name: 'Daily',
     // The size reset to 1, the retired tab gone, the notes tab kept.
-    columns: [{ id: 'c1', weight: 1, cells: [expect.objectContaining({ id: 'k1', weight: 1, tabs: [{ id: 'n1', kind: 'notes', config: {} }] })] }],
+    columns: [{ id: 'c1', weight: 1, rows: [{ id: 'k1-r', weight: 1, cells: [expect.objectContaining({ id: 'k1', weight: 1, tabs: [{ id: 'n1', kind: 'notes', config: {} }] })] }] }],
   })])
 
   // The workspace reloaded the repaired row: nothing left unsaved.

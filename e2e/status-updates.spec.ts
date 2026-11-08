@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { addFollowupInterval, DEFAULT_FOLLOWUP_INTERVAL } from '../src/utils/followup'
 
 /**
@@ -17,7 +17,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Renew the vendor contract', followupInDays: 2, statusUpdates: [{ text: 'asked for the old contract', inDays: -6 }] },
     { title: 'Bare task' },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 const editor = (page: Page) => page.getByRole('dialog', { name: 'Edit task' })

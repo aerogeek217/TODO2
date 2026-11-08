@@ -1,11 +1,12 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import {
   getActiveTab,
+  isGlanceKind,
   type BandEdge,
   type EisenhowerTab,
   type LayoutBand,
+  type LayoutCell,
   type LayoutColumn,
-  type LayoutPanel,
   type WorkspaceLayout,
 } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
@@ -13,8 +14,12 @@ import { useUIStore } from '../../stores/ui-store'
 import { indicatorBox, pageOffset, pagerPosition } from '../../utils/column-pager'
 import { scrollBehavior } from '../../utils/motion'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
+import { isFitRow } from '../../utils/workspace-rows'
 import { CellTabStrip } from './CellTabStrip'
 import { WidgetBody } from './WidgetBody'
+import { smallFaceClick, useCellFace } from './cell-face'
+import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
+import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { UnsavedPrompt } from './UnsavedPrompt'
@@ -55,9 +60,9 @@ function pagesOf(layout: WorkspaceLayout): PagerPage[] {
   return pages
 }
 
-/** A page's name: the active tab title of its band, or of a column's first cell. */
+/** A page's name: the active tab title of its first cell (a band's, or a column's first row's). */
 function usePageName(page: PagerPage, index: number): string {
-  const first = page.kind === 'band' ? page.band : page.column.cells[0]
+  const first = page.kind === 'band' ? page.band.cells[0] : page.column.rows[0]?.cells[0]
   const title = useTabTitle(first ? getActiveTab(first) : undefined)
   return title || (page.kind === 'band' ? `${page.edge === 'top' ? 'Top' : 'Bottom'} band` : `Column ${index + 1}`)
 }
@@ -342,21 +347,36 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
 }
 
 /**
- * A cell (or a band) on mobile: tabs switch, the ⋯ menu only collapses, a
- * list tab's long-press opens its list sheet. No layout editing.
+ * A cell (of a column's row or a band) on mobile: tabs switch, the ⋯ menu
+ * only collapses (its row), a list tab's long-press opens its list sheet. No
+ * layout editing.
  */
-function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boolean; band?: boolean }) {
+function MobileCell({ cell, rowId, collapsed, fill, fitRow = false, band = false }: {
+  cell: LayoutCell
+  /** Its row's id (a column's row, or the band): what collapses. */
+  rowId: string
+  collapsed: boolean
+  fill: boolean
+  /** Its row fits its content (glance numbers two up): the widget shows its small face. */
+  fitRow?: boolean
+  band?: boolean
+}) {
   const noun = band ? 'band' : 'cell'
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
-  const setCellCollapsed = useWorkspaceStore((s) => s.setCellCollapsed)
+  const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
-  const collapsed = cell.collapsed === true
   const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
   const [tabSheet, setTabSheet] = useState<{ tabId: string; listDefinitionId: number } | null>(null)
   const [eisenhowerSheet, setEisenhowerSheet] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
   const moreRef = useRef<HTMLButtonElement | null>(null)
+  const cellRef = useRef<HTMLElement | null>(null)
+  // Its widget's face (D25 R): a page's cell by its size; a cell sized to its
+  // content (the column scrolls) by its width alone; a fit row's small.
+  const cellFace = useCellFace(active, { forced: fitRow ? 'small' : undefined, heightFree: !fill })
+  /** A glance cell (a glance widget, or any at its small face): a slim header. */
+  const compact = active != null && (isGlanceKind(active.kind) || cellFace.face === 'small')
 
   if (cell.tabs.length === 0) {
     return (
@@ -371,13 +391,16 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
   const eisenhowerTab = sheetTab?.kind === 'eisenhower' ? sheetTab : undefined
 
   const menuEntries: MenuEntry[] = [
-    { kind: 'item', label: `Collapse ${noun}`, icon: <ChevronUpIcon />, onSelect: () => { void setCellCollapsed(cell.id, true) } },
+    { kind: 'item', label: `Collapse ${noun}`, icon: <ChevronUpIcon />, onSelect: () => { void setRowCollapsed(rowId, true) } },
   ]
 
   return (
     <section
-      className={[styles.cell, fill && !collapsed ? styles.cellFill : '', collapsed ? styles.cellCollapsed : ''].join(' ')}
+      ref={cellRef}
+      className={[styles.cell, fill && !collapsed ? styles.cellFill : '', collapsed ? styles.cellCollapsed : '', compact ? styles.cellCompact : ''].join(' ')}
       data-ws-cell={cell.id}
+      data-compact={compact ? 'true' : undefined}
+      data-face={!collapsed && active ? cellFace.face : undefined}
       aria-label={`${activeTitle} ${noun}`}
     >
       <div className={styles.cellHeader} data-ws-cell-header={cell.id}>
@@ -394,7 +417,7 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
           onActivate={(tabId) => {
             withViewTransition(() => {
               void setActiveTab(tabId)
-              if (collapsed) void setCellCollapsed(cell.id, false)
+              if (collapsed) void setRowCollapsed(rowId, false)
             })
           }}
         />
@@ -404,7 +427,7 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
             className={styles.cellAction}
             aria-label={`Expand ${noun}`}
             aria-expanded={false}
-            onClick={() => { void setCellCollapsed(cell.id, false) }}
+            onClick={() => { void setRowCollapsed(rowId, false) }}
           >
             <ChevronDownIcon size={16} />
           </button>
@@ -429,13 +452,20 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
           aria-labelledby={`ws-tab-${active.id}`}
           data-ws-cell-body={cell.id}
           data-kind={active.kind}
+          onClick={smallFaceClick(cellFace)}
         >
-          <WidgetBody
-            key={active.id}
-            tab={active}
-            onResult={(result) => setLens({ tabId: active.id, result })}
-          />
+          {cellFace.face === 'small' && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
+          <WidgetFaceContext.Provider value={cellFace.host}>
+            <WidgetBody
+              key={active.id}
+              tab={active}
+              onResult={(result) => setLens({ tabId: active.id, result })}
+            />
+          </WidgetFaceContext.Provider>
         </div>
+      )}
+      {cellFace.fullOpen && active && !collapsed && (
+        <WidgetFacePopover tab={active} anchorRef={cellRef} onClose={cellFace.closeFull} />
       )}
       {eisenhowerTab && <EisenhowerSheet tab={eisenhowerTab} onClose={() => setEisenhowerSheet(null)} />}
       {tabSheet && (
@@ -459,7 +489,10 @@ function MobileCell({ cell, fill, band = false }: { cell: LayoutPanel; fill: boo
   )
 }
 
-/** A pager page: a column's cells, or a band as one full-height cell. */
+/**
+ * A pager page: a column's rows top to bottom, each row's cells stacked in
+ * order (a fit row's two up), or a band's cells (one alone fills the page).
+ */
 function MobilePage({ page, index }: { page: PagerPage; index: number }) {
   const name = usePageName(page, index)
   if (page.kind === 'band') {
@@ -471,12 +504,14 @@ function MobilePage({ page, index }: { page: PagerPage; index: number }) {
         aria-label={name}
         data-ws-band-page={page.edge}
       >
-        <MobileCell cell={page.band} fill band />
+        {page.band.cells.map((cell) => (
+          <MobileCell key={cell.id} cell={cell} rowId={page.band.id} collapsed={page.band.collapsed === true} fill={page.band.cells.length === 1} band />
+        ))}
       </section>
     )
   }
   const { column } = page
-  const fill = column.cells.length === 1
+  const fill = column.rows.length === 1 && column.rows[0]?.cells.length === 1
   return (
     <section
       className={styles.column}
@@ -485,7 +520,16 @@ function MobilePage({ page, index }: { page: PagerPage; index: number }) {
       aria-label={name}
       data-ws-column={column.id}
     >
-      {column.cells.map((cell) => <MobileCell key={cell.id} cell={cell} fill={fill} />)}
+      {column.rows.map((row) => {
+        const fit = isFitRow(row)
+        const cells = row.cells.map((cell) => (
+          <MobileCell key={cell.id} cell={cell} rowId={row.id} collapsed={row.collapsed === true} fill={fill} fitRow={fit} />
+        ))
+        // A fit row (glance numbers) stays side by side, two up while two fit; any other row's cells stack.
+        return fit
+          ? <div key={row.id} className={styles.fitRow} data-ws-row={row.id} data-fit="true">{cells}</div>
+          : <Fragment key={row.id}>{cells}</Fragment>
+      })}
     </section>
   )
 }

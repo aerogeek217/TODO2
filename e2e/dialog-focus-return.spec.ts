@@ -1,6 +1,6 @@
 import { expect, test } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * A dialog opened from a menu item or a palette command hands the focus
@@ -12,7 +12,7 @@ import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 const SEED: WorkspaceSeed = {
   listDefinitions: [{ name: 'Everything' }],
   tasks: [{ title: 'Q4 budget', subtasks: [{ title: 'Headcount' }] }, { title: 'Other task' }],
-  layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 test('a subtask ⋯ › Move to another task… dialog cancelled: the focus is back on ⋯', async ({ page }) => {

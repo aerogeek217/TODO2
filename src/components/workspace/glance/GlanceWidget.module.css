@@ -1,0 +1,88 @@
+/* A glance widget (D25 N): one glance piece filling its cell — a
+ * section with its header, or a Number. */
+
+.widget {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+  background: var(--color-surface);
+}
+
+/* A section as a widget: no card of its own — the cell is its frame. */
+.widget > .panel {
+  flex: 1 1 auto;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* A glance widget's small face (D25 R): its title over its headline number,
+   centred, as a small Number reads. */
+.smallFace {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  padding: 6px 12px;
+  overflow: hidden;
+  text-align: center;
+}
+
+.smallTitle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 16px;
+  color: var(--color-text-muted);
+}
+
+.smallTitleText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.smallFigures {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.smallValue {
+  flex: none;
+  font-size: 22px;
+  font-weight: var(--font-weight-bold);
+  line-height: 28px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--color-text-primary);
+}
+
+.smallEntry {
+  min-width: 0;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.smallCaption {
+  flex: none;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}

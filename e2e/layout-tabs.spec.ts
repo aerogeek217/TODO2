@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import {
   drag, layoutTab, layoutTabNames, openLayoutTab, openLayoutTabMenu, readListDefinitions, seedWorkspace, wsShape, wsTab,
   type WorkspaceSeed, type WsLayoutSeed,
+  wsRow,
 } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -17,7 +18,7 @@ import { readStore } from './fixtures/db'
 
 const layout = (name: string, tabId: string): WsLayoutSeed => ({
   name,
-  columns: [{ id: `col-${tabId}`, cells: [{ id: `cell-${tabId}`, tabs: [{ id: tabId, kind: 'notes' }, { id: `${tabId}-cal`, kind: 'calendar' }] }] }],
+  columns: [{ id: `col-${tabId}`, rows: [wsRow({ id: `cell-${tabId}`, tabs: [{ id: tabId, kind: 'notes' }, { id: `${tabId}-cal`, kind: 'calendar' }] })] }],
 })
 
 const three: WorkspaceSeed = { layouts: [layout('Main', 'm'), layout('Second', 's'), layout('Third', 't')] }

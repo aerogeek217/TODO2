@@ -5,6 +5,7 @@ import { db } from '../../data/database'
 import { emptyPredicate } from '../../models'
 import { createTab } from '../../models/workspace-layout'
 import { useTodoStore } from '../../stores/todo-store'
+import { rowOf } from '../helpers/layout-builders'
 
 /**
  * `WorkspacePage` renders once per change of its own inputs (the layout,
@@ -38,7 +39,7 @@ describe('WorkspacePage renders', () => {
     const todoId = await db.todos.add({ uid: 'u1', title: 'First title', isCompleted: false, createdAt: now, modifiedAt: now, sortOrder: 1 })
     await db.layouts.add({
       sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now,
-      columns: [{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [createTab('lens', 'list', { listDefinitionId })] }] }],
+      columns: [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [createTab('lens', 'list', { listDefinitionId })] })] }],
     })
 
     const router = createMemoryRouter([{ path: '*', element: <WorkspacePage /> }])

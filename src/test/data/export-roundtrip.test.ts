@@ -16,6 +16,7 @@ import { formatCheckinFilterSetting } from '../../data/checkin-filter-shape'
 import { formatLensesSetting } from '../../data/lens-shape'
 import type { EisenhowerPanes } from '../../models/eisenhower-settings'
 import { makeTodo, resetDb } from '../helpers'
+import { rowOf } from '../helpers/layout-builders'
 
 /**
  * Export → JSON → import round-trip guarantee.
@@ -178,36 +179,51 @@ function buildSeed(): Seed {
         createdAt: at('2026-09-02T09:00:00.000Z'), modifiedAt: at('2026-09-14T10:00:00.000Z'), lastUsedAt: at('2026-09-15T08:00:00.000Z'), activeColumnId: 'c1', hue: 'violet',
         columns: [
           {
-            id: 'c1', weight: 1.5, cells: [
-              {
-                id: 'k1', weight: 2, activeTabId: 't2', tabs: [
+            id: 'c1', weight: 1.5, rows: [
+              rowOf({
+                id: 'k1', weight: 1, activeTabId: 't2', tabs: [
                   { id: 't1', kind: 'lens', config: { listDefinitionId: 1 } },
                   { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'month', offset: -2 } },
                 ],
-              },
-              { id: 'k2', weight: 1, collapsed: true, tabs: [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }] },
+              }, { weight: 2 }),
+              rowOf({ id: 'k2', weight: 1, tabs: [{ id: 't3', kind: 'notes', config: {} }, { id: 't4', kind: 'lens', config: { listDefinitionId: 2 } }] }, { collapsed: true }),
             ],
           },
           {
-            id: 'c2', weight: 0.75, cells: [
-              { id: 'k3', weight: 1, tabs: [
-                {
-                  id: 't5', kind: 'dashboard', config: {
-                    tiles: ['focus', 'open', 'noFollowup'],
-                    listTiles: [2, 1],
-                    sections: [{ id: 'people', options: { showUnassigned: false } }, { id: 'trend', options: { range: '4w' } }, { id: 'followup', options: { lookAhead: 14 } }, { id: 'status' }],
-                  },
-                },
+            id: 'c2', weight: 0.75, rows: [
+              rowOf({ id: 'k3', weight: 1, tabs: [
+                { id: 't5', kind: 'number', config: { metric: 'noFollowup', breakdown: 'tags' } },
                 { id: 't6', kind: 'lens', config: {} },
                 { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
                 { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
+                // The glance widgets, each with a setting off its default; the row widgets with a details width.
+                { id: 'g1', kind: 'number', config: { metric: 'closedThisWeek' } },
+                { id: 'g2', kind: 'followup', config: { lookAhead: 3 }, viewState: { detailsWidth: 240 } },
+                { id: 'g3', kind: 'next7', config: {} },
+                { id: 'g4', kind: 'trend', config: { range: '12w' } },
+                { id: 'g5', kind: 'status', config: {} },
+                { id: 'g6', kind: 'people', config: { showUnassigned: false } },
+                { id: 'g7', kind: 'tags', config: { showUntagged: false } },
+                { id: 'g8', kind: 'stale', config: { staleDays: 30 } },
+                { id: 'g9', kind: 'recent', config: { recentDays: 14 }, viewState: { detailsWidth: 0 } },
+                { id: 'g10', kind: 'eisenhowerSummary', config: {} },
+                { id: 'g11', kind: 'changes', config: { tagIds: [1] } },
+                { id: 'g12', kind: 'today', config: {}, viewState: { detailsWidth: 300 } },
+                { id: 'g13', kind: 'pulse', config: { tagIds: [1] } },
+              ] }),
+              // Two cells side by side: an empty one (after a split) and a headless one.
+              { id: 'r2', weight: 0.5, cells: [
+                { id: 'k4', weight: 0.4, tabs: [] },
+                { id: 'k5', weight: 0.6, stripShown: false, tabs: [{ id: 't12', kind: 'notes', config: {} }] },
               ] },
-              { id: 'k4', weight: 1, tabs: [] },
             ],
           },
         ],
-        top: { id: 'b1', height: 112, activeTabId: 't9', collapsed: true, tabs: [{ id: 't8', kind: 'notes', config: {} }, { id: 't9', kind: 'lens', config: { listDefinitionId: 1 } }] },
-        bottom: { id: 'b2', height: 150, tabs: [{ id: 't10', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'week' } }] },
+        top: { id: 'b1', height: 112, collapsed: true, cells: [{ id: 'b1-c', weight: 1, activeTabId: 't9', tabs: [{ id: 't8', kind: 'notes', config: {} }, { id: 't9', kind: 'lens', config: { listDefinitionId: 1 } }] }] },
+        bottom: { id: 'b2', height: 150, cells: [
+          { id: 'b2-c', weight: 1, tabs: [{ id: 't10', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'week' } }] },
+          { id: 'b2-d', weight: 2, stripShown: true, tabs: [{ id: 't13', kind: 'notes', config: {} }] },
+        ] },
       },
     ],
     listOrders: [
@@ -309,14 +325,18 @@ describe('export → JSON → import round-trip', () => {
     expect(new Set(clauses.map(([, m]) => m.match))).toEqual(new Set(['range', 'set', 'unset']))
     expect(clauses.some(([, m]) => m.match === 'range' && m.includeNoDate === true)).toBe(true)
     expect(clauses.some(([, m]) => m.match === 'range' && m.not === true)).toBe(true)
-    const cells = seed.layouts.flatMap((l) => l.columns.flatMap((c) => c.cells))
+    const rows = seed.layouts.flatMap((l) => l.columns.flatMap((c) => c.rows))
+    const bands = seed.layouts.flatMap((l) => [l.top, l.bottom]).filter((b) => b !== undefined)
+    const cells = [...rows, ...bands].flatMap((r) => r.cells)
     const tabs = cells.flatMap((c) => c.tabs)
     expect(cells.some((c) => c.activeTabId !== undefined)).toBe(true)
-    expect(cells.some((c) => c.collapsed === true)).toBe(true)
+    expect(rows.some((r) => r.collapsed === true)).toBe(true)
+    expect(rows.some((r) => r.weight !== 1)).toBe(true)
     expect(cells.some((c) => c.tabs.length === 0)).toBe(true)
-    const bands = seed.layouts.flatMap((l) => [l.top, l.bottom]).filter((b) => b !== undefined)
+    expect(cells.some((c) => c.stripShown !== undefined)).toBe(true)
+    expect(rows.some((r) => r.cells.length > 1)).toBe(true)
     expect(bands).toHaveLength(2)
-    expect(bands.some((b) => b.activeTabId !== undefined && b.collapsed === true)).toBe(true)
+    expect(bands.some((b) => b.collapsed === true && b.cells.some((c) => c.activeTabId !== undefined))).toBe(true)
     expect(new Set(tabs.map((t) => t.kind))).toEqual(new Set(WIDGET_KINDS))
     expect(tabs.some((t) => t.kind === 'eisenhower' && (t.viewState?.collapsed?.length ?? 0) > 0)).toBe(true)
     expect(tabs.some((t) => t.kind === 'lens' && t.config.listDefinitionId !== undefined)).toBe(true)
@@ -327,8 +347,7 @@ describe('export → JSON → import round-trip', () => {
     expect(panes.some((p) => p?.filter?.negate !== undefined && p.filter.markers?.some((c) => c.not === true))).toBe(true)
     expect(panes.some((p) => p?.filter?.expression !== undefined)).toBe(true)
     expect(tabs.some((t) => t.kind === 'calendar' && t.viewState?.view !== undefined && t.viewState.offset !== undefined)).toBe(true)
-    const dashboard = tabs.find((t) => t.kind === 'dashboard')
-    expect(dashboard?.kind === 'dashboard' && dashboard.config.listTiles.length > 0 && dashboard.config.sections.some((sec) => sec.options !== undefined)).toBe(true)
+    expect(tabs.some((t) => t.kind === 'number' && t.config.breakdown !== undefined)).toBe(true)
   })
 
   it('restores every table deep-equal to the seed, with real Dates', async () => {

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, drag, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, drag, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -28,8 +28,8 @@ const SEED: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'colB', weight: 2, cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }] },
+      { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'colB', weight: 2, rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] },
     ],
   }],
 }
@@ -152,7 +152,7 @@ test.describe('desktop', () => {
       eisenhower: { panes: { delegate: { name: 'Hand off', filter: { markers: [{ values: ['urgent'] }, { values: ['important'], not: true }], statusIds: [999], negate: { statusIds: true } } } } },
       layouts: [
         SEED.layouts[0]!,
-        { name: 'Second', columns: [{ id: 'colX', cells: [{ id: 'x1', tabs: [{ id: 'eis2', kind: 'eisenhower' }] }] }] },
+        { name: 'Second', columns: [{ id: 'colX', rows: [wsRow({ id: 'x1', tabs: [{ id: 'eis2', kind: 'eisenhower' }] })] }] },
       ],
     })
     await expect(quadrant(page, 'delegate')).toContainText('Hand off')
@@ -230,11 +230,11 @@ test.describe('desktop', () => {
       layouts: [{
         name: 'Main',
         columns: [
-          { id: 'colA', cells: [{ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] }] },
+          { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] },
           {
             id: 'colB',
             weight: 2,
-            cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }],
+            rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })],
           },
         ],
       }],
@@ -261,7 +261,7 @@ test.describe('phone', () => {
         name: 'Main',
         columns: [{
           id: 'colB',
-          cells: [{ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }],
+          rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })],
         }],
       }],
       eisenhower: { panes: { do: { name: 'Now' }, drop: { name: 'Someday' } } },

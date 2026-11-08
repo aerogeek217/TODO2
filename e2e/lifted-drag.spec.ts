@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { releaseDrag, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { releaseDrag, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 import { box, type Point } from './fixtures/geometry'
 
@@ -21,7 +21,7 @@ function seed(list: { name: string; sort?: string }): WorkspaceSeed {
   return {
     listDefinitions: [list],
     tasks: [{ title: 'Alpha' }, { title: 'Bravo' }, { title: 'Charlie' }, { title: 'Delta' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   }
 }
 
@@ -212,7 +212,7 @@ test('a drop into another group shows a blank slot there, then settles and fades
 for (const zoom of ['stacked', 'rows', 'lines'] as const) {
   test(`${zoom}: a sorted list's drop is a blank slot a row high, dashed, saying the drop switches it to manual`, async ({ page }) => {
     const s = seed({ name: 'Sorted', sort: 'name' })
-    const tab = s.layouts?.[0]?.columns[0]?.cells[0]?.tabs[0]
+    const tab = s.layouts?.[0]?.columns[0]?.rows[0]?.cells[0]?.tabs[0]
     if (tab) tab.zoom = zoom
     await seedWorkspace(page, s)
     await expect(row(page, 'Delta')).toBeVisible()

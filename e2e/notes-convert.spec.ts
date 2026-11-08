@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openSettings, seedTaskList, seedWorkspace } from './fixtures/workspace'
+import { openSettings, seedTaskList, seedWorkspace, wsRow } from './fixtures/workspace'
 import { taskRowByTitle } from './fixtures/seed'
 import { readStore } from './fixtures/db'
 
@@ -12,7 +12,7 @@ import { readStore } from './fixtures/db'
  */
 
 const NOTES_LAYOUT = {
-  layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' as const }] })] }] }],
   people: [{ name: 'Ben Ortiz', initials: 'BO' }],
   tags: ['planning'],
 }

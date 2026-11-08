@@ -292,7 +292,7 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   const tabShowsList = !working || (tab != null && tabListId(tab, eisenhowerListId) === listDefinitionId)
   const listExists = model.def != null && model.saved != null
   const placementStore = useMemo(
-    () => createPlacementStore(tabId, working ? findTab(working, tabId)?.panelId : undefined, tabShowsList && listExists),
+    () => createPlacementStore(tabId, working ? findTab(working, tabId)?.cellId : undefined, tabShowsList && listExists),
     [tabId, working, tabShowsList, listExists],
   )
   const snapshot = useSyncExternalStore(placementStore.subscribe, placementStore.getSnapshot)

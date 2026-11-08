@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -27,14 +27,13 @@ const SEED: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 'dash', kind: 'dashboard', dashboard: { listTileIdxs: [] } }] }] },
+      { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'dash', kind: 'number', glance: { metric: 'focus' } }] })] },
     ],
   }],
 }
 
-const dash = (page: Page) => page.locator('[data-dashboard="dash"]')
-const focusTile = (page: Page) => dash(page).locator('[data-dash-tile="focus"]')
+const focusTile = (page: Page) => page.locator('[data-glance-tab="dash"] [data-number-metric="focus"]')
 const taskDialog = (page: Page) => page.locator('[data-task-dialog]')
 const checkin = (page: Page) => page.getByRole('dialog', { name: 'Email task check-ins' })
 const editorTitle = (page: Page) => page.getByRole('textbox', { name: 'Task title' })
@@ -281,39 +280,6 @@ test('check-in import: Esc, focus trap and return, backdrop press', async ({ pag
   })
 })
 
-test('Customize dashboard: contract; Esc during a keyboard reorder cancels the move, not the dialog', async ({ page }) => {
-  await seedWorkspace(page, SEED)
-  const dialog = page.getByRole('dialog', { name: 'Customize dashboard' })
-  // The dashboard's corner gear (shown while the pointer is over the dashboard).
-  const trigger = dash(page).getByRole('button', { name: 'Customize dashboard' })
-  const open = async () => {
-    await dash(page).locator('[data-dash-tile]').first().hover()
-    await trigger.click()
-    await expect(dialog).toBeVisible()
-  }
-  await checkContract(page, {
-    dialog,
-    open,
-    trigger,
-    inside: dialog.getByRole('heading', { name: 'Customize dashboard' }),
-    initialFocus: dialog,
-  })
-
-  await open()
-  const grip = dialog.getByRole('button', { name: 'Move Open' })
-  await grip.focus()
-  await page.keyboard.press('Space')
-  await expect(grip).toHaveAttribute('aria-pressed', 'true')
-  // dnd-kit's keyboard sensor adds its keydown listener in a setTimeout after
-  // the pick-up: let that task run, or under load the Esc beats it.
-  await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0)))
-  await page.keyboard.press('Escape')
-  await expect(grip).not.toHaveAttribute('aria-pressed', 'true')
-  await expect(dialog).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(dialog).toBeHidden()
-})
-
 test('Settings: contract; Esc over it closes the people editor only, focused or not', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const dialog = page.getByRole('dialog', { name: 'Settings', exact: true })
@@ -488,7 +454,7 @@ test.describe('editor modals', () => {
 
   test('notes → tasks preview: Esc, focus trap and return, backdrop press; its draft editor owns Esc', async ({ page }) => {
     await seedWorkspace(page, {
-      layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' }] }] }] }],
+      layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notes', kind: 'notes' }] })] }] }],
     })
     const note = page.getByRole('region', { name: 'Notes cell' }).locator('.cm-content')
     await note.click()

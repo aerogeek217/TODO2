@@ -13,6 +13,7 @@ import type { EisenhowerPanes } from '../../../models/eisenhower-settings'
 import { emptyPredicate, type TodoPredicate } from '../../../models'
 import { defaultPaneFilter } from '../../../utils/eisenhower-panes'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
+import { rowOf } from '../../helpers/layout-builders'
 
 const TODAY = new Date(2026, 9, 10, 10)
 
@@ -20,13 +21,13 @@ const NOT_DELEGATED: TodoPredicate = { ...defaultPaneFilter('delegate'), statusI
 
 function layoutWith(tab: EisenhowerTab): PersistedWorkspaceLayout {
   const now = new Date(2026, 0, 1)
-  return { id: 1, sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now, columns: [{ id: 'c1', weight: 1, cells: [{ id: 'x1', weight: 1, tabs: [tab] }] }] }
+  return { id: 1, sortOrder: 0, name: 'Main', createdAt: now, modifiedAt: now, columns: [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'x1', weight: 1, tabs: [tab] })] }] }
 }
 
 let lastResult: EisenhowerResult | null = null
 
 function Host() {
-  const tab = useWorkspaceStore((s) => s.working?.columns[0]?.cells[0]?.tabs[0])
+  const tab = useWorkspaceStore((s) => s.working?.columns[0]?.rows[0]?.cells[0]?.tabs[0])
   if (tab?.kind !== 'eisenhower') return null
   return <EisenhowerWidget tab={tab} onResult={(r) => { lastResult = r }} />
 }

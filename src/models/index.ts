@@ -69,5 +69,4 @@ export {
   type RuntimeFilterSpec,
 } from './list-definition'
 export * from './workspace-layout'
-export * from './dashboard-config'
 export * from './theme-colors'

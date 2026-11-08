@@ -32,6 +32,7 @@ import {
   closeTab,
   copySizes,
   cellSizeGroups,
+  rowSizeGroups,
   layoutIds,
   layoutListRefs,
   layoutStructureEqual,
@@ -44,8 +45,10 @@ import {
   replaceTab,
   setActiveTab,
   setBandHeight,
-  setCellCollapsed,
+  setCellStripShown,
   setCellWeights,
+  setRowCollapsed,
+  setRowWeights,
   setColumnWeights,
   setLayoutActiveColumn,
   setLayoutHue,
@@ -53,6 +56,7 @@ import {
   type IdGen,
   type LayoutDropTarget,
   type SizeGroup,
+  type SplitDirection,
 } from '../utils/workspace-layout-ops'
 
 type Layout = PersistedWorkspaceLayout
@@ -72,13 +76,13 @@ export interface ResizeOptions {
  *   is also kept in the browser (`data/draft-storage`, never the database),
  *   and the first `init()` of a page load opens it again, still unsaved —
  *   while the stored layout it was made against is unchanged.
- * - View state (sizes — column and cell weights, band heights —, active
- *   tab, collapsed cells and bands, a tab's `viewState`) is applied to the
+ * - View state (sizes — column, row and cell weights, band heights —,
+ *   active tab, collapsed rows and bands, a tab's `viewState`) is applied to the
  *   working copy **and** written straight onto the saved layout (last write
  *   wins) — it never makes the layout dirty, and Discard keeps it. A size
  *   goes onto the saved layout only where the parts it sizes are the same in
  *   both (`copySizes`): among parts the unsaved edits changed (a new column,
- *   cell or band) it stays in the working copy, for Save to write; an edit
+ *   row, cell or band) it stays in the working copy, for Save to write; an edit
  *   that brings the structure back to the saved one brings the saved sizes
  *   back too.
  * - `load(id)` switches layouts unconditionally: callers ask the user about
@@ -184,20 +188,22 @@ export interface WorkspaceState {
    */
   addWidget: (kind: WidgetKind, target: LayoutDropTarget, seed?: TabSeed) => string | null
   moveTab: (tabId: string, target: LayoutDropTarget) => void
-  /** Moves a whole panel (a cell or a band, by id) with all its tabs. */
-  movePanel: (panelId: string, target: LayoutDropTarget) => void
+  /** Moves a whole cell (in a column's row or a band, by id) with all its tabs. */
+  movePanel: (cellId: string, target: LayoutDropTarget) => void
   closeTab: (tabId: string) => void
-  /** Closes a panel (a cell or a band, by id) with all its tabs. */
-  closeCell: (panelId: string) => void
-  /** "Split right" / "Split below". Returns the new empty cell's id. */
-  splitCell: (cellId: string, direction: 'right' | 'below') => string | null
+  /** Closes a cell (in a column's row or a band, by id) with all its tabs. */
+  closeCell: (cellId: string) => void
+  /** Splits a cell (`SplitDirection`). Returns the new empty cell's id. */
+  splitCell: (cellId: string, direction: SplitDirection) => string | null
   /**
    * View state: batched column resize (weights by column id), saved at once.
    * `live`: one frame of a divider drag — only the working copy changes
    * until `endResize` (the drag's end) saves the result once.
    */
   setColumnWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => Promise<void>
-  /** View state: batched cell resize (weights by cell id); `live` as for columns. */
+  /** View state: batched row resize (weights by row id: their share of the column's height); `live` as for columns. */
+  setRowWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => Promise<void>
+  /** View state: batched cell resize (weights by cell id: their share of the row's width); `live` as for columns. */
   setCellWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => Promise<void>
   /** View state: a band's height (px); `live` as for columns. */
   setBandHeight: (edge: BandEdge, height: number, opts?: ResizeOptions) => Promise<void>
@@ -205,7 +211,7 @@ export interface WorkspaceState {
   endResize: () => Promise<void>
   /**
    * Layout config of a tab (e.g. a lens tab's list, a calendar's date types).
-   * A list tab's list or a dashboard's list tiles must be this layout's own
+   * A list tab's list must be this layout's own
    * lists: a patch naming another's changes nothing.
    */
   patchTabConfig: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabConfigOf<K>>) => void
@@ -214,8 +220,10 @@ export interface WorkspaceState {
 
   /** View state: switch a cell's tab. */
   setActiveTab: (tabId: string) => Promise<void>
-  /** View state: collapse / expand a panel (a cell or a band, by id). */
-  setCellCollapsed: (panelId: string, collapsed: boolean) => Promise<void>
+  /** View state: collapse / expand a row of cells (a column's row or a band, by id). */
+  setRowCollapsed: (rowId: string, collapsed: boolean) => Promise<void>
+  /** Layout config: whether a cell shows its tab strip (`null` = by its widget). */
+  setCellStripShown: (cellId: string, shown: boolean | null) => void
   /** View state of a tab (e.g. a calendar's view / offset). */
   patchTabViewState: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabViewStateOf<K>>) => Promise<void>
   /** View state: the page (a column's or band's id) the phone shows of the open layout (`null` = the first), saved at once. */
@@ -226,10 +234,14 @@ function randomId(): string {
   return `w-${Math.random().toString(36).slice(2, 10)}`
 }
 
-/** A new tab's seed: a Neglect map with no tags given colours by the `Project: …` tags. */
+/**
+ * A new tab's seed: a Neglect map with no tags given colours by the
+ * `Project: …` tags; a What changed or Project pulse with none reads them.
+ */
 function seedFor(kind: WidgetKind, seed: TabSeed | undefined): TabSeed | undefined {
-  if (kind !== 'neglect' || seed?.neglectTagIds) return seed
-  return { ...seed, neglectTagIds: projectTagIds(useTagStore.getState().tags) }
+  if (kind === 'neglect' && !seed?.neglectTagIds) return { ...seed, neglectTagIds: projectTagIds(useTagStore.getState().tags) }
+  if ((kind === 'changes' || kind === 'pulse') && !seed?.tagIds) return { ...seed, tagIds: projectTagIds(useTagStore.getState().tags) }
+  return seed
 }
 
 /** Id generator that never returns an id already in `layout` (or one it handed out). */
@@ -298,8 +310,8 @@ function draftRecord(working: Layout | null, saved: Layout | null): LayoutDraftR
 }
 
 /**
- * Whether a kept new layout can open again: it shows no list (no list tab,
- * no dashboard list tile) — every list
+ * Whether a kept new layout can open again: it shows no list (no list
+ * tab) — every list
  * belongs to a stored layout (or the Eisenhower), so a layout not stored
  * yet can't show one.
  */
@@ -372,9 +384,9 @@ async function pruneOwnedLists(layoutId: number, ...bodies: LayoutBody[]): Promi
   }
 }
 
-/** Where Undo puts back a removed list's tab: the layout's first cell, else a new column. */
+/** Where Undo puts back a removed list's tab: the layout's first column's first cell, else a new column. */
 function restoredTabTarget(layout: Layout): LayoutDropTarget {
-  const cell = layout.columns[0]?.cells[0]
+  const cell = layout.columns[0]?.rows[0]?.cells[0]
   return cell ? { kind: 'cell', cellId: cell.id } : { kind: 'layout' }
 }
 
@@ -467,7 +479,14 @@ const viewEditsDuringSave = new Set<Array<(layout: PersistedWorkspaceLayout) => 
 registerModuleReset(() => { viewEditsDuringSave.clear() })
 
 /** One string per size group (a drag's frames name the same groups again). */
-const sizeGroupKey = (g: SizeGroup): string => (g.kind === 'columns' ? 'columns' : g.kind === 'cells' ? `cells:${g.columnId}` : `band:${g.edge}`)
+function sizeGroupKey(g: SizeGroup): string {
+  switch (g.kind) {
+    case 'columns': return 'columns'
+    case 'rows': return `rows:${g.columnId}`
+    case 'cells': return `cells:${g.rowId}`
+    case 'band': return `band:${g.edge}`
+  }
+}
 /** The size groups the live frames of a resize under way changed in layout `layoutId`'s working copy, saved at its end. */
 let pendingSizes: { layoutId: number; groups: SizeGroup[] } | null = null
 registerModuleReset(() => { pendingSizes = null })
@@ -568,7 +587,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   /**
    * Applies a structural edit to the working copy. Returns whether it
    * changed. An edit that would show a list the layout doesn't own (a tab's
-   * list, a dashboard's list tile — `foreignListRefs`) is refused: nothing
+   * list — `foreignListRefs`) is refused: nothing
    * changes. An edit that brings the structure back to the saved layout's
    * takes the saved sizes too (e.g. a column added and closed again leaves
    * its neighbours as they were).
@@ -1033,6 +1052,10 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return resize((layout) => setColumnWeights(layout, weightById), () => [{ kind: 'columns' }], opts)
     },
 
+    setRowWeights(weightById, opts) {
+      return resize((layout) => setRowWeights(layout, weightById), (layout) => rowSizeGroups(layout, Object.keys(weightById)), opts)
+    },
+
     setCellWeights(weightById, opts) {
       return resize((layout) => setCellWeights(layout, weightById), (layout) => cellSizeGroups(layout, Object.keys(weightById)), opts)
     },
@@ -1057,8 +1080,12 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return editView((layout) => setActiveTab(layout, tabId))
     },
 
-    setCellCollapsed(cellId, collapsed) {
-      return editView((layout) => setCellCollapsed(layout, cellId, collapsed))
+    setRowCollapsed(rowId, collapsed) {
+      return editView((layout) => setRowCollapsed(layout, rowId, collapsed))
+    },
+
+    setCellStripShown(cellId, shown) {
+      edit((layout) => setCellStripShown(layout, cellId, shown))
     },
 
     patchTabViewState(tabId, kind, patch) {

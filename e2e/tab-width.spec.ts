@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, wsTab } from './fixtures/workspace'
+import { openSettings, seedWorkspace, wsTab, wsRow } from './fixtures/workspace'
 
 /**
  * A tab's width (cr31 UI M4, the user's call: "Tabs can grow to fit
@@ -21,7 +21,7 @@ const SEED = {
     name: 'Main',
     columns: [{
       id: 'c1',
-      cells: [{
+      rows: [wsRow({
         id: 'k1',
         activeTabId: 'all',
         tabs: [
@@ -30,7 +30,7 @@ const SEED = {
           { id: 'n1', kind: 'notes' as const },
           { id: 'c1t', kind: 'calendar' as const },
         ],
-      }],
+      })],
     }],
   }],
 }

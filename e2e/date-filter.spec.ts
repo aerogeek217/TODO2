@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsListWidget } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsListWidget, wsRow } from './fixtures/workspace'
 import { box, expectInsideViewport } from './fixtures/geometry'
 
 /**
@@ -101,7 +101,7 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
       { title: 'Due later, old', dueInDays: 30, modifiedAt: localDateTime(-10) },
       { title: 'Undated' },
     ],
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   await expect(rows(page, 't1')).toHaveCount(4)
 
@@ -152,7 +152,7 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'All' }],
     tasks: [{ title: 'One' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   await page.getByRole('button', { name: 'Dates filter', exact: true }).focus()
   await page.keyboard.press('Enter')
@@ -206,7 +206,7 @@ test('a saved Calendar date emptied from the keyboard keeps Calendar and the foc
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'All' }],
     tasks: [{ title: 'One' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   // A saved Due on or before a date a week ahead (its local midnight, as a typed date stores it).
   const month = await page.evaluate(async () => {
@@ -255,8 +255,8 @@ test('list chips: one per date type; a chip opens the panel under it on its type
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] })] },
       ],
     }],
   })
@@ -302,7 +302,7 @@ test('the six types sit in two rows of three at 336px; no label clips, every typ
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'All' }],
     tasks: [{ title: 'One' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   await lightEveryDateType(page)
   await page.getByRole('button', { name: /^Dates filter/ }).click()
@@ -341,8 +341,8 @@ test('a list with Completed this week shows the tasks completed this week, witho
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] })] },
       ],
     }],
   })
@@ -379,8 +379,8 @@ test('Last follow-up "14+ days ago, or never": in a list, and as a lens in the t
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] })] },
       ],
     }],
   })
@@ -410,7 +410,7 @@ test.describe('phone', () => {
         { title: 'Due and follow-up', dueInDays: 2, followupInDays: 3 },
         { title: 'Neither' },
       ],
-      layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+      layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
     })
     const allRows = page.locator('[data-todo-id]')
     await expect(allRows).toHaveCount(3)
@@ -449,7 +449,7 @@ test.describe('phone, narrowest', () => {
     await seedWorkspace(page, {
       listDefinitions: [{ name: 'All' }],
       tasks: [{ title: 'One' }],
-      layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+      layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
     })
     await lightEveryDateType(page)
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: /^Filters/ }).click()

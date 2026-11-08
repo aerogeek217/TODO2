@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test'
-import { createTab, WIDGET_KINDS, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
+import { createTab, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
 import { DB_NAME, readStore } from './db'
 import { box, pointIn, type Point } from './geometry'
 
@@ -17,17 +17,14 @@ export interface WsTabSeed {
   titles?: boolean
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
-  /** List / Eisenhower / dashboard tabs: the task rows' details width (view state). */
+  /** List / Eisenhower / row widget tabs: the task rows' details width (view state). */
   detailsWidth?: number
   /** List tabs: the zoom (view state; absent = the Settings default; `strips`, a removed level, opens as `lines`). */
   zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
-  /** Dashboard tabs: the config (defaults: the app's — `createTab`). */
-  dashboard?: {
-    tiles?: string[]
-    /** List tiles as indexes into `listDefinitions`. */
-    listTileIdxs?: number[]
-    sections?: Array<{ id: string; options?: Record<string, unknown> }>
-  }
+  /** Glance tabs (Number, the sections): config fields over the kind's defaults, e.g. `{ metric: 'open' }`. */
+  glance?: Record<string, unknown>
+  /** What changed / Project pulse tabs: the picked tags (names from `tags`; default none). */
+  tagNames?: string[]
   /** Neglect map tabs: the config (defaults: colour by no tags, 14 days). */
   neglect?: {
     /** Colour by these tags (names from `tags`), by people, or not at all. */
@@ -38,25 +35,40 @@ export interface WsTabSeed {
 
 export interface WsCellSeed {
   id: string
+  /** Its share of the row's width (default 1). */
   weight?: number
   tabs: WsTabSeed[]
   activeTabId?: string
+  /** Layout config: the tab strip always shown (`true`) or hidden (`false`); absent = by its widget. */
+  stripShown?: boolean
+}
+
+export interface WsRowSeed {
+  /** Default `<first cell's id>-r`. */
+  id?: string
+  /** Its share of the column's height (default 1). */
+  weight?: number
   collapsed?: boolean
+  cells: WsCellSeed[]
 }
 
 export interface WsColumnSeed {
   id: string
   weight?: number
-  cells: WsCellSeed[]
+  rows: WsRowSeed[]
 }
 
 export interface WsBandSeed {
   id: string
   /** Height in px (default 160). */
   height?: number
-  tabs: WsTabSeed[]
-  activeTabId?: string
   collapsed?: boolean
+  cells: WsCellSeed[]
+}
+
+/** A row of one cell, its id `<cell>-r`: `extra` its height share and collapse. */
+export function wsRow(cell: WsCellSeed, extra: Omit<WsRowSeed, 'cells'> = {}): WsRowSeed {
+  return { ...extra, cells: [cell] }
 }
 
 export interface WsLayoutSeed {
@@ -76,8 +88,8 @@ export interface WorkspaceSeed {
   /** The first layout is opened. */
   layouts: WsLayoutSeed[]
   /**
-   * The app-wide Eisenhower settings (every Eisenhower tab and the dashboard
-   * section): its own list (index into `listDefinitions` — that list is
+   * The app-wide Eisenhower settings (every Eisenhower tab and Eisenhower
+   * summary): its own list (index into `listDefinitions` — that list is
    * made the Eisenhower's, a hidden list; none = the one the app made, with
    * no filter) and its custom panes.
    */
@@ -275,7 +287,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     tx.objectStore('layouts').clear()
     let firstId: number | null = null
     const layoutIds: number[] = []
-    type TabSeed = (typeof seed.layouts)[number]['columns'][number]['cells'][number]['tabs'][number]
+    type TabSeed = (typeof seed.layouts)[number]['columns'][number]['rows'][number]['cells'][number]['tabs'][number]
+    type CellSeed = (typeof seed.layouts)[number]['columns'][number]['rows'][number]['cells'][number]
     const buildTab = (tab: TabSeed) => {
       const base = structuredClone(seed.newTabs[tab.kind])
       const out: Record<string, unknown> = { ...base, id: tab.id }
@@ -289,12 +302,6 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         if (tab.view != null || tab.offset != null) out.viewState = { view: tab.view ?? 'month', offset: tab.offset ?? 0 }
         if (tab.titles != null) out.viewState = { ...(out.viewState as object | undefined), titles: tab.titles }
       }
-      if (tab.kind === 'dashboard' && tab.dashboard) {
-        const d = tab.dashboard
-        if (d.tiles) config.tiles = d.tiles
-        if (d.listTileIdxs) config.listTiles = d.listTileIdxs.map((i) => defIds[i]).filter((id) => id != null)
-        if (d.sections) config.sections = d.sections
-      }
       if (tab.kind === 'eisenhower' && tab.collapsed) out.viewState = { collapsed: tab.collapsed }
       if (tab.kind === 'neglect' && tab.neglect) {
         const n = tab.neglect
@@ -302,21 +309,31 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         else if (n.colourBy) config.colourBy = { kind: 'tags', tagIds: n.colourBy.tags.map((name) => tagIds.get(name)).filter((id) => id != null) }
         if (n.untouchedDays != null) config.untouchedDays = n.untouchedDays
       }
+      if ((tab.kind === 'changes' || tab.kind === 'pulse') && tab.tagNames) {
+        config.tagIds = tab.tagNames.map((name) => tagIds.get(name)).filter((id) => id != null)
+      }
+      if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
       if (tab.zoom != null) out.viewState = { ...(out.viewState as object | undefined), zoom: tab.zoom }
       out.config = config
       return out
     }
+    const buildCell = (cell: CellSeed) => ({
+      id: cell.id,
+      weight: cell.weight ?? 1,
+      ...(cell.tabs.length > 0 ? { activeTabId: cell.activeTabId ?? cell.tabs[0]?.id } : {}),
+      ...(cell.stripShown != null ? { stripShown: cell.stripShown } : {}),
+      tabs: cell.tabs.map(buildTab),
+    })
     for (const layout of seed.layouts) {
       const columns = layout.columns.map((col) => ({
         id: col.id,
         weight: col.weight ?? 1,
-        cells: col.cells.map((cell) => ({
-          id: cell.id,
-          weight: cell.weight ?? 1,
-          activeTabId: cell.activeTabId ?? cell.tabs[0]?.id,
-          ...(cell.collapsed ? { collapsed: true } : {}),
-          tabs: cell.tabs.map(buildTab),
+        rows: col.rows.map((row) => ({
+          id: row.id ?? `${row.cells[0]?.id ?? col.id}-r`,
+          weight: row.weight ?? 1,
+          ...(row.collapsed ? { collapsed: true } : {}),
+          cells: row.cells.map(buildCell),
         })),
       }))
       const bands: Record<string, unknown> = {}
@@ -326,9 +343,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         bands[edge] = {
           id: band.id,
           height: band.height ?? 160,
-          activeTabId: band.activeTabId ?? band.tabs[0]?.id,
           ...(band.collapsed ? { collapsed: true } : {}),
-          tabs: band.tabs.map(buildTab),
+          cells: band.cells.map(buildCell),
         }
       }
       const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, ...(layout.hue ? { hue: layout.hue } : {}), createdAt: now, modifiedAt: now })
@@ -336,10 +352,10 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       layoutIds.push(id)
     }
     // Every list belongs to a layout (now that it has an id): `layoutIdx`'s,
-    // else the first layout whose tabs or tiles show it, else the first one.
+    // else the first layout whose tabs show it, else the first one.
     const shownBy = (i: number) => seed.layouts.findIndex((layout) => {
-      const panels = [...layout.columns.flatMap((col) => col.cells), ...(layout.top ? [layout.top] : []), ...(layout.bottom ? [layout.bottom] : [])]
-      return panels.some((p) => p.tabs.some((t) => t.listDefIdx === i || (t.dashboard?.listTileIdxs ?? []).includes(i)))
+      const panels = [...layout.columns.flatMap((col) => col.rows.flatMap((row) => row.cells)), ...(layout.top?.cells ?? []), ...(layout.bottom?.cells ?? [])]
+      return panels.some((p) => p.tabs.some((t) => t.listDefIdx === i))
     })
     for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
       const listId = defIds[i]
@@ -394,7 +410,7 @@ export async function seedTaskList(
   await seedWorkspace(page, {
     ...rest,
     listDefinitions: [{ name: 'Tasks', ...list }],
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: TASK_LIST_TAB, kind: 'lens', listDefIdx: 0 }] })] }] }],
   }, options)
   const widget = wsListWidget(page, TASK_LIST_TAB)
   await widget.waitFor({ state: 'visible' })
@@ -474,7 +490,7 @@ export async function expectOpenLayout(page: Page, name: string): Promise<void> 
   }
 }
 
-/** Tab ids per cell per column, read from the rendered workspace. */
+/** Tab ids per cell per column (a column's rows' cells in order), read from the rendered workspace. */
 export async function wsShape(page: Page): Promise<string[][][]> {
   return page.evaluate(() =>
     Array.from(document.querySelectorAll('[data-ws-column]')).map((col) =>
@@ -531,9 +547,33 @@ export function wsPanelHandle(page: Page, panelId: string): Locator {
   return page.locator(`[data-ws-panel-handle="${panelId}"]`)
 }
 
-/** The band at an edge. */
+/** The band at an edge: its row of cells. */
 export function wsBand(page: Page, edge: 'top' | 'bottom'): Locator {
-  return page.locator(`[data-ws-band="${edge}"]`)
+  return page.locator(`[data-ws-band-row="${edge}"]`)
+}
+
+/** Picks Split ▸ `item` (Right / Below / New column) in the open cell (or band) menu. */
+export async function pickSplit(page: Page, item: 'Right' | 'Below' | 'New column'): Promise<void> {
+  await page.getByRole('menuitem', { name: 'Split', exact: true }).click()
+  await page.getByRole('menuitem', { name: item, exact: true }).click()
+}
+
+/** The Numbers & charts kinds' names: the add-widget and Change widget menus list them in a submenu. */
+const GLANCE_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('glance').map(widgetKindLabel))
+
+/**
+ * Picks the kind named `label` in the open add-widget (`Add widget`) or tab
+ * (`Change widget`) menu: a task kind from the menu itself, a Numbers &
+ * charts kind from its submenu.
+ */
+export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Change widget', label: string): Promise<void> {
+  const role = menuName === 'Add widget' ? 'menuitem' : 'menuitemradio'
+  let menu = page.getByRole('menu', { name: menuName })
+  if (GLANCE_LABELS.has(label)) {
+    await menu.getByRole('menuitem', { name: /^Numbers & charts/ }).click()
+    menu = page.getByRole('menu', { name: 'Numbers & charts' })
+  }
+  await menu.getByRole(role, { name: label, exact: true }).click()
 }
 
 /** Tab ids of the band at `edge` (empty when there is none). */

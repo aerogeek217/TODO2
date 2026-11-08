@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { ADD_FILTER, openSettings, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, openSettings, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 import { readStore } from './fixtures/db'
 
@@ -20,7 +20,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Both', urgent: true, important: true },
     { title: 'Plain' },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 const ALL = ['Flagged urgent', 'Due tomorrow', 'Important only', 'Both', 'Plain']
@@ -123,8 +123,8 @@ test.describe('desktop', () => {
       ...SEED,
       lenses: [{ id: 'both', name: 'Both', predicate: { markers: [{ values: ['urgent'] }, { values: ['important'] }] } }],
       layouts: [{ name: 'Main', columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', weight: 2, cells: [{ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] })] },
       ] }],
     })
     const pane = (q: string) => page.locator('[data-eisenhower="eis"]').locator(`[data-eis-quadrant="${q}"]`).locator('[data-todo-id]')

@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test'
 import { readStore, writeStores } from './fixtures/db'
-import { emptyPredicate, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { emptyPredicate, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The ways into an email check-in, in a real browser. Every entry that names
@@ -34,7 +34,7 @@ const TASKS: WorkspaceSeed['tasks'] = [
   { title: 'Nobody’s', people: [] },
 ]
 
-/** A People-grouped list (`t1`) beside a dashboard (`dash`), the list in the right-hand column. */
+/** A People-grouped list (`t1`) beside a People widget (`dash`), the list in the right-hand column. */
 const SEED: WorkspaceSeed = {
   people: PEOPLE,
   listDefinitions: [{ name: 'Team', grouping: 'people' }],
@@ -42,8 +42,8 @@ const SEED: WorkspaceSeed = {
   layouts: [{
     name: 'Main',
     columns: [
-      { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'dash', kind: 'dashboard' }] }] },
-      { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
+      { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'people' }] })] },
+      { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
     ],
   }],
 }
@@ -169,9 +169,9 @@ test('A: the person task dialog’s Email check-in menu: Send sends at once — 
   await page.keyboard.press('Escape')
   await expect(taskDialog).toHaveCount(0)
 
-  // The dashboard's People row: a person without an email — an empty To, the name nowhere in it.
+  // The People widget's row: a person without an email — an empty To, the name nowhere in it.
   await page.evaluate(() => { (window as unknown as { __anchors: unknown[] }).__anchors = [] })
-  await page.locator('[data-dashboard="dash"] [data-person-row]').filter({ hasText: 'Cy Young' }).click()
+  await page.locator('[data-glance-tab="dash"] [data-person-row]').filter({ hasText: 'Cy Young' }).click()
   await expect(taskDialog.getByRole('heading')).toHaveText('Cy Young')
   await taskDialog.getByRole('button', { name: 'Email check-in options for Cy Young' }).click()
   await checkinMenu(page, 'Cy Young').getByRole('menuitem', { name: 'Send check-in to Cy Young' }).click()
@@ -378,7 +378,7 @@ test('fallback: a refused clipboard opens nothing and opens the dialog for the p
 test('.eml method: the one-click send downloads the draft (no To header without an address)', async ({ page, context }) => {
   await setup(page, context)
   await withCheckinSettings(page, { checkinOpenMethod: 'eml' })
-  await page.locator('[data-dashboard="dash"] [data-person-row]').filter({ hasText: 'Cy Young' }).click()
+  await page.locator('[data-glance-tab="dash"] [data-person-row]').filter({ hasText: 'Cy Young' }).click()
   const taskDialog = page.locator('[data-task-dialog]')
   await expect(taskDialog.getByRole('heading')).toHaveText('Cy Young')
   await taskDialog.getByRole('button', { name: 'Email check-in options for Cy Young' }).click()
@@ -418,7 +418,7 @@ test('paste a reply: the envelope menus, the header menu and the People footer o
   await expect(importDialog(page)).toHaveCount(0)
 
   // The person task dialog's menu: the import opens over it; Esc closes only the import, focus back on its button.
-  await page.locator('[data-dashboard="dash"] [data-person-row]').filter({ hasText: 'Cy Young' }).click()
+  await page.locator('[data-glance-tab="dash"] [data-person-row]').filter({ hasText: 'Cy Young' }).click()
   const taskDialog = page.locator('[data-task-dialog]')
   const trigger = taskDialog.getByRole('button', { name: 'Email check-in options for Cy Young' })
   await trigger.click()

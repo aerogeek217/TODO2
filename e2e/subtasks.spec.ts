@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore, readStores, type Row } from './fixtures/db'
 import { taskRowByTitle } from './fixtures/seed'
-import { drag, seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { drag, seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Subtasks in a real browser (cr28): the row's `2/5` count opens the
@@ -25,7 +25,7 @@ const SEED: WorkspaceSeed = {
     },
     { title: 'Bare task' },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 /** The editor's + Add subtask popover. */
@@ -264,8 +264,8 @@ test('notes → tasks: the indented lines under a bullet become its task’s sub
     ...SEED,
     tasks: [],
     layouts: [{ name: 'Main', columns: [
-      { id: 'c', cells: [{ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] }] },
-      { id: 'n', cells: [{ id: 'nk', tabs: [{ id: 'notes', kind: 'notes' }] }] },
+      { id: 'c', rows: [wsRow({ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] })] },
+      { id: 'n', rows: [wsRow({ id: 'nk', tabs: [{ id: 'notes', kind: 'notes' }] })] },
     ] }],
   })
   const editor = page.getByRole('region', { name: 'Notes cell' }).locator('.cm-content')

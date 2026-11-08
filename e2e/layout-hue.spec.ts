@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { layoutTab, openLayoutTabMenu, seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { layoutTab, openLayoutTabMenu, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * D19 · a hue per layout: picked with the name in the Edit layout dialog's
@@ -15,7 +15,7 @@ const SEED: WorkspaceSeed = {
   tasks: [{ title: 'Plan the launch' }, { title: 'Ship it' }],
   lenses: [{ id: 'lens-plan', name: 'Plans', predicate: { searchText: 'plan' } }],
   layouts: [
-    { name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] },
+    { name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] },
     { name: 'Other', columns: [] },
   ],
 }

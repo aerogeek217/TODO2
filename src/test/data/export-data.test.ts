@@ -6,6 +6,7 @@ import { ALL_DATA_TABLES, db } from '../../data/database'
 import { parseAndRestore } from '../../data/restore'
 import { resetDb, makeTodo, makePerson } from '../helpers'
 import type { PersistedTodoItem } from '../../models'
+import { rowOf } from '../helpers/layout-builders'
 
 beforeEach(async () => {
   await resetDb()
@@ -142,7 +143,7 @@ describe('export → restore round-trip', () => {
     await db.subtasks.add({ todoId, title: 'Collect the numbers', isCompleted: false, sortOrder: 0, createdAt: now })
     await db.layouts.add({
       sortOrder: 0, name: 'Default', createdAt: now, modifiedAt: now,
-      columns: [{ id: 'c1', weight: 1, cells: [{ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] }],
+      columns: [{ id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] })] }],
     })
     await db.listOrders.add({ listDefinitionId: 1, todoId, rank: 2.5 })
 

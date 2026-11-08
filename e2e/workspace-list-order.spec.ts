@@ -9,6 +9,7 @@ import {
   wsListWidget,
   wsTab,
   type WorkspaceSeed,
+  wsRow,
 } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 import { box } from './fixtures/geometry'
@@ -32,7 +33,7 @@ function seed(list: NonNullable<WorkspaceSeed['listDefinitions']>[number]): Work
     ],
     layouts: [{
       name: 'Main',
-      columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }],
+      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }],
     }],
   }
 }

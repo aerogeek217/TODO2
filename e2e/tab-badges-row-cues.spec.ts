@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { openSettings, seedWorkspace, wsTab } from './fixtures/workspace'
+import { openSettings, seedWorkspace, wsTab, wsRow } from './fixtures/workspace'
 
 /**
  * A list tab's badge in a real browser: an inactive tab counts too, its
@@ -25,7 +25,7 @@ const BADGE_SEED = {
   ],
   layouts: [{
     name: 'Main',
-    columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 'all', kind: 'lens' as const, listDefIdx: 0 }, { id: 'ann', kind: 'lens' as const, listDefIdx: 1 }] }] }],
+    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'all', kind: 'lens' as const, listDefIdx: 0 }, { id: 'ann', kind: 'lens' as const, listDefIdx: 1 }] })] }],
   }],
 }
 
@@ -108,7 +108,7 @@ test.describe('tab badges', () => {
       listDefinitions: [{ name: 'Everything one' }, { name: 'Everything two' }, { name: 'Everything three' }, { name: 'Everything four' }, { name: 'Everything five' }],
       layouts: [{
         name: 'Main',
-        columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [0, 1, 2, 3, 4].map((i) => ({ id: `t${i}`, kind: 'lens' as const, listDefIdx: i })) }] }],
+        columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [0, 1, 2, 3, 4].map((i) => ({ id: `t${i}`, kind: 'lens' as const, listDefIdx: i })) })] }],
       }],
     })
     await page.getByRole('button', { name: /more tabs$/ }).click()
@@ -126,7 +126,7 @@ const CUE_SEED = {
     { title: 'Both', urgent: true, important: true },
     { title: 'Done both', urgent: true, important: true, isCompleted: true },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens' as const, listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens' as const, listDefIdx: 0 }] })] }] }],
 }
 
 /** The row itself, inside the fixture's wrapper: it holds the glow. */

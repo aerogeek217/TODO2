@@ -1,0 +1,113 @@
+import { useCallback, useEffect, useRef, type RefObject } from 'react'
+import { createPortal } from 'react-dom'
+import type { LayoutTab } from '../../models/workspace-layout'
+import { usePopoverAnchor } from '../../hooks/use-popover-anchor'
+import { WidgetFaceContext, type WidgetFaceHost } from '../../hooks/use-widget-face'
+import { CloseIcon, WidgetKindIcon } from '../shared/icons'
+import { PopoverRoot } from '../shared/PopoverRoot'
+import { WidgetBody } from './WidgetBody'
+import { useTabTitle } from './widget-hooks'
+import styles from './CellFace.module.css'
+
+/** The full widget's popover: about this size, clamped to the viewport. */
+const FACE_POPOVER_WIDTH_PX = 720
+const FACE_POPOVER_HEIGHT_PX = 520
+
+/**
+ * The small face's keyboard way to its full widget: a button over the body,
+ * seen only when focused (a click passes through it to the face, whose click
+ * the body takes).
+ */
+export function SmallFaceOpener({ title, open, onOpen }: { title: string; open: boolean; onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      className={styles.opener}
+      aria-label={`Open ${title}`}
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      data-face-opener=""
+      onClick={(e) => {
+        // The body's own click would open it again.
+        e.preventDefault()
+        onOpen()
+      }}
+    />
+  )
+}
+
+/** The face every widget in the popover shows: its full one, whatever room the popover has. */
+const FULL_FACE: WidgetFaceHost = { forced: 'large' }
+
+/**
+ * A small face's full widget (its large face) in a popover over the cell —
+ * about 720 × 520, kept in the viewport, under the cell when it fits.
+ * Esc, × or a press outside closes it; what opens from inside (a menu, the
+ * task editor, the task dialog) is a layer above it.
+ */
+export function WidgetFacePopover({ tab, anchorRef, onClose }: {
+  tab: LayoutTab
+  /** The cell it opens over. */
+  anchorRef: RefObject<HTMLElement | null>
+  onClose: () => void
+}) {
+  const title = useTabTitle(tab)
+  const panelEl = useRef<HTMLDivElement | null>(null)
+  const { panelRef, style, placed } = usePopoverAnchor({
+    anchor: { kind: 'ref', ref: anchorRef },
+    open: true,
+    placement: 'bottom-start',
+    closeOnScroll: false,
+    closeOnResize: false,
+    observeSize: true,
+    onClose,
+  })
+  const setPanel = useCallback((el: HTMLDivElement | null) => {
+    panelEl.current = el
+    panelRef(el)
+  }, [panelRef])
+  // Focus goes in once it is placed, and back to where it was (the cell) when it closes from inside.
+  useEffect(() => {
+    if (!placed) return
+    const before = document.activeElement
+    panelEl.current?.focus({ preventScroll: true })
+    return () => {
+      const active = document.activeElement
+      if ((active == null || active === document.body || panelEl.current?.contains(active)) && before instanceof HTMLElement) {
+        before.focus({ preventScroll: true })
+      }
+    }
+  }, [placed])
+  return createPortal(
+    <PopoverRoot
+      ref={setPanel}
+      className={styles.popover}
+      style={{
+        position: style.position,
+        left: style.left,
+        top: style.top,
+        width: `min(${FACE_POPOVER_WIDTH_PX}px, calc(100vw - 16px))`,
+        height: `min(${FACE_POPOVER_HEIGHT_PX}px, calc(100vh - 16px))`,
+      }}
+      role="dialog"
+      aria-label={title}
+      tabIndex={-1}
+      data-testid="widget-face-popover"
+      data-face-popover={tab.id}
+    >
+      <div className={styles.header}>
+        <span className={styles.kindIcon}><WidgetKindIcon kind={tab.kind} size={12} /></span>
+        <span className={styles.title}>{title}</span>
+        <button type="button" className={styles.close} aria-label="Close" title="Close" onClick={onClose}>
+          <CloseIcon size={12} />
+        </button>
+      </div>
+      <div className={styles.body}>
+        <WidgetFaceContext.Provider value={FULL_FACE}>
+          <WidgetBody tab={tab} />
+        </WidgetFaceContext.Provider>
+      </div>
+    </PopoverRoot>,
+    document.body,
+  )
+}

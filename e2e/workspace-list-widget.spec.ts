@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { expectOpenLayout, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, editListDraft } from './fixtures/workspace'
+import { expectOpenLayout, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, editListDraft, wsRow } from './fixtures/workspace'
 
 /**
  * List widgets in the workspace: the top-bar (screen) filter narrows them,
@@ -19,11 +19,11 @@ const team: WorkspaceSeed = {
     {
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] })] },
       ],
     },
-    { name: 'Second', columns: [{ id: 'z', cells: [{ id: 'z1', tabs: [{ id: 'zt', kind: 'notes' }] }] }] },
+    { name: 'Second', columns: [{ id: 'z', rows: [wsRow({ id: 'z1', tabs: [{ id: 'zt', kind: 'notes' }] })] }] },
   ],
 }
 
@@ -115,7 +115,7 @@ test('a list’s date filters: a due-date range and Next follow-up Any both narr
       { title: 'Later', dueInDays: 20 },
       { title: 'Undated' },
     ],
-    layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   await page.getByRole('button', { name: 'Show completed' }).click()
   const widget = wsListWidget(page, 't1')
@@ -166,8 +166,8 @@ test('Edit list from the tab menu groups the list; the edit is shared by every w
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'c2', cells: [{ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 0 }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 0 }] })] },
       ],
     }],
   })
@@ -260,8 +260,8 @@ test('narrow widgets: the dates show as icons, the tags column gives way, the su
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'wide', weight: 3, cells: [{ id: 'kw', tabs: [{ id: 'tw', kind: 'lens', listDefIdx: 0 }] }] },
-        { id: 'narrow', weight: 1, cells: [{ id: 'kn', tabs: [{ id: 'tn', kind: 'lens', listDefIdx: 0 }] }] },
+        { id: 'wide', weight: 3, rows: [wsRow({ id: 'kw', tabs: [{ id: 'tw', kind: 'lens', listDefIdx: 0 }] })] },
+        { id: 'narrow', weight: 1, rows: [wsRow({ id: 'kn', tabs: [{ id: 'tn', kind: 'lens', listDefIdx: 0 }] })] },
       ],
     }],
   })

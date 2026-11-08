@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { box, clickOutside, expectInsideViewport } from './fixtures/geometry'
 
 /**
@@ -28,8 +28,8 @@ function seed(tasks: WorkspaceSeed['tasks']): WorkspaceSeed {
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'c1', cells: [{ id: 'n1', tabs: [{ id: 'notes1', kind: 'notes' }] }] },
-        { id: 'c2', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] }] },
+        { id: 'c1', rows: [wsRow({ id: 'n1', tabs: [{ id: 'notes1', kind: 'notes' }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] })] },
       ],
     }],
   }
@@ -261,7 +261,7 @@ test.describe('mobile row people picker', () => {
       listDefinitions: [{ name: 'Tasks' }],
       people: ['Alice'],
       tasks: [{ title: 'Pay the bill' }],
-      layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] }] }] }],
+      layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] })] }] }],
     })
     const row = page.locator('[data-todo-id]').filter({ hasText: 'Pay the bill' })
     await expect(row).toBeVisible()
@@ -295,7 +295,7 @@ for (const phone of [false, true]) {
         people: ['Alice'],
         tags: ['home'],
         tasks: [{ title: 'Pay the bill', notes: 'Account 42' }],
-        layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] }] }] }],
+        layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0 }] })] }] }],
       })
       const row = page.locator('[data-todo-id]').filter({ hasText: 'Pay the bill' })
       await expect(row).toBeVisible()

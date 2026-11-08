@@ -35,6 +35,8 @@ import {
 import { dispatchCrossGroupMutation } from '../../../services/cross-group-mutation'
 import type { ListRowDragSource, ListRowDropTarget } from '../../../utils/list-row-drop'
 import { RuntimeFilterPicker } from './RuntimeFilterPicker'
+import { ListFace } from './ListFace'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { EmptyState } from '../../shared/EmptyState'
 import { MobileTaskRow } from '../../task/MobileTaskRow'
 import { TaskRowGrid } from '../../task/TaskRowGrid'
@@ -120,10 +122,13 @@ function uniqueCount(sections: readonly Section[]): number {
 export function ListWidget({ tab, onResult }: ListWidgetProps) {
   const listId = tab.config.listDefinitionId
   const definition = useEffectiveListDefinition(listId)
+  // Its face (D25 R): the name and count when small, with the top rows when medium, the list itself when large.
+  const [faceRef, face] = useWidgetFace()
   if (listId == null || !definition) {
     return <EmptyState illustration="list" title={listId == null ? 'No list configured' : 'This list was deleted'} />
   }
-  return <ListWidgetBody tab={tab} definition={definition} onResult={onResult} />
+  if (face !== 'large') return <ListFace tab={tab} definition={definition} face={face} faceRef={faceRef} onResult={onResult} />
+  return <ListWidgetBody tab={tab} definition={definition} onResult={onResult} faceRef={faceRef} />
 }
 
 /** Groupings whose groups take rows from each other (the value is reassigned). */
@@ -144,7 +149,13 @@ interface PendingSwitch {
   at: { x: number; y: number }
 }
 
-function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definition: PersistedListDefinition; onResult?: (r: ListWidgetResult) => void }) {
+function ListWidgetBody({ tab, definition, onResult, faceRef }: {
+  tab: LensTab
+  definition: PersistedListDefinition
+  onResult?: (r: ListWidgetResult) => void
+  /** Measures the widget's face (`useWidgetFace`). */
+  faceRef: (el: HTMLElement | null) => void
+}) {
   const isMobile = useIsMobile()
   // The tab's zoom (D25 C + I1): its own, else the Settings default. The phone has one density.
   const defaultZoom = useSettingsStore((s) => s.listZoom)
@@ -180,7 +191,11 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
       stopWheel?.()
     }
   }, [zoomRef, tabIdRef])
-  const widgetRef = useRef<HTMLDivElement>(null)
+  const widgetRef = useRef<HTMLDivElement | null>(null)
+  const setWidgetEl = useCallback((el: HTMLDivElement | null) => {
+    widgetRef.current = el
+    faceRef(el)
+  }, [faceRef])
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)
@@ -509,7 +524,7 @@ function ListWidgetBody({ tab, definition, onResult }: { tab: LensTab; definitio
 
   return (
     <div
-      ref={widgetRef}
+      ref={setWidgetEl}
       className={`${styles.widget} ${isMobile ? styles.touch : ''}`}
       {...{ [LIST_WIDGET_ATTR]: tab.id }}
       data-list-host={tab.id}

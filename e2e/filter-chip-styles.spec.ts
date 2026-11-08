@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, seedWorkspace, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { ADD_FILTER, seedWorkspace, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import LOOKS from './fixtures/filter-chip-looks.json' with { type: 'json' }
 
 /**
@@ -16,7 +16,7 @@ const SEED: WorkspaceSeed = {
   people: ['Alice'],
   listDefinitions: [{ name: 'Team', people: ['Alice'], grouping: 'people' }],
   tasks: [{ title: 'A task', people: ['Alice'] }],
-  layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'k', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'k', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 const PROPS = ['height', 'padding', 'border-radius', 'font-size', 'font-weight', 'line-height', 'background-color', 'color', 'box-shadow', 'gap', 'cursor'] as const

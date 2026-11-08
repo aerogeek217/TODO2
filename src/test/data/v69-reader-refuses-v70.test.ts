@@ -4,6 +4,7 @@ import { readLayoutDraft, readListDrafts } from '../../data/draft-storage'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 import { db } from '../../data/database'
 import { checkTooNewDB } from '../../services/migration-check'
+import { rowOf } from '../helpers/layout-builders'
 
 /**
  * A build whose schema is v69 — the last one without the Last followed up
@@ -22,7 +23,7 @@ const dates = {
   lastFollowup: { match: 'range', start: null, end: { kind: 'offset', days: -14 }, includeNoDate: true },
   completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: null },
 }
-const columns = [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [{ id: 'l', kind: 'lens', config: { listDefinitionId: 4 } }] }] }]
+const columns = [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 'l', kind: 'lens', config: { listDefinitionId: 4 } }] })] }]
 const list = {
   id: 4, name: 'Done this week', sortOrder: 0, sort: 'manual', grouping: 'none', owner: { layoutId: 1 },
   membership: { kind: 'custom', predicate: { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates, markers: null, tags: null } },

@@ -9,6 +9,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import type { NeglectTab } from '../../../models/workspace-layout'
 import type { PersistedTodoItem } from '../../../models'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
+import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 
 const TODAY = new Date(2026, 10, 10, 10) // Tue 10 Nov 2026
 const day = (offset: number, hour = 0) => new Date(2026, 10, 10 + offset, hour)
@@ -141,5 +142,27 @@ describe('NeglectMapWidget', () => {
     expect(dotOf('Late and old')!.style.getPropertyValue('--dot-colour')).toBe('')
     rerender(<NeglectMapWidget tab={neglectTab({ colourBy: { kind: 'people' } })} />)
     expect(dotOf('Late and old')!.style.getPropertyValue('--dot-colour')).toBe('')
+  })
+})
+
+describe('NeglectMapWidget faces (D25 R)', () => {
+  it('small: the Slipping count of the open tasks placed, no plot and no change (it can’t be rebuilt)', () => {
+    render(<WidgetFaceContext.Provider value={{ forced: 'small' }}><NeglectMapWidget tab={neglectTab()} /></WidgetFaceContext.Provider>)
+    expect(screen.getByTestId('neglect-face-count')).toHaveTextContent('2')
+    expect(screen.getByTestId('neglect-face-count').dataset.lit).toBe('true')
+    expect(screen.getByRole('group', { name: 'Slipping: 2 of 7 open' })).toBeInTheDocument()
+    expect(dots()).toHaveLength(0)
+  })
+
+  it('medium: the numbered Slipping list without the plot; a row opens its task', () => {
+    render(<WidgetFaceContext.Provider value={{ forced: 'medium' }}><NeglectMapWidget tab={neglectTab()} /></WidgetFaceContext.Provider>)
+    expect(dots()).toHaveLength(0)
+    const list = screen.getByRole('region', { name: 'Slipping' })
+    expect(within(list).getByTestId('neglect-slipping-count')).toHaveTextContent('2')
+    const rows = within(list).getAllByRole('button')
+    expect(rows.map((r) => r.textContent?.slice(0, 1))).toEqual(['1', '2'])
+    fireEvent.click(rows[0]!)
+    expect(useUIStore.getState().selectedTodoId).not.toBeNull()
+    expect(document.querySelector('[data-neglect-map]')).toBeNull()
   })
 })

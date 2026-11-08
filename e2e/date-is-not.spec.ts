@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { openSettings, seedWorkspace, wsListWidget } from './fixtures/workspace'
+import { openSettings, seedWorkspace, wsListWidget, wsRow } from './fixtures/workspace'
 
 /**
  * "Is not" on a date range (cr25 P4, schema v71), as the user asked for it:
@@ -20,7 +20,7 @@ const SEED = {
     { title: 'Never followed up' },
   ],
   lenses: [{ id: 'lens-chase', name: 'Chase', predicate: {} }],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens' as const, listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens' as const, listDefIdx: 0 }] })] }] }],
 }
 
 const ALL = ['Lately, next soon', 'Lately, next overdue', 'Long ago, next soon', 'Never followed up']

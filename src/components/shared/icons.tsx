@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import type { WidgetKind } from '../../models/workspace-layout'
 import { hueColor } from '../../utils/layout-hue'
+import { DASH_GLYPH } from '../../utils/dash-glyphs'
 
 /**
  * Inline stroke icons for the workspace chrome: 16×16 viewBox, stroke 1.6,
@@ -53,9 +54,6 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M8 2.5v11M2.5 8h11" />
     </>
   ),
-  dashboard: (
-    <path d="M3.5 2.5h3a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-4a1 1 0 0 1 1-1zM9.5 2.5h3a1 1 0 0 1 1 1v1.5a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1zM3.5 10.5h3a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1v-1a1 1 0 0 1 1-1zM9.5 8h3a1 1 0 0 1 1 1v3.5a1 1 0 0 1-1 1h-3a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z" />
-  ),
   // A scatter plot: two axes and three dots, the largest top right (Slipping).
   neglect: (
     <>
@@ -65,6 +63,22 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <circle cx="12" cy="4.5" r="1.5" fill="currentColor" stroke="none" />
     </>
   ),
+  // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`DASH_GLYPH`).
+  number: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
+  followup: <path d={DASH_GLYPH.followup} />,
+  next7: <path d={DASH_GLYPH.calendar} />,
+  trend: <path d={DASH_GLYPH.chart} />,
+  status: <path d={DASH_GLYPH.status} />,
+  people: <path d={DASH_GLYPH.people} />,
+  tags: <path d={DASH_GLYPH.tag} />,
+  stale: <path d={DASH_GLYPH.stale} />,
+  recent: <path d={DASH_GLYPH.done} />,
+  eisenhowerSummary: <path d={DASH_GLYPH.matrix} />,
+  // The brief's parts: What changed is lines of text under a spark; Today the
+  // Focus target; Project pulse a ring with its late share as a wedge.
+  changes: <path d="M2.5 4.5h7M2.5 8h11M2.5 11.5h9M12.5 2.2v3.6M10.7 4h3.6" />,
+  today: <path d={DASH_GLYPH.focus} />,
+  pulse: <path d="M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11zM8 2.5V8h5.5" />,
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {
@@ -158,7 +172,7 @@ export function MinusIcon({ size = 14, strokeWidth = 1.6 }: { size?: number; str
   return <Svg size={size} strokeWidth={strokeWidth}><path d="M3 8h10" /></Svg>
 }
 
-/** The Settings gear (stroke ≈ 1.9 at 16px): Settings, Customize dashboard. */
+/** The Settings gear (stroke ≈ 1.9 at 16px): Settings, Customize panes…. */
 export function GearIcon({ size = 16 }: { size?: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -238,6 +252,26 @@ export function SplitBelowIcon({ size = 14 }: { size?: number }) {
     <Svg size={size}>
       <rect x="2" y="2.5" width="12" height="11" rx="2" />
       <path d="M2 8h12" />
+    </Svg>
+  )
+}
+
+/** A new column: a card with a second, separate one to its right. */
+export function NewColumnIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <rect x="1.5" y="2.5" width="8" height="11" rx="2" />
+      <rect x="11.5" y="2.5" width="3" height="11" rx="1.5" />
+    </Svg>
+  )
+}
+
+/** A cell's tab strip: a card with a bar across its top and a tab on it. */
+export function TabStripIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <rect x="2" y="2.5" width="12" height="11" rx="2" />
+      <path d="M2 6.5h12M6 2.5v4" />
     </Svg>
   )
 }

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { openSettings, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The app shell in a real browser: one top bar (New task, the layout tabs,
@@ -19,7 +19,7 @@ const team: WorkspaceSeed = {
     { title: 'Bob task', people: ['Bob'], tags: ['q4'] },
   ],
   layouts: [
-    { name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] },
+    { name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] },
   ],
 }
 

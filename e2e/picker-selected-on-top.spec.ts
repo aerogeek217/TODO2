@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The checklist pickers list the selected entries first, a separator, then
@@ -18,7 +18,7 @@ const SEED: WorkspaceSeed = {
     { title: 'Top task', people: ['Bob'] },
     { title: 'Other task', people: ['Alice'] },
   ],
-  layouts: [{ name: 'Main', columns: [{ id: 'c1', cells: [{ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 test.use({ viewport: { width: 1600, height: 900 } })

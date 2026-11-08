@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The phone's subtasks sheet is a modal dialog (cr31 T9): the focus moves in
@@ -13,7 +13,7 @@ test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true
 const SEED: WorkspaceSeed = {
   listDefinitions: [{ name: 'Everything' }],
   tasks: [{ title: 'Q4 budget', subtasks: [{ title: 'Template', done: true }, { title: 'Headcount' }] }],
-  layouts: [{ name: 'Main', columns: [{ id: 'c', cells: [{ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] }] }] }],
+  layouts: [{ name: 'Main', columns: [{ id: 'c', rows: [wsRow({ id: 'k', tabs: [{ id: 't', kind: 'lens', listDefIdx: 0 }] })] }] }],
 }
 
 test('the sheet takes the focus, keeps Tab inside, gives the focus back on Esc; its right-click is its own', async ({ page }) => {

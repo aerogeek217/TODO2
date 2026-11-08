@@ -91,7 +91,7 @@ describe('trend-events-store', () => {
     expect(useTrendEventsStore.getState().entries.get(trendEventsKey('14d', today, 0))).toEqual({ events: [], stale: false, loading: false })
   })
 
-  it('an event write invalidates the cache with no dashboard mounted', async () => {
+  it('an event write invalidates the cache with no glance widget mounted', async () => {
     await useTrendEventsStore.getState().load('14d', today, 0)
     expect(useTrendEventsStore.getState().entries.get(trendEventsKey('14d', today, 0))?.stale).toBe(false)
     await addEvent(1, 'completed', today)
@@ -126,7 +126,7 @@ describe('useTrendEvents', () => {
     expect(since).toHaveBeenCalledTimes(2)
 
     unmount()
-    // Unmounted (the dashboard tab is not the active one): the store still
+    // Unmounted (the trend tab is not the active one): the store still
     // hears the write, so the next mount reads again instead of showing old bars.
     await todoRepository.insert(makeTodo({ id: undefined }))
     expect(useTrendEventsStore.getState().entries.get(trendEventsKey('14d', new Date(2026, 9, 10), 0))?.stale).toBe(true)

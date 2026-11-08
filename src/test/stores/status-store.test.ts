@@ -150,7 +150,7 @@ describe('useStatusStore', () => {
       expect(todo!.statusId).toBeUndefined()
     })
 
-    it('stamps the tasks it clears with one modifiedAt, in the store and the database, and records the change (the dashboard trend, the check-in reply’s stale rule see it); undo puts it back', async () => {
+    it('stamps the tasks it clears with one modifiedAt, in the store and the database, and records the change (Created vs completed, the check-in reply’s stale rule see it); undo puts it back', async () => {
       await useStatusStore.getState().add('Waiting', '#00ff00')
       const statusId = useStatusStore.getState().statuses[0]!.id!
       const old = new Date(2026, 0, 5)

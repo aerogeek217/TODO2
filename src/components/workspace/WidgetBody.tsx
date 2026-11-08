@@ -3,35 +3,33 @@ import type { LayoutTab } from '../../models/workspace-layout'
 import { useUIStore } from '../../stores/ui-store'
 import { NotesWidget } from './NotesWidget'
 import { CalendarWidget } from './calendar/CalendarWidget'
-import { DashboardWidget } from './dashboard/DashboardWidget'
-import type { DashboardSummary } from './dashboard/dashboard-summary'
+import type { GlanceSummary } from './glance/glance-summary'
 import { EisenhowerWidget } from './eisenhower/EisenhowerWidget'
 import { ListWidget, type ListWidgetResult } from './list/ListWidget'
 import { NeglectMapWidget } from './neglect/NeglectMapWidget'
+import { GlanceWidget } from './glance/GlanceWidget'
 import styles from './WidgetBody.module.css'
 
 /** What a widget reports to its cell (tab count, and what its menu's copy items copy). */
 export interface WidgetResult extends ListWidgetResult {
-  /** Dashboard: its counts, for "Copy summary". */
-  summary?: DashboardSummary
+  /** A glance widget: its lines, for "Copy". */
+  summary?: GlanceSummary
 }
 
 interface WidgetBodyProps {
   tab: LayoutTab
   /**
-   * List, Eisenhower and Dashboard tabs report their count label (for the
-   * tab); list tabs also their shown sections (for "Copy tasks"), a
-   * dashboard its summary (for "Copy summary").
+   * List and Eisenhower tabs report their count label (for the tab); list
+   * tabs also their shown sections (for "Copy tasks"), a glance widget its
+   * lines (for "Copy").
    */
   onResult?: (result: WidgetResult) => void
-  /** Dashboard: its gear opens Customize; absent = no gear. */
-  onCustomize?: () => void
 }
 
 const NO_SECTIONS: ListWidgetResult['sections'] = []
 
 /** The body of a cell's active tab, by widget kind (a case per kind: a new kind doesn't compile without one; an unknown stored kind gets a note). */
-export function WidgetBody({ tab, onResult, onCustomize }: WidgetBodyProps): ReactElement {
+export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
   switch (tab.kind) {
     case 'lens':
       return <ListWidget tab={tab} onResult={onResult} />
@@ -46,17 +44,28 @@ export function WidgetBody({ tab, onResult, onCustomize }: WidgetBodyProps): Rea
           onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS }) : undefined}
         />
       )
-    case 'dashboard':
-      return (
-        <DashboardWidget
-          tab={tab}
-          onResult={onResult ? (r) => onResult({ countLabel: r.countLabel, sections: NO_SECTIONS, summary: r.summary }) : undefined}
-          onDrill={(drill) => useUIStore.getState().showTaskDialog({ ...drill, fromTabId: tab.id })}
-          onCustomize={onCustomize}
-        />
-      )
     case 'neglect':
       return <NeglectMapWidget tab={tab} />
+    case 'number':
+    case 'followup':
+    case 'next7':
+    case 'trend':
+    case 'status':
+    case 'people':
+    case 'tags':
+    case 'stale':
+    case 'recent':
+    case 'eisenhowerSummary':
+    case 'changes':
+    case 'today':
+    case 'pulse':
+      return (
+        <GlanceWidget
+          tab={tab}
+          onResult={onResult ? (r) => onResult({ sections: NO_SECTIONS, summary: r.summary }) : undefined}
+          onDrill={(drill) => useUIStore.getState().showTaskDialog(drill)}
+        />
+      )
     default: {
       // Every kind has its case above (`never` here), but stored data isn't
       // typed: a kind this build doesn't know (the layout load repair drops

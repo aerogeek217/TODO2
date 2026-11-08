@@ -1,5 +1,5 @@
 import { test, type Page } from '@playwright/test'
-import { seedWorkspace, wsListWidget, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Not a regression: screenshots of one grouped list at each zoom level
@@ -38,7 +38,7 @@ function seed(zoom: 'stacked' | 'rows' | 'lines'): WorkspaceSeed {
     tags: ['docs', 'customer', 'q4'],
     tasks: TASKS,
     listDefinitions: [{ name: 'All open', grouping: 'people', sort: 'deadline' }],
-    layouts: [{ name: 'Main', columns: [{ id: 'col', cells: [{ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0, zoom }] }] }] }],
+    layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'tasks', kind: 'lens', listDefIdx: 0, zoom }] })] }] }],
   }
 }
 
