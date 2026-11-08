@@ -4,7 +4,7 @@ import { useUIStore } from '../stores/ui-store'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { attrSelector, LIST_WIDGET_ATTR } from '../utils/dom-contract'
 import { stepListZoom, type ZoomDirection } from '../utils/list-zoom'
-import { getTab } from '../utils/workspace-layout-ops'
+import { getTab } from '../utils/workspace-layout-queries'
 
 /**
  * A list tab's zoom (D25 C + I1) as the controls change it — Ctrl + wheel

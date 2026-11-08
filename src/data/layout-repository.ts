@@ -10,7 +10,7 @@ import {
 } from '../models/workspace-layout'
 import { isEisenhowerOwner, ownerLayoutId, type ListDefinition, type PersistedListDefinition } from '../models/list-definition'
 import type { PersistedListOrder } from '../models/list-order'
-import { repointLayoutLists } from '../utils/workspace-layout-ops'
+import { repointLayoutLists } from '../utils/workspace-layout-lists'
 import { nextSortOrder } from './create-repository'
 
 /** The layout Settings › Data integrity's cleanup puts the lists that belong to no layout into. */

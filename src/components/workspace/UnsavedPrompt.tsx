@@ -6,7 +6,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { UnsavedChangesDialog } from './LayoutDialogs'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
 import { ownerLayoutId } from '../../models/list-definition'
-import { layoutListRefs } from '../../utils/workspace-layout-ops'
+import { layoutListRefs } from '../../utils/workspace-layout-lists'
 import styles from './LayoutDialogs.module.css'
 
 interface UnsavedPromptProps {

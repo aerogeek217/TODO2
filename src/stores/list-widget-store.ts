@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { useWorkspaceStore } from './workspace-store'
-import { layoutTabs } from '../utils/workspace-layout-ops'
+import { layoutTabs } from '../utils/workspace-layout-queries'
 
 /** Viewport point a popover hangs from, and which edge of it lines up. */
 export interface PopoverPoint {

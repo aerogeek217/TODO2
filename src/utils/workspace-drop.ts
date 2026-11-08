@@ -1,5 +1,6 @@
 import type { BandEdge, WorkspaceLayout } from '../models/workspace-layout'
-import { cellAt, findCell, findTab, movePanel, moveTab, type LayoutDropTarget } from './workspace-layout-ops'
+import { cellAt, findCell, findTab } from './workspace-layout-queries'
+import { movePanel, moveTab, type LayoutDropTarget } from './workspace-layout-ops'
 
 /**
  * Hit testing for dragging a workspace tab or a whole cell (in a column's row
