@@ -10,18 +10,18 @@ import { cellAt, findCell, findTab, movePanel, moveTab, type LayoutDropTarget } 
  *
  * Priority (first match wins):
  * 1. Band edge → new band: within {@link BAND_EDGE_ZONE_PX} inside the
- *    workspace's top (bottom) edge — the top zone also reaches
- *    {@link BAND_EDGE_OUTSIDE_PX} above it, over the top bar's lower edge —
- *    full width, while there is no band there; but never over a tab strip:
- *    a cell's header always wins (in practice the zone is the workspace's
+ *    workspace's top (bottom) edge — reaching {@link BAND_EDGE_OUTSIDE_PX}
+ *    past it too, over the top bar's lower edge (below the window's) —
+ *    full width, while there is no band there; but never over a cell: its
+ *    strip and its body's zones always win (so the zone is the workspace's
  *    padding above / below the cells, the gaps between columns, and that
- *    reach above the top edge).
+ *    reach past the edge).
  * 2. Column edge → new column: within {@link EDGE_ZONE_GUTTER_PX} either side
  *    of the gap between two columns, or within {@link EDGE_ZONE_OUTER_PX}
  *    inside the column area's outer left / right edge — only between the
  *    bands (the column area's height).
  * 3. A cell's header (its tab strip; a band's cell's too) → insert at that
- *    position. A headless cell's hidden strip is measured as no header.
+ *    position. A headless cell's hidden strip is none (`dropStrip`).
  * 4. A cell body (a column's row) → its outer {@link SIDE_ZONE_SHARE} left /
  *    right (at most {@link SIDE_ZONE_MAX_PX}): a new cell beside it, in its
  *    row; of the middle that is left, the top quarter / bottom quarter: a
@@ -46,8 +46,14 @@ export interface CellGeometry {
   id: string
   /** The whole cell card. */
   rect: Rect
-  /** The header (tab strip); absent for an empty cell and while a headless cell's strip is hidden. */
+  /** The header (tab strip) as drawn; absent for an empty cell. A headless cell's is out of view (see `headless`). */
   header: Rect | null
+  /**
+   * The cell hides its strip (`utils/workspace-rows.isHeadlessCell`; it stays
+   * out during a drag): its header is no drop target (`dropStrip`), and its
+   * body is the whole card.
+   */
+  headless?: boolean
   /** The body below the header (a headless cell's: the whole card); absent for collapsed and empty cells. */
   body: Rect | null
   empty: boolean
@@ -88,7 +94,7 @@ export const EDGE_ZONE_GUTTER_PX = 16
 export const EDGE_ZONE_OUTER_PX = 24
 /** Height of the new-band zone just inside the workspace's top / bottom edge. */
 export const BAND_EDGE_ZONE_PX = 24
-/** How far the top new-band zone reaches above the workspace's top edge (over the top bar). */
+/** How far the new-band zones reach past the workspace's top edge (over the top bar) and its bottom edge. */
 export const BAND_EDGE_OUTSIDE_PX = 16
 /** A cell body's left / right new-cell zones: this share of its width each … */
 export const SIDE_ZONE_SHARE = 0.2
@@ -212,19 +218,32 @@ function layoutTabIndex(
   return lastIdx !== -1 ? lastIdx + 1 : Math.min(hit.index, ids.length)
 }
 
-/** Whether `p` is over any panel's header (a tab strip). */
-function overStrip(geo: WorkspaceGeometry, p: Point): boolean {
-  return geometryCells(geo).some((cell) => cell.header != null && inside(cell.header, p))
+/**
+ * The tab strip a drop can land on in `cell`: its header, unless the cell is
+ * headless (its strip is out of view during a drag, so its body — the whole
+ * card — takes every drop). The one place the headless rule meets the hit test.
+ */
+export function dropStrip(cell: CellGeometry): Rect | null {
+  return cell.headless === true ? null : cell.header
 }
 
-/** The new-band edge `p` is in, if any: a free edge's zone, outside every tab strip. */
+/** Whether `p` is over any cell's card (its strip, its body, a collapsed or an empty cell). */
+function overCell(geo: WorkspaceGeometry, p: Point): boolean {
+  return geometryCells(geo).some((cell) => inside(cell.rect, p))
+}
+
+/**
+ * The new-band edge `p` is in, if any: a free edge's zone, but never over a
+ * cell — its strip, and its body's top / bottom zones (a headless first-row
+ * cell's "New row above", a last row's "New row below") win (cr33 M9).
+ */
 function bandEdgeAt(geo: WorkspaceGeometry, p: Point): BandEdge | null {
   if (p.x < geo.area.left || p.x > geo.area.right) return null
   for (const edge of freeBandEdges(geo)) {
     const near = edge === 'top'
       ? p.y >= geo.area.top - BAND_EDGE_OUTSIDE_PX && p.y <= geo.area.top + BAND_EDGE_ZONE_PX
-      : p.y <= geo.area.bottom && p.y >= geo.area.bottom - BAND_EDGE_ZONE_PX
-    if (near && !overStrip(geo, p)) return edge
+      : p.y <= geo.area.bottom + BAND_EDGE_OUTSIDE_PX && p.y >= geo.area.bottom - BAND_EDGE_ZONE_PX
+    if (near && !overCell(geo, p)) return edge
   }
   return null
 }
@@ -254,7 +273,8 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
     const cell = band.cells.find((c) => inside(c.rect, p))
     if (!cell) return null
     if (cell.empty) return { kind: 'empty-cell', cellId: cell.id }
-    if (cell.header && inside(cell.header, p)) return stripHit(cell, cell.header, p)
+    const strip = dropStrip(cell)
+    if (strip && inside(strip, p)) return stripHit(cell, strip, p)
     if (cell.body && inside(cell.body, p)) {
       const side = sideZone(cell.body, p)
       return { kind: 'band-body', edge: band.edge, cellId: cell.id, zone: side ?? 'middle' }
@@ -270,7 +290,8 @@ export function hitTestWorkspace(geo: WorkspaceGeometry, p: Point): WorkspaceDro
       const cell = row.cells.find((c) => inside(c.rect, p))
       if (!cell) continue
       if (cell.empty) return { kind: 'empty-cell', cellId: cell.id }
-      if (cell.header && inside(cell.header, p)) return stripHit(cell, cell.header, p)
+      const strip = dropStrip(cell)
+      if (strip && inside(strip, p)) return stripHit(cell, strip, p)
       if (cell.body && inside(cell.body, p)) {
         return { kind: 'cell-body', cellId: cell.id, rowId: row.id, multi: row.cells.length > 1, zone: bodyZone(cell.body, p) }
       }

@@ -101,10 +101,11 @@ test.describe('tab drags and bands', () => {
     await expect(wsBand(page, 'top')).toHaveCount(0)
   })
 
-  test('the bottom 24px make a new bottom band; idle edge bars show where no band is', async ({ page }) => {
+  test('the padding below the panels makes a new bottom band; idle edge bars show where no band is', async ({ page }) => {
     await seedWorkspace(page, { layouts: [withTopBand] })
     const a = await areaBox(page)
-    await dragTab(page, wsTab(page, 'calTab'), { x: a.x + 300, y: a.y + a.height - 6 }, async () => {
+    // The workspace's 6px bottom padding (a cell's own bottom zone is a new row below, cr33 M9).
+    await dragTab(page, wsTab(page, 'calTab'), { x: a.x + 300, y: a.y + a.height - 3 }, async () => {
       await expect(page.getByTestId('ws-new-band-strip')).toHaveAttribute('data-edge', 'bottom')
       await expect(page.getByTestId('ws-drop-label')).toHaveText('New band below all columns')
     })
@@ -270,7 +271,7 @@ test.describe('panel drags', () => {
   test('panel → new bottom band; near the window’s bottom the ghost flips above the pointer', async ({ page }) => {
     await seedWorkspace(page, { layouts: [threeCells] })
     const a = await areaBox(page)
-    const to = { x: a.x + 300, y: a.y + a.height - 6 }
+    const to = { x: a.x + 300, y: a.y + a.height - 3 }
     await dragPanel(page, 'a1', to, {
       during: async () => {
         await expect(page.getByTestId('ws-new-band-strip')).toHaveAttribute('data-edge', 'bottom')
