@@ -55,15 +55,18 @@ function averageText(avg: number): string {
 }
 
 /**
- * Whether an open task late now was already late at yesterday's end: there
- * and open then, with its due date then (`task-history`'s replay) before
- * yesterday.
+ * Whether an open task late now went late since yesterday: it was there at
+ * yesterday's end (`task-history`'s replay) and wasn't late then — done, or
+ * open with its due date then not before yesterday. A task that wasn't
+ * there yet (created today: a duplicate, a Quick Add with a past date, an
+ * append import) didn't go late; it came in late.
  */
-function lateYesterday(task: PersistedTodoItem, events: TaskEvents | undefined, today: Date): boolean {
+function wentLateSinceYesterday(task: PersistedTodoItem, events: TaskEvents | undefined, today: Date): boolean {
   const was = taskReplay(task, events, today)(-1)
-  if (was.state !== 'open') return false
+  if (was.state === 'absent') return false
+  if (was.state === 'done') return true
   const dueIn = daysUntil(was.due, addDays(today, -1))
-  return dueIn != null && dueIn < 0
+  return dueIn == null || dueIn >= 0
 }
 
 /** When an open task took its status: its last `status` event, else its creation inside the window, else before the window. */
@@ -93,9 +96,9 @@ export function computeChanges(
   const byTask = eventsByTask(events, new Set(open.map((t) => t.id)), CHANGES_EVENT_TYPES, today)
   const out: Change[] = []
 
-  // 1. Went late since yesterday: late now, not late at yesterday's end.
+  // 1. Went late since yesterday: late now, there and not late at yesterday's end.
   const late = open.filter((t) => (daysUntil(t.dueDate, today) ?? 0) < 0)
-  const wentLate = late.filter((t) => !lateYesterday(t, byTask.get(t.id), today))
+  const wentLate = late.filter((t) => wentLateSinceYesterday(t, byTask.get(t.id), today))
   if (wentLate.length > 0) {
     out.push({
       id: 'late',
@@ -103,7 +106,7 @@ export function computeChanges(
       drill: {
         title: 'Went late since yesterday',
         glyph: 'overdue',
-        description: 'Open tasks that are late now and weren’t at the end of yesterday.',
+        description: 'Open tasks that are late now and weren’t at the end of yesterday (tasks added since aren’t counted).',
         source: todos(idsByDate(wentLate, 'deadline')),
       },
     })

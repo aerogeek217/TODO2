@@ -71,16 +71,30 @@ describe('computeChanges', () => {
       expect(drillIds(of(computeChanges(tasks, events, ctxWith(), []), 'late'))).toEqual([1])
     })
 
-    it('a task reopened or created today that is late went late; completed ones never count', () => {
+    it('a task reopened today that is late went late; completed ones never count', () => {
       const tasks = [
         task({ id: 1, dueDate: day(-4) }),
-        makeTodo({ id: 2, createdAt: day(0, 8), modifiedAt: day(0, 8), dueDate: day(-1) }),
         task({ id: 3, dueDate: day(-1), isCompleted: true, completedAt: day(0, 9) }),
       ]
       const events = [ev(1, 'completed', day(-6)), ev(1, 'reopened', day(0, 9))]
       const c = of(computeChanges(tasks, events, ctxWith(), []), 'late')
-      expect(c?.text).toBe('2 tasks went late since yesterday.')
-      expect(drillIds(c)).toEqual([1, 2])
+      expect(c?.text).toBe('1 task went late since yesterday.')
+      expect(drillIds(c)).toEqual([1])
+    })
+
+    it('a task that wasn’t there at yesterday’s end came in late: a duplicate, a Quick Add with a past date, an append import', () => {
+      const tasks = [
+        // A duplicate of a late task, or a Quick Add due yesterday: created today.
+        makeTodo({ id: 2, createdAt: day(0, 8), modifiedAt: day(0, 8), dueDate: day(-1) }),
+        // An append import: its own old createdAt, its `created` event today.
+        task({ id: 4, dueDate: day(-1) }),
+        // The one that did go late.
+        task({ id: 5, dueDate: day(-1) }),
+      ]
+      const events = [ev(2, 'created', day(0, 8)), ev(4, 'created', day(0, 9))]
+      const c = of(computeChanges(tasks, events, ctxWith(), []), 'late')
+      expect(c?.text).toBe('1 task went late since yesterday.')
+      expect(drillIds(c)).toEqual([5])
     })
   })
 
