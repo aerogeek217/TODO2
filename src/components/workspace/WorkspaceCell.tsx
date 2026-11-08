@@ -485,23 +485,26 @@ function FilledCell({ cell, band, rowId, collapsed, multiRow = false, fitRow = f
         )}
       </div>
       {!collapsed && active && (
-        <div
-          ref={trackScrollEdges}
-          className={`${styles.body} ${smallFace ? styles.bodySmall : ''}`}
-          role="tabpanel"
-          aria-labelledby={`ws-tab-${active.id}`}
-          data-ws-cell-body={cell.id}
-          // A small face opens its full widget (a widget's own click goes first).
-          onClick={drag ? undefined : smallFaceClick(cellFace)}
-        >
-          {smallFace && !drag && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
-          <WidgetFaceContext.Provider value={cellFace.host}>
-            <WidgetBody
-              key={active.id}
-              tab={active}
-              onResult={(result) => setWidgetResult({ tabId: active.id, result })}
-            />
-          </WidgetFaceContext.Provider>
+        // The drop zones sit beside the body, over it, so a body its widget scrolls keeps them in view (cr33 W7).
+        <div className={styles.bodyFrame}>
+          <div
+            ref={trackScrollEdges}
+            className={`${styles.body} ${smallFace ? styles.bodySmall : ''}`}
+            role="tabpanel"
+            aria-labelledby={`ws-tab-${active.id}`}
+            data-ws-cell-body={cell.id}
+            // A small face opens its full widget (a widget's own click goes first).
+            onClick={drag ? undefined : smallFaceClick(cellFace)}
+          >
+            {smallFace && !drag && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
+            <WidgetFaceContext.Provider value={cellFace.host}>
+              <WidgetBody
+                key={active.id}
+                tab={active}
+                onResult={(result) => setWidgetResult({ tabId: active.id, result })}
+              />
+            </WidgetFaceContext.Provider>
+          </div>
           {bodyHit && <DropZones zone={bodyHit.zone} multi={bodyHit.multi} accepts={drag?.accepts === true} join={join} />}
           {bandHit && <BandDropZone zone={bandHit.zone} accepts={drag?.accepts === true} join={join} />}
         </div>

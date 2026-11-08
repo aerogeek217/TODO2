@@ -92,6 +92,16 @@
   transform: translateX(-1px);
 }
 
+/* The body's box, holding the body and, over it, its drop zones: the zones
+   stay in view however far a widget scrolls the body. */
+.bodyFrame {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
 .body {
   flex: 1 1 auto;
   min-height: 0;
