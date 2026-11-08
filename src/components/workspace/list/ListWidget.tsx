@@ -46,9 +46,8 @@ import { ChevronDownIcon, PlusIcon, SortIcon } from '../../shared/icons'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { DropSlot, ListWidgetRow, type ListRowDragLook } from './ListWidgetRow'
 import { ListBulkBar } from './ListBulkBar'
-import { MenuPopover } from '../../shared/MenuPopover'
-import { ListGroupHeader } from './ListGroupHeader'
-import { groupPerson, listGroupMenu, type GroupPerson } from './person-group'
+import { ListGroupHeader, ListGroupMenu } from './ListGroupHeader'
+import { groupPerson, type GroupPerson } from './person-group'
 import { SwitchToManualPopover } from './SwitchToManualPopover'
 import { ListFilterRow } from './ListFilterRow'
 import { useScreenChips } from './use-screen-chips'
@@ -591,12 +590,10 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
         />
       )}
       {headerMenu && (
-        <MenuPopover
-          point={headerMenu.at}
-          label={`${headerMenu.section.label} group`}
-          closeOnScroll
-          restoreFocus
-          entries={listGroupMenu(sections.find((s) => s.key === headerMenu.section.key) ?? headerMenu.section, headerMenu.person)}
+        <ListGroupMenu
+          section={sections.find((s) => s.key === headerMenu.section.key) ?? headerMenu.section}
+          person={headerMenu.person}
+          at={headerMenu.at}
           onClose={() => setHeaderMenu(null)}
         />
       )}

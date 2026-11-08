@@ -1,10 +1,8 @@
 import type { TodoGroupBy } from '../../../models/todo-sort-group'
 import type { Section } from '../../../services/list-sections'
-import { sendPersonCheckin } from '../../../services/checkin-email/person-checkin'
-import { personTaskDialog } from '../../../services/task-dialog'
 import { copyTasks } from '../../../services/task-copy'
-import { useUIStore } from '../../../stores/ui-store'
-import { AtIcon, CopyIcon, EnvelopeIcon, ReplyIcon } from '../../shared/icons'
+import { entityMenuEntries, type EntityMenuOffers } from '../../shared/person-menu-entries'
+import { CopyIcon } from '../../shared/icons'
 import type { MenuEntry } from '../../shared/MenuPopover'
 
 /** The person a People group stands for. */
@@ -22,34 +20,14 @@ export function groupPerson(groupBy: TodoGroupBy, section: Section): GroupPerson
   return m ? { id: Number(m[1]), name: section.label } : null
 }
 
-/** Emails the person their check-in at once (the dialog opens instead when it can't). */
-export function emailPersonCheckin(person: GroupPerson): void {
-  void sendPersonCheckin(person.id)
-}
-
 /**
- * A People group header's menu: email the person a check-in, paste a
- * check-in reply (the import dialog, which reads the person from the reply's
- * footer, else takes this person), or show all their tasks.
+ * A list group header's menu: a People group's person menu
+ * (`entityMenuEntries`: Review with X… · Email check-in to X · Paste reply
+ * from X… · Show tasks · Edit… · Delete…, each where `offers` allows it),
+ * then `Copy N tasks` — the group's tasks as one list headed by the
+ * group's name.
  */
-export function personGroupMenu(person: GroupPerson): MenuEntry[] {
-  return [
-    { kind: 'item', label: `Email check-in: ${person.name}`, icon: <EnvelopeIcon />, onSelect: () => emailPersonCheckin(person) },
-    { kind: 'item', label: 'Paste check-in reply…', icon: <ReplyIcon />, onSelect: () => useUIStore.getState().openCheckinImport({ personId: person.id }) },
-    {
-      kind: 'item',
-      label: `Show all of ${person.name}’s tasks`,
-      icon: <AtIcon />,
-      onSelect: () => useUIStore.getState().showTaskDialog(personTaskDialog(person)),
-    },
-  ]
-}
-
-/**
- * A list group header's menu: `Copy N tasks` — the group's tasks as one list
- * headed by the group's name — after a People group's own items.
- */
-export function listGroupMenu(section: Section, person: GroupPerson | null): MenuEntry[] {
+export function listGroupMenu(section: Section, person: GroupPerson | null, offers: EntityMenuOffers): MenuEntry[] {
   const n = section.todos.length
   const copy: MenuEntry = {
     kind: 'item',
@@ -57,5 +35,5 @@ export function listGroupMenu(section: Section, person: GroupPerson | null): Men
     icon: <CopyIcon />,
     onSelect: () => { void copyTasks([{ label: section.label, todos: [...section.todos] }]) },
   }
-  return person ? [...personGroupMenu(person), { kind: 'separator' }, copy] : [copy]
+  return person ? [...entityMenuEntries({ kind: 'person', entity: person }, offers), { kind: 'separator' }, copy] : [copy]
 }

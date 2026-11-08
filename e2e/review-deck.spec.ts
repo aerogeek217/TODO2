@@ -7,7 +7,9 @@ import { seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from '.
  * on the tab's tasks; ⏎ in the Status update line marks the task followed
  * up with that update and opens the next card with its line focused; Skip
  * and a jump through the queue rail; the editor opened over the deck, Esc
- * closing it and then the deck.
+ * closing it and then the deck. The person menu's Review with X… (a row's
+ * avatar, the person task dialog's envelope — the deck over the dialog)
+ * opens it on the person's open tasks.
  */
 
 const TAB = 'r1'
@@ -110,4 +112,68 @@ test('the editor opens over the deck; Esc closes it, then the deck', async ({ pa
 
   await page.keyboard.press('Escape')
   await expect(deck(page)).toHaveCount(0)
+})
+
+const PEOPLE_SEED: WorkspaceSeed = {
+  people: ['Aisha Rahman', 'Ben Ortiz'],
+  tasks: [
+    { title: 'Answer Northwind on the SLA', people: ['Aisha Rahman'] },
+    { title: 'Ben’s own task', people: ['Ben Ortiz'] },
+    { title: 'Shared rollout plan', people: ['Ben Ortiz', 'Aisha Rahman'] },
+    { title: 'Closed already', people: ['Aisha Rahman'], isCompleted: true },
+  ],
+  listDefinitions: [{ name: 'Everything', grouping: 'none', sort: 'manual' }],
+  layouts: [{
+    name: 'Main',
+    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: TAB, kind: 'lens', listDefIdx: 0 }] })] }],
+  }],
+}
+
+const personDeck = (page: Page) => page.locator('[data-review-deck]')
+
+test('a row’s avatar › Review with X…: the deck on the person’s open tasks', async ({ page }) => {
+  await seedWorkspace(page, PEOPLE_SEED)
+  await wsListWidget(page, TAB).waitFor({ state: 'visible' })
+  const row = wsListWidget(page, TAB).locator('[data-todo-id]').filter({ hasText: 'Shared rollout plan' })
+  await row.locator('[data-person-avatar="Aisha Rahman"]').click({ button: 'right' })
+  const menu = page.getByRole('menu', { name: '@Aisha Rahman' })
+  await expect(menu.getByRole('menuitem').first()).toHaveText('Review with Aisha Rahman…')
+  await menu.getByRole('menuitem', { name: 'Review with Aisha Rahman…' }).click()
+
+  await expect(personDeck(page)).toBeVisible()
+  await expect(personDeck(page).getByTestId('review-position')).toHaveText('1 of 2')
+  await expect(personDeck(page).getByRole('navigation', { name: 'Review queue' }).getByRole('button'))
+    .toHaveText([/Answer Northwind/, /Shared rollout plan/])
+  await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
+})
+
+test('the person task dialog’s envelope › Review: the deck opens over the dialog; Esc goes back to it', async ({ page }) => {
+  await seedWorkspace(page, PEOPLE_SEED)
+  await wsListWidget(page, TAB).waitFor({ state: 'visible' })
+  const row = wsListWidget(page, TAB).locator('[data-todo-id]').filter({ hasText: 'Answer Northwind' })
+  await row.locator('[data-person-avatar="Aisha Rahman"]').click({ button: 'right' })
+  await page.getByRole('menu', { name: '@Aisha Rahman' }).getByRole('menuitem', { name: 'Show tasks' }).click()
+  const taskDialog = page.locator('[data-task-dialog]')
+  await expect(taskDialog.getByRole('heading')).toHaveText('Aisha Rahman')
+  const envelope = taskDialog.getByRole('button', { name: 'Email check-in options for Aisha Rahman' })
+  await envelope.click()
+  await page.getByRole('menu', { name: 'Check-in for Aisha Rahman' }).getByRole('menuitem', { name: 'Review with Aisha Rahman…' }).click()
+
+  await expect(personDeck(page).getByTestId('review-position')).toHaveText('1 of 2')
+  await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
+  // On top of the task dialog, which waits underneath.
+  await expect(taskDialog).toBeVisible()
+  const onTop = await personDeck(page).evaluate((el) => {
+    const r = el.getBoundingClientRect()
+    const top = document.elementFromPoint(r.left + r.width / 2, r.top + 20)
+    return !!top && el.contains(top)
+  })
+  expect(onTop).toBe(true)
+
+  await page.keyboard.press('Escape')
+  await expect(personDeck(page)).toHaveCount(0)
+  await expect(taskDialog).toBeVisible()
+  await expect(envelope).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(taskDialog).toHaveCount(0)
 })
