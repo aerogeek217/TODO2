@@ -30,7 +30,7 @@ const SEED: WorkspaceSeed = {
 }
 
 /** The Number of `metric` (its tab's id). */
-const tile = (page: Page, metric: string) => page.locator(`[data-glance-tab="${metric}"] [data-number-metric]`)
+const tile = (page: Page, metric: string) => page.locator(`[data-glance-tab="${metric}"] [data-number]`)
 const tileCount = (page: Page, metric: string) => tile(page, metric).getByTestId('number-count')
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
 const dialogRow = (page: Page, title: string) => dialog(page).locator('[data-todo-id]').filter({ hasText: title })

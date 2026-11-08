@@ -4,7 +4,7 @@ import { pickSplit, seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './f
 /**
  * The glance widgets (D25 N) in a real browser: a Number and a Created vs
  * completed cell added from the grouped add-widget buttons; the Number's
- * metric set from its tab menu; a Number's click opening the task dialog;
+ * editor opening as it is added, and again from its tab menu; a Number's click opening the task dialog;
  * a row widget's rows selecting in its own scope with its bulk bar.
  */
 
@@ -19,9 +19,10 @@ const TASKS: WorkspaceSeed['tasks'] = [
 ]
 
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
-const number = (page: Page) => page.locator('[data-glance="number"] [data-number-metric]')
+const number = (page: Page) => page.locator('[data-glance="number"] [data-number]')
+const editor = (page: Page) => page.locator('[data-number-editor]')
 
-test('a Number and a Created vs completed cell come from the grouped add-widget buttons; the Number’s menu sets its metric; a click opens its tasks', async ({ page }) => {
+test('a Number and a Created vs completed cell come from the grouped add-widget buttons; the Number’s editor sets its filter; a click opens its tasks', async ({ page }) => {
   await seedWorkspace(page, {
     tasks: TASKS,
     listDefinitions: [{ name: 'Everything' }],
@@ -38,9 +39,14 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await expect(empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Notes' })).toBeVisible()
   await expect(empty.getByRole('group', { name: 'Numbers & charts' }).getByRole('button', { name: 'Calendar' })).toBeVisible()
   await empty.getByRole('group', { name: 'Numbers & charts' }).getByRole('button', { name: 'Number', exact: true }).click()
-  await expect(number(page)).toHaveAttribute('data-number-metric', 'overdue')
-  await expect(number(page).getByTestId('number-count')).toHaveText('2')
-  await expect(number(page)).toHaveAttribute('data-lit', 'true')
+  // A new Number counts every open task, its editor open beside it, its name focused.
+  await expect(number(page).getByTestId('number-count')).toHaveText('4')
+  await expect(number(page)).not.toHaveAttribute('data-lit', 'true')
+  await expect(editor(page)).toBeVisible()
+  await expect(editor(page).getByRole('textbox', { name: 'Name' })).toBeFocused()
+  await expect(editor(page).getByRole('textbox', { name: 'Name' })).toHaveValue('Open')
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
 
   // And Created vs completed below it.
   const numberCell = page.locator('[data-ws-cell]').filter({ has: page.locator('[data-glance="number"]') })
@@ -53,23 +59,41 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await expect(page.locator('[data-glance="trend"] [data-glance-section="trend"]')).toBeVisible()
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
 
-  // The Number's tab menu: Metric › Open — the tab reads its metric, the count follows.
+  // The Number's tab menu: Edit number… — the filter set as an expression, the name, when it lights.
   const numberTab = numberCell.getByRole('tab')
-  await expect(numberTab).toContainText('Overdue')
+  await expect(numberTab).toContainText('Open')
   // A lone Number is headless: its strip slides in on hover.
   await expect(numberCell).toHaveAttribute('data-headless', 'true')
   await numberCell.hover()
   await numberTab.click({ button: 'right' })
   const menu = page.getByRole('menu', { name: 'Change widget' })
-  await menu.getByRole('menuitem', { name: /^Metric/ }).click()
-  await page.getByRole('menuitemradio', { name: 'Open', exact: true }).click()
-  await expect(number(page)).toHaveAttribute('data-number-metric', 'open')
+  await menu.getByRole('menuitem', { name: 'Edit number…' }).click()
+  await expect(editor(page)).toBeVisible()
+  await editor(page).getByRole('textbox', { name: 'Name' }).fill('Late')
+  await editor(page).getByRole('radiogroup', { name: 'Filter mode' }).getByRole('radio', { name: 'Expression' }).click()
+  const field = editor(page).getByRole('textbox', { name: 'Filter expression' })
+  await field.fill('overdue')
+  await field.press('Enter')
+  await expect(number(page).getByTestId('number-count')).toHaveText('2')
+  await editor(page).getByRole('combobox', { name: 'Light up when' }).selectOption('above')
+  await expect(number(page)).toHaveAttribute('data-lit', 'true')
+  await editor(page).getByRole('button', { name: 'Close' }).click()
+  await expect(editor(page)).toHaveCount(0)
+  await expect(numberTab).toContainText('Late')
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  // The filter back to none for the rest: every open task.
+  await numberCell.hover()
+  await numberTab.click({ button: 'right' })
+  await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Edit number…' }).click()
+  await field.fill('')
+  await field.press('Enter')
   await expect(number(page).getByTestId('number-count')).toHaveText('4')
-  await expect(numberTab).toContainText('Open')
+  await page.keyboard.press('Escape')
+  await expect(editor(page)).toHaveCount(0)
   // In its fit row it shows its small face (label and count, D25 R); its full widget,
   // opened from the keyboard, has Open's 14 days.
   await expect(number(page)).not.toContainText('in the last 14 days')
-  await numberCell.getByRole('button', { name: 'Open Open' }).focus()
+  await numberCell.getByRole('button', { name: 'Open Late' }).focus()
   await page.keyboard.press('Enter')
   const full = page.getByTestId('widget-face-popover')
   await expect(full.locator('[data-sparkline]')).toBeVisible()
@@ -78,6 +102,6 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
 
   // A click opens its tasks.
   await number(page).click()
-  await expect(dialog(page).getByRole('heading')).toHaveText('Open tasks')
+  await expect(dialog(page).getByRole('heading')).toHaveText('Late')
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(4)
 })

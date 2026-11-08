@@ -352,14 +352,14 @@ test('the offline file requests nothing through the glance widgets and the Negle
 
   // A Number: its small face, its full widget in the popover, its tasks.
   const numberCell = wsCell(page, 'kn')
-  await expect(numberCell.locator('[data-number-metric="open"]').getByTestId('number-count')).toHaveText('4')
+  await expect(numberCell.locator('[data-number="num"]').getByTestId('number-count')).toHaveText('4')
   await numberCell.getByRole('button', { name: 'Open Open' }).focus()
   await page.keyboard.press('Enter')
   const full = page.getByTestId('widget-face-popover')
   await expect(full.locator('[data-sparkline]')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(full).toHaveCount(0)
-  await numberCell.locator('[data-number-metric="open"]').click()
+  await numberCell.locator('[data-number="num"]').click()
   await expect(taskDialog.getByRole('heading')).toHaveText('Open tasks')
   await page.keyboard.press('Escape')
   await expect(taskDialog).toBeHidden()
