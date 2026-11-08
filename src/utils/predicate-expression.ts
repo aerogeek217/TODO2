@@ -16,11 +16,6 @@ import { withNormalizedNegation } from './filter-negation'
  * - `asExpression` / `asGraphical` — the editor's switch.
  */
 
-/** Whether `p` is written as an expression. */
-export function isExpressionPredicate(p: Pick<TodoPredicate, 'expression'>): boolean {
-  return p.expression != null
-}
-
 /** `p` with no clause of its own (Show completed and the rest kept). */
 function withoutClauses<T extends TodoPredicate>(p: T): T {
   const { negate: _negate, ...rest } = p

@@ -10,8 +10,6 @@
  */
 export type WidgetFace = 'small' | 'medium' | 'large'
 
-export const WIDGET_FACES: readonly WidgetFace[] = ['small', 'medium', 'large']
-
 /** A body this tall or shorter shows the small face. */
 export const SMALL_FACE_MAX_HEIGHT_PX = 90
 /** A body this narrow or narrower shows the small face. */
