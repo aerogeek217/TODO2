@@ -98,25 +98,28 @@ describe('computeChanges', () => {
     })
   })
 
-  describe('follow-ups due against yesterday', () => {
+  describe('follow-ups due', () => {
     const fu = (id: number, next: Date | undefined, last?: Date) => task({ id, nextFollowupAt: next, lastFollowupAt: last })
 
-    it('holding: as many due as were (late now + followed up today)', () => {
-      const tasks = [fu(1, day(-2)), fu(2, today), fu(3, day(7), today)]
-      expect(of(computeChanges(tasks, [], ctxWith(), []), 'followups')?.text).toBe('Follow-ups due are holding at 2.')
+    it('how many are due today or late, and how many of them are late; no comparison with yesterday', () => {
+      const tasks = [fu(1, day(-2)), fu(2, today), fu(3, today), fu(4, day(7), today)]
+      const c = of(computeChanges(tasks, [], ctxWith(), []), 'followups')
+      expect(c?.text).toBe('3 follow-ups are due (1 late).')
+      expect(drillIds(c)).toEqual([1, 2, 3])
+      expect(of(computeChanges([fu(1, today)], [], ctxWith(), []), 'followups')?.text).toBe('1 follow-up is due.')
     })
 
-    it('growing and falling', () => {
-      expect(of(computeChanges([fu(1, day(-2)), fu(2, today), fu(3, today)], [], ctxWith(), []), 'followups')?.text)
-        .toBe('Follow-ups due grew to 3, 2 more than yesterday.')
-      expect(of(computeChanges([fu(1, day(-2)), fu(2, day(3), today), fu(3, day(3), today)], [], ctxWith(), []), 'followups')?.text)
-        .toBe('Follow-ups due fell to 1, 2 fewer than yesterday.')
+    it('the sentence doesn’t move through the day: following up today’s or completing a late one only lowers the count', () => {
+      // Morning: 2 late, 1 due today.
+      const morning = [fu(1, day(-2)), fu(2, day(-1)), fu(3, today)]
+      expect(of(computeChanges(morning, [], ctxWith(), []), 'followups')?.text).toBe('3 follow-ups are due (2 late).')
+      // Today's followed up, a late one completed.
+      const evening = [fu(1, day(-2)), task({ id: 2, nextFollowupAt: day(-1), isCompleted: true, completedAt: day(0, 15) }), fu(3, day(7), today)]
+      expect(of(computeChanges(evening, [], ctxWith(), []), 'followups')?.text).toBe('1 follow-up is due (1 late).')
     })
 
-    it('none due now, some yesterday: says so, nothing to open; none either day: no sentence', () => {
-      const c = of(computeChanges([fu(1, day(3), today)], [], ctxWith(), []), 'followups')
-      expect(c?.text).toBe('No follow-ups are due, down from 1 yesterday.')
-      expect(c?.drill).toBeNull()
+    it('none due: no sentence, even after following some up today', () => {
+      expect(of(computeChanges([fu(1, day(3), today)], [], ctxWith(), []), 'followups')).toBeUndefined()
       expect(of(computeChanges([fu(1, day(3))], [], ctxWith(), []), 'followups')).toBeUndefined()
     })
   })

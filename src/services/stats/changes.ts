@@ -12,7 +12,7 @@ import { eventsByTask, taskReplay, type TaskEvents } from './task-history'
  * no AI — over the tasks, their `todoEvents` and today, in a fixed order:
  *
  * 1. `late` — how many went late since yesterday.
- * 2. `followups` — the follow-ups due, against yesterday.
+ * 2. `followups` — how many follow-ups are due, and how many of them are late.
  * 3. `tag` — the picked tag with the most late tasks.
  * 4. `status` — a status that has held tasks unchanged for 3+ weeks.
  * 5. `dueToday` — how many are due today.
@@ -112,27 +112,16 @@ export function computeChanges(
     })
   }
 
-  // 2. Follow-ups due (today or late) against yesterday's end. Follow-up dates
-  // aren't logged: yesterday's were the late ones now and the ones followed up today.
+  // 2. Follow-ups due (today or late), and how many of them are late. Follow-up
+  // dates aren't logged, so yesterday's count isn't known: no comparison.
   const due = open.filter((t) => (daysUntil(t.nextFollowupAt, today) ?? 1) <= 0)
-  const dueIds = new Set(due.map((t) => t.id))
   const lateFollowups = due.filter((t) => (daysUntil(t.nextFollowupAt, today) ?? 0) < 0).length
-  const followedToday = open.filter((t) => !dueIds.has(t.id) && daysUntil(t.lastFollowupAt, today) === 0).length
-  const nowDue = due.length
-  const wasDue = lateFollowups + followedToday
-  if (nowDue > 0 || wasDue > 0) {
-    const diff = nowDue - wasDue
-    const text = nowDue === 0
-      ? `No follow-ups are due, down from ${wasDue} yesterday.`
-      : diff > 0
-        ? `Follow-ups due grew to ${nowDue}, ${diff} more than yesterday.`
-        : diff < 0
-          ? `Follow-ups due fell to ${nowDue}, ${-diff} fewer than yesterday.`
-          : `Follow-ups due are holding at ${nowDue}.`
+  if (due.length > 0) {
+    const n = due.length
     out.push({
       id: 'followups',
-      text,
-      drill: nowDue === 0 ? null : {
+      text: `${n === 1 ? '1 follow-up is' : `${n} follow-ups are`} due${lateFollowups > 0 ? ` (${lateFollowups} late)` : ''}.`,
+      drill: {
         title: 'Follow-ups due',
         glyph: 'followup',
         description: 'Open tasks whose next follow-up is today or earlier.',
