@@ -1,6 +1,6 @@
 import { emptyFilterClauses, type FilterClauses, type TodoPredicate } from '../models/filter-predicate'
-import type { FilterExpr } from '../models/filter-expression'
-import { expressionToClauses, splitTopLevel, wholeExpression } from './filter-expression'
+import { EXPRESSION_NODES_MAX, type FilterExpr } from '../models/filter-expression'
+import { expressionSize, expressionToClauses, splitTopLevel, wholeExpression } from './filter-expression'
 import { withNormalizedNegation } from './filter-negation'
 
 /**
@@ -46,9 +46,12 @@ export function expressionRest(p: Pick<TodoPredicate, 'expression'>): FilterExpr
  * `p` written as an expression: everything it narrows by — its clauses and
  * expression — as one tree; Show completed kept. A predicate
  * that narrows by nothing has no expression (it is "every task" either way).
+ * Null past `EXPRESSION_NODES_MAX` nodes (a chip of thousands of values):
+ * the switch refuses it, as no expression that size is read back.
  */
-export function asExpression<T extends TodoPredicate>(p: T): T {
+export function asExpression<T extends TodoPredicate>(p: T): T | null {
   const expression = wholeExpression(p)
+  if (expression && expressionSize(expression) > EXPRESSION_NODES_MAX) return null
   const out = withoutClauses(p)
   if (expression) return { ...out, expression }
   const { expression: _expression, ...plain } = out

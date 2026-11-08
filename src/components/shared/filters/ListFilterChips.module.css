@@ -252,6 +252,7 @@
 
 .modeRow {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
 }
@@ -298,6 +299,13 @@
 
 .modeHelp:hover {
   color: var(--color-text-primary);
+}
+
+/* The switch to Expression refused (a filter past the expression caps), beside the switch. */
+.modeRefusal {
+  min-width: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-danger-text);
 }
 
 /* Graphical over an expression no chips say. */

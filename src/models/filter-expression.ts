@@ -35,11 +35,16 @@ export type FilterAtomKind = FilterAtom['kind']
 /** The atoms that name an entity by id. */
 export type IdAtomKind = 'person' | 'tag' | 'status'
 
-/** Most nodes an expression holds (atoms and operators). */
-export const EXPRESSION_NODES_MAX = 200
+/**
+ * Most nodes an expression holds (atoms and operators) — one cap for what
+ * the editor writes, the Graphical → Expression switch makes (it refuses
+ * past it), v75 converted and a stored one reads (cr33 M1: the read's old
+ * cap of 200 dropped what v75 and the switch wrote past it).
+ */
+export const EXPRESSION_NODES_MAX = 2000
 
 /** Deepest nesting an expression holds (the root is depth 1). */
 export const EXPRESSION_DEPTH_MAX = 12
 
-/** Longest text an expression's source may be (what the editor accepts). */
-export const EXPRESSION_TEXT_MAX = 2000
+/** Longest text an expression's source may be (what the editor accepts; room for `EXPRESSION_NODES_MAX` nodes). */
+export const EXPRESSION_TEXT_MAX = 20_000

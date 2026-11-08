@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { useState } from 'react'
-import { PredicateChips } from '../../../../components/shared/filters/PredicateChips'
+import { PredicateChips, SWITCH_REFUSED } from '../../../../components/shared/filters/PredicateChips'
 import { EXPRESSION_WRITE_MS } from '../../../../hooks/use-expression-field'
-import { emptyPredicate, type FilterExpr, type TodoPredicate } from '../../../../models'
+import { EXPRESSION_NODES_MAX, emptyPredicate, type FilterExpr, type TodoPredicate } from '../../../../models'
 import { usePersonStore } from '../../../../stores/person-store'
 import { useStatusStore } from '../../../../stores/status-store'
 import { useTagStore } from '../../../../stores/tag-store'
@@ -92,6 +92,17 @@ describe('Graphical | Expression', () => {
     expect(log.at(-1)?.expression).toBeUndefined()
     expect(screen.queryByTestId('expression-locked')).toBeNull()
     expect(screen.getByRole('button', { name: /Filter/ })).toBeTruthy()
+  })
+
+  it('refuses to switch a filter past the expression cap: it stays Graphical, saying why (cr33 M1)', () => {
+    const log: TodoPredicate[] = []
+    const tags = Array.from({ length: EXPRESSION_NODES_MAX }, (_, i) => i + 1)
+    render(<Harness initial={{ ...emptyPredicate(), tags }} log={log} />)
+    fireEvent.click(mode('Expression'))
+    expect(log).toEqual([])
+    expect(mode('Graphical')).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByRole('textbox', { name: 'Filter expression' })).toBeNull()
+    expect(screen.getByRole('alert')).toHaveTextContent(SWITCH_REFUSED)
   })
 
   it('a filter put back to chips from outside (Revert, undo) shows them; one emptied stays in Expression', () => {

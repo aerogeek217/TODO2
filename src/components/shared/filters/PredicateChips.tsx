@@ -1,5 +1,5 @@
 import { Fragment, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import type { TodoPredicate } from '../../../models'
+import { EXPRESSION_TEXT_MAX, type TodoPredicate } from '../../../models'
 import type { DateField } from '../../../models/app-view'
 import { createPendingNotMemory, DatePendingNotContext } from './date-pending-not'
 import type { ListFilterField, PopoverPoint } from '../../../stores/list-widget-store'
@@ -102,6 +102,13 @@ export function PredicateChips(props: PredicateChipsProps) {
   }
   const names = useChipNames()
   const text = useMemo(() => expressionText(predicate, names), [predicate, names])
+  /** Why the switch to Expression was refused (until the filter or the mode changes). */
+  const [refusal, setRefusal] = useState<string | null>(null)
+  const [refusedFor, setRefusedFor] = useState(predicate)
+  if (refusedFor !== predicate) {
+    setRefusedFor(predicate)
+    setRefusal(null)
+  }
 
   if (layout !== 'stack') {
     if (!isExpression) return <GraphicalChips {...props} />
@@ -114,16 +121,23 @@ export function PredicateChips(props: PredicateChipsProps) {
   }
 
   const toGraphical = () => {
+    setRefusal(null)
     setMode('graphical')
     const graphical = asGraphical(predicate)
     if (graphical && graphical !== predicate) onChange(graphical)
   }
   const toExpression = () => {
-    setMode('expression')
     if (!isExpression) {
       const next = asExpression(predicate)
+      // Past the caps no expression reads back: stay Graphical, saying why.
+      if (!next || expressionText(next, names).length > EXPRESSION_TEXT_MAX) {
+        setRefusal(SWITCH_REFUSED)
+        return
+      }
       if (next.expression) onChange(next)
     }
+    setRefusal(null)
+    setMode('expression')
   }
   const allowPeople = !(omitFields ?? []).includes('people')
   let body: ReactNode
@@ -152,7 +166,7 @@ export function PredicateChips(props: PredicateChipsProps) {
   }
   return (
     <div className={styles.modeBlock}>
-      <FilterModeSwitch mode={mode} onGraphical={toGraphical} onExpression={toExpression} />
+      <FilterModeSwitch mode={mode} onGraphical={toGraphical} onExpression={toExpression} refusal={refusal} />
       {body}
     </div>
   )
@@ -160,10 +174,19 @@ export function PredicateChips(props: PredicateChipsProps) {
 
 type FilterMode = 'graphical' | 'expression'
 
+/** The switch to Expression refused: the filter is past what an expression holds (`EXPRESSION_NODES_MAX` / `EXPRESSION_TEXT_MAX`). */
+export const SWITCH_REFUSED = 'Too many values to write as an expression — it stays Graphical'
+
 const MODE_HELP = 'Graphical: a chip per field; every chip must match\nSeveral values in a chip: any of them\nExpression: or / not across fields, nested groups'
 
 /** Graphical | Expression, with what each is in a tooltip. */
-function FilterModeSwitch({ mode, onGraphical, onExpression }: { mode: FilterMode; onGraphical: () => void; onExpression: () => void }) {
+function FilterModeSwitch({ mode, onGraphical, onExpression, refusal }: {
+  mode: FilterMode
+  onGraphical: () => void
+  onExpression: () => void
+  /** Why the switch to Expression was refused; announced (the region is always there). */
+  refusal: string | null
+}) {
   const help = useTooltip(MODE_HELP)
   return (
     <div className={styles.modeRow}>
@@ -179,6 +202,7 @@ function FilterModeSwitch({ mode, onGraphical, onExpression }: { mode: FilterMod
         <InfoIcon size={14} />
       </button>
       {help.tooltip}
+      <span className={styles.modeRefusal} role="alert">{refusal}</span>
     </div>
   )
 }

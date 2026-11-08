@@ -162,6 +162,13 @@ describe('filter expressions — parse', () => {
     expect(!r.ok && [r.error.start, r.error.end]).toEqual([0, 4])
   })
 
+  it('refuses a text that nests too deep with an error, never a RangeError (cr33 S3)', () => {
+    expect(errorOf(`${'('.repeat(5000)}#q4${')'.repeat(5000)}`)).toBe('This nests too deep')
+    expect(errorOf(`${'not '.repeat(3000)}#q4`)).toBe('This nests too deep')
+    // Parentheses the normal form folds away are fine while they don't nest that deep.
+    expect(tree(`${'('.repeat(40)}#q4${')'.repeat(40)}`)).toEqual({ kind: 'tag', id: 1 })
+  })
+
   it('refuses people where a filter can’t name them', () => {
     const r = parse('@Aisha', false)
     expect(!r.ok && r.error.message).toBe('Leave people out')

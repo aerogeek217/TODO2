@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { upgradeV75 } from '../../data/upgrades/v75-filter-expressions'
 import { upgradeDataSet, type DataRow } from '../../data/schema-upgrades'
+import { pickPredicate } from '../../data/predicate-shape'
+import { expressionSize } from '../../utils/filter-expression'
 
 const EMPTY = { showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, markers: null, tags: null }
 const list = (predicate: Record<string, unknown>): DataRow => ({ id: 1, name: 'L', membership: { kind: 'custom', predicate } })
@@ -99,5 +101,25 @@ describe('v75 — filters Graphical can’t say become expressions', () => {
   it('runs as the registry’s step 75', () => {
     const out = upgradeDataSet({ listDefinitions: [list({ ...EMPTY, markers: [{ values: ['urgent'] }], orGroups: [{ ...EMPTY, personIds: [1] }] })] }, 74, 75)
     expect(predicateOf(out.listDefinitions).expression).toEqual({ kind: 'and', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'person', id: 1 }] })
+  })
+})
+
+describe('v75 output past the old 200-node read cap reads back (cr33 M1)', () => {
+  it('a v74 list with 199 ticked tags and two or groups keeps its whole filter through v75 and the read', () => {
+    const tags = Array.from({ length: 199 }, (_, i) => i + 1)
+    const before = { ...EMPTY, tags, orGroups: [{ ...EMPTY, statusIds: [1] }, { ...EMPTY, personIds: [2] }] }
+    const out = upgradeDataSet({ listDefinitions: [list(before)] }, 74, 77)
+    const stored = predicateOf(out.listDefinitions)
+    const read = pickPredicate(JSON.parse(JSON.stringify(stored)))
+    expect(read.fixes).toEqual([])
+    expect(expressionSize(read.predicate.expression!)).toBeGreaterThan(200)
+    expect(read.predicate.expression).toEqual({
+      kind: 'and',
+      items: [
+        { kind: 'or', items: tags.map((id) => ({ kind: 'tag', id })) },
+        { kind: 'status', id: 1 },
+        { kind: 'person', id: 2 },
+      ],
+    })
   })
 })

@@ -189,8 +189,17 @@ function fail(start: number, end: number, message: string, hint?: string): never
 
 const lower = (t: Lex | undefined) => (t?.kind === 'word' ? t.value.toLowerCase() : null)
 
+/**
+ * Deepest `(` / `not` nesting the text may have while it is read: far past
+ * `EXPRESSION_DEPTH_MAX` (normal form folds `((x))` and `not not x`), and
+ * well inside the call stack, so a long text of `(`s is an error, never a
+ * `RangeError`.
+ */
+const NESTING_MAX = 64
+
 class Parser {
   private pos = 0
+  private nesting = 0
   readonly spans: ExpressionSpan[] = []
 
   constructor(private readonly tokens: Lex[], private readonly opts: ExpressionParseOptions, private readonly length: number) {}
@@ -257,11 +266,20 @@ class Parser {
     return items.length === 1 ? (items[0] as Node) : { kind: 'and', items: items as FilterExpr[] }
   }
 
+  /** Into one more `(` / `not` (`NESTING_MAX`). */
+  private nest(t: Lex): void {
+    if (++this.nesting > NESTING_MAX) fail(t.start, t.end, 'This nests too deep', 'Fewer ( and not inside each other')
+  }
+
   private parseUnary(after?: Lex): Node {
     if (this.isWord('not')) {
       const op = this.next()
-      if (op) this.span(op, 'operator')
+      if (op) {
+        this.span(op, 'operator')
+        this.nest(op)
+      }
       const item = this.parseUnary(op)
+      this.nesting--
       if (item.kind === 'done') fail(item.start, item.end, 'done goes at the top level', 'Add “and done” to show completed tasks too')
       return { kind: 'not', item }
     }
@@ -281,7 +299,9 @@ class Parser {
           const close = this.next()
           fail(t.start, close?.end ?? t.end, 'Nothing between ( and )')
         }
+        this.nest(t)
         const inner = this.parseOr()
+        this.nesting--
         const close = this.next()
         if (close?.kind !== 'rparen') fail(t.start, t.end, 'Missing )', 'Close the ( that starts here')
         this.span(close, 'paren')
