@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { checkPredicateShape, pickPredicate, PREDICATE_ID_LIST_MAX, PREDICATE_SEARCH_TEXT_MAX } from '../../data/predicate-shape'
-import { MARKER_CLAUSES_MAX, emptyFilterClauses, emptyPredicate } from '../../models'
+import { EXPRESSION_DEPTH_MAX, EXPRESSION_NODES_MAX, MARKER_CLAUSES_MAX, emptyFilterClauses, emptyPredicate } from '../../models'
+import { prepareImport } from '../../data/import-pipeline'
+import { SCHEMA_VERSION_KEY } from '../../data/file-version'
+import { CURRENT_DB_VERSION } from '../../data/database'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import type { TodoPredicate } from '../../models/filter-predicate'
 
@@ -288,6 +291,55 @@ describe('pickPredicate', () => {
   it('keeps several Priority conditions as chips (Graphical repeats Priority, ANDed)', () => {
     const p = { ...emptyPredicate(), markers: [{ values: ['urgent' as const] }, { values: ['important' as const], not: true as const }] }
     expect(pickPredicate(p)).toEqual({ predicate: p, fixes: [] })
+  })
+})
+
+describe('stored expressions past the caps (cr33 M1, S3)', () => {
+  const tag = (id: number) => ({ kind: 'tag', id })
+  const withExpr = (expression: unknown) => ({ ...emptyPredicate(), expression })
+  const notChain = (depth: number): unknown => {
+    let deep: unknown = tag(1)
+    for (let i = 0; i < depth; i++) deep = { kind: 'not', item: deep }
+    return deep
+  }
+
+  it('reads one of EXPRESSION_NODES_MAX nodes, and drops one past it with a fix', () => {
+    const at = { kind: 'or', items: Array.from({ length: EXPRESSION_NODES_MAX - 1 }, (_, i) => tag(i + 1)) }
+    expect(pickPredicate(withExpr(at)).fixes).toEqual([])
+    const picked = pickPredicate(withExpr({ kind: 'and', items: [at, tag(1)] }))
+    expect(picked.fixes).toEqual(['expression dropped'])
+    expect(picked.predicate.expression).toBeUndefined()
+  })
+
+  it('refuses a deep one (a 20,000-deep not chain) with a fix, never a RangeError', () => {
+    const picked = pickPredicate(withExpr(notChain(20_000)))
+    expect(picked.fixes).toEqual(['expression dropped'])
+    expect(picked.predicate.expression).toBeUndefined()
+  })
+
+  it('refuses one past the depth cap before reading its leaves', () => {
+    let deep: unknown = { kind: 'bogus' }
+    for (let i = 0; i < EXPRESSION_DEPTH_MAX; i++) deep = { kind: 'and', items: [tag(1), deep] }
+    expect(pickPredicate(withExpr(deep)).fixes).toEqual(['expression dropped'])
+  })
+
+  it('refuses a very wide one (200 ands of 200 ands of 4 tags) with a fix, never a RangeError', () => {
+    const four = { kind: 'and', items: [tag(1), tag(2), tag(3), tag(4)] }
+    const mid = { kind: 'and', items: Array.from({ length: 200 }, () => four) }
+    const wide = { kind: 'and', items: Array.from({ length: 200 }, () => mid) }
+    expect(pickPredicate(withExpr(wide)).fixes).toEqual(['expression dropped'])
+  })
+
+  it('an import of a file holding a deep one goes on: that list loses its filter, with a warning', () => {
+    const file = {
+      [SCHEMA_VERSION_KEY]: CURRENT_DB_VERSION,
+      todos: [],
+      settings: [],
+      listDefinitions: [{ id: 1, name: 'Deep', sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: withExpr(notChain(20_000)) } }],
+    }
+    const result = prepareImport(file)
+    if (!result.ok) throw new Error(result.error)
+    expect(result.warnings.join(' ')).toContain('expression dropped')
   })
 })
 

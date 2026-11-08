@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { emptyPredicate, type FilterExpr, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../../models'
+import { EXPRESSION_NODES_MAX, emptyPredicate, type FilterExpr, type PersistedTodoItem, type Person, type Status, type Tag, type TodoPredicate } from '../../models'
 import type { ListDefinition } from '../../models/list-definition'
 import { admitsCompleted, predicateToCriteria } from '../../utils/filter-criteria'
 import { applyFilter, createPredicateEvaluator } from '../../utils/filter-match'
@@ -174,25 +174,39 @@ describe('an expression elsewhere', () => {
     expect([...refs.keys()]).toEqual([2])
   })
 
-  it('a check-in drops its terms that name a person or a Completed date', () => {
+  it('a check-in drops its terms that name a person, and folds a Completed date away where the term allows', () => {
     const filter = expr({ kind: 'and', items: [
       { kind: 'priority', value: 'focus' },
       { kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'tag', id: 1 }] },
-      { kind: 'date', field: 'completed', match: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } } },
+      { kind: 'or', items: [{ kind: 'tag', id: 2 }, { kind: 'date', field: 'completed', match: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } } }] },
     ] }, { showCompleted: true })
     expect(hasCompletedDateClause(filter)).toBe(true)
-    expect(checkinFilterOf(filter)).toEqual(expr({ kind: 'priority', value: 'focus' }))
+    expect(checkinFilterOf(filter)).toEqual(expr({ kind: 'and', items: [{ kind: 'priority', value: 'focus' }, { kind: 'tag', id: 2 }] }))
   })
 
   it('switches Graphical ↔ Expression', () => {
     const graphical: TodoPredicate = { ...emptyPredicate(), personIds: [1], statusIds: [2], negate: { statusIds: true }, showCompleted: true }
     const asExpr = asExpression(graphical)
+    if (!asExpr) throw new Error('refused')
     expect(asExpr.personIds).toBeNull()
     expect(asExpr.showCompleted).toBe(true)
     expect(asExpr.expression).toEqual({ kind: 'and', items: [{ kind: 'person', id: 1 }, { kind: 'not', item: { kind: 'status', id: 2 } }] })
     expect(predicatesEqual(asGraphical(asExpr) ?? emptyPredicate(), graphical)).toBe(true)
     expect(asGraphical(expr(RULE))).toBeNull()
     expect(withExpression(graphical, null).expression).toBeUndefined()
-    expect(asExpression(emptyPredicate()).expression).toBeUndefined()
+    expect(asExpression(emptyPredicate())?.expression).toBeUndefined()
+  })
+
+  it('refuses a switch past the expression cap, and writes one at the cap (cr33 M1)', () => {
+    // An or of n tags is n + 1 nodes.
+    const tags = (n: number): TodoPredicate => ({ ...emptyPredicate(), tags: Array.from({ length: n }, (_, i) => i + 1) })
+    expect(asExpression(tags(EXPRESSION_NODES_MAX - 1))?.expression).toBeDefined()
+    expect(asExpression(tags(EXPRESSION_NODES_MAX))).toBeNull()
+    // 250 tags — past the old cap of 200 — switch, and the written filter reads back whole.
+    const written = asExpression(tags(250))
+    if (!written) throw new Error('refused')
+    const read = pickPredicate(JSON.parse(JSON.stringify(written)))
+    expect(read.fixes).toEqual([])
+    expect(read.predicate.expression).toEqual(written.expression)
   })
 })

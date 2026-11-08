@@ -1,4 +1,5 @@
 import type { DataRow, DataSet } from '../schema-upgrades'
+import { idMinter } from './id-minter'
 
 /**
  * v77 — the Dashboard retires: every `dashboard` tab becomes the glance
@@ -168,21 +169,6 @@ function collectIds(node: unknown, into: Set<string>): void {
   if (!isRecord(node)) return
   if (typeof node.id === 'string') into.add(node.id)
   for (const [key, value] of Object.entries(node)) if (key !== 'id') collectIds(value, into)
-}
-
-/** Mints `<base><suffix>` (`_2`, `_3`, … after it when taken), unique against `taken` and every id it minted before. */
-function idMinter(taken: Set<string>): (base: unknown, suffix: string) => string {
-  return (base, suffix) => {
-    const stem = typeof base === 'string' && base !== '' ? base : 'part'
-    for (let n = 1; ; n++) {
-      const tail = n === 1 ? suffix : `${suffix}_${n}`
-      const id = `${stem.slice(0, MAX_ID_LEN - tail.length)}${tail}`
-      if (!taken.has(id)) {
-        taken.add(id)
-        return id
-      }
-    }
-  }
 }
 
 type Mint = ReturnType<typeof idMinter>
@@ -394,7 +380,7 @@ function upgradeLayout(row: DataRow): DataRow {
   if (!isRecord(row) || !holdsDashboard([row.columns, row.top, row.bottom])) return row
   const taken = new Set<string>()
   collectIds([row.columns, row.top, row.bottom], taken)
-  const mint = idMinter(taken)
+  const mint = idMinter(taken, MAX_ID_LEN, '_')
   let out: DataRow = row
   if (Array.isArray(row.columns)) {
     const columns = (row.columns as unknown[]).map((col) => upgradeColumn(col, mint))
