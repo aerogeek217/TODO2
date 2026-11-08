@@ -249,17 +249,23 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
 
   // The lens on this list, while one applies at the top bar: shown while
   // it hides something here, or while the list ignores it (so it can be
-  // turned back on).
+  // turned back on) — and, once used, for as long as that lens stays picked,
+  // so a click that leaves it nothing to hide doesn't take it from under the
+  // focus (U7).
   const lensName = screenFor.lens?.name
+  const lensId = screenFor.lens?.id
+  const [switchUsedFor, setSwitchUsedFor] = useState<string | null>(null)
+  const switchUsed = lensId != null && switchUsedFor === lensId
   const lensMark = useMemo<ListLensMark | undefined>(
-    () => (lensName != null && !runtimeFilterPending && (screenFor.ignoresLens || lensHides > 0)
+    () => (lensName != null && !runtimeFilterPending && (screenFor.ignoresLens || lensHides > 0 || switchUsed)
       ? { name: lensName, ignored: screenFor.ignoresLens, hides: lensHides }
       : undefined),
-    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides],
+    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides, switchUsed],
   )
   const toggleLens = useCallback(() => {
+    if (lensId != null) setSwitchUsedFor(lensId)
     void useListDefinitionStore.getState().setIgnoreLens(definition.id, !screenFor.ignoresLens)
-  }, [definition.id, screenFor.ignoresLens])
+  }, [definition.id, screenFor.ignoresLens, lensId])
 
   const onResultRef = useLatestRef(onResult)
   const tabCount = filterLineShown ? undefined : countLabel
