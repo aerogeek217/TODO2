@@ -8,8 +8,16 @@ import { registerModuleReset } from './module-reset'
  * `size` input sets are kept (two widgets with different options don't
  * evict each other). Inputs must be store values or other shared memos'
  * results: a fresh object per render never hits.
+ *
+ * `same` (optional): when a new input set computes a value `same` as the
+ * newest one kept, that kept value is returned again — so memos keyed on
+ * it still hit (an input changed that this result doesn't show).
  */
-export function sharedMemo<D extends readonly unknown[], T>(compute: (...deps: D) => T, size = 8): (...deps: D) => T {
+export function sharedMemo<D extends readonly unknown[], T>(
+  compute: (...deps: D) => T,
+  size = 8,
+  same?: (kept: T, next: T) => boolean,
+): (...deps: D) => T {
   let entries: Array<{ deps: D; value: T }> = []
   registerModuleReset(() => { entries = [] })
   return (...deps: D): T => {
@@ -19,8 +27,15 @@ export function sharedMemo<D extends readonly unknown[], T>(compute: (...deps: D
       if (entries[0] !== hit) entries = [hit, ...entries.filter((e) => e !== hit)]
       return hit.value
     }
-    const value = compute(...deps)
+    const computed = compute(...deps)
+    const newest = entries[0]
+    const value = newest && same?.(newest.value, computed) ? newest.value : computed
     entries = [{ deps, value }, ...entries].slice(0, size)
     return value
   }
+}
+
+/** Whether two arrays hold the same elements (by identity) in the same order. */
+export function sameElements<E>(a: readonly E[], b: readonly E[]): boolean {
+  return a.length === b.length && a.every((x, i) => Object.is(x, b[i]))
 }
