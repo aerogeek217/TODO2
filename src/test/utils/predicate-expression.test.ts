@@ -174,14 +174,14 @@ describe('an expression elsewhere', () => {
     expect([...refs.keys()]).toEqual([2])
   })
 
-  it('a check-in drops its terms that name a person or a Completed date', () => {
+  it('a check-in drops its terms that name a person, and folds a Completed date away where the term allows', () => {
     const filter = expr({ kind: 'and', items: [
       { kind: 'priority', value: 'focus' },
       { kind: 'or', items: [{ kind: 'person', id: 1 }, { kind: 'tag', id: 1 }] },
-      { kind: 'date', field: 'completed', match: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } } },
+      { kind: 'or', items: [{ kind: 'tag', id: 2 }, { kind: 'date', field: 'completed', match: { match: 'range', start: null, end: { kind: 'relative', token: 'today' } } }] },
     ] }, { showCompleted: true })
     expect(hasCompletedDateClause(filter)).toBe(true)
-    expect(checkinFilterOf(filter)).toEqual(expr({ kind: 'priority', value: 'focus' }))
+    expect(checkinFilterOf(filter)).toEqual(expr({ kind: 'and', items: [{ kind: 'priority', value: 'focus' }, { kind: 'tag', id: 2 }] }))
   })
 
   it('switches Graphical ↔ Expression', () => {
