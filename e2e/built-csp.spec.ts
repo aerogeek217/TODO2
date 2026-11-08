@@ -360,7 +360,7 @@ test('the offline file requests nothing through the glance widgets and the Negle
   await page.keyboard.press('Escape')
   await expect(full).toHaveCount(0)
   await numberCell.locator('[data-number="num"]').click()
-  await expect(taskDialog.getByRole('heading')).toHaveText('Open tasks')
+  await expect(taskDialog.getByRole('heading')).toHaveText('Open')
   await page.keyboard.press('Escape')
   await expect(taskDialog).toBeHidden()
 

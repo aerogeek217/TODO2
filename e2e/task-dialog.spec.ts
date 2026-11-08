@@ -44,9 +44,9 @@ test('a Number opens its tasks; a completed row stays, struck through, while the
 
   await tile(page, 'urgent').click()
   await expect(dialog(page)).toBeVisible()
-  await expect(dialog(page).getByRole('heading')).toHaveText('Urgent tasks')
+  await expect(dialog(page).getByRole('heading')).toHaveText('Urgent')
   await expect(dialog(page).getByTestId('task-dialog-count')).toHaveText('3')
-  await expect(dialog(page)).toContainText('Urgent = flagged urgent, or due within 3 days (Settings › Tasks).')
+  await expect(dialog(page)).toContainText('Open tasks where Priority Urgent.')
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(3)
 
   const outage = dialogRow(page, 'Fix checkout outage')

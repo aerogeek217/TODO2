@@ -1,4 +1,4 @@
-import { useEffect, useId, useState, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
   NUMBER_LIT_AT_MAX,
@@ -10,9 +10,11 @@ import {
 import type { NumberTab } from '../../../models/workspace-layout'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
+import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { isInLayerAbove } from '../../../utils/dom-layers'
 import { hasFilterClause } from '../../../utils/filter-clauses'
+import { getTab } from '../../../utils/workspace-layout-queries'
 import { ColorPicker } from '../../shared/ColorPicker'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { CloseIcon } from '../../shared/icons'
@@ -95,6 +97,51 @@ function LitAtField({ value, onChange, label }: { value: number; onChange: (n: n
       onBlur={() => setText(String(value))}
     />
   )
+}
+
+/** The Number tab `tabId` names in the open layout, if it is one. */
+function useNumberTab(tabId: string | null): NumberTab | undefined {
+  return useWorkspaceStore((s) => {
+    const tab = tabId != null && s.working ? getTab(s.working, tabId) : undefined
+    return tab?.kind === 'number' ? tab : undefined
+  })
+}
+
+/**
+ * The open Number editor (`ui-store.numberEditorTabId`), beside its
+ * Number's body (`[data-number-body]`, found on screen). Hosted by the
+ * workspace page, outside the widget tree, so no key or press in it reaches
+ * the cell's handlers (React events bubble through portals). It closes when
+ * the Number leaves the layout or the screen.
+ */
+export function NumberEditorHost() {
+  const tabId = useUIStore((s) => s.numberEditorTabId)
+  const tab = useNumberTab(tabId)
+  const close = useUIStore((s) => s.closeNumberEditor)
+  // The layout: a change (the tab made active, a row expanded) may bring the Number on screen.
+  const working = useWorkspaceStore((s) => s.working)
+  const anchorRef = useRef<HTMLElement | null>(null)
+  const [found, setFound] = useState<string | null>(null)
+  useLayoutEffect(() => {
+    if (!tab) return
+    // Looked for now, and over the next frames while the Number mounts (a new one, a tab just shown).
+    let frames = 0
+    let raf = 0
+    const look = () => {
+      const el = document.querySelector<HTMLElement>(`[data-number-body="${CSS.escape(tab.id)}"]`)
+      anchorRef.current = el
+      setFound(el ? tab.id : null)
+      if (!el && ++frames < 30) raf = requestAnimationFrame(look)
+    }
+    look()
+    return () => cancelAnimationFrame(raf)
+  }, [tab, working])
+  useEffect(() => {
+    if (tabId != null && !tab) close()
+  }, [tabId, tab, close])
+  useEffect(() => () => useUIStore.getState().closeNumberEditor(), [])
+  if (!tab || found !== tab.id) return null
+  return <NumberEditor key={tab.id} tab={tab} anchorRef={anchorRef} onClose={close} />
 }
 
 /**

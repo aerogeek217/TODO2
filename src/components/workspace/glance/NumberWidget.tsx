@@ -1,11 +1,10 @@
-import { useMemo, useRef, type MouseEvent } from 'react'
+import { useMemo, type MouseEvent } from 'react'
 import { DEFAULT_NUMBER_BREAKDOWN } from '../../../models/glance-widgets'
 import type { NumberTab } from '../../../models/workspace-layout'
 import { useNumberCount, useNumberHistory, useStatsBase } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { historyDelta } from '../../../services/stats/number-count'
 import { numberBreakdown, type BreakdownEntry } from '../../../services/stats/number-breakdown'
-import { useUIStore } from '../../../stores/ui-store'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { approximateNote, countOf, deltaLabel, numberDescription } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
@@ -13,7 +12,6 @@ import { numberLines } from './glance-summary'
 import { breakdownDrill, numberDrill } from './glance-drills'
 import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
-import { NumberEditor } from './NumberEditor'
 import { Sparkline } from './Sparkline'
 import { numberColors } from './number-colors'
 import styles from './NumberWidget.module.css'
@@ -79,7 +77,8 @@ function Breakdown({ entries, by, total, title, onDrill }: {
  * same day last week (`compare`); large draws it bigger and adds the
  * breakdown its config picks (by person or tag). Lit in its colour while
  * its count crosses its threshold (D18, `litWhen`). A click opens its
- * tasks, at every face. Its editor (Edit number…) opens beside it.
+ * tasks, at every face. Its editor (Edit number…, `NumberEditorHost`)
+ * opens beside its body (`data-number-body`).
  */
 export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
   const config = tab.config
@@ -89,8 +88,6 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
   const history = useNumberHistory(base, count)
   const names = useChipNames()
   const [faceRef, face] = useWidgetFace()
-  const editing = useUIStore((s) => s.numberEditorTabId === tab.id)
-  const anchorRef = useRef<HTMLDivElement>(null)
 
   const name = config.name.trim() || 'Number'
   const shownIds = count.ids.shown
@@ -150,7 +147,7 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
   }
   return (
     <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
-      <div ref={anchorRef} className={`${styles.body}${large && breakdown.length > 0 ? ` ${styles.bodyWithBreakdown}` : ''}`}>
+      <div data-number-body={tab.id} className={`${styles.body}${large && breakdown.length > 0 ? ` ${styles.bodyWithBreakdown}` : ''}`}>
         {drill ? (
           <button type="button" {...common} aria-label={`${label} Show tasks`} onClick={open}>
             {content}
@@ -160,7 +157,6 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
         )}
         {large && breakdownBy !== 'none' && <Breakdown entries={breakdown} by={breakdownBy} total={shown} title={name} onDrill={drill} />}
       </div>
-      {editing && <NumberEditor tab={tab} anchorRef={anchorRef} onClose={() => useUIStore.getState().closeNumberEditor()} />}
     </GlanceFrame>
   )
 }

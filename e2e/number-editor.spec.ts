@@ -46,7 +46,7 @@ test('add a Number, type a filter, see its count and its tasks', async ({ page }
   await field.press('Enter')
   await expect(number(page).getByTestId('number-count')).toHaveText('2')
   // Reads as the chips it holds.
-  await expect(editor(page)).toContainText('Reads as')
+  await expect(editor(page)).toContainText('KeepTags Project: Atlas')
   await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')

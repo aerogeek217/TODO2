@@ -19,7 +19,9 @@ import { trendEventsKey, useTrendEventsStore } from '../../../stores/trend-event
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
-import { numberTab } from '../../helpers/layout-builders'
+import { numberTab, single } from '../../helpers/layout-builders'
+import { NumberEditorHost } from '../../../components/workspace/glance/NumberEditor'
+import type { PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { WidgetFace } from '../../../utils/widget-face'
 import {
@@ -186,11 +188,35 @@ describe('Number widget', () => {
     expect(lastResult?.summary.plain).toMatch(/^Overdue 2\n([+−]\d+|No change) vs yesterday$/)
   })
 
-  it('Edit number… opens its editor beside it', () => {
-    setup(numberTab('n', 'overdue'))
+  it('Edit number… opens its editor beside it; its controls write the tab’s config', () => {
+    const tab = numberTab('n', 'overdue')
+    const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [tab] }) }
+    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
+    render(<DndContext><GlanceWidget tab={tab} /><NumberEditorHost /></DndContext>)
     expect(document.querySelector('[data-number-editor]')).toBeNull()
     act(() => { useUIStore.getState().openNumberEditor('n') })
-    expect(document.querySelector('[data-number-editor="n"]')).not.toBeNull()
+    const editor = document.querySelector<HTMLElement>('[data-number-editor="n"]')!
+    expect(editor).not.toBeNull()
+    expect(within(editor).getByRole('textbox', { name: 'Name' })).toHaveValue('Overdue')
+    fireEvent.change(within(editor).getByRole('textbox', { name: 'Name' }), { target: { value: 'Late' } })
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Compare with' }), { target: { value: 'lastWeek' } })
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Top-bar lens' }), { target: { value: 'ignore' } })
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Light up when' }), { target: { value: 'below' } })
+    fireEvent.change(within(editor).getByRole('spinbutton', { name: 'Light up when below' }), { target: { value: '7' } })
+    fireEvent.click(within(editor).getByRole('radio', { name: /^Auto/ }))
+    const config = (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as typeof tab).config
+    expect(config).toMatchObject({ name: 'Late', compare: 'lastWeek', ignoreLens: true, litWhen: 'below', litAt: 7 })
+    expect(config).not.toHaveProperty('color')
+    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    // Never drops the threshold; Follow drops ignoreLens.
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Light up when' }), { target: { value: 'never' } })
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Top-bar lens' }), { target: { value: 'follow' } })
+    const after = (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as typeof tab).config
+    expect(after).not.toHaveProperty('litAt')
+    expect(after).not.toHaveProperty('ignoreLens')
+    // ×: closed.
+    fireEvent.click(within(editor).getByRole('button', { name: 'Close' }))
+    expect(document.querySelector('[data-number-editor]')).toBeNull()
   })
 })
 
