@@ -342,6 +342,8 @@ describe('MobileTaskRow', () => {
     it('shows the priority as the ring on the checkbox, named (none without one or once completed)', () => {
       const { unmount } = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo' })} />)
       expect(document.querySelector('[data-priority-ring]')).toBeNull()
+      // No ring, still named (cr33 U14).
+      expect(screen.getByRole('img', { name: 'No priority' })).toBeInTheDocument()
       unmount()
       const second = render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', focus: true })} />)
       // Focus alone: the glow (named), no ring.
@@ -357,6 +359,7 @@ describe('MobileTaskRow', () => {
       third.unmount()
       render(<MobileTaskRow todo={makeTodo({ id: 1, title: 'Foo', urgent: true, isCompleted: true })} />)
       expect(document.querySelector('[data-priority-ring]')).toBeNull()
+      expect(screen.getByRole('img', { name: 'Priority: Urgent' })).toBeInTheDocument()
     })
 
     it('rolls its due date over at midnight without new props (cr33 M10)', () => {

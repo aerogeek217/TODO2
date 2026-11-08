@@ -100,6 +100,21 @@ describe('PriorityRing (D25 B)', () => {
     cleanup()
     expect(ring({ urgent: 'flag' }).svg).toHaveAttribute('aria-hidden', 'true')
   })
+
+  it('a label with nothing to draw still names it: no priority, a completed task (cr33 U14)', () => {
+    cleanup()
+    render(<PriorityRing summary={NONE} completed={false} size={20} label="No priority" />)
+    expect(screen.getByRole('img', { name: 'No priority' })).toBeEmptyDOMElement()
+    expect(document.querySelector('[data-priority-ring], [data-focus-glow]')).toBeNull()
+    cleanup()
+    render(<PriorityRing summary={{ ...NONE, urgent: 'flag', focus: true }} completed size={20} label="Priority: Focus, Urgent" />)
+    expect(screen.getByRole('img', { name: 'Priority: Focus, Urgent' })).toBeEmptyDOMElement()
+    expect(document.querySelector('[data-priority-ring], [data-focus-glow]')).toBeNull()
+    cleanup()
+    // Unlabelled, nothing at all.
+    const { container } = render(<PriorityRing summary={NONE} completed={false} size={18} />)
+    expect(container).toBeEmptyDOMElement()
+  })
 })
 
 describe('priorityRing', () => {
