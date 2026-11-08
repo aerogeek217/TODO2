@@ -201,6 +201,36 @@ test('Lines: a right-click opens the task menu at the pointer; Add tag… opens 
   await page.keyboard.press('Escape')
 })
 
+test('Lines from the keyboard: Tab reaches a line, Shift+F10 opens its task menu under it, Esc puts the focus back; Enter opens it (cr33 U4)', async ({ page }) => {
+  await open(page, { zoom: 'lines' })
+  const alpha = rowOf(page, 'Alpha').locator('[data-task-line]')
+  const bravo = rowOf(page, 'Bravo').locator('[data-task-line]')
+  await alpha.focus()
+  await page.keyboard.press('Tab')
+  await expect(bravo).toBeFocused()
+  // The focused line's tooltip carries the full date (cr33 U8).
+  await expect(page.getByRole('tooltip')).toContainText(/Due \w{3} \d{1,2} \w{3} \(late\)/)
+  await page.keyboard.press('Shift+F10')
+  const menu = page.getByRole('menu', { name: 'Task actions' })
+  await expect(menu).toBeVisible()
+  // Under the line (or flipped above it), from its start.
+  const l = await box(bravo)
+  const m = await box(menu)
+  expect(m.y >= l.y + l.height - 1 || m.y + m.height <= l.y + 1).toBe(true)
+  expect(Math.abs(m.x - l.x)).toBeLessThanOrEqual(12)
+  await expect(menu.getByRole('menuitem', { name: 'Open' })).toBeFocused()
+  // No native menu instead: the page's own menu is the only one, and its keys work.
+  await page.keyboard.press('ArrowDown')
+  await expect(menu.getByRole('menuitem', { name: 'Open' })).not.toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await expect(bravo).toBeFocused()
+  await page.keyboard.press('Enter')
+  const editor = page.getByRole('dialog', { name: 'Edit task' })
+  await expect(editor).toBeVisible()
+  await expect(editor.getByRole('textbox').first()).toHaveValue('Bravo')
+})
+
 for (const theme of ['dark', 'light'] as const) {
   test(`Lines (${theme}): a plain task's box has a visible neutral border, a stale one's fill is plainly dimmer`, async ({ page }) => {
     const ago = new Date(Date.now() - 40 * 86_400_000)

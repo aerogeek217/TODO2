@@ -7,6 +7,7 @@ import { makeTodo, resetEntityStores } from '../helpers'
 /**
  * A Lines row on its own: its day rolling over at midnight (cr33 M10), the
  * keyboard's way to its task menu (U4) and its tooltip's full dates (U8).
+ * The real browser's focus and Shift+F10 are `e2e/list-zoom.spec.ts`'s.
  */
 
 const line = () => document.querySelector<HTMLElement>('[data-task-line]')!
@@ -34,6 +35,30 @@ describe('TaskLine', () => {
     expect(line()).toHaveAttribute('data-tone', 'late')
     expect(lineDate()).toHaveTextContent('04/16')
     expect(lineDate()).toHaveAttribute('data-date-tone', 'late')
+  })
+
+  it('is a tab stop; the context-menu key on it opens the task menu under it, Esc hands the focus back (cr33 U4)', () => {
+    render(<TaskLine todo={makeTodo({ id: 1, title: 'Keyed' })} />)
+    expect(line()).toHaveAttribute('tabindex', '0')
+    line().focus()
+    // From the keyboard: no right button (Chromium reports -1), the event on the focused line.
+    fireEvent.contextMenu(line(), { button: -1 })
+    const menu = screen.getByRole('menu', { name: 'Task actions' })
+    expect(menu).toContainElement(document.activeElement as HTMLElement)
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(line()).toHaveFocus()
+  })
+
+  it('Enter on the focused line opens it, as a click does', () => {
+    const onSelect = vi.fn()
+    const onOpenDetail = vi.fn()
+    render(<TaskLine todo={makeTodo({ id: 4, title: 'Enter me' })} onSelect={onSelect} onOpenDetail={onOpenDetail} />)
+    fireEvent.keyDown(line(), { key: 'Enter' })
+    expect(onSelect).toHaveBeenCalledWith(4, { shift: false, ctrl: false })
+    expect(onOpenDetail).toHaveBeenCalledWith(4)
+    fireEvent.keyDown(line(), { key: 'Enter', shiftKey: true })
+    expect(onOpenDetail).toHaveBeenCalledOnce()
   })
 
   it('its tooltip gives each date in full with its year (cr33 U8)', () => {
