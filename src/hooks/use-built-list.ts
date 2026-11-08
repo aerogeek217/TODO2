@@ -177,10 +177,23 @@ export function useBuiltList(
     // Completed range of the chips, the lens's own) — so `of M` never grows with the whole history.
     const screenAdmits = screenFilter && admitsCompleted(screenFilter) ? admitsCompletedTask(screenFilter, lookups, today, markerSettings) : null
     const gateOpen = mergedPredicate && !mergedPredicate.showCompleted ? { ...mergedPredicate, showCompleted: true } : mergedPredicate
-    const inBase = (t: PersistedTodoItem): boolean => mergedPredicate != null && (
-      listOnly(mergedPredicate, t)
-      || (t.isCompleted && screenAdmits != null && gateOpen != null && screenAdmits(t) && listOnly(gateOpen, t)))
-    const baseCount = screenFilter ? countMatching(todos, inBase) : list.todos.length
+    let baseCount = list.todos.length
+    // The open part of `baseCount`: the list's open tasks with no screen filter (a `lensHides` side).
+    let baseOpen: number | null = null
+    if (screenFilter) {
+      baseCount = 0
+      baseOpen = 0
+      if (mergedPredicate) {
+        for (const t of todos) {
+          if (listOnly(mergedPredicate, t)) {
+            baseCount++
+            if (!t.isCompleted) baseOpen++
+          } else if (t.isCompleted && screenAdmits && gateOpen && screenAdmits(t) && listOnly(gateOpen, t)) {
+            baseCount++
+          }
+        }
+      }
+    }
     const ownPredicate = definition.membership.predicate
     const orderCandidates = () => {
       const shown = new Set(list.todos.map((t) => t.id))
@@ -190,7 +203,12 @@ export function useBuiltList(
     // What the lens hides here, of open tasks only — the picker's and the counter's rule.
     let lensHides = 0
     if (lensProbe && mergedPredicate) {
+      const builtOpen = kept.size === 0 ? countMatching(list.todos, (t) => !t.isCompleted) : null
+      // Each side read from a pass already made where it can be (U11): the build ran under
+      // `screenFilter` (`useListScreenFilter` hands the probe the same object), `baseCount` under none.
       const openUnder = (screen: FilterCriteria | undefined): number => {
+        if (screen === screenFilter && builtOpen != null) return builtOpen
+        if (screen === undefined && baseOpen != null) return baseOpen
         const match = screen ? createScreenComposedEvaluator(screen, lookups, today, markerSettings) : listOnly
         return countMatching(todos, (t) => !t.isCompleted && match(mergedPredicate, t))
       }

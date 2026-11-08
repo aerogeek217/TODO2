@@ -116,6 +116,36 @@ describe('a list’s counts agree with the top bar’s counter', () => {
     expect(counter(filters, ALICE_LENS)).toEqual({ total: TASKS.length, hides: 2, picker: 2 })
   })
 
+  it('the counts read from the passes already made are the ones a fresh scan gives (U11)', () => {
+    const chips: FilterCriteria = { ...emptyFilterCriteria, searchText: 'Task' }
+    const cases: Array<[FilterCriteria | undefined, Lens]> = [[undefined, ALICE_LENS], [chips, ALICE_LENS], [undefined, DONE_WEEK], [chips, DONE_WEEK]]
+    for (const [c, lens] of cases) {
+      const { filters, probe } = screenFor(c, lens)
+      // A probe of copies: nothing shared with `filters`, so every side is scanned afresh.
+      const copies: LensProbe = { chips: c ? { ...c } : undefined, lensed: { ...probe.lensed } }
+      const shared = renderHook(() => useBuiltList(listDef(), undefined, filters, undefined, probe)).result.current
+      const fresh = renderHook(() => useBuiltList(listDef(), undefined, filters, undefined, copies)).result.current
+      expect([shared.baseCount, shared.lensHides]).toEqual([fresh.baseCount, fresh.lensHides])
+      // And a list ignoring the lens (its screen filter the chips alone).
+      const ignoring = renderHook(() => useBuiltList(listDef(), undefined, c, undefined, probe)).result.current
+      const ignoringFresh = renderHook(() => useBuiltList(listDef(), undefined, c ? { ...c } : undefined, undefined, copies)).result.current
+      expect(ignoring.lensHides).toBe(ignoringFresh.lensHides)
+    }
+  })
+
+  it('while a completed row lingers, the lens count still counts it as it is now: completed', () => {
+    // Task 2, Alice's too, was just completed; the list keeps its row (as it was, open) while it folds.
+    const done = { ...TASKS[1]!, isCompleted: true, completedAt: new Date() }
+    useTodoStore.setState({ todos: TASKS.map((t) => (t.id === 2 ? done : t)) })
+    usePersonStore.setState({ assignedPeopleMap: new Map([[1, [alice]], [2, [alice]], [4, [alice]]]) })
+    const leaving = new Map([[2, { phase: 'stay' as const, before: TASKS[1]! }]])
+    const { filters, probe } = screenFor(undefined, ALICE_LENS)
+    const { result } = renderHook(() => useBuiltList(listDef(), undefined, filters, leaving, probe))
+    expect(result.current.kept).toEqual(new Set([2]))
+    // Open now: 1 (Alice's) and 3 — the lens hides 3 only.
+    expect(result.current.lensHides).toBe(1)
+  })
+
   it('a list of its own completed tasks keeps counting them all', () => {
     const { filters, probe } = screenFor(undefined, ALICE_LENS)
     const { result } = renderHook(() => useBuiltList(listDef({ showCompleted: true }), undefined, filters, undefined, probe))
