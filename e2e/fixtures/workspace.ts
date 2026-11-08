@@ -119,6 +119,8 @@ export interface WorkspaceSeed {
     runtimeFilter?: { field: 'person' | 'status' | 'tag' }
     /** `false` hides the list's filter line. */
     showFilterLine?: false
+    /** The top bar's lens doesn't apply to the list. */
+    ignoreLens?: true
     /** The layout (index into `layouts`) that owns the list; default: the first that shows it, else the first. */
     layoutIdx?: number
   }>
@@ -242,6 +244,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         grouping: def.grouping ?? 'none',
         ...(def.runtimeFilter ? { runtimeFilter: def.runtimeFilter } : {}),
         ...(def.showFilterLine === false ? { showFilterLine: false } : {}),
+        ...(def.ignoreLens ? { ignoreLens: true } : {}),
         ...(seed.eisenhower?.listDefIdx === defIds.length ? { owner: { eisenhower: true } } : {}),
       }))
     }
