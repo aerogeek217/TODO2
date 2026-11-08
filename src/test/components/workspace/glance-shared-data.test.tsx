@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, act } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
-import { createTab, isGlanceKind, WIDGET_KINDS, type GlanceTab, type GlanceWidgetKind } from '../../../models/workspace-layout'
+import { NeglectMapWidget } from '../../../components/workspace/neglect/NeglectMapWidget'
+import { createTab, isGlanceKind, WIDGET_KINDS, type GlanceTab, type GlanceWidgetKind, type NeglectTab } from '../../../models/workspace-layout'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
@@ -61,6 +62,20 @@ describe('glance widgets share their data', () => {
 
     vi.mocked(applyFilter).mockClear()
     act(() => { useTodoStore.setState({ todos: SAMPLE_TASKS.map((t) => (t.id === SAMPLE_TASKS[0]!.id ? { ...t, title: 'Renamed' } : t)) }) })
+    expect(vi.mocked(applyFilter)).toHaveBeenCalledTimes(1)
+  })
+
+  it('a Neglect map beside them reads the same base: still one screen-filter pass', () => {
+    const tabs: GlanceTab[] = [{ id: 'n', kind: 'number', config: { metric: 'open' } }, createTab('tags', 't') as GlanceTab]
+    const neglect: NeglectTab = { id: 'm', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } }
+    render(
+      <DndContext>
+        {tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}
+        <NeglectMapWidget tab={neglect} />
+        <NeglectMapWidget tab={{ ...neglect, id: 'm2' }} />
+      </DndContext>,
+    )
+    expect(document.querySelectorAll('[data-testid="neglect-slipping-corner"]')).toHaveLength(2)
     expect(vi.mocked(applyFilter)).toHaveBeenCalledTimes(1)
   })
 
