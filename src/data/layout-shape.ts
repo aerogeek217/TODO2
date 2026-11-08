@@ -24,15 +24,18 @@ import {
 } from '../models/workspace-layout'
 import {
   GLANCE_CONFIG_FIELDS,
-  isNumberBreakdown,
+  numberConfigProblem,
   pickNumberConfig,
   pickPeopleConfig,
   pickTagPicksConfig,
   pickTagsConfig,
   pickTrendConfig,
+  type NumberConfig,
   type PickedConfig,
 } from '../models/glance-widgets'
+import { emptyPredicate } from '../models/filter-predicate'
 import { isRecord } from '../utils/is-record'
+import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { isCellEdge, normalizeGrid, validateTiling } from '../utils/workspace-grid'
 import { closeCell } from '../utils/workspace-layout-ops'
 
@@ -164,10 +167,15 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (!isNeglectColourBy(config.colourBy)) return `${path}.config.colourBy`
       if (!isNeglectUntouchedDays(config.untouchedDays)) return `${path}.config.untouchedDays`
       return true
-    case 'number':
-      // Its breakdown: absent (none) or a known one; then its metric, as below.
-      if (config.breakdown !== undefined && !isNumberBreakdown(config.breakdown)) return `${path}.config.breakdown`
-      return GLANCE_CONFIG_FIELDS.number.ok(config.metric) ? true : `${path}.config.metric`
+    case 'number': {
+      // Its fields (`numberConfigProblem`), then its filter: a stored
+      // predicate with nothing its read (`pickPredicate`) would change.
+      const bad = numberConfigProblem(config)
+      if (bad) return `${path}.config.${bad}`
+      const filter = checkPredicateShape(config.filter)
+      if (filter !== true) return `${path}.config.filter.${filter}`
+      return pickPredicate(config.filter).fixes.length === 0 ? true : `${path}.config.filter`
+    }
     case 'trend':
     case 'people':
     case 'tags':
@@ -180,6 +188,17 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     case 'status':
       return true
   }
+}
+
+/**
+ * A Number's config, repaired (`pickNumberConfig`): its filter read as a
+ * list's is (`pickPredicate`; a missing one is no filter — every open
+ * task —, a fix like any other).
+ */
+function numberConfigOf(config: Record<string, unknown>): PickedConfig<NumberConfig> {
+  if (!isRecord(config.filter)) return pickNumberConfig(config, { config: emptyPredicate(), fixed: true })
+  const filter = pickPredicate(config.filter)
+  return pickNumberConfig(config, { config: filter.predicate, fixed: filter.fixes.length > 0 })
 }
 
 /** A tracker of the ids seen so far: `fresh(id)` is false for an id seen before. */
@@ -432,7 +451,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       // The glance kinds: a bad or missing setting is reset to its default;
       // no view state.
       case 'number':
-        return { id, kind: 'number', config: glance(pickNumberConfig(config)) }
+        return { id, kind: 'number', config: glance(numberConfigOf(config)) }
       case 'trend':
         return { id, kind: 'trend', config: glance(pickTrendConfig(config)) }
       case 'people':

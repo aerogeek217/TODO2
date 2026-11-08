@@ -17,7 +17,7 @@ import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { applyFilter } from '../../../utils/filter-match'
-import { computeMetrics } from '../../../services/stats/metrics'
+import { numberIds } from '../../../services/stats/number-count'
 import { computeTagStats } from '../../../services/stats/tags'
 import { computePulse } from '../../../services/stats/pulse'
 import { SHARED_MEMO_WARNING } from '../../../utils/shared-memo'
@@ -25,6 +25,7 @@ import { useFilterStore } from '../../../stores/filter-store'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
 import { useSubtaskStore } from '../../../stores/subtask-store'
 import { resetEntityStores, clearFilterStore } from '../../helpers'
+import { numberTab } from '../../helpers/layout-builders'
 import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_TASKS, STATUSES, TAGS } from '../../fixtures/glance-sample'
 
 // Count the screen filter's runs: every glance widget reads the one shared base.
@@ -33,9 +34,9 @@ vi.mock('../../../utils/filter-match', async (importOriginal) => {
   return { ...actual, applyFilter: vi.fn(actual.applyFilter) }
 })
 // And two statistics' runs: what a write recomputes.
-vi.mock('../../../services/stats/metrics', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../services/stats/metrics')>()
-  return { ...actual, computeMetrics: vi.fn(actual.computeMetrics) }
+vi.mock('../../../services/stats/number-count', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/stats/number-count')>()
+  return { ...actual, numberIds: vi.fn(actual.numberIds) }
 })
 vi.mock('../../../services/stats/tags', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/stats/tags')>()
@@ -69,7 +70,7 @@ describe('glance widgets share their data', () => {
   it('fifteen glance widgets filter the tasks once, and once again after a task changes', () => {
     const glanceKinds = WIDGET_KINDS.filter(isGlanceKind)
     const kinds: GlanceWidgetKind[] = [...glanceKinds, ...Array.from({ length: 15 - glanceKinds.length }, (): GlanceWidgetKind => 'number')]
-    const tabs = kinds.map((k, i) => (k === 'number' ? { id: `w${i}`, kind: 'number', config: { metric: i % 2 ? 'open' : 'overdue' } } : createTab(k, `w${i}`)) as GlanceTab)
+    const tabs = kinds.map((k, i) => (k === 'number' ? numberTab(`w${i}`, i % 2 ? 'open' : 'overdue') : createTab(k, `w${i}`)) as GlanceTab)
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
     expect(document.querySelectorAll('[data-glance]')).toHaveLength(15)
     // Once for the shared base.
@@ -81,7 +82,7 @@ describe('glance widgets share their data', () => {
   })
 
   it('a Neglect map beside them reads the same base: still one screen-filter pass', () => {
-    const tabs: GlanceTab[] = [{ id: 'n', kind: 'number', config: { metric: 'open' } }, createTab('tags', 't') as GlanceTab]
+    const tabs: GlanceTab[] = [numberTab('n'), createTab('tags', 't') as GlanceTab]
     const neglect: NeglectTab = { id: 'm', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } }
     render(
       <DndContext>
@@ -96,12 +97,12 @@ describe('glance widgets share their data', () => {
 
   it('a status update or subtask write that keeps the same tasks on screen recomputes no statistic', () => {
     const tabs: GlanceTab[] = [
-      { id: 'n', kind: 'number', config: { metric: 'open' } },
+      numberTab('n'),
       createTab('tags', 't') as GlanceTab,
       createTab('pulse', 'p') as GlanceTab,
     ]
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
-    vi.mocked(computeMetrics).mockClear()
+    vi.mocked(numberIds).mockClear()
     vi.mocked(computeTagStats).mockClear()
     vi.mocked(applyFilter).mockClear()
     act(() => { useStatusUpdateStore.setState({ byTodo: new Map([[SAMPLE_TASKS[0]!.id, []]]) }) })
@@ -109,18 +110,18 @@ describe('glance widgets share their data', () => {
     // The screen filter reads the text again (it may search the updates)…
     expect(vi.mocked(applyFilter)).toHaveBeenCalledTimes(2)
     // …but keeps the same tasks, so every part hits its memo.
-    expect(vi.mocked(computeMetrics)).not.toHaveBeenCalled()
+    expect(vi.mocked(numberIds)).not.toHaveBeenCalled()
     expect(vi.mocked(computeTagStats)).not.toHaveBeenCalled()
   })
 
   it('a screen filter change recomputes the shown half only; the every-task totals stay', () => {
-    const tabs: GlanceTab[] = [{ id: 'n', kind: 'number', config: { metric: 'open' } }, createTab('tags', 't') as GlanceTab]
+    const tabs: GlanceTab[] = [numberTab('n'), createTab('tags', 't') as GlanceTab]
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
-    vi.mocked(computeMetrics).mockClear()
+    vi.mocked(numberIds).mockClear()
     vi.mocked(computeTagStats).mockClear()
     act(() => { useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, tags: new Set([TAGS[0]!.id]) }) })
-    expect(vi.mocked(computeMetrics)).toHaveBeenCalledTimes(1)
-    expect(vi.mocked(computeMetrics).mock.calls[0]![0].length).toBeLessThan(SAMPLE_TASKS.length)
+    expect(vi.mocked(numberIds)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(numberIds).mock.calls[0]![1].length).toBeLessThan(SAMPLE_TASKS.length)
     expect(vi.mocked(computeTagStats)).toHaveBeenCalledTimes(1)
   })
 
@@ -129,8 +130,8 @@ describe('glance widgets share their data', () => {
     vi.mocked(computePulse).mockClear()
     const tabs: GlanceTab[] = [
       ...WIDGET_KINDS.filter(isGlanceKind).filter((k) => k !== 'pulse').map((k) => createTab(k, `w-${k}`) as GlanceTab),
-      { id: 'n2', kind: 'number', config: { metric: 'focus' } },
-      { id: 'n3', kind: 'number', config: { metric: 'dueToday' } },
+      numberTab('n2', 'focus'),
+      numberTab('n3', 'dueToday'),
       { id: 'p1', kind: 'pulse', config: { tagIds: [TAGS[0]!.id!] } },
       { id: 'p2', kind: 'pulse', config: { tagIds: [TAGS[1]!.id!] } },
       { id: 'p12', kind: 'pulse', config: { tagIds: [TAGS[0]!.id!, TAGS[1]!.id!] } },
@@ -142,10 +143,10 @@ describe('glance widgets share their data', () => {
     const { rerender } = render(tree())
     // Once per tag pick on screen.
     expect(vi.mocked(computePulse)).toHaveBeenCalledTimes(5)
-    for (const fn of [applyFilter, computeMetrics, computeTagStats, computePulse]) vi.mocked(fn).mockClear()
+    for (const fn of [applyFilter, numberIds, computeTagStats, computePulse]) vi.mocked(fn).mockClear()
     for (let i = 0; i < 4; i++) rerender(tree())
     expect(vi.mocked(applyFilter)).not.toHaveBeenCalled()
-    expect(vi.mocked(computeMetrics)).not.toHaveBeenCalled()
+    expect(vi.mocked(numberIds)).not.toHaveBeenCalled()
     expect(vi.mocked(computeTagStats)).not.toHaveBeenCalled()
     expect(vi.mocked(computePulse)).not.toHaveBeenCalled()
     // A task write: each part recomputes once per option on screen, never per widget.
@@ -164,7 +165,7 @@ describe('glance widgets share their data', () => {
     }
     render(
       <DndContext>
-        <GlanceWidget tab={{ id: 'n', kind: 'number', config: { metric: 'open' } }} />
+        <GlanceWidget tab={numberTab('n')} />
         <CalendarWidget tab={calendar} />
         <WidgetFaceContext.Provider value={{ forced: 'medium' }}>
           <CalendarWidget tab={{ ...calendar, id: 'cal2' }} />

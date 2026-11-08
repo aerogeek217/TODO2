@@ -4,7 +4,7 @@ import { addTab } from '../../utils/workspace-layout-ops'
 import { LAYOUT_SIZE_MAX } from '../../data/layout-shape'
 import { validateTiling, isNormalized } from '../../utils/workspace-grid'
 import type { LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
-import { emptyBody } from '../helpers/layout-builders'
+import { emptyBody, numberTab } from '../helpers/layout-builders'
 
 const DATE = '2026-09-01T09:00:00.000Z'
 
@@ -123,7 +123,7 @@ const EVERY_KIND = {
     ] },
     { id: 'k2', area: { col: 0, row: 1, colSpan: 1, rowSpan: 1 }, tabs: [] },
     { id: 'k4', area: { col: 1, row: 1, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 't8', kind: 'notes', config: {} }] },
-    { id: 'k5', area: { col: 0, row: 2, colSpan: 3, rowSpan: 1 }, tabs: [{ id: 't9', kind: 'number', config: { metric: 'open' } }] },
+    { id: 'k5', area: { col: 0, row: 2, colSpan: 3, rowSpan: 1 }, tabs: [numberTab('t9', 'overdue', { breakdown: 'tags', ignoreLens: true })] },
   ],
 }
 

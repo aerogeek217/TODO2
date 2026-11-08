@@ -1,4 +1,6 @@
-import type { CellArea, GridTrack, LayoutBody, LayoutCell, LayoutTab } from '../../models/workspace-layout'
+import type { CellArea, GridTrack, LayoutBody, LayoutCell, LayoutTab, NumberTab } from '../../models/workspace-layout'
+import type { NumberConfig } from '../../models/glance-widgets'
+import { numberConfigOfMetric, type V77NumberMetric } from '../../data/upgrades/v78/number-metrics'
 
 /**
  * Builders for workspace layouts in the table shape (D26: grid tracks and
@@ -107,4 +109,12 @@ export function picture(body: LayoutBody): string[] {
     }
   }
   return out.map((line) => line.join(' '))
+}
+
+/**
+ * A Number tab counting what a v77 metric counted (`numberConfigOfMetric`:
+ * its name, colour and filter), with `patch` over its config.
+ */
+export function numberTab(id: string, metric: V77NumberMetric = 'open', patch: Partial<NumberConfig> = {}): NumberTab {
+  return { id, kind: 'number', config: { ...(numberConfigOfMetric(metric) as unknown as NumberConfig), ...patch } }
 }

@@ -1,16 +1,11 @@
 import type { Person, Tag } from '../../../models'
-import type { MetricId } from '../../../models/glance-widgets'
 import type { EisenhowerQuadrant } from '../../../models/workspace-layout'
-import type { ClosedThisWeek } from '../../../services/stats/closed-this-week'
-import type { StatsContext } from '../../../services/stats/stats-context'
-import type { MetricStats } from '../../../services/stats/metrics'
 import type { TaskDialogGroup } from '../../../stores/task-dialog-payload'
 import type { EisenhowerPane } from '../../../utils/eisenhower-panes'
 import { formatFollowupDay } from '../../../utils/followup'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
-import { metricDescription, trendBucketLabel } from './glance-copy'
+import { trendBucketLabel } from './glance-copy'
 import type { GlanceDrill } from './glance-types'
-import { NUMBER_DEFS, METRIC_DEFS } from './number-defs'
 
 /**
  * What a glance widget's click opens in the task dialog (`GlanceDrill`):
@@ -24,24 +19,12 @@ const todos = (todoIds: readonly number[]) => ({ kind: 'todos' as const, todoIds
 
 // ── Numbers ─────────────────────────────────────────────────────────────────
 
-/** A metric's tasks (a Number, a section's count). */
-export function metricDrill(id: MetricId, data: { metrics: { shown: MetricStats }; ctx: StatsContext }): GlanceDrill {
-  const def = METRIC_DEFS[id]
-  return { title: def.title, glyph: def.glyph, description: metricDescription(id, data.ctx), source: todos(data.metrics.shown[id].ids) }
+/** A Number's tasks: its name, what it counts (`numberDescription`), its ids in dialog order. */
+export function numberDrill(name: string, description: string, ids: readonly number[]): GlanceDrill {
+  return { title: name, glyph: 'open', description, source: todos(ids) }
 }
 
-/** Closed this week's tasks. */
-export function closedThisWeekDrill(closed: ClosedThisWeek, today: Date): GlanceDrill {
-  const def = NUMBER_DEFS.closedThisWeek
-  return {
-    title: def.title,
-    glyph: def.glyph,
-    description: `Tasks completed since ${formatFollowupDay(closed.weekStart, today)}.`,
-    source: todos(closed.ids),
-  }
-}
-
-/** One line of a Number's breakdown: its tasks among the metric's (`label` the person's or tag's, `key` `none` for the no-one / no-tag line). */
+/** One line of a Number's breakdown: its tasks among the Number's (`label` the person's or tag's, `key` `none` for the no-one / no-tag line). */
 export function breakdownDrill(title: string, by: 'people' | 'tags', entry: { key: string; label: string; ids: readonly number[] }): GlanceDrill {
   const which = entry.key === 'none'
     ? (by === 'tags' ? 'with no tag' : 'with nobody assigned')

@@ -22,11 +22,11 @@
  * tasks, the note) lives in its own tables.
  */
 
+import { emptyPredicate } from './filter-predicate'
 import {
-  DEFAULT_NUMBER_METRIC,
   DEFAULT_TREND_RANGE,
-  NUMBER_METRIC_LABELS,
-  type NumberTabConfig,
+  newNumberConfig,
+  type NumberConfig,
   type PeopleTabConfig,
   type TagPicksTabConfig,
   type TagsTabConfig,
@@ -227,7 +227,7 @@ export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewSt
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
-export type NumberTab = TabOf<'number', NumberTabConfig, NoTabSettings>
+export type NumberTab = TabOf<'number', NumberConfig, NoTabSettings>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
 export type StatusTab = TabOf<'status', NoTabSettings, NoTabSettings>
 export type PeopleTab = TabOf<'people', PeopleTabConfig, NoTabSettings>
@@ -447,7 +447,7 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     newTab: (id, seed) => ({ id, kind: 'lens', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
   },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
-  number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: { metric: DEFAULT_NUMBER_METRIC } }), true),
+  number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
   trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
   status: glanceSpec('Status', (id) => ({ id, kind: 'status', config: {} })),
   people: glanceSpec('People', (id) => ({ id, kind: 'people', config: { showUnassigned: true } })),
@@ -511,11 +511,11 @@ export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
 }
 
 /**
- * A non-list tab's title: a Number's is its metric (`Overdue`), every
- * other kind's its kind's name.
+ * A non-list tab's title: a Number's is its name (`Late on Atlas`; a blank
+ * one reads `Number`), every other kind's its kind's name.
  */
 export function kindTabTitle(tab: LayoutTab): string {
-  if (tab.kind === 'number') return NUMBER_METRIC_LABELS[tab.config.metric] ?? widgetKindLabel(tab.kind)
+  if (tab.kind === 'number') return tab.config.name.trim() || widgetKindLabel(tab.kind)
   return widgetKindLabel(tab.kind)
 }
 

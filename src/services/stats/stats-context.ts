@@ -22,8 +22,6 @@ export interface StatsContext {
   statuses: readonly Status[]
 }
 
-/** Days in the "next 7 days" window: today and the six days after it. */
-export const NEXT_DAYS = 7
 
 /**
  * The screen filter as the glance widgets apply it: every narrowing clause, but

@@ -11,7 +11,8 @@ import {
   type LayoutTab,
   type WorkspaceLayout,
 } from '../../models/workspace-layout'
-import { cell, grid, single } from '../helpers/layout-builders'
+import { cell, grid, numberTab, single } from '../helpers/layout-builders'
+import { emptyPredicate } from '../../models/filter-predicate'
 
 const DATE = '2026-09-01T09:00:00.000Z'
 
@@ -26,7 +27,6 @@ const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as 
 
 /** Each glance kind with a setting: a config it keeps (not its default), one it repairs, and the default. */
 const SETTINGS: Array<[GlanceWidgetKind, string, unknown, unknown, unknown]> = [
-  ['number', 'metric', 'closedThisWeek', 'late', 'overdue'],
   ['trend', 'range', '12w', '1y', '14d'],
   ['people', 'showUnassigned', false, 'no', true],
   ['tags', 'showUntagged', false, 0, true],
@@ -49,8 +49,8 @@ describe('glance widget kinds', () => {
     }
   })
 
-  it('a new tab has its defaults; a Number counts Overdue', () => {
-    expect(createTab('number', 'n')).toEqual({ id: 'n', kind: 'number', config: { metric: 'overdue' } })
+  it('a new tab has its defaults; a Number counts every open task', () => {
+    expect(createTab('number', 'n')).toEqual({ id: 'n', kind: 'number', config: { name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' } })
     expect(createTab('trend', 't').config).toEqual({ range: '14d' })
     expect(createTab('people', 'p').config).toEqual({ showUnassigned: true })
     expect(createTab('tags', 'g').config).toEqual({ showUntagged: true })
@@ -88,26 +88,53 @@ describe('glance widget kinds', () => {
     expect(tabOf(layoutRow({ id: 't', kind, config: 'x' }))).toEqual({ id: 't', kind, config: { [key]: fallback } })
   })
 
-  it('a Number’s breakdown (D25 R): a known one round-trips, none absent; a bad one is dropped (reads as none)', () => {
-    for (const breakdown of ['none', 'people', 'tags']) {
-      const good = layoutRow({ id: 't', kind: 'number', config: { metric: 'open', breakdown } })
+  it('a Number (D26 P5): every field round-trips; Auto, never and following the lens are absent', () => {
+    for (const config of [
+      numberTab('t').config,
+      numberTab('t', 'overdue', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 12, compare: 'none', color: '#abc' }).config,
+      numberTab('t', 'open', { name: '', filter: { ...emptyPredicate(), expression: { kind: 'tag', id: 4 } } }).config,
+    ]) {
+      const good = layoutRow({ id: 't', kind: 'number', config })
       expect(validateRow('layouts', good)).toBe(true)
       expect(rowFixes('layouts', good)).toEqual([])
-      expect(tabOf(good)).toEqual({ id: 't', kind: 'number', config: { metric: 'open', breakdown } })
+      expect(tabOf(good)).toEqual({ id: 't', kind: 'number', config })
     }
-    // A Number from before P4: no breakdown, nothing to fix.
-    const old = layoutRow({ id: 't', kind: 'number', config: { metric: 'open' } })
-    expect(rowFixes('layouts', old)).toEqual([])
-    expect(tabOf(old)).toEqual({ id: 't', kind: 'number', config: { metric: 'open' } })
-    for (const breakdown of ['status', 1, null]) {
-      const bad = layoutRow({ id: 't', kind: 'number', config: { metric: 'open', breakdown } })
-      expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.breakdown')
-      expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
-      expect(tabOf(bad)).toEqual({ id: 't', kind: 'number', config: { metric: 'open' } })
-    }
-    // A bad metric beside a good breakdown: the metric resets, the breakdown stays.
-    expect(tabOf(layoutRow({ id: 't', kind: 'number', config: { metric: 'late', breakdown: 'tags' } })))
-      .toEqual({ id: 't', kind: 'number', config: { metric: 'overdue', breakdown: 'tags' } })
+  })
+
+  it.each([
+    ['name', 7, { name: 'Number' }],
+    ['name', 'x'.repeat(81), { name: 'Number' }],
+    ['color', 'teal', {}],
+    ['show', 'share', { show: 'count' }],
+    ['litWhen', 'always', { litWhen: 'never', litAt: undefined }],
+    ['litAt', -1, { litAt: 0 }],
+    ['litAt', 1.5, { litAt: 0 }],
+    ['compare', 'lastYear', { compare: 'yesterday' }],
+    ['ignoreLens', false, {}],
+    ['breakdown', 'status', {}],
+  ] as const)('a Number’s %s %j is reset (a fix)', (key, value, reset) => {
+    const base = numberTab('t', 'overdue').config
+    const row = layoutRow({ id: 't', kind: 'number', config: { ...base, [key]: value } })
+    expect(checkLayoutBody(row)).toBe(`cells[0].tabs[0].config.${key}`)
+    expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+    const { [key]: _gone, ...rest } = base as unknown as Record<string, unknown>
+    void _gone
+    expect(tabOf(row)).toEqual({ id: 't', kind: 'number', config: { ...rest, ...reset } })
+  })
+
+  it('a Number’s threshold goes with never; a filter is read as a list’s is; a v77 metric reads as a new Number', () => {
+    const never = layoutRow({ id: 't', kind: 'number', config: { ...numberTab('t').config, litAt: 3 } })
+    expect(checkLayoutBody(never)).toBe('cells[0].tabs[0].config.litAt')
+    expect(tabOf(never)).toEqual({ id: 't', kind: 'number', config: numberTab('t').config })
+    // A filter without its required fields: no filter (every open task), a fix.
+    const bad = layoutRow({ id: 't', kind: 'number', config: { ...numberTab('t', 'overdue').config, filter: { tags: [3] } } })
+    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.filter.showCompleted')
+    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
+    expect((tabOf(bad)!.config as { filter: unknown }).filter).toEqual({ showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, tags: [3] })
+    // A config only an older build wrote (its metric; v78 converts every stored one): reset to a new Number's.
+    const old = layoutRow({ id: 't', kind: 'number', config: { metric: 'overdue' } })
+    expect(checkLayoutBody(old)).toBe('cells[0].tabs[0].config.name')
+    expect(tabOf(old)).toEqual({ id: 't', kind: 'number', config: { ...createTab('number', 'n').config, name: 'Number' } })
   })
 
   it('the kinds without settings keep an empty config, any key dropped', () => {

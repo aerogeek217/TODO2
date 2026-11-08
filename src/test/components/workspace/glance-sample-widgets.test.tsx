@@ -5,7 +5,7 @@ import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import type { GlanceResult } from '../../../components/workspace/glance/glance-hooks'
 import type { GlanceDrill } from '../../../components/workspace/glance/glance-types'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
-import type { MetricId } from '../../../models/glance-widgets'
+import type { V77NumberMetric } from '../../../data/upgrades/v78/number-metrics'
 import { createTab, type GlanceTab, type GlanceWidgetKind } from '../../../models/workspace-layout'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
@@ -18,6 +18,7 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { trendEventsKey, useTrendEventsStore } from '../../../stores/trend-events-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
+import { numberTab } from '../../helpers/layout-builders'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, Q4, SAMPLE_EVENTS, SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
 } from '../../fixtures/glance-sample'
@@ -25,19 +26,19 @@ import {
 /**
  * The glance widgets over the design sample (the old Dashboard's numbers):
  * Numbers for its tiles and a widget per section, each tab named by its
- * kind (a Number by its metric).
+ * kind (a Number by the v77 metric it was, its tab id).
  */
 
 /** What each widget last reported, by tab id. */
 const results = new Map<string, GlanceResult>()
 const lines = (tabId: string) => results.get(tabId)?.summary.plain.split('\n')
 
-const num = (metric: MetricId): GlanceTab => ({ id: metric, kind: 'number', config: { metric } })
+const num = (metric: V77NumberMetric): GlanceTab => numberTab(metric, metric)
 const of = (kind: GlanceWidgetKind, config?: object): GlanceTab => {
   const tab = createTab(kind, kind) as GlanceTab
   return (config ? { ...tab, config: { ...tab.config, ...config } } : tab) as GlanceTab
 }
-const DEFAULT_TILES: MetricId[] = ['open', 'focus', 'urgent', 'overdue', 'followupDue']
+const DEFAULT_TILES: V77NumberMetric[] = ['open', 'focus', 'urgent', 'overdue', 'followupDue']
 /** A new Dashboard's parts, as widgets: its tiles and its sections still kept (D26 retired Needs follow-up and Next 7 days). */
 const defaults = (): GlanceTab[] => [...DEFAULT_TILES.map(num), of('trend'), of('status'), of('people')]
 
@@ -51,7 +52,7 @@ function setup(tabs: GlanceTab[] = defaults(), onDrill?: (d: GlanceDrill) => voi
   )
 }
 
-const tile = (id: string) => document.querySelector<HTMLElement>(`[data-number-metric="${id}"]`)!
+const tile = (id: string) => document.querySelector<HTMLElement>(`[data-number="${id}"]`)!
 const tileCount = (id: string) => within(tile(id)).getByTestId('number-count').textContent
 const section = (id: string) => document.querySelector<HTMLElement>(`[data-glance-section="${id}"]`)
 const sectionCount = (id: string) => within(section(id)!).getByTestId('glance-section-count').textContent
@@ -87,16 +88,11 @@ afterEach(() => {
 })
 
 describe('glance widgets — the design sample', () => {
-  it('renders the default tiles with the design numbers and sub-lines', () => {
+  it('renders the default tiles with the design numbers', () => {
     setup()
-    expect(Array.from(document.querySelectorAll<HTMLElement>('[data-number-metric]')).map((el) => el.dataset.numberMetric))
+    expect(Array.from(document.querySelectorAll<HTMLElement>('[data-number]')).map((el) => el.dataset.number))
       .toEqual(['open', 'focus', 'urgent', 'overdue', 'followupDue'])
     expect(['open', 'urgent', 'overdue', 'followupDue', 'focus'].map(tileCount)).toEqual(['19', '8', '2', '2', '3'])
-    expect(tile('open').textContent).toContain('+3 in the last 14 days')
-    expect(tile('urgent').textContent).toContain('3 flagged · 5 by due date')
-    expect(tile('overdue').textContent).toContain('Oldest Wed 7 · 3d late')
-    expect(tile('followupDue').textContent).toContain('1 late · 3 more in 7 days')
-    expect(tile('focus').textContent).toContain('2 due today')
     expect(tile('open').querySelector('polyline')).not.toBeNull()
   })
 
@@ -105,7 +101,7 @@ describe('glance widgets — the design sample', () => {
     expect(['open', 'focus', 'urgent', 'overdue', 'followupDue'].filter((id) => tile(id).dataset.lit === 'true'))
       .toEqual(['urgent', 'overdue', 'followupDue'])
     const count = (id: string) => tile(id).querySelector<HTMLElement>('[data-testid="number-count"]')!.style.color
-    expect(count('overdue')).toBe('var(--color-overdue)')
+    expect(count('overdue')).toBe('rgb(232, 107, 240)')
     expect(count('open')).toBe('var(--color-text-primary)')
     expect(count('focus')).toBe('var(--color-text-primary)')
   })
@@ -170,11 +166,9 @@ describe('glance widgets — screen filter', () => {
     setup()
     expect(['open', 'urgent', 'overdue', 'followupDue', 'focus'].map(tileCount))
       .toEqual(['5of 19', '1of 8', '0of 2', '0of 2', '1of 3'])
-    expect(tile('overdue').textContent).toContain('Nothing overdue')
     // At 0 a tile goes neutral, its count muted.
     expect(tile('overdue').dataset.lit).toBeUndefined()
     expect(tile('overdue').querySelector<HTMLElement>('[data-testid="number-count"]')!.style.color).toBe('var(--color-text-muted)')
-    expect(tile('focus').textContent).toContain('None due today')
     expect(lines('open')?.[0]).toBe('Open 5 of 19')
     expect(sectionCount('status')).toBe('5 of 19 open')
   })
@@ -207,15 +201,25 @@ describe('glance widgets — drill hook', () => {
 
   it('a tile opens its tasks in dialog order, saying what it counts', () => {
     const onDrill = vi.fn()
-    setup([num('urgent'), num('dueNext7')], onDrill)
+    setup([num('urgent'), num('followupDue'), num('closedThisWeek')], onDrill)
     fireEvent.click(tile('urgent'))
     expect(onDrill.mock.lastCall?.[0]).toMatchObject({
-      description: 'Urgent = flagged urgent, or due within 3 days (Settings › Tasks).',
-      // Overdue first, then by due date, ties by sortOrder.
+      title: 'Urgent',
+      description: 'Open tasks where Priority Urgent.',
+      // Overdue first, then by due date, ties by sortOrder (as the v77 metric's).
       source: { kind: 'todos', todoIds: [5, 6, 1, 2, 3, 7, 12, 13] },
     })
-    fireEvent.click(tile('dueNext7'))
-    expect(onDrill.mock.lastCall?.[0].description).toBe('Open tasks due today through Fri 16.')
+    // A follow-up filter: by next follow-up.
+    fireEvent.click(tile('followupDue'))
+    const followups = onDrill.mock.lastCall?.[0].source.todoIds as number[]
+    const at = (id: number) => SAMPLE_TASKS.find((t) => t.id === id)!.nextFollowupAt!.getTime()
+    expect(followups.map(at)).toEqual(followups.map(at).sort((a, b) => a - b))
+    // One letting completed tasks through: the newest completion first.
+    fireEvent.click(tile('closedThisWeek'))
+    const closed = onDrill.mock.lastCall?.[0].source.todoIds as number[]
+    const done = (id: number) => SAMPLE_TASKS.find((t) => t.id === id)!.completedAt!.getTime()
+    expect(closed.length).toBeGreaterThan(1)
+    expect(closed.map(done)).toEqual(closed.map(done).sort((a, b) => b - a))
   })
 
   it('a panel count opens its tasks: Status under headings', () => {

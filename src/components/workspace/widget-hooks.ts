@@ -68,6 +68,12 @@ export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
  * list keeps its draft).
  */
 export function openEditList(tabId: string, listDefinitionId: number): void {
+  showTab(tabId)
+  useUIStore.getState().openListEditor(listDefinitionId, tabId)
+}
+
+/** Makes `tabId` its cell's active tab and expands the row tracks the cell covers, so the widget is on screen. */
+function showTab(tabId: string): void {
   const ws = useWorkspaceStore.getState()
   const working = ws.working
   const cell = working ? panelOfTab(working, tabId) : undefined
@@ -76,7 +82,15 @@ export function openEditList(tabId: string, listDefinitionId: number): void {
     const collapsed = cellRowTracks(working, cell.id).filter((t) => t.collapsed === true)
     if (collapsed.length > 0) void ws.setTrackCollapsed(collapsed.map((t) => t.id), false)
   }
-  useUIStore.getState().openListEditor(listDefinitionId, tabId)
+}
+
+/**
+ * Opens a Number's editor (Edit number…, D26 P5): the tab shown as Edit list
+ * shows its list's (`showTab`), then the popover beside the Number.
+ */
+export function openNumberEditor(tabId: string): void {
+  showTab(tabId)
+  useUIStore.getState().openNumberEditor(tabId)
 }
 
 /** `base` as a list name layout `layoutId` doesn't use yet: `base`, `base 2`, … */
@@ -122,9 +136,16 @@ export function useListOwnerLayoutId(): number | undefined {
   return useWorkspaceStore((s) => s.saved?.id)
 }
 
-/** Adds a widget tab of `kind` at `target` (a list tab with its list). Returns the new tab's id. */
+/**
+ * Adds a widget tab of `kind` at `target` (a list tab with its list).
+ * Returns the new tab's id. A new Number opens its editor at once: its empty
+ * filter counts every open task until one is set.
+ */
 export function useAddWidget() {
   const addWidget = useWorkspaceStore((s) => s.addWidget)
-  return (kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number) =>
-    addWidget(kind, target, listDefinitionId != null ? { listDefinitionId } : undefined)
+  return (kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number) => {
+    const tabId = addWidget(kind, target, listDefinitionId != null ? { listDefinitionId } : undefined)
+    if (tabId != null && kind === 'number') openNumberEditor(tabId)
+    return tabId
+  }
 }

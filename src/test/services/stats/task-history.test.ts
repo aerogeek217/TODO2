@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../../models'
-import { computeMetricHistory } from '../../../services/stats/metric-history'
+import { computeMetricHistory } from '../../fixtures/v77-metrics'
 import { eventsByTask, taskReplay } from '../../../services/stats/task-history'
-import { HISTORY_EVENT_TYPES } from '../../../utils/trend-window'
+import { HISTORY_EVENT_TYPES } from '../../fixtures/v77-metrics'
 import { makeTodo } from '../../helpers'
 
 const today = new Date(2026, 10, 11) // Wed 11 Nov
