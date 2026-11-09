@@ -678,7 +678,10 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
             />
           )}
           subtasks={(
+            // Keyed by the task: Duplicate switches the editor to the copy, and a
+            // line still being typed is added, on unmount, to the task it was typed for.
             <SubtasksSection
+              key={todo?.id}
               items={subtasks.items}
               onAdd={subtasks.add}
               onRename={subtasks.rename}
@@ -694,6 +697,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           notes={<TaskNotesSection source={notesSession.source} subtaskTarget={subtasks.noteTarget} />}
           statusUpdates={(
             <StatusUpdatesSection
+              key={todo?.id}
               entries={statusUpdates.entries}
               onAdd={statusUpdates.add}
               onEdit={statusUpdates.edit}
