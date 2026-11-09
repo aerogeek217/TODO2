@@ -211,7 +211,7 @@ const idLookupsMemo = sharedMemo(function idLookups(
 })
 
 /** The lookups `filters` need: the full ones when one reads text, else the id ones (`idLookupsMemo`). */
-function lookupsFor(base: StatsBase, ...filters: FilterCriteria[]): TodoNameLookups {
+export function lookupsFor(base: StatsBase, ...filters: FilterCriteria[]): TodoNameLookups {
   return filters.some(readsText) ? base.lookups : idLookupsMemo(base.ctx.assignedPeopleMap, base.ctx.assignedTagsMap, base.ctx.statuses)
 }
 
@@ -268,6 +268,11 @@ const numberCountMemo = sharedMemoByKey(function numberCount(filter: FilterCrite
  * as a list does — and over every task.
  */
 export function useNumberCount(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'ignoreLens'>): NumberCount {
+  return numberCountOf(base, config)
+}
+
+/** `useNumberCount` outside a hook's order (no hook inside): a group Number counts each of its items with it (D26 P6). */
+export function numberCountOf(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'ignoreLens'>): NumberCount {
   const filter = numberCriteriaMemo(config.filter)
   const dropLens = config.ignoreLens === true && base.screen.lens != null
   const screen = dropLens ? withoutLensMemo(base.screen) : base.screen
