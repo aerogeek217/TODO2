@@ -48,10 +48,8 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
       return <NeglectMapWidget tab={tab} />
     case 'number':
     case 'trend':
-    case 'status':
-    case 'people':
-    case 'tags':
     case 'pulse':
+    case 'breakdown':
       return (
         <GlanceWidget
           tab={tab}

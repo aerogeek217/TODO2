@@ -203,9 +203,8 @@ function buildSeed(): Seed {
             // The glance widgets, each with a setting off its default.
             numberTab('g1', 'closedThisWeek'),
             { id: 'g4', kind: 'trend', config: { range: '12w' } },
-            { id: 'g5', kind: 'status', config: {} },
-            { id: 'g6', kind: 'people', config: { showUnassigned: false } },
-            { id: 'g7', kind: 'tags', config: { showUntagged: false } },
+            { id: 'g5', kind: 'breakdown', config: { name: 'Waiting on', filter: { ...emptyPredicate(), statusIds: [1] }, splitBy: 'people', style: 'donut', show: 'oldest', oldestBy: 'lastFollowup', showNone: false, checkins: true, badges: { due: 'overdue', followup: 7 } }, viewState: { sorts: { people: { by: 'due', reversed: true } } } },
+            { id: 'g6', kind: 'breakdown', config: { name: 'Status', filter: emptyPredicate(), splitBy: 'status', style: 'stacked', show: 'count', showNone: true, badges: 'off' } },
             { id: 'g13', kind: 'pulse', config: { tagIds: [1] } },
           ])
           const k4 = cell('k4')

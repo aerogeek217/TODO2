@@ -38,6 +38,7 @@ import { measureWorkspace } from '../components/workspace/measure'
 import { UnsavedPrompt } from '../components/workspace/UnsavedPrompt'
 import { EditListHost } from '../components/workspace/list/EditList'
 import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
+import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { getUnsavedListIds, useListDraftStore } from '../stores/list-draft-store'
 import { unsavedDraftsKept } from '../data/draft-storage'
 import { useUnsavedListIds } from '../hooks/use-list-draft'
@@ -515,6 +516,7 @@ export function WorkspacePage() {
       <EntityActionHost />
       <EditListHost />
       <NumberEditorHost />
+      <ChartEditorHost />
       <UnsavedNavigationGuard />
     </DndContext>
   )

@@ -6,10 +6,10 @@ import type { TodoPredicate } from '../../../models'
 import { numberIds } from '../../../services/stats/number-count'
 import { predicateToCriteria } from '../../../utils/filter-criteria'
 import { computeTrend } from '../../../services/stats/trend'
-import { computePeopleStats } from '../../../services/stats/people'
-import { selectStatusBreakdown } from '../../../services/stats/status-breakdown'
-import { statsFilter } from '../../../services/stats/stats-context'
-import { computeTagStats } from '../../../services/stats/tags'
+import { computeBreakdown } from '../../../services/stats/breakdown'
+import { openTasks, statsFilter } from '../../../services/stats/stats-context'
+import type { BreakdownSplit } from '../../../models/chart-widgets'
+import { DEFAULT_TAB_BADGES } from '../../../utils/tab-badges'
 import { computeEisenhowerSummary } from '../../../services/stats/eisenhower-summary'
 import { emptyFilterCriteria, statsPaneContext, testLookups } from '../../helpers'
 import { resolvePanes } from '../../../utils/eisenhower-panes'
@@ -27,6 +27,15 @@ const Q4_FILTER: FilterCriteria = { ...NO_FILTER, tags: new Set([Q4]) }
 function screened(screen: FilterCriteria) {
   return applyFilter(statsFilter(screen), SAMPLE_TASKS, lookups, SAMPLE_TODAY, markerSettings)
 }
+
+/** A Breakdown (D26 P8) of `tasks`' open ones, as People / Tags / Status were: no filter, split by `splitBy`. */
+function breakdownOf(splitBy: BreakdownSplit, tasks: typeof SAMPLE_TASKS) {
+  return computeBreakdown(openTasks(tasks), SAMPLE_CTX, { splitBy, show: 'count', oldestBy: 'lastFollowup', ranges: DEFAULT_TAB_BADGES })
+}
+
+/** Each row's label and task count, the none row as `none`. */
+const counts = (splitBy: BreakdownSplit, tasks: typeof SAMPLE_TASKS) =>
+  Object.fromEntries(breakdownOf(splitBy, tasks).rows.map((r) => [r.entity.kind === 'none' ? 'none' : r.label, r.ids.length]))
 
 const titles = (ids: readonly number[]) => ids.map((id) => SAMPLE_TASKS.find((t) => t.id === id)?.title)
 
@@ -84,22 +93,24 @@ describe('glance sample data — no screen filter', () => {
     expect(trend.openAtStart).toBe(16)
   })
 
-  it('Status: To do 11 · In progress 5 · Waiting 2 · Blocked 1', () => {
-    expect(selectStatusBreakdown(tasks, STATUSES).map((e) => [e.label, e.count])).toEqual([
+  it('Status (a Breakdown by status): To do 11 · In progress 5 · Waiting 2 · Blocked 1, in Settings order', () => {
+    expect(breakdownOf('status', tasks).rows.map((r) => [r.label, r.ids.length])).toEqual([
       ['To do', 11], ['In progress', 5], ['Waiting', 2], ['Blocked', 1],
     ])
+    expect(STATUSES.map((s) => s.name)).toEqual(['To do', 'In progress', 'Waiting', 'Blocked'])
   })
 
-  it('People: open / by priority / follow-up due, by open count then name, Unassigned 8 · 1', () => {
-    const people = computePeopleStats(tasks, SAMPLE_CTX)
-    expect(people.rows.map((r) => [r.person.name, r.ids.length, r.followupDueIds.length])).toEqual([
-      ['Priya Nair', 4, 0],
-      ['Alice Chen', 2, 0],
-      ['Ben Ortiz', 2, 0],
-      ['Dana Kim', 2, 1],
-      ['Sam Lee', 1, 0],
-    ])
-    expect([people.unassigned.ids.length, people.unassigned.followupDueIds.length]).toEqual([8, 1])
+  it('People (a Breakdown by people): open and follow-ups due (overdue and today), Unassigned 8 · 1, last', () => {
+    const rows = breakdownOf('people', tasks).rows
+    expect(Object.fromEntries(rows.map((r) => [r.label, [r.ids.length, r.followupIds.length]]))).toEqual({
+      'Priya Nair': [4, 0],
+      'Alice Chen': [2, 0],
+      'Ben Ortiz': [2, 0],
+      'Dana Kim': [2, 1],
+      'Sam Lee': [1, 0],
+      Unassigned: [8, 1],
+    })
+    expect(rows.at(-1)?.entity.kind).toBe('none')
   })
 })
 
@@ -123,11 +134,9 @@ describe('glance sample data — top-bar Tags filter q4 (shown of total)', () =>
     expect(trend.openSeries).toEqual(DESIGN_TREND_Q4.open)
   })
 
-  it('status 3 / 2 / 0 / 0 and people Priya 2 · Unassigned 3', () => {
-    expect(selectStatusBreakdown(tasks, STATUSES).map((e) => e.count)).toEqual([3, 2, 0, 0])
-    const people = computePeopleStats(tasks, SAMPLE_CTX)
-    expect(people.rows.map((r) => [r.person.name, r.ids.length])).toEqual([['Priya Nair', 2]])
-    expect(people.unassigned.ids).toHaveLength(3)
+  it('status 3 / 2 (rows with tasks only) and people Priya 2 · Unassigned 3', () => {
+    expect(breakdownOf('status', tasks).rows.map((r) => r.ids.length)).toEqual([3, 2])
+    expect(counts('people', tasks)).toEqual({ 'Priya Nair': 2, none: 3 })
   })
 })
 
@@ -135,12 +144,11 @@ describe('glance sample data — the Tags section and the Eisenhower’s counts'
   const all = screened(NO_FILTER)
   const q4 = screened(Q4_FILTER)
 
-  it('Tags: open tasks per tag, by count then name; untagged apart', () => {
-    const tags = computeTagStats(all, SAMPLE_CTX)
-    expect(tags.rows.map((r) => [r.tag.name, r.ids.length])).toEqual([['q4', 5], ['errands', 2], ['home', 1], ['planning', 1]])
-    expect(tags.untagged.ids).toHaveLength(10)
-    // Under the q4 filter only the q4 row is left.
-    expect(computeTagStats(q4, SAMPLE_CTX).rows.map((r) => [r.tag.name, r.ids.length])).toEqual([['q4', 5]])
+  it('Tags (a Breakdown by tags): open tasks per tag; No tags 10', () => {
+    expect(counts('tags', all)).toEqual({ q4: 5, errands: 2, home: 1, planning: 1, none: 10 })
+    // Under the q4 filter only the q4 row is left (with the q4 pick narrowing, `computeBreakdown`'s restrictions, no No tags row either).
+    expect(computeBreakdown(openTasks(q4), SAMPLE_CTX, { splitBy: 'tags', show: 'count', oldestBy: 'created', ranges: DEFAULT_TAB_BADGES, restrictions: [[Q4]] })
+      .rows.map((r) => [r.label, r.ids.length])).toEqual([['q4', 5]])
   })
 
   it('Eisenhower: Do 3 · Schedule 1 · Delegate 5 · Drop 10 (Urgent 8 = Do + Delegate)', () => {

@@ -340,8 +340,8 @@ test('the offline file requests nothing through the glance widgets and the Negle
         ] },
         { id: 'c2', rows: [
           { cells: [
-            { id: 'kc', tabs: [{ id: 'tags', kind: 'tags' }] },
-            { id: 'kt', tabs: [{ id: 'status', kind: 'status' }] },
+            { id: 'kc', tabs: [{ id: 'tags', kind: 'breakdown', glance: { name: 'Tags', splitBy: 'tags' } }] },
+            { id: 'kt', tabs: [{ id: 'status', kind: 'breakdown', glance: { name: 'Status', splitBy: 'status', style: 'donut' } }] },
           ] },
           wsRow({ id: 'kp', tabs: [{ id: 'pulse', kind: 'pulse', tagNames: ['Project: Atlas'] }] }),
         ] },
@@ -364,9 +364,9 @@ test('the offline file requests nothing through the glance widgets and the Negle
   await page.keyboard.press('Escape')
   await expect(taskDialog).toBeHidden()
 
-  // Tags, Status, Project pulse.
-  await expect(page.locator('[data-glance="tags"] [data-tag-row]').first()).toContainText('#Project: Atlas')
-  await expect(page.locator('[data-glance="status"] [data-glance-section="status"]')).toContainText('4 open')
+  // Tags and Status (Breakdowns), Project pulse.
+  await expect(page.locator('[data-chart="tags"] [data-breakdown-row]').first()).toContainText('#Project: Atlas')
+  await expect(page.locator('[data-chart="status"]')).toContainText('4 open')
   const card = page.locator('[data-glance="pulse"] [data-pulse-card]').first()
   await expect(card).toContainText('Project: Atlas')
   await card.click()

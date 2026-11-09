@@ -158,22 +158,14 @@ export type TrendRange = (typeof TREND_RANGES)[number]
 
 export const DEFAULT_TREND_RANGE: TrendRange = '14d'
 
-/** The sections, in catalog order: each a glance kind. */
-export const SECTION_IDS = ['trend', 'status', 'people', 'tags'] as const
+/** The sections, in catalog order: each a glance kind (People, Tags and Status are Breakdowns since D26 P8). */
+export const SECTION_IDS = ['trend'] as const
 export type SectionId = (typeof SECTION_IDS)[number]
 
 // ── The glance widget kinds' configs ────────────────────────────────────────
 
 export interface TrendTabConfig {
   range: TrendRange
-}
-
-export interface PeopleTabConfig {
-  showUnassigned: boolean
-}
-
-export interface TagsTabConfig {
-  showUntagged: boolean
 }
 
 /**
@@ -190,7 +182,6 @@ export interface PickedConfig<C> {
   fixed: boolean
 }
 
-const isBool = (v: unknown): v is boolean => typeof v === 'boolean'
 const isTrendRange = (v: unknown): v is TrendRange => includes(TREND_RANGES, v)
 const isTagId = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 /** A stored tag pick list: an array of numbers (a tag deleted since is kept; it just matches nothing). */
@@ -207,18 +198,6 @@ export function pickTrendConfig(raw: Obj): PickedConfig<TrendTabConfig> {
   return { config: { range: value }, fixed }
 }
 
-/** A People's config: a boolean Unassigned row, else shown (`fixed`). */
-export function pickPeopleConfig(raw: Obj): PickedConfig<PeopleTabConfig> {
-  const { value, fixed } = pickOne(raw.showUnassigned, isBool, true)
-  return { config: { showUnassigned: value }, fixed }
-}
-
-/** A Tags' config: a boolean No tag row, else shown (`fixed`). */
-export function pickTagsConfig(raw: Obj): PickedConfig<TagsTabConfig> {
-  const { value, fixed } = pickOne(raw.showUntagged, isBool, true)
-  return { config: { showUntagged: value }, fixed }
-}
-
 /**
  * A Project pulse's config: its tag ids that are numbers,
  * each once, in order; not a list = none (`fixed`, as a dropped entry is).
@@ -233,7 +212,5 @@ export function pickTagPicksConfig(raw: Obj): PickedConfig<TagPicksTabConfig> {
 /** Each glance kind's one config field and whether a stored value is one it keeps (the layout check). */
 export const GLANCE_CONFIG_FIELDS = {
   trend: { key: 'range', ok: isTrendRange },
-  people: { key: 'showUnassigned', ok: isBool },
-  tags: { key: 'showUntagged', ok: isBool },
   pulse: { key: 'tagIds', ok: isTagIds },
 } as const satisfies Record<string, { key: string; ok: (v: unknown) => boolean }>

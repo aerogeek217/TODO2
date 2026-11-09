@@ -4,7 +4,6 @@ import { computeEisenhowerSummary, eisenhowerSourceTasks } from '../../../servic
 import type { FilterCriteria } from '../../../utils/filter-criteria'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import type { StatsContext } from '../../../services/stats/stats-context'
-import { computeTagStats } from '../../../services/stats/tags'
 import { emptyFilterCriteria, makeTodo, statsPaneContext, lookupsFor } from '../../helpers'
 import { defaultPaneFilter, resolvePanes } from '../../../utils/eisenhower-panes'
 
@@ -14,46 +13,6 @@ const day = (n: number, hour = 9) => new Date(2026, 9, 10 + n, hour)
 function ctx(assignedTagsMap: Map<number, Tag[]> = new Map()): StatsContext {
   return { today, weekStartsOn: 1, urgentRange: 3, assignedPeopleMap: new Map(), assignedTagsMap, statuses: [] }
 }
-
-describe('computeTagStats', () => {
-  const q4: Tag = { id: 1, name: 'q4', color: '#111' }
-  const home: Tag = { id: 2, name: 'home', color: '#222' }
-  const art: Tag = { id: 3, name: 'art', color: '#333' }
-
-  it('counts an open task under each of its tags; by open count, ties by name; untagged apart', () => {
-    const tasks = [
-      makeTodo({ id: 1, focus: true }),
-      makeTodo({ id: 2, nextFollowupAt: day(-1) }),
-      makeTodo({ id: 3 }),
-      makeTodo({ id: 4 }),
-      makeTodo({ id: 5, isCompleted: true }), // completed: counts nowhere
-      makeTodo({ id: 6, nextFollowupAt: day(0) }),
-    ]
-    const map = new Map([
-      [1, [q4, home]],
-      [2, [q4]],
-      [3, [art, art]], // a duplicate row counts once
-      [4, [home]],
-      [5, [q4]],
-    ])
-    const out = computeTagStats(tasks, ctx(map))
-    expect(out.rows.map((r) => [r.tag.name, r.ids, r.priority.focus + r.priority.urgent + r.priority.important > 0, r.followupDueIds])).toEqual([
-      ['home', [1, 4], true, []],
-      ['q4', [1, 2], true, [2]],
-      ['art', [3], false, []],
-    ])
-    expect(out.untagged).toEqual({ ids: [6], priority: { focus: 0, urgent: 0, important: 0 }, followupDueIds: [6] })
-    expect(out.taggedIds).toEqual([1, 2, 3, 4])
-  })
-
-  it('no open tasks → no rows', () => {
-    expect(computeTagStats([makeTodo({ id: 1, isCompleted: true })], ctx(new Map([[1, [q4]]])))).toEqual({
-      rows: [],
-      untagged: { ids: [], priority: { focus: 0, urgent: 0, important: 0 }, followupDueIds: [] },
-      taggedIds: [],
-    })
-  })
-})
 
 describe('computeEisenhowerSummary', () => {
   it('open tasks by effective Urgent × Important, in the Eisenhower widget’s order', () => {

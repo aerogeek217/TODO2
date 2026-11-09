@@ -96,6 +96,12 @@ export interface WidgetKindMenuProps {
   listLayoutId?: number
   /** Entries before everything else (Add widget's where: Tab · Right · Below · Row · Column). */
   leadEntries?: readonly MenuEntry[]
+  /**
+   * Add mode: a kind's presets, as its item's submenu (Breakdown ›
+   * People · Tags · Status · Waiting on · Custom, D26 P8); each runs and
+   * closes the menu.
+   */
+  kindPresets?: Partial<Record<WidgetKind, readonly MenuItemEntry[]>>
 }
 
 const CHANGE_LIST_WIDTH_PX = 240
@@ -135,6 +141,7 @@ export function widgetKindMenuEntries({
   settingEntries,
   sourceActions,
   leadEntries,
+  kindPresets,
 }: WidgetKindMenuContent, listChoices: readonly MenuEntry[]): MenuEntry[] {
   const showChangeList = currentKind === 'lens' && pickListForLens != null
   const listFirst = currentKind === 'lens' && onEditList != null
@@ -155,7 +162,21 @@ export function widgetKindMenuEntries({
     ...(a.checked !== undefined ? { checkbox: true, checked: a.checked } : {}),
     onSelect: a.onSelect,
   }))
-  const kindItem = (k: WidgetKind): MenuItemEntry => ({
+  const kindItem = (k: WidgetKind): MenuItemEntry => {
+    // Add mode: a kind with presets opens them (D26 P8).
+    const presets = currentKind == null ? kindPresets?.[k] : undefined
+    if (presets && presets.length > 0) {
+      return {
+        kind: 'item',
+        label: widgetKindLabel(k),
+        icon: <WidgetKindIcon kind={k} />,
+        childrenWidth: KIND_SUBMENU_WIDTH_PX,
+        children: [{ kind: 'label', text: widgetKindLabel(k) }, ...presets],
+      }
+    }
+    return plainKindItem(k)
+  }
+  const plainKindItem = (k: WidgetKind): MenuItemEntry => ({
     kind: 'item',
     label: widgetKindLabel(k),
     icon: <WidgetKindIcon kind={k} />,

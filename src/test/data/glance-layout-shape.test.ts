@@ -28,15 +28,13 @@ const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as 
 /** Each glance kind with a setting: a config it keeps (not its default), one it repairs, and the default. */
 const SETTINGS: Array<[GlanceWidgetKind, string, unknown, unknown, unknown]> = [
   ['trend', 'range', '12w', '1y', '14d'],
-  ['people', 'showUnassigned', false, 'no', true],
-  ['tags', 'showUntagged', false, 0, true],
   ['pulse', 'tagIds', [2], { 0: 1 }, []],
 ]
 
 describe('glance widget kinds', () => {
   it('are glance widgets in the Numbers & charts group; only a Number fits its height', () => {
     const glance = WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].glance)
-    expect(glance).toEqual(['number', 'trend', 'status', 'people', 'tags', 'pulse'])
+    expect(glance).toEqual(['number', 'breakdown', 'trend', 'pulse'])
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'notes'])
@@ -44,7 +42,7 @@ describe('glance widget kinds', () => {
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'glance')).toEqual([...glance, 'calendar', 'eisenhower', 'neglect'])
     expect(['calendar', 'eisenhower', 'neglect'].some((k) => isWidgetKind(k) && isGlanceKind(k))).toBe(false)
     // The Dashboard (v77) and the kinds D26 retired (v78) are gone.
-    for (const gone of ['dashboard', 'followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary']) {
+    for (const gone of ['dashboard', 'followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary', 'people', 'tags', 'status']) {
       expect(isWidgetKind(gone), gone).toBe(false)
     }
   })
@@ -52,9 +50,7 @@ describe('glance widget kinds', () => {
   it('a new tab has its defaults; a Number counts every open task', () => {
     expect(createTab('number', 'n')).toEqual({ id: 'n', kind: 'number', config: { name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' } })
     expect(createTab('trend', 't').config).toEqual({ range: '14d' })
-    expect(createTab('people', 'p').config).toEqual({ showUnassigned: true })
-    expect(createTab('tags', 'g').config).toEqual({ showUntagged: true })
-    expect(createTab('status', 'x').config).toEqual({})
+    expect(createTab('breakdown', 'b').config).toEqual({ name: 'Breakdown', filter: emptyPredicate(), splitBy: 'people', style: 'bars', show: 'count', showNone: true })
     // Project pulse reads the tags it's seeded with (the store passes the `Project: …` tags).
     expect(createTab('pulse', 'x').config).toEqual({ tagIds: [] })
     expect(createTab('pulse', 'x', { tagIds: [4, 2] }).config).toEqual({ tagIds: [4, 2] })
@@ -137,21 +133,13 @@ describe('glance widget kinds', () => {
     expect(tabOf(old)).toEqual({ id: 't', kind: 'number', config: { ...createTab('number', 'n').config, name: 'Number' } })
   })
 
-  it('the kinds without settings keep an empty config, any key dropped', () => {
-    for (const kind of ['status'] as const) {
-      const row = layoutRow({ id: 't', kind, config: { stray: 1 }, viewState: { detailsWidth: 300 } })
-      expect(checkLayoutBody(row)).toBe(true)
-      expect(tabOf(row)).toEqual({ id: 't', kind, config: {} })
-    }
-  })
-
   it('a glance widget drops a details width (no glance widget shows task rows)', () => {
     for (const kind of WIDGET_KINDS.filter(isGlanceKind)) {
       expect(tabOf(layoutRow({ ...createTab(kind, 't'), viewState: { detailsWidth: 280 } }))).toEqual(createTab(kind, 't'))
     }
   })
 
-  it.each(['followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary'])(
+  it.each(['followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary', 'people', 'tags', 'status'])(
     'a %s tab that slips past v78 (an older draft) is dropped by the repair; its emptied cell closes',
     (kind) => {
       const body = grid([[cell('a', [{ id: 'gone', kind, config: {} } as unknown as LayoutTab]), cell('b', [createTab('notes', 'n')])]])

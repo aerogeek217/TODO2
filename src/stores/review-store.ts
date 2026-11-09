@@ -8,8 +8,8 @@ import { useTodoStore } from './todo-store'
  * (`components/overlays/ReviewDeck`) shows it while `open`.
  */
 
-/** Where a review's tasks came from: a list tab, a person, several people, a tag. */
-export type ReviewSourceKind = 'list' | 'person' | 'people' | 'tag'
+/** Where a review came from: a list tab, a person, several people, a tag; a Breakdown row (D26 P8) — a status, a priority group or another split's row (`chart`). */
+export type ReviewSourceKind = 'list' | 'person' | 'people' | 'tag' | 'status' | 'priority' | 'chart'
 
 export interface ReviewSource {
   kind: ReviewSourceKind

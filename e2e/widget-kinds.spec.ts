@@ -71,6 +71,11 @@ test.describe('desktop', () => {
         await expect(page.getByRole('dialog', { name: `Edit list ${LIST}` })).toBeVisible()
         await page.keyboard.press('Escape')
       }
+      if (kind === 'breakdown') {
+        // A new chart opens its editor (D26 P8).
+        await expect(page.getByRole('dialog', { name: 'Edit breakdown' })).toBeVisible()
+        await page.keyboard.press('Escape')
+      }
       await expect(tab(page, kind)).toHaveAttribute('aria-selected', 'true')
       await expect(body(cell, kind)).toBeVisible()
     }
