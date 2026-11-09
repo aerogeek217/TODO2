@@ -26,7 +26,9 @@ import { normalizeExpression } from './tree'
  *   `not x`); a top-level `or` by `, or`; an `or` inside anything else is
  *   bracketed; an `and` inside an `or` joins by `and`, its `not` terms after
  *   `but not` (several: `but not a or b`). A date range `or` the same type's
- *   none reads as one term (`last follow-up 7+ days ago, or never`).
+ *   none reads as one term (`last follow-up 7+ days ago, or never`) — bare
+ *   at the top level or as a top-level `and` term, else still bracketed
+ *   (`not (last follow-up 7+ days ago, or never)`).
  * - The first letter is upper case when the line starts with a word term.
  */
 
@@ -184,11 +186,16 @@ class Reader {
     this.atom(item)
   }
 
-  /** An `or`'s items: `, or` between them at the top level, else ` or ` in brackets. */
-  orGroup(items: readonly FilterExpr[], bracketed: boolean, comma: boolean) {
+  /**
+   * An `or`'s items: `, or` between them at the top level, else ` or ` in
+   * brackets. One that folds to a lone date-or-none term keeps its brackets
+   * unless `bareFolded` (a top-level `and` term, which reads as its chip
+   * does), so a `not` or an outer `and` covers the whole term.
+   */
+  orGroup(items: readonly FilterExpr[], bracketed: boolean, comma: boolean, bareFolded = false) {
     const folded = foldNoDate(items)
     const only = folded.length === 1 ? folded[0] : undefined
-    if (only) {
+    if (only && (!bracketed || bareFolded)) {
       this.orItem(only)
       return
     }
@@ -241,7 +248,8 @@ class Reader {
       e.items.forEach((item, i) => {
         this.term = i
         if (i > 0) this.push('joiner', '·')
-        this.atom(item)
+        if (item.kind === 'or') this.orGroup(item.items, true, false, true)
+        else this.atom(item)
       })
       return e.items.length
     }

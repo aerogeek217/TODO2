@@ -105,3 +105,16 @@ describe('expressionWords — structure', () => {
     expect(read('@Aisha or @Ben').terms).toBe(1)
   })
 })
+
+describe('expressionWords — every tree reads distinctly', () => {
+  it('a not over a range or its none keeps the brackets, so it negates the whole term', () => {
+    expect(words('/urgent and not (followed by 7 days ago or never followed)')).toBe('Urgent · not (last follow-up 7+ days ago, or never)')
+    expect(words('not (due within next 7 days or no due)')).toBe('not (due within the next 7 days, or none)')
+    // A top-level term reads as its chip does, bare.
+    expect(words('/urgent and (followed by 7 days ago or never followed)')).toBe('Urgent · last follow-up 7+ days ago, or never')
+  })
+
+  it('a range or its none inside an and inside an or keeps its brackets', () => {
+    expect(words('@Aisha or (#q4 and (followed by 7 days ago or never followed))')).toBe('Aisha, or #q4 and (last follow-up 7+ days ago, or never)')
+  })
+})
