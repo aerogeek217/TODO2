@@ -33,7 +33,7 @@ import {
   type NumberConfig,
   type PickedConfig,
 } from '../models/glance-widgets'
-import { emptyPredicate } from '../models/filter-predicate'
+import { emptyPredicate, type TodoPredicate } from '../models/filter-predicate'
 import { isRecord } from '../utils/is-record'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { isCellEdge, normalizeGrid, validateTiling } from '../utils/workspace-grid'
@@ -172,9 +172,13 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       // predicate with nothing its read (`pickPredicate`) would change.
       const bad = numberConfigProblem(config)
       if (bad) return `${path}.config.${bad}`
-      const filter = checkPredicateShape(config.filter)
-      if (filter !== true) return `${path}.config.filter.${filter}`
-      return pickPredicate(config.filter).fixes.length === 0 ? true : `${path}.config.filter`
+      // Its predicates: its filter, and its shape's (D26 P6).
+      for (const [key, raw] of numberPredicates(config)) {
+        const shape = checkPredicateShape(raw)
+        if (shape !== true) return `${path}.config.${key}.${shape}`
+        if (pickPredicate(raw).fixes.length > 0) return `${path}.config.${key}`
+      }
+      return true
     }
     case 'trend':
     case 'people':
@@ -196,9 +200,22 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
  * task —, a fix like any other).
  */
 function numberConfigOf(config: Record<string, unknown>): PickedConfig<NumberConfig> {
-  if (!isRecord(config.filter)) return pickNumberConfig(config, { config: emptyPredicate(), fixed: true })
-  const filter = pickPredicate(config.filter)
-  return pickNumberConfig(config, { config: filter.predicate, fixed: filter.fixes.length > 0 })
+  return pickNumberConfig(config, readNumberPredicate(config.filter), readNumberPredicate)
+}
+
+/** A Number's stored predicate read as a list's (`pickPredicate`); a missing one is no filter, a fix. */
+function readNumberPredicate(raw: unknown): PickedConfig<TodoPredicate> {
+  if (!isRecord(raw)) return { config: emptyPredicate(), fixed: true }
+  const filter = pickPredicate(raw)
+  return { config: filter.predicate, fixed: filter.fixes.length > 0 }
+}
+
+/** A stored Number's predicates, by their path in its config: its filter, its share's `of`, its group items' filters (D26 P6). */
+function numberPredicates(config: Record<string, unknown>): Array<[string, unknown]> {
+  const out: Array<[string, unknown]> = [['filter', config.filter]]
+  if (config.of !== undefined) out.push(['of', config.of])
+  if (Array.isArray(config.items)) config.items.forEach((item: unknown, i) => out.push([`items.${i}.filter`, isRecord(item) ? item.filter : undefined]))
+  return out
 }
 
 /** A tracker of the ids seen so far: `fresh(id)` is false for an id seen before. */

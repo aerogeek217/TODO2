@@ -5,6 +5,23 @@
  */
 
 import type { TodoPredicate } from './filter-predicate'
+import {
+  DEFAULT_NUMBER_OLDEST_BY,
+  isNumberListRef,
+  isNumberOldestBy,
+  NUMBER_GROUP_MAX,
+  NUMBER_SHAPE_FIELD,
+  NUMBER_SHAPE_FIELDS,
+  NUMBER_SHOWS,
+  pickNumberGoal,
+  type NumberGoal,
+  type NumberGroupItem,
+  type NumberListRef,
+  type NumberOldestBy,
+  type NumberShow,
+} from './number-shapes'
+
+export { NUMBER_SHOWS, type NumberShow } from './number-shapes'
 
 type Obj = Record<string, unknown>
 
@@ -13,10 +30,6 @@ function includes<T extends string | number>(list: readonly T[], v: unknown): v 
 }
 
 // ── Numbers ─────────────────────────────────────────────────────────────────
-
-/** What a Number shows of the tasks its filter keeps (D26 P5: the count; P6 adds the other shapes). */
-export const NUMBER_SHOWS = ['count'] as const
-export type NumberShow = (typeof NUMBER_SHOWS)[number]
 
 /** When a Number lights up in its colour (D18): never, or while its count is above / below `litAt`. */
 export const NUMBER_LIT_WHEN = ['never', 'above', 'below'] as const
@@ -53,8 +66,19 @@ export interface NumberConfig {
   compare: NumberCompare
   /** The top bar's lens doesn't apply to it (as `ListDefinition.ignoreLens`); stored only when true. */
   ignoreLens?: true
-  /** Its large face's breakdown; absent = `none`. */
+  /** Its large face's breakdown (the count's); absent = `none`. */
   breakdown?: NumberBreakdown
+  // The active shape's field (D26 P6, `models/number-shapes`): only that one is kept.
+  /** `share`: the tasks it is a share of; absent = every open task. */
+  of?: TodoPredicate
+  /** `oldest`: the date its tasks age by. */
+  oldestBy?: NumberOldestBy
+  /** `goal`: its goal. */
+  goal?: NumberGoal
+  /** `group`: its counts (1 – `NUMBER_GROUP_MAX`), each with its own filter; its own `filter` is unused. */
+  items?: NumberGroupItem[]
+  /** `list`: the list it follows (absent until one is picked); its own `filter` and `ignoreLens` are unused. */
+  list?: NumberListRef
 }
 
 /** A new Number's config: an empty filter (every open task), never lit, against yesterday. */
@@ -74,7 +98,7 @@ export function isNumberLitAt(v: unknown): v is number {
   return typeof v === 'number' && Number.isInteger(v) && v >= 0 && v <= NUMBER_LIT_AT_MAX
 }
 
-function isNumberName(v: unknown): v is string {
+export function isNumberName(v: unknown): v is string {
   return typeof v === 'string' && v.length <= NUMBER_NAME_MAX
 }
 
@@ -99,17 +123,58 @@ export function numberConfigProblem(raw: Obj): string | null {
   if (!includes(NUMBER_COMPARES, raw.compare)) return 'compare'
   if (raw.ignoreLens !== undefined && raw.ignoreLens !== true) return 'ignoreLens'
   if (raw.breakdown !== undefined && !isNumberBreakdown(raw.breakdown)) return 'breakdown'
-  return null
+  return numberShapeProblem(raw)
+}
+
+/** A group item's scalar fields (its filter is the caller's): an object with a name and an optional colour. */
+function groupItemProblem(v: unknown): boolean {
+  if (v === null || typeof v !== 'object' || Array.isArray(v)) return true
+  const item = v as Obj
+  if (!isNumberName(item.name)) return true
+  if (item.color !== undefined && !isNumberColor(item.color)) return true
+  return Object.keys(item).some((k) => k !== 'name' && k !== 'filter' && k !== 'color')
 }
 
 /**
- * A Number's config read from untrusted input, `filter` already picked (the
- * caller's predicate read): a bad or missing field gets its default
- * (`fixed`) — the name `Number`, Auto, a count, never lit (a threshold of
- * 0 when `above` / `below` lacks one), against yesterday —; an unknown
- * colour, breakdown or a non-true `ignoreLens` is dropped (`fixed`).
+ * Where a stored Number's shape fields go wrong (D26 P6): a field of another
+ * shape (a stray), or its own field missing or unreadable — its predicates
+ * (`of`, each item's `filter`) are the caller's.
  */
-export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>): PickedConfig<NumberConfig> {
+function numberShapeProblem(raw: Obj): string | null {
+  const show = raw.show as NumberShow
+  const own = NUMBER_SHAPE_FIELD[show]
+  for (const key of NUMBER_SHAPE_FIELDS) if (key !== own && raw[key] !== undefined) return key
+  switch (show) {
+    case 'oldest':
+      return isNumberOldestBy(raw.oldestBy) ? null : 'oldestBy'
+    case 'goal':
+      return pickNumberGoal(raw.goal).fixed ? 'goal' : null
+    case 'group': {
+      const items = raw.items
+      if (!Array.isArray(items) || items.length === 0 || items.length > NUMBER_GROUP_MAX) return 'items'
+      return items.some(groupItemProblem) ? 'items' : null
+    }
+    case 'list':
+      return raw.list === undefined || isNumberListRef(raw.list) ? null : 'list'
+    case 'share':
+    case 'count':
+      return null
+  }
+}
+
+/** Reads a stored predicate (the data layer's `pickPredicate`): a missing or unreadable one is no filter, a fix. */
+export type NumberPredicateRead = (raw: unknown) => PickedConfig<TodoPredicate>
+
+/**
+ * A Number's config read from untrusted input, `filter` already picked (the
+ * caller's predicate read; `readPredicate` reads its shape's): a bad or
+ * missing field gets its default (`fixed`) — the name `Number`, Auto, a
+ * count, never lit (a threshold of 0 when `above` / `below` lacks one),
+ * against yesterday —; an unknown colour, breakdown or a non-true
+ * `ignoreLens` is dropped (`fixed`). Its shape's field is read too
+ * (`pickShapeField`); another shape's is dropped (`fixed`).
+ */
+export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, readPredicate: NumberPredicateRead): PickedConfig<NumberConfig> {
   let fixed = filter.fixed
   const pick = <V,>(v: unknown, ok: (v: unknown) => v is V, fallback: V): V => {
     if (ok(v)) return v
@@ -129,7 +194,60 @@ export function pickNumberConfig(raw: Obj, filter: PickedConfig<TodoPredicate>):
   else if (raw.ignoreLens !== undefined) fixed = true
   if (isNumberBreakdown(raw.breakdown)) config.breakdown = raw.breakdown
   else if (raw.breakdown !== undefined) fixed = true
+  if (pickShapeField(raw, config, readPredicate)) fixed = true
   return { config, fixed }
+}
+
+/**
+ * Sets `config`'s shape field from `raw` (D26 P6): `share`'s `of` (absent =
+ * every open task), `oldest`'s date (default the last follow-up), `goal`'s
+ * goal (default at least 10 a week), `group`'s items (each a name, a filter
+ * and a colour; the first `NUMBER_GROUP_MAX`; none = one item counting
+ * every open task), `list`'s list (absent until picked). Whether anything
+ * was reset or dropped — another shape's field among them.
+ */
+function pickShapeField(raw: Obj, config: NumberConfig, readPredicate: NumberPredicateRead): boolean {
+  const own = NUMBER_SHAPE_FIELD[config.show]
+  let fixed = NUMBER_SHAPE_FIELDS.some((key) => key !== own && raw[key] !== undefined)
+  switch (config.show) {
+    case 'share':
+      if (raw.of !== undefined) {
+        const of = readPredicate(raw.of)
+        config.of = of.config
+        if (of.fixed) fixed = true
+      }
+      return fixed
+    case 'oldest':
+      config.oldestBy = isNumberOldestBy(raw.oldestBy) ? raw.oldestBy : DEFAULT_NUMBER_OLDEST_BY
+      return fixed || config.oldestBy !== raw.oldestBy
+    case 'goal': {
+      const goal = pickNumberGoal(raw.goal)
+      config.goal = goal.goal
+      return fixed || goal.fixed
+    }
+    case 'group': {
+      const stored: unknown[] = Array.isArray(raw.items) ? raw.items : []
+      if (stored.length === 0 || stored.length > NUMBER_GROUP_MAX) fixed = true
+      const items: NumberGroupItem[] = []
+      for (const v of stored.slice(0, NUMBER_GROUP_MAX)) {
+        if (groupItemProblem(v)) fixed = true
+        const item = (v !== null && typeof v === 'object' && !Array.isArray(v) ? v : {}) as Obj
+        const filter = readPredicate(item.filter)
+        if (filter.fixed) fixed = true
+        const picked: NumberGroupItem = { name: isNumberName(item.name) ? item.name : 'Number', filter: filter.config }
+        if (isNumberColor(item.color)) picked.color = item.color
+        items.push(picked)
+      }
+      if (items.length === 0) items.push({ name: DEFAULT_NUMBER_NAME, filter: readPredicate(undefined).config })
+      config.items = items
+      return fixed
+    }
+    case 'list':
+      if (isNumberListRef(raw.list)) config.list = { listDefinitionId: raw.list.listDefinitionId }
+      return fixed || (raw.list !== undefined && config.list === undefined)
+    case 'count':
+      return fixed
+  }
 }
 
 /** What a Number's large face breaks its tasks down by (D25 R): their people, their tags, or nothing. */
