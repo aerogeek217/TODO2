@@ -5,8 +5,9 @@ import { cellMenuEntries, mergedCellMenu, NO_MERGE_REASON, type CellMenuActions 
 import { widgetKindMenuEntries } from '../../../components/shared/widget-kind-menu-entries'
 
 /**
- * The cell's ⋯ menu as composed (D26 AA1): the widget's entries (what its
- * tab menu had), a separator, the cell's in the table's words.
+ * The cell's ⋯ menu as composed (D26 AA1): the widget's entries under its
+ * kind's heading (what its tab menu had), a separator, the cell's under
+ * Cell in the table's words.
  */
 
 /** Each entry as a word: an item's label, `—` a separator, `[text]` a label. */
@@ -34,9 +35,9 @@ function actions(over: Partial<CellMenuActions> = {}): CellMenuActions {
 }
 
 describe('cellMenuEntries', () => {
-  it('one widget: Add widget…, Split, Merge, Insert, Collapse row, Close cell (no Close tab, no count)', () => {
+  it('one widget: under Cell, Add widget…, Split, Merge, Insert, Collapse row, Close cell (no Close tab, no count)', () => {
     expect(words(cellMenuEntries(actions()))).toEqual([
-      'Add widget…', '—', 'Split cell', 'Merge with', 'Insert', 'Collapse row', '—', 'Close cell',
+      '[Cell]', 'Add widget…', 'Split cell', 'Merge with', 'Insert', 'Collapse row', '—', 'Close cell',
     ])
   })
 
@@ -74,12 +75,12 @@ describe('mergedCellMenu', () => {
     const widget = widgetKindMenuEntries({ currentKind: 'notes', onChangeKind: () => {} }, [])
     const merged = mergedCellMenu(widget, cellMenuEntries(actions()))
     expect(words(merged)).toEqual([
-      '[Change widget]', 'List', 'Notes', '—', 'Numbers & charts',
-      '—', 'Add widget…', '—', 'Split cell', 'Merge with', 'Insert', 'Collapse row', '—', 'Close cell',
+      '[Notes]', 'Change widget',
+      '—', '[Cell]', 'Add widget…', 'Split cell', 'Merge with', 'Insert', 'Collapse row', '—', 'Close cell',
     ])
   })
 
-  it('a list’s own items lead: Edit list…, Change list, its zoom and actions, then the kinds', () => {
+  it('a list’s own items lead under its heading: Edit list…, Change list, its actions, then Change widget', () => {
     const widget = widgetKindMenuEntries({
       currentKind: 'lens',
       onChangeKind: () => {},
@@ -89,8 +90,8 @@ describe('mergedCellMenu', () => {
       widgetActions: [{ label: 'Copy tasks', onSelect: () => {} }],
     }, [])
     const merged = words(mergedCellMenu(widget, cellMenuEntries(actions())))
-    expect(merged.slice(0, 5)).toEqual(['Edit list…', 'Change list', '—', 'Copy tasks', '—'])
-    expect(merged.indexOf('Numbers & charts')).toBeLessThan(merged.indexOf('Add widget…'))
+    expect(merged.slice(0, 7)).toEqual(['[List]', 'Edit list…', 'Change list', 'Copy tasks', 'Change widget', '—', '[Cell]'])
+    expect(merged.indexOf('Change widget')).toBeLessThan(merged.indexOf('Add widget…'))
   })
 
   it('never doubles a separator or leaves one at an end', () => {

@@ -683,14 +683,19 @@ const GLANCE_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('glance').map(w
 
 /**
  * Picks the kind named `label` in the open add-widget (`Add widget`) or
- * cell (`Change widget`: the ⋯ menu, `Cell options`, whose widget part
- * changes the kind) menu: a task kind from the menu itself, a Numbers &
- * charts kind from its submenu. Adding a Breakdown picks one of its presets
- * (`preset`, default Custom: D26 P8), whose editor then opens.
+ * cell (`Change widget`: the ⋯ menu, `Cell options`) menu. Adding: a task
+ * kind from the menu itself, a Numbers & charts kind from its submenu, and
+ * a Breakdown one of its presets (`preset`, default Custom: D26 P8), whose
+ * editor then opens. Changing: every kind from the Change widget › submenu.
  */
 export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Change widget', label: string, preset = 'Custom'): Promise<void> {
-  const role = menuName === 'Add widget' ? 'menuitem' : 'menuitemradio'
-  let menu = page.getByRole('menu', { name: menuName === 'Add widget' ? 'Add widget' : 'Cell options' })
+  if (menuName === 'Change widget') {
+    await openChangeWidget(page)
+    await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitemradio', { name: label, exact: true }).click()
+    return
+  }
+  const role = 'menuitem'
+  let menu = page.getByRole('menu', { name: 'Add widget' })
   if (GLANCE_LABELS.has(label)) {
     await menu.getByRole('menuitem', { name: /^Numbers & charts/ }).click()
     menu = page.getByRole('menu', { name: 'Numbers & charts' })
@@ -699,6 +704,12 @@ export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Chang
   if (menuName === 'Add widget' && label === 'Breakdown') {
     await page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem', { name: preset, exact: true }).click()
   }
+}
+
+/** Opens the open ⋯ menu's (`Cell options`) Change widget › submenu; returns it. */
+export async function openChangeWidget(page: Page): Promise<Locator> {
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: /^Change widget/ }).click()
+  return page.getByRole('menu', { name: 'Change widget' })
 }
 
 /**

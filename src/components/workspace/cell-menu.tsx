@@ -34,10 +34,10 @@ import { useListReviewMenuEntries } from './list/review-menu'
 import { createListThenEdit, NO_LIST_LAYOUT_REASON, openEditList, useListOwnerLayoutId } from './widget-hooks'
 
 /**
- * A cell's ⋯ menu (D26 AA1): the widget's own entries first — what its tab
- * menu had (`WidgetKindMenu`'s: Edit list…, Zoom, Copy…, Change widget) —,
- * then the cell's in the table's words (D26 board V): Add widget…, Split
- * cell ▸, Merge with ▸, Insert ▸, Collapse row, Close tab, Close cell. One
+ * A cell's ⋯ menu (D26 AA1): the widget's own entries first, under its
+ * kind's heading — Edit list…, Zoom, Copy…, Change widget › —, then the
+ * cell's under Cell, in the table's words (D26 board V): Add widget…, Split
+ * cell ▸, Merge with ▸, Insert ▸, Collapse row; then Close tab, Close cell. One
  * menu, opened from the ⋯ (a widget's top line, or a tab strip's header),
  * a right-click on the top line or a tab, and Shift+F10 / the Menu key.
  */
@@ -80,14 +80,15 @@ export interface CellMenuActions {
 }
 
 /**
- * The cell's part of the ⋯ menu: Add widget…, Split cell ▸, Merge with ▸,
- * Insert ▸, Collapse row, then Close tab (with two or more widgets; one
- * widget's is Close cell's) and Close cell.
+ * The cell's part of the ⋯ menu, under its heading (Cell): Add widget…,
+ * Split cell ▸, Merge with ▸, Insert ▸, Collapse row, then Close tab (with
+ * two or more widgets; one widget's is Close cell's) and Close cell.
  */
 export function cellMenuEntries(a: CellMenuActions): MenuEntry[] {
   const mergeWith = a.mergeWith ?? mergeTarget
   const several = a.cell.tabs.length > 1
   return [
+    { kind: 'label', text: 'Cell' },
     {
       kind: 'item',
       label: 'Add widget…',
@@ -95,7 +96,6 @@ export function cellMenuEntries(a: CellMenuActions): MenuEntry[] {
       submenu: true,
       onSelect: a.onAddWidget,
     },
-    { kind: 'separator' },
     {
       kind: 'item',
       label: 'Split cell',
@@ -194,7 +194,7 @@ export function useWidgetMenuContent(
   const listZoomEntries = useListZoomMenuEntries(tab?.kind === 'lens' ? tab : undefined)
   // A list tab's Review these N tasks (D26), above its zoom.
   const reviewEntries = useListReviewMenuEntries(tab?.kind === 'lens' ? tab : undefined)
-  const zoomEntries: MenuEntry[] = reviewEntries.length > 0 ? [...reviewEntries, { kind: 'separator' }, ...listZoomEntries] : listZoomEntries
+  const zoomEntries: MenuEntry[] = [...reviewEntries, ...listZoomEntries]
   if (!tab) return undefined
   // A glance widget's settings and Copy (its lines, while it is the cell's active tab).
   const glance = glanceMenu(isGlanceTab(tab) ? tab : undefined, result?.summary)

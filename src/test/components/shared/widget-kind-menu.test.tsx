@@ -8,8 +8,23 @@ afterEach(cleanup)
 
 const ANCHOR = { x: 10, y: 20 }
 
+/** A menu panel's entries as words: an item's label, `—` a separator, `[text]` a group label. */
+function panelWords(menu: HTMLElement): string[] {
+  return Array.from(menu.children).map((el) => {
+    const role = el.getAttribute('role')
+    if (role === 'separator') return '—'
+    if (role === 'presentation') return `[${el.textContent ?? ''}]`
+    return el.getAttribute('data-menu-label') ?? el.textContent ?? ''
+  })
+}
+
+/** Changing a widget: the kinds are in Change widget's submenu. */
+const openChangeWidget = () => fireEvent.click(screen.getByRole('menuitem', { name: /^Change widget/ }))
+/** The open Change widget submenu (the menu itself is named Change widget too, and comes first). */
+const kindsMenu = () => screen.getAllByRole('menu', { name: 'Change widget' }).at(-1)!
+
 describe('WidgetKindMenu', () => {
-  it('renders every kind entry with the current one marked', () => {
+  it('renders every kind entry in Change widget’s submenu with the current one marked', () => {
     render(
       <WidgetKindMenu
         anchor={ANCHOR}
@@ -18,19 +33,23 @@ describe('WidgetKindMenu', () => {
         onClose={() => {}}
       />,
     )
-    // The kinds are radio items under "Change widget"; the current one is checked.
-    expect(screen.getByText('Change widget')).toBeInTheDocument()
-    expect(screen.getByRole('menuitemradio', { name: /List/ })).toHaveAttribute('aria-checked', 'false')
-    expect(screen.getByRole('menuitemradio', { name: /Notes/ })).toHaveAttribute('aria-checked', 'true')
-    expect(screen.queryByRole('menuitemradio', { name: /Taskboard/ })).toBeNull()
-    // The task widgets under the heading, inline; Numbers & charts a submenu of its own (D26: the Calendar, the Eisenhower and the Neglect map in it).
-    expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual(['List', 'Notes'])
-    expect(screen.queryByText('Tasks')).toBeNull()
-    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Numbers & charts'])
-    fireEvent.click(screen.getByRole('menuitem', { name: /Numbers & charts/ }))
-    expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim()).slice(2)).toEqual([
+    // Under the kind's heading, Change widget › names the current kind; no kind in the menu itself.
+    expect(panelWords(screen.getByRole('menu', { name: 'Change widget' }))).toEqual(['[Notes]', 'Change widget'])
+    expect(screen.getByRole('menuitem', { name: /^Change widget/ })).toHaveTextContent('Notes')
+    expect(screen.queryAllByRole('menuitemradio')).toEqual([])
+    openChangeWidget()
+    // The kinds are radio items by group under its caption (D26: the Calendar, the Eisenhower and the Neglect map in Numbers & charts); the current one is checked.
+    expect(panelWords(kindsMenu())).toEqual([
+      '[Tasks]', 'List', 'Notes',
+      '—', '[Numbers & charts]',
       'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
     ])
+    expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
+      'List', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
+    ])
+    expect(screen.getByRole('menuitemradio', { name: /^List/ })).toHaveAttribute('aria-checked', 'false')
+    expect(screen.getByRole('menuitemradio', { name: /^Notes/ })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByRole('menuitemradio', { name: /Taskboard/ })).toBeNull()
     for (const gone of [/Dashboard/, /Needs follow-up/, /Next 7 days/, /Stale tasks/, /Recently completed/, /Eisenhower summary/, /What changed/, /^Today/]) {
       expect(screen.queryByRole('menuitemradio', { name: gone })).toBeNull()
     }
@@ -47,12 +66,13 @@ describe('WidgetKindMenu', () => {
         onClose={onClose}
       />,
     )
+    openChangeWidget()
     fireEvent.click(screen.getByRole('menuitemradio', { name: /^List/ }))
     expect(onChangeKind).toHaveBeenCalledWith('lens')
     expect(onClose).toHaveBeenCalled()
   })
 
-  it('shows a secondary "Change list…" row only when current kind is lens and pickListForLens is provided', () => {
+  it('shows a "Change list ›" row only when current kind is lens and pickListForLens is provided', () => {
     const { rerender } = render(
       <WidgetKindMenu
         anchor={ANCHOR}
@@ -86,7 +106,8 @@ describe('WidgetKindMenu', () => {
         onClose={() => {}}
       />,
     )
-    expect(screen.queryByRole('menuitem', { name: /Change/ })).toBeNull()
+    expect(screen.queryByRole('menuitem', { name: /Change list/ })).toBeNull()
+    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Change widget'])
   })
 
   it('closes on Escape', () => {
@@ -112,18 +133,23 @@ describe('WidgetKindMenu', () => {
         onClose={() => {}}
       />,
     )
-    // First focused item is List.
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /List/ }))
-    const menu = screen.getByRole('menu')
-    fireEvent.keyDown(menu, { key: 'ArrowDown' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Notes/ }))
-    fireEvent.keyDown(menu, { key: 'ArrowUp' })
-    fireEvent.keyDown(menu, { key: 'ArrowUp' })
-    // Up from the first wraps to the last: the Numbers & charts submenu.
-    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /Numbers & charts/ }))
+    // First focused item is Change widget; → opens its kinds on the current one.
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: /^Change widget/ }))
+    fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
+    const kinds = kindsMenu()
+    // Down skips the separator and the caption.
+    fireEvent.keyDown(kinds, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Number$/ }))
+    fireEvent.keyDown(kinds, { key: 'ArrowUp' })
+    fireEvent.keyDown(kinds, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^List/ }))
+    // Up from the first wraps to the last: the Neglect map.
+    fireEvent.keyDown(kinds, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Neglect map/ }))
     // Type-ahead: the next item starting with the key.
-    fireEvent.keyDown(menu, { key: 'n' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Notes/ }))
+    fireEvent.keyDown(kinds, { key: 'n' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
   })
 
   it('renders an "Edit list" item only when onEditList is provided', () => {
@@ -180,7 +206,7 @@ describe('WidgetKindMenu', () => {
   describe('Numbers & charts', () => {
     const openGlance = () => fireEvent.click(screen.getByRole('menuitem', { name: /Numbers & charts/ }))
 
-    it('is a submenu in both change and add mode, the task kinds inline', () => {
+    it('changing: a group in Change widget’s submenu; adding: a submenu of its own, the task kinds inline', () => {
       const { rerender } = render(
         <WidgetKindMenu
           anchor={ANCHOR}
@@ -189,8 +215,9 @@ describe('WidgetKindMenu', () => {
           onClose={() => {}}
         />,
       )
+      expect(screen.queryByRole('menuitem', { name: /Numbers & charts/ })).toBeNull()
       expect(screen.queryByRole('menuitemradio', { name: /^Number/ })).toBeNull()
-      openGlance()
+      openChangeWidget()
       expect(screen.getByRole('menuitemradio', { name: /^Number/ })).toHaveAttribute('aria-checked', 'false')
       rerender(
         <WidgetKindMenu
@@ -208,7 +235,7 @@ describe('WidgetKindMenu', () => {
       expect(screen.getByRole('menuitem', { name: 'Number' })).not.toHaveAttribute('aria-checked')
     })
 
-    it('names the current kind when it is one of them, checked in the submenu', () => {
+    it('Change widget names the current kind when it is one of them, checked in the submenu', () => {
       render(
         <WidgetKindMenu
           anchor={ANCHOR}
@@ -217,8 +244,8 @@ describe('WidgetKindMenu', () => {
           onClose={() => {}}
         />,
       )
-      expect(screen.getByRole('menuitem', { name: /Numbers & charts/ }).textContent).toContain('Created vs completed')
-      openGlance()
+      expect(screen.getByRole('menuitem', { name: /^Change widget/ }).textContent).toContain('Created vs completed')
+      openChangeWidget()
       expect(screen.getByRole('menuitemradio', { name: /Created vs completed/ })).toHaveAttribute('aria-checked', 'true')
     })
 
@@ -233,7 +260,7 @@ describe('WidgetKindMenu', () => {
           onClose={onClose}
         />,
       )
-      openGlance()
+      openChangeWidget()
       fireEvent.click(screen.getByRole('menuitemradio', { name: /Project pulse/ }))
       expect(onChangeKind).toHaveBeenCalledWith('pulse')
       expect(onClose).toHaveBeenCalled()
@@ -248,6 +275,8 @@ describe('WidgetKindMenu', () => {
           onClose={() => {}}
         />,
       )
+      openChangeWidget()
+      expect(screen.getByRole('menuitemradio', { name: /^Number$/ })).toBeInTheDocument()
       expect(screen.queryByRole('menuitemradio', { name: /Horizons/ })).toBeNull()
       expect(screen.queryByRole('menuitemradio', { name: /Discipline/ })).toBeNull()
       expect(screen.queryByRole('menuitemradio', { name: /Snooze graveyard/ })).toBeNull()
@@ -268,8 +297,9 @@ describe('WidgetKindMenu', () => {
         onClose={() => {}}
       />,
     )
-    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
-      .toEqual(['Edit list…', 'Change list', 'Copy tasks', 'Numbers & charts'])
+    expect(panelWords(screen.getByRole('menu', { name: 'Change widget' })))
+      .toEqual(['[List]', 'Edit list…', 'Change list', 'Copy tasks', 'Change widget'])
+    expect(screen.getByRole('menuitem', { name: /Change list/ })).toHaveTextContent('First')
     expect(screen.queryByRole('menuitem', { name: /List options/ })).toBeNull()
     // Focus starts on Edit list….
     expect(document.activeElement).toHaveAttribute('data-menu-label', 'Edit list…')
@@ -295,9 +325,9 @@ describe('WidgetKindMenu — widget setting submenu', () => {
     render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={() => {}} widgetSetting={setting} />)
     const items = screen.getAllByRole('menuitem')
     expect(items[0]).toHaveTextContent('Due date makes a task urgent3 days')
-    // In Numbers & charts (D26), which names it.
-    expect(screen.getByRole('menuitem', { name: /Numbers & charts/ }).textContent).toContain('Eisenhower')
-    fireEvent.click(screen.getByRole('menuitem', { name: /Numbers & charts/ }))
+    // Change widget names it; in its submenu, under Numbers & charts (D26).
+    expect(screen.getByRole('menuitem', { name: /^Change widget/ }).textContent).toContain('Eisenhower')
+    openChangeWidget()
     expect(screen.getByRole('menuitemradio', { name: /^Eisenhower$/ })).toHaveAttribute('aria-checked', 'true')
   })
 
@@ -388,7 +418,7 @@ describe('WidgetKindMenu — Change list submenu', () => {
     useListDefinitionStore.setState({ listDefinitions: [] })
     render(<WidgetKindMenu anchor={ANCHOR} currentKind="lens" onChangeKind={() => {}} pickListForLens={() => {}} onClose={() => {}} />)
     fireEvent.click(screen.getByRole('menuitem', { name: /Change list/ }))
-    expect(screen.getByRole('menu', { name: 'Change list…' })).toHaveTextContent('No lists yet.')
+    expect(screen.getByRole('menu', { name: 'Change list' })).toHaveTextContent('No lists yet.')
   })
 })
 
@@ -417,7 +447,8 @@ describe('WidgetKindMenu — an Eisenhower tab', () => {
     )
     expect(screen.getByRole('menu', { name: 'Change widget' })).not.toHaveTextContent('Shows')
     expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label')))
-      .toEqual(['Edit list…', 'Customize panes…', 'Due date makes a task urgent', 'Numbers & charts'])
+      .toEqual(['Edit list…', 'Customize panes…', 'Due date makes a task urgent', 'Change widget'])
+    expect(panelWords(screen.getByRole('menu', { name: 'Change widget' }))[0]).toBe('[Eisenhower]')
     fireEvent.click(screen.getByRole('menuitem', { name: 'Edit list…' }))
     expect(onEditList).toHaveBeenCalledTimes(1)
     expect(onClose).toHaveBeenCalled()
@@ -439,8 +470,8 @@ describe('WidgetKindMenu on a tab with setting entries (a Neglect map)', () => {
         onClose={() => {}}
       />,
     )
-    expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Colour by', 'Untouched after', 'Numbers & charts'])
-    expect(screen.getByRole('menuitem', { name: /Numbers & charts/ }).textContent).toContain('Neglect map')
+    expect(panelWords(screen.getByRole('menu', { name: 'Change widget' }))).toEqual(['[Neglect map]', 'Colour by', 'Untouched after', 'Change widget'])
+    expect(screen.getByRole('menuitem', { name: /^Change widget/ }).textContent).toContain('Neglect map')
     fireEvent.click(screen.getByRole('menuitem', { name: /Colour by/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'None' }))
     expect(onPick).toHaveBeenCalledTimes(1)

@@ -151,7 +151,8 @@ describe('a layout’s lists in the workspace', () => {
 
     render(<DndContext><WorkspaceCell cell={cell} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
     fireEvent.contextMenu(document.querySelector('[data-ws-tab="eis"]')!)
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Cell options' })).getByRole('menuitemradio', { name: /^List/ }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Cell options' })).getByRole('menuitem', { name: /^Change widget/ }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Change widget' })).getByRole('menuitemradio', { name: /^List/ }))
     const prompt = await screen.findByRole('dialog', { name: 'Save changes to list “Eisenhower”?' })
     fireEvent.click(within(prompt).getByRole('button', { name: /^Cancel/ }))
 

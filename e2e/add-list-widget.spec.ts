@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openCellMenu, pickSplit, seedWorkspace, wsCell, wsRow, wsTab } from './fixtures/workspace'
+import { openCellMenu, pickSplit, pickWidgetKind, seedWorkspace, wsCell, wsRow, wsTab } from './fixtures/workspace'
 
 /**
  * Adding a List widget (the ⋯'s Add widget…, an empty cell's / layout's List) and
@@ -47,7 +47,7 @@ test('Change widget › List: the tab shows a new list and Edit list opens besid
   })
   // Alone in its cell: the top line stands for the tab, its right-click the ⋯ menu.
   await wsTab(page, 'notesTab').click({ button: 'right' })
-  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitemradio', { name: 'List' }).click()
+  await pickWidgetKind(page, 'Change widget', 'List')
 
   await expect(wsCell(page, 'cell').getByTestId('top-line-name')).toHaveText('New list')
   await expect(editListDialog(page, 'New list')).toBeVisible()

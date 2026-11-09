@@ -54,6 +54,11 @@ function itemLabels(menu: HTMLElement): Array<string | null> {
   return Array.from(menu.querySelectorAll('[role^="menuitem"]')).map((el) => el.getAttribute('data-menu-label'))
 }
 
+/** A menu's group headings, in order. */
+function headings(menu: HTMLElement): Array<string | null> {
+  return Array.from(menu.querySelectorAll(':scope > [role="presentation"]')).map((el) => el.textContent)
+}
+
 beforeEach(() => {
   resetEntityStores()
 })
@@ -67,12 +72,14 @@ describe('the cell menu', () => {
     return screen.getAllByRole('menu').at(-1)!
   }
 
-  it('lists the widget’s entries, then the table’s words in order; one widget’s close is Close cell', () => {
+  it('lists the widget’s entries under its kind, then the table’s words under Cell in order; one widget’s close is Close cell', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     renderCell(k)
-    expect(itemLabels(cellMenu())).toEqual([
-      'List', 'Notes', 'Numbers & charts',
+    const menu = cellMenu()
+    expect(headings(menu)).toEqual(['Notes', 'Cell'])
+    expect(itemLabels(menu)).toEqual([
+      'Change widget',
       'Add widget…', 'Split cell', 'Merge with', 'Insert', 'Collapse row', 'Close cell',
     ])
   })
@@ -81,9 +88,14 @@ describe('the cell menu', () => {
     const k = cell('k', [createTab('notes', 'n'), createTab('calendar', 'c')], { activeTabId: 'c' })
     open(single(k))
     renderCell(k)
-    const labels = itemLabels(cellMenu())
+    const menu = cellMenu()
+    const labels = itemLabels(menu)
     expect(labels.slice(-3)).toEqual(['Collapse row', 'Close tab “Calendar”', 'Close cell (2 tabs)'])
-    expect(labels.indexOf('Notes')).toBeLessThan(labels.indexOf('Add widget…'))
+    // The Calendar's entries (under its heading, ending with Change widget) come before the cell's.
+    expect(headings(menu)).toEqual(['Calendar', 'Cell'])
+    expect(labels.indexOf('Change widget')).toBeGreaterThanOrEqual(0)
+    expect(labels.indexOf('Change widget')).toBeLessThan(labels.indexOf('Add widget…'))
+    expect(within(menu).getByRole('menuitem', { name: /^Change widget/ })).toHaveTextContent('Calendar')
     fireEvent.click(screen.getByRole('menuitem', { name: 'Close tab “Calendar”' }))
     expect(working().cells[0]?.tabs.map((t) => t.id)).toEqual(['n'])
   })
@@ -189,8 +201,10 @@ describe('tabs on demand (D26 AA1)', () => {
     renderCell(k)
     fireEvent.contextMenu(document.querySelector('[data-ws-tab="n"]')!)
     const menu = screen.getByRole('menu', { name: 'Cell options' })
-    expect(within(menu).getByRole('menuitemradio', { name: 'Notes' })).toHaveAttribute('aria-checked', 'true')
     expect(within(menu).getByRole('menuitem', { name: 'Close tab “Notes”' })).toBeInTheDocument()
+    fireEvent.click(within(menu).getByRole('menuitem', { name: /^Change widget/ }))
+    const kinds = screen.getByRole('menu', { name: 'Change widget' })
+    expect(within(kinds).getByRole('menuitemradio', { name: 'Notes' })).toHaveAttribute('aria-checked', 'true')
   })
 
   it('a right-click on the top line opens the ⋯ menu; one in the widget’s body is left to it', () => {

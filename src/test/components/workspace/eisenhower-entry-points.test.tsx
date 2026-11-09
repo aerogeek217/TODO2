@@ -42,6 +42,12 @@ function openTabMenu(): HTMLElement {
   return screen.getByRole('menu', { name: 'Cell options' })
 }
 
+/** Opens the menu's Change widget › and returns its kinds' submenu. */
+function openKinds(menu: HTMLElement): HTMLElement {
+  fireEvent.click(within(menu).getByRole('menuitem', { name: /^Change widget/ }))
+  return screen.getByRole('menu', { name: 'Change widget' })
+}
+
 describe('Eisenhower entry points', () => {
   it('the tab menu: Edit list… (its own list), Customize panes… → Settings › Tasks › Eisenhower; no source line, no Show ›', () => {
     const menu = openTabMenu()
@@ -61,8 +67,8 @@ describe('Eisenhower entry points', () => {
   })
 
   it('switched to List: a new blank list of the layout (the Eisenhower’s own is never a list tab’s), its Edit list open — no picker', async () => {
-    const menu = openTabMenu()
-    fireEvent.click(within(menu).getByRole('menuitemradio', { name: /^List/ }))
+    const kinds = openKinds(openTabMenu())
+    fireEvent.click(within(kinds).getByRole('menuitemradio', { name: /^List/ }))
     expect(screen.queryByText('Show list')).toBeNull()
     await waitFor(() => expect(useWorkspaceStore.getState().working?.cells[0]?.tabs[0]?.kind).toBe('lens'))
     const tab = useWorkspaceStore.getState().working!.cells[0]!.tabs[0]!
@@ -74,8 +80,8 @@ describe('Eisenhower entry points', () => {
 
   it('a layout not stored yet can’t make a list: List is offered disabled, saying why', () => {
     useWorkspaceStore.setState({ saved: null })
-    const menu = openTabMenu()
-    const list = within(menu).getByRole('menuitemradio', { name: /^List/ })
+    const kinds = openKinds(openTabMenu())
+    const list = within(kinds).getByRole('menuitemradio', { name: /^List/ })
     expect(list).toBeDisabled()
     expect(list).toHaveTextContent('Save the layout first to add lists.')
     fireEvent.click(list)

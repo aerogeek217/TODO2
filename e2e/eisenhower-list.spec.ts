@@ -204,7 +204,8 @@ test.describe('desktop', () => {
         ],
       }],
     })
-    await (await openTabMenu(page, 'eisTab')).getByRole('menuitemradio', { name: 'List' }).click()
+    await openTabMenu(page, 'eisTab')
+    await pickWidgetKind(page, 'Change widget', 'List')
     // No picker: a new blank list, its Edit list open beside the tab.
     await expect(page.getByText('Show list', { exact: true })).toHaveCount(0)
     await expect(page.getByRole('dialog', { name: 'Edit list New list' })).toBeVisible()
