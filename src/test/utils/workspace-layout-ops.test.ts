@@ -1,13 +1,16 @@
 import { describe, it, expect } from 'vitest'
 import { createTab, type LayoutBody, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { edgeBetween, edgeStretches, isNormalized, validateTiling, type Side } from '../../utils/workspace-grid'
+import { edgeBetween, edgeStretches, isNormalized, lineCrossings, validateTiling, wholeLine, type Side } from '../../utils/workspace-grid'
 import { findTab, getTab, layoutIds, layoutStructureEqual, layoutStructureKey, panelOfTab } from '../../utils/workspace-layout-queries'
 import { countListTabs } from '../../utils/workspace-layout-lists'
-import { copySizes, setTrackSizes, trackAxes } from '../../utils/workspace-layout-sizes'
+import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
+import { rowDrawsFitFaces, trackSizing } from '../../utils/workspace-table'
 import {
   addTab,
   closeCell,
   closeTab,
+  edgeSnap,
+  edgeSnapLine,
   evenStretchDelta,
   insertTrack,
   isCellCollapsed,
@@ -374,7 +377,7 @@ describe('moveEdge', () => {
 
   it('a whole line between its neighbouring lines reweights the two tracks (view state)', () => {
     const base = layout(grid([[a, b], [c, d]], { cols: [500, 500] }))
-    const stretch = edgeBetween(base, 'a', 'b')!
+    const stretch = wholeLine(base, 'columns', 1)
     const out = moveEdge(base, stretch, 100, { sizes: [400, 400] }, ids())
     expect(out.grid.columns.map((t) => t.weight)).toEqual([625, 375])
     expect(layoutStructureEqual(out, base)).toBe(true)
@@ -441,6 +444,133 @@ describe('moveEdge', () => {
     expect(moveEdge(base, stretch, 0, { sizes: [500, 200] }, ids())).toBe(base)
     expect(moveEdge(base, { axis: 'rows', line: 5, from: 0, to: 1 }, 10, { sizes: [500, 200] }, ids())).toBe(base)
     expect(moveEdge(base, stretch, 10, { sizes: [500] }, ids())).toBe(base)
+  })
+})
+
+describe('snapping and the "+" (D26 follow-ups, board BE)', () => {
+  const a = cell('a')
+  const b = cell('b')
+  const c = cell('c')
+  const d = cell('d')
+  const minPx = () => 40
+  // a c
+  // a d   — the left column's line at 300px (b below a), the right's at 400px
+  // b d
+  const staggered = layout({
+    ...grid([[a, c], [a, d], [b, d]], { cols: [500, 500], rows: [300, 100, 400] }),
+  })
+  const rowSizes = [300, 100, 400]
+
+  it('a piece snaps onto a line only other cells lie on (another column\'s), within 8px, and re-joins it', () => {
+    // c | d sits on row line 1 (300px); a | b on row line 2 (400px). Drag c | d down by 95px: within 8 of 400.
+    const piece = edgeBetween(staggered, 'c', 'd')!
+    expect(piece).toEqual({ axis: 'rows', line: 1, from: 1, to: 2 })
+    expect(edgeSnap(staggered, piece, 95, { sizes: rowSizes, minPx })).toBe(2)
+    expect(edgeSnapLine(staggered, piece, 95, { sizes: rowSizes, minPx })).toBe(2)
+    const out = moveEdge(staggered, piece, 95, { sizes: rowSizes, minPx }, ids())
+    // One row line again, through both columns: the two pieces meet at a "+".
+    expect(picture(out)).toEqual(['a c', 'b d'])
+    expect(lineCrossings(out)).toEqual([{ col: 1, row: 1 }])
+    expectValid(out)
+  })
+
+  it('out of reach it doesn\'t snap: the piece makes a new line where it stops', () => {
+    const piece = edgeBetween(staggered, 'c', 'd')!
+    expect(edgeSnap(staggered, piece, 60, { sizes: rowSizes, minPx })).toBeNull()
+    expect(edgeSnapLine(staggered, piece, 60, { sizes: rowSizes, minPx })).toBeNull()
+    expect(moveEdge(staggered, piece, 60, { sizes: rowSizes, minPx }, ids()).grid.rows).toHaveLength(3)
+  })
+
+  it('part of a line snaps back onto its own line (no change); the guide only once it has moved', () => {
+    const Q = layout(grid([[a, b], [c, d]]))
+    const piece = edgeBetween(Q, 'a', 'c')!
+    expect(piece).toEqual({ axis: 'rows', line: 1, from: 0, to: 1 })
+    expect(moveEdge(Q, piece, 5, { sizes: [400, 400], minPx }, ids())).toBe(Q)
+    expect(edgeSnapLine(Q, piece, 5, { sizes: [400, 400], minPx })).toBe(1)
+    expect(edgeSnapLine(Q, piece, 0, { sizes: [400, 400], minPx })).toBeNull()
+  })
+
+  it('the crossing\'s lines move whole and snap home: a few px off stays put, a real move reweights', () => {
+    const Q = layout(grid([[a, b], [c, d]], { cols: [500, 500], rows: [500, 500] }))
+    const opts = { sizes: [400, 400], minPx, snapHome: true }
+    const upright = wholeLine(Q, 'columns', 1)
+    expect(moveEdge(Q, upright, 6, opts, ids())).toBe(Q)
+    expect(edgeSnap(Q, upright, 6, opts)).toBe(1)
+    const moved = moveEdge(Q, upright, 100, opts, ids())
+    expect(moved.grid.columns.map((t) => t.weight)).toEqual([625, 375])
+    expect(layoutStructureEqual(moved, Q)).toBe(true)
+    // Without snapHome a whole line moves by any amount.
+    expect(moveEdge(Q, upright, 6, { sizes: [400, 400], minPx }, ids()).grid.columns.map((t) => t.weight)).toEqual([507.5, 492.5])
+  })
+})
+
+describe('a Numbers-only (fit) row\'s divider', () => {
+  const n1 = spec('n1', [createTab('number', 'num1')])
+  const n2 = spec('n2', [createTab('number', 'num2')])
+  const l = cell('l')
+  // n1 n2
+  // l  l
+  const body = layout(grid([[n1, n2], [l, l]], { rows: [1000, 1000] }))
+  const sized = () => moveEdge(body, wholeLine(body, 'rows', 1), 40, { sizes: [76, 600] }, ids())
+
+  it('dragging its line gives the fit row a height of its own (`fitPx`, view state), its weight kept, no px', () => {
+    const out = sized()
+    expect(out.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 116 })
+    expect(out.grid.rows[1]).toEqual({ id: 'r2', weight: 1000 })
+    expect(layoutStructureEqual(out, body)).toBe(true)
+    expect(trackSizing(out, 'rows', 0)).toEqual({ kind: 'fixed', px: 116 })
+    expect(trackSizing(body, 'rows', 0)).toEqual({ kind: 'fit' })
+    // Again from there: from its height, not the drawn size.
+    const again = moveEdge(out, wholeLine(out, 'rows', 1), -20, { sizes: [116, 560] }, ids())
+    expect(again.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 96 })
+  })
+
+  it('clearing its height lets it fit again', () => {
+    const cleared = withoutTrackFitPx(sized(), 'r1')
+    expect(cleared.grid.rows[0]).toEqual({ id: 'r1', weight: 1000 })
+    expect(trackSizing(cleared, 'rows', 0)).toEqual({ kind: 'fit' })
+    expect(withoutTrackFitPx(cleared, 'r1')).toBe(cleared)
+  })
+
+  it('a split’s halves don’t inherit it: two weighted halves, never two tiny fixed rows', () => {
+    const { layout: split } = splitCell(sized(), 'n1', 'bottom', ids())
+    expect(split.grid.rows).toHaveLength(3)
+    expect(split.grid.rows.slice(0, 2).map((t) => [t.weight, t.px, t.fitPx])).toEqual([[500, undefined, undefined], [500, undefined, undefined]])
+    expect(trackSizing(split, 'rows', 1).kind).toBe('weighted')
+  })
+
+  it('a row that stops being Numbers-only ignores it: weighted by its own weight; Numbers-only again, its height is back', () => {
+    const out = sized()
+    const list = replaceTab(out, 'num1', createTab('notes', 'num1'))
+    expect(list.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 116 })
+    expect(trackSizing(list, 'rows', 0)).toEqual({ kind: 'weighted', weight: 1000 })
+    const joined = addTab(out, createTab('notes', 'x1'), { kind: 'cell', cellId: 'n2' }, ids())
+    expect(trackSizing(joined, 'rows', 0)).toEqual({ kind: 'weighted', weight: 1000 })
+    expect(trackSizing(replaceTab(list, 'num1', createTab('number', 'num1')), 'rows', 0)).toEqual({ kind: 'fixed', px: 116 })
+  })
+
+  it('draws its cells at their small face while it fits, collapsed too; given a height, by their size', () => {
+    expect(rowDrawsFitFaces(body, 0)).toBe(true)
+    expect(rowDrawsFitFaces(setTrackCollapsed(body, 'r1', true), 0)).toBe(true)
+    expect(rowDrawsFitFaces(setTrackCollapsed(sized(), 'r1', true), 0)).toBe(true)
+    expect(rowDrawsFitFaces(sized(), 0)).toBe(false)
+    expect(rowDrawsFitFaces(body, 1)).toBe(false)
+    expect(rowDrawsFitFaces(setTrackCollapsed(body, 'r2', true), 1)).toBe(false)
+  })
+
+  it('a former band (a px row) of Numbers keeps its px: a drag sizes the px, no fitPx', () => {
+    const band = layout(grid([[n1, n2], [l, l]], { rows: [{ px: 90 }, 1000] }))
+    const out = moveEdge(band, wholeLine(band, 'rows', 1), 30, { sizes: [90, 600] }, ids())
+    expect(out.grid.rows[0]).toEqual({ id: 'r1', px: 120 })
+  })
+
+  it('copySizes carries it as a size: onto the same tracks, and onto the same row among changed ones (set or cleared)', () => {
+    const out = sized()
+    expect(copySizes(body, out, ['rows']).grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 116 })
+    // The source has a row the target hasn't (an unsaved insert): r1 is the same track in both.
+    const inserted = insertTrack(out, 'bottom', ids()).layout
+    expect(copySizes(body, inserted, ['rows']).grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 116 })
+    expect(copySizes(out, withoutTrackFitPx(inserted, 'r1'), ['rows']).grid.rows[0]).toEqual({ id: 'r1', weight: 1000 })
   })
 })
 

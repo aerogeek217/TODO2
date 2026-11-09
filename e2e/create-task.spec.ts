@@ -131,7 +131,6 @@ test('the new-task editor writes the status updates added before Create with the
   await input.pressSequentially('Write the report')
   await page.keyboard.press('Tab')
   await expect(dialog).toBeHidden()
-  await page.getByRole('button', { name: '+ Add update' }).click()
   const update = page.getByRole('textbox', { name: 'New status update', exact: true })
   await update.fill('Outline done')
   await update.press('Enter')

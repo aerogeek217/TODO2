@@ -92,7 +92,7 @@ describe('TaskRow', () => {
         [new Date(2026, 3, 17), 'Due Fri 17 Apr', 'Fri'],
         [new Date(2026, 3, 22), 'Due Wed 22 Apr', 'Wed'],
         [new Date(2026, 3, 23), 'Due Thu 23 Apr', '04/23'],
-        [new Date(2026, 3, 10), 'Due Fri 10 Apr', '04/10'],
+        [new Date(2026, 3, 10), 'Due 04/10', '04/10'],
         [new Date(2027, 0, 15), 'Due Fri 15 Jan 2027', '01/15'],
       ]
       for (const [dueDate, name, text] of cases) {

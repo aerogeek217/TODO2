@@ -6,12 +6,12 @@ import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary
 import { filterHistory, historyExactness, type HistoryExactness } from '../services/stats/filter-history'
 import { numberHistoryDays, numberIds, numberStages } from '../services/stats/number-count'
 import { computePulse, type PulseCard } from '../services/stats/pulse'
+import { pulseRuleFilter, type PulseRuleKey, type PulseTabConfig } from '../models/pulse-config'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListDraftStore } from '../stores/list-draft-store'
 import { usePersonStore } from '../stores/person-store'
-import { useScreenFilter } from '../stores/screen-filter'
 import { useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
 import { useStatusUpdateStore } from '../stores/status-update-store'
@@ -23,12 +23,13 @@ import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import { hasNarrowingFilters } from '../utils/filter-chips'
 import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
-import { applyFilter, readsText, type FilterSettings } from '../utils/filter-match'
+import { applyFilter, matchesFilterWithLookups, readsText, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { WeekStart } from '../utils/effective-date'
 import { sameElements, sharedMemo, sharedMemoByKey } from '../utils/shared-memo'
 import { useToday } from './use-today'
 import { useTrendEvents } from './use-trend-events'
+import { useWidgetScreenFilter } from './use-widget-lens'
 
 /**
  * The glance widgets' data, a hook per part over one
@@ -63,7 +64,7 @@ export interface StatsBase {
   /** The screen filter narrows the tasks (Show completed alone doesn't). */
   filtered: boolean
   todoById: ReadonlyMap<number, PersistedTodoItem>
-  /** The screen filter (with the lens). */
+  /** The screen filter (with the lens, unless the widget ignores it: `useWidgetScreenFilter`). */
   screen: FilterCriteria
   lookups: TodoNameLookups
   markerSettings: FilterSettings
@@ -90,18 +91,23 @@ const lookupsMemo = sharedMemo((
 
 // The same tasks as last time (a status update or subtask write the text
 // search doesn't change the outcome of) keep the same array, so no part keyed on it recomputes.
+// Two sets: with the top bar's lens and without it (a widget that ignores it, G3).
 const shownMemo = sharedMemo((
   screen: FilterCriteria,
   todos: readonly PersistedTodoItem[],
   lookups: TodoNameLookups,
   ctx: StatsContext,
   settings: FilterSettings,
-) => applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings), 1, sameElements)
+) => applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings), 2, sameElements)
 
 const byIdMemo = sharedMemo((todos: readonly PersistedTodoItem[]) => new Map(todos.map((t) => [t.id, t])))
 
-/** The shared base: the context and the screen-filtered tasks, the same objects in every widget. */
-export function useStatsBase(): StatsBase {
+/**
+ * The shared base: the context and the screen-filtered tasks, the same
+ * objects in every widget — the top bar's lens left out while the widget
+ * being drawn ignores it (`WidgetLensContext`), or as `ignoreLens` says.
+ */
+export function useStatsBase(ignoreLens?: boolean): StatsBase {
   const today = useToday()
   const todos = useTodoStore((s) => s.todos)
   const statuses = useStatusStore((s) => s.statuses)
@@ -111,7 +117,7 @@ export function useStatsBase(): StatsBase {
   const subtasksByTodo = useSubtaskStore((s) => s.byTodo)
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
-  const screen = useScreenFilter().filters
+  const screen = useWidgetScreenFilter(ignoreLens).filters
 
   const ctx = ctxMemo(today.getTime(), weekStartsOn, urgentRange, assignedPeopleMap, assignedTagsMap, statuses)
   const markerSettings = settingsMemo(urgentRange, weekStartsOn)
@@ -127,7 +133,47 @@ export function useStatsBase(): StatsBase {
 
 const screenTasksMemo = sharedMemo((shown: PersistedTodoItem[], withCompleted: boolean): PersistedTodoItem[] => (
   withCompleted ? shown : shown.filter((t) => !t.isCompleted)
-))
+), 2)
+
+const hiddenMemo = sharedMemo(function lensHidden(unlensed: PersistedTodoItem[], lensed: PersistedTodoItem[]): PersistedTodoItem[] {
+  const kept = new Set(lensed)
+  return unlensed.filter((t) => !kept.has(t))
+})
+
+/** What the top bar's lens hides from the widgets: the tasks shown without it but not with it (completed included), and the base with it. */
+export interface LensHidden {
+  hidden: PersistedTodoItem[]
+  /** The shared base with the lens (its lookups and context, for matching the hidden tasks). */
+  base: StatsBase
+}
+
+/**
+ * What the top bar's lens hides (`LensHidden`), whether or not the widget
+ * being drawn ignores it — its switch's `−N` counts its own share of
+ * these; `null` while no lens applies.
+ */
+export function useLensHidden(): LensHidden | null {
+  const lensed = useStatsBase(false)
+  const unlensed = useStatsBase(true)
+  const hidden = hiddenMemo(unlensed.shown, lensed.shown)
+  return useMemo(() => (lensed.screen.lens == null ? null : { hidden, base: lensed }), [hidden, lensed])
+}
+
+/** How many of the tasks the lens hides `keep` keeps (0 with no lens). */
+export function lensHidesWhere(info: LensHidden | null, keep: (t: PersistedTodoItem, base: StatsBase) => boolean): number {
+  if (!info) return 0
+  let n = 0
+  for (const t of info.hidden) if (keep(t, info.base)) n++
+  return n
+}
+
+/** How many of the tasks the lens hides `filter` keeps (as a Number counts: open ones unless it admits completed). */
+export function lensHidesFor(info: LensHidden | null, ...filters: TodoPredicate[]): number {
+  if (!info || filters.length === 0) return 0
+  const criteria = filters.map((f) => numberCriteriaMemo(f))
+  const lookups = lookupsFor(info.base, ...criteria)
+  return lensHidesWhere(info, (t, base) => criteria.some((c) => matchesFilterWithLookups(c, t, lookups, base.ctx.today, base.markerSettings)))
+}
 
 /**
  * The tasks the screen filter shows, as a list, the calendar and the
@@ -182,24 +228,6 @@ const numberCriteriaMemo = sharedMemoByKey(function numberCriteria(filter: TodoP
   return predicateToCriteria(filter)
 })
 
-/** The screen filter without its lens (a Number that ignores it). */
-const withoutLensMemo = sharedMemo(function withoutLens(screen: FilterCriteria): FilterCriteria {
-  const { lens: _lens, ...rest } = screen
-  void _lens
-  return rest
-})
-
-/** The tasks the screen filter without its lens shows (completed included, `statsFilter`). */
-const noLensShownMemo = sharedMemo(function noLensShown(
-  screen: FilterCriteria,
-  todos: Tasks,
-  lookups: TodoNameLookups,
-  ctx: StatsContext,
-  settings: FilterSettings,
-) {
-  return applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings)
-}, 1, sameElements)
-
 const numberIdsShownMemo = sharedMemoByKey(function numberIdsShown(filter: FilterCriteria, tasks: Tasks, lookups: TodoNameLookups, ctx: StatsContext, settings: FilterSettings) {
   return numberIds(filter, tasks, lookups, ctx.today, settings)
 }, sameElements)
@@ -211,7 +239,7 @@ const numberIdsTotalMemo = sharedMemoByKey(function numberIdsTotal(filter: Filte
 export interface NumberCount {
   /** Its filter (`NumberConfig.filter`) as criteria. */
   filter: FilterCriteria
-  /** The screen filter it counts under: the base's, or without the lens when it ignores it. */
+  /** The screen filter it counts under: the base's (without the lens when the widget ignores it). */
   screen: FilterCriteria
   /** That screen filter narrows the tasks. */
   filtered: boolean
@@ -225,21 +253,19 @@ const numberCountMemo = sharedMemoByKey(function numberCount(filter: FilterCrite
 
 /**
  * A Number's count (`services/stats/number-count`): its filter over the
- * tasks the top bar shows — the lens left out when the Number ignores it,
- * as a list does — and over every task.
+ * tasks the top bar shows — the base's, which leaves the lens out while
+ * the widget ignores it (its lens switch, G3) — and over every task.
  */
-export function useNumberCount(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'ignoreLens'>): NumberCount {
+export function useNumberCount(base: StatsBase, config: Pick<NumberConfig, 'filter'>): NumberCount {
   return numberCountOf(base, config)
 }
 
 /** `useNumberCount` outside a hook's order (no hook inside): a group Number counts each of its items with it (D26 P6). */
-export function numberCountOf(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'ignoreLens'>): NumberCount {
+export function numberCountOf(base: StatsBase, config: Pick<NumberConfig, 'filter'>): NumberCount {
   const filter = numberCriteriaMemo(config.filter)
-  const dropLens = config.ignoreLens === true && base.screen.lens != null
-  const screen = dropLens ? withoutLensMemo(base.screen) : base.screen
-  const tasks = dropLens ? noLensShownMemo(screen, base.todos, base.lookups, base.ctx, base.markerSettings) : base.shown
+  const screen = base.screen
   const lookups = lookupsFor(base, filter)
-  const shown = numberIdsShownMemo(filter, tasks, lookups, base.ctx, base.markerSettings)
+  const shown = numberIdsShownMemo(filter, base.shown, lookups, base.ctx, base.markerSettings)
   const total = numberIdsTotalMemo(filter, base.todos, lookups, base.ctx, base.markerSettings)
   return numberCountMemo(filter, screen, shown, total)
 }
@@ -289,14 +315,37 @@ export function useNumberHistory(base: StatsBase, count: NumberCount): NumberHis
 
 // ── Project pulse (D25 L) ───────────────────────────────────────────────────
 
-const pulseMemo = sharedMemo((shown: Tasks, tags: readonly Tag[], ctx: StatsContext, tagIds: readonly number[], staleAfterDays: number): PulseCard[] => (
-  computePulse(shown, tags, ctx, tagIds, staleAfterDays)
-), OPTION_SLOTS)
-/** Project pulse's cards over the screen-filtered tasks, a card per picked tag. */
-export function usePulse(base: StatsBase, tagIds: readonly number[]): PulseCard[] {
+const pulseMemo = sharedMemo((
+  shown: Tasks,
+  tags: readonly Tag[],
+  ctx: StatsContext,
+  tagIds: readonly number[],
+  staleAfterDays: number,
+  late: FilterCriteria | null,
+  stale: FilterCriteria | null,
+  lookups: TodoNameLookups | null,
+  settings: FilterSettings,
+): PulseCard[] => {
+  // A rule with a filter of its own (G5) matches through it, as a chart's filter does; else its built-in default.
+  const match = (c: FilterCriteria | null) => (c && lookups ? (t: PersistedTodoItem) => matchesFilterWithLookups(c, t, lookups, ctx.today, settings) : undefined)
+  return computePulse(shown, tags, ctx, tagIds, staleAfterDays, { late: match(late), stale: match(stale) })
+}, OPTION_SLOTS)
+/**
+ * Project pulse's cards over the screen-filtered tasks, a card per picked
+ * tag; late and stale by its rules (G5): a rule's filter over a card's open
+ * tasks (the lookups only when one has a filter, so a write no rule reads
+ * recomputes nothing), else its default.
+ */
+export function usePulse(base: StatsBase, config: Pick<PulseTabConfig, 'tagIds' | PulseRuleKey>): PulseCard[] {
   const tags = useTagStore((s) => s.tags)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
-  return pulseMemo(base.shown, tags, base.ctx, tagIds, staleAfterDays)
+  const lateFilter = pulseRuleFilter(config, 'late')
+  const staleFilter = pulseRuleFilter(config, 'stale')
+  const late = lateFilter ? numberCriteriaMemo(lateFilter) : null
+  const stale = staleFilter ? numberCriteriaMemo(staleFilter) : null
+  const criteria = [late, stale].filter((c): c is FilterCriteria => c != null)
+  const lookups = criteria.length > 0 ? lookupsFor(base, ...criteria) : null
+  return pulseMemo(base.shown, tags, base.ctx, config.tagIds, staleAfterDays, late, stale, lookups, base.markerSettings)
 }
 
 // ── The Eisenhower's counts (its small and medium faces) ────────────────────

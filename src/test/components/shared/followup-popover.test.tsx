@@ -94,8 +94,8 @@ describe('<FollowupPopover> Next field and Mark followed up', () => {
       { next: FUTURE, auto: false, value: 'Tue 27 Oct', was: null },
       { next: TODAY_DAY, auto: true, value: 'Tue 10 Nov', was: 'Was today' },
       { next: TODAY_DAY, auto: false, value: '', was: 'Was today' },
-      { next: OVERDUE, auto: true, value: 'Tue 10 Nov', was: 'Was Mon 10/05 · overdue' },
-      { next: OVERDUE, auto: false, value: '', was: 'Was Mon 10/05 · overdue' },
+      { next: OVERDUE, auto: true, value: 'Tue 10 Nov', was: 'Was 10/05 · overdue' },
+      { next: OVERDUE, auto: false, value: '', was: 'Was 10/05 · overdue' },
       { auto: true, value: 'Tue 10 Nov', was: null },
       { auto: false, value: '', was: null },
     ]
@@ -589,8 +589,8 @@ describe('<FollowupPopover> Status update line', () => {
 
 describe('formatWeekdayNumeric', () => {
   it('is the short weekday and the zero-padded MM/DD', () => {
-    expect(formatWeekdayNumeric(new Date(2026, 9, 22))).toBe('Thu 10/22')
-    expect(formatWeekdayNumeric(new Date(2027, 0, 5))).toBe('Tue 01/05')
+    expect(formatWeekdayNumeric(new Date(2026, 9, 22), TODAY)).toBe('Thu 10/22')
+    expect(formatWeekdayNumeric(new Date(2027, 0, 5), TODAY)).toBe('Tue 01/05')
   })
 })
 

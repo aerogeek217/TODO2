@@ -21,17 +21,23 @@ import {
   isNeglectUntouchedDays,
   type NeglectColourBy,
   type NeglectTabConfig,
+  // G3: the widgets' lens switch.
+  LENS_SWITCH_KINDS,
+  type CalendarTab,
+  type EisenhowerTab,
+  type LensSwitchTab,
+  type LensViewState,
 } from '../models/workspace-layout'
 import {
   GLANCE_CONFIG_FIELDS,
   numberConfigProblem,
   pickNumberConfig,
-  pickTagPicksConfig,
   pickTrendConfig,
   type NumberConfig,
   type PickedConfig,
 } from '../models/glance-widgets'
 import {
+  breakdownColumnFilters,
   breakdownConfigProblem,
   breakdownViewProblem,
   pickBreakdownConfig,
@@ -41,6 +47,8 @@ import {
   pivotConfigProblem,
   tagMapConfigProblem,
 } from '../models/chart-widgets'
+// G5: Project pulse's config and its rules.
+import { pickPulseConfig, pulseConfigProblem, pulseRulePredicates } from '../models/pulse-config'
 import type { TodoPredicate } from '../models/filter-predicate'
 import { emptyPredicate } from '../models/filter-predicate'
 import { isRecord } from '../utils/is-record'
@@ -144,6 +152,10 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   if (!isRecord(config)) return `${path}.config`
   const view = tab.viewState
   if (view !== undefined && !isRecord(view)) return `${path}.viewState`
+  // A widget's lens switch (G3): a boolean.
+  if ((LENS_SWITCH_KINDS as readonly string[]).includes(kind) && view?.ignoreLens !== undefined && typeof view.ignoreLens !== 'boolean') {
+    return `${path}.viewState.ignoreLens`
+  }
   // Tabs showing task rows: the details width, a number in range.
   if (ROWS_KINDS.has(kind)
     && view?.detailsWidth !== undefined && pickDetailsWidth(view.detailsWidth) === undefined) {
@@ -189,11 +201,21 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       }
       return true
     }
-    case 'trend':
-    case 'pulse': {
+    case 'trend': {
       // One config field, a known value.
       const field = GLANCE_CONFIG_FIELDS[kind]
       return field.ok(config[field.key]) ? true : `${path}.config.${field.key}`
+    }
+    // G5: Project pulse — its tag picks and rules, then each rule's filter as a Number's.
+    case 'pulse': {
+      const bad = pulseConfigProblem(config)
+      if (bad) return `${path}.config.${bad}`
+      for (const [key, raw] of pulseRulePredicates(config)) {
+        const shape = checkPredicateShape(raw)
+        if (shape !== true) return `${path}.config.${key}.${shape}`
+        if (pickPredicate(raw).fixes.length > 0) return `${path}.config.${key}`
+      }
+      return true
     }
     // D26 P8: the chart widgets — their fields, then their filter as a Number's.
     case 'breakdown': {
@@ -201,6 +223,12 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (bad) return `${path}.config.${bad}`
       const badView = view ? breakdownViewProblem(view) : null
       if (badView) return `${path}.viewState.${badView}`
+      // Its count columns' filters (board BC), each as a Number's.
+      for (const [key, raw] of breakdownColumnFilters(config)) {
+        const shape = checkPredicateShape(raw)
+        if (shape !== true) return `${path}.config.${key}.${shape}`
+        if (pickPredicate(raw).fixes.length > 0) return `${path}.config.${key}`
+      }
       return checkChartFilter(config.filter, path)
     }
     case 'pivot': {
@@ -290,7 +318,7 @@ function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) =
 }
 
 
-/** A track as stored: an object with a fresh id, a size (a weight or px) and, on a row, a boolean `collapsed`. */
+/** A track as stored: an object with a fresh id, a size (a weight or px) and, on a row, a boolean `collapsed` and a `fitPx` (a positive number). */
 function checkTrack(track: unknown, path: string, rows: boolean, fresh: (id: string) => boolean): true | string {
   if (!isRecord(track)) return path
   if (!isId(track.id) || !fresh(track.id)) return `${path}.id`
@@ -300,6 +328,7 @@ function checkTrack(track: unknown, path: string, rows: boolean, fresh: (id: str
     return `${path}.weight`
   }
   if (track.collapsed !== undefined && (!rows || typeof track.collapsed !== 'boolean')) return `${path}.collapsed`
+  if (track.fitPx !== undefined && (!rows || !isWeight(track.fitPx))) return `${path}.fitPx`
   return true
 }
 
@@ -451,6 +480,18 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       if (width === undefined && view?.detailsWidth !== undefined) fix('settings')
       return width === undefined ? undefined : { detailsWidth: width }
     }
+    /** A widget's lens switch (G3, view state): a boolean, else dropped (a fix). */
+    const lensView = (): LensViewState => {
+      const v = view?.ignoreLens
+      if (typeof v === 'boolean') return { ignoreLens: v }
+      if (v !== undefined) fix('settings')
+      return {}
+    }
+    /** `tab` with the lens switch as its view state, when it has one (no view state otherwise). */
+    const withLensView = <T extends LensSwitchTab>(tab: T): T => {
+      const lens = lensView()
+      return lens.ignoreLens === undefined ? tab : { ...tab, viewState: { ...tab.viewState, ...lens } }
+    }
     /** A glance config as picked, a reset reported. */
     const glance = <C,>(picked: PickedConfig<C>): C => {
       if (picked.fixed) fix('settings')
@@ -478,7 +519,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const dateTypes = typesOk
           ? { due: types.due === true, followup: types.followup === true }
           : { ...DEFAULT_CALENDAR_DATE_TYPES }
-        const calendar: LayoutTab = { id, kind: 'calendar', config: { dateTypes } }
+        const calendar: CalendarTab = { id, kind: 'calendar', config: { dateTypes } }
         if (view) {
           const viewState: CalendarTabViewState = {}
           if (view.view === 'week' || view.view === 'month') viewState.view = view.view
@@ -489,7 +530,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
           else if (view.titles !== undefined) fix('settings')
           if (Object.keys(viewState).length > 0) calendar.viewState = viewState
         }
-        return calendar
+        return withLensView(calendar)
       }
       case 'eisenhower': {
         const raw = view?.collapsed
@@ -498,40 +539,40 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         // Its panes and source are app-wide settings: a key here (none in v66
         // data) is dropped.
         for (let i = 0; i < Object.keys(config).length; i++) fix('eisenhower')
-        const eisenhower: LayoutTab = { id, kind: 'eisenhower', config: {} }
+        const eisenhower: EisenhowerTab = { id, kind: 'eisenhower', config: {} }
         // Known quadrants, once each, in display order.
         const quadrants = collapsed ? EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) : []
         const eisenhowerView = { ...rowsView(), ...(quadrants.length > 0 ? { collapsed: quadrants } : {}) }
         if (Object.keys(eisenhowerView).length > 0) eisenhower.viewState = eisenhowerView
-        return eisenhower
+        return withLensView(eisenhower)
       }
       case 'neglect': {
-        // No view state of its own: any is dropped.
+        // No view state of its own but the lens switch: any other is dropped.
         const neglect = pickNeglectConfig(config)
         if (neglect.fixed) fix('settings')
-        return { id, kind: 'neglect', config: neglect.config }
+        return withLensView<LensSwitchTab>({ id, kind: 'neglect', config: neglect.config })
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
       // The glance kinds: a bad or missing setting is reset to its default;
-      // no view state.
+      // no view state but the lens switch (Created vs completed has none).
       case 'number':
-        return { id, kind: 'number', config: glance(numberConfigOf(config)) }
+        return withLensView<LensSwitchTab>({ id, kind: 'number', config: glance(numberConfigOf(config)) })
       case 'trend':
         return { id, kind: 'trend', config: glance(pickTrendConfig(config)) }
       case 'pulse':
-        return { id, kind: 'pulse', config: glance(pickTagPicksConfig(config)) }
+        return withLensView<LensSwitchTab>({ id, kind: 'pulse', config: glance(pickPulseConfig(config, readNumberPredicate)) })
       // D26 P8: the chart widgets.
       case 'breakdown': {
         const viewState = glance(pickBreakdownView(view))
-        const breakdown: LayoutTab = { id, kind: 'breakdown', config: glance(pickBreakdownConfig(config, chartFilterOf(config))) }
+        const breakdown: LayoutTab = { id, kind: 'breakdown', config: glance(pickBreakdownConfig(config, chartFilterOf(config), readNumberPredicate)) }
         if (viewState) breakdown.viewState = viewState
         return breakdown
       }
       case 'pivot':
-        return { id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) }
+        return withLensView<LensSwitchTab>({ id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) })
       case 'tagMap':
-        return { id, kind: 'tagMap', config: glance(pickTagMapConfig(config, chartFilterOf(config))) }
+        return withLensView<LensSwitchTab>({ id, kind: 'tagMap', config: glance(pickTagMapConfig(config, chartFilterOf(config))) })
     }
   }
 
@@ -567,6 +608,11 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     }
     if (raw.collapsed === true && rows) track.collapsed = true
     else if (raw.collapsed !== undefined && (!rows || typeof raw.collapsed !== 'boolean')) fix('settings')
+    // A Numbers-only row's height (view state): kept beside its size, never in place of it.
+    if (raw.fitPx !== undefined) {
+      if (rows && isWeight(raw.fitPx)) track.fitPx = raw.fitPx
+      else fix('size')
+    }
     return track
   }
 

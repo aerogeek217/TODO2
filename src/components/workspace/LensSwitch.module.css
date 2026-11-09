@@ -1,0 +1,54 @@
+/* The lens switch (G3, board BD): the same control at the right of every screen-filtered widget's header, before ⋯. */
+
+.lensSwitch {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 22px;
+  padding: 0 7px 0 6px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-accent-bg);
+  color: var(--color-accent-text);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.lensSwitch:hover {
+  background: var(--color-accent-focus);
+}
+
+.lensSwitchOff {
+  padding: 0 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.lensSwitchOff:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.lensSwitchOff:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-border), var(--focus-ring);
+}
+
+/* Phones (a `data-touch-chips` ancestor): the touch height. */
+[data-touch-chips] .lensSwitch {
+  height: 32px;
+  border-radius: 8px;
+}
+
+/* Over the top-right corner of what holds it (a widget with no header line in a cell of several widgets). */
+.floating {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  z-index: var(--z-above-2);
+  display: inline-flex;
+}

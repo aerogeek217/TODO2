@@ -99,8 +99,8 @@ describe('DateAnchorInput: Calendar', () => {
     render(<Harness mode="calendar" side="from" log={[]} />)
     fireEvent.click(screen.getByRole('button', { name: 'From: Set to…' }))
     expect(menuRows('Set From to')).toEqual([
-      'Today · Mon 2 Nov', 'Start of this week · Mon 2 Nov', 'Start of this month · Sun 1 Nov', 'Start of last month · Thu 1 Oct',
-      '—', '1 week ago · Mon 26 Oct', '2 weeks ago · Mon 19 Oct', '1 month ago · Sat 3 Oct',
+      'Today · Mon 2 Nov', 'Start of this week · Mon 2 Nov', 'Start of this month · 11/01', 'Start of last month · 10/01',
+      '—', '1 week ago · 10/26', '2 weeks ago · 10/19', '1 month ago · 10/03',
       '—', 'Clear the date',
     ])
   })

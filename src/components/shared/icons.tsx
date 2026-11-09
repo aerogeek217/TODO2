@@ -422,12 +422,12 @@ export function ReplyIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-/** Two stacked cards: the review deck (Review with X…). */
+/** Three list lines and a play triangle: the review deck (Review with X…) — step through these tasks. */
 export function ReviewIcon({ size = 14 }: { size?: number }) {
   return (
-    <Svg size={size}>
-      <rect x="4.5" y="2.5" width="9" height="8" rx="1.5" />
-      <path d="M2.5 5.5v7a1 1 0 0 0 1 1h7" />
+    <Svg size={size} strokeWidth={1.5}>
+      <path d="M2.5 4h8M2.5 7.5h8M2.5 11h4" />
+      <path d="M9.5 9.5v4.5l3.75-2.25z" />
     </Svg>
   )
 }

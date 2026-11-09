@@ -65,7 +65,7 @@ describe('Settings › Tasks › Lenses', () => {
     expect(screen.queryByTestId('save-lens')).toBeNull()
   })
 
-  it('a lens written as an expression reads as its text and keeps what the expression keeps', () => {
+  it('a lens written as an expression reads in words and keeps what the expression keeps', () => {
     useTodoStore.setState({ todos: [...useTodoStore.getState().todos, makeTodo({ id: 4, title: 'Other' })] })
     useSettingsStore.setState({
       lensPresetsSeeded: true,
@@ -73,7 +73,7 @@ describe('Settings › Tasks › Lenses', () => {
     })
     render(<LensesSection />)
     const [row] = rows()
-    expect(row).toHaveTextContent('!Waiting or "goes"')
+    expect(row).toHaveTextContent('Waiting, or mentions “goes”')
     fireEvent.click(row!)
     expect(screen.queryByText('No filter — every task')).toBeNull()
     expect(screen.getByTestId('lens-keeps')).toHaveTextContent('Keeps 2 of 3 open tasks right now')

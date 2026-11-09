@@ -1,14 +1,11 @@
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { createPortal } from 'react-dom'
 import { STATUS_UPDATE_TEXT_MAX } from '../../../models'
-import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useStatusUpdateDay } from '../../../hooks/use-status-update-day'
 import { useToday } from '../../../hooks/use-today'
 import { formatDateNumeric } from '../../../utils/date'
 import { statusUpdateText } from '../../../utils/status-updates'
 import { PencilIcon, TrashIcon } from '../../shared/icons'
-import { PopoverRoot } from '../../shared/PopoverRoot'
 import { StatusUpdateDayField } from './StatusUpdateDayField'
 import styles from './StatusUpdates.module.css'
 
@@ -25,32 +22,35 @@ export interface StatusUpdateFields {
   text: string
 }
 
-/** Entries shown before the `▸ N older updates` disclosure. */
-const SHOWN = 3
-
-const STATUS_UPDATE_PLACEHOLDER = 'e.g. waiting on legal, 50% done'
+/** The add line's placeholder (the task editor's and the review card's alike). */
+const STATUS_UPDATE_ADD_PLACEHOLDER = 'What’s the latest?'
 
 /**
- * The task editor's **Status updates**: the label with the count and an
- * **Add update** button, which opens a popover with the text and its day
- * (words or a date, the calendar button, never after today, empty = today;
- * ⏎ in either, or Add, adds and closes it), then the entries newest first,
- * one line each `MM/DD text` (the newest in the primary colour). Three show; the rest wait behind
- * `▸ N older updates`, which opens them under an "Older" rule (closed again
- * by `▾ Hide older`; closed whenever the editor opens). Hover or focus shows
- * an entry's edit and delete; a click on its text edits too. Editing puts
- * the day and text fields in its place — ⏎ saves, Esc cancels (and is the
- * entry's, not the editor's). Delete asks nothing: the store's undo snackbar
- * takes it back. What the callbacks write is the host's (the store in edit
- * mode, the pending entries in create mode).
+ * The task layout's **Status updates** (D26 BB / BG — the task editor and
+ * the review card): the label with the count, then every entry **oldest
+ * first**, like a log, one line each `MM/DD text` (the newest — the last —
+ * in the primary colour), then the **add line**. The list grows to its
+ * limit, then scrolls inside, opening scrolled to the bottom (and going
+ * back there as an entry is added). Hover or focus shows an entry's edit
+ * and delete; a click on its text edits too. Editing puts the day and text
+ * fields in its place — ⏎ saves, Esc cancels (and is the entry's, not the
+ * editor's). Delete asks nothing: the store's undo snackbar takes it back.
+ * What the callbacks write is the host's (the store in edit mode, the
+ * pending entries in create mode).
+ *
+ * The add line (`AddUpdateLine`): type, ⏎ adds the entry dated today
+ * (the host's `onAdd`: `addStatusUpdate`'s rules in edit mode). Its text
+ * sticks: the section going away (the editor closed, by Esc or a press
+ * outside) adds what was typed. A host with its own line (the review card:
+ * ⏎ records the update with the follow-up) passes it as `addLine`.
  *
  * `commitRef` (create mode): the host's way to write an entry still being
  * edited, or an update still being typed, before it reads its entries —
  * Create task / ⏎ / Save draft, and the close's "anything to lose?" check,
  * run before the open field unmounts.
  */
-export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, className, labelClassName, commitRef, heading = 'Status updates' }: {
-  /** Newest first. */
+export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, className, labelClassName, commitRef, addLine }: {
+  /** Newest first (the store's order); shown oldest first. */
   entries: readonly StatusUpdateEntry[]
   onAdd: (entry: StatusUpdateFields) => void
   onEdit: (id: number, changes: StatusUpdateFields) => void
@@ -58,11 +58,11 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
   className?: string
   labelClassName?: string
   commitRef?: { current: (() => void) | null }
-  /** The section's heading (the review deck: Recent updates). */
-  heading?: string
+  /** The host's own add line, in place of the default one. */
+  addLine?: ReactNode
 }) {
   const today = useToday()
-  // The open edit's / add's commit, for `commitRef`.
+  // The open edit's / add line's commit, for `commitRef`.
   const openCommits = useRef(new Set<() => void>())
   useLayoutEffect(() => {
     if (!commitRef) return
@@ -75,10 +75,9 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
     return () => { openCommits.current.delete(commit) }
   }, [])
   const labelId = useId()
-  const [adding, setAdding] = useState(false)
-  const [olderOpen, setOlderOpen] = useState(false)
   const [editingId, setEditingId] = useState<number | null>(null)
-  const addButtonRef = useRef<HTMLButtonElement>(null)
+  const listRef = useRef<HTMLUListElement>(null)
+  const addLineRef = useRef<HTMLDivElement>(null)
   // Each entry's edit button, to hand the focus back to after an edit or a delete.
   const editButtons = useRef(new Map<number, HTMLButtonElement>())
   const focusAfter = useRef<number | 'add' | null>(null)
@@ -87,23 +86,25 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
     const target = focusAfter.current
     if (target === null || editingId !== null) return
     focusAfter.current = null
-    if (target === 'add') addButtonRef.current?.focus()
+    if (target === 'add') addLineRef.current?.querySelector('input')?.focus({ preventScroll: true })
     else editButtons.current.get(target)?.focus()
   })
 
-  // Closed by Add, Cancel or Esc the focus goes back to the button; closed by
-  // a press elsewhere it stays where that press put it.
-  const closeAdd = () => {
-    setAdding(false)
-    requestAnimationFrame(() => {
-      const active = document.activeElement
-      if (!active || active === document.body || !active.isConnected) addButtonRef.current?.focus()
-    })
-  }
+  // Oldest first: the store's order reversed.
+  const shown = entries.toReversed()
+
+  // Opens scrolled to the bottom (the newest), and goes back there as an entry is added.
+  const count = entries.length
+  const shownCount = useRef(-1)
+  useLayoutEffect(() => {
+    const list = listRef.current
+    if (list && count > shownCount.current) list.scrollTop = list.scrollHeight
+    shownCount.current = count
+  }, [count])
 
   const remove = (id: number) => {
-    const at = entries.findIndex((e) => e.id === id)
-    const next = entries[at + 1] ?? entries[at - 1]
+    const at = shown.findIndex((e) => e.id === id)
+    const next = shown[at + 1] ?? shown[at - 1]
     focusAfter.current = next ? next.id : 'add'
     onRemove(id)
   }
@@ -112,10 +113,6 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
     focusAfter.current = id
     setEditingId(null)
   }
-
-  const older = entries.slice(SHOWN)
-  // An entry being edited among the older ones keeps them open.
-  const showOlder = olderOpen || older.some((e) => e.id === editingId)
 
   const renderEntry = (entry: StatusUpdateEntry, newest: boolean) => (
     <li
@@ -170,188 +167,66 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
     <section className={className} aria-labelledby={labelId} data-status-updates="">
       <div className={styles.headingRow}>
         <div className={`${labelClassName ?? ''} ${styles.heading}`} id={labelId}>
-          {heading}
+          Status updates
           {entries.length > 0 && <span className={styles.count}>{entries.length}</span>}
         </div>
-        <button
-          ref={addButtonRef}
-          type="button"
-          className={styles.addButton}
-          aria-haspopup="dialog"
-          aria-expanded={adding}
-          data-open={adding ? 'true' : undefined}
-          onClick={() => (adding ? closeAdd() : setAdding(true))}
-        >
-          + Add update
-        </button>
       </div>
-      {adding && (
-        <AddUpdatePopover
-          anchorRef={addButtonRef}
-          today={today}
-          onAdd={(entry) => { onAdd(entry); closeAdd() }}
-          onAddOnClose={onAdd}
-          onClose={closeAdd}
-          registerCommit={registerCommit}
-        />
-      )}
       {entries.length > 0 && (
-        <ul className={styles.list} aria-label="Status updates">
-          {entries.slice(0, SHOWN).map((e, i) => renderEntry(e, i === 0))}
-          {older.length > 0 && (
-            showOlder ? (
-              <>
-                <li className={styles.olderRule}>
-                  <span>Older</span>
-                  <span className={styles.ruleLine} />
-                  <button type="button" className={styles.olderToggle} aria-expanded="true" onClick={() => setOlderOpen(false)}>
-                    ▾ Hide older
-                  </button>
-                </li>
-                {older.map((e) => renderEntry(e, false))}
-              </>
-            ) : (
-              <li className={styles.olderClosed}>
-                <button type="button" className={styles.olderToggle} aria-expanded="false" onClick={() => setOlderOpen(true)}>
-                  ▸ {older.length} older {older.length === 1 ? 'update' : 'updates'}
-                </button>
-              </li>
-            )
-          )}
+        <ul ref={listRef} className={styles.list} aria-label="Status updates" data-status-update-list="">
+          {shown.map((e, i) => renderEntry(e, i === shown.length - 1))}
         </ul>
       )}
+      <div ref={addLineRef} className={styles.addLine}>
+        {addLine ?? <AddUpdateLine today={today} onAdd={onAdd} registerCommit={registerCommit} />}
+      </div>
     </section>
   )
 }
 
 /**
- * The Add update popover, under its button (placed by `usePopoverAnchor`,
- * flipped / clamped, above the editor): the update's text (focused), its day
- * and Cancel / Add. ⏎ in either field adds. Esc (it, not the editor) and an
- * outside click close it and add what was typed; only Cancel drops it. A day
- * that isn't one holds the close once, saying so; closing again drops it.
+ * The default add line: the update's text; ⏎ adds it dated today and
+ * clears the line for the next. What was typed and not added sticks: the
+ * line going away (the editor closed) adds it, and so does the host's
+ * commit (create mode: Create task, the close check).
  */
-function AddUpdatePopover({ anchorRef, today, onAdd, onAddOnClose, onClose, registerCommit }: {
-  anchorRef: RefObject<HTMLButtonElement | null>
+function AddUpdateLine({ today, onAdd, registerCommit }: {
   today: Date
   onAdd: (entry: StatusUpdateFields) => void
-  /** Added as it goes: the host's write only, the focus being wherever the close left it. */
-  onAddOnClose: (entry: StatusUpdateFields) => void
-  onClose: () => void
   registerCommit: (commit: () => void) => () => void
 }) {
-  const [text, setText] = useState('')
-  const [closeHeld, setCloseHeld] = useState(false)
-  // Added or cancelled: nothing left to add as it goes.
-  const finished = useRef(false)
-  const day = useStatusUpdateDay(undefined, today)
-  const textRef = useRef<HTMLInputElement>(null)
-  const { panelRef, style, caret } = usePopoverAnchor({
-    anchor: { kind: 'ref', ref: anchorRef },
-    open: true,
-    placement: 'bottom-end',
-    closeOnScroll: false,
-    closeOnResize: false,
-    consumeEscape: true,
-    observeSize: true,
-    onClose: () => {
-      if (statusUpdateText(text) !== '' && day.day === 'invalid' && !closeHeld) {
-        setCloseHeld(true)
-        // Held by a press outside: the click that ends it is held too — it
-        // would close the editor (its ×, Done, Create, the backdrop) and drop
-        // the update all the same (cr31 T6).
-        if (pressOutside.current) holdClick.current = true
-      } else onClose()
-    },
-    caret: true,
-  })
-  const panelEl = useRef<HTMLElement | null>(null)
-  const setPanel = useCallback((el: HTMLDivElement | null) => {
-    panelEl.current = el
-    panelRef(el)
-  }, [panelRef])
-  // A press outside in progress (set before the popover's outside-press
-  // close runs), and the click to swallow after a held press.
-  const pressOutside = useRef(false)
-  const holdClick = useRef(false)
-  useEffect(() => {
-    const outside = (e: Event) => !(e.target instanceof Node && panelEl.current?.contains(e.target))
-    const onDown = (e: PointerEvent) => { pressOutside.current = outside(e) }
-    const onClick = (e: MouseEvent) => {
-      pressOutside.current = false
-      if (!holdClick.current) return
-      holdClick.current = false
-      if (!outside(e)) return
-      e.preventDefault()
-      e.stopPropagation()
-    }
-    document.addEventListener('pointerdown', onDown, true)
-    window.addEventListener('click', onClick, true)
-    return () => {
-      document.removeEventListener('pointerdown', onDown, true)
-      window.removeEventListener('click', onClick, true)
-    }
-  }, [])
-  useEffect(() => { textRef.current?.focus() }, [])
-  const clean = statusUpdateText(text)
-  const canAdd = clean !== '' && day.day !== 'invalid'
-  const add = () => {
-    if (canAdd && day.day !== 'invalid') {
-      finished.current = true
-      onAdd({ date: day.day, text: clean })
-    }
+  const [text, setTextState] = useState('')
+  // Also a ref: read as the line goes, and written with the state, so nothing adds twice.
+  const textRef = useRef('')
+  const setText = (next: string) => {
+    textRef.current = next
+    setTextState(next)
   }
-  const addOnCloseRef = useLatestRef(() => {
-    if (!finished.current && canAdd && day.day !== 'invalid') onAddOnClose({ date: day.day, text: clean })
+  const addRef = useLatestRef(() => {
+    const clean = statusUpdateText(textRef.current)
+    if (clean === '') return
+    textRef.current = ''
+    onAdd({ date: today, text: clean })
+    setTextState('')
   })
   // In the commit that closes it, so a click right behind the closing press (Create) reads the result.
-  useLayoutEffect(() => () => addOnCloseRef.current(), [addOnCloseRef])
-  // The host reading its entries first (`commitRef`): add what was typed, and close.
-  const onCloseRef = useLatestRef(onClose)
-  useLayoutEffect(() => registerCommit(() => {
-    addOnCloseRef.current()
-    finished.current = true
-    onCloseRef.current()
-  }), [registerCommit, addOnCloseRef, onCloseRef])
-  const onEnter = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
-    e.preventDefault()
-    add()
-  }
-  return createPortal(
-    <PopoverRoot
-      ref={setPanel}
-      caret={caret}
-      className={styles.addPopover}
-      style={{ position: style.position, left: style.left, top: style.top }}
-      role="dialog"
-      aria-label="Add a status update"
-      // Portaled out of the editor, but React events still bubble to it: keep them here.
-      onMouseDown={(e) => e.stopPropagation()}
-      onPointerDown={(e) => e.stopPropagation()}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <input
-        ref={textRef}
-        className={styles.textInput}
-        value={text}
-        maxLength={STATUS_UPDATE_TEXT_MAX}
-        placeholder={STATUS_UPDATE_PLACEHOLDER}
-        aria-label="New status update"
-        autoComplete="off"
-        onChange={(e) => setText(e.target.value)}
-        onKeyDown={onEnter}
-      />
-      <div className={styles.dayRow}>
-        <StatusUpdateDayField input={day} label="New status update’s day" today={today} onEnter={add} />
-      </div>
-      {closeHeld && day.day === 'invalid' && <div role="status" className={styles.closeHeld}>Fix the day, or close again to discard this update.</div>}
-      <div className={styles.popoverActions}>
-        <button type="button" className={styles.cancelButton} onClick={() => { finished.current = true; onClose() }}>Cancel</button>
-        <button type="button" className={styles.saveButton} onClick={add} disabled={!canAdd}>Add</button>
-      </div>
-    </PopoverRoot>,
-    document.body,
+  useLayoutEffect(() => () => addRef.current(), [addRef])
+  useLayoutEffect(() => registerCommit(() => addRef.current()), [registerCommit, addRef])
+  return (
+    <input
+      className={styles.textInput}
+      value={text}
+      maxLength={STATUS_UPDATE_TEXT_MAX}
+      placeholder={STATUS_UPDATE_ADD_PLACEHOLDER}
+      aria-label="New status update"
+      autoComplete="off"
+      data-status-update-add=""
+      onChange={(e) => setText(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+        e.preventDefault()
+        if (!e.repeat) addRef.current()
+      }}
+    />
   )
 }
 

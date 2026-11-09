@@ -192,6 +192,17 @@
   justify-content: flex-end;
 }
 
+/* A count column's heading: centred over its counts, cut short with an ellipsis. */
+.headCount {
+  justify-content: center;
+}
+
+.sortLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* The name heading over the bar too. */
 .headSpan {
   grid-column: span 2;
@@ -312,33 +323,6 @@
   color: var(--color-text-muted);
 }
 
-/* Review ▸: at the end of the name on the row's hover or focus; no column of its own. */
-.review {
-  display: none;
-  flex: none;
-  padding: 1px 6px;
-  border: none;
-  border-radius: var(--radius-pill);
-  background: var(--color-accent-bg-medium);
-  color: var(--color-accent-text);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.row:hover .review,
-.row:focus-within .review {
-  display: inline-flex;
-}
-
-.review:hover,
-.review:focus-visible {
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
-}
-
 .avatar {
   display: inline-flex;
   align-items: center;
@@ -420,9 +404,20 @@
   justify-content: flex-end;
 }
 
-.numCell {
+.countCell {
+  display: flex;
+  justify-content: center;
+}
+
+/* The row's actions (board BC): Review and a person's envelope, two matching icon buttons at its end. */
+.actionsCell {
   display: flex;
   justify-content: flex-end;
+  gap: 2px;
+}
+
+.actionGap {
+  width: 24px;
 }
 
 .dash {
@@ -431,7 +426,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* A Due / Follow-up count: outlined, solid while any of it is overdue. */
+/* A count column's count: outlined in its colour (`--col-color`), solid while it meets the column's Light up when rule. */
 .badge {
   min-width: 22px;
   height: 18px;
@@ -451,26 +446,15 @@ button.badge {
   cursor: pointer;
 }
 
-.badgeDue {
-  box-shadow: inset 0 0 0 1px var(--color-overdue);
-  color: var(--color-overdue);
+.badge:not(.badgeSolid) {
+  box-shadow: inset 0 0 0 1px var(--col-color);
+  color: var(--col-color);
 }
 
-.badgeFollowup {
-  box-shadow: inset 0 0 0 1px var(--color-followup);
-  color: var(--color-followup);
-}
-
-.badgeDue.badgeSolid {
-  background: var(--cal-overdue-solid);
+.badgeSolid {
+  background: var(--col-color);
   box-shadow: none;
-  color: var(--cal-on-overdue);
-}
-
-.badgeFollowup.badgeSolid {
-  background: var(--cal-followup-solid);
-  box-shadow: none;
-  color: var(--cal-on-followup);
+  color: var(--color-text-on-hue);
 }
 
 button.badge:hover,
@@ -478,7 +462,7 @@ button.badge:focus-visible {
   filter: brightness(1.15);
 }
 
-.envelope {
+.rowAction {
   display: grid;
   place-items: center;
   width: 24px;
@@ -491,9 +475,9 @@ button.badge:focus-visible {
   cursor: pointer;
 }
 
-.envelope:hover,
-.envelope:focus-visible,
-.envelope[aria-expanded='true'] {
+.rowAction:hover,
+.rowAction:focus-visible,
+.rowAction[aria-expanded='true'] {
   background: var(--color-tint-8);
   color: var(--color-text-primary);
 }

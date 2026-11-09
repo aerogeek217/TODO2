@@ -287,17 +287,32 @@ export interface DropGhost {
 /** The side words of a split's label ("Split Late · above"). */
 const SIDE_WORDS: Record<Side, string> = { left: 'left', right: 'right', top: 'above', bottom: 'below' }
 
+/** A split's words: "Split Late · above", or with no title "Split · above" (Add widget's Where). */
+export function splitLabel(side: Side, title?: string): string {
+  return `Split ${title ? `${title} · ` : '· '}${SIDE_WORDS[side]}`
+}
+
+/** An insert's words: "Insert row · full width" / "Insert column · full height". */
+export function insertLabel(edge: Side): string {
+  return edge === 'top' || edge === 'bottom' ? 'Insert row · full width' : 'Insert column · full height'
+}
+
+/** A drop into a cell's strip: "Add as tab", or "Add 3 tabs". */
+export function tabLabel(tabCount = 1): string {
+  return tabCount > 1 ? `Add ${tabCount} tabs` : 'Add as tab'
+}
+
 /** What a drop on `target` says: "Split Late · above", "Insert row · full width", "Add as tab". */
 export function dropLabel(geo: WorkspaceGeometry, target: LayoutDropTarget, tabCount: number): string {
   switch (target.kind) {
     case 'split': {
       const title = geo.cells.find((c) => c.id === target.cellId)?.title
-      return `Split ${title ? `${title} · ` : ''}${SIDE_WORDS[target.side]}`
+      return title ? splitLabel(target.side, title) : `Split ${SIDE_WORDS[target.side]}`
     }
     case 'insert':
-      return target.edge === 'top' || target.edge === 'bottom' ? 'Insert row · full width' : 'Insert column · full height'
+      return insertLabel(target.edge)
     case 'cell':
-      return tabCount > 1 ? `Add ${tabCount} tabs` : 'Add as tab'
+      return tabLabel(tabCount)
     case 'layout':
       return 'First cell'
   }

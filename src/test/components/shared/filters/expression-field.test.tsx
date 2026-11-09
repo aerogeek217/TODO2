@@ -4,6 +4,7 @@ import { Profiler, useState } from 'react'
 import { PredicateChips, SWITCH_REFUSED } from '../../../../components/shared/filters/PredicateChips'
 import { EXPRESSION_WRITE_MS } from '../../../../hooks/use-expression-field'
 import { CLOSE_HELD, COMPLETED_HINT_DONE } from '../../../../components/shared/filters/ExpressionField'
+import { TOOLTIP_DELAY_MS } from '../../../../components/shared/use-tooltip'
 import { EXPRESSION_NODES_MAX, emptyPredicate, type FilterExpr, type TodoPredicate } from '../../../../models'
 import { usePersonStore } from '../../../../stores/person-store'
 import { useStatusStore } from '../../../../stores/status-store'
@@ -341,12 +342,19 @@ describe('the expression field', () => {
 })
 
 describe('the filter line', () => {
-  it('shows an expression as one chip that opens where it is edited', () => {
+  it('reads an expression back in words, its exact text in the tooltip, and opens where it is edited', () => {
     const log: TodoPredicate[] = []
     const onOpen = vi.fn()
     render(<Harness initial={{ ...emptyPredicate(), expression: RULE }} log={log} layout="line" onOpen={onOpen} />)
     const chip = screen.getByTestId('list-filter-expression')
-    expect(chip).toHaveTextContent('/focus or (@Alice and !Waiting)')
+    expect(chip).toHaveTextContent('Focus, or Alice and Waiting')
+    expect([...chip.querySelectorAll('[data-piece="name"]')].map((el) => el.textContent)).toEqual(['Focus', 'Alice', 'Waiting'])
+    expect([...chip.querySelectorAll('[data-piece="joiner"]')].map((el) => el.textContent)).toEqual([',', 'or', 'and'])
+    vi.useFakeTimers()
+    fireEvent.pointerEnter(chip, { pointerType: 'mouse' })
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.getByRole('tooltip')).toHaveTextContent('/focus or (@Alice and !Waiting)')
+    vi.useRealTimers()
     fireEvent.click(chip)
     expect(onOpen).toHaveBeenCalledTimes(1)
     expect(screen.queryByRole('radio', { name: 'Expression' })).toBeNull()

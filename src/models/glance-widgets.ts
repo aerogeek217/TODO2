@@ -330,5 +330,4 @@ export function pickTagPicksConfig(raw: Obj): PickedConfig<TagPicksTabConfig> {
 /** Each glance kind's one config field and whether a stored value is one it keeps (the layout check). */
 export const GLANCE_CONFIG_FIELDS = {
   trend: { key: 'range', ok: isTrendRange },
-  pulse: { key: 'tagIds', ok: isTagIds },
 } as const satisfies Record<string, { key: string; ok: (v: unknown) => boolean }>

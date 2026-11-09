@@ -25,6 +25,8 @@ interface FollowupEditorGroupProps {
   /** Row / label classes from the host editor so the group lines up with its other rows. */
   rowClassName?: string
   labelClassName?: string
+  /** Only the rows: the host draws the group's block and heading (the task layout's `FollowupBlock`). */
+  bare?: boolean
 }
 
 function HelpText({ state, today, fallback, fallbackClass }: {
@@ -53,7 +55,7 @@ function HelpText({ state, today, fallback, fallbackClass }: {
  */
 export function FollowupEditorGroup({
   next, last, onNextChange, onLastChange, onFollowedUp, nextHint, selectNextOnFocus = false,
-  hideLast = false, rowClassName, labelClassName,
+  hideLast = false, rowClassName, labelClassName, bare = false,
 }: FollowupEditorGroupProps) {
   const today = useToday()
   const nextInput = useFollowupInput(next, 'next', today)
@@ -92,12 +94,8 @@ export function FollowupEditorGroup({
 
   const lastIsToday = !!last && startOfDay(last).getTime() === today.getTime()
 
-  return (
-    <div className={styles.editorGroup}>
-      <div className={styles.editorHeading}>
-        <FollowupFlagIcon />
-        Follow-up
-      </div>
+  const rows = (
+    <>
 
       <div className={rowClassName}>
         <span className={labelClassName}>Next</span>
@@ -183,6 +181,16 @@ export function FollowupEditorGroup({
         />
         <MarkFollowedUpButton doneToday={lastIsToday} onClick={onFollowedUp} />
       </div>}
+    </>
+  )
+  if (bare) return rows
+  return (
+    <div className={styles.editorGroup}>
+      <div className={styles.editorHeading}>
+        <FollowupFlagIcon />
+        Follow-up
+      </div>
+      {rows}
     </div>
   )
 }

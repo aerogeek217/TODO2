@@ -367,27 +367,3 @@
 .expressionSecondary:hover {
   background: var(--color-tint-12);
 }
-
-/* A filter written as an expression on the list's filter line: one chip. */
-.expressionChip {
-  composes: chip;
-  min-width: 0;
-  max-width: 100%;
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
-  cursor: default;
-}
-
-button.expressionChip {
-  cursor: pointer;
-}
-
-button.expressionChip:hover {
-  background: var(--color-tint-12);
-}
-
-.expressionChipText {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}

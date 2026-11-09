@@ -260,7 +260,7 @@ test.describe('the cell menu', () => {
     await openCellMenu(page, 'c')
     await page.getByRole('menuitem', { name: 'Add widget…' }).click()
     const menu = page.getByRole('menu', { name: 'Add widget' })
-    await menu.getByRole('group', { name: 'Where' }).getByRole('menuitemradio', { name: 'Right' }).click()
+    await menu.getByRole('group', { name: 'Where' }).getByRole('menuitemradio', { name: 'Split · right' }).click()
     await menu.getByRole('menuitem', { name: 'Notes', exact: true }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     const c = await box(wsCell(page, 'c'))
@@ -278,7 +278,7 @@ test.describe('dividers', () => {
     const before = (await box(a)).width
     const divider = wsDivider(page, 'a', 'b')
     await expect(divider).toHaveAccessibleName('Resize Notes and Calendar')
-    // c borders the same line: one divider for the whole of it.
+    // c borders the same line, at a "T": one divider for the whole of it.
     await expect(page.locator('[data-ws-divider][data-axis="columns"]')).toHaveCount(1)
     const d = await box(divider)
     await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 + 100, y: d.y + d.height / 2 })
@@ -414,7 +414,7 @@ test.describe('dividers', () => {
 })
 
 test.describe('rows that size themselves', () => {
-  test('a row of Numbers fits its content and has no divider; the row under it takes the rest', async ({ page }) => {
+  test('a row of Numbers fits its content (its divider gives it a height: workspace-crossings); the row under it takes the rest', async ({ page }) => {
     await seedWorkspace(page, {
       layouts: [{
         name: 'Main',
@@ -430,7 +430,7 @@ test.describe('rows that size themselves', () => {
     })
     const n = await box(wsCell(page, 'n1'))
     expect(n.height).toBeLessThan(100)
-    await expect(page.locator('[data-ws-divider][data-axis="rows"]')).toHaveCount(0)
+    await expect(page.locator('[data-ws-divider][data-axis="rows"]')).toHaveAttribute('data-fit', '')
     const area = await areaBox(page)
     expect(Math.round((await edges(wsCell(page, 'a'))).bottom)).toBe(Math.round(area.y + area.height - 6))
   })

@@ -181,10 +181,14 @@ describe('the readers of the top level', () => {
 })
 
 describe('an expression elsewhere', () => {
-  it('reads as one line item, its text', () => {
+  it('reads as one line item: its text, and the same in words', () => {
     const items = predicateLineItems(expr(RULE), names)
-    expect(items).toEqual([{ kind: 'expression', text: '(/focus or (/important and /urgent)) and not (!Assigned and followup any)' }])
-    expect(describeFilters(items)).toBe('(/focus or (/important and /urgent)) and not (!Assigned and followup any)')
+    expect(items).toEqual([{
+      kind: 'expression',
+      text: '(/focus or (/important and /urgent)) and not (!Assigned and followup any)',
+      words: '(Focus or Important and Urgent) · not (Assigned and has a next follow-up)',
+    }])
+    expect(describeFilters(items)).toBe('(Focus or Important and Urgent) · not (Assigned and has a next follow-up)')
     expect(hasNarrowingFilters(expr(RULE))).toBe(true)
   })
 

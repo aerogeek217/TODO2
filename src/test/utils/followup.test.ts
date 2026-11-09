@@ -6,6 +6,7 @@ import {
   followupTooltip,
   formatFollowupDate,
   formatFollowupDay,
+  formatWeekdayNumeric,
   formatFollowupInterval,
   isFollowupOverdue,
   isFutureDay,
@@ -116,13 +117,14 @@ describe('labels', () => {
     expect(formatFollowupDay(day(2027, 1, 5), TODAY)).toBe('Tue 5 Jan 2027')
   })
 
-  it('overdue: the day only (no "late" text) for open tasks; completed tasks are never overdue', () => {
+  it('overdue: the date only (no "late" text) for open tasks; completed tasks are never overdue', () => {
     const t = { nextFollowupAt: day(2026, 10, 9), isCompleted: false }
     expect(isFollowupOverdue(t, TODAY)).toBe(true)
-    expect(followupPillLabel(t, TODAY)).toBe('Fri 9')
+    // A past day reads as its date, never a weekday (user, 2026-11-09).
+    expect(followupPillLabel(t, TODAY)).toBe('10/09')
     const done = { ...t, isCompleted: true }
     expect(isFollowupOverdue(done, TODAY)).toBe(false)
-    expect(followupPillLabel(done, TODAY)).toBe('Fri 9')
+    expect(followupPillLabel(done, TODAY)).toBe('10/09')
     expect(isFollowupOverdue({ nextFollowupAt: TODAY, isCompleted: false }, TODAY)).toBe(false)
   })
 
@@ -137,11 +139,23 @@ describe('labels', () => {
 
   it('tooltip: next (or overdue) line, then last follow-up', () => {
     expect(followupTooltip({ nextFollowupAt: day(2026, 10, 13), lastFollowupAt: day(2026, 9, 13), isCompleted: false }, TODAY))
-      .toBe('Next follow-up · Tue 13 Oct\nLast followed up Sun 13 Sep, 4 weeks ago')
+      .toBe('Next follow-up · Tue 13 Oct\nLast followed up 09/13, 4 weeks ago')
     expect(followupTooltip({ nextFollowupAt: day(2026, 10, 9), isCompleted: false }, TODAY))
-      .toBe('Follow-up overdue · Fri 9 Oct\nNever followed up')
+      .toBe('Follow-up overdue · 10/09\nNever followed up')
     expect(lastFollowupLine(undefined, TODAY)).toBe('Never followed up')
     expect(formatFollowupDate(day(2027, 3, 1), TODAY)).toBe('Mon 1 Mar 2027')
+  })
+
+  it('a day before today is MM/DD, without a weekday, in every follow-up format (another year too)', () => {
+    expect(formatFollowupDay(day(2026, 10, 9), TODAY)).toBe('10/09')
+    expect(formatFollowupDay(day(2026, 9, 25), TODAY)).toBe('09/25')
+    expect(formatFollowupDate(day(2026, 10, 6), TODAY)).toBe('10/06')
+    expect(formatFollowupDate(day(2025, 12, 30), TODAY)).toBe('12/30/2025')
+    expect(formatWeekdayNumeric(day(2026, 10, 6), TODAY)).toBe('10/06')
+    // Today and later keep the weekday.
+    expect(formatFollowupDate(TODAY, TODAY)).toBe('Sat 10 Oct')
+    expect(formatFollowupDay(day(2026, 10, 11), TODAY)).toBe('Sun 11')
+    expect(formatWeekdayNumeric(day(2026, 10, 12), TODAY)).toBe('Mon 10/12')
   })
 
   it('isFutureDay compares days, not instants', () => {

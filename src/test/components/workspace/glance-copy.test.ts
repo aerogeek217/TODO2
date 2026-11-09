@@ -21,7 +21,7 @@ describe('glance copy', () => {
       { kind: 'date' as const, field: 'deadline' as const, match: { match: 'range' as const, start: null, end: { kind: 'relative' as const, token: 'yesterday' as const } } },
       { kind: 'tag' as const, id: 4 },
     ] } }
-    expect(numberDescription(atlas, names)).toBe('Open tasks where overdue and #"Project: Atlas".')
+    expect(numberDescription(atlas, names)).toBe('Open tasks where Overdue · #Project: Atlas.')
     const closed = { ...emptyPredicate(), dates: { completed: { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-week' as const }, end: { kind: 'relative' as const, token: 'today' as const } } } }
     expect(numberDescription(closed, names)).toMatch(/^Tasks where Completed/)
   })
@@ -54,12 +54,12 @@ describe('glance copy', () => {
     expect(listFilterHint(chips)).toBe('Due: any date · Created: on or after start of month')
   })
 
-  it('a list’s filter hint spells an expression as its text', () => {
+  it('a list’s filter hint spells an expression in words', () => {
     const names = { people: [{ id: 1, name: 'Aisha', initials: 'AI' }], tags: [], statuses: [] }
     const items = predicateLineItems({
       ...emptyPredicate(),
       expression: { kind: 'and', items: [{ kind: 'status', id: 0 }, { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'person', id: 1 }] }] },
     }, names)
-    expect(listFilterHint(items)).toBe('no status and (/focus or @Aisha)')
+    expect(listFilterHint(items)).toBe('No status · (Focus or Aisha)')
   })
 })

@@ -7,8 +7,8 @@ import type { GlanceDrill } from './glance-types'
 /**
  * What a chart widget's click opens (D26 P8): a row, bar, segment, cell or
  * tile drills into the task dialog (`GlanceDrill`), and a Breakdown row's
- * Review ▸ or its Due / Follow-up count opens the review deck on just those
- * tasks (`ReviewPayload`). Built here from the ids the pure statistics
+ * Review button or a count column's count opens the review deck on just
+ * those tasks (`ReviewPayload`). Built here from the ids the pure statistics
  * return.
  */
 
@@ -55,8 +55,8 @@ export function breakdownRowDrill(chart: string, row: BreakdownRow): GlanceDrill
   }
 }
 
-/** Which of a row's tasks a review takes: all of them, the due ones or the ones due for a follow-up. */
-export type RowReviewPart = 'all' | 'due' | 'followup'
+/** Which of a row's tasks a review takes: all of them, or the ones a count column counts (its id and heading). */
+export type RowReviewPart = 'all' | { columnId: string; heading: string }
 
 function reviewKind(row: Pick<BreakdownRow, 'entity'>): ReviewSourceKind {
   switch (row.entity.kind) {
@@ -68,16 +68,24 @@ function reviewKind(row: Pick<BreakdownRow, 'entity'>): ReviewSourceKind {
   }
 }
 
-/** A Breakdown row's review: its tasks (Review ▸), or just its due ones or its follow-ups (a count's click). */
+/** A Breakdown row's review: its tasks (its Review button), or just those a count column counts (a count's click). */
 export function breakdownRowReview(chart: string, row: BreakdownRow, part: RowReviewPart): ReviewPayload {
-  const ids = part === 'due' ? row.dueIds : part === 'followup' ? row.followupIds : row.ids
-  const which = part === 'due' ? 'due' : part === 'followup' ? 'due for a follow-up' : ''
   const heading = rowHeading(row)
+  if (part === 'all') return { kind: reviewKind(row), title: heading, description: `${chart}: the tasks ${rowWords(row)}.`, ids: [...row.ids] }
   return {
     kind: reviewKind(row),
-    title: part === 'all' ? heading : `${heading} · ${part === 'due' ? 'Due' : 'Follow-up'}`,
-    description: `${chart}: the tasks ${rowWords(row)}${which ? `, ${which}` : ''}.`,
-    ids: [...ids],
+    title: `${heading} · ${part.heading}`,
+    description: `${chart}: the tasks ${rowWords(row)} in ${part.heading}.`,
+    ids: [...(row.columns[part.columnId] ?? [])],
+  }
+}
+
+/** A count column's count opened in the task dialog (where there is no review): just those tasks. */
+export function breakdownColumnDrill(chart: string, row: BreakdownRow, columnId: string, heading: string): GlanceDrill {
+  return {
+    ...breakdownRowDrill(chart, row),
+    title: `${chart} · ${rowHeading(row)} · ${heading}`,
+    source: { kind: 'todos', todoIds: [...(row.columns[columnId] ?? [])] },
   }
 }
 

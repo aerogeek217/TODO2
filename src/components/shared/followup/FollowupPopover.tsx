@@ -350,7 +350,7 @@ export function FollowupPopover({
         {s.kind === 'invalid' && <span className={styles.helpError}>{closeHeld ? `${s.message} · close again to discard it` : s.message}</span>}
         {s.kind === 'empty' && !mixed && current !== null && 'No next follow-up · ⏎ to clear'}
         {untouched && was && (isFollowupOverdue({ nextFollowupAt: was, isCompleted: false }, today)
-          ? `Was ${formatWeekdayNumeric(was)} · overdue`
+          ? `Was ${formatWeekdayNumeric(was, today)} · overdue`
           : 'Was today')}
         {untouched && mixed && (proposal
           ? <>Future dates kept · the rest → <strong className={styles.helpDate}>{formatFollowupDate(proposal, today)}</strong></>

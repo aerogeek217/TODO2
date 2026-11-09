@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import type { TodoChanges, PersistedTodoItem, Person, RecurrenceType, Tag } from '../../models'
-import { DEFAULT_STATUS_ICON } from '../../models'
 import { autoNextFollowup, useSettingsStore } from '../../stores/settings-store'
 import { useStatusStore } from '../../stores/status-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -8,9 +7,6 @@ import { useTodoStore } from '../../stores/todo-store'
 import { describeFollowupInterval, nextAfterFollowup } from '../../utils/followup'
 import { useFilterStore } from '../../stores/filter-store'
 import { getFilterDefaults } from '../../utils/filter-defaults'
-import { StatusIcon } from '../shared/StatusIcon'
-import { FocusIcon, ImportantIcon, UrgentClockIcon, UrgentIcon } from '../shared/MarkerIcons'
-import { useTooltip } from '../shared/use-tooltip'
 import { startOfDay, startOfToday } from '../../utils/date'
 import { urgentMark, urgentToggleHint } from '../../utils/urgency'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
@@ -21,7 +17,10 @@ import { draftEditorTitle, type EditorTaskFields, type TaskDraft } from '../../s
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
-import { NotesBody } from './notes/NotesBody'
+import { TaskEditBadges } from './TaskEditBadges'
+import { taskLayoutClasses } from './task-layout-classes'
+import { FollowupBlock, TaskDetailsBody, TaskNotesSection } from './TaskDetailsBody'
+import { FollowupEditorGroup } from '../shared/followup/FollowupEditorGroup'
 import { StatusUpdatesSection } from './status-updates/StatusUpdatesSection'
 import { useEditorStatusUpdates, useEditorSubtasks } from './use-editor-entries'
 import { SubtasksSection } from './subtasks/SubtasksSection'
@@ -29,10 +28,8 @@ import { storedSubtaskMenuEntries } from './subtasks/subtask-menu'
 import { useTaskNotesSource } from './notes/use-task-notes-source'
 import { editorChanges, editorFieldsOf, storeUpdatesToShow, type EditorFields } from './editor-fields'
 import { useLatestRef } from '../../hooks/use-latest-ref'
-import { isInLayerAbove } from '../../utils/dom-layers'
 import { DialogFrame } from '../shared/Dialog'
 import styles from './TaskEditPopup.module.css'
-import { PopoverRoot } from '../shared/PopoverRoot'
 
 interface TaskEditPopupBaseProps {
   assignedPeople: Person[]
@@ -180,6 +177,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   const committedUpdates = statusUpdates.committed
   const subtasks = useEditorSubtasks(entryOptions, seed?.subtasks)
   const pendingSubtasks = subtasks.pending
+  const committedSubtasks = subtasks.committed
   const [statusId, setStatusId] = useState<number | undefined>(
     seed ? seed.statusId : (
       todo?.statusId
@@ -229,12 +227,9 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     ? allTags.filter(t => pendingTagIds.has(t.id!))
     : assignedTags
 
-  const [showStatusMenu, setShowStatusMenu] = useState(false)
-  const [openDropdown, setOpenDropdown] = useState<'people' | 'tags' | null>(null)
+  // A people / tags picker open: the body stops scrolling under it.
+  const [dropdownOpen, setDropdownOpen] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
-  const peopleRef = useRef<HTMLDivElement>(null)
-  const tagsRef = useRef<HTMLDivElement>(null)
-  const statusMenuRef = useRef<HTMLDivElement>(null)
 
   const acPeople = useMemo(() => personItems(allPeople), [allPeople])
   const acTags = useMemo(() => tagItems(allTags), [allTags])
@@ -469,6 +464,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (props.mode !== 'create' || !title.trim() || creatingRef.current) return
     // A person / tag picked from the title's Create row is saved first, so the token names it.
     const updates = committedUpdates()
+    const subtaskRows = committedSubtasks()
     if (ac.creating()) await ac.whenCreated()
     const partial: EditorTaskFields = {
       title: title.trim(),
@@ -476,8 +472,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
       ...(updates.length > 0
         ? { statusUpdates: updates.map(({ date, text, createdAt }) => ({ date, text, createdAt })) }
         : {}),
-      ...(pendingSubtasks.length > 0
-        ? { subtasks: pendingSubtasks.map(({ title, isCompleted }) => ({ title, isCompleted })) }
+      ...(subtaskRows.length > 0
+        ? { subtasks: subtaskRows.map(({ title, isCompleted }) => ({ title, isCompleted })) }
         : {}),
       statusId,
       dueDate: deadline ?? undefined,
@@ -507,7 +503,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
   }
 
   // Create mode: what the form holds, to tell whether Esc or the backdrop would lose anything.
-  const createFormState = (formTitle: string, updates: typeof pendingUpdates) => JSON.stringify({
+  const createFormState = (formTitle: string, updates: typeof pendingUpdates, subtaskRows: typeof pendingSubtasks) => JSON.stringify({
     title: formTitle.trim(),
     statusId,
     due: deadline?.getTime(),
@@ -520,15 +516,15 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     people: [...pendingPersonIds].sort((a, b) => a - b),
     tags: [...pendingTagIds].sort((a, b) => a - b),
     updates: updates.map((u) => [u.date.getTime(), u.text]),
-    subtasks: pendingSubtasks.map((s) => [s.title, s.isCompleted]),
+    subtasks: subtaskRows.map((s) => [s.title, s.isCompleted]),
   })
   // A title handed over from Quick Add was typed; a draft's title (a note line) is where it starts.
-  const [openingForm] = useState(() => createFormState(seed && !(props.mode === 'create' && props.seedTyped) ? title : '', pendingUpdates))
+  const [openingForm] = useState(() => createFormState(seed && !(props.mode === 'create' && props.seedTyped) ? title : '', pendingUpdates, pendingSubtasks))
   const askingToCloseRef = useRef(false)
   /** Esc / the backdrop. In create mode, anything to lose asks first; Cancel is the plain `onClose`. */
   const requestClose = () => {
     const dirty = !isEdit && (
-      createFormState(title, committedUpdates()) !== openingForm
+      createFormState(title, committedUpdates(), committedSubtasks()) !== openingForm
       || notesSession.text() !== (seed?.notes ?? '')
     )
     if (!dirty) {
@@ -612,51 +608,10 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     }
   } : undefined
 
-  const assignedPeopleIds = useMemo(() => new Set(effectiveAssignedPeople.map(p => p.id!)), [effectiveAssignedPeople])
-  const assignedTagIds = useMemo(() => new Set(effectiveAssignedTags.map(t => t.id!)), [effectiveAssignedTags])
-
-  // Close dropdown on outside click — not a press in a layer stacked above
-  // the editor (a person's / tag's menu or the dialog it opened).
-  useEffect(() => {
-    if (!openDropdown) return
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node
-      const panel = panelRef.current
-      if (panel && isInLayerAbove(panel, target)) return
-      if (openDropdown === 'people' && peopleRef.current && !peopleRef.current.contains(target)) {
-        setOpenDropdown(null)
-      }
-      if (openDropdown === 'tags' && tagsRef.current && !tagsRef.current.contains(target)) {
-        setOpenDropdown(null)
-      }
-    }
-    document.addEventListener('mousedown', handler, true)
-    return () => document.removeEventListener('mousedown', handler, true)
-  }, [openDropdown])
-
-  // Close status menu on outside click; Esc closes the menu only, not the
-  // editor around it (cr31 T8), and hands the focus back to its button.
-  useEffect(() => {
-    if (!showStatusMenu) return
-    const handler = (e: MouseEvent) => {
-      if (statusMenuRef.current && !statusMenuRef.current.contains(e.target as Node)) {
-        setShowStatusMenu(false)
-      }
-    }
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
-      e.preventDefault()
-      e.stopPropagation()
-      setShowStatusMenu(false)
-      statusMenuRef.current?.querySelector<HTMLElement>('button')?.focus()
-    }
-    document.addEventListener('mousedown', handler, true)
-    document.addEventListener('keydown', onKey, true)
-    return () => {
-      document.removeEventListener('mousedown', handler, true)
-      document.removeEventListener('keydown', onKey, true)
-    }
-  }, [showStatusMenu])
+  const handleStatusChange = (next: number | undefined) => {
+    setStatusId(next)
+    if (props.mode === 'edit') afterNotes(props.onUpdate)({ statusId: next })
+  }
 
   return (
     // The shared dialog frame: Esc (after a text field's first), a backdrop
@@ -689,154 +644,90 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           isDraft={isDraft}
         />
 
-        {/* Status badge */}
-        <div className={styles.badges}>
-          {statuses.length > 0 && (
-            <div className={styles.priorityWrapper} ref={statusMenuRef}>
-              <button
-                className={styles.badge}
-                onClick={() => setShowStatusMenu((v) => !v)}
-              >
-                {statusId ? (
-                  <><span style={{ color: statuses.find(s => s.id === statusId)?.color }}><StatusIcon icon={statuses.find(s => s.id === statusId)?.icon || DEFAULT_STATUS_ICON} filled /></span> {statuses.find(s => s.id === statusId)?.name ?? 'Status'}</>
-                ) : (
-                  'Status'
-                )}
-                {' '}&#x25BE;
-              </button>
-              {showStatusMenu && (
-                <PopoverRoot className={styles.statusMenu}>
-                  <button
-                    className={`${styles.statusOption} ${!statusId ? styles.statusOptionActive : ''}`}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setStatusId(undefined)
-                      setShowStatusMenu(false)
-                      if (props.mode === 'edit') afterNotes(props.onUpdate)({ statusId: undefined })
-                    }}
-                  >
-                    <span style={{ color: 'var(--color-text-muted)' }}><StatusIcon icon="circle" /></span>
-                    No Status
-                  </button>
-                  {statuses.map(s => (
-                    <button
-                      key={s.id}
-                      className={`${styles.statusOption} ${statusId === s.id ? styles.statusOptionActive : ''}`}
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        setStatusId(s.id)
-                        setShowStatusMenu(false)
-                        if (props.mode === 'edit') afterNotes(props.onUpdate)({ statusId: s.id })
-                      }}
-                    >
-                      <span style={{ color: s.color }}><StatusIcon icon={s.icon || DEFAULT_STATUS_ICON} filled /></span>
-                      {s.name}
-                    </button>
-                  ))}
-                </PopoverRoot>
-              )}
-            </div>
+        <TaskEditBadges
+          statuses={statuses}
+          statusId={statusId}
+          onStatusChange={handleStatusChange}
+          focusOn={focusOn}
+          urgentOn={urgentOn}
+          importantOn={importantOn}
+          urgentState={urgentState}
+          urgentHint={urgentHint}
+          onToggleFocus={handleToggleFocus}
+          onToggleUrgent={handleToggleUrgent}
+          onToggleImportant={handleToggleImportant}
+        />
+
+        <TaskDetailsBody
+          dropdownOpen={dropdownOpen}
+          fields={(
+            <TaskEditMetadata
+              deadline={deadline}
+              recurrenceType={recurrenceType}
+              onDeadlineChange={handleDeadlineChange}
+              onRecurrenceChange={handleRecurrenceChange}
+              assignedPeople={effectiveAssignedPeople}
+              assignedTags={effectiveAssignedTags}
+              allPeople={allPeople}
+              allTags={allTags}
+              onTogglePerson={togglePerson}
+              onToggleTag={toggleTag}
+              onCreatePerson={handleCreatePerson}
+              onCreateTag={handleCreateTag}
+              onDropdownChange={setDropdownOpen}
+            />
           )}
-          {statuses.length > 0 && <span className={styles.badgeDivider} aria-hidden="true" />}
-          {/* The marker toggles, in display order (Focus › Urgent › Important). */}
-          <MarkerToggle
-            className={`${styles.markerToggle} ${focusOn ? styles.markerToggleFocusOn : ''}`}
-            pressed={focusOn}
-            onClick={handleToggleFocus}
-            tooltip={focusOn ? 'Remove from Focus' : 'Add to Focus'}
-          >
-            <FocusIcon /> Focus
-          </MarkerToggle>
-          <MarkerToggle
-            className={`${styles.markerToggle} ${urgentOn ? styles.markerToggleUrgentOn : ''}`}
-            pressed={urgentOn}
-            onClick={handleToggleUrgent}
-            tooltip={`${urgentOn ? 'Remove urgent' : 'Mark urgent'}${urgentHint ? `\n${urgentHint}` : ''}`}
-            data-urgent={urgentState ?? undefined}
-          >
-            <UrgentIcon /> Urgent
-            {urgentState === 'date' && (
-              <span className={styles.markerToggleHint} data-urgent-hint=""><UrgentClockIcon /></span>
-            )}
-          </MarkerToggle>
-          <MarkerToggle
-            className={`${styles.markerToggle} ${importantOn ? styles.markerToggleImportantOn : ''}`}
-            pressed={importantOn}
-            onClick={handleToggleImportant}
-            tooltip={importantOn ? 'Remove important' : 'Mark important'}
-          >
-            <ImportantIcon outline={!importantOn} /> Important
-          </MarkerToggle>
-        </div>
-
-        <div className={`${styles.scrollBody} ${openDropdown ? styles.scrollBodyDropdownOpen : ''}`}>
-          <TaskEditMetadata
-            deadline={deadline}
-            recurrenceType={recurrenceType}
-            onDeadlineChange={handleDeadlineChange}
-            onRecurrenceChange={handleRecurrenceChange}
-            assignedPeople={effectiveAssignedPeople}
-            assignedTags={effectiveAssignedTags}
-            allPeople={allPeople}
-            allTags={allTags}
-            assignedPeopleIds={assignedPeopleIds}
-            assignedTagIds={assignedTagIds}
-            peopleRef={peopleRef}
-            tagsRef={tagsRef}
-            onTogglePerson={togglePerson}
-            onToggleTag={toggleTag}
-            onCreatePerson={handleCreatePerson}
-            onCreateTag={handleCreateTag}
-            openDropdown={openDropdown}
-            setOpenDropdown={setOpenDropdown}
-            followupNext={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
-            followupLast={isEdit ? todo?.lastFollowupAt : draftLastWithUpdates}
-            followupNextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
-              ? `Default · ${describeFollowupInterval(followupInterval)}`
-              : undefined}
-            // The untouched default is a proposal: focus selects it, so typing replaces it.
-            followupNextSelectOnFocus={!isEdit && nextFollowupIsDefault && !!draftNextFollowup}
-            onFollowupNextChange={handleNextFollowupChange}
-            onFollowupLastChange={handleLastFollowupChange}
-            onFollowedUp={handleFollowedUp}
-            hideLastFollowup={isDraft}
-          />
-
-          <SubtasksSection
-            items={subtasks.items}
-            onAdd={subtasks.add}
-            onRename={subtasks.rename}
-            onSetDone={subtasks.setDone}
-            onRemove={subtasks.remove}
-            onMove={subtasks.move}
-            extraMenuEntries={isEdit ? storedSubtaskMenuEntries : undefined}
-            className={styles.notesSection}
-            labelClassName={styles.notesLabel}
-          />
-
-          <StatusUpdatesSection
-            entries={statusUpdates.entries}
-            onAdd={statusUpdates.add}
-            onEdit={statusUpdates.edit}
-            onRemove={statusUpdates.remove}
-            className={styles.notesSection}
-            labelClassName={styles.notesLabel}
-            commitRef={statusUpdates.commitRef}
-          />
-
-          {/* Notes */}
-          <div className={styles.notesSection}>
-            <div className={styles.notesLabel}>Notes</div>
-            <div className={styles.notesBodyWrap}>
-              <NotesBody
-                source={notesSession.source}
-                showToolbar
-                placeholder="Add notes..."
-                subtaskTarget={subtasks.noteTarget}
+          subtasks={(
+            // Keyed by the task: Duplicate switches the editor to the copy, and a
+            // line still being typed is added, on unmount, to the task it was typed for.
+            <SubtasksSection
+              key={todo?.id}
+              items={subtasks.items}
+              onAdd={subtasks.add}
+              onRename={subtasks.rename}
+              onSetDone={subtasks.setDone}
+              onRemove={subtasks.remove}
+              onMove={subtasks.move}
+              extraMenuEntries={isEdit ? storedSubtaskMenuEntries : undefined}
+              className={taskLayoutClasses.pairSection}
+              labelClassName={taskLayoutClasses.label}
+              commitRef={subtasks.commitRef}
+            />
+          )}
+          notes={<TaskNotesSection source={notesSession.source} subtaskTarget={subtasks.noteTarget} />}
+          statusUpdates={(
+            <StatusUpdatesSection
+              key={todo?.id}
+              entries={statusUpdates.entries}
+              onAdd={statusUpdates.add}
+              onEdit={statusUpdates.edit}
+              onRemove={statusUpdates.remove}
+              className={taskLayoutClasses.updatesSection}
+              labelClassName={taskLayoutClasses.label}
+              commitRef={statusUpdates.commitRef}
+            />
+          )}
+          followup={(
+            <FollowupBlock>
+              <FollowupEditorGroup
+                bare
+                next={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
+                last={isEdit ? todo?.lastFollowupAt : draftLastWithUpdates}
+                nextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
+                  ? `Default · ${describeFollowupInterval(followupInterval)}`
+                  : undefined}
+                // The untouched default is a proposal: focus selects it, so typing replaces it.
+                selectNextOnFocus={!isEdit && nextFollowupIsDefault && !!draftNextFollowup}
+                onNextChange={handleNextFollowupChange}
+                onLastChange={handleLastFollowupChange}
+                onFollowedUp={handleFollowedUp}
+                hideLast={isDraft}
+                rowClassName={styles.metaRow}
+                labelClassName={styles.metaLabel}
               />
-            </div>
-          </div>
-        </div>
+            </FollowupBlock>
+          )}
+        />
 
         {isEdit && todo ? (
           <TaskEditFooter
@@ -851,23 +742,5 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           <TaskEditFooter mode="create" onClose={onClose} onCreate={handleCreate} titleValid={!!title.trim()} isDraft={isDraft} />
         )}
     </DialogFrame>
-  )
-}
-
-/** An editor marker toggle (Focus / Urgent / Important) with its tooltip. */
-function MarkerToggle({ className, pressed, onClick, tooltip, children, ...rest }: {
-  className: string
-  pressed: boolean
-  onClick: () => void
-  tooltip: string
-  children: React.ReactNode
-  'data-urgent'?: string
-}) {
-  const { triggerProps, tooltip: tip } = useTooltip(tooltip)
-  return (
-    <button type="button" className={className} aria-pressed={pressed} onClick={onClick} {...rest} {...triggerProps}>
-      {children}
-      {tip}
-    </button>
   )
 }

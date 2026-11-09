@@ -11,7 +11,8 @@ import { cellMinHeightPx, cellMinWidthPx, isFitTrack } from './workspace-rows'
  * - **fixed** — a `px` track (a former band), its px;
  * - **collapsed** — a collapsed row track, a cell header's height;
  * - **fit** — a row track whose cells hold one Number each
- *   (`workspace-rows.isFitTrack`): `auto`, its content's height;
+ *   (`workspace-rows.isFitTrack`): `auto`, its content's height — or,
+ *   given a height by a divider (`GridTrack.fitPx`), fixed at it;
  * - **weighted** — its share of the free space (`fr`), never under its
  *   minimum: the smallest size its cells may take (`trackMinimums`). When
  *   the minimums don't fit, the table scrolls.
@@ -37,8 +38,19 @@ export function trackSizing(body: LayoutBody, axis: GridAxis, i: number): TrackS
   if (!track) return { kind: 'weighted', weight: 0 }
   if (axis === 'rows' && track.collapsed === true) return { kind: 'collapsed' }
   if (track.px != null) return { kind: 'fixed', px: track.px }
-  if (axis === 'rows' && isFitTrack(body, i)) return { kind: 'fit' }
+  if (axis === 'rows' && isFitTrack(body, i)) return track.fitPx != null ? { kind: 'fixed', px: track.fitPx } : { kind: 'fit' }
   return { kind: 'weighted', weight: Math.max(0, track.weight ?? 0) }
+}
+
+/**
+ * Whether row track `row` draws its cells at their small face, as a fit
+ * row does: it fits its content — or is collapsed and would (the cells
+ * keep their small face folded). One a divider gave a height draws them
+ * by their size.
+ */
+export function rowDrawsFitFaces(body: LayoutBody, row: number): boolean {
+  const sizing = trackSizing(body, 'rows', row)
+  return sizing.kind === 'fit' || (sizing.kind === 'collapsed' && isFitTrack(body, row))
 }
 
 /** Every track of `axis`: how it is sized. */

@@ -126,7 +126,7 @@ describe('glance widgets — the design sample', () => {
     setup()
     expect(within(section('trend')!).getByTestId('glance-trend-completed').textContent).toBe('14completed')
     expect(within(section('trend')!).getByTestId('glance-trend-created').textContent).toBe('17created')
-    expect(section('trend')!.textContent).toContain('+3open since Sun 27 Sep')
+    expect(section('trend')!.textContent).toContain('+3open since 09/27')
   })
 
   it('Status (a Breakdown): open counts per status, in Settings order', () => {
@@ -311,7 +311,9 @@ describe('glance widgets — Tags (a Breakdown)', () => {
     expect(sectionCount('tags')).toBe('5 open')
     expect(tagRows().map((r) => r.dataset.breakdownRow)).toEqual(['tag-1'])
     expect(lines('open')?.[0]).toBe('Open 5 of 19')
-    expect(lines('tags')).toEqual(['Tags 5 open', '#q4 5'])
+    expect(lines('tags')?.[0]).toBe('Tags 5 open')
+    expect(lines('tags')?.slice(1)).toHaveLength(1)
+    expect(lines('tags')?.[1]).toMatch(/^#q4 5 · Overdue \d+ · Due soon \d+ · Follow-up late \d+ · Follow-up due \d+$/)
   })
 
   it('its rows open the tasks behind them', () => {

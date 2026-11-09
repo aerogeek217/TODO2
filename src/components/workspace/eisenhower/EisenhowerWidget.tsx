@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
+import { useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { useDndMonitor, useDroppable, type DragStartEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../../models'
 import {
@@ -14,7 +14,7 @@ import { useEqualValue } from '../../../hooks/use-equal-value'
 import { useKeptTodos, useLeavingRows, type LeavingRows } from '../../../hooks/use-leaving-rows'
 import { useTooltip } from '../../shared/use-tooltip'
 import { useFilterStore } from '../../../stores/filter-store'
-import { useAppliedLens } from '../../../stores/screen-filter'
+import { useWidgetAppliedLens } from '../../../hooks/use-widget-lens'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { countActiveFilters } from '../../../utils/filter-criteria'
 import type { FilterChipNames } from '../../../utils/filter-chips'
@@ -69,6 +69,12 @@ import { openEisenhowerSettings } from './eisenhower-settings-link'
 import { SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { WidgetNameLine } from '../WidgetTopLine'
+import { TabLensSwitch } from '../LensSwitch'
+import type { PersistedListDefinition } from '../../../models/list-definition'
+import { CellControlsContext } from '../cell-controls'
+import { lensHidesWhere, useLensHidden } from '../../../hooks/use-glance-data'
+import { matchesMembership } from '../../../services/build-list'
+import { createPredicateEvaluator } from '../../../utils/filter-match'
 import { useIsListDirty } from '../../../hooks/use-list-draft'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
@@ -454,6 +460,14 @@ interface BodyProps extends WidgetProps {
   shownIdsRef: RefObject<ReadonlySet<number>>
 }
 
+/** The Eisenhower's lens switch: what the lens hides among its list's open members (every open task until the list loads). */
+function EisenhowerLensSwitch({ tab, list }: { tab: EisenhowerTab; list: PersistedListDefinition | undefined }) {
+  const info = useLensHidden()
+  const member = info ? createPredicateEvaluator(info.base.lookups, info.base.ctx.today, info.base.markerSettings) : null
+  const hides = lensHidesWhere(info, (t) => !t.isCompleted && (!list || (member != null && matchesMembership(list.membership, t, member))))
+  return <TabLensSwitch tab={tab} hides={hides} />
+}
+
 function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, shownIdsRef }: BodyProps) {
   const isMobile = useIsMobile()
   const listUnsaved = useIsListDirty(list?.definition.id)
@@ -463,7 +477,10 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
   const paneCtx = usePaneContext()
   const names = useChipNames()
   const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
-  const lens = useAppliedLens()
+  const lens = useWidgetAppliedLens()
+  // Its lens switch (G3): on its name line alone in its cell, else at the end of its filter line.
+  const alone = useContext(CellControlsContext) != null
+  const lensSwitch = <EisenhowerLensSwitch tab={tab} list={list?.definition} />
   const openEditPopup = useUIStore((s) => s.openEditPopup)
   const [sizeRef, size] = useElementSize()
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -566,8 +583,9 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
       {/* Alone in its cell, its top line (D26 AA1): a slim name line. */}
       <WidgetNameLine name="Eisenhower" unsaved={listUnsaved}>
         <span className={styles.lineCount} data-testid="eisenhower-line-count">{countLabel}</span>
+        {alone && lensSwitch}
       </WidgetNameLine>
-      {list && <ListFilterRow tabId={tab.id} definition={list.definition} summary={false} />}
+      {list && <ListFilterRow tabId={tab.id} definition={list.definition} summary={false} trailing={alone ? undefined : lensSwitch} />}
       <div
         ref={setRootRef}
         className={`${styles.widget} ${stacked ? styles.stacked : styles.grid} ${isMobile ? styles.touch : ''}`}

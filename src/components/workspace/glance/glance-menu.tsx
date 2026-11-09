@@ -13,7 +13,8 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import type { WidgetMenuAction } from '../../shared/WidgetKindMenu'
-import { openNumberEditor } from '../widget-hooks'
+import { openNumberEditor, showTab } from '../widget-hooks'
+import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { trendRangeLabel } from './glance-copy'
 import type { GlanceSummary } from './glance-summary'
 import {
@@ -45,6 +46,12 @@ function tagPicksEntry(tab: Extract<GlanceTab, { kind: 'pulse' }>, note: string)
   }
 }
 
+/** Opens Project pulse's editor beside it (G5; its tab shown first, as a chart's). */
+function openPulseEditor(tabId: string): void {
+  showTab(tabId)
+  useChartWidgetsStore.getState().openPulseEditor(tabId)
+}
+
 /** A glance tab's settings, as its tab menu lists them first (each its section's options, as Customize had them). */
 function settingEntries(tab: GlanceTab): MenuEntry[] {
   const ws = useWorkspaceStore.getState
@@ -62,7 +69,11 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
       return [settingEntry('Range', TREND_RANGES.map((r) => ({ value: r, label: trendRangeLabel(r).replace(/^Last /, '') })), tab.config.range,
         (range) => ws().patchTabConfig(tab.id, 'trend', { range }))]
     case 'pulse':
-      return [tagPicksEntry(tab, 'A card per tag, in the order picked.')]
+      return [
+        // G5: its rules' editor (`PulseEditorHost`), its tab shown first as a chart's.
+        { kind: 'item', label: 'Edit project pulse…', onSelect: () => openPulseEditor(tab.id) },
+        tagPicksEntry(tab, 'A card per tag, in the order picked.'),
+      ]
     // D26 P8: the chart widgets.
     case 'breakdown':
     case 'pivot':
