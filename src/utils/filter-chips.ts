@@ -8,7 +8,7 @@ import { isNegated, withIdFilter, type IdList } from './filter-negation'
 import { DATE_FIELD_LABELS_SHORT, NO_STATUS_LABEL, NO_TAGS_LABEL, UNASSIGNED_LABEL } from './filter-labels'
 import { formatFollowupDate } from './followup'
 import { hasMarkers, MARKERS_LABEL, markerClauseNames, markersHideLine, withMarkerClause } from './markers'
-import { printExpression, type ExpressionNames } from './filter-expression'
+import { expressionWords, printExpression, type ExpressionNames } from './filter-expression'
 
 export { describeAnchor, describeDateMatch, describeRange } from './date-words'
 
@@ -340,11 +340,13 @@ export function expressionText(p: Pick<TodoPredicate, 'expression'>, names: Pick
 
 /**
  * One item of a filter line: a chip of a Graphical filter, or a filter
- * written as an expression, as its text (a single item).
+ * written as an expression (a single item): its exact text (`text`, for a
+ * tooltip) and the same read back in words (`words`, D26 board BF —
+ * `filter-expression/words`), which every summary shows.
  */
 export type LineItem =
   | { kind: 'chip'; chip: FilterChip }
-  | { kind: 'expression'; text: string }
+  | { kind: 'expression'; text: string; words: string }
 
 /** A line item of a Graphical filter: a chip. */
 export type GraphicalLineItem = Exclude<LineItem, { kind: 'expression' }>
@@ -356,7 +358,9 @@ export function isGraphicalItem(item: LineItem): item is GraphicalLineItem {
 
 /** A predicate's filter line: its chips in `FILTER_FIELD_ORDER`, or its expression. */
 export function predicateLineItems(p: TodoPredicate, names: FilterChipNames): LineItem[] {
-  if (p.expression) return [{ kind: 'expression', text: expressionText(p, names) }]
+  if (p.expression) {
+    return [{ kind: 'expression', text: expressionText(p, names), words: expressionWords(p.expression, expressionNamesOf(names)).text }]
+  }
   return filterChips(p, names).map((chip) => ({ kind: 'chip', chip }))
 }
 
@@ -365,11 +369,11 @@ function chipWords(c: FilterChip): string {
   return `${c.label} ${c.value}`
 }
 
-/** The filters in words, e.g. `Status Waiting · Due within the next 14 days`; an expression as its text. */
+/** The filters in words, e.g. `Status Waiting · Due within the next 14 days`; an expression in words (`Aisha, or #q4 but not Waiting`). */
 export function describeFilters(items: readonly (FilterChip | LineItem)[]): string {
   return items.map((item) => {
     if (!('kind' in item)) return chipWords(item)
-    return item.kind === 'expression' ? item.text : chipWords(item.chip)
+    return item.kind === 'expression' ? item.words : chipWords(item.chip)
   }).join(' · ')
 }
 /** One chip in a few words: `@Priya`, `#q4`, `Status: Waiting`. */
@@ -382,13 +386,13 @@ function chipHint(c: FilterChip): string {
 /**
  * A list's filters in a few words, for a hint under its name (Copy from's
  * rows): `Status: Waiting`, `@Priya`, `#q4`, an
- * expression as its text; `All tasks` with none.
+ * expression in words; `All tasks` with none.
  */
 export function listFilterHint(items: readonly (FilterChip | LineItem)[]): string {
   if (items.length === 0) return 'All tasks'
   return items.map((item) => {
     if (!('kind' in item)) return chipHint(item)
-    return item.kind === 'expression' ? item.text : chipHint(item.chip)
+    return item.kind === 'expression' ? item.words : chipHint(item.chip)
   }).join(' · ')
 }
 

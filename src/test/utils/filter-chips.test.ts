@@ -528,9 +528,9 @@ describe('a filter line written as an expression', () => {
     expression: { kind: 'and', items: [{ kind: 'status', id: 1 }, { kind: 'or', items: [{ kind: 'priority', value: 'focus' }, { kind: 'person', id: 1 }] }] },
   }
 
-  it('is one item, its text', () => {
-    expect(predicateLineItems(p, names)).toEqual([{ kind: 'expression', text: '!Waiting and (/focus or @Alice)' }])
-    expect(describeFilters(predicateLineItems(p, names))).toBe('!Waiting and (/focus or @Alice)')
+  it('is one item: its text, and the same in words', () => {
+    expect(predicateLineItems(p, names)).toEqual([{ kind: 'expression', text: '!Waiting and (/focus or @Alice)', words: 'Waiting · (Focus or Alice)' }])
+    expect(describeFilters(predicateLineItems(p, names))).toBe('Waiting · (Focus or Alice)')
     expect(hasNarrowingFilters(p)).toBe(true)
   })
 
