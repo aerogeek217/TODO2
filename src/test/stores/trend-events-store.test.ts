@@ -8,6 +8,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useTrendEvents } from '../../hooks/use-trend-events'
 import { refreshAllStores } from '../../services/refresh-all'
 import { makeTodo } from '../helpers'
+import { eventsByTask, taskReplay } from '../../services/stats/task-history'
 
 const today = new Date(2026, 9, 10)
 
@@ -48,6 +49,24 @@ describe('trend-events-store', () => {
 
     await load('4w', today, 0)
     expect(since).toHaveBeenCalledTimes(2)
+  })
+
+  it('a task the window first sees reopened gets its latest completion from before the window: the replay knows when it was done', async () => {
+    const t = makeTodo({ id: 7, title: 'T', createdAt: new Date(2026, 7, 1), isCompleted: false })
+    await addEvent(7, 'completed', new Date(2026, 8, 1)) // older: not the latest
+    await addEvent(7, 'completed', new Date(2026, 8, 15, 12))
+    await addEvent(7, 'reopened', new Date(2026, 9, 5))
+    await addEvent(8, 'completed', new Date(2026, 8, 14)) // another task, not reopened in the window: not read
+    await useTrendEventsStore.getState().load('history', today, 0)
+    const events = useTrendEventsStore.getState().entries.get(trendEventsKey('history', today, 0))?.events ?? []
+    expect(events.map((e) => [e.todoId, e.type, e.timestamp])).toEqual([
+      [7, 'completed', new Date(2026, 8, 15, 12).toISOString()],
+      [7, 'reopened', new Date(2026, 9, 5).toISOString()],
+    ])
+    // Done on Oct 1 (completed Sep 15): the replay says when.
+    const origin = new Date(2026, 9, 1)
+    const at = taskReplay(t, eventsByTask(events, new Set([7]), ['created', 'completed', 'reopened'], origin).get(7), origin)
+    expect(at(0)).toMatchObject({ state: 'done', completed: new Date(2026, 8, 15, 12) })
   })
 
   it('invalidate makes the next load read again, keeping the old events meanwhile', async () => {
