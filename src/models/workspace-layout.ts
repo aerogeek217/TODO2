@@ -27,9 +27,10 @@ import {
   DEFAULT_TREND_RANGE,
   newNumberConfig,
   type NumberConfig,
-  type TagPicksTabConfig,
   type TrendTabConfig,
 } from './glance-widgets'
+// G5: Project pulse's config, its rules among it.
+import type { PulseTabConfig } from './pulse-config'
 import {
   newBreakdownConfig,
   newPivotConfig,
@@ -251,7 +252,7 @@ export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerT
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, LensViewState>
 export type NumberTab = TabOf<'number', NumberConfig, LensViewState>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
-export type PulseTab = TabOf<'pulse', TagPicksTabConfig, LensViewState>
+export type PulseTab = TabOf<'pulse', PulseTabConfig, LensViewState>
 // ── D26 P8: the chart widgets ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
 export type PivotTab = TabOf<'pivot', PivotConfig, LensViewState>

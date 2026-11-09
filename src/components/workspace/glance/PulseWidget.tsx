@@ -10,19 +10,31 @@ import type { SummaryPart } from './glance-summary'
 import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { Empty, Panel, type PanelDef } from './section-parts'
+import { pulseRuleName } from '../../../models/pulse-config'
 import styles from './PulseWidget.module.css'
 
 const PULSE_DEF: PanelDef = { id: 'pulse', title: 'Project pulse', glyph: 'tag', glyphColor: 'var(--color-accent)' }
 
-/** `21 open · 5 late (24%) · 4 stale`. */
-function countsText(card: PulseCard): string {
+/** The rules' names as a card's counts read them (G5: `late` and `stale` by default). */
+interface PulseNames {
+  late: string
+  stale: string
+}
+
+/** `5 late (24%)`: the late count under its rule's name, with the share while any. */
+function lateText(card: PulseCard, names: PulseNames): string {
   const late = card.lateIds.length
-  return `${card.openIds.length} open · ${late} late${late > 0 ? ` (${lateShareText(card.lateShare)})` : ''} · ${card.staleCount} stale`
+  return `${late} ${names.late}${late > 0 ? ` (${lateShareText(card.lateShare)})` : ''}`
+}
+
+/** `21 open · 5 late (24%) · 4 stale`. */
+function countsText(card: PulseCard, names: PulseNames): string {
+  return `${card.openIds.length} open · ${lateText(card, names)} · ${card.staleCount} ${names.stale}`
 }
 
 /** The widget's lines for Copy: a card each, `#tag 21 open · 5 late (24%) · 4 stale · Growing: +5 net in 4 weeks`. */
-function pulseLines(cards: readonly PulseCard[]): SummaryPart[][] {
-  return cards.map((c) => [{ label: `#${c.tag.name}`, count: `${countsText(c)} · ${momentumText(c)}` }])
+function pulseLines(cards: readonly PulseCard[], names: PulseNames): SummaryPart[][] {
+  return cards.map((c) => [{ label: `#${c.tag.name}`, count: `${countsText(c, names)} · ${momentumText(c)}` }])
 }
 
 const LINE_W = 100
@@ -47,7 +59,7 @@ function PulseLines({ card }: { card: PulseCard }) {
   )
 }
 
-function PulseCardView({ card, onDrill }: { card: PulseCard; onDrill: OnGlanceDrill | undefined }) {
+function PulseCardView({ card, names, onDrill }: { card: PulseCard; names: PulseNames; onDrill: OnGlanceDrill | undefined }) {
   const name = card.tag.name
   const content = (
     <>
@@ -60,17 +72,15 @@ function PulseCardView({ card, onDrill }: { card: PulseCard; onDrill: OnGlanceDr
           <span className={styles.ringCount}>{card.openIds.length}</span>
         </span>
         <span className={styles.counts}>
-          <span className={card.lateIds.length > 0 ? styles.late : undefined}>
-            {card.lateIds.length} late{card.lateIds.length > 0 ? ` (${lateShareText(card.lateShare)})` : ''}
-          </span>
-          <span>{card.staleCount} stale</span>
+          <span className={card.lateIds.length > 0 ? styles.late : undefined} data-pulse-count="late">{lateText(card, names)}</span>
+          <span data-pulse-count="stale">{`${card.staleCount} ${names.stale}`}</span>
         </span>
       </span>
       <PulseLines card={card} />
       <span className={styles.momentum} data-momentum={card.momentum}>{momentumText(card)}</span>
     </>
   )
-  const label = `#${name}: ${countsText(card)}. ${momentumText(card)}.`
+  const label = `#${name}: ${countsText(card, names)}. ${momentumText(card)}.`
   const common = { className: styles.card, 'data-pulse-card': card.tag.id }
   return onDrill
     ? <button type="button" {...common} aria-label={`${label} Show open tasks`} onClick={() => onDrill(tagRowDrill(card.tag, card.openIds))}>{content}</button>
@@ -83,13 +93,18 @@ function PulseCardView({ card, onDrill }: { card: PulseCard; onDrill: OnGlanceDr
  * closed (solid), its open / late / stale counts and its momentum
  * (`services/stats/pulse`) — in a grid that flows with the cell. A card
  * opens the tag's open tasks. Small: the worst tag's late share; medium:
- * a line per tag.
+ * a line per tag. Late and stale follow its rules (G5), and read by their
+ * names; its editor (Edit project pulse…, `PulseEditorHost`) opens under
+ * its title (`data-pulse-head`).
  */
 export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseTab>) {
   const base = useStatsBase()
-  const cards = usePulse(base, tab.config.tagIds)
+  const cards = usePulse(base, tab.config)
   const [faceRef, face] = useWidgetFace()
-  const lines = useMemo(() => pulseLines(cards), [cards])
+  const lateName = pulseRuleName(tab.config, 'late')
+  const staleName = pulseRuleName(tab.config, 'stale')
+  const names = useMemo((): PulseNames => ({ late: lateName, stale: staleName }), [lateName, staleName])
+  const lines = useMemo(() => pulseLines(cards, names), [cards, names])
   useReportLines(onResult, lines)
   const drill = glanceDrill(onDrill, base.filtered)
   const openTag = (card: PulseCard) => drill?.(tagRowDrill(card.tag, card.openIds))
@@ -104,21 +119,21 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
     const content = worst
       ? (
         <>
-          <span className={styles.pulseSmallShare} data-testid="pulse-worst">{lateShareText(worst.lateShare)} late</span>
+          <span className={styles.pulseSmallShare} data-testid="pulse-worst">{`${lateShareText(worst.lateShare)} ${names.late}`}</span>
           <span className={styles.pulseSmallName}>#{worst.tag.name}</span>
         </>
       )
       : (
         <>
           <span className={styles.pulseSmallName}>Project pulse</span>
-          <span className={styles.quiet}>{cards.length > 0 ? 'Nothing late' : picked ? 'Picked tags deleted' : 'No tags picked'}</span>
+          <span className={styles.quiet}>{cards.length > 0 ? `Nothing ${names.late}` : picked ? 'Picked tags deleted' : 'No tags picked'}</span>
         </>
       )
     return (
       <GlanceFrame tab={tab}>
-        <div ref={faceRef} className={`${styles.face} ${styles.small}`} data-face="small">
+        <div ref={faceRef} className={`${styles.face} ${styles.small}`} data-face="small" data-pulse-head={tab.id}>
           {worst && drill
-            ? <button type="button" className={`${styles.drill} ${styles.pulseSmall}`} aria-label={`#${worst.tag.name}: ${lateShareText(worst.lateShare)} late. Show open tasks`} onClick={() => openTag(worst)}>{content}</button>
+            ? <button type="button" className={`${styles.drill} ${styles.pulseSmall}`} aria-label={`#${worst.tag.name}: ${lateShareText(worst.lateShare)} ${names.late}. Show open tasks`} onClick={() => openTag(worst)}>{content}</button>
             : <span className={styles.pulseSmall}>{content}</span>}
         </div>
       </GlanceFrame>
@@ -128,7 +143,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
   return (
     <GlanceFrame tab={tab}>
       <div ref={faceRef} className={styles.face} data-face={face}>
-        <Panel def={PULSE_DEF} className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks" lens={<TabLensSwitch tab={tab} hides={lensHides} />}>
+        <Panel def={PULSE_DEF} className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks" lens={<TabLensSwitch tab={tab} hides={lensHides} />} titleData={{ 'data-pulse-head': tab.id }}>
           {cards.length === 0 ? (
             picked
               ? <Empty title="The picked tags were deleted" hint="Pick the tags to follow in the tab menu’s Tags." />
@@ -136,7 +151,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
           ) : face === 'medium' ? (
             <ul className={styles.pulseList} aria-label="Project pulse">
               {cards.map((c) => {
-                const meta = `${c.openIds.length} open · ${lateShareText(c.lateShare)} late · ${c.momentum === 'growing' ? 'Growing' : c.momentum === 'shrinking' ? 'Shrinking' : 'Steady'}`
+                const meta = `${c.openIds.length} open · ${lateShareText(c.lateShare)} ${names.late} · ${c.momentum === 'growing' ? 'Growing' : c.momentum === 'shrinking' ? 'Shrinking' : 'Steady'}`
                 const row = (
                   <>
                     <i className={styles.swatch} style={{ background: c.tag.color }} aria-hidden="true" />
@@ -155,7 +170,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
             </ul>
           ) : (
             <div className={styles.pulseGrid}>
-              {cards.map((c) => <PulseCardView key={c.tag.id} card={c} onDrill={drill} />)}
+              {cards.map((c) => <PulseCardView key={c.tag.id} card={c} names={names} onDrill={drill} />)}
             </div>
           )}
         </Panel>

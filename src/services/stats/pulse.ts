@@ -11,7 +11,9 @@ import { idsByDate, type StatsContext } from './stats-context'
  * stale counts and its momentum (growing, steady or shrinking by the net
  * over the 4 weeks). Tags aren't logged, so a task counts under the tags
  * it has now; added is its `createdAt`, closed its completion (a task
- * reopened since isn't closed).
+ * reopened since isn't closed). What counts as late and as stale are the
+ * widget's rules (G5, `models/pulse-config`): by default due before today
+ * and untouched for Settings' `staleAfterDays`.
  */
 
 /** Weeks a card covers: this week (so far) and the three before it. */
@@ -26,9 +28,9 @@ export interface PulseCard {
   tag: Tag
   /** Its open tasks, in dialog order (by due date). */
   openIds: number[]
-  /** Its late open tasks, in dialog order. */
+  /** Its late open tasks (its Late rule), in dialog order. */
   lateIds: number[]
-  /** Its open tasks untouched for Settings' `staleAfterDays` (0 = off: none). */
+  /** Its stale open tasks (its Stale rule; by default untouched for Settings' `staleAfterDays`, 0 = off: none). */
   staleCount: number
   /** `lateIds / openIds`, 0 – 1; 0 with no open task. */
   lateShare: number
@@ -42,6 +44,19 @@ export interface PulseCard {
 }
 
 export type PulseContext = Pick<StatsContext, 'today' | 'weekStartsOn' | 'assignedTagsMap'>
+
+/** Whether an open task meets a pulse rule. */
+export type PulseRuleMatch = (task: PersistedTodoItem) => boolean
+
+/**
+ * A widget's rules as matchers over a card's open tasks (G5): a rule left
+ * out is its built-in default — late is due before today, stale untouched
+ * for `staleAfterDays` (`utils/stale.isStale`).
+ */
+export interface PulseRuleMatchers {
+  late?: PulseRuleMatch
+  stale?: PulseRuleMatch
+}
 
 /** Growing above `PULSE_GROWING_NET`, shrinking below 0, else steady. */
 export function pulseMomentum(net: number): PulseMomentum {
@@ -60,7 +75,8 @@ export function momentumText(card: Pick<PulseCard, 'net' | 'momentum'>): string 
  * A card per tag of `tagIds` (in pick order; a tag not in `tags` — deleted
  * since — is skipped) over `tasks` (completed ones included: closed reads
  * them), usually the screen-filtered tasks. A tag with no tasks gets an
- * empty card. Pure.
+ * empty card. `rules` say what is late and stale among a card's open tasks
+ * (each left out: its default). Pure.
  */
 export function computePulse(
   tasks: readonly PersistedTodoItem[],
@@ -68,8 +84,11 @@ export function computePulse(
   ctx: PulseContext,
   tagIds: readonly number[],
   staleAfterDays: number,
+  rules: PulseRuleMatchers = {},
 ): PulseCard[] {
   const { today } = ctx
+  const isLate = rules.late ?? ((t: PersistedTodoItem) => (daysUntil(t.dueDate, today) ?? 0) < 0)
+  const isStaleTask = rules.stale ?? ((t: PersistedTodoItem) => isStale(t, today, staleAfterDays))
   const weekStarts = trendWindow('4w', today, ctx.weekStartsOn).bucketStarts
   const weekOf = (d: Date | null | undefined): number | null => {
     if (!d) return null
@@ -99,7 +118,7 @@ export function computePulse(
     if (!tag) continue
     const mine = tasksByTag.get(id) ?? []
     const open = mine.filter((t) => !t.isCompleted)
-    const late = open.filter((t) => (daysUntil(t.dueDate, today) ?? 0) < 0)
+    const late = open.filter(isLate)
     const added = new Array<number>(PULSE_WEEKS).fill(0)
     const closed = new Array<number>(PULSE_WEEKS).fill(0)
     for (const t of mine) {
@@ -115,7 +134,7 @@ export function computePulse(
       tag,
       openIds: idsByDate(open, 'deadline'),
       lateIds: idsByDate(late, 'deadline'),
-      staleCount: open.filter((t) => isStale(t, today, staleAfterDays)).length,
+      staleCount: open.filter(isStaleTask).length,
       lateShare: open.length > 0 ? late.length / open.length : 0,
       added,
       closed,

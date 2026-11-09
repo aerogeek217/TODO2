@@ -5,7 +5,8 @@ import type { BreakdownSplit } from '../models/chart-widgets'
  * The chart widgets' temporary state (D26 P8), never in a layout: the open
  * chart editor (one at a time, beside its chart — `ChartEditorHost`), and
  * each Breakdown's filter-row picks (per tab and split; a reload clears
- * them).
+ * them). Also Project pulse's open editor (G5, `PulseEditorHost`), one at a
+ * time like the chart editor's.
  */
 interface ChartWidgetsState {
   /** The chart tab whose editor is open. */
@@ -15,6 +16,11 @@ interface ChartWidgetsState {
   openEditor: (tabId: string) => void
   closeEditor: () => void
   setRowPicks: (tabId: string, split: BreakdownSplit, keys: readonly string[]) => void
+  // ── G5: Project pulse's editor ──
+  /** The Project pulse tab whose editor is open. */
+  pulseEditorTabId: string | null
+  openPulseEditor: (tabId: string) => void
+  closePulseEditor: () => void
 }
 
 export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
@@ -33,5 +39,17 @@ export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
   setRowPicks(tabId, split, keys) {
     const rowPicks = get().rowPicks
     set({ rowPicks: { ...rowPicks, [tabId]: { ...rowPicks[tabId], [split]: keys } } })
+  },
+
+  // ── G5: Project pulse's editor ──
+  pulseEditorTabId: null,
+
+  openPulseEditor(tabId) {
+    set({ pulseEditorTabId: tabId })
+  },
+
+  closePulseEditor() {
+    if (get().pulseEditorTabId === null) return
+    set({ pulseEditorTabId: null })
   },
 }))

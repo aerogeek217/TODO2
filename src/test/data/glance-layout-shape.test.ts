@@ -67,6 +67,33 @@ describe('glance widget kinds', () => {
     }
   })
 
+  // G5: Project pulse's rules (no schema step: absent = the defaults).
+  it('Project pulse’s rules round-trip; a bad rule, name or filter is a fix and reads as its default', () => {
+    const late = { name: 'Behind', filter: { ...emptyPredicate(), expression: { kind: 'tag', id: 4 } } }
+    const config = { tagIds: [2], late, stale: { name: 'Quiet' } }
+    const good = layoutRow({ id: 't', kind: 'pulse', config })
+    expect(validateRow('layouts', good)).toBe(true)
+    expect(rowFixes('layouts', good)).toEqual([])
+    expect(tabOf(good)).toEqual({ id: 't', kind: 'pulse', config })
+
+    const badRule = layoutRow({ id: 't', kind: 'pulse', config: { tagIds: [2], stale: 7 } })
+    expect(checkLayoutBody(badRule)).toBe('cells[0].tabs[0].config.stale')
+    expect(rowFixes('layouts', badRule)).toEqual(['tab or cell settings reset'])
+    expect(tabOf(badRule)).toEqual({ id: 't', kind: 'pulse', config: { tagIds: [2] } })
+
+    const badName = layoutRow({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { ...late, name: null } } })
+    expect(checkLayoutBody(badName)).toBe('cells[0].tabs[0].config.late.name')
+    expect(tabOf(badName)).toEqual({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { ...late, name: 'late' } } })
+
+    // A filter without its required fields is read as a list's (a fix); one that isn't an object goes (the default).
+    const badFilter = layoutRow({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { name: 'L', filter: { tags: [3] } } } })
+    expect(checkLayoutBody(badFilter)).toBe('cells[0].tabs[0].config.late.filter.showCompleted')
+    expect(rowFixes('layouts', badFilter)).toEqual(['tab or cell settings reset'])
+    const notObject = layoutRow({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { name: 'L', filter: 'overdue' } } })
+    expect(checkLayoutBody(notObject)).toBe('cells[0].tabs[0].config.late.filter.predicate')
+    expect(tabOf(notObject)).toEqual({ id: 't', kind: 'pulse', config: { tagIds: [2], late: { name: 'L' } } })
+  })
+
   it.each(SETTINGS)('%s: a known %s round-trips; a bad or missing one is reset to its default', (kind, key, kept, bad, fallback) => {
     const good = layoutRow({ id: 't', kind, config: { [key]: kept } })
     expect(validateRow('layouts', good)).toBe(true)

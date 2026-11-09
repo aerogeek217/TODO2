@@ -26,7 +26,6 @@ import { NONE_ROW_LABELS } from '../../../services/stats/breakdown'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { isInLayerAbove } from '../../../utils/dom-layers'
 import { hasFilterClause } from '../../../utils/filter-clauses'
 import { HUE_PRESET_HEX } from '../../../utils/layout-hue'
 import { emptyPredicate } from '../../../models/filter-predicate'
@@ -37,36 +36,8 @@ import { PopoverRoot } from '../../shared/PopoverRoot'
 import { ColorPicker } from '../../shared/ColorPicker'
 import { LitWhenControl } from './LitWhenField'
 import { OLDEST_BY_LABELS, SHOW_LABELS, SPLIT_CHOICE_LABELS, STYLE_LABELS } from './breakdown-copy'
+import { useEscapeCloses } from './editor-escape'
 import styles from './ChartEditor.module.css'
-
-/** A key that landed on the page itself: nothing is focused. */
-function isPageTarget(target: EventTarget | null): boolean {
-  return !(target instanceof Element) || target === document.body || target === document.documentElement
-}
-
-/**
- * Esc closes the editor when it comes from inside it (or with nothing
- * focused) and nothing inside handled it first — a filter picker, the
- * expression field putting its text back. Bubble phase, after those (as
- * the Number editor's).
- */
-function useEscapeCloses(panel: RefObject<HTMLElement | null>, onClose: () => void): void {
-  const onCloseRef = useLatestRef(onClose)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== 'Escape' || e.defaultPrevented) return
-      const el = panel.current
-      const inside = el != null && e.target instanceof Node && el.contains(e.target)
-      if (!inside && !isPageTarget(e.target)) return
-      if (el && e.target instanceof Node && isInLayerAbove(el, e.target)) return
-      e.preventDefault()
-      e.stopPropagation()
-      onCloseRef.current()
-    }
-    document.addEventListener('keydown', onKey)
-    return () => document.removeEventListener('keydown', onKey)
-  }, [panel, onCloseRef])
-}
 
 /** The chart tab `tabId` names in the open layout, if it is one. */
 function useChartTab(tabId: string | null): ChartTab | undefined {

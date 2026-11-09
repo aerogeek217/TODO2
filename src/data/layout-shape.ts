@@ -32,7 +32,6 @@ import {
   GLANCE_CONFIG_FIELDS,
   numberConfigProblem,
   pickNumberConfig,
-  pickTagPicksConfig,
   pickTrendConfig,
   type NumberConfig,
   type PickedConfig,
@@ -48,6 +47,8 @@ import {
   pivotConfigProblem,
   tagMapConfigProblem,
 } from '../models/chart-widgets'
+// G5: Project pulse's config and its rules.
+import { pickPulseConfig, pulseConfigProblem, pulseRulePredicates } from '../models/pulse-config'
 import type { TodoPredicate } from '../models/filter-predicate'
 import { emptyPredicate } from '../models/filter-predicate'
 import { isRecord } from '../utils/is-record'
@@ -200,11 +201,21 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       }
       return true
     }
-    case 'trend':
-    case 'pulse': {
+    case 'trend': {
       // One config field, a known value.
       const field = GLANCE_CONFIG_FIELDS[kind]
       return field.ok(config[field.key]) ? true : `${path}.config.${field.key}`
+    }
+    // G5: Project pulse — its tag picks and rules, then each rule's filter as a Number's.
+    case 'pulse': {
+      const bad = pulseConfigProblem(config)
+      if (bad) return `${path}.config.${bad}`
+      for (const [key, raw] of pulseRulePredicates(config)) {
+        const shape = checkPredicateShape(raw)
+        if (shape !== true) return `${path}.config.${key}.${shape}`
+        if (pickPredicate(raw).fixes.length > 0) return `${path}.config.${key}`
+      }
+      return true
     }
     // D26 P8: the chart widgets — their fields, then their filter as a Number's.
     case 'breakdown': {
@@ -550,7 +561,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       case 'trend':
         return { id, kind: 'trend', config: glance(pickTrendConfig(config)) }
       case 'pulse':
-        return withLensView<LensSwitchTab>({ id, kind: 'pulse', config: glance(pickTagPicksConfig(config)) })
+        return withLensView<LensSwitchTab>({ id, kind: 'pulse', config: glance(pickPulseConfig(config, readNumberPredicate)) })
       // D26 P8: the chart widgets.
       case 'breakdown': {
         const viewState = glance(pickBreakdownView(view))
