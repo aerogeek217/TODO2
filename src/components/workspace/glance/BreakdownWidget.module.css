@@ -399,14 +399,10 @@
   white-space: nowrap;
 }
 
-.priority {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .countCell {
   display: flex;
   justify-content: center;
+  min-width: 0;
 }
 
 /* The row's actions (board BC): Review and a person's envelope, two matching icon buttons at its end. */
@@ -491,14 +487,13 @@ button.badge:focus-visible {
   white-space: nowrap;
 }
 
-/* Last, over the rules above: a narrow table (a donut beside it, a slim cell) keeps the names and counts: the bar and Priority go. */
+/* Last, over the rules above: a narrow table (a donut beside it, a slim cell) keeps the names and counts: the bar goes. */
 @container (max-width: 400px) {
   .grid {
     grid-template-columns: var(--bd-cols-narrow);
   }
 
-  [data-col='bar'],
-  [data-col='priority'] {
+  [data-col='bar'] {
     display: none;
   }
 

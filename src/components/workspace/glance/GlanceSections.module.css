@@ -430,26 +430,6 @@ button.personRow:hover {
   font-variant-numeric: tabular-nums;
 }
 
-/* A row's open tasks by priority: a tinted badge in the marker's colour. */
-.priorityBadges {
-  display: inline-flex;
-  justify-content: flex-end;
-  gap: 3px;
-}
-
-.priorityBadge {
-  min-width: 18px;
-  padding: 1px 4px;
-  border-radius: 9px;
-  background: color-mix(in srgb, var(--badge-color) 18%, transparent);
-  color: var(--badge-color);
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  line-height: 1.25;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-
 /* ── Tags (People's rows; the open count may read `3 of 5`) ──────────────── */
 
 .tagsPanel {

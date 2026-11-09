@@ -1,8 +1,7 @@
-import type { MarkerKey, PersistedTodoItem, Person, Status, Tag } from '../../models'
-import { MARKER_KEYS } from '../../models/filter-predicate'
-import type { BreakdownOldestBy, BreakdownShow, BreakdownSort, BreakdownSortKey, BreakdownSplit } from '../../models/chart-widgets'
+import type { PersistedTodoItem, Person, Status, Tag } from '../../models'
+import { BREAKDOWN_FIXED_SORT_KEYS, type BreakdownOldestBy, type BreakdownShow, type BreakdownSort, type BreakdownSortKey, type BreakdownSplit } from '../../models/chart-widgets'
 import { daysUntil } from '../../utils/effective-date'
-import { hasMarker, NO_PRIORITY_LABEL, priorityRank } from '../../utils/markers'
+import { NO_PRIORITY_LABEL, priorityRank } from '../../utils/markers'
 import { keepsNoneRow, restrictedRows, type RowRestrictions } from './row-restrictions'
 import { idsByDate, type StatsContext } from './stats-context'
 
@@ -10,9 +9,9 @@ import { idsByDate, type StatsContext } from './stats-context'
  * A Breakdown's rows (D26 P8): the tasks its filter keeps (already
  * composed with the top bar's filter: the caller passes them), split by
  * people, tags, status, priority, due date or age. Each row has its tasks,
- * how many have each priority, the ones each count column keeps (board
- * BC: the caller passes the ids each column's filter keeps among the
- * chart's tasks) and its oldest task by a date. People and tags narrow by the `@` /
+ * the ones each count column keeps (board BC: the caller passes the ids
+ * each column's filter keeps among the chart's tasks) and its oldest task
+ * by a date. People and tags narrow by the `@` /
  * `#` picks (`RowRestrictions`), as a list grouped by them does. Pure.
  */
 
@@ -85,8 +84,6 @@ export interface BreakdownRow {
   color?: string
   /** Its tasks, by due date then `sortOrder`. */
   ids: number[]
-  /** How many have each priority (a task with two counts in both; Urgent = effective urgent). */
-  priority: Record<MarkerKey, number>
   /** How many of its open tasks are overdue (the bar's late part). */
   overdue: number
   /** Each count column's tasks of the row, by column id, by due date (a column the options don't name: none). */
@@ -154,13 +151,10 @@ function median(values: readonly number[]): number | null {
 export function breakdownRow(
   head: Pick<BreakdownRow, 'key' | 'label' | 'entity' | 'color'>,
   tasks: readonly PersistedTodoItem[],
-  ctx: Pick<StatsContext, 'today' | 'urgentRange'>,
+  ctx: Pick<StatsContext, 'today'>,
   opts: Pick<BreakdownOptions, 'oldestBy' | 'columns'>,
 ): BreakdownRow {
-  const { today, urgentRange } = ctx
-  const priority = Object.fromEntries(MARKER_KEYS.map((k) => [
-    k, tasks.filter((t) => !t.isCompleted && hasMarker(t, k, today, urgentRange)).length,
-  ])) as Record<MarkerKey, number>
+  const { today } = ctx
   let oldest: OldestTask | null = null
   const ages: number[] = []
   let overdue = 0
@@ -177,7 +171,6 @@ export function breakdownRow(
   return {
     ...head,
     ids,
-    priority,
     overdue,
     columns,
     oldest,
@@ -324,7 +317,6 @@ function keyCompare(by: BreakdownSortKey, show: BreakdownShow): (a: BreakdownRow
   switch (by) {
     case 'name': return (a, b) => a.label.localeCompare(b.label)
     case 'open': return show === 'oldest' ? (a, b) => oldestDays(b) - oldestDays(a) : (a, b) => b.ids.length - a.ids.length
-    case 'priority': return (a, b) => MARKER_KEYS.reduce((d, k) => d || b.priority[k] - a.priority[k], 0)
     default: return (a, b) => columnCount(b, by) - columnCount(a, by)
   }
 }
@@ -353,7 +345,7 @@ export function sortBreakdownRows(
 
 /** Whether `sort` names a heading the Breakdown has: a fixed one, or one of `columnIds` (any, without them). */
 export function isLiveSort(sort: BreakdownSort, columnIds: readonly string[] | undefined): boolean {
-  return sort.by === 'name' || sort.by === 'open' || sort.by === 'priority' || columnIds == null || columnIds.includes(sort.by)
+  return (BREAKDOWN_FIXED_SORT_KEYS as readonly string[]).includes(sort.by) || columnIds == null || columnIds.includes(sort.by)
 }
 
 /** The sort after a click on heading `by`: its default direction, then reversed, then back to the default order (`undefined`). */

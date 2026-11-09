@@ -150,24 +150,15 @@ describe('glance widgets — the design sample', () => {
   })
 })
 
-describe('glance widgets — priority badges', () => {
-  const badges = (row: Element) => Array.from(row.querySelectorAll<HTMLElement>('[data-priority]')).map((b) => [b.dataset.priority, b.textContent])
-
-  it('a People row shows its open tasks by priority, a badge for each that has any, each badge named', () => {
-    setup([bd('people')], vi.fn())
-    const rows = bdRows('people')
-    expect(rows.length).toBeGreaterThan(1)
-    const withBadges = rows.find((r) => badges(r).length > 0)!
-    for (const b of withBadges.querySelectorAll<HTMLElement>('[data-priority]')) expect(b.title).toMatch(new RegExp(`^${b.textContent} ${b.dataset.priority}$`, 'i'))
-    expect(section('people')!.textContent).toContain('Priority')
-    expect(section('people')!.textContent).not.toContain('Hot')
-  })
-
-  it('a Tags row likewise; a Priority split has no Priority column', () => {
-    setup([bd('tags'), bd('priority')], vi.fn())
-    expect(section('tags')!.querySelector('[data-priority]')).not.toBeNull()
-    expect(section('priority')!.querySelector('[data-priority]')).toBeNull()
-    expect(section('priority')!.querySelector('[data-sort-key="priority"]')).toBeNull()
+describe('glance widgets — no Priority column (every column a count column)', () => {
+  it('People, Tags and a Priority split: no priority badges, no Priority heading — the count columns are Due and Follow-up', () => {
+    setup([bd('people'), bd('tags'), bd('priority')], vi.fn())
+    for (const split of ['people', 'tags', 'priority'] as const) {
+      expect(section(split)!.querySelector('[data-priority]')).toBeNull()
+      expect(section(split)!.querySelector('[data-sort-key="priority"]')).toBeNull()
+      expect([...section(split)!.querySelectorAll<HTMLElement>('[data-sort-key]')].map((b) => b.dataset.sortKey).slice(-2)).toEqual(['due', 'followup'])
+    }
+    expect(bdRows('people').length).toBeGreaterThan(1)
   })
 })
 
@@ -313,7 +304,7 @@ describe('glance widgets — Tags (a Breakdown)', () => {
     expect(lines('open')?.[0]).toBe('Open 5 of 19')
     expect(lines('tags')?.[0]).toBe('Tags 5 open')
     expect(lines('tags')?.slice(1)).toHaveLength(1)
-    expect(lines('tags')?.[1]).toMatch(/^#q4 5 · Overdue \d+ · Due soon \d+ · Follow-up late \d+ · Follow-up due \d+$/)
+    expect(lines('tags')?.[1]).toMatch(/^#q4 5 · Due \d+ · Follow-up \d+$/)
   })
 
   it('its rows open the tasks behind them', () => {

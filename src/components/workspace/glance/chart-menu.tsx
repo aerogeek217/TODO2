@@ -37,10 +37,10 @@ function sortEntry(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry {
   const { splitBy, show } = tab.config
   const columns = breakdownColumns(tab.config, useSettingsStore.getState().tabBadges)
   const stored = tab.viewState?.sorts?.[splitBy]
-  // A sort by a column it no longer has reads as the default; the old Due / Follow-up's as the late column.
+  // A sort by a column it no longer has reads as the default; an older derived column's as the Due / Follow-up column.
   const current = liveBreakdownSort(stored, columns.map((c) => c.id))
   const key = (s: BreakdownSort | undefined) => (s ? `${s.by}${s.reversed ? '-r' : ''}` : 'default')
-  const keys = [...BREAKDOWN_FIXED_SORT_KEYS.filter((by) => !(by === 'priority' && splitBy === 'priority')), ...columns.map((c) => c.id)]
+  const keys = [...BREAKDOWN_FIXED_SORT_KEYS, ...columns.map((c) => c.id)]
   const sorts: Array<BreakdownSort | undefined> = [undefined, ...keys.flatMap((by): BreakdownSort[] => [{ by }, { by, reversed: true }])]
   const choices: Choice<string>[] = sorts.map((s) => ({
     value: key(s),

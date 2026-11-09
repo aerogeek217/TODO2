@@ -132,21 +132,33 @@ test('Review and the envelope are icon buttons at the row’s end, always shown;
   await page.keyboard.press('Escape')
   await expect(deck(page)).toHaveCount(0)
 
-  // The derived count columns (Settings' ranges): Overdue lit (solid), Due soon outlined.
-  await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Priority', 'Overdue', 'Due soon', 'Follow-up late', 'Follow-up due'])
-  const overdue = aisha.locator('[data-column="overdue"]')
-  await expect(overdue).toHaveText('1')
-  await expect(overdue).toHaveAttribute('data-solid', '')
-  await expect(overdue).toHaveCSS('background-color', 'rgb(232, 107, 240)')
-  const soon = aisha.locator('[data-column="due-soon"]')
-  await expect(soon).toHaveText('1')
-  await expect(soon).not.toHaveAttribute('data-solid', '')
-  await soon.click()
-  await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 1')
-  await expect(deck(page).getByRole('navigation', { name: 'Review queue' }).getByRole('button')).toHaveText([/Aisha soon/])
+  // The derived count columns (Settings' ranges), no Priority column: Due (overdue and the next 3 days) lit above 0.
+  await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Due', 'Follow-up'])
+  const due = aisha.locator('[data-column="due"]')
+  await expect(due).toHaveText('2')
+  await expect(due).toHaveAttribute('data-solid', '')
+  await expect(due).toHaveCSS('background-color', 'rgb(232, 107, 240)')
+  await due.click()
+  await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 2')
+  await expect(deck(page).getByRole('navigation', { name: 'Review queue' }).getByRole('button')).toHaveText([/Aisha late/, /Aisha soon/])
   await page.keyboard.press('Escape')
   // None: a dim dash.
-  await expect(aisha.getByLabel('No tasks in Follow-up late')).toHaveText('–')
+  await expect(aisha.getByLabel('No tasks in Follow-up')).toHaveText('–')
+})
+
+test('a count column is its number’s room: the heading is cut short (its name in the tooltip), the names keep their room', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  const heads = chart(page).locator('[role="columnheader"]')
+  const followup = chart(page).locator('[data-sort-key="followup"]')
+  await expect(followup).toHaveAttribute('title', 'Follow-up')
+  const fb = (await chart(page).getByRole('columnheader', { name: 'Follow-up' }).boundingBox())!
+  expect(Math.round(fb.width)).toBe(40)
+  // Its label overflows into an ellipsis rather than widening the column.
+  expect(await followup.locator('span').first().evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+  // The name column takes the rest: wider than every other heading together.
+  const widths = await heads.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width))
+  expect(widths[0]).toBeGreaterThan(widths.slice(1).reduce((a, b) => a + b, 0))
+  await expect(row(page, 'Aisha Rahman').getByText('Aisha Rahman', { exact: true })).toBeVisible()
 })
 
 test('with check-ins, a person row’s envelope sits beside Review and opens Email check-in · Paste reply', async ({ page }) => {
@@ -183,23 +195,21 @@ test('the editor’s count columns: a column with its own filter, name and rule;
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit breakdown…' }).click()
   const editor = page.locator('[data-chart-editor]')
   const columns = editor.getByTestId('chart-editor-columns')
-  await expect(columns.getByRole('textbox', { name: /^Column \d name$/ })).toHaveCount(4)
-  // Four: the cap. Remove Follow-up due, then add one.
-  await expect(columns.getByRole('button', { name: 'Add column' })).toHaveCount(0)
-  await columns.getByRole('button', { name: 'Remove Follow-up due' }).click()
+  // Due and Follow-up (derived, ordinary columns); add a third.
+  await expect(columns.getByRole('textbox', { name: /^Column \d name$/ })).toHaveCount(2)
   await columns.getByRole('button', { name: 'Add column' }).click()
-  await columns.getByRole('textbox', { name: 'Column 4 name' }).fill('Waiting')
+  await columns.getByRole('textbox', { name: 'Column 3 name' }).fill('Waiting')
   const added = columns.locator('[data-column-editor]').last()
   await added.getByRole('radiogroup', { name: 'Filter mode' }).getByRole('radio', { name: 'Expression' }).click()
   const field = added.getByRole('textbox', { name: 'Filter expression' })
   await field.fill('!Waiting')
   // A blur writes it once it reads.
-  await columns.getByRole('textbox', { name: 'Column 4 name' }).click()
+  await columns.getByRole('textbox', { name: 'Column 3 name' }).click()
   await expect(added.getByTestId('expression-reads-as')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(editor).toHaveCount(0)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
-  await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Priority', 'Overdue', 'Due soon', 'Follow-up late', 'Waiting'])
+  await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Due', 'Follow-up', 'Waiting'])
   // Ben has two Waiting tasks: lit above 0, solid in its colour; a click reviews those two.
   const waiting = row(page, 'Ben Ortiz').locator('[data-column]').last()
   await expect(waiting).toHaveText('2')
