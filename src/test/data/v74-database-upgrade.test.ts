@@ -109,11 +109,11 @@ describe('the browser database’s v74 upgrade', () => {
     expect(panes.do.filter.markers).toEqual([{ values: ['focus', 'urgent'] }, { values: ['urgent', 'important'] }])
     const checkin = JSON.parse(String((await db.settings.get('checkinTaskFilter'))?.value)) as { markers: unknown }
     expect(checkin.markers).toEqual([{ values: ['focus'], not: true }])
-    // v74 took the dashboard's Hot tile and section; v77 made the rest widgets; v78 a table of them, its Numbers filters.
+    // v74 took the dashboard's Hot tile and section; v77 made the rest widgets; v78 a table of them, its Numbers filters, People a Breakdown.
     const cells = (await db.layouts.get(1))?.cells
     expect(cells?.map((c) => [c.area.row, c.tabs[0]])).toEqual([
       [0, { id: 'd-n1', kind: 'number', config: numberConfigOfMetric('open') }],
-      [1, { id: 'd-n2', kind: 'people', config: { showUnassigned: false } }],
+      [1, { id: 'd-n2', kind: 'breakdown', config: { name: 'People', filter: emptyPredicate(), splitBy: 'people', style: 'bars', show: 'count', showNone: false } }],
     ])
     // The subtasks a v73 build stored as they were: the empty one gone, the long one cut, each one line.
     expect((await db.subtasks.toArray()).map((s) => [s.id, s.title])).toEqual([[2, 'k'.repeat(500)], [3, 'Book flights']])

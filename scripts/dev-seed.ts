@@ -51,6 +51,7 @@ import type { ListDefinition } from '../src/models/list-definition'
 import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-predicate'
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
+import type { BreakdownConfig } from '../src/models/chart-widgets'
 import { numberConfigOfMetric, type V77NumberMetric } from '../src/data/upgrades/v78/number-metrics'
 import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
@@ -888,6 +889,9 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
     ({ id, kind: 'calendar', config: { dateTypes: { due: true, followup } }, viewState: { view, offset } })
   const notes = (id: string): TabRow => ({ id, kind: 'notes', config: {} })
   const number = (id: string, metric: V77NumberMetric): TabRow => ({ id, kind: 'number', config: numberConfigOfMetric(metric) }) as TabRow
+  /** A Breakdown (D26 P8): every open task split by `splitBy`, as bars, unless `over` says otherwise. */
+  const breakdown = (id: string, name: string, splitBy: BreakdownConfig['splitBy'], over: Partial<BreakdownConfig> = {}): TabRow =>
+    ({ id, kind: 'breakdown', config: { name, filter: filter(), splitBy, style: 'bars', show: 'count', showNone: true, ...over } })
   /** A cell's contents: its id and tabs (the first active unless `activeTabId` says); its area comes from `table`. */
   const cell = (id: string, tabs: TabRow[], activeTabId = tabs[0]?.id): Omit<CellRow, 'area'> =>
     ({ id, tabs, ...(activeTabId ? { activeTabId } : {}) })
@@ -952,9 +956,13 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         L: cell('cell-late', [number('tab-late', 'overdue')]),
         U: cell('cell-followup-due', [number('tab-followup-due', 'followupDue')]),
         D: cell('cell-due-today', [number('tab-due-today', 'dueToday')]),
-        X: cell('cell-status', [{ id: 'tab-status', kind: 'status', config: {} }]),
+        X: cell('cell-status', [breakdown('tab-status', 'Status', 'status', { style: 'stacked' })]),
         T: cell('cell-trend', [{ id: 'tab-trend', kind: 'trend', config: { range: '4w' } }]),
-        E: cell('cell-people', [{ id: 'tab-people', kind: 'people', config: { showUnassigned: true } }]),
+        // Waiting on (D26 P8 / Z3): the Waiting tasks by person, oldest last follow-up first, with the check-in envelope.
+        E: cell('cell-people', [
+          breakdown('tab-waiting', 'Waiting on', 'people', { filter: filter({ statusIds: [IDS.statuses.waiting] }), show: 'oldest', oldestBy: 'lastFollowup', checkins: true }),
+          breakdown('tab-people', 'People', 'people'),
+        ]),
       }, [280, 220, 220, 280], [400, 250, { weight: 150, collapsed: true }, { fit: true }, { px: 240 }]),
       createdAt: longAgo,
       modifiedAt: iso(at(-3, 17, 20)),
@@ -982,20 +990,32 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
         H: cell('cell-horizon', [lens('tab-next', L.nextWeek, 'stacked'), lens('tab-rest', L.restOfMonth, 'rows'), lens('tab-later', L.later, 'lines')], 'tab-rest'),
         F: cell('cell-followups', [lens('tab-followups', L.followupsThisWeek), lens('tab-not-followed', L.notFollowedUp), lens('tab-chase', L.followupsToChase)]),
         M: cell('cell-matrix', [{ id: 'tab-matrix2', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop'] } }]),
-        // Glance widgets (D25 N + L): Tags, Created vs completed, Status, Project pulse.
-        G: cell('cell-g-tags', [{ id: 'tab-g-tags', kind: 'tags', config: { showUntagged: true } }]),
+        // Glance widgets (D25 N + L, D26 P8): Tags and Status Breakdowns, Created vs completed, Project pulse.
+        G: cell('cell-g-tags', [breakdown('tab-g-tags', 'Tags', 'tags'), breakdown('tab-g-priority', 'Priority', 'priority', { style: 'donut' })]),
         // The Neglect map (D25 H), coloured by the `Project: …` tags as a new tab is.
         N: cell('cell-neglect', [{
           id: 'tab-neglect',
           kind: 'neglect',
           config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
         }]),
-        R: cell('cell-g-trend', [{ id: 'tab-g-trend', kind: 'trend', config: { range: '14d' } }]),
+        R: cell('cell-g-trend', [
+          { id: 'tab-g-trend', kind: 'trend', config: { range: '14d' } },
+          // D26 P8: the open tasks by status, 8 weeks back.
+          { id: 'tab-g-flow', kind: 'statusFlow', config: { name: 'Status flow', filter: filter(), weeks: 8 } },
+        ]),
         S: cell('cell-someday', [lens('tab-someday', L.someday)]),
         W: cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
         T: cell('cell-stats', [lens('tab-hot', L.hot), lens('tab-recent', L.recentlyAdded), lens('tab-done', L.doneThisWeek)]),
-        Y: cell('cell-g-status', [{ id: 'tab-g-status', kind: 'status', config: {} }]),
-        Z: cell('cell-pulse', [{ id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } }]),
+        Y: cell('cell-g-status', [
+          breakdown('tab-g-status', 'Status', 'status'),
+          // D26 P8: who has what, by status.
+          { id: 'tab-g-pivot', kind: 'pivot', config: { name: 'People × status', filter: filter(), rows: 'people', cols: 'status' } },
+        ]),
+        Z: cell('cell-pulse', [
+          { id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } },
+          // D26 P8: every tag, sized by open tasks, coloured by the late share.
+          { id: 'tab-tag-map', kind: 'tagMap', config: { name: 'Tag map', filter: filter() } },
+        ]),
         K: cell('cell-month', [calendar('tab-month', 'month', 0, false)]),
         Q: cell('cell-matrix3', [{ id: 'tab-matrix3', kind: 'eisenhower', config: {} }]),
       }, [250, 250, 250, 125, 125], [{ fit: true }, 300, 200, 150, 150, { px: 220 }]),

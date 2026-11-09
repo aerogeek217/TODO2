@@ -1,0 +1,524 @@
+/* A Breakdown (D26 P8, board Z1 + review mode's board F): the filter row,
+   the chart (a stacked bar or a donut) and the table of rows. */
+
+.filterRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  margin: 0 14px 8px;
+  min-width: 0;
+}
+
+.filterLabel {
+  flex: none;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+.filterField {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 26px;
+  padding: 2px 4px 2px 6px;
+  border-radius: 6px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  cursor: text;
+}
+
+.filterField:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-accent), 0 0 0 3px var(--color-accent-bg-medium);
+}
+
+.filterInput {
+  flex: 1 1 80px;
+  min-width: 60px;
+  height: 20px;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 20px;
+  padding: 0 2px 0 8px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.chipRemove,
+.clear {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.clear {
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+
+.chipRemove:hover,
+.clear:hover,
+.chipRemove:focus-visible,
+.clear:focus-visible {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+/* ── The chart ─────────────────────────────────────────────────────────── */
+
+.stacked {
+  display: flex;
+  flex: none;
+  gap: 2px;
+  height: 12px;
+  margin: 0 14px 10px;
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+}
+
+.segment {
+  display: block;
+  min-width: 3px;
+  height: 100%;
+  padding: 0;
+  border: none;
+  cursor: pointer;
+}
+
+.segment:disabled {
+  cursor: default;
+}
+
+.segment:hover:not(:disabled),
+.segment:focus-visible {
+  filter: brightness(1.2);
+}
+
+.donutLayout {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding-left: 14px;
+}
+
+.donutLayout > .table {
+  flex: 1 1 auto;
+}
+
+.donut {
+  flex: none;
+  width: 108px;
+  height: 108px;
+}
+
+.donutSegment {
+  cursor: pointer;
+  outline: none;
+}
+
+.donutSegment:hover,
+.donutSegment:focus-visible {
+  stroke-width: 7.5;
+}
+
+.donutTotal {
+  font-size: 8px;
+  font-weight: var(--font-weight-bold);
+  fill: var(--color-text-primary);
+}
+
+/* ── The table ─────────────────────────────────────────────────────────── */
+
+.table {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  container-type: inline-size;
+}
+
+
+.grid {
+  display: grid;
+  grid-template-columns: var(--bd-cols);
+  align-items: center;
+  column-gap: 8px;
+}
+
+.head {
+  flex: none;
+  height: 24px;
+  padding: 0 14px;
+}
+
+.headCell {
+  display: flex;
+  min-width: 0;
+}
+
+.headNum {
+  justify-content: flex-end;
+}
+
+/* The name heading over the bar too. */
+.headSpan {
+  grid-column: span 2;
+}
+
+.sortButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 1px 3px;
+  margin: 0 -3px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.sortButton:hover,
+.sortButton:focus-visible,
+.sortButton[aria-pressed='true'] {
+  color: var(--color-text-primary);
+}
+
+.sortButton:hover {
+  background: var(--color-tint-8);
+}
+
+.sortMark {
+  font-size: 8px;
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 0 6px 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+.row {
+  flex: none;
+  min-height: 32px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-body);
+  color: var(--color-text-primary);
+  cursor: pointer;
+}
+
+.row:hover,
+.row:focus-within {
+  background: var(--color-surface-hover);
+}
+
+.table[data-compact] .row {
+  min-height: 26px;
+}
+
+/* A row with its oldest task's title under its name. */
+.row:has(.sub) {
+  min-height: 38px;
+}
+
+.nameCell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.nameButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 1 auto;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.nameButton:focus-visible {
+  outline: none;
+  border-radius: 4px;
+  box-shadow: var(--focus-ring);
+}
+
+.nameText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name,
+.sub {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sub {
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+/* Review ▸: at the end of the name on the row's hover or focus; no column of its own. */
+.review {
+  display: none;
+  flex: none;
+  padding: 1px 6px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent-text);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.row:hover .review,
+.row:focus-within .review {
+  display: inline-flex;
+}
+
+.review:hover,
+.review:focus-visible {
+  background: var(--color-accent);
+  color: var(--color-text-on-accent);
+}
+
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--radius-pill);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  font-style: normal;
+  color: var(--color-text-on-accent);
+}
+
+.avatarNone {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.2px var(--color-text-muted);
+}
+
+.dot {
+  display: inline-block;
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 0 4px;
+  border-radius: var(--radius-pill);
+}
+
+.mark {
+  display: inline-flex;
+  flex: none;
+}
+
+/* A priority row's ring, on a box like a task's checkbox. */
+.ringBox {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+
+.ringBorder {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-checkbox);
+  box-shadow: inset 0 0 0 1.5px var(--color-border);
+}
+
+.bar {
+  display: flex;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-tint-8);
+  overflow: hidden;
+}
+
+.barLate {
+  display: block;
+  height: 100%;
+  background: var(--color-overdue);
+}
+
+.barRest {
+  display: block;
+  height: 100%;
+  background: var(--color-text-secondary);
+}
+
+.num {
+  font-weight: var(--font-weight-semibold);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.priority {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.numCell {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dash {
+  color: var(--color-text-muted);
+  opacity: 0.6;
+  font-variant-numeric: tabular-nums;
+}
+
+/* A Due / Follow-up count: outlined, solid while any of it is overdue. */
+.badge {
+  min-width: 22px;
+  height: 18px;
+  padding: 0 5px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  line-height: 18px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+button.badge {
+  cursor: pointer;
+}
+
+.badgeDue {
+  box-shadow: inset 0 0 0 1px var(--color-overdue);
+  color: var(--color-overdue);
+}
+
+.badgeFollowup {
+  box-shadow: inset 0 0 0 1px var(--color-followup);
+  color: var(--color-followup);
+}
+
+.badgeDue.badgeSolid {
+  background: var(--cal-overdue-solid);
+  box-shadow: none;
+  color: var(--cal-on-overdue);
+}
+
+.badgeFollowup.badgeSolid {
+  background: var(--cal-followup-solid);
+  box-shadow: none;
+  color: var(--cal-on-followup);
+}
+
+button.badge:hover,
+button.badge:focus-visible {
+  filter: brightness(1.15);
+}
+
+.envelope {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.envelope:hover,
+.envelope:focus-visible,
+.envelope[aria-expanded='true'] {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* Last, over the rules above: a narrow table (a donut beside it, a slim cell) keeps the names and counts: the bar and Priority go. */
+@container (max-width: 400px) {
+  .grid {
+    grid-template-columns: var(--bd-cols-narrow);
+  }
+
+  [data-col='bar'],
+  [data-col='priority'] {
+    display: none;
+  }
+
+  .headSpan {
+    grid-column: auto;
+  }
+}

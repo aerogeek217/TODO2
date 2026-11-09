@@ -60,8 +60,8 @@ export interface TabBadgeCounts {
   followupOverdue: number
 }
 
-/** `-1` overdue, `0` inside the range, `null` outside it (or with no date). */
-function rangeHit(date: Date | null | undefined, range: TabBadgeRange, today: Date): -1 | 0 | null {
+/** `-1` overdue, `0` inside the range, `null` outside it (or with no date). A Breakdown's Due / Follow-up columns count by it too (D26 P8). */
+export function tabBadgeRangeHit(date: Date | null | undefined, range: TabBadgeRange, today: Date): -1 | 0 | null {
   if (range === 'off') return null
   const days = daysUntil(date, today)
   if (days == null) return null
@@ -80,7 +80,7 @@ export function inTabBadgeRange(
   today: Date,
 ): boolean {
   return !task.isCompleted
-    && (rangeHit(task.dueDate, ranges.due, today) != null || rangeHit(task.nextFollowupAt, ranges.followup, today) != null)
+    && (tabBadgeRangeHit(task.dueDate, ranges.due, today) != null || tabBadgeRangeHit(task.nextFollowupAt, ranges.followup, today) != null)
 }
 
 /** The badge counts of `tasks` (those a list shows); completed tasks never count. */
@@ -92,12 +92,12 @@ export function countTabBadges(
   const counts: TabBadgeCounts = { due: 0, dueOverdue: 0, followup: 0, followupOverdue: 0 }
   for (const task of tasks) {
     if (task.isCompleted) continue
-    const due = rangeHit(task.dueDate, ranges.due, today)
+    const due = tabBadgeRangeHit(task.dueDate, ranges.due, today)
     if (due != null) {
       counts.due += 1
       if (due < 0) counts.dueOverdue += 1
     }
-    const followup = rangeHit(task.nextFollowupAt, ranges.followup, today)
+    const followup = tabBadgeRangeHit(task.nextFollowupAt, ranges.followup, today)
     if (followup != null) {
       counts.followup += 1
       if (followup < 0) counts.followupOverdue += 1

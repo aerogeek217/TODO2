@@ -685,9 +685,10 @@ const GLANCE_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('glance').map(w
  * Picks the kind named `label` in the open add-widget (`Add widget`) or
  * cell (`Change widget`: the ⋯ menu, `Cell options`, whose widget part
  * changes the kind) menu: a task kind from the menu itself, a Numbers &
- * charts kind from its submenu.
+ * charts kind from its submenu. Adding a Breakdown picks one of its presets
+ * (`preset`, default Custom: D26 P8), whose editor then opens.
  */
-export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Change widget', label: string): Promise<void> {
+export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Change widget', label: string, preset = 'Custom'): Promise<void> {
   const role = menuName === 'Add widget' ? 'menuitem' : 'menuitemradio'
   let menu = page.getByRole('menu', { name: menuName === 'Add widget' ? 'Add widget' : 'Cell options' })
   if (GLANCE_LABELS.has(label)) {
@@ -695,6 +696,9 @@ export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Chang
     menu = page.getByRole('menu', { name: 'Numbers & charts' })
   }
   await menu.getByRole(role, { name: label, exact: true }).click()
+  if (menuName === 'Add widget' && label === 'Breakdown') {
+    await page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem', { name: preset, exact: true }).click()
+  }
 }
 
 /**

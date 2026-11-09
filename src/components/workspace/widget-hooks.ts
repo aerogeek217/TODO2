@@ -1,6 +1,8 @@
 import { useMemo } from 'react'
 import { ownerLayoutId } from '../../models/list-definition'
-import { getActiveTab, kindTabTitle, tabListId, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
+import { getActiveTab, kindTabTitle, tabListId, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
+import { useChartWidgetsStore } from '../../stores/chart-widgets-store'
+import type { ListFilterField } from '../../stores/list-widget-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
@@ -73,7 +75,7 @@ export function openEditList(tabId: string, listDefinitionId: number): void {
 }
 
 /** Makes `tabId` its cell's active tab and expands the row tracks the cell covers, so the widget is on screen. */
-function showTab(tabId: string): void {
+export function showTab(tabId: string): void {
   const ws = useWorkspaceStore.getState()
   const working = ws.working
   const cell = working ? panelOfTab(working, tabId) : undefined
@@ -139,13 +141,20 @@ export function useListOwnerLayoutId(): number | undefined {
 /**
  * Adds a widget tab of `kind` at `target` (a list tab with its list).
  * Returns the new tab's id. A new Number opens its editor at once: its empty
- * filter counts every open task until one is set.
+ * filter counts every open task until one is set. So does a new chart
+ * (D26 P8; `seed` its preset's config, `startField` a filter picker its
+ * editor opens on).
  */
 export function useAddWidget() {
   const addWidget = useWorkspaceStore((s) => s.addWidget)
-  return (kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number) => {
-    const tabId = addWidget(kind, target, listDefinitionId != null ? { listDefinitionId } : undefined)
+  return (kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number, seed?: TabSeed, startField?: ListFilterField) => {
+    const tabId = addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
     if (tabId != null && kind === 'number') openNumberEditor(tabId)
+    // D26 P8: a chart opens its editor too.
+    if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'statusFlow' || kind === 'tagMap')) {
+      showTab(tabId)
+      useChartWidgetsStore.getState().openEditor(tabId, startField)
+    }
     return tabId
   }
 }

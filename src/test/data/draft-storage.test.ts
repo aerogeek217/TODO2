@@ -174,10 +174,10 @@ describe('draft storage', () => {
     const draft = readLayoutDraft()
     expect(draft?.kind).toBe('saved')
     if (draft?.kind !== 'saved') return
-    // v76 rows, v77 widgets (a Number over Status, the Hot parts gone), v78 a table: the band a fixed row across the top.
+    // v76 rows, v77 widgets (a Number over Status, the Hot parts gone), v78 a table — the band a fixed row across the top — and Status a Breakdown.
     expect(picture(draft.base)).toEqual(['d-c1', 'd-c2'])
     expect(picture(draft.body)).toEqual(['t-c1 t-c2', 'd-c1 d-c1', 'd-c2 d-c2'])
-    expect(draft.body.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'status', 'number', 'status'])
+    expect(draft.body.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'breakdown', 'number', 'breakdown'])
   })
 
   it('clearUnsavedDrafts forgets both kinds', () => {

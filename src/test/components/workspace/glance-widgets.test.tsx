@@ -47,7 +47,7 @@ const GLANCE_KINDS = WIDGET_KINDS.filter(isGlanceKind) as GlanceWidgetKind[]
 
 /** The section id each section kind renders. */
 const SECTION_OF: Partial<Record<GlanceWidgetKind, string>> = {
-  trend: 'trend', status: 'status', people: 'people', tags: 'tags',
+  trend: 'trend', breakdown: 'breakdown', pivot: 'pivot', statusFlow: 'statusFlow', tagMap: 'tagMap',
 }
 
 beforeEach(() => {
@@ -240,43 +240,44 @@ describe('section widgets', () => {
     }
   })
 
-  it('People and Tags narrow by the top bar’s @ / # picks, as a list grouped by them does', () => {
+  it('a Breakdown by people or tags narrows by the top bar’s @ / # picks, as a list grouped by them does', () => {
     const [dana, alice] = [PEOPLE.find((p) => p.id === 1)!, PEOPLE.find((p) => p.id === 5)!]
     const [q4, home] = [TAGS.find((t) => t.id === 1)!, TAGS.find((t) => t.id === 3)!]
     // "Sign off on new logo" is Alice's and Dana's; "Budget review" is #q4 and #home.
     usePersonStore.setState({ assignedPeopleMap: new Map([...ASSIGNED_PEOPLE, [8, [alice, dana]]]) })
     useTagStore.setState({ assignedTagsMap: new Map([...ASSIGNED_TAGS, [7, [q4, home]]]) })
-    const rows = (attr: string) => [...document.querySelectorAll(`[${attr}]`)].map((el) => el.getAttribute(attr))
-    setup({ id: 'w', kind: 'people', config: { showUnassigned: true } })
-    expect(rows('data-person-row')).toContain('1')
+    const rows = () => [...document.querySelectorAll('[data-breakdown-row]')].map((el) => el.getAttribute('data-breakdown-row'))
+    const people = createTab('breakdown', 'w', { breakdown: { splitBy: 'people' } })
+    setup(people, undefined, 'large')
+    expect(rows()).toContain('person-1')
     cleanup()
     useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, personIds: new Set([5]) })
-    setup({ id: 'w', kind: 'people', config: { showUnassigned: true } })
-    expect(rows('data-person-row')).toEqual(['5'])
+    setup(people, undefined, 'large')
+    expect(rows()).toEqual(['person-5'])
     cleanup()
     useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, personIds: null, tags: new Set([1]) })
-    setup({ id: 'w', kind: 'tags', config: { showUntagged: true } })
-    expect(rows('data-tag-row')).toEqual(['1'])
+    setup(createTab('breakdown', 'w', { breakdown: { splitBy: 'tags' } }), undefined, 'large')
+    expect(rows()).toEqual(['tag-1'])
   })
 
-  it('options come from the config: range, the Unassigned and No tag rows', () => {
+  it('options come from the config: range, the none row (Unassigned, No tags)', () => {
     setup({ id: 'w', kind: 'trend', config: { range: '4w' } })
     expect(document.querySelector('[data-glance-section="trend"]')!.textContent).toContain('Last 4 weeks')
     cleanup()
-    setup({ id: 'w', kind: 'people', config: { showUnassigned: false } })
-    expect(document.querySelector('[data-person-row="none"]')).toBeNull()
+    setup(createTab('breakdown', 'w', { breakdown: { showNone: false } }), undefined, 'large')
+    expect(document.querySelector('[data-breakdown-row="none"]')).toBeNull()
     cleanup()
-    setup({ id: 'w', kind: 'people', config: { showUnassigned: true } })
-    expect(document.querySelector('[data-person-row="none"]')).not.toBeNull()
+    setup(createTab('breakdown', 'w'), undefined, 'large')
+    expect(document.querySelector('[data-breakdown-row="none"]')).not.toBeNull()
     cleanup()
-    setup({ id: 'w', kind: 'tags', config: { showUntagged: false } })
-    expect(document.querySelector('[data-tag-row="none"]')).toBeNull()
+    setup(createTab('breakdown', 'w', { breakdown: { splitBy: 'tags', showNone: false } }), undefined, 'large')
+    expect(document.querySelector('[data-breakdown-row="none"]')).toBeNull()
   })
 
   it('a section’s count opens its tasks', () => {
     const onDrill = vi.fn()
-    setup(createTab('status', 's'), onDrill)
-    fireEvent.click(within(document.querySelector<HTMLElement>('[data-glance-section="status"]')!).getByTestId('glance-section-count'))
+    setup(createTab('breakdown', 's', { breakdown: { splitBy: 'status' } }), onDrill)
+    fireEvent.click(within(document.querySelector<HTMLElement>('[data-glance-section="breakdown"]')!).getByTestId('glance-section-count'))
     expect(onDrill).toHaveBeenCalledTimes(1)
   })
 })
@@ -291,8 +292,9 @@ describe('glance tab menus', () => {
   it.each([
     ['number', 'Breakdown', 'By tag', { breakdown: 'tags' }],
     ['trend', 'Range', '12 weeks', { range: '12w' }],
-    ['people', 'Unassigned', 'Hidden', { showUnassigned: false }],
-    ['tags', 'No tag', 'Hidden', { showUntagged: false }],
+    ['breakdown', 'Split by', 'Tags', { splitBy: 'tags', checkins: undefined }],
+    ['breakdown', 'Style', 'Donut', { style: 'donut' }],
+    ['breakdown', 'Unassigned', 'Hidden', { showNone: false }],
   ] as const)('%s: %s › %s patches its config', (kind, label, choice, patch) => {
     const patchTabConfig = vi.fn()
     useWorkspaceStore.setState({ patchTabConfig })
@@ -318,8 +320,6 @@ describe('glance tab menus', () => {
     expect(patchTabConfig).not.toHaveBeenCalled()
     expect(glanceMenu(tab, undefined)!.actions).toEqual([])
     expect(glanceMenu(tab, { plain: 'Overdue 2', html: '<p>x</p>' })!.actions.map((a) => a.label)).toEqual(['Copy'])
-    // The kinds without a setting have none.
-    expect(glanceMenu(createTab('status', 's'), undefined)!.settingEntries).toEqual([])
     expect(glanceMenu(undefined, undefined)).toBeUndefined()
   })
 })
@@ -404,8 +404,8 @@ describe('faces (D25 R)', () => {
       cleanup()
       return out
     }
-    const topPerson = large('people', (el) => el.querySelector('[data-person-row]')!.getAttribute('aria-label')!.match(/^(.+): (\d+) open/)!)
-    expect(headline('people').label).toBe(`People: ${topPerson[1]}: ${topPerson[2]} open`)
+    const topPerson = large('breakdown', (el) => el.querySelector('[data-breakdown-row] button')!.getAttribute('aria-label')!.match(/^(.+): (\d+) tasks?/)!)
+    expect(headline('breakdown').label).toBe(`Breakdown: ${topPerson[1]}: ${topPerson[2]} open`)
     expect(headline('trend').label).toMatch(/^Created vs completed: [+−]?\d+ net · 14 days$/)
   })
 })

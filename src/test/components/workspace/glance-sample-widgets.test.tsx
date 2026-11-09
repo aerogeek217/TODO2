@@ -7,6 +7,7 @@ import type { GlanceDrill } from '../../../components/workspace/glance/glance-ty
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { V77NumberMetric } from '../../../data/upgrades/v78/number-metrics'
 import { createTab, type GlanceTab, type GlanceWidgetKind } from '../../../models/workspace-layout'
+import type { BreakdownConfig, BreakdownSplit } from '../../../models/chart-widgets'
 import { useFilterStore } from '../../../stores/filter-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
@@ -38,9 +39,14 @@ const of = (kind: GlanceWidgetKind, config?: object): GlanceTab => {
   const tab = createTab(kind, kind) as GlanceTab
   return (config ? { ...tab, config: { ...tab.config, ...config } } : tab) as GlanceTab
 }
+/** A Breakdown (D26 P8) as People, Tags or Status became: its tab id the split's. */
+const bd = (splitBy: BreakdownSplit, over: Partial<BreakdownConfig> = {}): GlanceTab => {
+  const name = { people: 'People', tags: 'Tags', status: 'Status' }[splitBy as 'people'] ?? 'Breakdown'
+  return createTab('breakdown', splitBy, { breakdown: { name, splitBy, ...over } })
+}
 const DEFAULT_TILES: V77NumberMetric[] = ['open', 'focus', 'urgent', 'overdue', 'followupDue']
-/** A new Dashboard's parts, as widgets: its tiles and its sections still kept (D26 retired Needs follow-up and Next 7 days). */
-const defaults = (): GlanceTab[] => [...DEFAULT_TILES.map(num), of('trend'), of('status'), of('people')]
+/** A new Dashboard's parts, as widgets: its tiles and its sections still kept (D26 retired Needs follow-up and Next 7 days; People and Status are Breakdowns). */
+const defaults = (): GlanceTab[] => [...DEFAULT_TILES.map(num), of('trend'), bd('status'), bd('people')]
 
 function setup(tabs: GlanceTab[] = defaults(), onDrill?: (d: GlanceDrill) => void) {
   return render(
@@ -54,7 +60,11 @@ function setup(tabs: GlanceTab[] = defaults(), onDrill?: (d: GlanceDrill) => voi
 
 const tile = (id: string) => document.querySelector<HTMLElement>(`[data-number="${id}"]`)!
 const tileCount = (id: string) => within(tile(id)).getByTestId('number-count').textContent
-const section = (id: string) => document.querySelector<HTMLElement>(`[data-glance-section="${id}"]`)
+/** A section by its kind (`trend`), or a chart by its tab id (`[data-chart]`). */
+const section = (id: string) => document.querySelector<HTMLElement>(`[data-glance-section="${id}"], [data-chart="${id}"]`)
+/** A drill's ids in id order. */
+const sortedIds = (drill: { source: { todoIds: number[] } } | undefined) => [...(drill?.source.todoIds ?? [])].sort((a, b) => a - b)
+const bdRows = (id: string) => Array.from(section(id)!.querySelectorAll<HTMLElement>('[data-breakdown-row]'))
 const sectionCount = (id: string) => within(section(id)!).getByTestId('glance-section-count').textContent
 
 beforeEach(() => {
@@ -109,7 +119,7 @@ describe('glance widgets — the design sample', () => {
   it('each section widget renders its section', () => {
     setup()
     const ids = Array.from(document.querySelectorAll('[data-glance-section]')).map((el) => (el as HTMLElement).dataset.glanceSection)
-    expect(ids).toEqual(['trend', 'status', 'people'])
+    expect(ids).toEqual(['trend', 'breakdown', 'breakdown'])
   })
 
   it('Created vs completed: the window totals', () => {
@@ -119,44 +129,45 @@ describe('glance widgets — the design sample', () => {
     expect(section('trend')!.textContent).toContain('+3open since Sun 27 Sep')
   })
 
-  it('Status: open counts per status with percentages', () => {
+  it('Status (a Breakdown): open counts per status, in Settings order', () => {
     setup()
-    const status = section('status')!
     expect(sectionCount('status')).toBe('19 open')
-    const rows = Array.from(status.querySelectorAll('[data-status-key]')).map((r) => r.textContent)
-    expect(rows).toEqual(['To do1158%', 'In progress526%', 'Waiting211%', 'Blocked15%'])
+    expect(bdRows('status').map((r) => [r.dataset.breakdownRow, r.querySelector('[data-testid="breakdown-figure"]')?.textContent]))
+      .toEqual([['status-1', '11'], ['status-2', '5'], ['status-3', '2'], ['status-4', '1']])
   })
 
-  it('People: by open count, ties by name, Unassigned last', () => {
+  it('People (a Breakdown): every person with a task, Unassigned last', () => {
     setup()
-    const rows = Array.from(section('people')!.querySelectorAll<HTMLElement>('[data-person-row]'))
-    expect(rows.map((r) => r.querySelector('[class*="personName"] > span')?.textContent)).toEqual(['Priya Nair', 'Alice Chen', 'Ben Ortiz', 'Dana Kim', 'Sam Lee', 'Unassigned'])
+    const rows = bdRows('people')
+    expect(rows.map((r) => r.querySelector('button')?.getAttribute('aria-label')?.split(':')[0]).sort())
+      .toEqual(['Alice Chen', 'Ben Ortiz', 'Dana Kim', 'Priya Nair', 'Sam Lee', 'Unassigned'])
+    expect(rows.at(-1)?.dataset.breakdownRow).toBe('none')
   })
 
   it('People: Unassigned can be hidden', () => {
-    setup([of('people', { showUnassigned: false })])
-    const rows = Array.from(section('people')!.querySelectorAll<HTMLElement>('[data-person-row]'))
-    expect(rows.map((r) => r.dataset.personRow)).not.toContain('none')
+    setup([bd('people', { showNone: false })])
+    expect(bdRows('people').map((r) => r.dataset.breakdownRow)).not.toContain('none')
   })
 })
 
 describe('glance widgets — priority badges', () => {
   const badges = (row: Element) => Array.from(row.querySelectorAll<HTMLElement>('[data-priority]')).map((b) => [b.dataset.priority, b.textContent])
 
-  it('a People row shows its open tasks by priority, a badge for each that has any, named on the row', () => {
-    setup([of('people')], vi.fn())
-    const rows = Array.from(section('people')!.querySelectorAll<HTMLElement>('[data-person-row]'))
+  it('a People row shows its open tasks by priority, a badge for each that has any, each badge named', () => {
+    setup([bd('people')], vi.fn())
+    const rows = bdRows('people')
     expect(rows.length).toBeGreaterThan(1)
     const withBadges = rows.find((r) => badges(r).length > 0)!
-    for (const [key, count] of badges(withBadges)) expect(withBadges.getAttribute('aria-label')).toMatch(new RegExp(`${count} ${key}`, 'i'))
+    for (const b of withBadges.querySelectorAll<HTMLElement>('[data-priority]')) expect(b.title).toMatch(new RegExp(`^${b.textContent} ${b.dataset.priority}$`, 'i'))
     expect(section('people')!.textContent).toContain('Priority')
     expect(section('people')!.textContent).not.toContain('Hot')
   })
 
-  it('a Tags row likewise', () => {
-    setup([of('tags')], vi.fn())
+  it('a Tags row likewise; a Priority split has no Priority column', () => {
+    setup([bd('tags'), bd('priority')], vi.fn())
     expect(section('tags')!.querySelector('[data-priority]')).not.toBeNull()
-    expect(section('tags')!.textContent).not.toContain('Hot')
+    expect(section('priority')!.querySelector('[data-priority]')).toBeNull()
+    expect(section('priority')!.querySelector('[data-sort-key="priority"]')).toBeNull()
   })
 })
 
@@ -170,7 +181,7 @@ describe('glance widgets — screen filter', () => {
     expect(tile('overdue').dataset.lit).toBeUndefined()
     expect(tile('overdue').querySelector<HTMLElement>('[data-testid="number-count"]')!.style.color).toBe('var(--color-text-muted)')
     expect(lines('open')?.[0]).toBe('Open 5 of 19')
-    expect(sectionCount('status')).toBe('5 of 19 open')
+    expect(sectionCount('status')).toBe('5 open')
   })
 
   it('Show completed adds nothing to the counts', () => {
@@ -196,7 +207,6 @@ describe('glance widgets — drill hook', () => {
     setup()
     expect(tile('open').tagName).toBe('DIV')
     expect(section('status')!.querySelector('button[data-testid="glance-section-count"]')).toBeNull()
-    expect(section('people')!.querySelector('button[data-person-row]')).toBeNull()
   })
 
   it('a tile opens its tasks in dialog order, saying what it counts', () => {
@@ -222,21 +232,20 @@ describe('glance widgets — drill hook', () => {
     expect(closed.map(done)).toEqual(closed.map(done).sort((a, b) => b - a))
   })
 
-  it('a panel count opens its tasks: Status under headings', () => {
+  it('a chart count opens its tasks: Status under headings', () => {
     const onDrill = vi.fn()
     setup(defaults(), onDrill)
     fireEvent.click(within(section('status')!).getByTestId('glance-section-count'))
     const st = onDrill.mock.lastCall?.[0]
-    expect(st.title).toBe('Open tasks')
+    expect(st.title).toBe('Status')
     expect(st.source.groups.map((g: Group) => [g.label, g.todoIds.length])).toEqual([['To do', 11], ['In progress', 5], ['Waiting', 2], ['Blocked', 1]])
   })
 
   it('a status row opens its tasks', () => {
     const onDrill = vi.fn()
     setup(defaults(), onDrill)
-    const waiting = Array.from(section('status')!.querySelectorAll<HTMLElement>('[data-status-key]')).find((r) => r.textContent?.startsWith('Waiting'))!
-    fireEvent.click(waiting)
-    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Waiting', description: 'Status: Waiting.', source: { kind: 'todos', todoIds: [9, 10] } })
+    fireEvent.click(bdRows('status').find((r) => r.dataset.breakdownRow === 'status-3')!)
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Status · Waiting', description: 'Status: the tasks with the status Waiting.', source: { kind: 'todos', todoIds: [9, 10] } })
   })
 
   it('a trend day opens what was completed and created then; the totals open theirs', () => {
@@ -255,18 +264,18 @@ describe('glance widgets — drill hook', () => {
     expect(onDrill.mock.lastCall?.[0].source.todoIds).toHaveLength(17)
   })
 
-  it('a person row opens that person’s tasks in their own order; Unassigned too', () => {
+  it('a person row opens that person’s tasks, offering their check-in; Unassigned too', () => {
     const onDrill = vi.fn()
     setup(defaults(), onDrill)
-    const rows = Array.from(section('people')!.querySelectorAll<HTMLElement>('[data-person-row]'))
-    fireEvent.click(rows[0]!)
-    expect(onDrill.mock.lastCall?.[0]).toEqual({
-      title: 'Priya Nair', glyph: 'people', description: 'Open tasks assigned to Priya Nair.',
-      source: { kind: 'todos', todoIds: [3, 11, 14, 15] },
-      personId: PEOPLE.find((p) => p.name === 'Priya Nair')?.id,
+    const priyaId = PEOPLE.find((p) => p.name === 'Priya Nair')!.id
+    fireEvent.click(bdRows('people').find((r) => r.dataset.breakdownRow === `person-${priyaId}`)!)
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({
+      title: 'People · Priya Nair', glyph: 'people', description: 'People: the tasks assigned to Priya Nair.',
+      personId: priyaId,
     })
-    fireEvent.click(rows.at(-1)!)
-    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Unassigned', description: 'Open tasks with nobody assigned.' })
+    expect(sortedIds(onDrill.mock.lastCall?.[0])).toEqual([3, 11, 14, 15])
+    fireEvent.click(bdRows('people').at(-1)!)
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'People · Unassigned', description: 'People: the tasks unassigned.' })
     expect(onDrill.mock.lastCall?.[0]).not.toHaveProperty('personId')
   })
 
@@ -282,38 +291,37 @@ describe('glance widgets — drill hook', () => {
   })
 })
 
-describe('glance widgets — Tags', () => {
-  const tagRows = () => Array.from(section('tags')!.querySelectorAll<HTMLElement>('[data-tag-row]'))
+describe('glance widgets — Tags (a Breakdown)', () => {
+  const tagRows = () => bdRows('tags')
 
-  it('Tags: open tasks per tag by count then name, No tag last (can be hidden), the tagged count', () => {
-    setup([of('tags')])
-    expect(sectionCount('tags')).toBe('9 tagged')
-    expect(tagRows().map((r) => [r.dataset.tagRow, r.querySelector('[class*="tagName"]')?.textContent, r.querySelector('[data-testid="glance-tag-open"]')?.textContent]))
-      .toEqual([['1', '#q4', '5'], ['4', '#errands', '2'], ['3', '#home', '1'], ['2', '#planning', '1'], ['none', 'No tag', '10']])
+  it('Tags: open tasks per tag, No tags last (can be hidden), the count of tasks it counts', () => {
+    setup([bd('tags')])
+    expect(sectionCount('tags')).toBe('19 open')
+    expect(tagRows().map((r) => [r.dataset.breakdownRow, r.querySelector('[data-testid="breakdown-figure"]')?.textContent]).sort())
+      .toEqual([['none', '10'], ['tag-1', '5'], ['tag-2', '1'], ['tag-3', '1'], ['tag-4', '2']])
+    expect(tagRows().at(-1)?.dataset.breakdownRow).toBe('none')
     cleanup()
-    setup([of('tags', { showUntagged: false })])
-    expect(tagRows().map((r) => r.dataset.tagRow)).toEqual(['1', '4', '3', '2'])
+    setup([bd('tags', { showNone: false })])
+    expect(tagRows().map((r) => r.dataset.breakdownRow)).not.toContain('none')
   })
 
-  it('under the top-bar filter its counts read shown of total, and so do its lines for Copy', () => {
+  it('under the top-bar filter only the picked tag is left, and so in its lines for Copy', () => {
     useFilterStore.setState((s) => ({ filters: { ...s.filters, tags: new Set([Q4]) } }))
-    setup([num('open'), of('tags')])
-    expect(sectionCount('tags')).toBe('5 of 9 tagged')
-    expect(tagRows().map((r) => r.dataset.tagRow)).toEqual(['1'])
+    setup([num('open'), bd('tags')])
+    expect(sectionCount('tags')).toBe('5 open')
+    expect(tagRows().map((r) => r.dataset.breakdownRow)).toEqual(['tag-1'])
     expect(lines('open')?.[0]).toBe('Open 5 of 19')
-    expect(lines('tags')).toEqual(['Tags 5 of 9 tagged', '#q4 5'])
+    expect(lines('tags')).toEqual(['Tags 5 open', '#q4 5'])
   })
 
-  it('its numbers open the tasks behind them', () => {
+  it('its rows open the tasks behind them', () => {
     const onDrill = vi.fn()
-    setup([of('tags')], onDrill)
-    fireEvent.click(tagRows()[0]!)
-    expect(onDrill.mock.lastCall?.[0]).toEqual({ title: '#q4', glyph: 'tag', description: 'Open tasks tagged #q4.', source: { kind: 'todos', todoIds: [4, 7, 14, 15, 17] } })
+    setup([bd('tags')], onDrill)
+    fireEvent.click(tagRows().find((r) => r.dataset.breakdownRow === 'tag-1')!)
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Tags · #q4', glyph: 'tag', description: 'Tags: the tasks tagged #q4.' })
+    expect(sortedIds(onDrill.mock.lastCall?.[0])).toEqual([4, 7, 14, 15, 17])
     fireEvent.click(tagRows().at(-1)!)
-    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'No tag', source: { kind: 'todos', todoIds: [1, 2, 5, 8, 9, 10, 11, 12, 16, 19] } })
-    fireEvent.click(within(section('tags')!).getByTestId('glance-section-count'))
-    const tags = onDrill.mock.lastCall?.[0]
-    expect(tags.title).toBe('Tagged tasks')
-    expect(tags.source.groups.map((g: { label: string; todoIds: number[] }) => [g.label, g.todoIds.length])).toEqual([['#q4', 5], ['#errands', 2], ['#home', 1], ['#planning', 1]])
+    expect(onDrill.mock.lastCall?.[0]).toMatchObject({ title: 'Tags · No tags' })
+    expect(sortedIds(onDrill.mock.lastCall?.[0])).toEqual([1, 2, 5, 8, 9, 10, 11, 12, 16, 19])
   })
 })

@@ -26,14 +26,25 @@ import {
   GLANCE_CONFIG_FIELDS,
   numberConfigProblem,
   pickNumberConfig,
-  pickPeopleConfig,
   pickTagPicksConfig,
-  pickTagsConfig,
   pickTrendConfig,
   type NumberConfig,
   type PickedConfig,
 } from '../models/glance-widgets'
-import { emptyPredicate, type TodoPredicate } from '../models/filter-predicate'
+import {
+  breakdownConfigProblem,
+  breakdownViewProblem,
+  pickBreakdownConfig,
+  pickBreakdownView,
+  pickPivotConfig,
+  pickStatusFlowConfig,
+  pickTagMapConfig,
+  pivotConfigProblem,
+  statusFlowConfigProblem,
+  tagMapConfigProblem,
+} from '../models/chart-widgets'
+import type { TodoPredicate } from '../models/filter-predicate'
+import { emptyPredicate } from '../models/filter-predicate'
 import { isRecord } from '../utils/is-record'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { isCellEdge, normalizeGrid, validateTiling } from '../utils/workspace-grid'
@@ -181,17 +192,48 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       return true
     }
     case 'trend':
-    case 'people':
-    case 'tags':
     case 'pulse': {
       // One config field, a known value.
       const field = GLANCE_CONFIG_FIELDS[kind]
       return field.ok(config[field.key]) ? true : `${path}.config.${field.key}`
     }
+    // D26 P8: the chart widgets — their fields, then their filter as a Number's.
+    case 'breakdown': {
+      const bad = breakdownConfigProblem(config)
+      if (bad) return `${path}.config.${bad}`
+      const badView = view ? breakdownViewProblem(view) : null
+      if (badView) return `${path}.viewState.${badView}`
+      return checkChartFilter(config.filter, path)
+    }
+    case 'pivot': {
+      const bad = pivotConfigProblem(config)
+      return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
+    }
+    case 'statusFlow': {
+      const bad = statusFlowConfigProblem(config)
+      return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
+    }
+    case 'tagMap': {
+      const bad = tagMapConfigProblem(config)
+      return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
+    }
     case 'notes':
-    case 'status':
       return true
   }
+}
+
+/** A chart's filter as stored: a predicate with nothing its read (`pickPredicate`) would change. */
+function checkChartFilter(filter: unknown, path: string): true | string {
+  const shape = checkPredicateShape(filter)
+  if (shape !== true) return `${path}.config.filter.${shape}`
+  return pickPredicate(filter).fixes.length === 0 ? true : `${path}.config.filter`
+}
+
+/** A chart's filter, repaired as a Number's (a missing one is no filter — every open task —, a fix). */
+function chartFilterOf(config: Record<string, unknown>): PickedConfig<TodoPredicate> {
+  if (!isRecord(config.filter)) return { config: emptyPredicate(), fixed: true }
+  const filter = pickPredicate(config.filter)
+  return { config: filter.predicate, fixed: filter.fixes.length > 0 }
 }
 
 /**
@@ -471,14 +513,21 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         return { id, kind: 'number', config: glance(numberConfigOf(config)) }
       case 'trend':
         return { id, kind: 'trend', config: glance(pickTrendConfig(config)) }
-      case 'people':
-        return { id, kind: 'people', config: glance(pickPeopleConfig(config)) }
-      case 'tags':
-        return { id, kind: 'tags', config: glance(pickTagsConfig(config)) }
       case 'pulse':
         return { id, kind: 'pulse', config: glance(pickTagPicksConfig(config)) }
-      case 'status':
-        return { id, kind: 'status', config: {} }
+      // D26 P8: the chart widgets.
+      case 'breakdown': {
+        const viewState = glance(pickBreakdownView(view))
+        const breakdown: LayoutTab = { id, kind: 'breakdown', config: glance(pickBreakdownConfig(config, chartFilterOf(config))) }
+        if (viewState) breakdown.viewState = viewState
+        return breakdown
+      }
+      case 'pivot':
+        return { id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) }
+      case 'statusFlow':
+        return { id, kind: 'statusFlow', config: glance(pickStatusFlowConfig(config, chartFilterOf(config))) }
+      case 'tagMap':
+        return { id, kind: 'tagMap', config: glance(pickTagMapConfig(config, chartFilterOf(config))) }
     }
   }
 

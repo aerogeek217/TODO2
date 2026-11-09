@@ -168,6 +168,8 @@ export function MenuPopover({
 }: MenuPopoverProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
+  /** A submenu's own submenu (one level more: Add widget › Numbers & charts › Breakdown ›, D26 P8). */
+  const nestedRef = useRef<HTMLDivElement | null>(null)
   /**
    * The open submenu; `focus` = it takes the focus when it opens.
    */
@@ -183,7 +185,7 @@ export function MenuPopover({
     placement,
     closeOnScroll,
     closeOnEscape: false,
-    extraInsideRefs: [subRef],
+    extraInsideRefs: [subRef, nestedRef],
     onClose,
     caret: caretProp ?? !beside,
   })
@@ -305,6 +307,7 @@ export function MenuPopover({
         {openEntry?.kind === 'item' && openEntry.children && sub != null && (
           <Submenu
             subRef={subRef}
+            nestedRef={nestedRef}
             parentRef={menuRef}
             parentIndex={sub}
             entries={openEntry.children}
@@ -648,9 +651,15 @@ function useBesideItem(
   })
 }
 
-/** A nested submenu beside its parent item; flips left when there's no room on the right. */
-function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHeight, autoFocus, onRun, onClose, onBack }: {
+/**
+ * A nested submenu beside its parent item; flips left when there's no room
+ * on the right. With `nestedRef`, an item of its own with `children` opens
+ * one more level (hover, click, →; ← goes back), counted inside the menu.
+ */
+function Submenu({ subRef, nestedRef, parentRef, parentIndex, entries, label, width, maxHeight, autoFocus, onRun, onClose, onBack }: {
   subRef: RefObject<HTMLDivElement | null>
+  /** Where its own submenu goes (none: it opens none). */
+  nestedRef?: RefObject<HTMLDivElement | null>
   parentRef: RefObject<HTMLDivElement | null>
   parentIndex: number
   entries: readonly MenuEntry[]
@@ -672,13 +681,27 @@ function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHei
   useEffect(() => {
     if (autoFocus) focusFirstChoice(subRef.current)
   }, [autoFocus, subRef])
-
-  const select = (entry: MenuItemEntry) => {
-    if (entry.onSelect) onRun(entry)
+  const [nested, setNested] = useState<{ index: number; focus: boolean } | null>(null)
+  const closeNested = () => {
+    if (!nested) return
+    const index = nested.index
+    setNested(null)
+    subRef.current?.querySelector<HTMLButtonElement>(`:scope > button[data-menu-index="${index}"]`)?.focus()
   }
 
-  return createPortal(
-    <MenuPanel
+  const select = (entry: MenuItemEntry, index: number, viaKeyboard: boolean) => {
+    if (entry.children && nestedRef && !entry.disabled) {
+      setNested({ index, focus: viaKeyboard })
+      return
+    }
+    if (entry.onSelect) onRun(entry)
+  }
+  const nestedEntry = nested ? entries[nested.index] : undefined
+
+  return (
+    <>
+      {createPortal(
+        <MenuPanel
       panelRef={setRef}
       entries={entries}
       label={label}
@@ -690,17 +713,45 @@ function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHei
         maxHeight: maxHeight ? Math.min(maxHeight, style.maxHeight) : style.maxHeight,
         ...(width ? { width } : {}),
       }}
-      openIndex={null}
-      onSelect={(entry) => select(entry)}
+      openIndex={nested?.index ?? null}
+      onSelect={select}
+      onHoverItem={nestedRef ? (index, entry) => {
+        if (entry.children && !entry.disabled) setNested((prev) => (prev?.index === index ? prev : { index, focus: false }))
+        else if (nested && index !== nested.index) setNested(null)
+      } : undefined}
       onKey={(e, panel) => {
         if (e.key === 'ArrowLeft') {
           e.preventDefault()
           onBack()
           return true
         }
-        return handleMenuKeys(e, panel, entries, onClose, (entry) => select(entry))
+        const focusedIndex = Number((document.activeElement as HTMLElement | null)?.dataset.menuIndex ?? -1)
+        const focused = entries[focusedIndex]
+        if (e.key === 'ArrowRight' && nestedRef && focused?.kind === 'item' && focused.children && !focused.disabled) {
+          e.preventDefault()
+          select(focused, focusedIndex, true)
+          return true
+        }
+        return handleMenuKeys(e, panel, entries, onClose, select)
       }}
-    />,
-    document.body,
+        />,
+        document.body,
+      )}
+      {nestedRef && nested && nestedEntry?.kind === 'item' && nestedEntry.children && (
+        <Submenu
+          subRef={nestedRef}
+          parentRef={subRef}
+          parentIndex={nested.index}
+          entries={nestedEntry.children}
+          label={nestedEntry.label}
+          width={nestedEntry.childrenWidth}
+          maxHeight={nestedEntry.childrenMaxHeight}
+          autoFocus={nested.focus}
+          onRun={onRun}
+          onClose={onClose}
+          onBack={closeNested}
+        />
+      )}
+    </>
   )
 }

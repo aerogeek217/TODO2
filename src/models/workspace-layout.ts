@@ -27,28 +27,40 @@ import {
   DEFAULT_TREND_RANGE,
   newNumberConfig,
   type NumberConfig,
-  type PeopleTabConfig,
   type TagPicksTabConfig,
-  type TagsTabConfig,
   type TrendTabConfig,
 } from './glance-widgets'
+import {
+  newBreakdownConfig,
+  newPivotConfig,
+  newStatusFlowConfig,
+  newTagMapConfig,
+  type BreakdownConfig,
+  type BreakdownViewState,
+  type PivotConfig,
+  type StatusFlowConfig,
+  type TagMapConfig,
+} from './chart-widgets'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
  * list widget (its old name; renaming it would need a migration). The glance
  * kinds (D25 N) are the retired Dashboard's pieces as widgets of their own
  * (v77 made every Dashboard tab these): `number` (one count), the charts
- * (`trend`, `status`, `people`, `tags`) and `pulse` (Project pulse). v78
+ * (`trend`, the Breakdown — D26 P8) and `pulse` (Project pulse). v78
  * (D26 P4) retired Needs follow-up, Next 7 days, Stale tasks, Recently
  * completed, What changed and Today, and made the Eisenhower summary the
- * Eisenhower's small face.
+ * Eisenhower's small face; P8 made People, Tags and Status Breakdowns.
  */
 export type WidgetKind =
   | 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'neglect'
   | GlanceWidgetKind
 
 /** The glance widget kinds (D25 N): a Number, the charts and Project pulse, each a widget. */
-export type GlanceWidgetKind = 'number' | 'trend' | 'status' | 'people' | 'tags' | 'pulse'
+export type GlanceWidgetKind = 'number' | ChartWidgetKind | 'trend' | 'pulse'
+
+/** The chart widgets (D26 P8): a filter, then what it is split by — each has a name, a filter and an editor. */
+export type ChartWidgetKind = 'breakdown' | 'pivot' | 'statusFlow' | 'tagMap'
 
 export type CalendarView = 'week' | 'month'
 
@@ -229,13 +241,18 @@ export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerT
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
 export type NumberTab = TabOf<'number', NumberConfig, NoTabSettings>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
-export type StatusTab = TabOf<'status', NoTabSettings, NoTabSettings>
-export type PeopleTab = TabOf<'people', PeopleTabConfig, NoTabSettings>
-export type TagsTab = TabOf<'tags', TagsTabConfig, NoTabSettings>
 export type PulseTab = TabOf<'pulse', TagPicksTabConfig, NoTabSettings>
+// ── D26 P8: the chart widgets ──
+export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
+export type PivotTab = TabOf<'pivot', PivotConfig, NoTabSettings>
+export type StatusFlowTab = TabOf<'statusFlow', StatusFlowConfig, NoTabSettings>
+export type TagMapTab = TabOf<'tagMap', TagMapConfig, NoTabSettings>
+
+/** A chart widget's tab (D26 P8). */
+export type ChartTab = BreakdownTab | PivotTab | StatusFlowTab | TagMapTab
 
 /** A glance widget's tab (D25 N). */
-export type GlanceTab = NumberTab | TrendTab | StatusTab | PeopleTab | TagsTab | PulseTab
+export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
 
 export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | NeglectTab | GlanceTab
 
@@ -387,6 +404,8 @@ export interface TabSeed {
   neglectTagIds?: readonly number[]
   /** The tags a new Project pulse reads (the workspace store passes the `Project: …` tags). */
   tagIds?: readonly number[]
+  /** A new Breakdown's config over the default (an Add widget preset, D26 P8). */
+  breakdown?: Partial<BreakdownConfig>
 }
 
 /**
@@ -448,10 +467,12 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
   number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
+  // D26 P8: the chart widgets.
+  breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
+  pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
+  statusFlow: glanceSpec('Status flow', (id) => ({ id, kind: 'statusFlow', config: newStatusFlowConfig(emptyPredicate()) })),
+  tagMap: glanceSpec('Tag map', (id) => ({ id, kind: 'tagMap', config: newTagMapConfig(emptyPredicate()) })),
   trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
-  status: glanceSpec('Status', (id) => ({ id, kind: 'status', config: {} })),
-  people: glanceSpec('People', (id) => ({ id, kind: 'people', config: { showUnassigned: true } })),
-  tags: glanceSpec('Tags', (id) => ({ id, kind: 'tags', config: { showUntagged: true } })),
   pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
   // Calendar, Eisenhower and Neglect map: in Numbers & charts (D26), but whole widgets, not glance ones.
   calendar: {
@@ -510,12 +531,18 @@ export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
   return isGlanceKind(tab.kind)
 }
 
+/** A chart widget's tab (D26 P8). */
+export function isChartTab(tab: LayoutTab): tab is ChartTab {
+  return tab.kind === 'breakdown' || tab.kind === 'pivot' || tab.kind === 'statusFlow' || tab.kind === 'tagMap'
+}
+
 /**
- * A non-list tab's title: a Number's is its name (`Late on Atlas`; a blank
- * one reads `Number`), every other kind's its kind's name.
+ * A non-list tab's title: a Number's or a chart's is its name (`Late on
+ * Atlas`; a blank one reads `Number`, `Breakdown`, …), every other kind's
+ * its kind's name.
  */
 export function kindTabTitle(tab: LayoutTab): string {
-  if (tab.kind === 'number') return tab.config.name.trim() || widgetKindLabel(tab.kind)
+  if (tab.kind === 'number' || isChartTab(tab)) return tab.config.name.trim() || widgetKindLabel(tab.kind)
   return widgetKindLabel(tab.kind)
 }
 

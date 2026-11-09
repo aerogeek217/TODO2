@@ -66,11 +66,16 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`GLANCE_GLYPH`).
   number: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
   trend: <path d={GLANCE_GLYPH.chart} />,
-  status: <path d={GLANCE_GLYPH.status} />,
-  people: <path d={GLANCE_GLYPH.people} />,
-  tags: <path d={GLANCE_GLYPH.tag} />,
   // Project pulse: a ring with its late share as a wedge.
   pulse: <path d="M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11zM8 2.5V8h5.5" />,
+  // D26 P8 — Breakdown: a bar per row, longest first.
+  breakdown: <path d="M2.5 3.5h11M2.5 8h7M2.5 12.5h4" />,
+  // Pivot: a table with a heading row and column.
+  pivot: <path d="M2.5 2.5h11v11h-11zM2.5 6h11M6 2.5v11M2.5 9.75h11M9.75 6v7.5" />,
+  // Status flow: stacked columns, week by week.
+  statusFlow: <path d="M3 13.5h10M4 12.5V8M4 6.5V5M8 12.5V7M8 5.5V3M12 12.5V9M12 7.5V6" />,
+  // Tag map: tiles of three sizes.
+  tagMap: <path d="M2.5 2.5h11v11h-11zM8.5 2.5v11M2.5 9h6M8.5 7h5" />,
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {

@@ -17,8 +17,9 @@ import { openNumberEditor } from '../widget-hooks'
 import { trendRangeLabel } from './glance-copy'
 import type { GlanceSummary } from './glance-summary'
 import {
-  knownTagCount, settingEntry, TAG_PICKS_MAX_HEIGHT_PX, TAG_PICKS_WIDTH_PX, tagPickEntries, type Choice,
+  knownTagCount, settingEntry, TAG_PICKS_MAX_HEIGHT_PX, TAG_PICKS_WIDTH_PX, tagPickEntries,
 } from './menu-entries'
+import { chartSettingEntries } from './chart-menu'
 
 /**
  * Project pulse's **Tags ›**: a checkbox per tag, in the tags' order (a
@@ -44,8 +45,6 @@ function tagPicksEntry(tab: Extract<GlanceTab, { kind: 'pulse' }>, note: string)
   }
 }
 
-const SHOWN_HIDDEN: readonly Choice<boolean>[] = [{ value: true, label: 'Shown' }, { value: false, label: 'Hidden' }]
-
 /** A glance tab's settings, as its tab menu lists them first (each its section's options, as Customize had them). */
 function settingEntries(tab: GlanceTab): MenuEntry[] {
   const ws = useWorkspaceStore.getState
@@ -62,16 +61,14 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
     case 'trend':
       return [settingEntry('Range', TREND_RANGES.map((r) => ({ value: r, label: trendRangeLabel(r).replace(/^Last /, '') })), tab.config.range,
         (range) => ws().patchTabConfig(tab.id, 'trend', { range }))]
-    case 'people':
-      return [settingEntry('Unassigned', SHOWN_HIDDEN, tab.config.showUnassigned,
-        (showUnassigned) => ws().patchTabConfig(tab.id, 'people', { showUnassigned }))]
-    case 'tags':
-      return [settingEntry('No tag', SHOWN_HIDDEN, tab.config.showUntagged,
-        (showUntagged) => ws().patchTabConfig(tab.id, 'tags', { showUntagged }))]
     case 'pulse':
       return [tagPicksEntry(tab, 'A card per tag, in the order picked.')]
-    case 'status':
-      return []
+    // D26 P8: the chart widgets.
+    case 'breakdown':
+    case 'pivot':
+    case 'statusFlow':
+    case 'tagMap':
+      return chartSettingEntries(tab)
   }
 }
 

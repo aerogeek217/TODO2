@@ -32,9 +32,9 @@ function seedWith(extraColumns: WorkspaceSeed['layouts'][number]['columns'] = []
           // A fit row of Numbers, then Tags, People and Status side by side.
           { id: 'numbers', cells: METRICS.map((metric) => ({ id: `n-${metric}`, tabs: [{ id: metric, kind: 'number' as const, glance: { metric } }] })) },
           { id: 'sections', cells: [
-            { id: 'k-tags', tabs: [{ id: 'tags', kind: 'tags' }] },
-            { id: 'k-people', tabs: [{ id: 'people', kind: 'people' }] },
-            { id: 'k-status', tabs: [{ id: 'status', kind: 'status' }] },
+            { id: 'k-tags', tabs: [{ id: 'tags', kind: 'breakdown', glance: { name: 'Tags', splitBy: 'tags' } }] },
+            { id: 'k-people', tabs: [{ id: 'people', kind: 'breakdown', glance: { name: 'People', splitBy: 'people' } }] },
+            { id: 'k-status', tabs: [{ id: 'status', kind: 'breakdown', glance: { name: 'Status', splitBy: 'status' } }] },
           ] },
         ] },
         ...extraColumns,
@@ -44,7 +44,9 @@ function seedWith(extraColumns: WorkspaceSeed['layouts'][number]['columns'] = []
 }
 
 const count = (page: Page, metric: string) => page.locator(`[data-glance-tab="${metric}"] [data-number]`).getByTestId('number-count')
-const section = (page: Page, id: string) => page.locator(`[data-glance-section="${id}"]`)
+/** A section by its kind (`trend`), or a chart by its tab id. */
+const section = (page: Page, id: string) => page.locator(`[data-glance-section="${id}"], [data-chart="${id}"]`)
+const rows = (page: Page, id: string) => section(page, id).locator('[data-breakdown-row]')
 const saveButton = (page: Page) => page.getByTestId('layout-save')
 
 test('a cold-loaded layout of glance widgets renders their counts and the rows’ chips', async ({ page }) => {
@@ -61,11 +63,11 @@ test('a cold-loaded layout of glance widgets renders their counts and the rows�
   await expect(wsTab(page, 'overdue')).toContainText('Overdue')
 
   // Tags: assignments loaded on a cold load too.
-  await expect(section(page, 'tags').locator('[data-tag-row]')).toHaveCount(3)
+  await expect(rows(page, 'tags')).toHaveCount(3)
 
   // People: assignments loaded on a cold load (not everything "Unassigned").
-  await expect(section(page, 'people').locator('[data-person-row]')).toHaveCount(3)
-  await expect(section(page, 'people').locator('[data-person-row="none"]')).toContainText('2')
+  await expect(rows(page, 'people')).toHaveCount(3)
+  await expect(section(page, 'people').locator('[data-breakdown-row="none"] [data-testid="breakdown-figure"]')).toHaveText('2')
   await expect(section(page, 'status')).toContainText('4 open')
 })
 
@@ -79,13 +81,14 @@ test('the top-bar filter turns counts into shown of total', async ({ page }) => 
   await expect(count(page, 'urgent')).toHaveText('1of 2')
   await expect(count(page, 'overdue')).toHaveText('0of 1')
   await expect(count(page, 'followupDue')).toHaveText('0of 1')
-  await expect(section(page, 'status')).toContainText('2 of 4 open')
-  await expect(section(page, 'people').locator('[data-person-row]')).toHaveCount(2)
+  // A Breakdown counts what the top bar shows.
+  await expect(section(page, 'status')).toContainText('2 open')
+  await expect(rows(page, 'people')).toHaveCount(2)
 })
 
 test('a tab’s setting and a new widget are layout changes', async ({ page }) => {
   await seedWorkspace(page, seedWith())
-  await expect(section(page, 'people').locator('[data-person-row="none"]')).toBeVisible()
+  await expect(section(page, 'people').locator('[data-breakdown-row="none"]')).toBeVisible()
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 
   // People's Unassigned row, hidden from its tab menu.
@@ -94,7 +97,7 @@ test('a tab’s setting and a new widget are layout changes', async ({ page }) =
   await wsTab(page, 'people').click({ button: 'right' })
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: /^Unassigned/ }).click()
   await page.getByRole('menuitemradio', { name: 'Hidden', exact: true }).click()
-  await expect(section(page, 'people').locator('[data-person-row="none"]')).toHaveCount(0)
+  await expect(section(page, 'people').locator('[data-breakdown-row="none"]')).toHaveCount(0)
   await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
   await page.getByTestId('layout-save').click()
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
@@ -112,11 +115,15 @@ test('a tab’s setting and a new widget are layout changes', async ({ page }) =
 test('narrow section cells keep their parts inside: People keeps the names, Created vs completed its stats and key', async ({ page }) => {
   // Three sections side by side in a wide column: each cell about 350px wide.
   await seedWorkspace(page, seedWith([
-    { id: 'c2', weight: 3, rows: [{ cells: (['people', 'trend', 'status'] as const).map((kind) => ({ id: `narrow-${kind}`, tabs: [{ id: `narrow-${kind}-tab`, kind }] })) }] },
+    { id: 'c2', weight: 3, rows: [{ cells: [
+      { id: 'narrow-people', tabs: [{ id: 'narrow-people-tab', kind: 'breakdown', glance: { name: 'People', splitBy: 'people' } }] },
+      { id: 'narrow-trend', tabs: [{ id: 'narrow-trend-tab', kind: 'trend' }] },
+      { id: 'narrow-status', tabs: [{ id: 'narrow-status-tab', kind: 'breakdown', glance: { name: 'Status', splitBy: 'status' } }] },
+    ] }] },
   ]))
   const people = page.locator('[data-glance-tab="narrow-people-tab"]')
   const trend = page.locator('[data-glance-tab="narrow-trend-tab"]')
-  await expect(people.locator('[data-person-row]').first()).toBeVisible()
+  await expect(people.locator('[data-breakdown-row]').first()).toBeVisible()
   await expect(trend.locator('[data-glance-section="trend"]')).toBeVisible()
 
   // Nothing drawn past a section's right edge (a cut title's ellipsis box excepted).
@@ -131,8 +138,8 @@ test('narrow section cells keep their parts inside: People keeps the names, Crea
   expect(await spill(people)).toEqual([])
   expect(await spill(trend)).toEqual([])
 
-  // People: each name keeps room to read (the bar goes first).
-  const names = await people.locator('[data-person-row]').evaluateAll((rows) => rows.map((r) => r.firstElementChild!.getBoundingClientRect().width))
+  // People: each name keeps room to read (the bar and Priority go first).
+  const names = await people.locator('[data-breakdown-row]').evaluateAll((rows) => rows.map((r) => r.firstElementChild!.getBoundingClientRect().width))
   for (const w of names) expect(w).toBeGreaterThan(60)
 })
 
@@ -147,7 +154,7 @@ test.describe('on a phone', () => {
         name: 'Glance',
         columns: [{ id: 'c1', rows: [
           { id: 'charts', cells: [{ id: 'k-trend', tabs: [{ id: 'trend', kind: 'trend' }] }] },
-          { id: 'more', cells: [{ id: 'k-status', tabs: [{ id: 'status', kind: 'status' }] }] },
+          { id: 'more', cells: [{ id: 'k-status', tabs: [{ id: 'status', kind: 'breakdown', glance: { name: 'Status', splitBy: 'status' } }] }] },
         ] }],
       }],
     })

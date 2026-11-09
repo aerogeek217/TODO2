@@ -1,10 +1,5 @@
-import type { ShownOfTotal } from '../../../hooks/use-glance-data'
-import type { PeopleStats } from '../../../services/stats/people'
-import type { StatusBreakdownEntry } from '../../../services/stats/status-breakdown'
-import type { TagStats } from '../../../services/stats/tags'
 import type { TrendStats } from '../../../services/stats/trend'
 import { escapeHtml } from '../../../utils/html'
-import { countOf } from './glance-copy'
 
 /** A glance widget's lines as text, for its tab menu's Copy. */
 export interface GlanceSummary {
@@ -17,22 +12,6 @@ export interface GlanceSummary {
 export interface SummaryPart {
   label: string
   count: string
-}
-
-/** A tag's open counts, as the Tags section and widget show them. */
-export interface TagsSummaryData {
-  tags: ShownOfTotal<TagStats>
-}
-
-/** Tags: `#q4 5 · #home 1 · No tag 3` (No tag only while the row shows); none when there's nothing to list. */
-export function tagsLine(data: TagsSummaryData, showUntagged: boolean): SummaryPart[] {
-  const { shown, total } = data.tags
-  const totalOpen = new Map(total.rows.map((r) => [r.tag.id, r.ids.length]))
-  const parts = shown.rows.map((r) => ({ label: `#${r.tag.name}`, count: countOf(r.ids.length, totalOpen.get(r.tag.id) ?? r.ids.length) }))
-  if (showUntagged && shown.untagged.ids.length > 0) {
-    parts.push({ label: 'No tag', count: countOf(shown.untagged.ids.length, total.untagged.ids.length) })
-  }
-  return parts
 }
 
 // ── A glance widget's lines (its tab menu's Copy) ────────────────────────────
@@ -50,29 +29,6 @@ export function trendLines(trend: TrendStats | null, rangeLabel: string, signedN
       { label: 'Net', count: signedNet(trend.net) },
     ],
   ]
-}
-
-/** Status: `Status 12 open`, then each status with open tasks, `Waiting 3 · In progress 2 · …`. */
-export function statusLines(status: ShownOfTotal<StatusBreakdownEntry[]>): SummaryPart[][] {
-  const open = status.shown.reduce((n, e) => n + e.count, 0)
-  const openTotal = status.total.reduce((n, e) => n + e.count, 0)
-  return [
-    [{ label: 'Status', count: `${countOf(open, openTotal)} open` }],
-    status.shown.filter((e) => e.count > 0).map((e) => ({ label: e.label, count: String(e.count) })),
-  ]
-}
-
-/** People: each person's open tasks, `Aisha 3 · Ben 2 · Unassigned 1`. */
-export function peopleLines(people: PeopleStats, showUnassigned: boolean): SummaryPart[][] {
-  const parts = people.rows.map((r) => ({ label: r.person.name, count: String(r.ids.length) }))
-  if (showUnassigned && people.unassigned.ids.length > 0) parts.push({ label: 'Unassigned', count: String(people.unassigned.ids.length) })
-  return [[{ label: 'People', count: '' }], parts]
-}
-
-/** Tags: `Tags 9 tagged`, then `tagsLine`. */
-export function tagsLines(data: TagsSummaryData, showUntagged: boolean): SummaryPart[][] {
-  const { shown, total } = data.tags
-  return [[{ label: 'Tags', count: `${countOf(shown.taggedIds.length, total.taggedIds.length)} tagged` }], tagsLine(data, showUntagged)]
 }
 
 /** A Number: `Overdue 3`, then its sub-line (when it has one). */

@@ -2,15 +2,11 @@ import { useMemo } from 'react'
 import type { PersistedTodoItem, Tag, TodoEvent, TodoPredicate } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
 import { TREND_RANGES, type NumberConfig, type TrendRange } from '../models/glance-widgets'
-import { groupRestrictions } from '../services/build-list'
 import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
 import { filterHistory, historyExactness, type HistoryExactness } from '../services/stats/filter-history'
 import { numberHistoryDays, numberIds, numberStages } from '../services/stats/number-count'
-import { computePeopleStats, type PeopleStats } from '../services/stats/people'
 import { computePulse, type PulseCard } from '../services/stats/pulse'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
-import { selectStatusBreakdown, type StatusBreakdownEntry } from '../services/stats/status-breakdown'
-import { computeTagStats, type TagStats } from '../services/stats/tags'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListDraftStore } from '../stores/list-draft-store'
@@ -148,41 +144,6 @@ export function useScreenTasks(): PersistedTodoItem[] {
 // ── The parts ───────────────────────────────────────────────────────────────
 
 type Tasks = readonly PersistedTodoItem[]
-
-/**
- * A statistic over the screen-filtered tasks and over every task, each half
- * memoized on its own tasks: a screen filter change recomputes only the
- * shown half, and the pair keeps its identity while both halves do. `slots`:
- * the input sets each keeps (one per choice of its option).
- */
-function shownOfTotalMemo<O extends readonly unknown[], T>(compute: (tasks: Tasks, ...opts: O) => T, slots = 1) {
-  const shownHalf = sharedMemo((tasks: Tasks, ...opts: O) => compute(tasks, ...opts), slots)
-  const totalHalf = sharedMemo((tasks: Tasks, ...opts: O) => compute(tasks, ...opts), slots)
-  const pair = sharedMemo((shown: T, total: T): ShownOfTotal<T> => ({ shown, total }), slots)
-  return (shown: Tasks, todos: Tasks, ...opts: O): ShownOfTotal<T> => pair(shownHalf(shown, ...opts), totalHalf(todos, ...opts))
-}
-
-const statusMemo = shownOfTotalMemo((tasks: Tasks, statuses: StatsContext['statuses']) => selectStatusBreakdown(tasks, statuses))
-export function useStatusStats(base: StatsBase): ShownOfTotal<StatusBreakdownEntry[]> {
-  return statusMemo(base.shown, base.todos, base.ctx.statuses)
-}
-
-// The People / Tags rows narrow by the top bar's `@` / `#` picks (its chips' and its lens's), as a list grouped so does.
-const peopleMemo = sharedMemo((shown: Tasks, ctx: StatsContext, screen: FilterCriteria): PeopleStats => (
-  computePeopleStats(shown, ctx, groupRestrictions('personIds', undefined, screen))
-))
-export function usePeopleStats(base: StatsBase): PeopleStats {
-  return peopleMemo(base.shown, base.ctx, base.screen)
-}
-
-const tagsShownMemo = sharedMemo((shown: Tasks, ctx: StatsContext, screen: FilterCriteria): TagStats => (
-  computeTagStats(shown, ctx, groupRestrictions('tags', undefined, screen))
-))
-const tagsTotalMemo = sharedMemo((todos: Tasks, ctx: StatsContext): TagStats => computeTagStats(todos, ctx))
-const tagsPairMemo = sharedMemo((shown: TagStats, total: TagStats): ShownOfTotal<TagStats> => ({ shown, total }))
-export function useTagStats(base: StatsBase): ShownOfTotal<TagStats> {
-  return tagsPairMemo(tagsShownMemo(base.shown, base.ctx, base.screen), tagsTotalMemo(base.todos, base.ctx))
-}
 
 const trendMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext, range: TrendRange): TrendStats => (
   computeTrend(shown, events, ctx, range)

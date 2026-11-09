@@ -18,7 +18,7 @@ import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { applyFilter } from '../../../utils/filter-match'
 import { numberIds } from '../../../services/stats/number-count'
-import { computeTagStats } from '../../../services/stats/tags'
+import { computeBreakdown } from '../../../services/stats/breakdown'
 import { computePulse } from '../../../services/stats/pulse'
 import { SHARED_MEMO_WARNING } from '../../../utils/shared-memo'
 import { useFilterStore } from '../../../stores/filter-store'
@@ -38,9 +38,9 @@ vi.mock('../../../services/stats/number-count', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../../services/stats/number-count')>()
   return { ...actual, numberIds: vi.fn(actual.numberIds) }
 })
-vi.mock('../../../services/stats/tags', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../../../services/stats/tags')>()
-  return { ...actual, computeTagStats: vi.fn(actual.computeTagStats) }
+vi.mock('../../../services/stats/breakdown', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../services/stats/breakdown')>()
+  return { ...actual, computeBreakdown: vi.fn(actual.computeBreakdown) }
 })
 // And one with options: a memo keeps one input set per choice (A9).
 vi.mock('../../../services/stats/pulse', async (importOriginal) => {
@@ -82,7 +82,7 @@ describe('glance widgets share their data', () => {
   })
 
   it('a Neglect map beside them reads the same base: still one screen-filter pass', () => {
-    const tabs: GlanceTab[] = [numberTab('n'), createTab('tags', 't') as GlanceTab]
+    const tabs: GlanceTab[] = [numberTab('n'), createTab('breakdown', 't', { breakdown: { splitBy: 'tags' } }) as GlanceTab]
     const neglect: NeglectTab = { id: 'm', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } }
     render(
       <DndContext>
@@ -98,12 +98,12 @@ describe('glance widgets share their data', () => {
   it('a status update or subtask write that keeps the same tasks on screen recomputes no statistic', () => {
     const tabs: GlanceTab[] = [
       numberTab('n'),
-      createTab('tags', 't') as GlanceTab,
+      createTab('breakdown', 't', { breakdown: { splitBy: 'tags' } }) as GlanceTab,
       createTab('pulse', 'p') as GlanceTab,
     ]
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
     vi.mocked(numberIds).mockClear()
-    vi.mocked(computeTagStats).mockClear()
+    vi.mocked(computeBreakdown).mockClear()
     vi.mocked(applyFilter).mockClear()
     act(() => { useStatusUpdateStore.setState({ byTodo: new Map([[SAMPLE_TASKS[0]!.id, []]]) }) })
     act(() => { useSubtaskStore.setState({ byTodo: new Map([[SAMPLE_TASKS[0]!.id, []]]) }) })
@@ -111,18 +111,19 @@ describe('glance widgets share their data', () => {
     expect(vi.mocked(applyFilter)).toHaveBeenCalledTimes(2)
     // …but keeps the same tasks, so every part hits its memo.
     expect(vi.mocked(numberIds)).not.toHaveBeenCalled()
-    expect(vi.mocked(computeTagStats)).not.toHaveBeenCalled()
+    expect(vi.mocked(computeBreakdown)).not.toHaveBeenCalled()
   })
 
-  it('a screen filter change recomputes the shown half only; the every-task totals stay', () => {
-    const tabs: GlanceTab[] = [numberTab('n'), createTab('tags', 't') as GlanceTab]
+  it('a screen filter change recomputes the shown half only (once per filter on screen); the every-task totals stay', () => {
+    const tabs: GlanceTab[] = [numberTab('n'), createTab('breakdown', 't', { breakdown: { splitBy: 'tags' } }) as GlanceTab]
     render(<DndContext>{tabs.map((t) => <GlanceWidget key={t.id} tab={t} />)}</DndContext>)
     vi.mocked(numberIds).mockClear()
-    vi.mocked(computeTagStats).mockClear()
+    vi.mocked(computeBreakdown).mockClear()
     act(() => { useFilterStore.getState().setAllFilters({ ...useFilterStore.getState().filters, tags: new Set([TAGS[0]!.id]) }) })
-    expect(vi.mocked(numberIds)).toHaveBeenCalledTimes(1)
+    // The Number's filter and the Breakdown's, each over the shown tasks.
+    expect(vi.mocked(numberIds)).toHaveBeenCalledTimes(2)
     expect(vi.mocked(numberIds).mock.calls[0]![1].length).toBeLessThan(SAMPLE_TASKS.length)
-    expect(vi.mocked(computeTagStats)).toHaveBeenCalledTimes(1)
+    expect(vi.mocked(computeBreakdown)).toHaveBeenCalledTimes(1)
   })
 
   it('a dozen widgets, options differing, still hit on a re-render: no part recomputes and no memo warns', () => {
@@ -132,6 +133,8 @@ describe('glance widgets share their data', () => {
       ...WIDGET_KINDS.filter(isGlanceKind).filter((k) => k !== 'pulse').map((k) => createTab(k, `w-${k}`) as GlanceTab),
       numberTab('n2', 'focus'),
       numberTab('n3', 'dueToday'),
+      createTab('breakdown', 'b-tags', { breakdown: { splitBy: 'tags' } }) as GlanceTab,
+      createTab('breakdown', 'b-status', { breakdown: { splitBy: 'status', style: 'stacked' } }) as GlanceTab,
       { id: 'p1', kind: 'pulse', config: { tagIds: [TAGS[0]!.id!] } },
       { id: 'p2', kind: 'pulse', config: { tagIds: [TAGS[1]!.id!] } },
       { id: 'p12', kind: 'pulse', config: { tagIds: [TAGS[0]!.id!, TAGS[1]!.id!] } },
@@ -143,11 +146,11 @@ describe('glance widgets share their data', () => {
     const { rerender } = render(tree())
     // Once per tag pick on screen.
     expect(vi.mocked(computePulse)).toHaveBeenCalledTimes(5)
-    for (const fn of [applyFilter, numberIds, computeTagStats, computePulse]) vi.mocked(fn).mockClear()
+    for (const fn of [applyFilter, numberIds, computeBreakdown, computePulse]) vi.mocked(fn).mockClear()
     for (let i = 0; i < 4; i++) rerender(tree())
     expect(vi.mocked(applyFilter)).not.toHaveBeenCalled()
     expect(vi.mocked(numberIds)).not.toHaveBeenCalled()
-    expect(vi.mocked(computeTagStats)).not.toHaveBeenCalled()
+    expect(vi.mocked(computeBreakdown)).not.toHaveBeenCalled()
     expect(vi.mocked(computePulse)).not.toHaveBeenCalled()
     // A task write: each part recomputes once per option on screen, never per widget.
     act(() => { useTodoStore.setState({ todos: SAMPLE_TASKS.map((t) => (t.id === SAMPLE_TASKS[0]!.id ? { ...t, title: 'Renamed' } : t)) }) })

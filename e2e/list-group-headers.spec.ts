@@ -185,7 +185,7 @@ const DASH: WorkspaceSeed = {
   ],
   layouts: [{
     name: 'Dash',
-    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'tags' }] })] }],
+    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'breakdown', glance: { name: 'Tags', splitBy: 'tags' } }] })] }],
   }],
 }
 
@@ -212,9 +212,9 @@ function groupLooks(root: Locator, groupSelector: string) {
 test('the task dialog’s groups (a Tags count’s) take the same headers, rows without hairlines', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, DASH)
-  const section = page.locator('[data-glance-section="tags"]')
+  const section = page.locator('[data-chart="dash"]')
   // The tag assignments load after the tasks.
-  await expect(section.locator('[data-tag-row]').first()).toContainText('#q4')
+  await expect(section.locator('[data-breakdown-row]').first()).toContainText('#q4')
 
   await section.getByTestId('glance-section-count').click()
   const dialog = page.locator('[data-task-dialog]')
