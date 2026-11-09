@@ -404,16 +404,19 @@ function MenuPanel({ panelRef, entries, label, className, style, caret, openInde
   const dragIds = onReorder
     ? entries.flatMap((e) => (e.kind === 'item' && e.dragId != null ? [e.dragId] : []))
     : []
+  // One left edge: once any item has an icon, the others keep its slot empty.
+  const gutter = entries.some((e) => (e.kind === 'item' || e.kind === 'stepper') && e.icon != null)
   const items = entries.map((entry, i) => {
     if (entry.kind === 'separator') return <div key={i} className={styles.separator} role="separator" />
     if (entry.kind === 'label') return <div key={i} className={styles.groupLabel} role="presentation">{entry.text}</div>
     if (entry.kind === 'note') return <div key={i} className={styles.footnote}>{entry.text}</div>
-    if (entry.kind === 'stepper') return <MenuStepper key={i} entry={entry} />
+    if (entry.kind === 'stepper') return <MenuStepper key={i} entry={entry} gutter={gutter} />
     if (entry.kind === 'segmented') return <MenuSegmented key={i} entry={entry} />
     const props: MenuItemButtonProps = {
       entry,
       index: i,
       expanded: entry.children ? openIndex === i : undefined,
+      gutter,
       onSelect,
       onHoverItem,
     }
@@ -472,10 +475,10 @@ function MenuReorder({ ids, onReorder, children }: {
  * keeps the focus — a `disabled` one would drop it to the page, and the
  * menu's keys with it.
  */
-function MenuStepper({ entry }: { entry: MenuStepperEntry }) {
+function MenuStepper({ entry, gutter }: { entry: MenuStepperEntry; gutter: boolean }) {
   return (
     <div className={styles.stepper} role="group" aria-label={entry.label} data-menu-stepper="">
-      {entry.icon && <span className={styles.icon}>{entry.icon}</span>}
+      {entry.icon ? <span className={styles.icon}>{entry.icon}</span> : gutter && <span className={styles.iconSlot} aria-hidden="true" />}
       <span className={styles.label}>{entry.label}</span>
       <StepButton label={entry.decrementLabel} onStep={entry.onDecrement}><MinusIcon size={12} /></StepButton>
       <span className={styles.stepValue} aria-live="polite" data-menu-stepper-value="">{entry.value}</span>
@@ -526,6 +529,8 @@ interface MenuItemButtonProps {
   entry: MenuItemEntry
   index: number
   expanded: boolean | undefined
+  /** Another item of the panel has an icon: an item without one keeps the slot empty (one left edge). */
+  gutter: boolean
   onSelect: (entry: MenuItemEntry, index: number, viaKeyboard: boolean) => void
   onHoverItem?: (index: number, entry: MenuItemEntry) => void
 }
@@ -545,7 +550,7 @@ function SortableMenuItem({ dragId, ...props }: MenuItemButtonProps & { dragId: 
   )
 }
 
-function MenuItemButton({ entry, index: i, expanded, onSelect, onHoverItem, sortable }: MenuItemButtonProps & {
+function MenuItemButton({ entry, index: i, expanded, gutter, onSelect, onHoverItem, sortable }: MenuItemButtonProps & {
   sortable?: {
     ref: (el: HTMLElement | null) => void
     listeners: ReturnType<typeof useSortable>['listeners']
@@ -589,7 +594,9 @@ function MenuItemButton({ entry, index: i, expanded, onSelect, onHoverItem, sort
       onClick={(e) => onSelect(entry, i, e.detail === 0)}
     >
       {radioDot && <span className={styles.radio} aria-hidden="true" />}
-      {entry.icon && <span className={styles.icon}>{entry.icon}</span>}
+      {entry.icon
+        ? <span className={styles.icon}>{entry.icon}</span>
+        : gutter && !radioDot && <span className={styles.iconSlot} aria-hidden="true" />}
       {entry.description ? (
         <span className={styles.labelBlock}>
           <span className={styles.labelLine}>
