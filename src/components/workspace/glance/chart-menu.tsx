@@ -2,7 +2,6 @@ import {
   BREAKDOWN_SORT_KEYS,
   BREAKDOWN_SPLITS,
   BREAKDOWN_STYLES,
-  STATUS_FLOW_WEEK_CHOICES,
   type BreakdownSort,
 } from '../../../models/chart-widgets'
 import type { TabBadgeRange, TabBadgeRanges } from '../../../models/list-definition'
@@ -142,12 +141,6 @@ export function chartSettingEntries(tab: ChartTab): MenuEntry[] {
         { kind: 'item', label: 'Edit pivot…', onSelect: () => openChartEditor(tab.id) },
         settingEntry('Rows', SPLIT_CHOICES, tab.config.rows, (rows) => ws().patchTabConfig(tab.id, 'pivot', { rows })),
         settingEntry('Columns', SPLIT_CHOICES, tab.config.cols, (cols) => ws().patchTabConfig(tab.id, 'pivot', { cols })),
-      ]
-    case 'statusFlow':
-      return [
-        { kind: 'item', label: 'Edit status flow…', onSelect: () => openChartEditor(tab.id) },
-        settingEntry('Weeks', STATUS_FLOW_WEEK_CHOICES.map((w) => ({ value: w, label: `${w} weeks` })), tab.config.weeks,
-          (weeks) => ws().patchTabConfig(tab.id, 'statusFlow', { weeks })),
       ]
     case 'tagMap':
       return [

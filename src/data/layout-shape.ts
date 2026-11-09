@@ -37,10 +37,8 @@ import {
   pickBreakdownConfig,
   pickBreakdownView,
   pickPivotConfig,
-  pickStatusFlowConfig,
   pickTagMapConfig,
   pivotConfigProblem,
-  statusFlowConfigProblem,
   tagMapConfigProblem,
 } from '../models/chart-widgets'
 import type { TodoPredicate } from '../models/filter-predicate'
@@ -209,10 +207,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       const bad = pivotConfigProblem(config)
       return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
     }
-    case 'statusFlow': {
-      const bad = statusFlowConfigProblem(config)
-      return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
-    }
     case 'tagMap': {
       const bad = tagMapConfigProblem(config)
       return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
@@ -270,6 +264,16 @@ function idTracker(): (id: string) => boolean {
   }
 }
 
+/**
+ * Kinds removed while the schema stayed at v78 — the Status flow chart
+ * (D26 P8, shipped in v78) —: a v78 file may hold one, and no upgrade
+ * runs on it, so its tab passes the check (import, a restore and the sync
+ * file take the file) and the repair drops it as an unknown kind (a fix:
+ * `Fixed 1 layout`; a stored layout opens unsaved), its emptied cell
+ * closing.
+ */
+const REMOVED_IN_V78: ReadonlySet<unknown> = new Set(['statusFlow'])
+
 /** `true` when every tab of a strip is valid, else the path of the first bad field. */
 function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) => boolean): true | string {
   for (let t = 0; t < tabs.length; t++) {
@@ -277,6 +281,7 @@ function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) =
     const tp = `${path}.tabs[${t}]`
     if (!isRecord(tab)) return tp
     if (!isId(tab.id) || !fresh(tab.id)) return `${tp}.id`
+    if (REMOVED_IN_V78.has(tab.kind)) continue
     if (!isWidgetKind(tab.kind)) return `${tp}.kind`
     const settings = checkTabSettings(tab, tab.kind, tp)
     if (settings !== true) return settings
@@ -394,7 +399,8 @@ interface PickedCell {
  * (v77 converted every one), and `followup`, `next7`, `stale`, `recent`,
  * `changes`, `today` and `eisenhowerSummary` (v78 dropped or converted
  * every one) — is an unknown kind, dropped like one, and a cell it leaves
- * without tabs closes.
+ * without tabs closes. A Status flow tab (`REMOVED_IN_V78`) passes the
+ * check but is dropped the same way, reported in `fixes`.
  *
  * Past `LAYOUT_PART_LIMIT` tracks, cells or tabs in the layout, the rest are
  * dropped and reported in `fixes`.
@@ -524,8 +530,6 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'pivot':
         return { id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) }
-      case 'statusFlow':
-        return { id, kind: 'statusFlow', config: glance(pickStatusFlowConfig(config, chartFilterOf(config))) }
       case 'tagMap':
         return { id, kind: 'tagMap', config: glance(pickTagMapConfig(config, chartFilterOf(config))) }
     }

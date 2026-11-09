@@ -3,8 +3,8 @@ import { rowFixes, sanitizeRow, validateRow } from '../../data/import-validation
 import { checkLayoutBody } from '../../data/layout-shape'
 import { emptyPredicate } from '../../models/filter-predicate'
 import { breakdownPreset, newBreakdownConfig } from '../../models/chart-widgets'
-import { createTab, kindTabTitle, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { single } from '../helpers/layout-builders'
+import { createTab, isWidgetKind, kindTabTitle, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
+import { cell, grid, single } from '../helpers/layout-builders'
 
 const DATE = '2026-09-01T09:00:00.000Z'
 
@@ -90,16 +90,36 @@ describe('a Pivot in a stored layout (D26 P8)', () => {
   })
 })
 
-describe('a Status flow in a stored layout (D26 P8)', () => {
-  it('round-trips; bad weeks or a bad name are reset (a fix)', () => {
-    const tab = { id: 't', kind: 'statusFlow', config: { name: 'Flow', filter: emptyPredicate(), weeks: 12 } }
-    expect(validateRow('layouts', layoutRow(tab))).toBe(true)
-    expect(tabOf(layoutRow(tab))).toEqual(tab)
-    expect(createTab('statusFlow', 's').config).toEqual({ name: 'Status flow', filter: emptyPredicate(), weeks: 8 })
-    const bad = layoutRow({ ...tab, config: { ...tab.config, weeks: 10 } })
-    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.weeks')
-    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
-    expect((tabOf(bad)?.config as { weeks: number }).weeks).toBe(8)
+describe('a Status flow saved before it was removed (v78)', () => {
+  const flow = { id: 'gone', kind: 'statusFlow', config: { name: 'Flow', filter: emptyPredicate(), weeks: 12 } }
+  const notes = { id: 'n', kind: 'notes', config: {} }
+
+  it('is no widget kind any more', () => {
+    expect(isWidgetKind('statusFlow')).toBe(false)
+  })
+
+  it('passes the check, so a v78 file holding one still imports; the repair drops it (a fix) and its emptied cell closes', () => {
+    const row = { id: 1, name: 'Charts', sortOrder: 0, createdAt: DATE, modifiedAt: DATE,
+      ...grid([[cell('a', [flow as unknown as LayoutTab]), cell('b', [notes as LayoutTab])]]) }
+    expect(validateRow('layouts', row)).toBe(true)
+    expect(rowFixes('layouts', row)).toEqual(['tab dropped'])
+    const picked = sanitizeRow('layouts', row) as WorkspaceLayout
+    expect(picked.cells.map((c) => c.id)).toEqual(['b'])
+    expect(picked.cells[0]!.area).toEqual({ col: 0, row: 0, colSpan: 1, rowSpan: 1 })
+    expect(picked.cells[0]!.tabs).toEqual([notes])
+  })
+
+  it('beside another tab, only it goes', () => {
+    const row = layoutRow(flow)
+    const body = { ...row, cells: [{ ...(row.cells as WorkspaceLayout['cells'])[0]!, tabs: [notes, flow] }] }
+    expect(validateRow('layouts', body)).toBe(true)
+    expect((sanitizeRow('layouts', body) as WorkspaceLayout).cells[0]!.tabs).toEqual([notes])
+  })
+
+  it('still needs a fresh id', () => {
+    const row = layoutRow(flow)
+    const body = { ...row, cells: [{ ...(row.cells as WorkspaceLayout['cells'])[0]!, tabs: [notes, { ...flow, id: 'n' }] }] }
+    expect(checkLayoutBody(body)).toBe('cells[0].tabs[1].id')
   })
 })
 
