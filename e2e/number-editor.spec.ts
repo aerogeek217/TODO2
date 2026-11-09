@@ -56,7 +56,7 @@ test('add a Number, type a filter, see its count and its tasks', async ({ page }
   await expect(dialog.locator('[data-todo-id]')).toHaveCount(2)
   await expect(dialog).toContainText('Atlas late one')
   await expect(dialog).toContainText('Atlas late two')
-  await expect(dialog).toContainText('#"Project: Atlas"')
+  await expect(dialog).toContainText('Overdue · #Project: Atlas')
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
 
