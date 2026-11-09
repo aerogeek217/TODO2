@@ -66,7 +66,7 @@ function showCell() {
 
 function openTabMenu(): HTMLElement {
   fireEvent.contextMenu(document.querySelector('[data-ws-tab="mine"]')!)
-  return screen.getByRole('menu', { name: 'Change widget' })
+  return screen.getByRole('menu', { name: 'Cell options' })
 }
 
 const paletteCommands = () => createCommands({ shortcuts: {} } as unknown as CommandContext)
