@@ -12,9 +12,10 @@ import { hasFilterClause } from '../../../utils/filter-clauses'
 import { rowOrderOf, sortedRows, withoutChipRow, withoutPriorityRow, withRowsAdded, type ChipRef, type RowOrder } from '../../../utils/filter-row-order'
 import { asExpression, asGraphical, withExpression } from '../../../utils/predicate-expression'
 import { MenuPopover, type MenuEntry } from '../MenuPopover'
-import { FunnelIcon, InfoIcon, PlusIcon } from '../icons'
+import { InfoIcon, PlusIcon } from '../icons'
 import { useTooltip } from '../use-tooltip'
 import { ExpressionField } from './ExpressionField'
+import { ExpressionWords } from './ExpressionWords'
 import { ADD_FILTER_ITEMS, useChipNames } from './filter-menu'
 import { PredicateFieldPicker, PredicateFieldPickerBody } from './PredicateFieldPicker'
 import type { DateFilterHost } from './DateFilterPanel'
@@ -69,9 +70,9 @@ interface PredicateChipsProps {
    */
   layout?: 'line' | 'stack'
   /**
-   * The line layout, for a filter written as an expression (shown as one
-   * chip holding its text): opens where it is edited (Edit list). Absent:
-   * the chip only shows it.
+   * The line layout, for a filter written as an expression (read back in
+   * words, `ExpressionWords`): opens where it is edited (Edit list). Absent:
+   * the line only shows it.
    */
   onOpenExpression?: () => void
   /**
@@ -97,7 +98,8 @@ interface PredicateChipsProps {
  * filters the same (`ExpressionField` edits it); Graphical turns an
  * expression back into chips when every top-level term is one, else offers
  * Edit expression or Clear and use Graphical. On the list's filter line an
- * expression shows as one chip holding its text.
+ * expression is read back in words (`ExpressionWords`; its exact text in the
+ * tooltip).
  */
 export function PredicateChips(props: PredicateChipsProps) {
   const { predicate, onChange, before, layout = 'line', omitFields, onOpenExpression } = props
@@ -127,11 +129,11 @@ export function PredicateChips(props: PredicateChipsProps) {
   }
 
   if (layout !== 'stack') {
-    if (!isExpression) return <GraphicalChips {...props} />
+    if (!predicate.expression) return <GraphicalChips {...props} />
     return (
       <>
         {before}
-        <ExpressionChip text={text} onOpen={onOpenExpression} />
+        <ExpressionWords expression={predicate.expression} text={text} onOpen={onOpenExpression} />
       </>
     )
   }
@@ -285,28 +287,6 @@ function FilterModeSwitch({ mode, onGraphical, onExpression, refusal }: {
       {help.tooltip}
       <span className={styles.modeRefusal} role="alert">{refusal}</span>
     </div>
-  )
-}
-
-/** A filter written as an expression on the list's filter line: one chip, its text cut to fit, the whole in its tooltip. */
-function ExpressionChip({ text, onOpen }: { text: string; onOpen?: () => void }) {
-  const tip = useTooltip(onOpen ? `${text}\nClick to edit` : text, { labelLines: 1 })
-  const content = (
-    <>
-      <FunnelIcon />
-      <span className={styles.expressionChipText}>{text}</span>
-    </>
-  )
-  return onOpen ? (
-    <button type="button" className={styles.expressionChip} data-testid="list-filter-expression" onClick={onOpen} {...tip.triggerProps}>
-      {content}
-      {tip.tooltip}
-    </button>
-  ) : (
-    <span className={styles.expressionChip} data-testid="list-filter-expression" tabIndex={0} {...tip.triggerProps}>
-      {content}
-      {tip.tooltip}
-    </span>
   )
 }
 
