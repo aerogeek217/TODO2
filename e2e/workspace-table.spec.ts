@@ -260,7 +260,7 @@ test.describe('the cell menu', () => {
     await openCellMenu(page, 'c')
     await page.getByRole('menuitem', { name: 'Add widget…' }).click()
     const menu = page.getByRole('menu', { name: 'Add widget' })
-    await menu.getByRole('group', { name: 'Where' }).getByRole('menuitemradio', { name: 'Right' }).click()
+    await menu.getByRole('group', { name: 'Where' }).getByRole('menuitemradio', { name: 'Split · right' }).click()
     await menu.getByRole('menuitem', { name: 'Notes', exact: true }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
     const c = await box(wsCell(page, 'c'))

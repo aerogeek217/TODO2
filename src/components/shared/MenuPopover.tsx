@@ -81,15 +81,41 @@ export interface MenuStepperEntry {
   onIncrement?: () => void
 }
 
+/** A place on a picture's grid: its first row and column lines (1-based) and how many tracks it spans (default 1). */
+export interface MenuGridArea {
+  row: number
+  col: number
+  rowSpan?: number
+  colSpan?: number
+}
+
+/** One choice of a {@link MenuPictureEntry}: where it sits, the short text drawn in it, and the words that name it. */
+export interface MenuPictureOption {
+  value: string
+  area: MenuGridArea
+  text?: string
+  description: string
+}
+
 /**
- * A choice among a few values side by side (e.g. where Add widget puts the
- * widget): each a `menuitemradio`, the picked one checked; a pick keeps
- * the menu open.
+ * A choice drawn as a small picture (e.g. where Add widget puts the widget:
+ * the cell, its sides, the layout's edges): its options laid out on a CSS
+ * grid, each a `menuitemradio` named by its `description`, the picked one
+ * checked. Hovering or focusing an option names it under the picture (the
+ * picked one's otherwise); the arrow keys move between options by where
+ * they sit (↑ / ↓ past the picture's edge go on through the menu); Enter,
+ * Space or a click picks it, and the menu stays open.
  */
-export interface MenuSegmentedEntry {
-  kind: 'segmented'
+export interface MenuPictureEntry {
+  kind: 'picture'
   label: string
-  options: ReadonlyArray<{ value: string; label: string; title?: string }>
+  /** The picture's grid: its tracks (`grid-template-columns` / `-rows`) and its height (px). */
+  columns: string
+  rows: string
+  height: number
+  /** An outline drawn around this area, behind the options (e.g. the cell). */
+  frame?: MenuGridArea
+  options: readonly MenuPictureOption[]
   value: string
   onChange: (value: string) => void
 }
@@ -97,7 +123,7 @@ export interface MenuSegmentedEntry {
 export type MenuEntry =
   | MenuItemEntry
   | MenuStepperEntry
-  | MenuSegmentedEntry
+  | MenuPictureEntry
   | { kind: 'separator' }
   | { kind: 'label'; text: string }
   /** A muted, wrapping footnote. */
@@ -140,17 +166,23 @@ const MENU_PADDING_PX = 4
 const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
 
 /**
- * The panel's focusable items in order: its item buttons, a segmented
- * choice's buttons, and a stepper's − / + buttons — one at its end
- * (`aria-disabled`) only while it has the focus, so the arrows go on from
- * where it is.
+ * The panel's focusable items in order: its item buttons, a picture's
+ * focused option (its picked one while none has the focus), and a
+ * stepper's − / + buttons — one at its end (`aria-disabled`) only while it
+ * has the focus, so the arrows go on from where it is.
  */
 function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
-  return panel
-    ? Array.from(panel.querySelectorAll<HTMLButtonElement>(
-      ':scope > button:not([disabled]), :scope > [data-menu-segmented] > button, :scope > [data-menu-stepper] > button:not([aria-disabled="true"]), :scope > [data-menu-stepper] > button:focus',
-    ))
-    : []
+  if (!panel) return []
+  const found = Array.from(panel.querySelectorAll<HTMLButtonElement>(
+    ':scope > button:not([disabled]), :scope > [data-menu-picture] [data-menu-picture-option], :scope > [data-menu-stepper] > button:not([aria-disabled="true"]), :scope > [data-menu-stepper] > button:focus',
+  ))
+  // A picture is one stop: its focused option, else its picked one.
+  return found.filter((b) => {
+    if (b.dataset.menuPictureOption == null) return true
+    if (b === document.activeElement) return true
+    const picture = b.closest('[data-menu-picture]')
+    return b.getAttribute('aria-checked') === 'true' && !picture?.contains(document.activeElement)
+  })
 }
 
 /**
@@ -411,7 +443,7 @@ function MenuPanel({ panelRef, entries, label, className, style, caret, openInde
     if (entry.kind === 'label') return <div key={i} className={styles.groupLabel} role="presentation">{entry.text}</div>
     if (entry.kind === 'note') return <div key={i} className={styles.footnote}>{entry.text}</div>
     if (entry.kind === 'stepper') return <MenuStepper key={i} entry={entry} gutter={gutter} />
-    if (entry.kind === 'segmented') return <MenuSegmented key={i} entry={entry} />
+    if (entry.kind === 'picture') return <MenuPicture key={i} entry={entry} />
     const props: MenuItemButtonProps = {
       entry,
       index: i,
@@ -487,24 +519,97 @@ function MenuStepper({ entry, gutter }: { entry: MenuStepperEntry; gutter: boole
   )
 }
 
-/** A segmented row: its label, then its options side by side, the picked one pressed. */
-function MenuSegmented({ entry }: { entry: MenuSegmentedEntry }) {
+/** A grid area as CSS `grid-area` (row start / column start / row end / column end). */
+function gridArea(a: MenuGridArea): string {
+  return `${a.row} / ${a.col} / ${a.row + (a.rowSpan ?? 1)} / ${a.col + (a.colSpan ?? 1)}`
+}
+
+/** An area's centre, in grid tracks. */
+function areaCentre(a: MenuGridArea): { x: number; y: number } {
+  return { x: a.col + (a.colSpan ?? 1) / 2, y: a.row + (a.rowSpan ?? 1) / 2 }
+}
+
+/** The arrow keys' directions on a picture. */
+const PICTURE_STEPS: Record<string, { dx: number; dy: number } | undefined> = {
+  ArrowUp: { dx: 0, dy: -1 },
+  ArrowDown: { dx: 0, dy: 1 },
+  ArrowLeft: { dx: -1, dy: 0 },
+  ArrowRight: { dx: 1, dy: 0 },
+}
+
+/**
+ * The option an arrow key moves to from `from`: the nearest one lying that
+ * way (by their centres on the grid; off to the side counts double), or
+ * `undefined` at the picture's edge.
+ */
+function pictureNeighbour(options: readonly MenuPictureOption[], from: string, key: string): MenuPictureOption | undefined {
+  const step = PICTURE_STEPS[key]
+  const start = options.find((o) => o.value === from)
+  if (!step || !start) return undefined
+  const c0 = areaCentre(start.area)
+  let best: MenuPictureOption | undefined
+  let bestScore = Infinity
+  for (const o of options) {
+    if (o === start) continue
+    const c = areaCentre(o.area)
+    const ahead = (c.x - c0.x) * step.dx + (c.y - c0.y) * step.dy
+    if (ahead <= 0) continue
+    const aside = Math.abs(step.dx !== 0 ? c.y - c0.y : c.x - c0.x)
+    const score = ahead + 2 * aside
+    if (score < bestScore) {
+      bestScore = score
+      best = o
+    }
+  }
+  return best
+}
+
+/** A picture row (`MenuPictureEntry`): its label, the drawing of its options, and the words for the one hovered, focused or picked. */
+function MenuPicture({ entry }: { entry: MenuPictureEntry }) {
+  const [shown, setShown] = useState<string | null>(null)
+  const caption = entry.options.find((o) => o.value === (shown ?? entry.value))?.description ?? ''
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (!PICTURE_STEPS[e.key]) return
+    const from = (e.target as HTMLElement).dataset.menuPictureOption
+    if (from == null) return
+    const next = pictureNeighbour(entry.options, from, e.key)
+    // ↑ / ↓ past the picture's edge: the menu's own keys go on to its items.
+    if (!next && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) return
+    e.preventDefault()
+    e.stopPropagation()
+    if (next) Array.from(e.currentTarget.querySelectorAll<HTMLButtonElement>('[data-menu-picture-option]')).find((b) => b.dataset.menuPictureOption === next.value)?.focus()
+  }
   return (
-    <div className={styles.segmented} role="group" aria-label={entry.label} data-menu-segmented="">
-      <span className={styles.segmentedLabel}>{entry.label}</span>
-      {entry.options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          role="menuitemradio"
-          aria-checked={o.value === entry.value}
-          className={`${styles.segment} ${o.value === entry.value ? styles.segmentOn : ''}`}
-          title={o.title}
-          onClick={() => entry.onChange(o.value)}
-        >
-          {o.label}
-        </button>
-      ))}
+    <div className={styles.picture} role="group" aria-label={entry.label} data-menu-picture="" onKeyDown={onKeyDown}>
+      <span className={styles.pictureLabel}>{entry.label}</span>
+      <div
+        className={styles.pictureGrid}
+        style={{ gridTemplateColumns: entry.columns, gridTemplateRows: entry.rows, height: entry.height }}
+        onMouseLeave={() => setShown(null)}
+      >
+        {entry.frame && <span className={styles.pictureFrame} style={{ gridArea: gridArea(entry.frame) }} aria-hidden="true" />}
+        {entry.options.map((o) => (
+          <button
+            key={o.value}
+            type="button"
+            role="menuitemradio"
+            aria-checked={o.value === entry.value}
+            aria-label={o.description}
+            tabIndex={-1}
+            className={`${styles.pictureOption} ${o.value === entry.value ? styles.pictureOptionOn : ''}`}
+            style={{ gridArea: gridArea(o.area) }}
+            data-menu-picture-option={o.value}
+            data-menu-label={o.description}
+            onMouseEnter={() => setShown(o.value)}
+            onFocus={() => setShown(o.value)}
+            onBlur={() => setShown(null)}
+            onClick={() => entry.onChange(o.value)}
+          >
+            {o.text}
+          </button>
+        ))}
+      </div>
+      <span className={styles.pictureCaption} aria-hidden="true" data-menu-picture-caption="">{caption}</span>
     </div>
   )
 }

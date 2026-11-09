@@ -140,21 +140,92 @@ describe('the cell menu', () => {
     expect(added?.area).toEqual({ col: 0, row: 0, colSpan: 1, rowSpan: 2 })
   })
 
-  it('Add widget… asks where first: Below puts the widget in a new cell under it', () => {
+  it('Add widget… asks where first, as a picture: Below puts the widget in a new cell under it', () => {
     const k = cell('k', [createTab('notes', 'n')])
     open(single(k))
     renderCell(k)
     fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Add widget…' }))
     const add = screen.getByRole('menu', { name: 'Add widget' })
     const where = within(add).getByRole('group', { name: 'Where' })
-    expect(within(where).getAllByRole('menuitemradio').map((el) => el.textContent)).toEqual(['Tab', 'Right', 'Below', 'Row', 'Column'])
-    expect(within(where).getByRole('menuitemradio', { name: 'Tab' })).toHaveAttribute('aria-checked', 'true')
-    fireEvent.click(within(where).getByRole('menuitemradio', { name: 'Below' }))
-    expect(within(where).getByRole('menuitemradio', { name: 'Below' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(where).getAllByRole('menuitemradio').map((el) => el.getAttribute('aria-label'))).toEqual([
+      'Insert row · full width, top', 'Insert column · full height, left',
+      'Split · above', 'Split · left', 'Add as tab', 'Split · right', 'Split · below',
+      'Insert column · full height, right', 'Insert row · full width, bottom',
+    ])
+    const caption = () => where.querySelector('[data-menu-picture-caption]')?.textContent
+    // Default: a tab.
+    const tab = within(where).getByRole('menuitemradio', { name: 'Add as tab' })
+    expect(tab).toHaveAttribute('aria-checked', 'true')
+    expect(tab).toHaveTextContent('Tab')
+    expect(caption()).toBe('Add as tab')
+    // Hover names a choice under the picture.
+    fireEvent.mouseEnter(within(where).getByRole('menuitemradio', { name: 'Split · left' }))
+    expect(caption()).toBe('Split · left')
+    fireEvent.click(within(where).getByRole('menuitemradio', { name: 'Split · below' }))
+    expect(within(where).getByRole('menuitemradio', { name: 'Split · below' })).toHaveAttribute('aria-checked', 'true')
     fireEvent.click(within(add).getByRole('menuitem', { name: 'Notes' }))
     expect(working().cells).toHaveLength(2)
     expect(working().cells[1]?.area.row).toBe(1)
     expect(working().cells[1]?.tabs[0]?.kind).toBe('notes')
+  })
+
+  it.each([
+    ['Split · above', { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, 2],
+    ['Split · left', { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, 2],
+    ['Insert row · full width, top', { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, 2],
+    ['Insert column · full height, left', { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, 2],
+    ['Insert row · full width, bottom', { col: 0, row: 1, colSpan: 1, rowSpan: 1 }, 2],
+    ['Insert column · full height, right', { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, 2],
+    ['Split · right', { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, 2],
+    ['Add as tab', { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, 1],
+  ])('Where “%s” puts the new Notes there', (name, area, cells) => {
+    const k = cell('k', [createTab('calendar', 'cal')])
+    open(single(k))
+    renderCell(k)
+    fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Add widget…' }))
+    const add = screen.getByRole('menu', { name: 'Add widget' })
+    fireEvent.click(within(add).getByRole('menuitemradio', { name }))
+    fireEvent.click(within(add).getByRole('menuitem', { name: 'Notes' }))
+    expect(working().cells).toHaveLength(cells)
+    const notes = working().cells.find((c) => c.tabs.some((t) => t.kind === 'notes'))
+    expect(notes?.area).toEqual(area)
+  })
+
+  it('the Where picture: arrow keys move between zones by where they sit, ↓ past the bottom bar goes on to the kinds, Enter picks', () => {
+    const k = cell('k', [createTab('notes', 'n')])
+    open(single(k))
+    renderCell(k)
+    fireEvent.click(within(cellMenu()).getByRole('menuitem', { name: 'Add widget…' }))
+    const add = screen.getByRole('menu', { name: 'Add widget' })
+    const focused = () => document.activeElement?.getAttribute('aria-label') ?? document.activeElement?.textContent
+    expect(focused()).toBe('Add as tab')
+    const key = (k: string) => fireEvent.keyDown(document.activeElement!, { key: k })
+    key('ArrowLeft')
+    expect(focused()).toBe('Split · left')
+    key('ArrowLeft')
+    expect(focused()).toBe('Insert column · full height, left')
+    key('ArrowRight')
+    key('ArrowRight')
+    key('ArrowUp')
+    expect(focused()).toBe('Split · above')
+    key('ArrowUp')
+    expect(focused()).toBe('Insert row · full width, top')
+    key('ArrowDown')
+    key('ArrowDown')
+    key('ArrowDown')
+    expect(focused()).toBe('Split · below')
+    // Moving names it; only Enter (a click) picks it.
+    expect(add.querySelector('[data-menu-picture-caption]')?.textContent).toBe('Split · below')
+    expect(within(add).getByRole('menuitemradio', { name: 'Add as tab' })).toHaveAttribute('aria-checked', 'true')
+    fireEvent.click(document.activeElement!)
+    expect(within(add).getByRole('menuitemradio', { name: 'Split · below' })).toHaveAttribute('aria-checked', 'true')
+    key('ArrowDown')
+    expect(focused()).toBe('Insert row · full width, bottom')
+    key('ArrowDown')
+    expect(document.activeElement?.getAttribute('role')).toBe('menuitem')
+    // ↑ comes back to the picture, on its picked zone.
+    key('ArrowUp')
+    expect(focused()).toBe('Split · below')
   })
 
   it('Collapse row collapses the row tracks the cell covers', () => {
