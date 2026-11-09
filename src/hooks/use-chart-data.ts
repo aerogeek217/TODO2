@@ -1,6 +1,6 @@
 import type { PersistedTodoItem, TodoEvent, TodoPredicate } from '../models'
-import { DEFAULT_BREAKDOWN_OLDEST_BY, STATUS_FLOW_WEEK_CHOICES, type BreakdownConfig, type PivotConfig, type StatusFlowConfig, type TagMapConfig } from '../models/chart-widgets'
-import type { ListTabBadges, TabBadgeRanges } from '../models/list-definition'
+import { chartBadgeRanges, DEFAULT_BREAKDOWN_OLDEST_BY, STATUS_FLOW_WEEK_CHOICES, type BreakdownConfig, type ChartBadges, type PivotConfig, type StatusFlowConfig, type TagMapConfig } from '../models/chart-widgets'
+import type { TabBadgeRanges } from '../models/list-definition'
 import { groupRestrictions } from '../services/build-list'
 import { computeBreakdown, type BreakdownStats } from '../services/stats/breakdown'
 import { historyExactness, type HistoryExactness } from '../services/stats/filter-history'
@@ -17,7 +17,6 @@ import type { FilterSettings } from '../utils/filter-match'
 import type { WeekStart } from '../utils/effective-date'
 import { statusFlowDays } from '../utils/trend-window'
 import { sharedMemo, sharedMemoByKey } from '../utils/shared-memo'
-import { tabBadgeRangesFor } from '../utils/tab-badges'
 import { useNumberCount, type NumberCount, type StatsBase } from './use-glance-data'
 import { useTrendEvents } from './use-trend-events'
 
@@ -56,8 +55,8 @@ export function useChartTasks(base: StatsBase, filter: TodoPredicate): ChartTask
 const OFF: TabBadgeRanges = { due: 'off', followup: 'off' }
 
 /** The Due / Follow-up ranges: the Breakdown's own (`off` = both off), else Settings'. */
-const rangesMemo = sharedMemo(function badgeRanges(own: ListTabBadges | undefined, app: TabBadgeRanges): TabBadgeRanges {
-  return own === 'off' ? OFF : tabBadgeRangesFor(own, app)
+const rangesMemo = sharedMemo(function badgeRanges(own: ChartBadges | undefined, app: TabBadgeRanges): TabBadgeRanges {
+  return own === 'off' ? OFF : own === undefined ? app : chartBadgeRanges(own, app)
 }, 4)
 
 /**

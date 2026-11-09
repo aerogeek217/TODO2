@@ -10,7 +10,8 @@ import { dayKey } from '../utils/date'
  * per (window, day): one indexed read of every created / completed /
  * reopened event (and, for a Number's history, every type a filter's
  * history reads — `trend-window.FILTER_HISTORY_EVENT_TYPES`) since the
- * window's first day. `invalidate` (on any event write, or after a restore)
+ * window's first day — with, for a task the window first sees reopened, its
+ * latest completion before it (`reopenedFirst`). `invalidate` (on any event write, or after a restore)
  * marks every entry stale; a stale entry keeps its events on show until the
  * re-read lands, so the chart never blanks.
  */
@@ -34,6 +35,23 @@ interface TrendEventsState {
 /** The cache key of a trend window (or a Number's history, `history`). */
 export function trendEventsKey(range: EventsWindow, today: Date, weekStartsOn: WeekStart): string {
   return `${range}|${weekStartsOn}|${dayKey(today)}`
+}
+
+/**
+ * The tasks whose first state event in `events` is a reopen: done when the
+ * window starts, by a completion before it the window doesn't hold. Their
+ * latest completion before the window is read too, so a replay knows when
+ * they were done (a "completed within …" filter's past days) instead of
+ * none, or a later completion.
+ */
+function reopenedFirst(events: readonly TodoEvent[]): number[] {
+  const first = new Map<number, TodoEvent>()
+  for (const e of events) {
+    if (e.type !== 'created' && e.type !== 'completed' && e.type !== 'reopened') continue
+    const kept = first.get(e.todoId)
+    if (!kept || e.timestamp < kept.timestamp || (e.timestamp === kept.timestamp && (e.id ?? 0) < (kept.id ?? 0))) first.set(e.todoId, e)
+  }
+  return [...first.values()].filter((e) => e.type === 'reopened').map((e) => e.todoId)
 }
 
 export const useTrendEventsStore = create<TrendEventsState>((set, get) => {
@@ -61,7 +79,9 @@ export const useTrendEventsStore = create<TrendEventsState>((set, get) => {
       let events: readonly TodoEvent[]
       try {
         const read = eventsWindowRead(range, today, weekStartsOn)
-        events = await todoEventRepository.since(read.start, read.types)
+        const inWindow = await todoEventRepository.since(read.start, read.types)
+        const reopened = reopenedFirst(inWindow)
+        events = reopened.length > 0 ? [...await todoEventRepository.lastCompletionsBefore(read.start, reopened), ...inWindow] : inWindow
       } catch (e) {
         console.error('Failed to read task history:', e)
         // Keep what was shown; don't retry until the next change.

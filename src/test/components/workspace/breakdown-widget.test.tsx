@@ -132,6 +132,22 @@ describe('the filter row (temporary, per split)', () => {
     expect(useWorkspaceStore.getState().isDirty).toBe(false)
   })
 
+  it('a pick that matches no row any more is ignored: no chip, every row shown, and a new pick replaces it', () => {
+    setup(breakdown())
+    const all = keys()
+    act(() => { useChartWidgetsStore.getState().setRowPicks('b', 'people', ['person-99']) })
+    expect(keys()).toEqual(all)
+    expect(document.querySelector('[data-testid="breakdown-filter-chip"]')).toBeNull()
+    // A stale pick with a live one: the live one filters alone.
+    act(() => { useChartWidgetsStore.getState().setRowPicks('b', 'people', ['person-99', 'person-4']) })
+    expect(keys()).toEqual(['person-4'])
+    // Backspace takes back the chip on screen, not the stale pick.
+    const field = within(document.querySelector<HTMLElement>('[data-testid="breakdown-filter-row"]')!).getByRole('textbox', { name: 'Filter by person' })
+    fireEvent.keyDown(field, { key: 'Backspace' })
+    expect(keys()).toEqual(all)
+    expect(useChartWidgetsStore.getState().rowPicks.b?.people ?? []).toEqual([])
+  })
+
   it('the medium face has no filter row and shows name · Due · Follow-up', () => {
     setup(breakdown(), { face: 'medium' })
     expect(document.querySelector('[data-testid="breakdown-filter-row"]')).toBeNull()
@@ -196,6 +212,19 @@ describe('faces and styles', () => {
     expect(face.getAttribute('aria-label')).toMatch(/^People: .+: \d+ open$/)
   })
 
+  it('the header count is what the rows shown hold: the hidden none row counts neither there nor in its drill', () => {
+    const onDrill = vi.fn()
+    setup(breakdown({ name: 'Team', showNone: false }), { onDrill })
+    expect(keys()).not.toContain('none')
+    const count = document.querySelector<HTMLElement>('[data-testid="glance-section-count"]')!
+    fireEvent.click(count)
+    const drill = onDrill.mock.lastCall?.[0] as GlanceDrill
+    const source = drill.source
+    if (source?.kind !== 'groups') throw new Error('expected a groups drill')
+    const distinct = new Set(source.groups.flatMap((g) => g.todoIds)).size
+    expect(count.textContent).toBe(`${distinct} open`)
+  })
+
   it('stacked: a segment per row that drills; donut: likewise', () => {
     const onDrill = vi.fn()
     setup(breakdown({ style: 'stacked', splitBy: 'status', name: 'Status' }), { onDrill })
@@ -227,10 +256,25 @@ describe('the tab menu', () => {
     const tab = breakdown()
     inLayout(tab)
     item(item(glanceMenu(tab, undefined)!.settingEntries, 'Due').children!, 'Overdue only').onSelect!()
-    expect(current().config.badges).toEqual({ due: 'overdue', followup: 0 })
+    expect(current().config.badges).toEqual({ due: 'overdue' })
     const after = current()
     expect(item(glanceMenu(after, undefined)!.settingEntries, 'Due').note).toBe('Overdue only')
     item(item(glanceMenu(after, undefined)!.settingEntries, 'Due').children!, 'As in Settings (Overdue and next 3 days)').onSelect!()
+    expect(current().config).not.toHaveProperty('badges')
+  })
+
+  it('each range overrides on its own: the other keeps following Settings', () => {
+    const tab = breakdown()
+    inLayout(tab)
+    item(item(glanceMenu(tab, undefined)!.settingEntries, 'Follow-up').children!, 'Overdue only').onSelect!()
+    expect(current().config.badges).toEqual({ followup: 'overdue' })
+    expect(item(glanceMenu(current(), undefined)!.settingEntries, 'Due').note).toBe('Settings')
+    // Settings' Due changes: the Breakdown's Due follows it.
+    useSettingsStore.setState({ tabBadges: { due: 7, followup: 0 } })
+    const due = item(glanceMenu(current(), undefined)!.settingEntries, 'Due')
+    expect(due.note).toBe('Settings')
+    expect(item(due.children!, 'As in Settings (Overdue and next 7 days)').checked).toBe(true)
+    item(item(glanceMenu(current(), undefined)!.settingEntries, 'Follow-up').children!, 'As in Settings (Overdue and today)').onSelect!()
     expect(current().config).not.toHaveProperty('badges')
   })
 })

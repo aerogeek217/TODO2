@@ -232,7 +232,21 @@ export function splitCell<L extends LayoutBody>(
   const added: LayoutCell = { id, area: before ? withSpan(grown.area, axis, s, mid) : withSpan(grown.area, axis, mid, e), tabs: [] }
   const withKept = setCell(next, cellId, kept)
   next = withCells(withKept, [...withKept.cells, added])
-  return { layout: normalizeGrid(next), cellId: id }
+  return { layout: normalizeGrid(expandedFor(next, added)), cellId: id }
+}
+
+/**
+ * `layout` with the row tracks under `cell` expanded when every one of them
+ * is collapsed: a new (empty) cell never comes out collapsed — it would
+ * show only a header, and an empty cell has no Expand. A split's other half
+ * keeps its collapse when it lies in other tracks (a split below / above);
+ * beside it in the same row, the row expands (collapse is the row's).
+ */
+function expandedFor<L extends LayoutBody>(layout: L, cell: LayoutCell): L {
+  const [start, end] = spanOf(cell.area, 'rows')
+  const rows = layout.grid.rows.slice(start, end)
+  if (rows.length === 0 || !rows.every((t) => t.collapsed === true)) return layout
+  return rows.reduce<L>((next, t) => setTrackCollapsed(next, t.id, false), layout)
 }
 
 /**
@@ -277,8 +291,9 @@ export function insertTrack<L extends LayoutBody>(layout: L, edge: Side, genId: 
   const area = axis === 'columns'
     ? { col: at, row: 0, colSpan: 1, rowSpan: crossCount }
     : { col: 0, row: at, colSpan: crossCount, rowSpan: 1 }
-  const next = withCells(withTracks(layout, axis, insertAt(resized, at, newTrack)), [...shifted, { id, area, tabs: [] }])
-  return { layout: normalizeGrid(next), cellId: id }
+  const added: LayoutCell = { id, area, tabs: [] }
+  const next = withCells(withTracks(layout, axis, insertAt(resized, at, newTrack)), [...shifted, added])
+  return { layout: normalizeGrid(expandedFor(next, added)), cellId: id }
 }
 
 /**
@@ -568,6 +583,26 @@ export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, 
   })
   if (cells.some((c) => c.area.colSpan < 1 || c.area.rowSpan < 1)) return layout
   return normalizeGrid(withCells(next, cells))
+}
+
+/**
+ * A double-click on part of a line (not `isWholeLine`): the px delta
+ * (`moveEdge`'s) that puts it midway between the latest start of the cells
+ * before it and the earliest end of those after — its own cells even, as a
+ * drag would move it, the rest of its line staying. `null` for a whole line
+ * (its two tracks share evenly instead) or sizes that don't match the axis.
+ */
+export function evenStretchDelta(layout: LayoutBody, stretch: EdgeStretch, sizes: readonly number[]): number | null {
+  const { axis, line } = stretch
+  if (isWholeLine(layout, stretch) || sizes.length !== layout.grid[axis].length) return null
+  const { before, after } = stretchCells(layout, stretch)
+  if (before.length === 0 || after.length === 0) return null
+  const pos = [0]
+  for (const s of sizes) pos.push((pos.at(-1) ?? 0) + Math.max(0, s))
+  const at = (i: number) => pos[i] ?? 0
+  const start = Math.max(...before.map((c) => at(spanOf(c.area, axis)[0])))
+  const end = Math.min(...after.map((c) => at(spanOf(c.area, axis)[1])))
+  return (start + end) / 2 - at(line)
 }
 
 // ── View state and config ───────────────────────────────────────────────────

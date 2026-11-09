@@ -362,6 +362,43 @@ test.describe('dividers', () => {
     await expect.poll(async () => (await readStore<{ grid: { rows: Array<{ px?: number }> } }>(page, 'layouts'))[0]?.grid.rows[0]?.px).toBe(200)
   })
 
+  /** `a b / e e / c d`, the column line at 600 : 400: a|b and c|d are parts of one line. */
+  const partLines: WsLayoutSeed = {
+    name: 'Main',
+    table: {
+      areas: ['a b', 'e e', 'c d'],
+      cols: [600, 400],
+      cells: ['a', 'b', 'e', 'c', 'd'].map((id) => ({ id, tabs: [{ id: `${id}Tab`, kind: 'notes' as const }] })),
+    },
+  }
+
+  test('the keyboard on part of a line keeps the focus while it moves, press after press', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [partLines] })
+    const divider = wsDivider(page, 'a', 'b')
+    const aWidth = Math.round((await box(wsCell(page, 'a'))).width)
+    const cWidth = Math.round((await box(wsCell(page, 'c'))).width)
+    await divider.focus()
+    await page.keyboard.press('ArrowRight')
+    await expect(divider).toBeFocused()
+    await page.keyboard.press('ArrowRight')
+    await expect(divider).toBeFocused()
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'a'))).width - aWidth)).toBeGreaterThanOrEqual(30)
+    // c|d stays where it was (a new track takes one more gap from the weighted columns: a few px).
+    expect(Math.abs(Math.round((await box(wsCell(page, 'c'))).width) - cWidth)).toBeLessThanOrEqual(4)
+  })
+
+  test('a double-click on part of a line evens only its own cells; the rest of the line stays', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [partLines] })
+    const cWidth = Math.round((await box(wsCell(page, 'c'))).width)
+    const d = await box(wsDivider(page, 'a', 'b'))
+    await page.mouse.dblclick(d.x + d.width / 2, d.y + d.height / 2)
+    // Even within one gutter: the new line's track brings a gap inside a.
+    await expect.poll(async () => Math.abs(Math.round((await box(wsCell(page, 'a'))).width - (await box(wsCell(page, 'b'))).width))).toBeLessThanOrEqual(8)
+    // c|d stays at 600 : 400 (a new track takes one more gap: a few px).
+    expect(Math.abs(Math.round((await box(wsCell(page, 'c'))).width) - cWidth)).toBeLessThanOrEqual(4)
+    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+  })
+
   test('a narrow window: the cells keep 120px and the table scrolls sideways', async ({ page }) => {
     await page.setViewportSize({ width: 900, height: 800 })
     const ids = ['k1', 'k2', 'k3', 'k4', 'k5', 'k6', 'k7', 'k8']

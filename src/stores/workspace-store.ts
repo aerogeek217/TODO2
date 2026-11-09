@@ -30,7 +30,7 @@ import {
 } from '../models/workspace-layout'
 import { findCell, layoutPanels, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
 import { layoutListRefs, listIdChanges, repointLayoutLists } from '../utils/workspace-layout-lists'
-import { copySizes, setTrackSizes, trackAxes } from '../utils/workspace-layout-sizes'
+import { copySizes, sameTrackIn, setTrackSizes, trackAxes } from '../utils/workspace-layout-sizes'
 import {
   addTab,
   closeCell,
@@ -1109,7 +1109,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     setTrackCollapsed(trackIds, collapsed) {
       const ids = typeof trackIds === 'string' ? [trackIds] : trackIds
-      return editView((layout) => ids.reduce((next, id) => setTrackCollapsed(next, id, collapsed), layout))
+      const { working } = get()
+      // Onto a layout only where the track is the same one there (`sameTrackIn`):
+      // a row an unsaved edit split or spanned anew keeps its collapse with that edit.
+      return editView((layout) => ids.reduce(
+        (next, id) => (!working || sameTrackIn(working, layout, 'rows', id) ? setTrackCollapsed(next, id, collapsed) : next),
+        layout,
+      ))
     },
 
     patchTabViewState(tabId, kind, patch) {

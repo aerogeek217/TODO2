@@ -8,6 +8,7 @@ import {
   addTab,
   closeCell,
   closeTab,
+  evenStretchDelta,
   insertTrack,
   isCellCollapsed,
   mergeCells,
@@ -99,6 +100,29 @@ describe('splitCell', () => {
     expect(out.layout.grid.rows.map((t) => t.px)).toEqual([80, 80])
     expect(splitCell(base, 'zz', 'right', ids())).toEqual({ layout: base, cellId: null })
   })
+
+  it('the new cell never comes out collapsed: a collapsed cell split below or above keeps its own collapse', () => {
+    const a = cell('a')
+    const b = cell('b')
+    const base = layout(grid([[a, b]], { rows: [{ weight: 1000, collapsed: true }] }))
+    const below = splitCell(base, 'a', 'bottom', ids())
+    expect(picture(below.layout)).toEqual(['a b', 'n2 b'])
+    expect(isCellCollapsed(below.layout, 'n2')).toBe(false)
+    expect(isCellCollapsed(below.layout, 'a')).toBe(true)
+    expectValid(below.layout)
+    const above = splitCell(base, 'a', 'top', ids())
+    expect(picture(above.layout)).toEqual(['n2 b', 'a b'])
+    expect(isCellCollapsed(above.layout, 'n2')).toBe(false)
+    expect(isCellCollapsed(above.layout, 'a')).toBe(true)
+    // Two collapsed tracks: the split lands on the middle line, the new cell's track expands.
+    const two = layout(grid([[a], [a]], { rows: [{ weight: 1000, collapsed: true }, { weight: 1000, collapsed: true }] }))
+    const evenOut = splitCell(two, 'a', 'bottom', ids())
+    expect(isCellCollapsed(evenOut.layout, 'n1')).toBe(false)
+    expect(isCellCollapsed(evenOut.layout, 'a')).toBe(true)
+    // Beside it, in the same collapsed row: the row expands (collapse is the row's).
+    const right = splitCell(base, 'a', 'right', ids())
+    expect(isCellCollapsed(right.layout, 'n2')).toBe(false)
+  })
 })
 
 describe('insertTrack', () => {
@@ -120,6 +144,13 @@ describe('insertTrack', () => {
     const base = layout(grid([[a], [b]], { rows: [800, { px: 160 }] }))
     const out = insertTrack(base, 'bottom', ids())
     expect(out.layout.grid.rows).toEqual([{ id: 'r1', weight: 400 }, { id: 'r2', px: 160 }, { id: 'n1', weight: 400 }])
+  })
+
+  it('a new column across collapsed rows expands them: its cell never comes out collapsed', () => {
+    const base = layout(grid([[a, b]], { rows: [{ weight: 1000, collapsed: true }] }))
+    const out = insertTrack(base, 'right', ids())
+    expect(isCellCollapsed(out.layout, out.cellId)).toBe(false)
+    expect(isCellCollapsed(insertTrack(base, 'bottom', ids()).layout, 'a')).toBe(true)
   })
 
   it('an empty layout gets its first cell', () => {
@@ -410,6 +441,20 @@ describe('moveEdge', () => {
     expect(moveEdge(base, stretch, 0, { sizes: [500, 200] }, ids())).toBe(base)
     expect(moveEdge(base, { axis: 'rows', line: 5, from: 0, to: 1 }, 10, { sizes: [500, 200] }, ids())).toBe(base)
     expect(moveEdge(base, stretch, 10, { sizes: [500] }, ids())).toBe(base)
+  })
+})
+
+describe('evenStretchDelta (a divider double-click)', () => {
+  it('part of a line goes midway between its own cells; a whole line has none', () => {
+    const [a, b, e, c, d] = ['a', 'b', 'e', 'c', 'd'].map((id) => cell(id)) as [CellSpec, CellSpec, CellSpec, CellSpec, CellSpec]
+    const body = layout(grid([[a, b], [e, e], [c, d]], { cols: [600, 400] }))
+    const ab = edgeBetween(body, 'a', 'b')!
+    expect(evenStretchDelta(body, ab, [600, 400])).toBe(-100)
+    const moved = moveEdge(body, ab, -100, { sizes: [600, 400] }, ids())
+    expect(picture(moved)).toEqual(['a b b', 'e e e', 'c c d'])
+    expect(evenStretchDelta(body, ab, [600])).toBeNull()
+    const whole = layout(grid([[a, b]]))
+    expect(evenStretchDelta(whole, edgeBetween(whole, 'a', 'b')!, [500, 500])).toBeNull()
   })
 })
 

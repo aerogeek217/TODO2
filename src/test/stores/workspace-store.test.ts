@@ -287,6 +287,18 @@ describe('view state', () => {
     ws().discard()
     expect(ws().working!.cells[0]!.tabs[1]!.viewState).toEqual({ offset: -1 })
   })
+
+  it('a collapse of a row an unsaved split made stays unsaved: the stored row (a neighbour’s too) never collapses', async () => {
+    const [id] = await seedAndInit(twoColumns())
+    // ka split below: rows R and a new one; kb spans both.
+    ws().splitCell('ka', 'bottom')
+    expect(ws().working!.grid.rows.map((r) => r.id)[0]).toBe('R')
+    await ws().setTrackCollapsed('R', true)
+    expect(ws().working!.grid.rows[0]!.collapsed).toBe(true)
+    expect((await stored(id!)).grid.rows[0]!.collapsed).toBeUndefined()
+    await ws().discard()
+    expect(ws().working!.grid.rows[0]!.collapsed).toBeUndefined()
+  })
 })
 
 describe('view state written while a Save runs', () => {
@@ -477,6 +489,18 @@ describe('sizes are view state', () => {
     expect(await ws().save()).toBe(true)
     expect(weights(await stored(id!))).toEqual([2000, ...added.slice(1)])
     expect(ws().isDirty).toBe(false)
+  })
+
+  it('a fixed row split by an unsaved edit: its first half’s px stays unsaved, the stored row keeps its own', async () => {
+    const [id] = await seedAndInit(withFixedRow())
+    // The fixed row's one cell split below: T (70) + a new track (70), the first half keeping T's id.
+    ws().splitCell('kt', 'bottom')
+    expect(ws().working!.grid.rows.map((r) => r.px)).toEqual([undefined, 70, 70])
+    await ws().setTrackSizes({ T: 100 })
+    expect(ws().working!.grid.rows[1]!.px).toBe(100)
+    expect((await stored(id!)).grid.rows.map((r) => r.px)).toEqual([undefined, 140])
+    await ws().discard()
+    expect(ws().working!.grid.rows.map((r) => r.px)).toEqual([undefined, 140])
   })
 
   it('an edit that brings the structure back to the saved one brings back its sizes', async () => {

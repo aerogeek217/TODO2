@@ -50,12 +50,11 @@ function badgeEntries(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry[
   const app = useSettingsStore.getState().tabBadges
   const own = tab.config.badges
   const ownRanges: Partial<TabBadgeRanges> = own === 'off' ? { due: 'off', followup: 'off' } : own ?? {}
+  // Each range on its own: one back on Settings' follows Settings again; both, no override.
   const write = (part: keyof TabBadgeRanges) => (r: TabBadgeRange | undefined) => {
-    const next = { due: ownRanges.due, followup: ownRanges.followup, [part]: r }
-    const due = next.due ?? app.due
-    const followup = next.followup ?? app.followup
-    // Both as Settings has them: no override (it follows Settings again).
-    const badges = due === app.due && followup === app.followup ? undefined : { due, followup }
+    const next: Partial<TabBadgeRanges> = { ...ownRanges, [part]: r }
+    if (r === undefined) delete next[part]
+    const badges = next.due === undefined && next.followup === undefined ? undefined : next
     useWorkspaceStore.getState().patchTabConfig(tab.id, 'breakdown', { badges })
   }
   return [

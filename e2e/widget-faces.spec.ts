@@ -97,6 +97,30 @@ test.describe('desktop', () => {
     await expect.poll(() => page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.wsTab ?? document.activeElement?.tagName)).toBe('list')
   })
 
+  test('a Number’s face growing closes its popover, and focus stays in its cell (its top line is no focus target)', async ({ page }) => {
+    await page.setViewportSize({ width: 1000, height: 900 })
+    await seedWorkspace(page, {
+      tasks: TASKS,
+      layouts: [{
+        name: 'Faces',
+        columns: [{ id: 'c1', rows: [{ id: 'r1', cells: [
+          { id: 'k1', weight: 1, tabs: [{ id: 'num', kind: 'number', glance: { metric: 'open' } }] },
+          { id: 'k2', weight: 6, tabs: [{ id: 'notes', kind: 'notes' }] },
+        ] }] }],
+      }],
+    })
+    const cell = wsCell(page, 'k1')
+    await expect(cell).toHaveAttribute('data-face', 'small')
+    await cell.locator('[data-face-opener]').focus()
+    await page.keyboard.press('Enter')
+    await expect(popover(page)).toBeVisible()
+    await expect.poll(() => page.evaluate(() => document.activeElement?.closest('[data-testid="widget-face-popover"]') != null)).toBe(true)
+    await page.setViewportSize({ width: 1800, height: 900 })
+    await expect(cell).not.toHaveAttribute('data-face', 'small')
+    await expect(popover(page)).toHaveCount(0)
+    await expect.poll(() => page.evaluate(() => document.activeElement?.closest<HTMLElement>('[data-ws-cell]')?.dataset.wsCell ?? document.activeElement?.tagName)).toBe('k1')
+  })
+
   test('a row editor inside the popover opens over it and leaves it open', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: TASKS,

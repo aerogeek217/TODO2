@@ -8,7 +8,7 @@
  */
 
 import { NUMBER_NAME_MAX, type PickedConfig } from './glance-widgets'
-import type { ListTabBadges } from './list-definition'
+import type { TabBadgeRanges } from './list-definition'
 import type { TodoPredicate } from './filter-predicate'
 
 type Obj = Record<string, unknown>
@@ -73,12 +73,19 @@ export interface BreakdownConfig {
   /** Each person row has the check-in envelope (people only); stored only when true. */
   checkins?: true
   /**
-   * The Due and Follow-up columns' ranges, as a list's own tab badges
-   * (`ListDefinition.tabBadges`: `off`, or its ranges); absent = Settings ›
-   * Tasks' ranges.
+   * The Due and Follow-up columns' ranges (`ChartBadges`): `off`, or its
+   * own range for either or both — a range it doesn't hold, like an absent
+   * `badges`, is Settings › Tasks' and follows it.
    */
-  badges?: ListTabBadges
+  badges?: ChartBadges
 }
+
+/**
+ * A Breakdown's own Due / Follow-up ranges: `off` (both), or each range on
+ * its own (at least one) — the other Settings'. A list's `tabBadges` pair
+ * (what P8 stored) is one of these.
+ */
+export type ChartBadges = 'off' | Partial<TabBadgeRanges>
 
 /** The Add widget presets of a Breakdown (D26 P8 / Z3). */
 export const BREAKDOWN_PRESETS = ['people', 'tags', 'status', 'waiting', 'custom'] as const
@@ -123,12 +130,19 @@ export interface BreakdownViewState {
 
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean'
 
-/** A stored badge override: `off`, or a pair of ranges (`off`, `overdue` or a day count 0 – 365). */
-export function isBadgeOverride(v: unknown): v is ListTabBadges {
+/** A stored badge override: `off`, or a due and / or follow-up range (`off`, `overdue` or a day count 0 – 365). */
+export function isBadgeOverride(v: unknown): v is ChartBadges {
   if (v === 'off') return true
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
   const { due, followup, ...rest } = v as Obj
-  return Object.keys(rest).length === 0 && isBadgeRange(due) && isBadgeRange(followup)
+  if (Object.keys(rest).length > 0 || (due === undefined && followup === undefined)) return false
+  return (due === undefined || isBadgeRange(due)) && (followup === undefined || isBadgeRange(followup))
+}
+
+/** The ranges a Breakdown counts in: its own (`ChartBadges`), each range it doesn't hold Settings' (`app`). */
+export function chartBadgeRanges(own: ChartBadges | undefined, app: TabBadgeRanges): TabBadgeRanges {
+  if (own === 'off') return { due: 'off', followup: 'off' }
+  return { due: own?.due ?? app.due, followup: own?.followup ?? app.followup }
 }
 
 function isBadgeRange(v: unknown): boolean {

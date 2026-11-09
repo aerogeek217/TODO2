@@ -24,6 +24,23 @@ export const todoEventRepository = {
   },
 
   /**
+   * Each of `todoIds`' latest `completed` event before `before` (one indexed
+   * read on `todoId`): for a task a window first sees reopened, when it was
+   * done (`trend-events-store`).
+   */
+  async lastCompletionsBefore(before: Date, todoIds: readonly number[]): Promise<TodoEvent[]> {
+    if (todoIds.length === 0) return []
+    const iso = before.toISOString()
+    const rows = await db.todoEvents.where('todoId').anyOf([...todoIds]).filter((e) => e.type === 'completed' && e.timestamp < iso).toArray()
+    const latest = new Map<number, TodoEvent>()
+    for (const e of rows) {
+      const kept = latest.get(e.todoId)
+      if (!kept || e.timestamp > kept.timestamp || (e.timestamp === kept.timestamp && (e.id ?? 0) > (kept.id ?? 0))) latest.set(e.todoId, e)
+    }
+    return [...latest.values()]
+  },
+
+  /**
    * Calls `listener` whenever an event row is added, changed or deleted
    * (Dexie table hooks; it runs inside the writing transaction, so it must
    * not touch the database itself). A table `clear()` does not notify.

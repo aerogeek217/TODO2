@@ -1,6 +1,5 @@
-import type { Person, Tag } from '../../../models'
+import type { Tag } from '../../../models'
 import type { EisenhowerQuadrant } from '../../../models/workspace-layout'
-import type { TaskDialogGroup } from '../../../stores/task-dialog-payload'
 import type { EisenhowerPane } from '../../../utils/eisenhower-panes'
 import { formatFollowupDay } from '../../../utils/followup'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
@@ -72,57 +71,16 @@ export function trendBucketDrill(
   }
 }
 
-/** Status's count: the open tasks under their status. */
-export function statusDrill(groups: readonly TaskDialogGroup[]): GlanceDrill {
-  return { title: 'Open tasks', glyph: 'status', description: 'Open tasks by status.', source: { kind: 'groups', groups } }
-}
+// Project pulse's tag, the Eisenhower panes and the Neglect map's Slipping
+// list: the tasks it counted (screen-filtered), in its order.
 
-/** A Status row: its open tasks (an entry with no `id` = No status). */
-export function statusRowDrill(entry: { id?: number | null; label: string }, ids: readonly number[]): GlanceDrill {
-  return {
-    title: entry.label,
-    glyph: 'status',
-    description: entry.id == null ? 'Open tasks with no status.' : `Status: ${entry.label}.`,
-    source: todos(ids),
-  }
-}
-
-/** A People row: the person's open tasks (`person` `null` = Unassigned); the dialog offers their check-in. */
-export function personRowDrill(person: Pick<Person, 'id' | 'name'> | null, ids: readonly number[]): GlanceDrill {
-  return {
-    title: person ? person.name : 'Unassigned',
-    glyph: 'people',
-    description: person ? `Open tasks assigned to ${person.name}.` : 'Open tasks with nobody assigned.',
-    source: todos(ids),
-    ...(person?.id != null ? { personId: person.id } : {}),
-  }
-}
-
-// Tags, Stale tasks, Recently completed, the Eisenhower summary and the
-// Neglect map's Slipping list: the tasks it counted (screen-filtered), in its order.
-
-/** A Tags row: that tag's open tasks; `null` = the No tag row. */
+/** A tag's open tasks (a Project pulse card); `null` = no tag. */
 export function tagRowDrill(tag: Pick<Tag, 'id' | 'name'> | null, todoIds: readonly number[]): GlanceDrill {
   return {
     title: tag ? `#${tag.name}` : 'No tag',
     glyph: 'tag',
     description: tag ? `Open tasks tagged #${tag.name}.` : 'Open tasks with no tag.',
     source: { kind: 'todos', todoIds },
-  }
-}
-
-/** The Tags count: every row under its own heading. */
-export function tagsDrill(rows: ReadonlyArray<{ tag: Tag | null; todoIds: readonly number[] }>): GlanceDrill {
-  return {
-    title: 'Tagged tasks',
-    glyph: 'tag',
-    description: 'Open tasks by tag. A task with several tags shows under each.',
-    source: {
-      kind: 'groups',
-      groups: rows.map(({ tag, todoIds }) => (tag
-        ? { key: `tag-${tag.id}`, label: `#${tag.name}`, ...(tag.color ? { color: tag.color } : {}), todoIds }
-        : { key: 'untagged', label: 'No tag', todoIds })),
-    },
   }
 }
 

@@ -117,10 +117,23 @@ export function breakdownLines(title: string, total: number, totalWord: string, 
   ]
 }
 
-/** The rows the filter row leaves: those whose name holds the typed text, else the picked ones, else all. */
+/**
+ * The picks that still name a row: a pick whose row has gone (its last
+ * task completed, the top bar narrowed) neither filters nor shows a chip,
+ * so what is filtered is always what the chips say.
+ */
+export function livePicks(rows: readonly BreakdownRow[], picks: readonly string[]): readonly string[] {
+  if (picks.length === 0) return picks
+  const keys = new Set(rows.map((r) => r.key))
+  const live = picks.filter((k) => keys.has(k))
+  return live.length === picks.length ? picks : live
+}
+
+/** The rows the filter row leaves: those whose name holds the typed text, else the picked ones (`livePicks`), else all. */
 export function filteredRows(rows: readonly BreakdownRow[], picks: readonly string[], text: string): readonly BreakdownRow[] {
   const query = text.trim().toLowerCase()
   if (query) return rows.filter((r) => r.label.toLowerCase().includes(query))
-  if (picks.length > 0) return rows.filter((r) => picks.includes(r.key))
+  const live = livePicks(rows, picks)
+  if (live.length > 0) return rows.filter((r) => live.includes(r.key))
   return rows
 }

@@ -11,6 +11,7 @@ import { buildExportData, selfCheckExportJson } from '../../data/export-data'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { makeTodo, resetDb, resetEntityStores } from '../helpers'
 
 function daysAgo(n: number): Date {
@@ -168,6 +169,57 @@ describe('appendImportTasks — the history log H3 (D26)', () => {
       ['marker', null, 'focus'],
       ['followup', null, at],
     ])
+  })
+})
+
+describe('append import — how far back the history log is exact', () => {
+  const SINCE = 'historyLogSince'
+  const stamp = async () => (await db.settings.get(SINCE))?.value
+
+  async function archiveJson(): Promise<string> {
+    const id = await todoRepository.insert({ title: 'Ship', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(5), sortOrder: 1 })
+    return JSON.stringify(await buildTaskArchive([id]))
+  }
+
+  it('a file that doesn’t say its log covers as far back (a task archive) moves the start to the append, store too', async () => {
+    const json = await archiveJson()
+    await resetDb()
+    await db.settings.put({ key: SINCE, value: daysAgo(40).toISOString() })
+    await useSettingsStore.getState().stampHistoryLogSince()
+    const before = Date.now()
+    const result = await runAppendImport(prepareAppend(json), new Map())
+    if (result.status !== 'done') throw new Error('append import cancelled')
+    expect(new Date((await stamp())!).getTime()).toBeGreaterThanOrEqual(before)
+    expect(useSettingsStore.getState().historyLogSince!.getTime()).toBeGreaterThanOrEqual(before)
+  })
+
+  it('a full export whose log began before ours keeps the start; one whose log began later moves it there', async () => {
+    const id = await todoRepository.insert({ title: 'Ship', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(5), sortOrder: 1 })
+    void id
+    await db.settings.put({ key: SINCE, value: daysAgo(60).toISOString() })
+    const older = JSON.stringify(await buildExportData())
+    await db.settings.put({ key: SINCE, value: daysAgo(10).toISOString() })
+    const later = JSON.stringify(await buildExportData())
+
+    await resetDb()
+    const ours = daysAgo(40).toISOString()
+    await db.settings.put({ key: SINCE, value: ours })
+    await appendImportTasks(prepareAppend(older), new Map())
+    expect(await stamp()).toBe(ours)
+    const result = await appendImportTasks(prepareAppend(later), new Map([[(prepareAppend(later).todos[0]!).uid, 'import']]))
+    expect(result.imported).toBe(1)
+    expect(new Date((await stamp())!).getTime()).toBeGreaterThan(new Date(ours).getTime())
+    expect(new Date((await stamp())!).getTime()).toBeLessThan(Date.now() - 9 * 86_400_000)
+  })
+
+  it('nothing appended (every task skipped) moves nothing', async () => {
+    const json = await archiveJson()
+    await resetDb()
+    const ours = daysAgo(40).toISOString()
+    await db.settings.put({ key: SINCE, value: ours })
+    const data = prepareAppend(json)
+    await appendImportTasks(data, new Map(data.todos.map((t) => [t.uid, 'skip'])))
+    expect(await stamp()).toBe(ours)
   })
 })
 

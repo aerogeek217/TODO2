@@ -19,7 +19,7 @@ import { PriorityRing } from '../../shared/PriorityRing'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { useTooltip } from '../../shared/use-tooltip'
 import {
-  breakdownLines, filteredRows, rowFigure, sortHeading, sortWords, SPLIT_GLYPHS, SPLIT_ROW_LABELS,
+  breakdownLines, filteredRows, livePicks, rowFigure, sortHeading, sortWords, SPLIT_GLYPHS, SPLIT_ROW_LABELS,
 } from './breakdown-copy'
 import { breakdownRowDrill, breakdownRowReview, rowHeading, type RowReviewPart } from './chart-drills'
 import { ChartPanel } from './chart-parts'
@@ -520,8 +520,11 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
     [data.stats.rows, config.showNone, sort, config.show],
   )
   const large = face === 'large'
-  const rows = large ? filteredRows(all, picks, text) : all
-  const total = data.stats.ids.length
+  const shownPicks = useMemo(() => livePicks(all, picks), [all, picks])
+  const rows = large ? filteredRows(all, shownPicks, text) : all
+  // What the rows shown hold (a task in several rows once): the header, Copy and the count's drill
+  // agree, a hidden none row counted in none of them.
+  const total = useMemo(() => new Set(all.flatMap((r) => r.ids)).size, [all])
   const word = data.tasks.some((t) => t.isCompleted) ? 'tasks' : 'open'
   const lines = useMemo(() => breakdownLines(title, total, word, all, config.show), [title, total, word, all, config.show])
   useReportLines(onResult, lines)
@@ -583,7 +586,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
               <BreakdownFilterRow
                 split={config.splitBy}
                 rows={all}
-                picks={picks}
+                picks={shownPicks}
                 text={text}
                 onPicks={(keys) => useChartWidgetsStore.getState().setRowPicks(tab.id, config.splitBy, keys)}
                 onText={(t) => setTyped({ split: config.splitBy, text: t })}
