@@ -22,10 +22,11 @@ const SEED: WorkspaceSeed = {
     { title: 'Done already', people: ['Ben Ortiz'], status: 'Waiting', isCompleted: true },
   ],
   layouts: [{ name: 'Charts', table: {
-    areas: ['p f'],
+    areas: ['p f', 'm m'],
     cells: [
       { id: 'p', tabs: [{ id: 'pivot', kind: 'pivot' }] },
       { id: 'f', tabs: [{ id: 'flow', kind: 'statusFlow' }] },
+      { id: 'm', tabs: [{ id: 'map', kind: 'tagMap' }] },
     ],
   } }],
 }
@@ -63,4 +64,21 @@ test('a Status flow’s segment opens the tasks in that status at that week’s 
   await waiting.click()
   await expect(dialog(page).getByRole('heading')).toHaveText('Status flow · Waiting · now')
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
+})
+
+test('a Tag map’s tile, sized by its open tasks and coloured by its late share, opens them', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  const map = chart(page, 'map')
+  await expect(map.getByTestId('chart-sub')).toHaveText('Every tag')
+  await expect(map.locator('[data-tile]')).toHaveCount(3)
+  const atlas = map.getByRole('button', { name: '#Project: Atlas: 3 open, 2 late. Show tasks' })
+  const northwind = map.getByRole('button', { name: '#Project: Northwind: 1 open, 0 late. Show tasks' })
+  const area = async (l: typeof atlas) => {
+    const b = (await l.boundingBox())!
+    return b.width * b.height
+  }
+  expect(await area(atlas)).toBeGreaterThan(await area(northwind))
+  await atlas.click()
+  await expect(dialog(page).getByRole('heading')).toHaveText('Tag map · #Project: Atlas')
+  await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(3)
 })

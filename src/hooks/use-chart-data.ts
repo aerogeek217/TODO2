@@ -1,5 +1,5 @@
 import type { PersistedTodoItem, TodoEvent, TodoPredicate } from '../models'
-import { DEFAULT_BREAKDOWN_OLDEST_BY, STATUS_FLOW_WEEK_CHOICES, type BreakdownConfig, type PivotConfig, type StatusFlowConfig } from '../models/chart-widgets'
+import { DEFAULT_BREAKDOWN_OLDEST_BY, STATUS_FLOW_WEEK_CHOICES, type BreakdownConfig, type PivotConfig, type StatusFlowConfig, type TagMapConfig } from '../models/chart-widgets'
 import type { ListTabBadges, TabBadgeRanges } from '../models/list-definition'
 import { groupRestrictions } from '../services/build-list'
 import { computeBreakdown, type BreakdownStats } from '../services/stats/breakdown'
@@ -7,6 +7,7 @@ import { historyExactness, type HistoryExactness } from '../services/stats/filte
 import { numberStages } from '../services/stats/number-count'
 import { computePivot, type PivotStats } from '../services/stats/pivot'
 import { computeStatusFlow, type StatusFlowStats } from '../services/stats/status-flow'
+import { computeTagMap, type TagMapTile } from '../services/stats/tag-map'
 import type { RowRestrictions } from '../services/stats/row-restrictions'
 import type { StatsContext } from '../services/stats/stats-context'
 import { useSettingsStore } from '../stores/settings-store'
@@ -172,4 +173,20 @@ export function useStatusFlowData(base: StatsBase, config: StatusFlowConfig): { 
     ? flowMemo(config, count.filter, count.screen, base.todos, events, days, base.lookups, base.markerSettings, base.ctx.statuses, historyLogSince)
     : null
   return { count, flow }
+}
+
+// ── Tag map ─────────────────────────────────────────────────────────────────
+
+const tagMapMemo = sharedMemoByKey(function tagMap(
+  config: TagMapConfig,
+  tasks: readonly PersistedTodoItem[],
+  ctx: StatsContext,
+): TagMapTile[] {
+  return computeTagMap(tasks, ctx, config.tagIds)
+})
+
+/** A Tag map's tiles (`services/stats/tag-map`) over its filter's tasks. */
+export function useTagMapData(base: StatsBase, config: TagMapConfig): ChartTasks & { tiles: TagMapTile[] } {
+  const chart = useChartTasks(base, config.filter)
+  return { ...chart, tiles: tagMapMemo(config, chart.tasks, base.ctx) }
 }

@@ -34,7 +34,7 @@ const SETTINGS: Array<[GlanceWidgetKind, string, unknown, unknown, unknown]> = [
 describe('glance widget kinds', () => {
   it('are glance widgets in the Numbers & charts group; only a Number fits its height', () => {
     const glance = WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].glance)
-    expect(glance).toEqual(['number', 'breakdown', 'pivot', 'statusFlow', 'trend', 'pulse'])
+    expect(glance).toEqual(['number', 'breakdown', 'pivot', 'statusFlow', 'tagMap', 'trend', 'pulse'])
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'notes'])

@@ -52,6 +52,7 @@ export function WidgetBody({ tab, onResult }: WidgetBodyProps): ReactElement {
     case 'breakdown':
     case 'pivot':
     case 'statusFlow':
+    case 'tagMap':
       return (
         <GlanceWidget
           tab={tab}

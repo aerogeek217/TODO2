@@ -66,6 +66,7 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
     case 'breakdown':
     case 'pivot':
     case 'statusFlow':
+    case 'tagMap':
       return chartSettingEntries(tab)
   }
 }

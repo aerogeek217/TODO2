@@ -98,6 +98,21 @@ describe('a Status flow in a stored layout (D26 P8)', () => {
   })
 })
 
+describe('a Tag map in a stored layout (D26 P8)', () => {
+  it('round-trips with or without its picks; a repeat or a non-number in them is dropped (a fix)', () => {
+    for (const config of [{ name: 'Map', filter: emptyPredicate() }, { name: 'Map', filter: emptyPredicate(), tagIds: [3, 1] }]) {
+      const tab = { id: 't', kind: 'tagMap', config }
+      expect(validateRow('layouts', layoutRow(tab))).toBe(true)
+      expect(tabOf(layoutRow(tab))).toEqual(tab)
+    }
+    expect(createTab('tagMap', 'm').config).toEqual({ name: 'Tag map', filter: emptyPredicate() })
+    const bad = layoutRow({ id: 't', kind: 'tagMap', config: { name: 'Map', filter: emptyPredicate(), tagIds: [3, 3, 'x', 1] } })
+    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.tagIds')
+    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
+    expect((tabOf(bad)?.config as { tagIds: number[] }).tagIds).toEqual([3, 1])
+  })
+})
+
 describe('the Add widget presets', () => {
   const statuses = [{ id: 1, name: 'To do' }, { id: 7, name: 'waiting ' }]
 

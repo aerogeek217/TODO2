@@ -207,6 +207,7 @@ function buildSeed(): Seed {
             { id: 'g6', kind: 'breakdown', config: { name: 'Status', filter: emptyPredicate(), splitBy: 'status', style: 'stacked', show: 'count', showNone: true, badges: 'off' } },
             { id: 'g7', kind: 'pivot', config: { name: 'Who × what', filter: { ...emptyPredicate(), statusIds: [1] }, rows: 'tags', cols: 'priority' } },
             { id: 'g8', kind: 'statusFlow', config: { name: 'Flow', filter: { ...emptyPredicate(), tags: [1] }, weeks: 26 } },
+            { id: 'g9', kind: 'tagMap', config: { name: 'Projects', filter: emptyPredicate(), tagIds: [1] } },
             { id: 'g13', kind: 'pulse', config: { tagIds: [1] } },
           ])
           const k4 = cell('k4')

@@ -199,6 +199,12 @@ function kindParts(tab: ChartTab): { title: string; filterLabel: string; fields:
         filterLabel: 'Split tasks where',
         fields: <PivotFields config={tab.config} patch={(p) => ws().patchTabConfig(tab.id, 'pivot', p)} />,
       }
+    case 'tagMap':
+      return {
+        title: 'Edit tag map',
+        filterLabel: 'Open tasks where',
+        fields: <span className={styles.hint}>Its ⋯ menu’s Tags picks the tags it maps; Every tag by default.</span>,
+      }
     case 'statusFlow':
       return {
         title: 'Edit status flow',

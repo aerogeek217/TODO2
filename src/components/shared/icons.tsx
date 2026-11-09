@@ -74,6 +74,8 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   pivot: <path d="M2.5 2.5h11v11h-11zM2.5 6h11M6 2.5v11M2.5 9.75h11M9.75 6v7.5" />,
   // Status flow: stacked columns, week by week.
   statusFlow: <path d="M3 13.5h10M4 12.5V8M4 6.5V5M8 12.5V7M8 5.5V3M12 12.5V9M12 7.5V6" />,
+  // Tag map: tiles of three sizes.
+  tagMap: <path d="M2.5 2.5h11v11h-11zM8.5 2.5v11M2.5 9h6M8.5 7h5" />,
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {

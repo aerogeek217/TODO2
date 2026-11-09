@@ -998,12 +998,24 @@ export function generateDevSeed(today: Date = new Date()): DevSeed {
           kind: 'neglect',
           config: { colourBy: { kind: 'tags', tagIds: [...IDS.projectTags] }, untouchedDays: 14 },
         }]),
-        R: cell('cell-g-trend', [{ id: 'tab-g-trend', kind: 'trend', config: { range: '14d' } }]),
+        R: cell('cell-g-trend', [
+          { id: 'tab-g-trend', kind: 'trend', config: { range: '14d' } },
+          // D26 P8: the open tasks by status, 8 weeks back.
+          { id: 'tab-g-flow', kind: 'statusFlow', config: { name: 'Status flow', filter: filter(), weeks: 8 } },
+        ]),
         S: cell('cell-someday', [lens('tab-someday', L.someday)]),
         W: cell('cell-northwind', [lens('tab-northwind', L.northwind)]),
         T: cell('cell-stats', [lens('tab-hot', L.hot), lens('tab-recent', L.recentlyAdded), lens('tab-done', L.doneThisWeek)]),
-        Y: cell('cell-g-status', [breakdown('tab-g-status', 'Status', 'status')]),
-        Z: cell('cell-pulse', [{ id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } }]),
+        Y: cell('cell-g-status', [
+          breakdown('tab-g-status', 'Status', 'status'),
+          // D26 P8: who has what, by status.
+          { id: 'tab-g-pivot', kind: 'pivot', config: { name: 'People × status', filter: filter(), rows: 'people', cols: 'status' } },
+        ]),
+        Z: cell('cell-pulse', [
+          { id: 'tab-pulse', kind: 'pulse', config: { tagIds: [...IDS.projectTags] } },
+          // D26 P8: every tag, sized by open tasks, coloured by the late share.
+          { id: 'tab-tag-map', kind: 'tagMap', config: { name: 'Tag map', filter: filter() } },
+        ]),
         K: cell('cell-month', [calendar('tab-month', 'month', 0, false)]),
         Q: cell('cell-matrix3', [{ id: 'tab-matrix3', kind: 'eisenhower', config: {} }]),
       }, [250, 250, 250, 125, 125], [{ fit: true }, 300, 200, 150, 150, { px: 220 }]),

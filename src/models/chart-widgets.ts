@@ -348,3 +348,47 @@ export function pickStatusFlowConfig(raw: Obj, filter: PickedConfig<TodoPredicat
   const weeks = isFlowWeeks(raw.weeks) ? raw.weeks : 8
   return { config: { name, filter: filter.config, weeks }, fixed: filter.fixed || name !== raw.name || weeks !== raw.weeks }
 }
+
+// ── Tag map ─────────────────────────────────────────────────────────────────
+
+/**
+ * A Tag map (D26 P8, board Z1): a tile per tag on the open tasks a filter
+ * keeps, sized by its open tasks and coloured by its share that is late.
+ */
+export interface TagMapConfig {
+  /** Its title (blank while typed: the tab then reads `Tag map`). */
+  name: string
+  filter: TodoPredicate
+  /** The tags it maps, in pick order; absent = every tag on a task, and No tags. */
+  tagIds?: number[]
+}
+
+export const DEFAULT_TAG_MAP_NAME = 'Tag map'
+
+/** A new Tag map: every tag. */
+export function newTagMapConfig(filter: TodoPredicate): TagMapConfig {
+  return { name: DEFAULT_TAG_MAP_NAME, filter }
+}
+
+const isIdList = (v: unknown): v is number[] => Array.isArray(v) && v.every((x) => typeof x === 'number' && Number.isFinite(x))
+
+/** Where a stored Tag map config goes wrong (the filter is the caller's): the bad key, or `null`. */
+export function tagMapConfigProblem(raw: Obj): string | null {
+  if (!isChartName(raw.name)) return 'name'
+  if (raw.tagIds !== undefined && (!isIdList(raw.tagIds) || new Set(raw.tagIds).size !== raw.tagIds.length)) return 'tagIds'
+  return null
+}
+
+/** A Tag map's config from untrusted input, `filter` picked: a bad name is reset; the picks keep their numbers once each (`fixed` on any change). */
+export function pickTagMapConfig(raw: Obj, filter: PickedConfig<TodoPredicate>): PickedConfig<TagMapConfig> {
+  let fixed = filter.fixed
+  const name = isChartName(raw.name) ? raw.name : DEFAULT_TAG_MAP_NAME
+  if (name !== raw.name) fixed = true
+  const config: TagMapConfig = { name, filter: filter.config }
+  if (Array.isArray(raw.tagIds)) {
+    const ids = [...new Set((raw.tagIds as unknown[]).filter((x): x is number => typeof x === 'number' && Number.isFinite(x)))]
+    if (ids.length !== raw.tagIds.length) fixed = true
+    config.tagIds = ids
+  } else if (raw.tagIds !== undefined) fixed = true
+  return { config, fixed }
+}

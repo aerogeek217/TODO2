@@ -151,7 +151,7 @@ export function useAddWidget() {
     const tabId = addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
     if (tabId != null && kind === 'number') openNumberEditor(tabId)
     // D26 P8: a chart opens its editor too.
-    if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'statusFlow')) {
+    if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'statusFlow' || kind === 'tagMap')) {
       showTab(tabId)
       useChartWidgetsStore.getState().openEditor(tabId, startField)
     }

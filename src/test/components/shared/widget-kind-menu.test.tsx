@@ -29,7 +29,7 @@ describe('WidgetKindMenu', () => {
     expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Numbers & charts'])
     fireEvent.click(screen.getByRole('menuitem', { name: /Numbers & charts/ }))
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim()).slice(2)).toEqual([
-      'Number', 'Breakdown', 'Pivot', 'Status flow', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
+      'Number', 'Breakdown', 'Pivot', 'Status flow', 'Tag map', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
     ])
     for (const gone of [/Dashboard/, /Needs follow-up/, /Next 7 days/, /Stale tasks/, /Recently completed/, /Eisenhower summary/, /What changed/, /^Today/]) {
       expect(screen.queryByRole('menuitemradio', { name: gone })).toBeNull()
