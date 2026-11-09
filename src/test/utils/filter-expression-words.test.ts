@@ -117,4 +117,15 @@ describe('expressionWords — every tree reads distinctly', () => {
   it('a range or its none inside an and inside an or keeps its brackets', () => {
     expect(words('@Aisha or (#q4 and (followed by 7 days ago or never followed))')).toBe('Aisha, or #q4 and (last follow-up 7+ days ago, or never)')
   })
+
+  it('brackets an and that isn’t the last item of a bracketed or', () => {
+    const a = words('/urgent and ((@Aisha and not #q4) or #Ops or !Blocked)')
+    const b = words('/urgent and ((@Aisha and not #q4 and not #Ops) or !Blocked)')
+    expect(a).toBe('Urgent · ((Aisha but not #q4) or #Ops or Blocked)')
+    expect(b).toBe('Urgent · ((Aisha but not #q4 or #Ops) or Blocked)')
+    expect(a).not.toBe(b)
+    expect(words('/urgent and ((not @Aisha and not #q4) or #Ops)')).toBe('Urgent · ((not Aisha and not #q4) or #Ops)')
+    // The last item needs none: everything up to the bracket is its own.
+    expect(words('/urgent and (#Ops or (not @Aisha and not #q4))')).toBe('Urgent · (#Ops or not Aisha and not #q4)')
+  })
 })

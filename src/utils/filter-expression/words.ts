@@ -25,7 +25,8 @@ import { normalizeExpression } from './tree'
  * - The top-level `and`'s terms are joined by ` · ` (a `not` term reads
  *   `not x`); a top-level `or` by `, or`; an `or` inside anything else is
  *   bracketed; an `and` inside an `or` joins by `and`, its `not` terms after
- *   `but not` (several: `but not a or b`). A date range `or` the same type's
+ *   `but not` (several: `but not a or b`) — bracketed too when it isn't the
+ *   last item of a bracketed `or` (`((Aisha but not #q4) or #Ops)`). A date range `or` the same type's
  *   none reads as one term (`last follow-up 7+ days ago, or never`) — bare
  *   at the top level or as a top-level `and` term, else still bracketed
  *   (`not (last follow-up 7+ days ago, or never)`).
@@ -205,7 +206,12 @@ class Reader {
         if (comma) this.push('joiner', ',')
         this.push('joiner', 'or')
       }
+      // Joined by a bare ` or `, an `and` before the last item is bracketed:
+      // its `but not a or b` would otherwise run on into the items after it.
+      const enclose = !comma && item.kind === 'and' && i < folded.length - 1
+      if (enclose) this.push('joiner', '(')
       this.orItem(item)
+      if (enclose) this.push('joiner', ')')
     })
     if (bracketed) this.push('joiner', ')')
   }
