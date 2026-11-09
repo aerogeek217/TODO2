@@ -53,8 +53,25 @@ export function weatherParticles(kind: WeatherKind, count: number, tall: boolean
         return { kind, style: { left, '--size': px(size), '--sway': px((rnd() - 0.5) * 16), '--dur': sec(dur), '--delay': sec(-rnd() * dur) } as CSSProperties }
       }
       case 'leaf': {
-        const dur = (26 + rnd() * 22) * (tall ? 1.4 : 1)
-        return { kind, style: { top, '--size': px(6 + rnd() * 2), '--drop': px((tall ? 120 : 10) * (0.4 + rnd())), '--spin': `${Math.round((rnd() - 0.5) * 1080)}deg`, '--dur': sec(dur), '--delay': sec(-rnd() * dur), '--color': LEAVES[Math.floor(rnd() * LEAVES.length)] ?? 'var(--ambience-leaf-1)' } as CSSProperties }
+        // Falls through the field: the 40px bar in 7 – 11s, the tall field behind the cells in 22 – 34s.
+        const dur = tall ? 22 + rnd() * 12 : 7 + rnd() * 4
+        // A turn every 3.5 – 7s, either way; a tumble (its width folding over) every 0.9 – 1.7s.
+        const spinDur = 3.5 + rnd() * 3.5
+        return {
+          kind,
+          style: {
+            left,
+            '--size': px(tall ? 9 + rnd() * 3 : 7 + rnd() * 2),
+            '--sway': px((tall ? 22 : 7) * (0.6 + rnd() * 0.8)),
+            '--drift': px((rnd() - 0.35) * (tall ? 220 : 50)),
+            '--spin': `${rnd() < 0.5 ? -360 : 360}deg`,
+            '--spin-dur': sec(spinDur),
+            '--tumble': sec(0.9 + rnd() * 0.8),
+            '--dur': sec(dur),
+            '--delay': sec(-rnd() * dur),
+            '--color': LEAVES[Math.floor(rnd() * LEAVES.length)] ?? 'var(--ambience-leaf-1)',
+          } as CSSProperties,
+        }
       }
       case 'petal': {
         const dur = (20 + rnd() * 18) * (tall ? 1.4 : 1)

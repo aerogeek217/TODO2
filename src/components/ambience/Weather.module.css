@@ -37,17 +37,42 @@
   100% { transform: translate(0, calc(100cqh + 8px)); }
 }
 
-/* An autumn leaf: blown across from the right, tumbling. */
+/*
+ * An autumn leaf: a pointed leaf with a faint midrib, falling — down the
+ * field with a pendulum sway and the wind's drift (`translate`), turning
+ * (`rotate`) and tumbling over (`scale`, its width folding). The three are
+ * separate properties, so each runs on its own animation and period.
+ */
 .leaf {
-  left: 0;
-  height: calc(var(--size, 7px) * 0.47);
+  top: 0;
+  border-radius: 0 100%;
   background: var(--color, var(--ambience-leaf-1));
-  animation-name: blow;
+  /* The midrib, tip to tip: a thin line the leaf lets the sky behind show through (an alpha mask, no colour of its own). */
+  mask-image: linear-gradient(45deg, #000 45%, rgb(0 0 0 / 0.45) 48% 52%, #000 55%);
+  animation:
+    leaf-fall var(--dur, 9s) ease-in-out var(--delay, 0s) infinite,
+    leaf-spin var(--spin-dur, 5s) linear var(--delay, 0s) infinite,
+    leaf-tumble var(--tumble, 1.4s) ease-in-out var(--delay, 0s) infinite alternate;
 }
 
-@keyframes blow {
-  from { transform: translate(calc(100cqw + 12px), 0) rotate(0deg); }
-  to { transform: translate(-16px, var(--drop, 10px)) rotate(var(--spin, 360deg)); }
+/* Each fifth of the fall swings the other way, easing at the ends of a swing as a leaf slows there. */
+@keyframes leaf-fall {
+  0% { translate: 0 -14px; }
+  20% { translate: var(--sway, 8px) 20cqh; }
+  40% { translate: calc(var(--drift, 0px) * 0.4 - var(--sway, 8px)) 40cqh; }
+  60% { translate: calc(var(--drift, 0px) * 0.6 + var(--sway, 8px)) 60cqh; }
+  80% { translate: calc(var(--drift, 0px) * 0.8 - var(--sway, 8px)) 80cqh; }
+  100% { translate: var(--drift, 0px) calc(100cqh + 14px); }
+}
+
+@keyframes leaf-spin {
+  from { rotate: 0deg; }
+  to { rotate: var(--spin, 360deg); }
+}
+
+@keyframes leaf-tumble {
+  from { scale: 1 1; }
+  to { scale: 0.25 1; }
 }
 
 /* A spring petal: drifts across from the left. */
