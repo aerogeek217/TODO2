@@ -168,6 +168,7 @@ export function TaskEditMetadata({
                 selectedIds={assignedTagIds}
                 onToggle={onToggleTag}
                 onCreate={onCreateTag}
+                onClose={() => setOpenDropdown(null)}
                 placeholder="Search tags..."
                 entityMenu="tag"
               />
