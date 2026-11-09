@@ -132,6 +132,22 @@ describe('the filter row (temporary, per split)', () => {
     expect(useWorkspaceStore.getState().isDirty).toBe(false)
   })
 
+  it('a pick that matches no row any more is ignored: no chip, every row shown, and a new pick replaces it', () => {
+    setup(breakdown())
+    const all = keys()
+    act(() => { useChartWidgetsStore.getState().setRowPicks('b', 'people', ['person-99']) })
+    expect(keys()).toEqual(all)
+    expect(document.querySelector('[data-testid="breakdown-filter-chip"]')).toBeNull()
+    // A stale pick with a live one: the live one filters alone.
+    act(() => { useChartWidgetsStore.getState().setRowPicks('b', 'people', ['person-99', 'person-4']) })
+    expect(keys()).toEqual(['person-4'])
+    // Backspace takes back the chip on screen, not the stale pick.
+    const field = within(document.querySelector<HTMLElement>('[data-testid="breakdown-filter-row"]')!).getByRole('textbox', { name: 'Filter by person' })
+    fireEvent.keyDown(field, { key: 'Backspace' })
+    expect(keys()).toEqual(all)
+    expect(useChartWidgetsStore.getState().rowPicks.b?.people ?? []).toEqual([])
+  })
+
   it('the medium face has no filter row and shows name · Due · Follow-up', () => {
     setup(breakdown(), { face: 'medium' })
     expect(document.querySelector('[data-testid="breakdown-filter-row"]')).toBeNull()
