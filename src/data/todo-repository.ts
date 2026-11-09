@@ -2,8 +2,8 @@ import type { Table } from 'dexie'
 import { db, DATA_TABLES } from './database'
 import { TASK_CHILD_TABLE_NAMES } from './tables'
 import { nextSortOrder } from './create-repository'
-import type { TodoItem, PersistedTodoItem, NewTodoItem, TodoEvent } from '../models'
-import { encodeDateValue } from './todo-event-repository'
+import { encodeMarkerFlags, type TodoItem, type PersistedTodoItem, type NewTodoItem, type TodoEvent, type TodoEventType } from '../models'
+import { assignmentEvents, encodeDateValue } from './todo-event-repository'
 import { resolveCompletedAt } from '../utils/completed-at'
 import { newTodoUid } from '../utils/todo-uid'
 import { withOrphanedRuleDropped } from '../utils/todo-changes'
@@ -34,10 +34,21 @@ function withoutUndefinedCompletedAt<T extends Partial<TodoItem>>(row: T): T {
   return rest as T
 }
 
+/** The priority flags `changes` writes (a key present as `undefined` clears its flag). */
+function pickMarkers(changes: Partial<TodoItem>): Pick<TodoItem, 'urgent' | 'important' | 'focus'> {
+  const out: Pick<TodoItem, 'urgent' | 'important' | 'focus'> = {}
+  if ('urgent' in changes) out.urgent = changes.urgent
+  if ('important' in changes) out.important = changes.important
+  if ('focus' in changes) out.focus = changes.focus
+  return out
+}
+
 /**
  * Diff a todo write against its prior state and produce one event per
- * tracked-field change (`dueDate`, `statusId`,
- * `isCompleted`). Idempotent — an unchanged value emits nothing.
+ * tracked-field change (`dueDate`, `statusId`, `isCompleted`, and — the
+ * history log H3 — `nextFollowupAt`, `lastFollowupAt` and the priority
+ * flags; `models/todo-event` has the encodings). Idempotent — an unchanged
+ * value emits nothing.
  *
  * `prior == null` means the row didn't exist (insert path) — only the
  * `isCompleted` axis matters there because the dedicated `created` event
@@ -50,12 +61,19 @@ function buildFieldChangeEvents(
   timestamp: string,
 ): Omit<TodoEvent, 'id'>[] {
   const out: Omit<TodoEvent, 'id'>[] = []
-  if ('dueDate' in next) {
-    const from = encodeDateValue(prior?.dueDate)
-    const to = encodeDateValue(next.dueDate ?? null)
-    if (from !== to) {
-      out.push({ todoId, type: 'deadline', fromValue: from, toValue: to, timestamp })
-    }
+  const dateField = (key: 'dueDate' | 'nextFollowupAt' | 'lastFollowupAt', type: TodoEventType) => {
+    if (!(key in next)) return
+    const from = encodeDateValue(prior?.[key])
+    const to = encodeDateValue(next[key] ?? null)
+    if (from !== to) out.push({ todoId, type, fromValue: from, toValue: to, timestamp })
+  }
+  dateField('dueDate', 'deadline')
+  dateField('nextFollowupAt', 'followup')
+  dateField('lastFollowupAt', 'followedUp')
+  if ('urgent' in next || 'important' in next || 'focus' in next) {
+    const from = encodeMarkerFlags(prior ?? {})
+    const to = encodeMarkerFlags({ ...prior, ...pickMarkers(next) })
+    if (from !== to) out.push({ todoId, type: 'marker', fromValue: from, toValue: to, timestamp })
   }
   if ('statusId' in next) {
     const from = prior?.statusId ?? null
@@ -138,7 +156,9 @@ export const todoRepository = {
 
   /**
    * Inserts several open tasks with their people and tags in one
-   * transaction (all or nothing), each with its `created` event, last and in
+   * transaction (all or nothing), each with its `created` event (and a
+   * `person` / `tag` add for each of its people and tags, at the same
+   * time), last and in
    * input order (sort orders from one past the highest stored). Returns the
    * stored rows, with their new ids, in input order — so a caller needs no
    * second read (which could fail after the tasks already exist).
@@ -161,6 +181,13 @@ export const todoRepository = {
         } as TodoEvent)
         for (const personId of new Set(personIds)) await db.todoPeople.add({ todoId: id, personId })
         for (const tagId of new Set(tagIds)) await db.todoTags.add({ todoId: id, tagId })
+        // The task's first people and tags, logged as added when it was created.
+        const created = todo.createdAt.toISOString()
+        const added = [
+          ...assignmentEvents('person', [...new Set(personIds)].map((personId) => ({ todoId: id, id: personId })), 'add', created),
+          ...assignmentEvents('tag', [...new Set(tagIds)].map((tagId) => ({ todoId: id, id: tagId })), 'add', created),
+        ]
+        if (added.length > 0) await db.todoEvents.bulkAdd(added as TodoEvent[])
         rows.push({ ...row, id })
       }
       return rows

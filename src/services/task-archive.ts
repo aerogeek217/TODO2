@@ -13,8 +13,9 @@ import type {
  *
  * - `todos` and their `todoPeople` / `todoTags` join rows,
  *   `todoEvents` history, `statusUpdates` and `subtasks`;
- * - the referenced `people` / `tags` / `statuses` rows, so the append
- *   import can match them **by name** in another database.
+ * - the referenced `people` / `tags` / `statuses` rows (people and tags
+ *   their `person` / `tag` events name too), so the append import can
+ *   match them **by name** in another database.
  *
  * It imports through the same pipeline as everything else
  * (`prepareImport(…, { purpose: 'append' })` — the schema transforms tolerate
@@ -63,9 +64,15 @@ export async function buildTaskArchive(todoIds: readonly number[], now: Date = n
         db.statusUpdates.where('todoId').anyOf(presentIds).toArray(),
         db.subtasks.where('todoId').anyOf(presentIds).toArray(),
       ])
+      // The people and tags their history names too (a person removed
+      // since), so the append import can match those events by name.
+      const historyIds = (type: 'person' | 'tag') => todoEvents.flatMap((e) => {
+        const id = e.type === type ? e.toValue ?? e.fromValue : null
+        return typeof id === 'number' ? [id] : []
+      })
       const [people, tags, statuses] = await Promise.all([
-        db.people.bulkGet(definedIds(todoPeople.map((r) => r.personId))),
-        db.tags.bulkGet(definedIds(todoTags.map((r) => r.tagId))),
+        db.people.bulkGet(definedIds([...todoPeople.map((r) => r.personId), ...historyIds('person')])),
+        db.tags.bulkGet(definedIds([...todoTags.map((r) => r.tagId), ...historyIds('tag')])),
         db.statuses.bulkGet(definedIds(todos.map((t) => t.statusId))),
       ])
       return {

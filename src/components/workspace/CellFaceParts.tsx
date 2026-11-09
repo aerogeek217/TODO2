@@ -36,6 +36,27 @@ export function SmallFaceOpener({ title, open, onOpen }: { title: string; open: 
   )
 }
 
+/**
+ * Where focus goes back in a cell when the small face's opener is gone (the
+ * face grew): its active tab, else (alone in its cell) its widget's top line
+ * when that takes focus (an inline one, `tabIndex` −1), else the cell's ⋯ —
+ * a top line whose controls float over the cell (a Number's label, a small
+ * face's line) is a plain line.
+ */
+const CELL_FOCUS_TARGETS = [
+  '[role="tab"][aria-selected="true"]:not([aria-hidden="true"])',
+  '[data-widget-top-line][data-ws-tab][tabindex]',
+  '[data-cell-controls] button[aria-haspopup="menu"]',
+]
+
+function cellFocusTarget(cell: HTMLElement): HTMLElement | null {
+  for (const selector of CELL_FOCUS_TARGETS) {
+    const el = cell.querySelector<HTMLElement>(selector)
+    if (el) return el
+  }
+  return null
+}
+
 /** The face every widget in the popover shows: its full one, whatever room the popover has. */
 const FULL_FACE: WidgetFaceHost = { forced: 'large' }
 
@@ -67,7 +88,8 @@ export function WidgetFacePopover({ tab, anchorRef, onClose }: {
     panelRef(el)
   }, [panelRef])
   // Focus goes in once it is placed, and back to where it was (the cell) when it closes from inside —
-  // to the cell's active tab when that is gone (the small face's opener, when the face grew).
+  // to the cell's active tab (alone in its cell, its widget's top line) when that is gone (the small
+  // face's opener, when the face grew).
   useEffect(() => {
     if (!placed) return
     const before = document.activeElement
@@ -77,9 +99,7 @@ export function WidgetFacePopover({ tab, anchorRef, onClose }: {
       const active = document.activeElement
       if (!(active == null || active === document.body || panelEl.current?.contains(active))) return
       if (!(before instanceof HTMLElement) || before === document.body) return
-      const back = before.isConnected
-        ? before
-        : anchor?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]:not([aria-hidden="true"])')
+      const back = before.isConnected ? before : anchor ? cellFocusTarget(anchor) : null
       back?.focus({ preventScroll: true })
     }
   }, [placed, anchorRef])

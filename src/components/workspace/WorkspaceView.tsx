@@ -1,23 +1,23 @@
-import { Fragment, type CSSProperties } from 'react'
-import type { BandEdge, LayoutBand, LayoutCellRow, LayoutColumn, WorkspaceLayout } from '../../models/workspace-layout'
-import { useWorkspaceStore } from '../../stores/workspace-store'
-import { columnEdgeXs, EDGE_ZONE_GUTTER_PX, freeBandEdges, type RowGeometry, type WorkspaceDropHit, type WorkspaceGeometry } from '../../utils/workspace-drop'
-import { CELL_MIN_WIDTH_PX, COLUMN_MIN_PX, expandedWeight } from '../../utils/workspace-resize'
-import { isFitRow, isFixedHeightRow, isGlanceRow, rowDividerAt, rowMinHeightPx } from '../../utils/workspace-rows'
-import { EmptyColumnArea, WorkspaceCell } from './WorkspaceCell'
-import { WorkspaceDivider } from './WorkspaceDivider'
-import { BandDivider } from './BandDivider'
+import { useMemo, type CSSProperties } from 'react'
+import { getActiveTab, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
+import { edgeStretches, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
+import { isCellCollapsedIn, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
+import { isFitTrack } from '../../utils/workspace-rows'
+import { pairPercent } from '../../utils/workspace-resize'
+import { WorkspaceCell } from './WorkspaceCell'
+import { WorkspaceDivider, type DividerValue } from './WorkspaceDivider'
 import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
 import { useWorkspaceDrag } from './workspace-drag'
+import { useTabTitles } from './widget-hooks'
 import { AmbienceBackdrop, AmbienceLamp } from '../ambience/AmbienceWorkspace'
 import styles from './WorkspaceView.module.css'
 
 function EmptyLayout() {
   return (
     <div className={styles.emptyLayout}>
-      <EmptyState illustration="layout" title="This layout is empty" text="Pick a widget to start the first column.">
+      <EmptyState illustration="layout" title="This layout is empty" text="Pick a widget to start the first cell.">
         <div className={styles.tiles}>
           <AddWidgetButtons target={{ kind: 'layout' }} buttonClassName={styles.tile} iconClassName={styles.tileIcon} iconSize={16} />
         </div>
@@ -27,198 +27,136 @@ function EmptyLayout() {
   )
 }
 
-/**
- * A row of cells — a column's row or a band — drawn side by side, each by its
- * share of the row's width, with a resize divider between neighbours (the
- * widths are view state, saved at once). A collapsed row folds every cell to
- * its header; a fit row (`isFitRow`) is as tall as its content.
- */
-function CellRow({ row, band, style }: { row: LayoutCellRow; band?: BandEdge; style: CSSProperties }) {
-  const setCellWeights = useWorkspaceStore((s) => s.setCellWeights)
-  const endResize = useWorkspaceStore((s) => s.endResize)
-  const collapsed = row.collapsed === true
-  const fit = !band && isFitRow(row)
-  const glance = isGlanceRow(row)
-  const cellsWeight = row.cells.reduce((sum, cell) => sum + cell.weight, 0)
-  return (
-    <div
-      className={[styles.row, collapsed ? styles.rowCollapsed : '', fit ? styles.rowFit : '', glance ? styles.rowGlance : ''].join(' ')}
-      style={style}
-      data-ws-row={row.id}
-      data-ws-band-row={band}
-      data-fit={fit ? 'true' : undefined}
-    >
-      {row.cells.map((cell, i) => {
-        const prev = row.cells[i - 1]
-        return (
-          <Fragment key={cell.id}>
-            {prev && (
-              <WorkspaceDivider
-                between="cells"
-                aId={prev.id}
-                bId={cell.id}
-                weightA={prev.weight}
-                weightB={cell.weight}
-                min={CELL_MIN_WIDTH_PX}
-                onResize={setCellWeights}
-                onResizeEnd={endResize}
-                label="Resize cells"
-              />
-            )}
-            <WorkspaceCell
-              cell={cell}
-              band={band}
-              rowId={row.id}
-              collapsed={collapsed}
-              multiRow={row.cells.length > 1}
-              fitRow={fit}
-              style={{ flex: `${cell.weight / cellsWeight} 1 0px` }}
-            />
-          </Fragment>
-        )
-      })}
-    </div>
-  )
-}
-
-function Column({ column, widthShare }: { column: LayoutColumn; widthShare: number }) {
-  const setRowWeights = useWorkspaceStore((s) => s.setRowWeights)
-  const endResize = useWorkspaceStore((s) => s.endResize)
-  const setRowCollapsed = useWorkspaceStore((s) => s.setRowCollapsed)
-  const rowsWeight = column.rows.reduce((sum, row) => (isFixedHeightRow(row) ? sum : sum + row.weight), 0)
-  return (
-    <div
-      className={styles.column}
-      style={{ flexGrow: widthShare } as CSSProperties}
-      data-ws-column={column.id}
-    >
-      {column.rows.map((row, i) => {
-        const style: CSSProperties = isFixedHeightRow(row) ? { flex: '0 0 auto' } : { flex: `${row.weight / rowsWeight} 1 0px` }
-        // The rows this gap resizes (across fit rows between them), or none: a plain gap.
-        const pair = rowDividerAt(column.rows, i)
-        return (
-          <Fragment key={row.id}>
-            {i > 0 && (pair == null ? (
-              <div className={styles.cellGap} aria-hidden="true" />
-            ) : (
-              <WorkspaceDivider
-                between="rows"
-                aId={pair.above.id}
-                bId={pair.below.id}
-                weightA={pair.above.weight}
-                weightB={pair.below.weight}
-                min={rowMinHeightPx(pair.above)}
-                minB={rowMinHeightPx(pair.below)}
-                onResize={setRowWeights}
-                onResizeEnd={endResize}
-                onCollapse={(id) => { void setRowCollapsed(id, true) }}
-                label="Resize rows"
-              />
-            ))}
-            <CellRow row={row} style={style} />
-          </Fragment>
-        )
-      })}
-    </div>
-  )
+/** Whether a stretch gets a divider: a row line beside a fit or collapsed track has nothing to resize. */
+function resizable(layout: WorkspaceLayout, stretch: EdgeStretch): boolean {
+  if (stretch.axis === 'columns') return true
+  return [stretch.line - 1, stretch.line].every((t) => {
+    const kind = trackSizing(layout, 'rows', t).kind
+    return kind === 'weighted' || kind === 'fixed'
+  })
 }
 
 /**
- * A full-width band: a row of cells spanning the workspace. Its stored
- * height is drawn at least its row minimum (`rowMinHeightPx`: `BAND_MIN_PX`,
- * 64px for a band of glance widgets); when the window is short it shrinks
- * (down to its header) so the column area keeps its minimum.
+ * A divider's value for assistive tech: a whole line between two weighted
+ * tracks, the first one's share (%) of the two; beside a fixed track (a
+ * former band), that track's height in px.
  */
-function Band({ edge, band }: { edge: BandEdge; band: LayoutBand }) {
-  const style: CSSProperties = band.collapsed
-    ? { flex: '0 0 auto' }
-    : { flex: `0 1 ${Math.max(rowMinHeightPx(band), band.height)}px` }
-  return <CellRow row={band} band={edge} style={style} />
+function dividerValue(layout: WorkspaceLayout, stretch: EdgeStretch): DividerValue {
+  const tracks = layout.grid[stretch.axis]
+  const a = tracks[stretch.line - 1]
+  const b = tracks[stretch.line]
+  const fixed = a?.px != null ? a : b?.px != null ? b : undefined
+  if (fixed?.px != null) return { now: fixed.px, text: `${fixed.px}px` }
+  return { now: pairPercent(a?.weight ?? 0, b?.weight ?? 0), max: 100 }
 }
 
-/** The gutter between a band and the column area: a resize handle, or a plain gap while the band is collapsed. */
-function BandGutter({ edge, band }: { edge: BandEdge; band: LayoutBand }) {
-  if (band.collapsed) return <div className={styles.cellGap} aria-hidden="true" />
-  return <BandDivider edge={edge} band={band} />
+/** Where a divider sits in the grid: the gutter before the track after its line, along its stretch. */
+function dividerPlacement(stretch: EdgeStretch): CSSProperties {
+  const { line, from, to } = stretch
+  return stretch.axis === 'columns'
+    ? { gridColumn: `${line + 1} / span 1`, gridRow: `${from + 1} / ${to + 1}` }
+    : { gridRow: `${line + 1} / span 1`, gridColumn: `${from + 1} / ${to + 1}` }
 }
 
-/**
- * Where a body zone's new cell or row goes: a horizontal bar above / below
- * the row (in a multi-cell row the whole row's width; else the cell's), or a
- * vertical bar left / right of the cell.
- */
-function newCellBar(geo: WorkspaceGeometry, hit: WorkspaceDropHit | null): { style: CSSProperties; vertical: boolean } | null {
-  if (hit?.kind !== 'cell-body' && hit?.kind !== 'band-body') return null
-  if (hit.zone === 'middle') return null
-  const rows: readonly RowGeometry[] = hit.kind === 'band-body' ? geo.bands : geo.columns.flatMap((c) => c.rows)
-  for (const row of rows) {
-    const cell = row.cells.find((c) => c.id === hit.cellId)
-    if (!cell) continue
-    const r = cell.rect
-    if (hit.zone === 'left' || hit.zone === 'right') {
-      const x = hit.zone === 'left' ? r.left - 4.5 : r.right + 1.5
-      return { vertical: true, style: { left: x, top: r.top, height: r.bottom - r.top } }
-    }
-    const span = row.cells.length > 1 ? row.rect : r
-    const y = hit.zone === 'top' ? span.top - 4.5 : span.bottom + 1.5
-    return { vertical: false, style: { left: span.left, top: y, width: span.right - span.left } }
+/** One divider per stretch of grid line between cells (`edgeStretches`), labelled with the cells beside it. */
+function Dividers({ layout }: { layout: WorkspaceLayout }) {
+  const active = useMemo(() => layout.cells.map((c) => getActiveTab(c)).filter((t): t is LayoutTab => t != null), [layout.cells])
+  const titles = useTabTitles(active)
+  const titleOf = (cellId: string | undefined) => {
+    const cell = layout.cells.find((c) => c.id === cellId)
+    const tab = cell ? getActiveTab(cell) : undefined
+    const i = tab ? active.indexOf(tab) : -1
+    return i >= 0 ? (titles[i] ?? '') : 'Empty cell'
   }
-  return null
+  return (
+    <>
+      {edgeStretches(layout).filter((s) => resizable(layout, s)).map((stretch) => {
+        const { before, after } = stretchCells(layout, stretch)
+        const a = before[0]
+        const b = after[0]
+        if (!a || !b) return null
+        return (
+          <WorkspaceDivider
+            key={`${stretch.axis}:${a.id}|${b.id}`}
+            stretch={stretch}
+            beforeId={a.id}
+            afterId={b.id}
+            label={`Resize ${titleOf(a.id)} and ${titleOf(b.id)}`}
+            value={dividerValue(layout, stretch)}
+            style={dividerPlacement(stretch)}
+          />
+        )
+      })}
+    </>
+  )
 }
 
 /**
- * Drag feedback drawn over the workspace: idle column-edge bars (over the
- * column area) and band-edge bars (where no band is), the active new-column
- * band, the new-band strip, and the new-cell / new-row insertion bar.
+ * The layout's table as one CSS grid (D26): each track sized by
+ * `workspace-table.trackTemplate` (weights as `fr` never under the cells'
+ * minimums — the table scrolls when they don't fit —, px, a fit row
+ * `auto`, a collapsed row its header), each cell placed on its area, and a
+ * divider in the gutter along each stretch of grid line.
+ */
+function Table({ layout }: { layout: WorkspaceLayout }) {
+  const { rows } = layout.grid
+  return (
+    <div
+      className={styles.table}
+      style={{
+        gridTemplateColumns: trackTemplate(layout, 'columns', WORKSPACE_GUTTER_PX),
+        gridTemplateRows: trackTemplate(layout, 'rows', WORKSPACE_GUTTER_PX),
+      }}
+      data-ws-table
+      data-ws-row-tracks={rows.map((t) => t.id).join(' ')}
+    >
+      {layout.cells.map((cell) => {
+        const { col, row, colSpan, rowSpan } = cell.area
+        const tracks = rows.slice(row, row + rowSpan)
+        return (
+          <WorkspaceCell
+            key={cell.id}
+            cell={cell}
+            rowTrackIds={tracks.map((t) => t.id)}
+            collapsed={isCellCollapsedIn(layout, cell)}
+            fitRow={rowSpan === 1 && isFitTrack(layout, row)}
+            style={{ gridArea: `${row + 1} / ${col + 1} / span ${rowSpan} / span ${colSpan}` }}
+          />
+        )
+      })}
+      <Dividers layout={layout} />
+    </div>
+  )
+}
+
+/**
+ * Drag feedback drawn over the workspace (D26 board T): one ghost at the
+ * place and size the drop will produce (`workspace-drop.dropGhost`),
+ * labelled in words. Hidden from assistive tech: the drop is said by the
+ * drag's announcements.
  */
 function DragOverlayLayer() {
   const drag = useWorkspaceDrag()
   if (!drag) return null
-  const { geometry: geo, hit, accepts } = drag
-  const top = geo.columnArea.top
-  const height = geo.columnArea.bottom - geo.columnArea.top
-  const edges = columnEdgeXs(geo)
-  const gutter = 6
-  const stripLeft = geo.area.left + gutter
-  const stripWidth = geo.area.right - geo.area.left - gutter * 2
-
-  const bar = accepts ? newCellBar(geo, hit) : null
-
+  const ghost = drag.accepts ? drag.ghost : null
   return (
     <div className={styles.dragLayer} aria-hidden="true">
-      {edges.map((x, g) => {
-        const activeBand = hit?.kind === 'column-edge' && hit.gutter === g && accepts
-        return activeBand ? (
-          <div
-            key={g}
-            className={styles.edgeBand}
-            data-testid="ws-new-column-band"
-            style={{ left: Math.max(geo.columnArea.left, Math.min(geo.columnArea.right - EDGE_ZONE_GUTTER_PX * 2, x - EDGE_ZONE_GUTTER_PX)), top, height }}
-          />
-        ) : (
-          <div key={g} className={styles.edgeBar} style={{ left: x - 1, top, height }} />
-        )
-      })}
-      {freeBandEdges(geo).map((edge) => {
-        const active = hit?.kind === 'new-band' && hit.edge === edge && accepts
-        return active ? (
-          <div
-            key={edge}
-            className={styles.newBandStrip}
-            data-testid="ws-new-band-strip"
-            data-edge={edge}
-            style={{ left: stripLeft, width: stripWidth, top: edge === 'top' ? geo.area.top + 2 : geo.area.bottom - 34 }}
-          />
-        ) : (
-          <div
-            key={edge}
-            className={styles.edgeBarH}
-            data-testid="ws-band-edge-bar"
-            style={{ left: stripLeft, width: stripWidth, top: edge === 'top' ? geo.area.top + 2 : geo.area.bottom - 4 }}
-          />
-        )
-      })}
-      {bar && <div className={bar.vertical ? styles.cellBarV : styles.cellBar} style={bar.style} data-testid="ws-new-cell-bar" data-axis={bar.vertical ? 'vertical' : 'horizontal'} />}
+      {ghost && (
+        <div
+          // A new ghost per drop spot: each fades in (reduced motion: at once).
+          key={`${ghost.rect.left},${ghost.rect.top},${ghost.rect.right},${ghost.rect.bottom}`}
+          className={styles.ghost}
+          data-testid="ws-drop-ghost"
+          style={{
+            left: ghost.rect.left,
+            top: ghost.rect.top,
+            width: ghost.rect.right - ghost.rect.left,
+            height: ghost.rect.bottom - ghost.rect.top,
+          }}
+        >
+          <span className={styles.ghostLabel} data-testid="ws-drop-label">{ghost.label}</span>
+        </div>
+      )}
     </div>
   )
 }
@@ -236,17 +174,8 @@ function Grain() {
   )
 }
 
-/**
- * The open layout, filling the page: the top band, the column area (columns
- * of rows of cells with resize dividers; it alone scrolls sideways when the columns
- * don't fit), and the bottom band.
- */
+/** The open layout, filling the page: its table of cells, or the empty-layout tiles. */
 export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
-  const setColumnWeights = useWorkspaceStore((s) => s.setColumnWeights)
-  const endResize = useWorkspaceStore((s) => s.endResize)
-  const { top, bottom } = layout
-  const hasBands = top != null || bottom != null
-  const columnsWeight = expandedWeight(layout.columns)
   return (
     <div
       className={styles.area}
@@ -256,35 +185,7 @@ export function WorkspaceView({ layout }: { layout: WorkspaceLayout }) {
     >
       <Grain />
       <AmbienceBackdrop />
-      {top && <Band edge="top" band={top} />}
-      {top && <BandGutter edge="top" band={top} />}
-      <div className={styles.columnArea} data-ws-columns>
-        {layout.columns.length === 0
-          ? (hasBands ? <EmptyColumnArea /> : <EmptyLayout />)
-          : layout.columns.map((column, i) => {
-              const prev = layout.columns[i - 1]
-              return (
-                <Fragment key={column.id}>
-                  {prev && (
-                    <WorkspaceDivider
-                      between="columns"
-                      aId={prev.id}
-                      bId={column.id}
-                      weightA={prev.weight}
-                      weightB={column.weight}
-                      min={COLUMN_MIN_PX}
-                      onResize={setColumnWeights}
-                      onResizeEnd={endResize}
-                      label="Resize columns"
-                    />
-                  )}
-                  <Column column={column} widthShare={column.weight / columnsWeight} />
-                </Fragment>
-              )
-            })}
-      </div>
-      {bottom && <BandGutter edge="bottom" band={bottom} />}
-      {bottom && <Band edge="bottom" band={bottom} />}
+      {layout.cells.length === 0 ? <EmptyLayout /> : <Table layout={layout} />}
       <AmbienceLamp />
       <DragOverlayLayer />
     </div>

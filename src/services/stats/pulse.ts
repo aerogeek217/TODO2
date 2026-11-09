@@ -2,7 +2,7 @@ import type { PersistedTodoItem, Tag } from '../../models'
 import { daysUntil } from '../../utils/effective-date'
 import { isStale } from '../../utils/stale'
 import { trendWindow } from '../../utils/trend-window'
-import { completionOf } from './closed-this-week'
+import { completionOf } from './task-history'
 import { idsByDate, type StatsContext } from './stats-context'
 
 /**

@@ -2,225 +2,222 @@ import { describe, it, expect } from 'vitest'
 import { rowFixes, sanitizeRow, validateImportData, validateRow } from '../../data/import-validation'
 import { addTab } from '../../utils/workspace-layout-ops'
 import { LAYOUT_SIZE_MAX } from '../../data/layout-shape'
+import { validateTiling, isNormalized } from '../../utils/workspace-grid'
 import type { LayoutTab, WorkspaceLayout } from '../../models/workspace-layout'
-import { rowOf } from '../helpers/layout-builders'
+import { emptyBody, numberTab } from '../helpers/layout-builders'
 
 const DATE = '2026-09-01T09:00:00.000Z'
 
-function layoutRow(columns: unknown, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return { id: 1, name: 'Daily', sortOrder: 0, columns, createdAt: DATE, modifiedAt: DATE, ...extra }
+const EMPTY = { grid: { columns: [], rows: [] }, cells: [] }
+const AREA = { col: 0, row: 0, colSpan: 1, rowSpan: 1 }
+
+function layoutRow(body: unknown, extra: Record<string, unknown> = {}): Record<string, unknown> {
+  return { id: 1, name: 'Daily', sortOrder: 0, ...(body as Record<string, unknown>), createdAt: DATE, modifiedAt: DATE, ...extra }
 }
 
-function oneTab(tab: Record<string, unknown>, cell: Record<string, unknown> = {}): unknown[] {
-  return [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [tab], ...cell })] }]
+/** One column, one row, one cell `k` holding `tab`. */
+function oneTab(tab: Record<string, unknown>, cell: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    grid: { columns: [{ id: 'c', weight: 1000 }], rows: [{ id: 'r', weight: 1000 }] },
+    cells: [{ id: 'k', area: AREA, tabs: [tab], ...cell }],
+  }
+}
+
+/** Two cells side by side (k1 | k2) over one row, with `patch` merged into the grid's tracks or cells. */
+function twoCells(tracks: { columns?: unknown[]; rows?: unknown[] } = {}, cells?: unknown[]): Record<string, unknown> {
+  return {
+    grid: {
+      columns: tracks.columns ?? [{ id: 'c1', weight: 500 }, { id: 'c2', weight: 500 }],
+      rows: tracks.rows ?? [{ id: 'r1', weight: 1000 }],
+    },
+    cells: cells ?? [
+      { id: 'k1', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
+      { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
+    ],
+  }
 }
 
 /** Layout rows `checkLayout` rejects: label, row, the bad field it names. */
 const REJECTED: Array<[string, Record<string, unknown>, string]> = [
-  ['blank name', layoutRow([], { name: '  ' }), 'name'],
-  ['bad date', layoutRow([], { modifiedAt: 'nope' }), 'modifiedAt'],
-  ['phone column not an id', layoutRow([], { activeColumnId: '' }), 'activeColumnId'],
-  ['hue neither a preset name nor a hex colour', layoutRow([], { hue: 'mauve' }), 'hue'],
-  ['columns not an array', layoutRow({}), 'columns'],
-  ['column without rows', layoutRow([{ id: 'c', weight: 1, rows: [] }]), 'columns[0].rows'],
-  ['column in the v75 shape (cells, no rows)', layoutRow([{ id: 'c', weight: 1, cells: [{ id: 'k', weight: 1, tabs: [] }] }]), 'columns[0].rows'],
-  ['row without cells', layoutRow([{ id: 'c', weight: 1, rows: [{ id: 'r', weight: 1, cells: [] }] }]), 'columns[0].rows[0].cells'],
-  ['row not an object', layoutRow([{ id: 'c', weight: 1, rows: ['r'] }]), 'columns[0].rows[0]'],
-  ['row weight zero', layoutRow([{ id: 'c', weight: 1, rows: [{ ...rowOf({ id: 'k', weight: 1, tabs: [] }), weight: 0 }] }]), 'columns[0].rows[0].weight'],
-  ['row id repeats its column id', layoutRow([{ id: 'c', weight: 1, rows: [{ ...rowOf({ id: 'k', weight: 1, tabs: [] }), id: 'c' }] }]), 'columns[0].rows[0].id'],
-  ['cell id repeats its row id', layoutRow([{ id: 'c', weight: 1, rows: [rowOf({ id: 'k-r', weight: 1, tabs: [] }, { id: 'k-r' })] }]), 'columns[0].rows[0].cells[0].id'],
-  ['cell weight zero', layoutRow([{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 0, tabs: [] })] }]), 'columns[0].rows[0].cells[0].weight'],
-  ['strip shown not a boolean', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }, { stripShown: 'yes' })), 'columns[0].rows[0].cells[0].stripShown'],
-  ['zero weight', layoutRow([{ id: 'c', weight: 0, rows: [] }]), 'columns[0].weight'],
-  // Two of these summed to Infinity: every share 0, no divider could recover (cr33 S4).
-  ['column weight past the size cap', layoutRow([{ id: 'c', weight: 9e307, rows: [rowOf({ id: 'k', weight: 1, tabs: [] })] }]), 'columns[0].weight'],
-  ['row weight past the size cap', layoutRow([{ id: 'c', weight: 1, rows: [{ ...rowOf({ id: 'k', weight: 1, tabs: [] }), weight: 1e7 }] }]), 'columns[0].rows[0].weight'],
-  ['cell weight past the size cap', layoutRow([{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 9e307, tabs: [] })] }]), 'columns[0].rows[0].cells[0].weight'],
-  ['unknown kind', layoutRow(oneTab({ id: 't', kind: 'horizons', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
-  ['retired Taskboard widget', layoutRow(oneTab({ id: 't', kind: 'taskboard', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
+  ['blank name', layoutRow(EMPTY, { name: '  ' }), 'name'],
+  ['bad date', layoutRow(EMPTY, { modifiedAt: 'nope' }), 'modifiedAt'],
+  ['hue neither a preset name nor a hex colour', layoutRow(EMPTY, { hue: 'mauve' }), 'hue'],
+  ['no grid', layoutRow({ cells: [] }), 'grid'],
+  ['grid in the v77 shape (columns of rows)', layoutRow({ columns: [{ id: 'c', weight: 1, rows: [] }] }), 'grid'],
+  ['grid rows not a list', layoutRow({ grid: { columns: [], rows: {} }, cells: [] }), 'grid'],
+  ['cells not a list', layoutRow({ grid: { columns: [], rows: [] } }), 'cells'],
+  ['track not an object', layoutRow(twoCells({ columns: ['c1', { id: 'c2', weight: 1 }] })), 'grid.columns[0]'],
+  ['track weight zero', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 0 }, { id: 'c2', weight: 1 }] })), 'grid.columns[0].weight'],
+  ['track weight past the size cap', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 9e307 }, { id: 'c2', weight: 1 }] })), 'grid.columns[0].weight'],
+  ['track with a weight and px', layoutRow(twoCells({ rows: [{ id: 'r1', weight: 1, px: 100 }] })), 'grid.rows[0].px'],
+  ['track px past the size cap', layoutRow(twoCells({ rows: [{ id: 'r1', px: 1e308 }] })), 'grid.rows[0].px'],
+  ['column track collapsed', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 1, collapsed: true }, { id: 'c2', weight: 1 }] })), 'grid.columns[0].collapsed'],
+  ['row collapsed not a boolean', layoutRow(twoCells({ rows: [{ id: 'r1', weight: 1, collapsed: 'yes' }] })), 'grid.rows[0].collapsed'],
+  ['track id repeats another', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 1 }, { id: 'c1', weight: 1 }] })), 'grid.columns[1].id'],
+  ['cell id repeats a track id', layoutRow(twoCells({}, [
+    { id: 'c1', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
+    { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
+  ])), 'cells[0].id'],
+  ['cell without an area', layoutRow(twoCells({}, [{ id: 'k1', tabs: [] }, { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] }])), 'cells[0].area'],
+  ['cell area not whole tracks', layoutRow(twoCells({}, [
+    { id: 'k1', area: { col: 0, row: 0, colSpan: 0.5, rowSpan: 1 }, tabs: [] },
+    { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
+  ])), 'cells[0].area'],
+  ['cells leaving a gap', layoutRow(twoCells({}, [{ id: 'k1', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] }])), 'cells'],
+  ['cells overlapping', layoutRow(twoCells({}, [
+    { id: 'k1', area: { col: 0, row: 0, colSpan: 2, rowSpan: 1 }, tabs: [] },
+    { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
+  ])), 'cells'],
+  ['a cell outside the grid', layoutRow(twoCells({}, [
+    { id: 'k1', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
+    { id: 'k2', area: { col: 1, row: 0, colSpan: 2, rowSpan: 1 }, tabs: [] },
+  ])), 'cells'],
+  ['a line no cell edge lies on', layoutRow(twoCells({}, [{ id: 'k1', area: { col: 0, row: 0, colSpan: 2, rowSpan: 1 }, tabs: [] }])), 'grid.columns'],
+  ['tracks without cells', layoutRow({ grid: { columns: [{ id: 'c', weight: 1 }], rows: [{ id: 'r', weight: 1 }] }, cells: [] }), 'cells'],
+  ['unknown kind', layoutRow(oneTab({ id: 't', kind: 'horizons', config: {} })), 'cells[0].tabs[0].kind'],
+  ['retired Taskboard widget', layoutRow(oneTab({ id: 't', kind: 'taskboard', config: {} })), 'cells[0].tabs[0].kind'],
   // Retired in v77 (its tabs became glance widgets): past v77 an unknown kind.
-  ['retired Dashboard widget', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { tiles: ['open'], listTiles: [], sections: [] } })), 'columns[0].rows[0].cells[0].tabs[0].kind'],
-  ['missing config', layoutRow(oneTab({ id: 't', kind: 'notes' })), 'columns[0].rows[0].cells[0].tabs[0].config'],
-  ['calendar date types not booleans', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: 1, followup: false } } })), 'columns[0].rows[0].cells[0].tabs[0].config.dateTypes'],
-  ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.view'],
-  ['calendar titles not a boolean', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { titles: 'on' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.titles'],
-  ['bad Eisenhower collapsed', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['later'] } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.collapsed'],
-  ['Eisenhower collapsed not a list', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: 'do' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.collapsed'],
-  ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'columns[0].rows[0].cells[0].tabs[0].config.listDefinitionId'],
-  ['bad row collapsed', layoutRow([{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [] }, { collapsed: 'yes' })] }]), 'columns[0].rows[0].collapsed'],
-  ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'columns[0].rows[0].cells[0].tabs[0].id'],
-  ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.detailsWidth'],
-  ['negative details width', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { detailsWidth: -1 } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.detailsWidth'],
-  ['unknown list zoom', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'huge' } })), 'columns[0].rows[0].cells[0].tabs[0].viewState.zoom'],
-  ['band not an object', layoutRow([], { bottom: 'yes' }), 'bottom'],
-  ['band with no cells', layoutRow([], { top: { id: 'b', height: 160, cells: [] } }), 'top.cells'],
-  ['band in the v75 shape (tabs, no cells)', layoutRow([], { top: { id: 'b', height: 160, tabs: [{ id: 't', kind: 'notes', config: {} }] } }), 'top.cells'],
-  ['band cell tabs not a list', layoutRow([], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: {} }] } }), 'top.cells[0].tabs'],
-  ['band without a height', layoutRow([], { top: { id: 'b', cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.height'],
-  ['band height past the size cap', layoutRow([], { top: { id: 'b', height: 1e308, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.height'],
-  ['band height zero', layoutRow([], { top: { id: 'b', height: 0, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.height'],
-  ['band id repeats a cell id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { top: { id: 'k', height: 160, cells: [{ id: 'k-c', weight: 1, tabs: [{ id: 't2', kind: 'notes', config: {} }] }] } }), 'top.id'],
-  ['band tab id repeats a tab id', layoutRow(oneTab({ id: 't', kind: 'notes', config: {} }), { bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'bottom.cells[0].tabs[0].id'],
-  ['the two bands share an id', layoutRow([], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] }, bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't2', kind: 'notes', config: {} }] }] } }), 'bottom.id'],
-  ['unknown band tab kind', layoutRow([], { bottom: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'taskboard', config: {} }] }] } }), 'bottom.cells[0].tabs[0].kind'],
-  ['bad band collapsed', layoutRow([], { top: { id: 'b', height: 160, collapsed: 1, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] } }), 'top.collapsed'],
-  ['bad band tab settings', layoutRow([], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'calendar', config: {} }] }] } }), 'top.cells[0].tabs[0].config.dateTypes'],
-  ['Neglect map without colourBy', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { untouchedDays: 14 } })), 'columns[0].rows[0].cells[0].tabs[0].config.colourBy'],
-  ['Neglect map colouring by an unknown kind', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'status' }, untouchedDays: 14 } })), 'columns[0].rows[0].cells[0].tabs[0].config.colourBy'],
-  ['Neglect map tags not a list', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: 3 }, untouchedDays: 14 } })), 'columns[0].rows[0].cells[0].tabs[0].config.colourBy'],
-  ['Neglect map threshold past the cap', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 60 } })), 'columns[0].rows[0].cells[0].tabs[0].config.untouchedDays'],
-  ['Neglect map threshold not whole', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 2.5 } })), 'columns[0].rows[0].cells[0].tabs[0].config.untouchedDays'],
+  ['retired Dashboard widget', layoutRow(oneTab({ id: 't', kind: 'dashboard', config: { tiles: ['open'], listTiles: [], sections: [] } })), 'cells[0].tabs[0].kind'],
+  ['missing config', layoutRow(oneTab({ id: 't', kind: 'notes' })), 'cells[0].tabs[0].config'],
+  ['calendar date types not booleans', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: 1, followup: false } } })), 'cells[0].tabs[0].config.dateTypes'],
+  ['bad calendar view', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'year' } })), 'cells[0].tabs[0].viewState.view'],
+  ['calendar titles not a boolean', layoutRow(oneTab({ id: 't', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { titles: 'on' } })), 'cells[0].tabs[0].viewState.titles'],
+  ['bad Eisenhower collapsed', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['later'] } })), 'cells[0].tabs[0].viewState.collapsed'],
+  ['Eisenhower collapsed not a list', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: 'do' } })), 'cells[0].tabs[0].viewState.collapsed'],
+  ['bad list id', layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: '3' } })), 'cells[0].tabs[0].config.listDefinitionId'],
+  ['duplicate id', layoutRow(oneTab({ id: 'k', kind: 'notes', config: {} })), 'cells[0].tabs[0].id'],
+  ['details width not a number', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: '262' } })), 'cells[0].tabs[0].viewState.detailsWidth'],
+  ['negative details width', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: {}, viewState: { detailsWidth: -1 } })), 'cells[0].tabs[0].viewState.detailsWidth'],
+  ['unknown list zoom', layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'huge' } })), 'cells[0].tabs[0].viewState.zoom'],
+  ['Neglect map without colourBy', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { untouchedDays: 14 } })), 'cells[0].tabs[0].config.colourBy'],
+  ['Neglect map colouring by an unknown kind', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'status' }, untouchedDays: 14 } })), 'cells[0].tabs[0].config.colourBy'],
+  ['Neglect map tags not a list', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: 3 }, untouchedDays: 14 } })), 'cells[0].tabs[0].config.colourBy'],
+  ['Neglect map threshold past the cap', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 60 } })), 'cells[0].tabs[0].config.untouchedDays'],
+  ['Neglect map threshold not whole', layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 2.5 } })), 'cells[0].tabs[0].config.untouchedDays'],
 ]
 
-/** A top band (a Number + a list) and a bottom band (a week calendar), as the layout row stores them. */
-const BANDS = {
-  top: { id: 'b1', height: 112, cells: [{ id: 'b1-c', weight: 1, activeTabId: 'bt2', tabs: [
-    { id: 'bt1', kind: 'number', config: { metric: 'open' } },
-    { id: 'bt2', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 280 } },
-  ] }] },
-  bottom: { id: 'b2', height: 150, collapsed: true, cells: [{ id: 'b2-c', weight: 1, tabs: [
-    { id: 'bt3', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { view: 'week' } },
-  ] }] },
-}
-
-/** Columns holding every kind, an empty cell, view state, a collapsed row and a row of two cells. */
-const EVERY_KIND = [
-  { id: 'c1', weight: 1, rows: [
-    rowOf({ id: 'k1', weight: 1, activeTabId: 't2', tabs: [
+/**
+ * A table holding every kind, an empty cell, view state, a fixed and a
+ * collapsed row, and a cell spanning rows:
+ *
+ *     k1 k1 k3
+ *     k2 k4 k3
+ *     k5 k5 k5   (fixed 112px)
+ */
+const EVERY_KIND = {
+  grid: {
+    columns: [{ id: 'c1', weight: 300 }, { id: 'c2', weight: 300 }, { id: 'c3', weight: 400 }],
+    rows: [{ id: 'r1', weight: 600, collapsed: true }, { id: 'r2', weight: 400 }, { id: 'r3', px: 112 }],
+  },
+  cells: [
+    { id: 'k1', area: { col: 0, row: 0, colSpan: 2, rowSpan: 1 }, activeTabId: 't2', tabs: [
       { id: 't1', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 300 } },
       { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2, titles: true } },
       { id: 't3', kind: 'notes', config: {} },
       { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'], detailsWidth: 0 } },
-      { id: 't5', kind: 'stale', config: { staleDays: 30 }, viewState: { detailsWidth: 4000 } },
-    ] }, { collapsed: true }),
-    rowOf({ id: 'k2', weight: 1, tabs: [] }, { weight: 0.5 }),
-    // Two cells side by side, one headless.
-    { id: 'r3', weight: 1, cells: [
-      { id: 'k4', weight: 2, stripShown: false, tabs: [{ id: 't8', kind: 'notes', config: {} }] },
-      { id: 'k5', weight: 1, stripShown: true, tabs: [{ id: 't9', kind: 'notes', config: {} }] },
+      { id: 't5', kind: 'trend', config: { range: '4w' } },
     ] },
-  ] },
-  { id: 'c2', weight: 2, rows: [rowOf({ id: 'k3', weight: 1, tabs: [
-    { id: 't6', kind: 'notes', config: {} },
-    { id: 't7', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 9] }, untouchedDays: 21 } },
-  ] })] },
-]
+    { id: 'k3', area: { col: 2, row: 0, colSpan: 1, rowSpan: 2 }, tabs: [
+      { id: 't6', kind: 'notes', config: {} },
+      { id: 't7', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [4, 9] }, untouchedDays: 21 } },
+    ] },
+    { id: 'k2', area: { col: 0, row: 1, colSpan: 1, rowSpan: 1 }, tabs: [] },
+    { id: 'k4', area: { col: 1, row: 1, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 't8', kind: 'notes', config: {} }] },
+    { id: 'k5', area: { col: 0, row: 2, colSpan: 3, rowSpan: 1 }, tabs: [numberTab('t9', 'overdue', { breakdown: 'tags', ignoreLens: true })] },
+  ],
+}
 
 describe('layouts row validation', () => {
-  it('accepts a layout with many columns, rows, cells and tabs, as the workspace reducers build it', () => {
+  it('accepts a layout with many tracks, cells and tabs, as the workspace reducers build it', () => {
     // Nothing in the workspace limits the counts; import keeps up to 1,000 of each.
     let n = 0
     const genId = () => `w-${n++}`
-    let layout: WorkspaceLayout = { id: 1, sortOrder: 0, name: 'Big', columns: [], createdAt: new Date(DATE), modifiedAt: new Date(DATE) }
+    let layout: WorkspaceLayout = { id: 1, sortOrder: 0, name: 'Big', ...emptyBody(), createdAt: new Date(DATE), modifiedAt: new Date(DATE) }
     const notes = (): LayoutTab => ({ id: genId(), kind: 'notes', config: {} })
     for (let c = 0; c < 40; c++) layout = addTab(layout, notes(), { kind: 'layout' }, genId)
-    const firstCell = layout.columns[0]!.rows[0]!.cells[0]!.id
+    const firstCell = layout.cells[0]!.id
     for (let t = 0; t < 40; t++) layout = addTab(layout, notes(), { kind: 'cell', cellId: firstCell }, genId)
-    for (let k = 0; k < 40; k++) layout = addTab(layout, notes(), { kind: 'cell-edge', cellId: firstCell, edge: 'bottom' }, genId)
-    for (let k = 0; k < 10; k++) layout = addTab(layout, notes(), { kind: 'cell-edge', cellId: firstCell, edge: 'right' }, genId)
-    expect(layout.columns).toHaveLength(40)
-    expect(layout.columns[0]!.rows).toHaveLength(41)
-    expect(layout.columns[0]!.rows[0]!.cells).toHaveLength(11)
-    expect(layout.columns[0]!.rows[0]!.cells.find((cell) => cell.id === firstCell)!.tabs).toHaveLength(41)
+    for (let k = 0; k < 40; k++) layout = addTab(layout, notes(), { kind: 'split', cellId: firstCell, side: 'bottom' }, genId)
+    for (let k = 0; k < 10; k++) layout = addTab(layout, notes(), { kind: 'split', cellId: firstCell, side: 'right' }, genId)
+    expect(layout.cells).toHaveLength(90)
+    expect(layout.cells.find((cell) => cell.id === firstCell)!.tabs).toHaveLength(41)
 
     const row = JSON.parse(JSON.stringify(layout)) as Record<string, unknown>
     expect(validateRow('layouts', row)).toBe(true)
     const result = validateImportData({ todos: [], settings: [], layouts: [row] })
     if (!result.ok) throw new Error(result.error)
-    expect(result.data.layouts[0]!.columns).toEqual(layout.columns)
+    expect(result.data.layouts[0]!.cells).toEqual(layout.cells)
+    expect(result.data.layouts[0]!.grid).toEqual(layout.grid)
   })
 
-  it('accepts every kind, an empty cell and an empty layout', () => {
-    const columns = [
-      { id: 'c1', weight: 1, rows: [
-        rowOf({ id: 'k1', weight: 1, activeTabId: 't2', tabs: [
-          { id: 't1', kind: 'lens', config: { listDefinitionId: 3 } },
-          { id: 't2', kind: 'calendar', config: { dateTypes: { due: false, followup: true } }, viewState: { view: 'month', offset: -2 } },
-          { id: 't3', kind: 'notes', config: {} },
-          { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
-          { id: 't5', kind: 'trend', config: { range: '4w' } },
-        ] }, { collapsed: true }),
-        rowOf({ id: 'k2', weight: 1, tabs: [] }, { weight: 0.5 }),
-      ] },
-    ]
-    expect(validateRow('layouts', layoutRow(columns, { lastUsedAt: DATE, activeColumnId: 'c1', hue: 'violet' }))).toBe(true)
-    expect(validateRow('layouts', layoutRow([]))).toBe(true)
+  it('accepts every kind, an empty cell, fixed and collapsed rows, and an empty layout', () => {
+    expect(validateRow('layouts', layoutRow(EVERY_KIND, { lastUsedAt: DATE, hue: 'violet' }))).toBe(true)
+    expect(validateRow('layouts', layoutRow(EMPTY))).toBe(true)
   })
 
   it.each(REJECTED)('rejects %s', (_label, row, field) => {
     expect(validateRow('layouts', row)).toBe(field)
   })
 
-  it('accepts a top and a bottom band; a layout without bands needs none', () => {
-    expect(validateRow('layouts', layoutRow(EVERY_KIND, BANDS))).toBe(true)
-    expect(validateRow('layouts', layoutRow([], { top: BANDS.top }))).toBe(true)
-    expect(validateRow('layouts', layoutRow(EVERY_KIND))).toBe(true)
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(EVERY_KIND, BANDS), layoutRow([], { id: 2 })] })
-    if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]).toMatchObject(BANDS)
-    expect('top' in res.data.layouts[1]!).toBe(false)
-    expect('bottom' in res.data.layouts[1]!).toBe(false)
-  })
-
-  it('import keeps only a band’s model keys and drops its stale activeTabId', () => {
-    const top = { id: 'b', height: 90.5, collapsed: false, stray: 1, cells: [{ id: 'b-c', weight: 1, activeTabId: 'gone', tabs: [{ id: 't', kind: 'notes', config: { x: 1 } }] }] }
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow([], { top })] })
-    if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.top).toEqual({ id: 'b', height: 90.5, cells: [{ id: 'b-c', weight: 1, tabs: [{ id: 't', kind: 'notes', config: {} }] }] })
-  })
-
-  it('import keeps only model keys and drops a stale activeTabId', () => {
-    const columns = [{
-      id: 'c', weight: 2, extra: 1, rows: [rowOf({
-        id: 'k', weight: 1, activeTabId: 'gone', junk: true,
-        tabs: [
-          { id: 't1', kind: 'notes', config: { stray: 1 }, viewState: { stray: 2 } },
-          // A list tab saves no prompt picks.
-          { id: 't3', kind: 'lens', config: { listDefinitionId: 4 }, viewState: { runtimeFilterValue: [1] } },
-          { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false, x: 1 } }, viewState: { offset: 500 } },
-          // Collapsed quadrants: once each, in display order.
-          { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop', 'do', 'drop'], stray: 1 } },
-          { id: 't5', kind: 'eisenhower', config: {}, viewState: { collapsed: [] } },
-        ],
-      }, { collapsed: false })],
-    }]
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(columns, { stray: 'x' })] })
+  it('import keeps only model keys, puts the cells in reading order and drops a stale activeTabId', () => {
+    const body = {
+      grid: { columns: [{ id: 'c', weight: 2, extra: 1 }, { id: 'd', weight: 1 }], rows: [{ id: 'r', weight: 1, collapsed: false }] },
+      cells: [
+        { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1, x: 1 }, tabs: [] },
+        {
+          id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, activeTabId: 'gone', junk: true,
+          tabs: [
+            { id: 't1', kind: 'notes', config: { stray: 1 }, viewState: { stray: 2 } },
+            // A list tab saves no prompt picks.
+            { id: 't3', kind: 'lens', config: { listDefinitionId: 4 }, viewState: { runtimeFilterValue: [1] } },
+            { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false, x: 1 } }, viewState: { offset: 500 } },
+            // Collapsed quadrants: once each, in display order.
+            { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['drop', 'do', 'drop'], stray: 1 } },
+            { id: 't5', kind: 'eisenhower', config: {}, viewState: { collapsed: [] } },
+          ],
+        },
+      ],
+    }
+    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(body, { stray: 'x' })] })
     if (!res.ok) throw new Error(res.error)
     expect(res.data.layouts).toEqual([{
       id: 1, name: 'Daily', sortOrder: 0, createdAt: new Date(DATE), modifiedAt: new Date(DATE),
-      columns: [{ id: 'c', weight: 2, rows: [rowOf({ id: 'k', weight: 1, tabs: [
-        { id: 't1', kind: 'notes', config: {} },
-        { id: 't3', kind: 'lens', config: { listDefinitionId: 4 } },
-        { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { offset: 104 } },
-        { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
-        { id: 't5', kind: 'eisenhower', config: {} },
-      ] })] }],
+      grid: { columns: [{ id: 'c', weight: 2 }, { id: 'd', weight: 1 }], rows: [{ id: 'r', weight: 1 }] },
+      cells: [
+        { id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [
+          { id: 't1', kind: 'notes', config: {} },
+          { id: 't3', kind: 'lens', config: { listDefinitionId: 4 } },
+          { id: 't2', kind: 'calendar', config: { dateTypes: { due: true, followup: false } }, viewState: { offset: 104 } },
+          { id: 't4', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do', 'drop'] } },
+          { id: 't5', kind: 'eisenhower', config: {} },
+        ] },
+        { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
+      ],
     }])
   })
 
-  it('import keeps a list, Eisenhower or row widget tab’s details width, rounded', () => {
-    const columns = [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [
-      { id: 't1', kind: 'lens', config: {}, viewState: { detailsWidth: 262.6 } },
+  it('import keeps a list or Eisenhower tab’s details width, rounded', () => {
+    const body = oneTab({ id: 't1', kind: 'lens', config: {}, viewState: { detailsWidth: 262.6 } })
+    ;(body.cells as Array<{ tabs: unknown[] }>)[0]!.tabs.push(
       { id: 't2', kind: 'eisenhower', config: {}, viewState: { detailsWidth: 180 } },
-      { id: 't3', kind: 'recent', config: { recentDays: 7 }, viewState: { detailsWidth: 0.4 } },
+      { id: 't3', kind: 'eisenhower', config: {}, viewState: { detailsWidth: 0.4 } },
       // Only tabs that show task rows keep it.
       { id: 't4', kind: 'notes', config: {}, viewState: { detailsWidth: 200 } },
-    ] })] }]
-    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(columns)] })
+    )
+    const res = validateImportData({ todos: [], settings: [], layouts: [layoutRow(body)] })
     if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs.map((t) => t.viewState)).toEqual([
+    expect(res.data.layouts[0]!.cells[0]!.tabs.map((t) => t.viewState)).toEqual([
       { detailsWidth: 263 }, { detailsWidth: 180 }, { detailsWidth: 0 }, undefined,
     ])
   })
 
   it('a details width past 4000 — a very wide list’s divider — is valid and read as 4000', () => {
-    // The divider stores up to the list's own room, which a wide band can put past 4000 px.
     const row = layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 4630 } }))
     expect(validateRow('layouts', row)).toBe(true)
     expect(rowFixes('layouts', row)).toEqual([])
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })
     if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 4000 })
+    expect(res.data.layouts[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 4000 })
   })
 
   it('validates the activeLayoutId setting as a number', () => {
@@ -231,58 +228,43 @@ describe('layouts row validation', () => {
 
 describe('a layout past the limit of 1,000 columns, rows, cells or tabs', () => {
   const notes = (id: string) => ({ id, kind: 'notes', config: {} })
+  /** A column of `n` cells, one per row, each holding `tabsOf(i)`. */
+  const stack = (n: number, tabsOf: (i: number) => unknown[] = () => []) => ({
+    grid: { columns: [{ id: 'c', weight: 1000 }], rows: Array.from({ length: n }, (_, i) => ({ id: `r${i}`, weight: 1 })) },
+    cells: Array.from({ length: n }, (_, i) => ({ id: `k${i}`, area: { col: 0, row: i, colSpan: 1, rowSpan: 1 }, tabs: tabsOf(i) })),
+  })
 
-  it('imports with the parts past the limit dropped, and a warning that says so', () => {
-    const columns = Array.from({ length: 1003 }, (_, c) => ({ id: `c${c}`, weight: 1, rows: [rowOf({ id: `k${c}`, weight: 1, tabs: [] })] }))
-    const row = layoutRow(columns)
+  it('imports with the tabs past the limit dropped, and a warning that says so', () => {
+    const many = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => notes(`${prefix}${i}`))
+    const row = layoutRow(stack(2, (i) => many(`t${i}-`, 600)))
     expect(validateRow('layouts', row)).toBe(true)
+    expect(rowFixes('layouts', row)).toEqual(['200 tabs past the limit of 1,000 dropped'])
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })
     if (!res.ok) throw new Error(res.error)
-    expect(res.data.layouts[0]!.columns).toHaveLength(1000)
-    expect(res.data.layouts[0]!.columns.at(-1)!.id).toBe('c999')
-    expect(res.warnings).toEqual(['Fixed 1 layout: "Daily" (3 columns past the limit of 1,000 dropped)'])
+    expect(res.data.layouts[0]!.cells[1]!.tabs).toHaveLength(400)
+    expect(res.warnings).toEqual(['Fixed 1 layout: "Daily" (200 tabs past the limit of 1,000 dropped)'])
   })
 
-  it('counts rows, cells and tabs over the whole layout, bands included', () => {
-    const many = (prefix: string, n: number) => Array.from({ length: n }, (_, i) => notes(`${prefix}${i}`))
-    const row = layoutRow([
-      { id: 'c0', weight: 1, rows: [rowOf({ id: 'k0', weight: 1, tabs: many('a', 600) })] },
-      { id: 'c1', weight: 1, rows: [rowOf({ id: 'k1', weight: 1, tabs: many('b', 600) })] },
-    ], { top: { id: 'b', height: 160, cells: [{ id: 'b-c', weight: 1, tabs: many('t', 2) }] } })
+  it('tracks past the limit go, and the cells left restack in one column', () => {
+    const row = layoutRow(stack(1002))
     expect(validateRow('layouts', row)).toBe(true)
-    expect(rowFixes('layouts', row)).toEqual(['202 tabs past the limit of 1,000 dropped'])
+    expect(rowFixes('layouts', row)).toEqual(['2 tracks past the limit of 1,000 dropped', '2 cells past the limit of 1,000 dropped', 'cells restacked in one column'])
     const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
-    expect(repaired.columns[1]!.rows[0]!.cells[0]!.tabs).toHaveLength(400)
-    // The band's cell keeps its place, empty (as a column's cell would).
-    expect(repaired.top?.cells).toEqual([{ id: 'b-c', weight: 1, tabs: [] }])
-
-    // Cells side by side in one row count as any others.
-    const cells = Array.from({ length: 1001 }, (_, k) => ({ id: `k${k}`, weight: 1, tabs: [] }))
-    expect(rowFixes('layouts', layoutRow([{ id: 'c', weight: 1, rows: [{ id: 'r', weight: 1, cells }] }, { id: 'd', weight: 1, rows: [rowOf({ id: 'x', weight: 1, tabs: [] })] }])))
-      .toEqual(['2 cells past the limit of 1,000 dropped', 'row past the limit of 1,000 dropped', 'column past the limit of 1,000 dropped'])
-    // Rows past the limit go; a column left without rows by it too.
-    const rows = Array.from({ length: 1001 }, (_, r) => rowOf({ id: `k${r}`, weight: 1, tabs: [] }))
-    expect(rowFixes('layouts', layoutRow([{ id: 'c', weight: 1, rows }, { id: 'd', weight: 1, rows: [rowOf({ id: 'x', weight: 1, tabs: [] })] }])))
-      .toEqual(['2 rows past the limit of 1,000 dropped', 'column past the limit of 1,000 dropped'])
+    expect(repaired.grid.rows).toHaveLength(1000)
+    expect(validateTiling(repaired)).toBe(true)
   })
-
 })
 
 describe('layout sizes are bounded (cr33 S4)', () => {
-  it('keeps a weight up to LAYOUT_SIZE_MAX, and repairs one past it to 1, so no sum of weights is Infinity', () => {
-    const at = layoutRow([
-      { id: 'a', weight: LAYOUT_SIZE_MAX, rows: [rowOf({ id: 'k1', weight: LAYOUT_SIZE_MAX, tabs: [] })] },
-      { id: 'b', weight: 1, rows: [rowOf({ id: 'k2', weight: 1, tabs: [] })] },
-    ])
-    expect(validateRow('layouts', at)).toBe(true)
-    const past = layoutRow([
-      { id: 'a', weight: 9e307, rows: [rowOf({ id: 'k1', weight: 1, tabs: [] })] },
-      { id: 'b', weight: 9e307, rows: [rowOf({ id: 'k2', weight: 1, tabs: [] })] },
-    ])
-    expect(rowFixes('layouts', past).length).toBeGreaterThan(0)
+  it('keeps a weight up to LAYOUT_SIZE_MAX, and repairs one past it, so no sum of weights is Infinity', () => {
+    expect(validateRow('layouts', layoutRow(twoCells({ columns: [{ id: 'c1', weight: LAYOUT_SIZE_MAX }, { id: 'c2', weight: 1 }] })))).toBe(true)
+    const past = layoutRow(twoCells({ columns: [{ id: 'c1', weight: 9e307 }, { id: 'c2', weight: 9e307 }] }))
+    expect(rowFixes('layouts', past)).toEqual(['2 sizes reset'])
     const repaired = sanitizeRow('layouts', past) as unknown as WorkspaceLayout
-    expect(repaired.columns.map((c) => c.weight)).toEqual([1, 1])
-    expect(Number.isFinite(repaired.columns.reduce((n, c) => n + c.weight, 0))).toBe(true)
+    expect(repaired.grid.columns.map((c) => c.weight)).toEqual([1000, 1000])
+    // A bad one beside good ones takes their average.
+    const mixed = sanitizeRow('layouts', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 300 }, { id: 'c2', weight: -1 }] }))) as unknown as WorkspaceLayout
+    expect(mixed.grid.columns.map((c) => c.weight)).toEqual([300, 300])
   })
 })
 
@@ -292,14 +274,8 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     expect(validateRow('layouts', JSON.parse(JSON.stringify(sanitizeRow('layouts', row))))).toBe(true)
   })
 
-  it('a bad phone column pick is repaired away (the first page)', () => {
-    const row = layoutRow([], { activeColumnId: 42 })
-    expect(rowFixes('layouts', row)).toContain('phone column reset')
-    expect((sanitizeRow('layouts', row) as { activeColumnId?: unknown }).activeColumnId).toBeUndefined()
-  })
-
   it('a valid layout has nothing to fix, and its repair is the import pick', () => {
-    const row = layoutRow(EVERY_KIND, { lastUsedAt: DATE, activeColumnId: 'c1', hue: 'amber', ...BANDS })
+    const row = layoutRow(EVERY_KIND, { lastUsedAt: DATE, hue: 'amber' })
     expect(validateRow('layouts', row)).toBe(true)
     expect(rowFixes('layouts', row)).toEqual([])
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })
@@ -320,15 +296,50 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     }
   })
 
+  it('a broken tiling is rebuilt: every cell kept, in its old reading order, stacked in one column', () => {
+    // k2 is gone (a bad id): k1 and k3 can't tile the grid any more.
+    const body = {
+      grid: { columns: [{ id: 'c1', weight: 500 }, { id: 'c2', weight: 500 }], rows: [{ id: 'r1', weight: 600 }, { id: 'r2', px: 120, collapsed: true }] },
+      cells: [
+        { id: 'k3', area: { col: 0, row: 1, colSpan: 2, rowSpan: 1 }, tabs: [notes('t3')] },
+        { id: 'k1', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [notes('t1')] },
+        { id: 'c1', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [notes('t2')] },
+      ],
+    }
+    const row = layoutRow(body)
+    expect(rowFixes('layouts', row)).toEqual(['cell dropped', 'cells restacked in one column'])
+    const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
+    expect(repaired.cells.map((c) => [c.id, c.area.row])).toEqual([['k1', 0], ['k3', 1]])
+    // The stored row tracks keep their place: the second a fixed, collapsed one.
+    expect(repaired.grid).toEqual({ columns: [{ id: 'c1', weight: 1000 }], rows: [{ id: 'r1', weight: 1000 }, { id: 'r2', px: 120, collapsed: true }] })
+    expect(validateTiling(repaired)).toBe(true)
+  })
+
+  it('a line no cell edge lies on is merged away; a cell whose every tab was dropped closes', () => {
+    const merged = sanitizeRow('layouts', layoutRow(twoCells({}, [{ id: 'k1', area: { col: 0, row: 0, colSpan: 2, rowSpan: 1 }, tabs: [] }]))) as WorkspaceLayout
+    expect(rowFixes('layouts', layoutRow(twoCells({}, [{ id: 'k1', area: { col: 0, row: 0, colSpan: 2, rowSpan: 1 }, tabs: [] }])))).toEqual(['grid line merged'])
+    expect(merged.grid.columns).toEqual([{ id: 'c1', weight: 1000 }])
+    const unknown = layoutRow(twoCells({}, [
+      { id: 'k1', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [notes('t1')] },
+      { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 't2', kind: 'nope', config: {} }] },
+    ]))
+    // The closed cell's line goes with it: no fix of its own.
+    expect(rowFixes('layouts', unknown)).toEqual(['tab dropped'])
+    const closed = sanitizeRow('layouts', unknown) as WorkspaceLayout
+    expect(closed.cells.map((c) => c.id)).toEqual(['k1'])
+    expect(isNormalized(closed)).toBe(true)
+  })
+
   it('counts each kind of fix', () => {
-    const row = layoutRow([
-      { id: 'c1', weight: 0, rows: [
-        rowOf({ id: 'k1', weight: 1, tabs: [{ id: 't1', kind: 'nope', config: {} }, { id: 't2', kind: 'taskboard', config: {} }, 5] }, { weight: 'big', collapsed: 'yes' }),
-      ] },
-      { id: 'c1', weight: 1, rows: [] },
-    ], { name: '', createdAt: 'never' })
-    expect(rowFixes('layouts', row)).toEqual([
-      'name reset', 'dates reset', '2 sizes reset', '3 tabs dropped', 'tab or cell settings reset', 'column dropped',
+    const body = {
+      grid: { columns: [{ id: 'c1', weight: 0 }, { id: 'c2', weight: 'big' }], rows: [{ id: 'r1', weight: 1, collapsed: 'yes' }] },
+      cells: [
+        { id: 'k1', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 't1', kind: 'nope', config: {} }, { id: 't2', kind: 'taskboard', config: {} }, 5, notes('t3')] },
+        { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
+      ],
+    }
+    expect(rowFixes('layouts', layoutRow(body, { name: '', createdAt: 'never' }))).toEqual([
+      'name reset', 'dates reset', '2 sizes reset', 'tab or cell settings reset', '3 tabs dropped',
     ])
   })
 
@@ -339,66 +350,33 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     const res = validateImportData({ todos: [], settings: [], layouts: [row] })
     if (!res.ok) throw new Error(res.error)
     expect(res.warnings).toEqual(['Fixed 1 layout: "Daily" (2 Eisenhower tab settings dropped)'])
-    expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do'] } })
-    // Not an object: the tab's settings reset, as for any kind.
+    expect(res.data.layouts[0]!.cells[0]!.tabs[0]).toEqual({ id: 't', kind: 'eisenhower', config: {}, viewState: { collapsed: ['do'] } })
     expect(rowFixes('layouts', layoutRow(oneTab({ id: 't', kind: 'eisenhower', config: 7 })))).toEqual(['tab or cell settings reset'])
   })
 
   it('a list tab’s zoom round-trips with its details width; an unknown one is dropped (the tab opens at the Settings default)', () => {
-    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.rows[0]!.cells[0]!.tabs[0]
+    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0]
     for (const zoom of ['stacked', 'rows', 'lines']) {
       const row = layoutRow(oneTab({ id: 't', kind: 'lens', config: { listDefinitionId: 3 }, viewState: { detailsWidth: 280, zoom } }))
       expect(validateRow('layouts', row), zoom).toBe(true)
       expect(rowFixes('layouts', row)).toEqual([])
-      const res = validateImportData({ todos: [], settings: [], layouts: [row] })
-      if (!res.ok) throw new Error(res.error)
-      expect(res.data.layouts[0]!.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 280, zoom })
     }
-    // A zoom alone is view state enough.
-    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'lines' } }))))
-      .toEqual({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'lines' } })
-    // Strips, a level once, opens at Lines: valid, no repair (view state).
     const strips = layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'strips' } }))
     expect(validateRow('layouts', strips)).toBe(true)
-    expect(rowFixes('layouts', strips)).toEqual([])
     expect(tabOf(strips)).toEqual({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 'lines' } })
-    // Repaired: an unknown level dropped, the details width kept; with nothing left, no view state.
     const bad = layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 300, zoom: 'mosaic' } }))
     expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
     expect(tabOf(bad)).toEqual({ id: 't', kind: 'lens', config: {}, viewState: { detailsWidth: 300 } })
-    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'lens', config: {}, viewState: { zoom: 2 } }))))
-      .toEqual({ id: 't', kind: 'lens', config: {} })
   })
 
   it('a Neglect map’s config keeps only its keys; a bad part falls back to its default', () => {
-    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.rows[0]!.cells[0]!.tabs[0]
-    // Valid: kept as is, a repeated tag once, stray keys and view state dropped (no fix).
+    const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0]
     const valid = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [3, 3, 5], extra: 1 }, untouchedDays: 7, x: 1 }, viewState: { detailsWidth: 300 } }))
     expect(rowFixes('layouts', valid)).toEqual([])
     expect(tabOf(valid)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [3, 5] }, untouchedDays: 7 } })
-    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'people' }, untouchedDays: 59 } }))))
-      .toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'people' }, untouchedDays: 59 } })
-    // Repaired: an unknown colourBy → none, a bad threshold → 14 days, tag ids that aren't numbers dropped.
     const bad = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'rainbow' }, untouchedDays: 0 } }))
     expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
     expect(tabOf(bad)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } })
-    const badIds = layoutRow(oneTab({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [2, '4', null] }, untouchedDays: 30 } }))
-    expect(rowFixes('layouts', badIds)).toEqual(['tab or cell settings reset'])
-    expect(tabOf(badIds)).toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [2] }, untouchedDays: 30 } })
-    expect(tabOf(layoutRow(oneTab({ id: 't', kind: 'neglect', config: 'x' }))))
-      .toEqual({ id: 't', kind: 'neglect', config: { colourBy: { kind: 'none' }, untouchedDays: 14 } })
-  })
-
-  it('a bad band is dropped, a band left without cells too; a bad height becomes the default', () => {
-    const row = layoutRow([], {
-      top: { id: 'b1', height: -5, cells: [{ id: 'b1-c', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }, { id: 't2', kind: 'nope', config: {} }] }] },
-      bottom: { id: 'b2', height: 160, cells: [{ id: 'b1', weight: 1, tabs: [{ id: 't3', kind: 'notes', config: {} }] }] },
-    })
-    expect(rowFixes('layouts', row)).toEqual(['size reset', 'tab dropped', 'cell dropped', 'band dropped'])
-    const repaired = sanitizeRow('layouts', row) as WorkspaceLayout
-    expect(repaired.top).toEqual({ id: 'b1', height: 160, cells: [{ id: 'b1-c', weight: 1, tabs: [{ id: 't1', kind: 'notes', config: {} }] }] })
-    expect('bottom' in repaired).toBe(false)
-    expect(rowFixes('layouts', layoutRow([], { bottom: 7 }))).toEqual(['band dropped'])
   })
 
   it('any corruption of a valid layout repairs into a valid one', () => {
@@ -411,7 +389,7 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
       return ((t ^ (t >>> 14)) >>> 0) / 4294967296
     }
     const pick = <T,>(list: readonly T[]): T => list[Math.floor(random() * list.length)]!
-    const JUNK: unknown[] = [null, undefined, 'x', '', -1, 0, 1.5, Infinity, true, [], {}, ['do'], { due: false }, 't1', 'c2', 'k1']
+    const JUNK: unknown[] = [null, undefined, 'x', '', -1, 0, 1, 2, 1.5, Infinity, true, [], {}, ['do'], { due: false }, 't1', 'c2', 'k1']
 
     /** Every (container, key) pair in a JSON tree. */
     const slots = (node: unknown, out: Array<[Record<string, unknown> | unknown[], string | number]> = []) => {
@@ -423,7 +401,7 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
     }
 
     for (let i = 0; i < 2000; i++) {
-      const row = JSON.parse(JSON.stringify(layoutRow(EVERY_KIND, { lastUsedAt: DATE, ...BANDS }))) as Record<string, unknown>
+      const row = JSON.parse(JSON.stringify(layoutRow(EVERY_KIND, { lastUsedAt: DATE }))) as Record<string, unknown>
       const changes = 1 + Math.floor(random() * 3)
       for (let c = 0; c < changes; c++) {
         // The row's own id is how the audit finds it: never corrupted here.
@@ -431,15 +409,17 @@ describe('repairing a layout row the schema rejects (audit cleanup)', () => {
         if (random() < 0.2 && !Array.isArray(container)) delete container[key as string]
         else {
           const junk = pick(JUNK)
-          // A fresh copy: a shared junk object could end up inside itself.
           ;(container as Record<string | number, unknown>)[key] = junk !== null && typeof junk === 'object' ? JSON.parse(JSON.stringify(junk)) : junk
         }
       }
       const repaired = JSON.parse(JSON.stringify(sanitizeRow('layouts', row))) as unknown
       expect(validateRow('layouts', repaired), `case ${i}: ${JSON.stringify(row)}`).toBe(true)
-      // A valid row loses nothing but keys an Eisenhower tab's config can't hold (dropped with a warning).
       if (validateRow('layouts', row) === true) expect(rowFixes('layouts', row).filter((f) => !/Eisenhower tab settings? dropped$/.test(f)), `case ${i}`).toEqual([])
       else expect(rowFixes('layouts', row).length, `case ${i}: ${JSON.stringify(row)}`).toBeGreaterThan(0)
     }
   })
 })
+
+function notes(id: string): Record<string, unknown> {
+  return { id, kind: 'notes', config: {} }
+}

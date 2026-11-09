@@ -7,8 +7,7 @@ import { formatDateWith } from './date'
  * ("Fade tasks untouched for N days", Settings › Tasks › Task defaults). A
  * stale row is drawn faded (D17); its title tooltip says when it was last
  * edited. Reads `modifiedAt`, which any edit moves — a reorder or a bulk
- * edit too (accepted: no separate stamp). The Stale tasks widget has
- * its own, per-tab threshold (`services/stats/stale`).
+ * edit too (accepted: no separate stamp).
  */
 
 /** Fade tasks untouched for this many days, by default. */

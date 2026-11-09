@@ -1,0 +1,83 @@
+/* A Status flow (D26 P8, board Z1): a stacked bar per week, a band per status. */
+
+.chart {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 4px 14px 10px;
+}
+
+.week {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-width: 6px;
+  max-width: 64px;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 1px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.segment {
+  display: block;
+  flex: none;
+  min-height: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+}
+
+button.segment {
+  cursor: pointer;
+}
+
+button.segment:hover,
+button.segment:focus-visible {
+  filter: brightness(1.2);
+}
+
+.label {
+  flex: none;
+  margin-top: 3px;
+  overflow: hidden;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.legend {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.key i {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+}
+
+.approx {
+  flex: none;
+  padding: 0 14px 8px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}

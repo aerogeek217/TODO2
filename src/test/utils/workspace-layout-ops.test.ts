@@ -1,777 +1,606 @@
 import { describe, it, expect } from 'vitest'
-import { BAND_DEFAULT_HEIGHT, createTab, type LayoutBand, type LayoutCell, type LayoutColumn, type LayoutRow, type WorkspaceLayout } from '../../models/workspace-layout'
-import {
-  findCell,
-  findRow,
-  findTab,
-  getTab,
-  layoutPanels,
-  layoutRows,
-  panelOfTab,
-  rowOfCell,
-  layoutIds,
-  layoutStructureEqual,
-} from '../../utils/workspace-layout-queries'
+import { createTab, type LayoutBody, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
+import { edgeBetween, edgeStretches, isNormalized, validateTiling, type Side } from '../../utils/workspace-grid'
+import { findTab, getTab, layoutIds, layoutStructureEqual, layoutStructureKey, panelOfTab } from '../../utils/workspace-layout-queries'
 import { countListTabs } from '../../utils/workspace-layout-lists'
-import {
-  cellSizeGroups,
-  copySizes,
-  rowSizeGroups,
-  setBandHeight,
-  setCellWeights,
-  setColumnWeights,
-  setRowWeights,
-} from '../../utils/workspace-layout-sizes'
+import { copySizes, setTrackSizes, trackAxes } from '../../utils/workspace-layout-sizes'
 import {
   addTab,
   closeCell,
   closeTab,
+  evenStretchDelta,
+  insertTrack,
+  isCellCollapsed,
+  mergeCells,
+  moveEdge,
   movePanel,
   moveTab,
   patchTabConfig,
   patchTabViewState,
   replaceTab,
   setActiveTab,
-  setCellStripShown,
-  setRowCollapsed,
+  setTrackCollapsed,
   splitCell,
+  type LayoutDropTarget,
 } from '../../utils/workspace-layout-ops'
-import { row, rowOf } from '../helpers/layout-builders'
+import { cell as spec, emptyBody, grid, picture, type CellSpec } from '../helpers/layout-builders'
 
-/** A cell of notes tabs, its first tab active. */
-function cell(id: string, tabIds: string[], extra: Partial<LayoutCell> = {}): LayoutCell {
+/** A cell of notes tabs (`<id>-t` unless named), its first tab active. */
+function cell(id: string, tabIds: string[] = [`${id}-t`]): CellSpec {
   const tabs = tabIds.map((t) => createTab('notes', t))
-  return { id, weight: 1, tabs, ...(tabs[0] ? { activeTabId: tabs[0].id } : {}), ...extra }
+  return spec(id, tabs, tabs[0] ? { activeTabId: tabs[0].id } : {})
 }
 
-/** A column of one-cell rows (`<cell>-r`). */
-function col(id: string, cells: LayoutCell[], weight = 1): LayoutColumn {
-  return { id, weight, rows: cells.map((c) => rowOf(c)) }
+function layout(body: LayoutBody): WorkspaceLayout {
+  return { sortOrder: 0, name: 'L', ...body, createdAt: new Date(0), modifiedAt: new Date(0) }
 }
 
-function layout(...columns: LayoutColumn[]): WorkspaceLayout {
-  return { sortOrder: 0, name: 'L', columns, createdAt: new Date(0), modifiedAt: new Date(0) }
-}
-
-/** Tab ids per row per column; the cells of a multi-cell row are parted by `|`. */
-function shape(l: WorkspaceLayout): string[][][] {
-  return l.columns.map((c) => c.rows.map((r) => r.cells.flatMap((k, i) => [...(i > 0 ? ['|'] : []), ...k.tabs.map((t) => t.id)])))
-}
-
-/** Tab ids of a band's cells, parted by `|`. */
-function bandShape(l: WorkspaceLayout, edge: 'top' | 'bottom'): string[] | undefined {
-  return l[edge]?.cells.flatMap((k, i) => [...(i > 0 ? ['|'] : []), ...k.tabs.map((t) => t.id)])
-}
-
-/** The structural invariants every reducer keeps. */
-function expectInvariants(l: WorkspaceLayout): void {
-  for (const c of l.columns) {
-    expect(c.rows.length, `column ${c.id} has rows`).toBeGreaterThan(0)
-    for (const r of c.rows) expect(r.cells.length, `row ${r.id} has cells`).toBeGreaterThan(0)
-  }
-  for (const edge of ['top', 'bottom'] as const) {
-    if (edge in l) expect(l[edge]?.cells.length, `${edge} band has cells`).toBeGreaterThan(0)
-  }
-  const ids = [
-    ...l.columns.map((c) => c.id),
-    ...layoutRows(l).map((r) => r.id),
-    ...layoutPanels(l).flatMap((k) => [k.id, ...k.tabs.map((t) => t.id)]),
-  ]
-  expect(new Set(ids).size, 'ids are unique').toBe(ids.length)
-}
-
-function seqIds(): () => string {
+/** Ids `n1`, `n2`, … */
+function ids(prefix = 'n') {
   let n = 0
-  return () => `n${++n}`
+  return () => `${prefix}${++n}`
 }
 
-/** Three columns: [A: (a1 a2) (a3)] [B: (b1)] [C: (c1)] */
-function base(): WorkspaceLayout {
-  return layout(
-    col('A', [cell('ka', ['a1', 'a2']), cell('kb', ['a3'])]),
-    col('B', [cell('kc', ['b1'])]),
-    col('C', [cell('kd', ['c1'])]),
-  )
+/** Holds the table's invariants: an exact tiling in normal form, unique ids. */
+function expectValid(body: LayoutBody): void {
+  expect(validateTiling(body)).toBe(true)
+  expect(isNormalized(body)).toBe(true)
+  const all = [
+    ...body.grid.columns.map((t) => t.id),
+    ...body.grid.rows.map((t) => t.id),
+    ...body.cells.flatMap((c) => [c.id, ...c.tabs.map((t) => t.id)]),
+  ]
+  expect(new Set(all).size).toBe(all.length)
 }
 
-/** Column A's second row holds two cells: [A: (a1 a2) (a3 | a4)] [B: (b1)] */
-function paired(): WorkspaceLayout {
-  return layout(
-    { id: 'A', weight: 1, rows: [rowOf(cell('ka', ['a1', 'a2'])), row('rp', [cell('kb', ['a3']), cell('ke', ['a4'])])] },
-    col('B', [cell('kc', ['b1'])]),
-  )
-}
+const tabIdsOf = (body: LayoutBody, cellId: string) => body.cells.find((c) => c.id === cellId)?.tabs.map((t) => t.id)
 
-describe('addTab', () => {
-  it('joins a cell at the end (or at an index) and becomes active', () => {
-    const l = base()
-    const end = addTab(l, createTab('calendar', 'x'), { kind: 'cell', cellId: 'ka' }, seqIds())
-    expect(shape(end)[0]![0]).toEqual(['a1', 'a2', 'x'])
-    expect(end.columns[0]!.rows[0]!.cells[0]!.activeTabId).toBe('x')
-    const front = addTab(l, createTab('calendar', 'x'), { kind: 'cell', cellId: 'ka', index: 0 }, seqIds())
-    expect(shape(front)[0]![0]).toEqual(['x', 'a1', 'a2'])
+describe('splitCell', () => {
+  it('splits a one-track cell on each side: its track halves, the cells crossing it span both halves', () => {
+    const a = cell('a')
+    const b = cell('b')
+    const base = layout(grid([[a], [b]], { cols: [1000], rows: [600, 400] }))
+    const right = splitCell(base, 'a', 'right', ids())
+    expect(picture(right.layout)).toEqual(['a n2', 'b b'])
+    expect(right.cellId).toBe('n2')
+    expect(right.layout.grid.columns.map((t) => t.weight)).toEqual([500, 500])
+    expectValid(right.layout)
+
+    const left = splitCell(base, 'a', 'left', ids())
+    expect(picture(left.layout)).toEqual(['n2 a', 'b b'])
+
+    const below = splitCell(base, 'b', 'bottom', ids())
+    expect(picture(below.layout)).toEqual(['a', 'b', 'n2'])
+    expect(below.layout.grid.rows.map((t) => t.weight)).toEqual([600, 200, 200])
+
+    const above = splitCell(base, 'b', 'top', ids())
+    expect(picture(above.layout)).toEqual(['a', 'n2', 'b'])
+    expectValid(above.layout)
   })
 
-  it('cell edge top / bottom: a new row above / below that splits the hovered row’s weight', () => {
-    const l = base()
-    const above = addTab(l, createTab('notes', 'x'), { kind: 'cell-edge', cellId: 'kb', edge: 'top' }, seqIds())
-    expect(shape(above)[0]).toEqual([['a1', 'a2'], ['x'], ['a3']])
-    expect(above.columns[0]!.rows.map((r) => r.weight)).toEqual([1, 0.5, 0.5])
-    const below = addTab(l, createTab('notes', 'x'), { kind: 'cell-edge', cellId: 'kb', edge: 'bottom' }, seqIds())
-    expect(shape(below)[0]).toEqual([['a1', 'a2'], ['a3'], ['x']])
-    expect(below.columns[0]!.rows[2]).toEqual({ id: 'n1', weight: 0.5, cells: [{ id: 'n2', weight: 1, activeTabId: 'x', tabs: [createTab('notes', 'x')] }] })
-    expectInvariants(below)
+  it('a cell spanning an even number of tracks splits on its middle line; an odd number splits its middle track', () => {
+    const a = cell('a')
+    const b = cell('b')
+    const c = cell('c')
+    const even = layout(grid([[a, a], [b, c]]))
+    expect(picture(splitCell(even, 'a', 'right', ids()).layout)).toEqual(['a n1', 'b c'])
+    const odd = layout(grid([[a, a, a], [b, c, c]]))
+    const out = splitCell(odd, 'a', 'right', ids())
+    // The middle track (1) splits in two: `a` keeps 1.5 tracks, the new cell the other 1.5; the line
+    // between the second half and the last track is no cell's edge any more, so they merge.
+    expect(picture(out.layout)).toEqual(['a a n2', 'b c c'])
+    expect(out.layout.grid.columns.map((t) => t.weight)).toEqual([1000, 500, 1500])
+    expectValid(out.layout)
   })
 
-  it('cell edge top / bottom of a cell in a multi-cell row: a new row above / below that row (no deeper split)', () => {
-    const l = paired()
-    const below = addTab(l, createTab('notes', 'x'), { kind: 'cell-edge', cellId: 'ke', edge: 'bottom' }, seqIds())
-    expect(shape(below)[0]).toEqual([['a1', 'a2'], ['a3', '|', 'a4'], ['x']])
-    const rowEdge = addTab(l, createTab('notes', 'x'), { kind: 'row-edge', rowId: 'rp', edge: 'top' }, seqIds())
-    expect(shape(rowEdge)[0]).toEqual([['a1', 'a2'], ['x'], ['a3', '|', 'a4']])
-    expect(rowEdge.columns[0]!.rows.map((r) => r.weight)).toEqual([1, 0.5, 0.5])
-    expectInvariants(rowEdge)
+  it('a fixed track splits into two fixed halves; an unknown cell changes nothing', () => {
+    const a = cell('a')
+    const base = layout(grid([[a]], { rows: [{ px: 160 }] }))
+    const out = splitCell(base, 'a', 'bottom', ids())
+    expect(out.layout.grid.rows.map((t) => t.px)).toEqual([80, 80])
+    expect(splitCell(base, 'zz', 'right', ids())).toEqual({ layout: base, cellId: null })
   })
 
-  it('cell edge left / right: a new cell beside it in its row, splitting the hovered cell’s width', () => {
-    const l = base()
-    const right = addTab(l, createTab('notes', 'x'), { kind: 'cell-edge', cellId: 'kb', edge: 'right' }, seqIds())
-    expect(shape(right)[0]).toEqual([['a1', 'a2'], ['a3', '|', 'x']])
-    expect(right.columns[0]!.rows[1]!.cells.map((c) => c.weight)).toEqual([0.5, 0.5])
-    expect(right.columns[0]!.rows[1]!.weight).toBe(1)
-    expect(right.columns[0]!.rows[1]!.cells[1]).toEqual({ id: 'n1', weight: 0.5, activeTabId: 'x', tabs: [createTab('notes', 'x')] })
-    const left = addTab(paired(), createTab('notes', 'x'), { kind: 'cell-edge', cellId: 'ke', edge: 'left' }, seqIds())
-    expect(shape(left)[0]![1]).toEqual(['a3', '|', 'x', '|', 'a4'])
-    expectInvariants(left)
+  it('the new cell never comes out collapsed: a collapsed cell split below or above keeps its own collapse', () => {
+    const a = cell('a')
+    const b = cell('b')
+    const base = layout(grid([[a, b]], { rows: [{ weight: 1000, collapsed: true }] }))
+    const below = splitCell(base, 'a', 'bottom', ids())
+    expect(picture(below.layout)).toEqual(['a b', 'n2 b'])
+    expect(isCellCollapsed(below.layout, 'n2')).toBe(false)
+    expect(isCellCollapsed(below.layout, 'a')).toBe(true)
+    expectValid(below.layout)
+    const above = splitCell(base, 'a', 'top', ids())
+    expect(picture(above.layout)).toEqual(['n2 b', 'a b'])
+    expect(isCellCollapsed(above.layout, 'n2')).toBe(false)
+    expect(isCellCollapsed(above.layout, 'a')).toBe(true)
+    // Two collapsed tracks: the split lands on the middle line, the new cell's track expands.
+    const two = layout(grid([[a], [a]], { rows: [{ weight: 1000, collapsed: true }, { weight: 1000, collapsed: true }] }))
+    const evenOut = splitCell(two, 'a', 'bottom', ids())
+    expect(isCellCollapsed(evenOut.layout, 'n1')).toBe(false)
+    expect(isCellCollapsed(evenOut.layout, 'a')).toBe(true)
+    // Beside it, in the same collapsed row: the row expands (collapse is the row's).
+    const right = splitCell(base, 'a', 'right', ids())
+    expect(isCellCollapsed(right.layout, 'n2')).toBe(false)
+  })
+})
+
+describe('insertTrack', () => {
+  const a = cell('a')
+  const b = cell('b')
+
+  it('adds a full-width row or full-height column at the layout edge, taking half of the nearest weighted track', () => {
+    const base = layout(grid([[a, b]], { cols: [600, 400] }))
+    const right = insertTrack(base, 'right', ids())
+    expect(picture(right.layout)).toEqual(['a b n2'])
+    expect(right.layout.grid.columns.map((t) => t.weight)).toEqual([600, 200, 200])
+    const top = insertTrack(base, 'top', ids())
+    expect(picture(top.layout)).toEqual(['n2 n2', 'a b'])
+    expect(top.layout.grid.rows.map((t) => t.weight)).toEqual([500, 500])
+    expectValid(top.layout)
   })
 
-  it('column edge: a new column taking half the narrower neighbour, split off both neighbours', () => {
-    const l = setColumnWeights(base(), { A: 2, B: 1 })
-    const mid = addTab(l, createTab('notes', 'x'), { kind: 'column-edge', columnId: 'A', edge: 'right' }, seqIds())
-    expect(shape(mid)).toEqual([[['a1', 'a2'], ['a3']], [['x']], [['b1']], [['c1']]])
-    expect(mid.columns.map((c) => c.weight)).toEqual([1.75, 0.5, 0.75, 1])
-    // Same gutter named from the other side.
-    const same = addTab(l, createTab('notes', 'x'), { kind: 'column-edge', columnId: 'B', edge: 'left' }, seqIds())
-    expect(same.columns.map((c) => c.weight)).toEqual(mid.columns.map((c) => c.weight))
-    // Outer edge: only one neighbour, which keeps half.
-    const left = addTab(l, createTab('notes', 'x'), { kind: 'column-edge', columnId: 'A', edge: 'left' }, seqIds())
-    expect(shape(left)[0]).toEqual([['x']])
-    expect(left.columns.map((c) => c.weight)).toEqual([1, 1, 1, 1])
+  it('skips fixed tracks for the weight it takes', () => {
+    const base = layout(grid([[a], [b]], { rows: [800, { px: 160 }] }))
+    const out = insertTrack(base, 'bottom', ids())
+    expect(out.layout.grid.rows).toEqual([{ id: 'r1', weight: 400 }, { id: 'r2', px: 160 }, { id: 'n1', weight: 400 }])
   })
 
-  it('layout target appends a column of one row of one cell; an empty layout gets one at the default weight', () => {
-    const empty = layout()
-    const first = addTab(empty, createTab('lens', 'x', { listDefinitionId: 4 }), { kind: 'layout' }, seqIds())
-    expect(first.columns).toEqual([{ id: 'n1', weight: 1, rows: [{ id: 'n2', weight: 1, cells: [{ id: 'n3', weight: 1, activeTabId: 'x', tabs: [{ id: 'x', kind: 'lens', config: { listDefinitionId: 4 } }] }] }] }])
-    const last = addTab(base(), createTab('notes', 'x'), { kind: 'layout' }, seqIds())
-    expect(shape(last).at(-1)).toEqual([['x']])
+  it('a new column across collapsed rows expands them: its cell never comes out collapsed', () => {
+    const base = layout(grid([[a, b]], { rows: [{ weight: 1000, collapsed: true }] }))
+    const out = insertTrack(base, 'right', ids())
+    expect(isCellCollapsed(out.layout, out.cellId)).toBe(false)
+    expect(isCellCollapsed(insertTrack(base, 'bottom', ids()).layout, 'a')).toBe(true)
   })
 
-  it('unknown target, a band’s top / bottom, or a taken tab id → same layout', () => {
-    const l = { ...base(), top: { id: 'TB', height: 160, cells: [cell('tb', ['top1'])] } }
-    expect(addTab(l, createTab('notes', 'x'), { kind: 'cell', cellId: 'nope' }, seqIds())).toBe(l)
-    expect(addTab(l, createTab('notes', 'a1'), { kind: 'cell', cellId: 'ka' }, seqIds())).toBe(l)
-    expect(addTab(l, createTab('notes', 'x'), { kind: 'cell-edge', cellId: 'tb', edge: 'bottom' }, seqIds())).toBe(l)
-    expect(addTab(l, createTab('notes', 'x'), { kind: 'row-edge', rowId: 'TB', edge: 'top' }, seqIds())).toBe(l)
-    expect(addTab(l, createTab('notes', 'x'), { kind: 'row-edge', rowId: 'nope', edge: 'top' }, seqIds())).toBe(l)
+  it('an empty layout gets its first cell', () => {
+    const out = insertTrack(layout(emptyBody()), 'left', ids())
+    expect(picture(out.layout)).toEqual(['n1'])
+    expectValid(out.layout)
+  })
+})
+
+describe('mergeCells', () => {
+  it('merges two cells making a rectangle; the tabs join, the first cell’s active tab stays', () => {
+    const a = cell('a', ['t1', 't2'])
+    const b = cell('b', ['t3'])
+    const c = cell('c')
+    const base = layout(grid([[a, b], [c, c]]))
+    const out = mergeCells(base, 'a', 'b')
+    expect(picture(out)).toEqual(['a', 'c'])
+    expect(tabIdsOf(out, 'a')).toEqual(['t1', 't2', 't3'])
+    expect(out.cells.find((x) => x.id === 'a')?.activeTabId).toBe('t1')
+    expect(out.grid.columns).toEqual([{ id: 'c1', weight: 2000 }])
+    expectValid(out)
+  })
+
+  it('refuses anything but a rectangle', () => {
+    const a = cell('a')
+    const b = cell('b')
+    const c = cell('c')
+    const base = layout(grid([[a, a], [b, c]]))
+    expect(mergeCells(base, 'a', 'b')).toBe(base)
+    expect(mergeCells(base, 'a', 'a')).toBe(base)
+    expect(mergeCells(base, 'a', 'zz')).toBe(base)
+  })
+})
+
+describe('closeCell (the absorb rule)', () => {
+  it('gives its space to a neighbour sharing the whole edge: left first, then above, right, below', () => {
+    const a = cell('a')
+    const b = cell('b')
+    const c = cell('c')
+    const d = cell('d')
+    // a b
+    // c d
+    const base = layout(grid([[a, b], [c, d]]))
+    expect(picture(closeCell(base, 'd'))).toEqual(['a b', 'c c'])
+    expect(picture(closeCell(base, 'a'))).toEqual(['b b', 'c d'])
+    expect(picture(closeCell(base, 'b'))).toEqual(['a a', 'c d'])
+    // b shares no whole edge on its left (a is taller), none above or right: c, below, takes it — and the row line goes.
+    const tall = layout(grid([[a, b], [a, c]]))
+    expect(picture(closeCell(tall, 'b'))).toEqual(['a c'])
+  })
+
+  it('with no taker the cell stays as an empty cell; closing that again changes nothing', () => {
+    const a = cell('a')
+    const b = cell('b')
+    const c = cell('c')
+    const d = cell('d')
+    // a a b      Closing `e`: no neighbour shares a whole edge.
+    // c e b
+    // c d d
+    const e = cell('e')
+    const base = layout(grid([[a, a, b], [c, e, b], [c, d, d]]))
+    const out = closeCell(base, 'e')
+    expect(out.cells.find((x) => x.id === 'e')).toEqual({ id: 'e', area: { col: 1, row: 1, colSpan: 1, rowSpan: 1 }, tabs: [] })
+    expect(closeCell(out, 'e')).toBe(out)
+    // The lone cell of a layout stays as an empty cell.
+    const lone = layout(grid([[a]]))
+    expect(closeCell(lone, 'a').cells).toEqual([{ id: 'a', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] }])
+  })
+
+  it('with no single whole-edge neighbour, the neighbours along a side that cover its whole edge together grow across it', () => {
+    const a = cell('a')
+    const b = cell('b')
+    const c = cell('c')
+    const d = cell('d')
+    // a b      Closing `b`: a and c together cover its left edge (each part of it).
+    // c b
+    const tall = layout(grid([[a, b], [c, b]]))
+    expect(picture(closeCell(tall, 'b'))).toEqual(['a', 'c'])
+    // a b      Closing `a`: no whole-edge neighbour; on its right b and d together cover it.
+    // a d
+    const left = layout(grid([[a, b], [a, d]]))
+    expect(picture(closeCell(left, 'a'))).toEqual(['b', 'd'])
+    // x a b    Closing `e`: on its left x sticks out past it (taller), and f below is wider;
+    // x e e    above, a and b together cover its top edge: both grow down (the row line goes).
+    // f f f
+    const x = cell('x')
+    const e = cell('e')
+    const f = cell('f')
+    const out = closeCell(layout(grid([[x, a, b], [x, e, e], [f, f, f]])), 'e')
+    expect(picture(out)).toEqual(['x a b', 'f f f'])
+    expectValid(out)
+    // A single whole-edge neighbour still comes first: closing `e`, h below takes it alone
+    //   c d d     (above, c and d wouldn't: d sticks out past e's right end).
+    //   e e g
+    //   h h g
+    const g = cell('g')
+    const h = cell('h')
+    const out2 = closeCell(layout(grid([[c, d, d], [e, e, g], [h, h, g]])), 'e')
+    expect(picture(out2)).toEqual(['c d d', 'h h g'])
+  })
+
+  it('a merge drops the line no cell edge lies on any more, adding the weights', () => {
+    const a = cell('a')
+    const b = cell('b')
+    const base = layout(grid([[a, b]], { cols: [300, 700] }))
+    const out = closeCell(base, 'b')
+    expect(out.grid.columns).toEqual([{ id: 'c1', weight: 1000 }])
+    expectValid(out)
+  })
+})
+
+describe('closeTab / extractTab', () => {
+  it('closing the active tab activates the left neighbour, then the right; the last tab closes the cell', () => {
+    const a = cell('a', ['t1', 't2', 't3'])
+    const b = cell('b')
+    const base = layout(grid([[a, b]]))
+    const one = closeTab(setActiveTab(base, 't2'), 't2')
+    expect(one.cells[0]?.activeTabId).toBe('t1')
+    expect(closeTab(base, 't1').cells[0]?.activeTabId).toBe('t2')
+    expect(picture(closeTab(base, 'b-t'))).toEqual(['a'])
   })
 })
 
 describe('moveTab', () => {
-  it('reorders within its own cell (index among the other tabs); no index = no-op', () => {
-    const l = base()
-    const moved = moveTab(l, 'a1', { kind: 'cell', cellId: 'ka', index: 1 }, seqIds())
-    expect(shape(moved)[0]![0]).toEqual(['a2', 'a1'])
-    expect(moved.columns[0]!.rows[0]!.cells[0]!.activeTabId).toBe('a1')
-    expect(moveTab(l, 'a2', { kind: 'cell', cellId: 'ka' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'a1', { kind: 'cell', cellId: 'ka', index: 0 }, seqIds())).toBe(l)
+  const a = cell('a', ['t1', 't2'])
+  const b = cell('b', ['t3'])
+  const base = layout(grid([[a, b]]))
+
+  it('reorders within its own cell by an index among the other tabs; no index is a no-op', () => {
+    expect(tabIdsOf(moveTab(base, 't1', { kind: 'cell', cellId: 'a', index: 1 }, ids()), 'a')).toEqual(['t2', 't1'])
+    expect(moveTab(base, 't1', { kind: 'cell', cellId: 'a' }, ids())).toBe(base)
+    expect(moveTab(base, 't1', { kind: 'cell', cellId: 'a', index: 0 }, ids())).toBe(base)
   })
 
-  it('joins another cell; the source cell keeps its other tabs and re-picks its active tab', () => {
-    const moved = moveTab(base(), 'a1', { kind: 'cell', cellId: 'kc', index: 0 }, seqIds())
-    expect(shape(moved)).toEqual([[['a2'], ['a3']], [['a1', 'b1']], [['c1']]])
-    expect(moved.columns[0]!.rows[0]!.cells[0]!.activeTabId).toBe('a2')
-    expect(moved.columns[1]!.rows[0]!.cells[0]!.activeTabId).toBe('a1')
+  it('joins another cell and becomes its active tab; the source re-picks its active tab', () => {
+    const out = moveTab(base, 't1', { kind: 'cell', cellId: 'b' }, ids())
+    expect(tabIdsOf(out, 'b')).toEqual(['t3', 't1'])
+    expect(out.cells.find((c) => c.id === 'b')?.activeTabId).toBe('t1')
+    expect(out.cells.find((c) => c.id === 'a')?.activeTabId).toBe('t2')
   })
 
-  it('moving a cell’s only tab removes the cell and its row; a column’s only row removes the column', () => {
-    const cellGone = moveTab(base(), 'a3', { kind: 'cell', cellId: 'kd' }, seqIds())
-    expect(shape(cellGone)).toEqual([[['a1', 'a2']], [['b1']], [['c1', 'a3']]])
-    const colGone = moveTab(base(), 'b1', { kind: 'cell', cellId: 'kd' }, seqIds())
-    expect(shape(colGone)).toEqual([[['a1', 'a2'], ['a3']], [['c1', 'b1']]])
-    // A cell of a two-cell row: the row stays with the other cell.
-    const pairGone = moveTab(paired(), 'a4', { kind: 'cell', cellId: 'kc' }, seqIds())
-    expect(shape(pairGone)).toEqual([[['a1', 'a2'], ['a3']], [['b1', 'a4']]])
-    expect(pairGone.columns[0]!.rows[1]!.id).toBe('rp')
-    for (const l of [cellGone, colGone, pairGone]) expectInvariants(l)
+  it('moving a cell’s only tab closes the cell by the absorb rule', () => {
+    const out = moveTab(base, 't3', { kind: 'cell', cellId: 'a' }, ids())
+    expect(picture(out)).toEqual(['a'])
+    expectValid(out)
   })
 
-  it('to a cell edge / column edge makes a new row / cell / column', () => {
-    const edge = moveTab(base(), 'a1', { kind: 'cell-edge', cellId: 'kc', edge: 'bottom' }, seqIds())
-    expect(shape(edge)).toEqual([[['a2'], ['a3']], [['b1'], ['a1']], [['c1']]])
-    const beside = moveTab(base(), 'a1', { kind: 'cell-edge', cellId: 'kc', edge: 'left' }, seqIds())
-    expect(shape(beside)).toEqual([[['a2'], ['a3']], [['a1', '|', 'b1']], [['c1']]])
-    const column = moveTab(base(), 'a1', { kind: 'column-edge', columnId: 'C', edge: 'right' }, seqIds())
-    expect(shape(column)).toEqual([[['a2'], ['a3']], [['b1']], [['c1']], [['a1']]])
+  it('split and insert targets make a new cell for it', () => {
+    const split = moveTab(base, 't2', { kind: 'split', cellId: 'b', side: 'bottom' }, ids())
+    expect(picture(split)).toEqual(['a b', 'a n2'])
+    expect(tabIdsOf(split, 'n2')).toEqual(['t2'])
+    const inserted = moveTab(base, 't2', { kind: 'insert', edge: 'top' }, ids())
+    expect(picture(inserted)).toEqual(['n2 n2', 'a b'])
+    expectValid(inserted)
   })
 
-  it('moves a whole single-tab column to another gutter', () => {
-    const moved = moveTab(base(), 'c1', { kind: 'column-edge', columnId: 'A', edge: 'left' }, seqIds())
-    expect(shape(moved)).toEqual([[['c1']], [['a1', 'a2'], ['a3']], [['b1']]])
-  })
-
-  it('no-ops: a single-tab cell onto its own edges / neighbour gutter; a single-cell column onto its own column edges', () => {
-    const l = base()
-    expect(moveTab(l, 'a3', { kind: 'cell-edge', cellId: 'kb', edge: 'top' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'a3', { kind: 'cell-edge', cellId: 'kb', edge: 'bottom' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'a3', { kind: 'cell-edge', cellId: 'ka', edge: 'bottom' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'a3', { kind: 'cell-edge', cellId: 'kb', edge: 'left' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'a3', { kind: 'cell-edge', cellId: 'kb', edge: 'right' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'a3', { kind: 'row-edge', rowId: 'kb-r', edge: 'top' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'b1', { kind: 'column-edge', columnId: 'B', edge: 'left' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'b1', { kind: 'column-edge', columnId: 'B', edge: 'right' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'b1', { kind: 'column-edge', columnId: 'A', edge: 'right' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'c1', { kind: 'layout' }, seqIds())).toBe(l)
-    // Not a no-op: a multi-tab cell's tab onto its own edge splits it.
-    const split = moveTab(l, 'a1', { kind: 'cell-edge', cellId: 'ka', edge: 'top' }, seqIds())
-    expect(shape(split)[0]).toEqual([['a1'], ['a2'], ['a3']])
-  })
-
-  it('in a multi-cell row: the gutters beside a cell are no-ops, a row edge takes it out to its own row', () => {
-    const l = paired()
-    expect(moveTab(l, 'a4', { kind: 'cell-edge', cellId: 'kb', edge: 'right' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'a4', { kind: 'cell-edge', cellId: 'ke', edge: 'left' }, seqIds())).toBe(l)
-    const swapped = moveTab(l, 'a4', { kind: 'cell-edge', cellId: 'kb', edge: 'left' }, seqIds())
-    expect(shape(swapped)[0]![1]).toEqual(['a4', '|', 'a3'])
-    const own = moveTab(l, 'a4', { kind: 'row-edge', rowId: 'rp', edge: 'bottom' }, seqIds())
-    expect(shape(own)[0]).toEqual([['a1', 'a2'], ['a3'], ['a4']])
-    expectInvariants(own)
+  it('no-ops: its only tab onto its own side, or onto a place that puts it back where it was', () => {
+    expect(moveTab(base, 't3', { kind: 'split', cellId: 'b', side: 'left' }, ids())).toBe(base)
+    // b's only tab to a's right: b closes (a takes its place), a splits right → b's arrangement again.
+    expect(moveTab(base, 't3', { kind: 'split', cellId: 'a', side: 'right' }, ids())).toBe(base)
+    expect(moveTab(base, 't3', { kind: 'insert', edge: 'right' }, ids())).toBe(base)
+    // Elsewhere it moves.
+    expect(picture(moveTab(base, 't3', { kind: 'split', cellId: 'a', side: 'left' }, ids()))).toEqual(['n2 a'])
   })
 
   it('unknown tab or target → same layout', () => {
-    const l = base()
-    expect(moveTab(l, 'nope', { kind: 'layout' }, seqIds())).toBe(l)
-    expect(moveTab(l, 'a1', { kind: 'cell', cellId: 'nope' }, seqIds())).toBe(l)
-  })
-})
-
-describe('closeTab / closeCell / splitCell', () => {
-  it('closing the active tab activates the left neighbour, then the right', () => {
-    const l = layout(col('A', [cell('k', ['t1', 't2', 't3'], { activeTabId: 't2' })]))
-    expect(closeTab(l, 't2').columns[0]!.rows[0]!.cells[0]!.activeTabId).toBe('t1')
-    const first = layout(col('A', [cell('k', ['t1', 't2'], { activeTabId: 't1' })]))
-    expect(closeTab(first, 't1').columns[0]!.rows[0]!.cells[0]!.activeTabId).toBe('t2')
-  })
-
-  it('closing the last tab removes the cell, its row, then the empty column', () => {
-    expect(shape(closeTab(base(), 'a3'))).toEqual([[['a1', 'a2']], [['b1']], [['c1']]])
-    expect(shape(closeTab(base(), 'b1'))).toEqual([[['a1', 'a2'], ['a3']], [['c1']]])
-    expect(shape(closeCell(base(), 'ka'))).toEqual([[['a3']], [['b1']], [['c1']]])
-    expect(closeCell(base(), 'kc').columns.map((c) => c.id)).toEqual(['A', 'C'])
-    expect(shape(closeCell(paired(), 'kb'))[0]).toEqual([['a1', 'a2'], ['a4']])
-  })
-
-  it('split below adds a row with an empty cell under it; split right a cell beside it; a new column one empty cell', () => {
-    const below = splitCell(base(), 'ka', 'below', seqIds())
-    expect(below.cellId).toBe('n2')
-    expect(shape(below.layout)[0]).toEqual([['a1', 'a2'], [], ['a3']])
-    expect(below.layout.columns[0]!.rows[1]).toEqual({ id: 'n1', weight: 0.5, cells: [{ id: 'n2', weight: 1, tabs: [] }] })
-    const right = splitCell(base(), 'kb', 'right', seqIds())
-    expect(shape(right.layout)[0]).toEqual([['a1', 'a2'], ['a3', '|']])
-    expect(right.layout.columns[0]!.rows[1]!.cells[1]).toEqual({ id: 'n1', weight: 0.5, tabs: [] })
-    expect(right.cellId).toBe('n1')
-    const column = splitCell(base(), 'kb', 'new-column', seqIds())
-    expect(shape(column.layout)).toEqual([[['a1', 'a2'], ['a3']], [[]], [['b1']], [['c1']]])
-    expect(column.layout.columns[1]!.rows[0]!.cells[0]!.id).toBe(column.cellId)
-    for (const r of [below, right, column]) expectInvariants(r.layout)
-  })
-
-  it('an empty cell takes a dropped tab; closing its only tab removes it again', () => {
-    const { layout: split, cellId } = splitCell(base(), 'kc', 'below', seqIds())
-    const filled = moveTab(split, 'c1', { kind: 'cell', cellId: cellId! }, seqIds())
-    expect(shape(filled)).toEqual([[['a1', 'a2'], ['a3']], [['b1'], ['c1']]])
-    expect(shape(closeTab(filled, 'c1'))).toEqual([[['a1', 'a2'], ['a3']], [['b1']]])
-  })
-})
-
-describe('a fit row takes no weight from its neighbours (cr33 M8)', () => {
-  const weights = (l: WorkspaceLayout) => l.columns[0]!.rows.map((r) => r.weight)
-  const number = (id: string) => createTab('number', id)
-
-  it('a Number dropped on a row’s top / bottom zone makes a fit row; the row keeps its weight', () => {
-    const below = addTab(base(), number('x'), { kind: 'cell-edge', cellId: 'ka', edge: 'bottom' }, seqIds())
-    expect(shape(below)[0]).toEqual([['a1', 'a2'], ['x'], ['a3']])
-    expect(weights(below)).toEqual([1, 0.5, 1])
-    const above = addTab(base(), number('x'), { kind: 'row-edge', rowId: 'kb-r', edge: 'top' }, seqIds())
-    expect(weights(above)).toEqual([1, 0.5, 1])
-    // A Number cell dragged whole onto a row's edge too.
-    const withNumber = addTab(base(), number('x'), { kind: 'column-edge', columnId: 'C', edge: 'right' }, seqIds())
-    const numberCell = withNumber.columns[3]!.rows[0]!.cells[0]!.id
-    const moved = movePanel(withNumber, numberCell, { kind: 'cell-edge', cellId: 'kb', edge: 'top' }, seqIds())
-    expect(weights(moved)).toEqual([1, 0.5, 1])
-    // Any other widget still splits the row.
-    expect(weights(addTab(base(), createTab('notes', 'x'), { kind: 'cell-edge', cellId: 'ka', edge: 'bottom' }, seqIds()))).toEqual([0.5, 0.5, 1])
-  })
-
-  it('Split ▸ Below then a Number in the new cell: the split row gets its half back', () => {
-    const { layout: split, cellId } = splitCell(base(), 'ka', 'below', seqIds())
-    expect(weights(split)).toEqual([0.5, 0.5, 1])
-    const filled = addTab(split, number('x'), { kind: 'cell', cellId: cellId! }, seqIds())
-    expect(shape(filled)[0]).toEqual([['a1', 'a2'], ['x'], ['a3']])
-    expect(weights(filled)).toEqual([1, 0.5, 1])
-    expectInvariants(filled)
-    // A Number tab dragged into it does the same.
-    const withNumber = addTab(split, number('y'), { kind: 'cell', cellId: 'kc' }, seqIds())
-    expect(weights(moveTab(withNumber, 'y', { kind: 'cell', cellId: cellId! }, seqIds()))).toEqual([1, 0.5, 1])
-    // A Notes tab in it leaves the split as it is.
-    expect(weights(addTab(split, createTab('notes', 'x'), { kind: 'cell', cellId: cellId! }, seqIds()))).toEqual([0.5, 0.5, 1])
-  })
-
-  it('the half goes to the nearest row above that doesn’t fit, past other fit rows, else below', () => {
-    // [A: (n1: Number) (ka) (empty)] — the empty cell's row is under ka.
-    const l = layout({ id: 'A', weight: 1, rows: [rowOf({ id: 'kn', weight: 1, tabs: [number('n1')], activeTabId: 'n1' }), rowOf(cell('ka', ['a1'])), rowOf({ id: 'ke', weight: 1, tabs: [] }, { weight: 0.5 })] })
-    expect(weights(addTab(l, number('x'), { kind: 'cell', cellId: 'ke' }, seqIds()))).toEqual([1, 1.5, 0.5])
-    // Only a fit row above: the row below takes it.
-    const top = layout({ id: 'A', weight: 1, rows: [rowOf({ id: 'kn', weight: 1, tabs: [number('n1')], activeTabId: 'n1' }), rowOf({ id: 'ke', weight: 1, tabs: [] }, { weight: 0.5 }), rowOf(cell('ka', ['a1']))] })
-    expect(weights(addTab(top, number('x'), { kind: 'cell', cellId: 'ke' }, seqIds()))).toEqual([1, 0.5, 1.5])
-  })
-})
-
-describe('weights, view state, tab settings', () => {
-  it('batched weights update listed ids only and ignore bad values', () => {
-    const l = base()
-    const cols = setColumnWeights(l, { A: 2, B: 0, C: Number.NaN, nope: 3 })
-    expect(cols.columns.map((c) => c.weight)).toEqual([2, 1, 1])
-    const rows = setRowWeights(l, { 'ka-r': 0.3, 'kb-r': 0.7, 'kd-r': -1 })
-    expect(rows.columns[0]!.rows.map((r) => r.weight)).toEqual([0.3, 0.7])
-    expect(rows.columns[2]).toBe(l.columns[2])
-    expect(setColumnWeights(l, { A: 1 })).toBe(l)
-    expect(setRowWeights(l, { 'ka-r': 1 })).toBe(l)
-  })
-
-  it('cell weights size the cells within a row (or band)', () => {
-    const l = { ...paired(), top: { id: 'TB', height: 160, cells: [cell('tb', ['top1']), cell('tc', ['top2'])] } }
-    const sized = setCellWeights(l, { kb: 2, ke: 0.5, tc: 3, kc: 0 })
-    expect(sized.columns[0]!.rows[1]!.cells.map((c) => c.weight)).toEqual([2, 0.5])
-    expect(sized.top?.cells.map((c) => c.weight)).toEqual([1, 3])
-    expect(sized.columns[1]).toBe(l.columns[1])
-    expect(sized.columns[0]!.rows[0]).toBe(l.columns[0]!.rows[0])
-    expect(setCellWeights(l, { kb: 1 })).toBe(l)
-  })
-
-  it('collapse is a row’s; active tab a cell’s; a no-op returns the same layout', () => {
-    const l = paired()
-    const collapsed = setRowCollapsed(l, 'rp', true)
-    expect(collapsed.columns[0]!.rows[1]!.collapsed).toBe(true)
-    expect('collapsed' in setRowCollapsed(collapsed, 'rp', false).columns[0]!.rows[1]!).toBe(false)
-    expect(setRowCollapsed(l, 'rp', false)).toBe(l)
-    expect(setRowCollapsed(l, 'kb', true)).toBe(l)
-    expect(setActiveTab(l, 'a2').columns[0]!.rows[0]!.cells[0]!.activeTabId).toBe('a2')
-    expect(setActiveTab(l, 'a1')).toBe(l)
-  })
-
-  it('a cell’s strip setting is layout config: set, cleared, a no-op the same layout', () => {
-    const l = base()
-    const hidden = setCellStripShown(l, 'kb', false)
-    expect(hidden.columns[0]!.rows[1]!.cells[0]!.stripShown).toBe(false)
-    expect(layoutStructureEqual(l, hidden)).toBe(false)
-    expect(setCellStripShown(hidden, 'kb', false)).toBe(hidden)
-    expect('stripShown' in setCellStripShown(hidden, 'kb', null).columns[0]!.rows[1]!.cells[0]!).toBe(false)
-    expect(setCellStripShown(l, 'kb', null)).toBe(l)
-    expect(setCellStripShown(l, 'nope', true)).toBe(l)
-  })
-
-  it('config / view-state patches apply only to a tab of the named kind', () => {
-    const l = addTab(base(), createTab('calendar', 'cal'), { kind: 'cell', cellId: 'kd' }, seqIds())
-    const types = patchTabConfig(l, 'cal', 'calendar', { dateTypes: { due: false, followup: true } })
-    expect(types.columns[2]!.rows[0]!.cells[0]!.tabs[1]).toMatchObject({ config: { dateTypes: { due: false, followup: true } } })
-    expect(patchTabConfig(l, 'a1', 'calendar', { dateTypes: { due: false, followup: true } })).toBe(l)
-    const view = patchTabViewState(l, 'cal', 'calendar', { view: 'month', offset: 2 })
-    expect(view.columns[2]!.rows[0]!.cells[0]!.tabs[1]!.viewState).toEqual({ view: 'month', offset: 2 })
-    expect(patchTabViewState(view, 'cal', 'calendar', { offset: 2 })).toBe(view)
-  })
-
-  it('a view-state key patched to undefined is removed', () => {
-    const l = replaceTab(base(), 'a1', createTab('lens', 'a1'))
-    const set = patchTabViewState(l, 'a1', 'lens', { detailsWidth: 300 })
-    expect(set.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.viewState).toEqual({ detailsWidth: 300 })
-    const cleared = patchTabViewState(set, 'a1', 'lens', { detailsWidth: undefined })
-    expect(cleared.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.viewState).toEqual({})
-    expect(layoutStructureEqual(l, set)).toBe(true)
-  })
-
-  it('a config key patched to undefined is removed', () => {
-    const l = replaceTab(base(), 'a1', createTab('lens', 'a1'))
-    const onList = patchTabConfig(l, 'a1', 'lens', { listDefinitionId: 7 })
-    expect(onList.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.config).toEqual({ listDefinitionId: 7 })
-    expect(layoutStructureEqual(l, onList)).toBe(false)
-    const back = patchTabConfig(onList, 'a1', 'lens', { listDefinitionId: undefined })
-    expect(back.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.config).toEqual({})
-    expect('listDefinitionId' in back.columns[0]!.rows[0]!.cells[0]!.tabs[0]!.config).toBe(false)
-    expect(layoutStructureEqual(l, back)).toBe(true)
-  })
-
-  it('counts the tabs showing a list: list tabs on it, Eisenhower tabs while the Eisenhower source is it', () => {
-    let l = replaceTab(base(), 'a1', createTab('lens', 'a1', { listDefinitionId: 7 }))
-    l = replaceTab(l, 'b1', createTab('eisenhower', 'b1'))
-    l = replaceTab(l, 'c1', createTab('eisenhower', 'c1'))
-    expect(countListTabs(l, 7, 7)).toBe(3)
-    expect(countListTabs(l, 7, null)).toBe(1)
-    expect(countListTabs(l, 7, 8)).toBe(1)
-    expect(countListTabs(l, 8, 8)).toBe(2)
-    expect(countListTabs(l, 7, 7, new Set(['a1']))).toBe(2)
-    expect(countListTabs(l, 7, 7, new Set(['a1', 'b1', 'c1']))).toBe(0)
-  })
-
-  it('replaceTab swaps a tab in place and keeps it active', () => {
-    const l = base()
-    const next = replaceTab(l, 'a1', createTab('eisenhower', 'a1'))
-    expect(next.columns[0]!.rows[0]!.cells[0]!.tabs[0]).toEqual({ id: 'a1', kind: 'eisenhower', config: {} })
-    expect(next.columns[0]!.rows[0]!.cells[0]!.activeTabId).toBe('a1')
-    expect(replaceTab(l, 'a1', createTab('eisenhower', 'b1'))).toBe(l)
-  })
-})
-
-describe('finding parts', () => {
-  it('findCell / findRow / rowOfCell reach column rows and bands', () => {
-    const l = { ...paired(), top: { id: 'TB', height: 160, cells: [cell('tb', ['top1'])] } }
-    expect(findCell(l, 'ke')).toEqual({ kind: 'column', colIdx: 0, rowIdx: 1, cellIdx: 1 })
-    expect(findCell(l, 'tb')).toEqual({ kind: 'band', edge: 'top', cellIdx: 0 })
-    expect(findCell(l, 'rp')).toBeNull()
-    expect(findRow(l, 'rp')).toEqual({ kind: 'column', colIdx: 0, rowIdx: 1 })
-    expect(findRow(l, 'TB')).toEqual({ kind: 'band', edge: 'top' })
-    expect(findRow(l, 'ke')).toBeNull()
-    expect(rowOfCell(l, 'ke')?.id).toBe('rp')
-    expect(rowOfCell(l, 'tb')?.id).toBe('TB')
-    expect(layoutRows(l).map((r) => r.id)).toEqual(['TB', 'ka-r', 'rp', 'kc-r'])
-  })
-
-  it('layoutIds holds every level’s ids, so a new id never repeats one', () => {
-    const ids = layoutIds({ ...paired(), top: { id: 'TB', height: 160, cells: [cell('tb', ['top1'])] } })
-    for (const id of ['A', 'ka-r', 'rp', 'ka', 'ke', 'a4', 'TB', 'tb', 'top1']) expect(ids.has(id), id).toBe(true)
-  })
-})
-
-describe('layoutStructureEqual', () => {
-  it('ignores view state (active tab, collapsed, viewState) and key order', () => {
-    const l = addTab(base(), createTab('calendar', 'cal'), { kind: 'cell', cellId: 'kd' }, seqIds())
-    let v = setActiveTab(l, 'c1')
-    v = setRowCollapsed(v, 'ka-r', true)
-    v = patchTabViewState(v, 'cal', 'calendar', { view: 'month' })
-    expect(layoutStructureEqual(l, v)).toBe(true)
-    const reordered: LayoutColumn[] = l.columns.map((c) => ({ rows: c.rows.map((r): LayoutRow => ({ cells: r.cells, weight: r.weight, id: r.id })), weight: c.weight, id: c.id }))
-    expect(layoutStructureEqual(l, { columns: reordered })).toBe(true)
-  })
-
-  it('ignores sizes (view state): column, row and cell weights', () => {
-    const l = paired()
-    expect(layoutStructureEqual(l, setColumnWeights(l, { A: 3 }))).toBe(true)
-    expect(layoutStructureEqual(l, setRowWeights(l, { rp: 0.25 }))).toBe(true)
-    expect(layoutStructureEqual(l, setCellWeights(l, { ke: 0.25 }))).toBe(true)
-  })
-
-  it('sees structure and config: tabs, rows, cells side by side, a row’s id', () => {
-    const l = addTab(base(), createTab('calendar', 'cal'), { kind: 'cell', cellId: 'kd' }, seqIds())
-    expect(layoutStructureEqual(l, moveTab(l, 'a1', { kind: 'cell', cellId: 'ka', index: 1 }, seqIds()))).toBe(false)
-    expect(layoutStructureEqual(l, splitCell(l, 'kc', 'below', seqIds()).layout)).toBe(false)
-    expect(layoutStructureEqual(l, splitCell(l, 'kc', 'right', seqIds()).layout)).toBe(false)
-    expect(layoutStructureEqual(l, patchTabConfig(l, 'cal', 'calendar', { dateTypes: { due: true, followup: false } }))).toBe(false)
-    const renamedRow = { ...l, columns: l.columns.map((c, i) => (i === 1 ? { ...c, rows: c.rows.map((r) => ({ ...r, id: 'other' })) } : c)) }
-    expect(layoutStructureEqual(l, renamedRow)).toBe(false)
-  })
-})
-
-describe('copySizes', () => {
-  const band = (): LayoutBand => ({ id: 'TB', height: 160, cells: [cell('tb', ['top1']), cell('tc', ['top2'])] })
-  const sized = (): WorkspaceLayout => setBandHeight(setCellWeights(setRowWeights(setColumnWeights({ ...paired(), top: band() }, { A: 2, B: 3 }), { 'ka-r': 0.2, rp: 0.8 }), { kb: 3, ke: 1, tc: 4 }), 'top', 220)
-
-  it('copies a group only where both layouts have the same parts', () => {
-    const target = { ...paired(), top: band() }
-    const all = copySizes(target, sized(), 'all')
-    expect(all.columns.map((c) => c.weight)).toEqual([2, 3])
-    expect(all.columns[0]!.rows.map((r) => r.weight)).toEqual([0.2, 0.8])
-    expect(all.columns[0]!.rows[1]!.cells.map((c) => c.weight)).toEqual([3, 1])
-    expect(all.top?.cells.map((c) => c.weight)).toEqual([1, 4])
-    expect(all.top?.height).toBe(220)
-    expect(copySizes(target, sized(), [{ kind: 'columns' }]).columns[0]!.rows.map((r) => r.weight)).toEqual([1, 1])
-    expect(copySizes(target, sized(), [{ kind: 'band', edge: 'top' }]).columns).toBe(target.columns)
-    expect(copySizes(target, sized(), [{ kind: 'cells', rowId: 'rp' }]).columns[0]!.rows.map((r) => r.weight)).toEqual([1, 1])
-
-    // A new column: the columns' weights differ in parts; each column's rows still match.
-    const wider = addTab(target, createTab('notes', 'x'), { kind: 'layout' }, seqIds())
-    const out = copySizes(wider, sized(), 'all')
-    expect(out.columns.map((c) => c.weight)).toEqual(wider.columns.map((c) => c.weight))
-    expect(out.columns[0]!.rows.map((r) => r.weight)).toEqual([0.2, 0.8])
-    // A new row in column A: its rows keep their weights; a row's cells still match.
-    const split = splitCell(target, 'ka', 'below', seqIds()).layout
-    expect(copySizes(split, sized(), [{ kind: 'rows', columnId: 'A' }])).toBe(split)
-    expect(copySizes(split, sized(), [{ kind: 'cells', rowId: 'rp' }]).columns[0]!.rows[2]!.cells.map((c) => c.weight)).toEqual([3, 1])
-    // A new cell in row rp: its cells keep their weights.
-    const beside = splitCell(target, 'ke', 'right', seqIds()).layout
-    expect(copySizes(beside, sized(), [{ kind: 'cells', rowId: 'rp' }])).toBe(beside)
-    // Another band at that edge (or none): its height stays.
-    const otherBand = { ...target, top: { id: 'TB2', height: 160, cells: [cell('tb9', ['top9'])] } }
-    expect(copySizes(otherBand, sized(), [{ kind: 'band', edge: 'top' }])).toBe(otherBand)
-    expect(copySizes(base(), sized(), [{ kind: 'band', edge: 'top' }])).toEqual(base())
-  })
-
-  it('returns the same layout when the sizes are already equal', () => {
-    const l = sized()
-    expect(copySizes(l, sized(), 'all')).toBe(l)
-  })
-
-  it('rowSizeGroups names the columns of the rows; cellSizeGroups the rows (and bands) of the cells', () => {
-    expect(rowSizeGroups(base(), ['kb-r', 'ka-r', 'kd-r', 'nope'])).toEqual([{ kind: 'rows', columnId: 'A' }, { kind: 'rows', columnId: 'C' }])
-    const l = { ...paired(), top: band() }
-    expect(cellSizeGroups(l, ['ke', 'kb', 'tc', 'nope'])).toEqual([{ kind: 'cells', rowId: 'TB' }, { kind: 'cells', rowId: 'rp' }])
-  })
-})
-
-describe('bands', () => {
-  const withBands = (): WorkspaceLayout => ({
-    ...base(),
-    top: { id: 'TB', height: 160, cells: [{ id: 'tb', weight: 1, tabs: [createTab('number', 'top1')] }] },
-    bottom: { id: 'BB', height: 120, cells: [{ id: 'bb', weight: 1, tabs: [createTab('calendar', 'bot1'), createTab('notes', 'bot2')] }] },
-  })
-
-  it('layoutIds holds the bands, their cells and tabs, so a new id never repeats one', () => {
-    const ids = layoutIds(withBands())
-    for (const id of ['A', 'ka', 'a1', 'TB', 'tb', 'top1', 'BB', 'bb', 'bot1', 'bot2']) expect(ids.has(id), id).toBe(true)
-  })
-
-  it('findTab / panelOfTab / getTab and the view-state ops reach band tabs', () => {
-    const l = withBands()
-    expect(findTab(l, 'bot2')).toEqual({ cell: { kind: 'band', edge: 'bottom', cellIdx: 0 }, cellId: 'bb', tabIdx: 1 })
-    expect(panelOfTab(l, 'top1')?.id).toBe('tb')
-    expect(getTab(l, 'bot1')?.kind).toBe('calendar')
-    const active = setActiveTab(l, 'bot2')
-    expect(active.bottom?.cells[0]?.activeTabId).toBe('bot2')
-    expect(active.bottom?.height).toBe(120)
-    const collapsed = setRowCollapsed(l, 'TB', true)
-    expect(collapsed.top?.collapsed).toBe(true)
-    expect(setRowCollapsed(collapsed, 'TB', false).top).toEqual(l.top)
-    const vs = patchTabViewState(l, 'bot1', 'calendar', { view: 'week' })
-    expect(vs.bottom?.cells[0]?.tabs[0]?.viewState).toEqual({ view: 'week' })
-    const lens = patchTabViewState(replaceTab(l, 'top1', createTab('lens', 'top1')), 'top1', 'lens', { detailsWidth: 240 })
-    expect(lens.top?.cells[0]?.tabs[0]?.viewState).toEqual({ detailsWidth: 240 })
-    expect(patchTabConfig(l, 'bot1', 'calendar', { dateTypes: { due: false, followup: true } }).bottom?.cells[0]?.tabs[0]?.config).toEqual({ dateTypes: { due: false, followup: true } })
-    expect(layoutPanels(l).map((p) => p.id)).toEqual(['tb', 'ka', 'kb', 'kc', 'kd', 'bb'])
-    expect(countListTabs(replaceTab(l, 'top1', createTab('lens', 'top1', { listDefinitionId: 7 })), 7, null)).toBe(1)
-  })
-
-  it('a tab moves into a band (body: at the end; strip: at the index) and out of it; an emptied band goes', () => {
-    const l = withBands()
-    const into = moveTab(l, 'a3', { kind: 'band', edge: 'top' }, seqIds())
-    expect(bandShape(into, 'top')).toEqual(['top1', 'a3'])
-    expect(into.top?.cells[0]?.activeTabId).toBe('a3')
-    expect(shape(into)[0]).toEqual([['a1', 'a2']])
-    const strip = moveTab(l, 'b1', { kind: 'cell', cellId: 'bb', index: 1 }, seqIds())
-    expect(bandShape(strip, 'bottom')).toEqual(['bot1', 'b1', 'bot2'])
-    expect(shape(strip).length).toBe(2) // column B emptied and went
-    const out = moveTab(l, 'top1', { kind: 'cell', cellId: 'kc' }, seqIds())
-    expect(out.top).toBeUndefined()
-    expect('top' in out).toBe(false)
-    expect(shape(out)[1]).toEqual([['b1', 'top1']])
-    // Reordering inside a band
-    const reordered = moveTab(l, 'bot1', { kind: 'band', edge: 'bottom', index: 1 }, seqIds())
-    expect(bandShape(reordered, 'bottom')).toEqual(['bot2', 'bot1'])
-    expect(moveTab(l, 'bot1', { kind: 'band', edge: 'bottom' }, seqIds())).toBe(l)
-  })
-
-  it('a band takes a cell beside one of its cells; a band losing its last cell goes, one losing another keeps the rest', () => {
-    const l = withBands()
-    const beside = moveTab(l, 'a3', { kind: 'cell-edge', cellId: 'tb', edge: 'right' }, seqIds())
-    expect(bandShape(beside, 'top')).toEqual(['top1', '|', 'a3'])
-    expect(beside.top?.cells.map((c) => c.weight)).toEqual([0.5, 0.5])
-    expect(beside.top?.height).toBe(160)
-    expect(bandShape(closeCell(beside, 'tb'), 'top')).toEqual(['a3'])
-    expect('top' in closeCell(closeCell(beside, 'tb'), 'n1')).toBe(false)
-    expectInvariants(beside)
-  })
-
-  it('a tab makes a new band only where there is none: first tab active, default height', () => {
-    const l = { ...base(), bottom: withBands().bottom }
-    const next = moveTab(l, 'a1', { kind: 'new-band', edge: 'top' }, seqIds())
-    expect(next.top).toEqual({ id: 'n1', height: BAND_DEFAULT_HEIGHT, cells: [{ id: 'n2', weight: 1, tabs: [l.columns[0]!.rows[0]!.cells[0]!.tabs[0]], activeTabId: 'a1' }] })
-    expect(moveTab(l, 'a1', { kind: 'new-band', edge: 'bottom' }, seqIds())).toBe(l)
-    // The only tab of the bottom band onto the free top edge: the band moves.
-    const moved = moveTab(l, 'bot1', { kind: 'new-band', edge: 'top' }, seqIds())
-    expect(bandShape(moved, 'top')).toEqual(['bot1'])
-    expect(bandShape(moved, 'bottom')).toEqual(['bot2'])
-    expect(bandShape(addTab(base(), createTab('notes', 'x'), { kind: 'new-band', edge: 'bottom' }, seqIds()), 'bottom')).toEqual(['x'])
-    expect(bandShape(addTab(l, createTab('notes', 'x'), { kind: 'band', edge: 'bottom' }, seqIds()), 'bottom')).toEqual(['bot1', 'bot2', 'x'])
-    expect(addTab(base(), createTab('notes', 'x'), { kind: 'band', edge: 'top' }, seqIds()).top).toBeUndefined()
-  })
-
-  it('closeTab / closeCell remove a band once its last tab goes; a band cell splits only right', () => {
-    const l = withBands()
-    expect('top' in closeTab(l, 'top1')).toBe(false)
-    const one = closeTab(l, 'bot1')
-    expect(bandShape(one, 'bottom')).toEqual(['bot2'])
-    expect('bottom' in closeCell(l, 'bb')).toBe(false)
-    expect(splitCell(l, 'tb', 'below', seqIds())).toEqual({ layout: l, cellId: null })
-    expect(splitCell(l, 'tb', 'new-column', seqIds())).toEqual({ layout: l, cellId: null })
-    const right = splitCell(l, 'tb', 'right', seqIds())
-    expect(bandShape(right.layout, 'top')).toEqual(['top1', '|'])
-  })
-
-  it('setBandHeight changes the height (rounded), only for a band that exists and a positive height', () => {
-    const l = withBands()
-    expect(setBandHeight(l, 'top', 201.6).top?.height).toBe(202)
-    expect(setBandHeight(l, 'top', 160)).toBe(l)
-    expect(setBandHeight(l, 'top', 0)).toBe(l)
-    expect(setBandHeight(l, 'top', Number.NaN)).toBe(l)
-    expect(setBandHeight(base(), 'top', 200).top).toBeUndefined()
-  })
-
-  it('layoutStructureEqual sees a band added, removed or its tabs changed — not its height or view state', () => {
-    const l = withBands()
-    expect(layoutStructureEqual(l, base())).toBe(false)
-    expect(layoutStructureEqual(l, setBandHeight(l, 'top', 200))).toBe(true)
-    expect(layoutStructureEqual(l, moveTab(l, 'bot1', { kind: 'band', edge: 'bottom', index: 1 }, seqIds()))).toBe(false)
-    expect(layoutStructureEqual(l, patchTabConfig(l, 'bot1', 'calendar', { dateTypes: { due: false, followup: true } }))).toBe(false)
-    let v = setActiveTab(l, 'bot2')
-    v = setRowCollapsed(v, 'TB', true)
-    v = patchTabViewState(v, 'bot1', 'calendar', { offset: 2 })
-    expect(layoutStructureEqual(l, v)).toBe(true)
-    expect(layoutStructureEqual(base(), { columns: base().columns })).toBe(true)
+    expect(moveTab(base, 'zz', { kind: 'cell', cellId: 'b' }, ids())).toBe(base)
+    expect(moveTab(base, 't1', { kind: 'cell', cellId: 'zz' }, ids())).toBe(base)
+    expect(moveTab(base, 't1', { kind: 'split', cellId: 'zz', side: 'left' }, ids())).toBe(base)
   })
 })
 
 describe('movePanel', () => {
-  const withBands = (): WorkspaceLayout => ({
-    ...base(),
-    top: { id: 'TB', height: 160, cells: [{ id: 'tb', weight: 1, tabs: [createTab('number', 'top1'), createTab('notes', 'top2')], activeTabId: 'top2' }] },
+  const a = cell('a', ['t1', 't2'])
+  const b = cell('b', ['t3'])
+  const c = cell('c', ['t4'])
+
+  it('merges its tabs into another cell, the first moved tab active; its place closes', () => {
+    const base = layout(grid([[a, b], [c, c]]))
+    const out = movePanel(base, 'a', { kind: 'cell', cellId: 'c' }, ids())
+    expect(picture(out)).toEqual(['b', 'c'])
+    expect(tabIdsOf(out, 'c')).toEqual(['t4', 't1', 't2'])
+    expect(out.cells.find((x) => x.id === 'c')?.activeTabId).toBe('t1')
   })
 
-  it('merging into another cell appends every tab in order; the first moved tab is active', () => {
-    const next = movePanel(base(), 'ka', { kind: 'cell', cellId: 'kd' }, seqIds())
-    expect(shape(next)).toEqual([[['a3']], [['b1']], [['c1', 'a1', 'a2']]])
-    expect(next.columns[2]!.rows[0]!.cells[0]!.activeTabId).toBe('a1')
-    const strip = movePanel(base(), 'ka', { kind: 'cell', cellId: 'kd', index: 0 }, seqIds())
-    expect(shape(strip)[2]).toEqual([['a1', 'a2', 'c1']])
+  it('a split or insert makes a new cell keeping its active tab', () => {
+    const base = layout(grid([[setActiveTab(layout(grid([[a]])), 't2').cells[0]!, b]]))
+    const out = movePanel(base, 'a', { kind: 'insert', edge: 'bottom' }, ids())
+    expect(picture(out)).toEqual(['b', 'n2'])
+    expect(out.cells.find((x) => x.id === 'n2')?.activeTabId).toBe('t2')
+    expectValid(out)
   })
 
-  it('a cell edge makes a new row or cell with it (keeping its active tab and strip setting); a column edge a new column', () => {
-    const l = setCellStripShown(setActiveTab(base(), 'a2'), 'ka', false)
-    const edge = movePanel(l, 'ka', { kind: 'cell-edge', cellId: 'kc', edge: 'bottom' }, seqIds())
-    expect(shape(edge)).toEqual([[['a3']], [['b1'], ['a1', 'a2']], [['c1']]])
-    expect(edge.columns[1]!.rows[1]!.cells[0]).toMatchObject({ activeTabId: 'a2', weight: 1, stripShown: false })
-    expect(edge.columns[1]!.rows[1]!.weight).toBe(0.5)
-    const beside = movePanel(l, 'ka', { kind: 'cell-edge', cellId: 'kc', edge: 'right' }, seqIds())
-    expect(shape(beside)[1]).toEqual([['b1', '|', 'a1', 'a2']])
-    expect(beside.columns[1]!.rows[0]!.cells[1]).toMatchObject({ activeTabId: 'a2', weight: 0.5, stripShown: false })
-    const col = movePanel(l, 'kb', { kind: 'column-edge', columnId: 'C', edge: 'right' }, seqIds())
-    expect(shape(col)).toEqual([[['a1', 'a2']], [['b1']], [['c1']], [['a3']]])
-    // The only cell of column B: column B goes.
-    const lone = movePanel(base(), 'kc', { kind: 'column-edge', columnId: 'A', edge: 'left' }, seqIds())
-    expect(shape(lone)).toEqual([[['b1']], [['a1', 'a2'], ['a3']], [['c1']]])
-    expect(movePanel(base(), 'kc', { kind: 'layout' }, seqIds()).columns.map((c) => c.rows[0]!.cells[0]!.tabs[0]!.id)).toEqual(['a1', 'c1', 'b1'])
-    for (const x of [edge, beside, col, lone]) expectInvariants(x)
-  })
-
-  it('removing a column’s last expanded row expands the row above it, else the new first', () => {
-    const rows = () => [rowOf(cell('k1', ['t1']), { collapsed: true }), rowOf(cell('k2', ['t2'])), rowOf(cell('k3', ['t3']), { collapsed: true })]
-    const expanded = (l: WorkspaceLayout) => l.columns[0]!.rows.filter((r) => r.collapsed !== true).map((r) => r.id)
-    const colA = (r: LayoutRow[]): LayoutColumn => ({ id: 'A', weight: 1, rows: r })
-    const other = col('B', [cell('kb', ['b1'])])
-
-    expect(expanded(closeCell(layout(colA(rows())), 'k2'))).toEqual(['k1-r'])
-    expect(expanded(closeTab(layout(colA(rows())), 't2'))).toEqual(['k1-r'])
-    expect(expanded(moveTab(layout(colA(rows()), other), 't2', { kind: 'cell', cellId: 'kb' }, seqIds()))).toEqual(['k1-r'])
-    expect(expanded(movePanel(layout(colA(rows()), other), 'k2', { kind: 'cell', cellId: 'kb' }, seqIds()))).toEqual(['k1-r'])
-
-    const firstGoes = [rowOf(cell('k1', ['t1'])), rowOf(cell('k2', ['t2']), { collapsed: true })]
-    expect(expanded(closeCell(layout(colA(firstGoes)), 'k1'))).toEqual(['k2-r'])
-  })
-
-  it('removing a row leaves the others’ collapse alone while an expanded row remains, when it was collapsed, or while the row keeps a cell', () => {
-    const three = [rowOf(cell('k1', ['t1']), { collapsed: true }), rowOf(cell('k2', ['t2'])), rowOf(cell('k3', ['t3']))]
-    const left = closeCell(layout({ id: 'A', weight: 1, rows: three }), 'k3').columns[0]!.rows
-    expect(left.map((r) => r.collapsed === true)).toEqual([true, false])
-
-    const allCollapsed = [rowOf(cell('k1', ['t1']), { collapsed: true }), rowOf(cell('k2', ['t2']), { collapsed: true })]
-    expect(closeCell(layout({ id: 'A', weight: 1, rows: allCollapsed }), 'k2').columns[0]!.rows[0]!.collapsed).toBe(true)
-
-    // A cell of a two-cell row goes: the row (still there) keeps its collapse.
-    const pair = [rowOf(cell('k1', ['t1']), { collapsed: true }), row('rp', [cell('k2', ['t2']), cell('k3', ['t3'])], { collapsed: true })]
-    const kept = closeCell(layout({ id: 'A', weight: 1, rows: pair }), 'k3').columns[0]!.rows
-    expect(kept.map((r) => r.collapsed === true)).toEqual([true, true])
-  })
-
-  it('a cell of a collapsed row moved to a new place opens expanded', () => {
-    const l = setRowCollapsed(base(), 'kb-r', true)
-    const next = movePanel(l, 'kb', { kind: 'cell-edge', cellId: 'kc', edge: 'top' }, seqIds())
-    expect(next.columns[1]!.rows[0]!.collapsed).toBeUndefined()
-  })
-
-  it('no-ops: its own body or strip, its own edges, the gutters beside it, its column’s edges when alone', () => {
-    const l = base()
-    expect(movePanel(l, 'ka', { kind: 'cell', cellId: 'ka' }, seqIds())).toBe(l)
-    expect(movePanel(l, 'ka', { kind: 'cell', cellId: 'ka', index: 1 }, seqIds())).toBe(l)
-    expect(movePanel(l, 'ka', { kind: 'cell-edge', cellId: 'ka', edge: 'bottom' }, seqIds())).toBe(l)
-    expect(movePanel(l, 'ka', { kind: 'cell-edge', cellId: 'ka', edge: 'right' }, seqIds())).toBe(l)
-    expect(movePanel(l, 'ka', { kind: 'cell-edge', cellId: 'kb', edge: 'top' }, seqIds())).toBe(l)
-    expect(movePanel(l, 'ka', { kind: 'row-edge', rowId: 'kb-r', edge: 'top' }, seqIds())).toBe(l)
-    expect(movePanel(l, 'kc', { kind: 'column-edge', columnId: 'B', edge: 'left' }, seqIds())).toBe(l)
-    expect(movePanel(l, 'kc', { kind: 'column-edge', columnId: 'A', edge: 'right' }, seqIds())).toBe(l)
-    expect(movePanel(l, 'kd', { kind: 'layout' }, seqIds())).toBe(l)
-    expect(movePanel(l, 'nope', { kind: 'layout' }, seqIds())).toBe(l)
-    // A cell of a column with others still moves to its column's edge.
-    expect(movePanel(l, 'ka', { kind: 'column-edge', columnId: 'A', edge: 'left' }, seqIds())).not.toBe(l)
-    // A cell of a two-cell row: beside its neighbour is a no-op; its row's edge is not, nor its column's.
-    const p = paired()
-    expect(movePanel(p, 'ke', { kind: 'cell-edge', cellId: 'kb', edge: 'right' }, seqIds())).toBe(p)
-    expect(shape(movePanel(p, 'ke', { kind: 'row-edge', rowId: 'rp', edge: 'top' }, seqIds()))[0]).toEqual([['a1', 'a2'], ['a4'], ['a3']])
-  })
-
-  it('a cell moves into a band, makes a new band (first tab active), or merges into the existing one', () => {
-    const l = setActiveTab(base(), 'a2')
-    const nb = movePanel(l, 'ka', { kind: 'new-band', edge: 'bottom' }, seqIds())
-    expect(nb.bottom).toEqual({ id: 'n1', height: BAND_DEFAULT_HEIGHT, cells: [{ id: 'n2', weight: 1, tabs: l.columns[0]!.rows[0]!.cells[0]!.tabs, activeTabId: 'a1' }] })
-    expect(shape(nb)[0]).toEqual([['a3']])
-    const b = withBands()
-    expect(movePanel(b, 'ka', { kind: 'new-band', edge: 'top' }, seqIds())).toBe(b)
-    const merged = movePanel(b, 'kd', { kind: 'band', edge: 'top' }, seqIds())
-    expect(bandShape(merged, 'top')).toEqual(['top1', 'top2', 'c1'])
-    expect(merged.top?.cells[0]?.activeTabId).toBe('c1')
-    expect(merged.columns.length).toBe(2)
-  })
-
-  it('a band’s cell moves to the other edge, into the other band, into a cell, or out as a column; its band goes', () => {
-    const b = withBands()
-    const other = movePanel(b, 'tb', { kind: 'new-band', edge: 'bottom' }, seqIds())
-    expect('top' in other).toBe(false)
-    expect(bandShape(other, 'bottom')).toEqual(['top1', 'top2'])
-    expect(movePanel(b, 'tb', { kind: 'new-band', edge: 'top' }, seqIds())).toBe(b)
-    expect(movePanel(b, 'tb', { kind: 'band', edge: 'top' }, seqIds())).toBe(b)
-    const both = { ...b, bottom: { id: 'BB', height: 100, cells: [{ id: 'bb', weight: 1, tabs: [createTab('notes', 'bot1')] }] } }
-    const into = movePanel(both, 'tb', { kind: 'band', edge: 'bottom' }, seqIds())
-    expect(bandShape(into, 'bottom')).toEqual(['bot1', 'top1', 'top2'])
-    expect(into.bottom?.height).toBe(100)
-    const cell = movePanel(b, 'tb', { kind: 'cell', cellId: 'kc' }, seqIds())
-    expect(shape(cell)[1]).toEqual([['b1', 'top1', 'top2']])
-    const column = movePanel(b, 'tb', { kind: 'layout' }, seqIds())
-    expect('top' in column).toBe(false)
-    expect(shape(column).at(-1)).toEqual([['top1', 'top2']])
-    expect(column.columns.at(-1)!.rows[0]!.cells[0]!.activeTabId).toBe('top2')
+  it('no-ops: onto itself, back where it is, an empty cell', () => {
+    const base = layout(grid([[a, b]]))
+    expect(movePanel(base, 'a', { kind: 'cell', cellId: 'a' }, ids())).toBe(base)
+    expect(movePanel(base, 'a', { kind: 'split', cellId: 'a', side: 'top' }, ids())).toBe(base)
+    expect(movePanel(base, 'b', { kind: 'split', cellId: 'a', side: 'right' }, ids())).toBe(base)
+    const empty = closeCell(layout(grid([[a]])), 'a')
+    expect(movePanel(empty, 'a', { kind: 'insert', edge: 'top' }, ids())).toBe(empty)
   })
 })
 
-describe('bands, unchanged by column edits', () => {
-  const withBands = (): WorkspaceLayout => ({
-    ...base(),
-    top: { id: 'TB', height: 160, cells: [{ id: 'tb', weight: 1, tabs: [createTab('number', 'top1')] }] },
-    bottom: { id: 'BB', height: 120, cells: [{ id: 'bb', weight: 1, tabs: [createTab('calendar', 'bot1'), createTab('notes', 'bot2')] }] },
+describe('addTab', () => {
+  it('joins a cell, splits one, inserts a track, or starts an empty layout', () => {
+    const a = cell('a')
+    const base = layout(grid([[a]]))
+    const tab = createTab('notes', 'x')
+    expect(tabIdsOf(addTab(base, tab, { kind: 'cell', cellId: 'a', index: 0 }, ids()), 'a')).toEqual(['x', 'a-t'])
+    expect(picture(addTab(base, tab, { kind: 'split', cellId: 'a', side: 'right' }, ids()))).toEqual(['a n2'])
+    expect(picture(addTab(layout(emptyBody()), tab, { kind: 'layout' }, ids()))).toEqual(['n1'])
+    expect(addTab(base, createTab('notes', 'a-t'), { kind: 'cell', cellId: 'a' }, ids())).toBe(base)
+  })
+})
+
+describe('moveEdge', () => {
+  const a = cell('a')
+  const b = cell('b')
+  const c = cell('c')
+  const d = cell('d')
+
+  it('a whole line between its neighbouring lines reweights the two tracks (view state)', () => {
+    const base = layout(grid([[a, b], [c, d]], { cols: [500, 500] }))
+    const stretch = edgeBetween(base, 'a', 'b')!
+    const out = moveEdge(base, stretch, 100, { sizes: [400, 400] }, ids())
+    expect(out.grid.columns.map((t) => t.weight)).toEqual([625, 375])
+    expect(layoutStructureEqual(out, base)).toBe(true)
   })
 
-  it('column, row and cell edits keep the bands as they are', () => {
-    const l = withBands()
-    const moved = moveTab(addTab(l, createTab('notes', 'x'), { kind: 'layout' }, seqIds()), 'a1', { kind: 'cell', cellId: 'kd' }, seqIds())
-    expect(moved.top).toBe(l.top)
-    expect(moved.bottom).toBe(l.bottom)
-    expect(setColumnWeights(l, { A: 2 }).top).toBe(l.top)
-    expect(setRowWeights(l, { 'ka-r': 2 }).bottom).toBe(l.bottom)
-    expect(setCellWeights(l, { ka: 2 }).top).toBe(l.top)
+  it('a stretch holding every edge on its line reweights too, though cells cross the line elsewhere', () => {
+    // a b
+    // c c — a|b is the only edge on its line
+    const parted = layout(grid([[a, b], [c, c]], { cols: [500, 500] }))
+    const stretch = edgeBetween(parted, 'a', 'b')!
+    expect(stretch).toEqual({ axis: 'columns', line: 1, from: 0, to: 1 })
+    const out = moveEdge(parted, stretch, 200, { sizes: [400, 400] }, ids())
+    expect(picture(out)).toEqual(['a b', 'c c'])
+    expect(out.grid.columns.map((t) => t.weight)).toEqual([750, 250])
+    expect(layoutStructureEqual(out, parted)).toBe(true)
   })
+
+  it('part of a line splits the line: a new track, the cells crossing it gain a span', () => {
+    // a b
+    // c d — moving a|b right by 200 of 400 + 400 px leaves c|d where it is
+    const base = layout(grid([[a, b], [c, d]], { cols: [500, 500] }))
+    const stretch = { ...edgeBetween(base, 'a', 'b')!, to: 1 }
+    const out = moveEdge(base, stretch, 200, { sizes: [400, 400] }, ids())
+    expect(picture(out)).toEqual(['a a b', 'c d d'])
+    expect(out.grid.columns.map((t) => t.weight)).toEqual([500, 250, 250])
+    expect(layoutStructureEqual(out, base)).toBe(false)
+    expectValid(out)
+  })
+
+  it('snaps onto another line within 8px; a part line snaps back onto its own line (no change)', () => {
+    // a a b
+    // c d d — moving a|b (cols 2) left by 195 of 3 × 200px snaps onto line 1 (c|d)
+    const base = layout(grid([[a, a, b], [c, d, d]]))
+    const stretch = edgeBetween(base, 'a', 'b')!
+    const out = moveEdge(base, stretch, -195, { sizes: [200, 200, 200], minPx: () => 50 }, ids())
+    expect(picture(out)).toEqual(['a b', 'c d'])
+    expectValid(out)
+    // A small move of a line holding only this stretch's edges is a reweight.
+    const nudged = moveEdge(base, stretch, 5, { sizes: [200, 200, 200], minPx: () => 50 }, ids())
+    expect(layoutStructureEqual(nudged, base)).toBe(true)
+    expect(nudged.grid.columns.map((t) => t.weight)).toEqual([1000, 1025, 975])
+    // A part line among other edges snaps back onto itself: no change.
+    const e = cell('e')
+    // a b b
+    // c e e — line 1 holds a|b and c|e: a|b alone is part of it.
+    const shared = layout(grid([[a, b, b], [c, e, e]]))
+    const part = { ...edgeBetween(shared, 'a', 'b')!, to: 1 }
+    expect(moveEdge(shared, part, 5, { sizes: [200, 200, 200], minPx: () => 50 }, ids())).toBe(shared)
+  })
+
+  it('keeps every cell on either side at its minimum', () => {
+    const base = layout(grid([[a, b]]))
+    const stretch = edgeBetween(base, 'a', 'b')!
+    const out = moveEdge(base, stretch, 1000, { sizes: [400, 400] }, ids())
+    // b keeps its 120px: a is 680 of 800.
+    expect(out.grid.columns.map((t) => Math.round(t.weight ?? 0))).toEqual([1700, 300])
+  })
+
+  it('a fixed track keeps px; a bad stretch or no move changes nothing', () => {
+    const base = layout(grid([[a], [b]], { rows: [1000, { px: 200 }] }))
+    const stretch = edgeBetween(base, 'a', 'b')!
+    const out = moveEdge(base, stretch, -50, { sizes: [500, 200], minPx: () => 64 }, ids())
+    expect(out.grid.rows).toEqual([{ id: 'r1', weight: 1000 }, { id: 'r2', px: 250 }])
+    expect(moveEdge(base, stretch, 0, { sizes: [500, 200] }, ids())).toBe(base)
+    expect(moveEdge(base, { axis: 'rows', line: 5, from: 0, to: 1 }, 10, { sizes: [500, 200] }, ids())).toBe(base)
+    expect(moveEdge(base, stretch, 10, { sizes: [500] }, ids())).toBe(base)
+  })
+})
+
+describe('evenStretchDelta (a divider double-click)', () => {
+  it('part of a line goes midway between its own cells; a whole line has none', () => {
+    const [a, b, e, c, d] = ['a', 'b', 'e', 'c', 'd'].map((id) => cell(id)) as [CellSpec, CellSpec, CellSpec, CellSpec, CellSpec]
+    const body = layout(grid([[a, b], [e, e], [c, d]], { cols: [600, 400] }))
+    const ab = edgeBetween(body, 'a', 'b')!
+    expect(evenStretchDelta(body, ab, [600, 400])).toBe(-100)
+    const moved = moveEdge(body, ab, -100, { sizes: [600, 400] }, ids())
+    expect(picture(moved)).toEqual(['a b b', 'e e e', 'c c d'])
+    expect(evenStretchDelta(body, ab, [600])).toBeNull()
+    const whole = layout(grid([[a, b]]))
+    expect(evenStretchDelta(whole, edgeBetween(whole, 'a', 'b')!, [500, 500])).toBeNull()
+  })
+})
+
+describe('view state, config and sizes', () => {
+  const a = cell('a', ['t1', 't2'])
+  const b = cell('b')
+  const base = layout(grid([[a], [b]]))
+
+  it('collapses row tracks only; a cell is collapsed when every row track it covers is', () => {
+    const out = setTrackCollapsed(base, 'r1', true)
+    expect(out.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, collapsed: true })
+    expect(isCellCollapsed(out, 'a')).toBe(true)
+    expect(isCellCollapsed(out, 'b')).toBe(false)
+    expect(setTrackCollapsed(out, 'r1', true)).toBe(out)
+    expect(setTrackCollapsed(base, 'c1', true)).toBe(base)
+    expect(setTrackCollapsed(out, 'r1', false).grid.rows[0]).toEqual({ id: 'r1', weight: 1000 })
+  })
+
+  it('sets the active tab; batched track sizes in their own unit; ignores bad sizes', () => {
+    expect(setActiveTab(base, 't2').cells[0]?.activeTabId).toBe('t2')
+    expect(setActiveTab(base, 't1')).toBe(base)
+    const fixed = layout(grid([[a], [b]], { rows: [1000, { px: 160 }] }))
+    const out = setTrackSizes(fixed, { r1: 700, r2: 199.6, c1: -1, zz: 5 })
+    expect(out.grid.rows).toEqual([{ id: 'r1', weight: 700 }, { id: 'r2', px: 200 }])
+    expect(setTrackSizes(fixed, { r1: 1000 })).toBe(fixed)
+    expect(trackAxes(fixed, ['r2', 'c1'])).toEqual(['columns', 'rows'])
+  })
+
+  it('copies an axis’s sizes only where both have the same tracks', () => {
+    const sized = setTrackSizes(base, { r1: 300, r2: 700, c1: 50 })
+    const split = splitCell(base, 'a', 'right', ids()).layout
+    const out = copySizes(split, sized, 'all')
+    expect(out.grid.rows.map((t) => t.weight)).toEqual([300, 700])
+    expect(out.grid.columns.map((t) => t.weight)).toEqual([500, 500])
+    expect(copySizes(sized, sized, 'all')).toBe(sized)
+  })
+
+  it('patches a tab’s config / view state only for its kind; replaces a tab in place', () => {
+    const cal = createTab('calendar', 'k')
+    const withCal = layout(grid([[spec('a', [cal])]]))
+    const patched = patchTabViewState(withCal, 'k', 'calendar', { view: 'month' })
+    expect(getTab(patched, 'k')?.viewState).toEqual({ view: 'month' })
+    expect(patchTabViewState(withCal, 'k', 'lens', { zoom: 'lines' })).toBe(withCal)
+    expect(getTab(patchTabConfig(withCal, 'k', 'calendar', { dateTypes: { due: false, followup: true } }), 'k')?.config).toEqual({ dateTypes: { due: false, followup: true } })
+    const swapped = replaceTab(base, 't1', createTab('calendar', 't1'))
+    expect(getTab(swapped, 't1')?.kind).toBe('calendar')
+    expect(replaceTab(base, 't1', createTab('calendar', 'b-t'))).toBe(base)
+  })
+
+  it('counts the tabs showing a list', () => {
+    const lens: LayoutTab = { id: 'l', kind: 'lens', config: { listDefinitionId: 7 } }
+    const eis: LayoutTab = { id: 'e', kind: 'eisenhower', config: {} }
+    const body = layout(grid([[spec('a', [lens, eis])]]))
+    expect(countListTabs(body, 7, null)).toBe(1)
+    expect(countListTabs(body, 7, 7)).toBe(2)
+    expect(countListTabs(body, 7, 7, new Set(['e']))).toBe(1)
+  })
+})
+
+describe('queries and the structure key', () => {
+  const a = cell('a', ['t1'])
+  const b = cell('b', ['t2'])
+  const base = layout(grid([[a, b]]))
+
+  it('finds tabs and cells; every id is in layoutIds', () => {
+    expect(findTab(base, 't2')).toEqual({ cellId: 'b', cellIdx: 1, tabIdx: 0 })
+    expect(panelOfTab(base, 't2')?.id).toBe('b')
+    expect([...layoutIds(base)].sort()).toEqual(['a', 'b', 'c1', 'c2', 'r1', 't1', 't2'])
+  })
+
+  it('ignores view state (sizes, collapse, active tab) but sees tracks, areas and tabs', () => {
+    expect(layoutStructureEqual(base, setTrackSizes(base, { c1: 10 }))).toBe(true)
+    expect(layoutStructureEqual(base, setTrackCollapsed(base, 'r1', true))).toBe(true)
+    expect(layoutStructureEqual(base, mergeCells(base, 'a', 'b'))).toBe(false)
+    expect(layoutStructureKey(base)).toBe(layoutStructureKey({ ...base, cells: [...base.cells] }))
+  })
+})
+
+describe('random op sequences keep the table valid', () => {
+  /** A deterministic generator (mulberry32). */
+  function rng(seed: number): () => number {
+    let s = seed >>> 0
+    return () => {
+      s = (s + 0x6d2b79f5) >>> 0
+      let t = s
+      t = Math.imul(t ^ (t >>> 15), t | 1)
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+  }
+  const SIDES: Side[] = ['left', 'top', 'right', 'bottom']
+
+  for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]) {
+    it(`seed ${seed}`, () => {
+      const rand = rng(seed)
+      const pick = <T,>(xs: readonly T[]): T | undefined => xs[Math.floor(rand() * xs.length)]
+      const genId = ids(`s${seed}-`)
+      let tabN = 0
+      let body: WorkspaceLayout = layout(grid([[cell('start', ['x0'])]]))
+      for (let step = 0; step < 150; step++) {
+        const cellIds = body.cells.map((c) => c.id)
+        const tabIds = body.cells.flatMap((c) => c.tabs.map((t) => t.id))
+        const target = (): LayoutDropTarget => {
+          const r = rand()
+          const id = pick(cellIds) ?? 'none'
+          if (r < 0.4) return { kind: 'split', cellId: id, side: pick(SIDES) ?? 'right' }
+          if (r < 0.6) return { kind: 'insert', edge: pick(SIDES) ?? 'right' }
+          if (r < 0.9) return { kind: 'cell', cellId: id, index: Math.floor(rand() * 3) }
+          return { kind: 'layout' }
+        }
+        const op = Math.floor(rand() * 9)
+        const before = body
+        switch (op) {
+          case 0: body = splitCell(body, pick(cellIds) ?? '', pick(SIDES) ?? 'right', genId).layout; break
+          case 1: body = insertTrack(body, pick(SIDES) ?? 'top', genId).layout; break
+          case 2: body = mergeCells(body, pick(cellIds) ?? '', pick(cellIds) ?? ''); break
+          case 3: body = closeCell(body, pick(cellIds) ?? ''); break
+          case 4: body = moveTab(body, pick(tabIds) ?? '', target(), genId); break
+          case 5: body = movePanel(body, pick(cellIds) ?? '', target(), genId); break
+          case 6: body = addTab(body, createTab('notes', `x${++tabN}`), target(), genId); break
+          case 7: {
+            const stretch = pick(edgeStretches(body))
+            if (stretch) {
+              const sizes = body.grid[stretch.axis].map(() => 100 + Math.floor(rand() * 200))
+              body = moveEdge(body, stretch, (rand() - 0.5) * 400, { sizes, minPx: () => 20 }, genId)
+            }
+            break
+          }
+          case 8: body = closeTab(body, pick(tabIds) ?? ''); break
+        }
+        expectValid(body)
+        // A close leaves an empty cell only where no side can take its space (a pinwheel's centre).
+        if (op === 3 || op === 8) {
+          for (const c of body.cells) {
+            if (c.tabs.length > 0 || before.cells.some((p) => p.id === c.id && p.tabs.length === 0)) continue
+            // Emptied by this close: closing it again finds no taker either.
+            expect(closeCell(body, c.id)).toBe(body)
+          }
+        }
+        // Every tab survives every op but a close.
+        if (op !== 8 && op !== 3) {
+          expect(body.cells.flatMap((c) => c.tabs.map((t) => t.id)).sort()).toEqual(
+            [...before.cells.flatMap((c) => c.tabs.map((t) => t.id)), ...(op === 6 && body !== before ? [`x${tabN}`] : [])].sort(),
+          )
+        }
+      }
+    })
+  }
 })

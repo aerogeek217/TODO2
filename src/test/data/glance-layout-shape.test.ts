@@ -8,71 +8,60 @@ import {
   WIDGET_KIND_SPECS,
   WIDGET_KINDS,
   type GlanceWidgetKind,
+  type LayoutTab,
   type WorkspaceLayout,
 } from '../../models/workspace-layout'
-import { rowOf } from '../helpers/layout-builders'
+import { cell, grid, numberTab, single } from '../helpers/layout-builders'
+import { emptyPredicate } from '../../models/filter-predicate'
 
 const DATE = '2026-09-01T09:00:00.000Z'
 
 function layoutRow(tab: Record<string, unknown>): Record<string, unknown> {
   return {
     id: 1, name: 'Glance', sortOrder: 0, createdAt: DATE, modifiedAt: DATE,
-    columns: [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [tab] })] }],
+    ...single({ id: 'k', tabs: [tab as unknown as LayoutTab] }),
   }
 }
 
-const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).columns[0]!.rows[0]!.cells[0]!.tabs[0]
+const tabOf = (row: Record<string, unknown>) => (sanitizeRow('layouts', row) as WorkspaceLayout).cells[0]!.tabs[0]
 
 /** Each glance kind with a setting: a config it keeps (not its default), one it repairs, and the default. */
 const SETTINGS: Array<[GlanceWidgetKind, string, unknown, unknown, unknown]> = [
-  ['number', 'metric', 'closedThisWeek', 'late', 'overdue'],
-  ['followup', 'lookAhead', 14, 5, 7],
   ['trend', 'range', '12w', '1y', '14d'],
-  ['people', 'showUnassigned', false, 'no', true],
-  ['tags', 'showUntagged', false, 0, true],
-  ['stale', 'staleDays', 60, 15, 14],
-  ['recent', 'recentDays', 30, 31, 7],
-  ['changes', 'tagIds', [3, 1], 'tags', []],
   ['pulse', 'tagIds', [2], { 0: 1 }, []],
 ]
 
 describe('glance widget kinds', () => {
   it('are glance widgets in the Numbers & charts group; only a Number fits its height', () => {
     const glance = WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].glance)
-    expect(glance).toEqual([
-      'number', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhowerSummary',
-      'changes', 'today', 'pulse',
-    ])
+    expect(glance).toEqual(['number', 'breakdown', 'pivot', 'statusFlow', 'tagMap', 'trend', 'pulse'])
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
-    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'notes', 'eisenhower', 'neglect'])
-    // The Dashboard is gone (v77 made its tabs these widgets): every Numbers & charts kind is a glance widget.
-    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'glance')).toEqual(glance)
-    expect(isWidgetKind('dashboard')).toBe(false)
-  })
-
-  it('a new tab has its defaults; a Number counts Overdue', () => {
-    expect(createTab('number', 'n')).toEqual({ id: 'n', kind: 'number', config: { metric: 'overdue' } })
-    expect(createTab('followup', 'f').config).toEqual({ lookAhead: 7 })
-    expect(createTab('trend', 't').config).toEqual({ range: '14d' })
-    expect(createTab('people', 'p').config).toEqual({ showUnassigned: true })
-    expect(createTab('tags', 'g').config).toEqual({ showUntagged: true })
-    expect(createTab('stale', 's').config).toEqual({ staleDays: 14 })
-    expect(createTab('recent', 'r').config).toEqual({ recentDays: 7 })
-    for (const kind of ['next7', 'status', 'eisenhowerSummary', 'today'] as const) expect(createTab(kind, 'x').config).toEqual({})
-    // What changed and Project pulse read the tags they're seeded with (the store passes the `Project: …` tags).
-    for (const kind of ['changes', 'pulse'] as const) {
-      expect(createTab(kind, 'x').config).toEqual({ tagIds: [] })
-      expect(createTab(kind, 'x', { tagIds: [4, 2] }).config).toEqual({ tagIds: [4, 2] })
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'notes'])
+    // Numbers & charts (D26): the glance widgets, then the Calendar, the Eisenhower and the Neglect map — whole widgets, not glance ones.
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'glance')).toEqual([...glance, 'calendar', 'eisenhower', 'neglect'])
+    expect(['calendar', 'eisenhower', 'neglect'].some((k) => isWidgetKind(k) && isGlanceKind(k))).toBe(false)
+    // The Dashboard (v77) and the kinds D26 retired (v78) are gone.
+    for (const gone of ['dashboard', 'followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary', 'people', 'tags', 'status']) {
+      expect(isWidgetKind(gone), gone).toBe(false)
     }
   })
 
+  it('a new tab has its defaults; a Number counts every open task', () => {
+    expect(createTab('number', 'n')).toEqual({ id: 'n', kind: 'number', config: { name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' } })
+    expect(createTab('trend', 't').config).toEqual({ range: '14d' })
+    expect(createTab('breakdown', 'b').config).toEqual({ name: 'Breakdown', filter: emptyPredicate(), splitBy: 'people', style: 'bars', show: 'count', showNone: true })
+    // Project pulse reads the tags it's seeded with (the store passes the `Project: …` tags).
+    expect(createTab('pulse', 'x').config).toEqual({ tagIds: [] })
+    expect(createTab('pulse', 'x', { tagIds: [4, 2] }).config).toEqual({ tagIds: [4, 2] })
+  })
+
   it('a tag pick list keeps its numbers once each, in order: a repeat goes quietly, anything else is a fix', () => {
-    for (const kind of ['changes', 'pulse'] as const) {
+    for (const kind of ['pulse'] as const) {
       expect(tabOf(layoutRow({ id: 't', kind, config: { tagIds: [2, 1, 2] } }))).toEqual({ id: 't', kind, config: { tagIds: [2, 1] } })
       expect(rowFixes('layouts', layoutRow({ id: 't', kind, config: { tagIds: [2, 1, 2] } }))).toEqual([])
       const mixed = layoutRow({ id: 't', kind, config: { tagIds: [2, 'x', null, 5] } })
-      expect(checkLayoutBody({ columns: mixed.columns })).toBe('columns[0].rows[0].cells[0].tabs[0].config.tagIds')
+      expect(checkLayoutBody(mixed)).toBe('cells[0].tabs[0].config.tagIds')
       expect(rowFixes('layouts', mixed)).toEqual(['tab or cell settings reset'])
       expect(tabOf(mixed)).toEqual({ id: 't', kind, config: { tagIds: [2, 5] } })
     }
@@ -86,7 +75,7 @@ describe('glance widget kinds', () => {
 
     for (const config of [{ [key]: bad }, {}]) {
       const row = layoutRow({ id: 't', kind, config })
-      expect(checkLayoutBody({ columns: row.columns })).toBe(`columns[0].rows[0].cells[0].tabs[0].config.${key}`)
+      expect(checkLayoutBody(row)).toBe(`cells[0].tabs[0].config.${key}`)
       expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
       expect(tabOf(row)).toEqual({ id: 't', kind, config: { [key]: fallback } })
     }
@@ -95,51 +84,77 @@ describe('glance widget kinds', () => {
     expect(tabOf(layoutRow({ id: 't', kind, config: 'x' }))).toEqual({ id: 't', kind, config: { [key]: fallback } })
   })
 
-  it('a Number’s breakdown (D25 R): a known one round-trips, none absent; a bad one is dropped (reads as none)', () => {
-    for (const breakdown of ['none', 'people', 'tags']) {
-      const good = layoutRow({ id: 't', kind: 'number', config: { metric: 'open', breakdown } })
+  it('a Number (D26 P5): every field round-trips; Auto, never and following the lens are absent', () => {
+    for (const config of [
+      numberTab('t').config,
+      numberTab('t', 'overdue', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 12, compare: 'none', color: '#abc' }).config,
+      numberTab('t', 'open', { name: '', filter: { ...emptyPredicate(), expression: { kind: 'tag', id: 4 } } }).config,
+    ]) {
+      const good = layoutRow({ id: 't', kind: 'number', config })
       expect(validateRow('layouts', good)).toBe(true)
       expect(rowFixes('layouts', good)).toEqual([])
-      expect(tabOf(good)).toEqual({ id: 't', kind: 'number', config: { metric: 'open', breakdown } })
-    }
-    // A Number from before P4: no breakdown, nothing to fix.
-    const old = layoutRow({ id: 't', kind: 'number', config: { metric: 'open' } })
-    expect(rowFixes('layouts', old)).toEqual([])
-    expect(tabOf(old)).toEqual({ id: 't', kind: 'number', config: { metric: 'open' } })
-    for (const breakdown of ['status', 1, null]) {
-      const bad = layoutRow({ id: 't', kind: 'number', config: { metric: 'open', breakdown } })
-      expect(checkLayoutBody({ columns: bad.columns })).toBe('columns[0].rows[0].cells[0].tabs[0].config.breakdown')
-      expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
-      expect(tabOf(bad)).toEqual({ id: 't', kind: 'number', config: { metric: 'open' } })
-    }
-    // A bad metric beside a good breakdown: the metric resets, the breakdown stays.
-    expect(tabOf(layoutRow({ id: 't', kind: 'number', config: { metric: 'late', breakdown: 'tags' } })))
-      .toEqual({ id: 't', kind: 'number', config: { metric: 'overdue', breakdown: 'tags' } })
-  })
-
-  it('the kinds without settings keep an empty config, any key dropped', () => {
-    for (const kind of ['next7', 'status', 'eisenhowerSummary'] as const) {
-      const row = layoutRow({ id: 't', kind, config: { stray: 1 }, viewState: { detailsWidth: 300 } })
-      expect(checkLayoutBody({ columns: row.columns })).toBe(true)
-      expect(tabOf(row)).toEqual({ id: 't', kind, config: {} })
+      expect(tabOf(good)).toEqual({ id: 't', kind: 'number', config })
     }
   })
 
-  it('the row widgets keep a details width (view state); the others drop it', () => {
-    for (const kind of ['followup', 'stale', 'recent', 'today'] as const) {
-      const tab = { ...createTab(kind, 't'), viewState: { detailsWidth: 280 } }
-      expect(tabOf(layoutRow(tab))).toEqual(tab)
-      const bad = layoutRow({ ...tab, viewState: { detailsWidth: -1 } })
-      expect(checkLayoutBody({ columns: bad.columns })).toBe('columns[0].rows[0].cells[0].tabs[0].viewState.detailsWidth')
-      expect(tabOf(bad)).toEqual(createTab(kind, 't'))
-    }
-    expect(tabOf(layoutRow({ ...createTab('number', 't'), viewState: { detailsWidth: 280 } }))).toEqual(createTab('number', 't'))
+  it.each([
+    ['name', 7, { name: 'Number' }],
+    ['name', 'x'.repeat(81), { name: 'Number' }],
+    ['color', 'teal', {}],
+    ['show', 'pie', { show: 'count' }],
+    ['litWhen', 'always', { litWhen: 'never', litAt: undefined }],
+    ['litAt', -1, { litAt: 0 }],
+    ['litAt', 1.5, { litAt: 0 }],
+    ['compare', 'lastYear', { compare: 'yesterday' }],
+    ['ignoreLens', false, {}],
+    ['breakdown', 'status', {}],
+  ] as const)('a Number’s %s %j is reset (a fix)', (key, value, reset) => {
+    const base = numberTab('t', 'overdue').config
+    const row = layoutRow({ id: 't', kind: 'number', config: { ...base, [key]: value } })
+    expect(checkLayoutBody(row)).toBe(`cells[0].tabs[0].config.${key}`)
+    expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+    const { [key]: _gone, ...rest } = base as unknown as Record<string, unknown>
+    void _gone
+    expect(tabOf(row)).toEqual({ id: 't', kind: 'number', config: { ...rest, ...reset } })
   })
+
+  it('a Number’s threshold goes with never; a filter is read as a list’s is; a v77 metric reads as a new Number', () => {
+    const never = layoutRow({ id: 't', kind: 'number', config: { ...numberTab('t').config, litAt: 3 } })
+    expect(checkLayoutBody(never)).toBe('cells[0].tabs[0].config.litAt')
+    expect(tabOf(never)).toEqual({ id: 't', kind: 'number', config: numberTab('t').config })
+    // A filter without its required fields: no filter (every open task), a fix.
+    const bad = layoutRow({ id: 't', kind: 'number', config: { ...numberTab('t', 'overdue').config, filter: { tags: [3] } } })
+    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.filter.showCompleted')
+    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
+    expect((tabOf(bad)!.config as { filter: unknown }).filter).toEqual({ showCompleted: false, personIds: null, statusIds: null, searchText: '', dates: {}, tags: [3] })
+    // A config only an older build wrote (its metric; v78 converts every stored one): reset to a new Number's.
+    const old = layoutRow({ id: 't', kind: 'number', config: { metric: 'overdue' } })
+    expect(checkLayoutBody(old)).toBe('cells[0].tabs[0].config.name')
+    expect(tabOf(old)).toEqual({ id: 't', kind: 'number', config: { ...createTab('number', 'n').config, name: 'Number' } })
+  })
+
+  it('a glance widget drops a details width (no glance widget shows task rows)', () => {
+    for (const kind of WIDGET_KINDS.filter(isGlanceKind)) {
+      expect(tabOf(layoutRow({ ...createTab(kind, 't'), viewState: { detailsWidth: 280 } }))).toEqual(createTab(kind, 't'))
+    }
+  })
+
+  it.each(['followup', 'next7', 'stale', 'recent', 'changes', 'today', 'eisenhowerSummary', 'people', 'tags', 'status'])(
+    'a %s tab that slips past v78 (an older draft) is dropped by the repair; its emptied cell closes',
+    (kind) => {
+      const body = grid([[cell('a', [{ id: 'gone', kind, config: {} } as unknown as LayoutTab]), cell('b', [createTab('notes', 'n')])]])
+      expect(checkLayoutBody(body)).toBe('cells[0].tabs[0].kind')
+      const picked = pickLayoutBody(body)
+      expect(picked.fixes).toEqual(['tab dropped'])
+      expect(picked.cells.map((c) => c.id)).toEqual(['b'])
+      expect(picked.cells[0]!.area).toEqual({ col: 0, row: 0, colSpan: 1, rowSpan: 1 })
+    },
+  )
 
   it('every glance kind’s new tab passes the check unchanged', () => {
     const tabs = WIDGET_KINDS.filter(isGlanceKind).map((k) => createTab(k, `t-${k}`))
-    const columns = [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs })] }]
-    expect(checkLayoutBody({ columns })).toBe(true)
-    expect(pickLayoutBody({ columns })).toEqual({ columns, fixes: [] })
+    const body = single({ id: 'k', tabs })
+    expect(checkLayoutBody(body)).toBe(true)
+    expect(pickLayoutBody(body)).toEqual({ ...body, fixes: [] })
   })
 })

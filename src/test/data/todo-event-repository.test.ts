@@ -25,9 +25,9 @@ describe('todoRepository — emit on insert / update / complete', () => {
     expect(events[0]!.timestamp).toBe(ts.toISOString())
   })
 
-  it('a follow-up change emits no event (only due date / status / completion are tracked)', async () => {
+  it('an untracked field (title, notes) emits no event', async () => {
     const id = await todoRepository.insert(makeTodo())
-    await todoRepository.update(id, { nextFollowupAt: new Date('2026-05-01T00:00:00Z') })
+    await todoRepository.update(id, { title: 'renamed', notes: 'n' })
 
     const events = await eventsOf(id)
     expect(events.map((e) => e.type)).toEqual(['created'])

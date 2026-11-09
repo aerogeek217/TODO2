@@ -9,7 +9,7 @@ import type { SummaryPart } from './glance-summary'
 import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { Empty, Panel, type PanelDef } from './section-parts'
-import styles from './BriefWidgets.module.css'
+import styles from './PulseWidget.module.css'
 
 const PULSE_DEF: PanelDef = { id: 'pulse', title: 'Project pulse', glyph: 'tag', glyphColor: 'var(--color-accent)' }
 

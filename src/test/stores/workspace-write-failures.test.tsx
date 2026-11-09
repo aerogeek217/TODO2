@@ -6,7 +6,7 @@ import { useUndoStore } from '../../stores/undo-store'
 import { createTab, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 import { cleanup } from '@testing-library/react'
-import { rowOf } from '../helpers/layout-builders'
+import { emptyBody, single } from '../helpers/layout-builders'
 
 // A layout write that fails (e.g. browser storage full) must not leave the
 // workspace saying the layout is saved, nor reject into the `void` callers
@@ -19,7 +19,7 @@ const notice = () => useUndoStore.getState().snackbar?.description
 async function openPlain(): Promise<number> {
   const id = await layoutRepository.insert({
     name: 'Plain', createdAt: T0, modifiedAt: T0,
-    columns: [{ id: 'P', weight: 1, rows: [rowOf({ id: 'kp', weight: 1, activeTabId: 'p1', tabs: [createTab('notes', 'p1'), createTab('calendar', 'p2')] })] }],
+    ...single({ id: 'kp', activeTabId: 'p1', tabs: [createTab('notes', 'p1'), createTab('calendar', 'p2')] }),
   })
   await layoutRepository.setActiveId(id)
   await ws().init()
@@ -52,9 +52,9 @@ describe('workspace layout writes that fail', () => {
     failWrites()
     await expect(ws().save()).resolves.toBe(false)
     expect(ws().isDirty).toBe(true)
-    expect(ws().saved?.columns[0]?.rows[0]?.cells[0]?.tabs).toHaveLength(2)
+    expect(ws().saved?.cells[0]?.tabs).toHaveLength(2)
     expect(notice()).toBe('Couldn\'t save layout "Plain".')
-    expect(((await db.layouts.get(id)) as PersistedWorkspaceLayout).columns[0]?.rows[0]?.cells[0]?.tabs).toHaveLength(2)
+    expect(((await db.layouts.get(id)) as PersistedWorkspaceLayout).cells[0]?.tabs).toHaveLength(2)
   })
 
   it('Save that works resolves true and marks the layout saved', async () => {
@@ -102,13 +102,13 @@ describe('workspace layout writes that fail', () => {
     await openPlain()
     failWrites()
     await expect(ws().setActiveTab('p2')).resolves.toBeUndefined()
-    expect(ws().working?.columns[0]?.rows[0]?.cells[0]?.activeTabId).toBe('p2')
+    expect(ws().working?.cells[0]?.activeTabId).toBe('p2')
   })
 })
 
 describe('switching or deleting a layout when a write fails (cr31 L10)', () => {
   async function second(): Promise<number> {
-    return layoutRepository.insert({ name: 'Second', createdAt: T0, modifiedAt: T0, columns: [] })
+    return layoutRepository.insert({ name: 'Second', createdAt: T0, modifiedAt: T0, ...emptyBody() })
   }
 
   it('a switch that fails does not reject, says so, and keeps the open layout', async () => {

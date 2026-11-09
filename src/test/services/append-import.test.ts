@@ -11,6 +11,7 @@ import { buildExportData, selfCheckExportJson } from '../../data/export-data'
 import { useTodoStore } from '../../stores/todo-store'
 import { usePersonStore } from '../../stores/person-store'
 import { useTagStore } from '../../stores/tag-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import { makeTodo, resetDb, resetEntityStores } from '../helpers'
 
 function daysAgo(n: number): Date {
@@ -128,6 +129,97 @@ describe('appendImportTasks — archive from another database', () => {
     const events = await db.todoEvents.where('todoId').equals(newId!).toArray()
     expect(events.map((e) => e.type).sort()).toEqual(['completed', 'created', 'status'])
     expect(events.find((e) => e.type === 'status')?.toValue).toBe(waiting)
+  })
+})
+
+describe('appendImportTasks — the history log H3 (D26)', () => {
+  it('re-points person / tag events at the people and tags matched by name; one naming nobody here is left out', async () => {
+    const ann = await db.people.add({ name: 'Ann', initials: 'AN' }) as number
+    const gone = await db.people.add({ name: 'Gone', initials: 'GO' }) as number
+    const ops = await db.tags.add({ name: 'ops', color: '#fff' }) as number
+    const at = daysAgo(5).toISOString()
+    const id = await todoRepository.insert({ title: 'Ship', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(5), sortOrder: 1, focus: true })
+    await db.todoPeople.add({ todoId: id, personId: ann })
+    await db.todoEvents.bulkAdd([
+      { todoId: id, type: 'person', fromValue: null, toValue: ann, timestamp: at },
+      { todoId: id, type: 'person', fromValue: gone, toValue: null, timestamp: at },
+      { todoId: id, type: 'tag', fromValue: ops, toValue: null, timestamp: at },
+      { todoId: id, type: 'marker', fromValue: null, toValue: 'focus', timestamp: at },
+      { todoId: id, type: 'followup', fromValue: null, toValue: at, timestamp: at },
+    ])
+    await db.todoTags.add({ todoId: id, tagId: ops })
+    await db.todoTags.where({ todoId: id }).delete()
+    const archive = await buildTaskArchive([id])
+    // The removed person and tag travel with the archive, for matching.
+    expect(archive.people.map((p) => p.name).sort()).toEqual(['Ann', 'Gone'])
+    expect(archive.tags.map((t) => t.name)).toEqual(['ops'])
+
+    await resetDb()
+    // Here: Bob first (so the ids differ), then Ann and OPS; nobody named Gone.
+    await db.people.add({ name: 'Bob', initials: 'BO' })
+    const annHere = await db.people.add({ name: 'ann', initials: 'AN' }) as number
+    await db.tags.add({ name: 'x', color: '#000' })
+    const opsHere = await db.tags.add({ name: 'OPS', color: '#000' }) as number
+    const result = await appendImportTasks(prepareAppend(JSON.stringify(archive)), new Map())
+    const newId = result.todoIds[0]!
+    const events = await db.todoEvents.where('todoId').equals(newId).sortBy('id')
+    expect(events.filter((e) => e.type !== 'created').map((e) => [e.type, e.fromValue, e.toValue])).toEqual([
+      ['person', null, annHere],
+      ['tag', opsHere, null],
+      ['marker', null, 'focus'],
+      ['followup', null, at],
+    ])
+  })
+})
+
+describe('append import — how far back the history log is exact', () => {
+  const SINCE = 'historyLogSince'
+  const stamp = async () => (await db.settings.get(SINCE))?.value
+
+  async function archiveJson(): Promise<string> {
+    const id = await todoRepository.insert({ title: 'Ship', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(5), sortOrder: 1 })
+    return JSON.stringify(await buildTaskArchive([id]))
+  }
+
+  it('a file that doesn’t say its log covers as far back (a task archive) moves the start to the append, store too', async () => {
+    const json = await archiveJson()
+    await resetDb()
+    await db.settings.put({ key: SINCE, value: daysAgo(40).toISOString() })
+    await useSettingsStore.getState().stampHistoryLogSince()
+    const before = Date.now()
+    const result = await runAppendImport(prepareAppend(json), new Map())
+    if (result.status !== 'done') throw new Error('append import cancelled')
+    expect(new Date((await stamp())!).getTime()).toBeGreaterThanOrEqual(before)
+    expect(useSettingsStore.getState().historyLogSince!.getTime()).toBeGreaterThanOrEqual(before)
+  })
+
+  it('a full export whose log began before ours keeps the start; one whose log began later moves it there', async () => {
+    const id = await todoRepository.insert({ title: 'Ship', isCompleted: false, createdAt: daysAgo(9), modifiedAt: daysAgo(5), sortOrder: 1 })
+    void id
+    await db.settings.put({ key: SINCE, value: daysAgo(60).toISOString() })
+    const older = JSON.stringify(await buildExportData())
+    await db.settings.put({ key: SINCE, value: daysAgo(10).toISOString() })
+    const later = JSON.stringify(await buildExportData())
+
+    await resetDb()
+    const ours = daysAgo(40).toISOString()
+    await db.settings.put({ key: SINCE, value: ours })
+    await appendImportTasks(prepareAppend(older), new Map())
+    expect(await stamp()).toBe(ours)
+    const result = await appendImportTasks(prepareAppend(later), new Map([[(prepareAppend(later).todos[0]!).uid, 'import']]))
+    expect(result.imported).toBe(1)
+    expect(new Date((await stamp())!).getTime()).toBeGreaterThan(new Date(ours).getTime())
+    expect(new Date((await stamp())!).getTime()).toBeLessThan(Date.now() - 9 * 86_400_000)
+  })
+
+  it('nothing appended (every task skipped) moves nothing', async () => {
+    const json = await archiveJson()
+    await resetDb()
+    const ours = daysAgo(40).toISOString()
+    await db.settings.put({ key: SINCE, value: ours })
+    const data = prepareAppend(json)
+    await appendImportTasks(data, new Map(data.todos.map((t) => [t.uid, 'skip'])))
+    expect(await stamp()).toBe(ours)
   })
 })
 

@@ -10,21 +10,22 @@ import {
 } from '../../models/workspace-layout'
 import { checkLayoutBody, pickLayoutBody } from '../../data/layout-shape'
 import { tabTitle } from '../../components/workspace/widget-hooks'
-import { rowOf } from '../helpers/layout-builders'
+import { numberTab, single } from '../helpers/layout-builders'
+import { emptyPredicate } from '../../models/filter-predicate'
 
 /** The widget-kind table and what derives from it. */
 describe('widget kinds', () => {
   it('lists the kinds in menu order, with their names', () => {
+    // Tasks (List, Notes), then Numbers & charts — the Calendar, the Eisenhower and the Neglect map last (D26).
     expect(WIDGET_KINDS).toEqual([
-      'lens', 'calendar', 'notes', 'eisenhower', 'neglect',
-      'number', 'followup', 'next7', 'trend', 'status', 'people', 'tags', 'stale', 'recent', 'eisenhowerSummary',
-      'changes', 'today', 'pulse',
+      'lens', 'notes',
+      'number', 'breakdown', 'pivot', 'statusFlow', 'tagMap', 'trend', 'pulse', 'calendar', 'eisenhower', 'neglect',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
-      'List', 'Calendar', 'Notes', 'Eisenhower', 'Neglect map',
-      'Number', 'Needs follow-up', 'Next 7 days', 'Created vs completed', 'Status', 'People', 'Tags', 'Stale tasks',
-      'Recently completed', 'Eisenhower summary', 'What changed', 'Today', 'Project pulse',
+      'List', 'Notes',
+      'Number', 'Breakdown', 'Pivot', 'Status flow', 'Tag map', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
     ])
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'notes'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])
   })
 
@@ -33,10 +34,10 @@ describe('widget kinds', () => {
     for (const v of ['taskboard', 'list', 'List', 'toString', '__proto__', 'constructor', '', 3, null, undefined]) {
       expect(isWidgetKind(v)).toBe(false)
     }
-    const layout = (kind: unknown) => [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 't', kind, config: {} }] })] }]
-    expect(checkLayoutBody({ columns: layout('taskboard') })).toBe('columns[0].rows[0].cells[0].tabs[0].kind')
-    expect(checkLayoutBody({ columns: layout('toString') })).toBe('columns[0].rows[0].cells[0].tabs[0].kind')
-    expect(pickLayoutBody({ columns: layout('taskboard') }).fixes).toEqual(['tab dropped'])
+    const layout = (kind: unknown) => single({ id: 'k', tabs: [{ id: 't', kind, config: {} } as never] })
+    expect(checkLayoutBody(layout('taskboard'))).toBe('cells[0].tabs[0].kind')
+    expect(checkLayoutBody(layout('toString'))).toBe('cells[0].tabs[0].kind')
+    expect(pickLayoutBody(layout('taskboard')).fixes).toEqual(['tab dropped'])
   })
 
   it('makes each kind’s new tab with its defaults', () => {
@@ -47,7 +48,8 @@ describe('widget kinds', () => {
     expect(createTab('eisenhower', 'd')).toEqual({ id: 'd', kind: 'eisenhower', config: {} })
     // An Eisenhower tab has no config: its panes and source are app-wide settings.
     expect(createTab('eisenhower', 'd', { listDefinitionId: 4 })).toEqual({ id: 'd', kind: 'eisenhower', config: {} })
-    expect(createTab('number', 'e')).toEqual({ id: 'e', kind: 'number', config: { metric: 'overdue' } })
+    // A Number: an empty filter (every open task), named Open, never lit, against yesterday.
+    expect(createTab('number', 'e')).toEqual({ id: 'e', kind: 'number', config: { name: 'Open', filter: emptyPredicate(), show: 'count', litWhen: 'never', compare: 'yesterday' } })
     // A Neglect map colours by the tags it is given (the store passes the `Project: …` ones), 14 days.
     expect(createTab('neglect', 'f')).toEqual({ id: 'f', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [] }, untouchedDays: 14 } })
     expect(createTab('neglect', 'f', { neglectTagIds: [3, 8] }).config).toEqual({ colourBy: { kind: 'tags', tagIds: [3, 8] }, untouchedDays: 14 })
@@ -58,9 +60,9 @@ describe('widget kinds', () => {
   })
 
   it('every new tab passes the layout check', () => {
-    const columns = [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: WIDGET_KINDS.map((k) => createTab(k, `t-${k}`)) })] }]
-    expect(checkLayoutBody({ columns })).toBe(true)
-    expect(pickLayoutBody({ columns })).toEqual({ columns, fixes: [] })
+    const body = single({ id: 'k', tabs: WIDGET_KINDS.map((k) => createTab(k, `t-${k}`)) })
+    expect(checkLayoutBody(body)).toBe(true)
+    expect(pickLayoutBody(body)).toEqual({ ...body, fixes: [] })
   })
 
   it('titles a list tab by its list, “(Deleted list)” when the list is gone, every other tab by kind', () => {
@@ -70,9 +72,10 @@ describe('widget kinds', () => {
     expect(tabTitle(createTab('eisenhower', 'b'), undefined)).toBe('Eisenhower')
     // The Eisenhower reads Eisenhower whatever its list.
     expect(tabTitle(createTab('eisenhower', 'b'), 'Team')).toBe('Eisenhower')
-    // A Number reads its metric.
-    expect(tabTitle(createTab('number', 'n'), undefined)).toBe('Overdue')
-    expect(tabTitle({ id: 'n', kind: 'number', config: { metric: 'closedThisWeek' } }, undefined)).toBe('Closed this week')
+    // A Number reads its name (a blank one: Number).
+    expect(tabTitle(createTab('number', 'n'), undefined)).toBe('Open')
+    expect(tabTitle(numberTab('n', 'closedThisWeek'), undefined)).toBe('Closed this week')
+    expect(tabTitle(numberTab('n', 'open', { name: '  ' }), undefined)).toBe('Number')
     expect(tabTitle(createTab('trend', 't'), undefined)).toBe('Created vs completed')
   })
 

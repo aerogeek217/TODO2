@@ -1,10 +1,9 @@
-import { isGlanceKind as isGlanceWidgetKind, isWidgetKind, WIDGET_KIND_SPECS, type LayoutCell, type LayoutCellRow, type WidgetKind } from '../models/workspace-layout'
-import { CELL_MIN_PX } from './workspace-resize'
+import { isGlanceKind as isGlanceWidgetKind, isWidgetKind, WIDGET_KIND_SPECS, type LayoutBody, type LayoutCell, type WidgetKind } from '../models/workspace-layout'
+import { CELL_MIN_PX, CELL_MIN_WIDTH_PX } from './workspace-resize'
 
 /**
- * How a cell and a row of cells draw, by what they hold: whether a cell
- * hides its tab strip (headless), whether a row fits its content, and the
- * height a row may shrink to. Pure: the kind flags come from
+ * How a cell and a row track draw, by what they hold: whether a row track
+ * fits its content, and the height and width a cell may shrink to. Pure: the kind flags come from
  * `WIDGET_KIND_SPECS` unless a caller (a test) passes its own.
  */
 
@@ -17,87 +16,48 @@ export const isGlanceKind: KindFlag = (kind) => isGlanceWidgetKind(kind)
 /** A kind whose content sets its height (`WidgetKindSpec.fitHeight`); an unknown kind is not. */
 export const isFitHeightKind: KindFlag = (kind) => isWidgetKind(kind) && WIDGET_KIND_SPECS[kind].fitHeight
 
-/** The smallest height (px) of a row whose cells hold only glance widgets. */
+/** The smallest height (px) of a row track whose cells hold only glance widgets. */
 export const GLANCE_ROW_MIN_PX = 64
+/** The smallest width (px) of a glance cell: a Number's small face reads in it, so a row of them needn't scroll the table. */
+export const GLANCE_CELL_MIN_WIDTH_PX = 72
 
 /** The kind of a cell's only tab; `null` for an empty cell or one with several tabs. */
 function onlyKind(cell: Pick<LayoutCell, 'tabs'>): WidgetKind | null {
   return cell.tabs.length === 1 ? (cell.tabs[0]?.kind ?? null) : null
 }
 
-/**
- * Whether a cell hides its tab strip (it slides in on hover or focus): it
- * holds exactly one tab, and either its `stripShown` is `false`, or it has
- * none and that tab is a glance widget — or shows its small face (D25 R:
- * `smallFace`, what the cell heard from its widget). `stripShown: true`
- * always shows it.
- */
-export function isHeadlessCell(cell: Pick<LayoutCell, 'tabs' | 'stripShown'>, glance: KindFlag = isGlanceKind, smallFace = false): boolean {
+/** The cells lying only in row track `row` (starting and ending in it). */
+export function cellsOnlyInRow(body: LayoutBody, row: number): LayoutCell[] {
+  return body.cells.filter((c) => c.area.row === row && c.area.rowSpan === 1)
+}
+
+/** Whether a cell holds exactly one tab, of a `fitHeight` kind. */
+export function isFitCell(cell: Pick<LayoutCell, 'tabs'>, fit: KindFlag = isFitHeightKind): boolean {
   const kind = onlyKind(cell)
-  if (kind == null || cell.stripShown === true) return false
-  return cell.stripShown === false || glance(kind) || smallFace
-}
-
-/** What a cell's strip would be with no `stripShown` of its own: headless (`false`) or shown (`true`). */
-export function stripShownByWidget(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind, smallFace = false): boolean {
-  return !isHeadlessCell({ tabs: cell.tabs }, glance, smallFace)
+  return kind != null && fit(kind)
 }
 
 /**
- * The `stripShown` the cell menu's toggle writes to show (`show`) or hide
- * the strip: the explicit choice, or `null` (by widget) when the widget
- * would do that by itself — at the face it shows now (`smallFace`) — so
- * toggling twice puts the cell back to its widget's way.
+ * Whether row track `row` fits its content: some cells lie only in it and
+ * each holds exactly one tab, of a `fitHeight` kind (a Number). Cells
+ * spanning through it don't count. Derived, never stored.
  */
-export function stripShownChoice(cell: Pick<LayoutCell, 'tabs'>, show: boolean, glance: KindFlag = isGlanceKind, smallFace = false): boolean | null {
-  return stripShownByWidget(cell, glance, smallFace) === show ? null : show
+export function isFitTrack(body: LayoutBody, row: number, fit: KindFlag = isFitHeightKind): boolean {
+  const cells = cellsOnlyInRow(body, row)
+  return cells.length > 0 && cells.every((cell) => isFitCell(cell, fit))
 }
 
-/** Whether a row fits its content: every cell holds exactly one tab, of a `fitHeight` kind. */
-export function isFitRow(row: Pick<LayoutCellRow, 'cells'>, fit: KindFlag = isFitHeightKind): boolean {
-  return row.cells.length > 0 && row.cells.every((cell) => {
-    const kind = onlyKind(cell)
-    return kind != null && fit(kind)
-  })
+/** Whether a cell holds only glance widgets (at least one tab, every tab a glance kind). */
+export function isGlanceCell(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): boolean {
+  return cell.tabs.length > 0 && cell.tabs.every((tab) => glance(tab.kind))
 }
 
-/** Whether a row's cells hold only glance widgets (each at least one tab, every tab a glance kind). */
-export function isGlanceRow(row: Pick<LayoutCellRow, 'cells'>, glance: KindFlag = isGlanceKind): boolean {
-  return row.cells.length > 0 && row.cells.every((cell) => cell.tabs.length > 0 && cell.tabs.every((tab) => glance(tab.kind)))
+/** The smallest height (px) a cell may take: `GLANCE_ROW_MIN_PX` for a glance cell, else `CELL_MIN_PX`. */
+export function cellMinHeightPx(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): number {
+  return isGlanceCell(cell, glance) ? GLANCE_ROW_MIN_PX : CELL_MIN_PX
 }
 
-/**
- * The smallest height (px) a row's divider may size it to — a band's too:
- * `GLANCE_ROW_MIN_PX` for a glance row, else `CELL_MIN_PX`.
- */
-export function rowMinHeightPx(row: Pick<LayoutCellRow, 'cells'>, glance: KindFlag = isGlanceKind): number {
-  return isGlanceRow(row, glance) ? GLANCE_ROW_MIN_PX : CELL_MIN_PX
-}
-
-/** A row that takes no share of its column's height: collapsed (its headers) or fit (its content). */
-export function isFixedHeightRow(row: Pick<LayoutCellRow, 'cells' | 'collapsed'>, fit: KindFlag = isFitHeightKind): boolean {
-  return row.collapsed === true || isFitRow(row, fit)
-}
-
-/**
- * What the gap above row `i` of a column's `rows` is: a resize divider
- * between the two rows it sizes (`above`, `below`), or `null` for a plain
- * gap. Between two rows that take a share of the height, it is their
- * divider. Fit rows between two such rows don't part them (cr33 M8): the gap
- * right under the upper one is their divider, the fit rows moving with it,
- * and the gaps beside the fit rows are plain. A collapsed row parts them.
- */
-export function rowDividerAt<R extends Pick<LayoutCellRow, 'cells' | 'collapsed'>>(
-  rows: readonly R[],
-  i: number,
-  fit: KindFlag = isFitHeightKind,
-): { above: R; below: R } | null {
-  const above = rows[i - 1]
-  if (!above || isFixedHeightRow(above, fit)) return null
-  for (let j = i; j < rows.length; j++) {
-    const row = rows[j]
-    if (!row || row.collapsed === true) return null
-    if (!isFitRow(row, fit)) return { above, below: row }
-  }
-  return null
+/** The smallest width (px) a cell may take: `GLANCE_CELL_MIN_WIDTH_PX` for a glance cell, else `CELL_MIN_WIDTH_PX`. */
+export function cellMinWidthPx(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind): number {
+  return isGlanceCell(cell, glance) ? GLANCE_CELL_MIN_WIDTH_PX : CELL_MIN_WIDTH_PX
 }

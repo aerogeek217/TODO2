@@ -3,7 +3,10 @@ import { upgradeV76 } from '../../data/upgrades/v76-layout-rows'
 import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
 import { readLayoutDraft } from '../../data/draft-storage'
-import { rowFixes, validateRow } from '../../data/import-validation'
+import { rowFixes, sanitizeRow, validateRow } from '../../data/import-validation'
+import { layoutTableOf } from '../../data/upgrades/v78/layout-table'
+import { picture } from '../helpers/layout-builders'
+import type { LayoutBody } from '../../models/workspace-layout'
 import { LAYOUT_PART_LIMIT } from '../../data/layout-shape'
 import { SCHEMA_VERSION_KEY } from '../../data/file-version'
 
@@ -11,6 +14,8 @@ const DATE = '2026-11-01T09:00:00.000Z'
 const notes = (id: string) => ({ id, kind: 'notes', config: {} })
 const layout = (body: Record<string, unknown>, id = 1): DataRow => ({ id, name: 'Daily', sortOrder: 0, createdAt: DATE, modifiedAt: DATE, ...body })
 const upgraded = (row: DataRow): DataRow => upgradeV76({ layouts: [row] }).layouts![0]!
+/** A v76 layout row as the rest of the chain makes it: a v78 table (`layout-table`, v77 leaves a layout without a Dashboard alone). */
+const asV78 = (row: DataRow): DataRow => layoutTableOf(row)
 
 describe('v76 — every column is rows', () => {
   it('is registered as the v76 step', () => {
@@ -39,7 +44,7 @@ describe('v76 — every column is rows', () => {
         { id: 'B', weight: 1, rows: [{ id: 'k4-r', weight: 1, cells: [{ id: 'k4', weight: 1, tabs: [notes('t4')] }] }] },
       ],
     }))
-    expect(rowFixes('layouts', upgraded(before))).toEqual([])
+    expect(rowFixes('layouts', asV78(upgraded(before)))).toEqual([])
   })
 
   it('a band keeps its id, height and collapse; its tabs and active tab become its one cell', () => {
@@ -53,7 +58,7 @@ describe('v76 — every column is rows', () => {
       top: { id: 'T', height: 220, collapsed: true, cells: [{ id: 'T-c', weight: 1, tabs: [notes('t1'), notes('t2')], activeTabId: 't2' }] },
       bottom: { id: 'B', height: 140, cells: [{ id: 'B-c', weight: 1, tabs: [notes('t3')] }] },
     }))
-    expect(validateRow('layouts', upgraded(before))).toBe(true)
+    expect(validateRow('layouts', asV78(upgraded(before)))).toBe(true)
   })
 
   it('a fresh id never repeats one the layout holds, at any level, nor another fresh one', () => {
@@ -70,7 +75,7 @@ describe('v76 — every column is rows', () => {
     expect(cols[0]!.rows[0]!.id).toBe('k-r3')
     expect(cols[1]!.rows[0]!.id).toBe('m-r')
     expect((out.top as { cells: Array<{ id: string }> }).cells[0]!.id).toBe('T-c2')
-    expect(validateRow('layouts', out)).toBe(true)
+    expect(validateRow('layouts', asV78(out))).toBe(true)
     // The same layout always upgrades to the same ids.
     expect(upgraded(before)).toEqual(out)
   })
@@ -81,14 +86,14 @@ describe('v76 — every column is rows', () => {
     const rowId = (out.columns as Array<{ rows: Array<{ id: string }> }>)[0]!.rows[0]!.id
     expect(rowId).toBe(`${'x'.repeat(98)}-r`)
     expect((out.top as { cells: Array<{ id: string }> }).cells[0]!.id).toBe(`${'x'.repeat(98)}-c`)
-    expect(validateRow('layouts', out)).toBe(true)
+    expect(validateRow('layouts', asV78(out))).toBe(true)
   })
 
   it('keeps a layout at the part limit whole: as many rows as it had cells, none dropped', () => {
     const cells = Array.from({ length: LAYOUT_PART_LIMIT }, (_, k) => ({ id: `k${k}`, weight: 1, tabs: [] }))
     const out = upgraded(layout({ columns: [{ id: 'A', weight: 1, cells }] }))
     expect((out.columns as Array<{ rows: unknown[] }>)[0]!.rows).toHaveLength(LAYOUT_PART_LIMIT)
-    expect(rowFixes('layouts', out)).toEqual([])
+    expect(rowFixes('layouts', asV78(out))).toEqual([])
   })
 
   it('is idempotent, and leaves a layout in the rows shape (and every other table) as it is', () => {
@@ -117,7 +122,9 @@ describe('v76 — every column is rows', () => {
     expect(cols[1]).toBe((odd.columns as unknown[])[1])
     expect(cols[2]).toEqual({ id: 'B', weight: 1, rows: ['not a cell', { id: 'k-r', weight: -1, cells: [{ id: 'k', weight: 1, tabs: [notes('t')] }] }] })
     expect(out.top).toBe(7)
-    expect(rowFixes('layouts', out)).toEqual(['2 columns dropped', 'row dropped', 'size reset', 'band dropped'])
+    // v78 leaves out what it can't read; the rest is a valid table.
+    expect(rowFixes('layouts', asV78(out))).toEqual([])
+    expect(validateRow('layouts', JSON.parse(JSON.stringify(sanitizeRow('layouts', asV78(out)))))).toBe(true)
   })
 
   it('a v75 export imports in the rows shape', () => {
@@ -134,11 +141,10 @@ describe('v76 — every column is rows', () => {
     if (!result.ok) throw new Error(result.error)
     expect(result.warnings).toEqual([])
     const [row] = result.data.layouts
-    expect(row?.columns).toEqual([{ id: 'A', weight: 1, rows: [
-      { id: 'k1-r', weight: 3, cells: [{ id: 'k1', weight: 1, tabs: [notes('t1')] }] },
-      { id: 'k2-r', weight: 1, collapsed: true, cells: [{ id: 'k2', weight: 1, tabs: [notes('t2')] }] },
-    ] }])
-    expect(row?.bottom).toEqual({ id: 'B', height: 150, collapsed: true, cells: [{ id: 'B-c', weight: 1, tabs: [notes('t3')] }] })
+    // Through v76's rows to v78's table: k1 over k2 (3 : 1), the band a fixed row below.
+    expect(picture(row!)).toEqual(['k1', 'k2', 'B-c'])
+    expect(row!.grid.rows.map((t) => t.px ?? t.weight)).toEqual([750, 250, 150])
+    expect(row!.grid.rows.map((t) => t.collapsed === true)).toEqual([false, true, true])
   })
 
   it('runs in the chain from the floor: a v68 file’s layout arrives in the rows shape', () => {
@@ -157,16 +163,14 @@ describe('a layout draft kept at v75', () => {
       baseColumns: v75Base,
     }))
     const rowK = { id: 'k-r', weight: 2, collapsed: true, cells: [{ id: 'k', weight: 1, activeTabId: 'n', tabs: [notes('n')] }] }
-    expect(readLayoutDraft()).toEqual({
-      kind: 'saved',
-      layoutId: 2,
-      base: { columns: [{ id: 'A', weight: 1, rows: [rowK] }] },
-      body: {
-        columns: [{ id: 'A', weight: 1, rows: [rowK, { id: 'k2-r', weight: 1, cells: [{ id: 'k2', weight: 1, tabs: [notes('m')] }] }] }],
-        top: { id: 'T', height: 120, cells: [{ id: 'T-c', weight: 1, tabs: [notes('t')] }] },
-      },
-    })
-    // The stored layout the base was made against upgrades to the same rows.
+    const draft = readLayoutDraft()
+    expect(draft?.kind).toBe('saved')
+    if (draft?.kind !== 'saved') return
+    expect(picture(draft.body)).toEqual(['T-c', 'k', 'k2'])
+    expect(picture(draft.base)).toEqual(['k'])
+    // The stored layout the base was made against upgrades to the same table.
     expect(upgraded(layout({ columns: v75Base })).columns).toEqual([{ id: 'A', weight: 1, rows: [rowK] }])
+    const stored = asV78(upgraded(layout({ columns: v75Base }))) as unknown as LayoutBody
+    expect(draft.base).toEqual({ grid: stored.grid, cells: stored.cells })
   })
 })

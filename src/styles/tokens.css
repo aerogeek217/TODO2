@@ -45,13 +45,11 @@
   --settings-modal-height: 680px;
   --settings-nav-width: 220px;
 
-  /* Workspace (columns of cells) */
+  /* Workspace (a table of cells) */
   --workspace-gutter: 6px;
   --cell-header-height: 32px;
   --cell-tab-height: 26px;
-  --column-min-width: 280px;
   --cell-body-min-height: 80px;
-  --column-area-min-height: 160px;
   --panel-ghost-width: 180px;
 
   /* List widget (narrow rows below 360px of widget width — a container query) */
@@ -88,7 +86,6 @@
   --mobile-row-min-height: 48px;
   --mobile-fab-bottom: 16px;
   --mobile-topbar-height: 52px;
-  --mobile-column-strip-height: 40px;
   /* A touch target tall above its 1px bottom rule (the tabs take taps across it). */
   --mobile-cell-header-height: 45px;
   --mobile-cell-tab-height: 34px;
@@ -445,8 +442,6 @@
 
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.55);
-  /* Dims a workspace cell body under its drop zones while a tab is dragged over it */
-  --color-scrim: rgba(17, 17, 16, 0.74);
 
   /* Card glass */
   --color-card-glass-from: rgba(38, 36, 34, 0.97);
@@ -699,7 +694,6 @@
 
   /* Backdrop */
   --color-backdrop: rgba(0, 0, 0, 0.35);
-  --color-scrim: rgba(247, 246, 243, 0.78);
 
   /* Card glass */
   --color-card-glass-from: rgba(252, 251, 249, 0.98);

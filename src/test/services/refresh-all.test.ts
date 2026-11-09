@@ -16,6 +16,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { resetStores } from '../store-tracking'
 import { addTask } from '../add-task'
 import { lensActions } from '../../stores/lens-actions'
+import { emptyBody } from '../helpers/layout-builders'
 
 beforeEach(async () => {
   await db.delete()
@@ -82,7 +83,7 @@ describe('refreshAllStores', () => {
 
     await refreshAllStores()
     expect(useWorkspaceStore.getState()).toMatchObject({ isDirty: false })
-    expect(useWorkspaceStore.getState().working).toMatchObject({ name: 'Imported', columns: [] })
+    expect(useWorkspaceStore.getState().working).toMatchObject({ name: 'Imported', ...emptyBody() })
   })
 
   it('re-reads people and tag assignments that the replaced tables changed under a cached todo id', async () => {

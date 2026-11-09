@@ -5,8 +5,8 @@ import { readStore } from './fixtures/db'
 /**
  * Settings › Tasks › Eisenhower in a real browser: the app-wide panes and
  * source are edited there — Delegate gets `Status is not Delegated` and
- * every Eisenhower tab (on two layouts) and the Eisenhower summary
- * section follow; Esc in a pane's filter picker closes only the picker; each
+ * every Eisenhower tab (on two layouts, one at its small face — the old
+ * Eisenhower summary) follows; Esc in a pane's filter picker closes only the picker; each
  * change is one undo step and is kept across a reload. The Eisenhower's own
  * list's filter is edited there too — the same unsaved draft as every
  * Eisenhower's filter line, with Revert · Save. The workspace's entries are
@@ -27,10 +27,16 @@ const SEED: WorkspaceSeed = {
   layouts: [
     {
       name: 'Main',
-      columns: [
-        { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] },
-        { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'dash', kind: 'eisenhowerSummary' }] })] },
-      ],
+      // The second Eisenhower in a short fixed row across the bottom: its small face.
+      table: {
+        areas: ['a1 b0', 'b1 b1'],
+        rows: [1000, { px: 120 }],
+        cells: [
+          { id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
+          { id: 'b0', tabs: [{ id: 'notes', kind: 'notes' }] },
+          { id: 'b1', tabs: [{ id: 'dash', kind: 'eisenhower' }] },
+        ],
+      },
     },
     { name: 'Second', columns: [{ id: 'colX', rows: [wsRow({ id: 'x1', tabs: [{ id: 'eis2', kind: 'eisenhower' }] })] }] },
   ],
@@ -39,7 +45,7 @@ const SEED: WorkspaceSeed = {
 const quadrant = (page: Page, tabId: string, q: string) => page.locator(`[data-eisenhower="${tabId}"] [data-eis-quadrant="${q}"]`)
 const row = (scope: Locator, title: string) => scope.locator('[data-row-key]').filter({ hasText: title })
 const glanceQuadrantCount = (page: Page, q: string) =>
-  page.locator('[data-glance-tab="dash"] [data-glance-section="eisenhower"]').locator(`[data-eis-cell="${q}"]`).getByTestId('glance-eis-count')
+  page.locator('[data-eis-face-tab="dash"]').locator(`[data-eis-cell="${q}"]`).getByTestId('eis-face-count')
 const settingsDialog = (page: Page) => page.getByRole('dialog', { name: 'Settings', exact: true })
 const part = (page: Page) => settingsDialog(page).getByRole('region', { name: 'Eisenhower', exact: true })
 const card = (page: Page, q: string) => part(page).locator(`[data-pane-card="${q}"]`)
@@ -61,7 +67,7 @@ async function closeSettings(page: Page): Promise<void> {
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1600, height: 900 } })
 
-  test('Delegate gets Status is not Delegated: every Eisenhower and the summary follow; Esc closes the picker only; Undo; reload', async ({ page }) => {
+  test('Delegate gets Status is not Delegated: every Eisenhower and the small face follow; Esc closes the picker only; Undo; reload', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toBeVisible()
     await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('2')
@@ -83,7 +89,7 @@ test.describe('desktop', () => {
     await expect.poll(() => storedPanes(page)).toMatchObject({ delegate: { filter: { negate: { statusIds: true } } } })
     await closeSettings(page)
 
-    // This layout's Eisenhower and the summary; a setting — the layout stays saved.
+    // This layout's Eisenhower and its small face; a setting — the layout stays saved.
     await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toHaveCount(0)
     await expect(quadrant(page, 'eisTab', 'delegate').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent · not Important · not Delegated')
     await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('1')
@@ -112,7 +118,7 @@ test.describe('desktop', () => {
     await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('1')
   })
 
-  test('its list’s filter: Settings edits the same draft as every Eisenhower’s filter line; Save; the summary follows; reload', async ({ page }) => {
+  test('its list’s filter: Settings edits the same draft as every Eisenhower’s filter line; Save; the small face follows; reload', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('2')
     await openSettings(page, 'Eisenhower')
@@ -134,7 +140,7 @@ test.describe('desktop', () => {
     await expect(card(page, 'delegate').getByTestId('customize-pane-count')).toHaveText('1 now')
     await closeSettings(page)
 
-    // The widget's filter line shows the same draft, unsaved; the summary counts it too.
+    // The widget's filter line shows the same draft, unsaved; the small face counts it too.
     const widgetLine = wsCell(page, 'a1').getByTestId('list-filter-row')
     await expect(widgetLine).toContainText('not Delegated')
     await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
@@ -230,7 +236,7 @@ test.describe('desktop', () => {
   test('the tab menu’s and the cell menu’s Customize panes…, a pane header’s Edit pane…, land on the part', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await wsTab(page, 'eisTab').click({ button: 'right' })
-    const tabMenu = page.getByRole('menu', { name: 'Change widget' })
+    const tabMenu = page.getByRole('menu', { name: 'Cell options' })
     await expect(tabMenu.getByRole('menuitem', { name: 'Edit list…' })).toBeVisible()
     await tabMenu.getByRole('menuitem', { name: 'Customize panes…' }).click()
     await expect(settingsDialog(page).getByRole('heading', { level: 2 })).toHaveText('Tasks')
@@ -258,13 +264,15 @@ test.describe('desktop', () => {
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('no entry: not in the Settings page, the tab sheet has Edit list… but no Customize, no pane menu', async ({ page }) => {
+  test('no entry: not in the Settings page, the options sheet has Edit list… but no Customize, no pane menu', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
       layouts: [{ name: 'Main', columns: [{ id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] }] }],
     })
     await expect(page.locator('[data-eisenhower="eisTab"]')).toHaveAttribute('data-layout', 'stacked')
-    await wsTab(page, 'eisTab').dispatchEvent('contextmenu')
+    // Alone in its cell: no tab to long-press; its ⋯ has Eisenhower options….
+    await wsCell(page, 'a1').getByRole('button', { name: 'Cell options' }).click()
+    await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Eisenhower options…' }).click()
     const sheet = page.getByRole('menu', { name: 'Eisenhower' })
     await expect(sheet.getByRole('menuitem', { name: 'Edit list…' })).toBeVisible()
     await expect(sheet).toContainText('To change the panes, use Settings on a wider screen.')

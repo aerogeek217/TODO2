@@ -1,23 +1,17 @@
 import type { CSSProperties, ReactNode } from 'react'
 import { MARKER_KEYS, type MarkerKey } from '../../../models'
 import { MARKER_COLOR, MARKER_LABELS } from '../../../utils/markers'
-import { usePersonStore } from '../../../stores/person-store'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
-import { rowKey } from '../../../utils/scoped-selection'
-import { leavingShownAs } from '../../../hooks/use-leaving-rows'
 import { GlanceGlyph } from '../../shared/GlanceGlyph'
-import { MobileTaskRow } from '../../task/MobileTaskRow'
-import { TaskRowGrid } from '../../task/TaskRowGrid'
-import { ListWidgetRow } from '../list/ListWidgetRow'
-import type { GlanceRowKit, OnGlanceDrill } from './glance-types'
+import { WidgetTopLine } from '../WidgetTopLine'
+import type { OnGlanceDrill } from './glance-types'
 import type { SectionMeta } from './section-meta'
-import type { TodoLookup } from './section-data'
 import styles from './GlanceSections.module.css'
 
 /**
  * What every section is rendered with, as its glance widget. `D` is the
  * part of the glance data it reads; a section with options also takes its
- * widget's typed config (`FollowupTabConfig` …).
+ * widget's typed config (`PeopleTabConfig` …).
  */
 export interface SectionProps<D> {
   data: D
@@ -28,12 +22,7 @@ export interface SectionProps<D> {
   className?: string
 }
 
-/** A section that shows task rows: the rows' selection and columns. */
-export interface RowSectionProps<D> extends SectionProps<D> {
-  rows: GlanceRowKit
-}
-
-/** What a panel's header names: a section's meta, or a glance widget's own (What changed, Today, Project pulse). */
+/** What a panel's header names: a section's meta, or a glance widget's own (Project pulse). */
 export type PanelDef = Pick<SectionMeta, 'title' | 'glyph' | 'glyphColor'> & { id: string }
 
 export function Panel({ def, count, onCount, sub, extras, style, className, children }: {
@@ -49,7 +38,7 @@ export function Panel({ def, count, onCount, sub, extras, style, className, chil
 }) {
   return (
     <section className={`${styles.panel} ${styles.surface}${className ? ` ${className}` : ''}`} style={style} aria-label={def.title} data-glance-section={def.id}>
-      <div className={styles.panelHeader}>
+      <WidgetTopLine className={styles.panelHeader}>
         <GlanceGlyph name={def.glyph} color={def.glyphColor} />
         <span className={styles.panelTitle}>{def.title}</span>
         {count != null && (onCount
@@ -61,7 +50,7 @@ export function Panel({ def, count, onCount, sub, extras, style, className, chil
           : <span className={styles.panelCount} data-testid="glance-section-count">{count}</span>)}
         {sub && <span className={styles.panelSub}>{sub}</span>}
         {extras && <span className={styles.panelExtras}>{extras}</span>}
-      </div>
+      </WidgetTopLine>
       {children}
     </section>
   )
@@ -99,70 +88,6 @@ export function Clickable({ as, className, label, onClick, children, ...rest }: 
   }
   const Tag = as
   return <Tag className={className} {...rest}>{children}</Tag>
-}
-
-/**
- * Task rows as in a list widget: draggable, selectable, open on click. A
- * `kept` row (a just-completed task the section keeps as it was) shows as
- * it is now and folds away (D19).
- */
-export function TaskRows({ sectionKey, ids, data, kit, kept }: {
-  sectionKey: string
-  ids: readonly number[]
-  data: TodoLookup
-  kit: GlanceRowKit
-  kept?: ReadonlySet<number>
-}) {
-  const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
-  const todos = ids.flatMap((id) => {
-    const t = data.todoById.get(id)
-    return t ? [leavingShownAs(t, kept?.has(id) ? kit.leaving?.get(id) : undefined)] : []
-  })
-  return (
-    <>
-      {todos.map((todo, i) => {
-        const key = rowKey(sectionKey, todo.id)
-        const people = assignedPeopleMap.get(todo.id)
-        if (kit.isMobile) {
-          return <MobileTaskRow key={key} todo={todo} assignedPeople={people} onOpenDetail={kit.onOpen} />
-        }
-        const prev = todos[i - 1]
-        const next = todos[i + 1]
-        return (
-          <ListWidgetRow
-            key={key}
-            todo={todo}
-            assignedPeople={people}
-            tabId={kit.tabId}
-            sectionKey={sectionKey}
-            rowKey={key}
-            selected={kit.inScope && kit.selectedIds.has(todo.id)}
-            selFirst={!(prev && kit.selectedIds.has(prev.id))}
-            selLast={!(next && kit.selectedIds.has(next.id))}
-            cursor={kit.cursorKey === key}
-            look="idle"
-            leaving={kept?.has(todo.id) ? kit.leaving?.get(todo.id)?.phase : undefined}
-            onSelect={kit.onSelect}
-            onOpenDetail={kit.onOpen}
-          />
-        )
-      })}
-    </>
-  )
-}
-
-/** Task rows sharing the tab's columns and divider (phones: a plain list). */
-export function RowsGrid({ kit, children }: { kit: GlanceRowKit; children: ReactNode }) {
-  if (kit.isMobile) return <>{children}</>
-  return (
-    <TaskRowGrid
-      detailsWidth={kit.detailsWidth}
-      onDetailsWidthChange={kit.onDetailsWidthChange}
-      liveDetailsWidth={kit.liveDetailsWidth}
-    >
-      {children}
-    </TaskRowGrid>
-  )
 }
 
 /** A count in `color`, or a muted dash for none. */

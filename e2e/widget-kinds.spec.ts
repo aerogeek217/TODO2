@@ -26,13 +26,15 @@ function body(cell: Locator, kind: WidgetKind): Locator {
 
 /** A kind's tab title: a list tab shows its list, a Number its metric. */
 const title = (kind: WidgetKind) => (kind === 'lens' ? LIST : kindTabTitle(createTab(kind, 't')))
-/** A kind's tab (its name may go on with a count — not with another kind's longer title, e.g. Eisenhower summary). */
+/** A kind's tab (its name may go on with a count — not with another kind's longer title). */
 const tab = (page: Page, kind: WidgetKind) => {
   const mine = title(kind)
   const longer = WIDGET_KINDS.map(title).filter((t) => t !== mine && t.startsWith(mine)).map((t) => t.slice(mine.length))
   return page.getByRole('tab', { name: new RegExp(`^${mine}${longer.length > 0 ? `(?!${longer.join('|')})` : ''}`) })
 }
 /** The add-widget menu's items: the task kinds, then the Numbers & charts submenu. */
+/** The chart kinds (D26 P8): a new one opens its editor. */
+const CHART_KINDS: ReadonlySet<string> = new Set(['breakdown', 'pivot', 'statusFlow', 'tagMap'])
 const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindLabel), 'Numbers & charts']
 const GLANCE = widgetKindsOf('glance')
 
@@ -40,7 +42,7 @@ test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
   test('every kind can be added as a tab, switched to and closed', async ({ page }) => {
-    // It walks every kind twice (add, then switch): eighteen kinds outlast the default timeout under load.
+    // It walks every kind twice (add, then switch): that outlasts the default timeout under load.
     test.slow()
     // (A layout's lists are the ones it shows: the list tab makes its own.)
     await seedWorkspace(page, {
@@ -54,15 +56,28 @@ test.describe('desktop', () => {
     const cell = page.locator('[data-ws-cell]').first()
     await expect(body(cell, 'notes')).toBeVisible()
 
-    // Add: every kind but Notes, from the add-tab menu (a list gets a new list, its Edit list open).
+    // Add: every kind but Notes, from the add-tab menu (a list gets a new list, its Edit list open) —
+    // the first from the ⋯'s Add widget…: one widget has no strip, so no + (D26 AA1).
     for (const kind of WIDGET_KINDS.filter((k) => k !== 'notes')) {
-      await page.getByRole('button', { name: 'Add widget as tab' }).click()
+      const plus = page.getByRole('button', { name: 'Add widget as tab' })
+      if (await plus.count() > 0) await plus.click()
+      else {
+        await cell.hover()
+        await cell.getByRole('button', { name: 'Cell options' }).click()
+        await page.getByRole('menuitem', { name: 'Add widget…' }).click()
+      }
       const menu = page.getByRole('menu', { name: 'Add widget' })
       await expect(menu.getByRole('menuitem')).toHaveText(MENU_ITEMS)
       await pickWidgetKind(page, 'Add widget', widgetKindLabel(kind))
       if (kind === 'lens') {
         await expect(page.getByRole('dialog', { name: `Edit list ${LIST}` })).toBeVisible()
         await page.keyboard.press('Escape')
+      }
+      if (CHART_KINDS.has(kind)) {
+        // A new chart opens its editor (D26 P8).
+        await expect(page.locator('[data-chart-editor]')).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(page.locator('[data-chart-editor]')).toHaveCount(0)
       }
       await expect(tab(page, kind)).toHaveAttribute('aria-selected', 'true')
       await expect(body(cell, kind)).toBeVisible()
@@ -73,7 +88,7 @@ test.describe('desktop', () => {
     for (const kind of [...WIDGET_KINDS.filter((k) => k !== 'notes'), 'notes' as const]) {
       await tab(page, current).first().click()
       await tab(page, current).first().click({ button: 'right' })
-      const menu = page.getByRole('menu', { name: 'Change widget' })
+      const menu = page.getByRole('menu', { name: 'Cell options' })
       // The current kind is checked — a Numbers & charts one is named on its submenu's item.
       if (GLANCE.includes(current)) await expect(menu.getByRole('menuitem', { name: /^Numbers & charts/ })).toContainText(widgetKindLabel(current))
       else await expect(menu.getByRole('menuitemradio', { name: widgetKindLabel(current), exact: true })).toHaveAttribute('aria-checked', 'true')
@@ -87,13 +102,18 @@ test.describe('desktop', () => {
       await expect(body(cell, kind)).toBeVisible()
     }
 
-    // Close: every tab, last one closes the cell.
-    for (const kind of WIDGET_KINDS) {
+    // Close: every tab; the last one — alone, no strip: its ⋯ › Close cell — closes the cell: with no
+    // neighbour to take its space, it stays an empty cell (D26).
+    for (const kind of WIDGET_KINDS.slice(0, -1)) {
       const t = tab(page, kind).first()
       await t.click()
       await t.getByRole('button', { name: `Close ${title(kind)}` }).click()
     }
-    await expect(page.getByText('This layout is empty')).toBeVisible()
+    await expect(cell.getByRole('tablist')).toHaveCount(0)
+    await cell.hover()
+    await cell.getByRole('button', { name: 'Cell options' }).click()
+    await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
+    await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
   })
 
   test('a list tab whose list was deleted reads “(Deleted list)” in the overflow menu', async ({ page }) => {
@@ -161,16 +181,14 @@ test.describe('desktop', () => {
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('the column view shows every kind', async ({ page }) => {
+  test('the one scroll shows every kind', async ({ page }) => {
     const layout: WsLayoutSeed = {
       name: 'Kinds',
       columns: WIDGET_KINDS.map((kind, i) => ({ id: `col${i}`, rows: [wsRow({ id: `cell${i}`, tabs: [{ id: `tab${i}`, kind, ...(kind === 'lens' ? { listDefIdx: 0 } : {}) }] })] })),
     }
     await seedWorkspace(page, { listDefinitions: [{ name: LIST }], tasks: [{ title: 'A task' }], layouts: [layout] })
-    const strip = page.getByRole('tablist', { name: 'Columns' })
     for (const [i, kind] of WIDGET_KINDS.entries()) {
-      await strip.getByRole('tab', { name: title(kind), exact: true }).tap()
-      await expect(strip.getByRole('tab', { name: title(kind), exact: true })).toHaveAttribute('aria-selected', 'true')
+      await wsCell(page, `cell${i}`).scrollIntoViewIfNeeded()
       await expect(body(wsCell(page, `cell${i}`), kind)).toBeInViewport()
     }
   })

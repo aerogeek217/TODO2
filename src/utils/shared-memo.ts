@@ -88,3 +88,28 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 export function sameElements<E>(a: readonly E[], b: readonly E[]): boolean {
   return a.length === b.length && a.every((x, i) => Object.is(x, b[i]))
 }
+
+/**
+ * `sharedMemo` with one input set kept per `key` (an object, held weakly):
+ * for a statistic each caller asks with its own key — a Number's filter —
+ * so any number of them on screen never evict one another. The rest of the
+ * inputs compare by identity, as in `sharedMemo`; `same` compares a new
+ * value with the one this key kept.
+ */
+export function sharedMemoByKey<K extends object, D extends readonly unknown[], T>(
+  compute: (key: K, ...deps: D) => T,
+  same?: (kept: T, next: T) => boolean,
+): (key: K, ...deps: D) => T {
+  let entries = new WeakMap<K, { deps: D; value: T }>()
+  registerModuleReset(() => {
+    entries = new WeakMap()
+  })
+  return (key: K, ...deps: D): T => {
+    const kept = entries.get(key)
+    if (kept && kept.deps.length === deps.length && kept.deps.every((d, i) => Object.is(d, deps[i]))) return kept.value
+    const computed = compute(key, ...deps)
+    const value = kept && same?.(kept.value, computed) ? kept.value : computed
+    entries.set(key, { deps, value })
+    return value
+  }
+}

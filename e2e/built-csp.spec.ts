@@ -312,8 +312,8 @@ test('the offline file requests nothing but itself through its main flows', asyn
 /**
  * The glance widgets and the Neglect map from the built file (cr33 security
  * I2): a Number's small face, its full widget in the face popover (the
- * 14-day sparkline) and its tasks in the task dialog; What changed, Today
- * and a Project pulse card opening its tag's tasks; the Neglect map's dots,
+ * 14-day sparkline) and its tasks in the task dialog; Tags, Status and a
+ * Project pulse card opening its tag's tasks; the Neglect map's dots,
  * one opening the editor. Nothing is requested but the file itself.
  */
 test('the offline file requests nothing through the glance widgets and the Neglect map', async ({ page, context }) => {
@@ -340,8 +340,8 @@ test('the offline file requests nothing through the glance widgets and the Negle
         ] },
         { id: 'c2', rows: [
           { cells: [
-            { id: 'kc', tabs: [{ id: 'changes', kind: 'changes', tagNames: ['Project: Atlas'] }] },
-            { id: 'kt', tabs: [{ id: 'today', kind: 'today' }] },
+            { id: 'kc', tabs: [{ id: 'tags', kind: 'breakdown', glance: { name: 'Tags', splitBy: 'tags' } }] },
+            { id: 'kt', tabs: [{ id: 'status', kind: 'breakdown', glance: { name: 'Status', splitBy: 'status', style: 'donut' } }] },
           ] },
           wsRow({ id: 'kp', tabs: [{ id: 'pulse', kind: 'pulse', tagNames: ['Project: Atlas'] }] }),
         ] },
@@ -352,21 +352,21 @@ test('the offline file requests nothing through the glance widgets and the Negle
 
   // A Number: its small face, its full widget in the popover, its tasks.
   const numberCell = wsCell(page, 'kn')
-  await expect(numberCell.locator('[data-number-metric="open"]').getByTestId('number-count')).toHaveText('4')
+  await expect(numberCell.locator('[data-number="num"]').getByTestId('number-count')).toHaveText('4')
   await numberCell.getByRole('button', { name: 'Open Open' }).focus()
   await page.keyboard.press('Enter')
   const full = page.getByTestId('widget-face-popover')
   await expect(full.locator('[data-sparkline]')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(full).toHaveCount(0)
-  await numberCell.locator('[data-number-metric="open"]').click()
-  await expect(taskDialog.getByRole('heading')).toHaveText('Open tasks')
+  await numberCell.locator('[data-number="num"]').click()
+  await expect(taskDialog.getByRole('heading')).toHaveText('Open')
   await page.keyboard.press('Escape')
   await expect(taskDialog).toBeHidden()
 
-  // What changed, Today, Project pulse.
-  await expect(page.locator('[data-glance="changes"] [data-change="late"]')).toHaveText('1 task went late since yesterday.')
-  await expect(page.locator('[data-glance="today"] [data-row-key] [data-task-title]')).toHaveText(['Ship the beta'])
+  // Tags and Status (Breakdowns), Project pulse.
+  await expect(page.locator('[data-chart="tags"] [data-breakdown-row]').first()).toContainText('#Project: Atlas')
+  await expect(page.locator('[data-chart="status"]')).toContainText('4 open')
   const card = page.locator('[data-glance="pulse"] [data-pulse-card]').first()
   await expect(card).toContainText('Project: Atlas')
   await card.click()

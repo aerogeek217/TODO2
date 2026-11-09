@@ -9,7 +9,7 @@ import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import type { LayoutCell, PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { emptyPredicate } from '../../../models'
 import { resetEntityStores } from '../../helpers'
-import { rowOf } from '../../helpers/layout-builders'
+import { single } from '../../helpers/layout-builders'
 
 /**
  * The workspace's Eisenhower entries are shortcuts into Settings › Tasks ›
@@ -19,12 +19,12 @@ import { rowOf } from '../../helpers/layout-builders'
  */
 
 const AT = new Date(2026, 0, 1)
-const CELL: LayoutCell = { id: 'k', weight: 1, tabs: [{ id: 'eis', kind: 'eisenhower', config: {} }] }
+const CELL: LayoutCell = { id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 'eis', kind: 'eisenhower', config: {} }] }
 
 beforeEach(() => {
   resetEntityStores()
   useUIStore.setState(useUIStore.getInitialState(), true)
-  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, columns: [{ id: 'c', weight: 1, rows: [rowOf(CELL)] }] }
+  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...single(CELL) }
   useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
   useListDefinitionStore.setState({
     listDefinitions: [
@@ -37,9 +37,9 @@ beforeEach(() => {
 afterEach(cleanup)
 
 function openTabMenu(): HTMLElement {
-  render(<DndContext><WorkspaceCell cell={CELL} rowId={`${CELL.id}-r`} collapsed={false} /></DndContext>)
+  render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
   fireEvent.contextMenu(document.querySelector('[data-ws-tab="eis"]')!)
-  return screen.getByRole('menu', { name: 'Change widget' })
+  return screen.getByRole('menu', { name: 'Cell options' })
 }
 
 describe('Eisenhower entry points', () => {
@@ -64,8 +64,8 @@ describe('Eisenhower entry points', () => {
     const menu = openTabMenu()
     fireEvent.click(within(menu).getByRole('menuitemradio', { name: /^List/ }))
     expect(screen.queryByText('Show list')).toBeNull()
-    await waitFor(() => expect(useWorkspaceStore.getState().working?.columns[0]?.rows[0]?.cells[0]?.tabs[0]?.kind).toBe('lens'))
-    const tab = useWorkspaceStore.getState().working!.columns[0]!.rows[0]!.cells[0]!.tabs[0]!
+    await waitFor(() => expect(useWorkspaceStore.getState().working?.cells[0]?.tabs[0]?.kind).toBe('lens'))
+    const tab = useWorkspaceStore.getState().working!.cells[0]!.tabs[0]!
     const listId = tab.kind === 'lens' ? tab.config.listDefinitionId : undefined
     expect(listId).not.toBe(8)
     expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === listId)).toMatchObject({ name: 'New list', owner: { layoutId: 1 } })
@@ -79,11 +79,11 @@ describe('Eisenhower entry points', () => {
     expect(list).toBeDisabled()
     expect(list).toHaveTextContent('Save the layout first to add lists.')
     fireEvent.click(list)
-    expect(useWorkspaceStore.getState().working?.columns[0]?.rows[0]?.cells[0]?.tabs[0]?.kind).toBe('eisenhower')
+    expect(useWorkspaceStore.getState().working?.cells[0]?.tabs[0]?.kind).toBe('eisenhower')
   })
 
   it('the cell menu’s Customize panes… opens Settings there too', () => {
-    render(<DndContext><WorkspaceCell cell={CELL} rowId={`${CELL.id}-r`} collapsed={false} /></DndContext>)
+    render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
     fireEvent.click(screen.getByRole('button', { name: 'Cell options' }))
     fireEvent.click(within(screen.getByRole('menu', { name: 'Cell options' })).getByRole('menuitem', { name: 'Customize panes…' }))
     expect(useUIStore.getState()).toMatchObject({ settingsOpen: true, settingsPart: 'eisenhower' })

@@ -7,6 +7,7 @@ import {
   type EisenhowerTab,
 } from '../../../models/workspace-layout'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
+import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { usePaneContext } from '../../../hooks/use-pane-context'
 import { useEqualValue } from '../../../hooks/use-equal-value'
@@ -58,6 +59,7 @@ import { DropSlot, ListWidgetRow, type ListRowDragLook, type ListRowSelectMods }
 import { dragTasks } from './eisenhower-drag'
 import { RefusalTooltip } from '../../shared/RefusalTooltip'
 import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
+import { EisenhowerFace } from './EisenhowerFace'
 import styles from './EisenhowerWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { ListFilterRow } from '../list/ListFilterRow'
@@ -66,6 +68,8 @@ import { countOpen, useEisenhowerSource, type ListSourceContext } from '../../..
 import { openEisenhowerSettings } from './eisenhower-settings-link'
 import { SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
+import { WidgetNameLine } from '../WidgetTopLine'
+import { useIsListDirty } from '../../../hooks/use-list-draft'
 
 /** Below this cell width the quadrants stack as collapsible sections. */
 export const EISENHOWER_STACK_BREAKPOINT_PX = 560
@@ -388,9 +392,24 @@ interface WidgetProps {
  * between panes (and in from other widgets) to get what the pane's filter
  * implies; a drop that wouldn't land the task there is refused, with why.
  * Each pane's "+" opens Quick Add with the same writes (and the list's
- * defaults).
+ * defaults). That is its large face; its small and medium faces (D26 P4,
+ * `useWidgetFace`) are the panes' counts (`EisenhowerFace`), a click on the
+ * small one opening the whole widget over the cell.
  */
 export function EisenhowerWidget({ tab, onResult }: WidgetProps) {
+  // Its face (D26 P4), measured on a host the body's size: small and medium are the counts (`EisenhowerFace`).
+  const [faceRef, face] = useWidgetFace()
+  return (
+    <div ref={faceRef} className={styles.faceHost}>
+      {face === 'large'
+        ? <EisenhowerFull tab={tab} onResult={onResult} />
+        : <EisenhowerFace face={face} tabId={tab.id} onCount={onResult ? (countLabel) => onResult({ countLabel }) : undefined} />}
+    </div>
+  )
+}
+
+/** The whole widget (its large face). */
+function EisenhowerFull({ tab, onResult }: WidgetProps) {
   const isMobile = useIsMobile()
   // A row completed here lingers, then folds, before it drops out (D19; desktop rows).
   const shownIdsRef = useRef<ReadonlySet<number>>(new Set())
@@ -437,6 +456,7 @@ interface BodyProps extends WidgetProps {
 
 function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, shownIdsRef }: BodyProps) {
   const isMobile = useIsMobile()
+  const listUnsaved = useIsListDirty(list?.definition.id)
   // A pane divider's width while it is dragged: every pane follows it live.
   // (A store, not state: the drag re-renders the row lists, not the widget.)
   const [liveDetailsWidth] = useState(() => createValueStore<number | null>(null))
@@ -543,6 +563,10 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
       // Phones: the list's filter chips (a shared stylesheet) get their touch height.
       data-touch-chips={list && isMobile ? '' : undefined}
     >
+      {/* Alone in its cell, its top line (D26 AA1): a slim name line. */}
+      <WidgetNameLine name="Eisenhower" unsaved={listUnsaved}>
+        <span className={styles.lineCount} data-testid="eisenhower-line-count">{countLabel}</span>
+      </WidgetNameLine>
       {list && <ListFilterRow tabId={tab.id} definition={list.definition} summary={false} />}
       <div
         ref={setRootRef}

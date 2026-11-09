@@ -1,23 +1,12 @@
 import { useMemo } from 'react'
-import type { PersistedTodoItem, Tag, TodoEvent } from '../models'
+import type { PersistedTodoItem, Tag, TodoEvent, TodoPredicate } from '../models'
 import type { PersistedListDefinition } from '../models/list-definition'
-import { LOOK_AHEAD_CHOICES, RECENT_DAYS_CHOICES, STALE_DAYS_CHOICES, TREND_RANGES, type LookAhead, type TrendRange } from '../models/glance-widgets'
-import { groupRestrictions } from '../services/build-list'
-import { computeChanges, type Change } from '../services/stats/changes'
-import { computeClosedThisWeek, type ClosedThisWeek } from '../services/stats/closed-this-week'
+import { TREND_RANGES, type NumberConfig, type TrendRange } from '../models/glance-widgets'
 import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary } from '../services/stats/eisenhower-summary'
-import { computeFollowupGroups, type FollowupGroups } from '../services/stats/followup-groups'
-import { computeMetricHistory, type MetricHistory } from '../services/stats/metric-history'
-import { computeNextSevenDays, type NextDaysColumn } from '../services/stats/next-seven-days'
-import { computePeopleStats, type PeopleStats } from '../services/stats/people'
+import { filterHistory, historyExactness, type HistoryExactness } from '../services/stats/filter-history'
+import { numberHistoryDays, numberIds, numberStages } from '../services/stats/number-count'
 import { computePulse, type PulseCard } from '../services/stats/pulse'
-import { computeRecentlyCompleted, type RecentlyCompleted } from '../services/stats/recently-completed'
-import { computeStaleTasks, type StaleTasks } from '../services/stats/stale'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
-import { selectStatusBreakdown, type StatusBreakdownEntry } from '../services/stats/status-breakdown'
-import { computeTagStats, type TagStats } from '../services/stats/tags'
-import { computeMetrics, type MetricStats } from '../services/stats/metrics'
-import { computeTodayPicks, openFocusIds, type TodayPicks } from '../services/stats/today-picks'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useListDraftStore } from '../stores/list-draft-store'
@@ -33,12 +22,11 @@ import type { PaneContext } from '../utils/eisenhower'
 import { resolvePanes, type EisenhowerPane } from '../utils/eisenhower-panes'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import { hasNarrowingFilters } from '../utils/filter-chips'
-import { admitsCompleted, countActiveFilters, type FilterCriteria } from '../utils/filter-criteria'
-import { applyFilter, type FilterSettings } from '../utils/filter-match'
+import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
+import { applyFilter, readsText, type FilterSettings } from '../utils/filter-match'
 import type { UrgentDueWithinDays } from '../utils/urgency'
 import type { WeekStart } from '../utils/effective-date'
-import { sameElements, sharedMemo } from '../utils/shared-memo'
-import { keptOf, restoreLeaving, type LeavingRows } from './use-leaving-rows'
+import { sameElements, sharedMemo, sharedMemoByKey } from '../utils/shared-memo'
 import { useToday } from './use-today'
 import { useTrendEvents } from './use-trend-events'
 
@@ -54,9 +42,8 @@ import { useTrendEvents } from './use-trend-events'
  */
 
 /**
- * Input sets kept by a memo whose callers differ by a free choice (What
- * changed's and Project pulse's tag picks, one per tab): a few tabs on
- * screen each hit.
+ * Input sets kept by a memo whose callers differ by a free choice (Project
+ * pulse's tag picks, one per tab): a few tabs on screen each hit.
  */
 const OPTION_SLOTS = 8
 
@@ -158,72 +145,6 @@ export function useScreenTasks(): PersistedTodoItem[] {
 
 type Tasks = readonly PersistedTodoItem[]
 
-/**
- * A statistic over the screen-filtered tasks and over every task, each half
- * memoized on its own tasks: a screen filter change recomputes only the
- * shown half, and the pair keeps its identity while both halves do. `slots`:
- * the input sets each keeps (one per choice of its option).
- */
-function shownOfTotalMemo<O extends readonly unknown[], T>(compute: (tasks: Tasks, ...opts: O) => T, slots = 1) {
-  const shownHalf = sharedMemo((tasks: Tasks, ...opts: O) => compute(tasks, ...opts), slots)
-  const totalHalf = sharedMemo((tasks: Tasks, ...opts: O) => compute(tasks, ...opts), slots)
-  const pair = sharedMemo((shown: T, total: T): ShownOfTotal<T> => ({ shown, total }), slots)
-  return (shown: Tasks, todos: Tasks, ...opts: O): ShownOfTotal<T> => pair(shownHalf(shown, ...opts), totalHalf(todos, ...opts))
-}
-
-const metricsMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeMetrics(tasks, ctx))
-/** The counted metrics (every Number metric but Closed this week). */
-export function useMetricStats(base: StatsBase): ShownOfTotal<MetricStats> {
-  return metricsMemo(base.shown, base.todos, base.ctx)
-}
-
-const closedMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext) => computeClosedThisWeek(tasks, ctx))
-export function useClosedThisWeek(base: StatsBase): ShownOfTotal<ClosedThisWeek> {
-  return closedMemo(base.shown, base.todos, base.ctx)
-}
-
-const followupMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, lookAhead: LookAhead) => computeFollowupGroups(tasks, ctx, lookAhead), LOOK_AHEAD_CHOICES.length)
-export function useFollowupStats(base: StatsBase, lookAhead: LookAhead): ShownOfTotal<FollowupGroups> {
-  return followupMemo(base.shown, base.todos, base.ctx, lookAhead)
-}
-
-const nextDaysMemo = sharedMemo((shown: Tasks, ctx: StatsContext): NextDaysColumn[] => computeNextSevenDays(shown, ctx))
-export function useNextDays(base: StatsBase): NextDaysColumn[] {
-  return nextDaysMemo(base.shown, base.ctx)
-}
-
-const statusMemo = shownOfTotalMemo((tasks: Tasks, statuses: StatsContext['statuses']) => selectStatusBreakdown(tasks, statuses))
-export function useStatusStats(base: StatsBase): ShownOfTotal<StatusBreakdownEntry[]> {
-  return statusMemo(base.shown, base.todos, base.ctx.statuses)
-}
-
-// The People / Tags rows narrow by the top bar's `@` / `#` picks (its chips' and its lens's), as a list grouped so does.
-const peopleMemo = sharedMemo((shown: Tasks, ctx: StatsContext, screen: FilterCriteria): PeopleStats => (
-  computePeopleStats(shown, ctx, groupRestrictions('personIds', undefined, screen))
-))
-export function usePeopleStats(base: StatsBase): PeopleStats {
-  return peopleMemo(base.shown, base.ctx, base.screen)
-}
-
-const tagsShownMemo = sharedMemo((shown: Tasks, ctx: StatsContext, screen: FilterCriteria): TagStats => (
-  computeTagStats(shown, ctx, groupRestrictions('tags', undefined, screen))
-))
-const tagsTotalMemo = sharedMemo((todos: Tasks, ctx: StatsContext): TagStats => computeTagStats(todos, ctx))
-const tagsPairMemo = sharedMemo((shown: TagStats, total: TagStats): ShownOfTotal<TagStats> => ({ shown, total }))
-export function useTagStats(base: StatsBase): ShownOfTotal<TagStats> {
-  return tagsPairMemo(tagsShownMemo(base.shown, base.ctx, base.screen), tagsTotalMemo(base.todos, base.ctx))
-}
-
-const staleMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, days: number) => computeStaleTasks(tasks, ctx, days), STALE_DAYS_CHOICES.length)
-export function useStaleStats(base: StatsBase, days: number): ShownOfTotal<StaleTasks> {
-  return staleMemo(base.shown, base.todos, base.ctx, days)
-}
-
-const recentMemo = shownOfTotalMemo((tasks: Tasks, ctx: StatsContext, days: number) => computeRecentlyCompleted(tasks, ctx, days), RECENT_DAYS_CHOICES.length)
-export function useRecentStats(base: StatsBase, days: number): ShownOfTotal<RecentlyCompleted> {
-  return recentMemo(base.shown, base.todos, base.ctx, days)
-}
-
 const trendMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext, range: TrendRange): TrendStats => (
   computeTrend(shown, events, ctx, range)
 ), TREND_RANGES.length)
@@ -233,38 +154,140 @@ export function useTrendStats(base: StatsBase, range: TrendRange): TrendStats | 
   return events ? trendMemo(base.shown, events, base.ctx, range) : null
 }
 
-const historyMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext): MetricHistory => (
-  computeMetricHistory(shown, events, ctx)
-))
-const historyTrendMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext): TrendStats => (
-  computeTrend(shown, events, ctx, '14d')
-))
+// ── A Number (D26 P5) ──────────────────────────────────────────────────────
+
+const NO_TEXT = new Map<number, never[]>()
+
 /**
- * The Numbers' 14-day history over the screen-filtered tasks, and the
- * 14-day trend read from the same events (the Open sub-line's net);
- * `null` until the history has been read.
+ * The lookups a filter that reads no text needs (people, tags, statuses):
+ * a status update or subtask write, which changes the full lookups,
+ * leaves these, so a Number not searching text keeps its count.
  */
-export function useMetricHistory(base: StatsBase): { history: MetricHistory; trend: TrendStats } | null {
-  const events = useTrendEvents('history')
-  if (!events) return null
-  return { history: historyMemo(base.shown, events, base.ctx), trend: historyTrendMemo(base.shown, events, base.ctx) }
+const idLookupsMemo = sharedMemo(function idLookups(
+  assignedPeopleMap: StatsContext['assignedPeopleMap'],
+  assignedTagsMap: StatsContext['assignedTagsMap'],
+  statuses: StatsContext['statuses'],
+) {
+  return todoNameLookups({ assignedPeopleMap, assignedTagsMap, statuses, statusUpdatesByTodo: NO_TEXT, subtasksByTodo: NO_TEXT })
+})
+
+/** The lookups `filters` need: the full ones when one reads text, else the id ones (`idLookupsMemo`). */
+export function lookupsFor(base: StatsBase, ...filters: FilterCriteria[]): TodoNameLookups {
+  return filters.some(readsText) ? base.lookups : idLookupsMemo(base.ctx.assignedPeopleMap, base.ctx.assignedTagsMap, base.ctx.statuses)
 }
 
-// ── The brief's parts (D25 L) ───────────────────────────────────────────────
+// Each Number's parts are memoized per its filter (`sharedMemoByKey`): a
+// dashboard of Numbers never evict one another.
+const numberCriteriaMemo = sharedMemoByKey(function numberCriteria(filter: TodoPredicate): FilterCriteria {
+  return predicateToCriteria(filter)
+})
 
-const changesMemo = sharedMemo((
-  shown: Tasks,
-  events: readonly TodoEvent[],
+/** The screen filter without its lens (a Number that ignores it). */
+const withoutLensMemo = sharedMemo(function withoutLens(screen: FilterCriteria): FilterCriteria {
+  const { lens: _lens, ...rest } = screen
+  void _lens
+  return rest
+})
+
+/** The tasks the screen filter without its lens shows (completed included, `statsFilter`). */
+const noLensShownMemo = sharedMemo(function noLensShown(
+  screen: FilterCriteria,
+  todos: Tasks,
+  lookups: TodoNameLookups,
   ctx: StatsContext,
-  tagIds: readonly number[],
-  retentionDays: number | null,
-): Change[] => computeChanges(shown, events, ctx, tagIds, retentionDays), OPTION_SLOTS)
-/** What changed's sentences over the screen-filtered tasks; `null` until its events have been read. */
-export function useChanges(base: StatsBase, tagIds: readonly number[]): Change[] | null {
-  const events = useTrendEvents('changes')
-  const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
-  return events ? changesMemo(base.shown, events, base.ctx, tagIds, retentionDays) : null
+  settings: FilterSettings,
+) {
+  return applyFilter(statsFilter(screen), todos, lookups, ctx.today, settings)
+}, 1, sameElements)
+
+const numberIdsShownMemo = sharedMemoByKey(function numberIdsShown(filter: FilterCriteria, tasks: Tasks, lookups: TodoNameLookups, ctx: StatsContext, settings: FilterSettings) {
+  return numberIds(filter, tasks, lookups, ctx.today, settings)
+}, sameElements)
+const numberIdsTotalMemo = sharedMemoByKey(function numberIdsTotal(filter: FilterCriteria, tasks: Tasks, lookups: TodoNameLookups, ctx: StatsContext, settings: FilterSettings) {
+  return numberIds(filter, tasks, lookups, ctx.today, settings)
+}, sameElements)
+
+/** What a Number counts, under the screen filter it follows. */
+export interface NumberCount {
+  /** Its filter (`NumberConfig.filter`) as criteria. */
+  filter: FilterCriteria
+  /** The screen filter it counts under: the base's, or without the lens when it ignores it. */
+  screen: FilterCriteria
+  /** That screen filter narrows the tasks. */
+  filtered: boolean
+  /** The tasks it keeps among the ones the top bar shows, in dialog order (the count), and among every task (the `of N`). */
+  ids: ShownOfTotal<number[]>
 }
+
+const numberCountMemo = sharedMemoByKey(function numberCount(filter: FilterCriteria, screen: FilterCriteria, shown: number[], total: number[]): NumberCount {
+  return { filter, screen, filtered: countActiveFilters({ ...screen, showCompleted: false }) > 0, ids: { shown, total } }
+})
+
+/**
+ * A Number's count (`services/stats/number-count`): its filter over the
+ * tasks the top bar shows — the lens left out when the Number ignores it,
+ * as a list does — and over every task.
+ */
+export function useNumberCount(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'ignoreLens'>): NumberCount {
+  return numberCountOf(base, config)
+}
+
+/** `useNumberCount` outside a hook's order (no hook inside): a group Number counts each of its items with it (D26 P6). */
+export function numberCountOf(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'ignoreLens'>): NumberCount {
+  const filter = numberCriteriaMemo(config.filter)
+  const dropLens = config.ignoreLens === true && base.screen.lens != null
+  const screen = dropLens ? withoutLensMemo(base.screen) : base.screen
+  const tasks = dropLens ? noLensShownMemo(screen, base.todos, base.lookups, base.ctx, base.markerSettings) : base.shown
+  const lookups = lookupsFor(base, filter)
+  const shown = numberIdsShownMemo(filter, tasks, lookups, base.ctx, base.markerSettings)
+  const total = numberIdsTotalMemo(filter, base.todos, lookups, base.ctx, base.markerSettings)
+  return numberCountMemo(filter, screen, shown, total)
+}
+
+/** A Number's line: what it counted at the end of each of the last 14 days (today last), and whether that is exact. */
+export interface NumberHistory {
+  days: Date[]
+  series: number[]
+  exactness: HistoryExactness
+}
+
+const historyDaysMemo = sharedMemo(function historyDays(todayMs: number) {
+  return numberHistoryDays(new Date(todayMs))
+})
+
+const numberHistoryMemo = sharedMemoByKey(function numberHistory(
+  filter: FilterCriteria,
+  screen: FilterCriteria,
+  todos: Tasks,
+  events: readonly TodoEvent[],
+  days: Date[],
+  lookups: TodoNameLookups,
+  settings: FilterSettings,
+  historyLogSince: Date | null,
+): NumberHistory {
+  const stages = numberStages(screen, filter)
+  const firstDay = days[0] ?? new Date(0)
+  return {
+    days,
+    series: filterHistory(stages, todos, events, days, { lookups, settings }),
+    exactness: historyExactness(stages, firstDay, historyLogSince),
+  }
+})
+
+/**
+ * A Number's 14-day line (`filter-history`): its filter under its screen
+ * filter, every task replayed to each day's end; `null` until the history
+ * has been read.
+ */
+export function useNumberHistory(base: StatsBase, count: NumberCount): NumberHistory | null {
+  const events = useTrendEvents('history')
+  const historyLogSince = useSettingsStore((s) => s.historyLogSince)
+  const days = historyDaysMemo(base.ctx.today.getTime())
+  if (!events) return null
+  return numberHistoryMemo(count.filter, count.screen, base.todos, events, days, lookupsFor(base, count.screen, count.filter), base.markerSettings, historyLogSince)
+}
+
+// ── Project pulse (D25 L) ───────────────────────────────────────────────────
 
 const pulseMemo = sharedMemo((shown: Tasks, tags: readonly Tag[], ctx: StatsContext, tagIds: readonly number[], staleAfterDays: number): PulseCard[] => (
   computePulse(shown, tags, ctx, tagIds, staleAfterDays)
@@ -276,15 +299,9 @@ export function usePulse(base: StatsBase, tagIds: readonly number[]): PulseCard[
   return pulseMemo(base.shown, tags, base.ctx, tagIds, staleAfterDays)
 }
 
-const todayMemo = sharedMemo((shown: Tasks, ctx: StatsContext): TodayPicks => computeTodayPicks(shown, ctx))
-/** Today's Focus tasks and suggestions over the screen-filtered tasks. */
-export function useTodayPicks(base: StatsBase): TodayPicks {
-  return todayMemo(base.shown, base.ctx)
-}
+// ── The Eisenhower's counts (its small and medium faces) ────────────────────
 
-// ── The Eisenhower summary ──────────────────────────────────────────────────
-
-/** The Eisenhower settings as the Eisenhower summary uses them. */
+/** The Eisenhower settings as its small and medium faces count with them. */
 export interface EisenhowerSetup {
   /** The four panes, in position order. */
   panes: readonly EisenhowerPane[]
@@ -354,7 +371,7 @@ const eisenhowerMemo = sharedMemo((
 })
 
 /**
- * The Eisenhower summary: the Eisenhower's own list's members (its unsaved
+ * The Eisenhower's counts (its small and medium faces): its own list's members (its unsaved
  * draft included; every task until it is loaded) sorted by the app-wide
  * panes, and the setup it counts with.
  */
@@ -374,74 +391,4 @@ export function useEisenhowerStats(base: StatsBase): { eisenhower: ShownOfTotal<
   const paneCtx = paneCtxMemo(base.ctx, base.markerSettings, people, tags, statusUpdatesByTodo, subtasksByTodo)
   const eisenhower = eisenhowerMemo(base.todos, base.shown, base.screen, base.lookups, base.markerSettings, list, panes, paneCtx)
   return { eisenhower, eisenhowerSetup }
-}
-
-// ── Task rows that linger (D19) ─────────────────────────────────────────────
-
-const NO_IDS: ReadonlySet<number> = new Set()
-
-/** Rows of a task-row part, and the lingering tasks they keep as they were. */
-export interface LingeringRows<R> {
-  rows: R
-  kept: ReadonlySet<number>
-}
-
-/**
- * A task-row part's rows: `now` — or, while a just-completed task lingers
- * (D19), the rows rebuilt from the tasks as they were before (`asWas`),
- * keeping that task in its place. `ids` lists a rows value's task ids.
- */
-export function lingeringRows<R>(
-  base: StatsBase,
-  now: R,
-  ids: (rows: R) => readonly number[],
-  asWas: (tasks: PersistedTodoItem[]) => R,
-  leaving: LeavingRows | undefined,
-): LingeringRows<R> {
-  if (!leaving || leaving.size === 0) return { rows: now, kept: NO_IDS }
-  const tasks = applyFilter(statsFilter(base.screen), restoreLeaving(base.todos, leaving), base.lookups, base.ctx.today, base.markerSettings)
-  const before = asWas(tasks)
-  const inRows = new Set(ids(before))
-  const kept = keptOf(leaving, new Set(ids(now)))
-  for (const id of kept) if (!inRows.has(id)) kept.delete(id)
-  return kept.size > 0 ? { rows: before, kept } : { rows: now, kept: NO_IDS }
-}
-
-/** A Needs follow-up group's task ids, in row order. */
-export function followupRowIds(g: FollowupGroups): number[] {
-  return [...g.late, ...g.today, ...g.upcoming]
-}
-
-/** Needs follow-up's rows (`followup.shown`, a lingering task kept in place). */
-export function useFollowupRows(
-  base: StatsBase,
-  followup: ShownOfTotal<FollowupGroups>,
-  lookAhead: LookAhead,
-  leaving: LeavingRows | undefined,
-): LingeringRows<FollowupGroups> {
-  return useMemo(
-    () => lingeringRows(base, followup.shown, followupRowIds, (tasks) => computeFollowupGroups(tasks, base.ctx, lookAhead), leaving),
-    [base, followup, lookAhead, leaving],
-  )
-}
-
-/** Today's Focus rows (`picks.focusIds`, a lingering completion kept in place). */
-export function useTodayRows(base: StatsBase, picks: TodayPicks, leaving: LeavingRows | undefined): LingeringRows<number[]> {
-  return useMemo(
-    () => lingeringRows(base, picks.focusIds, (ids) => ids, (tasks) => openFocusIds(tasks), leaving),
-    [base, picks, leaving],
-  )
-}
-
-/** Stale tasks' rows (`stale.shown.ids`, a lingering task kept in place). */
-export function useStaleRows(
-  base: StatsBase,
-  stale: ShownOfTotal<StaleTasks>,
-  days: number,
-  leaving: LeavingRows | undefined,
-): LingeringRows<number[]> {
-  return useMemo(
-    () => lingeringRows(base, stale.shown.ids, (ids) => ids, (tasks) => computeStaleTasks(tasks, base.ctx, days).ids, leaving),
-    [base, stale, days, leaving],
-  )
 }

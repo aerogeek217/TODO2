@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, drag, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, drag, pickWidgetKind, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -8,8 +8,8 @@ import { readStore } from './fixtures/db'
  * filter line (`No filters` = every task); editing it makes the list
  * unsaved — the tab's dot, Revert · Save — and Save writes it, still the
  * Eisenhower's; Edit list… from the tab menu
- * opens beside the panel and its Save is what the Eisenhower summary
- * section counts; drags between quadrants still set the flags and "+" adds
+ * opens beside the panel and its Save is what another Eisenhower's small
+ * face (D26: the old Eisenhower summary) counts; drags between quadrants still set the flags and "+" adds
  * with the list's defaults; an Eisenhower switched to List picks a list —
  * never the Eisenhower's; closing the last widget on its unsaved list asks
  * first; on a phone the tab's sheet has Edit list….
@@ -64,7 +64,7 @@ const unsavedDot = (tab: Locator) => tab.getByRole('img', { name: 'unsaved list 
 
 async function openTabMenu(page: Page, tabId: string): Promise<Locator> {
   await wsTab(page, tabId).click({ button: 'right' })
-  const menu = page.getByRole('menu', { name: 'Change widget' })
+  const menu = page.getByRole('menu', { name: 'Cell options' })
   await expect(menu).toBeVisible()
   return menu
 }
@@ -122,18 +122,24 @@ test.describe('desktop', () => {
     await expect(filterLine(page)).toContainText('not Waiting')
   })
 
-  test('Edit list… → a filter → Save list: the Eisenhower summary counts what the widget shows', async ({ page }) => {
+  test('Edit list… → a filter → Save list: an Eisenhower’s small face counts what the widget shows', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
       layouts: [{
         name: 'Main',
-        columns: [
-          { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] })] },
-          { id: 'colC', rows: [wsRow({ id: 'c1', tabs: [{ id: 'dash', kind: 'eisenhowerSummary' }] })] },
-        ],
+        // The second Eisenhower in a short fixed row across the bottom: its small face.
+        table: {
+          areas: ['b1 k0', 'k1 k1'],
+          rows: [1000, { px: 88 }],
+          cells: [
+            { id: 'b1', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
+            { id: 'k0', tabs: [{ id: 'notes', kind: 'notes' }] },
+            { id: 'k1', tabs: [{ id: 'dash', kind: 'eisenhower' }] },
+          ],
+        },
       }],
     })
-    const glanceDo = page.locator('[data-glance-tab="dash"] [data-glance-section="eisenhower"] [data-eis-cell="do"]').getByTestId('glance-eis-count')
+    const glanceDo = page.locator('[data-eis-face-tab="dash"] [data-eis-cell="do"]').getByTestId('eis-face-count')
     await expect(glanceDo).toHaveText('2')
     await (await openTabMenu(page, 'eisTab')).getByRole('menuitem', { name: 'Edit list…' }).click()
     const editList = page.getByTestId('edit-list')
@@ -207,7 +213,8 @@ test.describe('desktop', () => {
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog', { name: /^Edit list/ })).toHaveCount(0)
     // Back to Eisenhower: its own list's filter line.
-    await (await openTabMenu(page, 'eisTab')).getByRole('menuitemradio', { name: 'Eisenhower', exact: true }).click()
+    await openTabMenu(page, 'eisTab')
+    await pickWidgetKind(page, 'Change widget', 'Eisenhower')
     await expect(widget(page)).toBeVisible()
     await expect(filterLine(page)).toContainText('No filters')
   })

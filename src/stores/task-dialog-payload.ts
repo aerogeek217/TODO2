@@ -20,7 +20,7 @@ export interface TaskDialogGroup {
 export type TaskDialogSource =
   /** These tasks, in this order (what a count counted). */
   | { kind: 'todos'; todoIds: readonly number[] }
-  /** These tasks under headings (a Next 7 days day: Due / Follow-up). */
+  /** These tasks under headings (a trend day: Completed / Created). */
   | { kind: 'groups'; groups: readonly TaskDialogGroup[] }
   /** The tasks matching a predicate, in `sortOrder` (a person's open tasks). */
   | { kind: 'predicate'; predicate: TodoPredicate }

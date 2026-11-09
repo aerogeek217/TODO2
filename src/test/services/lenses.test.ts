@@ -11,9 +11,10 @@ import { useUndoStore } from '../../stores/undo-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { resetDb } from '../helpers'
 import { lensActions } from '../../stores/lens-actions'
+import { emptyBody } from '../helpers/layout-builders'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
-const layout = (name: string): Omit<WorkspaceLayout, 'id' | 'sortOrder'> => ({ name, columns: [], createdAt: T0, modifiedAt: T0 })
+const layout = (name: string): Omit<WorkspaceLayout, 'id' | 'sortOrder'> => ({ name, ...emptyBody(), createdAt: T0, modifiedAt: T0 })
 
 async function storedPick(): Promise<string | undefined> {
   return (await db.settings.get(SETTING_KEYS.activeLensId))?.value

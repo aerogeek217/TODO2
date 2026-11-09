@@ -54,8 +54,8 @@ async function open(page: Page, opts: Parameters<typeof seed>[0] = {}): Promise<
 
 /** The list tab's stored zoom (the saved layout's view state). */
 async function storedZoom(page: Page): Promise<unknown> {
-  const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: { zoom?: unknown } }> }> }> }> }>(page, 'layouts')
-  const tab = layouts.flatMap((l) => l.columns.flatMap((c) => c.rows.flatMap((r) => r.cells.flatMap((k) => k.tabs)))).find((t) => t.id === TAB)
+  const layouts = await readStore<{ cells: Array<{ tabs: Array<{ id: string; viewState?: { zoom?: unknown } }> }> }>(page, 'layouts')
+  const tab = layouts.flatMap((l) => l.cells.flatMap((k) => k.tabs)).find((t) => t.id === TAB)
   return tab?.viewState?.zoom
 }
 

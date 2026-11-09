@@ -194,8 +194,10 @@ test('switching layouts with an unsaved list asks first; Discard drops the edit'
   await dialog.getByRole('button', { name: /Cancel/ }).click()
   await expectOpenLayout(page, 'Main')
 
-  // Also make the layout unsaved: one combined prompt with a row each.
-  await wsTab(page, 't2').getByRole('button', { name: 'Close Other' }).click()
+  // Also make the layout unsaved: one combined prompt with a row each. (Alone in its cell, its ⋯ › Close cell.)
+  await wsTab(page, 't2').hover()
+  await wsTab(page, 't2').getByRole('button', { name: 'Cell options' }).click()
+  await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
   await switchLayout(page, 'Second')
   const combined = page.getByRole('dialog', { name: 'Save your changes?' })
   await expect(combined).toContainText('You’re switching to layout “Second”.')
@@ -225,8 +227,10 @@ test('closing the last widget of an unsaved list asks first; leaving the workspa
   await expect(page).toHaveURL(/#\/$/)
   await page.setViewportSize({ width: 1280, height: 800 })
 
-  // Closing its only widget: Save writes the list, then closes the tab.
-  await wsTab(page, 't1').getByRole('button', { name: 'Close Team' }).click()
+  // Closing its only widget (alone in its cell: its ⋯ › Close cell): Save writes the list, then closes it.
+  await wsTab(page, 't1').hover()
+  await wsTab(page, 't1').getByRole('button', { name: 'Cell options' }).click()
+  await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
   await dialog.getByRole('button', { name: 'Save list' }).click()
   await expect(wsTab(page, 't1')).toHaveCount(0)
   await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team')?.grouping).toBe('people')
@@ -252,7 +256,8 @@ test('prompt picks are temporary: empty again after a reload', async ({ page }) 
 })
 
 test('narrow widgets: the dates show as icons, the tags column gives way, the summary hides, titles keep room', async ({ page }) => {
-  await page.setViewportSize({ width: 1100, height: 800 })
+  // The narrow column a quarter of the table: 281px (a whole px: the row's fit reads whole widths).
+  await page.setViewportSize({ width: 1142, height: 800 })
   await seedWorkspace(page, {
     tags: ['home', 'work'],
     listDefinitions: [{ name: 'Mixed', predicate: { dates: { deadline: { match: 'set' } } } }],

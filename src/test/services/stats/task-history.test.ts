@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../../models'
-import { computeChanges } from '../../../services/stats/changes'
-import { computeMetricHistory } from '../../../services/stats/metric-history'
+import { computeMetricHistory } from '../../fixtures/v77-metrics'
 import { eventsByTask, taskReplay } from '../../../services/stats/task-history'
-import { HISTORY_EVENT_TYPES } from '../../../utils/trend-window'
+import { HISTORY_EVENT_TYPES } from '../../fixtures/v77-metrics'
 import { makeTodo } from '../../helpers'
 
 const today = new Date(2026, 10, 11) // Wed 11 Nov
@@ -47,8 +46,8 @@ describe('taskReplay', () => {
   })
 })
 
-describe('one replay for the history and What changed', () => {
-  it('the Overdue history’s rise since yesterday is the tasks What changed says went late', () => {
+describe('the Overdue history replays each task to each day’s end', () => {
+  it('its rise since yesterday is the tasks that went late since: by the day, a reopen, a due date moved into the past', () => {
     const tasks = [
       task({ id: 1, dueDate: day(-1) }), // went late today
       task({ id: 2, dueDate: day(-4) }), // late already
@@ -61,9 +60,6 @@ describe('one replay for the history and What changed', () => {
     ]
     const history = computeMetricHistory(tasks, events, { today, weekStartsOn: 0 })
     const overdue = history.series.overdue
-    const late = computeChanges(tasks, events, { today, weekStartsOn: 0, assignedTagsMap: new Map(), statuses: [] }, [])
-      .find((c) => c.id === 'late')
     expect((overdue.at(-1) ?? 0) - (overdue.at(-2) ?? 0)).toBe(3)
-    expect(late?.text).toBe('3 tasks went late since yesterday.')
   })
 })

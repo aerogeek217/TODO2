@@ -27,8 +27,8 @@ test('a calendar day scrolled out of view takes no drop from the list over it', 
     layouts: [{
       name: 'Main',
       columns: [{ id: 'c1', rows: [wsRow({ id: 'a1', tabs: [{ id: 'lensTab', kind: 'lens', listDefIdx: 0 }] })] }],
-      // The shortest band that shows the full calendar (a body over 260px, D25 R): its titled month scrolls.
-      top: { id: 'band-band', height: 300, cells: [{ id: 'band', tabs: [{ id: 'calTab', kind: 'calendar', titles: true }] }] },
+      // The shortest band that shows the full calendar (a body over 260px, D25 R; no strip over it, D26 AA1): its titled month scrolls.
+      top: { id: 'band-band', height: 268, cells: [{ id: 'band', tabs: [{ id: 'calTab', kind: 'calendar', titles: true }] }] },
     }],
   })
   const grid = page.locator('[data-calendar-widget="calTab"] [data-cal-grid="month"]')

@@ -6,12 +6,12 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { rowOf } from '../helpers/layout-builders'
+import { single } from '../helpers/layout-builders'
 
 const AT = new Date(2026, 0, 1)
 
 function layout(id: number, tabs: LayoutTab[]): PersistedWorkspaceLayout {
-  return { id, sortOrder: 0, name: `L${id}`, createdAt: AT, modifiedAt: AT, columns: [{ id: `c${id}`, weight: 1, rows: [rowOf({ id: `k${id}`, weight: 1, tabs })] }] }
+  return { id, sortOrder: 0, name: `L${id}`, createdAt: AT, modifiedAt: AT, ...single({ id: `k${id}`, tabs }, { prefix: `l${id}-` }) }
 }
 
 const list = (id: number): PersistedListDefinition => ({

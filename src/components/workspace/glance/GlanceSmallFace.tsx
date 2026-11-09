@@ -1,5 +1,6 @@
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import { GlanceGlyph } from '../../shared/GlanceGlyph'
+import { WidgetTopLine } from '../WidgetTopLine'
 import styles from './GlanceWidget.module.css'
 
 /**
@@ -24,10 +25,10 @@ export function GlanceSmallFace({ glyph, glyphColor, title, value, valueColor, c
   const words = [title, entry, `${value}${caption ? ` ${caption}` : ''}`].filter(Boolean).join(': ')
   return (
     <div className={styles.smallFace} role="group" aria-label={words} data-testid="glance-small-face">
-      <span className={styles.smallTitle}>
+      <WidgetTopLine as="span" controls="cell" className={styles.smallTitle}>
         <GlanceGlyph name={glyph} size={12} color={glyphColor} />
         <span className={styles.smallTitleText}>{title}</span>
-      </span>
+      </WidgetTopLine>
       <span className={styles.smallFigures}>
         {entry && <span className={styles.smallEntry}>{entry}</span>}
         <span className={styles.smallValue} style={valueColor ? { color: valueColor } : undefined} data-testid="glance-small-value">{value}</span>

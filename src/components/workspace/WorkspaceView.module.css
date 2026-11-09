@@ -1,4 +1,4 @@
-/* The workspace: top band · column area · bottom band, top to bottom. */
+/* The workspace: the layout's table (or the empty layout), its grain and ambience, and the drag layer. */
 .area {
   display: flex;
   flex-direction: column;
@@ -34,60 +34,24 @@
   pointer-events: none;
 }
 
-/* Bands span the visible workspace and never scroll sideways. */
-.area > [data-ws-band-row],
-.area > [data-ws-band-divider] {
-  margin: 0 var(--workspace-gutter);
-}
-
-/* The columns between the bands; only this scrolls sideways when they don't fit. */
-.columnArea {
-  display: flex;
+/* The layout's table: one grid, its tracks from the layout (D26); only it
+   scrolls when the cells' minimums don't fit. Tracks sit at the start: an
+   all-`auto` table (every row fit or collapsed) doesn't stretch them. */
+.table {
+  display: grid;
+  align-content: start;
+  gap: var(--workspace-gutter);
   flex: 1 1 0;
-  min-height: var(--column-area-min-height);
+  min-height: 0;
   min-width: 0;
   padding: 0 var(--workspace-gutter);
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: auto;
   box-sizing: border-box;
 }
 
-.column {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  flex-basis: 0;
-  min-width: var(--column-min-width);
-  min-height: 0;
-  overflow-y: auto;
-}
-
-.cellGap {
-  flex: 0 0 var(--workspace-gutter);
-}
-
-/* A row of cells (a column's row or a band), side by side — the dividers
-   between them are the gutters; it keeps the height its cells need (a
-   collapsed one: their headers). */
-.row {
-  display: flex;
+.table > [data-ws-cell] {
   min-width: 0;
-  min-height: calc(var(--cell-header-height) + var(--cell-body-min-height));
-}
-
-/* A row of glance widgets may shrink to 64px (GLANCE_ROW_MIN_PX). */
-.rowGlance {
-  --cell-min-height: 64px;
-  min-height: var(--cell-min-height);
-}
-
-/* A fit row is as tall as its tallest cell's content (the cells keep their own minimum). */
-.rowFit {
   min-height: 0;
-}
-
-.rowCollapsed {
-  min-height: var(--cell-header-height);
 }
 
 /* ── Empty layout ── */
@@ -162,69 +126,36 @@
   pointer-events: none;
 }
 
-.edgeBar {
+/* The drop ghost (D26 board T): where the drop lands, at the size it will
+   take, its words in the middle. Fades in at each new spot. */
+.ghost {
   position: fixed;
-  width: 2px;
-  border-radius: 1px;
-  background: var(--color-border);
-}
-
-.edgeBarH {
-  position: fixed;
-  height: 2px;
-  border-radius: 1px;
-  background: var(--color-border);
-}
-
-/* The new-band zone, lit: a 32px strip across the workspace's top / bottom edge. */
-.newBandStrip {
-  position: fixed;
-  height: 32px;
-  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  border-radius: var(--radius-card);
   background: var(--color-accent-bg);
-  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+  box-shadow: inset 0 0 0 1.5px var(--color-accent), var(--shadow-card);
+  animation: ghost-in var(--transition-fast) both;
+  overflow: hidden;
 }
 
-.newBandStrip::after {
-  content: '';
-  position: absolute;
-  top: calc(50% - 1.5px);
-  left: 6px;
-  right: 6px;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--color-accent);
+.ghostLabel {
+  max-width: calc(100% - 16px);
+  padding: 4px 10px;
+  border-radius: var(--radius-pill, 999px);
+  background: var(--color-surface);
+  box-shadow: inset 0 0 0 1px var(--color-accent), var(--shadow-card);
+  color: var(--color-accent-text);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.edgeBand {
-  position: fixed;
-  width: 32px;
-  border-radius: var(--radius-md);
-  background: var(--color-accent-bg);
-  box-shadow: inset 0 0 0 1.5px var(--color-accent);
-}
-
-.edgeBand::after {
-  content: '';
-  position: absolute;
-  left: calc(50% - 1.5px);
-  top: 6px;
-  bottom: 6px;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--color-accent);
-}
-
-.cellBar {
-  position: fixed;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--color-accent);
-}
-
-.cellBarV {
-  position: fixed;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--color-accent);
+@keyframes ghost-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }

@@ -4,10 +4,11 @@ import { HUE_PRESET_HEX, hueAttr, hueColor, isLayoutHue, presetHueOf } from '../
 import { setLayoutHue } from '../../utils/workspace-layout-ops'
 import { rowFixes, sanitizeRow, validateRow } from '../../data/import-validation'
 import { declarations, TOKENS_CSS } from '../styles/css-source'
+import { emptyBody } from '../helpers/layout-builders'
 
-const layout: PersistedWorkspaceLayout = { id: 1, name: 'D', sortOrder: 0, columns: [], createdAt: new Date(0), modifiedAt: new Date(0) }
+const layout: PersistedWorkspaceLayout = { id: 1, name: 'D', sortOrder: 0, ...emptyBody(), createdAt: new Date(0), modifiedAt: new Date(0) }
 const DATE = '2026-09-01T09:00:00.000Z'
-const row = (extra: Record<string, unknown>) => ({ id: 1, name: 'Daily', sortOrder: 0, columns: [], createdAt: DATE, modifiedAt: DATE, ...extra })
+const row = (extra: Record<string, unknown>) => ({ id: 1, name: 'Daily', sortOrder: 0, ...emptyBody(), createdAt: DATE, modifiedAt: DATE, ...extra })
 
 describe('a layout’s hue (D19)', () => {
   it('six preset names; a hue is a preset or a hex colour', () => {

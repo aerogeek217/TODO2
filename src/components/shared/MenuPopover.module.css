@@ -213,6 +213,52 @@
 
 
 /* A stepper row (e.g. a list tab's Zoom): its label, then − · the value · +; the menu stays open. */
+.segmented {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px 6px;
+  flex-shrink: 0;
+}
+
+.segmentedLabel {
+  flex: 1 0 100%;
+  margin-bottom: 4px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+}
+
+.segment {
+  flex: 1 1 0;
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--color-tint-4);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  cursor: pointer;
+}
+
+.segment:hover,
+.segment:focus-visible {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.segmentOn,
+.segmentOn:hover {
+  background: var(--color-accent-bg-medium);
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+
 .stepper {
   display: flex;
   align-items: center;

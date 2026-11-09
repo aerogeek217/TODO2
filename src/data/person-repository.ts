@@ -2,10 +2,11 @@ import { db } from './database'
 import type { Person } from '../models'
 import { createRepository } from './create-repository'
 import type { TaskTouch } from './touch-todos'
-import { createJoinOps, buildAssignmentMap, restoreNamedEntityWithJoins, type JoinCapture } from './join-helpers'
+import { createJoinOps, buildAssignmentMap, logEntityJoinsRemoved, restoreNamedEntityWithJoins, type EntityLink, type JoinCapture } from './join-helpers'
 
 const base = createRepository<Person>(db.people, 'name')
-const todoPeopleOps = createJoinOps(db.todoPeople, 'todoId', 'personId')
+const todoPeopleOps = createJoinOps(db.todoPeople, 'todoId', 'personId', 'person')
+const PEOPLE_LINK: EntityLink = { table: db.todoPeople, entityKey: 'personId', linkKey: 'todoId', event: 'person' }
 
 export const personRepository = {
   ...base,
@@ -29,9 +30,12 @@ export const personRepository = {
     })
   },
 
+  /** Deletes the person and its assignments (each logged as a `person` remove on its task). */
   async delete(id: number): Promise<void> {
-    await db.transaction('rw', [db.people, db.todoPeople], async () => {
-      await db.todoPeople.where('personId').equals(id).delete()
+    await db.transaction('rw', [db.people, db.todoPeople, db.todos, db.todoEvents], async () => {
+      const joins = await db.todoPeople.where('personId').equals(id).toArray()
+      await db.todoPeople.bulkDelete(joins.map((j) => j.id!))
+      await logEntityJoinsRemoved(PEOPLE_LINK, joins)
       await db.people.delete(id)
     })
   },
@@ -71,6 +75,6 @@ export const personRepository = {
    * (`restoreNamedEntityWithJoins`).
    */
   async restoreWithJoins(person: Person, joins: JoinCapture[]): Promise<void> {
-    await restoreNamedEntityWithJoins(db.people, person, { table: db.todoPeople, entityKey: 'personId', linkKey: 'todoId' }, joins)
+    await restoreNamedEntityWithJoins(db.people, person, PEOPLE_LINK, joins)
   },
 }

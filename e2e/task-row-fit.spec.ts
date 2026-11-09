@@ -126,14 +126,6 @@ test.describe('task rows fit their container', () => {
     const { problems } = await rowOverflow(page)
     expect(problems).toEqual([])
   })
-
-  test('a Needs follow-up widget', async ({ page }) => {
-    await seedWorkspace(page, seed({ kind: 'followup' }, 380))
-    await expect(page.locator('[data-todo-id]').first()).toBeVisible()
-    const { rows, problems } = await rowOverflow(page)
-    expect(rows).toBeGreaterThan(0)
-    expect(problems).toEqual([])
-  })
 })
 
 test('narrowing the details by the divider: people and tags shrink, the dates go to icons, then tags, then people go', async ({ page }) => {

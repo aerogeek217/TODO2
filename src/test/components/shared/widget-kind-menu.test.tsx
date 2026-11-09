@@ -23,18 +23,17 @@ describe('WidgetKindMenu', () => {
     expect(screen.getByRole('menuitemradio', { name: /List/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /Notes/ })).toHaveAttribute('aria-checked', 'true')
     expect(screen.queryByRole('menuitemradio', { name: /Taskboard/ })).toBeNull()
-    // The task widgets under the heading, inline; Numbers & charts a submenu of its own.
-    expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
-      'List', 'Calendar', 'Notes', 'Eisenhower', 'Neglect map',
-    ])
+    // The task widgets under the heading, inline; Numbers & charts a submenu of its own (D26: the Calendar, the Eisenhower and the Neglect map in it).
+    expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual(['List', 'Notes'])
     expect(screen.queryByText('Tasks')).toBeNull()
     expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Numbers & charts'])
     fireEvent.click(screen.getByRole('menuitem', { name: /Numbers & charts/ }))
-    expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim()).slice(5)).toEqual([
-      'Number', 'Needs follow-up', 'Next 7 days', 'Created vs completed', 'Status', 'People', 'Tags',
-      'Stale tasks', 'Recently completed', 'Eisenhower summary', 'What changed', 'Today', 'Project pulse',
+    expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim()).slice(2)).toEqual([
+      'Number', 'Breakdown', 'Pivot', 'Status flow', 'Tag map', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
     ])
-    expect(screen.queryByRole('menuitemradio', { name: /Dashboard/ })).toBeNull()
+    for (const gone of [/Dashboard/, /Needs follow-up/, /Next 7 days/, /Stale tasks/, /Recently completed/, /Eisenhower summary/, /What changed/, /^Today/]) {
+      expect(screen.queryByRole('menuitemradio', { name: gone })).toBeNull()
+    }
   })
 
   it('fires onChangeKind with the selected kind and closes', () => {
@@ -48,8 +47,8 @@ describe('WidgetKindMenu', () => {
         onClose={onClose}
       />,
     )
-    fireEvent.click(screen.getByRole('menuitemradio', { name: /Calendar/ }))
-    expect(onChangeKind).toHaveBeenCalledWith('calendar')
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^List/ }))
+    expect(onChangeKind).toHaveBeenCalledWith('lens')
     expect(onClose).toHaveBeenCalled()
   })
 
@@ -117,7 +116,7 @@ describe('WidgetKindMenu', () => {
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /List/ }))
     const menu = screen.getByRole('menu')
     fireEvent.keyDown(menu, { key: 'ArrowDown' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Calendar/ }))
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /Notes/ }))
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
     fireEvent.keyDown(menu, { key: 'ArrowUp' })
     // Up from the first wraps to the last: the Numbers & charts submenu.
@@ -235,8 +234,8 @@ describe('WidgetKindMenu', () => {
         />,
       )
       openGlance()
-      fireEvent.click(screen.getByRole('menuitemradio', { name: /What changed/ }))
-      expect(onChangeKind).toHaveBeenCalledWith('changes')
+      fireEvent.click(screen.getByRole('menuitemradio', { name: /Project pulse/ }))
+      expect(onChangeKind).toHaveBeenCalledWith('pulse')
       expect(onClose).toHaveBeenCalled()
     })
 
@@ -296,6 +295,9 @@ describe('WidgetKindMenu — widget setting submenu', () => {
     render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={() => {}} widgetSetting={setting} />)
     const items = screen.getAllByRole('menuitem')
     expect(items[0]).toHaveTextContent('Due date makes a task urgent3 days')
+    // In Numbers & charts (D26), which names it.
+    expect(screen.getByRole('menuitem', { name: /Numbers & charts/ }).textContent).toContain('Eisenhower')
+    fireEvent.click(screen.getByRole('menuitem', { name: /Numbers & charts/ }))
     expect(screen.getByRole('menuitemradio', { name: /^Eisenhower$/ })).toHaveAttribute('aria-checked', 'true')
   })
 
@@ -438,7 +440,7 @@ describe('WidgetKindMenu on a tab with setting entries (a Neglect map)', () => {
       />,
     )
     expect(screen.getAllByRole('menuitem').map((el) => el.getAttribute('data-menu-label'))).toEqual(['Colour by', 'Untouched after', 'Numbers & charts'])
-    expect(screen.getByRole('menuitemradio', { name: /Neglect map/ })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.getByRole('menuitem', { name: /Numbers & charts/ }).textContent).toContain('Neglect map')
     fireEvent.click(screen.getByRole('menuitem', { name: /Colour by/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'None' }))
     expect(onPick).toHaveBeenCalledTimes(1)
