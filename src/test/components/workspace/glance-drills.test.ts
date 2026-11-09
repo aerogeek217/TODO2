@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import {
-  breakdownDrill, eisenhowerPaneDrill, personRowDrill, slippingDrill,
-  statusRowDrill, tagRowDrill, tagsDrill, trendBucketDrill, trendTotalDrill,
+  breakdownDrill, eisenhowerPaneDrill, slippingDrill,
+  tagRowDrill, trendBucketDrill, trendTotalDrill,
 } from '../../../components/workspace/glance/glance-drills'
 import { defaultPaneFilter, resolvePanes } from '../../../utils/eisenhower-panes'
 
@@ -13,10 +13,6 @@ describe('glance drills: every glance click’s task dialog, built in one place'
   it('the sections’ dialogs', () => {
     expect(trendTotalDrill('created', 'the last 14 days', [4]).description).toBe('Tasks created in the last 14 days.')
     expect(trendBucketDrill(new Date(2026, 8, 27), 'week', today, { completed: [1], created: [2] }).title).toBe('Week of Sep 27')
-    expect(statusRowDrill({ id: null, label: 'No status' }, [1]).description).toBe('Open tasks with no status.')
-    expect(statusRowDrill({ id: 4, label: 'Waiting' }, [1]).description).toBe('Status: Waiting.')
-    expect(personRowDrill({ id: 7, name: 'Aisha' }, [1])).toMatchObject({ title: 'Aisha', personId: 7 })
-    expect(personRowDrill(null, [1])).not.toHaveProperty('personId')
     expect(breakdownDrill('Overdue tasks', 'tags', { key: 'none', label: 'No tag', ids: [1] }).description).toBe('Overdue tasks: the ones with no tag.')
   })
 
@@ -30,27 +26,12 @@ describe('glance drills: every glance click’s task dialog, built in one place'
 })
 
 describe('glance section payloads (moved from services/task-dialog)', () => {
-  it('a tag row: that tag’s open tasks; the untagged row; the Tags count: a heading per tag', () => {
+  it('a tag’s open tasks (a Project pulse card); no tag', () => {
     expect(tagRowDrill({ id: 4, name: 'q4' }, [3, 1])).toEqual({
       title: '#q4', glyph: 'tag', description: 'Open tasks tagged #q4.', source: { kind: 'todos', todoIds: [3, 1] },
     })
     expect(tagRowDrill(null, [7])).toEqual({
       title: 'No tag', glyph: 'tag', description: 'Open tasks with no tag.', source: { kind: 'todos', todoIds: [7] },
-    })
-    expect(tagsDrill([
-      { tag: { id: 4, name: 'q4', color: '#123' }, todoIds: [3, 1] },
-      { tag: null, todoIds: [7] },
-    ])).toEqual({
-      title: 'Tagged tasks',
-      glyph: 'tag',
-      description: 'Open tasks by tag. A task with several tags shows under each.',
-      source: {
-        kind: 'groups',
-        groups: [
-          { key: 'tag-4', label: '#q4', color: '#123', todoIds: [3, 1] },
-          { key: 'untagged', label: 'No tag', todoIds: [7] },
-        ],
-      },
     })
   })
 
