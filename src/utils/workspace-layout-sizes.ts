@@ -1,5 +1,6 @@
 import type { GridAxis, GridTrack, LayoutBody } from '../models/workspace-layout'
 import { isPositive, withTracks } from './workspace-layout-edit'
+import { spanOf } from './workspace-grid'
 
 /**
  * A layout's sizes: its tracks' weights (a weighted track) and px (a fixed
@@ -62,11 +63,42 @@ function sizeFrom(track: GridTrack, from: GridTrack): GridTrack {
   return { ...rest, ...(from.px != null ? { px: from.px } : { weight: from.weight ?? 1 }) }
 }
 
+/** Each cell over track `i` of `axis`, with the tracks it spans (by id). */
+function cellsOver(body: LayoutBody, axis: GridAxis, i: number): string {
+  const tracks = body.grid[axis]
+  return body.cells.flatMap((c) => {
+    const [s, e] = spanOf(c.area, axis)
+    return s <= i && i < e ? [`${c.id}:${tracks[s]?.id ?? ''}:${tracks[e - 1]?.id ?? ''}`] : []
+  }).sort().join(' ')
+}
+
+/** A fixed track beside track `i` of `body` that `other` doesn't have: only a split makes one, so `i` is a split's half. */
+function besideNewFixed(body: LayoutBody, other: LayoutBody, axis: GridAxis, i: number): boolean {
+  const ids = new Set(other.grid[axis].map((t) => t.id))
+  return [body.grid[axis][i - 1], body.grid[axis][i + 1]].some((t) => t != null && t.px != null && !ids.has(t.id))
+}
+
+/**
+ * Whether track `id` of `axis` is the same track in `a` and `b`: the same
+ * id under the same cells, each spanning the same tracks — and, for a fixed
+ * track, not half of a split (`besideNewFixed`; a split's first half keeps
+ * the old id). View state set on a track that isn't the same there (a
+ * collapse, a fixed track's px) stays with the unsaved edit that made it.
+ */
+export function sameTrackIn(a: LayoutBody, b: LayoutBody, axis: GridAxis, id: string): boolean {
+  const ia = a.grid[axis].findIndex((t) => t.id === id)
+  const ib = b.grid[axis].findIndex((t) => t.id === id)
+  if (ia < 0 || ib < 0 || cellsOver(a, axis, ia) !== cellsOver(b, axis, ib)) return false
+  const fixed = a.grid[axis][ia]?.px != null || b.grid[axis][ib]?.px != null
+  return !fixed || (!besideNewFixed(a, b, axis, ia) && !besideNewFixed(b, a, axis, ib))
+}
+
 /**
  * `target` with the track sizes of `axes` (`all`: both) copied from
  * `source` — an axis's weights only where both have the same tracks (by id,
  * in order: a weight means something only among its axis's others); a
- * fixed track's px (an absolute size) wherever both have that fixed track.
+ * fixed track's px (an absolute size) wherever both have that fixed track
+ * and it is the same track there (`sameTrackIn`).
  * Other sizes stay. The same object when nothing changes.
  */
 export function copySizes<L extends LayoutBody>(target: L, source: LayoutBody, axes: readonly GridAxis[] | 'all'): L {
@@ -82,7 +114,7 @@ export function copySizes<L extends LayoutBody>(target: L, source: LayoutBody, a
         return f ? sizeFrom(t, f) : t
       }
       const f = fixed.get(t.id)
-      return f && t.px != null ? sizeFrom(t, f) : t
+      return f && t.px != null && sameTrackIn(next, source, axis, t.id) ? sizeFrom(t, f) : t
     })
     if (out.some((t, i) => t !== to[i])) next = withTracks(next, axis, out)
   }
