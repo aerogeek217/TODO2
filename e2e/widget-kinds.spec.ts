@@ -54,9 +54,16 @@ test.describe('desktop', () => {
     const cell = page.locator('[data-ws-cell]').first()
     await expect(body(cell, 'notes')).toBeVisible()
 
-    // Add: every kind but Notes, from the add-tab menu (a list gets a new list, its Edit list open).
+    // Add: every kind but Notes, from the add-tab menu (a list gets a new list, its Edit list open) —
+    // the first from the ⋯'s Add widget…: one widget has no strip, so no + (D26 AA1).
     for (const kind of WIDGET_KINDS.filter((k) => k !== 'notes')) {
-      await page.getByRole('button', { name: 'Add widget as tab' }).click()
+      const plus = page.getByRole('button', { name: 'Add widget as tab' })
+      if (await plus.count() > 0) await plus.click()
+      else {
+        await cell.hover()
+        await cell.getByRole('button', { name: 'Cell options' }).click()
+        await page.getByRole('menuitem', { name: 'Add widget…' }).click()
+      }
       const menu = page.getByRole('menu', { name: 'Add widget' })
       await expect(menu.getByRole('menuitem')).toHaveText(MENU_ITEMS)
       await pickWidgetKind(page, 'Add widget', widgetKindLabel(kind))
@@ -73,7 +80,7 @@ test.describe('desktop', () => {
     for (const kind of [...WIDGET_KINDS.filter((k) => k !== 'notes'), 'notes' as const]) {
       await tab(page, current).first().click()
       await tab(page, current).first().click({ button: 'right' })
-      const menu = page.getByRole('menu', { name: 'Change widget' })
+      const menu = page.getByRole('menu', { name: 'Cell options' })
       // The current kind is checked — a Numbers & charts one is named on its submenu's item.
       if (GLANCE.includes(current)) await expect(menu.getByRole('menuitem', { name: /^Numbers & charts/ })).toContainText(widgetKindLabel(current))
       else await expect(menu.getByRole('menuitemradio', { name: widgetKindLabel(current), exact: true })).toHaveAttribute('aria-checked', 'true')
@@ -87,12 +94,17 @@ test.describe('desktop', () => {
       await expect(body(cell, kind)).toBeVisible()
     }
 
-    // Close: every tab; the last one closes the cell — with no neighbour to take its space, it stays an empty cell (D26).
-    for (const kind of WIDGET_KINDS) {
+    // Close: every tab; the last one — alone, no strip: its ⋯ › Close cell — closes the cell: with no
+    // neighbour to take its space, it stays an empty cell (D26).
+    for (const kind of WIDGET_KINDS.slice(0, -1)) {
       const t = tab(page, kind).first()
       await t.click()
       await t.getByRole('button', { name: `Close ${title(kind)}` }).click()
     }
+    await expect(cell.getByRole('tablist')).toHaveCount(0)
+    await cell.hover()
+    await cell.getByRole('button', { name: 'Cell options' }).click()
+    await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
     await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
   })
 

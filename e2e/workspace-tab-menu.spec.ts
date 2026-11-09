@@ -2,10 +2,11 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedWorkspace, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
- * A tab's menu (`WidgetKindMenu` on `MenuPopover`): the list tab's "Change
+ * A widget's menu — the cell's merged ⋯ menu (D26 AA1), its widget's
+ * entries first: the list tab's "Change
  * list" submenu opens by hover or ArrowRight, Escape closes it back to the
- * menu, and a pick switches the tab's list; Shift+F10 opens the menu under
- * the tab and Esc gives the tab its focus back; the menu stays inside the
+ * menu, and a pick switches the tab's list; Shift+F10 on a tab opens the
+ * menu under the tab and Esc gives the tab its focus back; the menu stays inside the
  * window; the Eisenhower range submenu
  * sit beside their items (flipped left near the right edge). Plus the
  * add-tab list picker, which must stay inside the viewport when opened from a
@@ -28,15 +29,16 @@ const twoLists: WorkspaceSeed = {
   }],
 }
 
-const tabMenu = (page: Page) => page.getByRole('menu', { name: 'Change widget' })
+const tabMenu = (page: Page) => page.getByRole('menu', { name: 'Cell options' })
 const flyout = (page: Page) => page.getByRole('menu', { name: 'Change list' })
 
 test('hovering Change list opens the flyout; picking a list switches the tab', async ({ page }) => {
   await seedWorkspace(page, twoLists)
+  // Alone in its cell: its top line (the filter line, its name first) stands for the tab.
   const tab = wsTab(page, 'listTab')
   await expect(tab).toContainText('Source list')
 
-  await tab.click({ button: 'right' })
+  await tab.getByTestId('top-line-name').click({ button: 'right' })
   const menu = tabMenu(page)
   await expect(menu).toBeVisible()
   const changeList = menu.getByRole('menuitem', { name: /^Change list/ })
@@ -54,7 +56,7 @@ test('hovering Change list opens the flyout; picking a list switches the tab', a
 
 test('keyboard: ArrowRight on Change list opens the flyout, Escape closes it back to the menu', async ({ page }) => {
   await seedWorkspace(page, twoLists)
-  await wsTab(page, 'listTab').click({ button: 'right' })
+  await wsTab(page, 'listTab').getByTestId('top-line-name').click({ button: 'right' })
   const menu = tabMenu(page)
   // Focus starts on the first item (Edit list…); Change list is second.
   await expect(menu.getByRole('menuitem').first()).toBeFocused()
@@ -90,7 +92,8 @@ async function rect(locator: Locator): Promise<{ x: number; y: number; width: nu
 }
 
 test('Shift+F10 on a tab opens its menu under the tab; type-ahead moves; Esc returns focus to the tab', async ({ page }) => {
-  await seedWorkspace(page, twoLists)
+  // A tab: the list beside the Eisenhower in one cell.
+  await seedWorkspace(page, twoColumns)
   const tab = wsTab(page, 'listTab')
   await tab.focus()
   await page.keyboard.press('Shift+F10')
@@ -115,7 +118,7 @@ test('Shift+F10 on a tab opens its menu under the tab; type-ahead moves; Esc ret
 test('the tab menu opened at the window’s right edge stays inside the window', async ({ page }) => {
   await seedWorkspace(page, twoColumns)
   const vp = page.viewportSize()!
-  // Right-click the right-hand tab at the window's right edge: the menu ends inside the window.
+  // Right-click the right-hand widget's top line at the window's right edge: the menu ends inside the window.
   const tab = wsTab(page, 'notesTab')
   const t = await rect(tab)
   await page.mouse.click(Math.min(t.x + t.width - 2, vp.width - 4), t.y + t.height / 2, { button: 'right' })

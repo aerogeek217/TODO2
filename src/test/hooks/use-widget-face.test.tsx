@@ -39,11 +39,6 @@ describe('hostedFace', () => {
     expect(hostedFace({ width: 400, height: 400 }, {})).toBe('large')
   })
 
-  it('a header lent to the body is taken off its height first', () => {
-    expect(hostedFace({ width: 400, height: 112 }, {})).toBe('medium')
-    expect(hostedFace({ width: 400, height: 112 }, { heightAllowancePx: 32 })).toBe('small')
-  })
-
   it('a body sized to its content goes by its width alone', () => {
     expect(hostedFace({ width: 400, height: 60 }, { heightFree: true })).toBe('large')
     expect(hostedFace({ width: 160, height: 600 }, { heightFree: true })).toBe('small')

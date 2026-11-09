@@ -92,7 +92,7 @@ test('a tab’s setting and a new widget are layout changes', async ({ page }) =
   const cell = wsCell(page, 'k-people')
   await cell.hover()
   await wsTab(page, 'people').click({ button: 'right' })
-  await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: /^Unassigned/ }).click()
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: /^Unassigned/ }).click()
   await page.getByRole('menuitemradio', { name: 'Hidden', exact: true }).click()
   await expect(section(page, 'people').locator('[data-person-row="none"]')).toHaveCount(0)
   await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
@@ -101,7 +101,8 @@ test('a tab’s setting and a new widget are layout changes', async ({ page }) =
 
   // Add widget → Numbers & charts › Created vs completed: a second tab, an unsaved layout change.
   await cell.hover()
-  await cell.getByRole('button', { name: 'Add widget as tab' }).click()
+  await cell.getByRole('button', { name: 'Cell options' }).click()
+  await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   await pickWidgetKind(page, 'Add widget', 'Created vs completed')
   await expect(cell.getByRole('tab')).toHaveCount(2)
   await expect(section(page, 'trend')).toBeVisible()

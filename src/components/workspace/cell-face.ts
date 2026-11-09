@@ -11,18 +11,10 @@ import type { WidgetFace } from '../../utils/widget-face'
  * that picks a face gets them.
  */
 
-/** The cell header's height (`--cell-header-height`): what a cell headless only for its small face lends its body. */
-export const CELL_HEADER_PX = 32
-
 /** How the cell measures its widget's face. */
 export interface CellFaceOptions {
   /** A fit row: its content sets its height, so it is always the small face. */
   forced?: WidgetFace
-  /**
-   * Px the body gains while the face is small: the header's room, for a
-   * cell headless only for its small face (`WidgetFaceHost.heightAllowancePx`).
-   */
-  smallAllowancePx?: number
   /** The body's height is its content's (`WidgetFaceHost.heightFree`). */
   heightFree?: boolean
 }
@@ -59,10 +51,9 @@ export function useCellFace(tab: LayoutTab | undefined, opts: CellFaceOptions): 
   // Closed for good once the face grows or another tab is active (not back when it shrinks again).
   if (openKey != null && !fullOpen) setOpenKey(null)
   const { forced, heightFree } = opts
-  const heightAllowancePx = face === 'small' ? opts.smallAllowancePx : undefined
   const host = useMemo<WidgetFaceHost>(
-    () => ({ forced, heightAllowancePx, heightFree, onFace, openFull }),
-    [forced, heightAllowancePx, heightFree, onFace, openFull],
+    () => ({ forced, heightFree, onFace, openFull }),
+    [forced, heightFree, onFace, openFull],
   )
   return { face, host, fullOpen, openFull, closeFull }
 }

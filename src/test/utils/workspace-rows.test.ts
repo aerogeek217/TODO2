@@ -8,17 +8,12 @@ import {
   isFitHeightKind,
   isFitTrack,
   isGlanceKind,
-  isHeadlessCell,
-  type KindFlag,
 } from '../../utils/workspace-rows'
 import { CELL_MIN_PX } from '../../utils/workspace-resize'
 import { cell, grid } from '../helpers/layout-builders'
 
-/** A stand-in flag: the calendar plays the glance / fit kind. */
-const calendarOnly: KindFlag = (kind) => kind === 'calendar'
 
 const notes = (id: string) => createTab('notes', id)
-const calendar = (id: string) => createTab('calendar', id)
 const number = (id: string) => createTab('number', id)
 
 describe('the kind flags', () => {
@@ -30,16 +25,6 @@ describe('the kind flags', () => {
   it('an unknown kind is neither', () => {
     expect(isGlanceKind('nope' as WidgetKind)).toBe(false)
     expect(isFitHeightKind('nope' as WidgetKind)).toBe(false)
-  })
-})
-
-describe('isHeadlessCell', () => {
-  it('one glance tab, or one tab at its small face; never several tabs or none', () => {
-    expect(isHeadlessCell({ tabs: [calendar('c')] }, calendarOnly)).toBe(true)
-    expect(isHeadlessCell({ tabs: [notes('n')] }, calendarOnly)).toBe(false)
-    expect(isHeadlessCell({ tabs: [notes('n')] }, calendarOnly, true)).toBe(true)
-    expect(isHeadlessCell({ tabs: [calendar('c'), notes('n')] }, calendarOnly)).toBe(false)
-    expect(isHeadlessCell({ tabs: [] }, calendarOnly, true)).toBe(false)
   })
 })
 

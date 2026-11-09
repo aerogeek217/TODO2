@@ -27,7 +27,7 @@ import {
   type EdgeStretch,
   type Side,
 } from './workspace-grid'
-import { findTab, layoutIds } from './workspace-layout-queries'
+import { findTab, layoutIds, sameArrangement } from './workspace-layout-queries'
 import { insertAllAt, insertAt, removeAt, replaceAt, setCell, withCells, withTracks } from './workspace-layout-edit'
 import { cellMinHeightPx, cellMinWidthPx } from './workspace-rows'
 
@@ -681,3 +681,20 @@ export function patchTabViewState<L extends LayoutBody, K extends WidgetKind>(
   })
 }
 
+/**
+ * `body` with `model`'s track ids, when the two are the same arrangement
+ * (`sameArrangement`) but some track ids differ: an edit that came back to
+ * `model` by another way — a row inserted and closed again, whose merged
+ * track kept the inserted one's id (`workspace-grid.mergeTracks`) — is
+ * `model` again. The same object otherwise.
+ */
+export function withTrackIdsOf<L extends LayoutBody>(body: L, model: LayoutBody): L {
+  const sameIds = (axis: GridAxis) => body.grid[axis].every((t, i) => t.id === model.grid[axis][i]?.id)
+  if (sameIds('columns') && sameIds('rows')) return body
+  if (!sameArrangement(body, model)) return body
+  let next = body
+  for (const axis of ['columns', 'rows'] as const) {
+    next = withTracks(next, axis, body.grid[axis].map((t, i) => ({ ...t, id: model.grid[axis][i]?.id ?? t.id })))
+  }
+  return next
+}

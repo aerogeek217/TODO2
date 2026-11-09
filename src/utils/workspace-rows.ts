@@ -2,9 +2,8 @@ import { isGlanceKind as isGlanceWidgetKind, isWidgetKind, WIDGET_KIND_SPECS, ty
 import { CELL_MIN_PX, CELL_MIN_WIDTH_PX } from './workspace-resize'
 
 /**
- * How a cell and a row track draw, by what they hold: whether a cell hides
- * its tab strip (headless), whether a row track fits its content, and the
- * height a row track may shrink to. Pure: the kind flags come from
+ * How a cell and a row track draw, by what they hold: whether a row track
+ * fits its content, and the height and width a cell may shrink to. Pure: the kind flags come from
  * `WIDGET_KIND_SPECS` unless a caller (a test) passes its own.
  */
 
@@ -25,17 +24,6 @@ export const GLANCE_CELL_MIN_WIDTH_PX = 72
 /** The kind of a cell's only tab; `null` for an empty cell or one with several tabs. */
 function onlyKind(cell: Pick<LayoutCell, 'tabs'>): WidgetKind | null {
   return cell.tabs.length === 1 ? (cell.tabs[0]?.kind ?? null) : null
-}
-
-/**
- * Whether a cell hides its tab strip (it slides in on hover or focus): it
- * holds exactly one tab, a glance widget — or one showing its small face
- * (D25 R: `smallFace`, what the cell heard from its widget).
- */
-export function isHeadlessCell(cell: Pick<LayoutCell, 'tabs'>, glance: KindFlag = isGlanceKind, smallFace = false): boolean {
-  const kind = onlyKind(cell)
-  if (kind == null) return false
-  return glance(kind) || smallFace
 }
 
 /** The cells lying only in row track `row` (starting and ending in it). */

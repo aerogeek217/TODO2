@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { pickSplit, seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { openCellMenu, pickSplit, seedWorkspace, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * A Number is a filter (D26 P5, board X): added from Add widget, its editor
@@ -29,9 +29,7 @@ const editor = (page: Page) => page.locator('[data-number-editor]')
 
 test('add a Number, type a filter, see its count and its tasks', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  const header = wsCell(page, 'k1').locator('[data-ws-cell-header]')
-  await header.hover()
-  await header.getByRole('button', { name: 'Cell options' }).click()
+  await openCellMenu(page, 'k1')
   await pickSplit(page, 'Below')
   await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Numbers & charts' })
     .getByRole('button', { name: 'Number', exact: true }).click()

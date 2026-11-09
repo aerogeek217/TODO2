@@ -432,3 +432,20 @@
 .cellCompact .cellAction {
   width: 36px;
 }
+
+/* A collapsed cell of one widget (D26 AA1): its widget top line, the rest cut off. */
+.cellCollapsed .cellBody {
+  height: auto;
+  min-height: 0;
+  max-height: var(--mobile-list-filter-row-height);
+  overflow: hidden;
+  visibility: hidden;
+}
+
+.cellCollapsed .cellBody [data-widget-top-line] {
+  visibility: visible;
+}
+
+.cellCollapsed .cellBody [data-glance] {
+  height: auto;
+}

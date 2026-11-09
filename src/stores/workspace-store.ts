@@ -47,6 +47,7 @@ import {
   setTrackCollapsed,
   setLayoutHue,
   splitCell,
+  withTrackIdsOf,
   type IdGen,
   type LayoutDropTarget,
   type MoveEdgeOptions,
@@ -618,6 +619,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       console.warn('[workspace] refused an edit showing lists of another layout:', foreign)
       return false
     }
+    if (saved) next = withTrackIdsOf(next, saved)
     if (saved && layoutStructureEqual(next, saved)) next = copySizes(next, saved, 'all')
     set({ working: next, isDirty: dirty(next, saved) })
     keepDraft()

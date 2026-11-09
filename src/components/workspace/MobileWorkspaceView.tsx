@@ -1,4 +1,4 @@
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
+import { useCallback, useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode } from 'react'
 import {
   getActiveTab,
   isGlanceKind,
@@ -35,6 +35,7 @@ import { BadgeCapsule } from '../shared/BadgeCapsule'
 import { tabBadgeSummary } from '../../utils/tab-badges'
 import styles from './MobileWorkspaceView.module.css'
 import { withViewTransition } from '../shared/view-transition'
+import { CellControlsContext, type CellControlsValue } from './cell-controls'
 
 const WIDER_SCREEN_HINT = 'To create or edit layouts, use a wider screen.'
 
@@ -272,6 +273,17 @@ function EisenhowerSheet({ tab, onClose }: { tab: EisenhowerTab; onClose: () => 
   )
 }
 
+/** Copies a list's shown sections (Copy tasks): each under its label, unless the list isn't grouped. */
+function copySections(result: ListWidgetResult): void {
+  const labelled = !(result.sections.length === 1 && result.sections[0]?.key === 'all')
+  void copyTasks(result.sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
+}
+
+/** The phone's top line never lends the slot back: a face without one has its row's ⋯ elsewhere. */
+function claimNothing(): () => void {
+  return () => {}
+}
+
 /** Long-press on a list tab: the tab menu's list items as a bottom sheet (the frame as `EisenhowerSheet`'s). */
 function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
   tabId: string
@@ -283,10 +295,7 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
     { label: 'Edit list…', run: () => openEditList(tabId, listDefinitionId) },
     ...(result ? [{
       label: 'Copy tasks',
-      run: () => {
-        const labelled = !(result.sections.length === 1 && result.sections[0]?.key === 'all')
-        void copyTasks(result.sections.map((sec) => ({ label: labelled ? sec.label : undefined, todos: [...sec.todos] })))
-      },
+      run: () => copySections(result),
     }] : []),
   ]
   return (
@@ -318,9 +327,12 @@ function ListTabSheet({ tabId, listDefinitionId, result, onClose }: {
 }
 
 /**
- * A cell of the table on mobile: tabs switch, the ⋯ menu only collapses
- * (the row tracks it covers), a list tab's long-press opens its list sheet.
- * No layout editing.
+ * A cell of the table on mobile: tabs only when there's a choice (D26
+ * AA1) — one widget's top line names it and holds the ⋯ (always shown) —;
+ * tabs switch; the ⋯ menu has the widget's phone items (a list's Edit list…
+ * and Copy tasks, the Eisenhower's options sheet) and collapses the row
+ * tracks it covers; a list tab's long-press opens its list sheet. No layout
+ * editing.
  */
 function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
   cell: LayoutCell
@@ -335,20 +347,55 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
   const rowNoun = 'row'
   const setActiveTab = useWorkspaceStore((s) => s.setActiveTab)
   const setTrackCollapsed = useWorkspaceStore((s) => s.setTrackCollapsed)
-  const setRowCollapsed = (next: boolean) => setTrackCollapsed(rowTrackIds, next)
+  const setRowCollapsed = useCallback((next: boolean) => { void setTrackCollapsed(rowTrackIds, next) }, [setTrackCollapsed, rowTrackIds])
   const active = getActiveTab(cell)
   const activeTitle = useTabTitle(active)
   const [lens, setLens] = useState<{ tabId: string; result: ListWidgetResult } | null>(null)
   const [tabSheet, setTabSheet] = useState<{ tabId: string; listDefinitionId: number } | null>(null)
   const [eisenhowerSheet, setEisenhowerSheet] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const moreRef = useRef<HTMLButtonElement | null>(null)
+  // The ⋯ button (in the strip's header, or a top line's slot): kept as state, so the menu anchors to whichever is drawn.
+  // The ⋯ buttons drawn (the strip's header's, a top line's slot, the cell's own while no top line
+  // holds one — briefly two): the menu anchors to the one still in the page.
+  const [moreEls] = useState(() => new Set<HTMLButtonElement>())
+  const moreRef = useMemo(() => ({
+    get current(): HTMLButtonElement | null {
+      for (const el of moreEls) if (el.isConnected) return el
+      return null
+    },
+  }), [moreEls])
+  const setMoreButton = useCallback((el: HTMLButtonElement | null) => {
+    if (!el) return undefined
+    moreEls.add(el)
+    return () => { moreEls.delete(el) }
+  }, [moreEls])
   const cellRef = useRef<HTMLElement | null>(null)
+  /** Tabs only when there's a choice (D26 AA1). */
+  const stripShown = cell.tabs.length > 1
   // Its widget's face (D25 R): a page's cell by its size; a cell sized to its
-  // content (the column scrolls) by its width alone; a fit row's small.
-  const cellFace = useCellFace(active, { forced: fitRow ? 'small' : undefined, heightFree: !fill })
-  /** A glance cell (a glance widget, or any at its small face): a slim header. */
-  const compact = active != null && (isGlanceKind(active.kind) || cellFace.face === 'small')
+  // content (the column scrolls) by its width alone; a fit row's small; a
+  // collapsed one-widget cell's top line is its large face's first line.
+  const cellFace = useCellFace(active, {
+    forced: fitRow ? 'small' : collapsed && !stripShown ? 'large' : undefined,
+    heightFree: !fill,
+  })
+  const smallFace = cellFace.face === 'small' && !collapsed
+  /** A glance cell with tabs (a glance widget, or any at its small face): a slim header. */
+  const compact = stripShown && active != null && (isGlanceKind(active.kind) || cellFace.face === 'small')
+  const activeId = active?.id
+  const controls = useMemo<CellControlsValue | null>(() => (stripShown || activeId == null ? null : {
+    cellId: cell.id,
+    tabs: cell.tabs,
+    tabId: activeId,
+    title: activeTitle,
+    touch: true,
+    setMoreButton,
+    menuOpen,
+    onMore: () => setMenuOpen((o) => !o),
+    collapsed,
+    onExpand: () => setRowCollapsed(false),
+    claim: claimNothing,
+  }), [stripShown, activeId, cell.id, cell.tabs, activeTitle, menuOpen, collapsed, setRowCollapsed, setMoreButton])
 
   if (cell.tabs.length === 0) {
     return (
@@ -361,9 +408,22 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
 
   const sheetTab = eisenhowerSheet != null ? cell.tabs.find((t) => t.id === eisenhowerSheet) : undefined
   const eisenhowerTab = sheetTab?.kind === 'eisenhower' ? sheetTab : undefined
+  const listResult = lens && lens.tabId === active?.id ? lens.result : undefined
 
+  const widgetEntries: MenuEntry[] = []
+  if (active?.kind === 'lens' && active.config.listDefinitionId != null) {
+    const listId = active.config.listDefinitionId
+    widgetEntries.push({ kind: 'item', label: 'Edit list…', onSelect: () => openEditList(active.id, listId) })
+    if (listResult) widgetEntries.push({ kind: 'item', label: 'Copy tasks', onSelect: () => copySections(listResult) })
+  } else if (active?.kind === 'eisenhower') {
+    widgetEntries.push({ kind: 'item', label: 'Eisenhower options…', onSelect: () => setEisenhowerSheet(active.id) })
+  }
   const menuEntries: MenuEntry[] = [
-    { kind: 'item', label: `Collapse ${rowNoun}`, icon: <ChevronUpIcon />, onSelect: () => { void setRowCollapsed(true) } },
+    ...widgetEntries,
+    ...(widgetEntries.length > 0 ? [{ kind: 'separator' } as const] : []),
+    collapsed
+      ? { kind: 'item', label: `Expand ${rowNoun}`, icon: <ChevronDownIcon size={14} />, onSelect: () => setRowCollapsed(false) }
+      : { kind: 'item', label: `Collapse ${rowNoun}`, icon: <ChevronUpIcon />, onSelect: () => setRowCollapsed(true) },
   ]
 
   return (
@@ -375,65 +435,69 @@ function MobileCell({ cell, rowTrackIds, collapsed, fill, fitRow = false }: {
       data-face={!collapsed && active ? cellFace.face : undefined}
       aria-label={`${activeTitle} ${noun}`}
     >
-      <div className={styles.cellHeader} data-ws-cell-header={cell.id}>
-        <CellTabStrip
-          cell={cell}
-          collapsed={collapsed}
-          touch
-          activeCount={lens && lens.tabId === active?.id ? lens.result.countLabel : undefined}
-          onOpenTabMenu={(tabId) => {
-            const tab = cell.tabs.find((t) => t.id === tabId)
-            if (tab?.kind === 'lens' && tab.config.listDefinitionId != null) setTabSheet({ tabId, listDefinitionId: tab.config.listDefinitionId })
-            if (tab?.kind === 'eisenhower') setEisenhowerSheet(tabId)
-          }}
-          onActivate={(tabId) => {
-            withViewTransition(() => {
-              void setActiveTab(tabId)
-              if (collapsed) void setRowCollapsed(false)
-            })
-          }}
-        />
-        {collapsed ? (
-          <button
-            type="button"
-            className={styles.cellAction}
-            aria-label={`Expand ${rowNoun}`}
-            aria-expanded={false}
-            onClick={() => { void setRowCollapsed(false) }}
-          >
-            <ChevronDownIcon size={16} />
-          </button>
-        ) : (
-          <button
-            ref={moreRef}
-            type="button"
-            className={`${styles.cellAction} ${menuOpen ? styles.cellActionPressed : ''}`}
-            aria-label="Cell options"
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onClick={() => setMenuOpen((o) => !o)}
-          >
-            <MoreIcon size={16} />
-          </button>
-        )}
-      </div>
-      {!collapsed && active && (
+      {stripShown && (
+        <div className={styles.cellHeader} data-ws-cell-header={cell.id}>
+          <CellTabStrip
+            cell={cell}
+            collapsed={collapsed}
+            touch
+            activeCount={listResult?.countLabel}
+            onOpenTabMenu={(tabId) => {
+              const tab = cell.tabs.find((t) => t.id === tabId)
+              if (tab?.kind === 'lens' && tab.config.listDefinitionId != null) setTabSheet({ tabId, listDefinitionId: tab.config.listDefinitionId })
+              if (tab?.kind === 'eisenhower') setEisenhowerSheet(tabId)
+            }}
+            onActivate={(tabId) => {
+              withViewTransition(() => {
+                void setActiveTab(tabId)
+                if (collapsed) setRowCollapsed(false)
+              })
+            }}
+          />
+          {collapsed ? (
+            <button
+              type="button"
+              className={styles.cellAction}
+              aria-label={`Expand ${rowNoun}`}
+              aria-expanded={false}
+              onClick={() => setRowCollapsed(false)}
+            >
+              <ChevronDownIcon size={16} />
+            </button>
+          ) : (
+            <button
+              ref={setMoreButton}
+              type="button"
+              className={`${styles.cellAction} ${menuOpen ? styles.cellActionPressed : ''}`}
+              aria-label="Cell options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((o) => !o)}
+            >
+              <MoreIcon size={16} />
+            </button>
+          )}
+        </div>
+      )}
+      {(!collapsed || !stripShown) && active && (
         <div
           className={styles.cellBody}
-          role="tabpanel"
-          aria-labelledby={`ws-tab-${active.id}`}
+          role={stripShown ? 'tabpanel' : undefined}
+          aria-labelledby={stripShown ? `ws-tab-${active.id}` : undefined}
           data-ws-cell-body={cell.id}
           data-kind={active.kind}
-          onClick={smallFaceClick(cellFace)}
+          onClick={collapsed ? undefined : smallFaceClick(cellFace)}
         >
-          {cellFace.face === 'small' && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
-          <WidgetFaceContext.Provider value={cellFace.host}>
-            <WidgetBody
-              key={active.id}
-              tab={active}
-              onResult={(result) => setLens({ tabId: active.id, result })}
-            />
-          </WidgetFaceContext.Provider>
+          {smallFace && <SmallFaceOpener title={activeTitle} open={cellFace.fullOpen} onOpen={cellFace.openFull} />}
+          <CellControlsContext.Provider value={controls}>
+            <WidgetFaceContext.Provider value={cellFace.host}>
+              <WidgetBody
+                key={active.id}
+                tab={active}
+                onResult={(result) => setLens({ tabId: active.id, result })}
+              />
+            </WidgetFaceContext.Provider>
+          </CellControlsContext.Provider>
         </div>
       )}
       {cellFace.fullOpen && active && !collapsed && (

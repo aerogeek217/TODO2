@@ -21,6 +21,7 @@ import { WidgetKindIcon } from '../../shared/icons'
 import type { ListWidgetResult } from './ListWidget'
 import { faceCountColor, oldestDue, quickRowsShown } from './list-face'
 import { useShownListReport } from './use-shown-list'
+import { WidgetTopLine } from '../WidgetTopLine'
 import styles from './ListFace.module.css'
 
 /** The tasks of `sections` in order, each once. */
@@ -90,8 +91,9 @@ export function ListFace({ tab, definition, face, faceRef, onResult }: {
   const more = shown - quick.length
   const prompt = definition.runtimeFilter ? `Pick a ${definition.runtimeFilter.field === 'person' ? 'person' : definition.runtimeFilter.field}` : null
 
+  // Its top line (D26 AA1); alone in its cell, the cell's controls float over its corner.
   const line = (
-    <div className={styles.line}>
+    <WidgetTopLine controls="cell" className={styles.line}>
       <span className={styles.name}>
         <span className={styles.icon}><WidgetKindIcon kind="lens" size={12} /></span>
         <span className={styles.nameText}>{definition.name}</span>
@@ -107,7 +109,7 @@ export function ListFace({ tab, definition, face, faceRef, onResult }: {
           </span>
         )}
       </span>
-    </div>
+    </WidgetTopLine>
   )
 
   return (

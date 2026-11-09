@@ -411,10 +411,10 @@ export interface WidgetKindSpec<K extends WidgetKind> {
   /** Its group in the add-widget menus. */
   group: WidgetKindGroup
   /**
-   * A glance widget (a Number, a section, Project pulse): a cell holding one
-   * tab of it is headless — its tab strip slides in on hover or focus
-   * (`utils/workspace-rows`) — and a track of only glance cells may shrink
-   * to `GLANCE_ROW_MIN_PX`.
+   * A glance widget (a Number, a section, Project pulse): a track of only
+   * glance cells may shrink to `GLANCE_ROW_MIN_PX`, a glance cell's width to
+   * `GLANCE_CELL_MIN_WIDTH_PX` (`utils/workspace-rows`), and a right-click
+   * anywhere on one alone in its cell opens the cell's ⋯ menu.
    */
   glance: boolean
   /**
@@ -427,7 +427,7 @@ export interface WidgetKindSpec<K extends WidgetKind> {
   newTab: (id: string, seed: TabSeed) => TabOfKind<K>
 }
 
-/** A glance kind's spec: in the Numbers & charts group, headless when alone in its cell. */
+/** A glance kind's spec: in the Numbers & charts group. */
 function glanceSpec<K extends GlanceWidgetKind>(label: string, newTab: (id: string, seed: TabSeed) => TabOfKind<K>, fitHeight = false): WidgetKindSpec<K> {
   return { label, showsList: false, group: 'glance', glance: true, fitHeight, newTab }
 }

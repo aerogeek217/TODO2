@@ -22,8 +22,9 @@ import { readStore } from './fixtures/db'
  * widget scrolls, the divider between two cells of a row (view state: kept
  * over a reload; the 120px minimum), collapsing a row (its side-by-side
  * cells with it), the cell menu's Split cell ▸ Right / Below and Insert ▸
- * Column, a headless cell (its strip on hover, on keyboard focus, its
- * right-click the tab menu), and a phone stacking a row.
+ * Column, a glance widget alone in its cell (no strip, D26 AA1: its ⋯ on
+ * hover and on keyboard focus, its right-click the ⋯ menu), and a phone
+ * stacking a row.
  */
 
 const saveButton = (page: Page) => page.getByTestId('layout-save')
@@ -124,11 +125,11 @@ test.describe('sizes and collapse of cells side by side', () => {
     await seedWorkspace(page, { layouts: [sideBySide] })
     const rowDividers = page.locator('[data-ws-divider][data-axis="rows"]')
     await expect(rowDividers).toHaveCount(1)
-    const header = wsCell(page, 'c1').locator('[data-ws-cell-header]')
-    await header.hover()
-    await header.getByRole('button', { name: 'Collapse row' }).click()
-    await expect(wsCell(page, 'c1').locator('[data-ws-cell-body]')).toHaveCount(0)
-    await expect(wsCell(page, 'c2').locator('[data-ws-cell-body]')).toHaveCount(0)
+    await openCellMenu(page, 'c1')
+    await page.getByRole('menuitem', { name: 'Collapse row' }).click()
+    // One widget each: its top line shows, the rest hidden (D26 AA1).
+    await expect(wsCell(page, 'c1').locator('[data-ws-cell-body]')).toBeHidden()
+    await expect(wsCell(page, 'c2').locator('[data-ws-cell-body]')).toBeHidden()
     await expect(wsCell(page, 'c2').getByRole('button', { name: 'Expand row' })).toBeVisible()
     // b1 spans the folded row: it keeps its body.
     await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toBeVisible()
@@ -167,61 +168,62 @@ test.describe('the cell menu', () => {
   })
 })
 
-test.describe('a headless cell', () => {
-  const headless: WsLayoutSeed = {
+test.describe('a glance widget alone in its cell', () => {
+  const alone: WsLayoutSeed = {
     name: 'Main',
     columns: [
       { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] })] },
       { id: 'colB', rows: [wsRow({ id: 'h1', tabs: [{ id: 'calTab', kind: 'trend' }] })] },
     ],
   }
-  const strip = (page: Page) => wsCell(page, 'h1').locator('[data-ws-cell-header]')
+  /** h1's grip and ⋯ (in its panel header, its top line). */
+  const controls = (page: Page) => wsCell(page, 'h1').locator('[data-cell-controls] > span').last()
 
-  test('its strip is hidden, slides in on hover, and its body fills the cell', async ({ page }) => {
-    await seedWorkspace(page, { layouts: [headless] })
+  test('no strip: its body fills the cell; its grip and ⋯ show on hover', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [alone] })
     await page.mouse.move(2, 2)
-    await expect(strip(page)).toHaveCSS('opacity', '0')
+    await expect(wsCell(page, 'h1').locator('[data-ws-cell-header]')).toHaveCount(0)
+    await expect(controls(page)).toHaveCSS('opacity', '0')
     const cell = await box(wsCell(page, 'h1'))
     const body = await box(wsCell(page, 'h1').locator('[data-ws-cell-body]'))
     expect(Math.round(body.y)).toBe(Math.round(cell.y))
+    expect(Math.round(body.height)).toBe(Math.round(cell.height))
     await wsCell(page, 'h1').locator('[data-ws-cell-body]').hover()
-    await expect(strip(page)).toHaveCSS('opacity', '1')
-    const s = await box(strip(page))
-    expect(Math.round(s.y)).toBe(Math.round(cell.y))
-    expect(Math.round(s.height)).toBe(24)
+    await expect(controls(page)).toHaveCSS('opacity', '1')
     await page.mouse.move(2, 2)
-    await expect(strip(page)).toHaveCSS('opacity', '0')
+    await expect(controls(page)).toHaveCSS('opacity', '0')
   })
 
-  test('keyboard focus inside the cell shows its strip', async ({ page }) => {
-    await seedWorkspace(page, { layouts: [headless] })
+  test('keyboard focus inside the cell shows its ⋯', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [alone] })
     await page.mouse.move(2, 2)
-    // Tab from the cell before it until the focus lands in the headless cell.
-    await wsTab(page, 'notesTab').focus()
+    // Tab from the cell before it until the focus lands in h1.
+    await wsCell(page, 'a1').getByRole('button', { name: 'Cell options' }).focus()
     for (let i = 0; i < 40; i++) {
       await page.keyboard.press('Tab')
       if (await page.evaluate(() => document.activeElement?.closest('[data-ws-cell="h1"]') != null)) break
     }
     expect(await page.evaluate(() => document.activeElement?.closest('[data-ws-cell="h1"]') != null)).toBe(true)
-    await expect(strip(page)).toHaveCSS('opacity', '1')
+    await expect(controls(page)).toHaveCSS('opacity', '1')
   })
 
-  test('its right-click opens the tab menu, and the strip stays in while the menu is open', async ({ page }) => {
-    await seedWorkspace(page, { layouts: [headless] })
+  test('its right-click opens the ⋯ menu, and the ⋯ stays shown while the menu is open', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [alone] })
     await wsCell(page, 'h1').locator('[data-ws-cell-body]').click({ button: 'right', position: { x: 200, y: 200 } })
-    await expect(page.getByRole('menu', { name: 'Change widget' })).toBeVisible()
+    await expect(page.getByRole('menu', { name: 'Cell options' })).toBeVisible()
     await page.mouse.move(2, 2)
-    await expect(strip(page)).toHaveCSS('opacity', '1')
+    await expect(controls(page)).toHaveCSS('opacity', '1')
     await page.keyboard.press('Escape')
-    await expect(page.getByRole('menu', { name: 'Change widget' })).toHaveCount(0)
-    await expect(strip(page)).toHaveCSS('opacity', '0')
+    await expect(page.getByRole('menu', { name: 'Cell options' })).toHaveCount(0)
+    await page.mouse.move(2, 2)
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur())
+    await expect(controls(page)).toHaveCSS('opacity', '0')
   })
 
   test('a drag measures no strip: the top of its body is the new-row zone', async ({ page }) => {
-    await seedWorkspace(page, { layouts: [headless] })
+    await seedWorkspace(page, { layouts: [alone] })
     await dragTab(page, wsTab(page, 'notesTab'), await bodyPoint(page, 'h1', 0.5, 0.06), async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Split Created vs completed · above')
-      await expect(strip(page)).toHaveCSS('opacity', '0')
     })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['calTab']]])
   })
@@ -248,7 +250,8 @@ test.describe('on a phone', () => {
     await expect(menu.getByRole('menuitem')).toHaveText(['Collapse row'])
     await menu.getByRole('menuitem', { name: 'Collapse row' }).tap()
     for (const id of ['c1', 'c2']) {
-      await expect(wsCell(page, id).locator('[data-ws-cell-body]')).toHaveCount(0)
+      // One widget each: its top line shows, the rest hidden (D26 AA1).
+      await expect(wsCell(page, id).locator('[data-ws-cell-body]')).toBeHidden()
       await expect(wsCell(page, id).getByRole('button', { name: 'Expand row' })).toBeVisible()
     }
     await expect(wsCell(page, 'a2').locator('[data-ws-cell-body]')).toBeVisible()

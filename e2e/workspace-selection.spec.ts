@@ -162,11 +162,9 @@ test('a click outside the rows clears the selection; rows, the bulk bar, menus a
   await page.locator('[data-eisenhower="eis"]').click({ position: { x: 4, y: 4 } })
   await expect(selected).toHaveCount(0)
 
-  // Cleared: the list's own cell header.
+  // Cleared: the list's own top line (alone in its cell, its name: D26 AA1).
   await selectTwo()
-  const header = await wsCell(page, 'k1').locator('[role="tablist"]').boundingBox()
-  if (!header) throw new Error('no tab strip')
-  await page.mouse.click(header.x + header.width - 60, header.y + header.height / 2)
+  await wsCell(page, 'k1').getByTestId('top-line-name').click()
   await expect(selected).toHaveCount(0)
 })
 

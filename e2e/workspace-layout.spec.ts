@@ -149,18 +149,17 @@ test.describe('resize and collapse', () => {
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
   })
 
-  test('cell header Collapse button and the cell menu split / close', async ({ page }) => {
+  test('the cell menu’s Collapse row, Expand row and split / close', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    const header = wsCell(page, 'b1').locator('[data-ws-cell-header]')
-    await header.hover()
-    // D26: collapse is a row track's — the row b1 lies in.
-    await header.getByRole('button', { name: 'Collapse row' }).click()
-    await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toHaveCount(0)
+    // D26: collapse is a row track's — the row b1 lies in. One widget: its top line stays (AA1).
+    await openCellMenu(page, 'b1')
+    await page.getByRole('menuitem', { name: 'Collapse row' }).click()
+    await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toBeHidden()
     await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
     await wsCell(page, 'b1').getByRole('button', { name: 'Expand row' }).click()
+    await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toBeVisible()
 
-    await header.hover()
-    await header.getByRole('button', { name: 'Cell options' }).click()
+    await openCellMenu(page, 'b1')
     await pickSplit(page, 'Below')
     await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
@@ -457,19 +456,21 @@ test.describe('saved layouts', () => {
 })
 
 test.describe('adding and changing widgets', () => {
-  test('empty layout tiles, the add-tab menu and the tab menu’s Change widget', async ({ page }) => {
+  test('empty layout tiles, the ⋯ menu’s Add widget… and its Change widget', async ({ page }) => {
     await seedWorkspace(page, { layouts: [{ name: 'Blank', columns: [] }] })
     await expect(page.getByText('This layout is empty')).toBeVisible()
     await page.getByRole('button', { name: 'Notes', exact: true }).click()
     await expect.poll(async () => (await wsShape(page)).flat(2).length).toBe(1)
 
-    await page.getByRole('button', { name: 'Add widget as tab' }).click()
+    await page.locator('[data-ws-cell]').hover()
+    await page.locator('[data-ws-cell]').getByRole('button', { name: 'Cell options' }).click()
+    await page.getByRole('menuitem', { name: 'Add widget…' }).click()
     // Calendar: in Numbers & charts (D26).
     await pickWidgetKind(page, 'Add widget', 'Calendar')
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true')
 
     await page.getByRole('tab', { name: 'Calendar' }).click({ button: 'right' })
-    const changeWidget = page.getByRole('menu', { name: 'Change widget' })
+    const changeWidget = page.getByRole('menu', { name: 'Cell options' })
     await expect(changeWidget.getByRole('menuitem', { name: /^Numbers & charts/ })).toContainText('Calendar')
     // A Numbers & charts kind, from its submenu.
     await pickWidgetKind(page, 'Change widget', 'Created vs completed')

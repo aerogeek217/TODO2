@@ -86,7 +86,7 @@ test('a tab menu’s setting changes its widget, as a layout change', async ({ p
 
   await wsCell(page, 'k-tags').hover()
   await wsTab(page, 'tags').click({ button: 'right' })
-  const item = page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: /^No tag/ })
+  const item = page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: /^No tag/ })
   await expect(item).toContainText('Shown')
   await item.click()
   await page.getByRole('menuitemradio', { name: 'Hidden', exact: true }).click()

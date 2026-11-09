@@ -201,7 +201,7 @@ async function dropOn(page: Page, tabId: string, onto: string, fraction: number,
   await releaseDrag(page)
 }
 
-/** k1 holds TABS (n1 c1 d1 e1 c2) with the last active, beside a cell holding n2. */
+/** k1 holds TABS (n1 c1 d1 e1 c2) with the last active, beside a cell holding n2 and n3 (tabs: a strip to drag n2 from). */
 async function seedFolded(page: Page) {
   await page.setViewportSize({ width: 900, height: 800 })
   await seedWorkspace(page, {
@@ -209,7 +209,7 @@ async function seedFolded(page: Page) {
       name: 'Main',
       columns: [
         { id: 'col1', weight: 1, rows: [wsRow({ id: 'k1', tabs: TABS, activeTabId: 'c2' })] },
-        { id: 'col2', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] })] },
+        { id: 'col2', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }, { id: 'n3', kind: 'notes' }], activeTabId: 'n2' })] },
       ],
     }],
   })

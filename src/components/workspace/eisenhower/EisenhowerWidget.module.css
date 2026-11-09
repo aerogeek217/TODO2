@@ -392,3 +392,11 @@
   background: var(--color-tint-8);
   color: var(--color-text-secondary);
 }
+
+/* Its top line's count (alone in its cell, D26 AA1): what its tab would show. */
+.lineCount {
+  font-size: var(--font-size-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}

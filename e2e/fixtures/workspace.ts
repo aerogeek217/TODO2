@@ -495,8 +495,17 @@ export function wsCell(page: Page, cellId: string): Locator {
   return page.locator(`[data-ws-cell="${cellId}"]`)
 }
 
+/**
+ * A widget's tab in its cell's strip — or, alone in its cell (no strip, D26
+ * AA1), its widget's top line, which stands for the tab (`data-ws-tab`).
+ */
 export function wsTab(page: Page, tabId: string): Locator {
   return page.locator(`[data-ws-tab="${tabId}"]`)
+}
+
+/** A cell's grip (alone in its cell, a widget's top line holds it; `data-ws-panel-handle` as the strip's handle). */
+export function wsGrip(page: Page, cellId: string): Locator {
+  return wsCell(page, cellId).getByTestId('ws-cell-grip')
 }
 
 /** A layout's tab in the top bar, by its exact name. */
@@ -640,10 +649,10 @@ export async function pickCellMenu(page: Page, parent: 'Split cell' | 'Merge wit
   await page.getByRole('menuitem', { name: item, exact: true }).click()
 }
 
-/** Opens cell `cellId`'s ⋯ menu (over the cell first: a headless cell's strip slides in on hover). */
+/** Opens cell `cellId`'s ⋯ menu (over the cell first: a one-widget cell shows its ⋯ on hover). */
 export async function openCellMenu(page: Page, cellId: string): Promise<void> {
   await wsCell(page, cellId).hover()
-  await wsCell(page, cellId).locator('[data-ws-cell-header]').getByRole('button', { name: 'Cell options' }).click()
+  await wsCell(page, cellId).getByRole('button', { name: 'Cell options' }).click()
 }
 
 /** The drop ghost while a tab or cell is dragged (D26 board T). */
@@ -673,13 +682,14 @@ export function wsDivider(page: Page, a: string, b: string): Locator {
 const GLANCE_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('glance').map(widgetKindLabel))
 
 /**
- * Picks the kind named `label` in the open add-widget (`Add widget`) or tab
- * (`Change widget`) menu: a task kind from the menu itself, a Numbers &
+ * Picks the kind named `label` in the open add-widget (`Add widget`) or
+ * cell (`Change widget`: the ⋯ menu, `Cell options`, whose widget part
+ * changes the kind) menu: a task kind from the menu itself, a Numbers &
  * charts kind from its submenu.
  */
 export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Change widget', label: string): Promise<void> {
   const role = menuName === 'Add widget' ? 'menuitem' : 'menuitemradio'
-  let menu = page.getByRole('menu', { name: menuName })
+  let menu = page.getByRole('menu', { name: menuName === 'Add widget' ? 'Add widget' : 'Cell options' })
   if (GLANCE_LABELS.has(label)) {
     await menu.getByRole('menuitem', { name: /^Numbers & charts/ }).click()
     menu = page.getByRole('menu', { name: 'Numbers & charts' })
@@ -700,9 +710,16 @@ export async function dragPanel(
   await drag(page, await pointIn(wsPanelHandle(page, panelId)), to, checks)
 }
 
-/** Drags a tab (grabbed at its centre) to (x, y), checking `during` (if given) before releasing. */
+/**
+ * Drags a tab (grabbed at its centre) to (x, y), checking `during` (if
+ * given) before releasing. A widget alone in its cell has no tab (its top
+ * line stands for it): its cell's grip drags it.
+ */
 export async function dragTab(page: Page, tab: Locator, to: Point, during?: () => Promise<void>): Promise<void> {
-  await drag(page, await pointIn(tab), to, { during })
+  const grip = (await tab.getAttribute('data-widget-top-line')) != null
+    ? tab.locator('xpath=ancestor::*[@data-ws-cell][1]').getByTestId('ws-cell-grip')
+    : null
+  await drag(page, await pointIn(grip ?? tab), to, { during })
 }
 
 export function wsListWidget(page: Page, tabId: string): Locator {

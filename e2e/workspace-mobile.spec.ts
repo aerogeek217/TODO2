@@ -116,17 +116,29 @@ test('tabs switch inside a cell and stay switched', async ({ page }) => {
   await expect(sheet.getByText('Edited')).toHaveCount(0)
 })
 
-test('the ⋯ menu collapses a cell’s rows (D26: Collapse row); tapping its tab expands it', async ({ page }) => {
+test('the ⋯ menu has the list’s items and collapses a cell’s rows (D26: Collapse row); its top line’s Expand brings it back', async ({ page }) => {
   await seed(page)
+  // One widget: no tab row; its top line holds the ⋯ (D26 AA1).
+  await expect(wsCell(page, 'a1').getByRole('tablist')).toHaveCount(0)
   await wsCell(page, 'a1').getByRole('button', { name: 'Cell options' }).tap()
   const menu = page.getByRole('menu', { name: 'Cell options' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Collapse row'])
+  await expect(menu.getByRole('menuitem')).toHaveText(['Edit list…', 'Copy tasks', 'Collapse row'])
   await menu.getByRole('menuitem', { name: 'Collapse row' }).tap()
-  await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toHaveCount(0)
-  await expect(wsCell(page, 'a1').getByRole('button', { name: 'Expand row' })).toBeVisible()
-
-  await wsTab(page, 'todayTab').tap()
+  await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeHidden()
+  // Its top line still shows, with Expand row.
+  await expect(wsTab(page, 'todayTab').getByTestId('top-line-name')).toBeVisible()
+  await wsCell(page, 'a1').getByRole('button', { name: 'Expand row' }).tap()
   await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
+})
+
+test('a two-widget cell keeps its tabs; tapping a collapsed one expands it', async ({ page }) => {
+  await seed(page)
+  await expect(wsCell(page, 'c1').getByRole('tab')).toHaveCount(2)
+  await wsCell(page, 'c1').getByRole('button', { name: 'Cell options' }).tap()
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Collapse row' }).tap()
+  await expect(wsCell(page, 'c1').locator('[data-ws-cell-body]')).toHaveCount(0)
+  await wsTab(page, 'waitTab').tap()
+  await expect(wsCell(page, 'c1').locator('[data-ws-cell-body]')).toBeVisible()
 })
 
 test('the layout sheet switches layouts, never an unsaved change', async ({ page }) => {
@@ -172,7 +184,10 @@ test('the layout sheet is a bottom sheet on the dialog frame: focus on the open 
 
 test('a list tab’s sheet is on the dialog frame too: focus in, arrows move, Tab kept inside, Esc closes, focus back on the tab', async ({ page }) => {
   await seed(page)
-  const tab = wsTab(page, 'todayTab')
+  // A list tab: Waiting on beside the Eisenhower (one widget has no tab, D26 AA1), made active first.
+  const tab = wsTab(page, 'waitTab')
+  await tab.tap()
+  await expect(tab).toHaveAttribute('aria-selected', 'true')
   await tab.focus()
   await tab.dispatchEvent('contextmenu')
   const menu = page.getByRole('menu', { name: 'List' })
@@ -198,13 +213,14 @@ test('a list tab’s sheet is on the dialog frame too: focus in, arrows move, Ta
   await expect(sheet).toHaveCount(0)
 })
 
-test('long-pressing a list tab opens its list sheet; Edit list is a half sheet with the list live above it', async ({ page }) => {
+test('a list alone: its ⋯ opens Edit list, a half sheet with the list live above it', async ({ page }) => {
   await seed(page)
-  // Mobile browsers turn a long press into `contextmenu`.
-  await wsTab(page, 'todayTab').dispatchEvent('contextmenu')
-  const menu = page.getByRole('menu', { name: 'List' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Edit list…', 'Copy tasks'])
-  await menu.getByRole('menuitem', { name: 'Edit list…' }).click()
+  // One widget, no tab to long-press: its top line's ⋯ (D26 AA1).
+  const openEditList = async () => {
+    await wsCell(page, 'a1').getByRole('button', { name: 'Cell options' }).tap()
+    await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit list…' }).click()
+  }
+  await openEditList()
 
   // A half sheet: 55% of the screen, the list's rows still on screen above it.
   const sheet = page.getByRole('dialog', { name: 'Edit list Today' })
@@ -229,8 +245,7 @@ test('long-pressing a list tab opens its list sheet; Edit list is a half sheet w
   await expect(page.getByRole('dialog', { name: /^Save changes to list/ })).toHaveCount(0)
   await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
   // × closes it the same way.
-  await wsTab(page, 'todayTab').dispatchEvent('contextmenu')
-  await menu.getByRole('menuitem', { name: 'Edit list…' }).click()
+  await openEditList()
   await sheet.getByRole('button', { name: 'Close Edit list' }).click()
   await expect(sheet).toHaveCount(0)
   await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()

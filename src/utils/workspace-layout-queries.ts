@@ -100,6 +100,24 @@ export function layoutStructureKey(body: LayoutBody): string {
   })
 }
 
+/** The structural part of a layout's body without its tracks' ids: how many tracks, and the cells (`layoutStructureKey` less the ids). */
+function arrangementKey(body: LayoutBody): string {
+  return JSON.stringify({
+    columns: body.grid.columns.length,
+    rows: body.grid.rows.length,
+    cells: body.cells.map(cellKey),
+  })
+}
+
+/**
+ * Whether two bodies are the same arrangement whatever their tracks' ids:
+ * as many tracks on each axis, the same cells in the same areas with the
+ * same tabs (view state aside).
+ */
+export function sameArrangement(a: LayoutBody, b: LayoutBody): boolean {
+  return a === b || arrangementKey(a) === arrangementKey(b)
+}
+
 /** True when two layout bodies differ only in view state (i.e. the working copy has no unsaved changes). */
 export function layoutStructureEqual(a: LayoutBody, b: LayoutBody): boolean {
   if (a === b) return true

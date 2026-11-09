@@ -44,7 +44,7 @@ async function switchLayout(page: Page, name: string): Promise<void> {
 /** The tab's Change list › submenu's choices. */
 async function changeListChoices(page: Page, tabId: string): Promise<string[]> {
   await wsTab(page, tabId).click({ button: 'right' })
-  const row = page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: /Change list/ })
+  const row = page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: /Change list/ })
   await row.focus()
   await page.keyboard.press('ArrowRight')
   const sub = page.getByRole('menu', { name: 'Change list' })
@@ -61,7 +61,9 @@ test.use({ viewport: { width: 1600, height: 900 } })
 
 test('a new list widget’s list is the open layout’s, offered only there (Change list); Settings has no Lists', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await wsCell(page, 'b1').getByRole('button', { name: 'Add widget as tab' }).click()
+  await wsCell(page, 'b1').hover()
+  await wsCell(page, 'b1').getByRole('button', { name: 'Cell options' }).click()
+  await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
   // A new list for this layout at once: no picker, no choice of where it goes.
   const editor = page.getByRole('dialog', { name: 'Edit list New list' })

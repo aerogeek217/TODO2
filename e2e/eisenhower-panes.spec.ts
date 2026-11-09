@@ -45,7 +45,7 @@ const settings = (page: Page) => page.getByRole('dialog', { name: 'Settings', ex
 /** The tab menu's Customize panes…: Settings › Tasks › Eisenhower. */
 async function openCustomize(page: Page): Promise<Locator> {
   await wsTab(page, 'eisTab').click({ button: 'right' })
-  await page.getByRole('menu', { name: 'Change widget' }).getByRole('menuitem', { name: 'Customize panes…' }).click()
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Customize panes…' }).click()
   const part = settings(page).getByRole('region', { name: 'Eisenhower', exact: true })
   await expect(part).toBeVisible()
   return part

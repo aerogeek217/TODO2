@@ -253,36 +253,25 @@
   background: var(--color-inset);
 }
 
-/* A headless cell (one glance tab, or its strip hidden in the cell menu):
-   the strip is out of view, and slides in — 24px, over the body's top — on
-   hover, on keyboard focus inside the cell and while a menu of it is open.
-   Not during a tab or cell drag: the drop ghost is the one feedback. */
-.headless > .header {
-  --cell-header-height: 24px;
-  --cell-tab-height: 22px;
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  z-index: var(--z-above-2);
-  transform: translateY(-100%);
-  opacity: 0;
-  box-shadow: var(--shadow-card);
-  transition: transform var(--transition-fast), opacity var(--transition-fast);
+/* A collapsed one-widget cell: its widget's top line, the rest cut off and
+   hidden (an overlay of the widget's, such as the calendar's empty note,
+   included; nothing in it takes the focus). A glance widget takes its
+   content's height, so its first line (a Number's label) is at the top. */
+.collapsed .bodyFrame,
+.collapsed .body {
+  overflow: hidden;
 }
 
-.headless:hover > .header,
-.headless:focus-within > .header,
-.headless > .stripPinned {
-  transform: none;
-  opacity: 1;
+.collapsed .body {
+  visibility: hidden;
 }
 
-.headlessQuiet > .header,
-.headlessQuiet:hover > .header,
-.headlessQuiet:focus-within > .header {
-  transform: translateY(-100%);
-  opacity: 0;
+.collapsed .body [data-widget-top-line] {
+  visibility: visible;
+}
+
+.collapsed .body [data-glance] {
+  height: auto;
 }
 
 /* A small face (D25 R): the whole body opens its full widget. */

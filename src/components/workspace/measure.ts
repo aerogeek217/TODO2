@@ -6,15 +6,13 @@ function rectOf(el: Element): Rect {
 }
 
 /**
- * A cell card (`[data-ws-cell]`): its header, body and visible tabs, its
- * active tab's title (`[data-ws-cell-title]`), and whether it is headless
- * (`[data-headless]`) — what that means for a drop the hit test decides
- * (`workspace-drop.dropStrip`).
+ * A cell card (`[data-ws-cell]`): its header, body and visible tabs, and its
+ * active tab's title (`[data-ws-cell-title]`). A cell of one widget has no
+ * header (no strip, D26 AA1): its whole card is its body.
  */
 function measureCell(cellEl: HTMLElement): CellGeometry {
   const id = cellEl.dataset.wsCell ?? ''
   const empty = cellEl.dataset.empty === 'true'
-  const headless = cellEl.dataset.headless === 'true'
   const headerEl = cellEl.querySelector('[data-ws-cell-header]')
   const bodyEl = cellEl.querySelector('[data-ws-cell-body]')
   const header = headerEl ? rectOf(headerEl) : null
@@ -26,7 +24,9 @@ function measureCell(cellEl: HTMLElement): CellGeometry {
         .filter((t) => t.rect.right <= visibleRight + 0.5 && t.rect.right > t.rect.left)
     : []
   const title = cellEl.dataset.wsCellTitle
-  return { id, ...(title ? { title } : {}), rect: rectOf(cellEl), header, headless, body: bodyEl ? rectOf(bodyEl) : null, empty, tabs }
+  const rect = rectOf(cellEl)
+  const body = empty ? null : header == null ? rect : bodyEl ? rectOf(bodyEl) : null
+  return { id, ...(title ? { title } : {}), rect, header, body, empty, tabs }
 }
 
 /** A computed px length (`6px` → 6); 0 when it isn't one. */

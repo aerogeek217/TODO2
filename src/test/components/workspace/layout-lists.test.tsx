@@ -47,7 +47,7 @@ afterEach(cleanup)
 function openTabMenu(): HTMLElement {
   render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
   fireEvent.contextMenu(document.querySelector('[data-ws-tab="mine"]')!)
-  return screen.getByRole('menu', { name: 'Change widget' })
+  return screen.getByRole('menu', { name: 'Cell options' })
 }
 
 describe('a layout’s lists in the workspace', () => {
@@ -98,9 +98,10 @@ describe('a layout’s lists in the workspace', () => {
     return found!
   }
 
-  it('the add-tab + › List: a new blank list of the layout in a new tab, its Edit list open — no list picker', async () => {
+  it('⋯ › Add widget… › List: a new blank list of the layout in a new tab, its Edit list open — no list picker', async () => {
     render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
-    fireEvent.click(screen.getByRole('button', { name: 'Add widget as tab' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Cell options' }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Cell options' })).getByRole('menuitem', { name: 'Add widget…' }))
     fireEvent.click(within(screen.getByRole('menu', { name: 'Add widget' })).getByRole('menuitem', { name: /^List/ }))
     expect(screen.queryByText('Add list')).toBeNull()
     const { tabId, listId } = await addedListTab()
@@ -150,7 +151,7 @@ describe('a layout’s lists in the workspace', () => {
 
     render(<DndContext><WorkspaceCell cell={cell} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
     fireEvent.contextMenu(document.querySelector('[data-ws-tab="eis"]')!)
-    fireEvent.click(within(screen.getByRole('menu', { name: 'Change widget' })).getByRole('menuitemradio', { name: /^List/ }))
+    fireEvent.click(within(screen.getByRole('menu', { name: 'Cell options' })).getByRole('menuitemradio', { name: /^List/ }))
     const prompt = await screen.findByRole('dialog', { name: 'Save changes to list “Eisenhower”?' })
     fireEvent.click(within(prompt).getByRole('button', { name: /^Cancel/ }))
 

@@ -39,7 +39,7 @@ afterEach(cleanup)
 function openTabMenu(): HTMLElement {
   render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
   fireEvent.contextMenu(document.querySelector('[data-ws-tab="eis"]')!)
-  return screen.getByRole('menu', { name: 'Change widget' })
+  return screen.getByRole('menu', { name: 'Cell options' })
 }
 
 describe('Eisenhower entry points', () => {
