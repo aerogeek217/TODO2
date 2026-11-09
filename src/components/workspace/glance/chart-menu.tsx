@@ -1,16 +1,15 @@
 import {
-  BREAKDOWN_SORT_KEYS,
+  BREAKDOWN_FIXED_SORT_KEYS,
   BREAKDOWN_SPLITS,
   BREAKDOWN_STYLES,
+  breakdownColumns,
   type BreakdownSort,
 } from '../../../models/chart-widgets'
-import type { TabBadgeRange, TabBadgeRanges } from '../../../models/list-definition'
 import type { ChartTab } from '../../../models/workspace-layout'
 import { NONE_ROW_LABELS } from '../../../services/stats/breakdown'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
-import { TAB_BADGE_CHOICES, tabBadgeRangeLabel } from '../../../utils/tab-badges'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import { showTab } from '../widget-hooks'
 import { sortHeading, sortWords, SPLIT_CHOICE_LABELS, STYLE_LABELS } from './breakdown-copy'
@@ -20,9 +19,8 @@ import { useTagStore } from '../../../stores/tag-store'
 /**
  * A chart widget's tab-menu settings (D26 P8), listed first in its ⋯ menu:
  * Edit … (its editor), then a Breakdown's Split by, Style, Sort (view
- * state, saved at once, per split), its none row, and the Due /
- * Follow-up ranges (Settings' unless overridden, as Edit list's tab
- * badges). Every other choice is layout config.
+ * state, saved at once, per split) and its none row — its count columns
+ * are its editor's (board BC). Every other choice is layout config.
  */
 
 /** Opens a chart's editor beside it (its tab shown first, as Edit list's). */
@@ -33,47 +31,19 @@ function openChartEditor(tabId: string): void {
 
 const SHOWN_HIDDEN: readonly Choice<boolean>[] = [{ value: true, label: 'Shown' }, { value: false, label: 'Hidden' }]
 
-/** A range's choices: Settings' (its value as the note), then each range. */
-function rangeEntry(label: string, own: TabBadgeRange | undefined, app: TabBadgeRange, pick: (r: TabBadgeRange | undefined) => void): MenuEntry {
-  const choices: Choice<TabBadgeRange | 'app'>[] = [
-    { value: 'app', label: `As in Settings (${tabBadgeRangeLabel(app)})` },
-    ...TAB_BADGE_CHOICES.map((r) => ({ value: r, label: tabBadgeRangeLabel(r) })),
-  ]
-  const entry = settingEntry(label, choices, own ?? 'app', (v) => pick(v === 'app' ? undefined : v), undefined, 260)
-  // The note short: Settings' or the range's own.
-  return entry.kind === 'item' ? { ...entry, note: own === undefined ? 'Settings' : tabBadgeRangeLabel(own) } : entry
-}
-
-/** A Breakdown's Due and Follow-up ranges: each Settings' or its own. */
-function badgeEntries(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry[] {
-  const app = useSettingsStore.getState().tabBadges
-  const own = tab.config.badges
-  const ownRanges: Partial<TabBadgeRanges> = own === 'off' ? { due: 'off', followup: 'off' } : own ?? {}
-  // Each range on its own: one back on Settings' follows Settings again; both, no override.
-  const write = (part: keyof TabBadgeRanges) => (r: TabBadgeRange | undefined) => {
-    const next: Partial<TabBadgeRanges> = { ...ownRanges, [part]: r }
-    if (r === undefined) delete next[part]
-    const badges = next.due === undefined && next.followup === undefined ? undefined : next
-    useWorkspaceStore.getState().patchTabConfig(tab.id, 'breakdown', { badges })
-  }
-  return [
-    rangeEntry('Due', ownRanges.due, app.due, write('due')),
-    rangeEntry('Follow-up', ownRanges.followup, app.followup, write('followup')),
-  ]
-}
-
-/** The sorts the headings give, as radio choices (the split's own order first). */
+/** The sorts the headings give, as radio choices (the split's own order first, then the fixed headings', then each count column's). */
 function sortEntry(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry {
   const { splitBy, show } = tab.config
-  const current = tab.viewState?.sorts?.[splitBy]
+  const columns = breakdownColumns(tab.config, useSettingsStore.getState().tabBadges)
+  const stored = tab.viewState?.sorts?.[splitBy]
+  // A sort by a column it no longer has reads as the default.
+  const current = stored && (BREAKDOWN_FIXED_SORT_KEYS as readonly string[]).concat(columns.map((c) => c.id)).includes(stored.by) ? stored : undefined
   const key = (s: BreakdownSort | undefined) => (s ? `${s.by}${s.reversed ? '-r' : ''}` : 'default')
-  const sorts: Array<BreakdownSort | undefined> = [
-    undefined,
-    ...BREAKDOWN_SORT_KEYS.filter((by) => !(by === 'priority' && splitBy === 'priority')).flatMap((by): BreakdownSort[] => [{ by }, { by, reversed: true }]),
-  ]
+  const keys = [...BREAKDOWN_FIXED_SORT_KEYS.filter((by) => !(by === 'priority' && splitBy === 'priority')), ...columns.map((c) => c.id)]
+  const sorts: Array<BreakdownSort | undefined> = [undefined, ...keys.flatMap((by): BreakdownSort[] => [{ by }, { by, reversed: true }])]
   const choices: Choice<string>[] = sorts.map((s) => ({
     value: key(s),
-    label: s ? `${sortHeading(s.by, splitBy, show)}: ${sortWords(s, splitBy, show)}` : `Default: ${sortWords(undefined, splitBy, show)}`,
+    label: s ? `${sortHeading(s.by, splitBy, show, columns)}: ${sortWords(s, splitBy, show, columns)}` : `Default: ${sortWords(undefined, splitBy, show, columns)}`,
   }))
   const entry = settingEntry('Sort', choices, key(current), (value) => {
     const next = sorts.find((s) => key(s) === value)
@@ -82,7 +52,7 @@ function sortEntry(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry {
     else delete all[splitBy]
     void useWorkspaceStore.getState().patchTabViewState(tab.id, 'breakdown', { sorts: all })
   }, undefined, 260)
-  return entry.kind === 'item' ? { ...entry, note: sortWords(current, splitBy, show) } : entry
+  return entry.kind === 'item' ? { ...entry, note: sortWords(current, splitBy, show, columns) } : entry
 }
 
 /**
@@ -110,7 +80,7 @@ function tagMapTagsEntry(tab: Extract<ChartTab, { kind: 'tagMap' }>): MenuEntry 
 
 const SPLIT_CHOICES = BREAKDOWN_SPLITS.map((s) => ({ value: s, label: SPLIT_CHOICE_LABELS[s] }))
 
-/** A Breakdown's settings: Edit breakdown…, Split by, Style, Sort, its none row, the Due / Follow-up ranges. */
+/** A Breakdown's settings: Edit breakdown…, Split by, Style, Sort, its none row. */
 function breakdownEntries(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry[] {
   const ws = useWorkspaceStore.getState
   const config = tab.config
@@ -126,7 +96,6 @@ function breakdownEntries(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEn
     entries.push(settingEntry(NONE_ROW_LABELS[config.splitBy], SHOWN_HIDDEN, config.showNone,
       (showNone) => ws().patchTabConfig(tab.id, 'breakdown', { showNone })))
   }
-  entries.push(...badgeEntries(tab))
   return entries
 }
 

@@ -7,9 +7,18 @@
  * stored layout, an import).
  */
 
-import { NUMBER_NAME_MAX, type PickedConfig } from './glance-widgets'
-import type { TabBadgeRanges } from './list-definition'
-import type { TodoPredicate } from './filter-predicate'
+import {
+  isNumberColor,
+  isNumberLitAt,
+  NUMBER_LIT_WHEN,
+  NUMBER_NAME_MAX,
+  numberIsLit,
+  type NumberLitWhen,
+  type NumberPredicateRead,
+  type PickedConfig,
+} from './glance-widgets'
+import type { TabBadgeRange, TabBadgeRanges } from './list-definition'
+import { emptyPredicate, type TodoPredicate } from './filter-predicate'
 
 type Obj = Record<string, unknown>
 
@@ -73,11 +82,113 @@ export interface BreakdownConfig {
   /** Each person row has the check-in envelope (people only); stored only when true. */
   checkins?: true
   /**
-   * The Due and Follow-up columns' ranges (`ChartBadges`): `off`, or its
-   * own range for either or both — a range it doesn't hold, like an absent
-   * `badges`, is Settings › Tasks' and follows it.
+   * Its count columns (board BC): up to `BREAKDOWN_COLUMNS_MAX`, each a
+   * name, a colour and a filter; a row's cell counts that row's tasks the
+   * filter keeps. Absent (a config from before them): the two read from
+   * `badges` (`breakdownColumns`) — written as `columns` once they are edited.
+   */
+  columns?: BreakdownColumn[]
+  /**
+   * What stored the Due and Follow-up columns before count columns
+   * (`ChartBadges`): `off`, or its own range for either or both — a range it
+   * doesn't hold, like an absent `badges`, is Settings › Tasks' and follows
+   * it. Read only while `columns` is absent (`breakdownColumns`); dropped
+   * when they are written.
    */
   badges?: ChartBadges
+}
+
+/**
+ * A Breakdown's count column (board BC): its heading, the colour its counts
+ * fill with while above 0, and the filter (Graphical or an expression, as a
+ * Number's) that picks which of a row's tasks it counts.
+ */
+export interface BreakdownColumn {
+  /** Unique among its Breakdown's columns (a sort names it); never a fixed heading's key (`BREAKDOWN_FIXED_SORT_KEYS`). */
+  id: string
+  name: string
+  /** A hex. */
+  color: string
+  filter: TodoPredicate
+  /** When a count fills solid in its colour (a Number's rule, D18): never, above or below `litAt`; else it is outlined. */
+  litWhen: NumberLitWhen
+  /** The threshold of `above` / `below` (a whole number); absent with `never`. */
+  litAt?: number
+}
+
+/** The most count columns a Breakdown holds. */
+export const BREAKDOWN_COLUMNS_MAX = 4
+
+/**
+ * The columns read from `badges`: their ids — the soon / due ones keep
+ * `due` and `followup`, so a sort stored by those still names a column —,
+ * names and colours.
+ */
+export const OVERDUE_COLUMN_ID = 'overdue'
+export const DUE_COLUMN_ID = 'due'
+export const FOLLOWUP_LATE_COLUMN_ID = 'followup-late'
+export const FOLLOWUP_COLUMN_ID = 'followup'
+/** The derived due columns' colour: the due date's magenta (the dark theme's `--color-overdue`). */
+export const DUE_COLUMN_COLOR = '#e86bf0'
+/** The derived follow-up columns' colour: the follow-up yellow (the dark theme's `--color-followup`). */
+export const FOLLOWUP_COLUMN_COLOR = '#f5c842'
+
+/** A date range on `field`, from `start` to `end` days from today (`null`: open). */
+function rangeFilter(field: 'deadline' | 'followup', start: number | null, end: number): TodoPredicate {
+  return {
+    ...emptyPredicate(),
+    dates: { [field]: { match: 'range', start: start == null ? null : { kind: 'offset', days: start }, end: { kind: 'offset', days: end } } },
+  }
+}
+
+/** A date's two columns from its old range: late (before today, lit above 0) and, with a day count N, due (today … today + N, never lit). */
+function rangeColumns(
+  range: TabBadgeRange,
+  field: 'deadline' | 'followup',
+  late: { id: string; name: string },
+  soon: { id: string; name: string },
+  color: string,
+): BreakdownColumn[] {
+  if (range === 'off') return []
+  const out: BreakdownColumn[] = [{ ...late, color, filter: rangeFilter(field, null, -1), litWhen: 'above', litAt: 0 }]
+  if (range !== 'overdue') out.push({ ...soon, color, filter: rangeFilter(field, 0, range), litWhen: 'never' })
+  return out
+}
+
+/**
+ * The count columns of a config without `columns` (no schema step; a new
+ * Breakdown too), from the ranges `badges` says (`chartBadgeRanges`: its
+ * own, each one it doesn't hold Settings'): the old Due column as Overdue
+ * (lit above 0) and Due soon (today … today + N, never lit), the
+ * Follow-up column likewise as Follow-up late and Follow-up due — a range
+ * `off` drops both of its columns, `overdue` keeps only the late one,
+ * so the solid count still says something is late.
+ */
+export function derivedBreakdownColumns(badges: ChartBadges | undefined, app: TabBadgeRanges): BreakdownColumn[] {
+  const ranges = chartBadgeRanges(badges, app)
+  return [
+    ...rangeColumns(ranges.due, 'deadline', { id: OVERDUE_COLUMN_ID, name: 'Overdue' }, { id: DUE_COLUMN_ID, name: 'Due soon' }, DUE_COLUMN_COLOR),
+    ...rangeColumns(ranges.followup, 'followup', { id: FOLLOWUP_LATE_COLUMN_ID, name: 'Follow-up late' }, { id: FOLLOWUP_COLUMN_ID, name: 'Follow-up due' }, FOLLOWUP_COLUMN_COLOR),
+  ]
+}
+
+/** A Breakdown's count columns: its own, else the ones its `badges` say (`derivedBreakdownColumns`). */
+export function breakdownColumns(config: Pick<BreakdownConfig, 'columns' | 'badges'>, app: TabBadgeRanges): readonly BreakdownColumn[] {
+  return config.columns ?? derivedBreakdownColumns(config.badges, app)
+}
+
+/** Whether a column's count `n` fills solid (its `litWhen` rule, as a Number's). */
+export function columnIsLit(column: Pick<BreakdownColumn, 'litWhen' | 'litAt'>, n: number): boolean {
+  return numberIsLit(column, n)
+}
+
+/** An id none of `columns` has (never a fixed heading's key). */
+export function newBreakdownColumnId(columns: readonly Pick<BreakdownColumn, 'id'>[]): string {
+  const used = new Set(columns.map((c) => c.id))
+  let id: string
+  do id = `col-${Math.random().toString(36).slice(2, 8)}`
+  while (used.has(id))
+  return id
 }
 
 /**
@@ -87,20 +198,16 @@ export interface BreakdownConfig {
  */
 export type ChartBadges = 'off' | Partial<TabBadgeRanges>
 
-/** The Add widget presets of a Breakdown (D26 P8 / Z3). */
-export const BREAKDOWN_PRESETS = ['people', 'tags', 'status', 'waiting', 'custom'] as const
+/** The Add widget presets of a Breakdown (D26 P8; Waiting on went with count columns, board BC). */
+export const BREAKDOWN_PRESETS = ['people', 'tags', 'status', 'custom'] as const
 export type BreakdownPreset = (typeof BREAKDOWN_PRESETS)[number]
 
 export const BREAKDOWN_PRESET_LABELS: Record<BreakdownPreset, string> = {
   people: 'People',
   tags: 'Tags',
   status: 'Status',
-  waiting: 'Waiting on',
   custom: 'Custom',
 }
-
-/** The status Waiting on filters by: the dev seed's name, matched without case. */
-export const WAITING_STATUS_NAME = 'Waiting'
 
 /** A new Breakdown's name. */
 export const DEFAULT_BREAKDOWN_NAME = 'Breakdown'
@@ -110,9 +217,15 @@ export function newBreakdownConfig(filter: TodoPredicate, patch: Partial<Breakdo
   return { name: DEFAULT_BREAKDOWN_NAME, filter, splitBy: 'people', style: 'bars', show: 'count', showNone: true, ...patch }
 }
 
-/** The headings a Breakdown's rows sort by: the name, Open (or Oldest), Priority, Due, Follow-up. */
-export const BREAKDOWN_SORT_KEYS = ['name', 'open', 'priority', 'due', 'followup'] as const
-export type BreakdownSortKey = (typeof BREAKDOWN_SORT_KEYS)[number]
+/** The fixed headings a Breakdown's rows sort by: the name, Open (or Oldest), Priority. */
+export const BREAKDOWN_FIXED_SORT_KEYS = ['name', 'open', 'priority'] as const
+
+/**
+ * A heading a Breakdown's rows sort by: a fixed one (`BREAKDOWN_FIXED_SORT_KEYS`)
+ * or a count column's id. A sort by a column it no longer has reads as the
+ * split's default order.
+ */
+export type BreakdownSortKey = string
 
 /**
  * A heading a Breakdown is sorted by (view state, one per split): counts
@@ -123,9 +236,23 @@ export interface BreakdownSort {
   reversed?: true
 }
 
-/** A Breakdown tab's view state: each split's sort, saved at once (absent = the split's default order). */
+/** A Breakdown tab's view state: each split's sort, saved at once (absent = the split's default order), and its lens switch. */
 export interface BreakdownViewState {
   sorts?: Partial<Record<BreakdownSplit, BreakdownSort>>
+  /** The top bar's lens doesn't apply here (the widget's lens switch, saved at once; absent = it applies). */
+  ignoreLens?: boolean
+}
+
+const COLUMN_ID = /^[A-Za-z0-9_-]{1,40}$/
+
+/** A count column's stored id (or a sort key naming one): short word characters, never a fixed heading's key. */
+export function isBreakdownColumnId(v: unknown): v is string {
+  return typeof v === 'string' && COLUMN_ID.test(v) && !includes(BREAKDOWN_FIXED_SORT_KEYS, v)
+}
+
+/** A stored sort key: a fixed heading's, or a column id. */
+function isSortKey(v: unknown): v is BreakdownSortKey {
+  return includes(BREAKDOWN_FIXED_SORT_KEYS, v) || isBreakdownColumnId(v)
 }
 
 const isBool = (v: unknown): v is boolean => typeof v === 'boolean'
@@ -162,7 +289,28 @@ export function breakdownConfigProblem(raw: Obj): string | null {
   if (!isBool(raw.showNone)) return 'showNone'
   if (raw.checkins !== undefined && raw.checkins !== true) return 'checkins'
   if (raw.badges !== undefined && !isBadgeOverride(raw.badges)) return 'badges'
+  if (raw.columns !== undefined && columnsProblem(raw.columns)) return 'columns'
   return null
+}
+
+/** Whether a stored column list goes wrong in its scalar fields (its filters are the caller's): too many, a bad or repeated id, a bad name or colour. */
+function columnsProblem(raw: unknown): boolean {
+  if (!Array.isArray(raw) || raw.length > BREAKDOWN_COLUMNS_MAX) return true
+  const ids = new Set<string>()
+  for (const c of raw as unknown[]) {
+    if (typeof c !== 'object' || c === null || Array.isArray(c)) return true
+    const { id, name, color, litWhen, litAt } = c as Obj
+    if (!isBreakdownColumnId(id) || ids.has(id) || !isChartName(name) || !isNumberColor(color)) return true
+    if (!includes(NUMBER_LIT_WHEN, litWhen) || (litWhen === 'never' ? litAt !== undefined : !isNumberLitAt(litAt))) return true
+    ids.add(id)
+  }
+  return false
+}
+
+/** A stored Breakdown's column filters by their path in its config (`columns.0.filter`, …): the caller checks each as a predicate. */
+export function breakdownColumnFilters(raw: Obj): Array<[string, unknown]> {
+  if (!Array.isArray(raw.columns)) return []
+  return (raw.columns as unknown[]).map((c, i): [string, unknown] => [`columns.${i}.filter`, typeof c === 'object' && c !== null ? (c as Obj).filter : undefined])
 }
 
 /**
@@ -172,7 +320,7 @@ export function breakdownConfigProblem(raw: Obj): string | null {
  * `oldestBy` that isn't one (or without `oldest`), a non-true `checkins`
  * or a bad badge override is dropped (`fixed`).
  */
-export function pickBreakdownConfig(raw: Obj, filter: PickedConfig<TodoPredicate>): PickedConfig<BreakdownConfig> {
+export function pickBreakdownConfig(raw: Obj, filter: PickedConfig<TodoPredicate>, readPredicate: NumberPredicateRead): PickedConfig<BreakdownConfig> {
   let fixed = filter.fixed
   const pick = <V,>(v: unknown, ok: (v: unknown) => v is V, fallback: V): V => {
     if (ok(v)) return v
@@ -193,17 +341,48 @@ export function pickBreakdownConfig(raw: Obj, filter: PickedConfig<TodoPredicate
   else if (raw.checkins !== undefined) fixed = true
   if (isBadgeOverride(raw.badges)) config.badges = raw.badges
   else if (raw.badges !== undefined) fixed = true
+  if (Array.isArray(raw.columns)) {
+    const picked = pickColumns(raw.columns as unknown[], readPredicate)
+    config.columns = picked.config
+    if (picked.fixed) fixed = true
+  } else if (raw.columns !== undefined) fixed = true
   return { config, fixed }
+}
+
+/**
+ * Count columns read from untrusted input: the first `BREAKDOWN_COLUMNS_MAX`,
+ * each filter read as a Number's; a bad or repeated id gets a new one, a bad
+ * name a blank one, a bad colour the Due magenta, a bad rule above 0 (`fixed`
+ * on any change).
+ */
+function pickColumns(raw: readonly unknown[], readPredicate: NumberPredicateRead): PickedConfig<BreakdownColumn[]> {
+  let fixed = raw.length > BREAKDOWN_COLUMNS_MAX
+  const columns: BreakdownColumn[] = []
+  for (const c of raw.slice(0, BREAKDOWN_COLUMNS_MAX)) {
+    const col = (typeof c === 'object' && c !== null && !Array.isArray(c) ? c : {}) as Obj
+    const filter = readPredicate(col.filter)
+    const fresh = isBreakdownColumnId(col.id) && !columns.some((k) => k.id === col.id)
+    const id = fresh ? (col.id as string) : newBreakdownColumnId(columns)
+    const name = isChartName(col.name) ? col.name : ''
+    const color = isNumberColor(col.color) ? col.color : DUE_COLUMN_COLOR
+    const litWhen: NumberLitWhen = includes(NUMBER_LIT_WHEN, col.litWhen) ? col.litWhen : 'above'
+    const column: BreakdownColumn = { id, name, color, filter: filter.config, litWhen }
+    if (litWhen !== 'never') column.litAt = isNumberLitAt(col.litAt) ? col.litAt : 0
+    if (filter.fixed || !fresh || name !== col.name || color !== col.color || litWhen !== col.litWhen || column.litAt !== col.litAt) fixed = true
+    columns.push(column)
+  }
+  return { config: columns, fixed }
 }
 
 function isBreakdownSort(v: unknown): v is BreakdownSort {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
   const { by, reversed, ...rest } = v as Obj
-  return Object.keys(rest).length === 0 && includes(BREAKDOWN_SORT_KEYS, by) && (reversed === undefined || reversed === true)
+  return Object.keys(rest).length === 0 && isSortKey(by) && (reversed === undefined || reversed === true)
 }
 
 /** Where a stored Breakdown view state goes wrong: the bad key, or `null`. */
 export function breakdownViewProblem(raw: Obj): string | null {
+  if (raw.ignoreLens !== undefined && typeof raw.ignoreLens !== 'boolean') return 'ignoreLens'
   const sorts = raw.sorts
   if (sorts === undefined) return null
   if (typeof sorts !== 'object' || sorts === null || Array.isArray(sorts)) return 'sorts'
@@ -213,59 +392,32 @@ export function breakdownViewProblem(raw: Obj): string | null {
   return null
 }
 
-/** A Breakdown's view state read from untrusted input: each known split's valid sort (`fixed` when one is dropped). */
+/** A Breakdown's view state read from untrusted input: each known split's valid sort and the lens switch (`fixed` when one is dropped). */
 export function pickBreakdownView(raw: Obj | undefined): PickedConfig<BreakdownViewState | undefined> {
   if (raw === undefined) return { config: undefined, fixed: false }
+  let fixed = Object.keys(raw).some((k) => k !== 'sorts' && k !== 'ignoreLens')
+  const view: BreakdownViewState = {}
+  if (typeof raw.ignoreLens === 'boolean') view.ignoreLens = raw.ignoreLens
+  else if (raw.ignoreLens !== undefined) fixed = true
   const sorts = raw.sorts
-  if (sorts === undefined) return { config: undefined, fixed: Object.keys(raw).length > 0 }
-  if (typeof sorts !== 'object' || sorts === null || Array.isArray(sorts)) return { config: undefined, fixed: true }
-  let fixed = Object.keys(raw).some((k) => k !== 'sorts')
-  const kept: Partial<Record<BreakdownSplit, BreakdownSort>> = {}
-  for (const [split, sort] of Object.entries(sorts as Obj)) {
-    if (includes(BREAKDOWN_SPLITS, split) && isBreakdownSort(sort)) kept[split] = sort.reversed ? { by: sort.by, reversed: true } : { by: sort.by }
-    else fixed = true
-  }
-  return { config: Object.keys(kept).length > 0 ? { sorts: kept } : undefined, fixed }
-}
-
-/** A preset's config and, when it needs a pick first, the filter field its editor opens on. */
-export interface BreakdownPresetSeed {
-  config: Partial<BreakdownConfig>
-  /** Waiting on with no status named Waiting: its editor opens the Status picker. */
-  startField?: 'status'
-}
-
-/**
- * What an Add widget preset starts a Breakdown with: People, Tags and
- * Status split every open task by theirs (as the widgets they replaced);
- * Waiting on (board Z3) keeps the tasks of the status named Waiting
- * (`WAITING_STATUS_NAME`), split by people, each row's oldest by its last
- * follow-up, with the check-in envelope — with no such status, its filter
- * starts empty and its editor opens the Status picker; Custom is a new
- * Breakdown.
- */
-export function breakdownPreset(
-  preset: BreakdownPreset,
-  statuses: readonly { id?: number; name: string }[],
-  filter: () => TodoPredicate,
-): BreakdownPresetSeed {
-  switch (preset) {
-    case 'people': return { config: { name: 'People', splitBy: 'people' } }
-    case 'tags': return { config: { name: 'Tags', splitBy: 'tags' } }
-    case 'status': return { config: { name: 'Status', splitBy: 'status' } }
-    case 'custom': return { config: {} }
-    case 'waiting': {
-      const waiting = statuses.find((s) => s.id != null && s.name.trim().toLowerCase() === WAITING_STATUS_NAME.toLowerCase())
-      const config: Partial<BreakdownConfig> = {
-        name: BREAKDOWN_PRESET_LABELS.waiting,
-        splitBy: 'people',
-        show: 'oldest',
-        oldestBy: 'lastFollowup',
-        checkins: true,
-        filter: waiting?.id != null ? { ...filter(), statusIds: [waiting.id] } : filter(),
-      }
-      return waiting ? { config } : { config, startField: 'status' }
+  if (typeof sorts === 'object' && sorts !== null && !Array.isArray(sorts)) {
+    const kept: Partial<Record<BreakdownSplit, BreakdownSort>> = {}
+    for (const [split, sort] of Object.entries(sorts as Obj)) {
+      if (includes(BREAKDOWN_SPLITS, split) && isBreakdownSort(sort)) kept[split] = sort.reversed ? { by: sort.by, reversed: true } : { by: sort.by }
+      else fixed = true
     }
+    if (Object.keys(kept).length > 0) view.sorts = kept
+  } else if (sorts !== undefined) fixed = true
+  return { config: Object.keys(view).length > 0 ? view : undefined, fixed }
+}
+
+/** What an Add widget preset starts a Breakdown with: People, Tags and Status split every open task by theirs (as the widgets they replaced); Custom is a new Breakdown. */
+export function breakdownPreset(preset: BreakdownPreset): Partial<BreakdownConfig> {
+  switch (preset) {
+    case 'people': return { name: 'People', splitBy: 'people' }
+    case 'tags': return { name: 'Tags', splitBy: 'tags' }
+    case 'status': return { name: 'Status', splitBy: 'status' }
+    case 'custom': return {}
   }
 }
 

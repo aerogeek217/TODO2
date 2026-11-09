@@ -25,13 +25,15 @@ export interface SectionProps<D> {
 /** What a panel's header names: a section's meta, or a glance widget's own (Project pulse). */
 export type PanelDef = Pick<SectionMeta, 'title' | 'glyph' | 'glyphColor'> & { id: string }
 
-export function Panel({ def, count, onCount, sub, extras, style, className, children }: {
+export function Panel({ def, count, onCount, sub, extras, lens, style, className, children }: {
   def: PanelDef
   count?: string
   /** Opens the tasks behind the count; absent = plain text. */
   onCount?: () => void
   sub?: string
   extras?: ReactNode
+  /** The widget's lens switch (G3): at the line's end, before the cell's ⋯. */
+  lens?: ReactNode
   style?: CSSProperties
   className?: string
   children: ReactNode
@@ -50,6 +52,7 @@ export function Panel({ def, count, onCount, sub, extras, style, className, chil
           : <span className={styles.panelCount} data-testid="glance-section-count">{count}</span>)}
         {sub && <span className={styles.panelSub}>{sub}</span>}
         {extras && <span className={styles.panelExtras}>{extras}</span>}
+        {lens}
       </WidgetTopLine>
       {children}
     </section>

@@ -2,7 +2,8 @@ import { useMemo } from 'react'
 import type { TagMapTab } from '../../../models/workspace-layout'
 import { useTagMapData } from '../../../hooks/use-chart-data'
 import { useElementSize } from '../../../hooks/use-element-size'
-import { useStatsBase } from '../../../hooks/use-glance-data'
+import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
+import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { lateShare, type TagMapTile } from '../../../services/stats/tag-map'
 import { squarify } from '../../../utils/treemap'
@@ -97,6 +98,7 @@ export function TagMapWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TagMa
   useReportLines(onResult, lines)
   const drill = glanceDrill(onDrill, data.count.filtered)
   const top = data.tiles.at(0)
+  const lensHides = lensHidesFor(useLensHidden(), config.filter)
   return (
     <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
       {face === 'small' ? (
@@ -115,6 +117,7 @@ export function TagMapWidget({ tab, onResult, onDrill }: GlanceWidgetProps<TagMa
           title={title}
           glyph="tag"
           sub={config.tagIds ? `${config.tagIds.length} ${config.tagIds.length === 1 ? 'tag' : 'tags'}` : 'Every tag'}
+          lens={<TabLensSwitch tab={tab} hides={lensHides} />}
         >
           {data.tiles.length === 0
             ? <Empty title="No open tasks" hint="The open tasks this map's filter keeps show here, a tile per tag." />

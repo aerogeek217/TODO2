@@ -3,7 +3,7 @@ import type { LensTab } from '../../../models/workspace-layout'
 import { useIsListDirty } from '../../../hooks/use-list-draft'
 import { useTabBadges } from '../../../hooks/use-tab-badges'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
-import { GlassesIcon } from '../../shared/icons'
+import { LensSwitch } from '../LensSwitch'
 import { TopLineName, WidgetTopLine } from '../WidgetTopLine'
 import { useTabTitle } from '../widget-hooks'
 import type { ListLensMark } from './ListWidget'
@@ -27,25 +27,22 @@ export function ListTopLineLead({ tab, listId }: { tab: LensTab; listId: number 
   )
 }
 
-/** The lens on a list, in words: `“This month” hides 8 here` / `Ignores the lens “This month”`. */
-function lensLine(lens: ListLensMark): string {
-  return lens.ignored ? `Ignores the lens “${lens.name}”` : `“${lens.name}” hides ${lens.hides} here`
-}
-
 /**
  * A list whose filter line is hidden, alone in its cell: its top line is a
  * slim one with what its tab would show — the name, the unsaved dot, the
- * badge, the lens mark and the count.
+ * badge and the count — and, at its end, the lens switch (G3).
  */
-export function ListNameLine({ tab, listId, count, lens }: { tab: LensTab; listId: number; count: string; lens?: ListLensMark }) {
+export function ListNameLine({ tab, listId, count, lens, onToggleLens }: {
+  tab: LensTab
+  listId: number
+  count: string
+  lens?: ListLensMark
+  onToggleLens?: () => void
+}) {
   return (
     <WidgetTopLine alone className={styles.nameLine} lead={<ListTopLineLead tab={tab} listId={listId} />} data-testid="list-name-line">
-      {lens && (
-        <span className={`${styles.lensMark} ${lens.ignored ? styles.lensMarkOff : ''}`} role="img" aria-label={lensLine(lens)} title={lensLine(lens)} data-testid="list-lens-mark">
-          <GlassesIcon size={12} slashed={lens.ignored} />
-        </span>
-      )}
       <span className={styles.count} data-testid="list-count">{count}</span>
+      {lens && onToggleLens && <LensSwitch lens={lens} onToggle={onToggleLens} noun="list" />}
     </WidgetTopLine>
   )
 }

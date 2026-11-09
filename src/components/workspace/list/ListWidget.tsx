@@ -7,6 +7,7 @@ import { useBuiltList } from '../../../hooks/use-built-list'
 import { useKeptTodos, useLeavingRows } from '../../../hooks/use-leaving-rows'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useListScreenFilter } from '../../../hooks/use-list-screen-filter'
+import type { LensMark } from '../../../hooks/use-widget-lens'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useEffectiveListDefinition, useIsListDirty } from '../../../hooks/use-list-draft'
@@ -71,15 +72,8 @@ import { zoomOnCtrlWheel } from './zoom-wheel'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { transitionName, withViewTransition } from '../../shared/view-transition'
 
-/** The top bar's lens on one list, as its tab shows it while the list's filter line is hidden. */
-export interface ListLensMark {
-  /** The lens's name. */
-  name: string
-  /** The list ignores the lens (`ListDefinition.ignoreLens`). */
-  ignored: boolean
-  /** What the lens hides (or would hide) here. */
-  hides: number
-}
+/** The top bar's lens on one list (its switch, and its tab's mark while the filter line is hidden); `ignored` is `ListDefinition.ignoreLens`. */
+export type ListLensMark = LensMark
 
 /** What a list widget reports to its cell (tab count, its menu's lens switch, Copy tasks). */
 export interface ListWidgetResult {
@@ -561,7 +555,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
           onToggleLens={toggleLens}
           topLine={{ lead: <ListTopLineLead tab={tab} listId={definition.id} /> }}
         />
-      ) : <ListNameLine tab={tab} listId={definition.id} count={countLabel} lens={lensMark} />}
+      ) : <ListNameLine tab={tab} listId={definition.id} count={countLabel} lens={lensMark} onToggleLens={toggleLens} />}
       {definition.runtimeFilter && (
         <RuntimeFilterPicker
           inputRef={runtimeInputRef}

@@ -1,12 +1,16 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
+  BREAKDOWN_COLUMNS_MAX,
   BREAKDOWN_OLDEST_BY,
   BREAKDOWN_SHOWS,
   BREAKDOWN_SPLITS,
   BREAKDOWN_STYLES,
   CHART_NAME_MAX,
   DEFAULT_BREAKDOWN_OLDEST_BY,
+  breakdownColumns,
+  newBreakdownColumnId,
+  type BreakdownColumn,
   type BreakdownConfig,
   type BreakdownOldestBy,
   type BreakdownShow,
@@ -20,14 +24,18 @@ import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { NONE_ROW_LABELS } from '../../../services/stats/breakdown'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
-import type { ListFilterField } from '../../../stores/list-widget-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { isInLayerAbove } from '../../../utils/dom-layers'
 import { hasFilterClause } from '../../../utils/filter-clauses'
+import { HUE_PRESET_HEX } from '../../../utils/layout-hue'
+import { emptyPredicate } from '../../../models/filter-predicate'
 import { getTab } from '../../../utils/workspace-layout-queries'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
-import { CloseIcon } from '../../shared/icons'
+import { CloseIcon, PlusIcon } from '../../shared/icons'
 import { PopoverRoot } from '../../shared/PopoverRoot'
+import { ColorPicker } from '../../shared/ColorPicker'
+import { LitWhenControl } from './LitWhenField'
 import { OLDEST_BY_LABELS, SHOW_LABELS, SPLIT_CHOICE_LABELS, STYLE_LABELS } from './breakdown-copy'
 import styles from './ChartEditor.module.css'
 
@@ -77,7 +85,6 @@ function useChartTab(tabId: string | null): ChartTab | undefined {
  */
 export function ChartEditorHost() {
   const tabId = useChartWidgetsStore((s) => s.editorTabId)
-  const startField = useChartWidgetsStore((s) => s.editorStartField)
   const tab = useChartTab(tabId)
   const close = useChartWidgetsStore((s) => s.closeEditor)
   // The layout: a change (the tab made active, a row expanded) may bring the chart on screen.
@@ -103,7 +110,7 @@ export function ChartEditorHost() {
   }, [tabId, tab, close])
   useEffect(() => () => useChartWidgetsStore.getState().closeEditor(), [])
   if (!tab || found !== tab.id) return null
-  return <ChartEditor key={tab.id} tab={tab} anchorRef={anchorRef} startField={startField ?? undefined} onClose={close} />
+  return <ChartEditor key={tab.id} tab={tab} anchorRef={anchorRef} onClose={close} />
 }
 
 function Select<V extends string>({ label, value, options, labels, onChange }: {
@@ -172,6 +179,96 @@ function BreakdownFields({ config, patch }: { config: BreakdownConfig; patch: (p
   )
 }
 
+/** A new count column's colour: the first preset hue none of `columns` has (else teal). */
+function freshColor(columns: readonly BreakdownColumn[]): string {
+  const used = new Set(columns.map((c) => c.color.toLowerCase()))
+  return Object.values(HUE_PRESET_HEX).find((hex) => !used.has(hex.toLowerCase())) ?? HUE_PRESET_HEX.teal
+}
+
+/**
+ * A Breakdown's **Count columns** (board BC): each a name, a colour, when
+ * its count fills solid (Light up when, a Number's rule) and a filter
+ * (Graphical / Expression), × to remove it; + Add column, up to
+ * `BREAKDOWN_COLUMNS_MAX`. A config without `columns` shows the ones read
+ * from its old ranges (`breakdownColumns`); the first edit writes them all
+ * as `columns` and drops the old `badges`.
+ */
+function CountColumnsField({ config, patch }: { config: BreakdownConfig; patch: (p: Partial<BreakdownConfig>) => void }) {
+  const id = useId()
+  const appRanges = useSettingsStore((s) => s.tabBadges)
+  const columns = breakdownColumns(config, appRanges)
+  const write = (next: BreakdownColumn[]) => patch({ columns: next, badges: undefined })
+  const set = (i: number, column: BreakdownColumn) => write(columns.map((c, j) => (j === i ? column : c)))
+  return (
+    <div className={styles.fieldset} role="group" aria-labelledby={`${id}-columns`} data-testid="chart-editor-columns">
+      <span id={`${id}-columns`} className={styles.label}>Count columns</span>
+      {columns.length === 0 && <span className={styles.hint}>No count columns: each row shows its {config.show === 'oldest' ? 'oldest task' : 'open tasks'} and priority.</span>}
+      {columns.map((column, i) => {
+        const label = column.name.trim() || `Column ${i + 1}`
+        return (
+          <div key={column.id} className={styles.column} role="group" aria-label={`Count column ${i + 1}`} data-column-editor={column.id}>
+            <div className={styles.columnHead}>
+              <span className={styles.columnSwatch} style={{ background: column.color }} aria-hidden="true" />
+              <input
+                type="text"
+                className={styles.input}
+                value={column.name}
+                maxLength={CHART_NAME_MAX}
+                placeholder="Column"
+                aria-label={`Column ${i + 1} name`}
+                onChange={(e) => set(i, { ...column, name: e.target.value.slice(0, CHART_NAME_MAX) })}
+              />
+              <button type="button" className={styles.close} aria-label={`Remove ${label}`} title="Remove" onClick={() => write(columns.filter((_, j) => j !== i))}>
+                <CloseIcon size={12} />
+              </button>
+            </div>
+            <ColorPicker value={column.color} onChange={(color) => set(i, { ...column, color })} />
+            <div className={styles.columnRow}>
+              <span>Light up when</span>
+              <LitWhenControl
+                litWhen={column.litWhen}
+                litAt={column.litAt}
+                label={`${label}: light up when`}
+                onChange={({ litWhen, litAt }) => {
+                  const { litAt: _old, ...rest } = column
+                  void _old
+                  set(i, litAt === undefined ? { ...rest, litWhen } : { ...rest, litWhen, litAt })
+                }}
+              />
+            </div>
+            <div className={styles.filter}>
+              <PredicateChips
+                predicate={column.filter}
+                onChange={(filter) => set(i, { ...column, filter })}
+                addLabel="Count tasks where"
+                layout="stack"
+                inDialog
+                before={hasFilterClause(column.filter) || column.filter.expression ? undefined : <span className={styles.noFilter}>No filter — every open task in the row</span>}
+              />
+            </div>
+          </div>
+        )
+      })}
+      {columns.length < BREAKDOWN_COLUMNS_MAX && (
+        <button
+          type="button"
+          className={styles.addColumn}
+          onClick={() => write([...columns, {
+            id: newBreakdownColumnId(columns),
+            name: `Count ${columns.length + 1}`,
+            color: freshColor(columns),
+            filter: emptyPredicate(),
+            litWhen: 'above',
+            litAt: 0,
+          }])}
+        >
+          <PlusIcon size={12} /> Add column
+        </button>
+      )}
+    </div>
+  )
+}
+
 /** A Pivot's own fields: what its rows and its columns split by. */
 function PivotFields({ config, patch }: { config: PivotConfig; patch: (p: Partial<PivotConfig>) => void }) {
   return (
@@ -190,7 +287,12 @@ function kindParts(tab: ChartTab): { title: string; filterLabel: string; fields:
       return {
         title: 'Edit breakdown',
         filterLabel: 'Split tasks where',
-        fields: <BreakdownFields config={tab.config} patch={(p) => ws().patchTabConfig(tab.id, 'breakdown', p)} />,
+        fields: (
+          <>
+            <BreakdownFields config={tab.config} patch={(p) => ws().patchTabConfig(tab.id, 'breakdown', p)} />
+            <CountColumnsField config={tab.config} patch={(p) => ws().patchTabConfig(tab.id, 'breakdown', p)} />
+          </>
+        ),
       }
     case 'pivot':
       return {
@@ -216,12 +318,10 @@ function kindParts(tab: ChartTab): { title: string; filterLabel: string; fields:
  * the tab's config at once — layout config, so the layout is unsaved
  * until Save. Esc, × or a press elsewhere close it.
  */
-export function ChartEditor({ tab, anchorRef, startField, onClose }: {
+export function ChartEditor({ tab, anchorRef, onClose }: {
   tab: ChartTab
   /** The chart's title it sits under. */
   anchorRef: RefObject<HTMLElement | null>
-  /** A filter field whose picker opens at once (Waiting on with no Waiting status). */
-  startField?: ListFilterField
   onClose: () => void
 }) {
   const config = tab.config
@@ -279,23 +379,19 @@ export function ChartEditor({ tab, anchorRef, startField, onClose }: {
             value={config.name}
             maxLength={CHART_NAME_MAX}
             placeholder="Name"
-            autoFocus={!startField}
+            autoFocus
             onChange={(e) => patch({ name: e.target.value.slice(0, CHART_NAME_MAX) })}
           />
         </label>
         <div className={styles.fieldset} role="group" aria-labelledby={`${id}-filter`}>
           <span id={`${id}-filter`} className={styles.label}>{filterLabel}</span>
           <div className={styles.filter} data-testid="chart-editor-filter">
-            {startField && noFilter && (
-              <span className={styles.hint} data-testid="chart-editor-pick-hint">No status is named Waiting: pick the one you wait on.</span>
-            )}
             <PredicateChips
               predicate={config.filter}
               onChange={(filter) => patch({ filter })}
               addLabel={filterLabel}
               layout="stack"
               inDialog
-              startPicking={startField}
               before={noFilter ? <span className={styles.noFilter}>No filter — every open task</span> : undefined}
             />
           </div>

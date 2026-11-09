@@ -1,13 +1,15 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  NUMBER_LIT_AT_MAX,
   NUMBER_NAME_MAX,
   type NumberCompare,
   type NumberConfig,
-  type NumberLitWhen,
 } from '../../../models/glance-widgets'
-import type { NumberTab } from '../../../models/workspace-layout'
+import { tabIgnoresLens, type NumberTab } from '../../../models/workspace-layout'
+import { lensHidesFor, useLensHidden } from '../../../hooks/use-glance-data'
+import { setTabIgnoresLens } from '../../../hooks/use-widget-lens'
+import { useAppliedLens } from '../../../stores/screen-filter'
+import { LensSwitch } from '../LensSwitch'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useUIStore } from '../../../stores/ui-store'
@@ -19,6 +21,7 @@ import { ColorPicker } from '../../shared/ColorPicker'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { CloseIcon } from '../../shared/icons'
 import { PopoverRoot } from '../../shared/PopoverRoot'
+import { LitWhenControl } from './LitWhenField'
 import {
   AUTO_SHOWN,
   GoalFields,
@@ -31,12 +34,6 @@ import {
 import { useLayoutFirstListId } from '../../../hooks/use-number-shapes'
 import { switchShape, type ShapeStash } from './number-shape-switch'
 import styles from './NumberEditor.module.css'
-
-const LIT_WHEN: ReadonlyArray<{ value: NumberLitWhen; label: string }> = [
-  { value: 'never', label: 'Never' },
-  { value: 'above', label: 'Above' },
-  { value: 'below', label: 'Below' },
-]
 
 const COMPARES: ReadonlyArray<{ value: NumberCompare; label: string }> = [
   { value: 'yesterday', label: 'Yesterday' },
@@ -80,30 +77,26 @@ function useEscapeCloses(panel: RefObject<HTMLElement | null>, onClose: () => vo
 }
 
 /** The threshold field: a whole number, written once it reads as one (blank or bad text isn't written). */
-function LitAtField({ value, onChange, label }: { value: number; onChange: (n: number) => void; label: string }) {
-  const [text, setText] = useState(String(value))
-  const [shown, setShown] = useState(value)
-  if (shown !== value) {
-    setShown(value)
-    setText(String(value))
-  }
+/**
+ * Top-bar lens (G3): the Number's lens switch — the one on its corner —
+ * while a lens applies at the top bar: on with `−N` (what it hides among
+ * this Number's tasks), slashed while the Number ignores it. View state,
+ * saved at once (never an unsaved layout edit).
+ */
+function NumberLensField({ tab }: { tab: NumberTab }) {
+  const lens = useAppliedLens()
+  const config = tab.config
+  const filters = config.show === 'group' ? (config.items ?? []).map((i) => i.filter) : [config.filter]
+  const hides = lensHidesFor(useLensHidden(), ...filters)
+  if (!lens) return null
+  const ignored = tabIgnoresLens(tab)
   return (
-    <input
-      type="number"
-      inputMode="numeric"
-      min={0}
-      max={NUMBER_LIT_AT_MAX}
-      step={1}
-      className={styles.number}
-      aria-label={label}
-      value={text}
-      onChange={(e) => {
-        setText(e.target.value)
-        const n = Number(e.target.value)
-        if (e.target.value.trim() !== '' && Number.isInteger(n) && n >= 0 && n <= NUMBER_LIT_AT_MAX) onChange(n)
-      }}
-      onBlur={() => setText(String(value))}
-    />
+    <div className={styles.field} data-testid="number-editor-lens">
+      <span className={styles.label}>Top-bar lens</span>
+      <span className={styles.litRow}>
+        <LensSwitch lens={{ name: lens.name, ignored, hides }} onToggle={() => setTabIgnoresLens(tab, !ignored)} />
+      </span>
+    </div>
   )
 }
 
@@ -279,23 +272,7 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
           {show === 'list' && <ListField config={config} patch={patch} />}
           {show !== 'goal' && <div className={styles.field}>
             <span className={styles.label} aria-hidden="true">Light up when</span>
-            <span className={styles.litRow}>
-              <select
-                className={styles.select}
-                aria-label="Light up when"
-                value={config.litWhen}
-                onChange={(e) => {
-                  const litWhen = e.target.value as NumberLitWhen
-                  patch(litWhen === 'never' ? { litWhen, litAt: undefined } : { litWhen, litAt: config.litAt ?? 0 })
-                }}
-              >
-                {LIT_WHEN.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {config.litWhen !== 'never' && (
-                <LitAtField value={config.litAt ?? 0} label={`Light up when ${config.litWhen}${litUnit ? ` (${litUnit})` : ''}`} onChange={(litAt) => patch({ litAt })} />
-              )}
-              {config.litWhen !== 'never' && litUnit && <span className={styles.unit}>{litUnit}</span>}
-            </span>
+            <LitWhenControl litWhen={config.litWhen} litAt={config.litAt} unit={litUnit} onChange={(next) => patch(next)} />
           </div>}
           {(show === 'count' || show === 'share') && <label className={styles.field}>
             <span className={styles.label}>Compare with</span>
@@ -303,17 +280,7 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
               {COMPARES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </label>}
-          {show !== 'list' && <label className={styles.field}>
-            <span className={styles.label}>Top-bar lens</span>
-            <select
-              className={styles.select}
-              value={config.ignoreLens ? 'ignore' : 'follow'}
-              onChange={(e) => patch({ ignoreLens: e.target.value === 'ignore' ? true : undefined })}
-            >
-              <option value="follow">Follow</option>
-              <option value="ignore">Ignore</option>
-            </select>
-          </label>}
+          {show !== 'list' && <NumberLensField tab={tab} />}
         </div>
       </div>
     </PopoverRoot>,

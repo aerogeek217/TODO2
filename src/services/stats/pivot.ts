@@ -1,6 +1,5 @@
 import type { PersistedTodoItem } from '../../models'
 import type { PivotDim } from '../../models/chart-widgets'
-import { DEFAULT_TAB_BADGES } from '../../utils/tab-badges'
 import { computeBreakdown, type BreakdownRow } from './breakdown'
 import type { RowRestrictions } from './row-restrictions'
 import type { StatsContext } from './stats-context'
@@ -41,7 +40,7 @@ export interface PivotOptions {
 
 function axis(tasks: readonly PersistedTodoItem[], ctx: StatsContext, dim: PivotDim, opts: PivotOptions) {
   const restrictions = dim === 'people' ? opts.restrictions?.people : dim === 'tags' ? opts.restrictions?.tags : undefined
-  return computeBreakdown(tasks, ctx, { splitBy: dim, show: 'count', oldestBy: 'created', ranges: DEFAULT_TAB_BADGES, restrictions })
+  return computeBreakdown(tasks, ctx, { splitBy: dim, show: 'count', oldestBy: 'created', columns: [], restrictions })
 }
 
 const head = ({ key, label, entity, color, ids }: BreakdownRow): PivotHead => ({ key, label, entity, ...(color ? { color } : {}), ids })

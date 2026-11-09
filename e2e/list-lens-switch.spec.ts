@@ -3,11 +3,12 @@ import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
- * A list's switch for the top bar's lens: while the lens hides tasks in the
- * list, its filter line ends with the glasses and `−N`, then the list's
- * count, then group · sort — the count no longer on the tab. A click turns
- * the lens off for this list alone (slashed glasses, every task back),
- * saved at once: it outlasts a reload and never makes the list unsaved.
+ * A list's switch for the top bar's lens (the standard switch, G3): while
+ * the lens hides tasks in the list, its top line ends with the glasses and
+ * `−N`, after the count and group · sort, just before the cell's ⋯. A
+ * click turns the lens off for this list alone (slashed glasses, every
+ * task back), saved at once: it outlasts a reload and never makes the list
+ * unsaved.
  */
 
 const SEED: WorkspaceSeed = {
@@ -25,7 +26,7 @@ const SEED: WorkspaceSeed = {
 }
 
 const line = (page: Page) => page.getByTestId('list-filter-row')
-const lensSwitch = (page: Page) => line(page).getByTestId('list-lens-switch')
+const lensSwitch = (page: Page) => line(page).getByTestId('lens-switch')
 const count = (page: Page) => line(page).getByTestId('list-count')
 const rows = (page: Page) => page.locator('[data-todo-id]')
 
@@ -36,7 +37,7 @@ async function pickLens(page: Page, name: string) {
   await expect(control).toHaveAccessibleName(`Lens: ${name}`)
 }
 
-test('the lens’s switch sits just left of the count at the line’s end; off for this list it stays off after a reload', async ({ page }) => {
+test('the lens’s switch sits at the line’s end, before the ⋯; off for this list it stays off after a reload', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(rows(page)).toHaveCount(3)
   // No lens: the count on the line, no switch; alone in its cell, no tab to carry it (D26 AA1).
@@ -51,13 +52,15 @@ test('the lens’s switch sits just left of the count at the line’s end; off f
   await expect(lensSwitch(page)).toHaveAttribute('aria-pressed', 'true')
   await expect(count(page)).toHaveText('2 of 3')
 
-  // Right to left: group · sort, the count, the switch — the switch's right edge just before the count.
+  // Left to right: the count, group · sort, the switch, then the cell's ⋯ (shown on hover).
   const s = await box(lensSwitch(page))
   const c = await box(count(page))
   const summary = await box(line(page).getByTestId('list-summary'))
-  expect(s.x + s.width).toBeLessThanOrEqual(c.x + 0.5)
-  expect(c.x - (s.x + s.width)).toBeLessThan(8)
+  await line(page).hover()
+  const more = await box(line(page).getByRole('button', { name: 'Cell options' }))
   expect(c.x + c.width).toBeLessThanOrEqual(summary.x + 0.5)
+  expect(summary.x + summary.width).toBeLessThanOrEqual(s.x + 0.5)
+  expect(s.x + s.width).toBeLessThanOrEqual(more.x + 0.5)
   expect(Math.abs((s.y + s.height / 2) - (c.y + c.height / 2))).toBeLessThan(2)
 
   await lensSwitch(page).click()
@@ -94,16 +97,16 @@ test('applying a lens that hides nothing here keeps the switch under the focus, 
   await expect(lensSwitch(page)).toBeFocused()
 })
 
-test('with the filter line hidden, its top line shows the lens beside its count, and its menu turns the lens off here', async ({ page }) => {
+test('with the filter line hidden, its top line ends with the switch after its count, and its menu turns the lens off here', async ({ page }) => {
   await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', showFilterLine: false }] })
   await pickLens(page, 'Aisha')
   // Alone in its cell: its slim top line stands for the tab (D26 AA1).
   const t1 = page.locator('[data-ws-tab="t1"]')
   await expect(t1).toHaveAttribute('data-testid', 'list-name-line')
-  await expect(t1.getByTestId('list-lens-mark')).toHaveAccessibleName('“Aisha” hides 1 here')
+  await expect(t1.getByTestId('lens-switch')).toHaveText('−1')
   await expect(t1).toContainText('2 of 3')
   await t1.getByTestId('top-line-name').click({ button: 'right' })
   await page.getByRole('menuitemcheckbox', { name: 'Apply lens “Aisha” here' }).click()
   await expect(rows(page)).toHaveCount(3)
-  await expect(t1.getByTestId('list-lens-mark')).toHaveAccessibleName('Ignores the lens “Aisha”')
+  await expect(t1.getByTestId('lens-switch')).toHaveAttribute('aria-pressed', 'false')
 })

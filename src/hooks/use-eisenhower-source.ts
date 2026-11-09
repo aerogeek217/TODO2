@@ -5,7 +5,7 @@ import { useBuiltList } from './use-built-list'
 import { useScreenTasks } from './use-glance-data'
 import type { LeavingRows } from './use-leaving-rows'
 import { useEffectiveListDefinition } from './use-list-draft'
-import { useScreenFilter } from '../stores/screen-filter'
+import { useWidgetScreenFilter } from './use-widget-lens'
 import { useListDefinitionStore } from '../stores/list-definition-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useTodoStore } from '../stores/todo-store'
@@ -60,7 +60,7 @@ export function useEisenhowerSource(leaving?: LeavingRows): EisenhowerSource {
   const listId = useSettingsStore((s) => s.eisenhowerListId) ?? undefined
   const savedName = useListDefinitionStore((s) => (listId != null ? s.listDefinitions.find((d) => d.id === listId)?.name : undefined))
   const todos = useTodoStore((s) => s.todos)
-  const { filters: screen, active: screenActive } = useScreenFilter()
+  const { filters: screen, active: screenActive } = useWidgetScreenFilter()
   // The screen-filtered tasks, filtered once for every widget on screen (the glance widgets' shared base).
   const screenTasks = useScreenTasks()
 

@@ -1,6 +1,5 @@
 import { create } from 'zustand'
 import type { BreakdownSplit } from '../models/chart-widgets'
-import type { ListFilterField } from './list-widget-store'
 
 /**
  * The chart widgets' temporary state (D26 P8), never in a layout: the open
@@ -11,27 +10,24 @@ import type { ListFilterField } from './list-widget-store'
 interface ChartWidgetsState {
   /** The chart tab whose editor is open. */
   editorTabId: string | null
-  /** The editor opens with this filter field's picker open (Waiting on with no Waiting status: Status). */
-  editorStartField: ListFilterField | null
   /** Each Breakdown tab's filter-row picks, by split: the rows' keys, in pick order. */
   rowPicks: Readonly<Record<string, Partial<Record<BreakdownSplit, readonly string[]>> | undefined>>
-  openEditor: (tabId: string, startField?: ListFilterField) => void
+  openEditor: (tabId: string) => void
   closeEditor: () => void
   setRowPicks: (tabId: string, split: BreakdownSplit, keys: readonly string[]) => void
 }
 
 export const useChartWidgetsStore = create<ChartWidgetsState>((set, get) => ({
   editorTabId: null,
-  editorStartField: null,
   rowPicks: {},
 
-  openEditor(tabId, startField) {
-    set({ editorTabId: tabId, editorStartField: startField ?? null })
+  openEditor(tabId) {
+    set({ editorTabId: tabId })
   },
 
   closeEditor() {
     if (get().editorTabId === null) return
-    set({ editorTabId: null, editorStartField: null })
+    set({ editorTabId: null })
   },
 
   setRowPicks(tabId, split, keys) {
