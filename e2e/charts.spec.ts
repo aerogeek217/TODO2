@@ -22,8 +22,11 @@ const SEED: WorkspaceSeed = {
     { title: 'Done already', people: ['Ben Ortiz'], status: 'Waiting', isCompleted: true },
   ],
   layouts: [{ name: 'Charts', table: {
-    areas: ['p'],
-    cells: [{ id: 'p', tabs: [{ id: 'pivot', kind: 'pivot' }] }],
+    areas: ['p f'],
+    cells: [
+      { id: 'p', tabs: [{ id: 'pivot', kind: 'pivot' }] },
+      { id: 'f', tabs: [{ id: 'flow', kind: 'statusFlow' }] },
+    ],
   } }],
 }
 
@@ -48,3 +51,16 @@ test('a Pivot’s cell and its totals open their tasks', async ({ page }) => {
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
 })
 
+
+test('a Status flow’s segment opens the tasks in that status at that week’s end', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  const flow = chart(page, 'flow')
+  await expect(flow.getByTestId('chart-sub')).toHaveText('8 weeks')
+  await expect(flow.getByTestId('status-flow-legend')).toContainText('Doing')
+  await expect(flow.locator('[data-flow-week]')).toHaveCount(8)
+  // Seeded without history: this week holds them, by status now.
+  const waiting = flow.getByRole('button', { name: 'Waiting, this week: 2. Show tasks' })
+  await waiting.click()
+  await expect(dialog(page).getByRole('heading')).toHaveText('Status flow · Waiting · now')
+  await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
+})

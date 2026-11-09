@@ -30,7 +30,15 @@ import {
   type TagPicksTabConfig,
   type TrendTabConfig,
 } from './glance-widgets'
-import { newBreakdownConfig, newPivotConfig, type BreakdownConfig, type BreakdownViewState, type PivotConfig } from './chart-widgets'
+import {
+  newBreakdownConfig,
+  newPivotConfig,
+  newStatusFlowConfig,
+  type BreakdownConfig,
+  type BreakdownViewState,
+  type PivotConfig,
+  type StatusFlowConfig,
+} from './chart-widgets'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
@@ -50,7 +58,7 @@ export type WidgetKind =
 export type GlanceWidgetKind = 'number' | ChartWidgetKind | 'trend' | 'pulse'
 
 /** The chart widgets (D26 P8): a filter, then what it is split by — each has a name, a filter and an editor. */
-export type ChartWidgetKind = 'breakdown' | 'pivot'
+export type ChartWidgetKind = 'breakdown' | 'pivot' | 'statusFlow'
 
 export type CalendarView = 'week' | 'month'
 
@@ -235,9 +243,10 @@ export type PulseTab = TabOf<'pulse', TagPicksTabConfig, NoTabSettings>
 // ── D26 P8: the chart widgets ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
 export type PivotTab = TabOf<'pivot', PivotConfig, NoTabSettings>
+export type StatusFlowTab = TabOf<'statusFlow', StatusFlowConfig, NoTabSettings>
 
 /** A chart widget's tab (D26 P8). */
-export type ChartTab = BreakdownTab | PivotTab
+export type ChartTab = BreakdownTab | PivotTab | StatusFlowTab
 
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
@@ -458,6 +467,7 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   // D26 P8: the chart widgets.
   breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
   pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
+  statusFlow: glanceSpec('Status flow', (id) => ({ id, kind: 'statusFlow', config: newStatusFlowConfig(emptyPredicate()) })),
   trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
   pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
   // Calendar, Eisenhower and Neglect map: in Numbers & charts (D26), but whole widgets, not glance ones.
@@ -519,7 +529,7 @@ export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
 
 /** A chart widget's tab (D26 P8). */
 export function isChartTab(tab: LayoutTab): tab is ChartTab {
-  return tab.kind === 'breakdown' || tab.kind === 'pivot'
+  return tab.kind === 'breakdown' || tab.kind === 'pivot' || tab.kind === 'statusFlow'
 }
 
 /**

@@ -19,11 +19,11 @@ describe('widget kinds', () => {
     // Tasks (List, Notes), then Numbers & charts — the Calendar, the Eisenhower and the Neglect map last (D26).
     expect(WIDGET_KINDS).toEqual([
       'lens', 'notes',
-      'number', 'breakdown', 'pivot', 'trend', 'pulse', 'calendar', 'eisenhower', 'neglect',
+      'number', 'breakdown', 'pivot', 'statusFlow', 'trend', 'pulse', 'calendar', 'eisenhower', 'neglect',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
       'List', 'Notes',
-      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
+      'Number', 'Breakdown', 'Pivot', 'Status flow', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
     ])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'notes'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])

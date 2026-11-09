@@ -85,6 +85,19 @@ describe('a Pivot in a stored layout (D26 P8)', () => {
   })
 })
 
+describe('a Status flow in a stored layout (D26 P8)', () => {
+  it('round-trips; bad weeks or a bad name are reset (a fix)', () => {
+    const tab = { id: 't', kind: 'statusFlow', config: { name: 'Flow', filter: emptyPredicate(), weeks: 12 } }
+    expect(validateRow('layouts', layoutRow(tab))).toBe(true)
+    expect(tabOf(layoutRow(tab))).toEqual(tab)
+    expect(createTab('statusFlow', 's').config).toEqual({ name: 'Status flow', filter: emptyPredicate(), weeks: 8 })
+    const bad = layoutRow({ ...tab, config: { ...tab.config, weeks: 10 } })
+    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.weeks')
+    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
+    expect((tabOf(bad)?.config as { weeks: number }).weeks).toBe(8)
+  })
+})
+
 describe('the Add widget presets', () => {
   const statuses = [{ id: 1, name: 'To do' }, { id: 7, name: 'waiting ' }]
 

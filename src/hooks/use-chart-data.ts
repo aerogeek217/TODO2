@@ -1,16 +1,24 @@
-import type { PersistedTodoItem, TodoPredicate } from '../models'
-import { DEFAULT_BREAKDOWN_OLDEST_BY, type BreakdownConfig, type PivotConfig } from '../models/chart-widgets'
+import type { PersistedTodoItem, TodoEvent, TodoPredicate } from '../models'
+import { DEFAULT_BREAKDOWN_OLDEST_BY, STATUS_FLOW_WEEK_CHOICES, type BreakdownConfig, type PivotConfig, type StatusFlowConfig } from '../models/chart-widgets'
 import type { ListTabBadges, TabBadgeRanges } from '../models/list-definition'
 import { groupRestrictions } from '../services/build-list'
 import { computeBreakdown, type BreakdownStats } from '../services/stats/breakdown'
+import { historyExactness, type HistoryExactness } from '../services/stats/filter-history'
+import { numberStages } from '../services/stats/number-count'
 import { computePivot, type PivotStats } from '../services/stats/pivot'
+import { computeStatusFlow, type StatusFlowStats } from '../services/stats/status-flow'
 import type { RowRestrictions } from '../services/stats/row-restrictions'
 import type { StatsContext } from '../services/stats/stats-context'
 import { useSettingsStore } from '../stores/settings-store'
 import type { FilterCriteria } from '../utils/filter-criteria'
+import type { TodoNameLookups } from '../utils/filter'
+import type { FilterSettings } from '../utils/filter-match'
+import type { WeekStart } from '../utils/effective-date'
+import { statusFlowDays } from '../utils/trend-window'
 import { sharedMemo, sharedMemoByKey } from '../utils/shared-memo'
 import { tabBadgeRangesFor } from '../utils/tab-badges'
 import { useNumberCount, type NumberCount, type StatsBase } from './use-glance-data'
+import { useTrendEvents } from './use-trend-events'
 
 /**
  * The chart widgets' data (D26 P8), over the glance widgets' shared base
@@ -115,4 +123,53 @@ export function usePivotData(base: StatsBase, config: PivotConfig): ChartTasks &
   const people = restrictionsMemo(config.filter, 'personIds', chart.count.screen)
   const tags = restrictionsTagsMemo(config.filter, 'tags', chart.count.screen)
   return { ...chart, stats: pivotMemo(config, chart.tasks, base.ctx, people, tags) }
+}
+
+// ── Status flow ─────────────────────────────────────────────────────────────
+
+const flowDaysMemo = sharedMemo(function flowDays(todayMs: number, weeks: number, weekStartsOn: WeekStart) {
+  return statusFlowDays(new Date(todayMs), weeks, weekStartsOn)
+}, STATUS_FLOW_WEEK_CHOICES.length)
+
+/** A Status flow's weeks, and whether its past weeks are exact (`historyExactness`). */
+export interface StatusFlowData {
+  stats: StatusFlowStats
+  exactness: HistoryExactness
+}
+
+const flowMemo = sharedMemoByKey(function flow(
+  config: StatusFlowConfig,
+  filter: FilterCriteria,
+  screen: FilterCriteria,
+  todos: readonly PersistedTodoItem[],
+  events: readonly TodoEvent[],
+  days: Date[],
+  lookups: TodoNameLookups,
+  settings: FilterSettings,
+  statuses: StatsContext['statuses'],
+  historyLogSince: Date | null,
+): StatusFlowData {
+  // Keyed by its config (one set per chart); computed from its parts.
+  void config
+  const stages = numberStages(screen, filter)
+  return {
+    stats: computeStatusFlow(stages, todos, events, days, { lookups, settings, statuses }),
+    exactness: historyExactness(stages, days[0] ?? new Date(0), historyLogSince),
+  }
+})
+
+/**
+ * A Status flow's weeks (`services/stats/status-flow`): its filter under
+ * the screen filter, every task replayed to each week's end; `null` until
+ * the history has been read.
+ */
+export function useStatusFlowData(base: StatsBase, config: StatusFlowConfig): { count: NumberCount; flow: StatusFlowData | null } {
+  const count = useNumberCount(base, { filter: config.filter })
+  const events = useTrendEvents(`flow${config.weeks}`)
+  const historyLogSince = useSettingsStore((s) => s.historyLogSince)
+  const days = flowDaysMemo(base.ctx.today.getTime(), config.weeks, base.ctx.weekStartsOn)
+  const flow = events
+    ? flowMemo(config, count.filter, count.screen, base.todos, events, days, base.lookups, base.markerSettings, base.ctx.statuses, historyLogSince)
+    : null
+  return { count, flow }
 }

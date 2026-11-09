@@ -7,6 +7,7 @@ import {
   BREAKDOWN_STYLES,
   CHART_NAME_MAX,
   DEFAULT_BREAKDOWN_OLDEST_BY,
+  STATUS_FLOW_WEEK_CHOICES,
   type BreakdownConfig,
   type BreakdownOldestBy,
   type BreakdownShow,
@@ -197,6 +198,28 @@ function kindParts(tab: ChartTab): { title: string; filterLabel: string; fields:
         title: 'Edit pivot',
         filterLabel: 'Split tasks where',
         fields: <PivotFields config={tab.config} patch={(p) => ws().patchTabConfig(tab.id, 'pivot', p)} />,
+      }
+    case 'statusFlow':
+      return {
+        title: 'Edit status flow',
+        filterLabel: 'Open tasks where',
+        fields: (
+          <div className={styles.grid}>
+            <label className={styles.field}>
+              <span className={styles.label}>Weeks</span>
+              <select
+                className={styles.select}
+                value={tab.config.weeks}
+                onChange={(e) => {
+                  const weeks = STATUS_FLOW_WEEK_CHOICES.find((w) => String(w) === e.target.value)
+                  if (weeks) ws().patchTabConfig(tab.id, 'statusFlow', { weeks })
+                }}
+              >
+                {STATUS_FLOW_WEEK_CHOICES.map((w) => <option key={w} value={w}>{`${w} weeks`}</option>)}
+              </select>
+            </label>
+          </div>
+        ),
       }
   }
 }

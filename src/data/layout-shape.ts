@@ -37,7 +37,9 @@ import {
   pickBreakdownConfig,
   pickBreakdownView,
   pickPivotConfig,
+  pickStatusFlowConfig,
   pivotConfigProblem,
+  statusFlowConfigProblem,
 } from '../models/chart-widgets'
 import type { TodoPredicate } from '../models/filter-predicate'
 import { emptyPredicate } from '../models/filter-predicate'
@@ -199,6 +201,10 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     }
     case 'pivot': {
       const bad = pivotConfigProblem(config)
+      return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
+    }
+    case 'statusFlow': {
+      const bad = statusFlowConfigProblem(config)
       return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
     }
     case 'notes':
@@ -495,6 +501,8 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'pivot':
         return { id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) }
+      case 'statusFlow':
+        return { id, kind: 'statusFlow', config: glance(pickStatusFlowConfig(config, chartFilterOf(config))) }
     }
   }
 
