@@ -5,7 +5,7 @@ import { dateAnchorsEqual } from '../date-anchor'
 
 /**
  * The date words of a filter expression, both ways: what a date type is
- * called (`due`, `followed`), how an anchor reads (`today`, `in 3 days`,
+ * called (`due`, `followed`), how an anchor reads (`today`, `+3d`, `-30d`,
  * `start of week`, `11/30/2026`) and which ranges have a name (`this week`,
  * `overdue`). The parser and the printer share them, so what one writes the
  * other reads back as the same clause.
@@ -130,16 +130,52 @@ export function fixedAnchorOf(day: Date): DateAnchor {
 }
 
 /**
- * `a` moved by `delta` days (`before fri` is `by` the day before), or null
- * for a week / month anchor, which has no day to move.
+ * The week / month anchors one day apart, whatever day the week starts on
+ * (`utils/effective-date.resolveRelativeToken` counts both ends of a week
+ * from the same start): the day before a period's start is the end of the
+ * one before it. The others have no named neighbour (the day before the
+ * start of last week, the day after the end of next month).
+ */
+const DAY_AFTER: Partial<Record<RelativeDateToken, RelativeDateToken>> = {
+  'end-of-last-week': 'start-of-week',
+  'end-of-week': 'start-of-next-week',
+  'end-of-last-month': 'start-of-month',
+  'end-of-month': 'start-of-next-month',
+}
+const DAY_BEFORE: Partial<Record<RelativeDateToken, RelativeDateToken>> = Object.fromEntries(
+  Object.entries(DAY_AFTER).map(([before, after]) => [after, before]),
+)
+
+/**
+ * `a` moved by `delta` days (`before fri` / `< fri` is `by` / `<=` the day
+ * before), exactly: a day or a fixed date by the days; a week / month
+ * anchor by one day onto its named neighbour (`< start of week` is `<= end
+ * of last week`). Null when the day it lands on has no anchor of its kind
+ * (`< start of last week`, `> end of month + 3`).
  */
 export function shiftAnchor(a: DateAnchor, delta: number): DateAnchor | null {
   if (a.kind === 'fixed') return fixedAnchorOf(addDays(fixedDay(a.iso), delta))
   const n = dayOffsetOf(a)
-  return n == null ? null : dayAnchor(n + delta)
+  if (n != null) return dayAnchor(n + delta)
+  if (a.kind !== 'relative' || Math.abs(delta) !== 1) return null
+  const token = (delta > 0 ? DAY_AFTER : DAY_BEFORE)[a.token]
+  return token ? rel(token) : null
 }
 
-/** An anchor as the expression writes it: `today`, `in 3 days`, `3 days ago`, `start of week`, `11/30/2026`. */
+/** A relative day as typed: `+3d`, `-30d`, `+0d` (signed, whole days), or null. */
+export function relativeDayOf(word: string): number | null {
+  const m = /^([+-])(\d{1,4})d$/i.exec(word)
+  if (!m) return null
+  const n = parseInt(m[2] ?? '', 10)
+  if (n > 3660) return null
+  return m[1] === '-' ? -n : n
+}
+
+/**
+ * An anchor as the expression writes it: `today`, `tomorrow`, `yesterday`,
+ * any other day from today compact and signed (`+3d`, `-30d`), `start of
+ * week`, `11/30/2026`.
+ */
 export function anchorWords(a: DateAnchor): string {
   if (a.kind === 'fixed') {
     const d = fixedDay(a.iso)
@@ -150,7 +186,7 @@ export function anchorWords(a: DateAnchor): string {
     if (n === 0) return 'today'
     if (n === 1) return 'tomorrow'
     if (n === -1) return 'yesterday'
-    return n > 0 ? `in ${n} days` : `${-n} days ago`
+    return n > 0 ? `+${n}d` : `${n}d`
   }
   return a.kind === 'relative' ? TOKEN_WORDS[a.token] ?? a.token : ''
 }
@@ -163,10 +199,12 @@ export function noDateWords(field: DateField): string {
 /**
  * One date clause as the expression writes it (the date type's word
  * first): `due any`, `no due`, `overdue`, `followup late`, `due this week`,
- * `due today`, `due within 3 days`, `created within last 7 days`, `due by
- * fri`, `modified from 30 days ago`, `due 11/1/2026..11/30/2026`. A range
- * with neither end matches every task and is written `due any or no due`
- * (only an unnormalised clause has one).
+ * `due today`, `due within 3 days`, `created within last 7 days`, `due +3d`,
+ * `due -3d..+7d`, `due 11/1/2026..11/30/2026`, and a range open at one end
+ * as a comparison — `due <= 11/13/2026`, `followup >= +7d`, `modified <=
+ * -30d` (its end is included, so `<=` / `>=`; `<` / `>` read as the day
+ * before / after). A range with neither end matches every task and is
+ * written `due any or no due` (only an unnormalised clause has one).
  */
 export function dateClauseWords(field: DateField, m: DateMatch): string {
   const word = DATE_WORD[field]
@@ -187,7 +225,7 @@ export function dateClauseWords(field: DateField, m: DateMatch): string {
     if (e === 0 && s != null && s < 0) return `${word} within last ${-s} ${s === -1 ? 'day' : 'days'}`
     return `${word} ${anchorWords(start)}..${anchorWords(end)}`
   }
-  if (end != null) return `${word} by ${anchorWords(end)}`
-  if (start != null) return `${word} from ${anchorWords(start)}`
+  if (end != null) return `${word} <= ${anchorWords(end)}`
+  if (start != null) return `${word} >= ${anchorWords(start)}`
   return `(${word} any or ${noDateWords(field)})`
 }

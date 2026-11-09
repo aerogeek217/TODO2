@@ -8,6 +8,7 @@ import { quoteText, readQuoted } from '../name-tokens'
 import {
   BEFORE_TODAY,
   DATE_WORD,
+  anchorWords,
   DATE_WORDS,
   PERIOD_WORDS,
   dateTypeIsOptional,
@@ -16,6 +17,7 @@ import {
   looksBack,
   periodRange,
   range,
+  relativeDayOf,
   shiftAnchor,
   tokenOfWords,
   type PeriodWord,
@@ -35,9 +37,15 @@ import { expressionDepth, expressionSize, normalizeExpression } from './tree'
  *   `/urgent` `/important` `/focus`;
  * - `no person|tag|status|priority`, `any person|tag|status|priority`;
  * - a date type (`due`, `followup`, `followed`, `created`, `modified`,
- *   `completed`) with `any` / `none`, a day, a period (`this week`), `before`
- *   / `by` / `after` / `from` a day, `a..b`, `within [last] N days`; `no
- *   due`, `no followup`, `never followed`, `overdue`, `followup late`;
+ *   `completed`) with `any` / `none`, a day, a period (`this week`), a
+ *   comparison with a day (`<` `<=` `>` `>=` `=`: `due <= fri`, `followup >=
+ *   +7d`; `<` / `>` step to the day before / after, `= this week` is the
+ *   period), `a..b`, `within [last] N days`; `no due`, `no followup`, `never
+ *   followed`, `overdue`, `followup late`. The older words `before` / `by` /
+ *   `after` / `from` a day still read (as `<` / `<=` / `>` / `>=`);
+ * - a day: `today`, `tomorrow`, `yesterday`, `+3d` / `-30d` (days from
+ *   today), `fri`, `next fri`, `11/30`, `start of next week`, and the older
+ *   `in 3 days` / `3 days ago`;
  * - `done` — Show completed, only as a term of the top-level `and`.
  *
  * Two terms side by side need an `and` / `or` between them.
@@ -87,7 +95,13 @@ export type ExpressionParse =
 
 // ── Tokens ──────────────────────────────────────────────────────────────────
 
-type LexKind = 'lparen' | 'rparen' | 'quoted' | 'name' | 'slash' | 'word' | 'dotdot'
+type LexKind = 'lparen' | 'rparen' | 'quoted' | 'name' | 'slash' | 'word' | 'dotdot' | 'cmp'
+
+/** A comparison after a date word (`due <= fri`). */
+type Comparison = '<' | '<=' | '>' | '>=' | '='
+
+/** The characters a comparison is made of: they end a word (`due<=fri` reads as three tokens). */
+const isCmpChar = (ch: string) => ch === '<' || ch === '>' || ch === '='
 
 interface Lex {
   kind: LexKind
@@ -119,6 +133,14 @@ function lex(text: string): Lex[] {
     if (ch === '.' && text.charAt(i + 1) === '.') {
       out.push({ kind: 'dotdot', start: i, end: i + 2, value: '..' })
       i += 2
+      continue
+    }
+    if (isCmpChar(ch)) {
+      // `<=` / `>=` as one; any other run (`==`, `=<`) is its pieces, read as an error where it stands.
+      const two = (ch === '<' || ch === '>') && text.charAt(i + 1) === '='
+      const len = two ? 2 : 1
+      out.push({ kind: 'cmp', start: i, end: i + len, value: text.slice(i, i + len) })
+      i += len
       continue
     }
     if (ch === '"') {
@@ -154,7 +176,7 @@ function lex(text: string): Lex[] {
     const start = i
     while (i < n) {
       const c = text.charAt(i)
-      if (isSpace(c) || c === '(' || c === ')' || c === '"' || (c === '.' && text.charAt(i + 1) === '.')) break
+      if (isSpace(c) || c === '(' || c === ')' || c === '"' || isCmpChar(c) || (c === '.' && text.charAt(i + 1) === '.')) break
       i++
     }
     const raw = text.slice(start, i)
@@ -178,8 +200,10 @@ const ENTITY_KINDS: ReadonlyMap<string, IdAtomKind> = new Map([
 const SIGIL_KIND: Record<'@' | '#' | '!', IdAtomKind> = { '@': 'person', '#': 'tag', '!': 'status' }
 const KIND_NOUN: Record<IdAtomKind, string> = { person: 'person', tag: 'tag', status: 'status' }
 
-const DAY_HINT = 'Try today, fri, 11/30, in 3 days, 3 days ago'
-const WHEN_HINT = 'Try any, none, today, this week, by fri, within 3 days, 11/1..11/30'
+const DAY_HINT = 'Try today, fri, 11/30, +3d (in 3 days), -3d (3 days ago)'
+const WHEN_HINT = 'Try any, none, today, this week, <= fri, >= +3d, within 3 days, -3d..+7d'
+/** A comparison where no date word is before it. */
+const CMP_HINT = 'As in due <= +7d — quote text that has one: "a<b"'
 
 /** A `done` term while parsing: it becomes Show completed (top level only). */
 interface DoneNode { kind: 'done'; start: number; end: number }
@@ -236,6 +260,7 @@ class Parser {
     const extra = this.peek()
     if (extra) {
       if (extra.kind === 'rparen') fail(extra.start, extra.end, 'No ( for this )')
+      if (extra.kind === 'cmp') this.strayComparison(extra)
       fail(extra.start, extra.end, `Add and / or before “${this.tokenText(extra)}”`)
     }
     return node
@@ -269,6 +294,7 @@ class Parser {
       }
       const t = this.peek()
       if (!t || t.kind === 'rparen' || this.isWord('or')) break
+      if (t.kind === 'cmp') this.strayComparison(t)
       fail(t.start, t.end, `Add and / or before “${this.tokenText(t)}”`)
     }
     return items.length === 1 ? (items[0] as Node) : { kind: 'and', items: items as FilterExpr[] }
@@ -318,11 +344,17 @@ class Parser {
       }
       case 'rparen': return fail(t.start, t.end, 'No ( for this )')
       case 'dotdot': return fail(t.start, t.end, '.. goes between two days', 'As in due 11/1..11/30')
+      case 'cmp': return this.strayComparison(t)
       case 'quoted': return this.text(t)
       case 'name': return this.entity(t)
       case 'slash': return this.priority(t)
       case 'word': return this.word(t)
     }
+  }
+
+  /** A comparison that doesn't follow a date word. */
+  private strayComparison(t: Lex): never {
+    fail(t.start, t.end, `${t.value} goes after a date word`, CMP_HINT)
   }
 
   private text(t: Lex): FilterExpr {
@@ -459,6 +491,14 @@ class Parser {
   /** What follows a date type's word. */
   private when(dateWord: Lex, field: DateField): DateMatch {
     const t = this.peek()
+    if (t?.kind === 'cmp') {
+      this.next()
+      return this.comparison(t.value as Comparison, t, field)
+    }
+    // `due != fri`: `!` would start a status name.
+    if (t?.kind === 'name' && t.sigil === '!' && t.value === '' && this.peek(1)?.kind === 'cmp' && this.peek(1)?.start === t.end) {
+      fail(t.start, this.peek(1)?.end ?? t.end, '!= isn’t a comparison', `not ${DATE_WORD[field]} fri: outside that day (tasks without the date pass)`)
+    }
     const w = lower(t)
     if (!t || !w) fail(dateWord.start, dateWord.end, `${dateWord.value} when?`, WHEN_HINT)
     if (w === 'any' || w === 'none') {
@@ -474,14 +514,10 @@ class Parser {
       this.next()
       return BEFORE_TODAY
     }
-    if (w === 'before' || w === 'by' || w === 'after' || w === 'from') {
+    const older = OLDER_COMPARISONS.get(w)
+    if (older) {
       this.next()
-      const day = this.day(field)
-      if (w === 'by') return range(null, day.anchor)
-      if (w === 'from') return range(day.anchor, null)
-      const moved = shiftAnchor(day.anchor, w === 'before' ? -1 : 1)
-      if (!moved) fail(day.start, day.end, `Use ${w === 'before' ? 'by' : 'from'} with a week or month`, `${w === 'before' ? 'by' : 'from'} includes the day`)
-      return w === 'before' ? range(null, moved) : range(moved, null)
+      return this.comparison(older, t, field)
     }
     if (w === 'within') {
       this.next()
@@ -523,7 +559,51 @@ class Parser {
     return range(from.anchor, from.anchor)
   }
 
-  /** One day: `today`, `fri`, `next fri`, `in 3 days`, `3 days ago`, `11/30`, `start of next week`, `end of month + 3`. */
+  /**
+   * A comparison's day (`op`, typed as `opToken`: `<=`, or the older `by`):
+   * `<= d` is the range up to d, `>= d` from d, `= d` that day (or, with a
+   * period, the period: `due = this week`), `< d` / `> d` up to the day
+   * before / from the day after — a weekday or a date by a day, a week /
+   * month anchor onto its neighbour (`< start of week` is `<= end of last
+   * week`), refused where that day has no name. A period with `<` `<=` `>`
+   * `>=` is refused: on Due `this week` starts today, on Created at the
+   * week's start, so "before this week" would mean two things — its start
+   * or end anchor says which.
+   */
+  private comparison(op: Comparison, opToken: Lex, field: DateField): DateMatch {
+    const typed = opToken.kind === 'cmp' ? op : opToken.value.toLowerCase()
+    const first = lower(this.peek())
+    const second = lower(this.peek(1))
+    const period = `${first ?? ''} ${second ?? ''}` as PeriodWord
+    if (first && second && PERIOD_WORDS.includes(period)) {
+      const periodEnd = this.peek(1)?.end ?? opToken.end
+      if (op !== '=') {
+        const unit = period.replace('this ', '')
+        const edge = op === '<' || op === '>=' ? 'start' : 'end'
+        fail(opToken.start, periodEnd, `Compare with a day, not ${period}`, `As in ${DATE_WORD[field]} ${typed} ${edge} of ${unit}`)
+      }
+      this.next()
+      this.next()
+      return periodRange(period, field)
+    }
+    const day = this.day(field)
+    const dots = this.peek()
+    if (dots?.kind === 'dotdot') {
+      fail(opToken.start, dots.end, `${typed} takes one day`, `As in ${DATE_WORD[field]} >= -3d — for a range: ${DATE_WORD[field]} -3d..+7d`)
+    }
+    if (op === '=') return range(day.anchor, day.anchor)
+    if (op === '<=') return range(null, day.anchor)
+    if (op === '>=') return range(day.anchor, null)
+    const moved = shiftAnchor(day.anchor, op === '<' ? -1 : 1)
+    if (!moved) {
+      const inclusive = opToken.kind === 'cmp' ? `${op}=` : op === '<' ? 'by' : 'from'
+      fail(day.start, day.end, `Use ${inclusive} with ${anchorWords(day.anchor)}`,
+        `${typed} is the day ${op === '<' ? 'before' : 'after'} it, which has no name here; ${inclusive} includes the day`)
+    }
+    return op === '<' ? range(null, moved) : range(moved, null)
+  }
+
+  /** One day: `today`, `fri`, `next fri`, `+3d`, `-3d`, `in 3 days`, `3 days ago`, `11/30`, `start of next week`, `end of month + 3`. */
   private day(field: DateField): { anchor: DateAnchor; start: number; end: number } {
     const t = this.next()
     if (!t) fail(this.length, this.length, 'A day goes here', DAY_HINT)
@@ -533,6 +613,9 @@ class Parser {
     if (w === 'today') return done(dayAnchor(0))
     if (w === 'tomorrow' || w === 'tmr') return done(dayAnchor(1))
     if (w === 'yesterday') return done(dayAnchor(-1))
+    const relative = relativeDayOf(w)
+    if (relative != null) return done(dayAnchor(relative))
+    if (/^[+-]\d+d?$/.test(w)) fail(t.start, t.end, `Can't read “${t.value}” as a day`, 'Days from today with their sign and d: +3d, -30d (up to 3660)')
     if (w === 'in') {
       const num = this.next()
       const days = num?.kind === 'word' ? countOf(num.value) : null
@@ -584,6 +667,9 @@ class Parser {
     return done(fixedAnchorOf(date))
   }
 }
+
+/** The older words for a comparison (`due by fri` is `due <= fri`): they still read, and print as the comparison. */
+const OLDER_COMPARISONS: ReadonlyMap<string, Comparison> = new Map([['before', '<'], ['by', '<='], ['after', '>'], ['from', '>=']])
 
 /** A day typed without its year (`11/30`). */
 const YEARLESS = /^\d{1,2}\/\d{1,2}$/

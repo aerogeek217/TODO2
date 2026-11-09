@@ -259,6 +259,18 @@ describe('the expression field', () => {
     expect(field().value).toBe('"budget review" and @"Ann Lee" and done')
   })
 
+  it('settles a date typed in the older words as a comparison', () => {
+    const log: TodoPredicate[] = []
+    render(<Harness initial={{ ...emptyPredicate(), expression: { kind: 'priority', value: 'focus' } }} log={log} />)
+    type('followup from in 7 days or created before 30 days ago')
+    fireEvent.blur(field())
+    expect(log.at(-1)?.expression).toEqual({ kind: 'or', items: [
+      { kind: 'date', field: 'followup', match: { match: 'range', start: { kind: 'offset', days: 7 }, end: null } },
+      { kind: 'date', field: 'created', match: { match: 'range', start: null, end: { kind: 'offset', days: -31 } } },
+    ] })
+    expect(field().value).toBe('followup >= +7d or created <= -31d')
+  })
+
   it('a change from elsewhere during the write pause drops the waiting write (cr33 U13)', () => {
     vi.useFakeTimers()
     const log: TodoPredicate[] = []
