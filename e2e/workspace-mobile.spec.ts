@@ -206,9 +206,11 @@ test('a list tab’s sheet is on the dialog frame too: focus in, arrows move, Ta
   await expect(sheet).toHaveCount(0)
   await expect(tab).toBeFocused()
 
-  // A tap on the backdrop closes it the same way.
+  // A tap on the backdrop closes it the same way — once the tab's switch has
+  // settled: while its view transition runs, its overlay takes every tap.
   await tab.dispatchEvent('contextmenu')
   await expect(sheet).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0)
   await page.mouse.click(195, 100)
   await expect(sheet).toHaveCount(0)
 })
