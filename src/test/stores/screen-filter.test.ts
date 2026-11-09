@@ -8,9 +8,10 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { resetDb } from '../helpers'
+import { emptyBody } from '../helpers/layout-builders'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
-const layout = (name: string): Omit<WorkspaceLayout, 'id' | 'sortOrder'> => ({ name, columns: [], createdAt: T0, modifiedAt: T0 })
+const layout = (name: string): Omit<WorkspaceLayout, 'id' | 'sortOrder'> => ({ name, ...emptyBody(), createdAt: T0, modifiedAt: T0 })
 const LENS = { id: 'lens-a', name: 'Has a person', predicate: { ...emptyPredicate(), personIds: [0], negate: { personIds: true as const } } }
 
 let ids: number[] = []

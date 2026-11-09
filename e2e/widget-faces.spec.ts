@@ -23,40 +23,28 @@ const popover = (page: Page) => page.getByTestId('widget-face-popover')
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
 
-  test('a List row shrunk by its divider shows the small face, headless; a click opens the full list over it, Esc closes it', async ({ page }) => {
+  test('a short List row shows the small face, no strip; a click opens the full list over it, Esc closes it', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: TASKS,
       listDefinitions: [{ name: 'Everything' }],
       layouts: [{
         name: 'Faces',
-        columns: [{
-          id: 'c1',
-          rows: [
-            wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }),
-            wsRow({ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] }),
-          ],
-        }],
+        // The List in a fixed row 88px tall: a body under 90px (one widget has no strip over it, D26 AA1).
+        top: { id: 'band', height: 88, cells: [{ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] }] },
+        columns: [{ id: 'c1', rows: [wsRow({ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] })] }],
       }],
     })
     const cell = wsCell(page, 'k1')
-    await expect(cell).toHaveAttribute('data-face', 'large')
-    await expect(cell).not.toHaveAttribute('data-headless', 'true')
-
-    // Drag the row divider up to the row's minimum (112px: a body of 80px), short of collapsing it.
-    const divider = page.getByRole('separator', { name: 'Resize rows' })
-    const d = await box(divider)
-    const top = (await box(cell)).y
-    await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2, y: top + 116 })
     await expect(cell).toHaveAttribute('data-face', 'small')
-    expect((await box(cell)).height).toBeLessThanOrEqual(115)
-    // Headless at its small face: the face fills the cell, the strip slides in on hover.
-    await expect(cell).toHaveAttribute('data-headless', 'true')
+    expect((await box(cell)).height).toBeLessThanOrEqual(90)
+    // The face fills the cell; its top line names it and the cell's ⋯ floats over its corner on hover.
+    await expect(cell.getByRole('tablist')).toHaveCount(0)
     const face = cell.locator('[data-list-face="small"]')
     await expect(face).toContainText('Everything')
     await expect(face.getByTestId('list-face-count')).toHaveText('4')
     await expect(face.getByTestId('list-face-oldest')).toBeVisible()
     await cell.hover()
-    await expect(cell.locator('[data-ws-cell-header]')).toBeInViewport()
+    await expect(cell.getByRole('button', { name: 'Cell options' })).toBeInViewport()
 
     // A click opens the full list in a popover under the cell, kept in the viewport.
     await face.click()
@@ -79,7 +67,7 @@ test.describe('desktop', () => {
     await expect(popover(page)).toHaveCount(0)
   })
 
-  test('the face growing closes the popover, and focus goes to the cell’s tab, not the page (cr33 W6)', async ({ page }) => {
+  test('the face growing closes the popover, and focus goes to the cell’s top line (its tab), not the page (cr33 W6)', async ({ page }) => {
     await page.setViewportSize({ width: 1000, height: 900 })
     await seedWorkspace(page, {
       tasks: TASKS,
@@ -107,6 +95,30 @@ test.describe('desktop', () => {
     await expect(popover(page)).toHaveCount(0)
     await expect(cell.getByRole('button', { name: 'Open Everything' })).toHaveCount(0)
     await expect.poll(() => page.evaluate(() => (document.activeElement as HTMLElement | null)?.dataset.wsTab ?? document.activeElement?.tagName)).toBe('list')
+  })
+
+  test('a Number’s face growing closes its popover, and focus stays in its cell (its top line is no focus target)', async ({ page }) => {
+    await page.setViewportSize({ width: 1000, height: 900 })
+    await seedWorkspace(page, {
+      tasks: TASKS,
+      layouts: [{
+        name: 'Faces',
+        columns: [{ id: 'c1', rows: [{ id: 'r1', cells: [
+          { id: 'k1', weight: 1, tabs: [{ id: 'num', kind: 'number', glance: { metric: 'open' } }] },
+          { id: 'k2', weight: 6, tabs: [{ id: 'notes', kind: 'notes' }] },
+        ] }] }],
+      }],
+    })
+    const cell = wsCell(page, 'k1')
+    await expect(cell).toHaveAttribute('data-face', 'small')
+    await cell.locator('[data-face-opener]').focus()
+    await page.keyboard.press('Enter')
+    await expect(popover(page)).toBeVisible()
+    await expect.poll(() => page.evaluate(() => document.activeElement?.closest('[data-testid="widget-face-popover"]') != null)).toBe(true)
+    await page.setViewportSize({ width: 1800, height: 900 })
+    await expect(cell).not.toHaveAttribute('data-face', 'small')
+    await expect(popover(page)).toHaveCount(0)
+    await expect.poll(() => page.evaluate(() => document.activeElement?.closest<HTMLElement>('[data-ws-cell]')?.dataset.wsCell ?? document.activeElement?.tagName)).toBe('k1')
   })
 
   test('a row editor inside the popover opens over it and leaves it open', async ({ page }) => {
@@ -171,7 +183,7 @@ test.describe('desktop', () => {
 test.describe('phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-  test('a fit row’s Number cells are compact glance cells: a slim header, the small face', async ({ page }) => {
+  test('a fit row’s Number cells have no tab row (one widget each), the small face', async ({ page }) => {
     await seedWorkspace(page, {
       tasks: TASKS,
       listDefinitions: [{ name: 'Everything' }],
@@ -191,12 +203,11 @@ test.describe('phone', () => {
     })
     const n1 = wsCell(page, 'n1')
     await n1.scrollIntoViewIfNeeded()
-    await expect(n1).toHaveAttribute('data-compact', 'true')
     await expect(n1).toHaveAttribute('data-face', 'small')
     await expect(n1.locator('[data-glance="number"]')).toHaveAttribute('data-face', 'small')
     await expect(n1.getByTestId('number-count')).toHaveText('1')
-    // Its header is slim, its tab still there (the tab sheet's way in).
-    expect((await box(n1.locator('[data-ws-cell-header]'))).height).toBeLessThanOrEqual(31)
+    // No header: its label is its top line (D26 AA1).
+    await expect(n1.locator('[data-ws-cell-header]')).toHaveCount(0)
     await expect(n1.locator('[data-ws-tab="num1"]')).toBeVisible()
     expect((await box(n1)).height).toBeLessThan(110)
     // A list cell keeps its full header and its rows.

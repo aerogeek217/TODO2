@@ -39,6 +39,7 @@ import type { UrgentDueWithinDays } from '../../../utils/urgency'
 import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen-hides'
 import { useTooltip } from '../../shared/use-tooltip'
 import { ListBulkBar } from '../list/ListBulkBar'
+import { WidgetNameLine } from '../WidgetTopLine'
 import styles from './NeglectMapWidget.module.css'
 
 /** At this width and wider the Slipping list sits beside the plot; narrower (and on phones) under it. */
@@ -366,6 +367,11 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   const strip = map.points.filter((p) => p.dueIn == null)
 
   return (
+    <>
+    {/* Alone in its cell, its top line (D26 AA1): its name and how many are slipping. */}
+    <WidgetNameLine name="Neglect map">
+      <span className={styles.lineSlipping} data-testid="neglect-line-slipping">Slipping <b>{map.slipping.length}</b></span>
+    </WidgetNameLine>
     <div
       ref={sizeRef}
       className={`${styles.widget} ${besideList ? styles.beside : styles.stacked} ${isMobile ? styles.touch : ''}`}
@@ -438,6 +444,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
       />
       {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
     </div>
+    </>
   )
 }
 

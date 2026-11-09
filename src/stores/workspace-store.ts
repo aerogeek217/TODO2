@@ -16,9 +16,10 @@ import {
   UNSAVED_LAYOUT_ID,
   createTab,
   isGlanceTab,
+  emptyLayoutBody,
   layoutBodyOf,
   withLayoutBody,
-  type BandEdge,
+  type GridAxis,
   type LayoutBody,
   type PersistedWorkspaceLayout,
   type TabConfigOf,
@@ -29,39 +30,33 @@ import {
 } from '../models/workspace-layout'
 import { findCell, layoutPanels, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
 import { layoutListRefs, listIdChanges, repointLayoutLists } from '../utils/workspace-layout-lists'
-import {
-  copySizes,
-  cellSizeGroups,
-  rowSizeGroups,
-  setBandHeight,
-  setCellWeights,
-  setRowWeights,
-  setColumnWeights,
-  type SizeGroup,
-} from '../utils/workspace-layout-sizes'
+import { copySizes, sameTrackIn, setTrackSizes, trackAxes } from '../utils/workspace-layout-sizes'
 import {
   addTab,
   closeCell,
   closeTab,
+  insertTrack,
+  mergeCells,
+  moveEdge,
   movePanel,
   moveTab,
   patchTabConfig,
   patchTabViewState,
   replaceTab,
   setActiveTab,
-  setCellStripShown,
-  setRowCollapsed,
-  setLayoutActiveColumn,
+  setTrackCollapsed,
   setLayoutHue,
   splitCell,
+  withTrackIdsOf,
   type IdGen,
   type LayoutDropTarget,
-  type SplitDirection,
+  type MoveEdgeOptions,
 } from '../utils/workspace-layout-ops'
+import type { EdgeStretch, Side } from '../utils/workspace-grid'
 
 type Layout = PersistedWorkspaceLayout
 
-/** A resize from a divider: `live` = one frame of a drag (see `setColumnWeights`). */
+/** A resize from a divider: `live` = one frame of a drag (see `setTrackSizes`). */
 export interface ResizeOptions {
   live?: boolean
 }
@@ -76,15 +71,15 @@ export interface ResizeOptions {
  *   is also kept in the browser (`data/draft-storage`, never the database),
  *   and the first `init()` of a page load opens it again, still unsaved —
  *   while the stored layout it was made against is unchanged.
- * - View state (sizes — column, row and cell weights, band heights —,
- *   active tab, collapsed rows and bands, a tab's `viewState`) is applied to the
+ * - View state (sizes — the tracks' weights and px —, active tab,
+ *   collapsed row tracks, a tab's `viewState`) is applied to the
  *   working copy **and** written straight onto the saved layout (last write
  *   wins) — it never makes the layout dirty, and Discard keeps it. A size
- *   goes onto the saved layout only where the parts it sizes are the same in
- *   both (`copySizes`): among parts the unsaved edits changed (a new column,
- *   row, cell or band) it stays in the working copy, for Save to write; an edit
- *   that brings the structure back to the saved one brings the saved sizes
- *   back too.
+ *   goes onto the saved layout only where the tracks it sizes are the same in
+ *   both (`copySizes`, an axis at a time): on an axis the unsaved edits
+ *   changed (a new track) it stays in the working copy, for Save to write; an
+ *   edit that brings the structure back to the saved one brings the saved
+ *   sizes back too.
  * - `load(id)` switches layouts unconditionally: callers ask the user about
  *   unsaved changes first.
  * - `createLayout(name)` stores a new, empty layout at once and opens it.
@@ -188,25 +183,31 @@ export interface WorkspaceState {
    */
   addWidget: (kind: WidgetKind, target: LayoutDropTarget, seed?: TabSeed) => string | null
   moveTab: (tabId: string, target: LayoutDropTarget) => void
-  /** Moves a whole cell (in a column's row or a band, by id) with all its tabs. */
+  /** Moves a whole cell (by id) with all its tabs. */
   movePanel: (cellId: string, target: LayoutDropTarget) => void
   closeTab: (tabId: string) => void
-  /** Closes a cell (in a column's row or a band, by id) with all its tabs. */
+  /** Closes a cell (by id) with all its tabs: a neighbour takes its space, or it stays empty (`closeCell`). */
   closeCell: (cellId: string) => void
-  /** Splits a cell (`SplitDirection`). Returns the new empty cell's id. */
-  splitCell: (cellId: string, direction: SplitDirection) => string | null
+  /** Splits a cell: a new empty cell on `side` of it. Returns the new cell's id. */
+  splitCell: (cellId: string, side: Side) => string | null
+  /** Inserts a row / column at the layout's `edge` with one new empty cell across it. Returns that cell's id. */
+  insertTrack: (edge: Side) => string | null
+  /** Merges cell `bId` into cell `aId` when they make a rectangle (the tabs join); `false` when they don't. */
+  mergeCells: (aId: string, bId: string) => boolean
   /**
-   * View state: batched column resize (weights by column id), saved at once.
-   * `live`: one frame of a divider drag — only the working copy changes
-   * until `endResize` (the drag's end) saves the result once.
+   * View state: batched track resize (by track id, either axis: a weighted
+   * track's weight, a fixed one's px), saved at once. `live`: one frame of
+   * a divider drag — only the working copy changes until `endResize` (the
+   * drag's end) saves the result once.
    */
-  setColumnWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => Promise<void>
-  /** View state: batched row resize (weights by row id: their share of the column's height); `live` as for columns. */
-  setRowWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => Promise<void>
-  /** View state: batched cell resize (weights by cell id: their share of the row's width); `live` as for columns. */
-  setCellWeights: (weightById: Readonly<Record<string, number>>, opts?: ResizeOptions) => Promise<void>
-  /** View state: a band's height (px); `live` as for columns. */
-  setBandHeight: (edge: BandEdge, height: number, opts?: ResizeOptions) => Promise<void>
+  setTrackSizes: (sizeById: Readonly<Record<string, number>>, opts?: ResizeOptions) => Promise<void>
+  /**
+   * Drags a stretch of grid line by `delta` px (`moveEdge`): when it only
+   * resizes the two tracks beside a whole line, a resize (view state, as
+   * `setTrackSizes`); when it moves part of a line (a new line and track),
+   * a structural edit (unsaved until Save).
+   */
+  moveEdge: (stretch: EdgeStretch, delta: number, opts: MoveEdgeOptions) => Promise<void>
   /** The end of a live resize: saves what its frames changed (and keeps it in the browser), once. */
   endResize: () => Promise<void>
   /**
@@ -220,14 +221,10 @@ export interface WorkspaceState {
 
   /** View state: switch a cell's tab. */
   setActiveTab: (tabId: string) => Promise<void>
-  /** View state: collapse / expand a row of cells (a column's row or a band, by id). */
-  setRowCollapsed: (rowId: string, collapsed: boolean) => Promise<void>
-  /** Layout config: whether a cell shows its tab strip (`null` = by its widget). */
-  setCellStripShown: (cellId: string, shown: boolean | null) => void
+  /** View state: collapse / expand row tracks (by id; one, or several in one write — a cell's). */
+  setTrackCollapsed: (trackIds: string | readonly string[], collapsed: boolean) => Promise<void>
   /** View state of a tab (e.g. a calendar's view / offset). */
   patchTabViewState: <K extends WidgetKind>(tabId: string, kind: K, patch: Partial<TabViewStateOf<K>>) => Promise<void>
-  /** View state: the page (a column's or band's id) the phone shows of the open layout (`null` = the first), saved at once. */
-  setActiveColumn: (pageId: string | null) => Promise<void>
 }
 
 function randomId(): string {
@@ -236,11 +233,11 @@ function randomId(): string {
 
 /**
  * A new tab's seed: a Neglect map with no tags given colours by the
- * `Project: …` tags; a What changed or Project pulse with none reads them.
+ * `Project: …` tags; a Project pulse with none reads them.
  */
 function seedFor(kind: WidgetKind, seed: TabSeed | undefined): TabSeed | undefined {
   if (kind === 'neglect' && !seed?.neglectTagIds) return { ...seed, neglectTagIds: projectTagIds(useTagStore.getState().tags) }
-  if ((kind === 'changes' || kind === 'pulse') && !seed?.tagIds) return { ...seed, tagIds: projectTagIds(useTagStore.getState().tags) }
+  if (kind === 'pulse' && !seed?.tagIds) return { ...seed, tagIds: projectTagIds(useTagStore.getState().tags) }
   return seed
 }
 
@@ -401,17 +398,16 @@ function listTabPlace(body: LayoutBody, listId: number): TabPlace | undefined {
 
 /**
  * Where Undo puts back a removed list's tab: where it was (`place`, its cell
- * and index) while that cell is still there; else the first cell that isn't
- * a glance widget's (a Number's fit row would stop fitting); else a new row
- * under the first column, or a new column.
+ * and index) while that cell is still there; else the first cell (in
+ * reading order) that isn't a glance widget's (a Number's fit row would
+ * stop fitting); else a new row at the layout's bottom (an empty layout's
+ * first cell).
  */
 function restoredTabTarget(layout: Layout, place: TabPlace | undefined): LayoutDropTarget {
-  if (place && findCell(layout, place.cellId)) return { kind: 'cell', cellId: place.cellId, index: place.index }
-  const cells = [...layout.columns.flatMap((c) => c.rows.flatMap((r) => r.cells)), ...(['top', 'bottom'] as const).flatMap((edge) => layout[edge]?.cells ?? [])]
-  const cell = cells.find((k) => k.tabs.length === 0 || k.tabs.some((t) => !isGlanceTab(t)))
+  if (place && findCell(layout, place.cellId) !== -1) return { kind: 'cell', cellId: place.cellId, index: place.index }
+  const cell = layout.cells.find((k) => k.tabs.length === 0 || k.tabs.some((t) => !isGlanceTab(t)))
   if (cell) return { kind: 'cell', cellId: cell.id }
-  const lastRow = layout.columns[0]?.rows.at(-1)
-  return lastRow ? { kind: 'row-edge', rowId: lastRow.id, edge: 'bottom' } : { kind: 'layout' }
+  return layout.cells.length > 0 ? { kind: 'insert', edge: 'bottom' } : { kind: 'layout' }
 }
 
 /**
@@ -508,17 +504,8 @@ function repairedOf(reads: readonly ReadLayout[]): Set<number> {
 const viewEditsDuringSave = new Set<Array<(layout: PersistedWorkspaceLayout) => PersistedWorkspaceLayout>>()
 registerModuleReset(() => { viewEditsDuringSave.clear() })
 
-/** One string per size group (a drag's frames name the same groups again). */
-function sizeGroupKey(g: SizeGroup): string {
-  switch (g.kind) {
-    case 'columns': return 'columns'
-    case 'rows': return `rows:${g.columnId}`
-    case 'cells': return `cells:${g.rowId}`
-    case 'band': return `band:${g.edge}`
-  }
-}
-/** The size groups the live frames of a resize under way changed in layout `layoutId`'s working copy, saved at its end. */
-let pendingSizes: { layoutId: number; groups: SizeGroup[] } | null = null
+/** The axes the live frames of a resize under way changed in layout `layoutId`'s working copy, saved at its end. */
+let pendingSizes: { layoutId: number; groups: GridAxis[] } | null = null
 registerModuleReset(() => { pendingSizes = null })
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
@@ -632,6 +619,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       console.warn('[workspace] refused an edit showing lists of another layout:', foreign)
       return false
     }
+    if (saved) next = withTrackIdsOf(next, saved)
     if (saved && layoutStructureEqual(next, saved)) next = copySizes(next, saved, 'all')
     set({ working: next, isDirty: dirty(next, saved) })
     keepDraft()
@@ -644,18 +632,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * frame of a divider drag) changes only the working copy, with no write
    * per frame: the drag's end (`commitSizes`) saves the result once.
    */
-  function resize(fn: (layout: Layout) => Layout, groupsOf: (layout: Layout) => SizeGroup[], { live = false }: ResizeOptions = {}): Promise<void> {
+  function resize(fn: (layout: Layout) => Layout, groupsOf: (layout: Layout) => GridAxis[], { live = false }: ResizeOptions = {}): Promise<void> {
     const { working } = get()
     if (!working) return Promise.resolve()
     const next = fn(working)
     if (next !== working) {
       set({ working: next })
       if (pendingSizes?.layoutId !== working.id) pendingSizes = { layoutId: working.id, groups: [] }
-      // Once per group, not per frame of a drag.
-      const known = new Set(pendingSizes.groups.map(sizeGroupKey))
-      for (const g of groupsOf(working)) {
-        if (!known.has(sizeGroupKey(g))) { known.add(sizeGroupKey(g)); pendingSizes.groups.push(g) }
-      }
+      // Once per axis, not per frame of a drag.
+      for (const g of groupsOf(working)) if (!pendingSizes.groups.includes(g)) pendingSizes.groups.push(g)
     }
     return live ? Promise.resolve() : commitSizes()
   }
@@ -811,7 +796,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const clean = cleanName(name)
       if (!clean) return null
       const now = new Date()
-      const record = { name: clean, columns: [], createdAt: now, modifiedAt: now, lastUsedAt: now }
+      const record = { name: clean, ...emptyLayoutBody(), createdAt: now, modifiedAt: now, lastUsedAt: now }
       let id: number
       try {
         id = await layoutRepository.insert(record)
@@ -1068,30 +1053,42 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       edit((layout) => closeCell(layout, cellId))
     },
 
-    splitCell(cellId, direction) {
+    splitCell(cellId, side) {
       let newCellId: string | null = null
       edit((layout, genId) => {
-        const result = splitCell(layout, cellId, direction, genId)
+        const result = splitCell(layout, cellId, side, genId)
         newCellId = result.cellId
         return result.layout
       })
       return newCellId
     },
 
-    setColumnWeights(weightById, opts) {
-      return resize((layout) => setColumnWeights(layout, weightById), () => [{ kind: 'columns' }], opts)
+    insertTrack(edge) {
+      let newCellId: string | null = null
+      edit((layout, genId) => {
+        const result = insertTrack(layout, edge, genId)
+        newCellId = result.cellId
+        return result.layout
+      })
+      return newCellId
     },
 
-    setRowWeights(weightById, opts) {
-      return resize((layout) => setRowWeights(layout, weightById), (layout) => rowSizeGroups(layout, Object.keys(weightById)), opts)
+    mergeCells(aId, bId) {
+      return edit((layout) => mergeCells(layout, aId, bId))
     },
 
-    setCellWeights(weightById, opts) {
-      return resize((layout) => setCellWeights(layout, weightById), (layout) => cellSizeGroups(layout, Object.keys(weightById)), opts)
+    setTrackSizes(sizeById, opts) {
+      return resize((layout) => setTrackSizes(layout, sizeById), (layout) => trackAxes(layout, Object.keys(sizeById)), opts)
     },
 
-    setBandHeight(edge, height, opts) {
-      return resize((layout) => setBandHeight(layout, edge, height), () => [{ kind: 'band', edge }], opts)
+    moveEdge(stretch, delta, opts) {
+      const { working } = get()
+      if (!working) return Promise.resolve()
+      const next = moveEdge(working, stretch, delta, opts, idGenFor(working))
+      if (next === working) return Promise.resolve()
+      if (layoutStructureEqual(next, working)) return resize(() => next, () => [stretch.axis])
+      edit(() => next)
+      return Promise.resolve()
     },
 
     endResize() {
@@ -1110,20 +1107,20 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return editView((layout) => setActiveTab(layout, tabId))
     },
 
-    setRowCollapsed(rowId, collapsed) {
-      return editView((layout) => setRowCollapsed(layout, rowId, collapsed))
-    },
-
-    setCellStripShown(cellId, shown) {
-      edit((layout) => setCellStripShown(layout, cellId, shown))
+    setTrackCollapsed(trackIds, collapsed) {
+      const ids = typeof trackIds === 'string' ? [trackIds] : trackIds
+      const { working } = get()
+      // Onto a layout only where the track is the same one there (`sameTrackIn`):
+      // a row an unsaved edit split or spanned anew keeps its collapse with that edit.
+      return editView((layout) => ids.reduce(
+        (next, id) => (!working || sameTrackIn(working, layout, 'rows', id) ? setTrackCollapsed(next, id, collapsed) : next),
+        layout,
+      ))
     },
 
     patchTabViewState(tabId, kind, patch) {
       return editView((layout) => patchTabViewState(layout, tabId, kind, patch))
     },
 
-    setActiveColumn(pageId) {
-      return editView((layout) => setLayoutActiveColumn(layout, pageId))
-    },
   }
 })

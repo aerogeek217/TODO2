@@ -33,7 +33,7 @@ const SEED: WorkspaceSeed = {
   }],
 }
 
-const focusTile = (page: Page) => page.locator('[data-glance-tab="dash"] [data-number-metric="focus"]')
+const focusTile = (page: Page) => page.locator('[data-glance-tab="dash"] [data-number]')
 const taskDialog = (page: Page) => page.locator('[data-task-dialog]')
 const checkin = (page: Page) => page.getByRole('dialog', { name: 'Email task check-ins' })
 const editorTitle = (page: Page) => page.getByRole('textbox', { name: 'Task title' })
@@ -262,7 +262,7 @@ test('check-in dialog over the task dialog: contract; focus back to Email check-
     dialog: checkin(page),
     open: async () => {
       await trigger.click()
-      await page.getByRole('menuitem', { name: /^Send check-in to / }).click()
+      await page.getByRole('menuitem', { name: /^Email check-in to / }).click()
       await expect(checkin(page)).toBeVisible()
     },
     trigger,
@@ -273,7 +273,7 @@ test('check-in dialog over the task dialog: contract; focus back to Email check-
   await expect(taskDialog(page)).toBeVisible()
 
   await trigger.click()
-  await page.getByRole('menuitem', { name: /^Send check-in to / }).click()
+  await page.getByRole('menuitem', { name: /^Email check-in to / }).click()
   await expect(checkin(page)).toBeVisible()
   await blurAll(page)
   await page.keyboard.press('Escape')
@@ -288,7 +288,7 @@ test('check-in → the email editor: Esc cancels its edit, then closes it (focus
   await refuseClipboard(page)
   await openPersonDialog(page, 'Call the plumber', 'Ben Ortiz')
   await taskDialog(page).locator('[data-task-dialog-checkin]').click()
-  await page.getByRole('menuitem', { name: 'Send check-in to Ben Ortiz' }).click()
+  await page.getByRole('menuitem', { name: 'Email check-in to Ben Ortiz' }).click()
   const dialog = checkin(page)
   await dialog.getByRole('button', { name: 'Add email for Ben Ortiz' }).click()
   const email = page.getByRole('textbox', { name: 'Email' })

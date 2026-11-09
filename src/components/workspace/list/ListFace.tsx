@@ -20,6 +20,8 @@ import { BadgeCapsule } from '../../shared/BadgeCapsule'
 import { WidgetKindIcon } from '../../shared/icons'
 import type { ListWidgetResult } from './ListWidget'
 import { faceCountColor, oldestDue, quickRowsShown } from './list-face'
+import { useShownListReport } from './use-shown-list'
+import { WidgetTopLine } from '../WidgetTopLine'
 import styles from './ListFace.module.css'
 
 /** The tasks of `sections` in order, each once. */
@@ -82,13 +84,16 @@ export function ListFace({ tab, definition, face, faceRef, onResult }: {
   useEffect(() => {
     onResultRef.current?.({ ...(lens ? { lens } : {}), sections: sections ?? [], grouped })
   }, [lens, sections, grouped, onResultRef])
+  // The tasks as shown, for a review of the tab (its menu, the shortcut, the palette).
+  useShownListReport(tab.id, definition, runtimeFilterPending ? null : sections ?? null)
 
   const quick = face === 'medium' ? todos.slice(0, quickRowsShown(rowsSize.height, todos.length)) : []
   const more = shown - quick.length
   const prompt = definition.runtimeFilter ? `Pick a ${definition.runtimeFilter.field === 'person' ? 'person' : definition.runtimeFilter.field}` : null
 
+  // Its top line (D26 AA1); alone in its cell, the cell's controls float over its corner.
   const line = (
-    <div className={styles.line}>
+    <WidgetTopLine controls="cell" className={styles.line}>
       <span className={styles.name}>
         <span className={styles.icon}><WidgetKindIcon kind="lens" size={12} /></span>
         <span className={styles.nameText}>{definition.name}</span>
@@ -104,7 +109,7 @@ export function ListFace({ tab, definition, face, faceRef, onResult }: {
           </span>
         )}
       </span>
-    </div>
+    </WidgetTopLine>
   )
 
   return (

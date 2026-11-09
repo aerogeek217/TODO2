@@ -8,7 +8,7 @@ import { seedTaskList, seedWorkspace, type WorkspaceSeed, wsRow } from './fixtur
  * rest of the header line, and no hairline under the rows of a grouped list
  * (a flat list keeps its hairline). The list's header still sticks over its
  * scrolling group, at the height the top scroll-edge fade starts under.
- * The Needs follow-up widget's groups and the task dialog's groups follow it.
+ * The task dialog's groups follow it.
  */
 
 test.use({ viewport: { width: 1100, height: 520 } })
@@ -176,15 +176,16 @@ test('the header still sticks over its scrolling group, as tall as the scroll fa
 })
 
 const DASH: WorkspaceSeed = {
+  tags: ['q4', 'home', 'ops'],
   tasks: [
-    { title: 'Late one', followupInDays: -2 },
-    { title: 'Late two', followupInDays: -1 },
-    { title: 'Today one', followupInDays: 0 },
-    { title: 'Soon one', followupInDays: 2 },
+    { title: 'Q4 one', tags: ['q4'] },
+    { title: 'Q4 two', tags: ['q4'] },
+    { title: 'Home one', tags: ['home'] },
+    { title: 'Ops one', tags: ['ops'] },
   ],
   layouts: [{
     name: 'Dash',
-    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'followup' }] })] }],
+    columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'breakdown', glance: { name: 'Tags', splitBy: 'tags' } }] })] }],
   }],
 }
 
@@ -208,24 +209,18 @@ function groupLooks(root: Locator, groupSelector: string) {
   }), groupSelector)
 }
 
-test('the Needs follow-up widget’s groups and the task dialog’s groups take the same headers, rows without hairlines', async ({ page }) => {
+test('the task dialog’s groups (a Tags count’s) take the same headers, rows without hairlines', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, DASH)
-  const section = page.locator('[data-glance-section="followup"]')
-  await expect(section.locator('[data-todo-id]')).toHaveCount(4)
-
-  const glanceGroups = await groupLooks(section, '[data-row-group]')
-  expect(glanceGroups.map((g) => [g.name, g.count, g.margin])).toEqual([['Late', '2', '0px'], ['Today', '1', '18px'], ['Next 7 days', '1', '18px']])
-  for (const g of glanceGroups) {
-    expect([g.nameSize, g.nameWeight, g.ruleHeight, g.ruleGrows]).toEqual(['13px', '700', 1, true])
-  }
-  expect(new Set(await rowAfterContents(section))).toEqual(new Set(['none']))
+  const section = page.locator('[data-chart="dash"]')
+  // The tag assignments load after the tasks.
+  await expect(section.locator('[data-breakdown-row]').first()).toContainText('#q4')
 
   await section.getByTestId('glance-section-count').click()
   const dialog = page.locator('[data-task-dialog]')
   await expect(dialog.locator('[data-todo-id]')).toHaveCount(4)
   const dialogGroups = await groupLooks(dialog, '[data-task-dialog-group]')
-  expect(dialogGroups.map((g) => [g.name, g.count, g.margin])).toEqual([['Late', '2', '0px'], ['Today', '1', '18px'], ['Next 7 days', '1', '18px']])
+  expect(dialogGroups.map((g) => [g.name, g.count, g.margin])).toEqual([['#q4', '2', '0px'], ['#home', '1', '18px'], ['#ops', '1', '18px']])
   for (const g of dialogGroups) {
     expect([g.nameSize, g.nameWeight, g.ruleHeight, g.ruleGrows]).toEqual(['13px', '700', 1, true])
   }

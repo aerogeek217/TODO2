@@ -6,7 +6,7 @@ import { listTabZoom, setListTabZoom, stepListTabZoom } from '../../services/lis
 import { useSettingsStore } from '../../stores/settings-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { resetDb } from '../helpers'
-import { rowOf } from '../helpers/layout-builders'
+import { single } from '../helpers/layout-builders'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 const ws = () => useWorkspaceStore.getState()
@@ -14,7 +14,7 @@ const ws = () => useWorkspaceStore.getState()
 async function open(): Promise<number> {
   const layout: Omit<WorkspaceLayout, 'id'> = {
     sortOrder: 0, name: 'Daily', createdAt: T0, modifiedAt: T0,
-    columns: [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', weight: 1, activeTabId: 'l1', tabs: [createTab('lens', 'l1'), createTab('notes', 'n1')] })] }],
+    ...single({ id: 'k', activeTabId: 'l1', tabs: [createTab('lens', 'l1'), createTab('notes', 'n1')] }),
   }
   const id = await layoutRepository.insert(layout)
   await layoutRepository.setActiveId(id)
@@ -24,7 +24,7 @@ async function open(): Promise<number> {
 
 async function storedTab(id: number): Promise<LensTab> {
   const row = await db.layouts.get(id)
-  return row!.columns[0]!.rows[0]!.cells[0]!.tabs[0] as LensTab
+  return row!.cells[0]!.tabs[0] as LensTab
 }
 
 beforeEach(async () => {

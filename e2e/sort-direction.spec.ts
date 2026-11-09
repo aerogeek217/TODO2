@@ -138,8 +138,9 @@ test.describe('phone', () => {
 
   test('the Edit list sheet has the toggle at the end of the Sort by row; the list behind re-sorts', async ({ page }) => {
     await seedWorkspace(page, seed({ name: 'Team', sort: 'deadline' }))
-    await wsTab(page, 't1').dispatchEvent('contextmenu')
-    await page.getByRole('menu', { name: 'List' }).getByRole('menuitem', { name: 'Edit list…' }).click()
+    // Alone in its cell: no tab to long-press; its ⋯ has Edit list… (D26 AA1).
+    await wsTab(page, 't1').getByRole('button', { name: 'Cell options' }).click()
+    await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit list…' }).click()
     const sheet = page.getByRole('dialog', { name: 'Edit list Team' })
     await expect(sheet).toBeVisible()
     const row = sheet.getByRole('button', { name: 'Sort by: Due date' })

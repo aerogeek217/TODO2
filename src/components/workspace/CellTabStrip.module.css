@@ -238,7 +238,7 @@
 }
 
 /* Touch layout (mobile): taller tabs, and a swipe that starts on a tab still
-   scrolls the column pager (tabs aren't drag handles here). */
+   scrolls the page (tabs aren't drag handles here). */
 .touch {
   padding: 0 12px;
   touch-action: auto;
@@ -260,4 +260,22 @@
 .touch:not(.active):not(.flat):hover {
   background: transparent;
   color: var(--color-text-muted);
+}
+
+/* A one-widget cell a drag would join: the strip it will have, over its top line (`JoinPreviewStrip`). */
+.joinPreview {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: var(--z-above-2);
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: var(--cell-header-height);
+  padding: 0 4px;
+  overflow: hidden;
+  background: linear-gradient(var(--color-header-bg), var(--cell-header-shade));
+  border-bottom: 1px solid var(--color-border-muted);
+  pointer-events: none;
 }

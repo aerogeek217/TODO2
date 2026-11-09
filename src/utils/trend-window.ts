@@ -31,46 +31,57 @@ export function trendWindow(range: TrendRange, today: Date, weekStartsOn: WeekSt
 }
 
 /** Days in a Number's history line: today and the 13 before. */
-export const METRIC_HISTORY_DAYS = 14
+export const NUMBER_HISTORY_DAYS = 14
 
 /**
- * The event types a Number's history reads: the trend's (each day's open /
- * done state) and `deadline` (each day's due date).
+ * The event types a filter's history reads (`services/stats/filter-history`,
+ * a Number's line): every one that moves a field a filter can test — the
+ * trend's (each day's open / done state), the due date, the status and the
+ * history log H3's follow-ups, markers, people and tags.
  */
-export const HISTORY_EVENT_TYPES: readonly TodoEventType[] = [...TREND_EVENT_TYPES, 'deadline']
+export const FILTER_HISTORY_EVENT_TYPES: readonly TodoEventType[] = [
+  ...TREND_EVENT_TYPES, 'deadline', 'status', 'followup', 'followedUp', 'marker', 'person', 'tag',
+]
 
 /**
  * The first day a Number's history needs events from: its first day's week
- * start (Closed this week counts from the week's start), else the first day.
+ * start (a range from the week's start, as `completed this week`, reaches
+ * back to it), else the first day.
  */
 export function historyEventsStart(today: Date, weekStartsOn: WeekStart): Date {
-  const first = addDays(today, -(METRIC_HISTORY_DAYS - 1))
+  const first = addDays(today, -(NUMBER_HISTORY_DAYS - 1))
   return weekStartOf(first, weekStartsOn)
 }
 
-/**
- * A status held this many days or more is stuck (What changed). The
- * widget's events reach back as far: a task with no `status` event since
- * then has held its status at least this long.
- */
-export const STUCK_STATUS_DAYS = 21
+// ── Status flow (D26 P8) ──
+
+/** The weeks a Status flow covers. */
+export const STATUS_FLOW_WEEKS = [8, 12, 26] as const
+export type StatusFlowWeeks = (typeof STATUS_FLOW_WEEKS)[number]
 
 /**
- * The event types What changed reads: each task's state and due date at
- * yesterday's end (what went late), and when it took its status.
+ * A Status flow's days: each of its last `weeks` weeks' end (the week's
+ * last day; this week's: today), oldest first.
  */
-export const CHANGES_EVENT_TYPES: readonly TodoEventType[] = [...HISTORY_EVENT_TYPES, 'status']
+export function statusFlowDays(today: Date, weeks: number, weekStartsOn: WeekStart): Date[] {
+  const thisWeek = weekStartOf(today, weekStartsOn)
+  return Array.from({ length: weeks }, (_, i) => (i === weeks - 1 ? today : addDays(thisWeek, -7 * (weeks - 1 - i) + 6)))
+}
 
 /**
  * What the history cache reads (`trend-events-store`): a trend range's
- * window, `history` — a Number's 14 days —, or `changes` — What changed's
- * last `STUCK_STATUS_DAYS` days.
+ * window, `history` — a Number's 14 days —, or a Status flow's weeks
+ * (`flow8`, `flow12`, `flow26`).
  */
-export type EventsWindow = TrendRange | 'history' | 'changes'
+export type EventsWindow = TrendRange | 'history' | `flow${StatusFlowWeeks}`
 
 /** The first day and the event types `window` reads. */
 export function eventsWindowRead(window: EventsWindow, today: Date, weekStartsOn: WeekStart): { start: Date; types: readonly TodoEventType[] } {
-  if (window === 'history') return { start: historyEventsStart(today, weekStartsOn), types: HISTORY_EVENT_TYPES }
-  if (window === 'changes') return { start: addDays(today, -STUCK_STATUS_DAYS), types: CHANGES_EVENT_TYPES }
-  return { start: trendWindow(window, today, weekStartsOn).start, types: TREND_EVENT_TYPES }
+  if (window === 'history') return { start: historyEventsStart(today, weekStartsOn), types: FILTER_HISTORY_EVENT_TYPES }
+  if (window.startsWith('flow')) {
+    // From its first week's start: a filter's range from a week's start (`completed this week`) reaches back to it.
+    const first = statusFlowDays(today, Number(window.slice(4)), weekStartsOn)[0] ?? today
+    return { start: weekStartOf(first, weekStartsOn), types: FILTER_HISTORY_EVENT_TYPES }
+  }
+  return { start: trendWindow(window as TrendRange, today, weekStartsOn).start, types: TREND_EVENT_TYPES }
 }

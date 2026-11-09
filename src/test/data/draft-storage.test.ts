@@ -8,14 +8,16 @@ import {
   writeListDrafts,
 } from '../../data/draft-storage'
 import { CURRENT_DB_VERSION, OLDEST_SUPPORTED_DB_VERSION } from '../../data/database'
-import { createTab, type LayoutBand, type LayoutColumn } from '../../models/workspace-layout'
+import { createTab } from '../../models/workspace-layout'
 import { emptyPredicate, type TodoPredicate } from '../../models'
 import type { PersistedListDefinition } from '../../models/list-definition'
-import { rowOf } from '../helpers/layout-builders'
+import { cell, emptyBody, grid, picture, single } from '../helpers/layout-builders'
 
-const columns: LayoutColumn[] = [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', weight: 1, activeTabId: 'n', tabs: [createTab('notes', 'n')] })] }]
-const other: LayoutColumn[] = [{ id: 'B', weight: 1, rows: [rowOf({ id: 'k2', weight: 1, activeTabId: 'c', tabs: [createTab('calendar', 'c')] })] }]
-const savedDraft = { kind: 'saved', layoutId: 2, base: { columns: other }, body: { columns } } as const
+const body = single(cell('k', [createTab('notes', 'n')], { activeTabId: 'n' }), { colIds: ['A'], rowIds: ['RA'] })
+const other = single(cell('k2', [createTab('calendar', 'c')], { activeTabId: 'c' }), { colIds: ['B'], rowIds: ['RB'] })
+const savedDraft = { kind: 'saved', layoutId: 2, base: other, body } as const
+/** A kept draft as stored, flat: the body's grid and cells, the base's prefixed. */
+const kept = (extra: Record<string, unknown>) => JSON.stringify({ kind: 'saved', layoutId: 2, baseGrid: other.grid, baseCells: other.cells, ...body, ...extra })
 
 function listDef(over: Partial<PersistedListDefinition> = {}): PersistedListDefinition {
   return {
@@ -35,24 +37,26 @@ describe('draft storage', () => {
     writeLayoutDraft(savedDraft)
     expect(localStorage.getItem('todo2-unsaved-layout')).not.toBeNull()
     expect(readLayoutDraft()).toEqual(savedDraft)
-    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: { columns } })
-    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'Untitled layout', body: { columns } })
+    writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body })
+    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'Untitled layout', body })
     writeLayoutDraft(null)
     expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
     expect(readLayoutDraft()).toBeNull()
   })
 
-  it('keeps the bands of a layout draft and of its base', () => {
-    const top: LayoutBand = { id: 'T', height: 200, cells: [{ id: 'T-c', weight: 1, activeTabId: 't', tabs: [createTab('trend', 't')] }] }
-    const bottom: LayoutBand = { id: 'B2', height: 90, collapsed: true, cells: [{ id: 'B2-c', weight: 1, tabs: [createTab('notes', 'b')] }] }
-    const record = { kind: 'saved', layoutId: 2, base: { columns: other, bottom }, body: { columns, top } } as const
+  it('keeps the tables of a layout draft and of its base: fixed and collapsed rows, spanning cells', () => {
+    const t = cell('t', [createTab('trend', 't1')], { activeTabId: 't1' })
+    const k = cell('k', [createTab('notes', 'n')])
+    const m = cell('m', [createTab('notes', 'm1')])
+    const tall = grid([[t, t], [k, m]], { rows: [{ px: 200 }, { weight: 1000, collapsed: true }] })
+    const record = { kind: 'saved', layoutId: 2, base: other, body: tall } as const
     writeLayoutDraft(record)
     const stored = JSON.parse(localStorage.getItem('todo2-unsaved-layout')!)
-    expect(stored.top).toEqual(top)
-    expect(stored.baseBottom).toEqual(bottom)
+    expect(stored.grid).toEqual(tall.grid)
+    expect(stored.baseCells).toEqual(other.cells)
     expect(readLayoutDraft()).toEqual(record)
-    writeLayoutDraft({ kind: 'new', name: 'N', body: { columns: [], top, bottom } })
-    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns: [], top, bottom } })
+    writeLayoutDraft({ kind: 'new', name: 'N', body: emptyBody() })
+    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: emptyBody() })
   })
 
   it('a draft an earlier build kept with a lens pick reads as its body without it; none is written', () => {
@@ -64,27 +68,27 @@ describe('draft storage', () => {
     // Even a pick that was no lens id: ignored, not a reason to drop the draft.
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ ...stored, lensId: 7 }))
     expect(readLayoutDraft()).toEqual(savedDraft)
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'N', columns, lensId: 'lens-b', schemaVersion: CURRENT_DB_VERSION }))
-    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body: { columns } })
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'new', name: 'N', ...body, lensId: 'lens-b', schemaVersion: CURRENT_DB_VERSION }))
+    expect(readLayoutDraft()).toEqual({ kind: 'new', name: 'N', body })
   })
 
   it('a current draft whose Eisenhower tab holds a config key (it has none) is no draft', () => {
-    const bad = [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 'e', kind: 'eisenhower', config: { listDefinitionId: 3 } }] })] }]
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns: bad, schemaVersion: CURRENT_DB_VERSION }))
+    const bad = single(cell('k', [{ id: 'e', kind: 'eisenhower', config: { listDefinitionId: 3 } as never }]))
+    localStorage.setItem('todo2-unsaved-layout', kept({ ...bad, schemaVersion: CURRENT_DB_VERSION }))
     expect(readLayoutDraft()).toBeNull()
   })
 
-  it('reads a band the layout repair would change as no layout draft', () => {
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns, top: { id: 'T', height: 100, cells: [] }, schemaVersion: CURRENT_DB_VERSION }))
+  it('reads a tiling the layout repair would change as no layout draft', () => {
+    localStorage.setItem('todo2-unsaved-layout', kept({ grid: { columns: [{ id: 'A', weight: 1 }, { id: 'A2', weight: 1 }], rows: [{ id: 'RA', weight: 1 }] }, schemaVersion: CURRENT_DB_VERSION }))
     expect(readLayoutDraft()).toBeNull()
   })
 
   it.each([
     ['not JSON', '{oops'],
-    ['an unknown kind', JSON.stringify({ kind: 'other', columns })],
-    ['columns the layout repair would change', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: columns, columns: [{ id: 'A', weight: 1, rows: [rowOf({ id: 'k', tabs: [{ id: 'x', kind: 'nope' }] })] }] })],
-    ['a bad layout id', JSON.stringify({ kind: 'saved', layoutId: 0, baseColumns: columns, columns })],
-    ['a new layout without a name', JSON.stringify({ kind: 'new', name: ' ', columns, listNames: {} })],
+    ['an unknown kind', JSON.stringify({ kind: 'other', ...body, schemaVersion: CURRENT_DB_VERSION })],
+    ['a table the layout repair would change', kept({ ...single(cell('k', [{ id: 'x', kind: 'nope' as never, config: {} }])), schemaVersion: CURRENT_DB_VERSION })],
+    ['a bad layout id', kept({ layoutId: 0, schemaVersion: CURRENT_DB_VERSION })],
+    ['a new layout without a name', JSON.stringify({ kind: 'new', name: ' ', ...body, listNames: {}, schemaVersion: CURRENT_DB_VERSION })],
   ])('reads %s as no layout draft', (_what, raw) => {
     localStorage.setItem('todo2-unsaved-layout', raw)
     expect(readLayoutDraft()).toBeNull()
@@ -164,17 +168,16 @@ describe('draft storage', () => {
     const withHot = (id: string) => ({ id, kind: 'dashboard', config: { tiles: ['open', 'hot'], listTiles: [], sections: [{ id: 'hot' }, { id: 'status' }] } })
     // Written in the v73 shape (a column's cells, a band's tabs): read back in today's (rows, a band's cells — v76; widgets — v77).
     const v73Cols = (tab: unknown) => [{ id: 'A', weight: 1, cells: [{ id: 'k', weight: 1, activeTabId: 'd', tabs: [tab] }] }]
-    const part = (d: string, i: number, weight: number, kind: string, config: object) => ({ id: `${d}-c${i}`, weight, tabs: [{ id: `${d}-n${i}`, kind, config }] })
-    const cols = [{ id: 'A', weight: 1, rows: [
-      { id: 'd-r1', weight: 1, cells: [part('d', 1, 1, 'number', { metric: 'open' })] },
-      { id: 'd-r2', weight: 1, cells: [part('d', 2, 12, 'status', {})] },
-    ] }]
     localStorage.setItem('todo2-unsaved-layout', JSON.stringify({
       kind: 'saved', layoutId: 2, columns: v73Cols(withHot('d')), baseColumns: v73Cols(withHot('d')), top: { id: 'T', height: 100, tabs: [withHot('t')] }, schemaVersion: 73,
     }))
-    expect(readLayoutDraft()).toEqual({
-      kind: 'saved', layoutId: 2, base: { columns: cols }, body: { columns: cols, top: { id: 'T', height: 100, cells: [part('t', 1, 1, 'number', { metric: 'open' }), part('t', 2, 3, 'status', {})] } },
-    })
+    const draft = readLayoutDraft()
+    expect(draft?.kind).toBe('saved')
+    if (draft?.kind !== 'saved') return
+    // v76 rows, v77 widgets (a Number over Status, the Hot parts gone), v78 a table — the band a fixed row across the top — and Status a Breakdown.
+    expect(picture(draft.base)).toEqual(['d-c1', 'd-c2'])
+    expect(picture(draft.body)).toEqual(['t-c1 t-c2', 'd-c1 d-c1', 'd-c2 d-c2'])
+    expect(draft.body.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'breakdown', 'number', 'breakdown'])
   })
 
   it('clearUnsavedDrafts forgets both kinds', () => {
@@ -235,7 +238,7 @@ describe('draft storage', () => {
     ['without a version', undefined],
     ['a version that isn’t a number', 'v64'],
   ])('drops a record %s kept', (_what, schemaVersion) => {
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: 2, baseColumns: other, columns, schemaVersion }))
+    localStorage.setItem('todo2-unsaved-layout', kept({ schemaVersion }))
     localStorage.setItem('todo2-unsaved-lists', JSON.stringify({ 4: { draft: listDef({ sort: 'priority' }), base: listDef(), schemaVersion } }))
     expect(readLayoutDraft()).toBeNull()
     expect(readListDrafts().size).toBe(0)

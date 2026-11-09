@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { seedTaskList, seedWorkspace, wsRow } from './fixtures/workspace'
+import { seedTaskList } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -8,7 +8,6 @@ import { readStore } from './fixtures/db'
  * the row stays put for a beat, then folds away out of a list that hides
  * completed tasks — with the undo snackbar, whose Undo brings it back.
  * Under reduced motion the row leaves at once (no fold); the snackbar stays.
- * The glance row widgets (Stale tasks …) do the same.
  */
 
 const TASKS = [{ title: 'Write the review' }, { title: 'Collect sign-offs' }, { title: 'Plan learning time' }]
@@ -45,28 +44,6 @@ test('under reduced motion the row leaves at once, with the snackbar', async ({ 
   await expect.poll(() => rowTitles(list)).toEqual(['Write the review', 'Plan learning time'])
   expect(await page.locator('[data-leaving]').count()).toBe(0)
   await expect(snackbar(page)).toBeVisible()
-})
-
-test('a stale row lingers too, though completing it moves its modified date to now', async ({ page }) => {
-  await seedWorkspace(page, {
-    tasks: [
-      { title: 'Plan the offsite', modifiedInDays: -40 },
-      { title: 'Collect sign-offs', modifiedInDays: -30 },
-      { title: 'Clean the garage', modifiedInDays: -20 },
-    ],
-    layouts: [{
-      name: 'Dash',
-      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'dash', kind: 'stale' }] })] }],
-    }],
-  })
-  const stale = page.locator('[data-glance-section="stale"]')
-  await expect.poll(() => rowTitles(stale)).toEqual(['Plan the offsite', 'Collect sign-offs', 'Clean the garage'])
-  await stale.locator('[data-row-todo]', { has: page.locator('span[data-task-title="Collect sign-offs"]') })
-    .getByRole('checkbox', { name: 'Mark complete' }).click()
-
-  await expect(stale.locator('[data-leaving="stay"]')).toHaveCount(1)
-  expect(await rowTitles(stale)).toEqual(['Plan the offsite', 'Collect sign-offs', 'Clean the garage'])
-  await expect.poll(() => rowTitles(stale)).toEqual(['Plan the offsite', 'Clean the garage'])
 })
 
 test('completing a task from its editor closes the editor; the row folds with the snackbar, whose Undo brings it back', async ({ page }) => {

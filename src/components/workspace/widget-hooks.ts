@@ -1,13 +1,16 @@
 import { useMemo } from 'react'
 import { ownerLayoutId } from '../../models/list-definition'
-import { getActiveTab, kindTabTitle, tabListId, type LayoutTab, type WidgetKind } from '../../models/workspace-layout'
+import { getActiveTab, kindTabTitle, tabListId, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
+import { useChartWidgetsStore } from '../../stores/chart-widgets-store'
+import type { ListFilterField } from '../../stores/list-widget-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { uniqueListName } from '../../utils/list-copy'
 import { registerModuleReset } from '../../utils/module-reset'
-import { panelOfTab, rowOfCell } from '../../utils/workspace-layout-queries'
+import { panelOfTab } from '../../utils/workspace-layout-queries'
+import { cellRowTracks } from '../../utils/workspace-layout-ops'
 import { type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
 
@@ -62,20 +65,34 @@ export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
 
 /**
  * Opens Edit list for a list tab: the tab is made its cell's active one and
- * the cell's row expanded (so the list it previews is on screen), then the
+ * the row tracks it covers expanded (so the list it previews is on screen), then the
  * surface opens beside it, in place of another list's open Edit list (that
  * list keeps its draft).
  */
 export function openEditList(tabId: string, listDefinitionId: number): void {
+  showTab(tabId)
+  useUIStore.getState().openListEditor(listDefinitionId, tabId)
+}
+
+/** Makes `tabId` its cell's active tab and expands the row tracks the cell covers, so the widget is on screen. */
+export function showTab(tabId: string): void {
   const ws = useWorkspaceStore.getState()
   const working = ws.working
   const cell = working ? panelOfTab(working, tabId) : undefined
   if (working && cell) {
     if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
-    const row = rowOfCell(working, cell.id)
-    if (row?.collapsed) void ws.setRowCollapsed(row.id, false)
+    const collapsed = cellRowTracks(working, cell.id).filter((t) => t.collapsed === true)
+    if (collapsed.length > 0) void ws.setTrackCollapsed(collapsed.map((t) => t.id), false)
   }
-  useUIStore.getState().openListEditor(listDefinitionId, tabId)
+}
+
+/**
+ * Opens a Number's editor (Edit number…, D26 P5): the tab shown as Edit list
+ * shows its list's (`showTab`), then the popover beside the Number.
+ */
+export function openNumberEditor(tabId: string): void {
+  showTab(tabId)
+  useUIStore.getState().openNumberEditor(tabId)
 }
 
 /** `base` as a list name layout `layoutId` doesn't use yet: `base`, `base 2`, … */
@@ -121,9 +138,23 @@ export function useListOwnerLayoutId(): number | undefined {
   return useWorkspaceStore((s) => s.saved?.id)
 }
 
-/** Adds a widget tab of `kind` at `target` (a list tab with its list). Returns the new tab's id. */
+/**
+ * Adds a widget tab of `kind` at `target` (a list tab with its list).
+ * Returns the new tab's id. A new Number opens its editor at once: its empty
+ * filter counts every open task until one is set. So does a new chart
+ * (D26 P8; `seed` its preset's config, `startField` a filter picker its
+ * editor opens on).
+ */
 export function useAddWidget() {
   const addWidget = useWorkspaceStore((s) => s.addWidget)
-  return (kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number) =>
-    addWidget(kind, target, listDefinitionId != null ? { listDefinitionId } : undefined)
+  return (kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number, seed?: TabSeed, startField?: ListFilterField) => {
+    const tabId = addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
+    if (tabId != null && kind === 'number') openNumberEditor(tabId)
+    // D26 P8: a chart opens its editor too.
+    if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'statusFlow' || kind === 'tagMap')) {
+      showTab(tabId)
+      useChartWidgetsStore.getState().openEditor(tabId, startField)
+    }
+    return tabId
+  }
 }

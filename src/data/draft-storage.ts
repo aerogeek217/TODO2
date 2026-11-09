@@ -12,7 +12,7 @@ import { upgradeDataSet, type DataRow } from './schema-upgrades'
  * per browser, outside the Dexie database — so never in the sync file, an
  * export or a backup, and untouched by a data replace (the stores drop them
  * then; `clearUnsavedDrafts`). Each record carries what it was made
- * against (the stored layout's columns and bands, the saved list), and is only taken
+ * against (the stored layout's table, the saved list), and is only taken
  * back while the stored data still matches: a draft made against other data
  * is dropped, never applied to it. Storage that can't be read or written
  * (private mode, quota, blocked site data) just means nothing is kept.
@@ -28,12 +28,13 @@ const LAYOUT_KEY = 'todo2-unsaved-layout'
 const LISTS_KEY = 'todo2-unsaved-lists'
 
 /**
- * The open layout's unsaved working copy: its body (columns and bands). Kept
- * as `columns` / `top` / `bottom` (and `baseColumns` / `baseTop` /
- * `baseBottom` for the base), so a record kept before bands existed reads
- * as a body without bands. A `lensId` / `baseLensId` an earlier build kept
- * (when the lens was a layout's pick) is ignored: such a draft reads as its
- * body without it, so one that differed only by the lens reads clean.
+ * The open layout's unsaved working copy: its body (its table). Kept as
+ * `grid` / `cells` (and `baseGrid` / `baseCells` for the base). A record
+ * an older build kept holds `columns` / `top` / `bottom` (and `baseColumns`
+ * / `baseTop` / `baseBottom`) instead, which the schema upgrades turn into
+ * a table (v78). A `lensId` / `baseLensId` an earlier build kept (when the
+ * lens was a layout's pick) is ignored: such a draft reads as its body
+ * without it, so one that differed only by the lens reads clean.
  */
 export type LayoutDraftRecord =
   /** Edits to a stored layout, made against `base` (its stored body then). */
@@ -106,9 +107,16 @@ function writeJson(key: string, value: unknown): string | null | false {
 
 /** A body only when it passes the layout repair unchanged; else `null`. */
 function bodyOf(raw: unknown): LayoutBody | null {
-  if (!isRecord(raw) || !Array.isArray(raw.columns)) return null
-  const { fixes, ...body } = pickLayoutBody({ columns: raw.columns, top: raw.top, bottom: raw.bottom })
+  if (!isRecord(raw) || !isRecord(raw.grid) || !Array.isArray(raw.cells)) return null
+  const { fixes, ...body } = pickLayoutBody({ grid: raw.grid, cells: raw.cells })
   return fixes.length === 0 ? layoutBodyOf(body) : null
+}
+
+/** A kept body as a layout row of the schema it was kept in: the table (v78 on), else columns and bands. */
+function keptRow(v: Record<string, unknown>, prefix: '' | 'base'): Record<string, unknown> {
+  const key = (k: string) => (prefix === '' ? k : `${prefix}${k[0]?.toUpperCase() ?? ''}${k.slice(1)}`)
+  if (v[key('grid')] !== undefined) return { grid: v[key('grid')], cells: v[key('cells')] }
+  return { columns: v[key('columns')], top: v[key('top')], bottom: v[key('bottom')] }
 }
 
 /** The kept layout draft, or `null` (none, or not readable by this build). */
@@ -118,10 +126,7 @@ export function readLayoutDraft(): LayoutDraftRecord | null {
   const from = versionOf(v.schemaVersion)
   if (from === null) return null
   // The body (and the base's) as layout rows, upgraded together.
-  const upgraded = upgradeRows('layouts', [
-    { columns: v.columns, top: v.top, bottom: v.bottom },
-    { columns: v.baseColumns, top: v.baseTop, bottom: v.baseBottom },
-  ], from)
+  const upgraded = upgradeRows('layouts', [keptRow(v, ''), keptRow(v, 'base')], from)
   if (!upgraded) return null
   const body = bodyOf(upgraded[0])
   if (!body) return null
@@ -142,16 +147,13 @@ export function writeLayoutDraft(record: LayoutDraftRecord | null): void {
   layoutWritten = writeJson(LAYOUT_KEY, record && { ...storedForm(record), schemaVersion: CURRENT_DB_VERSION })
 }
 
-/** A layout draft as kept: the body's keys flat (`columns`, `top`, …), the base's prefixed. */
+/** A layout draft as kept: the body's keys flat (`grid`, `cells`), the base's prefixed. */
 function storedForm(record: LayoutDraftRecord): Record<string, unknown> {
   const { body } = record
-  const flat = { columns: body.columns, top: body.top, bottom: body.bottom }
+  const flat = { grid: body.grid, cells: body.cells }
   if (record.kind === 'new') return { kind: 'new', name: record.name, ...flat }
   const { base } = record
-  return {
-    kind: 'saved', layoutId: record.layoutId, ...flat,
-    baseColumns: base.columns, baseTop: base.top, baseBottom: base.bottom,
-  }
+  return { kind: 'saved', layoutId: record.layoutId, ...flat, baseGrid: base.grid, baseCells: base.cells }
 }
 
 /** A list definition only when import would take it as it is (rebuilt from known keys); else `null`. */

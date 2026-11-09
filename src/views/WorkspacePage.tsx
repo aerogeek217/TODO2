@@ -28,7 +28,7 @@ import { buildRescheduleUpdate } from '../utils/reschedule'
 import { applyPaneDrop, currentPaneContext, currentPanes } from '../services/eisenhower-drop'
 import { startOfToday } from '../utils/date'
 import { dragTasks } from '../components/workspace/eisenhower/eisenhower-drag'
-import { dropChangesLayout, dropTargetForHit, geometryCells, hitTestWorkspace, sameDropHit } from '../utils/workspace-drop'
+import { dropGhost, dropTargetForHit, geometryCells, hitTestWorkspace, sameDropHit } from '../utils/workspace-drop'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../constants'
 import { WorkspaceView } from '../components/workspace/WorkspaceView'
 import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView'
@@ -37,10 +37,12 @@ import { useIsMobile } from '../hooks/use-is-mobile'
 import { measureWorkspace } from '../components/workspace/measure'
 import { UnsavedPrompt } from '../components/workspace/UnsavedPrompt'
 import { EditListHost } from '../components/workspace/list/EditList'
+import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
+import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { getUnsavedListIds, useListDraftStore } from '../stores/list-draft-store'
 import { unsavedDraftsKept } from '../data/draft-storage'
 import { useUnsavedListIds } from '../hooks/use-list-draft'
-import { PlusIcon, WidgetKindIcon } from '../components/shared/icons'
+import { WidgetKindIcon } from '../components/shared/icons'
 import {
   isWorkspaceDragType,
   isWorkspacePanelDragData,
@@ -64,6 +66,7 @@ import { EntityActionHost } from '../components/settings/EntityActionHost'
 import { CheckinDialog } from '../components/checkin/CheckinDialog'
 import { CheckinImportDialog } from '../components/checkin/CheckinImportDialog'
 import { TaskDialog } from '../components/overlays/TaskDialog'
+import { ReviewDeck } from '../components/overlays/ReviewDeck'
 import { DragOverlayTask } from '../components/workspace/DragOverlayTask'
 import { createTaskDropAnimation } from '../components/workspace/task-drop-animation'
 import { TaskDropLandingContext } from '../components/task/dnd/task-drop-landing'
@@ -145,14 +148,16 @@ function useWorkspaceDragState() {
     const geo = current.geometry
     const hit = hitTestWorkspace(geo, { x, y })
     const target = hit ? dropTargetForHit(layout, geo, hit, current.source) : null
-    const accepts = target != null && dropChangesLayout(layout, current.source, target)
+    const ghost = target ? dropGhost(layout, geo, current.source, target, current.tabs.map((t) => t.id)) : null
+    const accepts = ghost != null
     let insertLeft: number | null = null
     if (hit?.kind === 'tab-strip') {
       const panel = geometryCells(geo).find((c) => c.id === hit.cellId)
       if (panel?.header) insertLeft = hit.lineX - panel.header.left
     }
-    if (sameDropHit(hit, current.hit) && accepts === current.accepts && insertLeft === current.insertLeft) return
-    setDrag({ ...current, hit, target, accepts, insertLeft })
+    const sameGhost = JSON.stringify(ghost) === JSON.stringify(current.ghost)
+    if (sameDropHit(hit, current.hit) && sameGhost && insertLeft === current.insertLeft) return
+    setDrag({ ...current, hit, target, accepts, ghost, insertLeft })
   }, [setDrag])
 
   const active = drag != null
@@ -200,6 +205,7 @@ function useWorkspaceDragState() {
       hit: null,
       target: null,
       accepts: false,
+      ghost: null,
       insertLeft: null,
       geometry: measureWorkspace(area),
     })
@@ -217,16 +223,6 @@ function useWorkspaceDragState() {
   }, [setDrag])
 
   return { drag, start, end }
-}
-
-/** The label pill beside the ghost for an accepted target that has no other label (the zones label the rest). */
-function dropLabel(drag: WorkspaceDragState): string | null {
-  const { hit } = drag
-  if (!hit || !drag.accepts) return null
-  if (hit.kind === 'column-edge') return 'New column'
-  if (hit.kind === 'new-band') return `New band ${hit.edge === 'top' ? 'above' : 'below'} all columns`
-  if (hit.kind === 'tab-strip' && drag.source.type === 'panel') return `Insert ${tabsCount(drag.tabs.length)}`
-  return null
 }
 
 /** A whole panel being dragged: a small card with its tabs (the first raised), placeholder lines and an `N tabs` badge. */
@@ -488,9 +484,6 @@ export function WorkspacePage() {
                 <span className={styles.ghostTitle}>{drag.tabs[0]?.title}</span>
               </div>
             )}
-            {dropLabel(drag) && (
-              <div className={styles.ghostLabel} data-testid="ws-drop-label"><PlusIcon size={12} strokeWidth={2} /> {dropLabel(drag)}</div>
-            )}
           </div>
         ) : activeDrag?.calendarEntry ? (
           <div className={calendarStyles.ghost} data-drag-overlay>
@@ -516,11 +509,14 @@ export function WorkspacePage() {
       )}
 
       <TaskDialog />
+      <ReviewDeck />
       <CheckinDialog />
       <CheckinImportDialog />
       <TaskEditPopupHost />
       <EntityActionHost />
       <EditListHost />
+      <NumberEditorHost />
+      <ChartEditorHost />
       <UnsavedNavigationGuard />
     </DndContext>
   )

@@ -9,7 +9,7 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import type { ListDefinition, PersistedListDefinition } from '../../models/list-definition'
 import type { WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
-import { rowOf } from '../helpers/layout-builders'
+import { emptyBody, single } from '../helpers/layout-builders'
 
 const AT = new Date('2026-10-01T09:00:00.000Z')
 const LATER = new Date('2026-10-05T09:00:00.000Z')
@@ -19,7 +19,7 @@ const list = (id: number, extra: Record<string, unknown> = {}): Record<string, u
   membership: { kind: 'custom', predicate: emptyPredicate() }, ...extra,
 })
 const layoutRow = (id: number, extra: Record<string, unknown> = {}): Record<string, unknown> =>
-  ({ id, name: `L${id}`, sortOrder: 0, columns: [], createdAt: AT, modifiedAt: AT, ...extra })
+  ({ id, name: `L${id}`, sortOrder: 0, ...emptyBody(), createdAt: AT, modifiedAt: AT, ...extra })
 
 beforeEach(async () => {
   await resetDb()
@@ -101,11 +101,11 @@ describe('layoutRepository: the layout order', () => {
   it('insert puts a layout after the others, whatever order it carries', async () => {
     await db.layouts.bulkAdd([layoutRow(1, { sortOrder: 3 }), layoutRow(2, { sortOrder: 1 })] as unknown as WorkspaceLayout[])
     // A row that still carries an order (e.g. a stored layout spread into it).
-    const carried = { name: 'New', sortOrder: 0, columns: [], createdAt: AT, modifiedAt: AT }
+    const carried = { name: 'New', sortOrder: 0, ...emptyBody(), createdAt: AT, modifiedAt: AT }
     const id = await layoutRepository.insert(carried)
     expect((await db.layouts.get(id))?.sortOrder).toBe(4)
     await db.layouts.clear()
-    const first = await layoutRepository.insert({ name: 'First', columns: [], createdAt: AT, modifiedAt: AT })
+    const first = await layoutRepository.insert({ name: 'First', ...emptyBody(), createdAt: AT, modifiedAt: AT })
     expect((await db.layouts.get(first))?.sortOrder).toBe(0)
   })
 
@@ -163,8 +163,8 @@ describe('listDefinitionRepository.ensureEisenhowerList', () => {
 
 describe('audit: lists that belong to no layout', () => {
   it('reports them; cleanup gives each the first layout that shows it, the rest a new layout “Recovered lists” (never deletes one); a live layout’s and the Eisenhower’s are fine', async () => {
-    const shows4 = [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: [{ id: 't', kind: 'lens', config: { listDefinitionId: 4 } }] })] }]
-    await db.layouts.bulkAdd([layoutRow(1), layoutRow(2, { sortOrder: 1, columns: shows4 }), layoutRow(3, { sortOrder: 2, columns: shows4 })] as unknown as WorkspaceLayout[])
+    const shows4 = single({ id: 'k', tabs: [{ id: 't', kind: 'lens', config: { listDefinitionId: 4 } }] })
+    await db.layouts.bulkAdd([layoutRow(1), layoutRow(2, { sortOrder: 1, ...shows4 }), layoutRow(3, { sortOrder: 2, ...shows4 })] as unknown as WorkspaceLayout[])
     await db.listDefinitions.bulkAdd([
       list(1, { owner: { layoutId: 1 } }), list(2, { owner: { layoutId: 9 }, sortOrder: 3 }), list(3, { owner: { eisenhower: true } }),
       list(4), list(5, { sortOrder: 1 }),
@@ -180,7 +180,7 @@ describe('audit: lists that belong to no layout', () => {
     const recovered = await db.layouts.get(4)
     expect(recovered).toMatchObject({ name: 'Recovered lists', sortOrder: 3 })
     // One cell of list tabs, in the list order.
-    expect(recovered!.columns[0]!.rows[0]!.cells[0]!.tabs).toEqual([
+    expect(recovered!.cells[0]!.tabs).toEqual([
       { id: 'tab-1', kind: 'lens', config: { listDefinitionId: 5 } },
       { id: 'tab-2', kind: 'lens', config: { listDefinitionId: 2 } },
     ])

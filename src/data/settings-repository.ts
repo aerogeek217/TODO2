@@ -14,6 +14,20 @@ export const settingsRepository = {
     await db.settings.delete(key)
   },
 
+  /**
+   * The row's value; when there is none, `value` is stored first (in one
+   * transaction, so two callers never both write it). Resolves the value
+   * the row holds.
+   */
+  async putIfAbsent(key: string, value: string): Promise<string> {
+    return db.transaction('rw', db.settings, async () => {
+      const row = await db.settings.get(key)
+      if (row) return row.value
+      await db.settings.put({ key, value })
+      return value
+    })
+  },
+
   async bulkDelete(keys: string[]): Promise<void> {
     await db.settings.bulkDelete(keys)
   },

@@ -1,19 +1,21 @@
 import { useMemo, type MouseEvent } from 'react'
-import { DEFAULT_NUMBER_BREAKDOWN, isMetricId, type NumberMetric } from '../../../models/glance-widgets'
+import { DEFAULT_NUMBER_BREAKDOWN } from '../../../models/glance-widgets'
 import type { NumberTab } from '../../../models/workspace-layout'
-import { useClosedThisWeek, useMetricHistory, useStatsBase, useMetricStats } from '../../../hooks/use-glance-data'
+import { useNumberCount, useNumberHistory, useStatsBase } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
-import { HISTORY_AGAINST, hasHistory, historyDelta } from '../../../services/stats/metric-history'
+import { historyDelta } from '../../../services/stats/number-count'
 import { numberBreakdown, type BreakdownEntry } from '../../../services/stats/number-breakdown'
-import { GlanceGlyph } from '../../shared/GlanceGlyph'
-import { closedSubLine, countOf, deltaLabel, metricSubLine } from './glance-copy'
+import { useChipNames } from '../../shared/filters/filter-menu'
+import { approximateNote, countOf, deltaLabel, numberDescription } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { numberLines } from './glance-summary'
-import { breakdownDrill, closedThisWeekDrill, metricDrill } from './glance-drills'
+import { breakdownDrill, numberDrill } from './glance-drills'
 import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
+import { WidgetTopLine } from '../WidgetTopLine'
 import { Sparkline } from './Sparkline'
-import { NUMBER_DEFS, numberColors } from './number-defs'
+import { numberColors } from './number-colors'
+import { GoalNumber, GroupNumber, ListNumber, OldestNumber, ShareNumber } from './NumberShapes'
 import styles from './NumberWidget.module.css'
 
 /** The large face's breakdown lists this many people / tags; the rest fold into one line. */
@@ -68,92 +70,110 @@ function Breakdown({ entries, by, total, title, onDrill }: {
 }
 
 /**
- * The Number widget (D25 N): one count — a counted metric's, or Closed
- * this week — over the screen filter (`shown of total`). By its face (D25
- * R): small is the label and the count (a fit row's, ~76px); medium adds
- * its sub-line and, for Open, Overdue, Due today and Closed this week, a
- * 14-day line with the change since yesterday (Closed this week: since the
- * same point of last week); large draws it bigger and
- * adds the breakdown its config picks (by person or tag). Lit in its
- * colour when the count asks for action (D18). A click opens its tasks,
- * at every face — the small one too (the cell's full-widget
- * popover stays for the keyboard).
+ * The Number widget: its shape's widget (D26 P6, `show`) — the count, or one
+ * of the other shapes (`NumberShapes`).
  */
-export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
-  const metric: NumberMetric = tab.config.metric
-  const breakdownBy = tab.config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN
+export function NumberWidget(props: GlanceWidgetProps<NumberTab>) {
+  switch (props.tab.config.show) {
+    case 'count': return <CountNumber {...props} />
+    case 'share': return <ShareNumber {...props} />
+    case 'oldest': return <OldestNumber {...props} />
+    case 'goal': return <GoalNumber {...props} />
+    case 'group': return <GroupNumber {...props} />
+    case 'list': return <ListNumber {...props} />
+  }
+}
+
+/**
+ * A count (D26 P5): the tasks its filter keeps under the top
+ * bar's filter (its lens too, unless the Number ignores it), as their count
+ * — `shown of total` while the top bar hides some. By its face (D25 R):
+ * small is the name and the count (a fit row's, ~76px); medium adds its
+ * 14-day line (`filter-history`, ≈ when the history log doesn't hold all
+ * it reads for the whole line) and its change against yesterday or the
+ * same day last week (`compare`); large draws it bigger and adds the
+ * breakdown its config picks (by person or tag). Lit in its colour while
+ * its count crosses its threshold (D18, `litWhen`). A click opens its
+ * tasks, at every face. Its editor (Edit number…, `NumberEditorHost`)
+ * opens beside its body (`data-number-body`).
+ */
+function CountNumber({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
+  const config = tab.config
+  const breakdownBy = config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN
   const base = useStatsBase()
-  const metrics = useMetricStats(base)
-  const closed = useClosedThisWeek(base)
-  const history = useMetricHistory(base)
+  const count = useNumberCount(base, config)
+  const history = useNumberHistory(base, count)
+  const names = useChipNames()
   const [faceRef, face] = useWidgetFace()
 
-  const def = NUMBER_DEFS[metric]
-  const shownIds = isMetricId(metric) ? metrics.shown[metric].ids : closed.shown.ids
+  const name = config.name.trim() || 'Number'
+  const shownIds = count.ids.shown
   const shown = shownIds.length
-  const total = isMetricId(metric) ? metrics.total[metric].ids.length : closed.total.ids.length
-  const sub = isMetricId(metric)
-    ? metricSubLine(metric, metrics.shown, { today: base.ctx.today, trendNet: history?.trend.net ?? null, trendRange: '14d' })
-    : closedSubLine(closed.shown.weekStart, base.ctx.today)
-  const series = history && hasHistory(metric) ? history.history.series[metric] : null
-  const against = hasHistory(metric) ? HISTORY_AGAINST[metric] : 'yesterday'
-  const delta = series ? historyDelta(series, against) : null
-  const deltaText = delta == null ? null : deltaLabel(delta, against, base.ctx.today)
-  const colors = numberColors(metric, shown)
-  const count = countOf(shown, total)
+  const total = count.ids.total.length
   const large = face === 'large'
   const small = face === 'small'
+  const series = history && !small ? history.series : null
+  const delta = history && config.compare !== 'none' ? historyDelta(history.series, config.compare) : null
+  const deltaText = delta == null || config.compare === 'none' ? null : deltaLabel(delta, config.compare, base.ctx.today)
+  const approximate = history != null && !history.exactness.exact ? approximateNote(history.exactness.approximate) : null
+  const colors = numberColors(config, shown)
+  const countText = countOf(shown, total)
   const breakdown = useMemo(
     () => (large ? numberBreakdown(shownIds, breakdownBy, base.ctx) : []),
     [large, shownIds, breakdownBy, base.ctx],
   )
 
-  const lines = useMemo(() => numberLines(def.label, count, sub), [def.label, count, sub])
+  const lines = useMemo(() => numberLines(name, countText, deltaText ?? ''), [name, countText, deltaText])
   useReportLines(onResult, lines)
 
-  const drill = glanceDrill(onDrill, base.filtered)
+  const drill = glanceDrill(onDrill, count.filtered)
   const content = (
     <>
-      <span className={styles.label} style={{ color: colors.label }}>
-        <GlanceGlyph name={def.glyph} size={12} color={colors.glyph} /><span className={styles.labelText}>{def.label}</span>
-      </span>
+      <WidgetTopLine as="span" controls="cell" className={styles.label} style={{ color: colors.label }}>
+        <span className={styles.labelText}>{name}</span>
+      </WidgetTopLine>
       <span className={styles.figures}>
         <span className={styles.count} style={{ color: colors.count }} data-testid="number-count">
           {shown}
           {shown !== total && <span className={styles.of}>of {total}</span>}
         </span>
-        {series && !small && (
+        {series && (
           <span className={styles.history}>
             <Sparkline series={series} width={large ? 120 : 64} height={large ? 36 : 22} className={styles.spark} />
-            {deltaText != null && <span className={styles.delta} data-testid="number-delta">{deltaText}</span>}
+            {(deltaText != null || approximate) && (
+              <span className={styles.delta} data-testid="number-delta">
+                {approximate && <span className={styles.approx} title={approximate} data-testid="number-approximate">≈ </span>}
+                {deltaText}
+              </span>
+            )}
           </span>
         )}
       </span>
-      {sub && !small && <span className={styles.sub}>{sub}</span>}
     </>
   )
-  const name = `${def.label}: ${count}.${sub && !small ? ` ${sub}.` : ''}${deltaText != null && !small ? ` ${deltaText}.` : ''}`
+  const label = `${name}: ${countText}.${deltaText != null && !small ? ` ${approximate ? 'About ' : ''}${deltaText}.` : ''}`
   const common = {
     className: `${styles.number}${large ? ` ${styles.large}` : ''}`,
-    'data-number-metric': metric,
+    'data-number': tab.id,
+    'data-show': 'count',
     'data-lit': colors.lit ? 'true' : undefined,
   }
   const open = (e: MouseEvent) => {
     // Its own drill: not the cell's full-widget popover.
     e.preventDefault()
-    drill?.(isMetricId(metric) ? metricDrill(metric, { metrics, ctx: base.ctx }) : closedThisWeekDrill(closed.shown, base.ctx.today))
+    drill?.(numberDrill(name, numberDescription(config.filter, names), shownIds))
   }
   return (
     <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
-      <div className={`${styles.body}${large && breakdown.length > 0 ? ` ${styles.bodyWithBreakdown}` : ''}`}>
+      <div data-number-body={tab.id} className={`${styles.body}${large && breakdown.length > 0 ? ` ${styles.bodyWithBreakdown}` : ''}`}>
         {drill ? (
-          <button type="button" {...common} aria-label={`${name} Show tasks`} onClick={open}>
+          <button type="button" {...common} aria-label={`${label} Show tasks`} onClick={open}>
             {content}
           </button>
         ) : (
-          <div {...common} role="group" aria-label={name}>{content}</div>
+          <div {...common} role="group" aria-label={label}>{content}</div>
         )}
-        {large && breakdownBy !== 'none' && <Breakdown entries={breakdown} by={breakdownBy} total={shown} title={def.title} onDrill={drill} />}
+        {large && breakdownBy !== 'none' && <Breakdown entries={breakdown} by={breakdownBy} total={shown} title={name} onDrill={drill} />}
       </div>
     </GlanceFrame>
   )

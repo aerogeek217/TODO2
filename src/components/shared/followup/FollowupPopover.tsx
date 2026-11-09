@@ -19,10 +19,10 @@ import {
   relativeDayPhrase,
   QUICK_FOLLOWUP_INTERVALS,
 } from '../../../utils/followup'
-import { FollowedUpIcon } from '../FollowupIcons'
 import { useTooltip } from '../use-tooltip'
 import { FollowupDateButton } from './FollowupDateButton'
 import { FollowupQuickButtons } from './FollowupQuickButtons'
+import { MarkFollowedUpButton } from './MarkFollowedUpButton'
 import styles from './Followup.module.css'
 import { PopoverRoot } from '../PopoverRoot'
 
@@ -396,18 +396,16 @@ export function FollowupPopover({
           </>
         ) : 'Never followed up'}
       </div>
-      <button
+      <MarkFollowedUpButton
         ref={followedUpRef}
-        type="button"
-        className={`${styles.followedUpPrimary} ${doneToday && !hasUpdate ? styles.followedUpDone : ''}`}
+        fullWidth
+        doneToday={doneToday}
+        // A typed status update makes it record something new again.
+        dimmed={doneToday && !hasUpdate}
         disabled={fieldDate === 'invalid'}
         {...followedUpTipProps}
         onClick={followUp}
-        data-done-today={doneToday ? 'true' : undefined}
-      >
-        <FollowedUpIcon />
-        {hasUpdate ? 'Mark followed up + add update' : 'Mark followed up'}
-      </button>
+      />
       {followedUpTip}
     </PopoverRoot>,
     document.body,

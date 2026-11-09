@@ -5,7 +5,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { createTab, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
-import { rowOf } from '../helpers/layout-builders'
+import { emptyBody, grid, single } from '../helpers/layout-builders'
 
 // A layout row the app can't use as stored (here: a retired `status` tab and
 // a bad row size, as an old build or a hand edit leaves it) is repaired in
@@ -19,15 +19,16 @@ function corrupt(name = 'Daily'): Omit<WorkspaceLayout, 'id'> {
     sortOrder: 0, name,
     createdAt: T0,
     modifiedAt: T0,
-    columns: [
-      { id: 'A', weight: 1, rows: [rowOf({ id: 'ka', weight: 1, activeTabId: 'a1', tabs: [createTab('notes', 'a1'), { id: 'old', kind: 'taskboard', config: {} } as never] }, { weight: -1 })] },
-      { id: 'B', weight: 1, rows: [rowOf({ id: 'kb', weight: 1, tabs: [createTab('calendar', 'b1')] })] },
-    ],
+    // ka | kb over one row (R, its size bad); ka holds a retired tab.
+    ...grid([[
+      { id: 'ka', activeTabId: 'a1', tabs: [createTab('notes', 'a1'), { id: 'old', kind: 'taskboard', config: {} } as never] },
+      { id: 'kb', tabs: [createTab('calendar', 'b1')] },
+    ]], { colIds: ['A', 'B'], rowIds: ['R'], rows: [-1] }),
   }
 }
 
 function valid(name = 'Plain'): Omit<WorkspaceLayout, 'id'> {
-  return { sortOrder: 0, name, createdAt: T0, modifiedAt: T0, columns: [{ id: 'P', weight: 1, rows: [rowOf({ id: 'kp', weight: 1, tabs: [createTab('notes', 'p1')] })] }] }
+  return { sortOrder: 0, name, createdAt: T0, modifiedAt: T0, ...single({ id: 'kp', tabs: [createTab('notes', 'p1')] }) }
 }
 
 async function storedRow(id: number): Promise<PersistedWorkspaceLayout> {
@@ -58,17 +59,18 @@ describe('layoutRepository reads', () => {
     const read = await layoutRepository.get(id)
     expect(read?.fixes).toEqual(['size reset', 'tab dropped'])
     expect(read?.layout).toMatchObject({ id, name: 'Daily' })
-    expect(read?.layout.columns[0]?.rows[0]).toMatchObject({ weight: 1, cells: [{ tabs: [{ id: 'a1', kind: 'notes' }] }] })
+    expect(read?.layout.grid.rows[0]).toEqual({ id: 'R', weight: 1000 })
+    expect(read?.layout.cells[0]).toMatchObject({ tabs: [{ id: 'a1', kind: 'notes' }] })
     expect(await storedRow(id)).toEqual(before)
     const all = await layoutRepository.getAll()
     expect(all.map((r) => r.fixes)).toEqual([['size reset', 'tab dropped']])
   })
 
-  it('a layout with nothing usable left keeps existing, with no columns (the empty-layout tiles)', async () => {
-    const id = await layoutRepository.insert({ name: 'Broken', createdAt: T0, modifiedAt: T0, columns: [{ id: 'X', weight: 1, cells: 'nope' } as never] })
+  it('a layout with nothing usable left keeps existing, with no cells (the empty-layout tiles)', async () => {
+    const id = await layoutRepository.insert({ name: 'Broken', createdAt: T0, modifiedAt: T0, grid: { columns: [], rows: [] }, cells: ['nope' as never] })
     const read = await layoutRepository.get(id)
-    expect(read?.layout).toMatchObject({ id, name: 'Broken', columns: [] })
-    expect(read?.fixes).toEqual(['column dropped'])
+    expect(read?.layout).toMatchObject({ id, name: 'Broken', ...emptyBody() })
+    expect(read?.fixes).toEqual(['cell dropped'])
   })
 })
 
@@ -77,7 +79,7 @@ describe('the workspace store opens a repaired layout unsaved', () => {
     const id = await layoutRepository.insert(corrupt())
     await layoutRepository.setActiveId(id)
     await ws().init()
-    expect(ws().working?.columns[0]?.rows[0]?.cells[0]?.tabs.map((t) => t.kind)).toEqual(['notes'])
+    expect(ws().working?.cells[0]?.tabs.map((t) => t.kind)).toEqual(['notes'])
     expect(ws().isDirty).toBe(true)
     expect(notice()).toEqual({ description: 'Repaired layout "Daily" — size reset, tab dropped. Save it to keep the repair.', notice: true })
   })
@@ -90,27 +92,27 @@ describe('the workspace store opens a repaired layout unsaved', () => {
 
     // View state stays in memory; a rename writes only the name.
     await ws().setActiveTab('a1')
-    await ws().setRowCollapsed('kb-r', true)
-    await ws().setColumnWeights({ A: 2 })
-    expect(ws().working?.columns[1]?.rows[0]?.collapsed).toBe(true)
+    await ws().setTrackCollapsed('R', true)
+    await ws().setTrackSizes({ A: 2000 })
+    expect(ws().working?.grid.rows[0]?.collapsed).toBe(true)
     await ws().rename(id, 'Daily 2')
     expect(await storedRow(id)).toEqual({ ...before, name: 'Daily 2' })
     // Discard goes back to the repaired layout — still unsaved.
-    expect(ws().addWidget('notes', { kind: 'column-edge', columnId: 'A', edge: 'left' })).not.toBeNull()
-    expect(ws().working?.columns).toHaveLength(3)
+    expect(ws().addWidget('notes', { kind: 'insert', edge: 'left' })).not.toBeNull()
+    expect(ws().working?.grid.columns).toHaveLength(3)
     ws().discard()
     expect(ws().isDirty).toBe(true)
-    expect(ws().working?.columns).toHaveLength(2)
+    expect(ws().working?.grid.columns).toHaveLength(2)
 
     await ws().save()
     expect(ws().isDirty).toBe(false)
     const row = await storedRow(id)
-    expect(row.columns[0]?.rows[0]).toMatchObject({ weight: 1, cells: [{ tabs: [{ id: 'a1', kind: 'notes' }] }] })
-    expect(row.columns[0]?.weight).toBe(2)
+    expect(row.cells[0]).toMatchObject({ tabs: [{ id: 'a1', kind: 'notes' }] })
+    expect(row.grid.columns[0]?.weight).toBe(2000)
     expect((await layoutRepository.get(id))?.fixes).toEqual([])
     // Saved now: view state is written again.
-    await ws().setRowCollapsed('kb-r', false)
-    expect((await storedRow(id)).columns[1]?.rows[0]?.collapsed).toBeUndefined()
+    await ws().setTrackCollapsed('R', false)
+    expect((await storedRow(id)).grid.rows[0]?.collapsed).toBeUndefined()
   })
 
   it('load: switching to a repaired layout opens it unsaved with the notice; switching back to a valid one is saved', async () => {
@@ -125,7 +127,7 @@ describe('the workspace store opens a repaired layout unsaved', () => {
     expect(ws().isDirty).toBe(true)
     expect(notice()?.description).toBe('Repaired layout "Old" — size reset, tab dropped. Save it to keep the repair.')
     // Only the last-used time was written.
-    expect((await storedRow(broken)).columns[0]?.rows[0]?.cells[0]?.tabs).toHaveLength(2)
+    expect((await storedRow(broken)).cells[0]?.tabs).toHaveLength(2)
     expect((await storedRow(broken)).lastUsedAt).toBeInstanceOf(Date)
 
     await ws().load(plain)

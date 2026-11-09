@@ -15,7 +15,7 @@ import { startOfDay, startOfToday } from '../../utils/date'
 import { urgentMark, urgentToggleHint } from '../../utils/urgency'
 import { useNlpAutocomplete } from '../../hooks/use-nlp-autocomplete'
 import { personItems, statusItems, tagItems } from '../../services/nlp-autocomplete'
-import { makeRecurrenceRule } from '../../utils/recurrence'
+import { dueDateChanges, makeRecurrenceRule } from '../../utils/recurrence'
 import { parseTaskInput } from '../../services/nlp-task-creator'
 import { draftEditorTitle, type EditorTaskFields, type TaskDraft } from '../../services/task-draft'
 import { TaskEditHeader } from './TaskEditHeader'
@@ -353,10 +353,8 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     // The rule is anchored to the due date; clearing it drops the rule.
     if (!next) setRecurrenceType('')
     if (isEdit && todo) {
-      const nextRule: typeof todo.recurrenceRule =
-        recurrenceType && next ? makeRecurrenceRule(recurrenceType, next) : undefined
       void flushNotes()
-      props.onUpdate({ dueDate: next ?? undefined, recurrenceRule: nextRule })
+      props.onUpdate(dueDateChanges(next, recurrenceType))
     }
   }
 

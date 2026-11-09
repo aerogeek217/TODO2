@@ -219,37 +219,9 @@
   color: var(--color-text-primary);
 }
 
-/* ═══ "Mark followed up" buttons ═══ */
+/* ═══ "Mark followed up" (MarkFollowedUpButton) ═══ */
 
-.followedUpPrimary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  height: 28px;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-accent);
-  color: var(--color-text-on-accent);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-bold);
-  cursor: pointer;
-}
-
-.followedUpPrimary:hover {
-  filter: brightness(1.08);
-}
-
-/* The Next field holds text that isn't a date: nothing to record it with. */
-.followedUpPrimary:disabled {
-  opacity: 0.45;
-  cursor: default;
-  filter: none;
-}
-
-.followedUpSecondary {
+.markFollowedUp {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -268,23 +240,40 @@
   white-space: nowrap;
 }
 
-.followedUpSecondary:hover {
+.markFollowedUp:hover:not(:disabled) {
   background: var(--color-followup-bg-strong);
 }
 
-/* Already followed up today: pressing it again only moves the next date, so it
-   steps down to a quiet secondary button. */
-.followedUpPrimary.followedUpDone,
-.followedUpSecondary.followedUpDone {
-  background: var(--color-tint-8);
-  color: var(--color-text-secondary);
-  filter: none;
+/* The popover's Next field holds text that isn't a date: nothing to record it with. */
+.markFollowedUp:disabled {
+  opacity: 0.45;
+  cursor: default;
 }
 
-.followedUpPrimary.followedUpDone:hover,
-.followedUpSecondary.followedUpDone:hover {
+/* Already followed up today: pressing it again only moves the next date, so it
+   steps down to a quiet button. */
+.markFollowedUp.markFollowedUpDone {
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+}
+
+.markFollowedUp.markFollowedUpDone:hover:not(:disabled) {
   background: var(--color-tint-14);
   color: var(--color-text-primary);
+}
+
+/* The follow-up popover: the full width, label centred. */
+.markFollowedUp.markFollowedUpFull {
+  justify-content: center;
+  width: 100%;
+  margin-left: 0;
+}
+
+/* A trailing key hint (the review deck's `› ⏎`). */
+.markFollowedUpAdornment {
+  margin-left: 2px;
+  font-weight: var(--font-weight-regular);
+  opacity: 0.75;
 }
 
 /* ═══ Editor group ═══ */

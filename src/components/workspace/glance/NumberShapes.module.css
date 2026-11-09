@@ -1,0 +1,211 @@
+/* A Number's other shapes (D26 P6, board Y): over the Number's own classes
+ * (`NumberWidget.module.css`) — a share's ring, an oldest task's title, a
+ * goal's bar and pace tick, a group's counts side by side. */
+
+.shape {
+  min-width: 0;
+}
+
+.small {
+  gap: 0;
+}
+
+.figureLine {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.caption,
+.target {
+  font-size: var(--font-size-sm);
+  line-height: 16px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.target {
+  font-size: 15px;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.large .target {
+  font-size: 20px;
+}
+
+.state {
+  margin-left: 4px;
+  font-size: var(--font-size-sm);
+  line-height: 16px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.stateLit {
+  font-weight: var(--font-weight-semibold);
+}
+
+.title {
+  max-width: 100%;
+  font-size: var(--font-size-meta);
+  line-height: 16px;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.meta {
+  max-width: 100%;
+  font-size: var(--font-size-sm);
+  line-height: 16px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Share of…: the ring, then the percent and its line. */
+.shareRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 0;
+}
+
+.ring {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+}
+
+.ring > svg {
+  display: block;
+}
+
+/* Against a goal: the bar, the count's share of the goal, and the pace tick. */
+.bar {
+  position: relative;
+  display: block;
+  width: min(100%, 220px);
+  height: 8px;
+  margin-top: 4px;
+  border-radius: 4px;
+  background: var(--color-tint-8);
+}
+
+.large .bar {
+  width: min(100%, 320px);
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+}
+
+.tick {
+  position: absolute;
+  top: -3px;
+  width: 2px;
+  height: 14px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--color-text-primary);
+}
+
+/* A group: its label over its counts, side by side, a hairline between. */
+.group {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+  padding: 6px 10px;
+  min-width: 0;
+}
+
+.group > :first-child {
+  align-self: flex-start;
+}
+
+.items {
+  display: grid;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 1px;
+  min-width: 0;
+  padding: 2px 10px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+
+/* A hairline between counts. */
+.item + .item {
+  box-shadow: inset 1px 0 0 var(--color-border);
+}
+
+button.item {
+  cursor: pointer;
+}
+
+button.item:hover {
+  background: var(--color-tint-6);
+}
+
+.itemCount {
+  font-size: 20px;
+  font-weight: var(--font-weight-bold);
+  line-height: 24px;
+  font-variant-numeric: tabular-nums;
+}
+
+.groupLarge .itemCount {
+  font-size: 28px;
+  line-height: 34px;
+}
+
+.itemName {
+  max-width: 100%;
+  font-size: var(--font-size-sm);
+  line-height: 14px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.group.small {
+  padding: 4px 8px;
+  gap: 2px;
+}
+
+.group.small .itemCount {
+  font-size: 17px;
+  line-height: 22px;
+}

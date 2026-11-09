@@ -3,9 +3,10 @@ import { seedWorkspace, wsCell, wsTab, type WsLayoutSeed, wsRow } from './fixtur
 import { box } from './fixtures/geometry'
 
 /**
- * The workspace on a phone: one column per screen width, swiped sideways with
- * native scroll snap; the column strip follows; tabs switch inside cells; the
- * layout picker is a bottom sheet; layout editing is not offered.
+ * The workspace on a phone (D26): every cell of the table in reading order
+ * (by its top track, then its left) in one scroll, a run of Numbers two up;
+ * tabs switch inside cells; the layout picker is a bottom sheet; layout
+ * editing is not offered.
  */
 
 test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
@@ -36,42 +37,12 @@ async function seed(page: Page): Promise<void> {
   })
 }
 
-const pager = (page: Page) => page.locator('[data-ws-pager]')
-const columnName = (page: Page, name: string) => page.getByRole('tablist', { name: 'Columns' }).getByRole('tab', { name })
-
-async function pagerState(page: Page): Promise<{ scrollLeft: number; page: number }> {
-  return pager(page).evaluate((el) => ({ scrollLeft: el.scrollLeft, page: el.clientWidth + 8 }))
-}
-
-/**
- * A horizontal touch swipe from trusted CDP touch events, so the browser
- * scrolls and snaps natively. A negative dx moves the finger left. The events
- * carry their own timestamps — a move every 16 ms, then the finger rests
- * 200 ms before lifting (headless Chromium never ends a flick, released while
- * still moving, so it would never snap) — instead of real waits between them.
- */
-async function swipe(page: Page, dx: number): Promise<void> {
-  const b = await box(pager(page))
-  const y = b.y + b.height / 2
-  const x0 = dx < 0 ? b.x + b.width * 0.85 : b.x + b.width * 0.15
-  const cdp = await page.context().newCDPSession(page)
-  const steps = 10
-  // Seconds since the epoch, ending now: the gesture already happened.
-  const start = Date.now() / 1000 - (steps * 0.016 + 0.2)
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: x0, y }], timestamp: start })
-  for (let i = 1; i <= steps; i++) {
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: x0 + (dx * i) / steps, y }], timestamp: start + i * 0.016 })
-  }
-  await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [], timestamp: start + steps * 0.016 + 0.2 })
-  await cdp.detach()
-}
-
 test('mobile opens the workspace; list widgets use touch rows and tabs are not draggable', async ({ page }) => {
   await seed(page)
   await page.goto('/#/')
   await expect(page).toHaveURL(/#\/$/)
-  await expect(page.getByRole('tablist', { name: 'Columns' })).toBeVisible()
-  await expect(columnName(page, 'Today')).toHaveAttribute('aria-selected', 'true')
+  // No column strip: every cell in one scroll.
+  await expect(page.getByRole('tablist', { name: 'Columns' })).toHaveCount(0)
 
   const rows = wsCell(page, 'a1').locator('[data-todo-id]')
   await expect(rows).toHaveCount(2)
@@ -85,45 +56,56 @@ test('mobile opens the workspace; list widgets use touch rows and tabs are not d
   await expect(page.getByRole('button', { name: 'Quick add' })).toBeVisible()
 })
 
-test('swiping snaps to whole columns and the strip follows', async ({ page }) => {
+test('every cell in reading order, one under another, in one scroll', async ({ page }) => {
   await seed(page)
-  const { page: width } = await pagerState(page)
-
-  // A short drag snaps back to the first column.
-  await swipe(page, -60)
-  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(0)
-
-  await swipe(page, -260)
-  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width)
-  await expect(columnName(page, 'Calendar')).toHaveAttribute('aria-selected', 'true')
-  await expect(columnName(page, 'Today')).toHaveAttribute('aria-selected', 'false')
-  const underline = page.getByTestId('ws-column-underline')
-  const nameBox = await columnName(page, 'Calendar').boundingBox()
-  const lineBox = await underline.boundingBox()
-  expect(lineBox && nameBox && lineBox.x > nameBox.x && lineBox.x + lineBox.width < nameBox.x + nameBox.width).toBe(true)
-
-  // On to the third column.
-  await swipe(page, -360)
-  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width * 2)
-  await expect(columnName(page, 'Waiting on')).toHaveAttribute('aria-selected', 'true')
-
-  await swipe(page, 260)
-  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width)
+  // The table: a1 | b1 | c1 over a1 | b2 | c1 — by top track, then left: a1, b1, c1, b2.
+  const order = ['a1', 'b1', 'c1', 'b2']
+  const boxes = await Promise.all(order.map((id) => box(wsCell(page, id))))
+  for (let i = 1; i < boxes.length; i++) {
+    const prev = boxes[i - 1]!
+    const cur = boxes[i]!
+    expect(Math.round(cur.x)).toBe(Math.round(prev.x))
+    expect(Math.round(cur.width)).toBe(Math.round(prev.width))
+    expect(cur.y).toBeGreaterThan(prev.y + prev.height - 1)
+  }
+  const scroller = page.locator('[data-ws-mobile] [data-ws-table]')
+  const scroll = await scroller.evaluate((el) => ({ sh: el.scrollHeight, ch: el.clientHeight, sw: el.scrollWidth, cw: el.clientWidth }))
+  expect(scroll.sh).toBeGreaterThan(scroll.ch)
+  expect(scroll.sw).toBeLessThanOrEqual(scroll.cw)
 })
 
-test('tapping a column name scrolls to it; tabs switch inside a cell and stay switched', async ({ page }) => {
-  await seed(page)
-  const { page: width } = await pagerState(page)
+test('a run of Number cells sits two up', async ({ page }) => {
+  await seedWorkspace(page, {
+    layouts: [{
+      name: 'Numbers',
+      table: {
+        areas: ['n1 n2 n3', 'k k k'],
+        cells: [
+          { id: 'n1', tabs: [{ id: 'num1', kind: 'number' }] },
+          { id: 'n2', tabs: [{ id: 'num2', kind: 'number', glance: { metric: 'overdue' } }] },
+          { id: 'n3', tabs: [{ id: 'num3', kind: 'number', glance: { metric: 'dueToday' } }] },
+          { id: 'k', tabs: [{ id: 'notesTab', kind: 'notes' }] },
+        ],
+      },
+    }],
+  })
+  const [n1, n2, n3, k] = await Promise.all(['n1', 'n2', 'n3', 'k'].map((id) => box(wsCell(page, id))))
+  expect(Math.round(n2!.y)).toBe(Math.round(n1!.y))
+  expect(n2!.x).toBeGreaterThan(n1!.x + n1!.width - 1)
+  expect(n1!.width).toBeGreaterThanOrEqual(140)
+  expect(Math.round(n3!.x)).toBe(Math.round(n1!.x))
+  expect(n3!.y).toBeGreaterThan(n1!.y + n1!.height - 1)
+  expect(k!.y).toBeGreaterThan(n3!.y + n3!.height - 1)
+})
 
-  await columnName(page, 'Waiting on').tap()
-  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width * 2)
+test('tabs switch inside a cell and stay switched', async ({ page }) => {
+  await seed(page)
+  await wsCell(page, 'c1').scrollIntoViewIfNeeded()
   await expect(wsCell(page, 'c1').getByText('Ben', { exact: true })).toBeVisible()
 
   await wsTab(page, 'eisTab').tap()
   await expect(wsTab(page, 'eisTab')).toHaveAttribute('aria-selected', 'true')
   await expect(wsCell(page, 'c1').locator('[data-eisenhower="eisTab"]')).toBeVisible()
-  // The column is named after its first cell's active tab.
-  await expect(columnName(page, 'Eisenhower')).toHaveAttribute('aria-selected', 'true')
 
   // The active tab is view state: kept across a reload, never an unsaved change.
   await page.reload()
@@ -134,25 +116,33 @@ test('tapping a column name scrolls to it; tabs switch inside a cell and stay sw
   await expect(sheet.getByText('Edited')).toHaveCount(0)
 })
 
-test('the ⋯ menu collapses a cell; tapping its tab expands it', async ({ page }) => {
+test('the ⋯ menu has the list’s items and collapses a cell’s rows (D26: Collapse row); its top line’s Expand brings it back', async ({ page }) => {
   await seed(page)
+  // One widget: no tab row; its top line holds the ⋯ (D26 AA1).
+  await expect(wsCell(page, 'a1').getByRole('tablist')).toHaveCount(0)
   await wsCell(page, 'a1').getByRole('button', { name: 'Cell options' }).tap()
   const menu = page.getByRole('menu', { name: 'Cell options' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Collapse cell'])
-  await menu.getByRole('menuitem', { name: 'Collapse cell' }).tap()
-  await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toHaveCount(0)
-  await expect(wsCell(page, 'a1').getByRole('button', { name: 'Expand cell' })).toBeVisible()
-
-  await wsTab(page, 'todayTab').tap()
+  await expect(menu.getByRole('menuitem')).toHaveText(['Edit list…', 'Copy tasks', 'Collapse row'])
+  await menu.getByRole('menuitem', { name: 'Collapse row' }).tap()
+  await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeHidden()
+  // Its top line still shows, with Expand row.
+  await expect(wsTab(page, 'todayTab').getByTestId('top-line-name')).toBeVisible()
+  await wsCell(page, 'a1').getByRole('button', { name: 'Expand row' }).tap()
   await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
 })
 
-test('the layout sheet switches layouts; each layout opens on the column it was left on (view state, across a reload)', async ({ page }) => {
+test('a two-widget cell keeps its tabs; tapping a collapsed one expands it', async ({ page }) => {
   await seed(page)
-  const { page: width } = await pagerState(page)
-  await columnName(page, 'Waiting on').tap()
-  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width * 2)
+  await expect(wsCell(page, 'c1').getByRole('tab')).toHaveCount(2)
+  await wsCell(page, 'c1').getByRole('button', { name: 'Cell options' }).tap()
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Collapse row' }).tap()
+  await expect(wsCell(page, 'c1').locator('[data-ws-cell-body]')).toHaveCount(0)
+  await wsTab(page, 'waitTab').tap()
+  await expect(wsCell(page, 'c1').locator('[data-ws-cell-body]')).toBeVisible()
+})
 
+test('the layout sheet switches layouts, never an unsaved change', async ({ page }) => {
+  await seed(page)
   await page.getByTestId('layout-picker').tap()
   const sheet = page.getByRole('dialog', { name: 'Layouts' })
   await expect(sheet.getByRole('button', { name: 'Weekly review' })).toHaveAttribute('aria-current', 'true')
@@ -160,22 +150,13 @@ test('the layout sheet switches layouts; each layout opens on the column it was 
   await sheet.getByRole('button', { name: 'Daily' }).tap()
   await expect(sheet).toHaveCount(0)
   await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Daily')
-  await expect(columnName(page, 'Notes')).toHaveAttribute('aria-selected', 'true')
+  await expect(wsCell(page, 'd1')).toBeVisible()
 
-  // Back: the column it was left on.
   await page.getByTestId('layout-picker').tap()
   await page.getByRole('dialog', { name: 'Layouts' }).getByRole('button', { name: 'Weekly review' }).tap()
-  await expect(columnName(page, 'Waiting on')).toHaveAttribute('aria-selected', 'true')
-  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width * 2)
-
-  // And after a reload; never an unsaved change. The first column again: the key goes.
+  await expect(wsCell(page, 'a1')).toBeVisible()
   await page.reload()
-  await expect(columnName(page, 'Waiting on')).toHaveAttribute('aria-selected', 'true')
-  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(width * 2)
-  await columnName(page, 'Today').tap()
-  await expect.poll(async () => (await pagerState(page)).scrollLeft).toBe(0)
-  await page.reload()
-  await expect(columnName(page, 'Today')).toHaveAttribute('aria-selected', 'true')
+  await expect(page.getByTestId('layout-picker')).toHaveAccessibleName('Layout: Weekly review')
   await page.getByTestId('layout-picker').tap()
   await expect(page.getByRole('dialog', { name: 'Layouts' }).getByText('Edited')).toHaveCount(0)
 })
@@ -203,7 +184,10 @@ test('the layout sheet is a bottom sheet on the dialog frame: focus on the open 
 
 test('a list tab’s sheet is on the dialog frame too: focus in, arrows move, Tab kept inside, Esc closes, focus back on the tab', async ({ page }) => {
   await seed(page)
-  const tab = wsTab(page, 'todayTab')
+  // A list tab: Waiting on beside the Eisenhower (one widget has no tab, D26 AA1), made active first.
+  const tab = wsTab(page, 'waitTab')
+  await tab.tap()
+  await expect(tab).toHaveAttribute('aria-selected', 'true')
   await tab.focus()
   await tab.dispatchEvent('contextmenu')
   const menu = page.getByRole('menu', { name: 'List' })
@@ -222,20 +206,23 @@ test('a list tab’s sheet is on the dialog frame too: focus in, arrows move, Ta
   await expect(sheet).toHaveCount(0)
   await expect(tab).toBeFocused()
 
-  // A tap on the backdrop closes it the same way.
+  // A tap on the backdrop closes it the same way — once the tab's switch has
+  // settled: while its view transition runs, its overlay takes every tap.
   await tab.dispatchEvent('contextmenu')
   await expect(sheet).toBeVisible()
+  await expect.poll(() => page.evaluate(() => document.getAnimations().length)).toBe(0)
   await page.mouse.click(195, 100)
   await expect(sheet).toHaveCount(0)
 })
 
-test('long-pressing a list tab opens its list sheet; Edit list is a half sheet with the list live above it', async ({ page }) => {
+test('a list alone: its ⋯ opens Edit list, a half sheet with the list live above it', async ({ page }) => {
   await seed(page)
-  // Mobile browsers turn a long press into `contextmenu`.
-  await wsTab(page, 'todayTab').dispatchEvent('contextmenu')
-  const menu = page.getByRole('menu', { name: 'List' })
-  await expect(menu.getByRole('menuitem')).toHaveText(['Edit list…', 'Copy tasks'])
-  await menu.getByRole('menuitem', { name: 'Edit list…' }).click()
+  // One widget, no tab to long-press: its top line's ⋯ (D26 AA1).
+  const openEditList = async () => {
+    await wsCell(page, 'a1').getByRole('button', { name: 'Cell options' }).tap()
+    await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit list…' }).click()
+  }
+  await openEditList()
 
   // A half sheet: 55% of the screen, the list's rows still on screen above it.
   const sheet = page.getByRole('dialog', { name: 'Edit list Today' })
@@ -260,8 +247,7 @@ test('long-pressing a list tab opens its list sheet; Edit list is a half sheet w
   await expect(page.getByRole('dialog', { name: /^Save changes to list/ })).toHaveCount(0)
   await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
   // × closes it the same way.
-  await wsTab(page, 'todayTab').dispatchEvent('contextmenu')
-  await menu.getByRole('menuitem', { name: 'Edit list…' }).click()
+  await openEditList()
   await sheet.getByRole('button', { name: 'Close Edit list' }).click()
   await expect(sheet).toHaveCount(0)
   await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
@@ -283,11 +269,11 @@ test('switching between desktop and phone widths keeps the drag sensors stable (
   const errors: string[] = []
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
   await seed(page)
-  await expect(page.getByRole('tablist', { name: 'Columns' })).toBeVisible()
+  await expect(page.locator('[data-ws-mobile]')).toBeVisible()
   await page.setViewportSize({ width: 1280, height: 800 })
   await expect(page.getByTestId('layout-save')).toBeVisible()
   await page.setViewportSize({ width: 390, height: 844 })
-  await expect(page.getByRole('tablist', { name: 'Columns' })).toBeVisible()
+  await expect(page.locator('[data-ws-mobile]')).toBeVisible()
   expect(errors.filter((e) => e.includes('changed size between renders'))).toEqual([])
 })
 

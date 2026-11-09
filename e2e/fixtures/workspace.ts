@@ -1,5 +1,7 @@
 import { expect, type Locator, type Page } from '@playwright/test'
 import { createTab, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type LayoutTab, type WidgetKind } from '../../src/models/workspace-layout'
+import { layoutTableOf } from '../../src/data/upgrades/v78/layout-table'
+import { isV77Metric, numberConfigOfMetric } from '../../src/data/upgrades/v78/number-metrics'
 import { DB_NAME, readStore } from './db'
 import { box, pointIn, type Point } from './geometry'
 
@@ -17,13 +19,17 @@ export interface WsTabSeed {
   titles?: boolean
   /** Eisenhower tabs: collapsed sections (view state). */
   collapsed?: Array<'do' | 'schedule' | 'delegate' | 'drop'>
-  /** List / Eisenhower / row widget tabs: the task rows' details width (view state). */
+  /** List / Eisenhower tabs: the task rows' details width (view state). */
   detailsWidth?: number
   /** List tabs: the zoom (view state; absent = the Settings default; `strips`, a removed level, opens as `lines`). */
   zoom?: 'stacked' | 'rows' | 'lines' | 'strips'
-  /** Glance tabs (Number, the sections): config fields over the kind's defaults, e.g. `{ metric: 'open' }`. */
+  /**
+   * Glance tabs (Number, the sections): config fields over the kind's defaults. A Number's
+   * `metric` (a v77 one, e.g. `{ metric: 'open' }`) seeds the config v78 converts it to
+   * (`numberConfigOfMetric`), its other fields over that.
+   */
   glance?: Record<string, unknown>
-  /** What changed / Project pulse tabs: the picked tags (names from `tags`; default none). */
+  /** Project pulse tabs: the picked tags (names from `tags`; default none). */
   tagNames?: string[]
   /** Neglect map tabs: the config (defaults: colour by no tags, 14 days). */
   neglect?: {
@@ -35,12 +41,10 @@ export interface WsTabSeed {
 
 export interface WsCellSeed {
   id: string
-  /** Its share of the row's width (default 1). */
+  /** Columns / bands form: its share of the row's width (default 1). */
   weight?: number
   tabs: WsTabSeed[]
   activeTabId?: string
-  /** Layout config: the tab strip always shown (`true`) or hidden (`false`); absent = by its widget. */
-  stripShown?: boolean
 }
 
 export interface WsRowSeed {
@@ -71,14 +75,105 @@ export function wsRow(cell: WsCellSeed, extra: Omit<WsRowSeed, 'cells'> = {}): W
   return { ...extra, cells: [cell] }
 }
 
+/** A grid track's size: a weight (a number), or `{ px }` (fixed); `collapsed` on a row. */
+export type WsTrackSeed = number | { weight?: number; px?: number; collapsed?: boolean }
+
+/**
+ * A layout drawn as a table (D26): `areas` a line per row track, each word a
+ * column track holding a cell id — a cell over several tracks spans them.
+ */
+export interface WsTableSeed {
+  areas: string[]
+  cells: WsCellSeed[]
+  /** Column / row track sizes (default weight 1000 each). */
+  cols?: WsTrackSeed[]
+  rows?: WsTrackSeed[]
+}
+
+/**
+ * A layout: a `table` (D26), or — the shape most specs were written in —
+ * columns of rows of cells with bands above and below, which the seed turns
+ * into the table the v78 upgrade makes of it (`layout-table`).
+ */
 export interface WsLayoutSeed {
   name: string
-  columns: WsColumnSeed[]
+  columns?: WsColumnSeed[]
   /** The full-width band above / below the columns. */
   top?: WsBandSeed
   bottom?: WsBandSeed
+  table?: WsTableSeed
   /** The layout's hue (D19): a preset name or a hex colour. */
   hue?: string
+}
+
+/** A seeded layout's table: its tracks, and each cell's area with its tab seeds (built in the page). */
+interface WsTable {
+  grid: { columns: Array<Record<string, unknown>>; rows: Array<Record<string, unknown>> }
+  cells: Array<{ id: string; area: { col: number; row: number; colSpan: number; rowSpan: number }; tabs: WsTabSeed[]; activeTabId?: string }>
+}
+
+function trackOf(id: string, spec: WsTrackSeed | undefined): Record<string, unknown> {
+  if (spec == null) return { id, weight: 1000 }
+  if (typeof spec === 'number') return { id, weight: spec }
+  return { id, ...(spec.px != null ? { px: spec.px } : { weight: spec.weight ?? 1000 }), ...(spec.collapsed ? { collapsed: true } : {}) }
+}
+
+/** A layout seed as the table the app stores (tab seeds still to build). */
+export function wsTableOf(layout: WsLayoutSeed): WsTable {
+  if (layout.table) {
+    const { areas, cells, cols, rows } = layout.table
+    const lines = areas.map((line) => line.trim().split(/\s+/))
+    const colCount = lines[0]?.length ?? 0
+    const out: WsTable['cells'] = cells.map((cell) => {
+      const at = lines.flatMap((line, r) => line.flatMap((id, c) => (id === cell.id ? [[r, c] as const] : [])))
+      if (at.length === 0) throw new Error(`table seed: cell ${cell.id} is not in the areas`)
+      const rs = at.map(([r]) => r)
+      const cs = at.map(([, c]) => c)
+      const area = { col: Math.min(...cs), row: Math.min(...rs), colSpan: Math.max(...cs) - Math.min(...cs) + 1, rowSpan: Math.max(...rs) - Math.min(...rs) + 1 }
+      return { id: cell.id, area, tabs: cell.tabs, ...(cell.activeTabId ? { activeTabId: cell.activeTabId } : {}) }
+    })
+    out.sort((a, b) => a.area.row - b.area.row || a.area.col - b.area.col)
+    return {
+      grid: {
+        columns: Array.from({ length: colCount }, (_, i) => trackOf(`c${i + 1}`, cols?.[i])),
+        rows: lines.map((_, i) => trackOf(`r${i + 1}`, rows?.[i])),
+      },
+      cells: out,
+    }
+  }
+  const cellRow = (cell: WsCellSeed) => ({ id: cell.id, weight: cell.weight ?? 1, tabs: cell.tabs, ...(cell.activeTabId ? { activeTabId: cell.activeTabId } : {}) })
+  const v77 = {
+    columns: (layout.columns ?? []).map((col) => ({
+      id: col.id,
+      weight: col.weight ?? 1,
+      rows: col.rows.map((row) => ({
+        id: row.id ?? `${row.cells[0]?.id ?? col.id}-r`,
+        weight: row.weight ?? 1,
+        ...(row.collapsed ? { collapsed: true } : {}),
+        cells: row.cells.map(cellRow),
+      })),
+    })),
+    ...Object.fromEntries((['top', 'bottom'] as const).flatMap((edge) => {
+      const band = layout[edge]
+      return band ? [[edge, { id: band.id, height: band.height ?? 160, ...(band.collapsed ? { collapsed: true } : {}), cells: band.cells.map(cellRow) }]] : []
+    })),
+  }
+  return layoutTableOf(v77) as unknown as WsTable
+}
+
+/** `table` with each Number seeded by a v77 `metric` given the config v78 converts it to. */
+function withNumberConfigs(table: WsTable): WsTable {
+  return {
+    ...table,
+    cells: table.cells.map((cell) => ({
+      ...cell,
+      tabs: cell.tabs.map((tab) => {
+        const { metric, ...rest } = tab.glance ?? {}
+        if (tab.kind !== 'number' || !isV77Metric(metric)) return tab
+        return { ...tab, glance: { ...numberConfigOfMetric(metric), ...rest } }
+      }),
+    })),
+  }
 }
 
 /** The app-wide Eisenhower panes (a filter is merged over the empty predicate). */
@@ -184,7 +279,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   // Every kind's new tab, as the app makes it: the seeded tabs start from these.
   const newTabs = Object.fromEntries(WIDGET_KINDS.map((kind) => [kind, createTab(kind, '')])) as Record<WidgetKind, LayoutTab>
-  const payload = { ...seed, predicate: emptyPredicate(), newTabs }
+  const payload = { ...seed, tables: seed.layouts.map(wsTableOf).map(withNumberConfigs), predicate: emptyPredicate(), newTabs }
   await page.evaluate(async ({ db, seed }) => {
     const idb = await new Promise<IDBDatabase>((resolve, reject) => {
       const req = indexedDB.open(db)
@@ -290,8 +385,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     tx.objectStore('layouts').clear()
     let firstId: number | null = null
     const layoutIds: number[] = []
-    type TabSeed = (typeof seed.layouts)[number]['columns'][number]['rows'][number]['cells'][number]['tabs'][number]
-    type CellSeed = (typeof seed.layouts)[number]['columns'][number]['rows'][number]['cells'][number]
+    type TabSeed = (typeof seed.tables)[number]['cells'][number]['tabs'][number]
+    type CellSeed = (typeof seed.tables)[number]['cells'][number]
     const buildTab = (tab: TabSeed) => {
       const base = structuredClone(seed.newTabs[tab.kind])
       const out: Record<string, unknown> = { ...base, id: tab.id }
@@ -312,7 +407,7 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
         else if (n.colourBy) config.colourBy = { kind: 'tags', tagIds: n.colourBy.tags.map((name) => tagIds.get(name)).filter((id) => id != null) }
         if (n.untouchedDays != null) config.untouchedDays = n.untouchedDays
       }
-      if ((tab.kind === 'changes' || tab.kind === 'pulse') && tab.tagNames) {
+      if (tab.kind === 'pulse' && tab.tagNames) {
         config.tagIds = tab.tagNames.map((name) => tagIds.get(name)).filter((id) => id != null)
       }
       if (tab.glance) Object.assign(config, tab.glance)
@@ -323,43 +418,19 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
     }
     const buildCell = (cell: CellSeed) => ({
       id: cell.id,
-      weight: cell.weight ?? 1,
+      area: cell.area,
       ...(cell.tabs.length > 0 ? { activeTabId: cell.activeTabId ?? cell.tabs[0]?.id } : {}),
-      ...(cell.stripShown != null ? { stripShown: cell.stripShown } : {}),
       tabs: cell.tabs.map(buildTab),
     })
-    for (const layout of seed.layouts) {
-      const columns = layout.columns.map((col) => ({
-        id: col.id,
-        weight: col.weight ?? 1,
-        rows: col.rows.map((row) => ({
-          id: row.id ?? `${row.cells[0]?.id ?? col.id}-r`,
-          weight: row.weight ?? 1,
-          ...(row.collapsed ? { collapsed: true } : {}),
-          cells: row.cells.map(buildCell),
-        })),
-      }))
-      const bands: Record<string, unknown> = {}
-      for (const edge of ['top', 'bottom'] as const) {
-        const band = layout[edge]
-        if (!band) continue
-        bands[edge] = {
-          id: band.id,
-          height: band.height ?? 160,
-          ...(band.collapsed ? { collapsed: true } : {}),
-          cells: band.cells.map(buildCell),
-        }
-      }
-      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: seed.layouts.indexOf(layout), columns, ...bands, ...(layout.hue ? { hue: layout.hue } : {}), createdAt: now, modifiedAt: now })
+    for (const [i, layout] of seed.layouts.entries()) {
+      const table = seed.tables[i]!
+      const id = await add(tx.objectStore('layouts'), { name: layout.name, sortOrder: i, grid: table.grid, cells: table.cells.map(buildCell), ...(layout.hue ? { hue: layout.hue } : {}), createdAt: now, modifiedAt: now })
       firstId ??= id
       layoutIds.push(id)
     }
     // Every list belongs to a layout (now that it has an id): `layoutIdx`'s,
     // else the first layout whose tabs show it, else the first one.
-    const shownBy = (i: number) => seed.layouts.findIndex((layout) => {
-      const panels = [...layout.columns.flatMap((col) => col.rows.flatMap((row) => row.cells)), ...(layout.top?.cells ?? []), ...(layout.bottom?.cells ?? [])]
-      return panels.some((p) => p.tabs.some((t) => t.listDefIdx === i))
-    })
+    const shownBy = (i: number) => seed.tables.findIndex((table) => table.cells.some((p) => p.tabs.some((t) => t.listDefIdx === i)))
     for (const [i, def] of (seed.listDefinitions ?? []).entries()) {
       const listId = defIds[i]
       if (seed.eisenhower?.listDefIdx === i) continue
@@ -424,8 +495,17 @@ export function wsCell(page: Page, cellId: string): Locator {
   return page.locator(`[data-ws-cell="${cellId}"]`)
 }
 
+/**
+ * A widget's tab in its cell's strip — or, alone in its cell (no strip, D26
+ * AA1), its widget's top line, which stands for the tab (`data-ws-tab`).
+ */
 export function wsTab(page: Page, tabId: string): Locator {
   return page.locator(`[data-ws-tab="${tabId}"]`)
+}
+
+/** A cell's grip (alone in its cell, a widget's top line holds it; `data-ws-panel-handle` as the strip's handle). */
+export function wsGrip(page: Page, cellId: string): Locator {
+  return wsCell(page, cellId).getByTestId('ws-cell-grip')
 }
 
 /** A layout's tab in the top bar, by its exact name. */
@@ -493,15 +573,23 @@ export async function expectOpenLayout(page: Page, name: string): Promise<void> 
   }
 }
 
-/** Tab ids per cell per column (a column's rows' cells in order), read from the rendered workspace. */
+/**
+ * Tab ids per cell per column track, read from the rendered table: each
+ * column track's cells — those starting in it — top to bottom.
+ */
 export async function wsShape(page: Page): Promise<string[][][]> {
-  return page.evaluate(() =>
-    Array.from(document.querySelectorAll('[data-ws-column]')).map((col) =>
-      Array.from(col.querySelectorAll('[data-ws-cell]')).map((cell) =>
-        Array.from(cell.querySelectorAll<HTMLElement>('[data-ws-tab]')).map((t) => t.dataset.wsTab ?? ''),
-      ),
-    ),
-  )
+  return page.evaluate(() => {
+    const cells = Array.from(document.querySelectorAll<HTMLElement>('[data-ws-table] [data-ws-cell]')).map((cell) => {
+      const style = getComputedStyle(cell)
+      return {
+        col: Number.parseInt(style.gridColumnStart, 10) || 1,
+        row: Number.parseInt(style.gridRowStart, 10) || 1,
+        tabs: Array.from(cell.querySelectorAll<HTMLElement>('[data-ws-tab]')).map((t) => t.dataset.wsTab ?? ''),
+      }
+    })
+    const cols = [...new Set(cells.map((c) => c.col))].sort((a, b) => a - b)
+    return cols.map((col) => cells.filter((c) => c.col === col).sort((a, b) => a.row - b.row).map((c) => c.tabs))
+  })
 }
 
 /**
@@ -550,40 +638,67 @@ export function wsPanelHandle(page: Page, panelId: string): Locator {
   return page.locator(`[data-ws-panel-handle="${panelId}"]`)
 }
 
-/** The band at an edge: its row of cells. */
-export function wsBand(page: Page, edge: 'top' | 'bottom'): Locator {
-  return page.locator(`[data-ws-band-row="${edge}"]`)
+/** Picks Split cell ▸ `item` (Right / Below) in the open cell menu. */
+export async function pickSplit(page: Page, item: 'Right' | 'Below'): Promise<void> {
+  await pickCellMenu(page, 'Split cell', item)
 }
 
-/** Picks Split ▸ `item` (Right / Below / New column) in the open cell (or band) menu. */
-export async function pickSplit(page: Page, item: 'Right' | 'Below' | 'New column'): Promise<void> {
-  await page.getByRole('menuitem', { name: 'Split', exact: true }).click()
+/** Picks `parent` ▸ `item` in the open cell menu (Split cell, Merge with, Insert). */
+export async function pickCellMenu(page: Page, parent: 'Split cell' | 'Merge with' | 'Insert', item: string): Promise<void> {
+  await page.getByRole('menuitem', { name: parent, exact: true }).click()
   await page.getByRole('menuitem', { name: item, exact: true }).click()
+}
+
+/** Opens cell `cellId`'s ⋯ menu (over the cell first: a one-widget cell shows its ⋯ on hover). */
+export async function openCellMenu(page: Page, cellId: string): Promise<void> {
+  await wsCell(page, cellId).hover()
+  await wsCell(page, cellId).getByRole('button', { name: 'Cell options' }).click()
+}
+
+/** The drop ghost while a tab or cell is dragged (D26 board T). */
+export function wsGhost(page: Page): Locator {
+  return page.getByTestId('ws-drop-ghost')
+}
+
+/** A box's edges, rounded to the px, for comparing a ghost with the cell that lands there. */
+export async function edges(locator: Locator): Promise<{ left: number; top: number; right: number; bottom: number }> {
+  const b = await box(locator)
+  return { left: b.x, top: b.y, right: b.x + b.width, bottom: b.y + b.height }
+}
+
+/** Expects two boxes' edges within `tolerance` px of each other. */
+export function expectSameEdges(a: { left: number; top: number; right: number; bottom: number }, b: typeof a, tolerance = 2): void {
+  for (const k of ['left', 'top', 'right', 'bottom'] as const) {
+    expect(Math.abs(a[k] - b[k]), `${k}: ${a[k]} vs ${b[k]}`).toBeLessThanOrEqual(tolerance)
+  }
+}
+
+/** The divider between cells `a` and `b` (the first cells on either side of its stretch). */
+export function wsDivider(page: Page, a: string, b: string): Locator {
+  return page.locator(`[data-ws-divider="${a}|${b}"]`)
 }
 
 /** The Numbers & charts kinds' names: the add-widget and Change widget menus list them in a submenu. */
 const GLANCE_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('glance').map(widgetKindLabel))
 
 /**
- * Picks the kind named `label` in the open add-widget (`Add widget`) or tab
- * (`Change widget`) menu: a task kind from the menu itself, a Numbers &
- * charts kind from its submenu.
+ * Picks the kind named `label` in the open add-widget (`Add widget`) or
+ * cell (`Change widget`: the ⋯ menu, `Cell options`, whose widget part
+ * changes the kind) menu: a task kind from the menu itself, a Numbers &
+ * charts kind from its submenu. Adding a Breakdown picks one of its presets
+ * (`preset`, default Custom: D26 P8), whose editor then opens.
  */
-export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Change widget', label: string): Promise<void> {
+export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Change widget', label: string, preset = 'Custom'): Promise<void> {
   const role = menuName === 'Add widget' ? 'menuitem' : 'menuitemradio'
-  let menu = page.getByRole('menu', { name: menuName })
+  let menu = page.getByRole('menu', { name: menuName === 'Add widget' ? 'Add widget' : 'Cell options' })
   if (GLANCE_LABELS.has(label)) {
     await menu.getByRole('menuitem', { name: /^Numbers & charts/ }).click()
     menu = page.getByRole('menu', { name: 'Numbers & charts' })
   }
   await menu.getByRole(role, { name: label, exact: true }).click()
-}
-
-/** Tab ids of the band at `edge` (empty when there is none). */
-export async function wsBandTabs(page: Page, edge: 'top' | 'bottom'): Promise<string[]> {
-  return page.evaluate((e) =>
-    Array.from(document.querySelectorAll<HTMLElement>(`[data-ws-band="${e}"] [data-ws-tab]`)).map((t) => t.dataset.wsTab ?? ''),
-  edge)
+  if (menuName === 'Add widget' && label === 'Breakdown') {
+    await page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem', { name: preset, exact: true }).click()
+  }
 }
 
 /**
@@ -599,9 +714,16 @@ export async function dragPanel(
   await drag(page, await pointIn(wsPanelHandle(page, panelId)), to, checks)
 }
 
-/** Drags a tab (grabbed at its centre) to (x, y), checking `during` (if given) before releasing. */
+/**
+ * Drags a tab (grabbed at its centre) to (x, y), checking `during` (if
+ * given) before releasing. A widget alone in its cell has no tab (its top
+ * line stands for it): its cell's grip drags it.
+ */
 export async function dragTab(page: Page, tab: Locator, to: Point, during?: () => Promise<void>): Promise<void> {
-  await drag(page, await pointIn(tab), to, { during })
+  const grip = (await tab.getAttribute('data-widget-top-line')) != null
+    ? tab.locator('xpath=ancestor::*[@data-ws-cell][1]').getByTestId('ws-cell-grip')
+    : null
+  await drag(page, await pointIn(grip ?? tab), to, { during })
 }
 
 export function wsListWidget(page: Page, tabId: string): Locator {

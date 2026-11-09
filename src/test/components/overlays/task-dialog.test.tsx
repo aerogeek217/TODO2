@@ -1,10 +1,11 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, act, fireEvent, screen, within } from '@testing-library/react'
 import { TaskDialog } from '../../../components/overlays/TaskDialog'
-import { personTaskDialog, screenTaskDialog } from '../../../services/task-dialog'
+import { currentTaskDialogEnv, personTaskDialog, resolveTaskDialog, screenTaskDialog } from '../../../services/task-dialog'
 import { useFilterStore } from '../../../stores/filter-store'
 import type { TaskDialogPayload } from '../../../stores/task-dialog-payload'
 import { usePersonStore } from '../../../stores/person-store'
+import { useReviewStore } from '../../../stores/review-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -160,13 +161,26 @@ describe('TaskDialog', () => {
     expect(trigger).toHaveAttribute('aria-expanded', 'true')
     const menu = screen.getByRole('menu', { name: 'Check-in for Priya Nair' })
     expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent))
-      .toEqual(['Send check-in to Priya Nair', 'Paste reply from Priya Nair…'])
+      .toEqual(['Review with Priya Nair…', 'Email check-in to Priya Nair', 'Paste reply from Priya Nair…'])
     // No clipboard here: the send can't copy, so the check-in dialog opens for her with the reason.
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Send check-in to Priya Nair' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in to Priya Nair' }))
     await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toEqual({
       personIds: [priya.id],
       notice: 'Couldn’t copy the email to the clipboard, so nothing was opened. Try again.',
     }))
+    // The task dialog stays open underneath.
+    expect(dialog()).not.toBeNull()
+  })
+
+  it('a person’s dialog’s Review opens the deck on her open tasks over it', () => {
+    const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
+    open(personTaskDialog(priya))
+    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Email check-in options for Priya Nair' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Priya Nair…' }))
+    const review = useReviewStore.getState()
+    expect(review).toMatchObject({ open: true, source: { kind: 'person', title: 'Priya Nair' } })
+    expect(review.ids).toEqual(resolveTaskDialog(personTaskDialog(priya).source, currentTaskDialogEnv()).flatMap((g) => g.todoIds))
+    expect(review.ids.length).toBeGreaterThan(0)
     // The task dialog stays open underneath.
     expect(dialog()).not.toBeNull()
   })

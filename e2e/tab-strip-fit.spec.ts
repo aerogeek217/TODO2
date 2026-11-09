@@ -118,7 +118,7 @@ test('narrowing shrinks the tabs before any folds into +N, and widening brings t
   for (const t of back.shown) expect(Math.abs(t.width - (fullWidths.get(t.id) ?? 0))).toBeLessThanOrEqual(1)
 })
 
-test('a band header fits its tabs the same way', async ({ page }) => {
+test('a full-width fixed row (a former band) fits its tabs the same way', async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 800 })
   const bandTabs = [...TABS, ...TABS.map((t) => ({ ...t, id: `${t.id}b` }))]
   await seedWorkspace(page, {
@@ -177,12 +177,12 @@ test('the +N menu lists the folded tabs, and picking one shows it', async ({ pag
 
 /** Cell k1's tabs in the layout on screen (the working copy while edited, else the saved one). */
 const k1Tabs = (page: Page) => page.evaluate(async () => {
-  type L = { columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string }> }> }> }> } | null
+  type L = { cells: Array<{ id: string; tabs: Array<{ id: string }> }> } | null
   const ws = (await import(/* @vite-ignore */ '/src/stores/workspace-store.ts' as string)) as {
     useWorkspaceStore: { getState: () => { working: L; saved: L } }
   }
   const s = ws.useWorkspaceStore.getState()
-  return (s.working ?? s.saved)?.columns[0]?.rows[0]?.cells[0]?.tabs.map((t) => t.id)
+  return (s.working ?? s.saved)?.cells.find((c) => c.id === 'k1')?.tabs.map((t) => t.id)
 })
 
 /**
@@ -201,7 +201,7 @@ async function dropOn(page: Page, tabId: string, onto: string, fraction: number,
   await releaseDrag(page)
 }
 
-/** k1 holds TABS (n1 c1 d1 e1 c2) with the last active, beside a cell holding n2. */
+/** k1 holds TABS (n1 c1 d1 e1 c2) with the last active, beside a cell holding n2 and n3 (tabs: a strip to drag n2 from). */
 async function seedFolded(page: Page) {
   await page.setViewportSize({ width: 900, height: 800 })
   await seedWorkspace(page, {
@@ -209,7 +209,7 @@ async function seedFolded(page: Page) {
       name: 'Main',
       columns: [
         { id: 'col1', weight: 1, rows: [wsRow({ id: 'k1', tabs: TABS, activeTabId: 'c2' })] },
-        { id: 'col2', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }] })] },
+        { id: 'col2', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n2', kind: 'notes' }, { id: 'n3', kind: 'notes' }], activeTabId: 'n2' })] },
       ],
     }],
   })

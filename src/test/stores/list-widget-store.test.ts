@@ -2,14 +2,14 @@ import { describe, it, expect } from 'vitest'
 import { useListWidgetStore } from '../../stores/list-widget-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { createTab, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
-import { rowOf } from '../helpers/layout-builders'
+import { single } from '../helpers/layout-builders'
 
 const AT = new Date('2026-10-01T09:00:00.000Z')
 
 function layout(id: number, tabIds: string[]): PersistedWorkspaceLayout {
   return {
     id, sortOrder: 0, name: `L${id}`, createdAt: AT, modifiedAt: AT,
-    columns: [{ id: 'c', weight: 1, rows: [rowOf({ id: 'k', weight: 1, tabs: tabIds.map((t) => createTab('lens', t, { listDefinitionId: 1 })) })] }],
+    ...single({ id: 'k', tabs: tabIds.map((t) => createTab('lens', t, { listDefinitionId: 1 })) }),
   }
 }
 

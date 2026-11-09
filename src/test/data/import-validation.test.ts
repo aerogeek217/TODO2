@@ -3,6 +3,7 @@ import { emptyPredicate } from '../../models/filter-predicate'
 import { STATUS_ICON_KEYS } from '../../models/status'
 import { validateImportData, isKnownSettingKey } from '../../data/import-validation'
 import { isValidCssColor } from '../../utils/css'
+import { emptyBody } from '../helpers/layout-builders'
 
 const now = new Date().toISOString()
 
@@ -170,7 +171,7 @@ describe('validateImportData', () => {
       todoEvents: { id: 'x', todoId: 1, type: 'created', fromValue: null, toValue: null, timestamp: now },
       listOrders: { id: 'x', listDefinitionId: 1, todoId: 1, rank: 1 },
       listDefinitions: { id: 'x', name: 'L', sortOrder: 0, membership: { kind: 'custom', predicate: emptyPredicate() }, sort: 'manual', grouping: 'none' },
-      layouts: { id: 'x', name: 'Main', sortOrder: 0, columns: [], createdAt: now, modifiedAt: now },
+      layouts: { id: 'x', name: 'Main', sortOrder: 0, ...emptyBody(), createdAt: now, modifiedAt: now },
     }
     for (const [table, row] of Object.entries(rows)) {
       const result = validateImportData(validData({ [table]: [row] }))
@@ -1108,6 +1109,21 @@ describe('validateImportData — Date revival', () => {
     for (const [field, value] of dates) {
       expect(value instanceof Date, `${field} is a Date`).toBe(true)
       expect((value as Date).toISOString(), field).toBe(iso)
+    }
+  })
+
+  it('accepts the history log H3’s event types (D26) and refuses a person / tag event without exactly one id', () => {
+    const ev = (type: string, fromValue: unknown, toValue: unknown) => ({ id: 1, todoId: 1, type, fromValue, toValue, timestamp: iso })
+    for (const e of [
+      ev('followup', null, iso), ev('followedUp', iso, null), ev('marker', 'urgent', 'urgent,focus'),
+      ev('person', null, 3), ev('tag', 4, null),
+    ]) {
+      const result = validateImportData({ settings: [], todos: [makeTodo()], todoEvents: [e] })
+      expect(result.ok, `${e.type} is accepted`).toBe(true)
+      if (result.ok) expect(result.data.todoEvents[0]).toMatchObject({ type: e.type, fromValue: e.fromValue, toValue: e.toValue })
+    }
+    for (const e of [ev('person', null, null), ev('tag', 2, 3), ev('person', null, 'Ann'), ev('tag', null, -1), ev('mystery', null, null)]) {
+      expect(validateImportData({ settings: [], todos: [makeTodo()], todoEvents: [e] }).ok, JSON.stringify(e)).toBe(false)
     }
   })
 

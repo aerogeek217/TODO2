@@ -73,8 +73,8 @@ async function laidOutDetails(r: Locator): Promise<number> {
 }
 
 async function storedTabView(page: Page, tabId: string): Promise<Record<string, unknown> | undefined> {
-  const layouts = await readStore<{ columns: Array<{ rows: Array<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }> }> }>(page, 'layouts')
-  for (const l of layouts) for (const c of l.columns) for (const r of c.rows) for (const k of r.cells) for (const t of k.tabs) if (t.id === tabId) return t.viewState
+  const layouts = await readStore<{ cells: Array<{ tabs: Array<{ id: string; viewState?: Record<string, unknown> }> }> }>(page, 'layouts')
+  for (const l of layouts) for (const k of l.cells) for (const t of k.tabs) if (t.id === tabId) return t.viewState
   return undefined
 }
 
@@ -223,7 +223,7 @@ test('a 280px column: the title keeps 80px and nothing passes the row edge', asy
   expect(await storedTabView(page, 'tab')).toEqual({ detailsWidth: 4000 })
 })
 
-test('Eisenhower quadrants and a Needs follow-up widget use their tab’s value', async ({ page }) => {
+test('Eisenhower quadrants use their tab’s value', async ({ page }) => {
   await seedWorkspace(page, {
     people: PEOPLE,
     tags: TAGS,
@@ -233,17 +233,14 @@ test('Eisenhower quadrants and a Needs follow-up widget use their tab’s value'
       name: 'Main',
       columns: [
         { id: 'a', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] })] },
-        { id: 'b', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'dash', kind: 'followup', detailsWidth: 200 }] })] },
+        { id: 'b', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] })] },
       ],
     }],
   })
   const eis = page.locator('[data-eisenhower="eis"]')
   await expect(eis.locator('[data-todo-id]')).toHaveCount(TASKS.length)
   for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(160)
-  const dash = page.locator('[data-glance-section]')
-  await expect(dash.locator('[data-todo-id]').first()).toBeVisible()
-  for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
-  // Their rows have no ⋯ either.
+  // Its rows have no ⋯ either.
   await expect(page.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
 
   // One value for the tab: dragging one quadrant's divider moves every quadrant live, and is stored on release.
@@ -260,20 +257,6 @@ test('Eisenhower quadrants and a Needs follow-up widget use their tab’s value'
   await expect.poll(() => storedTabView(page, 'eis')).toEqual({ detailsWidth: 148 })
   for (const d of await eis.locator('[data-task-row-divider]').all()) expect(Number(await d.getAttribute('aria-valuenow'))).toBe(148)
   for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(148)
-  // The Needs follow-up widget keeps its own.
-  for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(200)
-
-  // Its rows share its value live too.
-  const followup = page.locator('[data-glance-section="followup"]')
-  const dFrom = await pointIn(divider(followup))
-  await page.mouse.move(dFrom.x, dFrom.y)
-  await page.mouse.down()
-  await page.mouse.move(dFrom.x - 20, dFrom.y, { steps: 3 })
-  expect(await laidOutDetails(row(followup, 'Book the venue'))).toBe(220)
-  expect(await storedTabView(page, 'dash')).toEqual({ detailsWidth: 200 })
-  await page.mouse.up()
-  await expect.poll(() => storedTabView(page, 'dash')).toEqual({ detailsWidth: 220 })
-  for (const r of await dash.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(220)
 })
 
 test('a click on a cell opens its picker anchored to the cell', async ({ page }) => {

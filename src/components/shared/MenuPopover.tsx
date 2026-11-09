@@ -81,9 +81,23 @@ export interface MenuStepperEntry {
   onIncrement?: () => void
 }
 
+/**
+ * A choice among a few values side by side (e.g. where Add widget puts the
+ * widget): each a `menuitemradio`, the picked one checked; a pick keeps
+ * the menu open.
+ */
+export interface MenuSegmentedEntry {
+  kind: 'segmented'
+  label: string
+  options: ReadonlyArray<{ value: string; label: string; title?: string }>
+  value: string
+  onChange: (value: string) => void
+}
+
 export type MenuEntry =
   | MenuItemEntry
   | MenuStepperEntry
+  | MenuSegmentedEntry
   | { kind: 'separator' }
   | { kind: 'label'; text: string }
   /** A muted, wrapping footnote. */
@@ -126,14 +140,15 @@ const MENU_PADDING_PX = 4
 const OFFSCREEN: PopoverAnchor = { kind: 'point', x: -9999, y: -9999 }
 
 /**
- * The panel's focusable items in order: its item buttons, and a stepper's
- * − / + buttons — one at its end (`aria-disabled`) only while it has the
- * focus, so the arrows go on from where it is.
+ * The panel's focusable items in order: its item buttons, a segmented
+ * choice's buttons, and a stepper's − / + buttons — one at its end
+ * (`aria-disabled`) only while it has the focus, so the arrows go on from
+ * where it is.
  */
 function enabledItems(panel: HTMLElement | null): HTMLButtonElement[] {
   return panel
     ? Array.from(panel.querySelectorAll<HTMLButtonElement>(
-      ':scope > button:not([disabled]), :scope > [data-menu-stepper] > button:not([aria-disabled="true"]), :scope > [data-menu-stepper] > button:focus',
+      ':scope > button:not([disabled]), :scope > [data-menu-segmented] > button, :scope > [data-menu-stepper] > button:not([aria-disabled="true"]), :scope > [data-menu-stepper] > button:focus',
     ))
     : []
 }
@@ -153,6 +168,10 @@ export function MenuPopover({
 }: MenuPopoverProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
+  /** A submenu's own submenu (one level more: Add widget › Numbers & charts › Breakdown ›, D26 P8). */
+  const nestedRef = useRef<HTMLDivElement | null>(null)
+  /** While the submenu's own submenu (a third level) is open: closes it alone (Esc). */
+  const closeNestedRef = useRef<(() => void) | null>(null)
   /**
    * The open submenu; `focus` = it takes the focus when it opens.
    */
@@ -168,7 +187,7 @@ export function MenuPopover({
     placement,
     closeOnScroll,
     closeOnEscape: false,
-    extraInsideRefs: [subRef],
+    extraInsideRefs: [subRef, nestedRef],
     onClose,
     caret: caretProp ?? !beside,
   })
@@ -219,7 +238,8 @@ export function MenuPopover({
       if (e.key !== 'Escape') return
       e.stopPropagation()
       e.preventDefault()
-      if (sub != null) closeSub()
+      if (closeNestedRef.current) closeNestedRef.current()
+      else if (sub != null) closeSub()
       else {
         escapedRef.current = true
         onCloseRef.current()
@@ -290,6 +310,8 @@ export function MenuPopover({
         {openEntry?.kind === 'item' && openEntry.children && sub != null && (
           <Submenu
             subRef={subRef}
+            nestedRef={nestedRef}
+            closeNestedRef={closeNestedRef}
             parentRef={menuRef}
             parentIndex={sub}
             entries={openEntry.children}
@@ -387,6 +409,7 @@ function MenuPanel({ panelRef, entries, label, className, style, caret, openInde
     if (entry.kind === 'label') return <div key={i} className={styles.groupLabel} role="presentation">{entry.text}</div>
     if (entry.kind === 'note') return <div key={i} className={styles.footnote}>{entry.text}</div>
     if (entry.kind === 'stepper') return <MenuStepper key={i} entry={entry} />
+    if (entry.kind === 'segmented') return <MenuSegmented key={i} entry={entry} />
     const props: MenuItemButtonProps = {
       entry,
       index: i,
@@ -457,6 +480,28 @@ function MenuStepper({ entry }: { entry: MenuStepperEntry }) {
       <StepButton label={entry.decrementLabel} onStep={entry.onDecrement}><MinusIcon size={12} /></StepButton>
       <span className={styles.stepValue} aria-live="polite" data-menu-stepper-value="">{entry.value}</span>
       <StepButton label={entry.incrementLabel} onStep={entry.onIncrement}><PlusIcon size={12} /></StepButton>
+    </div>
+  )
+}
+
+/** A segmented row: its label, then its options side by side, the picked one pressed. */
+function MenuSegmented({ entry }: { entry: MenuSegmentedEntry }) {
+  return (
+    <div className={styles.segmented} role="group" aria-label={entry.label} data-menu-segmented="">
+      <span className={styles.segmentedLabel}>{entry.label}</span>
+      {entry.options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          role="menuitemradio"
+          aria-checked={o.value === entry.value}
+          className={`${styles.segment} ${o.value === entry.value ? styles.segmentOn : ''}`}
+          title={o.title}
+          onClick={() => entry.onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
     </div>
   )
 }
@@ -610,9 +655,17 @@ function useBesideItem(
   })
 }
 
-/** A nested submenu beside its parent item; flips left when there's no room on the right. */
-function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHeight, autoFocus, onRun, onClose, onBack }: {
+/**
+ * A nested submenu beside its parent item; flips left when there's no room
+ * on the right. With `nestedRef`, an item of its own with `children` opens
+ * one more level (hover, click, →; ← goes back), counted inside the menu.
+ */
+function Submenu({ subRef, nestedRef, closeNestedRef, parentRef, parentIndex, entries, label, width, maxHeight, autoFocus, onRun, onClose, onBack }: {
   subRef: RefObject<HTMLDivElement | null>
+  /** Where its own submenu goes (none: it opens none). */
+  nestedRef?: RefObject<HTMLDivElement | null>
+  /** Set to what closes its own submenu alone while one is open (the menu's Esc closes one level at a time). */
+  closeNestedRef?: RefObject<(() => void) | null>
   parentRef: RefObject<HTMLDivElement | null>
   parentIndex: number
   entries: readonly MenuEntry[]
@@ -634,13 +687,32 @@ function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHei
   useEffect(() => {
     if (autoFocus) focusFirstChoice(subRef.current)
   }, [autoFocus, subRef])
+  const [nested, setNested] = useState<{ index: number; focus: boolean } | null>(null)
+  const closeNested = useCallback(() => {
+    if (!nested) return
+    const index = nested.index
+    setNested(null)
+    subRef.current?.querySelector<HTMLButtonElement>(`:scope > button[data-menu-index="${index}"]`)?.focus()
+  }, [nested, subRef])
+  useEffect(() => {
+    if (!closeNestedRef) return
+    closeNestedRef.current = nested ? closeNested : null
+    return () => { closeNestedRef.current = null }
+  }, [closeNestedRef, nested, closeNested])
 
-  const select = (entry: MenuItemEntry) => {
+  const select = (entry: MenuItemEntry, index: number, viaKeyboard: boolean) => {
+    if (entry.children && nestedRef && !entry.disabled) {
+      setNested({ index, focus: viaKeyboard })
+      return
+    }
     if (entry.onSelect) onRun(entry)
   }
+  const nestedEntry = nested ? entries[nested.index] : undefined
 
-  return createPortal(
-    <MenuPanel
+  return (
+    <>
+      {createPortal(
+        <MenuPanel
       panelRef={setRef}
       entries={entries}
       label={label}
@@ -652,17 +724,45 @@ function Submenu({ subRef, parentRef, parentIndex, entries, label, width, maxHei
         maxHeight: maxHeight ? Math.min(maxHeight, style.maxHeight) : style.maxHeight,
         ...(width ? { width } : {}),
       }}
-      openIndex={null}
-      onSelect={(entry) => select(entry)}
+      openIndex={nested?.index ?? null}
+      onSelect={select}
+      onHoverItem={nestedRef ? (index, entry) => {
+        if (entry.children && !entry.disabled) setNested((prev) => (prev?.index === index ? prev : { index, focus: false }))
+        else if (nested && index !== nested.index) setNested(null)
+      } : undefined}
       onKey={(e, panel) => {
         if (e.key === 'ArrowLeft') {
           e.preventDefault()
           onBack()
           return true
         }
-        return handleMenuKeys(e, panel, entries, onClose, (entry) => select(entry))
+        const focusedIndex = Number((document.activeElement as HTMLElement | null)?.dataset.menuIndex ?? -1)
+        const focused = entries[focusedIndex]
+        if (e.key === 'ArrowRight' && nestedRef && focused?.kind === 'item' && focused.children && !focused.disabled) {
+          e.preventDefault()
+          select(focused, focusedIndex, true)
+          return true
+        }
+        return handleMenuKeys(e, panel, entries, onClose, select)
       }}
-    />,
-    document.body,
+        />,
+        document.body,
+      )}
+      {nestedRef && nested && nestedEntry?.kind === 'item' && nestedEntry.children && (
+        <Submenu
+          subRef={nestedRef}
+          parentRef={subRef}
+          parentIndex={nested.index}
+          entries={nestedEntry.children}
+          label={nestedEntry.label}
+          width={nestedEntry.childrenWidth}
+          maxHeight={nestedEntry.childrenMaxHeight}
+          autoFocus={nested.focus}
+          onRun={onRun}
+          onClose={onClose}
+          onBack={closeNested}
+        />
+      )}
+    </>
   )
 }

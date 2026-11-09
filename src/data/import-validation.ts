@@ -1,5 +1,5 @@
 import type { TodoItem, Person, TodoPerson, RecurrenceRule, RecurrenceType, Status, Note, Tag, TodoTag, TodoEvent, TodoEventType, StatusUpdate, Subtask, ListOrder } from '../models'
-import { isTodoSortBy, isTodoGroupBy, isTodoSortDirection, STATUS_UPDATE_TEXT_MAX, SUBTASK_TITLE_MAX } from '../models'
+import { TODO_EVENT_TYPES, isTodoSortBy, isTodoGroupBy, isTodoSortDirection, STATUS_UPDATE_TEXT_MAX, SUBTASK_TITLE_MAX } from '../models'
 import type { ListDefinition, ListOwner, ListSort, ListGrouping, RuntimeFilterField, RuntimeFilterSpec } from '../models/list-definition'
 import { checkPredicateShape, pickPredicate } from './predicate-shape'
 import { toDate, toOptDate } from './date-revive'
@@ -19,7 +19,7 @@ import { parsePurgePromptIntervalDays } from '../utils/completed-at'
 import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { isLayoutHue } from '../utils/layout-hue'
-import { checkLayoutBody, isId, pickLayoutBody } from './layout-shape'
+import { checkLayoutBody, pickLayoutBody } from './layout-shape'
 import { formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
 import { formatLensesSetting, isLensId, readLensesSetting } from './lens-shape'
@@ -276,22 +276,30 @@ function checkNote(v: unknown): CheckResult {
   ])
 }
 
-const VALID_TODO_EVENT_TYPES: readonly TodoEventType[] = [
-  'created', 'scheduled', 'deadline', 'status', 'completed', 'reopened',
-]
-
 function isOptScalarValue(v: unknown): boolean {
   return v === undefined || v === null || typeof v === 'string' || (typeof v === 'number' && Number.isFinite(v))
 }
 
+/**
+ * A `person` / `tag` event names one id, as its `toValue` (an add) or its
+ * `fromValue` (a remove), never both (`models/todo-event`).
+ */
+function isAssignmentEventValues(v: Raw): boolean {
+  const from = v.fromValue ?? null
+  const to = v.toValue ?? null
+  return (from === null) !== (to === null) && Number.isSafeInteger(from ?? to) && ((from ?? to) as number) >= 1
+}
+
 function checkTodoEvent(v: unknown): CheckResult {
   if (!isRecord(v)) return 'not an object'
+  const assignment = v.type === 'person' || v.type === 'tag'
   return checkFields(v, [
     ['id', isOptId(v.id)],
     ['todoId', isFiniteNum(v.todoId)],
-    ['type', typeof v.type === 'string' && (VALID_TODO_EVENT_TYPES as readonly string[]).includes(v.type)],
+    ['type', typeof v.type === 'string' && (TODO_EVENT_TYPES as readonly string[]).includes(v.type)],
     ['fromValue', isOptScalarValue(v.fromValue)],
     ['toValue', isOptScalarValue(v.toValue)],
+    ['value', !assignment || isAssignmentEventValues(v)],
     ['timestamp', typeof v.timestamp === 'string' && !isNaN(Date.parse(v.timestamp))],
   ])
 }
@@ -329,7 +337,6 @@ function checkLayout(v: unknown): CheckResult {
     ['createdAt', isDateLike(v.createdAt)],
     ['modifiedAt', isDateLike(v.modifiedAt)],
     ['lastUsedAt', isOptDateLike(v.lastUsedAt)],
-    ['activeColumnId', v.activeColumnId === undefined || isId(v.activeColumnId)],
     ['hue', v.hue === undefined || isLayoutHue(v.hue)],
   ])
   if (fields !== true) return fields
@@ -430,6 +437,9 @@ function checkSetting(v: unknown): CheckResult {
   }
   if (v.key === SETTING_KEYS.purgePromptLastAt) {
     return isDateLike(v.value) ? true : 'value (purgePromptLastAt must be a date)'
+  }
+  if (v.key === SETTING_KEYS.historyLogSince) {
+    return isDateLike(v.value) ? true : 'value (historyLogSince must be a date)'
   }
   if (v.key === SETTING_KEYS.rowDensity) {
     return parseListZoomSetting(v.value) !== undefined
@@ -654,7 +664,6 @@ function layoutFixes(v: Raw): string[] {
   if (name) fixes.push(name)
   if (!isFiniteNum(v.sortOrder)) fixes.push('order reset')
   if (!isDateLike(v.createdAt) || !isDateLike(v.modifiedAt) || !isOptDateLike(v.lastUsedAt)) fixes.push('dates reset')
-  if (v.activeColumnId !== undefined && !isId(v.activeColumnId)) fixes.push('phone column reset')
   if (v.hue !== undefined && !isLayoutHue(v.hue)) fixes.push('hue reset')
   return [...fixes, ...pickLayoutBody(v).fixes]
 }
@@ -674,13 +683,11 @@ function pickLayout(v: Raw): AllFields<WorkspaceLayout> {
     id: optNum(v.id),
     name: layoutName(v.name).name,
     sortOrder: isFiniteNum(v.sortOrder) ? v.sortOrder : LAYOUT_ORDER_RESET,
-    columns: body.columns,
-    top: body.top,
-    bottom: body.bottom,
+    grid: body.grid,
+    cells: body.cells,
     createdAt: isDateLike(v.createdAt) ? toDate(v.createdAt) : now,
     modifiedAt: isDateLike(v.modifiedAt) ? toDate(v.modifiedAt) : now,
     lastUsedAt: isDateLike(v.lastUsedAt) ? toDate(v.lastUsedAt) : undefined,
-    activeColumnId: isId(v.activeColumnId) ? v.activeColumnId : undefined,
     hue: isLayoutHue(v.hue) ? v.hue : undefined,
   } satisfies AllFields<WorkspaceLayout>
 }

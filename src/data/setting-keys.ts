@@ -53,7 +53,7 @@ export const SETTING_KEYS = {
    */
   keyboardShortcuts: 'keyboardShortcuts',
   /**
-   * The Eisenhower panes (every Eisenhower tab and Eisenhower summary):
+   * The Eisenhower panes (every Eisenhower tab, at every face):
    * JSON object of the panes that differ from their defaults, by position —
    * `{"delegate":{"name":"Hand off","filter":{…}}}` (`data/eisenhower-shape`).
    * Absent = the four default quadrants.
@@ -125,18 +125,27 @@ export const SETTING_KEYS = {
    * guessed from the time zone, Whisper, 40 %, seasons on).
    */
   ambience: 'ambience',
+  /**
+   * When this database began logging the history log H3's events (D26:
+   * follow-ups, priority markers, people and tags — `models/todo-event`):
+   * an ISO date-time, stamped once by the first launch (or data replace)
+   * of a build that logs them, while the row is absent
+   * (`settings-store.stampHistoryLogSince`). A replay before it reads those
+   * fields as they were when the log began. Absent = not stamped yet.
+   */
+  historyLogSince: 'historyLogSince',
 } as const
 
 export type SettingKey = (typeof SETTING_KEYS)[keyof typeof SETTING_KEYS]
 
 /**
  * Settings the app writes for itself while nobody changed anything — the
- * purge prompt's last showing. With file sync, writing one is no unsynced
+ * purge prompt's last showing, the history log's start. With file sync, writing one is no unsynced
  * browser change (it reaches the file with the next save, if sync is on),
  * and the browser and the file aren't compared on them: a prompt shown
  * while sync waits never makes the two sides conflict.
  */
-export const SYNC_NEUTRAL_SETTING_KEYS: ReadonlySet<string> = new Set<string>([SETTING_KEYS.purgePromptLastAt])
+export const SYNC_NEUTRAL_SETTING_KEYS: ReadonlySet<string> = new Set<string>([SETTING_KEYS.purgePromptLastAt, SETTING_KEYS.historyLogSince])
 
 /** Allowlist used by import validation; mirrors `Object.values(SETTING_KEYS)`. */
 export const ALL_SETTING_KEYS: readonly SettingKey[] = Object.values(SETTING_KEYS)

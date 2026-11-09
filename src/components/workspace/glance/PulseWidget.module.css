@@ -1,0 +1,247 @@
+/* Project pulse as a glance widget (D25 L). It draws a face (D25 R) picked
+ * by its body's size: the face box fills the cell, so its size is the cell's,
+ * never its content's. */
+
+.face {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* A section panel inside a face: no card of its own, filling the face. */
+.face > .facePanel {
+  flex: 1 1 auto;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* A small face: one line, centred in the cell. */
+.small {
+  justify-content: center;
+  padding: 6px 12px;
+}
+
+/* A button that reads as text: a drill (a sentence, a count, a card). */
+.drill {
+  display: block;
+  max-width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drill:hover,
+.drill:focus-visible {
+  color: var(--color-accent-text);
+}
+
+/* ── Project pulse ───────────────────────────────────────────────────────── */
+
+/* A quiet line: no tags picked, or none with open tasks. */
+.quiet {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+}
+
+.pulseGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+  gap: 10px;
+  padding: 10px 12px 12px;
+  overflow-y: auto;
+}
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px;
+  border: 0;
+  border-radius: var(--radius-card);
+  background: var(--color-dash-panel);
+  box-shadow: inset 0 0 0 1px var(--color-border-muted);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.card:hover,
+.card:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-tint-16);
+}
+
+.cardHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.swatch {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.cardName {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.cardFigures {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The late share: a conic ring (its `--pulse-late` share in the late colour,
+ * cut to a ring by a mask, so the card shows through its hole), the open count inside. */
+.ring {
+  position: relative;
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+}
+
+.ring::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--color-overdue) 0 var(--pulse-late), var(--color-tint-10) var(--pulse-late) 100%);
+  -webkit-mask: radial-gradient(closest-side, transparent 73%, black 75%);
+  mask: radial-gradient(closest-side, transparent 73%, black 75%);
+}
+
+.ringCount {
+  position: relative;
+}
+
+.counts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: var(--font-size-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.late {
+  color: var(--color-overdue);
+}
+
+.lines {
+  display: block;
+  width: 100%;
+  height: 40px;
+}
+
+.added {
+  fill: none;
+  stroke: var(--color-text-muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 3 3;
+}
+
+.closed {
+  fill: none;
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+
+.momentum {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-secondary);
+}
+
+.momentum[data-momentum='growing'] {
+  color: var(--color-danger);
+}
+
+.momentum[data-momentum='shrinking'] {
+  color: var(--color-accent-text);
+}
+
+.pulseList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 4px 8px 8px;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.pulseRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-width: 0;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.pulseRow:hover,
+.pulseRow:focus-visible {
+  background: var(--color-surface-hover);
+}
+
+.pulseRowName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-primary);
+}
+
+.pulseRowMeta {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.pulseSmall {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pulseSmallShare {
+  font-size: 24px;
+  font-weight: var(--font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-overdue);
+}
+
+.pulseSmallName {
+  overflow: hidden;
+  font-size: var(--font-size-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--color-text-secondary);
+}

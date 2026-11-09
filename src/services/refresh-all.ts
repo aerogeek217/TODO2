@@ -58,6 +58,8 @@ export async function refreshAllStores() {
   // The lift is the lens the user lifted: a pick the replaced data brings
   // (another device's, through the sync file) comes in on, not lifted.
   if (useSettingsStore.getState().activeLensId !== lensBefore) useUIStore.getState().setLensLifted(false)
+  // Data from before the history log H3 (an older file) starts its log now.
+  await useSettingsStore.getState().stampHistoryLogSince()
   await Promise.all([
     useTodoStore.getState().loadAll(),
     usePersonStore.getState().load(),

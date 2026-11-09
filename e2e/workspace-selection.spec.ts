@@ -38,12 +38,11 @@ test('switching tabs drops the hidden list selection', async ({ page }) => {
 })
 
 /**
- * The list, Eisenhower and glance row widgets select rows the same way (one
- * hook): a click selects one task, Ctrl+click adds, Shift+click takes the
+ * The list and Eisenhower widgets select rows the same way (one hook): a click selects one task, Ctrl+click adds, Shift+click takes the
  * range, a click on the widget's empty space clears it, and only one widget
  * holds a selection at a time.
  */
-test('list, Eisenhower and Needs follow-up rows select alike; one widget at a time', async ({ page }) => {
+test('list and Eisenhower rows select alike; one widget at a time', async ({ page }) => {
   const due = { urgent: true, important: true, followupInDays: 0 }
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Tasks' }],
@@ -53,14 +52,14 @@ test('list, Eisenhower and Needs follow-up rows select alike; one widget at a ti
       columns: [
         { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] },
         { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] })] },
-        { id: 'c3', rows: [wsRow({ id: 'k3', tabs: [{ id: 'dash', kind: 'followup' }] })] },
+        { id: 'c3', rows: [wsRow({ id: 'k3', tabs: [{ id: 'list2', kind: 'lens', listDefIdx: 0 }] })] },
       ],
     }],
   })
   const widgets = [
     { name: 'list', root: wsListWidget(page, 'list') },
     { name: 'eisenhower', root: page.locator('[data-eisenhower="eis"]') },
-    { name: 'Needs follow-up', root: page.locator('[data-glance-tab="dash"]') },
+    { name: 'list 2', root: wsListWidget(page, 'list2') },
   ]
   const selected = page.locator('[data-selected="true"]')
   const bulkBar = page.getByTestId('list-bulk-bar')
@@ -84,7 +83,7 @@ test('list, Eisenhower and Needs follow-up rows select alike; one widget at a ti
 
     // A click on the widget's own empty space clears it: below the list's
     // rows; on the grid itself (between quadrants / sections) elsewhere.
-    if (w.name === 'list') {
+    if (w.name.startsWith('list')) {
       // Just under the last row (the bulk bar floats at the bottom).
       const last = await w.root.locator('[data-todo-id]').last().boundingBox()
       if (!last) throw new Error('no box')
@@ -99,7 +98,7 @@ test('list, Eisenhower and Needs follow-up rows select alike; one widget at a ti
     await title('alpha').click()
     await expect(w.root.locator('[data-selected="true"]')).toHaveCount(1)
   }
-  // The Needs follow-up click took the selection from the Eisenhower widget.
+  // The second list's click took the selection from the Eisenhower widget.
   await expect(selected).toHaveCount(1)
   await expect(widgets[2]!.root.locator('[data-selected="true"]')).toHaveCount(1)
 })
@@ -163,11 +162,9 @@ test('a click outside the rows clears the selection; rows, the bulk bar, menus a
   await page.locator('[data-eisenhower="eis"]').click({ position: { x: 4, y: 4 } })
   await expect(selected).toHaveCount(0)
 
-  // Cleared: the list's own cell header.
+  // Cleared: the list's own top line (alone in its cell, its name: D26 AA1).
   await selectTwo()
-  const header = await wsCell(page, 'k1').locator('[role="tablist"]').boundingBox()
-  if (!header) throw new Error('no tab strip')
-  await page.mouse.click(header.x + header.width - 60, header.y + header.height / 2)
+  await wsCell(page, 'k1').getByTestId('top-line-name').click()
   await expect(selected).toHaveCount(0)
 })
 

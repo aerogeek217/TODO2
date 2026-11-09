@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PersistedTodoItem, TodoEvent, TodoEventType } from '../../../models'
-import { computeMetricHistory } from '../../../services/stats/metric-history'
+import { computeMetricHistory } from '../../fixtures/v77-metrics'
 import { computeTrend } from '../../../services/stats/trend'
 import { trendWindow } from '../../../utils/trend-window'
 import { makeTodo } from '../../helpers'

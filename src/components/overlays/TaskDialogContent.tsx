@@ -19,6 +19,7 @@ import { useStatusStore } from '../../stores/status-store'
 import { useTodoStore } from '../../stores/todo-store'
 import type { FilterCriteria } from '../../utils/filter-criteria'
 import { useUIStore } from '../../stores/ui-store'
+import { useReviewStore } from '../../stores/review-store'
 import { startOfToday } from '../../utils/date'
 import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
@@ -88,14 +89,16 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
   const count = taskDialogCount(groups)
   const { personId } = payload
 
-  // The editor closed: focus comes back here, so the next Esc closes this.
+  // The editor closed: focus comes back here, so the next Esc closes this —
+  // unless the review deck is open over it (the editor was the deck's, and
+  // the deck takes the focus back).
   const editorWasOpen = useRef(false)
   useEffect(() => {
     if (editPopupMode) {
       editorWasOpen.current = true
     } else if (editorWasOpen.current) {
       editorWasOpen.current = false
-      panelRef.current?.focus()
+      if (!useReviewStore.getState().open) panelRef.current?.focus()
     }
   }, [editPopupMode, panelRef])
 

@@ -1,6 +1,12 @@
+import { useState } from 'react'
+import { emptyPredicate } from '../../models/filter-predicate'
+import { BREAKDOWN_PRESET_LABELS, BREAKDOWN_PRESETS, breakdownPreset, type BreakdownPreset } from '../../models/chart-widgets'
 import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
+import { useStatusStore } from '../../stores/status-store'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
+import type { MenuEntry, MenuItemEntry } from '../shared/MenuPopover'
+import { ADD_WHERE_OPTIONS, addWhereTarget, isAddWhere, type AddWhere } from './add-widget-where'
 import { WidgetKindIcon } from '../shared/icons'
 import { createListThenEdit, NO_LIST_LAYOUT_REASON, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
 import styles from './AddWidgetFlow.module.css'
@@ -24,6 +30,28 @@ function useAddKind(target: LayoutDropTarget): (kind: WidgetKind) => void {
   }
 }
 
+/**
+ * Adds a Breakdown from a preset at `target` (D26 P8, `breakdownPreset`):
+ * its editor opens at once — on the Status picker for Waiting on when no
+ * status is named Waiting.
+ */
+function useAddBreakdown(target: LayoutDropTarget): (preset: BreakdownPreset) => void {
+  const add = useAddWidget()
+  return (preset) => {
+    const seed = breakdownPreset(preset, useStatusStore.getState().statuses, emptyPredicate)
+    add('breakdown', target, undefined, { breakdown: seed.config }, seed.startField)
+  }
+}
+
+/** Breakdown's presets as menu items (People · Tags · Status · Waiting on · Custom). */
+function breakdownPresetItems(addBreakdown: (preset: BreakdownPreset) => void): MenuItemEntry[] {
+  return BREAKDOWN_PRESETS.map((preset) => ({
+    kind: 'item',
+    label: BREAKDOWN_PRESET_LABELS[preset],
+    onSelect: () => addBreakdown(preset),
+  }))
+}
+
 /** The kinds that can't be added to the open layout yet, with why (a list, while the layout isn't stored). */
 function useUnavailableKinds(): Partial<Record<WidgetKind, string>> | undefined {
   const layoutId = useListOwnerLayoutId()
@@ -32,20 +60,38 @@ function useUnavailableKinds(): Partial<Record<WidgetKind, string>> | undefined 
 }
 
 interface AddWidgetFlowProps {
-  target: LayoutDropTarget
+  /** The cell it is added from. */
+  cellId: string
+  /** Where it goes until the user picks another (default a tab). */
+  initialWhere?: AddWhere
   anchor: { x: number; y: number }
   onClose: () => void
 }
 
-/** The add-tab `+` menu: picks a kind and adds that widget at `target` (`useAddKind`). */
-export function AddWidgetFlow({ target, anchor, onClose }: AddWidgetFlowProps) {
-  const addKind = useAddKind(target)
+/**
+ * Add widget from a cell (its ⋯ menu, its strip's `+`): where first — Tab ·
+ * Right · Below · Row · Column (`addWhereTarget`) —, then the kinds; a pick
+ * adds that widget there (`useAddKind`).
+ */
+export function AddWidgetFlow({ cellId, initialWhere = 'tab', anchor, onClose }: AddWidgetFlowProps) {
+  const [where, setWhere] = useState<AddWhere>(initialWhere)
+  const addKind = useAddKind(addWhereTarget(cellId, where))
+  const addBreakdown = useAddBreakdown(addWhereTarget(cellId, where))
+  const lead: MenuEntry[] = [{
+    kind: 'segmented',
+    label: 'Where',
+    options: ADD_WHERE_OPTIONS,
+    value: where,
+    onChange: (value) => { if (isAddWhere(value)) setWhere(value) },
+  }]
   return (
     <WidgetKindMenu
       anchor={anchor}
       heading="Add widget"
       unavailableKinds={useUnavailableKinds()}
       onChangeKind={addKind}
+      leadEntries={lead}
+      kindPresets={{ breakdown: breakdownPresetItems(addBreakdown) }}
       onClose={onClose}
     />
   )
@@ -64,7 +110,10 @@ interface AddWidgetButtonsProps {
  * `target` (`useAddKind` — a list opens its Edit list).
  */
 export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconSize }: AddWidgetButtonsProps) {
-  const addKind = useAddKind(target)
+  const addKindOnly = useAddKind(target)
+  const addBreakdown = useAddBreakdown(target)
+  // A Breakdown's button adds a Custom one (its editor opens).
+  const addKind = (kind: WidgetKind) => (kind === 'breakdown' ? addBreakdown('custom') : addKindOnly(kind))
   const unavailable = useUnavailableKinds()
   return (
     <>

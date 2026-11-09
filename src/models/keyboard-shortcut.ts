@@ -142,6 +142,11 @@ export const SHORTCUT_SPECS = {
     description: 'Copy selected tasks', category: 'task', editable: true, blockedByEditPopup: true,
     chord: one({ key: 'c', mod: true }),
   },
+  // The review deck (D26): the list tab on screen the user was last in.
+  'review-list': {
+    description: 'Review list', category: 'task', editable: true, blockedByEditPopup: true,
+    chord: one({ key: 'r' }),
+  },
   // The top bar's lens (D15, cr22): no keys by default.
   'cycle-lens': {
     description: 'Cycle lens', category: 'general', editable: true,

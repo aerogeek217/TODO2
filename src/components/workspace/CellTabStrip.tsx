@@ -204,8 +204,26 @@ function GhostTab({ kind, title }: { kind: WidgetKind; title: string }) {
   )
 }
 
+/**
+ * A cell without a strip (one widget) that a drag would join (its body's
+ * middle): the strip it will have — its tab, then the ghost tab(s) —, drawn
+ * over its top line until the drag leaves (D26 AA1).
+ */
+export function JoinPreviewStrip({ tab, ghosts }: { tab: LayoutTab; ghosts: readonly DraggedTab[] }) {
+  const title = useTabTitle(tab)
+  return (
+    <div className={styles.joinPreview} aria-hidden="true" data-testid="ws-join-preview">
+      <div className={`${styles.tab} ${styles.active}`}>
+        <span className={styles.kindIcon}><WidgetKindIcon kind={tab.kind} size={12} /></span>
+        <span className={styles.title}>{title}</span>
+      </div>
+      {ghosts.map((g) => <GhostTab key={g.id} kind={g.kind} title={g.title} />)}
+    </div>
+  )
+}
+
 interface CellTabStripProps {
-  /** The cell or band whose tabs these are. */
+  /** The cell whose tabs these are. */
   cell: Pick<LayoutCell, 'tabs' | 'activeTabId'>
   collapsed: boolean
   /** Task count of the active tab (list / Eisenhower: `N`, `shown of total`, or `—`). */

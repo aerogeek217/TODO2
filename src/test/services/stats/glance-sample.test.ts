@@ -1,16 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { FilterCriteria } from '../../../utils/filter-criteria'
 import { applyFilter } from '../../../utils/filter-match'
-import { computeMetrics } from '../../../services/stats/metrics'
-import { computeFollowupGroups } from '../../../services/stats/followup-groups'
-import { computeNextSevenDays } from '../../../services/stats/next-seven-days'
+import { numberConfigOfMetric, type V77NumberMetric } from '../../../data/upgrades/v78/number-metrics'
+import type { TodoPredicate } from '../../../models'
+import { numberIds } from '../../../services/stats/number-count'
+import { predicateToCriteria } from '../../../utils/filter-criteria'
 import { computeTrend } from '../../../services/stats/trend'
-import { computePeopleStats } from '../../../services/stats/people'
-import { selectStatusBreakdown } from '../../../services/stats/status-breakdown'
-import { statsFilter } from '../../../services/stats/stats-context'
-import { computeTagStats } from '../../../services/stats/tags'
-import { computeStaleTasks } from '../../../services/stats/stale'
-import { computeRecentlyCompleted } from '../../../services/stats/recently-completed'
+import { computeBreakdown } from '../../../services/stats/breakdown'
+import { openTasks, statsFilter } from '../../../services/stats/stats-context'
+import type { BreakdownSplit } from '../../../models/chart-widgets'
+import { DEFAULT_TAB_BADGES } from '../../../utils/tab-badges'
 import { computeEisenhowerSummary } from '../../../services/stats/eisenhower-summary'
 import { emptyFilterCriteria, statsPaneContext, testLookups } from '../../helpers'
 import { resolvePanes } from '../../../utils/eisenhower-panes'
@@ -29,62 +28,57 @@ function screened(screen: FilterCriteria) {
   return applyFilter(statsFilter(screen), SAMPLE_TASKS, lookups, SAMPLE_TODAY, markerSettings)
 }
 
+/** A Breakdown (D26 P8) of `tasks`' open ones, as People / Tags / Status were: no filter, split by `splitBy`. */
+function breakdownOf(splitBy: BreakdownSplit, tasks: typeof SAMPLE_TASKS) {
+  return computeBreakdown(openTasks(tasks), SAMPLE_CTX, { splitBy, show: 'count', oldestBy: 'lastFollowup', ranges: DEFAULT_TAB_BADGES })
+}
+
+/** Each row's label and task count, the none row as `none`. */
+const counts = (splitBy: BreakdownSplit, tasks: typeof SAMPLE_TASKS) =>
+  Object.fromEntries(breakdownOf(splitBy, tasks).rows.map((r) => [r.entity.kind === 'none' ? 'none' : r.label, r.ids.length]))
+
 const titles = (ids: readonly number[]) => ids.map((id) => SAMPLE_TASKS.find((t) => t.id === id)?.title)
+
+/** What the Number its v77 metric became counts over `tasks` (ids in dialog order). */
+function numberOf(metric: V77NumberMetric, tasks: typeof SAMPLE_TASKS): number[] {
+  const filter = predicateToCriteria(numberConfigOfMetric(metric).filter as unknown as TodoPredicate)
+  return numberIds(filter, tasks, lookups, SAMPLE_TODAY, markerSettings)
+}
 
 describe('glance sample data — no screen filter', () => {
   const tasks = screened(NO_FILTER)
-  const tiles = computeMetrics(tasks, SAMPLE_CTX)
+  const n = (metric: V77NumberMetric) => numberOf(metric, tasks)
 
   it('Open 19', () => {
-    expect(tiles.open.ids).toHaveLength(19)
+    expect(n('open')).toHaveLength(19)
   })
 
-  it('Urgent 8 = 3 flagged + 5 by due date', () => {
-    expect(tiles.urgent.ids).toHaveLength(8)
-    expect(tiles.urgent.flagged).toBe(3)
-    expect(tiles.urgent.byDate).toBe(5)
-    expect(titles(tiles.urgent.ids)).toEqual(expect.arrayContaining([
+  it('Urgent 8 (3 flagged, 5 by due date)', () => {
+    expect(titles(n('urgent'))).toEqual(expect.arrayContaining([
       'Fix checkout outage', 'Headcount request', 'Review analytics dashboard',
       'Draft homepage copy', 'Call plumber about water heater', 'Budget review with finance', '1:1 with Ben', 'Pick up prescriptions',
     ]))
+    expect(n('urgent')).toHaveLength(8)
   })
 
-  it('Overdue 2, oldest Wed 7 · 3d late', () => {
-    expect(tiles.overdue.ids).toHaveLength(2)
-    expect(tiles.overdue.oldest).toEqual(new Date(2026, 9, 7))
-    expect(tiles.overdue.oldestDaysLate).toBe(3)
+  it('Overdue 2, the oldest first', () => {
+    const ids = n('overdue')
+    expect(ids).toHaveLength(2)
+    expect(SAMPLE_TASKS.find((t) => t.id === ids[0])?.dueDate).toEqual(new Date(2026, 9, 7))
   })
 
-  it('Follow-up due 2: 1 late · (1 today) · 3 more in 7 days', () => {
-    expect(titles(tiles.followupDue.ids)).toEqual(['Vendor contract', 'Chase venue deposit invoice'])
-    expect(tiles.followupDue).toMatchObject({ late: 1, today: 1, upcoming: 3 })
+  it('Follow-up due 2, by next follow-up', () => {
+    expect(titles(n('followupDue'))).toEqual(['Vendor contract', 'Chase venue deposit invoice'])
   })
 
-  it('Focus 3, 2 due today', () => {
-    expect(tiles.focus.ids).toHaveLength(3)
-    expect(tiles.focus.dueToday).toBe(2)
+  it('Focus 3', () => {
+    expect(n('focus')).toHaveLength(3)
   })
 
-  it('Due today 3 · 7 more in the next 7 days; due in the next 7 days 10; 14 without a follow-up date', () => {
-    expect(tiles.dueToday.ids).toHaveLength(3)
-    expect(tiles.dueToday.upcoming).toBe(7)
-    expect(tiles.dueNext7.ids).toHaveLength(10)
-    expect(tiles.noFollowup.ids).toHaveLength(14)
-  })
-
-  it('Needs follow-up 5: Late (Vendor contract) · Today (Chase venue deposit invoice) · Next 7 days (3)', () => {
-    const groups = computeFollowupGroups(tasks, SAMPLE_CTX, 7)
-    expect(titles(groups.late)).toEqual(['Vendor contract'])
-    expect(titles(groups.today)).toEqual(['Chase venue deposit invoice'])
-    expect(titles(groups.upcoming)).toEqual(['Vendor contract redlines', 'Sign off on new logo', 'Book venue for offsite'])
-  })
-
-  it('Next 7 days: due / follow-up per column, Late then Sat 10 … Fri 16', () => {
-    const cols = computeNextSevenDays(tasks, SAMPLE_CTX)
-    expect(cols.map((c) => c.date?.getDate() ?? 'late')).toEqual(['late', 10, 11, 12, 13, 14, 15, 16])
-    expect(cols.map((c) => [c.dueIds.length, c.followupIds.length])).toEqual([
-      [2, 1], [3, 1], [1, 0], [1, 1], [1, 1], [1, 0], [3, 1], [0, 0],
-    ])
+  it('Due today 3; due in the next 7 days 10; 14 without a follow-up date', () => {
+    expect(n('dueToday')).toHaveLength(3)
+    expect(n('dueNext7')).toHaveLength(10)
+    expect(n('noFollowup')).toHaveLength(14)
   })
 
   it('Created vs completed, 14 days: 17 created, 14 completed, +3 open since Sun 27 Sep, the drawn bars and sparkline', () => {
@@ -99,46 +93,37 @@ describe('glance sample data — no screen filter', () => {
     expect(trend.openAtStart).toBe(16)
   })
 
-  it('Status: To do 11 · In progress 5 · Waiting 2 · Blocked 1', () => {
-    expect(selectStatusBreakdown(tasks, STATUSES).map((e) => [e.label, e.count])).toEqual([
+  it('Status (a Breakdown by status): To do 11 · In progress 5 · Waiting 2 · Blocked 1, in Settings order', () => {
+    expect(breakdownOf('status', tasks).rows.map((r) => [r.label, r.ids.length])).toEqual([
       ['To do', 11], ['In progress', 5], ['Waiting', 2], ['Blocked', 1],
     ])
+    expect(STATUSES.map((s) => s.name)).toEqual(['To do', 'In progress', 'Waiting', 'Blocked'])
   })
 
-  it('People: open / by priority / follow-up due, by open count then name, Unassigned 8 · 1', () => {
-    const people = computePeopleStats(tasks, SAMPLE_CTX)
-    expect(people.rows.map((r) => [r.person.name, r.ids.length, r.followupDueIds.length])).toEqual([
-      ['Priya Nair', 4, 0],
-      ['Alice Chen', 2, 0],
-      ['Ben Ortiz', 2, 0],
-      ['Dana Kim', 2, 1],
-      ['Sam Lee', 1, 0],
-    ])
-    expect([people.unassigned.ids.length, people.unassigned.followupDueIds.length]).toEqual([8, 1])
+  it('People (a Breakdown by people): open and follow-ups due (overdue and today), Unassigned 8 · 1, last', () => {
+    const rows = breakdownOf('people', tasks).rows
+    expect(Object.fromEntries(rows.map((r) => [r.label, [r.ids.length, r.followupIds.length]]))).toEqual({
+      'Priya Nair': [4, 0],
+      'Alice Chen': [2, 0],
+      'Ben Ortiz': [2, 0],
+      'Dana Kim': [2, 1],
+      'Sam Lee': [1, 0],
+      Unassigned: [8, 1],
+    })
+    expect(rows.at(-1)?.entity.kind).toBe('none')
   })
 })
 
 describe('glance sample data — top-bar Tags filter q4 (shown of total)', () => {
   const tasks = screened(Q4_FILTER)
-  const tiles = computeMetrics(tasks, SAMPLE_CTX)
 
-  it('tiles: Open 5 · Urgent 1 (by date) · Overdue 0 · Follow-up due 0 (1 more) · Focus 1 (none due today)', () => {
-    expect(tiles.open.ids).toHaveLength(5)
-    expect(tiles.urgent).toMatchObject({ flagged: 0, byDate: 1 })
-    expect(tiles.overdue.ids).toHaveLength(0)
-    expect(tiles.overdue.oldest).toBeNull()
-    expect(tiles.followupDue.ids).toHaveLength(0)
-    expect(tiles.followupDue.upcoming).toBe(1)
-    expect(tiles.focus.ids).toHaveLength(1)
-    expect(tiles.focus.dueToday).toBe(0)
-  })
-
-  it('Needs follow-up 1 (Next 7 days); Next 7 days Sun 11 · Wed 14 · Thu 15', () => {
-    const groups = computeFollowupGroups(tasks, SAMPLE_CTX, 7)
-    expect(groups).toEqual({ late: [], today: [], upcoming: [4] })
-    expect(computeNextSevenDays(tasks, SAMPLE_CTX).map((c) => [c.dueIds.length, c.followupIds.length])).toEqual([
-      [0, 0], [0, 0], [1, 0], [0, 0], [0, 0], [1, 0], [1, 1], [0, 0],
-    ])
+  it('Numbers: Open 5 · Urgent 1 (by date) · Overdue 0 · Follow-up due 0 · Focus 1', () => {
+    const n = (metric: V77NumberMetric) => numberOf(metric, tasks)
+    expect(n('open')).toHaveLength(5)
+    expect(n('urgent')).toHaveLength(1)
+    expect(n('overdue')).toHaveLength(0)
+    expect(n('followupDue')).toHaveLength(0)
+    expect(n('focus')).toHaveLength(1)
   })
 
   it('trend: 4 created, 3 completed, +1, the drawn bars and sparkline', () => {
@@ -149,36 +134,21 @@ describe('glance sample data — top-bar Tags filter q4 (shown of total)', () =>
     expect(trend.openSeries).toEqual(DESIGN_TREND_Q4.open)
   })
 
-  it('status 3 / 2 / 0 / 0 and people Priya 2 · Unassigned 3', () => {
-    expect(selectStatusBreakdown(tasks, STATUSES).map((e) => e.count)).toEqual([3, 2, 0, 0])
-    const people = computePeopleStats(tasks, SAMPLE_CTX)
-    expect(people.rows.map((r) => [r.person.name, r.ids.length])).toEqual([['Priya Nair', 2]])
-    expect(people.unassigned.ids).toHaveLength(3)
+  it('status 3 / 2 (rows with tasks only) and people Priya 2 · Unassigned 3', () => {
+    expect(breakdownOf('status', tasks).rows.map((r) => r.ids.length)).toEqual([3, 2])
+    expect(counts('people', tasks)).toEqual({ 'Priya Nair': 2, none: 3 })
   })
 })
 
-describe('glance sample data — the Tags, Stale tasks, Recently completed and Eisenhower sections', () => {
+describe('glance sample data — the Tags section and the Eisenhower’s counts', () => {
   const all = screened(NO_FILTER)
   const q4 = screened(Q4_FILTER)
 
-  it('Tags: open tasks per tag, by count then name; untagged apart', () => {
-    const tags = computeTagStats(all, SAMPLE_CTX)
-    expect(tags.rows.map((r) => [r.tag.name, r.ids.length])).toEqual([['q4', 5], ['errands', 2], ['home', 1], ['planning', 1]])
-    expect(tags.untagged.ids).toHaveLength(10)
-    // Under the q4 filter only the q4 row is left.
-    expect(computeTagStats(q4, SAMPLE_CTX).rows.map((r) => [r.tag.name, r.ids.length])).toEqual([['q4', 5]])
-  })
-
-  it('Stale tasks (14 days): the open tasks from before the window, oldest first', () => {
-    expect(computeStaleTasks(all, SAMPLE_CTX, 14)).toEqual({ ids: [17, 19], oldestDays: 39 })
-    expect(computeStaleTasks(q4, SAMPLE_CTX, 14).ids).toEqual([17])
-  })
-
-  it('Recently completed (7 days): completed since Sun 4 Oct, newest first', () => {
-    expect(titles(computeRecentlyCompleted(all, SAMPLE_CTX, 7).ids)).toEqual([
-      'Ship release notes', 'Order team swag', 'Interview debrief', 'Q4 OKR draft', 'Car service', 'Fix login bug', 'Team lunch booking',
-    ])
-    expect(titles(computeRecentlyCompleted(q4, SAMPLE_CTX, 7).ids)).toEqual(['Q4 OKR draft'])
+  it('Tags (a Breakdown by tags): open tasks per tag; No tags 10', () => {
+    expect(counts('tags', all)).toEqual({ q4: 5, errands: 2, home: 1, planning: 1, none: 10 })
+    // Under the q4 filter only the q4 row is left (with the q4 pick narrowing, `computeBreakdown`'s restrictions, no No tags row either).
+    expect(computeBreakdown(openTasks(q4), SAMPLE_CTX, { splitBy: 'tags', show: 'count', oldestBy: 'created', ranges: DEFAULT_TAB_BADGES, restrictions: [[Q4]] })
+      .rows.map((r) => [r.label, r.ids.length])).toEqual([['q4', 5]])
   })
 
   it('Eisenhower: Do 3 · Schedule 1 · Delegate 5 · Drop 10 (Urgent 8 = Do + Delegate)', () => {

@@ -10,15 +10,9 @@ import { useElementSize } from './use-element-size'
 export interface WidgetFaceHost {
   /** Render at this face whatever the size: the small face's popover (`large`), a fit row (`small`). */
   forced?: WidgetFace
-  /**
-   * Px the body has over its size with a header: a cell headless only for
-   * its small face covers its header's room too, and its face is the one the
-   * body would have with the header (else it would flip back and forth).
-   */
-  heightAllowancePx?: number
   /** The body's height is its content's (a phone cell that isn't a page): the face goes by the width alone. */
   heightFree?: boolean
-  /** Hears the face the widget shows (the cell's headless rule, the click that opens the full widget). */
+  /** Hears the face the widget shows (the click that opens the full widget). */
   onFace?: (face: WidgetFace) => void
   /** Opens the full widget over the cell (a face's "+N more"); absent where there is none. */
   openFull?: () => void
@@ -40,15 +34,15 @@ export function useWidgetFace(): [(el: HTMLElement | null) => void, WidgetFace] 
   const [ref, size] = useElementSize()
   const face = host.forced ?? hostedFace(size, host)
   const onFace = host.onFace
-  // Before paint, so the cell's headless rule follows in the same frame.
+  // Before paint, so the cell's small-face click follows in the same frame.
   useLayoutEffect(() => { onFace?.(face) }, [face, onFace])
   return [ref, face]
 }
 
 /** The face of a body of `size` in `host` (unmeasured is `large`). */
-export function hostedFace(size: { width: number; height: number }, host: Pick<WidgetFaceHost, 'heightAllowancePx' | 'heightFree'>): WidgetFace {
+export function hostedFace(size: { width: number; height: number }, host: Pick<WidgetFaceHost, 'heightFree'>): WidgetFace {
   if (size.width <= 0 && size.height <= 0) return 'large'
-  const height = host.heightFree ? Number.POSITIVE_INFINITY : Math.max(0, size.height - (host.heightAllowancePx ?? 0))
+  const height = host.heightFree ? Number.POSITIVE_INFINITY : size.height
   return widgetFaceFor({ width: size.width, height })
 }
 

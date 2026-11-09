@@ -14,6 +14,15 @@
   container-type: inline-size;
 }
 
+/* Measures the face (D26 P4): the cell body's size, whatever the face inside. */
+.faceHost {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+}
+
 .widget {
   position: relative;
   flex: 1 1 auto;
@@ -382,4 +391,12 @@
 .noPane:focus-visible {
   background: var(--color-tint-8);
   color: var(--color-text-secondary);
+}
+
+/* Its top line's count (alone in its cell, D26 AA1): what its tab would show. */
+.lineCount {
+  font-size: var(--font-size-meta);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+  white-space: nowrap;
 }

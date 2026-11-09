@@ -65,20 +65,17 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   ),
   // The glance widgets: a Number is a tile holding a 1; each section, its glyph (`GLANCE_GLYPH`).
   number: <path d="M3.5 2.5h9a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1h-9a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1zM6.8 6.2 8.2 5v6M6.8 11h2.8" />,
-  followup: <path d={GLANCE_GLYPH.followup} />,
-  next7: <path d={GLANCE_GLYPH.calendar} />,
   trend: <path d={GLANCE_GLYPH.chart} />,
-  status: <path d={GLANCE_GLYPH.status} />,
-  people: <path d={GLANCE_GLYPH.people} />,
-  tags: <path d={GLANCE_GLYPH.tag} />,
-  stale: <path d={GLANCE_GLYPH.stale} />,
-  recent: <path d={GLANCE_GLYPH.done} />,
-  eisenhowerSummary: <path d={GLANCE_GLYPH.matrix} />,
-  // The brief's parts: What changed is lines of text under a spark; Today the
-  // Focus target; Project pulse a ring with its late share as a wedge.
-  changes: <path d="M2.5 4.5h7M2.5 8h11M2.5 11.5h9M12.5 2.2v3.6M10.7 4h3.6" />,
-  today: <path d={GLANCE_GLYPH.focus} />,
+  // Project pulse: a ring with its late share as a wedge.
   pulse: <path d="M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11zM8 2.5V8h5.5" />,
+  // D26 P8 — Breakdown: a bar per row, longest first.
+  breakdown: <path d="M2.5 3.5h11M2.5 8h7M2.5 12.5h4" />,
+  // Pivot: a table with a heading row and column.
+  pivot: <path d="M2.5 2.5h11v11h-11zM2.5 6h11M6 2.5v11M2.5 9.75h11M9.75 6v7.5" />,
+  // Status flow: stacked columns, week by week.
+  statusFlow: <path d="M3 13.5h10M4 12.5V8M4 6.5V5M8 12.5V7M8 5.5V3M12 12.5V9M12 7.5V6" />,
+  // Tag map: tiles of three sizes.
+  tagMap: <path d="M2.5 2.5h11v11h-11zM8.5 2.5v11M2.5 9h6M8.5 7h5" />,
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {
@@ -276,16 +273,6 @@ export function TabStripIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-/** A full-width band: a rounded rect with a thick bar along its top (or bottom) edge. */
-export function BandIcon({ edge, size = 14 }: { edge: 'top' | 'bottom'; size?: number }) {
-  return (
-    <Svg size={size}>
-      <rect x="2" y="2.5" width="12" height="11" rx="2" />
-      <path d={edge === 'top' ? 'M3.5 5h9' : 'M3.5 11h9'} strokeWidth={2.6} />
-    </Svg>
-  )
-}
-
 /** Six dots in two rows of three: a panel header's drag grip. */
 export function GripIcon() {
   return (
@@ -433,6 +420,16 @@ export function ReplyIcon({ size = 14 }: { size?: number }) {
     <Svg size={size}>
       <path d="M6.5 4 3 7.5 6.5 11" />
       <path d="M3 7.5h6a4 4 0 0 1 4 4V13" />
+    </Svg>
+  )
+}
+
+/** Two stacked cards: the review deck (Review with X…). */
+export function ReviewIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <rect x="4.5" y="2.5" width="9" height="8" rx="1.5" />
+      <path d="M2.5 5.5v7a1 1 0 0 0 1 1h7" />
     </Svg>
   )
 }

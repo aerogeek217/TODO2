@@ -5,6 +5,7 @@ import { PersonCheckinMenu } from '../../../components/shared/PersonCheckinMenu'
 import { db } from '../../../data/database'
 import { emptyPredicate, type Person, type PersistedTodoItem } from '../../../models'
 import { usePersonStore } from '../../../stores/person-store'
+import { useReviewStore } from '../../../stores/review-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTagStore } from '../../../stores/tag-store'
@@ -15,10 +16,12 @@ import { DEFAULT_FOLLOWUP_INTERVAL } from '../../../utils/followup'
 import { makePerson, makeTodo } from '../../helpers'
 
 /**
- * The envelope's menu: Send runs the one-click send inside the item's click
- * (the clipboard write starts before the click returns — the gesture), Paste
- * reply opens the check-in reply import; either hands the focus back to the
- * envelope first.
+ * The envelope's menu: Review with X… opens the review deck on the
+ * person's open tasks (not on a phone, nor while the deck is open), Email
+ * check-in runs the one-click send inside the item's click (the clipboard
+ * write starts before the click returns — the gesture), Paste reply opens
+ * the check-in reply import; each hands the focus back to the envelope
+ * first.
  */
 
 const ada = makePerson({ id: 1, name: 'Ada Lovelace', initials: 'AL', email: 'ada@example.com' })
@@ -80,16 +83,47 @@ function openMenu(): HTMLElement {
 }
 
 describe('PersonCheckinMenu', () => {
-  it('offers Send check-in and Paste reply, focus on the first', () => {
+  const labels = (menu: HTMLElement) => Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent)
+
+  it('offers Review, Email check-in and Paste reply, focus on the first', () => {
     const menu = openMenu()
-    const items = Array.from(menu.querySelectorAll('[role="menuitem"]'))
-    expect(items.map((i) => i.textContent)).toEqual(['Send check-in to Ada Lovelace', 'Paste reply from Ada Lovelace…'])
-    expect(document.activeElement).toBe(items[0])
+    expect(labels(menu)).toEqual(['Review with Ada Lovelace…', 'Email check-in to Ada Lovelace', 'Paste reply from Ada Lovelace…'])
+    expect(document.activeElement).toBe(menu.querySelector('[role="menuitem"]'))
   })
 
-  it('Send runs the send inside the click — the clipboard write has started when the click returns — then opens the mail link', async () => {
+  it('Review opens the deck on the person’s open tasks, sending nothing; the focus is back on the envelope', () => {
     openMenu()
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Send check-in to Ada Lovelace' }))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Ada Lovelace…' }))
+    expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Ada Lovelace' }, ids: [1] })
+    expect(screen.queryByRole('menu')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Envelope' }))
+    expect(write).not.toHaveBeenCalled()
+  })
+
+  it('while the deck is open: no Review (the check-ins stay)', () => {
+    useReviewStore.getState().start({ source: { kind: 'list', title: 'L', description: '' }, ids: [1] })
+    expect(labels(openMenu())).toEqual(['Email check-in to Ada Lovelace', 'Paste reply from Ada Lovelace…'])
+  })
+
+  it('on a phone: no Review (the deck is desktop only)', () => {
+    const original = window.matchMedia
+    window.matchMedia = ((query: string) => ({ ...original(query), matches: query.includes('max-width: 640px') })) as typeof window.matchMedia
+    try {
+      expect(labels(openMenu())).toEqual(['Email check-in to Ada Lovelace', 'Paste reply from Ada Lovelace…'])
+    } finally {
+      window.matchMedia = original
+    }
+  })
+
+  it('a person with no open task: Review is disabled', () => {
+    useTodoStore.setState({ todos: [] })
+    openMenu()
+    expect(screen.getByRole('menuitem', { name: 'Review with Ada Lovelace…' })).toBeDisabled()
+  })
+
+  it('Email check-in runs the send inside the click — the clipboard write has started when the click returns — then opens the mail link', async () => {
+    openMenu()
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in to Ada Lovelace' }))
     // Before any await: the write rides the click's user activation.
     expect(write).toHaveBeenCalledOnce()
     expect(screen.queryByRole('menu')).toBeNull()

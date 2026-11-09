@@ -145,7 +145,7 @@ export function matchesFilter(
 }
 
 /** Whether evaluating `f` reads a text filter — its own, its expression's or its lens's — so needs the task's names. */
-function readsText(f: FilterCriteria): boolean {
+export function readsText(f: FilterCriteria): boolean {
   return !!f.searchText
     || (f.expression != null && expressionAtoms(f.expression).some((a) => a.kind === 'text'))
     || (f.lens != null && readsText(f.lens))

@@ -20,6 +20,15 @@ const SEED: WorkspaceSeed = {
   ],
 }
 
+/** SEED with the list's cell holding a second widget: tabs, so a header (one widget has none, D26 AA1). */
+const TABBED: WorkspaceSeed = {
+  ...SEED,
+  layouts: [
+    { name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }, { id: 'n1', kind: 'notes' }] })] }] },
+    { name: 'Other', columns: [] },
+  ],
+}
+
 const area = (page: Page) => page.locator('[data-ws-area]')
 const cssVar = (page: Page, sel: string, name: string) =>
   page.locator(sel).first().evaluate((el, n) => getComputedStyle(el).getPropertyValue(n).trim(), name)
@@ -86,11 +95,11 @@ test.describe('on a phone', () => {
   test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
   test('the cells take the hue: the header tint and the focus ring', async ({ page }) => {
-    await seedWorkspace(page, { ...SEED, layouts: [{ ...SEED.layouts[0]!, hue: 'rose' }] })
-    const pager = page.locator('[data-ws-pager]')
+    await seedWorkspace(page, { ...TABBED, layouts: [{ ...TABBED.layouts[0]!, hue: 'rose' }] })
+    const pager = page.locator('[data-ws-scroll]')
     await expect(pager).toHaveAttribute('data-layout-hue', 'rose')
     // Dark theme: rose is #e07a9a.
-    expect(await cssVar(page, '[data-ws-pager]', '--layout-hue')).toBe('#e07a9a')
+    expect(await cssVar(page, '[data-ws-scroll]', '--layout-hue')).toBe('#e07a9a')
     await expect(page.locator('[data-ws-cell-header]').first()).toHaveCSS('background-image', /linear-gradient\(color\(srgb 0\.878431 0\.478431 0\.603922 \/ 0\.07\)/)
     await page.keyboard.press('Shift')
     const tab = page.locator('[data-ws-cell-header] [role="tab"]').first()
@@ -99,8 +108,8 @@ test.describe('on a phone', () => {
   })
 
   test('without a hue the header has no tint', async ({ page }) => {
-    await seedWorkspace(page, SEED)
-    await expect(page.locator('[data-ws-pager]')).toHaveAttribute('data-layout-hue', 'none')
+    await seedWorkspace(page, TABBED)
+    await expect(page.locator('[data-ws-scroll]')).toHaveAttribute('data-layout-hue', 'none')
     await expect(page.locator('[data-ws-cell-header]').first()).toHaveCSS('background-image', 'linear-gradient(rgba(0, 0, 0, 0), rgba(0, 0, 0, 0)), none')
   })
 })

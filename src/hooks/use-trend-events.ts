@@ -7,7 +7,7 @@ import { useToday } from './use-today'
 
 /**
  * The history events `computeTrend` needs for `range` (or, for `history`,
- * the ones `computeMetricHistory` needs), ending today: read
+ * the ones a Number's `filter-history` needs), ending today: read
  * once per (range, day) through `trend-events-store`, and read again after
  * any event write (the store invalidates itself). `null` until the first read
  * lands; afterwards the last read stays on show while a re-read runs.

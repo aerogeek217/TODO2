@@ -1,6 +1,5 @@
 import {
   tabListId,
-  type LayoutBand,
   type LayoutBody,
   type LayoutCell,
   type LayoutTab,
@@ -8,7 +7,7 @@ import {
 import { layoutTabs } from './workspace-layout-queries'
 
 /**
- * The lists a layout names (its list tabs'), counted, collected and
+ * The lists a layout names (its list tabs', its Numbers' that follow one), counted, collected and
  * renamed — what Save, Save as and Delete reconcile a layout's own lists by.
  * Each write returns the same object when nothing changes.
  */
@@ -33,49 +32,36 @@ export function countListTabs(
 }
 
 /**
- * The ids of the lists a layout itself names: its list tabs' lists (an
- * Eisenhower tab's list is the Eisenhower's, not the layout's).
+ * The list a tab names as the layout's own: a list tab's list, or the list
+ * a Number follows (D26 P6, `show: 'list'`).
+ */
+function namedListId(tab: LayoutTab): number | undefined {
+  if (tab.kind === 'lens') return tab.config.listDefinitionId
+  if (tab.kind === 'number' && tab.config.show === 'list') return tab.config.list?.listDefinitionId
+  return undefined
+}
+
+/**
+ * The ids of the lists a layout itself names: its list tabs' lists and the
+ * lists its Numbers follow (an Eisenhower tab's list is the Eisenhower's,
+ * not the layout's).
  */
 export function layoutListRefs(layout: LayoutBody): Set<number> {
   const ids = new Set<number>()
   for (const tab of layoutTabs(layout)) {
-    if (tab.kind === 'lens' && tab.config.listDefinitionId != null) ids.add(tab.config.listDefinitionId)
+    const id = namedListId(tab)
+    if (id != null) ids.add(id)
   }
   return ids
 }
 
-/** `cells` with `fn` applied to each; `cells` itself when no cell changes. */
-function mapCells(cells: readonly LayoutCell[], fn: (cell: LayoutCell) => LayoutCell): LayoutCell[] | null {
-  const next = cells.map(fn)
-  return next.every((c, i) => c === cells[i]) ? null : next
-}
-
 /**
- * `layout` with `fn` applied to every cell (in columns and bands); the same
- * object when no cell changes.
+ * `layout` with `fn` applied to every cell; the same object when no cell
+ * changes.
  */
 function mapLayoutCells<B extends LayoutBody>(layout: B, fn: (cell: LayoutCell) => LayoutCell): B {
-  let changed = false
-  const columns = layout.columns.map((col) => {
-    const rows = col.rows.map((row) => {
-      const cells = mapCells(row.cells, fn)
-      return cells ? { ...row, cells } : row
-    })
-    if (rows.every((r, i) => r === col.rows[i])) return col
-    return { ...col, rows }
-  })
-  if (columns.some((c, i) => c !== layout.columns[i])) changed = true
-  const bandOf = (band: LayoutBand | undefined): LayoutBand | undefined => {
-    if (!band) return band
-    const cells = mapCells(band.cells, fn)
-    if (!cells) return band
-    changed = true
-    return { ...band, cells }
-  }
-  const top = bandOf(layout.top)
-  const bottom = bandOf(layout.bottom)
-  if (!changed) return layout
-  return { ...layout, columns, ...(top ? { top } : {}), ...(bottom ? { bottom } : {}) }
+  const cells = layout.cells.map(fn)
+  return cells.every((c, i) => c === layout.cells[i]) ? layout : { ...layout, cells }
 }
 
 /**
@@ -86,10 +72,11 @@ function mapLayoutCells<B extends LayoutBody>(layout: B, fn: (cell: LayoutCell) 
 export function repointLayoutLists<B extends LayoutBody>(layout: B, ids: ReadonlyMap<number, number>): B {
   if (ids.size === 0) return layout
   const tabOf = (tab: LayoutTab): LayoutTab => {
-    if (tab.kind === 'lens') {
-      const to = tab.config.listDefinitionId != null ? ids.get(tab.config.listDefinitionId) : undefined
-      return to == null ? tab : { ...tab, config: { ...tab.config, listDefinitionId: to } }
-    }
+    const from = namedListId(tab)
+    const to = from != null ? ids.get(from) : undefined
+    if (to == null) return tab
+    if (tab.kind === 'lens') return { ...tab, config: { ...tab.config, listDefinitionId: to } }
+    if (tab.kind === 'number') return { ...tab, config: { ...tab.config, list: { listDefinitionId: to } } }
     return tab
   }
   return mapLayoutCells(layout, (cell) => {
@@ -116,9 +103,7 @@ export function listIdChanges(before: LayoutBody, after: LayoutBody): Map<number
   }
   for (const tab of layoutTabs(before)) {
     const other = afterTabs.get(tab.id)
-    if (tab.kind === 'lens' && other?.kind === 'lens') {
-      if (!note(tab.config.listDefinitionId, other.config.listDefinitionId)) return null
-    }
+    if (other?.kind === tab.kind && !note(namedListId(tab), namedListId(other))) return null
   }
   return changes
 }

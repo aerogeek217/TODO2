@@ -39,10 +39,11 @@ async function pickLens(page: Page, name: string) {
 test('the lens’s switch sits just left of the count at the line’s end; off for this list it stays off after a reload', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect(rows(page)).toHaveCount(3)
-  // No lens: the count on the line, nothing on the tab, no switch.
+  // No lens: the count on the line, no switch; alone in its cell, no tab to carry it (D26 AA1).
   await expect(count(page)).toHaveText('3')
+  await expect(count(page)).toHaveCount(1)
   await expect(lensSwitch(page)).toHaveCount(0)
-  await expect(page.locator('[data-ws-tab="t1"]')).not.toContainText('3')
+  await expect(page.locator('[data-ws-table]').getByRole('tab')).toHaveCount(0)
 
   await pickLens(page, 'Aisha')
   await expect(rows(page)).toHaveCount(2)
@@ -93,14 +94,16 @@ test('applying a lens that hides nothing here keeps the switch under the focus, 
   await expect(lensSwitch(page)).toBeFocused()
 })
 
-test('with the filter line hidden, the tab shows the lens beside its count, and its menu turns the lens off here', async ({ page }) => {
+test('with the filter line hidden, its top line shows the lens beside its count, and its menu turns the lens off here', async ({ page }) => {
   await seedWorkspace(page, { ...SEED, listDefinitions: [{ name: 'Team', showFilterLine: false }] })
   await pickLens(page, 'Aisha')
+  // Alone in its cell: its slim top line stands for the tab (D26 AA1).
   const t1 = page.locator('[data-ws-tab="t1"]')
-  await expect(t1.locator('[data-tab-lens]')).toHaveAccessibleName('“Aisha” hides 1 here')
+  await expect(t1).toHaveAttribute('data-testid', 'list-name-line')
+  await expect(t1.getByTestId('list-lens-mark')).toHaveAccessibleName('“Aisha” hides 1 here')
   await expect(t1).toContainText('2 of 3')
-  await t1.click({ button: 'right' })
+  await t1.getByTestId('top-line-name').click({ button: 'right' })
   await page.getByRole('menuitemcheckbox', { name: 'Apply lens “Aisha” here' }).click()
   await expect(rows(page)).toHaveCount(3)
-  await expect(t1.locator('[data-tab-lens]')).toHaveAccessibleName('Ignores the lens “Aisha”')
+  await expect(t1.getByTestId('list-lens-mark')).toHaveAccessibleName('Ignores the lens “Aisha”')
 })

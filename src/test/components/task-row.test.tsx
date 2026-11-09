@@ -644,13 +644,13 @@ describe('TaskRow', () => {
       expect(screen.getByText('+2')).toBeInTheDocument()
     })
 
-    it('right-click on an avatar: Show tasks · Edit… · Delete… for that person', () => {
+    it('right-click on an avatar: the person menu — Review · the check-ins · Show tasks · Edit… · Delete…', () => {
       const people = [makePerson({ id: 1, name: 'Alice', initials: 'AL' }), makePerson({ id: 2, name: 'Bob', initials: 'BO' })]
       render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
       fireEvent.contextMenu(screen.getByText('AL'))
       const menu = screen.getByRole('menu', { name: '@Alice' })
       expect(screen.queryByRole('menu', { name: 'Task actions' })).toBeNull()
-      expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Show tasks', 'Edit…', 'Delete…'])
+      expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Review with Alice…', 'Email check-in to Alice', 'Paste reply from Alice…', 'Show tasks', 'Edit…', 'Delete…'])
       fireEvent.click(within(menu).getByRole('menuitem', { name: 'Show tasks' }))
       expect(useUIStore.getState().taskDialog).toMatchObject({ personId: 1, title: 'Alice' })
 

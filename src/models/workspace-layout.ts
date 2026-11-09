@@ -1,58 +1,66 @@
 /**
- * Workspace layouts: three levels — a row of **columns**, each a vertical
- * stack of **rows**, each row one or more **cells** side by side, each cell a
- * strip of widget tabs — plus at most one full-width band above the columns
- * and one below (`top` / `bottom`), each one fixed-height row of cells
- * spanning the workspace. No deeper: a cell in a row never splits again.
+ * Workspace layouts: one level — a **table**. Grid lines run across and
+ * down (`grid.columns` and `grid.rows`, each a list of tracks), and each
+ * **cell** covers a rectangle of tracks (`area`) and holds a strip of widget
+ * tabs. A full-height column is a cell spanning every row; a strip is a
+ * cell spanning every column. Nothing nests. The cells tile the grid
+ * exactly, and every grid line is the edge of some cell
+ * (`utils/workspace-grid`: the queries, `normalizeGrid`, `validateTiling`).
  *
  * Every tab carries its own settings, split in two by how they are saved:
  *
  * - `config` — **layout config**: part of the saved layout. Changing it (like
- *   adding, moving or closing anything) makes the working copy differ from
- *   the saved layout, i.e. "unsaved changes".
+ *   adding, moving, splitting or closing anything — any change of the
+ *   tracks' ids or the cells' areas) makes the working copy differ from the
+ *   saved layout, i.e. "unsaved changes".
  * - `viewState` — **view state**: written straight onto the stored layout
  *   (last write wins) and never counts as an unsaved change. Same for a cell's
- *   `activeTabId`, a row's (and a band's) `collapsed`, and for the sizes (a
- *   column's, row's or cell's `weight`, a band's `height`).
+ *   `activeTabId`, a row track's `collapsed`, and for the sizes (a track's
+ *   `weight` or `px`).
  *
  * A layout stores structure only; what a widget shows (list definitions,
  * tasks, the note) lives in its own tables.
  */
 
+import { emptyPredicate } from './filter-predicate'
 import {
-  DEFAULT_LOOK_AHEAD,
-  DEFAULT_NUMBER_METRIC,
-  DEFAULT_RECENT_DAYS,
-  DEFAULT_STALE_DAYS,
   DEFAULT_TREND_RANGE,
-  NUMBER_METRIC_LABELS,
-  type FollowupTabConfig,
-  type NumberTabConfig,
-  type PeopleTabConfig,
-  type RecentTabConfig,
-  type StaleTabConfig,
+  newNumberConfig,
+  type NumberConfig,
   type TagPicksTabConfig,
-  type TagsTabConfig,
   type TrendTabConfig,
 } from './glance-widgets'
+import {
+  newBreakdownConfig,
+  newPivotConfig,
+  newStatusFlowConfig,
+  newTagMapConfig,
+  type BreakdownConfig,
+  type BreakdownViewState,
+  type PivotConfig,
+  type StatusFlowConfig,
+  type TagMapConfig,
+} from './chart-widgets'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
  * list widget (its old name; renaming it would need a migration). The glance
  * kinds (D25 N) are the retired Dashboard's pieces as widgets of their own
- * (v77 made every Dashboard tab these): `number` (one count), one per section
- * (`followup` … `eisenhowerSummary`), and the morning brief's parts (D25 L):
- * `changes` (What changed), `today` (the Focus tasks and suggestions) and
- * `pulse` (Project pulse).
+ * (v77 made every Dashboard tab these): `number` (one count), the charts
+ * (`trend`, the Breakdown — D26 P8) and `pulse` (Project pulse). v78
+ * (D26 P4) retired Needs follow-up, Next 7 days, Stale tasks, Recently
+ * completed, What changed and Today, and made the Eisenhower summary the
+ * Eisenhower's small face; P8 made People, Tags and Status Breakdowns.
  */
 export type WidgetKind =
   | 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'neglect'
   | GlanceWidgetKind
 
-/** The glance widget kinds (D25 N): a Number, the old Dashboard's sections and the brief's parts, each a widget. */
-export type GlanceWidgetKind =
-  | 'number' | 'followup' | 'next7' | 'trend' | 'status' | 'people' | 'tags' | 'stale' | 'recent' | 'eisenhowerSummary'
-  | 'changes' | 'today' | 'pulse'
+/** The glance widget kinds (D25 N): a Number, the charts and Project pulse, each a widget. */
+export type GlanceWidgetKind = 'number' | ChartWidgetKind | 'trend' | 'pulse'
+
+/** The chart widgets (D26 P8): a filter, then what it is split by — each has a name, a filter and an editor. */
+export type ChartWidgetKind = 'breakdown' | 'pivot' | 'statusFlow' | 'tagMap'
 
 export type CalendarView = 'week' | 'month'
 
@@ -231,24 +239,20 @@ export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewSt
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
-export type NumberTab = TabOf<'number', NumberTabConfig, NoTabSettings>
-export type FollowupTab = TabOf<'followup', FollowupTabConfig, TaskRowsViewState>
-export type Next7Tab = TabOf<'next7', NoTabSettings, NoTabSettings>
+export type NumberTab = TabOf<'number', NumberConfig, NoTabSettings>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
-export type StatusTab = TabOf<'status', NoTabSettings, NoTabSettings>
-export type PeopleTab = TabOf<'people', PeopleTabConfig, NoTabSettings>
-export type TagsTab = TabOf<'tags', TagsTabConfig, NoTabSettings>
-export type StaleTab = TabOf<'stale', StaleTabConfig, TaskRowsViewState>
-export type RecentTab = TabOf<'recent', RecentTabConfig, TaskRowsViewState>
-export type EisenhowerSummaryTab = TabOf<'eisenhowerSummary', NoTabSettings, NoTabSettings>
-export type ChangesTab = TabOf<'changes', TagPicksTabConfig, NoTabSettings>
-export type TodayTab = TabOf<'today', NoTabSettings, TaskRowsViewState>
 export type PulseTab = TabOf<'pulse', TagPicksTabConfig, NoTabSettings>
+// ── D26 P8: the chart widgets ──
+export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
+export type PivotTab = TabOf<'pivot', PivotConfig, NoTabSettings>
+export type StatusFlowTab = TabOf<'statusFlow', StatusFlowConfig, NoTabSettings>
+export type TagMapTab = TabOf<'tagMap', TagMapConfig, NoTabSettings>
+
+/** A chart widget's tab (D26 P8). */
+export type ChartTab = BreakdownTab | PivotTab | StatusFlowTab | TagMapTab
 
 /** A glance widget's tab (D25 N). */
-export type GlanceTab =
-  | NumberTab | FollowupTab | Next7Tab | TrendTab | StatusTab | PeopleTab | TagsTab | StaleTab | RecentTab | EisenhowerSummaryTab
-  | ChangesTab | TodayTab | PulseTab
+export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
 
 export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | NeglectTab | GlanceTab
 
@@ -256,110 +260,84 @@ export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
 export type TabViewStateOf<K extends WidgetKind> = NonNullable<TabOfKind<K>['viewState']>
 
+/**
+ * A grid track: a column (its share of the width) or a row (its share of
+ * the height) of the layout's table. A track with `px` keeps that size in
+ * pixels (a former band's height); any other is weighted by `weight`. A
+ * row track also fits its content when the cells lying only in it all hold
+ * one Number each — derived (`utils/workspace-rows.isFitTrack`), never
+ * stored; its weight then counts again once it stops fitting.
+ */
+export interface GridTrack {
+  /** Unique within the layout (tracks, cells and tabs share the id space). */
+  id: string
+  /** Its share of the axis among the weighted tracks (any positive number); absent on a `px` track. */
+  weight?: number
+  /** A fixed size in px (header included); the track is then not weighted. */
+  px?: number
+  /**
+   * View state, row tracks only: collapsed — the cells lying only in it
+   * show their headers, and a cell spanning through it gets shorter.
+   */
+  collapsed?: boolean
+}
+
+/** The layout's grid: its column tracks left to right and its row tracks top to bottom. */
+export interface LayoutGrid {
+  columns: GridTrack[]
+  rows: GridTrack[]
+}
+
+/** Which axis of the grid: its columns (left to right) or its rows (top to bottom). */
+export type GridAxis = 'columns' | 'rows'
+
+/** The rectangle of tracks a cell covers, in track indices (`col` / `row` its first; each span ≥ 1). */
+export interface CellArea {
+  col: number
+  row: number
+  colSpan: number
+  rowSpan: number
+}
+
 export interface LayoutCell {
   /** Unique within the layout. */
   id: string
-  /** Share of its row's width among the row's cells (any positive number). */
-  weight: number
+  /** The tracks it covers. Layout structure. */
+  area: CellArea
   /**
-   * Tabs in strip order. Empty only for a cell just made by "split" that has
-   * no widget yet; closing or moving away a cell's last tab removes the cell.
+   * Tabs in strip order. Empty for an "empty cell": one a split just made,
+   * or one that closed with no neighbour to take its space.
    */
   tabs: LayoutTab[]
   /** View state. Absent (or stale) = the first tab. */
   activeTabId?: string
-  /**
-   * Layout config: whether the cell shows its tab strip — `true` always,
-   * `false` never (headless: the strip slides in on hover or focus);
-   * absent = by its widget.
-   */
-  stripShown?: boolean
 }
-
-/**
- * A row of a column: its cells side by side. A row whose last cell goes is
- * removed; collapsing it folds every cell of it to its header.
- */
-export interface LayoutRow {
-  /** Unique within the layout. */
-  id: string
-  /** Share of the column's height among its rows (any positive number). */
-  weight: number
-  /** View state. A collapsed row shows only its cells' headers. */
-  collapsed?: boolean
-  /** Never empty — a row whose last cell goes is removed. */
-  cells: LayoutCell[]
-}
-
-export interface LayoutColumn {
-  /** Unique within the layout. */
-  id: string
-  /** Share of the workspace width among the columns (any positive number). */
-  weight: number
-  /** Never empty — a column whose last row goes is removed. */
-  rows: LayoutRow[]
-}
-
-/** Which band: the one above the columns or the one below. */
-export type BandEdge = 'top' | 'bottom'
-
-export const BAND_EDGES: readonly BandEdge[] = ['top', 'bottom']
-
-/** A new band's height, px (header included). */
-export const BAND_DEFAULT_HEIGHT = 160
-
-/**
- * A full-width band above or below the columns: one fixed-height row of
- * cells spanning the workspace. It never holds another row; a band whose
- * last cell goes is removed (the layout's key is then absent).
- */
-export interface LayoutBand {
-  /** Unique within the layout (columns, rows, cells, tabs and bands share the id space). */
-  id: string
-  /**
-   * Height in px (header included) when expanded: any positive number. It
-   * stays the same when the window resizes; it is clamped to the room when
-   * drawn, and the stored value is kept.
-   */
-  height: number
-  /** View state. A collapsed band shows only its cells' headers. */
-  collapsed?: boolean
-  /** Its cells, side by side; never empty. */
-  cells: LayoutCell[]
-}
-
-/** A row of cells: a column's row, or a band (one row). */
-export type LayoutCellRow = LayoutRow | LayoutBand
 
 /**
  * The parts of a layout that Save writes and an edit can leave unsaved: its
- * columns and bands. (The lens is not a layout's: the top bar picks one for
- * every layout — `activeLensId`, a settings row.)
+ * grid and its cells. The cells tile the grid exactly — no gap, no overlap —
+ * and every grid line is the edge of at least one cell (`utils/workspace-grid`).
+ * An empty layout has no tracks and no cells. (The lens is not a layout's:
+ * the top bar picks one for every layout — `activeLensId`, a settings row.)
  */
 export interface LayoutBody {
-  columns: LayoutColumn[]
-  top?: LayoutBand
-  bottom?: LayoutBand
+  grid: LayoutGrid
+  cells: LayoutCell[]
 }
 
-/** A layout's body (`columns` and the bands it has; absent bands stay absent). */
+/** The body of an empty layout: no tracks, no cells. */
+export function emptyLayoutBody(): LayoutBody {
+  return { grid: { columns: [], rows: [] }, cells: [] }
+}
+
+/** A layout's body (its `grid` and `cells`, nothing else). */
 export function layoutBodyOf(layout: LayoutBody): LayoutBody {
-  return {
-    columns: layout.columns,
-    ...(layout.top ? { top: layout.top } : {}),
-    ...(layout.bottom ? { bottom: layout.bottom } : {}),
-  }
+  return { grid: layout.grid, cells: layout.cells }
 }
 
-/** `layout` with its body replaced by `body` (a band `body` lacks goes). */
+/** `layout` with its body replaced by `body`. */
 export function withLayoutBody<L extends LayoutBody>(layout: L, body: LayoutBody): L {
-  const next = { ...layout, columns: body.columns }
-  for (const edge of BAND_EDGES) {
-    const band = body[edge]
-    if (band) next[edge] = band
-    else delete next[edge]
-  }
-  return next
+  return { ...layout, grid: body.grid, cells: body.cells }
 }
 
 export interface WorkspaceLayout {
@@ -371,22 +349,15 @@ export interface WorkspaceLayout {
    * the layouts are reordered — never by a layout save.
    */
   sortOrder: number
-  columns: LayoutColumn[]
-  /** The band above the columns; absent = none. */
-  top?: LayoutBand
-  /** The band below the columns; absent = none. */
-  bottom?: LayoutBand
+  /** The table's tracks. */
+  grid: LayoutGrid
+  /** The cells tiling the grid. */
+  cells: LayoutCell[]
   createdAt: Date
   /** Last time the layout was saved. View-state writes don't touch it. */
   modifiedAt: Date
   /** Last time the layout was opened; picks the next layout after a delete. */
   lastUsedAt?: Date
-  /**
-   * View state (a phone): the page the phone workspace last showed — a
-   * column's or a band's id; absent, or an id the layout no longer has,
-   * = the first page.
-   */
-  activeColumnId?: string
   /**
    * The layout's hue (D19): its active tab, its cell headers and the focus
    * ring inside it take it; absent = the app accent. A preset's name
@@ -419,8 +390,8 @@ export const LAYOUT_NAME_MAX = 200
  */
 export const UNSAVED_LAYOUT_ID = 0
 
-/** Default weight of a new column / row / cell. */
-export const DEFAULT_WEIGHT = 1
+/** Default weight of a new track (v78 scales each axis's weights to sum to 1000). */
+export const DEFAULT_WEIGHT = 1000
 
 /** Default calendar date types: both. */
 export const DEFAULT_CALENDAR_DATE_TYPES: CalendarDateTypes = { due: true, followup: true }
@@ -431,11 +402,17 @@ export interface TabSeed {
   listDefinitionId?: number
   /** The tags a new Neglect map colours by (the workspace store passes the `Project: …` tags). */
   neglectTagIds?: readonly number[]
-  /** The tags a new What changed or Project pulse reads (the workspace store passes the `Project: …` tags). */
+  /** The tags a new Project pulse reads (the workspace store passes the `Project: …` tags). */
   tagIds?: readonly number[]
+  /** A new Breakdown's config over the default (an Add widget preset, D26 P8). */
+  breakdown?: Partial<BreakdownConfig>
 }
 
-/** The add-widget menus' groups: the task widgets, and the numbers and charts. */
+/**
+ * The add-widget menus' groups: the task widgets (List, Notes), and the
+ * numbers and charts (every other kind — the Calendar, the Eisenhower and
+ * the Neglect map among them, D26; the grouping is the menus' only).
+ */
 export type WidgetKindGroup = 'tasks' | 'glance'
 
 /** The groups in menu order, with their headings. */
@@ -453,23 +430,23 @@ export interface WidgetKindSpec<K extends WidgetKind> {
   /** Its group in the add-widget menus. */
   group: WidgetKindGroup
   /**
-   * A glance widget (a Number, a section, What changed): a cell holding one
-   * tab of it is headless unless its `stripShown` says otherwise — its tab
-   * strip slides in on hover or focus (`utils/workspace-rows`) — and a row of
-   * only glance cells may shrink to `GLANCE_ROW_MIN_PX`.
+   * A glance widget (a Number, a section, Project pulse): a track of only
+   * glance cells may shrink to `GLANCE_ROW_MIN_PX`, a glance cell's width to
+   * `GLANCE_CELL_MIN_WIDTH_PX` (`utils/workspace-rows`), and a right-click
+   * anywhere on one alone in its cell opens the cell's ⋯ menu.
    */
   glance: boolean
   /**
-   * Its content sets its height (a Number): a row whose every cell holds one
-   * tab of such a kind fits its content instead of taking a share of the
-   * column (`utils/workspace-rows.isFitRow`).
+   * Its content sets its height (a Number): a row track whose cells lying
+   * only in it each hold one tab of such a kind fits its content instead of
+   * taking a share of the height (`utils/workspace-rows.isFitTrack`).
    */
   fitHeight: boolean
   /** A new tab of this kind, with its default config. */
   newTab: (id: string, seed: TabSeed) => TabOfKind<K>
 }
 
-/** A glance kind's spec: in the Numbers & charts group, headless when alone in its cell. */
+/** A glance kind's spec: in the Numbers & charts group. */
 function glanceSpec<K extends GlanceWidgetKind>(label: string, newTab: (id: string, seed: TabSeed) => TabOfKind<K>, fitHeight = false): WidgetKindSpec<K> {
   return { label, showsList: false, group: 'glance', glance: true, fitHeight, newTab }
 }
@@ -488,19 +465,28 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'lens', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
   },
+  notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
+  number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
+  // D26 P8: the chart widgets.
+  breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
+  pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
+  statusFlow: glanceSpec('Status flow', (id) => ({ id, kind: 'statusFlow', config: newStatusFlowConfig(emptyPredicate()) })),
+  tagMap: glanceSpec('Tag map', (id) => ({ id, kind: 'tagMap', config: newTagMapConfig(emptyPredicate()) })),
+  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
+  pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
+  // Calendar, Eisenhower and Neglect map: in Numbers & charts (D26), but whole widgets, not glance ones.
   calendar: {
     label: 'Calendar',
     showsList: false,
-    group: 'tasks',
+    group: 'glance',
     glance: false,
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'calendar', config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }),
   },
-  notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
   eisenhower: {
     label: 'Eisenhower',
     showsList: false,
-    group: 'tasks',
+    group: 'glance',
     glance: false,
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'eisenhower', config: {} }),
@@ -508,24 +494,11 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   neglect: {
     label: 'Neglect map',
     showsList: false,
-    group: 'tasks',
+    group: 'glance',
     glance: false,
     fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'neglect', config: defaultNeglectConfig(seed.neglectTagIds) }),
   },
-  number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: { metric: DEFAULT_NUMBER_METRIC } }), true),
-  followup: glanceSpec('Needs follow-up', (id) => ({ id, kind: 'followup', config: { lookAhead: DEFAULT_LOOK_AHEAD } })),
-  next7: glanceSpec('Next 7 days', (id) => ({ id, kind: 'next7', config: {} })),
-  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
-  status: glanceSpec('Status', (id) => ({ id, kind: 'status', config: {} })),
-  people: glanceSpec('People', (id) => ({ id, kind: 'people', config: { showUnassigned: true } })),
-  tags: glanceSpec('Tags', (id) => ({ id, kind: 'tags', config: { showUntagged: true } })),
-  stale: glanceSpec('Stale tasks', (id) => ({ id, kind: 'stale', config: { staleDays: DEFAULT_STALE_DAYS } })),
-  recent: glanceSpec('Recently completed', (id) => ({ id, kind: 'recent', config: { recentDays: DEFAULT_RECENT_DAYS } })),
-  eisenhowerSummary: glanceSpec('Eisenhower summary', (id) => ({ id, kind: 'eisenhowerSummary', config: {} })),
-  changes: glanceSpec('What changed', (id, seed) => ({ id, kind: 'changes', config: { tagIds: [...(seed.tagIds ?? [])] } })),
-  today: glanceSpec('Today', (id) => ({ id, kind: 'today', config: {} })),
-  pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
 }
 
 /** Every widget kind, in menu order. */
@@ -558,12 +531,18 @@ export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
   return isGlanceKind(tab.kind)
 }
 
+/** A chart widget's tab (D26 P8). */
+export function isChartTab(tab: LayoutTab): tab is ChartTab {
+  return tab.kind === 'breakdown' || tab.kind === 'pivot' || tab.kind === 'statusFlow' || tab.kind === 'tagMap'
+}
+
 /**
- * A non-list tab's title: a Number's is its metric (`Overdue`), every
- * other kind's its kind's name.
+ * A non-list tab's title: a Number's or a chart's is its name (`Late on
+ * Atlas`; a blank one reads `Number`, `Breakdown`, …), every other kind's
+ * its kind's name.
  */
 export function kindTabTitle(tab: LayoutTab): string {
-  if (tab.kind === 'number') return NUMBER_METRIC_LABELS[tab.config.metric] ?? widgetKindLabel(tab.kind)
+  if (tab.kind === 'number' || isChartTab(tab)) return tab.config.name.trim() || widgetKindLabel(tab.kind)
   return widgetKindLabel(tab.kind)
 }
 

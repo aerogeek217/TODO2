@@ -254,6 +254,8 @@ interface UIState {
    * sits beside that tab's panel). One at a time.
    */
   listEditor: { listDefinitionId: number; tabId: string } | null
+  /** The Number tab whose editor (Edit number…, D26 P5) is open, beside the Number; one at a time. */
+  numberEditorTabId: string | null
   /**
    * QuickAddBar open state. Owned here so the global `Ctrl+Space` shortcut
    * + the FAB + any future caller can dispatch open/close without
@@ -366,6 +368,8 @@ interface UIState {
   openListEditor: (listDefinitionId: number, tabId: string) => void
   /** Closes Edit list at once, whatever its list's state (an unsaved list keeps its draft). */
   closeListEditor: () => void
+  openNumberEditor: (tabId: string) => void
+  closeNumberEditor: () => void
   openQuickAdd: (seed?: string | { rawTitle?: string; defaults?: FilterDefaults; source?: string }) => void
   closeQuickAdd: () => void
   setQuickAddDraft: (draft: QuickAddDraftSeed | null) => void
@@ -462,6 +466,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   isFilterSheetOpen: false,
   filterSheetFocusSearch: false,
   listEditor: null,
+  numberEditorTabId: null,
   quickAddOpen: false,
   quickAddDraft: null,
   recentlyCreated: null,
@@ -644,6 +649,15 @@ export const useUIStore = create<UIState>((set, get) => ({
     set({ listEditor: null })
   },
 
+  openNumberEditor(tabId) {
+    set({ numberEditorTabId: tabId })
+  },
+
+  closeNumberEditor() {
+    if (get().numberEditorTabId === null) return
+    set({ numberEditorTabId: null })
+  },
+
   openQuickAdd(seed) {
     let draft: QuickAddDraftSeed | null = null
     if (typeof seed === 'string') {
@@ -679,6 +693,7 @@ export const useUIStore = create<UIState>((set, get) => ({
     // Edit list belongs to the workspace under the modal: it closes (an
     // unsaved list keeps its draft).
     get().closeListEditor()
+    get().closeNumberEditor()
     // Unsaved work Settings doesn't show (a lens draft kept at phone width):
     // it opens on that, whatever was asked — never with the work out of sight.
     const work = unsavedWorkOutOfSight(get())

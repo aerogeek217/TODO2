@@ -216,3 +216,37 @@
   height: 32px;
   border-radius: 8px;
 }
+
+/* ── Alone in its cell (D26 AA1): the list's name, unsaved dot and badge at the line's start ── */
+
+/* The list has unsaved edits. */
+.unsavedDot {
+  flex-shrink: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+}
+
+/* A list whose filter line is hidden: a slim top line with its name, lens mark and count. */
+.nameLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 4px 0 10px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--color-border-muted);
+  font-size: var(--font-size-meta);
+}
+
+/* The top bar's lens on the list: accent while it hides rows here, muted and slashed while the list ignores it. */
+.lensMark {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-accent-text);
+}
+
+.lensMarkOff {
+  color: var(--color-text-muted);
+}
