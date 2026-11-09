@@ -1,5 +1,6 @@
 import type { PersistedTodoItem, Tag } from '../../models'
 import { daysUntil } from '../../utils/effective-date'
+import { keepsNoneRow, restrictedRows, type RowRestrictions } from './row-restrictions'
 import { idsByDate, type StatsContext } from './stats-context'
 
 /**
@@ -7,7 +8,9 @@ import { idsByDate, type StatsContext } from './stats-context'
  * tasks it's given — every tag on one (and No tags, for the untagged), or
  * just the picked ones in pick order — each with its open tasks and the
  * late ones among them (due before today), largest first. A task with
- * several tags counts in each.
+ * several tags counts in each — narrowed by the `#` picks as a Breakdown's
+ * rows (`row-restrictions`): under `#Atlas` a task of Atlas and Ops counts
+ * under Atlas alone, and No tags stays only while every pick has it.
  */
 
 export interface TagMapTile {
@@ -31,6 +34,7 @@ export function computeTagMap(
   tasks: readonly PersistedTodoItem[],
   ctx: Pick<StatsContext, 'today' | 'assignedTagsMap'>,
   tagIds?: readonly number[],
+  restrictions: RowRestrictions = [],
 ): TagMapTile[] {
   const picked = tagIds ? new Set(tagIds) : null
   const byTag = new Map<number, { tag: Tag & { id: number }; tasks: PersistedTodoItem[] }>()
@@ -40,11 +44,12 @@ export function computeTagMap(
     const tags = new Map<number, Tag>()
     for (const tag of ctx.assignedTagsMap.get(t.id) ?? []) if (tag.id != null && !tags.has(tag.id)) tags.set(tag.id, tag)
     if (tags.size === 0) {
-      if (!picked) untagged.push(t)
+      if (!picked && keepsNoneRow(restrictions)) untagged.push(t)
       continue
     }
-    for (const [id, tag] of tags) {
-      if (picked && !picked.has(id)) continue
+    for (const id of restrictedRows([...tags.keys()], restrictions)) {
+      const tag = tags.get(id)
+      if (!tag || (picked && !picked.has(id))) continue
       let entry = byTag.get(id)
       if (!entry) {
         entry = { tag: { ...tag, id }, tasks: [] }

@@ -180,12 +180,14 @@ const tagMapMemo = sharedMemoByKey(function tagMap(
   config: TagMapConfig,
   tasks: readonly PersistedTodoItem[],
   ctx: StatsContext,
+  restrictions: RowRestrictions,
 ): TagMapTile[] {
-  return computeTagMap(tasks, ctx, config.tagIds)
+  return computeTagMap(tasks, ctx, config.tagIds, restrictions)
 })
 
-/** A Tag map's tiles (`services/stats/tag-map`) over its filter's tasks. */
+/** A Tag map's tiles (`services/stats/tag-map`) over its filter's tasks, narrowed by the `#` picks as a Breakdown by tags. */
 export function useTagMapData(base: StatsBase, config: TagMapConfig): ChartTasks & { tiles: TagMapTile[] } {
   const chart = useChartTasks(base, config.filter)
-  return { ...chart, tiles: tagMapMemo(config, chart.tasks, base.ctx) }
+  const restrictions = restrictionsTagsMemo(config.filter, 'tags', chart.count.screen)
+  return { ...chart, tiles: tagMapMemo(config, chart.tasks, base.ctx, restrictions) }
 }

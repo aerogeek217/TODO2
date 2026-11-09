@@ -33,6 +33,20 @@ describe('computeTagMap (D26 P8)', () => {
     expect(computeTagMap(tasks, ctx, [2]).map((t) => t.key)).toEqual(['tag-2'])
     expect(computeTagMap(tasks, ctx, [9])).toEqual([])
   })
+
+  it('the `#` picks narrow the tiles as a Breakdown’s rows: a task of Atlas and Ops under #Atlas counts under Atlas alone', () => {
+    const tiles = computeTagMap(tasks, ctx, undefined, [[1]])
+    expect(tiles.map((t) => [t.label, t.ids])).toEqual([['Atlas', [1, 2]]])
+  })
+
+  it('No tags stays only while every pick has No tags (id 0)', () => {
+    expect(computeTagMap(tasks, ctx, undefined, [[1, 0]]).map((t) => [t.label, t.ids])).toEqual([['Atlas', [1, 2]], ['No tags', [4]]])
+    expect(computeTagMap(tasks, ctx, undefined, [[1, 0], [2]]).map((t) => [t.label, t.ids])).toEqual([['Atlas', [1, 2]], ['Ops', [3, 2]]])
+  })
+
+  it('the picks narrow within the map’s own picked tags', () => {
+    expect(computeTagMap(tasks, ctx, [1, 2], [[1]]).map((t) => [t.label, t.ids])).toEqual([['Atlas', [1, 2]]])
+  })
 })
 
 describe('squarify', () => {
