@@ -142,6 +142,36 @@ describe('MenuPopover — the popover menu', () => {
     expect(onClose).toHaveBeenCalledTimes(1)
   })
 
+  it('a third level: Esc closes one level at a time, the focus back on the item that opened it', async () => {
+    const onClose = vi.fn()
+    render(<MenuPopover point={{ x: 0, y: 0 }} label="Root" onClose={onClose} entries={[
+      { kind: 'item', label: 'More', children: [
+        item('Plain'),
+        { kind: 'item', label: 'Deeper', children: [item('Inmost')] },
+      ] },
+    ]} />)
+    const more = screen.getByRole('menuitem', { name: 'More' })
+    act(() => { more.focus() })
+    fireEvent.keyDown(more, { key: 'ArrowRight' })
+    await act(async () => { await Promise.resolve() })
+    const deeper = screen.getByRole('menuitem', { name: 'Deeper' })
+    act(() => { deeper.focus() })
+    fireEvent.keyDown(deeper, { key: 'ArrowRight' })
+    await act(async () => { await Promise.resolve() })
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Inmost' }))
+
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('menu', { name: 'Deeper' })).toBeNull()
+    expect(screen.getByRole('menu', { name: 'More' })).toBeInTheDocument()
+    expect(document.activeElement).toBe(screen.getByRole('menuitem', { name: 'Deeper' }))
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(screen.queryByRole('menu', { name: 'More' })).toBeNull()
+    expect(document.activeElement).toBe(more)
+    expect(onClose).not.toHaveBeenCalled()
+    fireEvent.keyDown(document.activeElement!, { key: 'Escape' })
+    expect(onClose).toHaveBeenCalledTimes(1)
+  })
+
   it('a click inside the submenu does not count as an outside click', () => {
     const onClose = vi.fn()
     render(<MenuPopover point={{ x: 0, y: 0 }} label="Root" onClose={onClose} entries={[

@@ -170,6 +170,8 @@ export function MenuPopover({
   const subRef = useRef<HTMLDivElement | null>(null)
   /** A submenu's own submenu (one level more: Add widget › Numbers & charts › Breakdown ›, D26 P8). */
   const nestedRef = useRef<HTMLDivElement | null>(null)
+  /** While the submenu's own submenu (a third level) is open: closes it alone (Esc). */
+  const closeNestedRef = useRef<(() => void) | null>(null)
   /**
    * The open submenu; `focus` = it takes the focus when it opens.
    */
@@ -236,7 +238,8 @@ export function MenuPopover({
       if (e.key !== 'Escape') return
       e.stopPropagation()
       e.preventDefault()
-      if (sub != null) closeSub()
+      if (closeNestedRef.current) closeNestedRef.current()
+      else if (sub != null) closeSub()
       else {
         escapedRef.current = true
         onCloseRef.current()
@@ -308,6 +311,7 @@ export function MenuPopover({
           <Submenu
             subRef={subRef}
             nestedRef={nestedRef}
+            closeNestedRef={closeNestedRef}
             parentRef={menuRef}
             parentIndex={sub}
             entries={openEntry.children}
@@ -656,10 +660,12 @@ function useBesideItem(
  * on the right. With `nestedRef`, an item of its own with `children` opens
  * one more level (hover, click, →; ← goes back), counted inside the menu.
  */
-function Submenu({ subRef, nestedRef, parentRef, parentIndex, entries, label, width, maxHeight, autoFocus, onRun, onClose, onBack }: {
+function Submenu({ subRef, nestedRef, closeNestedRef, parentRef, parentIndex, entries, label, width, maxHeight, autoFocus, onRun, onClose, onBack }: {
   subRef: RefObject<HTMLDivElement | null>
   /** Where its own submenu goes (none: it opens none). */
   nestedRef?: RefObject<HTMLDivElement | null>
+  /** Set to what closes its own submenu alone while one is open (the menu's Esc closes one level at a time). */
+  closeNestedRef?: RefObject<(() => void) | null>
   parentRef: RefObject<HTMLDivElement | null>
   parentIndex: number
   entries: readonly MenuEntry[]
@@ -682,12 +688,17 @@ function Submenu({ subRef, nestedRef, parentRef, parentIndex, entries, label, wi
     if (autoFocus) focusFirstChoice(subRef.current)
   }, [autoFocus, subRef])
   const [nested, setNested] = useState<{ index: number; focus: boolean } | null>(null)
-  const closeNested = () => {
+  const closeNested = useCallback(() => {
     if (!nested) return
     const index = nested.index
     setNested(null)
     subRef.current?.querySelector<HTMLButtonElement>(`:scope > button[data-menu-index="${index}"]`)?.focus()
-  }
+  }, [nested, subRef])
+  useEffect(() => {
+    if (!closeNestedRef) return
+    closeNestedRef.current = nested ? closeNested : null
+    return () => { closeNestedRef.current = null }
+  }, [closeNestedRef, nested, closeNested])
 
   const select = (entry: MenuItemEntry, index: number, viaKeyboard: boolean) => {
     if (entry.children && nestedRef && !entry.disabled) {
