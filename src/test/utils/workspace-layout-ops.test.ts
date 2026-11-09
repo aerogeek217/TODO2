@@ -4,7 +4,7 @@ import { edgeBetween, edgeStretches, isNormalized, lineCrossings, validateTiling
 import { findTab, getTab, layoutIds, layoutStructureEqual, layoutStructureKey, panelOfTab } from '../../utils/workspace-layout-queries'
 import { countListTabs } from '../../utils/workspace-layout-lists'
 import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
-import { trackSizing } from '../../utils/workspace-table'
+import { rowDrawsFitFaces, trackSizing } from '../../utils/workspace-table'
 import {
   addTab,
   closeCell,
@@ -547,6 +547,15 @@ describe('a Numbers-only (fit) row\'s divider', () => {
     const joined = addTab(out, createTab('notes', 'x1'), { kind: 'cell', cellId: 'n2' }, ids())
     expect(trackSizing(joined, 'rows', 0)).toEqual({ kind: 'weighted', weight: 1000 })
     expect(trackSizing(replaceTab(list, 'num1', createTab('number', 'num1')), 'rows', 0)).toEqual({ kind: 'fixed', px: 116 })
+  })
+
+  it('draws its cells at their small face while it fits, collapsed too; given a height, by their size', () => {
+    expect(rowDrawsFitFaces(body, 0)).toBe(true)
+    expect(rowDrawsFitFaces(setTrackCollapsed(body, 'r1', true), 0)).toBe(true)
+    expect(rowDrawsFitFaces(setTrackCollapsed(sized(), 'r1', true), 0)).toBe(true)
+    expect(rowDrawsFitFaces(sized(), 0)).toBe(false)
+    expect(rowDrawsFitFaces(body, 1)).toBe(false)
+    expect(rowDrawsFitFaces(setTrackCollapsed(body, 'r2', true), 1)).toBe(false)
   })
 
   it('a former band (a px row) of Numbers keeps its px: a drag sizes the px, no fitPx', () => {

@@ -1,7 +1,7 @@
 import { useMemo, type CSSProperties } from 'react'
 import { getActiveTab, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import { cellAtTrack, edgeStretches, lineCrossings, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
-import { isCellCollapsedIn, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
+import { isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
 import { isFitTrack } from '../../utils/workspace-rows'
 import { pairPercent } from '../../utils/workspace-resize'
 import { WorkspaceCell } from './WorkspaceCell'
@@ -161,7 +161,7 @@ function Table({ layout }: { layout: WorkspaceLayout }) {
             cell={cell}
             rowTrackIds={tracks.map((t) => t.id)}
             collapsed={isCellCollapsedIn(layout, cell)}
-            fitRow={rowSpan === 1 && trackSizing(layout, 'rows', row).kind === 'fit'}
+            fitRow={rowSpan === 1 && rowDrawsFitFaces(layout, row)}
             style={{ gridArea: `${row + 1} / ${col + 1} / span ${rowSpan} / span ${colSpan}` }}
           />
         )

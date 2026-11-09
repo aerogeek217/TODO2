@@ -42,6 +42,17 @@ export function trackSizing(body: LayoutBody, axis: GridAxis, i: number): TrackS
   return { kind: 'weighted', weight: Math.max(0, track.weight ?? 0) }
 }
 
+/**
+ * Whether row track `row` draws its cells at their small face, as a fit
+ * row does: it fits its content — or is collapsed and would (the cells
+ * keep their small face folded). One a divider gave a height draws them
+ * by their size.
+ */
+export function rowDrawsFitFaces(body: LayoutBody, row: number): boolean {
+  const sizing = trackSizing(body, 'rows', row)
+  return sizing.kind === 'fit' || (sizing.kind === 'collapsed' && isFitTrack(body, row))
+}
+
 /** Every track of `axis`: how it is sized. */
 export function trackSizings(body: LayoutBody, axis: GridAxis): TrackSizing[] {
   return body.grid[axis].map((_, i) => trackSizing(body, axis, i))
