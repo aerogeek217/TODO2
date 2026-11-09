@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, act, fireEvent, screen, within } from '@testing-library/react'
+import { render, cleanup, act, fireEvent, within } from '@testing-library/react'
 import { TaskDialog } from '../../../components/overlays/TaskDialog'
 import { currentTaskDialogEnv, personTaskDialog, resolveTaskDialog, screenTaskDialog } from '../../../services/task-dialog'
 import { useFilterStore } from '../../../stores/filter-store'
@@ -150,20 +150,23 @@ describe('TaskDialog', () => {
     expect(within(dialog()!).getByRole('button', { name: /Copy tasks/ })).toHaveProperty('disabled', true)
   })
 
-  it('a person’s dialog offers Email check-in next to Copy tasks: a menu whose Send sends that person’s check-in at once', async () => {
+  it('a person’s dialog has Review · Email check-in · Paste reply… as buttons under its title; the footer only Copy tasks and Close', async () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     open(personTaskDialog(priya))
-    const footerButtons = Array.from(dialog()!.querySelectorAll('[class*="footer"] button')).map((b) => b.textContent)
-    expect(footerButtons.slice(0, 2)).toEqual(['Copy tasks', 'Email check-in'])
-    const trigger = within(dialog()!).getByRole('button', { name: 'Email check-in options for Priya Nair' })
-    expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
-    fireEvent.click(trigger)
-    expect(trigger).toHaveAttribute('aria-expanded', 'true')
-    const menu = screen.getByRole('menu', { name: 'Check-in for Priya Nair' })
-    expect(Array.from(menu.querySelectorAll('[role="menuitem"]')).map((i) => i.textContent))
+    const actions = within(dialog()!).getByRole('group', { name: 'Actions for Priya Nair' })
+    expect(within(actions).getAllByRole('button').map((b) => b.textContent)).toEqual(['Review', 'Email check-in', 'Paste reply…'])
+    // Each names the person in full, as the person menu does.
+    expect(within(actions).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
       .toEqual(['Review with Priya Nair…', 'Email check-in to Priya Nair', 'Paste reply from Priya Nair…'])
+    // Under the title, before the rows.
+    const heading = within(dialog()!).getByRole('heading')
+    expect(heading.compareDocumentPosition(actions) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(actions.compareDocumentPosition(within(dialog()!).getByRole('group', { name: 'Tasks' })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const footerButtons = Array.from(dialog()!.querySelectorAll('[class*="footer"] button')).map((b) => b.textContent)
+    expect(footerButtons).toEqual(['Copy tasks', 'CloseEsc'])
+    expect(within(dialog()!).queryByRole('button', { name: /Email check-in options/ })).toBeNull()
     // No clipboard here: the send can't copy, so the check-in dialog opens for her with the reason.
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Email check-in to Priya Nair' }))
+    fireEvent.click(within(actions).getByRole('button', { name: 'Email check-in to Priya Nair' }))
     await vi.waitFor(() => expect(useUIStore.getState().checkinDialog).toEqual({
       personIds: [priya.id],
       notice: 'Couldn’t copy the email to the clipboard, so nothing was opened. Try again.',
@@ -172,28 +175,32 @@ describe('TaskDialog', () => {
     expect(dialog()).not.toBeNull()
   })
 
-  it('a person’s dialog’s Review opens the deck on her open tasks over it', () => {
+  it('a person’s dialog’s Review closes the dialog, then opens the deck on her open tasks', () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
+    const expected = resolveTaskDialog(personTaskDialog(priya).source, currentTaskDialogEnv()).flatMap((g) => g.todoIds)
     open(personTaskDialog(priya))
-    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Email check-in options for Priya Nair' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Review with Priya Nair…' }))
+    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Review with Priya Nair…' }))
     const review = useReviewStore.getState()
     expect(review).toMatchObject({ open: true, source: { kind: 'person', title: 'Priya Nair' } })
-    expect(review.ids).toEqual(resolveTaskDialog(personTaskDialog(priya).source, currentTaskDialogEnv()).flatMap((g) => g.todoIds))
+    expect(review.ids).toEqual(expected)
     expect(review.ids.length).toBeGreaterThan(0)
-    // The task dialog stays open underneath.
-    expect(dialog()).not.toBeNull()
+    expect(useUIStore.getState().taskDialog).toBeNull()
+  })
+
+  it('a person with no open tasks: Review is off, saying why', () => {
+    open(personTaskDialog({ id: 999, name: 'Nobody' }))
+    const review = within(dialog()!).getByRole('button', { name: 'Review with Nobody…' })
+    expect(review).toBeDisabled()
+    expect(review).toHaveAttribute('title', 'No open tasks')
   })
 
   it('a person’s dialog’s Paste reply opens the check-in reply import over it', () => {
     const priya = PEOPLE.find((p) => p.name === 'Priya Nair')!
     useUIStore.setState({ checkinImportOpen: false })
     open(personTaskDialog(priya))
-    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Email check-in options for Priya Nair' }))
-    fireEvent.click(screen.getByRole('menuitem', { name: 'Paste reply from Priya Nair…' }))
+    fireEvent.click(within(dialog()!).getByRole('button', { name: 'Paste reply from Priya Nair…' }))
     expect(useUIStore.getState().checkinImportOpen).toBe(true)
     expect(useUIStore.getState().checkinImportPersonId).toBe(priya.id)
-    expect(screen.queryByRole('menu')).toBeNull()
     expect(dialog()).not.toBeNull()
   })
 

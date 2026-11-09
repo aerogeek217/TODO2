@@ -6,13 +6,13 @@ import { emptyPredicate, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow 
 /**
  * The ways into an email check-in, in a real browser. Every entry that names
  * one person sends that person's check-in from the click (or Enter) — the
- * envelope menus' Email check-in (the person task dialog's footer, a People
- * group header's envelope), the palette's per-person commands, the
+ * person task dialog's Email check-in button, a People group header's
+ * envelope menu, the palette's per-person commands, the
  * right-click / Shift+F10 menu on a People group header (placement near the
  * window's edges included), and the top-bar People filter's footer when it
  * is narrowed to one person: the body on the clipboard, the `mailto:` link
  * opened (or the `.eml` downloaded), a follow-up recorded that Undo takes
- * back. The envelope menus, the header menu and the People footer also
+ * back. The task dialog's Paste reply… button, the envelope menu, the header menu and the People footer also
  * offer the person's reply to paste: the check-in reply import. With no open tasks in the saved scope, or a refused clipboard, the
  * check-in dialog opens for the person instead, saying why. Several people
  * open the dialog with them ticked.
@@ -137,7 +137,7 @@ const checkinMenu = (page: Page, name: string) => page.getByRole('menu', { name:
 const importDialog = (page: Page) => page.getByRole('dialog', { name: 'Import task update' })
 const opacity = (el: Locator) => el.evaluate((e) => Number(getComputedStyle(e).opacity))
 
-test('A: the person task dialog’s Email check-in menu: Send sends at once — with or without an address', async ({ page, context }) => {
+test('A: the person task dialog’s Email check-in button sends at once — with or without an address', async ({ page, context }) => {
   await setup(page, context)
   const taskDialog = page.locator('[data-task-dialog]')
 
@@ -146,19 +146,11 @@ test('A: the person task dialog’s Email check-in menu: Send sends at once — 
   await row.locator('[data-person-avatar="Bob Stone"]').click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Show tasks' }).click()
   await expect(taskDialog.getByRole('heading')).toHaveText('Bob Stone')
-  const footer = taskDialog.locator('[class*="footer"]')
-  await expect(footer.getByRole('button').nth(1)).toHaveText('Email check-in')
-  const trigger = footer.getByRole('button', { name: 'Email check-in options for Bob Stone' })
-  await expect(trigger).toHaveAttribute('aria-haspopup', 'menu')
-  await trigger.click()
-  // Anchored to its button, with the caret; nothing sent yet.
-  const menu = checkinMenu(page, 'Bob Stone')
-  await expect(menu.getByRole('menuitem')).toHaveText(['Review with Bob Stone…', 'Email check-in to Bob Stone', 'Paste reply from Bob Stone…'])
-  await expect(menu.locator('[data-popover-caret]')).toHaveCount(1)
-  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  // The person's actions, as buttons under the title (D26 BD); nothing sent yet.
+  const actions = taskDialog.getByRole('group', { name: 'Actions for Bob Stone' })
+  await expect(actions.getByRole('button')).toHaveText(['Review', 'Email check-in', 'Paste reply…'])
   expect(await mailtoLinks(page)).toEqual([])
-  await menu.getByRole('menuitem', { name: 'Email check-in to Bob Stone' }).click()
-  await expect(menu).toHaveCount(0)
+  await actions.getByRole('button', { name: 'Email check-in to Bob Stone' }).click()
   await expectSent(page, {
     mailto: 'mailto:bob@example.com?subject=Task%20check-in%3A%202%20open%20tasks',
     person: 'Bob Stone',
@@ -173,8 +165,7 @@ test('A: the person task dialog’s Email check-in menu: Send sends at once — 
   await page.evaluate(() => { (window as unknown as { __anchors: unknown[] }).__anchors = [] })
   await page.locator('[data-glance-tab="dash"] [data-breakdown-row]').filter({ hasText: 'Cy Young' }).click()
   await expect(taskDialog.getByRole('heading')).toHaveText('People · Cy Young')
-  await taskDialog.getByRole('button', { name: 'Email check-in options for Cy Young' }).click()
-  await checkinMenu(page, 'Cy Young').getByRole('menuitem', { name: 'Email check-in to Cy Young' }).click()
+  await taskDialog.getByRole('button', { name: 'Email check-in to Cy Young' }).click()
   await expectSent(page, { mailto: 'mailto:?subject=Task%20check-in%3A%201%20open%20task', person: 'Cy Young', titles: ['Cy only'] })
 })
 
@@ -389,9 +380,8 @@ test('.eml method: the one-click send downloads the draft (no To header without 
   await page.locator('[data-glance-tab="dash"] [data-breakdown-row]').filter({ hasText: 'Cy Young' }).click()
   const taskDialog = page.locator('[data-task-dialog]')
   await expect(taskDialog.getByRole('heading')).toHaveText('People · Cy Young')
-  await taskDialog.getByRole('button', { name: 'Email check-in options for Cy Young' }).click()
   const downloadPromise = page.waitForEvent('download')
-  await checkinMenu(page, 'Cy Young').getByRole('menuitem', { name: 'Email check-in to Cy Young' }).click()
+  await taskDialog.getByRole('button', { name: 'Email check-in to Cy Young' }).click()
   const download = await downloadPromise
   expect(download.suggestedFilename()).toMatch(/^Check-in - Cy Young - \d{4}-\d{2}-\d{2}\.eml$/)
   const eml = await readFile((await download.path())!, 'utf8')
@@ -425,12 +415,11 @@ test('paste a reply: the envelope menus, the header menu and the People footer o
   await page.keyboard.press('Escape')
   await expect(importDialog(page)).toHaveCount(0)
 
-  // The person task dialog's menu: the import opens over it; Esc closes only the import, focus back on its button.
+  // The person task dialog's Paste reply… button: the import opens over it; Esc closes only the import, focus back on the button.
   await page.locator('[data-glance-tab="dash"] [data-breakdown-row]').filter({ hasText: 'Cy Young' }).click()
   const taskDialog = page.locator('[data-task-dialog]')
-  const trigger = taskDialog.getByRole('button', { name: 'Email check-in options for Cy Young' })
+  const trigger = taskDialog.getByRole('button', { name: 'Paste reply from Cy Young…' })
   await trigger.click()
-  await checkinMenu(page, 'Cy Young').getByRole('menuitem', { name: 'Paste reply from Cy Young…' }).click()
   await expect(importDialog(page)).toBeVisible()
   await expect(taskDialog).toBeVisible()
   await page.keyboard.press('Escape')
