@@ -1,12 +1,16 @@
+import { useEffect, useRef, useState } from 'react'
 import type { Person, Tag, RecurrenceType } from '../../models'
 import { ChipSelector } from '../shared/ChipSelector'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
+import { isInLayerAbove } from '../../utils/dom-layers'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import { DeadlinePicker } from '../shared/DeadlinePicker'
-import { FollowupEditorGroup } from '../shared/followup/FollowupEditorGroup'
 import styles from './TaskEditPopup.module.css'
 import { byName } from '../../utils/sort-order'
 import { PopoverRoot } from '../shared/PopoverRoot'
+
+type MetadataDropdown = 'people' | 'tags'
 
 interface TaskEditMetadataProps {
   // Due date + repeat
@@ -20,46 +24,64 @@ interface TaskEditMetadataProps {
   assignedTags: Tag[]
   allPeople: Person[]
   allTags: Tag[]
-  assignedPeopleIds: Set<number>
-  assignedTagIds: Set<number>
-  peopleRef: React.RefObject<HTMLDivElement | null>
-  tagsRef: React.RefObject<HTMLDivElement | null>
   onTogglePerson: (id: number) => void
   onToggleTag: (id: number) => void
   onCreatePerson?: (name: string) => Promise<void>
   onCreateTag?: (name: string) => Promise<void>
 
-  // Dropdown state
-  openDropdown: 'people' | 'tags' | null
-  setOpenDropdown: (dd: 'people' | 'tags' | null) => void
-
-  // Follow-up
-  followupNext: Date | undefined
-  followupLast: Date | undefined
-  followupNextHint?: string
-  /** Focus selects the Next field's text (create mode, while it shows the untouched default). */
-  followupNextSelectOnFocus?: boolean
-  onFollowupNextChange: (next: Date | null) => void
-  onFollowupLastChange: (last: Date | null) => void
-  onFollowedUp: () => void
-  /** Draft mode: no Last follow-up row or Mark followed up button. */
-  hideLastFollowup?: boolean
+  /** A people / tags picker opened or closed (the host's scroll body stops scrolling under it). */
+  onDropdownChange?: (open: boolean) => void
 }
 
+/**
+ * The task layout's fields block (D26 BB / BG — the task editor and the
+ * review card alike): DUE with its repeat, PEOPLE and TAGS, in the inset
+ * container. A chip's name opens its picker, its × unassigns; + Add opens
+ * the picker. A press outside a picker closes it — not one in a layer
+ * stacked above (a person's / tag's menu or the dialog it opened). The
+ * Follow-up group is a block of its own, last (`FollowupBlock`).
+ */
 export function TaskEditMetadata({
   deadline, recurrenceType,
   onDeadlineChange, onRecurrenceChange,
   assignedPeople, assignedTags, allPeople, allTags,
-  assignedPeopleIds, assignedTagIds,
-  peopleRef, tagsRef,
   onTogglePerson, onToggleTag,
   onCreatePerson, onCreateTag,
-  openDropdown, setOpenDropdown,
-  followupNext, followupLast, followupNextHint, followupNextSelectOnFocus = false,
-  onFollowupNextChange, onFollowupLastChange, onFollowedUp, hideLastFollowup = false,
+  onDropdownChange,
 }: TaskEditMetadataProps) {
+  const [openDropdown, setOpenDropdownState] = useState<MetadataDropdown | null>(null)
+  const sectionRef = useRef<HTMLDivElement>(null)
+  const peopleRef = useRef<HTMLDivElement>(null)
+  const tagsRef = useRef<HTMLDivElement>(null)
+  const onDropdownChangeRef = useLatestRef(onDropdownChange)
+  const setOpenDropdown = (next: MetadataDropdown | null) => {
+    setOpenDropdownState(next)
+    onDropdownChange?.(next !== null)
+  }
+  const toggleDropdown = (which: MetadataDropdown) => setOpenDropdown(openDropdown === which ? null : which)
+
+  // Close the picker on an outside press — not one in a layer stacked above.
+  useEffect(() => {
+    if (!openDropdown) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as Node
+      const section = sectionRef.current
+      if (section && isInLayerAbove(section, target)) return
+      const own = openDropdown === 'people' ? peopleRef.current : tagsRef.current
+      if (own && !own.contains(target)) {
+        setOpenDropdownState(null)
+        onDropdownChangeRef.current?.(false)
+      }
+    }
+    document.addEventListener('mousedown', handler, true)
+    return () => document.removeEventListener('mousedown', handler, true)
+  }, [openDropdown, onDropdownChangeRef])
+
+  const assignedPeopleIds = new Set(assignedPeople.flatMap((p) => (p.id != null ? [p.id] : [])))
+  const assignedTagIds = new Set(assignedTags.flatMap((t) => (t.id != null ? [t.id] : [])))
+
   return (
-    <div className={styles.metaSection}>
+    <div className={styles.metaSection} ref={sectionRef} data-task-fields="">
       {/* Due date */}
       <div className={styles.metaRow}>
         <span className={styles.metaLabel}>Due</span>
@@ -69,6 +91,7 @@ export function TaskEditMetadata({
             className={styles.personSelect}
             value={recurrenceType}
             onChange={onRecurrenceChange}
+            aria-label="Repeat"
           >
             <option value="">No repeat</option>
             <option value="daily">Daily</option>
@@ -89,18 +112,18 @@ export function TaskEditMetadata({
           {assignedPeople.map((person) => (
             <span key={`p-${person.id}`} className={styles.personTag}>
               <button type="button" className={styles.chipOpen}
-                onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
+                onClick={() => toggleDropdown('people')}>
                 <span className={styles.personAvatar} style={{ background: person.color || NEUTRAL_PERSON_COLOR }} aria-hidden="true">
                   {(person.initials || person.name).charAt(0).toUpperCase()}
                 </span>
                 <span className={styles.personName}>{person.name}</span>
               </button>
               <button type="button" className={styles.chipRemove} aria-label={`Remove ${person.name}`}
-                onClick={() => onTogglePerson(person.id!)}>&times;</button>
+                onClick={() => { if (person.id != null) onTogglePerson(person.id) }}>&times;</button>
             </span>
           ))}
-          <button className={styles.chipAddBtn}
-            onClick={() => setOpenDropdown(openDropdown === 'people' ? null : 'people')}>
+          <button type="button" className={styles.chipAddBtn}
+            onClick={() => toggleDropdown('people')}>
             + Add
           </button>
           {openDropdown === 'people' && (
@@ -127,21 +150,21 @@ export function TaskEditMetadata({
           {assignedTags.map((tag) => (
             <span key={`t-${tag.id}`} className={styles.tagChip} style={{ color: tag.color, borderColor: tag.color }}>
               <button type="button" className={styles.chipOpen}
-                onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}>
+                onClick={() => toggleDropdown('tags')}>
                 #{tag.name}
               </button>
               <button type="button" className={styles.chipRemove} aria-label={`Remove #${tag.name}`}
-                onClick={() => onToggleTag(tag.id!)}>&times;</button>
+                onClick={() => { if (tag.id != null) onToggleTag(tag.id) }}>&times;</button>
             </span>
           ))}
-          <button className={styles.chipAddBtn}
-            onClick={() => setOpenDropdown(openDropdown === 'tags' ? null : 'tags')}>
+          <button type="button" className={styles.chipAddBtn}
+            onClick={() => toggleDropdown('tags')}>
             + Add
           </button>
           {openDropdown === 'tags' && (
             <PopoverRoot className={styles.chipDropdown}>
               <ChipSelector
-                items={allTags.toSorted(byName).map(t => ({ id: t.id!, name: t.name, color: t.color }))}
+                items={allTags.toSorted(byName).flatMap((t) => (t.id != null ? [{ id: t.id, name: t.name, color: t.color }] : []))}
                 selectedIds={assignedTagIds}
                 onToggle={onToggleTag}
                 onCreate={onCreateTag}
@@ -152,19 +175,6 @@ export function TaskEditMetadata({
           )}
         </div>
       </div>
-
-      <FollowupEditorGroup
-        next={followupNext}
-        last={followupLast}
-        nextHint={followupNextHint}
-        selectNextOnFocus={followupNextSelectOnFocus}
-        onNextChange={onFollowupNextChange}
-        onLastChange={onFollowupLastChange}
-        onFollowedUp={onFollowedUp}
-        hideLast={hideLastFollowup}
-        rowClassName={styles.metaRow}
-        labelClassName={styles.metaLabel}
-      />
     </div>
   )
 }

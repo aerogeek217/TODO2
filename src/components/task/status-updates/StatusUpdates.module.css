@@ -1,8 +1,7 @@
 /*
- * A task's status updates in the task editor: the label with its Add update
- * button (a popover: the text, then its day — the Last follow-up field's
- * look, `Followup.module.css`), then the entries newest first, one `MM/DD
- * text` line each.
+ * A task's status updates in the task layout (the editor, the review card):
+ * the label with its count, then the entries oldest first, one `MM/DD text`
+ * line each (the list scrolls inside past its limit), then the add line.
  */
 
 .headingRow {
@@ -18,53 +17,6 @@
   align-items: center;
   gap: 6px;
   margin-bottom: 0;
-}
-
-.addButton {
-  flex-shrink: 0;
-  height: 24px;
-  padding: 0 8px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-accent-text);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
-.addButton:hover {
-  background: var(--color-accent-bg-light);
-}
-
-/* The open trigger (D21) while its popover is open. */
-.addButton[data-open] {
-  background: var(--color-trigger-open-fill);
-  box-shadow: var(--trigger-open-ring);
-}
-
-/* The Add update popover: placed by `usePopoverAnchor`, above the editor. */
-.addPopover {
-  position: fixed;
-  z-index: var(--z-dialog-nested);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 320px;
-  padding: 12px;
-  box-sizing: border-box;
-  background: var(--color-popover-bg);
-  border-radius: 8px;
-  box-shadow: var(--shadow-dropdown);
-  color: var(--color-text-primary);
-  font-size: var(--font-size-task);
-}
-
-.popoverActions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 6px;
 }
 
 /* The entry count beside the label. */
@@ -170,6 +122,18 @@
   margin: 8px 0 0;
   padding: 0;
   list-style: none;
+  /* The section grows to ~200px (label, list, add line), then the list scrolls inside. */
+  max-height: 136px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+/* The add line, last: the default one (`.textInput`) or the host's. */
+.addLine {
+  display: flex;
+  flex-direction: column;
+  margin-top: 8px;
 }
 
 .entry {
@@ -261,51 +225,6 @@
   color: var(--color-danger);
 }
 
-/* ── Older updates ── */
-
-.olderClosed {
-  display: flex;
-}
-
-.olderRule {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-  padding-left: 6px;
-  color: var(--color-text-muted);
-  font-size: 11px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.ruleLine {
-  flex: 1;
-  height: 1px;
-  background: var(--color-border-muted);
-}
-
-.olderToggle {
-  height: 24px;
-  padding: 0 6px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  letter-spacing: 0;
-  text-transform: none;
-  cursor: pointer;
-}
-
-.olderToggle:hover {
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
-}
-
 /* Touch: no hover, so the actions stay in view. */
 @media (hover: none) {
   .entryActions {
@@ -315,10 +234,4 @@
   .entry:hover {
     background: transparent;
   }
-}
-
-/* The Add update popover, a close held over a day that isn't one. */
-.closeHeld {
-  font-size: 12px;
-  color: var(--color-danger);
 }

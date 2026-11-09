@@ -4,7 +4,7 @@
 // away, the checkbox, and the ⋯ menu (Rename ·
 // the host's extra items | Delete).
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { render, screen, fireEvent, cleanup, within } from '@testing-library/react'
+import { act, render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { SubtaskChecklist, type ChecklistItem } from '../../../components/task/subtasks/SubtaskChecklist'
 
 afterEach(cleanup)
@@ -116,9 +116,17 @@ describe('SubtaskChecklist — add', () => {
       expect(r.onRename).not.toHaveBeenCalled()
     })
 
-    it('hideAddRow leaves the add row out', () => {
-      render(<SubtaskChecklist items={ITEMS} density="editor" label="Subtasks" hideAddRow onAdd={vi.fn()} onRename={vi.fn()} onSetDone={vi.fn()} onRemove={vi.fn()} />)
-      expect(screen.queryByRole('textbox', { name: 'New subtask' })).toBeNull()
+    it('the host’s commit adds the line typed, once (the line is cleared)', () => {
+      const onAdd = vi.fn()
+      const commitRef: { current: (() => void) | null } = { current: null }
+      const r = render(<SubtaskChecklist items={ITEMS} density="editor" label="Subtasks" addPlaceholder="Add subtask" commitRef={commitRef} onAdd={onAdd} onRename={vi.fn()} onSetDone={vi.fn()} onRemove={vi.fn()} />)
+      expect(addField()).toHaveAttribute('placeholder', 'Add subtask')
+      fireEvent.change(addField(), { target: { value: '  Call Ben  ' } })
+      act(() => commitRef.current?.())
+      expect(onAdd).toHaveBeenCalledExactlyOnceWith('Call Ben')
+      r.unmount()
+      expect(onAdd).toHaveBeenCalledTimes(1)
+      expect(commitRef.current).toBeNull()
     })
   })
 

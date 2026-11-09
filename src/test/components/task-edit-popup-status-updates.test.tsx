@@ -1,7 +1,8 @@
-// The task editor's Status updates section: the Add update popover (text + day), the
-// entries newest first with three shown and the rest behind the older
-// disclosure, editing in place (⏎ saves, Esc cancels without closing the
-// editor), delete with the undo snackbar, and create mode's pending entries.
+// The task editor's Status updates section (D26 BB / BG): the entries oldest
+// first, the add line last (⏎ adds the update dated today; what was typed
+// sticks when the editor closes), editing in place (⏎ saves, Esc cancels
+// without closing the editor), delete with the undo snackbar, and create
+// mode's pending entries.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, render, screen, fireEvent, cleanup, within } from '@testing-library/react'
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
@@ -30,20 +31,22 @@ afterEach(() => {
 })
 
 const section = () => screen.getByRole('region', { name: /Status updates/ })
-const addButton = () => screen.getByRole('button', { name: '+ Add update' })
-/** The Add update popover's text field, the popover opened first when it is closed. */
-const addField = () => {
-  if (!screen.queryByRole('textbox', { name: 'New status update' })) fireEvent.click(addButton())
-  return screen.getByRole('textbox', { name: 'New status update' }) as HTMLInputElement
-}
-const addDayField = () => {
-  addField()
-  return screen.getByRole('textbox', { name: 'New status update’s day' }) as HTMLInputElement
-}
-/** The entries' lines, newest first, as shown (`MM/DD text`). */
+/** The add line, last in the section. */
+const addField = () => screen.getByRole('textbox', { name: 'New status update' }) as HTMLInputElement
+/** The entries' lines as shown, oldest first (`MM/DD text`). */
 const shownLines = () => within(section()).queryAllByRole('listitem')
   .filter((li) => li.hasAttribute('data-status-update'))
   .map((li) => li.textContent ?? '')
+
+/** Types `text` in the add line and adds it (⏎); with `day`, then sets the new entry's day by editing it. */
+function addUpdate(text: string, day?: string) {
+  fireEvent.change(addField(), { target: { value: text } })
+  fireEvent.keyDown(addField(), { key: 'Enter' })
+  if (day === undefined) return
+  fireEvent.click(screen.getByRole('button', { name: `Edit status update: ${formatDateNumeric(today())} ${text}` }))
+  fireEvent.change(screen.getByRole('textbox', { name: 'Status update’s day' }), { target: { value: day } })
+  fireEvent.keyDown(screen.getByRole('textbox', { name: 'Status update' }), { key: 'Enter' })
+}
 
 async function openStored(updates: { daysAgo: number; text: string }[] = []) {
   const todo = makeTodo({ id: 100, title: 'Task' })
@@ -64,61 +67,47 @@ const storedTexts = async () => (await db.statusUpdates.where('todoId').equals(1
   .map((u) => [formatDateNumeric(u.date), u.text])
 
 describe('TaskEditPopup — Status updates (edit mode)', () => {
-  it('⏎ in the text adds an update dated today; ⏎ in the day field adds it on that day', async () => {
+  it('⏎ in the add line adds an update dated today and clears the line; a blank line adds nothing', async () => {
     await openStored()
-    expect(screen.queryByPlaceholderText('e.g. 50% done, Waiting on review...')).toBeNull()
+    expect(screen.queryByRole('button', { name: '+ Add update' })).toBeNull()
+    expect(addField()).toHaveAttribute('placeholder', 'What’s the latest?')
 
     fireEvent.change(addField(), { target: { value: '  waiting on legal  ' } })
     await act(async () => { fireEvent.keyDown(addField(), { key: 'Enter' }) })
     await vi.waitFor(async () => expect(await storedTexts()).toEqual([[formatDateNumeric(today()), 'waiting on legal']]))
     expect(addField().value).toBe('')
-
-    fireEvent.change(addField(), { target: { value: 'sent the draft' } })
-    fireEvent.change(addDayField(), { target: { value: 'yesterday' } })
-    await act(async () => { fireEvent.keyDown(addDayField(), { key: 'Enter' }) })
-    await vi.waitFor(async () => expect(await storedTexts()).toHaveLength(2))
-    // The section follows the store, which follows the stored rows: wait on it too.
-    await vi.waitFor(() => expect(shownLines()).toEqual([
-      `${formatDateNumeric(today())}waiting on legal`,
-      `${formatDateNumeric(daysAgo(1))}sent the draft`,
-    ]))
+    await vi.waitFor(() => expect(shownLines()).toEqual([`${formatDateNumeric(today())}waiting on legal`]))
     // The count beside the label.
-    expect(section().querySelector('[id]')?.textContent).toBe('Status updates2')
-  })
+    expect(section().querySelector('[id]')?.textContent).toBe('Status updates1')
 
-  it('a day after today is refused in the field; a blank text adds nothing', async () => {
-    await openStored()
-    fireEvent.change(addField(), { target: { value: 'later' } })
-    fireEvent.change(addDayField(), { target: { value: 'tomorrow' } })
-    expect(addDayField()).toHaveAttribute('aria-invalid', 'true')
-    expect(screen.getByRole('dialog', { name: 'Add a status update' })).toHaveTextContent("A status update can't be in the future")
-    expect(screen.getByRole('button', { name: 'Add' })).toBeDisabled()
-    await act(async () => { fireEvent.keyDown(addField(), { key: 'Enter' }) })
     fireEvent.change(addField(), { target: { value: '   ' } })
-    fireEvent.change(addDayField(), { target: { value: '' } })
     await act(async () => { fireEvent.keyDown(addField(), { key: 'Enter' }) })
-    expect(await db.statusUpdates.count()).toBe(0)
+    expect(await db.statusUpdates.count()).toBe(1)
   })
 
-  it('shows three, the rest behind “N older updates” (opened under an Older rule, closed on the next open)', async () => {
+  it('reads oldest first, the newest last in the primary colour; every entry shows (the list scrolls inside); the add line comes after', async () => {
     await openStored([
       { daysAgo: 1, text: 'one' }, { daysAgo: 2, text: 'two' }, { daysAgo: 3, text: 'three' },
       { daysAgo: 4, text: 'four' }, { daysAgo: 5, text: 'five' },
     ])
-    expect(shownLines().map((l) => l.slice(5))).toEqual(['one', 'two', 'three'])
-    const newest = within(section()).getAllByRole('listitem')[0]
-    expect(newest).toHaveAttribute('data-newest', 'true')
+    expect(shownLines().map((l) => l.slice(5))).toEqual(['five', 'four', 'three', 'two', 'one'])
+    const items = within(section()).getAllByRole('listitem')
+    expect(items.at(-1)).toHaveAttribute('data-newest', 'true')
+    expect(items.filter((li) => li.hasAttribute('data-newest'))).toHaveLength(1)
+    expect(screen.queryByRole('button', { name: /older update/ })).toBeNull()
+    const list = within(section()).getByRole('list', { name: 'Status updates' })
+    expect(list.compareDocumentPosition(addField()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
 
-    fireEvent.click(screen.getByRole('button', { name: '▸ 2 older updates' }))
-    expect(shownLines().map((l) => l.slice(5))).toEqual(['one', 'two', 'three', 'four', 'five'])
-    expect(section()).toHaveTextContent('Older')
-    fireEvent.click(screen.getByRole('button', { name: '▾ Hide older' }))
-    expect(shownLines()).toHaveLength(3)
-
-    fireEvent.click(screen.getByRole('button', { name: '▸ 2 older updates' }))
-    act(() => useUIStore.getState().closeEditPopup())
-    act(() => useUIStore.getState().openEditPopup(100))
-    expect(shownLines()).toHaveLength(3)
+  it('the add line’s text sticks: Esc leaves the line (the editor stays), closing the editor adds it', async () => {
+    await openStored()
+    fireEvent.change(addField(), { target: { value: 'this one' } })
+    fireEvent.keyDown(addField(), { key: 'Escape' })
+    expect(screen.getByRole('dialog', { name: 'Edit task' })).toBeInTheDocument()
+    expect(addField().value).toBe('this one')
+    expect(await db.statusUpdates.count()).toBe(0)
+    await act(async () => { useUIStore.getState().closeEditPopup() })
+    await vi.waitFor(async () => expect(await storedTexts()).toEqual([[formatDateNumeric(today()), 'this one']]))
   })
 
   it('edit in place: ⏎ saves the day and text; Esc cancels and the editor stays open', async () => {
@@ -145,6 +134,15 @@ describe('TaskEditPopup — Status updates (edit mode)', () => {
     expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Edit status update')
   })
 
+  it('a day after today is refused when editing an entry', async () => {
+    await openStored([{ daysAgo: 2, text: 'drafted' }])
+    fireEvent.click(screen.getByRole('button', { name: /^Edit status update/ }))
+    const day = screen.getByRole('textbox', { name: 'Status update’s day' })
+    fireEvent.change(day, { target: { value: 'tomorrow' } })
+    expect(day).toHaveAttribute('aria-invalid', 'true')
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
   it('delete asks nothing: the snackbar’s undo puts it back', async () => {
     await openStored([{ daysAgo: 1, text: 'keep' }, { daysAgo: 2, text: 'gone' }])
     await act(async () => {
@@ -153,7 +151,7 @@ describe('TaskEditPopup — Status updates (edit mode)', () => {
     await vi.waitFor(async () => expect(await storedTexts()).toEqual([[formatDateNumeric(daysAgo(1)), 'keep']]))
     expect(useUndoStore.getState().snackbar?.description).toBe('Status update removed')
     await act(async () => { await useUndoStore.getState().undo() })
-    expect(shownLines().map((l) => l.slice(5))).toEqual(['keep', 'gone'])
+    await vi.waitFor(() => expect(shownLines().map((l) => l.slice(5))).toEqual(['gone', 'keep']))
   })
 })
 
@@ -180,15 +178,11 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
     const last = () => screen.getByRole('textbox', { name: 'Last follow-up' }) as HTMLInputElement
     fireEvent.change(screen.getByPlaceholderText(/New task/), { target: { value: 'Write the report' } })
     expect(last().value).toBe('')
-    fireEvent.change(addField(), { target: { value: 'outline done' } })
-    fireEvent.change(addDayField(), { target: { value: 'yesterday' } })
-    fireEvent.keyDown(addField(), { key: 'Enter' })
+    addUpdate('outline done', 'yesterday')
     expect(last().value).not.toBe('')
     fireEvent.click(screen.getByRole('button', { name: /^Delete status update/ }))
     expect(last().value).toBe('')
-    fireEvent.change(addField(), { target: { value: 'first draft' } })
-    fireEvent.change(addDayField(), { target: { value: 'yesterday' } })
-    fireEvent.keyDown(addField(), { key: 'Enter' })
+    addUpdate('first draft', 'yesterday')
     await act(async () => { fireEvent.click(screen.getByText('Create task')) })
     expect(onCreate.mock.calls[0]?.[0].lastFollowupAt).toEqual(daysAgo(1))
   })
@@ -201,26 +195,21 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
     fireEvent.blur(last())
     const shown = last().value
     expect(shown).not.toBe('')
-    fireEvent.change(addField(), { target: { value: 'outline done' } })
-    fireEvent.change(addDayField(), { target: { value: formatDateNumeric(daysAgo(3)) } })
-    fireEvent.keyDown(addField(), { key: 'Enter' })
+    addUpdate('outline done', formatDateNumeric(daysAgo(3)))
     expect(shownLines()).toEqual([`${formatDateNumeric(daysAgo(3))}outline done`])
     expect(last().value).toBe(shown)
     await act(async () => { fireEvent.click(screen.getByText('Create task')) })
     expect(onCreate.mock.calls[0]?.[0].lastFollowupAt).toEqual(daysAgo(1))
   })
 
-  it('updates added before Create wait in the list and go with the task; nothing is written before', async () => {
+  it('updates added before Create wait in the list (oldest first) and go with the task; nothing is written before', async () => {
     const { onCreate } = renderCreate()
     fireEvent.change(screen.getByPlaceholderText(/New task/), { target: { value: 'Write the report' } })
-    fireEvent.change(addField(), { target: { value: 'outline done' } })
-    fireEvent.change(addDayField(), { target: { value: 'yesterday' } })
-    fireEvent.keyDown(addField(), { key: 'Enter' })
-    fireEvent.change(addField(), { target: { value: 'first draft' } })
-    fireEvent.keyDown(addField(), { key: 'Enter' })
+    addUpdate('outline done', 'yesterday')
+    addUpdate('first draft')
     expect(shownLines()).toEqual([
-      `${formatDateNumeric(today())}first draft`,
       `${formatDateNumeric(daysAgo(1))}outline done`,
+      `${formatDateNumeric(today())}first draft`,
     ])
     // A pending one is edited and deleted in place, too.
     fireEvent.click(screen.getByRole('button', { name: `Delete status update: ${formatDateNumeric(today())} first draft` }))
@@ -239,8 +228,7 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
       const { onCreate } = renderCreate()
       const titleField = screen.getByPlaceholderText(/New task/)
       fireEvent.change(titleField, { target: { value: 'Write the report' } })
-      fireEvent.change(addField(), { target: { value: 'outline done' } })
-      fireEvent.keyDown(addField(), { key: 'Enter' })
+      addUpdate('outline done')
       fireEvent.click(screen.getByRole('button', { name: /^Edit status update/ }))
       fireEvent.change(screen.getByRole('textbox', { name: 'Status update' }), { target: { value: 'outline signed off' } })
       // The edit is still open: no ⏎, no Save.
@@ -255,14 +243,20 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
     }
   })
 
-  it('an update still being typed in the Add popover goes with the task (cr31 T3)', async () => {
-    const { onCreate } = renderCreate()
-    const titleField = screen.getByPlaceholderText(/New task/)
-    fireEvent.change(titleField, { target: { value: 'Write the report' } })
-    fireEvent.change(addField(), { target: { value: 'kicked off' } })
-    await act(async () => { fireEvent.keyDown(titleField, { key: 'Enter' }) })
-    const partial = onCreate.mock.calls[0]?.[0] as { statusUpdates?: { text: string }[] }
-    expect(partial.statusUpdates?.map((u) => u.text)).toEqual(['kicked off'])
+  it('an update still being typed in the add line goes with the task, dated today (cr31 T3)', async () => {
+    for (const how of ['button', 'enter'] as const) {
+      const { onCreate } = renderCreate()
+      const titleField = screen.getByPlaceholderText(/New task/)
+      fireEvent.change(titleField, { target: { value: 'Write the report' } })
+      fireEvent.change(addField(), { target: { value: 'kicked off' } })
+      await act(async () => {
+        if (how === 'button') fireEvent.click(screen.getByText('Create task'))
+        else fireEvent.keyDown(titleField, { key: 'Enter' })
+      })
+      const partial = onCreate.mock.calls[0]?.[0] as { statusUpdates?: { date: Date; text: string }[] }
+      expect(partial.statusUpdates?.map((u) => [u.date, u.text])).toEqual([[today(), 'kicked off']])
+      cleanup()
+    }
   })
 
   it('an edit to a draft’s entry counts as a change: the backdrop asks before closing (cr31 T3)', async () => {
@@ -297,40 +291,5 @@ describe('TaskEditPopup — Status updates (create mode)', () => {
     const update = { date: daysAgo(3), text: 'asked finance', createdAt: new Date() }
     renderCreate({ title: 'Budget', urgent: false, important: false, focus: false, personIds: [], newPeople: [], tagIds: [], newTags: [], statusUpdates: [update] })
     expect(shownLines()).toEqual([`${formatDateNumeric(daysAgo(3))}asked finance`])
-  })
-})
-
-describe('TaskEditPopup — the Add update popover', () => {
-  it('opens from the button, Esc closes it — not the editor — adds what was typed and hands the focus back', async () => {
-    await openStored()
-    expect(screen.queryByRole('textbox', { name: 'New status update' })).toBeNull()
-    fireEvent.click(addButton())
-    expect(addButton()).toHaveAttribute('aria-expanded', 'true')
-    fireEvent.change(addField(), { target: { value: 'this one' } })
-    await act(async () => { fireEvent.keyDown(addField(), { key: 'Escape' }) })
-    expect(screen.queryByRole('dialog', { name: 'Add a status update' })).toBeNull()
-    expect(screen.getByRole('dialog', { name: 'Edit task' })).toBeInTheDocument()
-    await act(async () => { await new Promise((r) => requestAnimationFrame(() => r(undefined))) })
-    expect(addButton()).toHaveFocus()
-    await vi.waitFor(async () => expect(await storedTexts()).toEqual([[formatDateNumeric(today()), 'this one']]))
-  })
-
-  it('Add writes the update and closes the popover; Cancel writes nothing', async () => {
-    await openStored()
-    fireEvent.change(addField(), { target: { value: 'via the button' } })
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Add' })) })
-    await vi.waitFor(async () => expect(await storedTexts()).toEqual([[formatDateNumeric(today()), 'via the button']]))
-    expect(screen.queryByRole('dialog', { name: 'Add a status update' })).toBeNull()
-
-    fireEvent.change(addField(), { target: { value: 'never mind' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
-    expect(screen.queryByRole('dialog', { name: 'Add a status update' })).toBeNull()
-    expect(await db.statusUpdates.count()).toBe(1)
-  })
-
-  it('no ⏎ hint under the day field', async () => {
-    await openStored()
-    addField()
-    expect(screen.getByRole('dialog', { name: 'Add a status update' })).not.toHaveTextContent('adds the update')
   })
 })
