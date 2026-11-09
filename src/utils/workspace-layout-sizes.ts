@@ -1,4 +1,4 @@
-import type { GridAxis, GridTrack, LayoutBody } from '../models/workspace-layout'
+import { DEFAULT_WEIGHT, type GridAxis, type GridTrack, type LayoutBody } from '../models/workspace-layout'
 import { isPositive, withTracks } from './workspace-layout-edit'
 import { spanOf } from './workspace-grid'
 
@@ -42,6 +42,22 @@ export function setTrackSizes<L extends LayoutBody>(layout: L, sizeById: Readonl
     if (changed) next = withTracks(next, axis, out)
   }
   return next
+}
+
+/**
+ * Track `trackId` of `axis` without its px — a Numbers-only row a divider
+ * gave a height fits its content again —, keeping its weight (a share,
+ * `DEFAULT_WEIGHT` when it has none, should it take one later). The same
+ * object when it has no px.
+ */
+export function withoutTrackPx<L extends LayoutBody>(layout: L, axis: GridAxis, trackId: string): L {
+  const tracks = layout.grid[axis]
+  const i = tracks.findIndex((t) => t.id === trackId)
+  const track = tracks[i]
+  if (!track || track.px == null) return layout
+  const { px: _px, ...rest } = track
+  void _px
+  return withTracks(layout, axis, tracks.map((t, j) => (j === i ? { ...rest, weight: rest.weight ?? DEFAULT_WEIGHT } : t)))
 }
 
 /** The axes the tracks `trackIds` are on, in `layout`. */

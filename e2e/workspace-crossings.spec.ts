@@ -1,0 +1,186 @@
+import { expect, test, type Locator, type Page } from '@playwright/test'
+import { edges, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed } from './fixtures/workspace'
+import { box, type Point } from './fixtures/geometry'
+import { readStore } from './fixtures/db'
+
+/**
+ * Dividers and crossings in a real browser (D26 follow-ups, board BE): a
+ * line parts at its "+" crossings, each piece dragging alone; the crossing
+ * handle moves both whole lines through it; a piece dragged near another
+ * column's line snaps onto it — a faint guide along that line — and re-joins
+ * it; a Numbers-only row gets a divider that gives it a height.
+ */
+
+const saveButton = (page: Page) => page.getByTestId('layout-save')
+const UNSAVED = 'Save layout (unsaved changes)'
+const SAVED = 'Layout saved'
+
+/** `a b / c d`: four Notes cells meeting at one "+". */
+const quad: WsLayoutSeed = {
+  name: 'Main',
+  table: {
+    areas: ['a b', 'c d'],
+    cells: ['a', 'b', 'c', 'd'].map((id) => ({ id, tabs: [{ id: `${id}Tab`, kind: 'notes' as const }] })),
+  },
+}
+
+function crossing(page: Page): Locator {
+  return page.locator('[data-ws-crossing]')
+}
+
+function centre(b: { x: number; y: number; width: number; height: number }): Point {
+  return { x: b.x + b.width / 2, y: b.y + b.height / 2 }
+}
+
+/** A trusted-mouse drag of a resize handle: presses at `from`, moves to `to` in 12 steps, checks `during`, lets go. */
+async function dragHandle(page: Page, from: Point, to: Point, during?: () => Promise<void>): Promise<void> {
+  await page.mouse.move(from.x, from.y)
+  await page.mouse.down()
+  await page.mouse.move(to.x, to.y, { steps: 12 })
+  if (during) await during()
+  await releaseDrag(page)
+}
+
+async function storedRows(page: Page): Promise<Array<{ id: string; weight?: number; px?: number }>> {
+  const row = (await readStore<{ grid: { rows: Array<{ id: string; weight?: number; px?: number }> } }>(page, 'layouts'))[0]
+  return row?.grid.rows ?? []
+}
+
+test.describe('pieces and crossings', () => {
+  test('a 2×2 parts its lines at the "+": four pieces and one crossing handle', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [quad] })
+    await expect(page.locator('[data-ws-divider][data-axis="columns"]')).toHaveCount(2)
+    await expect(page.locator('[data-ws-divider][data-axis="rows"]')).toHaveCount(2)
+    await expect(crossing(page)).toHaveCount(1)
+    await expect(crossing(page)).toHaveAccessibleName('Resize row and column')
+  })
+
+  test('dragging a piece moves it alone: a new line, unsaved', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [quad] })
+    const a0 = await edges(wsCell(page, 'a'))
+    const c0 = await edges(wsCell(page, 'c'))
+    const from = centre(await box(wsDivider(page, 'a', 'b')))
+    await dragHandle(page, from, { x: from.x + 100, y: from.y })
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).right - a0.right)).toBeGreaterThan(90)
+    // c | d stays (a new track takes one more gap from the weighted columns: a few px).
+    expect(Math.abs((await edges(wsCell(page, 'c'))).right - c0.right)).toBeLessThanOrEqual(4)
+    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    await expect(crossing(page)).toHaveCount(0)
+  })
+
+  test('dragging the crossing moves both whole lines: view state, saved at once', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [quad] })
+    const a1 = await edges(wsCell(page, 'a'))
+    const d1 = await edges(wsCell(page, 'd'))
+    const x = centre(await box(crossing(page)))
+    await dragHandle(page, x, { x: x.x + 80, y: x.y + 60 })
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).right - a1.right)).toBeGreaterThan(70)
+    const a2 = await edges(wsCell(page, 'a'))
+    expect(a2.bottom - a1.bottom).toBeGreaterThan(50)
+    // Whole lines: c and b follow a, d shrinks from its top-left.
+    expect(Math.abs((await edges(wsCell(page, 'c'))).right - a2.right)).toBeLessThanOrEqual(1)
+    expect(Math.abs((await edges(wsCell(page, 'b'))).bottom - a2.bottom)).toBeLessThanOrEqual(1)
+    expect((await edges(wsCell(page, 'd'))).right).toBeCloseTo(d1.right, 0)
+    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expect.poll(async () => (await storedRows(page)).map((r) => Math.round(r.weight ?? 0))).not.toEqual([1000, 1000])
+  })
+
+  test('the crossing\'s keys: ↑↓ the row line, ←→ the column line, 16px; a double-click evens both', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [quad] })
+    const a0 = await edges(wsCell(page, 'a'))
+    await crossing(page).focus()
+    await page.keyboard.press('ArrowDown')
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - a0.bottom)).toBe(16)
+    await page.keyboard.press('ArrowRight')
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).right - a0.right)).toBe(16)
+    await expect(crossing(page)).toBeFocused()
+    const x = centre(await box(crossing(page)))
+    await page.mouse.dblclick(x.x, x.y)
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - a0.bottom)).toBe(0)
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).right - a0.right)).toBe(0)
+  })
+})
+
+test.describe('snapping', () => {
+  test('a piece snaps onto the other column\'s line (a guide shows), re-joins it, and the crossing then moves both pieces — the column line held', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [quad] })
+    const a0 = await edges(wsCell(page, 'a'))
+
+    // 1. The right column's row piece down 80px: the two columns' row pieces at different heights.
+    let from = centre(await box(wsDivider(page, 'b', 'd')))
+    await dragHandle(page, from, { x: from.x, y: from.y + 80 })
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'b'))).bottom - a0.bottom)).toBeGreaterThan(70)
+    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    await expect(crossing(page)).toHaveCount(0)
+    expect(Math.abs((await edges(wsCell(page, 'a'))).bottom - a0.bottom)).toBeLessThanOrEqual(4)
+
+    // 2. Back up to within a few px of the left column's line: it snaps, the guide shows along that line.
+    from = centre(await box(wsDivider(page, 'b', 'd')))
+    const aBottom = (await edges(wsCell(page, 'a'))).bottom
+    const bBottom = (await edges(wsCell(page, 'b'))).bottom
+    await dragHandle(page, from, { x: from.x, y: from.y - (bBottom - aBottom) + 5 }, async () => {
+      const guide = page.getByTestId('ws-snap-guide')
+      await expect(guide).toBeVisible()
+      await expect(guide).toHaveAttribute('data-axis', 'rows')
+      // Along the whole line, across the table.
+      const g = await box(guide)
+      const table = await box(page.locator('[data-ws-table]'))
+      expect(g.width).toBeGreaterThan(table.width - 24)
+    })
+    await expect(page.getByTestId('ws-snap-guide')).toHaveCount(0)
+    // Re-joined: one row line through both columns again — the layout as saved.
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'b'))).bottom)).toBe(Math.round((await edges(wsCell(page, 'a'))).bottom))
+    await expect(crossing(page)).toHaveCount(1)
+    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+
+    // 3. The crossing, mostly vertically (a few px sideways): both pieces move together, the column line stays put.
+    const before = await edges(wsCell(page, 'a'))
+    const bBefore = await edges(wsCell(page, 'b'))
+    const x = centre(await box(crossing(page)))
+    await dragHandle(page, x, { x: x.x + 5, y: x.y + 70 })
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - before.bottom)).toBeGreaterThan(60)
+    const after = await edges(wsCell(page, 'a'))
+    expect(Math.abs((await edges(wsCell(page, 'b'))).bottom - after.bottom)).toBeLessThanOrEqual(1)
+    expect((await edges(wsCell(page, 'b'))).bottom - bBefore.bottom).toBeGreaterThan(60)
+    expect(after.right).toBeCloseTo(before.right, 0)
+    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+  })
+})
+
+test.describe('a Numbers-only row', () => {
+  const numbers: WsLayoutSeed = {
+    name: 'Main',
+    table: {
+      areas: ['n1 n2', 'a a'],
+      cells: [
+        { id: 'n1', tabs: [{ id: 'num1', kind: 'number' }] },
+        { id: 'n2', tabs: [{ id: 'num2', kind: 'number' }] },
+        { id: 'a', tabs: [{ id: 'aTab', kind: 'notes' }] },
+      ],
+    },
+  }
+
+  test('its divider gives it a height (saved at once, kept over a reload); a double-click lets it fit again', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [numbers] })
+    const fit = Math.round((await box(wsCell(page, 'n1'))).height)
+    expect(fit).toBeLessThan(100)
+    const divider = page.locator('[data-ws-divider][data-axis="rows"]')
+    await expect(divider).toHaveCount(1)
+    await expect(divider).toHaveAttribute('data-fit', '')
+    const from = centre(await box(divider))
+    await dragHandle(page, from, { x: from.x, y: from.y + 80 })
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBeGreaterThan(fit + 70)
+    const tall = Math.round((await box(wsCell(page, 'n1'))).height)
+    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expect.poll(async () => (await storedRows(page))[0]?.px).toBe(tall)
+    // Taller than its small face: the medium face.
+    await expect(wsCell(page, 'n1')).toHaveAttribute('data-face', 'medium')
+    await page.reload()
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBe(tall)
+
+    const d = centre(await box(divider))
+    await page.mouse.dblclick(d.x, d.y)
+    await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBe(fit)
+    await expect.poll(async () => (await storedRows(page))[0]?.px).toBeUndefined()
+  })
+})

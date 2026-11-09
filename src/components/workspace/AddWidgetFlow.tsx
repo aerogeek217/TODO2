@@ -6,7 +6,7 @@ import { useStatusStore } from '../../stores/status-store'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import type { MenuEntry, MenuItemEntry } from '../shared/MenuPopover'
-import { ADD_WHERE_OPTIONS, addWhereTarget, isAddWhere, type AddWhere } from './add-widget-where'
+import { addWherePicture, addWhereTarget, type AddWhere } from './add-widget-where'
 import { WidgetKindIcon } from '../shared/icons'
 import { createListThenEdit, NO_LIST_LAYOUT_REASON, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
 import styles from './AddWidgetFlow.module.css'
@@ -69,21 +69,16 @@ interface AddWidgetFlowProps {
 }
 
 /**
- * Add widget from a cell (its ⋯ menu, its strip's `+`): where first — Tab ·
- * Right · Below · Row · Column (`addWhereTarget`) —, then the kinds; a pick
- * adds that widget there (`useAddKind`).
+ * Add widget from a cell (its ⋯ menu, its strip's `+`): where first, as a
+ * picture of the cell (`addWherePicture`: its middle a tab, its sides a
+ * split, the bars outside a row or column at the layout's edge; default
+ * Tab) —, then the kinds; a pick adds that widget there (`useAddKind`).
  */
 export function AddWidgetFlow({ cellId, initialWhere = 'tab', anchor, onClose }: AddWidgetFlowProps) {
   const [where, setWhere] = useState<AddWhere>(initialWhere)
   const addKind = useAddKind(addWhereTarget(cellId, where))
   const addBreakdown = useAddBreakdown(addWhereTarget(cellId, where))
-  const lead: MenuEntry[] = [{
-    kind: 'segmented',
-    label: 'Where',
-    options: ADD_WHERE_OPTIONS,
-    value: where,
-    onChange: (value) => { if (isAddWhere(value)) setWhere(value) },
-  }]
+  const lead: MenuEntry[] = [addWherePicture(where, setWhere)]
   return (
     <WidgetKindMenu
       anchor={anchor}

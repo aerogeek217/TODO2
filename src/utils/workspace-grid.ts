@@ -257,20 +257,63 @@ function bordersAt(body: LayoutBody, axis: GridAxis, line: number, t: number): b
   return before != null && spanOf(before.area, axis)[1] === line
 }
 
-/** `[from, to)` grown along line `line` of `axis` while the line stays an edge. */
+/**
+ * Whether line `line` of `axis` meets a "+" at line `at` of the other axis:
+ * that perpendicular line is a cell edge on both sides of this one (at
+ * track `line - 1` and track `line`). At a "T" — the perpendicular line on
+ * one side only — it doesn't.
+ */
+function crossesAt(body: LayoutBody, axis: GridAxis, line: number, at: number): boolean {
+  const cross = crossAxis(axis)
+  return bordersAt(body, cross, at, line - 1) && bordersAt(body, cross, at, line)
+}
+
+/**
+ * `[from, to)` grown along line `line` of `axis` while the line stays an
+ * edge, up to a "+" crossing (`crossesAt`): each piece between crossings is
+ * a divider of its own. At a "T" it runs on — a cell spanning past that
+ * point keeps a straight edge.
+ */
 function extendStretch(body: LayoutBody, axis: GridAxis, line: number, from: number, to: number): EdgeStretch {
   const count = body.grid[crossAxis(axis)].length
   let f = from
   let t = to
-  while (f > 0 && bordersAt(body, axis, line, f - 1)) f--
-  while (t < count && bordersAt(body, axis, line, t)) t++
+  while (f > 0 && bordersAt(body, axis, line, f - 1) && !crossesAt(body, axis, line, f)) f--
+  while (t < count && bordersAt(body, axis, line, t) && !crossesAt(body, axis, line, t)) t++
   return { axis, line, from: f, to: t }
+}
+
+/**
+ * A "+" crossing of two inner lines: column line `col` (an upright line)
+ * and row line `row` (a level one), each a cell edge on both sides of the
+ * other — four cells meet there.
+ */
+export interface LineCrossing {
+  col: number
+  row: number
+}
+
+/** Every "+" crossing of the table's inner lines, in reading order (by row line, then column line). */
+export function lineCrossings(body: LayoutBody): LineCrossing[] {
+  const out: LineCrossing[] = []
+  for (let row = 1; row < body.grid.rows.length; row++) {
+    for (let col = 1; col < body.grid.columns.length; col++) {
+      const upright = bordersAt(body, 'columns', col, row - 1) && bordersAt(body, 'columns', col, row)
+      if (upright && crossesAt(body, 'columns', col, row)) out.push({ col, row })
+    }
+  }
+  return out
+}
+
+/** Line `line` of `axis` as one stretch, from the layout's one edge to the other (what a crossing handle moves). */
+export function wholeLine(body: LayoutBody, axis: GridAxis, line: number): EdgeStretch {
+  return { axis, line, from: 0, to: body.grid[crossAxis(axis)].length }
 }
 
 /**
  * The stretch of line between cells `aId` and `bId` (neighbours): the edge
  * they share, extended along the line while the cells on both sides keep
- * bordering it. `null` when they don't touch.
+ * bordering it, up to a "+" crossing. `null` when they don't touch.
  */
 export function edgeBetween(body: LayoutBody, aId: string, bId: string): EdgeStretch | null {
   const a = cellById(body, aId)
@@ -287,7 +330,7 @@ export function edgeBetween(body: LayoutBody, aId: string, bId: string): EdgeStr
   return null
 }
 
-/** Every stretch of every inner line: the dividers, one per stretch, in line order. */
+/** Every stretch of every inner line — its pieces between "+" crossings: the dividers, one per stretch, in line order. */
 export function edgeStretches(body: LayoutBody): EdgeStretch[] {
   const out: EdgeStretch[] = []
   for (const axis of ['columns', 'rows'] as const) {
