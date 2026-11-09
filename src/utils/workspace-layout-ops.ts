@@ -585,6 +585,26 @@ export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, 
   return normalizeGrid(withCells(next, cells))
 }
 
+/**
+ * A double-click on part of a line (not `isWholeLine`): the px delta
+ * (`moveEdge`'s) that puts it midway between the latest start of the cells
+ * before it and the earliest end of those after — its own cells even, as a
+ * drag would move it, the rest of its line staying. `null` for a whole line
+ * (its two tracks share evenly instead) or sizes that don't match the axis.
+ */
+export function evenStretchDelta(layout: LayoutBody, stretch: EdgeStretch, sizes: readonly number[]): number | null {
+  const { axis, line } = stretch
+  if (isWholeLine(layout, stretch) || sizes.length !== layout.grid[axis].length) return null
+  const { before, after } = stretchCells(layout, stretch)
+  if (before.length === 0 || after.length === 0) return null
+  const pos = [0]
+  for (const s of sizes) pos.push((pos.at(-1) ?? 0) + Math.max(0, s))
+  const at = (i: number) => pos[i] ?? 0
+  const start = Math.max(...before.map((c) => at(spanOf(c.area, axis)[0])))
+  const end = Math.min(...after.map((c) => at(spanOf(c.area, axis)[1])))
+  return (start + end) / 2 - at(line)
+}
+
 // ── View state and config ───────────────────────────────────────────────────
 
 function updateTab<L extends LayoutBody>(layout: L, tabId: string, fn: (tab: LayoutTab) => LayoutTab): L {

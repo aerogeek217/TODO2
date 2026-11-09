@@ -1,8 +1,8 @@
-import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import type { GridAxis, LayoutBody } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { cellById, spanOf, type EdgeStretch } from '../../utils/workspace-grid'
-import { moveEdge, type MoveEdgeOptions } from '../../utils/workspace-layout-ops'
+import { cellById, isWholeLine, spanOf, type EdgeStretch } from '../../utils/workspace-grid'
+import { evenStretchDelta, moveEdge, type MoveEdgeOptions } from '../../utils/workspace-layout-ops'
 import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
 import { cellMinPx, tableTrackSizes, trackStart } from '../../utils/workspace-table'
 import { useLatestRef } from '../../hooks/use-latest-ref'
@@ -61,6 +61,19 @@ function minPxIn(layout: LayoutBody): MoveEdgeOptions['minPx'] {
   return (cell, axis) => cellMinPx(layout, cell, axis)
 }
 
+/**
+ * The divider a key press just moved (`<axis>:<before>|<after>`): moving
+ * part of a line renumbers the lines, so React may remount or move its
+ * element and the focus would drop to the page — the divider of that
+ * identity takes it back once drawn. Cleared on the next frame.
+ */
+let refocusAfterKey: string | null = null
+
+/** A divider's identity: its axis and the first cells on either side (unique; kept across a move). */
+function dividerIdentity(axis: GridAxis, beforeId: string, afterId: string): string {
+  return `${axis}:${beforeId}|${afterId}`
+}
+
 /** Throwaway ids for a preview's probe (never stored). */
 function probeIds(): () => string {
   let n = 0
@@ -90,12 +103,14 @@ function previewOffset(drag: DragState, stretch: EdgeStretch, next: LayoutBody, 
  * the whole line, the two tracks beside it share their size anew, live,
  * saved once at the end as view state; when only part of it moves (a new
  * line), it previews where the line goes and makes that unsaved edit on
- * release. ←/→ (↑/↓) move it 16px; a double-click evens a whole line's two
- * tracks.
+ * release. ←/→ (↑/↓) move it 16px, the focus staying on it; a double-click
+ * evens a whole line's two tracks, or part of a line's own cells.
  */
 export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, style }: WorkspaceDividerProps) {
   const axisX = stretch.axis === 'columns'
   const dragRef = useRef<DragState | null>(null)
+  const elRef = useRef<HTMLDivElement | null>(null)
+  const identity = dividerIdentity(stretch.axis, beforeId, afterId)
   const rafRef = useRef<number | null>(null)
   const pendingRef = useRef<number | null>(null)
   const [dragging, setDragging] = useState(false)
@@ -107,6 +122,14 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
     if (dragRef.current) endRef.current()
   }, [endRef])
+
+  // After a key press moved it: keep the focus on it (remounted or moved).
+  useLayoutEffect(() => {
+    if (refocusAfterKey !== identity) return
+    refocusAfterKey = null
+    const el = elRef.current
+    if (el && document.activeElement !== el) el.focus()
+  })
 
   /** Applies one frame: a whole-line move live; a structural one only previewed (the sizes back to the start). */
   const frame = (delta: number) => {
@@ -187,12 +210,25 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     if (!layout || !table) return
     const sizes = drawnSizes(table, stretch.axis)
     if (sizes.length !== layout.grid[stretch.axis].length) return
+    refocusAfterKey = identity
+    requestAnimationFrame(() => { if (refocusAfterKey === identity) refocusAfterKey = null })
     void useWorkspaceStore.getState().moveEdge(stretch, e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, { sizes, minPx: minPxIn(layout) })
   }
 
-  /** A whole line's two weighted tracks share their size evenly. */
-  const onDoubleClick = () => {
+  /**
+   * A whole line's two weighted tracks share their size evenly; part of a
+   * line moves, as a drag would, midway between its own cells
+   * (`evenStretchDelta`) — the rest of its line stays.
+   */
+  const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     const layout = useWorkspaceStore.getState().working
+    if (layout && !isWholeLine(layout, stretch)) {
+      const table = e.currentTarget.closest<HTMLElement>('[data-ws-table]')
+      const sizes = table ? drawnSizes(table, stretch.axis) : []
+      const delta = evenStretchDelta(layout, stretch, sizes)
+      if (delta != null) void useWorkspaceStore.getState().moveEdge(stretch, delta, { sizes, minPx: minPxIn(layout) })
+      return
+    }
     const tracks = layout?.grid[stretch.axis]
     const a = tracks?.[stretch.line - 1]
     const b = tracks?.[stretch.line]
@@ -204,6 +240,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
   const shift = preview != null ? (axisX ? `translateX(${preview}px)` : `translateY(${preview}px)`) : undefined
   return (
     <div
+      ref={elRef}
       className={`${styles.divider} ${axisX ? styles.betweenColumns : styles.betweenCells} ${dragging ? styles.dragging : ''}`}
       style={{ ...style, ...(shift ? { transform: shift } : {}) }}
       role="separator"

@@ -77,7 +77,7 @@ function Dividers({ layout }: { layout: WorkspaceLayout }) {
         if (!a || !b) return null
         return (
           <WorkspaceDivider
-            key={`${stretch.axis}:${stretch.line}:${stretch.from}`}
+            key={`${stretch.axis}:${a.id}|${b.id}`}
             stretch={stretch}
             beforeId={a.id}
             afterId={b.id}

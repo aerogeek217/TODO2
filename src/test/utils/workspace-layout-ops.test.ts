@@ -8,6 +8,7 @@ import {
   addTab,
   closeCell,
   closeTab,
+  evenStretchDelta,
   insertTrack,
   isCellCollapsed,
   mergeCells,
@@ -440,6 +441,20 @@ describe('moveEdge', () => {
     expect(moveEdge(base, stretch, 0, { sizes: [500, 200] }, ids())).toBe(base)
     expect(moveEdge(base, { axis: 'rows', line: 5, from: 0, to: 1 }, 10, { sizes: [500, 200] }, ids())).toBe(base)
     expect(moveEdge(base, stretch, 10, { sizes: [500] }, ids())).toBe(base)
+  })
+})
+
+describe('evenStretchDelta (a divider double-click)', () => {
+  it('part of a line goes midway between its own cells; a whole line has none', () => {
+    const [a, b, e, c, d] = ['a', 'b', 'e', 'c', 'd'].map((id) => cell(id)) as [CellSpec, CellSpec, CellSpec, CellSpec, CellSpec]
+    const body = layout(grid([[a, b], [e, e], [c, d]], { cols: [600, 400] }))
+    const ab = edgeBetween(body, 'a', 'b')!
+    expect(evenStretchDelta(body, ab, [600, 400])).toBe(-100)
+    const moved = moveEdge(body, ab, -100, { sizes: [600, 400] }, ids())
+    expect(picture(moved)).toEqual(['a b b', 'e e e', 'c c d'])
+    expect(evenStretchDelta(body, ab, [600])).toBeNull()
+    const whole = layout(grid([[a, b]]))
+    expect(evenStretchDelta(whole, edgeBetween(whole, 'a', 'b')!, [500, 500])).toBeNull()
   })
 })
 
