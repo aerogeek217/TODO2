@@ -232,7 +232,21 @@ export function splitCell<L extends LayoutBody>(
   const added: LayoutCell = { id, area: before ? withSpan(grown.area, axis, s, mid) : withSpan(grown.area, axis, mid, e), tabs: [] }
   const withKept = setCell(next, cellId, kept)
   next = withCells(withKept, [...withKept.cells, added])
-  return { layout: normalizeGrid(next), cellId: id }
+  return { layout: normalizeGrid(expandedFor(next, added)), cellId: id }
+}
+
+/**
+ * `layout` with the row tracks under `cell` expanded when every one of them
+ * is collapsed: a new (empty) cell never comes out collapsed — it would
+ * show only a header, and an empty cell has no Expand. A split's other half
+ * keeps its collapse when it lies in other tracks (a split below / above);
+ * beside it in the same row, the row expands (collapse is the row's).
+ */
+function expandedFor<L extends LayoutBody>(layout: L, cell: LayoutCell): L {
+  const [start, end] = spanOf(cell.area, 'rows')
+  const rows = layout.grid.rows.slice(start, end)
+  if (rows.length === 0 || !rows.every((t) => t.collapsed === true)) return layout
+  return rows.reduce<L>((next, t) => setTrackCollapsed(next, t.id, false), layout)
 }
 
 /**
@@ -277,8 +291,9 @@ export function insertTrack<L extends LayoutBody>(layout: L, edge: Side, genId: 
   const area = axis === 'columns'
     ? { col: at, row: 0, colSpan: 1, rowSpan: crossCount }
     : { col: 0, row: at, colSpan: crossCount, rowSpan: 1 }
-  const next = withCells(withTracks(layout, axis, insertAt(resized, at, newTrack)), [...shifted, { id, area, tabs: [] }])
-  return { layout: normalizeGrid(next), cellId: id }
+  const added: LayoutCell = { id, area, tabs: [] }
+  const next = withCells(withTracks(layout, axis, insertAt(resized, at, newTrack)), [...shifted, added])
+  return { layout: normalizeGrid(expandedFor(next, added)), cellId: id }
 }
 
 /**
