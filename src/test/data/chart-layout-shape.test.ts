@@ -70,6 +70,21 @@ describe('a Breakdown in a stored layout (D26 P8)', () => {
   })
 })
 
+describe('a Pivot in a stored layout (D26 P8)', () => {
+  it('round-trips; a bad axis or name is reset (a fix)', () => {
+    const tab = { id: 't', kind: 'pivot', config: { name: 'Who × status', filter: { ...emptyPredicate(), tags: [2] }, rows: 'tags', cols: 'priority' } }
+    expect(validateRow('layouts', layoutRow(tab))).toBe(true)
+    expect(tabOf(layoutRow(tab))).toEqual(tab)
+    expect(createTab('pivot', 'p').config).toEqual({ name: 'Pivot', filter: emptyPredicate(), rows: 'people', cols: 'status' })
+    for (const [key, value, reset] of [['rows', 'weeks', 'people'], ['cols', 7, 'status'], ['name', null, 'Pivot']] as const) {
+      const row = layoutRow({ ...tab, config: { ...tab.config, [key]: value } })
+      expect(checkLayoutBody(row)).toBe(`cells[0].tabs[0].config.${key}`)
+      expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+      expect((tabOf(row)?.config as unknown as Record<string, unknown>)[key]).toBe(reset)
+    }
+  })
+})
+
 describe('the Add widget presets', () => {
   const statuses = [{ id: 1, name: 'To do' }, { id: 7, name: 'waiting ' }]
 

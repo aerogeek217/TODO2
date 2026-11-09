@@ -70,6 +70,8 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
   pulse: <path d="M8 2.5a5.5 5.5 0 1 1 0 11a5.5 5.5 0 1 1 0-11zM8 2.5V8h5.5" />,
   // D26 P8 — Breakdown: a bar per row, longest first.
   breakdown: <path d="M2.5 3.5h11M2.5 8h7M2.5 12.5h4" />,
+  // Pivot: a table with a heading row and column.
+  pivot: <path d="M2.5 2.5h11v11h-11zM2.5 6h11M6 2.5v11M2.5 9.75h11M9.75 6v7.5" />,
 }
 
 export function WidgetKindIcon({ kind, size = 14 }: { kind: WidgetKind; size?: number }) {

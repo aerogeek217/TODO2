@@ -33,6 +33,8 @@ const tab = (page: Page, kind: WidgetKind) => {
   return page.getByRole('tab', { name: new RegExp(`^${mine}${longer.length > 0 ? `(?!${longer.join('|')})` : ''}`) })
 }
 /** The add-widget menu's items: the task kinds, then the Numbers & charts submenu. */
+/** The chart kinds (D26 P8): a new one opens its editor. */
+const CHART_KINDS: ReadonlySet<string> = new Set(['breakdown', 'pivot', 'statusFlow', 'tagMap'])
 const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindLabel), 'Numbers & charts']
 const GLANCE = widgetKindsOf('glance')
 
@@ -71,10 +73,11 @@ test.describe('desktop', () => {
         await expect(page.getByRole('dialog', { name: `Edit list ${LIST}` })).toBeVisible()
         await page.keyboard.press('Escape')
       }
-      if (kind === 'breakdown') {
+      if (CHART_KINDS.has(kind)) {
         // A new chart opens its editor (D26 P8).
-        await expect(page.getByRole('dialog', { name: 'Edit breakdown' })).toBeVisible()
+        await expect(page.locator('[data-chart-editor]')).toBeVisible()
         await page.keyboard.press('Escape')
+        await expect(page.locator('[data-chart-editor]')).toHaveCount(0)
       }
       await expect(tab(page, kind)).toHaveAttribute('aria-selected', 'true')
       await expect(body(cell, kind)).toBeVisible()

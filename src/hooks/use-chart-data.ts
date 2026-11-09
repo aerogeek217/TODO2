@@ -1,8 +1,9 @@
 import type { PersistedTodoItem, TodoPredicate } from '../models'
-import { DEFAULT_BREAKDOWN_OLDEST_BY, type BreakdownConfig } from '../models/chart-widgets'
+import { DEFAULT_BREAKDOWN_OLDEST_BY, type BreakdownConfig, type PivotConfig } from '../models/chart-widgets'
 import type { ListTabBadges, TabBadgeRanges } from '../models/list-definition'
 import { groupRestrictions } from '../services/build-list'
 import { computeBreakdown, type BreakdownStats } from '../services/stats/breakdown'
+import { computePivot, type PivotStats } from '../services/stats/pivot'
 import type { RowRestrictions } from '../services/stats/row-restrictions'
 import type { StatsContext } from '../services/stats/stats-context'
 import { useSettingsStore } from '../stores/settings-store'
@@ -55,13 +56,12 @@ const rangesMemo = sharedMemo(function badgeRanges(own: ListTabBadges | undefine
  * own filter's and the top bar's (chips and lens), as a list grouped so
  * (`build-list.groupRestrictions`).
  */
-const restrictionsMemo = sharedMemoByKey(function restrictions(
-  filter: TodoPredicate,
-  field: 'personIds' | 'tags' | null,
-  screen: FilterCriteria,
-): RowRestrictions {
+function restrictionsOf(filter: TodoPredicate, field: 'personIds' | 'tags' | null, screen: FilterCriteria): RowRestrictions {
   return field ? groupRestrictions(field, filter, screen) : []
-})
+}
+const restrictionsMemo = sharedMemoByKey(restrictionsOf)
+/** A second set keyed alike (a Pivot reads both its people and its tags picks). */
+const restrictionsTagsMemo = sharedMemoByKey(restrictionsOf)
 
 const breakdownMemo = sharedMemoByKey(function breakdown(
   config: BreakdownConfig,
@@ -95,4 +95,24 @@ export function useBreakdownData(base: StatsBase, config: BreakdownConfig): Brea
   const restrictions = restrictionsMemo(config.filter, field, chart.count.screen)
   const stats = breakdownMemo(config, chart.tasks, base.ctx, ranges, restrictions)
   return { ...chart, stats, ranges }
+}
+
+// ── Pivot ───────────────────────────────────────────────────────────────────
+
+const pivotMemo = sharedMemoByKey(function pivot(
+  config: PivotConfig,
+  tasks: readonly PersistedTodoItem[],
+  ctx: StatsContext,
+  people: RowRestrictions,
+  tags: RowRestrictions,
+): PivotStats {
+  return computePivot(tasks, ctx, { rows: config.rows, cols: config.cols, restrictions: { people, tags } })
+})
+
+/** A Pivot's heat table (`services/stats/pivot`) over its filter's tasks; a people or tags axis narrows by the `@` / `#` picks. */
+export function usePivotData(base: StatsBase, config: PivotConfig): ChartTasks & { stats: PivotStats } {
+  const chart = useChartTasks(base, config.filter)
+  const people = restrictionsMemo(config.filter, 'personIds', chart.count.screen)
+  const tags = restrictionsTagsMemo(config.filter, 'tags', chart.count.screen)
+  return { ...chart, stats: pivotMemo(config, chart.tasks, base.ctx, people, tags) }
 }

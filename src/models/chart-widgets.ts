@@ -254,3 +254,56 @@ export function breakdownPreset(
     }
   }
 }
+
+// ── Pivot ───────────────────────────────────────────────────────────────────
+
+/** What a Pivot's rows and columns split by: any Breakdown split. */
+export type PivotDim = BreakdownSplit
+
+/**
+ * A Pivot (D26 P8, board Z1): the tasks a filter keeps split by two things
+ * at once — a heat table of rows × columns with their totals.
+ */
+export interface PivotConfig {
+  /** Its title (may be blank while typed: the tab then reads `Pivot`). */
+  name: string
+  filter: TodoPredicate
+  rows: PivotDim
+  cols: PivotDim
+}
+
+export const DEFAULT_PIVOT_NAME = 'Pivot'
+
+/** A new Pivot: people × status. */
+export function newPivotConfig(filter: TodoPredicate): PivotConfig {
+  return { name: DEFAULT_PIVOT_NAME, filter, rows: 'people', cols: 'status' }
+}
+
+const isSplit = (v: unknown): v is BreakdownSplit => includes(BREAKDOWN_SPLITS, v)
+
+/** Where a stored Pivot config goes wrong (the filter is the caller's): the bad key, or `null`. */
+export function pivotConfigProblem(raw: Obj): string | null {
+  if (!isChartName(raw.name)) return 'name'
+  if (!isSplit(raw.rows)) return 'rows'
+  if (!isSplit(raw.cols)) return 'cols'
+  return null
+}
+
+/** A Pivot's config from untrusted input, `filter` picked: a bad field gets its default (people × status, `fixed`). */
+export function pickPivotConfig(raw: Obj, filter: PickedConfig<TodoPredicate>): PickedConfig<PivotConfig> {
+  let fixed = filter.fixed
+  const pick = <V,>(v: unknown, ok: (v: unknown) => v is V, fallback: V): V => {
+    if (ok(v)) return v
+    fixed = true
+    return fallback
+  }
+  return {
+    config: {
+      name: pick(raw.name, isChartName, DEFAULT_PIVOT_NAME),
+      filter: filter.config,
+      rows: pick(raw.rows, isSplit, 'people'),
+      cols: pick(raw.cols, isSplit, 'status'),
+    },
+    fixed,
+  }
+}

@@ -12,6 +12,8 @@ import {
   type BreakdownShow,
   type BreakdownSplit,
   type BreakdownStyle,
+  type PivotConfig,
+  type PivotDim,
 } from '../../../models/chart-widgets'
 import { isChartTab, type ChartTab } from '../../../models/workspace-layout'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
@@ -170,11 +172,32 @@ function BreakdownFields({ config, patch }: { config: BreakdownConfig; patch: (p
   )
 }
 
-/** What each chart kind's editor is titled, its filter's label and its own fields. */
-function kindParts(tab: ChartTab, patch: (p: Partial<ChartTab['config']>) => void): { title: string; filterLabel: string; fields: ReactNode } {
+/** A Pivot's own fields: what its rows and its columns split by. */
+function PivotFields({ config, patch }: { config: PivotConfig; patch: (p: Partial<PivotConfig>) => void }) {
+  return (
+    <div className={styles.grid}>
+      <Select<PivotDim> label="Rows" value={config.rows} options={BREAKDOWN_SPLITS} labels={SPLIT_CHOICE_LABELS} onChange={(rows) => patch({ rows })} />
+      <Select<PivotDim> label="Columns" value={config.cols} options={BREAKDOWN_SPLITS} labels={SPLIT_CHOICE_LABELS} onChange={(cols) => patch({ cols })} />
+    </div>
+  )
+}
+
+/** What each chart kind's editor is titled, its filter's label and its own fields (a case per chart kind). */
+function kindParts(tab: ChartTab): { title: string; filterLabel: string; fields: ReactNode } {
+  const ws = useWorkspaceStore.getState
   switch (tab.kind) {
     case 'breakdown':
-      return { title: 'Edit breakdown', filterLabel: 'Split tasks where', fields: <BreakdownFields config={tab.config} patch={patch} /> }
+      return {
+        title: 'Edit breakdown',
+        filterLabel: 'Split tasks where',
+        fields: <BreakdownFields config={tab.config} patch={(p) => ws().patchTabConfig(tab.id, 'breakdown', p)} />,
+      }
+    case 'pivot':
+      return {
+        title: 'Edit pivot',
+        filterLabel: 'Split tasks where',
+        fields: <PivotFields config={tab.config} patch={(p) => ws().patchTabConfig(tab.id, 'pivot', p)} />,
+      }
   }
 }
 
@@ -197,7 +220,8 @@ export function ChartEditor({ tab, anchorRef, startField, onClose }: {
 }) {
   const config = tab.config
   const id = useId()
-  const patch = (p: Partial<ChartTab['config']>) => useWorkspaceStore.getState().patchTabConfig(tab.id, tab.kind, p)
+  /** The fields every chart has: its name and its filter. */
+  const patch = (p: { name?: string; filter?: ChartTab['config']['filter'] }) => useWorkspaceStore.getState().patchTabConfig(tab.id, tab.kind, p)
   const { panelRef, style, caret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: anchorRef },
     open: true,
@@ -221,7 +245,7 @@ export function ChartEditor({ tab, anchorRef, startField, onClose }: {
     }
   }, [anchorRef, panelEl])
 
-  const { title, filterLabel, fields } = kindParts(tab, patch)
+  const { title, filterLabel, fields } = kindParts(tab)
   const noFilter = !hasFilterClause(config.filter) && !config.filter.expression
   return createPortal(
     <PopoverRoot

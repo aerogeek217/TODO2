@@ -64,6 +64,7 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
       return [tagPicksEntry(tab, 'A card per tag, in the order picked.')]
     // D26 P8: the chart widgets.
     case 'breakdown':
+    case 'pivot':
       return chartSettingEntries(tab)
   }
 }

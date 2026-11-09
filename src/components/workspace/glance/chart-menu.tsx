@@ -85,13 +85,15 @@ function sortEntry(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry {
   return entry.kind === 'item' ? { ...entry, note: sortWords(current, splitBy, show) } : entry
 }
 
-/** A chart tab's settings, as its ⋯ menu lists them first. */
-export function chartSettingEntries(tab: ChartTab): MenuEntry[] {
+const SPLIT_CHOICES = BREAKDOWN_SPLITS.map((s) => ({ value: s, label: SPLIT_CHOICE_LABELS[s] }))
+
+/** A Breakdown's settings: Edit breakdown…, Split by, Style, Sort, its none row, the Due / Follow-up ranges. */
+function breakdownEntries(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry[] {
   const ws = useWorkspaceStore.getState
   const config = tab.config
   const entries: MenuEntry[] = [
     { kind: 'item', label: 'Edit breakdown…', onSelect: () => openChartEditor(tab.id) },
-    settingEntry('Split by', BREAKDOWN_SPLITS.map((s) => ({ value: s, label: SPLIT_CHOICE_LABELS[s] })), config.splitBy,
+    settingEntry('Split by', SPLIT_CHOICES, config.splitBy,
       (splitBy) => ws().patchTabConfig(tab.id, 'breakdown', splitBy === 'people' ? { splitBy } : { splitBy, checkins: undefined })),
     settingEntry('Style', BREAKDOWN_STYLES.map((s) => ({ value: s, label: STYLE_LABELS[s] })), config.style,
       (style) => ws().patchTabConfig(tab.id, 'breakdown', { style })),
@@ -103,4 +105,19 @@ export function chartSettingEntries(tab: ChartTab): MenuEntry[] {
   }
   entries.push(...badgeEntries(tab))
   return entries
+}
+
+/** A chart tab's settings, as its ⋯ menu lists them first (a case per chart kind). */
+export function chartSettingEntries(tab: ChartTab): MenuEntry[] {
+  const ws = useWorkspaceStore.getState
+  switch (tab.kind) {
+    case 'breakdown':
+      return breakdownEntries(tab)
+    case 'pivot':
+      return [
+        { kind: 'item', label: 'Edit pivot…', onSelect: () => openChartEditor(tab.id) },
+        settingEntry('Rows', SPLIT_CHOICES, tab.config.rows, (rows) => ws().patchTabConfig(tab.id, 'pivot', { rows })),
+        settingEntry('Columns', SPLIT_CHOICES, tab.config.cols, (cols) => ws().patchTabConfig(tab.id, 'pivot', { cols })),
+      ]
+  }
 }
