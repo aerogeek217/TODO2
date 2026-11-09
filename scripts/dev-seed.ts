@@ -52,7 +52,7 @@ import type { DateAnchor, DateMatch, TodoPredicate } from '../src/models/filter-
 import type { TodoGroupBy, TodoSortBy } from '../src/models/todo-sort-group'
 import type { EisenhowerPanes } from '../src/models/eisenhower-settings'
 import type { BreakdownConfig } from '../src/models/chart-widgets'
-import { numberConfigOfMetric, type V77NumberMetric } from '../src/data/upgrades/v78/number-metrics'
+import { numberConfigOfMetric, type V77NumberMetric } from '../src/data/upgrades/v78/number-metrics.ts'
 import type { GridTrack, LayoutCell, LayoutTab, ListZoom, WorkspaceLayout } from '../src/models/workspace-layout'
 import type { SettingKey } from '../src/data/setting-keys'
 
