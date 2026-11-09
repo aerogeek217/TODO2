@@ -44,7 +44,7 @@ export function ChartPanel({ tabId, kind, title, glyph, count, onCount, sub, ext
           : <span className={sections.panelCount} data-testid="glance-section-count">{count}</span>)}
         {sub && <span className={sections.panelSub} data-testid="chart-sub">{sub}</span>}
         {extras && <span className={sections.panelExtras}>{extras}</span>}
-        {lens && <span className={sections.panelLens}>{lens}</span>}
+        {lens}
       </WidgetTopLine>
       {children}
     </section>

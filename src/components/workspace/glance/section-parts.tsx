@@ -52,7 +52,7 @@ export function Panel({ def, count, onCount, sub, extras, lens, style, className
           : <span className={styles.panelCount} data-testid="glance-section-count">{count}</span>)}
         {sub && <span className={styles.panelSub}>{sub}</span>}
         {extras && <span className={styles.panelExtras}>{extras}</span>}
-        {lens && <span className={styles.panelLens}>{lens}</span>}
+        {lens}
       </WidgetTopLine>
       {children}
     </section>

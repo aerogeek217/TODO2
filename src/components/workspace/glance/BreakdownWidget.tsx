@@ -177,6 +177,9 @@ function rowEntity(row: BreakdownRow): MenuEntity | null {
   return null
 }
 
+/** A count column's width in a narrow table (under 400px): a badge's. */
+const NARROW_COLUMN_PX = 30
+
 /** A count column's width: its heading's, 44 – 96px. */
 function columnWidth(column: BreakdownColumn): number {
   return Math.round(Math.min(96, Math.max(44, columnHeading(column).length * 6.6 + 14)))
@@ -220,7 +223,8 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
     bars && !compact && !narrow ? '84px' : null,
     figure ? '44px' : null,
     priority && !narrow ? '76px' : null,
-    ...columns.map((c) => `${columnWidth(c)}px`),
+    // Narrow, a count column takes a badge's room, its heading cut short (its name in the tooltip).
+    ...columns.map((c) => `${narrow ? NARROW_COLUMN_PX : columnWidth(c)}px`),
     actions ? `${(review ? 26 : 0) + (envelope ? 26 : 0)}px` : null,
   ].filter(Boolean).join(' ')
   const keys: BreakdownSortKey[] = ['name', ...(figure ? ['open'] : []), ...(priority ? ['priority'] : []), ...columns.map((c) => c.id)]

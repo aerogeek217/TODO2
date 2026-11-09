@@ -87,14 +87,8 @@
   margin-left: auto;
 }
 
-/* The lens switch (G3): at the line's end, after the extras when there are any. */
-.panelLens {
-  display: inline-flex;
-  flex: none;
-  margin-left: auto;
-}
-
-.panelExtras + .panelLens {
+/* The lens switch (G3) after the extras: they push both to the line's end (`WidgetTopLine` gives it the free space otherwise). */
+.panelHeader .panelExtras ~ :global([data-lens-switch]) {
   margin-left: 0;
 }
 
@@ -105,7 +99,7 @@
     display: none;
   }
 
-  .panelExtras + .panelLens {
+  .panelHeader .panelExtras ~ :global([data-lens-switch]) {
     margin-left: auto;
   }
 }

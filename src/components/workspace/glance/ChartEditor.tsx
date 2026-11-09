@@ -224,11 +224,11 @@ function CountColumnsField({ config, patch }: { config: BreakdownConfig; patch: 
             </div>
             <ColorPicker value={column.color} onChange={(color) => set(i, { ...column, color })} />
             <div className={styles.columnRow}>
-              <span>Fill when</span>
+              <span>Light up when</span>
               <LitWhenControl
                 litWhen={column.litWhen}
                 litAt={column.litAt}
-                label={`${label}: fill when`}
+                label={`${label}: light up when`}
                 onChange={({ litWhen, litAt }) => {
                   const { litAt: _old, ...rest } = column
                   void _old

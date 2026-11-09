@@ -345,7 +345,7 @@ describe('the editor’s Count columns (board BC)', () => {
     expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toContain('Late')
   })
 
-  it('+ Add column adds one (lit above 0, an empty filter) up to four; × removes one; Fill when writes its rule', () => {
+  it('+ Add column adds one (lit above 0, an empty filter) up to four; × removes one; Light up when writes its rule', () => {
     setup(breakdown())
     act(() => { useChartWidgetsStore.getState().openEditor('b') })
     // Four derived: the cap — no Add column.
@@ -356,11 +356,11 @@ describe('the editor’s Count columns (board BC)', () => {
     const added = current().config.columns?.at(-1)
     expect(added).toMatchObject({ name: 'Count 4', litWhen: 'above', litAt: 0 })
     expect(added?.filter.statusIds).toBeNull()
-    fireEvent.change(within(columnsBox()).getByRole('combobox', { name: 'Count 4: fill when' }), { target: { value: 'never' } })
+    fireEvent.change(within(columnsBox()).getByRole('combobox', { name: 'Count 4: light up when' }), { target: { value: 'never' } })
     expect(current().config.columns?.at(-1)).not.toHaveProperty('litAt')
     expect(current().config.columns?.at(-1)?.litWhen).toBe('never')
-    fireEvent.change(within(columnsBox()).getByRole('combobox', { name: 'Count 4: fill when' }), { target: { value: 'below' } })
-    fireEvent.change(within(columnsBox()).getByRole('spinbutton', { name: 'Count 4: fill when below' }), { target: { value: '3' } })
+    fireEvent.change(within(columnsBox()).getByRole('combobox', { name: 'Count 4: light up when' }), { target: { value: 'below' } })
+    fireEvent.change(within(columnsBox()).getByRole('spinbutton', { name: 'Count 4: light up when below' }), { target: { value: '3' } })
     expect(current().config.columns?.at(-1)).toMatchObject({ litWhen: 'below', litAt: 3 })
     // Its colour: the app's picker.
     fireEvent.click(within(columnsBox().querySelector<HTMLElement>(`[data-column-editor="${added!.id}"]`)!).getByRole('radio', { name: 'Rose' }))

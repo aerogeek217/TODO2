@@ -30,6 +30,7 @@ export function LensSwitch({ lens, onToggle, noun = 'widget' }: {
         aria-pressed={!lens.ignored}
         aria-label={`Apply the lens “${lens.name}” here`}
         data-testid="lens-switch"
+        data-lens-switch=""
         onClick={(e) => {
           // Not the click of what holds it (a row, a small face).
           e.stopPropagation()
