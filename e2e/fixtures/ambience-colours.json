@@ -9,12 +9,9 @@
     "weather bar 0 0 leaf": "rgb(217, 164, 65)",
     "weather bar 0 1 leaf": "rgb(181, 84, 46)",
     "weather bar 0 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 0 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 1 leaf": "rgb(181, 84, 46)",
-    "weather behind 1 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 3 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 4 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 5 leaf": "rgb(200, 116, 58)"
+    "weather bar 0 3 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 4 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 5 leaf": "rgb(200, 116, 58)"
   },
   "dark autumn golden hour": {
     "sky": "radial-gradient(34% 320% at 89.8% 120%, rgba(242, 179, 114, 0.95) 0%, rgba(242, 179, 114, 0) 100%), linear-gradient(to right, rgb(81, 125, 183), rgb(81, 125, 183) 50%, rgb(137, 144, 159))",
@@ -27,12 +24,9 @@
     "weather bar 0 0 leaf": "rgb(217, 164, 65)",
     "weather bar 0 1 leaf": "rgb(181, 84, 46)",
     "weather bar 0 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 0 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 1 leaf": "rgb(181, 84, 46)",
-    "weather behind 1 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 3 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 4 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 5 leaf": "rgb(200, 116, 58)"
+    "weather bar 0 3 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 4 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 5 leaf": "rgb(200, 116, 58)"
   },
   "dark autumn sunset": {
     "sky": "radial-gradient(34% 320% at 95.9% 120%, rgba(217, 115, 94, 0.89) 0%, rgba(217, 115, 94, 0) 100%), linear-gradient(to right, rgb(51, 74, 132), rgb(51, 74, 132) 50%, rgb(105, 88, 120))",
@@ -46,12 +40,9 @@
     "weather bar 0 0 leaf": "rgb(217, 164, 65)",
     "weather bar 0 1 leaf": "rgb(181, 84, 46)",
     "weather bar 0 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 0 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 1 leaf": "rgb(181, 84, 46)",
-    "weather behind 1 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 3 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 4 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 5 leaf": "rgb(200, 116, 58)"
+    "weather bar 0 3 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 4 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 5 leaf": "rgb(200, 116, 58)"
   },
   "dark autumn dawn": {
     "sky": "radial-gradient(34% 320% at 6.5% 120%, rgba(235, 143, 91, 0.95) 0%, rgba(235, 143, 91, 0) 100%), linear-gradient(to right, rgb(124, 113, 133), rgb(64, 97, 155) 50%, rgb(64, 97, 155))",
@@ -65,12 +56,9 @@
     "weather bar 0 0 leaf": "rgb(217, 164, 65)",
     "weather bar 0 1 leaf": "rgb(181, 84, 46)",
     "weather bar 0 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 0 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 1 leaf": "rgb(181, 84, 46)",
-    "weather behind 1 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 3 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 4 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 5 leaf": "rgb(200, 116, 58)"
+    "weather bar 0 3 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 4 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 5 leaf": "rgb(200, 116, 58)"
   },
   "dark autumn night": {
     "sky": "radial-gradient(34% 320% at 119% 120%, rgba(15, 20, 45, 0) 0%, rgba(15, 20, 45, 0) 100%), linear-gradient(to right, rgb(8, 12, 29), rgb(8, 12, 29) 50%, rgb(8, 12, 29))",
@@ -84,12 +72,9 @@
     "weather bar 0 0 leaf": "rgb(217, 164, 65)",
     "weather bar 0 1 leaf": "rgb(181, 84, 46)",
     "weather bar 0 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 0 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 1 leaf": "rgb(181, 84, 46)",
-    "weather behind 1 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 3 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 4 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 5 leaf": "rgb(200, 116, 58)"
+    "weather bar 0 3 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 4 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 5 leaf": "rgb(200, 116, 58)"
   },
   "dark winter night": {
     "sky": "radial-gradient(34% 320% at 119% 120%, rgba(14, 20, 45, 0) 0%, rgba(14, 20, 45, 0) 100%), linear-gradient(to right, rgb(8, 12, 29), rgb(8, 12, 29) 50%, rgb(8, 12, 29))",
@@ -106,13 +91,7 @@
     "weather bar 0 2 flake": "rgb(238, 243, 250)",
     "weather bar 0 3 flake": "rgb(238, 243, 250)",
     "weather bar 0 4 flake": "rgb(238, 243, 250)",
-    "weather bar 0 5 flake": "rgb(238, 243, 250)",
-    "weather behind 1 0 flake": "rgb(238, 243, 250)",
-    "weather behind 1 1 flake": "rgb(238, 243, 250)",
-    "weather behind 1 2 flake": "rgb(238, 243, 250)",
-    "weather behind 1 3 flake": "rgb(238, 243, 250)",
-    "weather behind 1 4 flake": "rgb(238, 243, 250)",
-    "weather behind 1 5 flake": "rgb(238, 243, 250)"
+    "weather bar 0 5 flake": "rgb(238, 243, 250)"
   },
   "dark spring noon": {
     "sky": "radial-gradient(34% 320% at 44% 120%, rgba(183, 219, 241, 0.95) 0%, rgba(183, 219, 241, 0) 100%), linear-gradient(to right, rgb(129, 182, 228), rgb(99, 162, 222) 50%, rgb(99, 162, 222))",
@@ -126,13 +105,7 @@
     "weather bar 0 2 petal": "rgb(247, 210, 220)",
     "weather bar 0 3 petal": "rgb(242, 182, 198)",
     "weather bar 0 4 petal": "rgb(242, 182, 198)",
-    "weather bar 0 5 petal": "rgb(234, 163, 184)",
-    "weather behind 1 0 petal": "rgb(247, 210, 220)",
-    "weather behind 1 1 petal": "rgb(242, 182, 198)",
-    "weather behind 1 2 petal": "rgb(247, 210, 220)",
-    "weather behind 1 3 petal": "rgb(242, 182, 198)",
-    "weather behind 1 4 petal": "rgb(242, 182, 198)",
-    "weather behind 1 5 petal": "rgb(234, 163, 184)"
+    "weather bar 0 5 petal": "rgb(234, 163, 184)"
   },
   "dark summer noon": {
     "sky": "radial-gradient(34% 320% at 44.3% 120%, rgba(178, 217, 240, 0.95) 0%, rgba(178, 217, 240, 0) 100%), linear-gradient(to right, rgb(125, 181, 229), rgb(97, 161, 223) 50%, rgb(97, 161, 223))",
@@ -144,13 +117,7 @@
     "weather bar 0 0 seed": "rgba(255, 255, 255, 0.8)",
     "weather bar 0 1 seed": "rgba(255, 255, 255, 0.8)",
     "weather bar 0 2 seed": "rgba(255, 255, 255, 0.8)",
-    "weather bar 0 3 seed": "rgba(255, 255, 255, 0.8)",
-    "weather behind 1 0 seed": "rgba(255, 255, 255, 0.8)",
-    "weather behind 1 1 seed": "rgba(255, 255, 255, 0.8)",
-    "weather behind 1 2 seed": "rgba(255, 255, 255, 0.8)",
-    "weather behind 1 3 seed": "rgba(255, 255, 255, 0.8)",
-    "weather behind 1 4 seed": "rgba(255, 255, 255, 0.8)",
-    "weather behind 1 5 seed": "rgba(255, 255, 255, 0.8)"
+    "weather bar 0 3 seed": "rgba(255, 255, 255, 0.8)"
   },
   "dark summer night": {
     "sky": "radial-gradient(34% 320% at 111.7% 120%, rgba(21, 27, 61, 0) 0%, rgba(21, 27, 61, 0) 100%), linear-gradient(to right, rgb(10, 15, 37), rgb(10, 15, 37) 50%, rgb(10, 15, 37))",
@@ -167,14 +134,7 @@
     "weather bar 0 3 firefly": "rgb(251, 239, 154)",
     "weather bar 0 4 firefly": "rgb(251, 239, 154)",
     "weather bar 0 5 firefly": "rgb(251, 239, 154)",
-    "weather bar firefly glow": "rgba(246, 226, 122, 0.8) 0px 0px 6px 1px",
-    "weather behind 1 0 firefly": "rgb(251, 239, 154)",
-    "weather behind 1 1 firefly": "rgb(251, 239, 154)",
-    "weather behind 1 2 firefly": "rgb(251, 239, 154)",
-    "weather behind 1 3 firefly": "rgb(251, 239, 154)",
-    "weather behind 1 4 firefly": "rgb(251, 239, 154)",
-    "weather behind 1 5 firefly": "rgb(251, 239, 154)",
-    "weather behind firefly glow": "rgba(246, 226, 122, 0.8) 0px 0px 6px 1px"
+    "weather bar firefly glow": "rgba(246, 226, 122, 0.8) 0px 0px 6px 1px"
   },
   "light autumn noon": {
     "sky": "radial-gradient(34% 320% at 53.9% 120%, rgba(193, 224, 241, 0.95) 0%, rgba(193, 224, 241, 0) 100%), linear-gradient(to right, rgb(104, 164, 220), rgb(104, 164, 220) 50%, rgb(135, 185, 228))",
@@ -186,12 +146,9 @@
     "weather bar 0 0 leaf": "rgb(217, 164, 65)",
     "weather bar 0 1 leaf": "rgb(181, 84, 46)",
     "weather bar 0 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 0 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 1 leaf": "rgb(181, 84, 46)",
-    "weather behind 1 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 3 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 4 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 5 leaf": "rgb(200, 116, 58)"
+    "weather bar 0 3 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 4 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 5 leaf": "rgb(200, 116, 58)"
   },
   "light autumn golden hour": {
     "sky": "radial-gradient(34% 320% at 89.8% 120%, rgba(242, 179, 114, 0.95) 0%, rgba(242, 179, 114, 0) 100%), linear-gradient(to right, rgb(81, 125, 183), rgb(81, 125, 183) 50%, rgb(137, 144, 159))",
@@ -204,12 +161,9 @@
     "weather bar 0 0 leaf": "rgb(217, 164, 65)",
     "weather bar 0 1 leaf": "rgb(181, 84, 46)",
     "weather bar 0 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 0 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 1 leaf": "rgb(181, 84, 46)",
-    "weather behind 1 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 3 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 4 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 5 leaf": "rgb(200, 116, 58)"
+    "weather bar 0 3 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 4 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 5 leaf": "rgb(200, 116, 58)"
   },
   "light autumn sunset": {
     "sky": "radial-gradient(34% 320% at 95.9% 120%, rgba(217, 115, 94, 0.89) 0%, rgba(217, 115, 94, 0) 100%), linear-gradient(to right, rgb(51, 74, 132), rgb(51, 74, 132) 50%, rgb(105, 88, 120))",
@@ -223,12 +177,9 @@
     "weather bar 0 0 leaf": "rgb(217, 164, 65)",
     "weather bar 0 1 leaf": "rgb(181, 84, 46)",
     "weather bar 0 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 0 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 1 leaf": "rgb(181, 84, 46)",
-    "weather behind 1 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 3 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 4 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 5 leaf": "rgb(200, 116, 58)"
+    "weather bar 0 3 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 4 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 5 leaf": "rgb(200, 116, 58)"
   },
   "light autumn dawn": {
     "sky": "radial-gradient(34% 320% at 6.5% 120%, rgba(235, 143, 91, 0.95) 0%, rgba(235, 143, 91, 0) 100%), linear-gradient(to right, rgb(124, 113, 133), rgb(64, 97, 155) 50%, rgb(64, 97, 155))",
@@ -242,12 +193,9 @@
     "weather bar 0 0 leaf": "rgb(217, 164, 65)",
     "weather bar 0 1 leaf": "rgb(181, 84, 46)",
     "weather bar 0 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 0 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 1 leaf": "rgb(181, 84, 46)",
-    "weather behind 1 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 3 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 4 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 5 leaf": "rgb(200, 116, 58)"
+    "weather bar 0 3 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 4 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 5 leaf": "rgb(200, 116, 58)"
   },
   "light autumn night": {
     "sky": "radial-gradient(34% 320% at 119% 120%, rgba(15, 20, 45, 0) 0%, rgba(15, 20, 45, 0) 100%), linear-gradient(to right, rgb(8, 12, 29), rgb(8, 12, 29) 50%, rgb(8, 12, 29))",
@@ -260,12 +208,9 @@
     "weather bar 0 0 leaf": "rgb(217, 164, 65)",
     "weather bar 0 1 leaf": "rgb(181, 84, 46)",
     "weather bar 0 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 0 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 1 leaf": "rgb(181, 84, 46)",
-    "weather behind 1 2 leaf": "rgb(156, 107, 46)",
-    "weather behind 1 3 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 4 leaf": "rgb(217, 164, 65)",
-    "weather behind 1 5 leaf": "rgb(200, 116, 58)"
+    "weather bar 0 3 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 4 leaf": "rgb(217, 164, 65)",
+    "weather bar 0 5 leaf": "rgb(200, 116, 58)"
   },
   "light winter night": {
     "sky": "radial-gradient(34% 320% at 119% 120%, rgba(14, 20, 45, 0) 0%, rgba(14, 20, 45, 0) 100%), linear-gradient(to right, rgb(8, 12, 29), rgb(8, 12, 29) 50%, rgb(8, 12, 29))",
@@ -281,13 +226,7 @@
     "weather bar 0 2 flake": "rgb(142, 163, 189)",
     "weather bar 0 3 flake": "rgb(142, 163, 189)",
     "weather bar 0 4 flake": "rgb(142, 163, 189)",
-    "weather bar 0 5 flake": "rgb(142, 163, 189)",
-    "weather behind 1 0 flake": "rgb(142, 163, 189)",
-    "weather behind 1 1 flake": "rgb(142, 163, 189)",
-    "weather behind 1 2 flake": "rgb(142, 163, 189)",
-    "weather behind 1 3 flake": "rgb(142, 163, 189)",
-    "weather behind 1 4 flake": "rgb(142, 163, 189)",
-    "weather behind 1 5 flake": "rgb(142, 163, 189)"
+    "weather bar 0 5 flake": "rgb(142, 163, 189)"
   },
   "light spring noon": {
     "sky": "radial-gradient(34% 320% at 44% 120%, rgba(183, 219, 241, 0.95) 0%, rgba(183, 219, 241, 0) 100%), linear-gradient(to right, rgb(129, 182, 228), rgb(99, 162, 222) 50%, rgb(99, 162, 222))",
@@ -301,13 +240,7 @@
     "weather bar 0 2 petal": "rgb(247, 210, 220)",
     "weather bar 0 3 petal": "rgb(242, 182, 198)",
     "weather bar 0 4 petal": "rgb(242, 182, 198)",
-    "weather bar 0 5 petal": "rgb(234, 163, 184)",
-    "weather behind 1 0 petal": "rgb(247, 210, 220)",
-    "weather behind 1 1 petal": "rgb(242, 182, 198)",
-    "weather behind 1 2 petal": "rgb(247, 210, 220)",
-    "weather behind 1 3 petal": "rgb(242, 182, 198)",
-    "weather behind 1 4 petal": "rgb(242, 182, 198)",
-    "weather behind 1 5 petal": "rgb(234, 163, 184)"
+    "weather bar 0 5 petal": "rgb(234, 163, 184)"
   },
   "light summer noon": {
     "sky": "radial-gradient(34% 320% at 44.3% 120%, rgba(178, 217, 240, 0.95) 0%, rgba(178, 217, 240, 0) 100%), linear-gradient(to right, rgb(125, 181, 229), rgb(97, 161, 223) 50%, rgb(97, 161, 223))",
@@ -319,13 +252,7 @@
     "weather bar 0 0 seed": "rgba(120, 110, 95, 0.7)",
     "weather bar 0 1 seed": "rgba(120, 110, 95, 0.7)",
     "weather bar 0 2 seed": "rgba(120, 110, 95, 0.7)",
-    "weather bar 0 3 seed": "rgba(120, 110, 95, 0.7)",
-    "weather behind 1 0 seed": "rgba(120, 110, 95, 0.7)",
-    "weather behind 1 1 seed": "rgba(120, 110, 95, 0.7)",
-    "weather behind 1 2 seed": "rgba(120, 110, 95, 0.7)",
-    "weather behind 1 3 seed": "rgba(120, 110, 95, 0.7)",
-    "weather behind 1 4 seed": "rgba(120, 110, 95, 0.7)",
-    "weather behind 1 5 seed": "rgba(120, 110, 95, 0.7)"
+    "weather bar 0 3 seed": "rgba(120, 110, 95, 0.7)"
   },
   "light summer night": {
     "sky": "radial-gradient(34% 320% at 111.7% 120%, rgba(21, 27, 61, 0) 0%, rgba(21, 27, 61, 0) 100%), linear-gradient(to right, rgb(10, 15, 37), rgb(10, 15, 37) 50%, rgb(10, 15, 37))",
@@ -341,13 +268,6 @@
     "weather bar 0 3 firefly": "rgb(251, 239, 154)",
     "weather bar 0 4 firefly": "rgb(251, 239, 154)",
     "weather bar 0 5 firefly": "rgb(251, 239, 154)",
-    "weather bar firefly glow": "rgba(246, 226, 122, 0.8) 0px 0px 6px 1px",
-    "weather behind 1 0 firefly": "rgb(251, 239, 154)",
-    "weather behind 1 1 firefly": "rgb(251, 239, 154)",
-    "weather behind 1 2 firefly": "rgb(251, 239, 154)",
-    "weather behind 1 3 firefly": "rgb(251, 239, 154)",
-    "weather behind 1 4 firefly": "rgb(251, 239, 154)",
-    "weather behind 1 5 firefly": "rgb(251, 239, 154)",
-    "weather behind firefly glow": "rgba(246, 226, 122, 0.8) 0px 0px 6px 1px"
+    "weather bar firefly glow": "rgba(246, 226, 122, 0.8) 0px 0px 6px 1px"
   }
 }

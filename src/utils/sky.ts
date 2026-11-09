@@ -90,8 +90,6 @@ const LIGHT: Readonly<Record<SkyStrength, number>> = { whisper: 0.6, subtle: 1, 
 const SOFT: Readonly<Record<SkyStrength, number>> = { whisper: 0.4, subtle: 0.68, vivid: 1 }
 /** The clouds, fainter still at Whisper. */
 const CLOUDS: Readonly<Record<SkyStrength, number>> = { whisper: 0.27, subtle: 0.68, vivid: 1 }
-/** The weather behind the cells. */
-const BEHIND: Readonly<Record<SkyStrength, number>> = { whisper: 0.54, subtle: 0.77, vivid: 0.9 }
 /** More clouds in the grey months. */
 const CLOUD_COVER: Readonly<Record<Season, number>> = { winter: 0.95, autumn: 0.85, spring: 0.65, summer: 0.45 }
 /** Mist is heaviest in spring and autumn. */
@@ -119,7 +117,7 @@ export interface SkyScene {
   night: number
   /** The angle the sunbeam falls at, degrees (leaning away from the sun). */
   beamAngle: number
-  /** What falls in the bar and behind the cells; `null` when Seasons is off. */
+  /** What falls in the top bar; `null` when Seasons is off. */
   weather: WeatherKind | null
   /** Each layer's opacity, Sky strength and Header motion applied (0 = not drawn). */
   opacity: {
@@ -135,8 +133,6 @@ export interface SkyScene {
     lamp: number
     /** The bar's weather particles. */
     weather: number
-    /** The weather behind the cells. */
-    behind: number
   }
   /** The bright point on the hairline: under the sun by day, the moon by night; `null` when neither shows. */
   hairline: { x: number; color: CssColor; alpha: number; glowAlpha: number } | null
@@ -236,7 +232,6 @@ export function skyScene(now: Date, place: AmbiencePlace, settings: AmbienceSett
       sunbeam: clamp01(beamK * SOFT[strength]),
       lamp: clamp01(lampK * LIGHT[strength]),
       weather: seasons ? clamp01(motion) : 0,
-      behind: seasons ? BEHIND[strength] : 0,
     },
     hairline,
   }

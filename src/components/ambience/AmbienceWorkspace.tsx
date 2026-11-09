@@ -1,18 +1,17 @@
 import type { CSSProperties } from 'react'
 import { useAmbience } from '../../hooks/use-ambience'
-import { Weather } from './Weather'
-import { BEHIND_COUNTS } from './weather-particles'
 import styles from './AmbienceWorkspace.module.css'
 
 /**
  * Ambience behind the cells (the workspace's first child, under the cells):
- * the sunbeam around golden hour and the season's weather — both only where
- * nothing is written, in the gutters and the empty space.
+ * the sunbeam around golden hour, only where nothing is written — in the
+ * gutters and the empty space. Nothing small moves here (no falling
+ * weather): it pulls the eye from the tasks; the weather stays in the top bar.
  */
 export function AmbienceBackdrop() {
   const ambience = useAmbience()
   if (!ambience) return null
-  const { scene, still } = ambience
+  const { scene } = ambience
   const o = scene.opacity
   return (
     <div className={styles.backdrop} aria-hidden="true" data-ambience="backdrop">
@@ -21,9 +20,6 @@ export function AmbienceBackdrop() {
           className={styles.sunbeam}
           style={{ opacity: o.sunbeam, '--beam-angle': `${scene.beamAngle.toFixed(0)}deg` } as CSSProperties}
         />
-      )}
-      {!still && scene.weather && o.behind > 0 && (
-        <Weather kind={scene.weather} count={BEHIND_COUNTS[scene.weather]} tall opacity={o.behind} />
       )}
     </div>
   )

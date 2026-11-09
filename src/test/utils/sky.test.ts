@@ -73,12 +73,11 @@ describe('skyScene', () => {
     expect(skyScene(at(2026, 6, 12, 23), CHICAGO, settings(), 'dark').weather).toBe('firefly')
   })
 
-  it('drops the weather, the aurora and the cells\' weather with Seasons off', () => {
+  it('drops the weather and the aurora with Seasons off', () => {
     const s = skyScene(at(2026, 0, 18, 23), CHICAGO, settings({ seasons: false }), 'dark')
     expect(s.weather).toBeNull()
     expect(s.opacity.aurora).toBe(0)
     expect(s.opacity.weather).toBe(0)
-    expect(s.opacity.behind).toBe(0)
   })
 
   it('lays mist on the hairline after sunrise only', () => {

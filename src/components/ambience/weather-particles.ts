@@ -32,38 +32,33 @@ function seeded(seed: number): () => number {
 const px = (v: number) => `${v.toFixed(1)}px`
 const sec = (v: number) => `${v.toFixed(2)}s`
 
-/** How many fall in the bar and behind the cells (a wide desktop window). */
-export const BAR_COUNTS: Readonly<Record<WeatherKind, number>> = { flake: 22, leaf: 3, petal: 6, firefly: 9, seed: 4 }
-export const BEHIND_COUNTS: Readonly<Record<WeatherKind, number>> = { flake: 70, leaf: 8, petal: 16, firefly: 18, seed: 10 }
+/** How many fall in the top bar (a wide desktop window). Nothing falls behind the cells: moving sprites there distract. */
+export const BAR_COUNTS: Readonly<Record<WeatherKind, number>> = { flake: 22, leaf: 6, petal: 6, firefly: 9, seed: 4 }
 
-/**
- * `count` particles of `kind`. `tall` fields (behind the cells) take longer to
- * cross than the 40px bar.
- */
-export function weatherParticles(kind: WeatherKind, count: number, tall: boolean, seed = 7): ParticleSpec[] {
+/** `count` particles of `kind`, crossing the 40px top bar. */
+export function weatherParticles(kind: WeatherKind, count: number, seed = 7): ParticleSpec[] {
   const rnd = seeded(seed + kind.length * 101)
-  const slow = tall ? 6 : 1
   return Array.from({ length: count }, (): ParticleSpec => {
     const left = `${(rnd() * 100).toFixed(2)}%`
     const top = `${(rnd() * 100).toFixed(2)}%`
     switch (kind) {
       case 'flake': {
         const size = 1.2 + rnd() * 2.2
-        const dur = (4.5 + rnd() * 4) * slow
+        const dur = 4.5 + rnd() * 4
         return { kind, style: { left, '--size': px(size), '--sway': px((rnd() - 0.5) * 16), '--dur': sec(dur), '--delay': sec(-rnd() * dur) } as CSSProperties }
       }
       case 'leaf': {
-        // Falls through the field: the 40px bar in 7 – 11s, the tall field behind the cells in 22 – 34s.
-        const dur = tall ? 22 + rnd() * 12 : 7 + rnd() * 4
+        // Falls through the 40px bar in 7 – 11s.
+        const dur = 7 + rnd() * 4
         // A turn every 3.5 – 7s, either way; a tumble (its width folding over) every 0.9 – 1.7s.
         const spinDur = 3.5 + rnd() * 3.5
         return {
           kind,
           style: {
             left,
-            '--size': px(tall ? 9 + rnd() * 3 : 7 + rnd() * 2),
-            '--sway': px((tall ? 22 : 7) * (0.6 + rnd() * 0.8)),
-            '--drift': px((rnd() - 0.35) * (tall ? 220 : 50)),
+            '--size': px(7 + rnd() * 2),
+            '--sway': px(7 * (0.6 + rnd() * 0.8)),
+            '--drift': px((rnd() - 0.35) * 50),
             '--spin': `${rnd() < 0.5 ? -360 : 360}deg`,
             '--spin-dur': sec(spinDur),
             '--tumble': sec(0.9 + rnd() * 0.8),
@@ -74,11 +69,11 @@ export function weatherParticles(kind: WeatherKind, count: number, tall: boolean
         }
       }
       case 'petal': {
-        const dur = (20 + rnd() * 18) * (tall ? 1.4 : 1)
-        return { kind, style: { top, '--size': px(4 + rnd() * 1.5), '--drop': px((tall ? 160 : 14) * (0.4 + rnd())), '--spin': `${Math.round((rnd() - 0.5) * 900)}deg`, '--dur': sec(dur), '--delay': sec(-rnd() * dur), '--color': PETALS[Math.floor(rnd() * PETALS.length)] ?? 'var(--ambience-petal-1)' } as CSSProperties }
+        const dur = 20 + rnd() * 18
+        return { kind, style: { top, '--size': px(4 + rnd() * 1.5), '--drop': px(14 * (0.4 + rnd())), '--spin': `${Math.round((rnd() - 0.5) * 900)}deg`, '--dur': sec(dur), '--delay': sec(-rnd() * dur), '--color': PETALS[Math.floor(rnd() * PETALS.length)] ?? 'var(--ambience-petal-1)' } as CSSProperties }
       }
       case 'seed': {
-        const dur = (10 + rnd() * 8) * slow
+        const dur = 10 + rnd() * 8
         return { kind, style: { left, '--size': px(1.6 + rnd()), '--sway': px(10 + rnd() * 30), '--dur': sec(dur), '--delay': sec(-rnd() * dur) } as CSSProperties }
       }
       case 'firefly': {
@@ -87,8 +82,8 @@ export function weatherParticles(kind: WeatherKind, count: number, tall: boolean
           kind,
           style: {
             left, top, '--size': px(2 + rnd()),
-            '--dx1': px((rnd() - 0.5) * 40), '--dy1': px((rnd() - 0.5) * (tall ? 60 : 14)),
-            '--dx2': px((rnd() - 0.5) * 40), '--dy2': px((rnd() - 0.5) * (tall ? 60 : 14)),
+            '--dx1': px((rnd() - 0.5) * 40), '--dy1': px((rnd() - 0.5) * 14),
+            '--dx2': px((rnd() - 0.5) * 40), '--dy2': px((rnd() - 0.5) * 14),
             '--dur': sec(dur), '--delay': sec(-rnd() * dur), '--blink': sec(1.8 + rnd() * 2.4),
           } as CSSProperties,
         }

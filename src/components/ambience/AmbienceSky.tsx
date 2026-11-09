@@ -179,7 +179,7 @@ export function AmbienceSky() {
           <div className={styles.mist} style={{ opacity: o.mist }} />
         )}
         {!still && scene.weather && o.weather > 0 && (
-          <Weather kind={scene.weather} count={BAR_COUNTS[scene.weather]} tall={false} opacity={o.weather} />
+          <Weather kind={scene.weather} count={BAR_COUNTS[scene.weather]} opacity={o.weather} />
         )}
       </div>
       <div ref={hairlineRef} className={styles.hairline} aria-hidden="true" data-ambience="hairline">
