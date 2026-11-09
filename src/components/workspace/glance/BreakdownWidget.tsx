@@ -4,7 +4,8 @@ import { DEFAULT_STATUS_ICON } from '../../../models'
 import { columnIsLit, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey, type BreakdownSplit } from '../../../models/chart-widgets'
 import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
-import { useStatsBase } from '../../../hooks/use-glance-data'
+import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
+import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { openReview } from '../../../services/review'
 import { columnCount, isLiveSort, nextBreakdownSort, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
@@ -557,6 +558,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
     void useWorkspaceStore.getState().patchTabViewState(tab.id, 'breakdown', { sorts })
   }
   const glyph = SPLIT_GLYPHS[config.splitBy]
+  const lensHides = lensHidesFor(useLensHidden(), config.filter)
 
   let body: ReactNode
   if (face === 'small') {
@@ -596,6 +598,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
         glyph={glyph}
         count={`${total} ${word}`}
         onCount={allDrill}
+        lens={<TabLensSwitch tab={tab} hides={lensHides} />}
       >
         {all.length === 0 ? (
           <Empty title="No tasks" hint="The tasks this breakdown's filter keeps show here." />

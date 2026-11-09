@@ -21,6 +21,12 @@ import {
   isNeglectUntouchedDays,
   type NeglectColourBy,
   type NeglectTabConfig,
+  // G3: the widgets' lens switch.
+  LENS_SWITCH_KINDS,
+  type CalendarTab,
+  type EisenhowerTab,
+  type LensSwitchTab,
+  type LensViewState,
 } from '../models/workspace-layout'
 import {
   GLANCE_CONFIG_FIELDS,
@@ -145,6 +151,10 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
   if (!isRecord(config)) return `${path}.config`
   const view = tab.viewState
   if (view !== undefined && !isRecord(view)) return `${path}.viewState`
+  // A widget's lens switch (G3): a boolean.
+  if ((LENS_SWITCH_KINDS as readonly string[]).includes(kind) && view?.ignoreLens !== undefined && typeof view.ignoreLens !== 'boolean') {
+    return `${path}.viewState.ignoreLens`
+  }
   // Tabs showing task rows: the details width, a number in range.
   if (ROWS_KINDS.has(kind)
     && view?.detailsWidth !== undefined && pickDetailsWidth(view.detailsWidth) === undefined) {
@@ -458,6 +468,18 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       if (width === undefined && view?.detailsWidth !== undefined) fix('settings')
       return width === undefined ? undefined : { detailsWidth: width }
     }
+    /** A widget's lens switch (G3, view state): a boolean, else dropped (a fix). */
+    const lensView = (): LensViewState => {
+      const v = view?.ignoreLens
+      if (typeof v === 'boolean') return { ignoreLens: v }
+      if (v !== undefined) fix('settings')
+      return {}
+    }
+    /** `tab` with the lens switch as its view state, when it has one (no view state otherwise). */
+    const withLensView = <T extends LensSwitchTab>(tab: T): T => {
+      const lens = lensView()
+      return lens.ignoreLens === undefined ? tab : { ...tab, viewState: { ...tab.viewState, ...lens } }
+    }
     /** A glance config as picked, a reset reported. */
     const glance = <C,>(picked: PickedConfig<C>): C => {
       if (picked.fixed) fix('settings')
@@ -485,7 +507,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         const dateTypes = typesOk
           ? { due: types.due === true, followup: types.followup === true }
           : { ...DEFAULT_CALENDAR_DATE_TYPES }
-        const calendar: LayoutTab = { id, kind: 'calendar', config: { dateTypes } }
+        const calendar: CalendarTab = { id, kind: 'calendar', config: { dateTypes } }
         if (view) {
           const viewState: CalendarTabViewState = {}
           if (view.view === 'week' || view.view === 'month') viewState.view = view.view
@@ -496,7 +518,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
           else if (view.titles !== undefined) fix('settings')
           if (Object.keys(viewState).length > 0) calendar.viewState = viewState
         }
-        return calendar
+        return withLensView(calendar)
       }
       case 'eisenhower': {
         const raw = view?.collapsed
@@ -505,29 +527,29 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         // Its panes and source are app-wide settings: a key here (none in v66
         // data) is dropped.
         for (let i = 0; i < Object.keys(config).length; i++) fix('eisenhower')
-        const eisenhower: LayoutTab = { id, kind: 'eisenhower', config: {} }
+        const eisenhower: EisenhowerTab = { id, kind: 'eisenhower', config: {} }
         // Known quadrants, once each, in display order.
         const quadrants = collapsed ? EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) : []
         const eisenhowerView = { ...rowsView(), ...(quadrants.length > 0 ? { collapsed: quadrants } : {}) }
         if (Object.keys(eisenhowerView).length > 0) eisenhower.viewState = eisenhowerView
-        return eisenhower
+        return withLensView(eisenhower)
       }
       case 'neglect': {
-        // No view state of its own: any is dropped.
+        // No view state of its own but the lens switch: any other is dropped.
         const neglect = pickNeglectConfig(config)
         if (neglect.fixed) fix('settings')
-        return { id, kind: 'neglect', config: neglect.config }
+        return withLensView<LensSwitchTab>({ id, kind: 'neglect', config: neglect.config })
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
       // The glance kinds: a bad or missing setting is reset to its default;
-      // no view state.
+      // no view state but the lens switch (Created vs completed has none).
       case 'number':
-        return { id, kind: 'number', config: glance(numberConfigOf(config)) }
+        return withLensView<LensSwitchTab>({ id, kind: 'number', config: glance(numberConfigOf(config)) })
       case 'trend':
         return { id, kind: 'trend', config: glance(pickTrendConfig(config)) }
       case 'pulse':
-        return { id, kind: 'pulse', config: glance(pickTagPicksConfig(config)) }
+        return withLensView<LensSwitchTab>({ id, kind: 'pulse', config: glance(pickTagPicksConfig(config)) })
       // D26 P8: the chart widgets.
       case 'breakdown': {
         const viewState = glance(pickBreakdownView(view))
@@ -536,9 +558,9 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         return breakdown
       }
       case 'pivot':
-        return { id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) }
+        return withLensView<LensSwitchTab>({ id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) })
       case 'tagMap':
-        return { id, kind: 'tagMap', config: glance(pickTagMapConfig(config, chartFilterOf(config))) }
+        return withLensView<LensSwitchTab>({ id, kind: 'tagMap', config: glance(pickTagMapConfig(config, chartFilterOf(config))) })
     }
   }
 

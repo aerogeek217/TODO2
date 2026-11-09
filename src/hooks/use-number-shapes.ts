@@ -53,9 +53,9 @@ const shareMemo = sharedMemoByKey(function share(count: NumberCount, wholeIds: n
 })
 
 /** A share Number's parts: its count, the whole's (its `of`, every open task by default) and the share, under the same screen filter. */
-export function useNumberShare(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'of' | 'ignoreLens'>): NumberShareData {
+export function useNumberShare(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'of'>): NumberShareData {
   const count = numberCountOf(base, config)
-  const whole = numberCountOf(base, { filter: config.of ?? EVERY_OPEN, ignoreLens: config.ignoreLens })
+  const whole = numberCountOf(base, { filter: config.of ?? EVERY_OPEN })
   const share = shareMemo(count, whole.ids.shown)
   return useMemo(() => ({ count, whole, share }), [count, whole, share])
 }
@@ -104,7 +104,7 @@ const oldestMemo = sharedMemoByKey(function oldest(count: NumberCount, todoById:
 })
 
 /** An Oldest Number's parts: its count and the ages of its tasks by its date. */
-export function useNumberOldest(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'ignoreLens' | 'oldestBy'>): { count: NumberCount; oldest: NumberOldest } {
+export function useNumberOldest(base: StatsBase, config: Pick<NumberConfig, 'filter' | 'oldestBy'>): { count: NumberCount; oldest: NumberOldest } {
   const count = numberCountOf(base, config)
   const oldest = oldestMemo(count, base.todoById, config.oldestBy ?? DEFAULT_NUMBER_OLDEST_BY, base.ctx.today)
   return useMemo(() => ({ count, oldest }), [count, oldest])
@@ -118,10 +118,10 @@ const groupMemo = sharedMemoByKey(function group(_items: readonly NumberGroupIte
   return counts
 })
 
-/** A group Number's counts: each item's filter under the screen filter (the group's lens choice for every one), in item order. */
-export function useNumberGroup(base: StatsBase, config: Pick<NumberConfig, 'items' | 'ignoreLens'>): NumberCount[] {
+/** A group Number's counts: each item's filter under the screen filter (the group's lens switch for every one), in item order. */
+export function useNumberGroup(base: StatsBase, config: Pick<NumberConfig, 'items'>): NumberCount[] {
   const items = config.items ?? NO_ITEMS
-  const counts = items.map((item) => numberCountOf(base, { filter: item.filter, ignoreLens: config.ignoreLens }))
+  const counts = items.map((item) => numberCountOf(base, { filter: item.filter }))
   return groupMemo(items, ...counts)
 }
 

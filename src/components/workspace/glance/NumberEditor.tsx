@@ -5,7 +5,11 @@ import {
   type NumberCompare,
   type NumberConfig,
 } from '../../../models/glance-widgets'
-import type { NumberTab } from '../../../models/workspace-layout'
+import { tabIgnoresLens, type NumberTab } from '../../../models/workspace-layout'
+import { lensHidesFor, useLensHidden } from '../../../hooks/use-glance-data'
+import { setTabIgnoresLens } from '../../../hooks/use-widget-lens'
+import { useAppliedLens } from '../../../stores/screen-filter'
+import { LensSwitch } from '../LensSwitch'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useUIStore } from '../../../stores/ui-store'
@@ -73,6 +77,29 @@ function useEscapeCloses(panel: RefObject<HTMLElement | null>, onClose: () => vo
 }
 
 /** The threshold field: a whole number, written once it reads as one (blank or bad text isn't written). */
+/**
+ * Top-bar lens (G3): the Number's lens switch — the one on its corner —
+ * while a lens applies at the top bar: on with `−N` (what it hides among
+ * this Number's tasks), slashed while the Number ignores it. View state,
+ * saved at once (never an unsaved layout edit).
+ */
+function NumberLensField({ tab }: { tab: NumberTab }) {
+  const lens = useAppliedLens()
+  const config = tab.config
+  const filters = config.show === 'group' ? (config.items ?? []).map((i) => i.filter) : [config.filter]
+  const hides = lensHidesFor(useLensHidden(), ...filters)
+  if (!lens) return null
+  const ignored = tabIgnoresLens(tab)
+  return (
+    <div className={styles.field} data-testid="number-editor-lens">
+      <span className={styles.label}>Top-bar lens</span>
+      <span className={styles.litRow}>
+        <LensSwitch lens={{ name: lens.name, ignored, hides }} onToggle={() => setTabIgnoresLens(tab, !ignored)} />
+      </span>
+    </div>
+  )
+}
+
 /** The Number tab `tabId` names in the open layout, if it is one. */
 function useNumberTab(tabId: string | null): NumberTab | undefined {
   return useWorkspaceStore((s) => {
@@ -253,17 +280,7 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
               {COMPARES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </label>}
-          {show !== 'list' && <label className={styles.field}>
-            <span className={styles.label}>Top-bar lens</span>
-            <select
-              className={styles.select}
-              value={config.ignoreLens ? 'ignore' : 'follow'}
-              onChange={(e) => patch({ ignoreLens: e.target.value === 'ignore' ? true : undefined })}
-            >
-              <option value="follow">Follow</option>
-              <option value="ignore">Ignore</option>
-            </select>
-          </label>}
+          {show !== 'list' && <NumberLensField tab={tab} />}
         </div>
       </div>
     </PopoverRoot>,

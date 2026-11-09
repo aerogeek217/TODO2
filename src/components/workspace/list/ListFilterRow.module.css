@@ -159,44 +159,6 @@
 
 /* On: the lens's accent with what it hides here (`−8`); off: slashed glasses
  * in a muted ring, kept so the lens can be turned back on. */
-.lensSwitch {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-  height: 22px;
-  padding: 0 7px 0 6px;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-accent-bg);
-  color: var(--color-accent-text);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  font-variant-numeric: tabular-nums;
-  cursor: pointer;
-}
-
-.lensSwitch:hover {
-  background: var(--color-accent-focus);
-}
-
-.lensSwitchOff {
-  padding: 0 6px;
-  background: transparent;
-  color: var(--color-text-muted);
-  box-shadow: inset 0 0 0 1px var(--color-border);
-}
-
-.lensSwitchOff:hover {
-  background: var(--color-tint-8);
-  color: var(--color-text-primary);
-}
-
-.lensSwitchOff:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--color-border), var(--focus-ring);
-}
-
 .count {
   flex-shrink: 0;
   padding: 0 4px;
@@ -212,10 +174,6 @@
 }
 
 /* Touch: a finger-sized switch. */
-[data-touch-chips] .lensSwitch {
-  height: 32px;
-  border-radius: 8px;
-}
 
 /* ── Alone in its cell (D26 AA1): the list's name, unsaved dot and badge at the line's start ── */
 
@@ -241,12 +199,3 @@
 }
 
 /* The top bar's lens on the list: accent while it hides rows here, muted and slashed while the list ignores it. */
-.lensMark {
-  display: inline-flex;
-  flex-shrink: 0;
-  color: var(--color-accent-text);
-}
-
-.lensMarkOff {
-  color: var(--color-text-muted);
-}

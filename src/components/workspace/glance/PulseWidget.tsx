@@ -1,6 +1,7 @@
 import { useMemo, type CSSProperties } from 'react'
 import type { PulseTab } from '../../../models/workspace-layout'
-import { usePulse, useStatsBase } from '../../../hooks/use-glance-data'
+import { lensHidesWhere, useLensHidden, usePulse, useStatsBase } from '../../../hooks/use-glance-data'
+import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { cumulative, lateShareText, momentumText, worstPulseCard, type PulseCard } from '../../../services/stats/pulse'
 import { tagRowDrill } from './glance-drills'
@@ -94,6 +95,9 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
   const openTag = (card: PulseCard) => drill?.(tagRowDrill(card.tag, card.openIds))
   // Picks that make no card: the picked tags were deleted since.
   const picked = tab.config.tagIds.length > 0
+  // What the lens hides here: open tasks with a picked tag.
+  const tagIds = tab.config.tagIds
+  const lensHides = lensHidesWhere(useLensHidden(), (t, b) => !t.isCompleted && (b.ctx.assignedTagsMap.get(t.id) ?? []).some((tag) => tag.id != null && tagIds.includes(tag.id)))
 
   if (face === 'small') {
     const worst = worstPulseCard(cards)
@@ -124,7 +128,7 @@ export function PulseWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PulseT
   return (
     <GlanceFrame tab={tab}>
       <div ref={faceRef} className={styles.face} data-face={face}>
-        <Panel def={PULSE_DEF} className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks">
+        <Panel def={PULSE_DEF} className={`${GLANCE_PANEL_CLASS} ${styles.facePanel}`} count={String(cards.length)} sub="Last 4 weeks" lens={<TabLensSwitch tab={tab} hides={lensHides} />}>
           {cards.length === 0 ? (
             picked
               ? <Empty title="The picked tags were deleted" hint="Pick the tags to follow in the tab menu’s Tags." />

@@ -5,9 +5,9 @@ import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { chipKey, predicateLineItems, type FilterChip } from '../../../utils/filter-chips'
 import { groupSortSummary } from '../../../utils/list-options'
-import { ChevronDownIcon, FunnelIcon, GlassesIcon } from '../../shared/icons'
-import { useTooltip } from '../../shared/use-tooltip'
+import { ChevronDownIcon, FunnelIcon } from '../../shared/icons'
 import type { ListLensMark } from './ListWidget'
+import { LensSwitch } from '../LensSwitch'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { ListDraftButtons } from './ListDraftButtons'
@@ -41,7 +41,7 @@ interface ListFilterRowProps {
   inDialog?: boolean
   /** A list widget's count (`N`, `shown of total`, `—`), at the line's end before group · sort. */
   count?: string
-  /** The top bar's lens on this list (while it hides something here, or the list ignores it): its switch, before the count. */
+  /** The top bar's lens on this list (while it hides something here, or the list ignores it): its switch, at the line's end (G3). */
   lens?: ListLensMark
   /** Turns the lens off / on for this list (saved at once). */
   onToggleLens?: () => void
@@ -51,6 +51,8 @@ interface ListFilterRowProps {
    * cell's controls (`WidgetTopLine`).
    */
   topLine?: { lead: ReactNode }
+  /** At the line's end, before the cell's ⋯: the Eisenhower's lens switch in a cell of several widgets (G3). */
+  trailing?: ReactNode
 }
 
 /**
@@ -59,8 +61,9 @@ interface ListFilterRowProps {
  * (editing them makes the list unsaved; `No filters` when there are none),
  * + Filter, the group · sort summary that opens Edit list,
  * and — while the list is unsaved — Revert · Save. A list widget's line
- * also ends with the top bar's lens switch (while it hides something here,
- * or the list ignores it) and the list's count, before group · sort. Used by list widgets, by
+ * also has the list's count before group · sort, and ends with the top
+ * bar's lens switch (while it hides something here, or the list ignores
+ * it; the standard switch, G3), before the cell's ⋯. Used by list widgets, by
  * the Eisenhower widget (its own list, without the summary) and by Settings
  * › Tasks › Eisenhower (the same list and draft). Phones (a
  * `data-touch-chips` ancestor) get touch sizes.
@@ -75,7 +78,7 @@ export function ListFilterRow(props: ListFilterRowProps) {
   return <FilterRowBody {...props} unsaved={unsaved} />
 }
 
-function FilterRowBody({ tabId, definition, summary = true, inDialog = false, count, lens, onToggleLens, topLine, unsaved }: ListFilterRowProps & { unsaved: boolean }) {
+function FilterRowBody({ tabId, definition, summary = true, inDialog = false, count, lens, onToggleLens, topLine, trailing, unsaved }: ListFilterRowProps & { unsaved: boolean }) {
   const editorOpen = useUIStore((s) => tabId != null && s.listEditor?.tabId === tabId)
   const names = useChipNames()
   const screenChips = useScreenChips()
@@ -107,7 +110,6 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, co
           )}
         />
       </div>
-      {lens && onToggleLens && <LensSwitch lens={lens} onToggle={onToggleLens} />}
       {count != null && <ListCount label={count} />}
       {summary && tabId != null && (
         <button
@@ -128,41 +130,13 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, co
         </button>
       )}
       {unsaved && <ListDraftButtons listDefinitionId={id} />}
+      {lens && onToggleLens && <LensSwitch lens={lens} onToggle={onToggleLens} noun="list" />}
+      {trailing}
     </>
   )
   return topLine
     ? <WidgetTopLine className={styles.filterRow} lead={topLine.lead} data-testid="list-filter-row">{content}</WidgetTopLine>
     : <div className={styles.filterRow} data-testid="list-filter-row">{content}</div>
-}
-
-/**
- * The top bar's lens on this list: on — glasses and `−N`, what it hides
- * here; off — slashed glasses. A click turns it off / on for this list
- * (saved at once). A toggle button: its name is fixed, `aria-pressed` its state.
- */
-function LensSwitch({ lens, onToggle }: { lens: ListLensMark; onToggle: () => void }) {
-  const tip = lens.ignored
-    ? `This list ignores the lens “${lens.name}”\nClick to apply it${lens.hides > 0 ? ` (it hides ${lens.hides})` : ''}`
-    : `“${lens.name}” hides ${lens.hides} here\nClick to ignore the lens in this list`
-  const { triggerProps, tooltip } = useTooltip(tip, { labelLines: 1 })
-  return (
-    <>
-      <button
-        type="button"
-        className={`${styles.lensSwitch} ${lens.ignored ? styles.lensSwitchOff : ''}`}
-        // A toggle's name stays put; `aria-pressed` says whether it applies, the tooltip what it hides.
-        aria-pressed={!lens.ignored}
-        aria-label={`Apply the lens “${lens.name}” here`}
-        data-testid="list-lens-switch"
-        onClick={onToggle}
-        {...triggerProps}
-      >
-        <GlassesIcon size={14} slashed={lens.ignored} />
-        {!lens.ignored && <span>−{lens.hides}</span>}
-      </button>
-      {tooltip}
-    </>
-  )
 }
 
 /** The list's count on its line: `32 of 40` (the shown number stronger), `40`, or `—`. */

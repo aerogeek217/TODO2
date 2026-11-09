@@ -11,7 +11,7 @@ import sections from './GlanceSections.module.css'
  * title (where its editor opens, `data-chart-head`), its count (a click
  * opens every task it counts) and a subtitle — over its chart.
  */
-export function ChartPanel({ tabId, kind, title, glyph, count, onCount, sub, extras, children }: {
+export function ChartPanel({ tabId, kind, title, glyph, count, onCount, sub, extras, lens, children }: {
   tabId: string
   kind: ChartWidgetKind
   title: string
@@ -20,6 +20,8 @@ export function ChartPanel({ tabId, kind, title, glyph, count, onCount, sub, ext
   onCount?: () => void
   sub?: string
   extras?: ReactNode
+  /** The widget's lens switch (G3): at the line's end, before the cell's ⋯. */
+  lens?: ReactNode
   children: ReactNode
 }) {
   return (
@@ -42,6 +44,7 @@ export function ChartPanel({ tabId, kind, title, glyph, count, onCount, sub, ext
           : <span className={sections.panelCount} data-testid="glance-section-count">{count}</span>)}
         {sub && <span className={sections.panelSub} data-testid="chart-sub">{sub}</span>}
         {extras && <span className={sections.panelExtras}>{extras}</span>}
+        {lens && <span className={sections.panelLens}>{lens}</span>}
       </WidgetTopLine>
       {children}
     </section>

@@ -86,3 +86,20 @@
   color: var(--color-text-muted);
   white-space: nowrap;
 }
+
+/* A Number's lens switch (G3): over its top-right corner — left of the cell's ⋯ while it floats there (alone in its cell). */
+.lensCorner {
+  position: absolute;
+  top: 5px;
+  right: 6px;
+  z-index: var(--z-above-2);
+  display: inline-flex;
+}
+
+.lensCorner:empty {
+  display: none;
+}
+
+.lensCornerAlone {
+  right: 58px;
+}

@@ -87,11 +87,26 @@
   margin-left: auto;
 }
 
+/* The lens switch (G3): at the line's end, after the extras when there are any. */
+.panelLens {
+  display: inline-flex;
+  flex: none;
+  margin-left: auto;
+}
+
+.panelExtras + .panelLens {
+  margin-left: 0;
+}
+
 /* A widget cell may be as narrow as 120px: the key goes first (Created vs
    completed's stats name the series). */
 @container (max-width: 380px) {
   .panelExtras {
     display: none;
+  }
+
+  .panelExtras + .panelLens {
+    margin-left: auto;
   }
 }
 
