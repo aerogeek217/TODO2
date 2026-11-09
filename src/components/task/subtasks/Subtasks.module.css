@@ -21,9 +21,19 @@
   margin-bottom: 0;
 }
 
-/* The right end of the heading row, as + Add update's. */
-.addSubtask {
-  margin-left: auto;
+/* The section's checklist and its + Add subtask line: they scroll inside past the layout's row height. */
+.sectionScroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+/* The layout's + Add subtask line reads as an action until typed into. */
+.sectionScroll .addInput::placeholder {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
 }
 
 .countText {

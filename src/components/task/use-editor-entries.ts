@@ -114,6 +114,10 @@ export interface EditorSubtasks {
   move: (id: number, toIndex: number) => void
   /** Notes → this task's subtasks: stored at once, or pending with the rest. Stable for the notes editor's keymap (cr31 N6). */
   noteTarget: NoteSubtaskTarget
+  /** The checklist's commit of a line still being typed (create mode; edit mode: none). */
+  commitRef: RefObject<(() => void) | null> | undefined
+  /** The pending rows with a line still being typed added first (for Create and the close check). */
+  committed: () => readonly ChecklistItem[]
 }
 
 /** The editor's Subtasks section over the store or its pending checklist. */
@@ -125,6 +129,14 @@ export function useEditorSubtasks(
   const [pending, setPending] = useState<ChecklistItem[]>(
     () => (seed ?? []).map((s, i) => ({ id: i + 1, title: s.title, isCompleted: s.isCompleted })),
   )
+  // The pending rows as written so far, for Create and the close check — which
+  // first add a line still being typed (`commitRef`), in the same handler.
+  const pendingRef = useRef(pending)
+  const update = useCallback((next: (prev: ChecklistItem[]) => ChecklistItem[]) => {
+    pendingRef.current = next(pendingRef.current)
+    setPending(pendingRef.current)
+  }, [])
+  const commitRef = useRef<(() => void) | null>(null)
   /** An edit-mode write: after the notes typed so far. */
   const write = (run: () => void) => {
     void flushNotes()
@@ -132,35 +144,35 @@ export function useEditorSubtasks(
   }
   const noteTarget = useCallback<NoteSubtaskTarget>(async (drafts, writeNote) => {
     if (isEdit && todoId !== undefined) return addSubtasksFromNote(todoId, drafts, writeNote)
-    setPending((prev) => {
+    update((prev) => {
       const first = Math.max(0, ...prev.map((s) => s.id)) + 1
       return [...prev, ...drafts.map((d, i) => ({ id: first + i, title: subtaskTitle(d.title), isCompleted: d.done }))]
     })
     await writeNote()
     return true
-  }, [isEdit, todoId])
+  }, [isEdit, todoId, update])
   return {
     items: isEdit ? stored : pending,
     pending,
     add(title) {
       if (isEdit && todoId !== undefined) return write(() => { void useSubtaskStore.getState().add(todoId, title) })
-      setPending((prev) => [...prev, { id: Math.max(0, ...prev.map((s) => s.id)) + 1, title, isCompleted: false }])
+      update((prev) => [...prev, { id: Math.max(0, ...prev.map((s) => s.id)) + 1, title, isCompleted: false }])
     },
     rename(id, title) {
       if (isEdit) return write(() => { void useSubtaskStore.getState().rename(id, title) })
-      setPending((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)))
+      update((prev) => prev.map((s) => (s.id === id ? { ...s, title } : s)))
     },
     setDone(id, done) {
       if (isEdit) return write(() => { void useSubtaskStore.getState().setDone(id, done) })
-      setPending((prev) => prev.map((s) => (s.id === id ? { ...s, isCompleted: done } : s)))
+      update((prev) => prev.map((s) => (s.id === id ? { ...s, isCompleted: done } : s)))
     },
     remove(id) {
       if (isEdit) return write(() => { void useSubtaskStore.getState().remove(id) })
-      setPending((prev) => prev.filter((s) => s.id !== id))
+      update((prev) => prev.filter((s) => s.id !== id))
     },
     move(id, toIndex) {
       if (isEdit) return write(() => { void useSubtaskStore.getState().move(id, toIndex) })
-      setPending((prev) => {
+      update((prev) => {
         const from = prev.findIndex((s) => s.id === id)
         if (from === -1) return prev
         const next = [...prev]
@@ -170,5 +182,10 @@ export function useEditorSubtasks(
       })
     },
     noteTarget,
+    commitRef: isEdit ? undefined : commitRef,
+    committed() {
+      commitRef.current?.()
+      return pendingRef.current
+    },
   }
 }

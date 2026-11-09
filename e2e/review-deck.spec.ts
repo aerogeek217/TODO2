@@ -6,10 +6,9 @@ import { seedWorkspace, wsListWidget, wsRow, wsTab, type WorkspaceSeed } from '.
  * D26 · the review deck in the real browser: opened from a list tab's menu
  * on the tab's tasks; ⏎ in the Status update line marks the task followed
  * up with that update and opens the next card with its line focused; Skip
- * and a jump through the queue rail; the editor opened over the deck, Esc
- * closing it and then the deck. The person menu's Review with X… (a row's
- * avatar, the person task dialog's envelope — the deck over the dialog)
- * opens it on the person's open tasks.
+ * and a jump through the queue rail. The person menu's Review with X… (a
+ * row's avatar) and the person task dialog's Review button (the dialog
+ * closed first) open it on the person's open tasks.
  */
 
 const TAB = 'r1'
@@ -98,22 +97,6 @@ test('Skip marks the task skipped and writes nothing; a rail row jumps to its ca
   await expect(cardTitle(page)).toHaveText('Retention addendum')
 })
 
-test('the editor opens over the deck; Esc closes it, then the deck', async ({ page }) => {
-  await openDeck(page)
-  await deck(page).getByRole('button', { name: 'Open in editor' }).click()
-  const editor = page.getByRole('dialog', { name: 'Edit task' })
-  await expect(editor).toBeVisible()
-  await expect(deck(page)).toBeVisible()
-
-  await page.keyboard.press('Escape')
-  await expect(editor).toHaveCount(0)
-  await expect(deck(page)).toBeVisible()
-  await expect(updateLine(page)).toBeFocused()
-
-  await page.keyboard.press('Escape')
-  await expect(deck(page)).toHaveCount(0)
-})
-
 const PEOPLE_SEED: WorkspaceSeed = {
   people: ['Aisha Rahman', 'Ben Ortiz'],
   tasks: [
@@ -147,7 +130,7 @@ test('a row’s avatar › Review with X…: the deck on the person’s open tas
   await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
 })
 
-test('the person task dialog’s envelope › Review: the deck opens over the dialog; Esc goes back to it', async ({ page }) => {
+test('the person task dialog’s Review button: the dialog closes, then the deck opens on her open tasks; Esc closes it', async ({ page }) => {
   await seedWorkspace(page, PEOPLE_SEED)
   await wsListWidget(page, TAB).waitFor({ state: 'visible' })
   const row = wsListWidget(page, TAB).locator('[data-todo-id]').filter({ hasText: 'Answer Northwind' })
@@ -155,27 +138,14 @@ test('the person task dialog’s envelope › Review: the deck opens over the di
   await page.getByRole('menu', { name: '@Aisha Rahman' }).getByRole('menuitem', { name: 'Show tasks' }).click()
   const taskDialog = page.locator('[data-task-dialog]')
   await expect(taskDialog.getByRole('heading')).toHaveText('Aisha Rahman')
-  const envelope = taskDialog.getByRole('button', { name: 'Email check-in options for Aisha Rahman' })
-  await envelope.click()
-  await page.getByRole('menu', { name: 'Check-in for Aisha Rahman' }).getByRole('menuitem', { name: 'Review with Aisha Rahman…' }).click()
+  await taskDialog.getByRole('button', { name: 'Review with Aisha Rahman…' }).click()
 
+  await expect(taskDialog).toHaveCount(0)
   await expect(personDeck(page).getByTestId('review-position')).toHaveText('1 of 2')
   await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
-  // On top of the task dialog, which waits underneath.
-  await expect(taskDialog).toBeVisible()
-  const onTop = await personDeck(page).evaluate((el) => {
-    const r = el.getBoundingClientRect()
-    const top = document.elementFromPoint(r.left + r.width / 2, r.top + 20)
-    return !!top && el.contains(top)
-  })
-  expect(onTop).toBe(true)
 
   await page.keyboard.press('Escape')
   await expect(personDeck(page)).toHaveCount(0)
-  await expect(taskDialog).toBeVisible()
-  await expect(envelope).toBeFocused()
-  await page.keyboard.press('Escape')
-  await expect(taskDialog).toHaveCount(0)
 })
 
 test('closing with an update typed asks first: Keep reviewing keeps the text, Discard closes', async ({ page }) => {
@@ -201,27 +171,4 @@ test('closing with an update typed asks first: Keep reviewing keeps the text, Di
   expect(task?.lastFollowupAt).toBeUndefined()
   const updates = await readStore<{ todoId: number }>(page, 'statusUpdates')
   expect(updates.filter((u) => u.todoId === task?.id)).toEqual([])
-})
-
-test('over the person task dialog: the editor opened from the deck closes back into the deck, not the dialog', async ({ page }) => {
-  await seedWorkspace(page, PEOPLE_SEED)
-  await wsListWidget(page, TAB).waitFor({ state: 'visible' })
-  const row = wsListWidget(page, TAB).locator('[data-todo-id]').filter({ hasText: 'Answer Northwind' })
-  await row.locator('[data-person-avatar="Aisha Rahman"]').click({ button: 'right' })
-  await page.getByRole('menu', { name: '@Aisha Rahman' }).getByRole('menuitem', { name: 'Show tasks' }).click()
-  const taskDialog = page.locator('[data-task-dialog]')
-  await taskDialog.getByRole('button', { name: 'Email check-in options for Aisha Rahman' }).click()
-  await page.getByRole('menu', { name: 'Check-in for Aisha Rahman' }).getByRole('menuitem', { name: 'Review with Aisha Rahman…' }).click()
-  await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
-
-  await personDeck(page).getByRole('button', { name: 'Open in editor' }).click()
-  const editor = page.getByRole('dialog', { name: 'Edit task' })
-  await expect(editor).toBeVisible()
-  await page.keyboard.press('Escape')
-  await expect(editor).toHaveCount(0)
-  // The focus is the deck's, in its update line: the task dialog underneath doesn't take it.
-  await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
-  await page.keyboard.press('Escape')
-  await expect(personDeck(page)).toHaveCount(0)
-  await expect(taskDialog).toBeVisible()
 })

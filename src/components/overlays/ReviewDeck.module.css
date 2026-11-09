@@ -4,9 +4,9 @@
 
 .deck {
   width: min(1060px, calc(100vw - 32px));
-  height: min(664px, calc(100vh - 32px));
+  height: min(800px, calc(100vh - 32px));
   display: grid;
-  grid-template-columns: 330px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
   grid-template-rows: 52px minmax(0, 1fr) 58px;
   grid-template-areas:
     'header header'
@@ -299,16 +299,18 @@
 
 /* ── Card ───────────────────────────────────────────────────────────────── */
 
+/* The task editor's layout (D26 BB): the box and title, the badges, then
+ * the shared body (`TaskDetailsBody`), which scrolls between them and the
+ * footer; the editor's glass. */
 .card {
   grid-area: card;
   display: flex;
   flex-direction: column;
-  gap: 14px;
   min-width: 0;
   min-height: 0;
-  overflow-y: auto;
-  padding: 18px 22px 14px;
+  overflow: hidden;
   box-sizing: border-box;
+  background: linear-gradient(168deg, var(--color-card-glass-from) 0%, var(--color-card-glass-to) 100%);
 }
 
 .empty {
@@ -325,7 +327,8 @@
 .cardTop {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
+  gap: 12px;
+  padding: 22px 28px 12px;
 }
 
 .cardBox {
@@ -336,9 +339,10 @@
 .cardTitle {
   margin: 0;
   min-width: 0;
-  font-size: 18px;
+  font-size: 17px;
   font-weight: var(--font-weight-bold);
-  line-height: 1.3;
+  line-height: 1.4;
+  letter-spacing: -0.01em;
   color: var(--color-text-primary);
   overflow-wrap: anywhere;
 }
@@ -348,129 +352,13 @@
   text-decoration: line-through;
 }
 
-.meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  padding-left: 28px;
-  margin-top: -6px;
-}
-
-.metaChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 26px;
-  padding: 0 9px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-chip);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  cursor: pointer;
-}
-
-.metaChip:hover,
-.metaChip[aria-expanded='true'] {
-  background: var(--color-surface-high);
-  color: var(--color-text-primary);
-}
-
-.priorityChip {
-  display: inline-flex;
-  align-items: center;
-  height: 26px;
-  padding: 0 9px;
-  border-radius: var(--radius-chip);
-  background: var(--color-surface-bright);
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-secondary);
-}
-
-.priorityChip[data-focus] {
-  color: var(--color-marker-focus);
-}
-
-.priorityChip[data-important] {
-  color: var(--color-marker-important);
-}
-
-.priorityChip[data-urgent] {
-  color: var(--color-marker-urgent);
-}
-
-.tagChip {
-  display: inline-flex;
-  align-items: center;
-  height: 22px;
-  padding: 0 8px;
-  border-radius: var(--radius-pill);
-  background: var(--color-tint-5);
-  font-size: var(--font-size-row-meta);
-  color: var(--color-text-secondary);
-}
-
-.columns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  flex: 1 0 auto;
-}
-
-.column {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-width: 0;
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.section + .section {
-  margin-top: 6px;
-}
-
-.sectionLabel {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  margin: 0;
-  font-size: 11px;
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
-}
-
-/* The editor's notes box (TaskEditPopup's), shorter: the notes editor fills it. */
-.notes {
-  display: flex;
-  flex-direction: column;
-  min-height: 110px;
-  max-height: 220px;
-  overflow: hidden;
-  border: 1px solid var(--color-tint-5);
-  border-radius: var(--radius-card);
-  background: var(--color-inset-light);
-}
-
-.notes:focus-within {
-  border-color: var(--color-accent-glow);
-}
-
+/* The update line, last in Status updates: focused as each card opens. */
 .updateInput {
-  height: 34px;
+  height: 32px;
   box-sizing: border-box;
-  padding: 0 11px;
+  padding: 0 10px;
   border: none;
-  border-radius: var(--radius-chip);
+  border-radius: 8px;
   background: var(--color-surface);
   box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text-primary);
@@ -489,36 +377,7 @@
   color: var(--color-text-muted);
 }
 
-.updates {
-  margin-top: 6px;
-}
-
-/* ── Follow-up strip ────────────────────────────────────────────────────── */
-
-.strip {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  flex: none;
-  padding: 12px 14px;
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: 0 0 0 1px var(--color-border);
-}
-
-.last {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: none;
-  width: 150px;
-}
-
-.stripLabel {
-  font-size: 11px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
-}
+/* ── Follow-up group (the Next and Last rows) ───────────────────────────── */
 
 .lastValue {
   font-size: 12.5px;
@@ -530,29 +389,15 @@
   color: var(--color-followup);
 }
 
-.next {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-}
-
-.nextRow {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 5px;
-}
-
 .nextInput {
+  flex: 0 0 150px;
   width: 150px;
-  height: 28px;
+  height: 26px;
   box-sizing: border-box;
-  padding: 0 9px;
+  padding: 0 8px;
   border: none;
-  border-radius: var(--radius-md);
-  background: var(--color-surface-high);
+  border-radius: 6px;
+  background: var(--color-surface);
   box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text-primary);
   font-family: inherit;
@@ -572,7 +417,8 @@
 }
 
 .noneBtn {
-  height: 24px;
+  flex: none;
+  height: 22px;
   padding: 0 8px;
   border: none;
   border-radius: var(--radius-md);
@@ -594,8 +440,13 @@
   color: var(--color-text-primary);
 }
 
+/* What the Next field holds, in words: it takes the row's free width. */
 .help {
-  min-height: 16px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 11.5px;
   color: var(--color-text-muted);
 }

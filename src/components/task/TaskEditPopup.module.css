@@ -37,7 +37,8 @@
 /* ── Card ── */
 
 .card {
-  width: 600px;
+  /* Wide enough for Subtasks and Notes side by side (D26 BG): the review card's width. */
+  width: min(760px, calc(100vw - 32px));
   max-height: 82vh;
   background: linear-gradient(
     168deg,
@@ -532,11 +533,60 @@
   font-weight: var(--font-weight-semibold);
 }
 
-/* ── Notes Section ── */
+/* ── The task layout's sections (D26 BB / BG: the editor and the review card) ── */
 
-.notesSection {
-  padding: 12px 28px;
+/* Subtasks | Notes side by side: the row grows to ~240px, then each scrolls inside. */
+.pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+  padding: 14px 28px 4px;
 }
+
+.pairCell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  max-height: 240px;
+}
+
+/* A section in the row: its label, then its body filling the cell (the body scrolls). */
+.pairSection {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* Status updates: under the row; its list scrolls inside past ~200px of section. */
+.updatesSection {
+  padding: 10px 28px 4px;
+}
+
+/* The Follow-up group, last: its own inset block, as the fields'. */
+.followupBlock {
+  margin: 8px 14px 10px;
+  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--color-inset);
+  border-radius: 18px;
+  border: 1px solid var(--color-tint-3);
+}
+
+.followupHeading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 2px;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-followup);
+}
+
+/* ── Notes ── */
 
 .notesLabel {
   font-size: 11px;
@@ -549,9 +599,9 @@
 
 .notesBodyWrap {
   display: flex;
+  flex: 1 1 auto;
   flex-direction: column;
-  min-height: 180px;
-  max-height: 320px;
+  min-height: 150px;
   background: var(--color-inset-light);
   border: 1px solid var(--color-tint-5);
   border-radius: 14px;
@@ -752,8 +802,19 @@
     padding: 0 16px 12px;
   }
 
-  .notesSection {
-    padding: 12px 16px;
+  /* Under 640px of window: Subtasks, then Notes. */
+  .pair {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+    padding: 12px 16px 4px;
+  }
+
+  .updatesSection {
+    padding: 10px 16px 4px;
+  }
+
+  .followupBlock {
+    margin: 8px 8px 10px;
   }
 
   .footer {

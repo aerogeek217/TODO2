@@ -8,6 +8,8 @@ import { statusUpdateRepository } from '../../../data/status-update-repository'
 import { useReviewStore } from '../../../stores/review-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusUpdateStore } from '../../../stores/status-update-store'
+import { useStatusStore } from '../../../stores/status-store'
+import { usePersonStore } from '../../../stores/person-store'
 import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useUndoStore } from '../../../stores/undo-store'
@@ -389,6 +391,7 @@ describe('the review deck', () => {
   })
 
   it('Esc in the status picker closes only the picker', async () => {
+    await act(async () => { await useStatusStore.getState().add('Waiting') })
     await openDeck()
     fireEvent.click(screen.getByRole('button', { name: /^Status:/ }))
     expect(screen.getByText('No Status')).toBeInTheDocument()
@@ -404,10 +407,59 @@ describe('the review deck', () => {
     expect(useReviewStore.getState().open).toBe(true)
   })
 
-  it('Open in editor opens the task’s editor over the deck', async () => {
+  it('the card is the editor’s layout: fields · Subtasks | Notes · Status updates · Follow-up; no Open in editor', async () => {
     await openDeck()
-    fireEvent.click(screen.getByRole('button', { name: 'Open in editor' }))
-    await waitFor(() => expect(useUIStore.getState()).toMatchObject({ editPopupMode: 'edit', selectedTodoId: ids[0] }))
+    const card = document.querySelector('[data-review-card]') as HTMLElement
+    const parts = ['[data-task-fields]', '[data-task-pair]', '[data-status-updates]', '[data-task-followup]']
+      .map((sel) => card.querySelector(sel))
+    parts.forEach((el) => expect(el).not.toBeNull())
+    for (let i = 1; i < parts.length; i++) {
+      expect(parts[i - 1]!.compareDocumentPosition(parts[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    }
+    // Subtasks, then Notes, side by side.
+    const pair = card.querySelector('[data-task-pair]')!
+    expect(pair.querySelector('[data-subtasks]')!.compareDocumentPosition(pair.querySelector('[data-task-notes]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(card).getByRole('region', { name: 'Subtasks' })).toBeInTheDocument()
+    expect(within(card).queryByText('Checklist')).toBeNull()
+    expect(within(card).getByPlaceholderText('Add subtask')).toBeInTheDocument()
+    // The fields the deck gained: People, Tags, the marker toggles; the update line is the last thing in Status updates.
+    expect(within(card).getByText('People')).toBeInTheDocument()
+    expect(within(card).getByText('Tags')).toBeInTheDocument()
+    expect(within(card).getByRole('button', { name: 'Urgent', pressed: false })).toBeInTheDocument()
+    const updates = card.querySelector('[data-status-updates]') as HTMLElement
+    expect(updates.querySelector('input:last-of-type')).toBe(updateField())
+    // The Last row: the date only — the deck's Mark followed up is its footer's.
+    expect(screen.getAllByRole('button', { name: 'Mark followed up' })).toHaveLength(1)
+    expect(screen.getByTestId('review-last-followup')).toHaveTextContent('Never followed up')
+    expect(screen.queryByRole('button', { name: 'Open in editor' })).toBeNull()
+  })
+
+  it('status updates read oldest first, the newest last; the update line after them', async () => {
+    const [first] = ids as [number]
+    const base = Date.now()
+    await statusUpdateRepository.addMany([
+      { todoId: first, date: addDays(startOfToday(), -9), text: 'kicked off', createdAt: new Date(base - 2000) },
+      { todoId: first, date: addDays(startOfToday(), -2), text: 'sent the redlines', createdAt: new Date(base - 1000) },
+    ])
+    await useStatusUpdateStore.getState().load()
+    await openDeck()
+    const lines = within(screen.getByRole('list', { name: 'Status updates' })).getAllByRole('listitem')
+    expect(lines.map((li) => li.textContent?.slice(5))).toEqual(['kicked off', 'sent the redlines'])
+    expect(lines.at(-1)).toHaveAttribute('data-newest', 'true')
+    expect(updateField()).toHaveFocus()
+  })
+
+  it('a marker toggle and a person write at once, each its own undo step (this task only)', async () => {
+    const [first] = ids as [number]
+    const aisha = await usePersonStore.getState().getOrCreate('Aisha')
+    await openDeck()
+    fireEvent.click(screen.getByRole('button', { name: 'Urgent', pressed: false }))
+    await waitFor(() => expect(todo(first)?.urgent).toBe(true))
+    fireEvent.click(screen.getAllByRole('button', { name: '+ Add' })[0]!)
+    fireEvent.click(await screen.findByText('Aisha'))
+    await waitFor(() => expect(usePersonStore.getState().assignedPeopleMap.get(first)?.map((p) => p.id)).toEqual([aisha]))
+    await waitFor(() => expect(useUndoStore.getState().undoStack.length).toBe(2))
+    expect(todo(ids[1]!)?.urgent).not.toBe(true)
   })
 
   it('the last card: Mark followed up stays on it, and once every task has a mark the header says all reviewed', async () => {
