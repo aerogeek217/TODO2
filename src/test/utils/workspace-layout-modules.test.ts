@@ -34,7 +34,7 @@ describe('the layout modules (A10)', () => {
       'findCell', 'findTab', 'getTab', 'layoutIds', 'layoutPanels', 'layoutStructureEqual', 'layoutStructureKey', 'layoutTabs', 'panelOfTab', 'sameArrangement',
     ])
     expect(Object.keys(lists).sort()).toEqual(['countListTabs', 'layoutListRefs', 'listIdChanges', 'repointLayoutLists'])
-    expect(Object.keys(sizes).sort()).toEqual(['GRID_AXES', 'copySizes', 'sameTrackIn', 'setTrackSizes', 'trackAxes', 'withoutTrackPx'])
+    expect(Object.keys(sizes).sort()).toEqual(['GRID_AXES', 'copySizes', 'sameTrackIn', 'setTrackSizes', 'trackAxes', 'withoutTrackFitPx'])
     expect(Object.keys(ops)).not.toContain('findCell')
     expect(Object.keys(edit).sort()).toEqual(['insertAllAt', 'insertAt', 'isPositive', 'removeAt', 'replaceAt', 'setCell', 'withCells', 'withTracks'])
   })

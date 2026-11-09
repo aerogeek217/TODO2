@@ -53,6 +53,8 @@ const REJECTED: Array<[string, Record<string, unknown>, string]> = [
   ['track px past the size cap', layoutRow(twoCells({ rows: [{ id: 'r1', px: 1e308 }] })), 'grid.rows[0].px'],
   ['column track collapsed', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 1, collapsed: true }, { id: 'c2', weight: 1 }] })), 'grid.columns[0].collapsed'],
   ['row collapsed not a boolean', layoutRow(twoCells({ rows: [{ id: 'r1', weight: 1, collapsed: 'yes' }] })), 'grid.rows[0].collapsed'],
+  ['row fitPx not positive', layoutRow(twoCells({ rows: [{ id: 'r1', weight: 1, fitPx: 0 }] })), 'grid.rows[0].fitPx'],
+  ['column track fitPx', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 1, fitPx: 90 }, { id: 'c2', weight: 1 }] })), 'grid.columns[0].fitPx'],
   ['track id repeats another', layoutRow(twoCells({ columns: [{ id: 'c1', weight: 1 }, { id: 'c1', weight: 1 }] })), 'grid.columns[1].id'],
   ['cell id repeats a track id', layoutRow(twoCells({}, [
     { id: 'c1', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
@@ -194,6 +196,14 @@ describe('layouts row validation', () => {
         { id: 'k2', area: { col: 1, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [] },
       ],
     }])
+  })
+
+  it('a Numbers-only row’s height (fitPx) is valid beside its weight and kept on import', () => {
+    const row = layoutRow(twoCells({ rows: [{ id: 'r1', weight: 1000, fitPx: 116 }] }))
+    expect(validateRow('layouts', row)).toBe(true)
+    const res = validateImportData({ todos: [], settings: [], layouts: [row] })
+    if (!res.ok) throw new Error(res.error)
+    expect(res.data.layouts[0]!.grid.rows).toEqual([{ id: 'r1', weight: 1000, fitPx: 116 }])
   })
 
   it('import keeps a list or Eisenhower tab’s details width, rounded', () => {

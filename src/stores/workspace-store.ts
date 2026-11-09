@@ -30,7 +30,7 @@ import {
 } from '../models/workspace-layout'
 import { findCell, layoutPanels, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
 import { layoutListRefs, listIdChanges, repointLayoutLists } from '../utils/workspace-layout-lists'
-import { copySizes, sameTrackIn, setTrackSizes, trackAxes, withoutTrackPx } from '../utils/workspace-layout-sizes'
+import { copySizes, sameTrackIn, setTrackSizes, trackAxes, withoutTrackFitPx } from '../utils/workspace-layout-sizes'
 import {
   addTab,
   closeCell,
@@ -211,12 +211,16 @@ export interface WorkspaceState {
   /**
    * View state: the sizes of `axes` copied from `from` (`copySizes`) — a
    * frame of a drag computed on the layout as it started (its whole lines
-   * moved, a fit row given a px), or the start's sizes put back. `live` as
+   * moved, a fit row given a height — its `fitPx`), or the start's sizes put back. `live` as
    * for `setTrackSizes`.
    */
   copyTrackSizes: (from: LayoutBody, axes: readonly GridAxis[], opts?: ResizeOptions) => Promise<void>
-  /** View state: a row track's px cleared (`withoutTrackPx`) — a Numbers-only row fits its content again. Saved at once. */
-  clearTrackPx: (trackId: string) => Promise<void>
+  /**
+   * View state: a row track's `fitPx` cleared (`withoutTrackFitPx`) — a
+   * Numbers-only row fits its content again. Saved at once, onto the saved
+   * layout too where the row is the same track there.
+   */
+  clearTrackFitPx: (trackId: string) => Promise<void>
   /** The end of a live resize: saves what its frames changed (and keeps it in the browser), once. */
   endResize: () => Promise<void>
   /**
@@ -1108,8 +1112,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       return resize((layout) => copySizes(layout, from, axes), () => [...axes], opts)
     },
 
-    clearTrackPx(trackId) {
-      return resize((layout) => withoutTrackPx(layout, 'rows', trackId), () => ['rows'])
+    clearTrackFitPx(trackId) {
+      return resize((layout) => withoutTrackFitPx(layout, trackId), () => ['rows'])
     },
 
     patchTabConfig(tabId, kind, patch) {

@@ -41,8 +41,10 @@ async function dragHandle(page: Page, from: Point, to: Point, during?: () => Pro
   await releaseDrag(page)
 }
 
-async function storedRows(page: Page): Promise<Array<{ id: string; weight?: number; px?: number }>> {
-  const row = (await readStore<{ grid: { rows: Array<{ id: string; weight?: number; px?: number }> } }>(page, 'layouts'))[0]
+type StoredRow = { id: string; weight?: number; px?: number; fitPx?: number }
+
+async function storedRows(page: Page): Promise<StoredRow[]> {
+  const row = (await readStore<{ grid: { rows: StoredRow[] } }>(page, 'layouts'))[0]
   return row?.grid.rows ?? []
 }
 
@@ -172,7 +174,10 @@ test.describe('a Numbers-only row', () => {
     await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBeGreaterThan(fit + 70)
     const tall = Math.round((await box(wsCell(page, 'n1'))).height)
     await expect(saveButton(page)).toHaveAccessibleName(SAVED)
-    await expect.poll(async () => (await storedRows(page))[0]?.px).toBe(tall)
+    // Its own height (fitPx), beside its weight — never a px.
+    await expect.poll(async () => (await storedRows(page))[0]?.fitPx).toBe(tall)
+    expect((await storedRows(page))[0]).toMatchObject({ weight: expect.any(Number) as number })
+    expect((await storedRows(page))[0]?.px).toBeUndefined()
     // Taller than its small face: the medium face.
     await expect(wsCell(page, 'n1')).toHaveAttribute('data-face', 'medium')
     await page.reload()
@@ -181,6 +186,6 @@ test.describe('a Numbers-only row', () => {
     const d = centre(await box(divider))
     await page.mouse.dblclick(d.x, d.y)
     await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBe(fit)
-    await expect.poll(async () => (await storedRows(page))[0]?.px).toBeUndefined()
+    await expect.poll(async () => (await storedRows(page))[0]?.fitPx).toBeUndefined()
   })
 })

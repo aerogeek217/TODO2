@@ -307,7 +307,7 @@ function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) =
 }
 
 
-/** A track as stored: an object with a fresh id, a size (a weight or px) and, on a row, a boolean `collapsed`. */
+/** A track as stored: an object with a fresh id, a size (a weight or px) and, on a row, a boolean `collapsed` and a `fitPx` (a positive number). */
 function checkTrack(track: unknown, path: string, rows: boolean, fresh: (id: string) => boolean): true | string {
   if (!isRecord(track)) return path
   if (!isId(track.id) || !fresh(track.id)) return `${path}.id`
@@ -317,6 +317,7 @@ function checkTrack(track: unknown, path: string, rows: boolean, fresh: (id: str
     return `${path}.weight`
   }
   if (track.collapsed !== undefined && (!rows || typeof track.collapsed !== 'boolean')) return `${path}.collapsed`
+  if (track.fitPx !== undefined && (!rows || !isWeight(track.fitPx))) return `${path}.fitPx`
   return true
 }
 
@@ -596,6 +597,11 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
     }
     if (raw.collapsed === true && rows) track.collapsed = true
     else if (raw.collapsed !== undefined && (!rows || typeof raw.collapsed !== 'boolean')) fix('settings')
+    // A Numbers-only row's height (view state): kept beside its size, never in place of it.
+    if (raw.fitPx !== undefined) {
+      if (rows && isWeight(raw.fitPx)) track.fitPx = raw.fitPx
+      else fix('size')
+    }
     return track
   }
 

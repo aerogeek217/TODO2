@@ -285,6 +285,14 @@ export interface GridTrack {
   /** A fixed size in px (header included); the track is then not weighted. */
   px?: number
   /**
+   * View state, row tracks only: the height (px) a divider gave a
+   * Numbers-only row (`workspace-rows.isFitTrack`). It applies only while
+   * the row is one and has no `px`; otherwise it is ignored and the track
+   * is weighted by its own `weight`, which it never replaces. Absent: the
+   * row fits its content. A split's halves don't inherit it.
+   */
+  fitPx?: number
+  /**
    * View state, row tracks only: collapsed — the cells lying only in it
    * show their headers, and a cell spanning through it gets shorter.
    */

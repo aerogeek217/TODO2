@@ -70,14 +70,17 @@ function dividerStretches(layout: WorkspaceLayout): EdgeStretch[] {
 /**
  * A divider's value for assistive tech: a whole line between two weighted
  * tracks, the first one's share (%) of the two; beside a fixed track (a
- * former band), that track's height in px.
+ * former band, or a Numbers-only row given a height), that track's height
+ * in px.
  */
 function dividerValue(layout: WorkspaceLayout, stretch: EdgeStretch): DividerValue {
   const tracks = layout.grid[stretch.axis]
   const a = tracks[stretch.line - 1]
   const b = tracks[stretch.line]
-  const fixed = a?.px != null ? a : b?.px != null ? b : undefined
-  if (fixed?.px != null) return { now: fixed.px, text: `${fixed.px}px` }
+  const sa = trackSizing(layout, stretch.axis, stretch.line - 1)
+  const sb = trackSizing(layout, stretch.axis, stretch.line)
+  const fixed = sa.kind === 'fixed' ? sa : sb.kind === 'fixed' ? sb : undefined
+  if (fixed) return { now: fixed.px, text: `${fixed.px}px` }
   return { now: pairPercent(a?.weight ?? 0, b?.weight ?? 0), max: 100 }
 }
 

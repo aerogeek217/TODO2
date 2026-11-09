@@ -92,7 +92,7 @@ function stripWith(tabs: readonly LayoutTab[], activeTabId?: string): CellStrip 
   return { tabs: [...tabs], activeTabId: active }
 }
 
-/** A track half of `track`'s size (its weight or px), with `id`. */
+/** A track half of `track`'s size (its weight or px), with `id` — never its `fitPx` (a fit row's height). */
 function halfTrack(track: GridTrack, id: string, share = 0.5): GridTrack {
   const half: GridTrack = { id }
   if (track.px != null) half.px = Math.max(1, Math.round(track.px * share))
@@ -504,15 +504,23 @@ function resizedPair(a: GridTrack, b: GridTrack, sizeA: number, sizeB: number): 
 }
 
 /**
- * Row track `i` as a fixed track when it fits its content (a Numbers-only
- * row, `isFitTrack`) and has no px yet: its drawn height `size` becomes its
- * px, so a divider beside it gives the row a fixed height. Its weight stays
- * (clearing the px lets it fit again).
+ * Track `i` of `axis` as `resizedPair` takes it, and how to put the result
+ * back: a Numbers-only row (`isFitTrack`, no px, not collapsed) as a fixed
+ * track of its height (`fitPx`, else its drawn `size`), the result's px
+ * going back as its `fitPx` — a divider beside it gives the row a height of
+ * its own, its weight and every other field kept; any other track as it is.
  */
-function fitAsFixed(layout: LayoutBody, axis: GridAxis, i: number, size: number | undefined): GridTrack | undefined {
+function pairTrack(layout: LayoutBody, axis: GridAxis, i: number, size: number | undefined): { track: GridTrack; back: (t: GridTrack) => GridTrack } | undefined {
   const track = layout.grid[axis][i]
-  if (!track || axis !== 'rows' || track.px != null || track.collapsed === true || size == null || !isFitTrack(layout, i)) return track
-  return { ...track, px: Math.max(1, Math.round(size)) }
+  if (!track) return undefined
+  const asIs = { track, back: (t: GridTrack) => t }
+  if (axis !== 'rows' || track.px != null || track.collapsed === true || !isFitTrack(layout, i)) return asIs
+  const height = track.fitPx ?? (size != null ? Math.max(1, Math.round(size)) : undefined)
+  if (height == null) return asIs
+  return {
+    track: { id: track.id, px: height },
+    back: (t) => (t.px === track.fitPx ? track : { ...track, fitPx: t.px ?? height }),
+  }
 }
 
 /** Where a stretch's drag lands: its clamped, snapped position and what it means (`edgeTarget`). */
@@ -599,8 +607,8 @@ export function edgeSnapLine(layout: LayoutBody, stretch: EdgeStretch, delta: nu
  *
  * - The whole line (or a stretch holding every cell edge on its line),
  *   staying between its two neighbouring lines: the two tracks beside it
- *   share their size anew (two weights; a fixed track's px — a fit row
- *   becoming fixed at its new height, `fitAsFixed`) — view state.
+ *   share their size anew (two weights; a fixed track's px; a fit row's
+ *   height, its `fitPx` — `pairTrack`) — view state.
  * - Part of a line, or a move past a neighbouring line: the stretch leaves
  *   its line. Onto another line it just moves there (a piece snapped back
  *   onto a line it left re-joins it); anywhere else the track there splits
@@ -623,11 +631,11 @@ export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, 
   if (snapped === line || (snapped == null && target === at(line))) return layout
 
   if (whole && snapped == null && target > at(line - 1) && target < at(line + 1)) {
-    const a = fitAsFixed(layout, axis, line - 1, sizes[line - 1])
-    const b = fitAsFixed(layout, axis, line, sizes[line])
+    const a = pairTrack(layout, axis, line - 1, sizes[line - 1])
+    const b = pairTrack(layout, axis, line, sizes[line])
     if (!a || !b) return layout
-    const [na, nb] = resizedPair(a, b, target - at(line - 1), at(line + 1) - target)
-    return withTracks(layout, axis, replaceAt(replaceAt(tracks, line - 1, na), line, nb))
+    const [na, nb] = resizedPair(a.track, b.track, target - at(line - 1), at(line + 1) - target)
+    return withTracks(layout, axis, replaceAt(replaceAt(tracks, line - 1, a.back(na)), line, b.back(nb)))
   }
 
   let next = layout

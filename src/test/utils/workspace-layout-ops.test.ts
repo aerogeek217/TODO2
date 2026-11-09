@@ -3,7 +3,7 @@ import { createTab, type LayoutBody, type LayoutTab, type WorkspaceLayout } from
 import { edgeBetween, edgeStretches, isNormalized, lineCrossings, validateTiling, wholeLine, type Side } from '../../utils/workspace-grid'
 import { findTab, getTab, layoutIds, layoutStructureEqual, layoutStructureKey, panelOfTab } from '../../utils/workspace-layout-queries'
 import { countListTabs } from '../../utils/workspace-layout-lists'
-import { copySizes, setTrackSizes, trackAxes, withoutTrackPx } from '../../utils/workspace-layout-sizes'
+import { copySizes, setTrackSizes, trackAxes, withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
 import { trackSizing } from '../../utils/workspace-table'
 import {
   addTab,
@@ -511,22 +511,57 @@ describe('a Numbers-only (fit) row\'s divider', () => {
   // n1 n2
   // l  l
   const body = layout(grid([[n1, n2], [l, l]], { rows: [1000, 1000] }))
+  const sized = () => moveEdge(body, wholeLine(body, 'rows', 1), 40, { sizes: [76, 600] }, ids())
 
-  it('dragging its line gives the fit row a px (view state), its weight kept', () => {
-    const out = moveEdge(body, wholeLine(body, 'rows', 1), 40, { sizes: [76, 600] }, ids())
-    expect(out.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, px: 116 })
+  it('dragging its line gives the fit row a height of its own (`fitPx`, view state), its weight kept, no px', () => {
+    const out = sized()
+    expect(out.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 116 })
     expect(out.grid.rows[1]).toEqual({ id: 'r2', weight: 1000 })
     expect(layoutStructureEqual(out, body)).toBe(true)
     expect(trackSizing(out, 'rows', 0)).toEqual({ kind: 'fixed', px: 116 })
     expect(trackSizing(body, 'rows', 0)).toEqual({ kind: 'fit' })
+    // Again from there: from its height, not the drawn size.
+    const again = moveEdge(out, wholeLine(out, 'rows', 1), -20, { sizes: [116, 560] }, ids())
+    expect(again.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 96 })
   })
 
-  it('clearing the px lets it fit again', () => {
-    const fixed = moveEdge(body, wholeLine(body, 'rows', 1), 40, { sizes: [76, 600] }, ids())
-    const cleared = withoutTrackPx(fixed, 'rows', 'r1')
+  it('clearing its height lets it fit again', () => {
+    const cleared = withoutTrackFitPx(sized(), 'r1')
     expect(cleared.grid.rows[0]).toEqual({ id: 'r1', weight: 1000 })
     expect(trackSizing(cleared, 'rows', 0)).toEqual({ kind: 'fit' })
-    expect(withoutTrackPx(cleared, 'rows', 'r1')).toBe(cleared)
+    expect(withoutTrackFitPx(cleared, 'r1')).toBe(cleared)
+  })
+
+  it('a split’s halves don’t inherit it: two weighted halves, never two tiny fixed rows', () => {
+    const { layout: split } = splitCell(sized(), 'n1', 'bottom', ids())
+    expect(split.grid.rows).toHaveLength(3)
+    expect(split.grid.rows.slice(0, 2).map((t) => [t.weight, t.px, t.fitPx])).toEqual([[500, undefined, undefined], [500, undefined, undefined]])
+    expect(trackSizing(split, 'rows', 1).kind).toBe('weighted')
+  })
+
+  it('a row that stops being Numbers-only ignores it: weighted by its own weight; Numbers-only again, its height is back', () => {
+    const out = sized()
+    const list = replaceTab(out, 'num1', createTab('notes', 'num1'))
+    expect(list.grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 116 })
+    expect(trackSizing(list, 'rows', 0)).toEqual({ kind: 'weighted', weight: 1000 })
+    const joined = addTab(out, createTab('notes', 'x1'), { kind: 'cell', cellId: 'n2' }, ids())
+    expect(trackSizing(joined, 'rows', 0)).toEqual({ kind: 'weighted', weight: 1000 })
+    expect(trackSizing(replaceTab(list, 'num1', createTab('number', 'num1')), 'rows', 0)).toEqual({ kind: 'fixed', px: 116 })
+  })
+
+  it('a former band (a px row) of Numbers keeps its px: a drag sizes the px, no fitPx', () => {
+    const band = layout(grid([[n1, n2], [l, l]], { rows: [{ px: 90 }, 1000] }))
+    const out = moveEdge(band, wholeLine(band, 'rows', 1), 30, { sizes: [90, 600] }, ids())
+    expect(out.grid.rows[0]).toEqual({ id: 'r1', px: 120 })
+  })
+
+  it('copySizes carries it as a size: onto the same tracks, and onto the same row among changed ones (set or cleared)', () => {
+    const out = sized()
+    expect(copySizes(body, out, ['rows']).grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 116 })
+    // The source has a row the target hasn't (an unsaved insert): r1 is the same track in both.
+    const inserted = insertTrack(out, 'bottom', ids()).layout
+    expect(copySizes(body, inserted, ['rows']).grid.rows[0]).toEqual({ id: 'r1', weight: 1000, fitPx: 116 })
+    expect(copySizes(out, withoutTrackFitPx(inserted, 'r1'), ['rows']).grid.rows[0]).toEqual({ id: 'r1', weight: 1000 })
   })
 })
 

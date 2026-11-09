@@ -105,7 +105,8 @@ export function SnapGuide({ axis, line, tracks }: { axis: GridAxis; line: number
  * only part of a line moves (a new line, or onto another line: a piece
  * snapped back onto a line it left re-joins it), it previews where it goes
  * and makes that unsaved edit on release. Beside a Numbers-only row it moves
- * the whole line, the row taking a fixed height (`fitTrackIds`). ←/→ (↑/↓)
+ * the whole line, the row taking a height of its own (`fitTrackIds`; its
+ * `fitPx`, view state). ←/→ (↑/↓)
  * move it 16px, the focus staying on it; a double-click evens a whole
  * line's two tracks, or part of a line's own cells, or lets a fit row fit
  * again.
@@ -236,7 +237,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     const layout = useWorkspaceStore.getState().working
     if (fitTrackIds.length > 0) {
       for (const id of fitTrackIds) {
-        if (layout?.grid.rows.some((t) => t.id === id && t.px != null)) void useWorkspaceStore.getState().clearTrackPx(id)
+        if (layout?.grid.rows.some((t) => t.id === id && t.fitPx != null)) void useWorkspaceStore.getState().clearTrackFitPx(id)
       }
       return
     }

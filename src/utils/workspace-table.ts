@@ -11,7 +11,8 @@ import { cellMinHeightPx, cellMinWidthPx, isFitTrack } from './workspace-rows'
  * - **fixed** — a `px` track (a former band), its px;
  * - **collapsed** — a collapsed row track, a cell header's height;
  * - **fit** — a row track whose cells hold one Number each
- *   (`workspace-rows.isFitTrack`): `auto`, its content's height;
+ *   (`workspace-rows.isFitTrack`): `auto`, its content's height — or,
+ *   given a height by a divider (`GridTrack.fitPx`), fixed at it;
  * - **weighted** — its share of the free space (`fr`), never under its
  *   minimum: the smallest size its cells may take (`trackMinimums`). When
  *   the minimums don't fit, the table scrolls.
@@ -37,7 +38,7 @@ export function trackSizing(body: LayoutBody, axis: GridAxis, i: number): TrackS
   if (!track) return { kind: 'weighted', weight: 0 }
   if (axis === 'rows' && track.collapsed === true) return { kind: 'collapsed' }
   if (track.px != null) return { kind: 'fixed', px: track.px }
-  if (axis === 'rows' && isFitTrack(body, i)) return { kind: 'fit' }
+  if (axis === 'rows' && isFitTrack(body, i)) return track.fitPx != null ? { kind: 'fixed', px: track.fitPx } : { kind: 'fit' }
   return { kind: 'weighted', weight: Math.max(0, track.weight ?? 0) }
 }
 

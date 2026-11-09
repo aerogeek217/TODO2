@@ -10,6 +10,7 @@ import { writeLayoutDraft } from '../../data/draft-storage'
 import { useUndoStore } from '../../stores/undo-store'
 import { useTagStore } from '../../stores/tag-store'
 import { edgeBetween, wholeLine } from '../../utils/workspace-grid'
+import { trackSizing } from '../../utils/workspace-table'
 import type { LayoutBody } from '../../models/workspace-layout'
 import { cell, emptyBody, grid, picture, type GridOptions } from '../helpers/layout-builders'
 
@@ -464,19 +465,46 @@ describe('sizes are view state', () => {
     expect(ws().working!.grid.rows).toHaveLength(3)
   })
 
-  it('a Numbers-only row: its divider gives it a px, saved at once; clearing it lets it fit again', async () => {
-    // kn (a Number) | ka over R; kb across S.
+  it('a Numbers-only row: its divider gives it a height (fitPx), saved at once, its weight kept; clearing it lets it fit again', async () => {
+    // kn (a Number) | kc (a Number) over R; kb across S.
     const kn = cell('kn', [createTab('number', 'n1')])
     const kc = cell('kc', [createTab('number', 'n2')])
     const [id] = await seedAndInit({ ...twoColumns(), ...grid([[kn, kc], [KB, KB]], { colIds: ['A', 'B'], rowIds: ['R', 'S'] }) })
     await ws().moveEdge(wholeLine(ws().working!, 'rows', 1), 40, { sizes: [76, 600] })
     expect(ws().isDirty).toBe(false)
-    expect(ws().working!.grid.rows[0]?.px).toBe(116)
-    expect((await stored(id!)).grid.rows[0]?.px).toBe(116)
-    await ws().clearTrackPx('R')
+    expect(ws().working!.grid.rows[0]).toEqual({ id: 'R', weight: 1000, fitPx: 116 })
+    expect((await stored(id!)).grid.rows[0]).toEqual({ id: 'R', weight: 1000, fitPx: 116 })
+    await ws().clearTrackFitPx('R')
     expect(ws().isDirty).toBe(false)
-    expect(ws().working!.grid.rows[0]?.px).toBeUndefined()
+    expect(ws().working!.grid.rows[0]).toEqual({ id: 'R', weight: 1000 })
     expect((await stored(id!)).grid.rows[0]).toEqual({ id: 'R', weight: 1000 })
+  })
+
+  it('a Numbers-only row\'s height set under an unsaved row edit reaches the saved layout; so does clearing it', async () => {
+    const kn = cell('kn', [createTab('number', 'n1')])
+    const kc = cell('kc', [createTab('number', 'n2')])
+    const [id] = await seedAndInit({ ...twoColumns(), ...grid([[kn, kc], [KB, KB]], { colIds: ['A', 'B'], rowIds: ['R', 'S'] }) })
+    ws().insertTrack('bottom')
+    expect(ws().isDirty).toBe(true)
+    await ws().moveEdge(wholeLine(ws().working!, 'rows', 1), 40, { sizes: [76, 300, 300] })
+    expect(ws().working!.grid.rows[0]?.fitPx).toBe(116)
+    expect((await stored(id!)).grid.rows[0]).toEqual({ id: 'R', weight: 1000, fitPx: 116 })
+    await ws().clearTrackFitPx('R')
+    expect((await stored(id!)).grid.rows[0]).toEqual({ id: 'R', weight: 1000 })
+    expect(ws().isDirty).toBe(true)
+  })
+
+  it('a Numbers-only row given a height that stops being one is weighted again, by its own weight', async () => {
+    const kn = cell('kn', [createTab('number', 'n1')])
+    const kc = cell('kc', [createTab('number', 'n2')])
+    await seedAndInit({ ...twoColumns(), ...grid([[kn, kc], [KB, KB]], { colIds: ['A', 'B'], rowIds: ['R', 'S'] }) })
+    await ws().moveEdge(wholeLine(ws().working!, 'rows', 1), 40, { sizes: [76, 600] })
+    ws().changeTabKind('n1', 'notes')
+    expect(trackSizing(ws().working!, 'rows', 0)).toEqual({ kind: 'weighted', weight: 1000 })
+    // A frame copied from the drag's start keeps the weight too.
+    const start = ws().working!
+    await ws().copyTrackSizes(start, ['rows'])
+    expect(ws().working!.grid.rows[0]).toEqual({ id: 'R', weight: 1000, fitPx: 116 })
   })
 
   it('copyTrackSizes: a live frame from a layout as it started, saved once at the end', async () => {
