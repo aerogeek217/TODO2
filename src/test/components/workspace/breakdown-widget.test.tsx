@@ -219,7 +219,8 @@ describe('faces and styles', () => {
     const count = document.querySelector<HTMLElement>('[data-testid="glance-section-count"]')!
     fireEvent.click(count)
     const drill = onDrill.mock.lastCall?.[0] as GlanceDrill
-    const source = drill.source as { kind: 'groups'; groups: Array<{ todoIds: number[] }> }
+    const source = drill.source
+    if (source?.kind !== 'groups') throw new Error('expected a groups drill')
     const distinct = new Set(source.groups.flatMap((g) => g.todoIds)).size
     expect(count.textContent).toBe(`${distinct} open`)
   })
@@ -255,10 +256,25 @@ describe('the tab menu', () => {
     const tab = breakdown()
     inLayout(tab)
     item(item(glanceMenu(tab, undefined)!.settingEntries, 'Due').children!, 'Overdue only').onSelect!()
-    expect(current().config.badges).toEqual({ due: 'overdue', followup: 0 })
+    expect(current().config.badges).toEqual({ due: 'overdue' })
     const after = current()
     expect(item(glanceMenu(after, undefined)!.settingEntries, 'Due').note).toBe('Overdue only')
     item(item(glanceMenu(after, undefined)!.settingEntries, 'Due').children!, 'As in Settings (Overdue and next 3 days)').onSelect!()
+    expect(current().config).not.toHaveProperty('badges')
+  })
+
+  it('each range overrides on its own: the other keeps following Settings', () => {
+    const tab = breakdown()
+    inLayout(tab)
+    item(item(glanceMenu(tab, undefined)!.settingEntries, 'Follow-up').children!, 'Overdue only').onSelect!()
+    expect(current().config.badges).toEqual({ followup: 'overdue' })
+    expect(item(glanceMenu(current(), undefined)!.settingEntries, 'Due').note).toBe('Settings')
+    // Settings' Due changes: the Breakdown's Due follows it.
+    useSettingsStore.setState({ tabBadges: { due: 7, followup: 0 } })
+    const due = item(glanceMenu(current(), undefined)!.settingEntries, 'Due')
+    expect(due.note).toBe('Settings')
+    expect(item(due.children!, 'As in Settings (Overdue and next 7 days)').checked).toBe(true)
+    item(item(glanceMenu(current(), undefined)!.settingEntries, 'Follow-up').children!, 'As in Settings (Overdue and today)').onSelect!()
     expect(current().config).not.toHaveProperty('badges')
   })
 })

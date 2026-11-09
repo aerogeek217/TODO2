@@ -26,6 +26,9 @@ describe('a Breakdown in a stored layout (D26 P8)', () => {
       createTab('breakdown', 't') as unknown as Record<string, unknown>,
       { id: 't', kind: 'breakdown', config: full, viewState: { sorts: { people: { by: 'due', reversed: true }, status: { by: 'name' } } } },
       { id: 't', kind: 'breakdown', config: { ...newBreakdownConfig(emptyPredicate()), splitBy: 'age', badges: 'off' } },
+      // One range of its own: the other follows Settings.
+      { id: 't', kind: 'breakdown', config: { ...newBreakdownConfig(emptyPredicate()), badges: { followup: 2 } } },
+      { id: 't', kind: 'breakdown', config: { ...newBreakdownConfig(emptyPredicate()), badges: { due: 'overdue' } } },
     ]) {
       const row = layoutRow(tab)
       expect(validateRow('layouts', row)).toBe(true)
@@ -43,6 +46,8 @@ describe('a Breakdown in a stored layout (D26 P8)', () => {
     ['showNone', 'yes', { showNone: true }],
     ['checkins', false, { checkins: undefined }],
     ['badges', { due: 'soon', followup: 0 }, { badges: undefined }],
+    ['badges', {}, { badges: undefined }],
+    ['badges', { due: 3, weekly: true }, { badges: undefined }],
   ] as const)('its %s %j is reset (a fix)', (key, value, reset) => {
     const row = layoutRow({ id: 't', kind: 'breakdown', config: { ...full, [key]: value } })
     expect(checkLayoutBody(row)).toBe(`cells[0].tabs[0].config.${key}`)
