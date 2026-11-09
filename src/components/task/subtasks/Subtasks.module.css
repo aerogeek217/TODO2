@@ -338,6 +338,16 @@
   color: var(--color-text-primary);
 }
 
+/* No checklist yet: the add mark, no fill until pointed at. */
+.addGhost {
+  padding: 0 4px;
+  background: transparent;
+}
+
+.addGhost:hover {
+  background: var(--color-tint-8);
+}
+
 /* Every subtask done: the task is ready to complete. */
 .count[data-all-done] {
   background: var(--color-accent-bg-light);

@@ -1,5 +1,6 @@
 import type { CSSProperties, MouseEvent, RefObject } from 'react'
 import { describeSubtaskCount, formatSubtaskCount, type SubtaskCount } from '../../../utils/subtasks'
+import { ChecklistIcon } from '../../shared/icons'
 import styles from './Subtasks.module.css'
 
 /**
@@ -52,6 +53,43 @@ export function SubtaskCountButton({ count, open, buttonRef, onClick }: {
     >
       <SubtaskPie count={count} />
       {formatSubtaskCount(count)}
+    </button>
+  )
+}
+
+/**
+ * A task with no checklist: a faint checklist mark where the count would be,
+ * shown while the row is hovered or focused (the row's `className` hides it
+ * otherwise) — a click opens the empty checklist popover to add the first
+ * subtask, as the task menu's Add subtask… does.
+ */
+export function SubtaskAddButton({ open, buttonRef, onClick, className }: {
+  open: boolean
+  buttonRef: RefObject<HTMLButtonElement | null>
+  onClick: (e: MouseEvent) => void
+  /** The row's hover reveal. */
+  className?: string
+}) {
+  return (
+    <button
+      ref={buttonRef}
+      type="button"
+      className={`${styles.count} ${styles.addGhost} ${className ?? ''}`}
+      data-row-cell="subtasks"
+      data-subtask-add=""
+      data-open={open ? '' : undefined}
+      aria-label="Add subtasks"
+      title="Add subtasks"
+      aria-haspopup="dialog"
+      aria-expanded={open}
+      onClick={(e) => {
+        e.stopPropagation()
+        if (e.detail > 1) return
+        onClick(e)
+      }}
+      onPointerDown={(e) => e.stopPropagation()}
+    >
+      <ChecklistIcon size={12} />
     </button>
   )
 }

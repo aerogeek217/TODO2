@@ -85,7 +85,7 @@ describe('a list tab’s zoom', () => {
     const details = row.querySelector('[data-stacked-details]')!
     expect(row.querySelector('[data-task-title]')).toHaveTextContent('Late one')
     expect(Array.from(details.querySelectorAll('[data-row-cell]')).map((c) => c.getAttribute('data-row-cell')))
-      .toEqual(['due', 'followup', 'people', 'tags'])
+      .toEqual(['due', 'followup', 'subtasks', 'people', 'tags'])
     expect(details.querySelector('[data-row-cell="due"]')).toHaveAttribute('data-due-past')
     expect(row.querySelector('[data-row-cell="notes"]')).toBeNull()
     expect(row.querySelector('[data-row-cell="status"]')).toBeNull()

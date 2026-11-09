@@ -226,8 +226,8 @@ describe('TaskRow', () => {
     it('renders one cell per column in order, filled or empty', () => {
       const { container } = render(<TaskRow todo={makeTodo({ id: 1 })} />)
       const cells = Array.from(container.querySelectorAll('[data-row-cell]')).map((el) => el.getAttribute('data-row-cell'))
-      expect(cells).toEqual(['markers', 'checkbox', 'notes', 'people', 'tags', 'dates', 'due', 'followup', 'status'])
-      for (const name of ['Add status or notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
+      expect(cells).toEqual(['markers', 'checkbox', 'subtasks', 'notes', 'people', 'tags', 'dates', 'due', 'followup', 'status'])
+      for (const name of ['Add subtasks', 'Add status or notes', 'Assign people', 'Add tag', 'Set due date', 'Set follow-up', 'Set status']) {
         expect(screen.getByRole('button', { name })).toBeInTheDocument()
       }
     })
