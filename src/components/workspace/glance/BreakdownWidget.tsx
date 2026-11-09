@@ -1,14 +1,14 @@
 import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { DEFAULT_STATUS_ICON } from '../../../models'
-import { columnIsLit, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey, type BreakdownSplit } from '../../../models/chart-widgets'
+import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey, type BreakdownSplit } from '../../../models/chart-widgets'
 import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
 import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { openReview } from '../../../services/review'
-import { columnCount, isLiveSort, nextBreakdownSort, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
+import { columnCount, nextBreakdownSort, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
@@ -532,8 +532,8 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   const offers = useEntityMenuOffers()
   const storedSort = tab.viewState?.sorts?.[config.splitBy]
   const columnIds = useMemo(() => data.columns.map((c) => c.id), [data.columns])
-  // A sort by a column it no longer has reads as the default order.
-  const sort = storedSort && isLiveSort(storedSort, columnIds) ? storedSort : undefined
+  // A sort by a column it no longer has reads as the default order; the old Due / Follow-up's as the late column.
+  const sort = liveBreakdownSort(storedSort, columnIds)
   const picks = useChartWidgetsStore((s) => s.rowPicks[tab.id]?.[config.splitBy]) ?? NO_PICKS
   const [typed, setTyped] = useState<{ split: BreakdownSplit; text: string }>({ split: config.splitBy, text: '' })
   const text = typed.split === config.splitBy ? typed.text : ''

@@ -61,6 +61,7 @@ function setup(tab: BreakdownTab, opts: { face?: WidgetFace; onDrill?: (d: Glanc
 }
 
 const rows = () => [...document.querySelectorAll<HTMLElement>('[data-breakdown-row]')]
+const item = (entries: readonly MenuEntry[], label: string) => entries.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === label)!
 const keys = () => rows().map((r) => r.dataset.breakdownRow)
 const rowOf = (key: string) => document.querySelector<HTMLElement>(`[data-breakdown-row="${key}"]`)!
 
@@ -103,6 +104,23 @@ describe('the headings sort (view state, per split)', () => {
     await act(async () => { fireEvent.click(open()) })
     expect(current().viewState?.sorts).toEqual({})
     expect(keys()).toEqual(before)
+  })
+
+  it('a sort stored by the old Due / Follow-up columns ranks by the late columns while the columns are derived', async () => {
+    setup(breakdown({}, 'b'))
+    act(() => { useWorkspaceStore.getState().patchTabViewState('b', 'breakdown', { sorts: { people: { by: 'due' }, tags: { by: 'followup', reversed: true } } }) })
+    const heading = (key: string) => document.querySelector(`[data-sort-key="${key}"]`)!.closest('[role="columnheader"]')!
+    expect(heading('overdue').getAttribute('aria-sort')).toBe('descending')
+    expect(heading('due-soon').getAttribute('aria-sort')).toBe('none')
+    const overdue = rows().filter((r) => r.dataset.breakdownRow !== 'none')
+      .map((r) => Number(r.querySelector('[data-column="overdue"]')?.textContent?.replace('–', '0') ?? 0))
+    expect(overdue).toEqual([...overdue].sort((a, b) => b - a))
+    expect(item(glanceMenu(current(), undefined)!.settingEntries, 'Sort').note).toBe('Most Overdue first')
+    // A click on the late heading goes on from there: reversed.
+    await act(async () => { fireEvent.click(document.querySelector('[data-sort-key="overdue"]')!) })
+    expect(current().viewState?.sorts?.people).toEqual({ by: 'overdue', reversed: true })
+    act(() => { useWorkspaceStore.getState().patchTabConfig('b', 'breakdown', { splitBy: 'tags' }) })
+    expect(heading('followup-late').getAttribute('aria-sort')).toBe('ascending')
   })
 
   it('each split keeps its own sort', async () => {
@@ -279,7 +297,6 @@ describe('faces and styles', () => {
 })
 
 describe('the tab menu', () => {
-  const item = (entries: readonly MenuEntry[], label: string) => entries.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === label)!
 
   it('Edit breakdown… opens its editor; Sort lists the headings’ sorts (view state)', () => {
     const tab = breakdown()
@@ -290,7 +307,7 @@ describe('the tab menu', () => {
     const sort = item(menu.settingEntries, 'Sort')
     expect(sort.note).toBe('Most counted first')
     item(sort.children!, 'Due soon: Most Due soon first').onSelect!()
-    expect(current().viewState?.sorts?.people).toEqual({ by: 'due' })
+    expect(current().viewState?.sorts?.people).toEqual({ by: 'due-soon' })
   })
 
   it('has no Due › or Follow-up › range submenus (count columns are the editor’s)', () => {
@@ -351,7 +368,7 @@ describe('the editor’s Count columns (board BC)', () => {
     // Four derived: the cap — no Add column.
     expect(within(columnsBox()).queryByRole('button', { name: 'Add column' })).toBeNull()
     fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Remove Follow-up due' }))
-    expect(current().config.columns?.map((c) => c.id)).toEqual(['overdue', 'due', 'followup-late'])
+    expect(current().config.columns?.map((c) => c.id)).toEqual(['overdue', 'due-soon', 'followup-late'])
     fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Add column' }))
     const added = current().config.columns?.at(-1)
     expect(added).toMatchObject({ name: 'Count 4', litWhen: 'above', litAt: 0 })

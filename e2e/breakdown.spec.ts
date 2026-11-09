@@ -138,7 +138,7 @@ test('Review and the envelope are icon buttons at the row’s end, always shown;
   await expect(overdue).toHaveText('1')
   await expect(overdue).toHaveAttribute('data-solid', '')
   await expect(overdue).toHaveCSS('background-color', 'rgb(232, 107, 240)')
-  const soon = aisha.locator('[data-column="due"]')
+  const soon = aisha.locator('[data-column="due-soon"]')
   await expect(soon).toHaveText('1')
   await expect(soon).not.toHaveAttribute('data-solid', '')
   await soon.click()

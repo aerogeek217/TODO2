@@ -111,7 +111,7 @@ describe('glance sample data — no screen filter', () => {
 
   it('People (a Breakdown by people): open and follow-ups due (overdue and today), Unassigned 8 · 1, last', () => {
     const rows = breakdownOf('people', tasks).rows
-    const followups = (r: (typeof rows)[number]) => (r.columns['followup-late']?.length ?? 0) + (r.columns.followup?.length ?? 0)
+    const followups = (r: (typeof rows)[number]) => (r.columns['followup-late']?.length ?? 0) + (r.columns['followup-due']?.length ?? 0)
     expect(Object.fromEntries(rows.map((r) => [r.label, [r.ids.length, followups(r)]]))).toEqual({
       'Priya Nair': [4, 0],
       'Alice Chen': [2, 0],

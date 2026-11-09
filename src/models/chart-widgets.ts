@@ -120,14 +120,17 @@ export interface BreakdownColumn {
 export const BREAKDOWN_COLUMNS_MAX = 4
 
 /**
- * The columns read from `badges`: their ids — the soon / due ones keep
- * `due` and `followup`, so a sort stored by those still names a column —,
- * names and colours.
+ * The columns read from `badges`: their ids, names and colours. A sort
+ * stored by the old Due / Follow-up columns (`due`, `followup` — overdue
+ * included) reads as the late one (`liveBreakdownSort`), so the soon / due
+ * columns have ids of their own.
  */
 export const OVERDUE_COLUMN_ID = 'overdue'
-export const DUE_COLUMN_ID = 'due'
+export const DUE_COLUMN_ID = 'due-soon'
 export const FOLLOWUP_LATE_COLUMN_ID = 'followup-late'
-export const FOLLOWUP_COLUMN_ID = 'followup'
+export const FOLLOWUP_COLUMN_ID = 'followup-due'
+/** The old Due / Follow-up columns' sort keys → the derived column that keeps their most urgent tasks. */
+const LEGACY_SORT_COLUMNS: Readonly<Record<string, string>> = { due: OVERDUE_COLUMN_ID, followup: FOLLOWUP_LATE_COLUMN_ID }
 /** The derived due columns' colour: the due date's magenta (the dark theme's `--color-overdue`). */
 export const DUE_COLUMN_COLOR = '#e86bf0'
 /** The derived follow-up columns' colour: the follow-up yellow (the dark theme's `--color-followup`). */
@@ -234,6 +237,21 @@ export type BreakdownSortKey = string
 export interface BreakdownSort {
   by: BreakdownSortKey
   reversed?: true
+}
+
+/**
+ * A stored sort as the headings read it, given the Breakdown's column ids:
+ * a fixed heading or one of its columns as stored; the old Due / Follow-up
+ * columns' key (`due`, `followup`), while no column has it, as the late
+ * column (`Overdue`, `Follow-up late`) in the same direction, so "Most due
+ * first" still puts the overdue on top; any other: `undefined`, the
+ * split's default order.
+ */
+export function liveBreakdownSort(sort: BreakdownSort | undefined, columnIds: readonly string[]): BreakdownSort | undefined {
+  if (!sort) return undefined
+  if ((BREAKDOWN_FIXED_SORT_KEYS as readonly string[]).includes(sort.by) || columnIds.includes(sort.by)) return sort
+  const late = LEGACY_SORT_COLUMNS[sort.by]
+  return late != null && columnIds.includes(late) ? { ...sort, by: late } : undefined
 }
 
 /** A Breakdown tab's view state: each split's sort, saved at once (absent = the split's default order), and its lens switch. */
