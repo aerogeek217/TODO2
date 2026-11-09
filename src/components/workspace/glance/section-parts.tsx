@@ -25,7 +25,7 @@ export interface SectionProps<D> {
 /** What a panel's header names: a section's meta, or a glance widget's own (Project pulse). */
 export type PanelDef = Pick<SectionMeta, 'title' | 'glyph' | 'glyphColor'> & { id: string }
 
-export function Panel({ def, count, onCount, sub, extras, lens, style, className, children }: {
+export function Panel({ def, count, onCount, sub, extras, lens, titleData, style, className, children }: {
   def: PanelDef
   count?: string
   /** Opens the tasks behind the count; absent = plain text. */
@@ -34,6 +34,8 @@ export function Panel({ def, count, onCount, sub, extras, lens, style, className
   extras?: ReactNode
   /** The widget's lens switch (G3): at the line's end, before the cell's ⋯. */
   lens?: ReactNode
+  /** Data attributes on its title (G5: Project pulse's editor anchors there, `data-pulse-head`). */
+  titleData?: Record<`data-${string}`, string>
   style?: CSSProperties
   className?: string
   children: ReactNode
@@ -42,7 +44,7 @@ export function Panel({ def, count, onCount, sub, extras, lens, style, className
     <section className={`${styles.panel} ${styles.surface}${className ? ` ${className}` : ''}`} style={style} aria-label={def.title} data-glance-section={def.id}>
       <WidgetTopLine className={styles.panelHeader}>
         <GlanceGlyph name={def.glyph} color={def.glyphColor} />
-        <span className={styles.panelTitle}>{def.title}</span>
+        <span className={styles.panelTitle} {...titleData}>{def.title}</span>
         {count != null && (onCount
           ? (
             <button type="button" className={`${styles.panelCount} ${styles.panelCountBtn}`} data-testid="glance-section-count" aria-label={`${def.title}: ${count}. Show tasks`} onClick={onCount}>

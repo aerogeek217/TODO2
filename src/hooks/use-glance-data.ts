@@ -6,6 +6,7 @@ import { computeEisenhowerSummary, eisenhowerSourceTasks, type EisenhowerSummary
 import { filterHistory, historyExactness, type HistoryExactness } from '../services/stats/filter-history'
 import { numberHistoryDays, numberIds, numberStages } from '../services/stats/number-count'
 import { computePulse, type PulseCard } from '../services/stats/pulse'
+import { pulseRuleFilter, type PulseRuleKey, type PulseTabConfig } from '../models/pulse-config'
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { useListDefinitionStore } from '../stores/list-definition-store'
@@ -314,14 +315,37 @@ export function useNumberHistory(base: StatsBase, count: NumberCount): NumberHis
 
 // ── Project pulse (D25 L) ───────────────────────────────────────────────────
 
-const pulseMemo = sharedMemo((shown: Tasks, tags: readonly Tag[], ctx: StatsContext, tagIds: readonly number[], staleAfterDays: number): PulseCard[] => (
-  computePulse(shown, tags, ctx, tagIds, staleAfterDays)
-), OPTION_SLOTS)
-/** Project pulse's cards over the screen-filtered tasks, a card per picked tag. */
-export function usePulse(base: StatsBase, tagIds: readonly number[]): PulseCard[] {
+const pulseMemo = sharedMemo((
+  shown: Tasks,
+  tags: readonly Tag[],
+  ctx: StatsContext,
+  tagIds: readonly number[],
+  staleAfterDays: number,
+  late: FilterCriteria | null,
+  stale: FilterCriteria | null,
+  lookups: TodoNameLookups | null,
+  settings: FilterSettings,
+): PulseCard[] => {
+  // A rule with a filter of its own (G5) matches through it, as a chart's filter does; else its built-in default.
+  const match = (c: FilterCriteria | null) => (c && lookups ? (t: PersistedTodoItem) => matchesFilterWithLookups(c, t, lookups, ctx.today, settings) : undefined)
+  return computePulse(shown, tags, ctx, tagIds, staleAfterDays, { late: match(late), stale: match(stale) })
+}, OPTION_SLOTS)
+/**
+ * Project pulse's cards over the screen-filtered tasks, a card per picked
+ * tag; late and stale by its rules (G5): a rule's filter over a card's open
+ * tasks (the lookups only when one has a filter, so a write no rule reads
+ * recomputes nothing), else its default.
+ */
+export function usePulse(base: StatsBase, config: Pick<PulseTabConfig, 'tagIds' | PulseRuleKey>): PulseCard[] {
   const tags = useTagStore((s) => s.tags)
   const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
-  return pulseMemo(base.shown, tags, base.ctx, tagIds, staleAfterDays)
+  const lateFilter = pulseRuleFilter(config, 'late')
+  const staleFilter = pulseRuleFilter(config, 'stale')
+  const late = lateFilter ? numberCriteriaMemo(lateFilter) : null
+  const stale = staleFilter ? numberCriteriaMemo(staleFilter) : null
+  const criteria = [late, stale].filter((c): c is FilterCriteria => c != null)
+  const lookups = criteria.length > 0 ? lookupsFor(base, ...criteria) : null
+  return pulseMemo(base.shown, tags, base.ctx, config.tagIds, staleAfterDays, late, stale, lookups, base.markerSettings)
 }
 
 // ── The Eisenhower's counts (its small and medium faces) ────────────────────
