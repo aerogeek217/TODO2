@@ -1,4 +1,5 @@
 .menu {
+  --menu-icon-slot: 14px;
   position: fixed;
   z-index: var(--z-dialog-nested);
   min-width: 200px;
@@ -53,7 +54,15 @@
 
 .icon {
   display: inline-flex;
+  justify-content: center;
+  min-width: var(--menu-icon-slot);
   color: var(--color-text-muted);
+  flex-shrink: 0;
+}
+
+/* An item without an icon in a panel where others have one: the icon's slot, empty (one left edge). */
+.iconSlot {
+  width: var(--menu-icon-slot);
   flex-shrink: 0;
 }
 
@@ -230,11 +239,11 @@
   font-weight: var(--font-weight-semibold);
 }
 
+/* Each sized by its label, sharing what's left: the row widens the menu to fit (no label clipped). */
 .segment {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 1 0 auto;
   height: 24px;
-  padding: 0 6px;
+  padding: 0 8px;
   border: none;
   border-radius: var(--radius-sm);
   background: var(--color-tint-4);
@@ -271,6 +280,12 @@
 }
 
 .stepper .label {
+  margin-right: 4px;
+}
+
+/* Its icon (or empty slot) sits as an item's does: the item's 8px gap, not the stepper's 4px. */
+.stepper > .icon,
+.stepper > .iconSlot {
   margin-right: 4px;
 }
 

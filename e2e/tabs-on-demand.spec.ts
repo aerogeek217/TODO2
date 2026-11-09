@@ -67,7 +67,7 @@ test('a one-widget cell has no tablist; its top line’s grip and ⋯ show on ho
   const menu = page.getByRole('menu', { name: 'Cell options' })
   await expect(menu).toBeVisible()
   await expect(menu.getByRole('menuitem', { name: 'Split cell' })).toBeVisible()
-  await expect(menu.getByRole('menuitem', { name: /^Numbers & charts/ })).toBeVisible()
+  await expect(menu.getByRole('menuitem', { name: /^Change widget/ })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(menu).toHaveCount(0)
   // The focus is back in the cell: Tab reaches the ⋯ itself.

@@ -58,15 +58,14 @@ export interface WidgetKindMenuProps {
    */
   pickListForLens?: (listDefinitionId: number) => void
   /**
-   * "Edit list…" for the tab's list: a list tab's menu opens with the list's
-   * own items — "Edit list…", then "Change list ›" (showing
-   * `currentListName`) — then the widget actions, then "Change widget"; an Eisenhower tab has
-   * "Edit list…" (its own list) first. The caller binds the widget's list;
-   * the menu forwards the click and closes.
+   * "Edit list…" for the tab's list, first under the widget's heading (a
+   * list tab's, then "Change list ›" showing `currentListName`; an
+   * Eisenhower tab's own list). The caller binds the widget's list; the
+   * menu forwards the click and closes.
    */
   onEditList?: () => void
   onClose: () => void
-  /** Group-label heading. Defaults to "Change widget"; use "Add widget" in add mode. */
+  /** Changing: the kind switcher's item (default "Change widget"). Adding: the menu's name ("Add widget"). */
   heading?: string
   /**
    * The widget's own actions (e.g. "Copy tasks"), listed before the kind
@@ -124,9 +123,15 @@ export function useWidgetKindMenuEntries(content: WidgetKindMenuContent): MenuEn
 }
 
 /**
- * The entries of a widget's menu (`WidgetKindMenu`; the cell's ⋯ menu lists
- * them first, D26 AA1): its own items, then the kinds. `listChoices` are
- * Change list's items.
+ * The entries of a widget's menu. Changing a widget (the cell's ⋯ menu
+ * lists them first, D26 AA1): a heading naming the widget's kind, then its
+ * own items — Edit list… and Change list ›, its source actions, its
+ * settings, its widget setting, its actions — and last **Change widget ›**
+ * (the current kind beside it), whose submenu holds every kind by group
+ * under its caption. Adding (`currentKind` absent, Add widget): the lead
+ * entries, then the kinds — the first group (Tasks) inline under its
+ * caption, every other (Numbers & charts) a submenu of its own.
+ * `listChoices` are Change list's items.
  */
 export function widgetKindMenuEntries({
   currentKind,
@@ -143,25 +148,6 @@ export function widgetKindMenuEntries({
   leadEntries,
   kindPresets,
 }: WidgetKindMenuContent, listChoices: readonly MenuEntry[]): MenuEntry[] {
-  const showChangeList = currentKind === 'lens' && pickListForLens != null
-  const listFirst = currentKind === 'lens' && onEditList != null
-
-  const entries: MenuEntry[] = leadEntries && leadEntries.length > 0 ? [...leadEntries, { kind: 'separator' }] : []
-  const changeList: MenuItemEntry = {
-    kind: 'item',
-    label: listFirst ? 'Change list' : 'Change list…',
-    note: listFirst ? currentListName : undefined,
-    children: listChoices,
-    childrenWidth: CHANGE_LIST_WIDTH_PX,
-    childrenMaxHeight: CHANGE_LIST_MAX_HEIGHT_PX,
-  }
-  const actions: MenuItemEntry[] = (widgetActions ?? []).map((a) => ({
-    kind: 'item',
-    label: a.label,
-    icon: listFirst ? undefined : a.icon,
-    ...(a.checked !== undefined ? { checkbox: true, checked: a.checked } : {}),
-    onSelect: a.onSelect,
-  }))
   const kindItem = (k: WidgetKind): MenuItemEntry => {
     // Add mode: a kind with presets opens them (D26 P8).
     const presets = currentKind == null ? kindPresets?.[k] : undefined
@@ -174,76 +160,91 @@ export function widgetKindMenuEntries({
         children: [{ kind: 'label', text: widgetKindLabel(k) }, ...presets],
       }
     }
-    return plainKindItem(k)
-  }
-  const plainKindItem = (k: WidgetKind): MenuItemEntry => ({
-    kind: 'item',
-    label: widgetKindLabel(k),
-    icon: <WidgetKindIcon kind={k} />,
-    // Changing a widget: one of them is the current kind. Adding: plain actions.
-    radio: currentKind != null,
-    checked: currentKind != null ? k === currentKind : undefined,
-    disabled: k !== currentKind && unavailableKinds?.[k] != null ? true : undefined,
-    description: k !== currentKind ? unavailableKinds?.[k] : undefined,
-    onSelect: () => onChangeKind(k),
-  })
-  // The kinds by group: the first (Tasks) inline — changing a widget, under
-  // the menu's heading, which says what a pick does —, every other (Numbers &
-  // charts) a submenu of its own.
-  const kinds: MenuEntry[] = WIDGET_KIND_GROUPS.flatMap(({ group, label }, i): MenuEntry[] => {
-    const items = widgetKindsOf(group).map(kindItem)
-    if (i === 0) return [{ kind: 'label', text: currentKind != null ? heading : label }, ...items]
-    const current = currentKind != null && widgetKindsOf(group).includes(currentKind) ? currentKind : undefined
-    return [{ kind: 'separator' }, {
+    return {
       kind: 'item',
-      label,
-      // The chart glyph (Created vs completed's): the item lines up with the kinds above it.
-      icon: <WidgetKindIcon kind="trend" />,
-      note: current ? widgetKindLabel(current) : undefined,
-      childrenWidth: KIND_SUBMENU_WIDTH_PX,
-      children: [{ kind: 'label', text: label }, ...items],
-    }]
-  })
-
-  if (listFirst) {
-    entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList?.() })
-    if (showChangeList) entries.push(changeList)
-    entries.push({ kind: 'separator' })
-    if (settingEntries && settingEntries.length > 0) entries.push(...settingEntries, { kind: 'separator' })
-    if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
-    entries.push(...kinds)
-  } else {
-    if (onEditList || (sourceActions?.length ?? 0) > 0) {
-      if (onEditList) entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList() })
-      for (const a of sourceActions ?? []) entries.push({ kind: 'item', label: a.label, icon: a.icon, onSelect: a.onSelect })
-      if (!widgetSetting) entries.push({ kind: 'separator' })
+      label: widgetKindLabel(k),
+      icon: <WidgetKindIcon kind={k} />,
+      // Changing a widget: one of them is the current kind. Adding: plain actions.
+      radio: currentKind != null,
+      checked: currentKind != null ? k === currentKind : undefined,
+      disabled: k !== currentKind && unavailableKinds?.[k] != null ? true : undefined,
+      description: k !== currentKind ? unavailableKinds?.[k] : undefined,
+      onSelect: () => onChangeKind(k),
     }
-    if (settingEntries && settingEntries.length > 0) entries.push(...settingEntries, { kind: 'separator' })
-    if (widgetSetting) {
-      entries.push({
-        kind: 'item',
-        label: widgetSetting.label,
-        note: widgetSetting.value,
-        childrenWidth: SETTING_SUBMENU_WIDTH_PX,
-        children: [
-          { kind: 'label', text: widgetSetting.heading },
-          ...widgetSetting.options.map((o): MenuEntry => ({
-            kind: 'item',
-            label: o.label,
-            note: o.note,
-            radio: true,
-            indicator: 'radio',
-            checked: o.checked,
-            onSelect: o.onSelect,
-          })),
-          ...(widgetSetting.footnote ? [{ kind: 'separator' } as const, { kind: 'note', text: widgetSetting.footnote } as const] : []),
-        ],
-      }, { kind: 'separator' })
-    }
-    if (actions.length > 0) entries.push(...actions, { kind: 'separator' })
-    entries.push(...kinds)
-    if (showChangeList) entries.push({ kind: 'separator' }, changeList)
   }
 
+  if (currentKind == null) {
+    // Add mode: the first group inline under its caption, every other a submenu.
+    const kinds = WIDGET_KIND_GROUPS.flatMap(({ group, label }, i): MenuEntry[] => {
+      const items = widgetKindsOf(group).map(kindItem)
+      if (i === 0) return [{ kind: 'label', text: label }, ...items]
+      return [{ kind: 'separator' }, {
+        kind: 'item',
+        label,
+        // The chart glyph (Created vs completed's): the item lines up with the kinds above it.
+        icon: <WidgetKindIcon kind="trend" />,
+        childrenWidth: KIND_SUBMENU_WIDTH_PX,
+        children: [{ kind: 'label', text: label }, ...items],
+      }]
+    })
+    return leadEntries && leadEntries.length > 0 ? [...leadEntries, { kind: 'separator' }, ...kinds] : kinds
+  }
+
+  const entries: MenuEntry[] = [{ kind: 'label', text: widgetKindLabel(currentKind) }]
+  if (onEditList) entries.push({ kind: 'item', label: 'Edit list…', onSelect: () => onEditList() })
+  if (currentKind === 'lens' && pickListForLens != null) {
+    entries.push({
+      kind: 'item',
+      label: 'Change list',
+      note: currentListName,
+      children: listChoices,
+      childrenWidth: CHANGE_LIST_WIDTH_PX,
+      childrenMaxHeight: CHANGE_LIST_MAX_HEIGHT_PX,
+    })
+  }
+  for (const a of sourceActions ?? []) entries.push({ kind: 'item', label: a.label, icon: a.icon, onSelect: a.onSelect })
+  if (settingEntries && settingEntries.length > 0) entries.push(...settingEntries)
+  if (widgetSetting) {
+    entries.push({
+      kind: 'item',
+      label: widgetSetting.label,
+      note: widgetSetting.value,
+      childrenWidth: SETTING_SUBMENU_WIDTH_PX,
+      children: [
+        { kind: 'label', text: widgetSetting.heading },
+        ...widgetSetting.options.map((o): MenuEntry => ({
+          kind: 'item',
+          label: o.label,
+          note: o.note,
+          radio: true,
+          indicator: 'radio',
+          checked: o.checked,
+          onSelect: o.onSelect,
+        })),
+        ...(widgetSetting.footnote ? [{ kind: 'separator' } as const, { kind: 'note', text: widgetSetting.footnote } as const] : []),
+      ],
+    })
+  }
+  for (const a of widgetActions ?? []) {
+    entries.push({
+      kind: 'item',
+      label: a.label,
+      icon: a.icon,
+      ...(a.checked !== undefined ? { checkbox: true, checked: a.checked } : {}),
+      onSelect: a.onSelect,
+    })
+  }
+  // Change widget ›: every kind, by group under its caption.
+  entries.push({
+    kind: 'item',
+    label: heading,
+    note: widgetKindLabel(currentKind),
+    childrenWidth: KIND_SUBMENU_WIDTH_PX,
+    children: WIDGET_KIND_GROUPS.flatMap(({ group, label }, i): MenuEntry[] => [
+      ...(i > 0 ? [{ kind: 'separator' } as const] : []),
+      { kind: 'label', text: label },
+      ...widgetKindsOf(group).map(kindItem),
+    ]),
+  })
   return entries
 }

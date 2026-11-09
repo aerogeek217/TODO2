@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { createTab, kindTabTitle, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../src/models/workspace-layout'
-import { pickWidgetKind, seedWorkspace, wsCell, type WsLayoutSeed, wsRow } from './fixtures/workspace'
+import { openChangeWidget, pickWidgetKind, seedWorkspace, wsCell, type WsLayoutSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Every widget kind (from the one kind table) can be added, switched to and
@@ -34,9 +34,8 @@ const tab = (page: Page, kind: WidgetKind) => {
 }
 /** The add-widget menu's items: the task kinds, then the Numbers & charts submenu. */
 /** The chart kinds (D26 P8): a new one opens its editor. */
-const CHART_KINDS: ReadonlySet<string> = new Set(['breakdown', 'pivot', 'statusFlow', 'tagMap'])
+const CHART_KINDS: ReadonlySet<string> = new Set(['breakdown', 'pivot', 'tagMap'])
 const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindLabel), 'Numbers & charts']
-const GLANCE = widgetKindsOf('glance')
 
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })
@@ -89,10 +88,12 @@ test.describe('desktop', () => {
       await tab(page, current).first().click()
       await tab(page, current).first().click({ button: 'right' })
       const menu = page.getByRole('menu', { name: 'Cell options' })
-      // The current kind is checked — a Numbers & charts one is named on its submenu's item.
-      if (GLANCE.includes(current)) await expect(menu.getByRole('menuitem', { name: /^Numbers & charts/ })).toContainText(widgetKindLabel(current))
-      else await expect(menu.getByRole('menuitemradio', { name: widgetKindLabel(current), exact: true })).toHaveAttribute('aria-checked', 'true')
-      await pickWidgetKind(page, 'Change widget', widgetKindLabel(kind))
+      // The widget's part is headed by its kind; Change widget › names it and checks it in its submenu.
+      await expect(menu.locator(':scope > [role="presentation"]').first()).toHaveText(widgetKindLabel(current))
+      await expect(menu.getByRole('menuitem', { name: /^Change widget/ })).toContainText(widgetKindLabel(current))
+      const kinds = await openChangeWidget(page)
+      await expect(kinds.getByRole('menuitemradio', { name: widgetKindLabel(current), exact: true })).toHaveAttribute('aria-checked', 'true')
+      await kinds.getByRole('menuitemradio', { name: widgetKindLabel(kind), exact: true }).click()
       // Switched to List: a new list of the layout, its Edit list open.
       if (kind === 'lens') {
         await expect(page.getByRole('dialog', { name: /^Edit list / })).toBeVisible()

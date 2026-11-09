@@ -471,8 +471,8 @@ test.describe('adding and changing widgets', () => {
 
     await page.getByRole('tab', { name: 'Calendar' }).click({ button: 'right' })
     const changeWidget = page.getByRole('menu', { name: 'Cell options' })
-    await expect(changeWidget.getByRole('menuitem', { name: /^Numbers & charts/ })).toContainText('Calendar')
-    // A Numbers & charts kind, from its submenu.
+    await expect(changeWidget.getByRole('menuitem', { name: /^Change widget/ })).toContainText('Calendar')
+    // A Numbers & charts kind, from the Change widget submenu.
     await pickWidgetKind(page, 'Change widget', 'Created vs completed')
     await expect(page.getByRole('tab', { name: /Created vs completed/ })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveCount(0)

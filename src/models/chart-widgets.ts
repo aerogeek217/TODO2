@@ -322,47 +322,6 @@ export function pickPivotConfig(raw: Obj, filter: PickedConfig<TodoPredicate>): 
   }
 }
 
-// ── Status flow ─────────────────────────────────────────────────────────────
-
-/** The weeks a Status flow can cover. */
-export const STATUS_FLOW_WEEK_CHOICES = [8, 12, 26] as const
-export type StatusFlowWeekCount = (typeof STATUS_FLOW_WEEK_CHOICES)[number]
-
-/**
- * A Status flow (D26 P8, board Z1): the open tasks a filter keeps, by
- * status, at each of the last `weeks` weeks' end — replayed from the
- * status history.
- */
-export interface StatusFlowConfig {
-  /** Its title (blank while typed: the tab then reads `Status flow`). */
-  name: string
-  filter: TodoPredicate
-  weeks: StatusFlowWeekCount
-}
-
-export const DEFAULT_STATUS_FLOW_NAME = 'Status flow'
-
-/** A new Status flow: 8 weeks. */
-export function newStatusFlowConfig(filter: TodoPredicate): StatusFlowConfig {
-  return { name: DEFAULT_STATUS_FLOW_NAME, filter, weeks: 8 }
-}
-
-const isFlowWeeks = (v: unknown): v is StatusFlowWeekCount => includes(STATUS_FLOW_WEEK_CHOICES, v)
-
-/** Where a stored Status flow config goes wrong (the filter is the caller's): the bad key, or `null`. */
-export function statusFlowConfigProblem(raw: Obj): string | null {
-  if (!isChartName(raw.name)) return 'name'
-  if (!isFlowWeeks(raw.weeks)) return 'weeks'
-  return null
-}
-
-/** A Status flow's config from untrusted input, `filter` picked: a bad field gets its default (8 weeks, `fixed`). */
-export function pickStatusFlowConfig(raw: Obj, filter: PickedConfig<TodoPredicate>): PickedConfig<StatusFlowConfig> {
-  const name = isChartName(raw.name) ? raw.name : DEFAULT_STATUS_FLOW_NAME
-  const weeks = isFlowWeeks(raw.weeks) ? raw.weeks : 8
-  return { config: { name, filter: filter.config, weeks }, fixed: filter.fixed || name !== raw.name || weeks !== raw.weeks }
-}
-
 // ── Tag map ─────────────────────────────────────────────────────────────────
 
 /**

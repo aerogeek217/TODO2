@@ -33,12 +33,10 @@ import {
 import {
   newBreakdownConfig,
   newPivotConfig,
-  newStatusFlowConfig,
   newTagMapConfig,
   type BreakdownConfig,
   type BreakdownViewState,
   type PivotConfig,
-  type StatusFlowConfig,
   type TagMapConfig,
 } from './chart-widgets'
 
@@ -50,7 +48,9 @@ import {
  * (`trend`, the Breakdown — D26 P8) and `pulse` (Project pulse). v78
  * (D26 P4) retired Needs follow-up, Next 7 days, Stale tasks, Recently
  * completed, What changed and Today, and made the Eisenhower summary the
- * Eisenhower's small face; P8 made People, Tags and Status Breakdowns.
+ * Eisenhower's small face; P8 made People, Tags and Status Breakdowns. The
+ * Status flow chart (P8) was removed after v78 shipped: a saved one is
+ * dropped by the layout repair (`data/layout-shape`).
  */
 export type WidgetKind =
   | 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'neglect'
@@ -60,7 +60,7 @@ export type WidgetKind =
 export type GlanceWidgetKind = 'number' | ChartWidgetKind | 'trend' | 'pulse'
 
 /** The chart widgets (D26 P8): a filter, then what it is split by — each has a name, a filter and an editor. */
-export type ChartWidgetKind = 'breakdown' | 'pivot' | 'statusFlow' | 'tagMap'
+export type ChartWidgetKind = 'breakdown' | 'pivot' | 'tagMap'
 
 export type CalendarView = 'week' | 'month'
 
@@ -245,11 +245,10 @@ export type PulseTab = TabOf<'pulse', TagPicksTabConfig, NoTabSettings>
 // ── D26 P8: the chart widgets ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
 export type PivotTab = TabOf<'pivot', PivotConfig, NoTabSettings>
-export type StatusFlowTab = TabOf<'statusFlow', StatusFlowConfig, NoTabSettings>
 export type TagMapTab = TabOf<'tagMap', TagMapConfig, NoTabSettings>
 
 /** A chart widget's tab (D26 P8). */
-export type ChartTab = BreakdownTab | PivotTab | StatusFlowTab | TagMapTab
+export type ChartTab = BreakdownTab | PivotTab | TagMapTab
 
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
@@ -470,7 +469,6 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   // D26 P8: the chart widgets.
   breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
   pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
-  statusFlow: glanceSpec('Status flow', (id) => ({ id, kind: 'statusFlow', config: newStatusFlowConfig(emptyPredicate()) })),
   tagMap: glanceSpec('Tag map', (id) => ({ id, kind: 'tagMap', config: newTagMapConfig(emptyPredicate()) })),
   trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
   pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
@@ -533,7 +531,7 @@ export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
 
 /** A chart widget's tab (D26 P8). */
 export function isChartTab(tab: LayoutTab): tab is ChartTab {
-  return tab.kind === 'breakdown' || tab.kind === 'pivot' || tab.kind === 'statusFlow' || tab.kind === 'tagMap'
+  return tab.kind === 'breakdown' || tab.kind === 'pivot' || tab.kind === 'tagMap'
 }
 
 /**

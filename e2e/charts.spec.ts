@@ -2,9 +2,8 @@ import { expect, test, type Page } from '@playwright/test'
 import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
- * The charts of D26 P8 beside the Breakdown (board Z1): a Pivot's cells, a
- * Status flow's segments and a Tag map's tiles each open their tasks in
- * the task dialog.
+ * The charts of D26 P8 beside the Breakdown (board Z1): a Pivot's cells
+ * and a Tag map's tiles each open their tasks in the task dialog.
  */
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -22,10 +21,9 @@ const SEED: WorkspaceSeed = {
     { title: 'Done already', people: ['Ben Ortiz'], status: 'Waiting', isCompleted: true },
   ],
   layouts: [{ name: 'Charts', table: {
-    areas: ['p f', 'm m'],
+    areas: ['p', 'm'],
     cells: [
       { id: 'p', tabs: [{ id: 'pivot', kind: 'pivot' }] },
-      { id: 'f', tabs: [{ id: 'flow', kind: 'statusFlow' }] },
       { id: 'm', tabs: [{ id: 'map', kind: 'tagMap' }] },
     ],
   } }],
@@ -49,20 +47,6 @@ test('a Pivot’s cell and its totals open their tasks', async ({ page }) => {
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(1)
   await page.keyboard.press('Escape')
   await pivot.getByRole('button', { name: 'Waiting: 2. Show tasks' }).click()
-  await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
-})
-
-
-test('a Status flow’s segment opens the tasks in that status at that week’s end', async ({ page }) => {
-  await seedWorkspace(page, SEED)
-  const flow = chart(page, 'flow')
-  await expect(flow.getByTestId('chart-sub')).toHaveText('8 weeks')
-  await expect(flow.getByTestId('status-flow-legend')).toContainText('Doing')
-  await expect(flow.locator('[data-flow-week]')).toHaveCount(8)
-  // Seeded without history: this week holds them, by status now.
-  const waiting = flow.getByRole('button', { name: 'Waiting, this week: 2. Show tasks' })
-  await waiting.click()
-  await expect(dialog(page).getByRole('heading')).toHaveText('Status flow · Waiting · now')
   await expect(dialog(page).locator('[data-todo-id]')).toHaveCount(2)
 })
 

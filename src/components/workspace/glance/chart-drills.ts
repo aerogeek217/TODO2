@@ -81,7 +81,7 @@ export function breakdownRowReview(chart: string, row: BreakdownRow, part: RowRe
   }
 }
 
-/** A chart's tasks under a heading of their own (a Pivot cell, a Status flow segment, a Tag map tile). */
+/** A chart's tasks under a heading of their own (a Pivot cell, a Tag map tile). */
 export function chartDrill(title: string, glyph: GlanceGlyphName, description: string, ids: readonly number[]): GlanceDrill {
   return { title, glyph, description, source: { kind: 'todos', todoIds: [...ids] } }
 }

@@ -3,7 +3,6 @@ import type { GlanceTab } from '../../../models/workspace-layout'
 import type { GlanceWidgetProps } from './glance-hooks'
 import { BreakdownWidget } from './BreakdownWidget'
 import { PivotWidget } from './PivotWidget'
-import { StatusFlowWidget } from './StatusFlowWidget'
 import { TagMapWidget } from './TagMapWidget'
 import { NumberWidget } from './NumberWidget'
 import { PulseWidget } from './PulseWidget'
@@ -18,7 +17,6 @@ export function GlanceWidget({ tab, ...props }: GlanceWidgetProps<GlanceTab>): R
     // D26 P8: the chart widgets.
     case 'breakdown': return <BreakdownWidget tab={tab} {...props} />
     case 'pivot': return <PivotWidget tab={tab} {...props} />
-    case 'statusFlow': return <StatusFlowWidget tab={tab} {...props} />
     case 'tagMap': return <TagMapWidget tab={tab} {...props} />
   }
 }
