@@ -4,6 +4,7 @@ import type {
   TodoItem, TodoEvent, StatusUpdate, Subtask, Person, Tag, Status,
 } from '../models'
 import { newTodoUid } from '../utils/todo-uid'
+import { SETTING_KEYS } from './setting-keys'
 
 /** Per incoming task: `import` (default) or `skip`. Keyed by the incoming `uid`. */
 export type AppendChoice = 'skip' | 'import'
@@ -41,6 +42,32 @@ function byNameIndex<T extends { id?: number; name: string }>(rows: readonly T[]
   return out
 }
 
+/** A stored stamp as a date; `null` for none or one that doesn't read. */
+function stampOf(value: string | undefined): Date | null {
+  if (value == null) return null
+  const d = new Date(value)
+  return Number.isNaN(d.getTime()) ? null : d
+}
+
+/**
+ * The history log H3 (the follow-ups, priority flags, people and tags) is
+ * exact from `historyLogSince` on — for every task here. Appended tasks
+ * were logged only as far back as their file's log reaches (its own
+ * `historyLogSince`; a task archive or an older file says none, and their
+ * people and tags arrive as rows, not logged adds): when that is later
+ * than ours, ours moves to it (none: to now), so a past day before it
+ * reads ≈ rather than exact. Inside the append's transaction.
+ */
+async function coverAppendedHistory(data: ImportData): Promise<void> {
+  const ours = stampOf((await db.settings.get(SETTING_KEYS.historyLogSince))?.value)
+  if (ours == null) return
+  const theirs = stampOf((data.settings ?? []).find((r) => r.key === SETTING_KEYS.historyLogSince)?.value)
+  if (theirs != null && theirs.getTime() <= ours.getTime()) return
+  const now = new Date()
+  const since = theirs != null && theirs.getTime() < now.getTime() ? theirs : now
+  await db.settings.put({ key: SETTING_KEYS.historyLogSince, value: since.toISOString() })
+}
+
 /**
  * Appends tasks from a validated import (task archive or full export —
  * `prepareImport(…, { purpose: 'append' })`) to the current database.
@@ -59,6 +86,9 @@ function byNameIndex<T extends { id?: number; name: string }>(rows: readonly T[]
  *   `statusUpdates` and their `subtasks` are re-pointed at the new ids.
  * - Tasks whose `choices` entry is `skip` are left out with their rows.
  *
+ * - The history log's start (`historyLogSince`) moves to where the file's
+ *   log began when that is later (`coverAppendedHistory`).
+ *
  * No backup snapshot and no store refresh — the caller does both.
  */
 export async function appendImportTasks(
@@ -71,7 +101,7 @@ export async function appendImportTasks(
 
   const tables = [
     db.todos, db.todoPeople, db.todoTags, db.todoEvents, db.statusUpdates, db.subtasks,
-    db.people, db.tags, db.statuses,
+    db.people, db.tags, db.statuses, db.settings,
   ]
   const todoIds = await db.transaction('rw', tables, async () => {
     // --- Entity resolution (by name; create missing) ---
@@ -254,6 +284,7 @@ export async function appendImportTasks(
     }
     if (subtasks.length > 0) await db.subtasks.bulkAdd(subtasks)
 
+    if (newIds.length > 0) await coverAppendedHistory(data)
     return newIds
   })
 

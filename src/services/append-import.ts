@@ -3,6 +3,7 @@ import type { ImportData } from '../data/import-validation'
 import { todoRepository } from '../data/todo-repository'
 import { appendImportTasks, nameKey, type AppendChoice, type AppendImportResult } from '../data/append-import'
 import { replaceData } from './replace-data'
+import { useSettingsStore } from '../stores/settings-store'
 
 export type { AppendChoice, AppendImportResult }
 
@@ -76,5 +77,7 @@ export async function runAppendImport(
     write: () => appendImportTasks(data, choices),
   })
   if (outcome.status === 'cancelled') return outcome
+  // The history log's start may have moved to the append (`coverAppendedHistory`): read it again.
+  await useSettingsStore.getState().stampHistoryLogSince()
   return { ...outcome.result, status: 'done', noBackup: outcome.noBackup }
 }
