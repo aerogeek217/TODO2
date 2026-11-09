@@ -138,16 +138,19 @@ const pivotMemo = sharedMemoByKey(function pivot(
   ctx: StatsContext,
   people: RowRestrictions,
   tags: RowRestrictions,
+  ranges: TabBadgeRanges,
 ): PivotStats {
-  return computePivot(tasks, ctx, { rows: config.rows, cols: config.cols, restrictions: { people, tags } })
+  return computePivot(tasks, ctx, { rows: config.rows, cols: config.cols, restrictions: { people, tags }, ranges })
 })
 
 /** A Pivot's heat table (`services/stats/pivot`) over its filter's tasks; a people or tags axis narrows by the `@` / `#` picks. */
 export function usePivotData(base: StatsBase, config: PivotConfig): ChartTasks & { stats: PivotStats } {
+  // Its people / tags order by the tasks due and due a follow-up in Settings' ranges.
+  const appRanges = useSettingsStore((s) => s.tabBadges)
   const chart = useChartTasks(base, config.filter)
   const people = restrictionsMemo(config.filter, 'personIds', chart.count.screen)
   const tags = restrictionsTagsMemo(config.filter, 'tags', chart.count.screen)
-  return { ...chart, stats: pivotMemo(config, chart.tasks, base.ctx, people, tags) }
+  return { ...chart, stats: pivotMemo(config, chart.tasks, base.ctx, people, tags, appRanges) }
 }
 
 // ── Tag map ─────────────────────────────────────────────────────────────────
