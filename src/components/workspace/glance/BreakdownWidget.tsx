@@ -522,7 +522,9 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   const large = face === 'large'
   const shownPicks = useMemo(() => livePicks(all, picks), [all, picks])
   const rows = large ? filteredRows(all, shownPicks, text) : all
-  const total = data.stats.ids.length
+  // What the rows shown hold (a task in several rows once): the header, Copy and the count's drill
+  // agree, a hidden none row counted in none of them.
+  const total = useMemo(() => new Set(all.flatMap((r) => r.ids)).size, [all])
   const word = data.tasks.some((t) => t.isCompleted) ? 'tasks' : 'open'
   const lines = useMemo(() => breakdownLines(title, total, word, all, config.show), [title, total, word, all, config.show])
   useReportLines(onResult, lines)

@@ -212,6 +212,18 @@ describe('faces and styles', () => {
     expect(face.getAttribute('aria-label')).toMatch(/^People: .+: \d+ open$/)
   })
 
+  it('the header count is what the rows shown hold: the hidden none row counts neither there nor in its drill', () => {
+    const onDrill = vi.fn()
+    setup(breakdown({ name: 'Team', showNone: false }), { onDrill })
+    expect(keys()).not.toContain('none')
+    const count = document.querySelector<HTMLElement>('[data-testid="glance-section-count"]')!
+    fireEvent.click(count)
+    const drill = onDrill.mock.lastCall?.[0] as GlanceDrill
+    const source = drill.source as { kind: 'groups'; groups: Array<{ todoIds: number[] }> }
+    const distinct = new Set(source.groups.flatMap((g) => g.todoIds)).size
+    expect(count.textContent).toBe(`${distinct} open`)
+  })
+
   it('stacked: a segment per row that drills; donut: likewise', () => {
     const onDrill = vi.fn()
     setup(breakdown({ style: 'stacked', splitBy: 'status', name: 'Status' }), { onDrill })
