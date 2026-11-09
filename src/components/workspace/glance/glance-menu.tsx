@@ -53,10 +53,11 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
     case 'number':
       return [
         { kind: 'item', label: 'Edit number…', onSelect: () => openNumberEditor(tab.id) },
-        settingEntry('Breakdown', NUMBER_BREAKDOWNS.map((b) => ({ value: b, label: NUMBER_BREAKDOWN_LABELS[b] })),
+        // A count's breakdown (D26 P6: the other shapes have none).
+        ...(tab.config.show === 'count' ? [settingEntry('Breakdown', NUMBER_BREAKDOWNS.map((b) => ({ value: b, label: NUMBER_BREAKDOWN_LABELS[b] })),
           tab.config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN,
           (breakdown) => ws().patchTabConfig(tab.id, 'number', { breakdown }),
-          'Shown under the count when the cell has room for the whole widget.'),
+          'Shown under the count when the cell has room for the whole widget.')] : []),
       ]
     case 'trend':
       return [settingEntry('Range', TREND_RANGES.map((r) => ({ value: r, label: trendRangeLabel(r).replace(/^Last /, '') })), tab.config.range,
