@@ -68,7 +68,7 @@ export function withScreenNote(description: string): string {
 /**
  * What a Number counts, in words — its task dialog's line under its title:
  * `Every open task.`, or its filter (`Open tasks where Due is overdue ·
- * Tags is Project: Atlas.`; an expression as its text).
+ * Tags is Project: Atlas.`; an expression in words).
  */
 export function numberDescription(filter: TodoPredicate, names: FilterChipNames): string {
   const items = predicateLineItems(filter, names)

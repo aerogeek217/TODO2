@@ -1,10 +1,10 @@
-import { useCallback, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useContext, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import type { PersistedTodoItem } from '../../../models'
 import { NEGLECT_UNTOUCHED_CHOICES, type NeglectTab } from '../../../models/workspace-layout'
 import { DRAG_ACTIVATION_DISTANCE_PX } from '../../../constants'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
-import { useStatsBase } from '../../../hooks/use-glance-data'
+import { lensHidesWhere, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
 import { useToday } from '../../../hooks/use-today'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
@@ -13,7 +13,7 @@ import type { StatsContext } from '../../../services/stats/stats-context'
 import { slippingDrill } from '../glance/glance-drills'
 import { useFilterStore } from '../../../stores/filter-store'
 import { usePersonStore } from '../../../stores/person-store'
-import { useAppliedLens, useScreenFilter } from '../../../stores/screen-filter'
+import { useWidgetAppliedLens, useWidgetScreenFilter } from '../../../hooks/use-widget-lens'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useTagStore } from '../../../stores/tag-store'
 import { useTodoStore } from '../../../stores/todo-store'
@@ -40,6 +40,8 @@ import { screenHiderText, screenUnhideAction } from '../../shared/filters/screen
 import { useTooltip } from '../../shared/use-tooltip'
 import { ListBulkBar } from '../list/ListBulkBar'
 import { WidgetNameLine } from '../WidgetTopLine'
+import { TabLensSwitch } from '../LensSwitch'
+import { CellControlsContext } from '../cell-controls'
 import styles from './NeglectMapWidget.module.css'
 
 /** At this width and wider the Slipping list sits beside the plot; narrower (and on phones) under it. */
@@ -298,8 +300,11 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
   const isMobile = useIsMobile()
   const today = useToday()
   const todos = useTodoStore((s) => s.todos)
-  const { active: screenActive } = useScreenFilter()
-  const lens = useAppliedLens()
+  const { active: screenActive } = useWidgetScreenFilter()
+  const lens = useWidgetAppliedLens()
+  // Its lens switch (G3): what the lens hides here — open tasks, as the map places every one.
+  const lensHides = lensHidesWhere(useLensHidden(), (t) => !t.isCompleted)
+  const alone = useContext(CellControlsContext) != null
   const chipCount = useFilterStore((s) => countActiveFilters(s.filters))
   const dueSoonDays = useSettingsStore((s) => s.urgentDueWithinDays)
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
@@ -371,6 +376,7 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
     {/* Alone in its cell, its top line (D26 AA1): its name and how many are slipping. */}
     <WidgetNameLine name="Neglect map">
       <span className={styles.lineSlipping} data-testid="neglect-line-slipping">Slipping <b>{map.slipping.length}</b></span>
+      {alone && <TabLensSwitch tab={tab} hides={lensHides} />}
     </WidgetNameLine>
     <div
       ref={sizeRef}
@@ -379,6 +385,8 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
       data-layout={besideList ? 'beside' : 'stacked'}
       {...{ [SELECTION_SCOPE_ATTR]: isMobile ? undefined : tab.id }}
     >
+      {/* In a cell of several widgets (no name line): its lens switch over its corner (G3). */}
+      {!alone && <TabLensSwitch tab={tab} hides={lensHides} floating />}
       <div className={styles.chart} data-neglect-chart="" {...handlers}>
         <div className={styles.yAxis} aria-hidden="true">
           {yMarks(dueSoonDays).map((m) => (

@@ -1,27 +1,28 @@
 import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { DEFAULT_STATUS_ICON } from '../../../models'
-import type { BreakdownConfig, BreakdownSortKey, BreakdownSplit } from '../../../models/chart-widgets'
+import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey, type BreakdownSplit } from '../../../models/chart-widgets'
 import type { BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
-import { useStatsBase } from '../../../hooks/use-glance-data'
+import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
+import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { openReview } from '../../../services/review'
-import { nextBreakdownSort, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
+import { columnCount, nextBreakdownSort, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { EntityMenu, type MenuEntity } from '../../shared/EntityMenu'
-import { EnvelopeIcon } from '../../shared/icons'
+import { EnvelopeIcon, ReviewIcon } from '../../shared/icons'
 import { useEntityMenuOffers } from '../../shared/person-menu-entries'
 import { PersonCheckinMenu } from '../../shared/PersonCheckinMenu'
 import { PriorityRing } from '../../shared/PriorityRing'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { useTooltip } from '../../shared/use-tooltip'
 import {
-  breakdownLines, filteredRows, livePicks, rowFigure, sortHeading, sortWords, SPLIT_GLYPHS, SPLIT_ROW_LABELS,
+  breakdownLines, columnHeading, filteredRows, livePicks, rowFigure, sortHeading, SPLIT_GLYPHS, SPLIT_ROW_LABELS,
 } from './breakdown-copy'
-import { breakdownRowDrill, breakdownRowReview, rowHeading, type RowReviewPart } from './chart-drills'
+import { breakdownColumnDrill, breakdownRowDrill, breakdownRowReview, rowHeading } from './chart-drills'
 import { ChartPanel } from './chart-parts'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { GlanceDrill, OnGlanceDrill } from './glance-types'
@@ -81,23 +82,30 @@ function RowMark({ row, color }: { row: BreakdownRow; color: string }) {
   }
 }
 
-/** A Due / Follow-up count: solid while any of it is overdue, outlined otherwise; a dim `–` for none. A click reviews those tasks (or opens them where there is no review). */
-function BadgeCount({ n, overdue, part, label, onOpen }: {
+/**
+ * A count column's count (board BC): filled solid in the column's colour
+ * while it meets the column's Light up when rule, outlined in it otherwise;
+ * a dim `–` for none. A click reviews those tasks (or opens them where there
+ * is no review).
+ */
+function ColumnCount({ n, column, label, onOpen }: {
   n: number
-  overdue: number
-  part: 'due' | 'followup'
+  column: BreakdownColumn
   label: string
   onOpen?: () => void
 }) {
-  if (n === 0) return <span className={styles.dash} aria-label={`No ${part === 'due' ? 'due' : 'follow-up'} tasks`}>–</span>
-  const cls = `${styles.badge} ${part === 'due' ? styles.badgeDue : styles.badgeFollowup} ${overdue > 0 ? styles.badgeSolid : ''}`
-  if (!onOpen) return <span className={cls} data-badge-part={part} data-solid={overdue > 0 ? '' : undefined}>{n}</span>
+  if (n === 0) return <span className={styles.dash} aria-label={`No tasks in ${columnHeading(column)}`}>–</span>
+  const lit = columnIsLit(column, n)
+  const cls = `${styles.badge} ${lit ? styles.badgeSolid : ''}`
+  const style = { '--col-color': column.color } as CSSProperties
+  const marks = { 'data-column': column.id, 'data-solid': lit ? '' : undefined }
+  if (!onOpen) return <span className={cls} style={style} {...marks}>{n}</span>
   return (
     <button
       type="button"
       className={cls}
-      data-badge-part={part}
-      data-solid={overdue > 0 ? '' : undefined}
+      style={style}
+      {...marks}
       aria-label={label}
       title={label}
       onClick={(e) => {
@@ -110,7 +118,30 @@ function BadgeCount({ n, overdue, part, label, onOpen }: {
   )
 }
 
-/** A person row's envelope: their check-in menu (`PersonCheckinMenu`: Review · Email check-in · Paste reply). */
+/** A row's Review button (board BC): an icon at the row's end, muted, always shown; starts the review deck on the row's tasks. */
+function RowReview({ heading, n, onReview }: { heading: string; n: number; onReview: () => void }) {
+  const { triggerProps, tooltip } = useTooltip('Review')
+  return (
+    <>
+      <button
+        type="button"
+        className={styles.rowAction}
+        data-testid="breakdown-review"
+        aria-label={`Review ${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}`}
+        onClick={(e) => {
+          e.stopPropagation()
+          onReview()
+        }}
+        {...triggerProps}
+      >
+        <ReviewIcon size={15} />
+      </button>
+      {tooltip}
+    </>
+  )
+}
+
+/** A person row's envelope (board BC, beside Review): their check-in menu — Email check-in · Paste reply (Review is its own button here). */
 function RowEnvelope({ person }: { person: { id: number; name: string } }) {
   const { triggerProps, tooltip } = useTooltip('Email check-in')
   const [open, setOpen] = useState(false)
@@ -120,7 +151,8 @@ function RowEnvelope({ person }: { person: { id: number; name: string } }) {
       <button
         ref={ref}
         type="button"
-        className={styles.envelope}
+        className={styles.rowAction}
+        data-testid="breakdown-envelope"
         aria-label={`Email check-in options for ${person.name}`}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -130,10 +162,10 @@ function RowEnvelope({ person }: { person: { id: number; name: string } }) {
         }}
         {...triggerProps}
       >
-        <EnvelopeIcon />
+        <EnvelopeIcon size={15} />
       </button>
       {tooltip}
-      {open && <PersonCheckinMenu person={person} anchorRef={ref} placement="bottom-end" onClose={() => setOpen(false)} />}
+      {open && <PersonCheckinMenu person={person} anchorRef={ref} placement="bottom-end" review={false} onClose={() => setOpen(false)} />}
     </>
   )
 }
@@ -145,11 +177,20 @@ function rowEntity(row: BreakdownRow): MenuEntity | null {
   return null
 }
 
+/** A count column's width in a narrow table (under 400px): a badge's. */
+const NARROW_COLUMN_PX = 30
+
+/** A count column's width: its heading's, 44 – 96px. */
+function columnWidth(column: BreakdownColumn): number {
+  return Math.round(Math.min(96, Math.max(44, columnHeading(column).length * 6.6 + 14)))
+}
+
 interface TableProps {
   title: string
   config: BreakdownConfig
+  columns: readonly BreakdownColumn[]
   rows: readonly BreakdownRow[]
-  /** Medium: name · Due · Follow-up, no bar, priority or envelope. */
+  /** Medium: name · the count columns (· Review), no bar, Open, priority or envelope. */
   compact: boolean
   sortBy: BreakdownSortKey | null
   reversed: boolean
@@ -162,16 +203,17 @@ interface TableProps {
 }
 
 /**
- * The rows as a table: name · (bar) · Open (or Oldest) · Priority · Due ·
- * Follow-up (· the envelope), each heading a sort button. A row's click
- * opens its tasks; Review ▸ (on its hover or focus) and its Due / Follow-up
- * counts open the review deck on them; a person's or tag's right-click (or
- * Shift+F10) opens its menu.
+ * The rows as a table: name · (bar) · Open (or Oldest) · Priority · each
+ * count column · the row's actions (Review, and a person's envelope), each
+ * heading a sort button. A row's click opens its tasks; its Review button
+ * and a count column's count open the review deck on them; a person's or
+ * tag's right-click (or Shift+F10) opens its menu.
  */
-function BreakdownTable({ title, config, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {
+function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {
   const { splitBy, show } = config
   const [menu, setMenu] = useState<{ entity: MenuEntity; at: { x: number; y: number } } | null>(null)
   const envelope = !compact && config.checkins === true && splitBy === 'people'
+  const actions = review || envelope
   const priority = !compact && splitBy !== 'priority'
   const figure = !compact
   const max = Math.max(1, ...rows.map((r) => (show === 'oldest' ? Math.max(0, r.oldest?.days ?? 0) : r.ids.length)))
@@ -181,26 +223,27 @@ function BreakdownTable({ title, config, rows, compact, sortBy, reversed, onSort
     bars && !compact && !narrow ? '84px' : null,
     figure ? '44px' : null,
     priority && !narrow ? '76px' : null,
-    '44px',
-    '64px',
-    envelope ? '26px' : null,
+    // Narrow, a count column takes a badge's room, its heading cut short (its name in the tooltip).
+    ...columns.map((c) => `${narrow ? NARROW_COLUMN_PX : columnWidth(c)}px`),
+    actions ? `${(review ? 26 : 0) + (envelope ? 26 : 0)}px` : null,
   ].filter(Boolean).join(' ')
-  const keys: BreakdownSortKey[] = ['name', ...(figure ? ['open' as const] : []), ...(priority ? ['priority' as const] : []), 'due', 'followup']
+  const keys: BreakdownSortKey[] = ['name', ...(figure ? ['open'] : []), ...(priority ? ['priority'] : []), ...columns.map((c) => c.id)]
   const heading = (by: BreakdownSortKey) => {
     const active = sortBy === by
-    const label = sortHeading(by, splitBy, show)
+    const label = sortHeading(by, splitBy, show, columns)
     // Counts go largest first, names A–Z; a second click reverses.
     const descending = by === 'name' ? reversed : !reversed
+    const fixed = by === 'name' || by === 'open' || by === 'priority'
     return (
       <span
         key={by}
         role="columnheader"
         aria-sort={active ? (descending ? 'descending' : 'ascending') : 'none'}
-        className={`${styles.headCell} ${by === 'name' ? styles.headName : styles.headNum} ${by === 'name' && bars && !compact ? styles.headSpan : ''}`}
+        className={`${styles.headCell} ${by === 'name' ? styles.headName : fixed ? styles.headNum : styles.headCount} ${by === 'name' && bars && !compact ? styles.headSpan : ''}`}
         data-col={by === 'priority' ? 'priority' : undefined}
       >
-        <button type="button" className={styles.sortButton} data-sort-key={by} aria-pressed={active} onClick={() => onSort(by)}>
-          {label}
+        <button type="button" className={styles.sortButton} data-sort-key={by} aria-pressed={active} title={fixed ? undefined : label} onClick={() => onSort(by)}>
+          <span className={styles.sortLabel}>{label}</span>
           {active && <span className={styles.sortMark} aria-hidden="true">{descending ? '▼' : '▲'}</span>}
         </button>
       </span>
@@ -210,20 +253,16 @@ function BreakdownTable({ title, config, rows, compact, sortBy, reversed, onSort
     <div className={styles.table} role="table" aria-label={title} style={{ '--bd-cols': columnsOf(false), '--bd-cols-narrow': columnsOf(true) } as CSSProperties} data-compact={compact ? '' : undefined}>
       <div className={`${styles.grid} ${styles.head}`} role="row">
         {keys.map(heading)}
-        {envelope && <span role="columnheader" className={styles.headCell}><span className={styles.srOnly}>Check-in</span></span>}
+        {actions && <span role="columnheader" className={styles.headCell}><span className={styles.srOnly}>Actions</span></span>}
       </div>
       <div ref={trackScrollEdges} className={styles.body} role="rowgroup">
         {rows.map((row, i) => {
           const heading = rowHeading(row)
           const color = rowColor(row, i)
           const open = onDrill ? () => onDrill(breakdownRowDrill(title, row)) : undefined
-          const reviewPart = (part: RowReviewPart) => () => { openReview(breakdownRowReview(title, row, part)) }
-          const drillPart = (part: 'due' | 'followup') => onDrill
-            ? () => onDrill({ ...breakdownRowDrill(title, row), title: `${title} · ${heading} · ${part === 'due' ? 'Due' : 'Follow-up'}`, source: { kind: 'todos', todoIds: [...(part === 'due' ? row.dueIds : row.followupIds)] } })
-            : undefined
           const entity = rowEntity(row)
           const value = show === 'oldest' ? Math.max(0, row.oldest?.days ?? 0) : row.ids.length
-          const late = row.dueOverdue
+          const late = row.overdue
           const n = row.ids.length
           const words = `${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}${show === 'oldest' && row.oldest ? `, oldest ${row.oldest.days} days` : ''}`
           return (
@@ -268,20 +307,6 @@ function BreakdownTable({ title, config, rows, compact, sortBy, reversed, onSort
                     )}
                   </span>
                 </button>
-                {review && (
-                  <button
-                    type="button"
-                    className={styles.review}
-                    data-testid="breakdown-review"
-                    aria-label={`Review ${heading}: ${n} ${n === 1 ? 'task' : 'tasks'}`}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      reviewPart('all')()
-                    }}
-                  >
-                    Review ▸
-                  </button>
-                )}
               </span>
               {bars && !compact && (
                 <span role="cell" className={styles.bar} data-col="bar" aria-hidden="true">
@@ -290,37 +315,33 @@ function BreakdownTable({ title, config, rows, compact, sortBy, reversed, onSort
                 </span>
               )}
               {figure && (
-                <span
-                  role="cell"
-                  className={styles.num}
-                  data-testid="breakdown-figure"
-                  style={show === 'oldest' && row.followupOverdue > 0 ? { color: 'var(--color-followup)' } : undefined}
-                >
+                <span role="cell" className={styles.num} data-testid="breakdown-figure">
                   {rowFigure(row, show)}
                 </span>
               )}
               {priority && <span role="cell" className={styles.priority} data-col="priority"><PriorityBadges counts={row.priority} /></span>}
-              <span role="cell" className={styles.numCell}>
-                <BadgeCount
-                  n={row.dueIds.length}
-                  overdue={row.dueOverdue}
-                  part="due"
-                  label={`${review ? 'Review' : 'Show'} ${heading}'s ${row.dueIds.length} due`}
-                  onOpen={review ? reviewPart('due') : drillPart('due')}
-                />
-              </span>
-              <span role="cell" className={styles.numCell}>
-                <BadgeCount
-                  n={row.followupIds.length}
-                  overdue={row.followupOverdue}
-                  part="followup"
-                  label={`${review ? 'Review' : 'Show'} ${heading}'s ${row.followupIds.length} follow-up${row.followupIds.length === 1 ? '' : 's'}`}
-                  onOpen={review ? reviewPart('followup') : drillPart('followup')}
-                />
-              </span>
-              {envelope && (
-                <span role="cell" className={styles.numCell}>
-                  {row.entity.kind === 'person' && <RowEnvelope person={row.entity.person} />}
+              {columns.map((column) => {
+                const count = columnCount(row, column.id)
+                const name = columnHeading(column)
+                return (
+                  <span key={column.id} role="cell" className={styles.countCell}>
+                    <ColumnCount
+                      n={count}
+                      column={column}
+                      label={`${review ? 'Review' : 'Show'} ${heading}'s ${count} in ${name}`}
+                      onOpen={review
+                        ? () => { openReview(breakdownRowReview(title, row, { columnId: column.id, heading: name })) }
+                        : onDrill ? () => onDrill(breakdownColumnDrill(title, row, column.id, name)) : undefined}
+                    />
+                  </span>
+                )
+              })}
+              {actions && (
+                <span role="cell" className={styles.actionsCell}>
+                  {review && <RowReview heading={heading} n={n} onReview={() => { openReview(breakdownRowReview(title, row, 'all')) }} />}
+                  {envelope && (row.entity.kind === 'person'
+                    ? <RowEnvelope person={row.entity.person} />
+                    : <span className={styles.actionGap} aria-hidden="true" />)}
                 </span>
               )}
             </div>
@@ -509,15 +530,18 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   const data = useBreakdownData(base, config)
   const [faceRef, face] = useWidgetFace()
   const offers = useEntityMenuOffers()
-  const sort = tab.viewState?.sorts?.[config.splitBy]
+  const storedSort = tab.viewState?.sorts?.[config.splitBy]
+  const columnIds = useMemo(() => data.columns.map((c) => c.id), [data.columns])
+  // A sort by a column it no longer has reads as the default order; the old Due / Follow-up's as the late column.
+  const sort = liveBreakdownSort(storedSort, columnIds)
   const picks = useChartWidgetsStore((s) => s.rowPicks[tab.id]?.[config.splitBy]) ?? NO_PICKS
   const [typed, setTyped] = useState<{ split: BreakdownSplit; text: string }>({ split: config.splitBy, text: '' })
   const text = typed.split === config.splitBy ? typed.text : ''
 
   const title = config.name.trim() || 'Breakdown'
   const all = useMemo(
-    () => sortBreakdownRows(data.stats.rows.filter((r) => config.showNone || r.entity.kind !== 'none'), sort, config.show),
-    [data.stats.rows, config.showNone, sort, config.show],
+    () => sortBreakdownRows(data.stats.rows.filter((r) => config.showNone || r.entity.kind !== 'none'), sort, config.show, columnIds),
+    [data.stats.rows, config.showNone, sort, config.show, columnIds],
   )
   const large = face === 'large'
   const shownPicks = useMemo(() => livePicks(all, picks), [all, picks])
@@ -526,7 +550,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   // agree, a hidden none row counted in none of them.
   const total = useMemo(() => new Set(all.flatMap((r) => r.ids)).size, [all])
   const word = data.tasks.some((t) => t.isCompleted) ? 'tasks' : 'open'
-  const lines = useMemo(() => breakdownLines(title, total, word, all, config.show), [title, total, word, all, config.show])
+  const lines = useMemo(() => breakdownLines(title, total, word, all, config.show, data.columns), [title, total, word, all, config.show, data.columns])
   useReportLines(onResult, lines)
 
   const drill = glanceDrill(onDrill, data.count.filtered)
@@ -538,6 +562,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
     void useWorkspaceStore.getState().patchTabViewState(tab.id, 'breakdown', { sorts })
   }
   const glyph = SPLIT_GLYPHS[config.splitBy]
+  const lensHides = lensHidesFor(useLensHidden(), config.filter)
 
   let body: ReactNode
   if (face === 'small') {
@@ -558,6 +583,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
       <BreakdownTable
         title={title}
         config={config}
+        columns={data.columns}
         rows={rows}
         compact={!large}
         sortBy={sort?.by ?? null}
@@ -576,7 +602,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
         glyph={glyph}
         count={`${total} ${word}`}
         onCount={allDrill}
-        sub={large ? sortWords(sort, config.splitBy, config.show) : undefined}
+        lens={<TabLensSwitch tab={tab} hides={lensHides} />}
       >
         {all.length === 0 ? (
           <Empty title="No tasks" hint="The tasks this breakdown's filter keeps show here." />

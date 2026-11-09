@@ -42,8 +42,10 @@ export interface SubtaskChecklistProps {
   autoFocusAdd?: boolean
   /** Rendered under the add row (a hint line). */
   footer?: ReactNode
-  /** The host adds its own way (the editor's + Add subtask): no add row. */
-  hideAddRow?: boolean
+  /** The add row's placeholder (the task layout's: `Add subtask`). */
+  addPlaceholder?: string
+  /** The host's way to add a line still being typed before it reads its rows (create mode: Create task, the close check). */
+  commitRef?: { current: (() => void) | null }
 }
 
 const ADD_PLACEHOLDER = 'Add a subtask…'
@@ -62,7 +64,7 @@ const ADD_PLACEHOLDER = 'Add a subtask…'
  * pending rows in create mode).
  */
 export function SubtaskChecklist({
-  items, density, label, onAdd, onRename, onSetDone, onRemove, onMove, extraMenuEntries, autoFocusAdd, footer, hideAddRow = false,
+  items, density, label, onAdd, onRename, onSetDone, onRemove, onMove, extraMenuEntries, autoFocusAdd, footer, addPlaceholder = ADD_PLACEHOLDER, commitRef,
 }: SubtaskChecklistProps) {
   const [renaming, setRenaming] = useState<number | null>(null)
   const [menuFor, setMenuFor] = useState<number | null>(null)
@@ -100,6 +102,13 @@ export function SubtaskChecklist({
   const addOnCloseRef = useLatestRef(add)
   // In the commit that closes it, so a click right behind the closing press (Create) reads the result.
   useLayoutEffect(() => () => addOnCloseRef.current(), [addOnCloseRef])
+  // The host reading its rows first: the line typed is added.
+  useLayoutEffect(() => {
+    if (!commitRef) return
+    const commit = () => addOnCloseRef.current()
+    commitRef.current = commit
+    return () => { if (commitRef.current === commit) commitRef.current = null }
+  }, [commitRef, addOnCloseRef])
 
   const onAddKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.nativeEvent.isComposing) return
@@ -195,22 +204,20 @@ export function SubtaskChecklist({
   return (
     <>
       {items.length > 0 && list}
-      {!hideAddRow && (
-        <div className={styles.addRow} data-density={density}>
-          <span className={styles.addIcon} aria-hidden="true"><PlusIcon size={density === 'touch' ? 16 : 13} strokeWidth={2} /></span>
-          <input
-            ref={addRef}
-            className={styles.addInput}
-            value={draft}
-            maxLength={SUBTASK_TITLE_MAX}
-            placeholder={ADD_PLACEHOLDER}
-            aria-label="New subtask"
-            autoComplete="off"
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={onAddKeyDown}
-          />
-        </div>
-      )}
+      <div className={styles.addRow} data-density={density}>
+        <span className={styles.addIcon} aria-hidden="true"><PlusIcon size={density === 'touch' ? 16 : 13} strokeWidth={2} /></span>
+        <input
+          ref={addRef}
+          className={styles.addInput}
+          value={draft}
+          maxLength={SUBTASK_TITLE_MAX}
+          placeholder={addPlaceholder}
+          aria-label="New subtask"
+          autoComplete="off"
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={onAddKeyDown}
+        />
+      </div>
       {footer}
       {menuItem && (
         <MenuPopover

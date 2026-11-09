@@ -1,7 +1,8 @@
 import type { PersistedTodoItem } from '../../models'
 import type { PivotDim } from '../../models/chart-widgets'
-import { DEFAULT_TAB_BADGES } from '../../utils/tab-badges'
-import { computeBreakdown, type BreakdownRow } from './breakdown'
+import type { TabBadgeRanges } from '../../models/list-definition'
+import { DEFAULT_TAB_BADGES, tabBadgeRangeHit } from '../../utils/tab-badges'
+import { computeBreakdown, type BreakdownColumnKeep, type BreakdownRow } from './breakdown'
 import type { RowRestrictions } from './row-restrictions'
 import type { StatsContext } from './stats-context'
 
@@ -10,7 +11,10 @@ import type { StatsContext } from './stats-context'
  * split by two things at once — each axis split as a Breakdown splits
  * (`computeBreakdown`: its rows in its default order, the none row last),
  * each cell the tasks both its row and its column hold. A task in several
- * rows or columns (people, tags) counts in each.
+ * rows or columns (people, tags) counts in each. A people or tags axis puts
+ * first the ones with the most open tasks due or due a follow-up (inside
+ * `ranges`, overdue included — a Breakdown's default columns), then the
+ * most open.
  */
 
 /** One axis's heads: a Breakdown row without its counts. */
@@ -37,18 +41,33 @@ export interface PivotOptions {
   cols: PivotDim
   /** The `@` / `#` picks narrowing a people / tags axis. */
   restrictions?: { people?: RowRestrictions; tags?: RowRestrictions }
+  /** The Due / Follow-up ranges a people / tags axis orders by (Settings › Tasks'; default the app's defaults). */
+  ranges?: TabBadgeRanges
 }
 
-function axis(tasks: readonly PersistedTodoItem[], ctx: StatsContext, dim: PivotDim, opts: PivotOptions) {
+/** The open tasks due, and due a follow-up, inside `ranges` (overdue included): what orders a people / tags axis. */
+function orderColumns(tasks: readonly PersistedTodoItem[], ranges: TabBadgeRanges, today: Date): BreakdownColumnKeep[] {
+  const due = new Set<number>()
+  const followup = new Set<number>()
+  for (const t of tasks) {
+    if (t.isCompleted) continue
+    if (tabBadgeRangeHit(t.dueDate, ranges.due, today) != null) due.add(t.id)
+    if (tabBadgeRangeHit(t.nextFollowupAt, ranges.followup, today) != null) followup.add(t.id)
+  }
+  return [{ id: 'due', keep: due }, { id: 'followup', keep: followup }]
+}
+
+function axis(tasks: readonly PersistedTodoItem[], ctx: StatsContext, dim: PivotDim, opts: PivotOptions, columns: readonly BreakdownColumnKeep[]) {
   const restrictions = dim === 'people' ? opts.restrictions?.people : dim === 'tags' ? opts.restrictions?.tags : undefined
-  return computeBreakdown(tasks, ctx, { splitBy: dim, show: 'count', oldestBy: 'created', ranges: DEFAULT_TAB_BADGES, restrictions })
+  return computeBreakdown(tasks, ctx, { splitBy: dim, show: 'count', oldestBy: 'created', columns, restrictions })
 }
 
 const head = ({ key, label, entity, color, ids }: BreakdownRow): PivotHead => ({ key, label, entity, ...(color ? { color } : {}), ids })
 
 export function computePivot(tasks: readonly PersistedTodoItem[], ctx: StatsContext, opts: PivotOptions): PivotStats {
-  const rowStats = axis(tasks, ctx, opts.rows, opts)
-  const colStats = axis(tasks, ctx, opts.cols, opts)
+  const columns = orderColumns(tasks, opts.ranges ?? DEFAULT_TAB_BADGES, ctx.today)
+  const rowStats = axis(tasks, ctx, opts.rows, opts, columns)
+  const colStats = axis(tasks, ctx, opts.cols, opts, columns)
   const rows = rowStats.rows.map(head)
   const cols = colStats.rows.map(head)
   const cells = new Map<string, number[]>()

@@ -1,0 +1,95 @@
+/* A filter written as an expression on the list's filter line, read back in
+ * words (`ExpressionWords`): name chips as the Graphical chips, word terms,
+ * muted joining words; clipped, it fades at its end before `+N more`. */
+
+.line {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  gap: 6px;
+  min-width: 96px;
+  max-width: 100%;
+  height: 22px;
+  margin: 0;
+  padding: 0 4px 0 2px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  line-height: 1;
+  white-space: nowrap;
+  cursor: default;
+}
+
+button.line {
+  cursor: pointer;
+}
+
+button.line:hover {
+  background: var(--color-tint-4);
+}
+
+.clip {
+  display: flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.clipFaded {
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+
+.name,
+.word,
+.joiner {
+  flex: none;
+}
+
+/* A word space between two pieces (none after `(`, none before `)` or `,`). */
+.space {
+  flex: none;
+  white-space: pre;
+}
+
+/* A person, tag, status or priority: the Graphical chip's plate. */
+.name {
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 6px;
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-semibold);
+}
+
+button.line:hover .name {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+.word {
+  color: var(--color-text-secondary);
+}
+
+button.line:hover .word {
+  color: var(--color-text-primary);
+}
+
+.joiner {
+  color: var(--color-text-muted);
+}
+
+.more {
+  flex: none;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-semibold);
+}
+
+:global([data-touch-chips]) .line {
+  height: 32px;
+}

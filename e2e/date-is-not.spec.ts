@@ -85,7 +85,7 @@ test('the user\'s lens: hides only the tasks followed up lately with a next foll
   await field.pressSequentially(' or not followup within next 14 days')
   await field.blur()
   await expect(settings.getByTestId('lens-keeps')).toContainText('Keeps 3 of 4 open tasks')
-  await expect(lenses.getByRole('button', { name: /^Chase/ })).toContainText(/not followed .+ or not followup /)
+  await expect(lenses.getByRole('button', { name: /^Chase/ })).toContainText(/not last follow-up .+, or not next follow-up /)
 
   // Unsaved: the top bar keeps the saved lens (every task).
   await expect.poll(() => titles(page)).toEqual(ALL)

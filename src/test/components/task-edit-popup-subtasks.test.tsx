@@ -26,11 +26,8 @@ afterEach(() => {
 })
 
 const section = () => screen.getByRole('region', { name: /Subtasks/ })
-/** The + Add subtask popover's field, the popover opened first when it is closed. */
-const addField = () => {
-  if (!screen.queryByRole('textbox', { name: 'New subtask' })) fireEvent.click(within(section()).getByRole('button', { name: '+ Add subtask' }))
-  return screen.getByRole('textbox', { name: 'New subtask' }) as HTMLInputElement
-}
+/** The checklist's last line, + Add subtask. */
+const addField = () => within(section()).getByRole('textbox', { name: 'New subtask' }) as HTMLInputElement
 const shown = () => within(section()).queryAllByRole('listitem').map((li) => [li.textContent ?? '', li.hasAttribute('data-done')])
 const stored = async () => (await db.subtasks.where('todoId').equals(100).sortBy('sortOrder')).map((s) => [s.title, s.isCompleted])
 
@@ -150,5 +147,32 @@ describe('TaskEditPopup — Subtasks (create mode)', () => {
     renderCreate()
     expect(within(section()).queryByRole('list')).toBeNull()
     expect(within(section()).queryByText(/ of /)).toBeNull()
+  })
+
+  it('+ Add subtask is the checklist’s last line, not a heading button', () => {
+    renderCreate({
+      title: 'Budget', urgent: false, important: false, focus: false, personIds: [], newPeople: [], tagIds: [], newTags: [],
+      subtasks: [{ title: 'Collect numbers', isCompleted: false }],
+    })
+    expect(within(section()).queryByRole('button', { name: /Add subtask/ })).toBeNull()
+    expect(addField()).toHaveAttribute('placeholder', 'Add subtask')
+    const list = within(section()).getByRole('list', { name: 'Subtasks' })
+    expect(list.compareDocumentPosition(addField()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('a line typed and not added goes with the task: Create task, ⏎ in the title', async () => {
+    for (const how of ['button', 'enter'] as const) {
+      const { onCreate } = renderCreate()
+      const titleField = screen.getByPlaceholderText(/New task/)
+      fireEvent.change(titleField, { target: { value: 'Write the report' } })
+      fireEvent.change(addField(), { target: { value: 'Outline' } })
+      await act(async () => {
+        if (how === 'button') fireEvent.click(screen.getByText('Create task'))
+        else fireEvent.keyDown(titleField, { key: 'Enter' })
+      })
+      const partial = onCreate.mock.calls[0]?.[0] as { subtasks?: { title: string; isCompleted: boolean }[] }
+      expect(partial.subtasks).toEqual([{ title: 'Outline', isCompleted: false }])
+      cleanup()
+    }
   })
 })

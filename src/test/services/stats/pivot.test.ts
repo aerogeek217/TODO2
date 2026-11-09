@@ -53,3 +53,27 @@ describe('computePivot', () => {
     expect(out.ids.sort()).toEqual([1, 2])
   })
 })
+
+describe('computePivot — the people / tags order', () => {
+  const day = (n: number) => new Date(today.getFullYear(), today.getMonth(), today.getDate() + n)
+  // Amy: three open tasks, none due; Bob: one, overdue; Cy: one, a follow-up due today; Dee: one due later.
+  const cy = makePerson({ id: 3, name: 'Cy' })
+  const dee = makePerson({ id: 4, name: 'Dee' })
+  const people = new Map([[1, [amy]], [2, [amy]], [3, [amy]], [4, [bob]], [5, [cy]], [6, [dee]]])
+  const work = [
+    makeTodo({ id: 1 }), makeTodo({ id: 2 }), makeTodo({ id: 3 }),
+    makeTodo({ id: 4, dueDate: day(-2) }),
+    makeTodo({ id: 5, nextFollowupAt: day(0) }),
+    makeTodo({ id: 6, dueDate: day(20) }),
+  ]
+
+  it('the ones with tasks due or due a follow-up first (Settings’ ranges), then by open tasks', () => {
+    const out = computePivot(work, ctx({ assignedPeopleMap: people }), { rows: 'people', cols: 'status' })
+    expect(out.rows.map((r) => r.label)).toEqual(['Bob', 'Cy', 'Amy', 'Dee'])
+  })
+
+  it('reads the ranges it is given: due within 30 days counts Dee’s', () => {
+    const out = computePivot(work, ctx({ assignedPeopleMap: people }), { rows: 'people', cols: 'status', ranges: { due: 30, followup: 0 } })
+    expect(out.rows.map((r) => r.label).slice(0, 3)).toEqual(['Bob', 'Cy', 'Dee'])
+  })
+})

@@ -51,33 +51,32 @@ test('entering a status counts as following up on its day, when newer: Last move
   const last = editor(page).getByRole('textbox', { name: 'Last follow-up' })
   await expect(last).toHaveValue('')
 
-  const popover = page.getByRole('dialog', { name: 'Add a status update' })
-  await editor(page).getByRole('button', { name: '+ Add update' }).click()
-  await popover.getByRole('textbox', { name: 'New status update', exact: true }).fill('called them')
-  await popover.getByRole('textbox', { name: 'New status update’s day' }).fill('yesterday')
-  await popover.getByRole('textbox', { name: 'New status update', exact: true }).press('Enter')
+  // The add line, last in Status updates: ⏎ adds the update dated today.
+  const addLine = editor(page).getByRole('textbox', { name: 'New status update', exact: true })
+  await addLine.fill('called them')
+  await addLine.press('Enter')
 
-  // Dated yesterday: Last is yesterday, and the late next follow-up — before that day — moved on.
-  const yesterday = new Date()
-  yesterday.setDate(yesterday.getDate() - 1)
-  yesterday.setHours(0, 0, 0, 0)
-  await expect.poll(async () => (await task())?.lastFollowupAt?.getTime()).toBe(yesterday.getTime())
+  // Dated today: Last is today, and the late next follow-up moved on by the rule.
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const dayOf = (d: Date | undefined) => (d ? new Date(d).setHours(0, 0, 0, 0) : undefined)
+  // Followed up now (a follow-up today is the moment it was recorded).
+  await expect.poll(async () => dayOf((await task())?.lastFollowupAt)).toBe(today.getTime())
   await expect(last).not.toHaveValue('')
   // The rule (Settings' default interval, on in a fresh database) counted from that day.
-  expect(before?.getTime()).toBeLessThan(yesterday.getTime())
-  expect((await task())?.nextFollowupAt?.getTime()).toBe(addFollowupInterval(yesterday, DEFAULT_FOLLOWUP_INTERVAL).getTime())
-  await expect(page.getByText(`Followed up ${mmdd(-1)} · status update added`)).toBeVisible()
+  expect(before?.getTime()).toBeLessThan(today.getTime())
+  expect(dayOf((await task())?.nextFollowupAt)).toBe(dayOf(addFollowupInterval(today, DEFAULT_FOLLOWUP_INTERVAL)))
+  await expect(page.getByText('Followed up · status update added')).toBeVisible()
   expect(await storedUpdates(page, 'Late one')).toEqual([['called them', true]])
 
-  // An older day than that: only the entry.
-  await editor(page).getByRole('button', { name: '+ Add update' }).click()
-  await popover.getByRole('textbox', { name: 'New status update', exact: true }).fill('emailed before that')
-  await popover.getByRole('textbox', { name: 'New status update’s day' }).fill(mmdd(-3))
-  await popover.getByRole('textbox', { name: 'New status update', exact: true }).press('Enter')
-  await expect.poll(() => storedUpdates(page, 'Late one')).toEqual([['called them', true], ['emailed before that', false]])
-  expect((await task())?.lastFollowupAt?.getTime()).toBe(yesterday.getTime())
+  // The same day again: only the entry.
+  await addLine.fill('emailed them too')
+  await addLine.press('Enter')
+  await expect.poll(() => storedUpdates(page, 'Late one')).toEqual([['called them', true], ['emailed them too', false]])
+  expect(dayOf((await task())?.lastFollowupAt)).toBe(today.getTime())
 
-  // Undo takes the older entry, then the first entry with its follow-up.
+  // Undo takes the second entry, then the first entry with its follow-up. (Esc leaves the add line, then closes the editor.)
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
   await page.keyboard.press('Control+z')
@@ -88,38 +87,30 @@ test('entering a status counts as following up on its day, when newer: Last move
   expect((await task())?.nextFollowupAt?.getTime()).toBe(before?.getTime())
 })
 
-test('an update added in the editor shows in the row’s notes preview; Esc while editing one stays in the editor', async ({ page }) => {
+test('updates added in the editor’s add line read oldest first and show in the row’s notes preview; Esc while editing one stays in the editor', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await taskRowByTitle(page, 'Bare task').locator('span[data-task-title="Bare task"]').dblclick()
   await expect(editor(page)).toBeVisible()
 
-  // The Add update popover: opened from its button, above the editor; ⏎ adds and closes it.
-  const addButton = editor(page).getByRole('button', { name: '+ Add update' })
-  const popover = page.getByRole('dialog', { name: 'Add a status update' })
-  const add = popover.getByRole('textbox', { name: 'New status update', exact: true })
-  await addButton.click()
-  await expect(add).toBeFocused()
+  // The add line: ⏎ adds the update dated today and keeps the line for the next; the list reads oldest first.
+  const add = editor(page).getByRole('textbox', { name: 'New status update', exact: true })
   await add.fill('sent the draft')
-  await popover.getByRole('textbox', { name: 'New status update’s day' }).fill('yesterday')
   await add.press('Enter')
-  await expect(popover).toHaveCount(0)
-  await expect(addButton).toBeFocused()
-  await addButton.press('Enter')
+  await expect(add).toHaveValue('')
+  await expect(add).toBeFocused()
   await add.fill('waiting on legal')
   await add.press('Enter')
-  await expect(addButton).toBeFocused()
-  // Esc closes the popover only, and adds what was typed.
-  await addButton.click()
+  // Esc leaves the line (the editor stays); its text waits there.
   await add.fill('this too')
   await page.keyboard.press('Escape')
-  await expect(popover).toHaveCount(0)
   await expect(editor(page)).toBeVisible()
-  await expect(addButton).toBeFocused()
+  await expect(add).not.toBeFocused()
+  await add.press('Enter')
   const list = editor(page).getByRole('list', { name: 'Status updates' })
-  await expect(list.locator('[data-status-update]')).toHaveText([`${mmdd()}this too`, `${mmdd()}waiting on legal`, `${mmdd(-1)}sent the draft`])
+  await expect(list.locator('[data-status-update]')).toHaveText([`${mmdd()}sent the draft`, `${mmdd()}waiting on legal`, `${mmdd()}this too`])
 
   // Edit in place: Esc cancels the edit, not the editor; focus back on the entry's edit button.
-  const edit = list.getByRole('button', { name: `Edit status update: ${mmdd(-1)} sent the draft` })
+  const edit = list.getByRole('button', { name: `Edit status update: ${mmdd()} sent the draft` })
   await edit.click()
   const text = editor(page).getByRole('textbox', { name: 'Status update', exact: true })
   await expect(text).toBeFocused()
@@ -129,11 +120,11 @@ test('an update added in the editor shows in the row’s notes preview; Esc whil
   await expect(editor(page)).toBeVisible()
   await expect(edit).toBeFocused()
   // Its edit / delete show while the keyboard is on the entry.
-  await expect(list.getByRole('button', { name: `Delete status update: ${mmdd(-1)} sent the draft` })).toHaveCSS('opacity', '1')
+  await expect(list.getByRole('button', { name: `Delete status update: ${mmdd()} sent the draft` })).toHaveCSS('opacity', '1')
   await page.keyboard.press('Escape')
   await expect(editor(page)).toHaveCount(0)
-  // Each newer than the last follow-up then: each counted as following up.
-  expect(await storedUpdates(page, 'Bare task')).toEqual([['sent the draft', true], ['waiting on legal', true], ['this too', false]])
+  // The first counted as following up today; the others on the same day only add.
+  expect(await storedUpdates(page, 'Bare task')).toEqual([['sent the draft', true], ['waiting on legal', false], ['this too', false]])
 
   // The row's notes cell previews the newest.
   const cell = notesCell(taskRowByTitle(page, 'Bare task'))

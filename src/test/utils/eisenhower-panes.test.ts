@@ -89,9 +89,9 @@ describe('paneSubtitle of a custom filter', () => {
     expect(paneSubtitle(empty!, NAMES)).toBe('Every task')
   })
 
-  it('spells an expression as its text', () => {
+  it('spells an expression in words', () => {
     const [pane] = resolvePanes({ do: { filter: p({ expression: { kind: 'and', items: [{ kind: 'tag', id: 5 }, { kind: 'or', items: [{ kind: 'priority', value: 'urgent' }, { kind: 'status', id: 4 }] }] } }) } })
-    expect(paneSubtitle(pane!, NAMES)).toBe('#home and (/urgent or !Waiting)')
+    expect(paneSubtitle(pane!, NAMES)).toBe('#home · (Urgent or Waiting)')
   })
 })
 

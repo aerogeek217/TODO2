@@ -257,12 +257,13 @@ test('check-in dialog over the task dialog: contract; focus back to Email check-
   await seedWorkspace(page, SEED)
   await refuseClipboard(page)
   await openPersonDialog(page, 'Plan the offsite', 'Alice Chen')
-  const trigger = taskDialog(page).locator('[data-task-dialog-checkin]')
+  // The person's Email check-in button (D26 BD); the refused clipboard sends it to the dialog.
+  const trigger = taskDialog(page).getByRole('group', { name: 'Actions for Alice Chen' })
+    .getByRole('button', { name: 'Email check-in to Alice Chen' })
   await checkContract(page, {
     dialog: checkin(page),
     open: async () => {
       await trigger.click()
-      await page.getByRole('menuitem', { name: /^Email check-in to / }).click()
       await expect(checkin(page)).toBeVisible()
     },
     trigger,
@@ -273,7 +274,6 @@ test('check-in dialog over the task dialog: contract; focus back to Email check-
   await expect(taskDialog(page)).toBeVisible()
 
   await trigger.click()
-  await page.getByRole('menuitem', { name: /^Email check-in to / }).click()
   await expect(checkin(page)).toBeVisible()
   await blurAll(page)
   await page.keyboard.press('Escape')
@@ -287,8 +287,8 @@ test('check-in → the email editor: Esc cancels its edit, then closes it (focus
   await seedWorkspace(page, SEED)
   await refuseClipboard(page)
   await openPersonDialog(page, 'Call the plumber', 'Ben Ortiz')
-  await taskDialog(page).locator('[data-task-dialog-checkin]').click()
-  await page.getByRole('menuitem', { name: 'Email check-in to Ben Ortiz' }).click()
+  await taskDialog(page).getByRole('group', { name: 'Actions for Ben Ortiz' })
+    .getByRole('button', { name: 'Email check-in to Ben Ortiz' }).click()
   const dialog = checkin(page)
   await dialog.getByRole('button', { name: 'Add email for Ben Ortiz' }).click()
   const email = page.getByRole('textbox', { name: 'Email' })

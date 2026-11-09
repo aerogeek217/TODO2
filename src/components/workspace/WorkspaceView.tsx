@@ -1,11 +1,12 @@
 import { useMemo, type CSSProperties } from 'react'
 import { getActiveTab, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { edgeStretches, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
-import { isCellCollapsedIn, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
+import { cellAtTrack, edgeStretches, lineCrossings, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
+import { isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
 import { isFitTrack } from '../../utils/workspace-rows'
 import { pairPercent } from '../../utils/workspace-resize'
 import { WorkspaceCell } from './WorkspaceCell'
 import { WorkspaceDivider, type DividerValue } from './WorkspaceDivider'
+import { WorkspaceCrossing } from './WorkspaceCrossing'
 import { AddWidgetButtons } from './AddWidgetFlow'
 import { EmptyState } from '../shared/EmptyState'
 import { hueAttr, hueColor } from '../../utils/layout-hue'
@@ -27,26 +28,59 @@ function EmptyLayout() {
   )
 }
 
-/** Whether a stretch gets a divider: a row line beside a fit or collapsed track has nothing to resize. */
+/** Whether row line `line` can move: no collapsed row track beside it (a Numbers-only row can: it takes a fixed height). */
+function rowLineMoves(layout: WorkspaceLayout, line: number): boolean {
+  return [line - 1, line].every((t) => trackSizing(layout, 'rows', t).kind !== 'collapsed')
+}
+
+/** Whether a stretch gets a divider: a row line beside a collapsed track has nothing to resize. */
 function resizable(layout: WorkspaceLayout, stretch: EdgeStretch): boolean {
-  if (stretch.axis === 'columns') return true
-  return [stretch.line - 1, stretch.line].every((t) => {
-    const kind = trackSizing(layout, 'rows', t).kind
-    return kind === 'weighted' || kind === 'fixed'
+  return stretch.axis === 'columns' || rowLineMoves(layout, stretch.line)
+}
+
+/** The Numbers-only (fit) row tracks beside a row stretch — fitting, or given a height by a divider (`isFitTrack`). */
+function fitTracksBeside(layout: WorkspaceLayout, stretch: EdgeStretch): string[] {
+  if (stretch.axis !== 'rows') return []
+  return [stretch.line - 1, stretch.line].flatMap((t) => {
+    const track = layout.grid.rows[t]
+    return track && track.collapsed !== true && isFitTrack(layout, t) ? [track.id] : []
   })
+}
+
+/**
+ * The dividers' stretches (`edgeStretches`, a line parting at its "+"
+ * crossings) less those with nothing to resize — the pieces of a line
+ * beside a Numbers-only row joined back up: its divider moves the row's
+ * whole edge (its height).
+ */
+function dividerStretches(layout: WorkspaceLayout): EdgeStretch[] {
+  const out: EdgeStretch[] = []
+  for (const s of edgeStretches(layout)) {
+    if (!resizable(layout, s)) continue
+    const last = out.at(-1)
+    if (last && last.axis === s.axis && last.line === s.line && last.to === s.from && fitTracksBeside(layout, s).length > 0) {
+      out[out.length - 1] = { ...last, to: s.to }
+    } else {
+      out.push(s)
+    }
+  }
+  return out
 }
 
 /**
  * A divider's value for assistive tech: a whole line between two weighted
  * tracks, the first one's share (%) of the two; beside a fixed track (a
- * former band), that track's height in px.
+ * former band, or a Numbers-only row given a height), that track's height
+ * in px.
  */
 function dividerValue(layout: WorkspaceLayout, stretch: EdgeStretch): DividerValue {
   const tracks = layout.grid[stretch.axis]
   const a = tracks[stretch.line - 1]
   const b = tracks[stretch.line]
-  const fixed = a?.px != null ? a : b?.px != null ? b : undefined
-  if (fixed?.px != null) return { now: fixed.px, text: `${fixed.px}px` }
+  const sa = trackSizing(layout, stretch.axis, stretch.line - 1)
+  const sb = trackSizing(layout, stretch.axis, stretch.line)
+  const fixed = sa.kind === 'fixed' ? sa : sb.kind === 'fixed' ? sb : undefined
+  if (fixed) return { now: fixed.px, text: `${fixed.px}px` }
   return { now: pairPercent(a?.weight ?? 0, b?.weight ?? 0), max: 100 }
 }
 
@@ -70,7 +104,7 @@ function Dividers({ layout }: { layout: WorkspaceLayout }) {
   }
   return (
     <>
-      {edgeStretches(layout).filter((s) => resizable(layout, s)).map((stretch) => {
+      {dividerStretches(layout).map((stretch) => {
         const { before, after } = stretchCells(layout, stretch)
         const a = before[0]
         const b = after[0]
@@ -84,8 +118,16 @@ function Dividers({ layout }: { layout: WorkspaceLayout }) {
             label={`Resize ${titleOf(a.id)} and ${titleOf(b.id)}`}
             value={dividerValue(layout, stretch)}
             style={dividerPlacement(stretch)}
+            fitTrackIds={fitTracksBeside(layout, stretch)}
           />
         )
+      })}
+      {lineCrossings(layout).filter((x) => rowLineMoves(layout, x.row)).map(({ col, row }) => {
+        const corner = cellAtTrack(layout, col - 1, row - 1)
+        const across = cellAtTrack(layout, col, row)
+        if (!corner || !across) return null
+        const id = `${corner.id}|${across.id}`
+        return <WorkspaceCrossing key={id} col={col} row={row} cornerId={corner.id} testId={id} />
       })}
     </>
   )
@@ -119,7 +161,7 @@ function Table({ layout }: { layout: WorkspaceLayout }) {
             cell={cell}
             rowTrackIds={tracks.map((t) => t.id)}
             collapsed={isCellCollapsedIn(layout, cell)}
-            fitRow={rowSpan === 1 && isFitTrack(layout, row)}
+            fitRow={rowSpan === 1 && rowDrawsFitFaces(layout, row)}
             style={{ gridArea: `${row + 1} / ${col + 1} / span ${rowSpan} / span ${colSpan}` }}
           />
         )

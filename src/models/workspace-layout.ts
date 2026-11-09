@@ -27,9 +27,10 @@ import {
   DEFAULT_TREND_RANGE,
   newNumberConfig,
   type NumberConfig,
-  type TagPicksTabConfig,
   type TrendTabConfig,
 } from './glance-widgets'
+// G5: Project pulse's config, its rules among it.
+import type { PulseTabConfig } from './pulse-config'
 import {
   newBreakdownConfig,
   newPivotConfig,
@@ -95,7 +96,17 @@ export interface CalendarTabConfig {
   dateTypes: CalendarDateTypes
 }
 
-export interface CalendarTabViewState {
+/**
+ * A widget's lens switch (G3, board BD): view state, saved at once, never
+ * an unsaved edit — `true`, the top bar's lens doesn't apply here. A
+ * list's is its list's (`ListDefinition.ignoreLens`); a Number's absent
+ * one reads its config's old `ignoreLens` (`tabIgnoresLens`).
+ */
+export interface LensViewState {
+  ignoreLens?: boolean
+}
+
+export interface CalendarTabViewState extends LensViewState {
   view?: CalendarView
   /** Weeks (week view) or months (month view) from the current one. */
   offset?: number
@@ -181,7 +192,7 @@ export interface ListTabViewState extends TaskRowsViewState {
  */
 export type EisenhowerTabConfig = NoTabSettings
 
-export interface EisenhowerTabViewState extends TaskRowsViewState {
+export interface EisenhowerTabViewState extends TaskRowsViewState, LensViewState {
   /** Sections collapsed in the stacked (narrow) layout. */
   collapsed?: EisenhowerQuadrant[]
 }
@@ -238,14 +249,14 @@ export type LensTab = TabOf<'lens', LensTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
 export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
-export type NeglectTab = TabOf<'neglect', NeglectTabConfig, NoTabSettings>
-export type NumberTab = TabOf<'number', NumberConfig, NoTabSettings>
+export type NeglectTab = TabOf<'neglect', NeglectTabConfig, LensViewState>
+export type NumberTab = TabOf<'number', NumberConfig, LensViewState>
 export type TrendTab = TabOf<'trend', TrendTabConfig, NoTabSettings>
-export type PulseTab = TabOf<'pulse', TagPicksTabConfig, NoTabSettings>
+export type PulseTab = TabOf<'pulse', PulseTabConfig, LensViewState>
 // ── D26 P8: the chart widgets ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
-export type PivotTab = TabOf<'pivot', PivotConfig, NoTabSettings>
-export type TagMapTab = TabOf<'tagMap', TagMapConfig, NoTabSettings>
+export type PivotTab = TabOf<'pivot', PivotConfig, LensViewState>
+export type TagMapTab = TabOf<'tagMap', TagMapConfig, LensViewState>
 
 /** A chart widget's tab (D26 P8). */
 export type ChartTab = BreakdownTab | PivotTab | TagMapTab
@@ -274,6 +285,14 @@ export interface GridTrack {
   weight?: number
   /** A fixed size in px (header included); the track is then not weighted. */
   px?: number
+  /**
+   * View state, row tracks only: the height (px) a divider gave a
+   * Numbers-only row (`workspace-rows.isFitTrack`). It applies only while
+   * the row is one and has no `px`; otherwise it is ignored and the track
+   * is weighted by its own `weight`, which it never replaces. Absent: the
+   * row fits its content. A split's halves don't inherit it.
+   */
+  fitPx?: number
   /**
    * View state, row tracks only: collapsed — the cells lying only in it
    * show their headers, and a cell spanning through it gets shorter.
@@ -525,6 +544,26 @@ export function isGlanceKind(kind: WidgetKind): kind is GlanceWidgetKind {
 }
 
 /** A glance widget's tab. */
+/** The kinds with a lens switch of their own in their view state (G3; a list's is its list's). */
+export const LENS_SWITCH_KINDS = ['calendar', 'eisenhower', 'neglect', 'number', 'pulse', 'breakdown', 'pivot', 'tagMap'] as const
+export type LensSwitchKind = (typeof LENS_SWITCH_KINDS)[number]
+export type LensSwitchTab = Extract<LayoutTab, { kind: LensSwitchKind }>
+
+export function isLensSwitchTab(tab: LayoutTab): tab is LensSwitchTab {
+  return (LENS_SWITCH_KINDS as readonly string[]).includes(tab.kind)
+}
+
+/**
+ * Whether a widget ignores the top bar's lens: its switch (`viewState.ignoreLens`);
+ * a Number without one, its config's `ignoreLens` (what its editor's
+ * Follow / Ignore stored before the switch).
+ */
+export function tabIgnoresLens(tab: LensSwitchTab): boolean {
+  const own = tab.viewState?.ignoreLens
+  if (own !== undefined) return own
+  return tab.kind === 'number' && tab.config.ignoreLens === true
+}
+
 export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
   return isGlanceKind(tab.kind)
 }

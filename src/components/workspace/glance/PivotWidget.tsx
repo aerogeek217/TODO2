@@ -1,7 +1,8 @@
 import { useMemo, type CSSProperties } from 'react'
 import type { PivotTab } from '../../../models/workspace-layout'
 import { usePivotData } from '../../../hooks/use-chart-data'
-import { useStatsBase } from '../../../hooks/use-glance-data'
+import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
+import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { cellKey, type PivotHead, type PivotStats } from '../../../services/stats/pivot'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
@@ -113,6 +114,7 @@ export function PivotWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PivotT
   useReportLines(onResult, lines)
   const drill = glanceDrill(onDrill, data.count.filtered)
   const top = topCell(data.stats)
+  const lensHides = lensHidesFor(useLensHidden(), config.filter)
   return (
     <GlanceFrame tab={tab} faceRef={faceRef} face={face}>
       {face === 'small' ? (
@@ -132,6 +134,7 @@ export function PivotWidget({ tab, onResult, onDrill }: GlanceWidgetProps<PivotT
           glyph="matrix"
           count={`${data.stats.ids.length} open`}
           sub={`${SPLIT_CHOICE_LABELS[config.rows]} × ${SPLIT_CHOICE_LABELS[config.cols]}`}
+          lens={<TabLensSwitch tab={tab} hides={lensHides} />}
         >
           {data.stats.ids.length === 0
             ? <Empty title="No tasks" hint="The tasks this pivot's filter keeps show here." />

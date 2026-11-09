@@ -46,14 +46,14 @@ const checklist = (p: Page) => p.getByRole('dialog', { name: 'Subtasks of Alpha'
 const editor = (p: Page) => p.getByRole('dialog', { name: 'Edit task' })
 const newTask = (p: Page) => p.getByRole('dialog', { name: 'New task' })
 const quickAdd = (p: Page) => p.getByRole('dialog', { name: 'Quick add task' })
-const addUpdate = (p: Page) => p.getByRole('dialog', { name: 'Add a status update' })
 const prompt = (p: Page, name: string) => p.getByRole('dialog', { name })
 
-/** The editor's + Add subtask, 'TYPED' in its field, not added. */
-const typeSubtask = async (p: Page, dialog: Locator) => {
-  await dialog.getByRole('button', { name: '+ Add subtask' }).click()
-  await p.getByRole('dialog', { name: 'Add a subtask' }).getByRole('textbox', { name: 'New subtask' }).fill('TYPED')
+/** The editor's + Add subtask line, 'TYPED' in it, not added. */
+const typeSubtask = async (_p: Page, dialog: Locator) => {
+  await dialog.getByRole('textbox', { name: 'New subtask' }).fill('TYPED')
 }
+/** The editor's Status updates add line. */
+const addLine = (dialog: Locator) => dialog.getByRole('textbox', { name: 'New status update', exact: true })
 const openEditor = async (p: Page) => {
   await row(p).locator('span[data-task-title="Alpha"]').dblclick()
   await expect(editor(p)).toBeVisible()
@@ -67,9 +67,8 @@ const openEditor = async (p: Page) => {
  */
 const canaryUpdate = async (p: Page) => {
   if (!(await editor(p).isVisible())) await openEditor(p)
-  await editor(p).getByRole('button', { name: '+ Add update' }).click()
-  await addUpdate(p).getByRole('textbox', { name: 'New status update', exact: true }).fill('CANARY')
-  await esc(p)
+  await addLine(editor(p)).fill('CANARY')
+  await addLine(editor(p)).press('Enter')
   await expect.poll(async () => (await updates(p)).includes('CANARY')).toBe(true)
 }
 
@@ -100,18 +99,13 @@ for (const [how, dismiss] of DISMISS) {
       await expect.poll(() => subs(page)).toEqual(['First sub', 'Second sub', 'TYPED'])
     })
 
-    test('the Add update popover', async ({ page }) => {
+    test('the task editor’s Status updates add line: the editor closing adds what was typed', async ({ page }) => {
       await openEditor(page)
-      await editor(page).getByRole('button', { name: '+ Add update' }).click()
-      await addUpdate(page).getByRole('textbox', { name: 'New status update', exact: true }).fill('TYPED')
+      await addLine(editor(page)).fill('TYPED')
+      // Esc: the first leaves the line, the next closes the editor.
       if (how === 'Esc') await esc(page)
-      else {
-        const box = await editor(page).boundingBox()
-        await page.mouse.click((box?.x ?? 0) + 8, (box?.y ?? 0) + 8)
-      }
-      await expect(addUpdate(page)).toBeHidden()
-      // The editor stays open.
-      await expect(editor(page)).toBeVisible()
+      await dismiss(page)
+      await expect(editor(page)).toHaveCount(0)
       await expect.poll(() => updates(page)).toEqual(['old status', 'TYPED'])
     })
   })
@@ -151,42 +145,17 @@ test('the checklist popover: Esc still cancels a rename, and leaves it open', as
   expect(await subs(page)).toEqual(['First sub', 'Second sub'])
 })
 
-test('the Add update popover: Cancel drops what was typed', async ({ page }) => {
+test('the task editor’s add line: Esc leaves it and the editor stays; nothing is written until ⏎ or the close', async ({ page }) => {
   await openEditor(page)
-  await editor(page).getByRole('button', { name: '+ Add update' }).click()
-  await addUpdate(page).getByRole('textbox', { name: 'New status update', exact: true }).fill('TYPED')
-  await addUpdate(page).getByRole('button', { name: 'Cancel' }).click()
-  await expect(addUpdate(page)).toBeHidden()
-  await canaryUpdate(page)
-  expect(await updates(page)).toEqual(['old status', 'CANARY'])
-})
-
-test('the Add update popover: a day that isn’t one holds the close, saying so', async ({ page }) => {
-  await openEditor(page)
-  await editor(page).getByRole('button', { name: '+ Add update' }).click()
-  await addUpdate(page).getByRole('textbox', { name: 'New status update', exact: true }).fill('TYPED')
-  await addUpdate(page).getByRole('textbox', { name: 'New status update’s day' }).fill('nonsense')
+  await addLine(editor(page)).fill('TYPED')
   await esc(page)
-  await expect(addUpdate(page).getByText('Fix the day, or close again to discard this update.')).toBeVisible()
-  await esc(page)
-  await expect(addUpdate(page)).toBeHidden()
-  await canaryUpdate(page)
-  expect(await updates(page)).toEqual(['old status', 'CANARY'])
-})
-
-test('the Add update popover: a press on the editor’s × with a day that isn’t one holds — the editor stays (cr31 T6)', async ({ page }) => {
-  await openEditor(page)
-  await editor(page).getByRole('button', { name: '+ Add update' }).click()
-  await addUpdate(page).getByRole('textbox', { name: 'New status update', exact: true }).fill('TYPED')
-  await addUpdate(page).getByRole('textbox', { name: 'New status update’s day' }).fill('nonsense')
-  const close = editor(page).getByRole('button', { name: 'Close' }).first()
-  await close.click()
-  await expect(addUpdate(page).getByText('Fix the day, or close again to discard this update.')).toBeVisible()
   await expect(editor(page)).toBeVisible()
-  // Pressed again: the update goes, and the editor closes.
-  await close.click()
-  await expect(addUpdate(page)).toBeHidden()
-  await expect(editor(page)).toBeHidden()
+  await expect(addLine(editor(page))).not.toBeFocused()
+  await expect(addLine(editor(page))).toHaveValue('TYPED')
+  expect(await updates(page)).toEqual(['old status'])
+  await addLine(editor(page)).press('Enter')
+  await expect.poll(() => updates(page)).toEqual(['old status', 'TYPED'])
+  await expect(addLine(editor(page))).toHaveValue('')
 })
 
 test('the task editor closing saves a typed subtask and an entry being edited; Esc on the entry cancels it', async ({ page }) => {
@@ -305,10 +274,9 @@ test.describe('the new-task editor asks before losing the form', () => {
     expect(await titles(page)).not.toContain('FIRST')
   })
 
-  test('a status update typed in its popover and Create pressed right after: it goes with the task', async ({ page }) => {
+  test('a status update typed in its add line and Create pressed right after: it goes with the task', async ({ page }) => {
     await open(page, 'FIRST')
-    await newTask(page).getByRole('button', { name: '+ Add update' }).click()
-    await addUpdate(page).getByRole('textbox', { name: 'New status update', exact: true }).fill('TYPED')
+    await addLine(newTask(page)).fill('TYPED')
     await newTask(page).getByRole('button', { name: 'Create task' }).click({ delay: 0 })
     await expect(newTask(page)).toHaveCount(0)
     await expect.poll(() => updates(page)).toContain('TYPED')

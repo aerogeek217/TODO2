@@ -8,7 +8,7 @@ import { predicateToCriteria } from '../../../utils/filter-criteria'
 import { computeTrend } from '../../../services/stats/trend'
 import { computeBreakdown } from '../../../services/stats/breakdown'
 import { openTasks, statsFilter } from '../../../services/stats/stats-context'
-import type { BreakdownSplit } from '../../../models/chart-widgets'
+import { derivedBreakdownColumns, type BreakdownSplit } from '../../../models/chart-widgets'
 import { DEFAULT_TAB_BADGES } from '../../../utils/tab-badges'
 import { computeEisenhowerSummary } from '../../../services/stats/eisenhower-summary'
 import { emptyFilterCriteria, statsPaneContext, testLookups } from '../../helpers'
@@ -28,9 +28,18 @@ function screened(screen: FilterCriteria) {
   return applyFilter(statsFilter(screen), SAMPLE_TASKS, lookups, SAMPLE_TODAY, markerSettings)
 }
 
+/** The derived count columns (Settings' default ranges) over `tasks`: each column's filter, as the widget runs it. */
+function columnsOf(tasks: typeof SAMPLE_TASKS) {
+  return derivedBreakdownColumns(undefined, DEFAULT_TAB_BADGES).map((c) => ({
+    id: c.id,
+    keep: new Set(numberIds(predicateToCriteria(c.filter), tasks, lookups, SAMPLE_TODAY, markerSettings)),
+  }))
+}
+
 /** A Breakdown (D26 P8) of `tasks`' open ones, as People / Tags / Status were: no filter, split by `splitBy`. */
 function breakdownOf(splitBy: BreakdownSplit, tasks: typeof SAMPLE_TASKS) {
-  return computeBreakdown(openTasks(tasks), SAMPLE_CTX, { splitBy, show: 'count', oldestBy: 'lastFollowup', ranges: DEFAULT_TAB_BADGES })
+  const open = openTasks(tasks)
+  return computeBreakdown(open, SAMPLE_CTX, { splitBy, show: 'count', oldestBy: 'lastFollowup', columns: columnsOf(open) })
 }
 
 /** Each row's label and task count, the none row as `none`. */
@@ -102,7 +111,8 @@ describe('glance sample data — no screen filter', () => {
 
   it('People (a Breakdown by people): open and follow-ups due (overdue and today), Unassigned 8 · 1, last', () => {
     const rows = breakdownOf('people', tasks).rows
-    expect(Object.fromEntries(rows.map((r) => [r.label, [r.ids.length, r.followupIds.length]]))).toEqual({
+    const followups = (r: (typeof rows)[number]) => (r.columns['followup-late']?.length ?? 0) + (r.columns['followup-due']?.length ?? 0)
+    expect(Object.fromEntries(rows.map((r) => [r.label, [r.ids.length, followups(r)]]))).toEqual({
       'Priya Nair': [4, 0],
       'Alice Chen': [2, 0],
       'Ben Ortiz': [2, 0],
@@ -147,7 +157,7 @@ describe('glance sample data — the Tags section and the Eisenhower’s counts'
   it('Tags (a Breakdown by tags): open tasks per tag; No tags 10', () => {
     expect(counts('tags', all)).toEqual({ q4: 5, errands: 2, home: 1, planning: 1, none: 10 })
     // Under the q4 filter only the q4 row is left (with the q4 pick narrowing, `computeBreakdown`'s restrictions, no No tags row either).
-    expect(computeBreakdown(openTasks(q4), SAMPLE_CTX, { splitBy: 'tags', show: 'count', oldestBy: 'created', ranges: DEFAULT_TAB_BADGES, restrictions: [[Q4]] })
+    expect(computeBreakdown(openTasks(q4), SAMPLE_CTX, { splitBy: 'tags', show: 'count', oldestBy: 'created', columns: [], restrictions: [[Q4]] })
       .rows.map((r) => [r.label, r.ids.length])).toEqual([['q4', 5]])
   })
 

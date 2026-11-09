@@ -25,8 +25,10 @@ import { MobileTaskRow } from '../task/MobileTaskRow'
 import { TaskRow } from '../task/TaskRow'
 import { TaskRowGrid } from '../task/TaskRowGrid'
 import { GlanceGlyph } from '../shared/GlanceGlyph'
-import { ChevronDownIcon, EnvelopeIcon } from '../shared/icons'
-import { PersonCheckinMenu } from '../shared/PersonCheckinMenu'
+import { EnvelopeIcon, ReplyIcon, ReviewIcon } from '../shared/icons'
+import { personCheckinLabel, personReplyLabel, personReviewLabel, useEntityMenuOffers } from '../shared/person-menu-entries'
+import { sendPersonCheckin } from '../../services/checkin-email/person-checkin'
+import { openReview, personReview } from '../../services/review'
 import styles from './TaskDialog.module.css'
 
 interface Resolved {
@@ -61,8 +63,9 @@ export interface TaskDialogContentProps {
  * completed here stays, struck through, until it closes, while the counts
  * behind update. The screen filter's tasks resolve again on every change of
  * that filter — fixed between changes — and their description follows it.
- * Footer: Copy tasks, Email check-in (a person's tasks: a menu to send the
- * person's check-in or paste their reply — `PersonCheckinMenu`), Close.
+ * A person's tasks have Review · Email check-in · Paste reply… as buttons
+ * under the title (`PersonActions`, D26 BD). Footer: Copy tasks, Close (a
+ * secondary button, as the review deck's, with its Esc hint).
  */
 export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterBar }: TaskDialogContentProps) {
   const [resolved, setResolved] = useState<Resolved>(() => resolve(payload))
@@ -138,6 +141,7 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
         <span className={styles.countBadge} data-testid="task-dialog-count">{count}</span>
         <button type="button" className={styles.closeBtn} aria-label="Close" onClick={onClose}>×</button>
       </div>
+      {personId != null && <PersonActions personId={personId} fallbackName={payload.title} onClose={onClose} />}
       {filterBar}
       {chips
         ? <ScreenDescription chips={chips} lens={lens} />
@@ -166,9 +170,8 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
           <CopyIcon />
           {copied ? 'Copied' : 'Copy tasks'}
         </button>
-        {personId != null && <CheckinButton personId={personId} fallbackName={payload.title} />}
         <span className={styles.spacer} />
-        <button type="button" className={styles.closeTextBtn} onClick={onClose}>
+        <button type="button" className={styles.secondaryBtn} onClick={onClose}>
           Close<kbd className={styles.kbd}>Esc</kbd>
         </button>
       </div>
@@ -176,29 +179,65 @@ export function TaskDialogContent({ payload, titleId, panelRef, onClose, filterB
   )
 }
 
-/** A person's Email check-in: opens the menu to send their check-in or paste their reply. */
-function CheckinButton({ personId, fallbackName }: { personId: number; fallbackName: string }) {
+/**
+ * A person's actions as buttons under the dialog's title (D26 BD): **Review**
+ * — the deck of their open tasks, this dialog closed first (off, saying
+ * why, with none; not on a phone nor while a deck is open) —, **Email
+ * check-in** (the one-click send, inside the click so the clipboard keeps
+ * the gesture) and **Paste reply…** (the reply import, for this person).
+ * Each names the person in full (`Review with Aisha…`), as the person menu
+ * does (`person-menu-entries`).
+ */
+function PersonActions({ personId, fallbackName, onClose }: { personId: number; fallbackName: string; onClose: () => void }) {
   const name = usePersonStore((s) => s.people.find((p) => p.id === personId)?.name) ?? fallbackName
-  const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLButtonElement>(null)
+  // The deck's queue as of now (re-read with the dialog, which follows the tasks and their people).
+  const reviewCount = personReview({ id: personId, name }).ids.length
+  const { review, checkins } = useEntityMenuOffers()
+  if (!review && !checkins) return null
+  const startReview = () => {
+    const payload = personReview({ id: personId, name })
+    if (payload.ids.length === 0) return
+    onClose()
+    openReview(payload)
+  }
   return (
-    <>
-      <button
-        ref={ref}
-        type="button"
-        className={styles.ghostBtn}
-        data-task-dialog-checkin=""
-        aria-label={`Email check-in options for ${name}`}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-      >
-        <EnvelopeIcon size={12} />
-        Email check-in
-        <ChevronDownIcon size={12} />
-      </button>
-      {open && <PersonCheckinMenu person={{ id: personId, name }} anchorRef={ref} onClose={() => setOpen(false)} />}
-    </>
+    <div className={styles.personActions} role="group" aria-label={`Actions for ${name}`}>
+      {review && (
+        <button
+          type="button"
+          className={styles.secondaryBtn}
+          aria-label={personReviewLabel(name)}
+          disabled={reviewCount === 0}
+          title={reviewCount === 0 ? 'No open tasks' : undefined}
+          onClick={startReview}
+        >
+          <span className={styles.actionIcon}><ReviewIcon size={15} /></span>
+          Review
+        </button>
+      )}
+      {checkins && (
+        <>
+          <button
+            type="button"
+            className={styles.secondaryBtn}
+            aria-label={personCheckinLabel(name)}
+            onClick={() => { void sendPersonCheckin(personId) }}
+          >
+            <span className={styles.actionIcon}><EnvelopeIcon size={15} /></span>
+            Email check-in
+          </button>
+          <button
+            type="button"
+            className={styles.secondaryBtn}
+            aria-label={personReplyLabel(name)}
+            onClick={() => useUIStore.getState().openCheckinImport({ personId })}
+          >
+            <span className={styles.actionIcon}><ReplyIcon size={15} /></span>
+            Paste reply…
+          </button>
+        </>
+      )}
+    </div>
   )
 }
 

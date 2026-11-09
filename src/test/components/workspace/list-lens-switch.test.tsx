@@ -51,7 +51,7 @@ async function setup(d: PersistedListDefinition) {
 }
 
 const titles = () => Array.from(document.querySelectorAll('[data-todo-id]')).map((el) => el.querySelector('[data-task-title]')?.getAttribute('data-task-title'))
-const lensSwitch = () => screen.queryByTestId('list-lens-switch')
+const lensSwitch = () => screen.queryByTestId('lens-switch')
 const count = () => screen.getByTestId('list-count').textContent
 
 /** Picks a lens keeping Alice's tasks (it hides Bob's). */

@@ -157,11 +157,11 @@ function chipWords(chip: FilterChip): string[] {
 /**
  * A pane's subtitle: a default pane's plain words (`Urgent and important`),
  * else its filter in words — `Urgent · not Important · not Delegated`, an
- * expression as its text — or `Every task` for a pane with no filter.
+ * expression in words (`Urgent, or Aisha but not Waiting`) — or `Every task` for a pane with no filter.
  */
 export function paneSubtitle(pane: EisenhowerPane, names: FilterChipNames): string {
   if (!pane.customFilter) return QUADRANT_SUBTITLE[pane.id]
-  const words = predicateLineItems(pane.filter, names).flatMap((item) => (item.kind === 'expression' ? [item.text] : chipWords(item.chip)))
+  const words = predicateLineItems(pane.filter, names).flatMap((item) => (item.kind === 'expression' ? [item.words] : chipWords(item.chip)))
   return words.length > 0 ? words.join(' · ') : 'Every task'
 }
 

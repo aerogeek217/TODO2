@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import type { Status, Tag } from '../../../models'
 import type { BreakdownSplit } from '../../../models/chart-widgets'
-import type { TabBadgeRanges } from '../../../models/list-definition'
+import type { PersistedTodoItem } from '../../../models'
 import {
   ageDays,
+  columnCount,
   computeBreakdown,
   nextBreakdownSort,
   sortBreakdownRows,
+  type BreakdownColumnKeep,
   type BreakdownOptions,
 } from '../../../services/stats/breakdown'
 import type { StatsContext } from '../../../services/stats/stats-context'
@@ -21,14 +23,28 @@ const q4: Tag & { id: number } = { id: 1, name: 'q4', color: '#111' }
 const home: Tag & { id: number } = { id: 2, name: 'home', color: '#222' }
 const status = (id: number, name: string): Status & { id: number } => ({ id, name, color: '#888', sortOrder: id, icon: 'circle' })
 const STATUSES = [status(10, 'Todo'), status(11, 'Doing'), status(12, 'Waiting')]
-const RANGES: TabBadgeRanges = { due: 3, followup: 0 }
+
+/** A count column keeping the tasks `keep` picks (what its filter would keep among the chart's tasks). */
+function column(id: string, tasks: readonly PersistedTodoItem[], keep: (t: PersistedTodoItem) => boolean): BreakdownColumnKeep {
+  return { id, keep: new Set(tasks.filter(keep).map((t) => t.id)) }
+}
+
+const before = (date: Date | null | undefined, n: number) => date != null && date.getTime() < new Date(2026, 9, 10 + n + 1).getTime()
+
+/** Today's derived pair, as the old ranges counted (Due: open, due by today + 3; Follow-up: open, by today). */
+function dueColumns(tasks: readonly PersistedTodoItem[]): BreakdownColumnKeep[] {
+  return [
+    column('due', tasks, (t) => !t.isCompleted && before(t.dueDate, 3)),
+    column('followup', tasks, (t) => !t.isCompleted && before(t.nextFollowupAt, 0)),
+  ]
+}
 
 function ctx(over: Partial<StatsContext> = {}): StatsContext {
   return { today, weekStartsOn: 1, urgentRange: 3, assignedPeopleMap: new Map(), assignedTagsMap: new Map(), statuses: STATUSES, ...over }
 }
 
 function opts(splitBy: BreakdownSplit, over: Partial<BreakdownOptions> = {}): BreakdownOptions {
-  return { splitBy, show: 'count', oldestBy: 'lastFollowup', ranges: RANGES, ...over }
+  return { splitBy, show: 'count', oldestBy: 'lastFollowup', columns: [], ...over }
 }
 
 const NONE = { focus: 0, urgent: 0, important: 0 }
@@ -48,9 +64,11 @@ describe('computeBreakdown — people', () => {
     [4, [amy]],
   ])
 
-  it('a task counts under each of its people; most due + follow-up first, then the open count, then the name; Unassigned last', () => {
-    const out = computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), opts('people'))
-    expect(out.rows.map((r) => [r.label, r.ids, r.dueIds, r.followupIds])).toEqual([
+  const withColumns = opts('people', { columns: dueColumns(tasks) })
+
+  it('a task counts under each of its people; most counted across the columns first, then the open count, then the name; Unassigned last', () => {
+    const out = computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), withColumns)
+    expect(out.rows.map((r) => [r.label, r.ids, r.columns.due, r.columns.followup])).toEqual([
       ['Amy', [1, 4], [1, 4], []],
       ['Zed', [1, 2], [1], [2]],
       ['Bob', [3], [], []],
@@ -60,26 +78,29 @@ describe('computeBreakdown — people', () => {
     expect(out.ids).toEqual([1, 4, 2, 3, 5])
   })
 
-  it('counts each priority (a task with two counts in both; urgent by its due date counts) and the overdue part of Due / Follow-up', () => {
-    const out = computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), opts('people'))
+  it('counts each priority (a task with two counts in both; urgent by its due date counts) and its overdue tasks (the bar)', () => {
+    const out = computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), withColumns)
     const amyRow = out.rows.find((r) => r.label === 'Amy')
     expect(amyRow?.priority).toEqual({ focus: 1, urgent: 2, important: 0 })
-    expect([amyRow?.dueOverdue, amyRow?.followupOverdue]).toEqual([1, 0])
-    const zedRow = out.rows.find((r) => r.label === 'Zed')
-    expect([zedRow?.followupIds.length, zedRow?.followupOverdue]).toEqual([1, 1])
+    expect(amyRow?.overdue).toBe(1)
+    expect(out.rows.find((r) => r.label === 'Zed')?.overdue).toBe(1)
     expect(out.rows.find((r) => r.label === 'Bob')?.priority).toEqual(NONE)
   })
 
-  it('the ranges decide what Due and Follow-up count (as a list tab\'s badge); off counts nothing', () => {
-    const out = computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), opts('people', { ranges: { due: 'overdue', followup: 'off' } }))
-    expect(out.rows.find((r) => r.label === 'Amy')?.dueIds).toEqual([1])
-    expect(out.rows.every((r) => r.followupIds.length === 0)).toBe(true)
+  it('each column counts the row\'s tasks it keeps, by its id; a column it doesn\'t name counts 0; no columns, none', () => {
+    const late = column('late', tasks, (t) => before(t.dueDate, -1))
+    const out = computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), opts('people', { columns: [late] }))
+    const amyRow = out.rows.find((r) => r.label === 'Amy')
+    expect(amyRow?.columns).toEqual({ late: [1] })
+    expect(amyRow && columnCount(amyRow, 'late')).toBe(1)
+    expect(amyRow && columnCount(amyRow, 'gone')).toBe(0)
+    expect(computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), opts('people')).rows.every((r) => Object.keys(r.columns).length === 0)).toBe(true)
   })
 
-  it('a completed task the filter let through counts in its row but in no Due, Follow-up or priority count', () => {
+  it('a completed task the filter let through counts in its row but in no priority or overdue count', () => {
     const done = makeTodo({ id: 9, isCompleted: true, focus: true, dueDate: day(-1) })
-    const out = computeBreakdown([done], ctx({ assignedPeopleMap: new Map([[9, [amy]]]) }), opts('people'))
-    expect(out.rows.map((r) => [r.label, r.ids, r.dueIds, r.priority])).toEqual([['Amy', [9], [], NONE]])
+    const out = computeBreakdown([done], ctx({ assignedPeopleMap: new Map([[9, [amy]]]) }), opts('people', { columns: dueColumns([done]) }))
+    expect(out.rows.map((r) => [r.label, r.ids, r.columns.due, r.priority, r.overdue])).toEqual([['Amy', [9], [], NONE, 0]])
   })
 
   it('no tasks, no rows', () => {
@@ -211,8 +232,8 @@ describe('sorting the rows by a heading', () => {
     makeTodo({ id: 5 }),
   ]
   // Amy: 1 · Bob: 2, 3, 4 · Zed: none · task 5: nobody.
-  const out = computeBreakdown(tasks, ctx({ assignedPeopleMap: new Map([[1, [amy]], [2, [bob]], [3, [bob]], [4, [bob]]]) }), opts('people'))
-  const labels = (sort: Parameters<typeof sortBreakdownRows>[1]) => sortBreakdownRows(out.rows, sort, 'count').map((r) => r.label)
+  const out = computeBreakdown(tasks, ctx({ assignedPeopleMap: new Map([[1, [amy]], [2, [bob]], [3, [bob]], [4, [bob]]]) }), opts('people', { columns: dueColumns(tasks) }))
+  const labels = (sort: Parameters<typeof sortBreakdownRows>[1], ids?: readonly string[]) => sortBreakdownRows(out.rows, sort, 'count', ids).map((r) => r.label)
 
   it('the default order as computed; a sort keeps the none row last', () => {
     expect(labels(undefined)).toEqual(['Bob', 'Amy', 'Unassigned'])
@@ -225,6 +246,12 @@ describe('sorting the rows by a heading', () => {
     expect(labels({ by: 'open', reversed: true })).toEqual(['Amy', 'Bob', 'Unassigned'])
     expect(labels({ by: 'due' })).toEqual(['Amy', 'Bob', 'Unassigned'])
     expect(labels({ by: 'followup' })).toEqual(['Bob', 'Amy', 'Unassigned'])
+  })
+
+  it('a sort by a column the Breakdown no longer has reads as the default order', () => {
+    expect(labels({ by: 'due' }, ['followup'])).toEqual(labels(undefined))
+    expect(labels({ by: 'due' }, ['due'])).toEqual(['Amy', 'Bob', 'Unassigned'])
+    expect(labels({ by: 'open', reversed: true }, [])).toEqual(['Amy', 'Bob', 'Unassigned'])
   })
 
   it('a heading click: its default direction, then reversed, then back to the default order', () => {

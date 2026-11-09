@@ -234,8 +234,8 @@ test('Lines from the keyboard: Tab reaches a line, Shift+F10 opens its task menu
   await alpha.focus()
   await page.keyboard.press('Tab')
   await expect(bravo).toBeFocused()
-  // The focused line's tooltip carries the full date (cr33 U8).
-  await expect(page.getByRole('tooltip')).toContainText(/Due \w{3} \d{1,2} \w{3} \(late\)/)
+  // The focused line's tooltip carries the full date (cr33 U8): a past day is `MM/DD` (another year's `MM/DD/YYYY`).
+  await expect(page.getByRole('tooltip')).toContainText(/Due \d{2}\/\d{2}(\/\d{4})? \(late\)/)
   await page.keyboard.press('Shift+F10')
   const menu = page.getByRole('menu', { name: 'Task actions' })
   await expect(menu).toBeVisible()

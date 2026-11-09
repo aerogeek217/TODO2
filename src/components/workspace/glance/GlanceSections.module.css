@@ -87,11 +87,20 @@
   margin-left: auto;
 }
 
+/* The lens switch (G3) after the extras: they push both to the line's end (`WidgetTopLine` gives it the free space otherwise). */
+.panelHeader .panelExtras ~ :global([data-lens-switch]) {
+  margin-left: 0;
+}
+
 /* A widget cell may be as narrow as 120px: the key goes first (Created vs
    completed's stats name the series). */
 @container (max-width: 380px) {
   .panelExtras {
     display: none;
+  }
+
+  .panelHeader .panelExtras ~ :global([data-lens-switch]) {
+    margin-left: auto;
   }
 }
 

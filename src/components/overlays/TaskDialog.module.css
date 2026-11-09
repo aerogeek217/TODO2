@@ -153,8 +153,7 @@
   flex: 1;
 }
 
-.ghostBtn,
-.closeTextBtn {
+.ghostBtn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -179,8 +178,7 @@
   margin-left: 0;
 }
 
-.ghostBtn:hover,
-.closeTextBtn:hover {
+.ghostBtn:hover {
   background: var(--color-surface-hover);
   color: var(--color-text-primary);
 }
@@ -198,4 +196,49 @@
   font-family: inherit;
   font-size: 11px;
   color: var(--color-text-muted);
+}
+
+/* A person's Review · Email check-in · Paste reply…, under the title (D26 BD). */
+.personActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The review deck's secondary button: the person's actions and the footer's Close. */
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: none;
+  height: 30px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 7px;
+  background: var(--color-surface-bright);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.secondaryBtn:hover {
+  background: var(--color-tint-12);
+}
+
+.secondaryBtn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.secondaryBtn:disabled:hover {
+  background: var(--color-surface-bright);
+}
+
+/* An action's icon, in the accent. */
+.actionIcon {
+  display: inline-flex;
+  color: var(--color-accent-text);
 }
