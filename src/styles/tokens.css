@@ -400,6 +400,8 @@
   --color-text-muted: #8f8a83;
   --color-text-completed: #4a4743;
   --color-text-on-accent: #111110;
+  /* Text on a fill in a picked colour (a Breakdown count column's lit count): dark in both themes, as the presets are light. */
+  --color-text-on-hue: #111110;
 
   /* Accent alpha: mixed from the accent, so a custom accent (Settings ›
      Appearance) tints with its own colour. */
@@ -654,6 +656,7 @@
   --color-text-muted: #6f6a64;
   --color-text-completed: #c4c0bb;
   --color-text-on-accent: #ffffff;
+  --color-text-on-hue: #1a1917;
 
   /* Accent alpha: mixed from the accent, so a custom accent (Settings ›
      Appearance) tints with its own colour. */

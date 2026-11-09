@@ -80,12 +80,6 @@ interface PredicateChipsProps {
    * pane, the check-in — which would drop it silently (cr33 F9).
    */
   allowDone?: boolean
-  /**
-   * Graphical: opens + Filter's picker of this field once, on mount (a
-   * chart preset that needs a pick — Waiting on with no Waiting status,
-   * D26 P8).
-   */
-  startPicking?: ListFilterField
 }
 
 /**
@@ -316,7 +310,7 @@ function ExpressionChip({ text, onOpen }: { text: string; onOpen?: () => void })
  * Filter, and the open chip's picker.
  */
 function GraphicalChips({
-  predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false, omitFields, dateHost, layout = 'line', autoFocusAdd = false, startPicking,
+  predicate, onChange, before, addLabel = 'Add a filter to this list', inDialog = false, omitFields, dateHost, layout = 'line', autoFocusAdd = false,
 }: PredicateChipsProps & { autoFocusAdd?: boolean }) {
   const stack = layout === 'stack'
   // Outlives the date panel: an Is not chosen before a range has an end stays chosen.
@@ -344,14 +338,6 @@ function GraphicalChips({
   useEffect(() => {
     if (autoFocusAdd) addFilterRef.current?.focus()
   }, [autoFocusAdd])
-  // `startPicking`: its picker opens under + Filter once (D26 P8).
-  const startedPicking = useRef(false)
-  useEffect(() => {
-    const el = addFilterRef.current
-    if (startedPicking.current || !startPicking || !el || omitFields?.includes(startPicking)) return
-    startedPicking.current = true
-    setAddPicker({ field: startPicking, at: pointBelow(el) })
-  }, [startPicking, omitFields])
   const refocus = useRef<{ index: number; el: HTMLElement } | null>(null)
   const [keepFocusOnChip] = useState(() => (from?: Element) => {
     const chips = Array.from(document.querySelectorAll<HTMLElement>(`[data-chips-owner="${owner}"][data-testid="list-filter-chip"]`))

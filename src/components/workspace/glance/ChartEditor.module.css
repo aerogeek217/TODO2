@@ -147,3 +147,61 @@
   margin: 0;
   accent-color: var(--color-accent);
 }
+
+/* A Breakdown's count columns (board BC): each a name, a colour, when it lights and a filter. */
+.column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.columnHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.columnHead .input {
+  flex: 1 1 auto;
+}
+
+.columnSwatch {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 50%;
+}
+
+.columnRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-secondary);
+}
+
+.addColumn {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-accent);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.addColumn:hover,
+.addColumn:focus-visible {
+  background: var(--color-tint-8);
+}

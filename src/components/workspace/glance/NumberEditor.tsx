@@ -1,11 +1,9 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type RefObject } from 'react'
 import { createPortal } from 'react-dom'
 import {
-  NUMBER_LIT_AT_MAX,
   NUMBER_NAME_MAX,
   type NumberCompare,
   type NumberConfig,
-  type NumberLitWhen,
 } from '../../../models/glance-widgets'
 import type { NumberTab } from '../../../models/workspace-layout'
 import { usePopoverAnchor } from '../../../hooks/use-popover-anchor'
@@ -19,6 +17,7 @@ import { ColorPicker } from '../../shared/ColorPicker'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { CloseIcon } from '../../shared/icons'
 import { PopoverRoot } from '../../shared/PopoverRoot'
+import { LitWhenControl } from './LitWhenField'
 import {
   AUTO_SHOWN,
   GoalFields,
@@ -31,12 +30,6 @@ import {
 import { useLayoutFirstListId } from '../../../hooks/use-number-shapes'
 import { switchShape, type ShapeStash } from './number-shape-switch'
 import styles from './NumberEditor.module.css'
-
-const LIT_WHEN: ReadonlyArray<{ value: NumberLitWhen; label: string }> = [
-  { value: 'never', label: 'Never' },
-  { value: 'above', label: 'Above' },
-  { value: 'below', label: 'Below' },
-]
 
 const COMPARES: ReadonlyArray<{ value: NumberCompare; label: string }> = [
   { value: 'yesterday', label: 'Yesterday' },
@@ -80,33 +73,6 @@ function useEscapeCloses(panel: RefObject<HTMLElement | null>, onClose: () => vo
 }
 
 /** The threshold field: a whole number, written once it reads as one (blank or bad text isn't written). */
-function LitAtField({ value, onChange, label }: { value: number; onChange: (n: number) => void; label: string }) {
-  const [text, setText] = useState(String(value))
-  const [shown, setShown] = useState(value)
-  if (shown !== value) {
-    setShown(value)
-    setText(String(value))
-  }
-  return (
-    <input
-      type="number"
-      inputMode="numeric"
-      min={0}
-      max={NUMBER_LIT_AT_MAX}
-      step={1}
-      className={styles.number}
-      aria-label={label}
-      value={text}
-      onChange={(e) => {
-        setText(e.target.value)
-        const n = Number(e.target.value)
-        if (e.target.value.trim() !== '' && Number.isInteger(n) && n >= 0 && n <= NUMBER_LIT_AT_MAX) onChange(n)
-      }}
-      onBlur={() => setText(String(value))}
-    />
-  )
-}
-
 /** The Number tab `tabId` names in the open layout, if it is one. */
 function useNumberTab(tabId: string | null): NumberTab | undefined {
   return useWorkspaceStore((s) => {
@@ -279,23 +245,7 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
           {show === 'list' && <ListField config={config} patch={patch} />}
           {show !== 'goal' && <div className={styles.field}>
             <span className={styles.label} aria-hidden="true">Light up when</span>
-            <span className={styles.litRow}>
-              <select
-                className={styles.select}
-                aria-label="Light up when"
-                value={config.litWhen}
-                onChange={(e) => {
-                  const litWhen = e.target.value as NumberLitWhen
-                  patch(litWhen === 'never' ? { litWhen, litAt: undefined } : { litWhen, litAt: config.litAt ?? 0 })
-                }}
-              >
-                {LIT_WHEN.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-              {config.litWhen !== 'never' && (
-                <LitAtField value={config.litAt ?? 0} label={`Light up when ${config.litWhen}${litUnit ? ` (${litUnit})` : ''}`} onChange={(litAt) => patch({ litAt })} />
-              )}
-              {config.litWhen !== 'never' && litUnit && <span className={styles.unit}>{litUnit}</span>}
-            </span>
+            <LitWhenControl litWhen={config.litWhen} litAt={config.litAt} unit={litUnit} onChange={(next) => patch(next)} />
           </div>}
           {(show === 'count' || show === 'share') && <label className={styles.field}>
             <span className={styles.label}>Compare with</span>

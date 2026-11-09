@@ -18,14 +18,16 @@ import type { PopoverPlacement } from '../../hooks/use-popover-anchor'
  * dialog it opens (the deck, the import, or the check-in dialog when the
  * send can't go) returns the focus there when it closes.
  */
-export function PersonCheckinMenu({ person, anchorRef, placement, onClose }: {
+export function PersonCheckinMenu({ person, anchorRef, placement, review: withReview = true, onClose }: {
   person: { id: number; name: string }
   anchorRef: RefObject<HTMLElement | null>
   placement?: PopoverPlacement
+  /** Offer Review (where it is offered); false where Review is a button of its own beside the envelope (a Breakdown row). */
+  review?: boolean
   onClose: () => void
 }) {
-  const { review } = useEntityMenuOffers()
-  const entries = personMenuEntries(person, { review }).map((item) => ({
+  const offers = useEntityMenuOffers()
+  const entries = personMenuEntries(person, { review: withReview && offers.review }).map((item) => ({
     ...item,
     onSelect: () => {
       anchorRef.current?.focus({ preventScroll: true })

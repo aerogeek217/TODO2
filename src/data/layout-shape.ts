@@ -32,6 +32,7 @@ import {
   type PickedConfig,
 } from '../models/glance-widgets'
 import {
+  breakdownColumnFilters,
   breakdownConfigProblem,
   breakdownViewProblem,
   pickBreakdownConfig,
@@ -201,6 +202,12 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (bad) return `${path}.config.${bad}`
       const badView = view ? breakdownViewProblem(view) : null
       if (badView) return `${path}.viewState.${badView}`
+      // Its count columns' filters (board BC), each as a Number's.
+      for (const [key, raw] of breakdownColumnFilters(config)) {
+        const shape = checkPredicateShape(raw)
+        if (shape !== true) return `${path}.config.${key}.${shape}`
+        if (pickPredicate(raw).fixes.length > 0) return `${path}.config.${key}`
+      }
       return checkChartFilter(config.filter, path)
     }
     case 'pivot': {
@@ -524,7 +531,7 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       // D26 P8: the chart widgets.
       case 'breakdown': {
         const viewState = glance(pickBreakdownView(view))
-        const breakdown: LayoutTab = { id, kind: 'breakdown', config: glance(pickBreakdownConfig(config, chartFilterOf(config))) }
+        const breakdown: LayoutTab = { id, kind: 'breakdown', config: glance(pickBreakdownConfig(config, chartFilterOf(config), readNumberPredicate)) }
         if (viewState) breakdown.viewState = viewState
         return breakdown
       }

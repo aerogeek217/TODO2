@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { rowFixes, sanitizeRow, validateRow } from '../../data/import-validation'
 import { checkLayoutBody } from '../../data/layout-shape'
 import { emptyPredicate } from '../../models/filter-predicate'
-import { breakdownPreset, newBreakdownConfig } from '../../models/chart-widgets'
+import { BREAKDOWN_PRESETS, breakdownPreset, newBreakdownConfig } from '../../models/chart-widgets'
 import { createTab, isWidgetKind, kindTabTitle, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import { cell, grid, single } from '../helpers/layout-builders'
 
@@ -64,9 +64,56 @@ describe('a Breakdown in a stored layout (D26 P8)', () => {
     const { filter: _f, ...noFilter } = full
     void _f
     expect((tabOf(layoutRow({ id: 't', kind: 'breakdown', config: noFilter }))?.config as { filter: unknown }).filter).toEqual(emptyPredicate())
-    const sorts = layoutRow({ id: 't', kind: 'breakdown', config: full, viewState: { sorts: { people: { by: 'height' }, tags: { by: 'open' } } } })
+    const sorts = layoutRow({ id: 't', kind: 'breakdown', config: full, viewState: { sorts: { people: { by: 'a height' }, tags: { by: 'open' } } } })
     expect(checkLayoutBody(sorts)).toBe('cells[0].tabs[0].viewState.sorts.people')
     expect(tabOf(sorts)).toEqual({ id: 't', kind: 'breakdown', config: full, viewState: { sorts: { tags: { by: 'open' } } } })
+  })
+
+  it('its count columns (board BC) and its lens switch (view state) round-trip; a column sort is any column id', () => {
+    const columns = [
+      { id: 'col-a', name: 'Waiting', color: '#7ec4bc', filter: { ...emptyPredicate(), statusIds: [3] }, litWhen: 'above', litAt: 2 },
+      { id: 'due', name: '', color: '#e86bf0', filter: emptyPredicate(), litWhen: 'never' },
+    ]
+    const tab = { id: 't', kind: 'breakdown', config: { ...full, columns }, viewState: { sorts: { people: { by: 'col-a' } }, ignoreLens: true } }
+    const row = layoutRow(tab)
+    expect(validateRow('layouts', row)).toBe(true)
+    expect(rowFixes('layouts', row)).toEqual([])
+    expect(tabOf(row)).toEqual(tab)
+    // No columns at all is kept (it isn't the same as none stored).
+    const none = { id: 't', kind: 'breakdown', config: { ...full, columns: [] } }
+    expect(tabOf(layoutRow(none))).toEqual(none)
+  })
+
+  it.each([
+    ['five columns', Array.from({ length: 5 }, (_, i) => ({ id: `c${i}`, name: 'C', color: '#7ec4bc', filter: emptyPredicate(), litWhen: 'never' }))],
+    ['a repeated id', [{ id: 'c', name: 'A', color: '#7ec4bc', filter: emptyPredicate(), litWhen: 'never' }, { id: 'c', name: 'B', color: '#7ec4bc', filter: emptyPredicate(), litWhen: 'never' }]],
+    ['a fixed heading as its id', [{ id: 'open', name: 'A', color: '#7ec4bc', filter: emptyPredicate(), litWhen: 'never' }]],
+    ['a colour that is no hex', [{ id: 'c', name: 'A', color: 'teal', filter: emptyPredicate(), litWhen: 'never' }]],
+    ['a rule with no threshold', [{ id: 'c', name: 'A', color: '#7ec4bc', filter: emptyPredicate(), litWhen: 'above' }]],
+    ['a threshold with Never', [{ id: 'c', name: 'A', color: '#7ec4bc', filter: emptyPredicate(), litWhen: 'never', litAt: 1 }]],
+  ])('count columns with %s are repaired (a fix)', (_what, columns) => {
+    const row = layoutRow({ id: 't', kind: 'breakdown', config: { ...full, columns } })
+    expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].config.columns')
+    expect(rowFixes('layouts', row)).toEqual(['tab or cell settings reset'])
+    const picked = (tabOf(row)?.config as { columns: Array<{ id: string; color: string; litWhen: string; litAt?: number }> }).columns
+    expect(picked.length).toBeLessThanOrEqual(4)
+    expect(new Set(picked.map((c) => c.id)).size).toBe(picked.length)
+    for (const c of picked) {
+      expect(c.id).not.toBe('open')
+      expect(c.color).toMatch(/^#/)
+      expect(c.litWhen === 'never' ? c.litAt : typeof c.litAt).toBe(c.litWhen === 'never' ? undefined : 'number')
+    }
+  })
+
+  it('a column filter that doesn’t read is checked as a Number’s', () => {
+    const row = layoutRow({ id: 't', kind: 'breakdown', config: { ...full, columns: [{ id: 'c', name: 'A', color: '#7ec4bc', filter: { nope: 1 }, litWhen: 'never' }] } })
+    expect(checkLayoutBody(row)).toMatch(/^cells\[0\]\.tabs\[0\]\.config\.columns\.0\.filter/)
+  })
+
+  it('a lens switch that is no boolean is dropped (a fix)', () => {
+    const row = layoutRow({ id: 't', kind: 'breakdown', config: full, viewState: { ignoreLens: 'yes' } })
+    expect(checkLayoutBody(row)).toBe('cells[0].tabs[0].viewState.ignoreLens')
+    expect(tabOf(row)).toEqual({ id: 't', kind: 'breakdown', config: full })
   })
 
   it('its tab reads its name, Breakdown while blank', () => {
@@ -139,27 +186,11 @@ describe('a Tag map in a stored layout (D26 P8)', () => {
 })
 
 describe('the Add widget presets', () => {
-  const statuses = [{ id: 1, name: 'To do' }, { id: 7, name: 'waiting ' }]
-
-  it('People, Tags and Status split every open task by theirs; Custom is a new Breakdown', () => {
-    expect(breakdownPreset('people', statuses, emptyPredicate)).toEqual({ config: { name: 'People', splitBy: 'people' } })
-    expect(breakdownPreset('tags', statuses, emptyPredicate)).toEqual({ config: { name: 'Tags', splitBy: 'tags' } })
-    expect(breakdownPreset('status', statuses, emptyPredicate)).toEqual({ config: { name: 'Status', splitBy: 'status' } })
-    expect(breakdownPreset('custom', statuses, emptyPredicate)).toEqual({ config: {} })
-  })
-
-  it('Waiting on: !Waiting (its name matched without case), by people, oldest by last follow-up, with check-ins', () => {
-    expect(breakdownPreset('waiting', statuses, emptyPredicate)).toEqual({
-      config: {
-        name: 'Waiting on', splitBy: 'people', show: 'oldest', oldestBy: 'lastFollowup', checkins: true,
-        filter: { ...emptyPredicate(), statusIds: [7] },
-      },
-    })
-  })
-
-  it('Waiting on with no status named Waiting: no filter yet, and the editor opens the Status picker', () => {
-    const seed = breakdownPreset('waiting', [{ id: 1, name: 'To do' }], emptyPredicate)
-    expect(seed.startField).toBe('status')
-    expect(seed.config.filter).toEqual(emptyPredicate())
+  it('People, Tags and Status split every open task by theirs; Custom is a new Breakdown; Waiting on is gone (board BC)', () => {
+    expect(BREAKDOWN_PRESETS).toEqual(['people', 'tags', 'status', 'custom'])
+    expect(breakdownPreset('people')).toEqual({ name: 'People', splitBy: 'people' })
+    expect(breakdownPreset('tags')).toEqual({ name: 'Tags', splitBy: 'tags' })
+    expect(breakdownPreset('status')).toEqual({ name: 'Status', splitBy: 'status' })
+    expect(breakdownPreset('custom')).toEqual({})
   })
 })

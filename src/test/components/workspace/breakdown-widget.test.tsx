@@ -26,8 +26,9 @@ import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_TASKS, STATUSES, TAGS } 
 
 /**
  * The Breakdown (D26 P8) in JSDOM: its headings sort (view state), the
- * filter row, Review ▸ and the count clicks (the review deck), the person
- * menu, its faces, its tab menu and its editor's round trip.
+ * filter row, the row's Review button and the count columns' clicks (the
+ * review deck), the person menu, its faces, its tab menu and its editor's
+ * round trip, its count columns among them (board BC).
  */
 
 function breakdown(over: Partial<BreakdownConfig> = {}, id = 'b'): BreakdownTab {
@@ -41,6 +42,8 @@ function inLayout(tab: BreakdownTab) {
 }
 
 const current = () => useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as BreakdownTab
+/** A fresh Breakdown's config (its empty filter), before any is in the layout. */
+const current0 = () => breakdown()
 
 /** Renders the tab as it is in the open layout (re-rendered on each write). */
 function Live({ face, onDrill }: { face?: WidgetFace; onDrill?: (d: GlanceDrill) => void }) {
@@ -81,7 +84,7 @@ afterEach(() => {
 })
 
 describe('the headings sort (view state, per split)', () => {
-  it('a click sorts by it (largest first), a second reverses, a third goes back; the subtitle says so; the none row stays last', async () => {
+  it('a click sorts by it (largest first), a second reverses, a third goes back; no sort words in the header; the none row stays last', async () => {
     setup(breakdown())
     const before = keys()
     expect(before.at(-1)).toBe('none')
@@ -89,7 +92,7 @@ describe('the headings sort (view state, per split)', () => {
     await act(async () => { fireEvent.click(open()) })
     expect(current().viewState?.sorts?.people).toEqual({ by: 'open' })
     expect(useWorkspaceStore.getState().isDirty).toBe(false)
-    expect(document.querySelector('[data-testid="chart-sub"]')!.textContent).toBe('Most open first')
+    expect(document.querySelector('[data-testid="chart-sub"]')).toBeNull()
     expect(open().closest('[role="columnheader"]')!.getAttribute('aria-sort')).toBe('descending')
     const counts = rows().filter((r) => r.dataset.breakdownRow !== 'none').map((r) => Number(r.querySelector('[data-testid="breakdown-figure"]')!.textContent))
     expect(counts).toEqual([...counts].sort((a, b) => b - a))
@@ -106,7 +109,7 @@ describe('the headings sort (view state, per split)', () => {
     setup(breakdown())
     await act(async () => { fireEvent.click(document.querySelector('[data-sort-key="name"]')!) })
     act(() => { useWorkspaceStore.getState().patchTabConfig('b', 'breakdown', { splitBy: 'tags' }) })
-    expect(document.querySelector('[data-testid="chart-sub"]')!.textContent).toBe('Most due first')
+    expect(document.querySelector('[data-sort-key="name"]')!.getAttribute('aria-pressed')).toBe('false')
     expect(current().viewState?.sorts).toEqual({ people: { by: 'name' } })
   })
 })
@@ -148,15 +151,15 @@ describe('the filter row (temporary, per split)', () => {
     expect(useChartWidgetsStore.getState().rowPicks.b?.people ?? []).toEqual([])
   })
 
-  it('the medium face has no filter row and shows name · Due · Follow-up', () => {
+  it('the medium face has no filter row and shows name · the count columns', () => {
     setup(breakdown(), { face: 'medium' })
     expect(document.querySelector('[data-testid="breakdown-filter-row"]')).toBeNull()
-    expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toEqual(['Person', 'Due', 'Follow-up'])
+    expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toEqual(['Person', 'Overdue', 'Due soon', 'Follow-up late', 'Follow-up due'])
   })
 })
 
-describe('clicks: a row drills, Review ▸ and a count review', () => {
-  it('a row opens its tasks; Review ▸ opens the deck on them; a Due count on just its due ones', () => {
+describe('clicks: a row drills, its Review button and a count review', () => {
+  it('a row opens its tasks; Review opens the deck on them; a count column’s count on just its tasks', () => {
     const onDrill = vi.fn()
     setup(breakdown({ name: 'Team' }), { onDrill })
     const priya = rowOf('person-4')
@@ -166,14 +169,48 @@ describe('clicks: a row drills, Review ▸ and a count review', () => {
     expect(useReviewStore.getState()).toMatchObject({ open: true, source: { kind: 'person', title: 'Priya Nair' } })
     expect([...useReviewStore.getState().ids].sort((a, b) => a - b)).toEqual([3, 11, 14, 15])
     act(() => { useReviewStore.setState({ open: false }) })
-    const dueRow = rows().find((r) => r.querySelector('button[data-badge-part="due"]'))!
-    fireEvent.click(dueRow.querySelector('button[data-badge-part="due"]')!)
-    const due = Number(dueRow.querySelector('[data-badge-part="due"]')!.textContent)
-    expect(useReviewStore.getState().ids).toHaveLength(due)
-    expect(useReviewStore.getState().source?.title).toMatch(/ · Due$/)
+    const countRow = rows().find((r) => r.querySelector('button[data-column]'))!
+    const count = countRow.querySelector<HTMLElement>('button[data-column]')!
+    const heading = document.querySelector(`[data-sort-key="${count.dataset.column}"]`)!.textContent
+    fireEvent.click(count)
+    expect(useReviewStore.getState().ids).toHaveLength(Number(count.textContent))
+    expect(useReviewStore.getState().source?.title).toMatch(new RegExp(` · ${heading}$`))
   })
 
-  it('no Review ▸ while the deck is open', () => {
+  it('every row ends with its Review button, always there (no hover pill)', () => {
+    setup(breakdown())
+    for (const row of rows()) expect(within(row).getByTestId('breakdown-review').tagName).toBe('BUTTON')
+    expect(document.body.textContent).not.toContain('Review ▸')
+  })
+
+  it('a count is solid while it meets its column’s Light up when rule, outlined otherwise; 0 is a dim –', () => {
+    setup(breakdown({
+      columns: [
+        { id: 'all', name: 'All', color: '#7ec4bc', filter: { ...current0().config.filter }, litWhen: 'above', litAt: 1 },
+        { id: 'quiet', name: 'Quiet', color: '#a78bfa', filter: { ...current0().config.filter }, litWhen: 'never' },
+        { id: 'nobody', name: 'Nobody', color: '#5b8def', filter: { ...current0().config.filter, searchText: 'no task says this' }, litWhen: 'above', litAt: 0 },
+      ],
+    }))
+    const priya = rowOf('person-4')
+    const all = priya.querySelector<HTMLElement>('[data-column="all"]')!
+    expect(all.textContent).toBe('4')
+    expect(all.hasAttribute('data-solid')).toBe(true)
+    expect(all.style.getPropertyValue('--col-color')).toBe('#7ec4bc')
+    expect(priya.querySelector('[data-column="quiet"]')!.hasAttribute('data-solid')).toBe(false)
+    expect(priya.querySelector('[data-column="nobody"]')).toBeNull()
+    expect(within(priya).getByLabelText('No tasks in Nobody').textContent).toBe('–')
+    // A row of one task: 1 is not above 1, so outlined.
+    const one = rows().find((r) => r.querySelector('[data-column="all"]')?.textContent === '1')
+    if (one) expect(one.querySelector('[data-column="all"]')!.hasAttribute('data-solid')).toBe(false)
+  })
+
+  it('the derived columns light the late ones only: Overdue and Follow-up late fill, Due soon and Follow-up due stay outlined', () => {
+    setup(breakdown())
+    for (const el of document.querySelectorAll<HTMLElement>('[data-column="overdue"], [data-column="followup-late"]')) expect(el.hasAttribute('data-solid')).toBe(true)
+    for (const el of document.querySelectorAll<HTMLElement>('[data-column="due"], [data-column="followup"]')) expect(el.hasAttribute('data-solid')).toBe(false)
+  })
+
+  it('no Review while the deck is open', () => {
     useReviewStore.setState({ open: true })
     setup(breakdown())
     expect(document.querySelector('[data-testid="breakdown-review"]')).toBeNull()
@@ -192,10 +229,14 @@ describe('clicks: a row drills, Review ▸ and a count review', () => {
   })
 })
 
-describe('the check-in envelope (Waiting on)', () => {
-  it('each person row has it with checkins; none without', () => {
+describe('the check-in envelope', () => {
+  it('each person row has it with checkins, beside Review; its menu is Email check-in · Paste reply; none without', () => {
     setup(breakdown({ checkins: true, show: 'oldest', oldestBy: 'lastFollowup' }))
-    expect(within(rowOf('person-4')).getByRole('button', { name: 'Email check-in options for Priya Nair' })).not.toBeNull()
+    const envelope = within(rowOf('person-4')).getByRole('button', { name: 'Email check-in options for Priya Nair' })
+    expect(envelope.previousElementSibling).toBe(within(rowOf('person-4')).getByTestId('breakdown-review'))
+    fireEvent.click(envelope)
+    expect([...document.querySelectorAll('[role="menu"] [role="menuitem"]')].map((e) => e.textContent)).toEqual(['Email check-in to Priya Nair', 'Paste reply from Priya Nair…'])
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: 'Escape' })
     expect(within(rowOf('none')).queryByRole('button', { name: /Email check-in/ })).toBeNull()
     // Oldest: the age in days, its title under the name.
     expect(within(rowOf('person-4')).getByTestId('breakdown-figure').textContent).toMatch(/^\d+ d$/)
@@ -247,35 +288,17 @@ describe('the tab menu', () => {
     item(menu.settingEntries, 'Edit breakdown…').onSelect!()
     expect(useChartWidgetsStore.getState().editorTabId).toBe('b')
     const sort = item(menu.settingEntries, 'Sort')
-    expect(sort.note).toBe('Most due first')
-    item(sort.children!, 'Due: Most due first').onSelect!()
+    expect(sort.note).toBe('Most counted first')
+    item(sort.children!, 'Due soon: Most Due soon first').onSelect!()
     expect(current().viewState?.sorts?.people).toEqual({ by: 'due' })
   })
 
-  it('Due › and Follow-up › override Settings’ ranges; back to Settings drops the override', () => {
+  it('has no Due › or Follow-up › range submenus (count columns are the editor’s)', () => {
     const tab = breakdown()
     inLayout(tab)
-    item(item(glanceMenu(tab, undefined)!.settingEntries, 'Due').children!, 'Overdue only').onSelect!()
-    expect(current().config.badges).toEqual({ due: 'overdue' })
-    const after = current()
-    expect(item(glanceMenu(after, undefined)!.settingEntries, 'Due').note).toBe('Overdue only')
-    item(item(glanceMenu(after, undefined)!.settingEntries, 'Due').children!, 'As in Settings (Overdue and next 3 days)').onSelect!()
-    expect(current().config).not.toHaveProperty('badges')
-  })
-
-  it('each range overrides on its own: the other keeps following Settings', () => {
-    const tab = breakdown()
-    inLayout(tab)
-    item(item(glanceMenu(tab, undefined)!.settingEntries, 'Follow-up').children!, 'Overdue only').onSelect!()
-    expect(current().config.badges).toEqual({ followup: 'overdue' })
-    expect(item(glanceMenu(current(), undefined)!.settingEntries, 'Due').note).toBe('Settings')
-    // Settings' Due changes: the Breakdown's Due follows it.
-    useSettingsStore.setState({ tabBadges: { due: 7, followup: 0 } })
-    const due = item(glanceMenu(current(), undefined)!.settingEntries, 'Due')
-    expect(due.note).toBe('Settings')
-    expect(item(due.children!, 'As in Settings (Overdue and next 7 days)').checked).toBe(true)
-    item(item(glanceMenu(current(), undefined)!.settingEntries, 'Follow-up').children!, 'As in Settings (Overdue and today)').onSelect!()
-    expect(current().config).not.toHaveProperty('badges')
+    const labels = glanceMenu(tab, undefined)!.settingEntries.flatMap((e) => (e.kind === 'item' ? [e.label] : []))
+    expect(labels).not.toContain('Due')
+    expect(labels).not.toContain('Follow-up')
   })
 })
 
@@ -306,6 +329,45 @@ describe('the editor (D26 P8, the Number editor’s pattern)', () => {
   })
 })
 
+describe('the editor’s Count columns (board BC)', () => {
+  const columnsBox = () => document.querySelector<HTMLElement>('[data-testid="chart-editor-columns"]')!
+
+  it('shows the derived columns until edited; the first edit writes them all as columns and drops the old ranges', () => {
+    setup(breakdown({ badges: { followup: 'overdue' } }))
+    act(() => { useChartWidgetsStore.getState().openEditor('b') })
+    expect([...columnsBox().querySelectorAll<HTMLInputElement>('input[aria-label$="name"]')].map((i) => i.value)).toEqual(['Overdue', 'Due soon', 'Follow-up late'])
+    expect(current().config).not.toHaveProperty('columns')
+    fireEvent.change(within(columnsBox()).getByRole('textbox', { name: 'Column 1 name' }), { target: { value: 'Late' } })
+    expect(current().config.columns?.map((c) => c.name)).toEqual(['Late', 'Due soon', 'Follow-up late'])
+    expect(current().config).not.toHaveProperty('badges')
+    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    // The table follows: its headings are the columns' names.
+    expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toContain('Late')
+  })
+
+  it('+ Add column adds one (lit above 0, an empty filter) up to four; × removes one; Fill when writes its rule', () => {
+    setup(breakdown())
+    act(() => { useChartWidgetsStore.getState().openEditor('b') })
+    // Four derived: the cap — no Add column.
+    expect(within(columnsBox()).queryByRole('button', { name: 'Add column' })).toBeNull()
+    fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Remove Follow-up due' }))
+    expect(current().config.columns?.map((c) => c.id)).toEqual(['overdue', 'due', 'followup-late'])
+    fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Add column' }))
+    const added = current().config.columns?.at(-1)
+    expect(added).toMatchObject({ name: 'Count 4', litWhen: 'above', litAt: 0 })
+    expect(added?.filter.statusIds).toBeNull()
+    fireEvent.change(within(columnsBox()).getByRole('combobox', { name: 'Count 4: fill when' }), { target: { value: 'never' } })
+    expect(current().config.columns?.at(-1)).not.toHaveProperty('litAt')
+    expect(current().config.columns?.at(-1)?.litWhen).toBe('never')
+    fireEvent.change(within(columnsBox()).getByRole('combobox', { name: 'Count 4: fill when' }), { target: { value: 'below' } })
+    fireEvent.change(within(columnsBox()).getByRole('spinbutton', { name: 'Count 4: fill when below' }), { target: { value: '3' } })
+    expect(current().config.columns?.at(-1)).toMatchObject({ litWhen: 'below', litAt: 3 })
+    // Its colour: the app's picker.
+    fireEvent.click(within(columnsBox().querySelector<HTMLElement>(`[data-column-editor="${added!.id}"]`)!).getByRole('radio', { name: 'Rose' }))
+    expect(current().config.columns?.at(-1)?.color).toBe('#e07a9a')
+  })
+})
+
 describe('Add widget › Numbers & charts › Breakdown › its presets', () => {
   /** A menu item by its label (`&` in a selector trips JSDOM's). */
   const byLabel = (label: string) => [...document.querySelectorAll<HTMLElement>('[data-menu-label]')].find((e) => e.dataset.menuLabel === label)!
@@ -315,25 +377,15 @@ describe('Add widget › Numbers & charts › Breakdown › its presets', () => 
     return [...document.querySelectorAll<HTMLElement>('[role="menu"][aria-label="Breakdown"] [role="menuitem"]')]
   }
 
-  it('lists People · Tags · Status · Waiting on · Custom; Waiting on adds !Waiting by people, oldest, with check-ins, and opens its editor', () => {
+  it('lists People · Tags · Status · Custom (no Waiting on); a preset adds its Breakdown and opens its editor', () => {
     inLayout(breakdown())
     render(<DndContext><AddWidgetFlow cellId="c" anchor={{ x: 10, y: 10 }} onClose={() => {}} /></DndContext>)
     const presets = openPresets()
-    expect(presets.map((el) => el.textContent?.trim())).toEqual(['People', 'Tags', 'Status', 'Waiting on', 'Custom'])
-    fireEvent.click(presets[3]!)
+    expect(presets.map((el) => el.textContent?.trim())).toEqual(['People', 'Tags', 'Status', 'Custom'])
+    fireEvent.click(presets[2]!)
     const added = useWorkspaceStore.getState().working!.cells[0]!.tabs.at(-1) as BreakdownTab
-    expect(added.config).toMatchObject({ name: 'Waiting on', splitBy: 'people', show: 'oldest', oldestBy: 'lastFollowup', checkins: true })
-    expect(added.config.filter.statusIds).toEqual([3])
-    expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: added.id, editorStartField: null })
-  })
-
-  it('Waiting on with no status named Waiting: no filter, its editor opens on the Status picker', () => {
-    useStatusStore.setState({ statuses: STATUSES.filter((s) => s.name !== 'Waiting') })
-    inLayout(breakdown())
-    render(<DndContext><AddWidgetFlow cellId="c" anchor={{ x: 10, y: 10 }} onClose={() => {}} /></DndContext>)
-    fireEvent.click(openPresets()[3]!)
-    const added = useWorkspaceStore.getState().working!.cells[0]!.tabs.at(-1) as BreakdownTab
-    expect(added.config.filter.statusIds).toBeNull()
-    expect(useChartWidgetsStore.getState().editorStartField).toBe('status')
+    expect(added.config).toMatchObject({ name: 'Status', splitBy: 'status' })
+    expect(added.config).not.toHaveProperty('columns')
+    expect(useChartWidgetsStore.getState().editorTabId).toBe(added.id)
   })
 })
