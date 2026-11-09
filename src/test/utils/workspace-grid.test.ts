@@ -8,6 +8,7 @@ import {
   isCellEdge,
   isNormalized,
   isWholeLine,
+  lineCrossings,
   mergeTracks,
   neighbours,
   normalizeGrid,
@@ -16,6 +17,7 @@ import {
   unionArea,
   validateTiling,
   wholeEdgeNeighbour,
+  wholeLine,
 } from '../../utils/workspace-grid'
 import { cell, emptyBody, grid, picture } from '../helpers/layout-builders'
 
@@ -24,6 +26,8 @@ const b = cell('b')
 const c = cell('c')
 const d = cell('d')
 const e = cell('e')
+const f = cell('f')
+const g = cell('g')
 
 /** a a b
  *  c d b */
@@ -113,8 +117,9 @@ describe('edges', () => {
   const M = grid([[a, b], [c, b], [d, e]])
 
   it('extends the edge between two cells along the line while both sides keep bordering it', () => {
-    // a | b over rows 0–1: extends down through c | b, stops where d | e meet (still a border) → the whole line.
-    expect(edgeBetween(M, 'a', 'b')).toEqual({ axis: 'columns', line: 1, from: 0, to: 3 })
+    // a | b over row 0: runs on past the "T" where a meets c (b spans it), stops at the "+" where c | b meet d | e.
+    expect(edgeBetween(M, 'a', 'b')).toEqual({ axis: 'columns', line: 1, from: 0, to: 2 })
+    expect(edgeBetween(M, 'd', 'e')).toEqual({ axis: 'columns', line: 1, from: 2, to: 3 })
     expect(edgeBetween(M, 'a', 'c')).toEqual({ axis: 'rows', line: 1, from: 0, to: 1 })
     expect(edgeBetween(M, 'a', 'e')).toBeNull()
   })
@@ -132,6 +137,52 @@ describe('edges', () => {
     const s = edgeBetween(N, 'b', 'c')
     expect(s && isWholeLine(N, s)).toBe(false)
     expect(s && stretchCells(N, s)).toEqual({ before: [N.cells[1]], after: [N.cells[2]] })
+  })
+
+  it('a 2×2 has four pieces, one per side of its "+", and one crossing', () => {
+    const Q = grid([[a, b], [c, d]])
+    expect(edgeStretches(Q)).toEqual([
+      { axis: 'columns', line: 1, from: 0, to: 1 },
+      { axis: 'columns', line: 1, from: 1, to: 2 },
+      { axis: 'rows', line: 1, from: 0, to: 1 },
+      { axis: 'rows', line: 1, from: 1, to: 2 },
+    ])
+    expect(lineCrossings(Q)).toEqual([{ col: 1, row: 1 }])
+    expect(isWholeLine(Q, { axis: 'columns', line: 1, from: 0, to: 1 })).toBe(false)
+    expect(wholeLine(Q, 'rows', 1)).toEqual({ axis: 'rows', line: 1, from: 0, to: 2 })
+  })
+
+  it('a "T" is no crossing: the line runs on past it', () => {
+    /** a b
+     *  a c — b | c meets a's edge from one side only */
+    const T = grid([[a, b], [a, c]])
+    expect(edgeStretches(T)).toEqual([
+      { axis: 'columns', line: 1, from: 0, to: 2 },
+      { axis: 'rows', line: 1, from: 1, to: 2 },
+    ])
+    expect(lineCrossings(T)).toEqual([])
+  })
+
+  it('a cell spanning past a point keeps it a "T"; spans elsewhere along the line still part it at a "+"', () => {
+    /** a a b
+     *  c d b
+     *  e f g */
+    const S = grid([[a, a, b], [c, d, b], [e, f, g]])
+    expect(lineCrossings(S)).toEqual([{ col: 1, row: 2 }, { col: 2, row: 2 }])
+    // Column line 2: a | b over row 0 (a spans line 1 above it — a "T" at row line 1 for line 1 only)
+    // runs on through d | b and stops at the "+" with row line 2.
+    expect(edgeStretches(S).filter((s) => s.axis === 'columns')).toEqual([
+      { axis: 'columns', line: 1, from: 1, to: 2 },
+      { axis: 'columns', line: 1, from: 2, to: 3 },
+      { axis: 'columns', line: 2, from: 0, to: 2 },
+      { axis: 'columns', line: 2, from: 2, to: 3 },
+    ])
+    // Row line 2 parts at both crossings.
+    expect(edgeStretches(S).filter((s) => s.axis === 'rows' && s.line === 2)).toEqual([
+      { axis: 'rows', line: 2, from: 0, to: 1 },
+      { axis: 'rows', line: 2, from: 1, to: 2 },
+      { axis: 'rows', line: 2, from: 2, to: 3 },
+    ])
   })
 
   it('pictures a body', () => {
