@@ -18,7 +18,7 @@ import type { LayoutCell, PersistedWorkspaceLayout } from '../../../models/works
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import { emptyPredicate } from '../../../models'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
-import { rowOf } from '../../helpers/layout-builders'
+import { single } from '../../helpers/layout-builders'
 
 /**
  * A list tab's Review these N tasks (D26): the tab menu's item, the
@@ -28,7 +28,7 @@ import { rowOf } from '../../helpers/layout-builders'
  */
 
 const AT = new Date(2026, 0, 1)
-const CELL: LayoutCell = { id: 'k', weight: 1, tabs: [{ id: 'mine', kind: 'lens', config: { listDefinitionId: 2 } }] }
+const CELL: LayoutCell = { id: 'k', area: { col: 0, row: 0, colSpan: 1, rowSpan: 1 }, tabs: [{ id: 'mine', kind: 'lens', config: { listDefinitionId: 2 } }] }
 
 const def = (extra: Partial<PersistedListDefinition> = {}): PersistedListDefinition => ({
   id: 2, name: 'Aisha 1:1', sortOrder: 0, sort: 'manual', grouping: 'none',
@@ -44,7 +44,7 @@ beforeEach(() => {
   clearFilterStore()
   useUIStore.setState(useUIStore.getInitialState(), true)
   useListOrderStore.setState({ ranks: new Map(), loaded: true })
-  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, columns: [{ id: 'c', weight: 1, rows: [rowOf(CELL)] }] }
+  const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...single(CELL) }
   useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
   useStatusStore.setState({ statuses: [{ id: 1, name: 'Waiting', color: '#db5', sortOrder: 1 }, { id: 2, name: 'Doing', color: '#5b8', sortOrder: 2 }] })
   useTodoStore.setState({
@@ -61,7 +61,7 @@ beforeEach(() => {
 afterEach(cleanup)
 
 function showCell() {
-  render(<DndContext><WorkspaceCell cell={CELL} rowId={`${CELL.id}-r`} collapsed={false} /></DndContext>)
+  render(<DndContext><WorkspaceCell cell={CELL} rowTrackIds={['r1']} collapsed={false} /></DndContext>)
 }
 
 function openTabMenu(): HTMLElement {
