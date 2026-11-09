@@ -16,12 +16,14 @@
 /* A scroller clips on both axes (`overflow-x` makes `overflow-y` auto too), so
  * it is padded 4px round its chips — taken back by the negative margin, the
  * line's height and the chips' place unchanged — for an open trigger's ring
- * (D21) and the 4px focus ring to show whole, at the first chip as well. */
+ * (D21) and the 4px focus ring to show whole, at the first chip as well. Its
+ * basis is 0: it takes the line's room after the list's name (alone in its
+ * cell), which keeps its width (at most 45%) rather than shrinking with it. */
 .chips {
   display: flex;
   align-items: center;
   gap: 4px;
-  flex: 1 1 auto;
+  flex: 1 1 0;
   min-width: 0;
   margin: -4px;
   padding: 4px;
