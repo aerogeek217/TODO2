@@ -210,7 +210,7 @@ test.describe('Task follow-up', () => {
 
   test('overdue follow-up: its date alone ("late" in its accessible name) in the follow-up yellow, not the due-date magenta', async ({ page }) => {
     await setNextFollowup(page, 'alpha', 2026, 10, 8)
-    const cell = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: Thu 8, late', exact: true })
+    const cell = taskRowByTitle(page, 'alpha').getByRole('button', { name: 'Follow-up: 10/08, late', exact: true })
     await expect(cell).toHaveAttribute('data-followup', 'late')
     // An overdue date is its MM/DD (D25 D1).
     await expect(cell).toHaveText('10/08')
@@ -257,7 +257,7 @@ test.describe('Task follow-up', () => {
     await expect(page.getByText("Last follow-up can't be in the future")).toBeVisible()
     await last.fill('1 Oct')
     await page.keyboard.press('Enter')
-    await expect(last).toHaveValue('Thu 1 Oct')
+    await expect(last).toHaveValue('10/01')
     await expect.poll(() => followupOf(page, 'alpha')).toEqual({ next: '2026-10-13 00:00', last: '2026-10-01 00:00' })
   })
 

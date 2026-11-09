@@ -126,7 +126,7 @@ describe('glance widgets — the design sample', () => {
     setup()
     expect(within(section('trend')!).getByTestId('glance-trend-completed').textContent).toBe('14completed')
     expect(within(section('trend')!).getByTestId('glance-trend-created').textContent).toBe('17created')
-    expect(section('trend')!.textContent).toContain('+3open since Sun 27 Sep')
+    expect(section('trend')!.textContent).toContain('+3open since 09/27')
   })
 
   it('Status (a Breakdown): open counts per status, in Settings order', () => {

@@ -26,7 +26,7 @@ describe('<TaskPillFollowup>', () => {
       fireEvent.pointerEnter(pill)
       act(() => { vi.advanceTimersByTime(400) })
       const tip = screen.getByRole('tooltip')
-      expect(tip.textContent).toBe('Next follow-up · Tue 13 OctLast followed up Sun 13 Sep, 4 weeks ago')
+      expect(tip.textContent).toBe('Next follow-up · Tue 13 OctLast followed up 09/13, 4 weeks ago')
       expect(tip.children).toHaveLength(2)
       fireEvent.pointerLeave(pill)
       expect(screen.queryByRole('tooltip')).toBeNull()
@@ -42,9 +42,9 @@ describe('<TaskPillFollowup>', () => {
 
   it('overdue: the day without "late" text, an overdue marker, "late" in the accessible name; today reads "Today"', () => {
     render(<TaskPillFollowup todo={makeTodo({ id: 1, nextFollowupAt: new Date(2026, 9, 9) })} today={today} />)
-    const pill = screen.getByRole('button', { name: 'Follow-up: Fri 9, late' })
+    const pill = screen.getByRole('button', { name: 'Follow-up: 10/09, late' })
     expect(pill).toHaveAttribute('data-followup-overdue', 'true')
-    expect(pill).toHaveTextContent(/^Fri 9$/)
+    expect(pill).toHaveTextContent(/^10\/09$/)
     cleanup()
     render(<TaskPillFollowup todo={makeTodo({ id: 2, nextFollowupAt: today })} today={today} />)
     expect(screen.getByRole('button', { name: 'Follow-up: Today' })).not.toHaveAttribute('data-followup-overdue')
@@ -53,7 +53,7 @@ describe('<TaskPillFollowup>', () => {
   it('completed tasks: never overdue, no ×', () => {
     const todo = makeTodo({ id: 1, isCompleted: true, nextFollowupAt: new Date(2026, 9, 9) })
     render(<TaskPillFollowup todo={todo} today={today} onFollowupClear={vi.fn()} />)
-    expect(screen.getByRole('button', { name: 'Follow-up: Fri 9' })).not.toHaveAttribute('data-followup-overdue')
+    expect(screen.getByRole('button', { name: 'Follow-up: 10/09' })).not.toHaveAttribute('data-followup-overdue')
     expect(screen.queryByLabelText('Clear follow-up')).toBeNull()
   })
 

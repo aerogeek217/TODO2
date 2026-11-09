@@ -84,7 +84,7 @@ test.describe('recording a follow-up from a row stamps today', () => {
     await page.keyboard.press('Escape')
 
     // A late follow-up's pill.
-    await rowIn(list, 'Late pill').getByRole('button', { name: /^Follow-up: Thu 8/ }).click()
+    await rowIn(list, 'Late pill').getByRole('button', { name: /^Follow-up: 10\/08/ }).click()
     await popover(page).getByRole('button', { name: /^Mark followed up/ }).click()
     await expect.poll(() => followupOf(page, 'Late pill')).toEqual(RECORDED)
     await page.keyboard.press('Escape')

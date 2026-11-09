@@ -139,7 +139,7 @@ describe('drop labels', () => {
       'Change its due date or the due-soon range first.',
     ])
     expect(blockedDropLines('schedule', [t({ dueDate: day(-2) })], 1, TODAY, 3)[1])
-      .toBe('Pick up prescriptions is overdue (Thu 8), so it counts as urgent.')
+      .toBe('Pick up prescriptions is overdue (10/08), so it counts as urgent.')
     expect(blockedDropLines('schedule', [t({ dueDate: day(0) })], 1, TODAY, 3)[1])
       .toBe('Pick up prescriptions is due today, so it counts as urgent.')
     expect(blockedDropLines('drop', [t({ dueDate: day(1) }), t({ dueDate: day(2) })], 3, TODAY, 3)).toEqual([

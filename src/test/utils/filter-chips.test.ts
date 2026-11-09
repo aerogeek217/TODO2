@@ -273,14 +273,14 @@ describe('a date range chip’s tooltip spells its exact days (cr25 P7)', () => 
   const plain = (s: string | null | undefined) => s?.replaceAll('\u00a0', ' ')
   const tip = (dates: TodoPredicate['dates']) => filterChips({ ...emptyPredicate(), dates }, withDay).map((c) => plain(c.tooltip))
 
-  it('never wraps inside a date', () => {
-    const [chip] = filterChips({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: -7 } } } }, withDay)
-    expect(chip?.tooltip).toBe('Due: 7+ days ago\nDue on or before Mon\u00a026\u00a0Oct')
+  it('never wraps inside a date (a coming day, which reads with its weekday)', () => {
+    const [chip] = filterChips({ ...emptyPredicate(), dates: { deadline: { match: 'range', start: null, end: { kind: 'offset', days: 7 } } } }, withDay)
+    expect(chip?.tooltip?.split('\n')[1]).toBe('Due on or before Mon 9 Nov')
   })
 
   it('states the first and last day, by date type, with what happens to tasks without the date', () => {
     expect(tip({ lastFollowup: { match: 'range', start: null, end: { kind: 'offset', days: -7 }, includeNoDate: true } }))
-      .toEqual(['Last follow-up: 7+ days ago, or never\nLast followed up on or before Mon 26 Oct, or never'])
+      .toEqual(['Last follow-up: 7+ days ago, or never\nLast followed up on or before 10/26, or never'])
     expect(tip({ deadline: { match: 'range', start: { kind: 'relative', token: 'today' }, end: { kind: 'offset', days: 14 } } }))
       .toEqual(['Due: within the next 14 days\nDue from Mon 2 Nov through Mon 16 Nov'])
     expect(tip({ followup: { match: 'range', start: { kind: 'offset', days: 7 }, end: null, includeNoDate: true } }))
@@ -288,7 +288,7 @@ describe('a date range chip’s tooltip spells its exact days (cr25 P7)', () => 
     expect(tip({ deadline: { match: 'range', start: null, end: { kind: 'offset', days: 0 }, includeNoDate: true } }))
       .toEqual(['Due: today or earlier, or none\nDue on or before Mon 2 Nov, or no due date'])
     expect(tip({ created: { match: 'range', start: { kind: 'relative', token: 'start-of-month' }, end: null } }))
-      .toEqual(['Created: on or after start of month\nCreated on or after Sun 1 Nov'])
+      .toEqual(['Created: on or after start of month\nCreated on or after 11/01'])
     expect(tip({ modified: { match: 'range', start: { kind: 'relative', token: 'today' }, end: { kind: 'relative', token: 'today' } } }))
       .toEqual(['Modified: today\nModified on Mon 2 Nov'])
     expect(tip({ completed: { match: 'range', start: { kind: 'relative', token: 'start-of-week' }, end: { kind: 'relative', token: 'end-of-week' } } }))
@@ -307,9 +307,9 @@ describe('a date range chip’s tooltip spells its exact days (cr25 P7)', () => 
 
   it('an "is not" range says the days it hides', () => {
     expect(tip({ lastFollowup: { match: 'range', start: { kind: 'offset', days: -7 }, end: { kind: 'relative', token: 'today' }, not: true } }))
-      .toEqual(['Last follow-up: not within the last 7 days\nHides tasks last followed up from Mon 26 Oct through Mon 2 Nov; tasks never followed up stay'])
+      .toEqual(['Last follow-up: not within the last 7 days\nHides tasks last followed up from 10/26 through Mon 2 Nov; tasks never followed up stay'])
     expect(tip({ created: { match: 'range', start: null, end: { kind: 'offset', days: -30 }, not: true } }))
-      .toEqual(['Created: not 30+ days ago\nHides tasks created on or before Sat 3 Oct'])
+      .toEqual(['Created: not 30+ days ago\nHides tasks created on or before 10/03'])
   })
 
   it('Has a date / No date, and chips without a day, keep their tooltips as they were', () => {
@@ -326,7 +326,7 @@ describe('a date range chip’s tooltip spells its exact days (cr25 P7)', () => 
     expect(plain(datesTooltip({ deadline: due, lastFollowup: notLastWeek, followup: { match: 'set' } }, day))).toBe([
       'Due: within the next 14 days · from Mon 2 Nov through Mon 16 Nov',
       'Next follow-up: any date',
-      'Last follow-up: not within the last 7 days · not from Mon 26 Oct through Mon 2 Nov',
+      'Last follow-up: not within the last 7 days · not from 10/26 through Mon 2 Nov',
       'Tasks must match all · × clears all',
     ].join('\n'))
   })

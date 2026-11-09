@@ -285,8 +285,9 @@ describe('FilterChipBar — primitive', () => {
         const tip = screen.getByRole('tooltip')
         expect(tip).toHaveTextContent('Due: any date')
         expect(tip).toHaveTextContent('Created: on or after start of month')
-        // The range's exact first day (cr25 P7): the 1st of this month, whatever today is.
-        expect(tip).toHaveTextContent(/Created: on or after start of month · on or after [A-Z][a-z]{2} 1 [A-Z][a-z]{2}/)
+        // The range's exact first day (cr25 P7): the 1st of this month, whatever today is — `MM/01` once
+        // it is past, its weekday on the 1st itself.
+        expect(tip).toHaveTextContent(/Created: on or after start of month · on or after (\d{2}\/01|[A-Z][a-z]{2} 1 [A-Z][a-z]{2})/)
         expect(tip).toHaveTextContent('Tasks must match both · × clears both')
         fireEvent.click(screen.getByRole('button', { name: 'Clear date filters' }))
         expect(updates.at(-1)).toMatchObject({ dates: {}, personIds: [1] })

@@ -171,8 +171,8 @@ describe('the presets', () => {
 
 describe('the day under a Relative end', () => {
   it('its day today; with the other end open, which way the range runs', () => {
-    expect(resolvedEndWords('to', offset(-7), null, TODAY, MON)).toBe('Mon 26 Oct and earlier')
-    expect(resolvedEndWords('from', offset(-7), null, TODAY, MON)).toBe('Mon 26 Oct and later')
+    expect(resolvedEndWords('to', offset(-7), null, TODAY, MON)).toBe('10/26 and earlier')
+    expect(resolvedEndWords('from', offset(-7), null, TODAY, MON)).toBe('10/26 and later')
     expect(resolvedEndWords('to', token('today'), offset(-7), TODAY, MON)).toBe('Mon 2 Nov')
     expect(resolvedEndWords('to', token('end-of-next-month'), offset(-7), TODAY, MON)).toBe('Thu 31 Dec')
     expect(resolvedEndWords('from', null, offset(-7), TODAY, MON)).toBeNull()

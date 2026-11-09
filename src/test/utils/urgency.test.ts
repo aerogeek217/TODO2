@@ -75,7 +75,7 @@ describe('urgentByDateReason / dueDatePhrase', () => {
     expect(urgentByDateReason(task({ dueDate: day(3) }), today, 3)).toBe('Due Tue 13, within 3 days.')
     expect(urgentByDateReason(task({ dueDate: day(1) }), today, 1)).toBe('Due Sun 11, within 1 day.')
     expect(urgentByDateReason(task({ dueDate: day(0) }), today, 3)).toBe('Due today.')
-    expect(urgentByDateReason(task({ dueDate: day(-2) }), today, 3)).toBe('Overdue (Thu 8), so it counts as urgent.')
+    expect(urgentByDateReason(task({ dueDate: day(-2) }), today, 3)).toBe('Overdue (10/08), so it counts as urgent.')
     expect(urgentByDateReason(task({ dueDate: day(9) }), today, 3)).toBe('')
     expect(urgentByDateReason(task({ urgent: true }), today, 3)).toBe('')
   })
@@ -83,7 +83,7 @@ describe('urgentByDateReason / dueDatePhrase', () => {
   it('phrases a due date in a sentence', () => {
     expect(dueDatePhrase(day(0), today)).toBe('today')
     expect(dueDatePhrase(day(3), today)).toBe('Tue 13')
-    expect(dueDatePhrase(day(-2), today)).toBe('overdue (Thu 8)')
+    expect(dueDatePhrase(day(-2), today)).toBe('overdue (10/08)')
   })
 })
 
@@ -91,7 +91,7 @@ describe('urgentToggleHint', () => {
   it('one task: unflagged and urgent by date → the hint to flag it; flagged → the date keeps it urgent', () => {
     expect(urgentToggleHint([task({ dueDate: day(3) })], today, 3)).toBe('Urgent by due date — due Tue 13. Click to flag it urgent too.')
     expect(urgentToggleHint([task({ dueDate: day(0) })], today, 3)).toBe('Urgent by due date — due today. Click to flag it urgent too.')
-    expect(urgentToggleHint([task({ dueDate: day(-2) })], today, 3)).toBe('Urgent by due date — overdue (Thu 8). Click to flag it urgent too.')
+    expect(urgentToggleHint([task({ dueDate: day(-2) })], today, 3)).toBe('Urgent by due date — overdue (10/08). Click to flag it urgent too.')
     expect(urgentToggleHint([task({ urgent: true, dueDate: day(1) })], today, 3)).toBe('Its due date keeps it urgent even unflagged — due Sun 11.')
   })
 

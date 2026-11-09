@@ -22,10 +22,12 @@ function localDateTime(days: number): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
-/** The day `days` from today as a range's tooltip spells it: `Mon 26 Oct` (`… 2027` in another year). */
+/** The day `days` from today as a range's tooltip spells it: `Mon 26 Oct` (`… 2027` in another year); a past day `10/26`. */
 function dayWords(days: number): string {
   const d = new Date()
   d.setDate(d.getDate() + days)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  if (days < 0) return `${pad(d.getMonth() + 1)}/${pad(d.getDate())}`
   const base = `${d.toLocaleDateString('en-US', { weekday: 'short' })} ${d.getDate()} ${d.toLocaleDateString('en-US', { month: 'short' })}`
   return d.getFullYear() === new Date().getFullYear() ? base : `${base} ${d.getFullYear()}`
 }

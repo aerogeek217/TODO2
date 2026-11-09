@@ -185,25 +185,39 @@ export function isFollowupOverdue(
 const weekday = (d: Date) => formatDateWith(d, { weekday: 'short' })
 const monthShort = (d: Date) => formatDateWith(d, { month: 'short' })
 
-/** `Tue 13` (this month) / `Tue 10 Nov` (other month) / `Tue 10 Nov 2027` (other year). */
+/**
+ * A day before today reads as its date, `MM/DD` — never a weekday, which
+ * reads as one coming up (user, 2026-11-09) — with its year when not this
+ * year's (`12/30/2025`), so a field showing it reads back as the same day.
+ */
+const pastDay = (d: Date, today: Date): string | null => {
+  if (dayDiff(d, today) >= 0) return null
+  return d.getFullYear() === today.getFullYear() ? formatDateNumeric(d) : `${formatDateNumeric(d)}/${d.getFullYear()}`
+}
+
+/** `Tue 13` (this month) / `Tue 10 Nov` (other month) / `Tue 10 Nov 2027` (other year); a past day `11/06`. */
 export function formatFollowupDay(date: Date, today: Date): string {
   const d = new Date(date)
+  const past = pastDay(d, today)
+  if (past) return past
   const base = `${weekday(d)} ${d.getDate()}`
   if (d.getFullYear() !== today.getFullYear()) return `${base} ${monthShort(d)} ${d.getFullYear()}`
   if (d.getMonth() !== today.getMonth()) return `${base} ${monthShort(d)}`
   return base
 }
 
-/** `Tue 13 Oct` — always with the month (year when not this year). */
+/** `Tue 13 Oct` — always with the month (year when not this year); a past day `11/06`. */
 export function formatFollowupDate(date: Date, today: Date): string {
   const d = new Date(date)
+  const past = pastDay(d, today)
+  if (past) return past
   const base = `${weekday(d)} ${d.getDate()} ${monthShort(d)}`
   return d.getFullYear() !== today.getFullYear() ? `${base} ${d.getFullYear()}` : base
 }
 
-/** `Thu 10/22` — the short weekday and the zero-padded `MM/DD` (no year). */
-export function formatWeekdayNumeric(date: Date): string {
-  return `${weekday(new Date(date))} ${formatDateNumeric(date)}`
+/** `Thu 10/22` — the short weekday and the zero-padded `MM/DD` (no year); a past day only `10/22`. */
+export function formatWeekdayNumeric(date: Date, today: Date): string {
+  return pastDay(new Date(date), today) ?? `${weekday(new Date(date))} ${formatDateNumeric(date)}`
 }
 
 /** Pill label: `Today` or the day (`Tue 13`) — overdue too (the pill's colour and tooltip say it's late). */

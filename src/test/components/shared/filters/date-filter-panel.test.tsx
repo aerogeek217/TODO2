@@ -132,7 +132,7 @@ describe('DateFilterPanel', () => {
     expect(relative('To')).toHaveAccessibleName('To: days ahead')
     // With a From, each end its day alone.
     pickRelative('From', '1 week ago')
-    expect(screen.getByText('Mon 26 Oct')).toBeInTheDocument()
+    expect(screen.getByText('10/26')).toBeInTheDocument()
     expect(screen.getByText('Thu 12 Nov')).toBeInTheDocument()
     expect(document.body.textContent).not.toMatch(/-\d|−/)
   })
@@ -196,7 +196,7 @@ describe('DateFilterPanel', () => {
     expect(show('Relative')).toHaveAttribute('aria-checked', 'true')
     expect(relative('From')).toHaveAccessibleName('From: on Oct 1')
     expect(relative('To')).toHaveAccessibleName('To: today')
-    expect(screen.getByText('Thu 1 Oct')).toBeInTheDocument()
+    expect(screen.getByText('10/01')).toBeInTheDocument()
   })
 
   describe('the mode shown stays for the panel’s life (P7–P8 review)', () => {
