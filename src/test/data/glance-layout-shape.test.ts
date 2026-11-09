@@ -105,7 +105,7 @@ describe('glance widget kinds', () => {
     ['name', 7, { name: 'Number' }],
     ['name', 'x'.repeat(81), { name: 'Number' }],
     ['color', 'teal', {}],
-    ['show', 'share', { show: 'count' }],
+    ['show', 'pie', { show: 'count' }],
     ['litWhen', 'always', { litWhen: 'never', litAt: undefined }],
     ['litAt', -1, { litAt: 0 }],
     ['litAt', 1.5, { litAt: 0 }],

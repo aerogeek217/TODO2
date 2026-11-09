@@ -164,3 +164,52 @@
 .litRow .select {
   flex: 1 1 auto;
 }
+
+/* A threshold's unit (a share's %, an oldest's days). */
+.unit {
+  align-self: center;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+/* A group's counts (D26 P6): each a name, a colour and a filter. */
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 8px;
+  box-shadow: inset 0 0 0 1px var(--color-border);
+}
+
+.itemHead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.itemHead .input {
+  flex: 1 1 auto;
+}
+
+.addItem {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  gap: 5px;
+  height: 26px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  cursor: pointer;
+}
+
+.addItem:hover,
+.addItem:focus-visible {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}

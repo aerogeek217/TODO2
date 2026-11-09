@@ -15,6 +15,7 @@ import { GlanceFrame } from './GlanceFrame'
 import { WidgetTopLine } from '../WidgetTopLine'
 import { Sparkline } from './Sparkline'
 import { numberColors } from './number-colors'
+import { GoalNumber, GroupNumber, ListNumber, OldestNumber, ShareNumber } from './NumberShapes'
 import styles from './NumberWidget.module.css'
 
 /** The large face's breakdown lists this many people / tags; the rest fold into one line. */
@@ -69,7 +70,22 @@ function Breakdown({ entries, by, total, title, onDrill }: {
 }
 
 /**
- * The Number widget (D26 P5): the tasks its filter keeps under the top
+ * The Number widget: its shape's widget (D26 P6, `show`) — the count, or one
+ * of the other shapes (`NumberShapes`).
+ */
+export function NumberWidget(props: GlanceWidgetProps<NumberTab>) {
+  switch (props.tab.config.show) {
+    case 'count': return <CountNumber {...props} />
+    case 'share': return <ShareNumber {...props} />
+    case 'oldest': return <OldestNumber {...props} />
+    case 'goal': return <GoalNumber {...props} />
+    case 'group': return <GroupNumber {...props} />
+    case 'list': return <ListNumber {...props} />
+  }
+}
+
+/**
+ * A count (D26 P5): the tasks its filter keeps under the top
  * bar's filter (its lens too, unless the Number ignores it), as their count
  * — `shown of total` while the top bar hides some. By its face (D25 R):
  * small is the name and the count (a fit row's, ~76px); medium adds its
@@ -81,7 +97,7 @@ function Breakdown({ entries, by, total, title, onDrill }: {
  * tasks, at every face. Its editor (Edit number…, `NumberEditorHost`)
  * opens beside its body (`data-number-body`).
  */
-export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
+function CountNumber({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
   const config = tab.config
   const breakdownBy = config.breakdown ?? DEFAULT_NUMBER_BREAKDOWN
   const base = useStatsBase()
@@ -139,6 +155,7 @@ export function NumberWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Numbe
   const common = {
     className: `${styles.number}${large ? ` ${styles.large}` : ''}`,
     'data-number': tab.id,
+    'data-show': 'count',
     'data-lit': colors.lit ? 'true' : undefined,
   }
   const open = (e: MouseEvent) => {
