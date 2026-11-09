@@ -3,7 +3,7 @@ import type { Lens } from '../../../utils/lens'
 
 /**
  * A lens's filters in a line: `Status not Waiting · People not Unassigned`,
- * an expression as its text (`/focus or @Aisha`); `Every task` with none.
+ * an expression in words (`Focus, or Aisha`); `Every task` with none.
  */
 export function lensSummary(lens: Lens, names: FilterChipNames): string {
   const items = predicateLineItems(lens.predicate, names)

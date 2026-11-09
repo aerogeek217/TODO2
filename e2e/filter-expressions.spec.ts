@@ -8,8 +8,8 @@ import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtur
  * once it reads (an autocomplete pick for a status), a text that doesn't read
  * says why and writes nothing, Esc puts the written text back; Graphical over
  * an expression no chip says is locked (Edit expression / Clear), over a
- * plain `and` it is chips again. On the list's filter line an expression is
- * one chip that opens Edit list. A lens holding an expression filters every
+ * plain `and` it is chips again. On the list's filter line an expression
+ * reads in words and opens Edit list. A lens holding an expression filters every
  * list under the top bar.
  */
 
@@ -31,7 +31,7 @@ const sorted = async (page: Page) => (await rowTitles(wsListWidget(page, 't1')))
 
 test.use({ viewport: { width: 1600, height: 900 } })
 
-test('Edit list: type an expression with an autocomplete pick; an error writes nothing; Graphical locks it; the filter line shows it as one chip', async ({ page }) => {
+test('Edit list: type an expression with an autocomplete pick; an error writes nothing; Graphical locks it; the filter line reads it in words', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expect.poll(() => sorted(page)).toEqual(['Ann active', 'Ann waiting'])
   const widget = wsListWidget(page, 't1')
@@ -77,7 +77,7 @@ test('Edit list: type an expression with an autocomplete pick; an error writes n
   await editList.getByRole('radio', { name: 'Graphical' }).click()
   await expect(editList.getByTestId('list-filter-chip')).toHaveText([/Priority\s*Urgent/, /People\s*Bob/])
 
-  // Back to an or, then out of Edit list: the filter line holds it as one chip that opens Edit list.
+  // Back to an or, then out of Edit list: the filter line reads it in words and opens Edit list.
   await editList.getByRole('radio', { name: 'Expression' }).click()
   await field.fill('@Ann or !Waiting')
   await field.blur()
@@ -85,7 +85,7 @@ test('Edit list: type an expression with an autocomplete pick; an error writes n
   await page.keyboard.press('Escape')
   await expect(editList).toHaveCount(0)
   const chip = widget.getByTestId('list-filter-expression')
-  await expect(chip).toContainText('@Ann or !Waiting')
+  await expect(chip).toHaveText('Ann, or Waiting')
   await chip.click()
   await expect(page.getByTestId('edit-list').getByRole('textbox', { name: 'Filter expression' })).toHaveValue('@Ann or !Waiting')
 })
