@@ -4,6 +4,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { TaskEditMetadata } from '../../components/task/TaskEditMetadata'
 import { PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
+import { makePerson } from '../helpers'
 
 afterEach(cleanup)
 
@@ -17,8 +18,8 @@ function renderBlock() {
       onRecurrenceChange={vi.fn()}
       assignedPeople={[]}
       assignedTags={[]}
-      allPeople={[{ id: 1, name: 'Aisha' }]}
-      allTags={[{ id: 1, name: 'ops' }]}
+      allPeople={[makePerson({ id: 1, name: 'Aisha' })]}
+      allTags={[{ id: 1, name: 'ops', color: '#7ec4bc' }]}
       onTogglePerson={vi.fn()}
       onToggleTag={vi.fn()}
       onDropdownChange={onDropdownChange}
