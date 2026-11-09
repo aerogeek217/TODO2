@@ -19,10 +19,18 @@ import { ColorPicker } from '../../shared/ColorPicker'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { CloseIcon } from '../../shared/icons'
 import { PopoverRoot } from '../../shared/PopoverRoot'
+import {
+  AUTO_SHOWN,
+  GoalFields,
+  GroupItemsField,
+  ListField,
+  OldestByField,
+  ShareOfField,
+  ShowField,
+} from './NumberShapeFields'
+import { useLayoutFirstListId } from '../../../hooks/use-number-shapes'
+import { switchShape, type ShapeStash } from './number-shape-switch'
 import styles from './NumberEditor.module.css'
-
-/** What the colour picker shows while the Number is on Auto (no preset, as the layout dialog's None; picking one leaves Auto). */
-const AUTO_SHOWN = '#8a7cf0'
 
 const LIT_WHEN: ReadonlyArray<{ value: NumberLitWhen; label: string }> = [
   { value: 'never', label: 'Never' },
@@ -148,7 +156,11 @@ export function NumberEditorHost() {
  * Edit number (D26 P5, board X): a Number's name, its colour (Auto, then the
  * app's colour picker), the filter it counts — the Graphical / Expression
  * filter Edit list has, with Reads as —, when it lights up, what its change
- * compares with, and whether the top bar's lens applies. A popover beside
+ * compares with, and whether the top bar's lens applies — and what it shows
+ * (D26 P6, Show): a count, a share of a second filter, the oldest task, a
+ * goal, several counts (each its own name, colour and filter, in place of
+ * its filter and colour) or one of the layout's lists (in place of its
+ * filter and lens) — only the active shape's fields. A popover beside
  * the Number, opened by Edit number… (its tab menu) and straight after a
  * Number is added. Every control writes the tab's config at once — layout
  * config, so the layout is unsaved until Save. Esc, × or a press elsewhere
@@ -173,6 +185,18 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
   const [panel, setPanel] = useState<HTMLDivElement | null>(null)
   const panelEl = useLatestRef(panel)
   useEscapeCloses(panelEl, onClose)
+  // The other shapes' fields, kept while the editor is open (D26 P6): switching back brings them back.
+  const [stash, setStash] = useState<ShapeStash>({})
+  const firstListId = useLayoutFirstListId()
+  const show = config.show
+  const onShow = (next: NumberConfig['show']) => {
+    const switched = switchShape(config, next, stash, firstListId)
+    setStash(switched.stash)
+    patch(switched.patch)
+  }
+  // What each shape uses of the Number's own settings.
+  const ownFilter = show !== 'group' && show !== 'list'
+  const litUnit = show === 'share' ? '%' : show === 'oldest' ? 'days' : null
 
   // The focus goes back to the Number when it was inside the editor as it closed.
   useEffect(() => () => {
@@ -226,14 +250,14 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
             onChange={(e) => patch({ name: e.target.value.slice(0, NUMBER_NAME_MAX) })}
           />
         </label>
-        <fieldset className={styles.fieldset}>
+        {show !== 'group' && <fieldset className={styles.fieldset}>
           <legend className={styles.label}>Colour</legend>
           <div data-on-auto={auto || undefined} className={styles.colors}>
             <ColorPicker value={config.color ?? AUTO_SHOWN} onChange={(hex) => patch({ color: hex })} before={autoSwatch} />
           </div>
           <span className={styles.hint}>Its label and count while it is lit. Auto: neutral, lit in the accent.</span>
-        </fieldset>
-        <div className={styles.fieldset} role="group" aria-labelledby={`${id}-filter`}>
+        </fieldset>}
+        {ownFilter && <div className={styles.fieldset} role="group" aria-labelledby={`${id}-filter`}>
           <span id={`${id}-filter`} className={styles.label}>Count tasks where</span>
           <div className={styles.filter} data-testid="number-editor-filter">
             <PredicateChips
@@ -245,9 +269,15 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
               before={hasFilterClause(config.filter) || config.filter.expression ? undefined : <span className={styles.noFilter}>No filter — every open task</span>}
             />
           </div>
-        </div>
+        </div>}
+        {show === 'share' && <ShareOfField config={config} patch={patch} />}
+        {show === 'group' && <GroupItemsField config={config} patch={patch} />}
         <div className={styles.grid}>
-          <div className={styles.field}>
+          <ShowField value={show} onShow={onShow} />
+          {show === 'oldest' && <OldestByField config={config} patch={patch} />}
+          {show === 'goal' && <GoalFields config={config} patch={patch} />}
+          {show === 'list' && <ListField config={config} patch={patch} />}
+          {show !== 'goal' && <div className={styles.field}>
             <span className={styles.label} aria-hidden="true">Light up when</span>
             <span className={styles.litRow}>
               <select
@@ -262,17 +292,18 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
                 {LIT_WHEN.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
               </select>
               {config.litWhen !== 'never' && (
-                <LitAtField value={config.litAt ?? 0} label={`Light up when ${config.litWhen}`} onChange={(litAt) => patch({ litAt })} />
+                <LitAtField value={config.litAt ?? 0} label={`Light up when ${config.litWhen}${litUnit ? ` (${litUnit})` : ''}`} onChange={(litAt) => patch({ litAt })} />
               )}
+              {config.litWhen !== 'never' && litUnit && <span className={styles.unit}>{litUnit}</span>}
             </span>
-          </div>
-          <label className={styles.field}>
+          </div>}
+          {(show === 'count' || show === 'share') && <label className={styles.field}>
             <span className={styles.label}>Compare with</span>
             <select className={styles.select} value={config.compare} onChange={(e) => patch({ compare: e.target.value as NumberCompare })}>
               {COMPARES.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
-          </label>
-          <label className={styles.field}>
+          </label>}
+          {show !== 'list' && <label className={styles.field}>
             <span className={styles.label}>Top-bar lens</span>
             <select
               className={styles.select}
@@ -282,7 +313,7 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
               <option value="follow">Follow</option>
               <option value="ignore">Ignore</option>
             </select>
-          </label>
+          </label>}
         </div>
       </div>
     </PopoverRoot>,
