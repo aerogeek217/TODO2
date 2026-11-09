@@ -29,7 +29,7 @@ import {
 } from './workspace-grid'
 import { findTab, layoutIds, sameArrangement } from './workspace-layout-queries'
 import { insertAllAt, insertAt, removeAt, replaceAt, setCell, withCells, withTracks } from './workspace-layout-edit'
-import { cellMinHeightPx, cellMinWidthPx } from './workspace-rows'
+import { cellMinHeightPx, cellMinWidthPx, isFitTrack } from './workspace-rows'
 
 /**
  * Pure reducers over a layout's table (`LayoutBody`: tracks and cells).
@@ -473,6 +473,12 @@ export interface MoveEdgeOptions {
   /** Snap onto another line within this many px (default `EDGE_SNAP_PX`). */
   snapPx?: number
   /**
+   * A whole line snaps back onto its own place too (within `snapPx`: no
+   * change) — a crossing handle's line holds still while the drag runs
+   * along the other one.
+   */
+  snapHome?: boolean
+  /**
    * The smallest size (px) a cell may take along the axis; default 120px
    * wide (72px for a glance cell, `cellMinWidthPx`), `CELL_MIN_PX` high (64px
    * for a glance cell).
@@ -498,38 +504,52 @@ function resizedPair(a: GridTrack, b: GridTrack, sizeA: number, sizeB: number): 
 }
 
 /**
- * Drags a stretch of line (`EdgeStretch`, a divider) by `delta` px, from the
- * sizes measured at the drag's start. The new position is clamped so every
- * cell on either side keeps its minimum, and snaps onto another line within
- * `snapPx` (a stretch that is part of its line snaps back onto its own line
- * too: no change).
- *
- * - The whole line (or a stretch holding every cell edge on its line),
- *   staying between its two neighbouring lines: the two tracks beside it
- *   share their size anew (two weights; a fixed track's px) — view state.
- * - Part of a line, or a move past a neighbouring line: the stretch leaves
- *   its line. Onto another line it just moves there; anywhere else the
- *   track there splits in two at that point (a new line and track; the
- *   cells crossing it gain a span). The cells beside the stretch then end /
- *   start on the new line, and a line left as no cell's edge goes
- *   (`normalizeGrid`) — layout structure.
- *
- * The same layout when the stretch isn't one, the sizes don't match the
- * axis, or nothing moves.
+ * Row track `i` as a fixed track when it fits its content (a Numbers-only
+ * row, `isFitTrack`) and has no px yet: its drawn height `size` becomes its
+ * px, so a divider beside it gives the row a fixed height. Its weight stays
+ * (clearing the px lets it fit again).
  */
-export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, delta: number, opts: MoveEdgeOptions, genId: IdGen): L {
+function fitAsFixed(layout: LayoutBody, axis: GridAxis, i: number, size: number | undefined): GridTrack | undefined {
+  const track = layout.grid[axis][i]
+  if (!track || axis !== 'rows' || track.px != null || track.collapsed === true || size == null || !isFitTrack(layout, i)) return track
+  return { ...track, px: Math.max(1, Math.round(size)) }
+}
+
+/** Where a stretch's drag lands: its clamped, snapped position and what it means (`edgeTarget`). */
+interface EdgeTarget {
+  /** Each line's position (px) at the drag's start. */
+  pos: number[]
+  /** The position the stretch moves to (px). */
+  target: number
+  /** The line it snapped onto, if any. */
+  snapped: number | null
+  /** The stretch holds every cell edge on its line: moving it is moving the line. */
+  whole: boolean
+  beforeIds: Set<string>
+  afterIds: Set<string>
+}
+
+/**
+ * Where dragging `stretch` by `delta` px lands: clamped so every cell on
+ * either side keeps its minimum, then snapped onto the nearest line within
+ * `snapPx` — any line of the axis, one only other columns' (rows') cells
+ * lie on too; a stretch that is part of its line snaps back onto its own
+ * line as well, and so does a whole line with `snapHome`. `null` when the
+ * stretch isn't one or the sizes don't match.
+ */
+function edgeTarget(layout: LayoutBody, stretch: EdgeStretch, delta: number, opts: MoveEdgeOptions): EdgeTarget | null {
   const { axis, line } = stretch
   const tracks = layout.grid[axis]
-  const { sizes, snapPx = EDGE_SNAP_PX, minPx = defaultMinPx } = opts
-  if (line < 1 || line >= tracks.length || sizes.length !== tracks.length || !Number.isFinite(delta)) return layout
+  const { sizes, snapPx = EDGE_SNAP_PX, minPx = defaultMinPx, snapHome = false } = opts
+  if (line < 1 || line >= tracks.length || sizes.length !== tracks.length || !Number.isFinite(delta)) return null
   const { before, after } = stretchCells(layout, stretch)
-  if (before.length === 0 || after.length === 0) return layout
+  if (before.length === 0 || after.length === 0) return null
   const pos = [0]
   for (const s of sizes) pos.push((pos.at(-1) ?? 0) + Math.max(0, s))
   const at = (i: number) => pos[i] ?? 0
   const lo = Math.max(...before.map((c) => at(spanOf(c.area, axis)[0]) + minPx(c, axis)))
   const hi = Math.min(...after.map((c) => at(spanOf(c.area, axis)[1]) - minPx(c, axis)))
-  if (lo > hi) return layout
+  if (lo > hi) return null
   let target = Math.max(lo, Math.min(hi, at(line) + delta))
   const beforeIds = new Set(before.map((c) => c.id))
   const afterIds = new Set(after.map((c) => c.id))
@@ -544,7 +564,7 @@ export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, 
   let snapped: number | null = null
   let best = snapPx
   for (let j = 0; j < pos.length; j++) {
-    if (j === line && whole) continue
+    if (j === line && whole && !snapHome) continue
     const d = Math.abs(at(j) - target)
     if (d <= best && at(j) >= lo && at(j) <= hi) {
       best = d
@@ -552,11 +572,59 @@ export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, 
     }
   }
   if (snapped != null) target = at(snapped)
+  return { pos, target, snapped, whole, beforeIds, afterIds }
+}
+
+/** The line a drag of `stretch` by `delta` px snaps onto (`moveEdge`'s snap: its own line too, for part of a line or with `snapHome`), if any. */
+export function edgeSnap(layout: LayoutBody, stretch: EdgeStretch, delta: number, opts: MoveEdgeOptions): number | null {
+  return edgeTarget(layout, stretch, delta, opts)?.snapped ?? null
+}
+
+/**
+ * The line a drag of `stretch` by `delta` px holds on, for the guide drawn
+ * along it (`edgeSnap`); `null` when it snaps onto none, or rests on its own
+ * line without having moved.
+ */
+export function edgeSnapLine(layout: LayoutBody, stretch: EdgeStretch, delta: number, opts: MoveEdgeOptions): number | null {
+  const snapped = edgeSnap(layout, stretch, delta, opts)
+  return snapped === stretch.line && Math.abs(delta) < 1 ? null : snapped
+}
+
+/**
+ * Drags a stretch of line (`EdgeStretch`, a divider) by `delta` px, from the
+ * sizes measured at the drag's start. The new position is clamped so every
+ * cell on either side keeps its minimum, and snaps onto any line of the axis
+ * within `snapPx` (`edgeTarget`; a stretch that is part of its line snaps
+ * back onto its own line too: no change).
+ *
+ * - The whole line (or a stretch holding every cell edge on its line),
+ *   staying between its two neighbouring lines: the two tracks beside it
+ *   share their size anew (two weights; a fixed track's px — a fit row
+ *   becoming fixed at its new height, `fitAsFixed`) — view state.
+ * - Part of a line, or a move past a neighbouring line: the stretch leaves
+ *   its line. Onto another line it just moves there (a piece snapped back
+ *   onto a line it left re-joins it); anywhere else the track there splits
+ *   in two at that point (a new line and track; the cells crossing it gain
+ *   a span). The cells beside the stretch then end / start on the new line,
+ *   and a line left as no cell's edge goes (`normalizeGrid`) — layout
+ *   structure.
+ *
+ * The same layout when the stretch isn't one, the sizes don't match the
+ * axis, or nothing moves.
+ */
+export function moveEdge<L extends LayoutBody>(layout: L, stretch: EdgeStretch, delta: number, opts: MoveEdgeOptions, genId: IdGen): L {
+  const { axis, line } = stretch
+  const tracks = layout.grid[axis]
+  const { sizes } = opts
+  const found = edgeTarget(layout, stretch, delta, opts)
+  if (!found) return layout
+  const { pos, target, snapped, whole, beforeIds, afterIds } = found
+  const at = (i: number) => pos[i] ?? 0
   if (snapped === line || (snapped == null && target === at(line))) return layout
 
   if (whole && snapped == null && target > at(line - 1) && target < at(line + 1)) {
-    const a = tracks[line - 1]
-    const b = tracks[line]
+    const a = fitAsFixed(layout, axis, line - 1, sizes[line - 1])
+    const b = fitAsFixed(layout, axis, line, sizes[line])
     if (!a || !b) return layout
     const [na, nb] = resizedPair(a, b, target - at(line - 1), at(line + 1) - target)
     return withTracks(layout, axis, replaceAt(replaceAt(tracks, line - 1, na), line, nb))

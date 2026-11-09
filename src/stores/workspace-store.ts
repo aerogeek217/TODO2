@@ -30,7 +30,7 @@ import {
 } from '../models/workspace-layout'
 import { findCell, layoutPanels, layoutIds, layoutStructureEqual } from '../utils/workspace-layout-queries'
 import { layoutListRefs, listIdChanges, repointLayoutLists } from '../utils/workspace-layout-lists'
-import { copySizes, sameTrackIn, setTrackSizes, trackAxes } from '../utils/workspace-layout-sizes'
+import { copySizes, sameTrackIn, setTrackSizes, trackAxes, withoutTrackPx } from '../utils/workspace-layout-sizes'
 import {
   addTab,
   closeCell,
@@ -208,6 +208,15 @@ export interface WorkspaceState {
    * a structural edit (unsaved until Save).
    */
   moveEdge: (stretch: EdgeStretch, delta: number, opts: MoveEdgeOptions) => Promise<void>
+  /**
+   * View state: the sizes of `axes` copied from `from` (`copySizes`) — a
+   * frame of a drag computed on the layout as it started (its whole lines
+   * moved, a fit row given a px), or the start's sizes put back. `live` as
+   * for `setTrackSizes`.
+   */
+  copyTrackSizes: (from: LayoutBody, axes: readonly GridAxis[], opts?: ResizeOptions) => Promise<void>
+  /** View state: a row track's px cleared (`withoutTrackPx`) — a Numbers-only row fits its content again. Saved at once. */
+  clearTrackPx: (trackId: string) => Promise<void>
   /** The end of a live resize: saves what its frames changed (and keeps it in the browser), once. */
   endResize: () => Promise<void>
   /**
@@ -1093,6 +1102,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     endResize() {
       return commitSizes()
+    },
+
+    copyTrackSizes(from, axes, opts) {
+      return resize((layout) => copySizes(layout, from, axes), () => [...axes], opts)
+    },
+
+    clearTrackPx(trackId) {
+      return resize((layout) => withoutTrackPx(layout, 'rows', trackId), () => ['rows'])
     },
 
     patchTabConfig(tabId, kind, patch) {
