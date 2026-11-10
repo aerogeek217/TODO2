@@ -67,17 +67,18 @@ describe('CommandPalette', () => {
       const onClose = vi.fn()
       render(<CommandPalette commands={realCommands(open)} onClose={onClose} />)
       type('email mar')
-      expect(optionNames().slice(0, 2)).toEqual(['Email check-in: Marcus Chen', 'Email check-in: Mark Twain'])
+      expect(optionNames().slice(0, 2)).toEqual(['Email Check-in › Marcus Chen', 'Email Check-in › Mark Twain'])
       type('mar email')
-      expect(optionNames()[0]).toBe('Email check-in: Marcus Chen')
+      expect(optionNames()[0]).toBe('Email Check-in › Marcus Chen')
       type('  email   ada ')
-      expect(optionNames()).toEqual(['Email check-in: Ada Lovelace'])
+      expect(optionNames()).toEqual(['Email Check-in › Ada Lovelace'])
       type('import reply')
       expect(optionNames()).toEqual(['Import check-in reply…'])
       type('clear filters')
       expect(optionNames()).toEqual(['Clear All Filters'])
       type('>email mark')
-      expect(optionNames()).toEqual(['Email check-in: Mark Twain'])
+      expect(optionNames()[0]).toBe('Email Check-in › Mark Twain')
+      expect(screen.queryByRole('group', { name: 'Search Results' })).toBeNull()
       // Enter runs the top match.
       type('email mar')
       fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Enter' })
@@ -89,6 +90,7 @@ describe('CommandPalette', () => {
       render(<CommandPalette commands={realCommands()} onClose={vi.fn()} />)
       type('email marc')
       const row = screen.getByRole('option', { name: /Marcus Chen/ })
+      expect(row.querySelector('span')?.textContent).toBe('Email Check-in › Marcus Chen')
       const marked = Array.from(row.querySelectorAll('mark')).map((m) => m.textContent).join('')
       expect(marked).toContain('Email')
       expect(marked).toContain('Marc')
@@ -113,11 +115,9 @@ describe('CommandPalette', () => {
       expect(optionNames()).toEqual(['Open Filter Menu', 'Focus Filter Field', 'Clear All Filters', 'Toggle Show Completed', 'Cycle Lens', 'Lift Lens / Put It Back', 'Show Overdue Tasks'])
       type('complete')
       expect(optionNames()).toEqual(['Complete 2 Tasks', 'Uncomplete 2 Tasks', 'Toggle Show Completed'])
+      // The step, not every person in it: a word must match a leaf's own name to reach it.
       type('email')
-      expect(optionNames()).toEqual([
-        'Email task check-ins…', 'Email check-in: Ada Lovelace', 'Email check-in: Marcus Chen',
-        'Email check-in: Mark Twain', 'Import check-in reply…',
-      ])
+      expect(optionNames()).toEqual(['Email Check-in', 'Email task check-ins…', 'Import check-in reply…'])
     })
 
     it('passes the whole query to the task search, whatever the number of words', () => {
@@ -131,6 +131,160 @@ describe('CommandPalette', () => {
       type('>quarterly report')
       expect(screen.queryByRole('group', { name: 'Search Results' })).toBeNull()
     })
+  })
+})
+
+describe('CommandPalette — second steps', () => {
+  const go = vi.fn()
+  const review = vi.fn()
+  const email = vi.fn()
+  const addList = vi.fn()
+  function stepCommands(): Command[] {
+    const leaf = (id: string, name: string, category: Command['category'], action: () => void, extra: Partial<Command> = {}): Command => ({ id, name, category, action, ...extra })
+    return [
+      { id: 'open-settings', name: 'Open Settings', category: 'navigation', action: vi.fn() },
+      {
+        id: 'go-to-layout', name: 'Go to Layout', category: 'layout', action: vi.fn(),
+        step: [leaf('go-1', 'Daily', 'layout', () => go(1)), leaf('go-2', 'Planning', 'layout', () => go(2), { current: true })],
+      },
+      {
+        id: 'add-widget', name: 'Add Widget', category: 'layout', action: vi.fn(),
+        step: [leaf('add-list', 'List', 'layout', addList, { group: 'Tasks' }), leaf('add-number', 'Number', 'layout', vi.fn(), { group: 'Insights' })],
+      },
+      {
+        id: 'review-with', name: 'Review With', category: 'task', action: vi.fn(),
+        step: [leaf('review-1', 'Aisha Rahman', 'task', () => review(1), { hint: '3 open tasks' }), leaf('review-2', 'Ben Ito', 'task', () => review(2))],
+      },
+      {
+        id: 'email-checkin', name: 'Email Check-in', category: 'email', action: vi.fn(),
+        step: [leaf('email-1', 'Aisha Rahman', 'email', () => email(1)), leaf('email-2', 'Ben Ito', 'email', () => email(2))],
+      },
+    ]
+  }
+  const input = () => screen.getByRole('combobox')
+  const type = (value: string) => fireEvent.change(input(), { target: { value } })
+  const key = (k: string) => fireEvent.keyDown(input(), { key: k })
+  const optionNames = () => screen.queryAllByRole('option').map((o) => o.querySelector('span')?.textContent ?? '')
+  const activeName = () => document.getElementById(input().getAttribute('aria-activedescendant') ?? '')?.querySelector('span')?.textContent
+
+  beforeEach(() => vi.clearAllMocks())
+
+  it('at rest lists the step commands, marked as opening a step, not what is in them', () => {
+    render(<CommandPalette commands={stepCommands()} onClose={vi.fn()} />)
+    expect(optionNames()).toEqual(['Open Settings', 'Go to Layout', 'Add Widget', 'Review With', 'Email Check-in'])
+    expect(screen.getByRole('option', { name: /Go to Layout/ })).toHaveAttribute('aria-haspopup', 'listbox')
+    expect(screen.getByRole('option', { name: /Open Settings/ })).not.toHaveAttribute('aria-haspopup')
+  })
+
+  it('Enter on a step opens it in place under a breadcrumb; typing filters it; Enter runs a leaf and closes', () => {
+    const onClose = vi.fn()
+    render(<CommandPalette commands={stepCommands()} onClose={onClose} />)
+    type('go to')
+    key('Enter')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.getByTestId('command-palette-crumb')).toHaveTextContent(/^Go to Layout\s*›$/)
+    expect(input()).toHaveValue('')
+    expect(input()).toHaveAttribute('aria-describedby', 'command-palette-crumb')
+    expect(document.activeElement).toBe(input())
+    expect(optionNames()).toEqual(['Daily', 'Planning'])
+    // The open layout is marked.
+    expect(screen.getByRole('option', { name: /Planning/ })).toHaveTextContent('Current')
+    // The footer says how back works (and no longer `> Commands only`).
+    const footer = screen.getByText('Navigate').parentElement
+    expect(footer).toHaveTextContent('Backspace or Esc Back')
+    expect(footer).not.toHaveTextContent('Commands only')
+    type('plan')
+    expect(optionNames()).toEqual(['Planning'])
+    key('Enter')
+    expect(go).toHaveBeenCalledWith(2)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('a click on a step opens it and keeps the focus in the field', () => {
+    render(<CommandPalette commands={stepCommands()} onClose={vi.fn()} />)
+    const row = screen.getByRole('option', { name: /Review With/ })
+    // The press doesn't take the focus from the field.
+    expect(fireEvent.mouseDown(row)).toBe(false)
+    fireEvent.click(row)
+    expect(optionNames()).toEqual(['Aisha Rahman', 'Ben Ito'])
+    expect(document.activeElement).toBe(input())
+  })
+
+  it('Backspace in the empty field and Esc each go back one step, the query and the step row as they were; Esc then closes', () => {
+    const onClose = vi.fn()
+    render(<CommandPalette commands={stepCommands()} onClose={onClose} />)
+    type('widget')
+    key('Enter')
+    expect(optionNames()).toEqual(['List', 'Number'])
+    type('n')
+    key('Backspace') // a character to delete: stays in the step
+    expect(screen.queryByTestId('command-palette-crumb')).not.toBeNull()
+    type('')
+    key('Backspace')
+    expect(screen.queryByTestId('command-palette-crumb')).toBeNull()
+    expect(input()).toHaveValue('widget')
+    expect(activeName()).toBe('Add Widget')
+    type('')
+    key('ArrowDown')
+    key('Enter') // Go to Layout
+    key('Escape')
+    expect(onClose).not.toHaveBeenCalled()
+    expect(screen.queryByTestId('command-palette-crumb')).toBeNull()
+    expect(activeName()).toBe('Go to Layout')
+    key('Escape')
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('a step’s groups have their headings (Add Widget ›: Tasks, Insights)', () => {
+    render(<CommandPalette commands={stepCommands()} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('option', { name: /Add Widget/ }))
+    expect(screen.getByRole('group', { name: 'Tasks' })).toHaveTextContent('List')
+    expect(screen.getByRole('group', { name: 'Insights' })).toHaveTextContent('Number')
+  })
+
+  it('a query at the top level reaches into the steps, by path; a word must match a leaf’s own name', () => {
+    const onClose = vi.fn()
+    render(<CommandPalette commands={stepCommands()} onClose={onClose} />)
+    type('planning')
+    expect(optionNames()).toEqual(['Go to Layout › Planning'])
+    type('aisha')
+    expect(optionNames()).toEqual(['Review With › Aisha Rahman', 'Email Check-in › Aisha Rahman'])
+    expect(screen.getByRole('group', { name: 'Tasks' })).toHaveTextContent('3 open tasks')
+    type('email aisha')
+    expect(optionNames()).toEqual(['Email Check-in › Aisha Rahman'])
+    // The step's name alone finds the step (and its category's commands), not each leaf.
+    type('layout')
+    expect(optionNames()).toContain('Go to Layout')
+    expect(optionNames().filter((n) => n.includes('›'))).toEqual([])
+    // A step command that matches comes before its leaves.
+    type('go to lay')
+    expect(optionNames()[0]).toBe('Go to Layout')
+    // Its matched letters are marked on the path.
+    type('review ben')
+    const marked = Array.from(screen.getByRole('option', { name: /Ben Ito/ }).querySelectorAll('mark')).map((m) => m.textContent).join('')
+    expect(marked).toContain('Review')
+    expect(marked).toContain('Ben')
+    // Enter runs the leaf there and then.
+    type('aisha')
+    key('Enter')
+    expect(review).toHaveBeenCalledWith(1)
+    expect(onClose).toHaveBeenCalledOnce()
+  })
+
+  it('a leaf gives the focus back to what opened the palette before it runs; a step doesn’t', () => {
+    const opener = document.createElement('button')
+    document.body.append(opener)
+    opener.focus()
+    let focusedWhenRun: Element | null = null
+    const commands = stepCommands()
+    const step = commands.find((c) => c.id === 'go-to-layout')!
+    step.step = [{ id: 'go-1', name: 'Daily', category: 'layout', action: () => { focusedWhenRun = document.activeElement } }]
+    render(<CommandPalette commands={commands} onClose={vi.fn()} />)
+    fireEvent.click(screen.getByRole('option', { name: /Go to Layout/ }))
+    expect(document.activeElement).toBe(input())
+    fireEvent.click(screen.getByRole('option', { name: /Daily/ }))
+    expect(focusedWhenRun).toBe(opener)
+    opener.remove()
   })
 })
 

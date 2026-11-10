@@ -170,23 +170,25 @@ test('A: the person task dialog’s Email check-in button sends at once — with
   await expectSent(page, { mailto: 'mailto:?subject=Task%20check-in%3A%201%20open%20task', person: 'Cy Young', titles: ['Cy only'] })
 })
 
-test('B: the palette lists Email check-in per person with open tasks; Enter sends it once the palette closes', async ({ page, context }) => {
+test('B: the palette’s Email Check-in › lists each person with open tasks; Enter sends it once the palette closes', async ({ page, context }) => {
   await setup(page, context)
   await page.keyboard.press('Control+k')
   const input = page.getByPlaceholder(/Find tasks, commands/)
-  await input.fill('>check-in:')
-  const email = page.getByRole('group', { name: 'Email' })
-  await expect(email.getByRole('option', { name: /Email check-in: Ada Lovelace/ })).toContainText('2 open tasks')
-  await expect(email.getByRole('option', { name: /Email check-in: Bob Stone/ })).toContainText('2 open tasks')
+  await page.getByRole('group', { name: 'Email' }).getByRole('option', { name: 'Email Check-in', exact: true }).click()
+  const people = page.getByRole('listbox', { name: 'Email Check-in' })
+  await expect(people.getByRole('option', { name: /Ada Lovelace/ })).toContainText('2 open tasks')
+  await expect(people.getByRole('option', { name: /Bob Stone/ })).toContainText('2 open tasks')
   // No email address is no reason to leave Cy out.
-  await expect(email.getByRole('option', { name: /Email check-in: Cy Young/ })).toContainText('1 open task')
+  await expect(people.getByRole('option', { name: /Cy Young/ })).toContainText('1 open task')
   await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(input).toHaveCount(0)
 
-  // Several words each match on their own: "email bob" puts Bob's command on top; Enter runs it.
+  // Several words each match on their own, into the step: "email bob" puts Bob's on top; Enter runs it.
   await page.keyboard.press('Control+k')
   await input.pressSequentially('email bob')
   const options = page.getByRole('listbox').getByRole('option')
-  await expect(options.first()).toContainText('Email check-in: Bob Stone')
+  await expect(options.first()).toContainText('Email Check-in › Bob Stone')
   await expect(options.first()).toHaveAttribute('aria-selected', 'true')
   await page.keyboard.press('Enter')
   // The palette closes; the copy and the link still ride the Enter key's user activation.
@@ -348,7 +350,7 @@ test('fallback: no open tasks match the saved check-in filter: opens the dialog 
   await page.getByPlaceholder(/Find tasks, commands/).pressSequentially('email ada')
   // The command exists once Ada's tasks and their people have loaded (the reload above).
   const top = page.getByRole('listbox').getByRole('option').first()
-  await expect(top).toContainText('Email check-in: Ada Lovelace')
+  await expect(top).toContainText('Email Check-in › Ada Lovelace')
   await expect(top).toHaveAttribute('aria-selected', 'true')
   await page.keyboard.press('Enter')
   await expectTicked(page, ['Ada Lovelace'])

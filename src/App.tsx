@@ -4,6 +4,7 @@ import { useTodoStore } from './stores/todo-store'
 import { usePersonStore } from './stores/person-store'
 import { useFilterStore } from './stores/filter-store'
 import { useSettingsStore } from './stores/settings-store'
+import { useWorkspaceStore } from './stores/workspace-store'
 import { useFileStorageStore } from './services/file-storage-store'
 import { TopBar } from './components/layout/TopBar'
 import { removeLegacySyncKeys } from './components/layout/sync-status'
@@ -46,6 +47,8 @@ import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsM
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
 import { ErrorBoundary } from './components/shared/ErrorBoundary'
+import { AddWidgetRequestHost } from './components/workspace/AddWidgetFlow'
+import { addWidgetFromPalette } from './components/workspace/widget-hooks'
 const SettingsPage = lazy(() => import('./views/SettingsPage').then(m => ({ default: m.SettingsPage })))
 const SettingsModal = lazy(() => import('./components/settings/SettingsModal').then(m => ({ default: m.SettingsModal })))
 const WorkspacePage = lazy(() => import('./views/WorkspacePage').then(m => ({ default: m.WorkspacePage })))
@@ -56,10 +59,11 @@ import './styles/tokens.css'
 /**
  * The command palette, mounted while it shows (so the shell never re-renders
  * for a task write or a selection click). The command list is built from the
- * tasks, people, their assignments, statuses and the check-in filter, and is
- * rebuilt when they change: a palette opened while the app is still loading
- * gains the per-person check-ins as the tasks and their people arrive.
- * Commands that act read the stores when they run (`getState`).
+ * tasks, people, their assignments, statuses, the check-in filter, the
+ * layouts, the lenses and the theme, and is rebuilt when they change: a
+ * palette opened while the app is still loading gains the per-person
+ * check-ins as the tasks and their people arrive. Commands that act read
+ * the stores when they run (`getState`).
  */
 export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void; shortcuts: ShortcutCallbacks }) {
   const selectionCount = useUIStore((s) => s.selectedTodoIds.size)
@@ -69,6 +73,14 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
   const assignedPeopleMap = usePersonStore((s) => s.assignedPeopleMap)
   const statuses = useStatusStore((s) => s.statuses)
   const checkinTaskFilter = useSettingsStore((s) => s.checkinTaskFilter)
+  // What the second steps list (Go to Layout ›, Lens ›, Theme ›) and mark.
+  const layouts = useWorkspaceStore((s) => s.layouts)
+  const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
+  const layoutOpen = useWorkspaceStore((s) => s.working != null)
+  const layoutStored = useWorkspaceStore((s) => s.saved?.id != null)
+  const lenses = useSettingsStore((s) => s.lenses)
+  const activeLensId = useSettingsStore((s) => s.activeLensId)
+  const themeMode = useSettingsStore((s) => s.themeMode)
 
   const commandCtx = useMemo(
     () => ({
@@ -96,8 +108,13 @@ export function AppCommandPalette({ onClose, shortcuts }: { onClose: () => void;
       getCheckinTaskCounts: () => currentCheckinTaskCounts(checkinTaskFilter),
       showScreenTasks: () => useUIStore.getState().openFilterPanel(),
       getScreenTaskCount: () => screenTaskCount(currentTaskDialogEnv()),
+      addWidget: addWidgetFromPalette,
+      getLayouts: () => (layoutOpen ? { layouts, activeLayoutId, stored: layoutStored } : null),
+      getLenses: () => ({ lenses, activeLensId }),
+      getThemeMode: () => themeMode,
     }),
-    [selectionCount, shortcuts, todos, people, assignedPeopleMap, statuses, checkinTaskFilter],
+    [selectionCount, shortcuts, todos, people, assignedPeopleMap, statuses, checkinTaskFilter,
+      layouts, activeLayoutId, layoutOpen, layoutStored, lenses, activeLensId, themeMode],
   )
 
   // The palette's key hints follow the user's shortcut changes.
@@ -390,6 +407,7 @@ function AppShell() {
         </div>
       )}
       {!isMobile && showPalette && <AppCommandPalette onClose={shortcutCallbacks.closePalette} shortcuts={shortcutCallbacks} />}
+      {!isMobile && <AddWidgetRequestHost />}
       {!isMobile && showShortcuts && <KeyboardShortcutsModal onClose={() => setShowShortcuts(false)} />}
       {!isMobile && settingsOpen && (
         <Suspense fallback={null}>
