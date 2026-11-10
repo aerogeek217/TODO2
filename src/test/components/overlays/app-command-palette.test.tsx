@@ -28,7 +28,7 @@ describe('AppCommandPalette', () => {
   it('a palette opened before the tasks load gains the per-person check-ins as they arrive', () => {
     render(<AppCommandPalette onClose={vi.fn()} shortcuts={shortcuts} />)
     fireEvent.change(screen.getByRole('combobox'), { target: { value: 'email ada' } })
-    expect(screen.queryByRole('option', { name: /Email check-in: Ada Lovelace/ })).toBeNull()
+    expect(screen.queryByRole('option', { name: /Email Check-in › Ada Lovelace/ })).toBeNull()
 
     const ada = makePerson({ id: 1, name: 'Ada Lovelace' })
     act(() => {
@@ -36,7 +36,7 @@ describe('AppCommandPalette', () => {
       useTodoStore.setState({ todos: [makeTodo({ id: 1, title: 'Report' })] })
       usePersonStore.setState({ assignedPeopleMap: new Map([[1, [ada]]]) })
     })
-    expect(screen.getByRole('option', { name: /Email check-in: Ada Lovelace/ })).toHaveTextContent('1 open task')
+    expect(screen.getByRole('option', { name: /Email Check-in › Ada Lovelace/ })).toHaveTextContent('1 open task')
   })
 
   it('Show Tasks Matching the Filter: always offered, counts the tasks, opens the top bar’s filtered-tasks panel', () => {

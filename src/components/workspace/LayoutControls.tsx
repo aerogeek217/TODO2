@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import { useWorkspaceStore } from '../../stores/workspace-store'
+import { useUIStore, type LayoutRequest } from '../../stores/ui-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { ownerLayoutId } from '../../models/list-definition'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
@@ -43,16 +44,30 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
   const [tabMenu, setTabMenu] = useState<{ id: number; x: number; y: number } | null>(null)
   const [pending, setPending] = useState<Pending | null>(null)
   const pickerRef = useRef<HTMLButtonElement | null>(null)
-
-  if (!working) return null
   const store = useWorkspaceStore.getState
-  const name = working.name
 
-  const close = () => setPending(null)
   const switchTo = (id: number) => {
     if (id === activeLayoutId) return
     withViewTransition(() => store().load(id))
   }
+
+  // A layout action asked for elsewhere (the palette, `ui-store.requestLayout`): run as the tabs and the picker run it.
+  const runRequest = useEffectEvent((r: LayoutRequest) => {
+    if (r.kind === 'new') setPending({ kind: 'new-name' })
+    else if (r.kind === 'duplicate') setPending({ kind: 'duplicate' })
+    else switchTo(r.layoutId)
+  })
+  useEffect(() => useUIStore.subscribe((s) => {
+    const r = s.layoutRequest
+    if (!r) return
+    useUIStore.getState().clearLayoutRequest()
+    runRequest(r)
+  }), [])
+
+  if (!working) return null
+  const name = working.name
+
+  const close = () => setPending(null)
   const create = (layoutName: string) => { void store().createLayout(layoutName) }
   const nameOf = (id: number) => layouts.find((l) => l.id === id)?.name ?? ''
   const hueOf = (id: number) => layouts.find((l) => l.id === id)?.hue ?? null

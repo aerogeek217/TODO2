@@ -64,6 +64,8 @@ async function boot(page: Page, path = '/') {
 }
 
 test('purge notice: no dialog at launch; Review… opens the dialog and stamps; Not now waits the interval; Export & delete archives, deletes, and the archive appends back with the duplicate picker', async ({ page }) => {
+  // Six launches, a backup, an archive and an append: ~9 s alone, past the 30 s budget under a loaded parallel run.
+  test.slow()
   await stubPickers(page)
   await boot(page)
   await seed(page, [

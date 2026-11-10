@@ -25,11 +25,32 @@
 }
 
 .inputRow {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
   padding: 14px 20px;
   border-bottom: 1px solid var(--color-border);
 }
 
+/* Where an open step is (`Go to Layout ›`), before the field. */
+.crumb {
+  flex-shrink: 0;
+  max-width: 50%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--font-size-input);
+  color: var(--color-text-secondary);
+}
+
+.crumbSeparator {
+  margin-left: 6px;
+  color: var(--color-text-muted);
+}
+
 .input {
+  flex: 1;
+  min-width: 0;
   width: 100%;
   background: transparent;
   color: var(--color-text-primary);
@@ -89,6 +110,21 @@
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);
   white-space: nowrap;
+}
+
+/* The one in use (the open layout, the picked lens, the theme). */
+.resultCurrent {
+  flex-shrink: 0;
+  font-size: var(--font-size-meta);
+  color: var(--color-accent-text);
+  white-space: nowrap;
+}
+
+/* A command that opens a second step. */
+.resultStep {
+  flex-shrink: 0;
+  font-size: var(--font-size-nav);
+  color: var(--color-text-muted);
 }
 
 .resultShortcut {
