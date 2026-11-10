@@ -112,7 +112,7 @@ describe('the lens switch in a stored layout (view state)', () => {
 })
 
 describe('a Breakdown’s switch', () => {
-  it('absent with no lens; with one, quiet at the end of its header; a click ignores the lens there and the rows follow', () => {
+  it('absent with no lens; with one that hides some there, shown at rest with −N at the end of its header; a click ignores the lens there and the rows follow', () => {
     inLayout(createTab('breakdown', 'b', { breakdown: { name: 'People' } }))
     render(<DndContext><CellControlsContext.Provider value={CONTROLS}><Live /></CellControlsContext.Provider></DndContext>)
     expect(screen.queryByTestId('lens-switch')).toBeNull()
@@ -122,10 +122,11 @@ describe('a Breakdown’s switch', () => {
     const lensed = count()
     expect(lensed).not.toBe(all)
     const sw = screen.getByTestId('lens-switch')
-    // Quiet in a desktop cell (2A): no `−N` on it, the number for its tooltip.
-    expect(sw.textContent).toBe('')
-    expect(sw).toHaveAttribute('data-quiet')
-    expect(sw).toHaveAttribute('data-lens-hides', String(Number.parseInt(all!) - Number.parseInt(lensed!)))
+    // It has an effect here: shown at rest with its `−N` (2A, as restated).
+    const hidden = Number.parseInt(all!) - Number.parseInt(lensed!)
+    expect(sw).toHaveTextContent(`−${hidden}`)
+    expect(sw).not.toHaveAttribute('data-quiet')
+    expect(sw).toHaveAttribute('data-lens-hides', String(hidden))
     // At the header's end, just before the cell's controls.
     expect(sw.closest('[data-widget-top-line]')!.lastElementChild?.previousElementSibling?.contains(sw)).toBe(true)
     fireEvent.click(sw)
@@ -145,12 +146,14 @@ describe('the calendar’s, the Pivot’s and Project pulse’s', () => {
     useSettingsStore.setState({ activeLensId: LENS.id })
     inLayout(tab)
     render(<DndContext><Live /></DndContext>)
-    // Pulse follows only #q4, which the lens keeps: nothing hidden there, so no switch until it is turned off.
+    // Pulse follows only #q4, which the lens keeps: nothing hidden there — the switch in place, hidden at rest.
     const sw = screen.queryByTestId('lens-switch')
     if (tab.kind === 'pulse') {
-      expect(sw).toBeNull()
+      expect(sw).toHaveAttribute('data-quiet')
+      expect(sw).toHaveAttribute('data-lens-hides', '0')
       return
     }
+    expect(sw).not.toHaveAttribute('data-quiet')
     expect(sw).not.toBeNull()
     expect(sw!.getAttribute('data-lens-hides')).toMatch(/^[1-9]\d*$/)
     fireEvent.click(sw!)
@@ -204,16 +207,23 @@ describe('the Eisenhower’s and the Neglect map’s', () => {
 
 describe('the quiet switch (UX cleanup 2A)', () => {
   const on = { name: 'Mine', ignored: false, hides: 4 }
-  it('quiet and following the lens: the glasses alone, the number for its tooltip', () => {
+  it('quiet, following the lens and hiding some here: shown at rest with its −N (it has an effect)', () => {
     render(<LensSwitch lens={on} onToggle={() => {}} quiet />)
     const sw = screen.getByTestId('lens-switch')
-    expect(sw.textContent).toBe('')
-    expect(sw).toHaveAttribute('data-quiet')
+    expect(sw).toHaveTextContent('−4')
+    expect(sw).not.toHaveAttribute('data-quiet')
     expect(sw).toHaveAttribute('data-lens-hides', '4')
   })
 
+  it('quiet, following the lens and hiding nothing here: hidden at rest, its −0 kept for its room', () => {
+    render(<LensSwitch lens={{ ...on, hides: 0 }} onToggle={() => {}} quiet />)
+    const sw = screen.getByTestId('lens-switch')
+    expect(sw).toHaveAttribute('data-quiet')
+    expect(sw).toHaveTextContent('−0')
+  })
+
   it('quiet but ignoring the lens: never hidden (the slashed glasses are the exception it flags)', () => {
-    render(<LensSwitch lens={{ ...on, ignored: true }} onToggle={() => {}} quiet />)
+    render(<LensSwitch lens={{ ...on, ignored: true, hides: 0 }} onToggle={() => {}} quiet />)
     expect(screen.getByTestId('lens-switch')).not.toHaveAttribute('data-quiet')
   })
 

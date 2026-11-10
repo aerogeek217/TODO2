@@ -256,25 +256,22 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const manual = definition.sort === 'manual'
   const collapsedKeys = useMemo(() => new Set(collapsed ?? []), [collapsed])
 
-  // The lens on this list, while one applies at the top bar: shown while
-  // it hides something here, or while the list ignores it (so it can be
-  // turned back on) — and, once used, for as long as that lens stays picked,
-  // so a click that leaves it nothing to hide doesn't take it from under the
-  // focus (U7).
+  // The lens on this list, whenever one applies at the top bar (its prompt
+  // answered): in a desktop cell its switch shows at rest only while it has an
+  // effect — it hides something here, or the list ignores it — and is otherwise
+  // kept in place, hidden until the cell's hover or focus (`LensSwitch`'s
+  // `quiet`), so `lensHides` crossing 0 neither moves the line nor takes the
+  // switch from under the focus (U7).
   const lensName = screenFor.lens?.name
-  const lensId = screenFor.lens?.id
-  const [switchUsedFor, setSwitchUsedFor] = useState<string | null>(null)
-  const switchUsed = lensId != null && switchUsedFor === lensId
   const lensMark = useMemo<ListLensMark | undefined>(
-    () => (lensName != null && !runtimeFilterPending && (screenFor.ignoresLens || lensHides > 0 || switchUsed)
+    () => (lensName != null && !runtimeFilterPending
       ? { name: lensName, ignored: screenFor.ignoresLens, hides: lensHides }
       : undefined),
-    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides, switchUsed],
+    [lensName, runtimeFilterPending, screenFor.ignoresLens, lensHides],
   )
   const toggleLens = useCallback(() => {
-    if (lensId != null) setSwitchUsedFor(lensId)
     void useListDefinitionStore.getState().setIgnoreLens(definition.id, !screenFor.ignoresLens)
-  }, [definition.id, screenFor.ignoresLens, lensId])
+  }, [definition.id, screenFor.ignoresLens])
 
   const onResultRef = useLatestRef(onResult)
   const tabCount = filterLineShown ? undefined : countLabel
