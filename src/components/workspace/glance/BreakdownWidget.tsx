@@ -28,7 +28,7 @@ import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-ho
 import type { GlanceDrill, OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { GlanceSmallFace } from './GlanceSmallFace'
-import { Empty, PriorityBadges } from './section-parts'
+import { Empty } from './section-parts'
 import styles from './BreakdownWidget.module.css'
 
 /** Colours for rows without one of their own (a due or age bucket, Unassigned), in order. */
@@ -118,7 +118,7 @@ function ColumnCount({ n, column, label, onOpen }: {
   )
 }
 
-/** A row's Review button (board BC): an icon at the row's end, muted, always shown; starts the review deck on the row's tasks. */
+/** A row's Review button (board BC): a muted icon right after the row's name, shown on the row's hover or focus; starts the review deck on the row's tasks. */
 function RowReview({ heading, n, onReview }: { heading: string; n: number; onReview: () => void }) {
   const { triggerProps, tooltip } = useTooltip('Review')
   return (
@@ -165,7 +165,7 @@ function RowEnvelope({ person }: { person: { id: number; name: string } }) {
         <EnvelopeIcon size={15} />
       </button>
       {tooltip}
-      {open && <PersonCheckinMenu person={person} anchorRef={ref} placement="bottom-end" review={false} onClose={() => setOpen(false)} />}
+      {open && <PersonCheckinMenu person={person} anchorRef={ref} placement="bottom-start" review={false} onClose={() => setOpen(false)} />}
     </>
   )
 }
@@ -177,20 +177,22 @@ function rowEntity(row: BreakdownRow): MenuEntity | null {
   return null
 }
 
-/** A count column's width in a narrow table (under 400px): a badge's. */
-const NARROW_COLUMN_PX = 30
+/**
+ * A count column's width: its number's room (a three-digit badge), never
+ * its heading's — the heading is cut short with an ellipsis, its name in
+ * the tooltip, so the name column gets the rest.
+ */
+const COLUMN_PX = 40
 
-/** A count column's width: its heading's, 44 – 96px. */
-function columnWidth(column: BreakdownColumn): number {
-  return Math.round(Math.min(96, Math.max(44, columnHeading(column).length * 6.6 + 14)))
-}
+/** A count column's width in a narrow table (under 400px): a two-digit badge's. */
+const NARROW_COLUMN_PX = 30
 
 interface TableProps {
   title: string
   config: BreakdownConfig
   columns: readonly BreakdownColumn[]
   rows: readonly BreakdownRow[]
-  /** Medium: name · the count columns (· Review), no bar, Open, priority or envelope. */
+  /** Medium: name (· Review after it) · the count columns, no bar, Open or envelope. */
   compact: boolean
   sortBy: BreakdownSortKey | null
   reversed: boolean
@@ -203,44 +205,39 @@ interface TableProps {
 }
 
 /**
- * The rows as a table: name · (bar) · Open (or Oldest) · Priority · each
- * count column · the row's actions (Review, and a person's envelope), each
- * heading a sort button. A row's click opens its tasks; its Review button
- * and a count column's count open the review deck on them; a person's or
- * tag's right-click (or Shift+F10) opens its menu.
+ * The rows as a table: name · (bar) · Open (or Oldest) · each count
+ * column, each heading a sort button; the row's actions (Review, and a
+ * person's envelope) right after its name, shown while the row is hovered
+ * or holds the focus. A row's click opens its tasks; its Review button and
+ * a count column's count open the review deck on them; a person's or tag's
+ * right-click (or Shift+F10) opens its menu.
  */
 function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {
   const { splitBy, show } = config
   const [menu, setMenu] = useState<{ entity: MenuEntity; at: { x: number; y: number } } | null>(null)
   const envelope = !compact && config.checkins === true && splitBy === 'people'
-  const actions = review || envelope
-  const priority = !compact && splitBy !== 'priority'
   const figure = !compact
   const max = Math.max(1, ...rows.map((r) => (show === 'oldest' ? Math.max(0, r.oldest?.days ?? 0) : r.ids.length)))
-  // A narrow table (`@container`, under 400px) drops the bar and the priority columns.
+  // A narrow table (`@container`, under 400px) drops the bar, and its count columns take a two-digit badge's room.
   const columnsOf = (narrow: boolean) => [
     'minmax(0, 1fr)',
     bars && !compact && !narrow ? '84px' : null,
     figure ? '44px' : null,
-    priority && !narrow ? '76px' : null,
-    // Narrow, a count column takes a badge's room, its heading cut short (its name in the tooltip).
-    ...columns.map((c) => `${narrow ? NARROW_COLUMN_PX : columnWidth(c)}px`),
-    actions ? `${(review ? 26 : 0) + (envelope ? 26 : 0)}px` : null,
+    ...columns.map(() => `${narrow ? NARROW_COLUMN_PX : COLUMN_PX}px`),
   ].filter(Boolean).join(' ')
-  const keys: BreakdownSortKey[] = ['name', ...(figure ? ['open'] : []), ...(priority ? ['priority'] : []), ...columns.map((c) => c.id)]
+  const keys: BreakdownSortKey[] = ['name', ...(figure ? ['open'] : []), ...columns.map((c) => c.id)]
   const heading = (by: BreakdownSortKey) => {
     const active = sortBy === by
     const label = sortHeading(by, splitBy, show, columns)
     // Counts go largest first, names A–Z; a second click reverses.
     const descending = by === 'name' ? reversed : !reversed
-    const fixed = by === 'name' || by === 'open' || by === 'priority'
+    const fixed = by === 'name' || by === 'open'
     return (
       <span
         key={by}
         role="columnheader"
         aria-sort={active ? (descending ? 'descending' : 'ascending') : 'none'}
         className={`${styles.headCell} ${by === 'name' ? styles.headName : fixed ? styles.headNum : styles.headCount} ${by === 'name' && bars && !compact ? styles.headSpan : ''}`}
-        data-col={by === 'priority' ? 'priority' : undefined}
       >
         <button type="button" className={styles.sortButton} data-sort-key={by} aria-pressed={active} title={fixed ? undefined : label} onClick={() => onSort(by)}>
           <span className={styles.sortLabel}>{label}</span>
@@ -253,7 +250,6 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
     <div className={styles.table} role="table" aria-label={title} style={{ '--bd-cols': columnsOf(false), '--bd-cols-narrow': columnsOf(true) } as CSSProperties} data-compact={compact ? '' : undefined}>
       <div className={`${styles.grid} ${styles.head}`} role="row">
         {keys.map(heading)}
-        {actions && <span role="columnheader" className={styles.headCell}><span className={styles.srOnly}>Actions</span></span>}
       </div>
       <div ref={trackScrollEdges} className={styles.body} role="rowgroup">
         {rows.map((row, i) => {
@@ -307,6 +303,12 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                     )}
                   </span>
                 </button>
+                {(review || (envelope && row.entity.kind === 'person')) && (
+                  <span className={styles.nameActions} data-testid="breakdown-row-actions">
+                    {review && <RowReview heading={heading} n={n} onReview={() => { openReview(breakdownRowReview(title, row, 'all')) }} />}
+                    {envelope && row.entity.kind === 'person' && <RowEnvelope person={row.entity.person} />}
+                  </span>
+                )}
               </span>
               {bars && !compact && (
                 <span role="cell" className={styles.bar} data-col="bar" aria-hidden="true">
@@ -319,7 +321,6 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                   {rowFigure(row, show)}
                 </span>
               )}
-              {priority && <span role="cell" className={styles.priority} data-col="priority"><PriorityBadges counts={row.priority} /></span>}
               {columns.map((column) => {
                 const count = columnCount(row, column.id)
                 const name = columnHeading(column)
@@ -336,14 +337,6 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                   </span>
                 )
               })}
-              {actions && (
-                <span role="cell" className={styles.actionsCell}>
-                  {review && <RowReview heading={heading} n={n} onReview={() => { openReview(breakdownRowReview(title, row, 'all')) }} />}
-                  {envelope && (row.entity.kind === 'person'
-                    ? <RowEnvelope person={row.entity.person} />
-                    : <span className={styles.actionGap} aria-hidden="true" />)}
-                </span>
-              )}
             </div>
           )
         })}
@@ -520,7 +513,7 @@ const NO_PICKS: readonly string[] = []
  * the top bar's filter, split by people, tags, status, priority, due date
  * or age — a row each, as bars, a donut or one stacked bar. By its face
  * (D25 R): small is its title and the top row; medium a compact table
- * (name · Due · Follow-up); large the chart, the table with its sortable
+ * (name · its count columns); large the chart, the table with its sortable
  * headings (view state, per split) and the filter row. Its editor (Edit
  * breakdown…, `ChartEditorHost`) opens under its title (`data-chart-head`).
  */
@@ -532,7 +525,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   const offers = useEntityMenuOffers()
   const storedSort = tab.viewState?.sorts?.[config.splitBy]
   const columnIds = useMemo(() => data.columns.map((c) => c.id), [data.columns])
-  // A sort by a column it no longer has reads as the default order; the old Due / Follow-up's as the late column.
+  // A sort by a column it no longer has reads as the default order; an older derived column's as the Due / Follow-up column.
   const sort = liveBreakdownSort(storedSort, columnIds)
   const picks = useChartWidgetsStore((s) => s.rowPicks[tab.id]?.[config.splitBy]) ?? NO_PICKS
   const [typed, setTyped] = useState<{ split: BreakdownSplit; text: string }>({ split: config.splitBy, text: '' })

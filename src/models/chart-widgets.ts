@@ -84,8 +84,10 @@ export interface BreakdownConfig {
   /**
    * Its count columns (board BC): up to `BREAKDOWN_COLUMNS_MAX`, each a
    * name, a colour and a filter; a row's cell counts that row's tasks the
-   * filter keeps. Absent (a config from before them): the two read from
-   * `badges` (`breakdownColumns`) — written as `columns` once they are edited.
+   * filter keeps. A new Breakdown writes its two defaults here
+   * (`defaultBreakdownColumns`). Absent (a config from before): the two
+   * read from `badges` (`breakdownColumns`) — written as `columns` once
+   * they are edited.
    */
   columns?: BreakdownColumn[]
   /**
@@ -120,59 +122,66 @@ export interface BreakdownColumn {
 export const BREAKDOWN_COLUMNS_MAX = 4
 
 /**
- * The columns read from `badges`: their ids, names and colours. A sort
- * stored by the old Due / Follow-up columns (`due`, `followup` — overdue
- * included) reads as the late one (`liveBreakdownSort`), so the soon / due
- * columns have ids of their own.
+ * The default columns' ids (`defaultBreakdownColumns`, and what a config
+ * without `columns` reads as): Due and Follow-up. A sort stored by the
+ * older derived columns they combine reads as theirs (`liveBreakdownSort`).
  */
-export const OVERDUE_COLUMN_ID = 'overdue'
-export const DUE_COLUMN_ID = 'due-soon'
-export const FOLLOWUP_LATE_COLUMN_ID = 'followup-late'
-export const FOLLOWUP_COLUMN_ID = 'followup-due'
-/** The old Due / Follow-up columns' sort keys → the derived column that keeps their most urgent tasks. */
-const LEGACY_SORT_COLUMNS: Readonly<Record<string, string>> = { due: OVERDUE_COLUMN_ID, followup: FOLLOWUP_LATE_COLUMN_ID }
-/** The derived due columns' colour: the due date's magenta (the dark theme's `--color-overdue`). */
+export const DUE_COLUMN_ID = 'due'
+export const FOLLOWUP_COLUMN_ID = 'followup'
+/** The older derived columns' sort keys (Overdue, Due soon, Follow-up late, Follow-up due) → the default column that holds their tasks. */
+const LEGACY_SORT_COLUMNS: Readonly<Record<string, string>> = {
+  overdue: DUE_COLUMN_ID,
+  'due-soon': DUE_COLUMN_ID,
+  'followup-late': FOLLOWUP_COLUMN_ID,
+  'followup-due': FOLLOWUP_COLUMN_ID,
+}
+/** The Due column's colour: the due date's magenta (the dark theme's `--color-overdue`). */
 export const DUE_COLUMN_COLOR = '#e86bf0'
-/** The derived follow-up columns' colour: the follow-up yellow (the dark theme's `--color-followup`). */
+/** The Follow-up column's colour: the follow-up yellow (the dark theme's `--color-followup`). */
 export const FOLLOWUP_COLUMN_COLOR = '#f5c842'
 
-/** A date range on `field`, from `start` to `end` days from today (`null`: open). */
-function rangeFilter(field: 'deadline' | 'followup', start: number | null, end: number): TodoPredicate {
+/** A date range on `field` from any day before up to `end` days from today (overdue included). */
+function byFilter(field: 'deadline' | 'followup', end: number): TodoPredicate {
   return {
     ...emptyPredicate(),
-    dates: { [field]: { match: 'range', start: start == null ? null : { kind: 'offset', days: start }, end: { kind: 'offset', days: end } } },
+    dates: { [field]: { match: 'range', start: null, end: { kind: 'offset', days: end } } },
   }
 }
 
-/** A date's two columns from its old range: late (before today, lit above 0) and, with a day count N, due (today … today + N, never lit). */
-function rangeColumns(
-  range: TabBadgeRange,
-  field: 'deadline' | 'followup',
-  late: { id: string; name: string },
-  soon: { id: string; name: string },
-  color: string,
-): BreakdownColumn[] {
+/**
+ * A date's one column from its range, lit above 0: with a day count N, the
+ * tasks with the date up to today + N (overdue included); `overdue`, only
+ * the late ones (up to yesterday); `off`, none.
+ */
+function rangeColumn(range: TabBadgeRange, field: 'deadline' | 'followup', id: string, name: string, color: string): BreakdownColumn[] {
   if (range === 'off') return []
-  const out: BreakdownColumn[] = [{ ...late, color, filter: rangeFilter(field, null, -1), litWhen: 'above', litAt: 0 }]
-  if (range !== 'overdue') out.push({ ...soon, color, filter: rangeFilter(field, 0, range), litWhen: 'never' })
-  return out
+  return [{ id, name, color, filter: byFilter(field, range === 'overdue' ? -1 : range), litWhen: 'above', litAt: 0 }]
 }
 
 /**
- * The count columns of a config without `columns` (no schema step; a new
- * Breakdown too), from the ranges `badges` says (`chartBadgeRanges`: its
- * own, each one it doesn't hold Settings'): the old Due column as Overdue
- * (lit above 0) and Due soon (today … today + N, never lit), the
- * Follow-up column likewise as Follow-up late and Follow-up due — a range
- * `off` drops both of its columns, `overdue` keeps only the late one,
- * so the solid count still says something is late.
+ * The count columns of a config without `columns` (every Breakdown from
+ * before a new one wrote them; no schema step), from the ranges `badges`
+ * says (`chartBadgeRanges`: its own, each one it doesn't hold Settings'):
+ * **Due** (due by today + N, overdue included) and **Follow-up** (the next
+ * follow-up likewise), each lit above 0 in its colour — a range `off`
+ * drops its column, `overdue` counts only its late tasks.
  */
 export function derivedBreakdownColumns(badges: ChartBadges | undefined, app: TabBadgeRanges): BreakdownColumn[] {
   const ranges = chartBadgeRanges(badges, app)
   return [
-    ...rangeColumns(ranges.due, 'deadline', { id: OVERDUE_COLUMN_ID, name: 'Overdue' }, { id: DUE_COLUMN_ID, name: 'Due soon' }, DUE_COLUMN_COLOR),
-    ...rangeColumns(ranges.followup, 'followup', { id: FOLLOWUP_LATE_COLUMN_ID, name: 'Follow-up late' }, { id: FOLLOWUP_COLUMN_ID, name: 'Follow-up due' }, FOLLOWUP_COLUMN_COLOR),
+    ...rangeColumn(ranges.due, 'deadline', DUE_COLUMN_ID, 'Due', DUE_COLUMN_COLOR),
+    ...rangeColumn(ranges.followup, 'followup', FOLLOWUP_COLUMN_ID, 'Follow-up', FOLLOWUP_COLUMN_COLOR),
   ]
+}
+
+/**
+ * A new Breakdown's count columns, written as its `columns` when it is
+ * created (Add widget, every preset; Change widget): Due and Follow-up in
+ * Settings › Tasks' ranges of the moment — ordinary columns from then on,
+ * no longer following Settings.
+ */
+export function defaultBreakdownColumns(app: TabBadgeRanges): BreakdownColumn[] {
+  return derivedBreakdownColumns(undefined, app)
 }
 
 /** A Breakdown's count columns: its own, else the ones its `badges` say (`derivedBreakdownColumns`). */
@@ -220,8 +229,13 @@ export function newBreakdownConfig(filter: TodoPredicate, patch: Partial<Breakdo
   return { name: DEFAULT_BREAKDOWN_NAME, filter, splitBy: 'people', style: 'bars', show: 'count', showNone: true, ...patch }
 }
 
-/** The fixed headings a Breakdown's rows sort by: the name, Open (or Oldest), Priority. */
-export const BREAKDOWN_FIXED_SORT_KEYS = ['name', 'open', 'priority'] as const
+/**
+ * The fixed headings a Breakdown's rows sort by: the name and Open (or
+ * Oldest). Every other heading is a count column (the fixed Priority
+ * column went: a sort stored by `priority` reads as one by a column it no
+ * longer has — the split's default order).
+ */
+export const BREAKDOWN_FIXED_SORT_KEYS = ['name', 'open'] as const
 
 /**
  * A heading a Breakdown's rows sort by: a fixed one (`BREAKDOWN_FIXED_SORT_KEYS`)
@@ -241,17 +255,17 @@ export interface BreakdownSort {
 
 /**
  * A stored sort as the headings read it, given the Breakdown's column ids:
- * a fixed heading or one of its columns as stored; the old Due / Follow-up
- * columns' key (`due`, `followup`), while no column has it, as the late
- * column (`Overdue`, `Follow-up late`) in the same direction, so "Most due
- * first" still puts the overdue on top; any other: `undefined`, the
- * split's default order.
+ * a fixed heading or one of its columns as stored; an older derived
+ * column's key (`overdue`, `due-soon`, `followup-late`, `followup-due`),
+ * while no column has it, as the Due or Follow-up column that holds its
+ * tasks, in the same direction; any other — the old Priority column's
+ * `priority` too —: `undefined`, the split's default order.
  */
 export function liveBreakdownSort(sort: BreakdownSort | undefined, columnIds: readonly string[]): BreakdownSort | undefined {
   if (!sort) return undefined
   if ((BREAKDOWN_FIXED_SORT_KEYS as readonly string[]).includes(sort.by) || columnIds.includes(sort.by)) return sort
-  const late = LEGACY_SORT_COLUMNS[sort.by]
-  return late != null && columnIds.includes(late) ? { ...sort, by: late } : undefined
+  const now = LEGACY_SORT_COLUMNS[sort.by]
+  return now != null && columnIds.includes(now) ? { ...sort, by: now } : undefined
 }
 
 /** A Breakdown tab's view state: each split's sort, saved at once (absent = the split's default order), and its lens switch. */

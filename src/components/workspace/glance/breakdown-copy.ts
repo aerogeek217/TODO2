@@ -72,7 +72,6 @@ export function sortHeading(by: BreakdownSortKey, split: BreakdownSplit, show: B
   switch (by) {
     case 'name': return SPLIT_ROW_LABELS[split]
     case 'open': return show === 'oldest' ? 'Oldest' : 'Open'
-    case 'priority': return 'Priority'
     default: {
       const column = columns.find((c) => c.id === by)
       return column ? columnHeading(column) : by
@@ -100,7 +99,6 @@ export function sortWords(sort: BreakdownSort | undefined, split: BreakdownSplit
     case 'open':
       if (show === 'oldest') return r ? 'Newest first' : 'Oldest first'
       return r ? 'Fewest open first' : 'Most open first'
-    case 'priority': return r ? 'Least priority first' : 'Most priority first'
     default: {
       const column = columns.find((c) => c.id === sort?.by)
       if (!column) return defaultSortWords(split, show, columns)

@@ -1,6 +1,4 @@
 import type { CSSProperties, ReactNode } from 'react'
-import { MARKER_KEYS, type MarkerKey } from '../../../models'
-import { MARKER_COLOR, MARKER_LABELS } from '../../../utils/markers'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import { GlanceGlyph } from '../../shared/GlanceGlyph'
 import { WidgetTopLine } from '../WidgetTopLine'
@@ -98,23 +96,4 @@ export function Clickable({ as, className, label, onClick, children, ...rest }: 
 /** A count in `color`, or a muted dash for none. */
 export function Count({ n, color }: { n: number; color: string }) {
   return <span className={styles.num} style={{ color: n > 0 ? color : 'var(--color-text-muted)' }}>{n > 0 ? n : '–'}</span>
-}
-
-/** A row's open tasks by priority: a badge in the marker's colour for each that has any. */
-export function PriorityBadges({ counts }: { counts: Record<MarkerKey, number> }) {
-  return (
-    <span className={styles.priorityBadges} data-testid="glance-priority-badges">
-      {MARKER_KEYS.map((k) => counts[k] > 0 && (
-        <span
-          key={k}
-          className={styles.priorityBadge}
-          style={{ '--badge-color': MARKER_COLOR[k] } as CSSProperties}
-          title={`${counts[k]} ${MARKER_LABELS[k]}`}
-          data-priority={k}
-        >
-          {counts[k]}
-        </span>
-      ))}
-    </span>
-  )
 }

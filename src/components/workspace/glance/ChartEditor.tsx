@@ -173,7 +173,7 @@ function CountColumnsField({ config, patch }: { config: BreakdownConfig; patch: 
   return (
     <div className={styles.fieldset} role="group" aria-labelledby={`${id}-columns`} data-testid="chart-editor-columns">
       <span id={`${id}-columns`} className={styles.label}>Count columns</span>
-      {columns.length === 0 && <span className={styles.hint}>No count columns: each row shows its {config.show === 'oldest' ? 'oldest task' : 'open tasks'} and priority.</span>}
+      {columns.length === 0 && <span className={styles.hint}>No count columns: each row shows its {config.show === 'oldest' ? 'oldest task' : 'open tasks'}.</span>}
       {columns.map((column, i) => {
         const label = column.name.trim() || `Column ${i + 1}`
         return (
