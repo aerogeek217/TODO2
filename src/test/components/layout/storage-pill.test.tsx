@@ -7,10 +7,13 @@ import {
   storagePillState,
   syncWarningCopy,
   syncWarnings,
+  warningTone,
   type StoragePillInput,
 } from '../../../components/layout/sync-status'
 import { useFileStorageStore } from '../../../services/file-storage-store'
 import { useFileOpsStore } from '../../../stores/file-ops-store'
+import { usePurgeNoticeStore } from '../../../stores/purge-notice-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 import { useUIStore } from '../../../stores/ui-store'
 
 const base: StoragePillInput = {
@@ -69,6 +72,19 @@ describe('storagePillState', () => {
     expect(storagePillState({ ...connected, dismissedError: 'Failed to save to file', snapshotWarning: 'x' }).kind).toBe('backup')
   })
 
+  it('the purge notice: its count as text, quiet; any sync or backup warning outranks it, and it counts', () => {
+    const purge = { count: 17, retentionDays: 30, intervalDays: 7 }
+    expect(storagePillState({ ...base, purge })).toEqual({ kind: 'purge', text: '17 old completed', warningCount: 1 })
+    expect(storagePillState({ ...base, isConnected: true, fileName: 'f.json', purge })).toMatchObject({ kind: 'purge' })
+    expect(warningTone('purge')).toBe('notice')
+    for (const kind of ['permission', 'paused', 'error', 'backup'] as const) {
+      expect(storagePillState({ ...base, fileName: 'f.json', ...ON[kind], purge }), kind).toMatchObject({ kind, warningCount: 2 })
+      expect(syncWarnings({ ...base, fileName: 'f.json', ...ON[kind], purge }).map((w) => w.kind)).toEqual([kind, 'purge'])
+    }
+    expect(storagePillState({ ...base, purge: { ...purge, count: 0 } }).kind).toBe('local')
+    expect(storagePillState({ ...base, purge: null }).kind).toBe('local')
+  })
+
   it('the accessible name counts several warnings', () => {
     expect(storagePillLabel(storagePillState({ ...base, ...ON.paused, ...ON.backup }))).toBe('Storage: Sync paused, 2 warnings')
     expect(storagePillLabel(storagePillState({ ...base, ...ON.paused }))).toBe('Storage: Sync paused')
@@ -111,6 +127,16 @@ describe('syncWarningCopy', () => {
       .toBe('It was saved anyway — a partly restorable backup beats none. Check it in Settings › Database › Backups.')
     expect(syncWarningCopy({ kind: 'backup', message: 'No backup was taken before importing the file — the backup could not be saved.' }).body)
       .toBe('Free up browser storage so the next one works, or delete old backups.')
+  })
+
+  it('purge: how many, past how many days, and that nothing is deleted until the dialog', () => {
+    expect(syncWarningCopy({ kind: 'purge', count: 17, retentionDays: 30, intervalDays: 7 })).toEqual({
+      title: 'Old completed tasks',
+      why: '17 completed tasks are older than 30 days.',
+      flag: null,
+      body: 'Review… lists them; nothing is deleted until you choose there. Not now asks again in 7 days.',
+    })
+    expect(syncWarningCopy({ kind: 'purge', count: 1, retentionDays: 1, intervalDays: 1 }).why).toBe('1 completed task is older than 1 day.')
   })
 })
 
@@ -246,6 +272,46 @@ describe('StoragePill', () => {
     fireEvent.click(screen.getByRole('button', { name: 'File storage settings…' }))
     expect(useUIStore.getState()).toMatchObject({ settingsOpen: true, settingsSection: 'database', settingsPart: 'file-storage' })
     expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('purge notice: the pill shows its count; Review… opens the dialog, Not now settles it and stamps the interval', async () => {
+    useSettingsStore.setState({ completedRetentionDays: 30, purgePromptIntervalDays: 7 })
+    usePurgeNoticeStore.setState({ uids: new Set(['a']), count: 17 })
+    render(<StoragePill />)
+    const pill = screen.getByRole('button', { name: 'Storage: 17 old completed' })
+    expect(pill).toHaveTextContent(/^17 old completed$/)
+    expect(pill).toHaveAttribute('data-state', 'purge')
+    expect(pill.className).toMatch(/notice/)
+    fireEvent.click(pill)
+    const popover = screen.getByRole('dialog', { name: 'Old completed tasks' })
+    expect(popover).toHaveTextContent('17 completed tasks are older than 30 days.')
+    fireEvent.click(within(popover).getByRole('button', { name: 'Review…' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(usePurgeNoticeStore.getState().reviewing).toBe(true)
+    // Opening the review writes nothing by itself (the dialog's host stamps as it shows).
+    expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
+
+    act(() => usePurgeNoticeStore.setState({ reviewing: false }))
+    fireEvent.click(pill)
+    fireEvent.click(within(screen.getByRole('dialog', { name: 'Old completed tasks' })).getByRole('button', { name: 'Not now' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(usePurgeNoticeStore.getState()).toMatchObject({ uids: null, count: 0 })
+    expect(pill).toHaveAttribute('data-state', 'local')
+    await vi.waitFor(() => expect(useSettingsStore.getState().purgePromptLastAt).not.toBeNull())
+  })
+
+  it('a sync warning and the purge notice: the warning on the pill, both in the popover', () => {
+    useSettingsStore.setState({ completedRetentionDays: 30 })
+    usePurgeNoticeStore.setState({ uids: new Set(['a']), count: 3 })
+    useFileStorageStore.setState({ fileName: 'f.json', needsPermission: true })
+    render(<StoragePill />)
+    const pill = screen.getByRole('button', { name: 'Storage: Permission needed, 2 warnings' })
+    fireEvent.click(pill)
+    const popover = screen.getByRole('dialog', { name: 'Permission needed' })
+    expect([...popover.querySelectorAll('[data-warning]')].map((s) => s.getAttribute('data-warning'))).toEqual(['permission', 'purge'])
+    // Not now on the notice keeps the popover on the warning left.
+    fireEvent.click(within(popover).getByRole('button', { name: 'Not now' }))
+    expect(screen.getByRole('dialog', { name: 'Permission needed' }).querySelectorAll('[data-warning]')).toHaveLength(1)
   })
 
   it('announces a warning that appears, once; not one already showing', () => {

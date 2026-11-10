@@ -15,7 +15,7 @@ interface PurgeCompletedDialogProps {
   retentionDays: number
   /** Tasks were deleted (with or without an archive). */
   onDone: () => void
-  /** "Not now" / Escape — nothing deleted; asked again at a launch once the prompt interval has passed. */
+  /** "Not now" / Escape — nothing deleted; the notice comes back at a launch once the interval has passed. */
   onDismiss: () => void
 }
 
@@ -30,8 +30,9 @@ function completedLabel(t: PersistedTodoItem): string {
 }
 
 /**
- * Launch prompt for the completed-task retention setting — completed tasks
- * past retention are never deleted silently. Nothing is deleted until the user picks
+ * The purge dialog for the completed-task retention setting, opened from the
+ * storage pill's notice (Review…) — completed tasks past retention are never
+ * deleted silently. Nothing is deleted until the user picks
  * **Export & delete** (archive file first; cancelling the file picker
  * deletes nothing) or **Delete**; **Not now** deletes nothing (asked again once the prompt interval has passed).
  */

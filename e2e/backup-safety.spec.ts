@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { selectTaskRowByTitle, taskRowByTitle } from './fixtures/seed'
 import { gotoSettingsDeepLink, openSettings, seedTaskList } from './fixtures/workspace'
 import { readStore, writeStores } from './fixtures/db'
+import { reviewPurge } from './fixtures/purge-notice'
 
 /**
  * Backups before destructive operations: a backup snapshot that can't be
@@ -54,7 +55,7 @@ function dbBackups(page: Page): Promise<Array<{ trigger: string; data: string }>
 
 /**
  * A task completed 60 days ago ("Old done") and open tasks titled `open`,
- * with completed tasks kept 30 days: the next launch offers to purge it.
+ * with completed tasks kept 30 days: the next launch's purge notice offers it.
  */
 async function seedExpired(page: Page, open: string[] = []) {
   const now = Date.now()
@@ -218,8 +219,7 @@ test('Export & delete after a plain download asks "Did the file save?" before de
   await seedExpired(page, ['Keep'])
   await page.reload()
 
-  const purge = page.getByRole('dialog', { name: 'Delete 1 old completed task?' })
-  await expect(purge).toBeVisible()
+  const purge = await reviewPurge(page, { count: 1 })
 
   const firstDownload = page.waitForEvent('download')
   await purge.getByRole('button', { name: 'Export & delete' }).click()
@@ -249,8 +249,7 @@ test('launch purge: a failed backup asks first — Cancel keeps the tasks, Conti
   await page.reload()
   await failBackups(page, true)
 
-  const purge = page.getByRole('dialog', { name: 'Delete 1 old completed task?' })
-  await expect(purge).toBeVisible()
+  const purge = await reviewPurge(page, { count: 1 })
   await purge.getByRole('button', { name: 'Delete', exact: true }).click()
   const prompt = backupPrompt(page)
   await expect(prompt).toBeVisible()
@@ -286,8 +285,8 @@ test.describe('phone', () => {
     await page.reload()
     await failBackups(page, true)
 
-    const purge = page.getByRole('dialog', { name: 'Delete 1 old completed task?' })
-    await expect(purge).toBeVisible()
+    // No dialog at launch: the status button carries the notice; its sheet's Review… opens the dialog.
+    const purge = await reviewPurge(page, { phone: true, count: 1 })
     await purge.getByRole('button', { name: 'Delete', exact: true }).click()
     const prompt = backupPrompt(page)
     await expect(prompt).toBeVisible()
