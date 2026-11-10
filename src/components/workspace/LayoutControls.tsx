@@ -3,10 +3,8 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { ownerLayoutId } from '../../models/list-definition'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
-import { useUnsavedListIds } from '../../hooks/use-list-draft'
 import { DeleteLayoutDialog, LayoutNameDialog } from './LayoutDialogs'
 import { LayoutTabs } from './LayoutTabs'
-import { UnsavedPrompt } from './UnsavedPrompt'
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, HuedLayoutIcon, PencilIcon, PlusIcon, TrashIcon, WarningIcon } from '../shared/icons'
 import styles from './LayoutControls.module.css'
 import { withViewTransition } from '../shared/view-transition'
@@ -15,9 +13,7 @@ import { withViewTransition } from '../shared/view-transition'
 export type LayoutControlsMode = 'tabs' | 'menu'
 
 type Pending =
-  | { kind: 'switch'; id: number; name: string }
   | { kind: 'new-name' }
-  | { kind: 'new-confirm'; name: string }
   | { kind: 'duplicate' }
   | { kind: 'rename'; id: number; name: string }
   | { kind: 'delete'; id: number; name: string }
@@ -35,16 +31,14 @@ type Pending =
  *   layout…, Edit…, Delete layout….
  *
  * One order feeds both (the store's `layouts`); a reorder is saved at once.
- * New layout asks for a name and stores the empty layout at once. Leaving
- * a list with unsaved edits for another layout or a new one asks Save /
- * Discard / Cancel first (the layout itself never asks: it is saved).
+ * New layout asks for a name and stores the empty layout at once. Nothing
+ * is ever unsaved, so switching layouts asks nothing.
  */
 export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
   const layouts = useWorkspaceStore((s) => s.layouts)
   const working = useWorkspaceStore((s) => s.working)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
   const writing = useWorkspaceStore((s) => s.writesPending > 0)
-  const unsavedLists = useUnsavedListIds()
   const [menuOpen, setMenuOpen] = useState(false)
   const [tabMenu, setTabMenu] = useState<{ id: number; x: number; y: number } | null>(null)
   const [pending, setPending] = useState<Pending | null>(null)
@@ -53,13 +47,11 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
   if (!working) return null
   const store = useWorkspaceStore.getState
   const name = working.name
-  const unsaved = unsavedLists.length > 0
 
   const close = () => setPending(null)
-  const switchTo = (id: number, targetName: string) => {
+  const switchTo = (id: number) => {
     if (id === activeLayoutId) return
-    if (unsaved) setPending({ kind: 'switch', id, name: targetName })
-    else withViewTransition(() => store().load(id))
+    withViewTransition(() => store().load(id))
   }
   const create = (layoutName: string) => { void store().createLayout(layoutName) }
   const nameOf = (id: number) => layouts.find((l) => l.id === id)?.name ?? ''
@@ -81,7 +73,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
       radio: true,
       checked: l.id === activeLayoutId,
       dragId: String(l.id),
-      onSelect: () => switchTo(l.id, l.name),
+      onSelect: () => switchTo(l.id),
     })),
     { kind: 'separator' },
     { kind: 'item', label: 'New layout…', icon: <PlusIcon />, onSelect: () => setPending({ kind: 'new-name' }) },
@@ -141,7 +133,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
         <LayoutTabs
           layouts={layouts}
           activeLayoutId={activeLayoutId}
-          onActivate={(l) => switchTo(l.id, l.name)}
+          onActivate={(l) => switchTo(l.id)}
           onOpenMenu={(id, p) => setTabMenu({ id, ...p })}
           onMove={(id, to) => { void store().moveLayout(id, to) }}
           onNew={() => setPending({ kind: 'new-name' })}
@@ -185,32 +177,13 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           onClose={() => setTabMenu(null)}
         />
       )}
-      {pending?.kind === 'switch' && (
-        <UnsavedPrompt
-          lead={`You’re switching to layout “${pending.name}”.`}
-          listIds={unsavedLists}
-          onDone={() => { close(); withViewTransition(() => store().load(pending.id)) }}
-          onCancel={close}
-        />
-      )}
       {pending?.kind === 'new-name' && (
         <LayoutNameDialog
           title="New layout"
           confirmLabel="Create layout"
           initialName=""
           placeholder="Layout name"
-          onConfirm={(n) => {
-            if (unsaved) setPending({ kind: 'new-confirm', name: n })
-            else { close(); create(n) }
-          }}
-          onCancel={close}
-        />
-      )}
-      {pending?.kind === 'new-confirm' && (
-        <UnsavedPrompt
-          lead={`You’re starting a new layout “${pending.name}”.`}
-          listIds={unsavedLists}
-          onDone={() => { close(); create(pending.name) }}
+          onConfirm={(n) => { close(); create(n) }}
           onCancel={close}
         />
       )}

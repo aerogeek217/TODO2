@@ -10,7 +10,6 @@ import {
   type Modifier,
   type SensorInstance,
 } from '@dnd-kit/core'
-import { useBlocker } from 'react-router'
 import type { PersistedTodoItem } from '../models'
 import type { CalendarDateType } from '../models/workspace-layout'
 import { useWorkspaceStore } from '../stores/workspace-store'
@@ -35,14 +34,11 @@ import { MobileWorkspaceView } from '../components/workspace/MobileWorkspaceView
 import { SyncStatusButton } from '../components/layout/SyncStatusButton'
 import { useIsMobile } from '../hooks/use-is-mobile'
 import { measureWorkspace } from '../components/workspace/measure'
-import { UnsavedPrompt } from '../components/workspace/UnsavedPrompt'
 import { EditListHost } from '../components/workspace/list/EditList'
 import { NumberEditorHost } from '../components/workspace/glance/NumberEditor'
 import { ChartEditorHost } from '../components/workspace/glance/ChartEditor'
 import { PulseEditorHost } from '../components/workspace/glance/PulseEditor'
-import { getUnsavedListIds, useListDraftStore } from '../stores/list-draft-store'
-import { unsavedDraftsKept } from '../data/draft-storage'
-import { useUnsavedListIds } from '../hooks/use-list-draft'
+import { applyKeptListDrafts } from '../stores/list-draft-store'
 import { WidgetKindIcon } from '../components/shared/icons'
 import {
   isWorkspaceDragType,
@@ -249,47 +245,6 @@ function PanelGhost({ tabs }: { tabs: WorkspaceDragState['tabs'] }) {
 }
 
 /**
- * Blocks in-app navigation away from unsaved list edits until the user
- * answers (layouts are saved at once: nothing about them is asked).
- * Closing or reloading the tab loses nothing: the unsaved list edits are
- * kept in the browser and come back unsaved (`data/draft-storage`), so the
- * browser's generic "leave site?" prompt is asked only when they couldn't
- * be kept (storage full or blocked).
- */
-function UnsavedNavigationGuard() {
-  const unsavedLists = useUnsavedListIds()
-  const blocker = useBlocker(
-    useCallback(
-      ({ currentLocation, nextLocation }: { currentLocation: { pathname: string }; nextLocation: { pathname: string } }) =>
-        getUnsavedListIds().length > 0 && currentLocation.pathname !== nextLocation.pathname,
-      [],
-    ),
-  )
-
-  const unsaved = unsavedLists.length > 0
-  useEffect(() => {
-    if (!unsaved) return
-    const onBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (unsavedDraftsKept()) return
-      e.preventDefault()
-      e.returnValue = ''
-    }
-    window.addEventListener('beforeunload', onBeforeUnload)
-    return () => window.removeEventListener('beforeunload', onBeforeUnload)
-  }, [unsaved])
-
-  if (blocker.state !== 'blocked') return null
-  return (
-    <UnsavedPrompt
-      lead="You’re leaving the workspace."
-      listIds={unsavedLists}
-      onDone={() => blocker.proceed()}
-      onCancel={() => blocker.reset()}
-    />
-  )
-}
-
-/**
  * dnd-kit scrolls the dragged item's scrollable ancestors whenever the
  * pointer is near or past their edges — even from another column, so a row
  * dragged out of a list toward a calendar scrolled the list. Only scroll a
@@ -391,8 +346,8 @@ export function WorkspacePage() {
   // file load) has finished before any page mounts.
   useEffect(() => {
     if (!useWorkspaceStore.getState().hydrated) void useWorkspaceStore.getState().init()
-    // Unsaved list edits kept from before a reload.
-    void useListDraftStore.getState().restore()
+    // Unsaved list edits a build before list autosave kept: applied once, or dropped.
+    void applyKeptListDrafts()
   }, [])
 
   const pointerSensor = useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } })
@@ -517,7 +472,6 @@ export function WorkspacePage() {
       <NumberEditorHost />
       <ChartEditorHost />
       <PulseEditorHost />
-      <UnsavedNavigationGuard />
     </DndContext>
   )
 }

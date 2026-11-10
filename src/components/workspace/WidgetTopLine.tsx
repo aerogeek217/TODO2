@@ -155,21 +155,14 @@ export function WidgetTopLine({ as = 'div', className, style, lead, controls = '
 
 /**
  * A slim name line (Notes, the Eisenhower, the Neglect map): the widget's
- * name — with the unsaved dot while the list it shows has unsaved edits (the
- * Eisenhower's own), as its tab would — and `children` after it. Alone in
- * its cell only.
+ * name and `children` after it. Alone in its cell only.
  */
-export function WidgetNameLine({ name, unsaved = false, children }: { name: string; unsaved?: boolean; children?: ReactNode }) {
+export function WidgetNameLine({ name, children }: { name: string; children?: ReactNode }) {
   return (
     <WidgetTopLine
       alone
       className={styles.nameLine}
-      lead={(
-        <>
-          <span className={styles.name} data-testid="top-line-name">{name}</span>
-          {unsaved && <span className={styles.unsavedDot} role="img" aria-label="unsaved list changes" />}
-        </>
-      )}
+      lead={<span className={styles.name} data-testid="top-line-name">{name}</span>}
     >
       {children}
     </WidgetTopLine>

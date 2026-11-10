@@ -49,8 +49,6 @@ export interface FilterRefs {
 export interface FilterSources {
   /** Every list — the layouts' and the Eisenhower's own. */
   lists: readonly ListDefinition[]
-  /** Unsaved edits by list id: a list counts once whether its saved filter or its draft names the entry. */
-  drafts?: Readonly<Record<number, ListDefinition>>
   /** The app-wide Eisenhower panes as stored (a pane without a filter of its own names nobody). */
   panes: EisenhowerPanes
   checkinFilter: TodoPredicate
@@ -85,11 +83,7 @@ export function filterReferences(sources: FilterSources, kind: 'person' | 'tag')
     return r
   }
   for (const list of sources.lists) {
-    const draft = list.id != null ? sources.drafts?.[list.id] : undefined
-    const ids = new Set([
-      ...namedIds(list.membership.predicate, field),
-      ...namedIds(draft?.membership.predicate, field),
-    ])
+    const ids = new Set(namedIds(list.membership.predicate, field))
     for (const id of ids) at(id).lists += 1
   }
   for (const pane of Object.values(sources.panes)) {

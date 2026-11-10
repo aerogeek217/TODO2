@@ -1,20 +1,19 @@
 import { useState } from 'react'
 import { BREAKDOWN_PRESET_LABELS, BREAKDOWN_PRESETS, breakdownPreset, type BreakdownPreset } from '../../models/chart-widgets'
-import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, WIDGET_KINDS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
+import { WIDGET_KIND_GROUPS, WIDGET_KIND_SPECS, widgetKindLabel, widgetKindsOf, type WidgetKind } from '../../models/workspace-layout'
 import type { LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { WidgetKindMenu } from '../shared/WidgetKindMenu'
 import type { MenuEntry, MenuItemEntry } from '../shared/MenuPopover'
 import { addWherePicture, addWhereTarget, type AddWhere } from './add-widget-where'
 import { WidgetKindIcon } from '../shared/icons'
-import { createListThenEdit, NO_LIST_LAYOUT_REASON, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
+import { createListThenEdit, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
 import styles from './AddWidgetFlow.module.css'
 
 /**
  * Adds a widget of `kind` at `target`. A list widget gets a new blank list
  * of the open layout and opens its Edit list at once (`createListThenEdit`)
  * — copying another list's setup is Edit list's Copy from…. Nothing for a
- * list while the open layout isn't stored (`layoutId` undefined): it can't
- * own a list yet.
+ * list before the workspace has opened a layout (`layoutId` undefined).
  */
 function useAddKind(target: LayoutDropTarget): (kind: WidgetKind) => void {
   const add = useAddWidget()
@@ -45,13 +44,6 @@ function breakdownPresetItems(addBreakdown: (preset: BreakdownPreset) => void): 
   }))
 }
 
-/** The kinds that can't be added to the open layout yet, with why (a list, while the layout isn't stored). */
-function useUnavailableKinds(): Partial<Record<WidgetKind, string>> | undefined {
-  const layoutId = useListOwnerLayoutId()
-  if (layoutId != null) return undefined
-  return Object.fromEntries(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList).map((k) => [k, NO_LIST_LAYOUT_REASON]))
-}
-
 interface AddWidgetFlowProps {
   /** The cell it is added from. */
   cellId: string
@@ -76,7 +68,6 @@ export function AddWidgetFlow({ cellId, initialWhere = 'tab', anchor, onClose }:
     <WidgetKindMenu
       anchor={anchor}
       heading="Add widget"
-      unavailableKinds={useUnavailableKinds()}
       onChangeKind={addKind}
       leadEntries={lead}
       kindPresets={{ breakdown: breakdownPresetItems(addBreakdown) }}
@@ -102,7 +93,6 @@ export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconS
   const addBreakdown = useAddBreakdown(target)
   // A Breakdown's button adds a Custom one (its editor opens).
   const addKind = (kind: WidgetKind) => (kind === 'breakdown' ? addBreakdown('custom') : addKindOnly(kind))
-  const unavailable = useUnavailableKinds()
   return (
     <>
       {WIDGET_KIND_GROUPS.map(({ group, label }) => (
@@ -114,8 +104,6 @@ export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconS
                 key={kind}
                 type="button"
                 className={buttonClassName}
-                disabled={unavailable?.[kind] != null}
-                title={unavailable?.[kind]}
                 onClick={() => addKind(kind)}
               >
                 <span className={iconClassName}><WidgetKindIcon kind={kind} size={iconSize} /></span>

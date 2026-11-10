@@ -154,16 +154,16 @@ describe('a list’s lens switch', () => {
     expect(lensSwitch()).toBeNull()
   })
 
-  it('a draft’s Save keeps the saved list’s switch', async () => {
+  it('Edit list’s Save keeps the saved list’s switch (written at once, meanwhile)', async () => {
     pickAliceLens()
     await setup(def())
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, name: 'Team renamed' })))
     fireEvent.click(lensSwitch()!)
     await waitFor(() => expect(useListDefinitionStore.getState().listDefinitions[0]?.ignoreLens).toBe(true))
-    // Still the draft's list, still unsaved by its name alone.
+    // Still the draft's list, still a draft by its name alone.
     expect(useListDraftStore.getState().drafts[7]?.name).toBe('Team renamed')
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
-    await act(() => useListDraftStore.getState().save(7))
+    await act(() => useListDefinitionStore.getState().editList(7, () => useListDraftStore.getState().drafts[7]!, 'Edited list'))
     const saved = useListDefinitionStore.getState().listDefinitions[0]
     expect(saved).toMatchObject({ name: 'Team renamed', ignoreLens: true })
   })

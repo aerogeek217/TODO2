@@ -12,11 +12,14 @@ import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { useSettingsStore } from '../../../stores/settings-store'
+import { configPatch, withConfigPatch } from '../../../utils/config-patch'
 import { withCopiedParts } from '../../../utils/list-copy'
 import { findTab, layoutTabs } from '../../../utils/workspace-layout-queries'
 import { ListEditorBody } from '../../shared/ListEditorBody'
+import { ExpressionReportProvider, useExpressionReports } from '../../shared/filters/expression-report'
 import { CloseIcon, LinkIcon } from '../../shared/icons'
-import { EDIT_LIST_KEEP_ATTR } from './edit-list-keep'
+import { SAVE_UNREADABLE_TITLE } from '../glance/editor-draft'
+import { EDIT_LIST_KEEP_ATTR, setEditListCloseRequest } from './edit-list-keep'
 import styles from './EditList.module.css'
 import { shortcutScope } from '../../../utils/dom-contract'
 import { PopoverRoot } from '../../shared/PopoverRoot'
@@ -30,25 +33,100 @@ const VIEWPORT_MARGIN_PX = 8
 /** The popover's top sits this far below the panel's top (its arrow then points at the tab strip). */
 const TOP_INSET_PX = 6
 
+/** Why Save is off while the name is blank. */
+const NAME_TO_SAVE_TITLE = 'Name the list to save it'
+
 /**
- * The list as edited (its shared draft, else the saved list), the saved
- * list, and the draft actions. Save list and Revert finish the edit, so they
- * close the surface too (a failed save keeps the edits unsaved; Revert is
- * undoable). Copy from takes another list's filters, group, sort, prompt
- * and filter line into the draft (`withCopiedParts`: the name and the
- * manual order stay) — an unsaved edit like any other.
+ * Edit list's draft and its Save / Discard — the widget editors' pattern
+ * (`glance/editor-draft`): the form edits a draft of the list, which every
+ * widget showing the list draws live (`list-draft-store`, in memory only),
+ * and nothing is written until **Save** — then, for good and as one undo
+ * step (`Edited list “This week”`, `list-definition-store.editList`), only
+ * the parts the draft changed since the surface opened, over the list as it
+ * is then. **Discard** drops the draft. Closing with changes
+ * (`requestClose`: Esc, ×, a press elsewhere, the sheet's scrim or handle,
+ * the filter line's words or summary) asks Save / Discard / Keep editing
+ * (the shared confirm prompt); with none it just closes. However the
+ * surface goes, its draft goes with it. Copy from takes another list's
+ * filters, group, sort, prompt and filter line into the draft
+ * (`withCopiedParts`: the name and the manual order stay).
  */
 function useEditListModel(listDefinitionId: number, onClose: () => void) {
   const saved = useListDefinitionStore((s) => s.listDefinitions.find((d) => d.id === listDefinitionId))
   const draft = useListDraftStore((s) => s.drafts[listDefinitionId])
+  // The list as the surface opened on it: Save writes what the draft changed since.
+  const [base] = useState(saved)
   const widgets = useListWidgetCount(listDefinitionId)
   const copyGroups = useCopySources(listDefinitionId)
+  const expressions = useExpressionReports()
   const def = saved ? (draft ?? saved) : undefined
+  const changed = (saved != null && draft != null) || expressions.pending
+  const nameBlank = def != null && def.name.trim() === ''
+  const canSave = changed && !expressions.unreadable && !nameBlank
+
+  // The draft goes when the surface does, whichever way it closes.
+  useEffect(() => () => useListDraftStore.getState().discard(listDefinitionId), [listDefinitionId])
+
+  const onCloseRef = useLatestRef(onClose)
+  const saveNow = useCallback(() => {
+    // Read now: a field's write on blur lands just before the click that saves.
+    const edited = useListDraftStore.getState().drafts[listDefinitionId]
+    const lists = useListDefinitionStore.getState()
+    const from = base ?? lists.listDefinitions.find((d) => d.id === listDefinitionId)
+    if (edited && from) {
+      const patch = configPatch(from, edited)
+      const name = edited.name.trim() || from.name
+      void lists.editList(listDefinitionId, (now) => withConfigPatch(now, patch), `Edited list “${name}”`)
+    }
+    useListDraftStore.getState().discard(listDefinitionId)
+    onCloseRef.current()
+  }, [base, listDefinitionId, onCloseRef])
+  const discard = useCallback(() => {
+    useListDraftStore.getState().discard(listDefinitionId)
+    onCloseRef.current()
+  }, [listDefinitionId, onCloseRef])
+
+  const canSaveRef = useLatestRef(canSave)
+  const save = useCallback(() => {
+    if (canSaveRef.current) saveNow()
+  }, [canSaveRef, saveNow])
+
+  const changedRef = useLatestRef(changed)
+  const nameRef = useLatestRef(base?.name ?? saved?.name ?? 'List')
+  const asking = useRef(false)
+  const requestClose = useCallback((): boolean => {
+    if (asking.current) return true
+    if (!changedRef.current) {
+      discard()
+      return false
+    }
+    asking.current = true
+    void useUIStore.getState().askChoice({
+      title: `Save changes to list “${nameRef.current}”?`,
+      message: 'Your changes will be lost if you don’t save.',
+      confirmLabel: 'Save',
+      discardLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+    }).then((answer) => {
+      asking.current = false
+      if (answer === 'confirm') saveNow()
+      else if (answer === 'discard') discard()
+    })
+    return true
+  }, [changedRef, nameRef, saveNow, discard])
+
+  // The filter line's words and summary, and Edit list opened elsewhere, ask through it.
+  useEffect(() => {
+    setEditListCloseRequest(requestClose)
+    return () => setEditListCloseRequest(null)
+  }, [requestClose])
+
   return {
     def,
     saved,
-    dirty: saved != null && draft != null,
-    canSave: saved != null && draft != null && draft.name.trim() !== '',
+    changed,
+    canSave,
+    saveTitle: nameBlank ? NAME_TO_SAVE_TITLE : changed && expressions.unreadable ? SAVE_UNREADABLE_TITLE : undefined,
     widgets,
     copyFrom: {
       groups: copyGroups,
@@ -56,16 +134,14 @@ function useEditListModel(listDefinitionId: number, onClose: () => void) {
         useListDraftStore.getState().edit(listDefinitionId, (current) => withCopiedParts(current, source.def)),
     },
     onChange: (next: PersistedListDefinition) => useListDraftStore.getState().edit(listDefinitionId, () => next),
-    save: () => {
-      void useListDraftStore.getState().save(listDefinitionId)
-      onClose()
-    },
-    revert: () => {
-      useListDraftStore.getState().revert(listDefinitionId)
-      onClose()
-    },
+    save,
+    discard,
+    requestClose,
+    reportExpression: expressions.report,
   }
 }
+
+type EditListModel = ReturnType<typeof useEditListModel>
 
 /** `Shared · N widgets` / `In 1 widget`. */
 function sharedText(widgets: number): string {
@@ -78,12 +154,13 @@ function isPageTarget(target: EventTarget | null): boolean {
 }
 
 /**
- * Esc closes the surface when the key comes from inside it (or with nothing
- * focused) and no layer inside handled it first — a menu or a filter picker
- * opened from it takes its own Esc. Bubble phase, after those layers.
+ * Esc asks the surface to close (`requestClose`) when the key comes from
+ * inside it (or with nothing focused) and no layer inside handled it first
+ * — a menu or a filter picker opened from it, the close question, take
+ * their own Esc. Bubble phase, after those layers.
  */
-function useEscapeCloses(panelRef: React.RefObject<HTMLElement | null>, onClose: () => void): void {
-  const onCloseRef = useLatestRef(onClose)
+function useEscapeCloses(panelRef: React.RefObject<HTMLElement | null>, requestClose: () => boolean): void {
+  const requestRef = useLatestRef(requestClose)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return
@@ -92,11 +169,11 @@ function useEscapeCloses(panelRef: React.RefObject<HTMLElement | null>, onClose:
       if (!inside && !isPageTarget(e.target)) return
       e.preventDefault()
       e.stopPropagation()
-      onCloseRef.current()
+      requestRef.current()
     }
     document.addEventListener('keydown', onKey)
     return () => document.removeEventListener('keydown', onKey)
-  }, [panelRef, onCloseRef])
+  }, [panelRef, requestRef])
 }
 
 /**
@@ -122,16 +199,15 @@ function useFocusReturn(panelRef: React.RefObject<HTMLElement | null>, tabId: st
 /**
  * Edit list: the one surface for a list's name, filters, group, sort,
  * prompt and Show completed, and Copy from (another list's parts into this
- * one). Every control edits the list's shared draft at
- * once (`list-draft-store`), so every widget showing the list updates live
- * and shows it unsaved; Save list / Revert act on that draft and close it. Desktop: a
- * non-modal popover beside the list's panel; phone: a half sheet with the
- * list live above it. Opened through `ui-store.openListEditor` (one at a
- * time). Every way it closes — Esc, ×, a press elsewhere (which goes on to
- * what it pressed), the sheet's scrim or handle, another list's Edit list,
- * Settings, the list leaving the screen — closes it at once: an unsaved list
- * keeps its draft, shown by the tab's dot and Revert · Save on its filter
- * line.
+ * one). Every control edits the list's draft (`useEditListModel`), which
+ * every widget showing the list draws live; Save writes it for good as one
+ * undo step, Discard drops it. Desktop: a non-modal popover beside the
+ * list's panel; phone: a half sheet with the list live above it. Opened
+ * through `ui-store.openListEditor` (one at a time). Esc, ×, a press
+ * elsewhere, the sheet's scrim or handle ask first while it has changes
+ * (Save / Discard / Keep editing — the press that asked goes no further)
+ * and close at once while it has none; the list leaving the screen or
+ * Settings opening close it and drop its draft.
  */
 export function EditListHost() {
   const target = useUIStore((s) => s.listEditor)
@@ -153,22 +229,24 @@ export function EditListHost() {
 interface SurfaceProps {
   listDefinitionId: number
   tabId: string
-  /** Closes it (an unsaved list keeps its draft). */
+  /** Closes it at once (its draft goes with it). */
   onClose: () => void
 }
 
 /**
- * A press elsewhere closes the popover and goes on to what it pressed. Not:
- * inside it, on a control that acts on its list (`EDIT_LIST_KEEP_ATTR`), or
- * in a layer portaled out of the app — the menus, pickers and dialogs opened
- * from it. A press in the list's own panel counts.
+ * A press elsewhere asks the popover to close (`requestClose`). Not
+ * elsewhere: inside it, on a control that acts on its list
+ * (`EDIT_LIST_KEEP_ATTR`), or in a layer portaled out of the app — the
+ * menus, pickers and dialogs opened from it, the close question. A press in
+ * the list's own panel counts. A press it lets close goes on to what it
+ * pressed; one it holds (it asked) is swallowed, its click too.
  */
 function usePressElsewhereCloses(
   panelRef: React.RefObject<HTMLElement | null>,
   listDefinitionId: number,
-  onClose: () => void,
+  requestClose: () => boolean,
 ): void {
-  const onCloseRef = useLatestRef(onClose)
+  const requestRef = useLatestRef(requestClose)
   useEffect(() => {
     const isElsewhere = (t: EventTarget | null): boolean => {
       if (!(t instanceof Element) || !t.isConnected) return false
@@ -178,24 +256,40 @@ function usePressElsewhereCloses(
       if (root && !root.contains(t)) return false
       return !t.closest('[role="menu"], [role="dialog"], [role="alertdialog"], [role="listbox"], [role="tooltip"]')
     }
-    // A real press starts with pointerdown (handled there); a lone mousedown
-    // (no pointer events) is handled too.
-    let pointerHandled = false
+    // A real press starts with pointerdown (decided there); its mousedown
+    // follows. A lone mousedown (no pointer events) is decided itself.
+    let pointerDecided = false
+    let held = false
     const onPress = (e: Event) => {
-      if (e.type === 'mousedown' && pointerHandled) {
-        pointerHandled = false
+      if (e.type === 'mousedown' && pointerDecided) {
+        pointerDecided = false
+        if (held) {
+          e.preventDefault()
+          e.stopPropagation()
+        }
         return
       }
-      if (e.type === 'pointerdown') pointerHandled = true
-      if (isElsewhere(e.target)) onCloseRef.current()
+      pointerDecided = e.type === 'pointerdown'
+      held = isElsewhere(e.target) && requestRef.current()
+      if (!held) return
+      if (e.type === 'mousedown') e.preventDefault()
+      e.stopPropagation()
+    }
+    const onClick = (e: MouseEvent) => {
+      if (!held) return
+      held = false
+      e.preventDefault()
+      e.stopPropagation()
     }
     document.addEventListener('pointerdown', onPress, true)
     document.addEventListener('mousedown', onPress, true)
+    document.addEventListener('click', onClick, true)
     return () => {
       document.removeEventListener('pointerdown', onPress, true)
       document.removeEventListener('mousedown', onPress, true)
+      document.removeEventListener('click', onClick, true)
     }
-  }, [panelRef, listDefinitionId, onCloseRef])
+  }, [panelRef, listDefinitionId, requestRef])
 }
 
 /** Where the popover goes: beside the panel (the hook picks the side), or below its filter line when neither side fits. */
@@ -277,9 +371,9 @@ function createPlacementStore(tabId: string, cellId: string | undefined, shown: 
 /**
  * The desktop popover: 400 wide (340 where only that fits) beside the list's
  * panel (right, else left, else below its filter line), its arrow at the panel's tab strip. Not
- * modal — the list stays in view, updating live; a press elsewhere in the
- * app (its own panel included), Esc or × close it, and so does the list
- * leaving the screen.
+ * modal — the list stays in view, drawing the draft live; a press elsewhere
+ * in the app (its own panel included), Esc or × ask to close it, and the
+ * list leaving the screen closes it.
  */
 function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   const model = useEditListModel(listDefinitionId, onClose)
@@ -323,8 +417,8 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
     panelRef(el)
   }, [panelRef])
 
-  usePressElsewhereCloses(panelElRef, listDefinitionId, onClose)
-  useEscapeCloses(panelElRef, onClose)
+  usePressElsewhereCloses(panelElRef, listDefinitionId, model.requestClose)
+  useEscapeCloses(panelElRef, model.requestClose)
   useFocusReturn(panelElRef, tabId)
 
   // Focus starts in Name once the popover is placed.
@@ -353,14 +447,16 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
       {arrow && <span className={`${styles.arrow} ${arrow === 'right' ? styles.arrowRight : ''}`} aria-hidden="true" />}
       <header className={styles.header}>
         <span className={styles.eyebrow}>Edit list</span>
-        <button type="button" className={styles.close} aria-label="Close Edit list" title="Close" onClick={onClose}>
+        <button type="button" className={styles.close} aria-label="Close Edit list" title="Close" onClick={() => { model.requestClose() }}>
           <CloseIcon size={12} />
         </button>
       </header>
-      <div className={styles.body}>
-        <ListEditorBody draft={model.def} saved={model.saved} onChange={model.onChange} variant="popover" nameRef={nameRef} copyFrom={model.copyFrom} />
-        <p className={styles.hint}>Changes show in the list right away and stay unsaved until you save.</p>
-      </div>
+      <ExpressionReportProvider value={model.reportExpression}>
+        <div className={styles.body}>
+          <ListEditorBody draft={model.def} saved={model.saved} onChange={model.onChange} variant="popover" nameRef={nameRef} copyFrom={model.copyFrom} />
+          <p className={styles.hint}>Changes show in the list right away. Save keeps them; Discard puts the list back.</p>
+        </div>
+      </ExpressionReportProvider>
       <Footer model={model} className={styles.footer} buttonClass={styles.footerButton} saveClass={styles.footerSave}>
         <span className={styles.shared}><LinkIcon /> {sharedText(model.widgets)}</span>
       </Footer>
@@ -369,9 +465,9 @@ function EditListPopover({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   )
 }
 
-/** Revert · Save list: both disabled while the draft equals the saved list. */
+/** Discard · Save, as the widget editors' foot: Save is off while nothing changed, the name is blank or a filter expression doesn't read. */
 function Footer({ model, className, buttonClass, saveClass, children }: {
-  model: ReturnType<typeof useEditListModel>
+  model: EditListModel
   className: string | undefined
   buttonClass: string | undefined
   saveClass: string | undefined
@@ -380,36 +476,37 @@ function Footer({ model, className, buttonClass, saveClass, children }: {
   return (
     <footer className={className}>
       {children}
-      <button type="button" className={buttonClass} disabled={!model.dirty} onClick={model.revert}>
-        Revert
+      <button type="button" className={buttonClass} onClick={model.discard}>
+        Discard
       </button>
       <button
         type="button"
         className={`${buttonClass} ${saveClass}`}
         disabled={!model.canSave}
-        title={model.dirty && !model.canSave ? 'Name the list to save it' : undefined}
+        title={model.saveTitle}
         onClick={model.save}
       >
-        Save list
+        Save
       </button>
     </footer>
   )
 }
 
-/** The handle's drag: up past this opens the sheet full height, down past it closes it. */
+/** The handle's drag: up past this opens the sheet full height, down past it asks to close it. */
 const SHEET_DRAG_PX = 40
 
 /**
  * The phone's half sheet: the same form at touch sizes, 55% of the screen
- * high with the list live above it (a light scrim; a tap on it closes the
- * sheet). The handle drags it up to full height, or down to close.
+ * high with the list live above it (a light scrim; a tap on it asks to
+ * close the sheet, as Esc and × do). The handle drags it up to full height,
+ * or down to close.
  */
 function EditListSheet({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   const model = useEditListModel(listDefinitionId, onClose)
   const sheetRef = useRef<HTMLDivElement | null>(null)
   const [full, setFull] = useState(false)
   const dragFrom = useRef<number | null>(null)
-  useEscapeCloses(sheetRef, onClose)
+  useEscapeCloses(sheetRef, model.requestClose)
   useFocusReturn(sheetRef, tabId)
   // Focus the sheet itself, not Name: no keyboard popping up on open.
   useLayoutEffect(() => { sheetRef.current?.focus({ preventScroll: true }) }, [])
@@ -417,7 +514,7 @@ function EditListSheet({ listDefinitionId, tabId, onClose }: SurfaceProps) {
   if (!model.def || !model.saved) return null
   return createPortal(
     <>
-      <div className={`${styles.scrim} ${full ? styles.scrimFull : ''}`} onClick={onClose} aria-hidden="true" />
+      <div className={`${styles.scrim} ${full ? styles.scrimFull : ''}`} onClick={() => { model.requestClose() }} aria-hidden="true" />
       <div
         ref={sheetRef}
         className={`${styles.sheet} ${full ? styles.sheetFull : ''}`}
@@ -443,20 +540,22 @@ function EditListSheet({ listDefinitionId, tabId, onClose }: SurfaceProps) {
             if (dy < -SHEET_DRAG_PX) setFull(true)
             else if (dy > SHEET_DRAG_PX) {
               if (full) setFull(false)
-              else onClose()
+              else model.requestClose()
             }
           }}
           onPointerCancel={() => { dragFrom.current = null }}
         />
         <header className={styles.sheetHeader}>
           <span className={styles.sheetTitle}>Edit list</span>
-          <button type="button" className={styles.sheetClose} aria-label="Close Edit list" onClick={onClose}>
+          <button type="button" className={styles.sheetClose} aria-label="Close Edit list" onClick={() => { model.requestClose() }}>
             <CloseIcon size={14} />
           </button>
         </header>
-        <div className={styles.sheetBody}>
-          <ListEditorBody draft={model.def} saved={model.saved} onChange={model.onChange} variant="sheet" copyFrom={model.copyFrom} />
-        </div>
+        <ExpressionReportProvider value={model.reportExpression}>
+          <div className={styles.sheetBody}>
+            <ListEditorBody draft={model.def} saved={model.saved} onChange={model.onChange} variant="sheet" copyFrom={model.copyFrom} />
+          </div>
+        </ExpressionReportProvider>
         <Footer model={model} className={styles.sheetFooter} buttonClass={styles.sheetButton} saveClass={styles.sheetSave} />
       </div>
     </>,

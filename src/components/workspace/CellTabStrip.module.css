@@ -109,15 +109,6 @@
   padding: 0 8px;
 }
 
-/* The tab's list has unsaved edits. */
-.unsavedDot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-accent);
-}
-
 /* Its place is kept while hidden: a tab's width never changes on hover. */
 .close {
   display: inline-flex;

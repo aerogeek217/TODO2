@@ -6,7 +6,6 @@ import { ownerLayoutId } from '../models/list-definition'
 import { UndoGone, UndoRefused, useUndoStore, type UndoEntry } from './undo-store'
 import { undoable } from './undoable'
 import { useListDefinitionStore } from './list-definition-store'
-import { useListDraftStore } from './list-draft-store'
 import { useListOrderStore } from './list-order-store'
 import { useTagStore } from './tag-store'
 import { useSettingsStore } from './settings-store'
@@ -191,7 +190,7 @@ export interface WorkspaceState {
   /**
    * Duplicate layout…: stores a copy of the open layout as a new layout
    * named `name` (after the others) and opens it. The lists it shows are
-   * copied for the new layout (as edited, with their manual order) and its
+   * copied for the new layout (with their manual order) and its
    * tabs show the copies; the layout it came from keeps its own. Returns
    * the new id, or `null` for an empty name or a failed write.
    */
@@ -205,7 +204,7 @@ export interface WorkspaceState {
   /**
    * Deletes a layout — never the last one (`false`). Deleting the open layout
    * opens the most recently used remaining one. The lists it owns go with
-   * it (their manual order and unsaved edits too). Not undoable. Never
+   * it (their manual order too). Not undoable. Never
    * rejects: a failed delete is reported and resolves false; a failure after
    * the delete committed (opening the next layout) is reported too.
    */
@@ -403,23 +402,12 @@ function foreignListRefs(before: LayoutBody, next: LayoutBody, layoutId: number)
 }
 
 /**
- * Lists deleted with their layout (or no longer shown by it): out of the
- * list stores, their unsaved edits dropped.
- */
-function forgetDeletedLists(ids: readonly number[]): void {
-  if (ids.length === 0) return
-  useListDefinitionStore.getState().forgetLists(ids)
-  const drafts = useListDraftStore.getState()
-  for (const id of ids) drafts.discard(id)
-}
-
-/**
  * Takes a removal of a layout's lists into the stores: the deleted ones
- * forgotten (`forgetDeletedLists`), the ones handed to another layout read
- * again (their owner changed).
+ * forgotten (an Edit list open on one closes, dropping its draft), the ones
+ * handed to another layout read again (their owner changed).
  */
 async function applyRemoved({ deleted, handedOver }: OwnedListsRemoved): Promise<void> {
-  forgetDeletedLists(deleted)
+  useListDefinitionStore.getState().forgetLists(deleted)
   if (handedOver.length > 0) await useListDefinitionStore.getState().load()
 }
 
@@ -450,22 +438,17 @@ async function restoreLists(removed: OwnedListsRemoved | null): Promise<void> {
   await Promise.all([useListDefinitionStore.getState().load(), useListOrderStore.getState().load()])
 }
 
-/**
- * The lists of layout `layoutId` that `body` shows, as copies
- * for a new layout: each list as edited (its unsaved draft, else as saved;
- * a blank draft name keeps the saved name).
- */
+/** The lists of layout `layoutId` that `body` shows, as copies for a new layout (each as saved). */
 function ownedListCopies(layoutId: number, body: LayoutBody): ListCopy[] {
   const shown = layoutListRefs(body)
-  const drafts = useListDraftStore.getState().drafts
   const copies: ListCopy[] = []
   for (const saved of useListDefinitionStore.getState().listDefinitions) {
     if (!shown.has(saved.id) || ownerLayoutId(saved) !== layoutId) continue
-    const { id: _id, sortOrder: _order, owner: _owner, ...def } = drafts[saved.id] ?? saved
+    const { id: _id, sortOrder: _order, owner: _owner, ...def } = saved
     void _id
     void _order
     void _owner
-    copies.push({ from: saved.id, def: { ...def, name: def.name.trim() || saved.name } })
+    copies.push({ from: saved.id, def })
   }
   return copies
 }
@@ -965,8 +948,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       const { id: _from, sortOrder: _order, ...body } = source
       void _from
       void _order
-      // The lists it shows are copied for the new layout (as edited); the
-      // originals stay with the layout they came from.
+      // The lists it shows are copied for the new layout; the originals stay
+      // with the layout they came from.
       await useListDefinitionStore.getState().ensureLoaded()
       const copies = ownedListCopies(source.id, source)
       const original = { ...body, name: clean, createdAt: now, modifiedAt: now, lastUsedAt: now }
@@ -1057,7 +1040,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
       if (after.length === before.length && after.every((id, i) => id === before[i])) return true
       // Undo / redo throw on a failed write: the entry stays, to try again.
       const apply = (ids: readonly number[]) => async () => {
-        if (!(await applyOrder(ids, false))) throw new Error('the layout order was not saved')
+            if (!(await applyOrder(ids, false))) throw new Error('the layout order was not saved')
       }
       undoable(description, apply(after), apply(before), true)
       return true
