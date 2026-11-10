@@ -84,6 +84,12 @@
   box-shadow: inset 0 0 0 1px var(--color-danger-text);
 }
 
+/* Quiet: the purge notice (`17 old completed`) — nothing is wrong, so the
+   pill keeps its neutral ring and takes only the icon's padding. */
+.notice {
+  padding: 0 9px 0 7px;
+}
+
 /* Two or more warnings: their number after the label. */
 .count {
   display: inline-flex;
