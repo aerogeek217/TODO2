@@ -7,8 +7,7 @@ import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
 import { trackSizing } from '../../utils/workspace-table'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { shortcutScope } from '../../utils/dom-contract'
-import { measureTableElement } from './measure'
-import { drawnSizes, KEY_STEP_PX, minPxIn, previewOffset, probeIds, type PreviewBasis } from './divider-drag'
+import { drawnSizes, endLineOf, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
 import { SnapGuide } from './WorkspaceDivider'
 import styles from './WorkspaceDivider.module.css'
 
@@ -16,9 +15,9 @@ interface WorkspaceCrossingProps {
   /** The column line and the row line crossing here (`workspace-grid.lineCrossings`). */
   col: number
   row: number
-  /** The cell above-left of the crossing: it ends on both lines (the preview of a structural move reads them off it). */
+  /** The cell above-left of the crossing: it ends on both lines (a structural move's preview places the handle by it). */
   cornerId: string
-  /** Its `data-ws-crossing`: the cells above-left and below-right, `<a>|<b>`. */
+  /** Its `data-ws-crossing`: the cells above-left and below-right, `<a>|<b>` (its React key). */
   testId: string
 }
 
@@ -27,7 +26,6 @@ interface AxisDrag {
   axis: GridAxis
   line: number
   opts: MoveEdgeOptions
-  basis: PreviewBasis
   delta: number
   /** The last frame moved the line past or onto another (a structural edit, applied on release). */
   structural: boolean
@@ -55,57 +53,105 @@ function crossingPlacement(col: number, row: number): CSSProperties {
 /**
  * A crossing handle (D26 follow-ups, board BE): at a "+" where four cells
  * meet, a small handle that moves both whole lines through it at once — the
- * level line with the pointer's y, the upright one with its x. Each is a
- * whole-line move (`moveEdge` over `wholeLine`): its two tracks share their
- * size anew, live, saved once at the drag's end as view state; each snaps
- * back onto its own place within 8px (`snapHome`), so a mostly vertical
- * drag leaves the upright line where it was, and onto any other line of its
- * axis within reach (a structural edit, previewed, made on release). A
- * faint guide runs along a line while it holds. ↑/↓ move the level line,
- * ←/→ the upright one, 16px; a double-click evens both lines' tracks.
+ * level line with the pointer's y, the upright one with its x. Each is
+ * a whole-line move (`moveEdge` over `wholeLine`): its two tracks share
+ * their size anew, live, saved once at the drag's end as view state; each
+ * snaps back onto its own place within 8px (`snapHome`), so a mostly
+ * vertical drag leaves the upright line where it was, and onto any other
+ * line of its axis within reach (a structural edit, made on release — the
+ * table meanwhile drawn as it will be, `workspace-store.resizePreview`;
+ * Esc puts it back as it was). A faint guide runs along a line while it
+ * holds. ↑/↓ move the level line, ←/→ the upright one, 16px; a double-click
+ * evens both lines' tracks.
  */
 export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCrossingProps) {
   const dragRef = useRef<DragState | null>(null)
+  const elRef = useRef<HTMLDivElement | null>(null)
   const rafRef = useRef<number | null>(null)
   const pendingRef = useRef<{ dx: number; dy: number } | null>(null)
   const [dragging, setDragging] = useState(false)
-  const [preview, setPreview] = useState<{ x: number; y: number } | null>(null)
   const [guides, setGuides] = useState<{ axis: GridAxis; line: number; tracks: number }[]>([])
+  /** This crossing as a preview's handle (it keeps its key, and sits by its corner cell, through the preview). */
+  const handle = { kind: 'crossing', cornerId, key: testId } as const
 
-  // Gone mid-drag: what the frames applied is kept all the same.
-  const endRef = useLatestRef(() => { void useWorkspaceStore.getState().endResize() })
+  // Gone mid-drag: what the frames applied is kept all the same; a preview goes.
+  const endRef = useLatestRef(() => {
+    showResizePreview(null, handle)
+    void useWorkspaceStore.getState().endResize()
+  })
   useEffect(() => () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
     if (dragRef.current) endRef.current()
   }, [endRef])
 
-  /** One axis of a frame: its line moved live, or (structural) previewed with the sizes back at the start. Returns its preview offset. */
-  const frameAxis = (drag: DragState, a: AxisDrag, delta: number): number => {
-    a.delta = delta
-    const next = moveEdge(drag.layout, lineOf(drag.layout, a), delta, a.opts, probeIds())
-    a.structural = next !== drag.layout && !layoutStructureEqual(next, drag.layout)
-    void useWorkspaceStore.getState().copyTrackSizes(a.structural ? drag.layout : next, [a.axis], { live: true })
-    return a.structural ? previewOffset(a.basis, a.axis, a.line, next, cornerId, delta) : 0
+  /** Ends the drag under way (its frames and state); returns what it kept. */
+  const stopDrag = (): DragState | null => {
+    const drag = dragRef.current
+    if (!drag) return null
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
+    rafRef.current = null
+    pendingRef.current = null
+    dragRef.current = null
+    pointer.unlisten()
+    setDragging(false)
+    setGuides([])
+    const el = elRef.current
+    if (el?.hasPointerCapture?.(drag.pointerId)) el.releasePointerCapture(drag.pointerId)
+    return drag
   }
+
+  // Its pointer's moves and release, wherever they go (listened to from the press).
+  const pointer = useDragPointer()
+
+  // Esc mid-drag: the table back as it was when the drag started.
+  useEscapeCancel(dragging, () => {
+    const drag = stopDrag()
+    if (!drag) return
+    const store = useWorkspaceStore.getState()
+    void store.copyTrackSizes(drag.layout, ['columns', 'rows'], { live: true })
+    showResizePreview(null, handle)
+    void store.endResize()
+  })
 
   /**
    * The guide for an axis: along the line it snapped onto — another line,
-   * or its own while the drag runs along the other axis (held in place).
+   * or its own while the drag runs along the other axis (held in place) —
+   * in the table as drawn (`drawn`: a structural axis's line is where the
+   * corner cell now ends).
    */
-  const guideOf = (drag: DragState, a: AxisDrag, other: AxisDrag) => {
+  const guideOf = (drag: DragState, a: AxisDrag, other: AxisDrag, drawn: LayoutBody) => {
     const snapped = edgeSnap(drag.layout, lineOf(drag.layout, a), a.delta, a.opts)
     if (snapped == null) return null
     if (snapped === a.line && Math.abs(other.delta) <= EDGE_SNAP_PX) return null
-    return { axis: a.axis, line: snapped, tracks: drag.layout.grid[a.axis].length }
+    const line = a.structural ? (endLineOf(drawn, cornerId, a.axis) ?? snapped) : snapped
+    return { axis: a.axis, line, tracks: drawn.grid[a.axis].length }
   }
 
+  /**
+   * One frame: both lines moved from the drag's start — the upright one,
+   * then the level one on that result, as the release makes them. An axis
+   * whose move only resizes is applied live; while either changes the
+   * structure the table draws the result (`showResizePreview`), a
+   * structural axis's sizes in the working copy back at the start, which
+   * the release's move is computed from.
+   */
   const frame = (dx: number, dy: number) => {
     const drag = dragRef.current
     if (!drag) return
-    const x = frameAxis(drag, drag.columns, dx)
-    const y = frameAxis(drag, drag.rows, dy)
-    setPreview(x !== 0 || y !== 0 ? { x, y } : null)
-    setGuides([guideOf(drag, drag.columns, drag.rows), guideOf(drag, drag.rows, drag.columns)].filter((g) => g != null))
+    const ids = probeIds()
+    const { columns, rows } = drag
+    columns.delta = dx
+    rows.delta = dy
+    const afterColumns = moveEdge(drag.layout, lineOf(drag.layout, columns), dx, columns.opts, ids)
+    columns.structural = afterColumns !== drag.layout && !layoutStructureEqual(afterColumns, drag.layout)
+    const next = moveEdge(afterColumns, lineOf(afterColumns, rows), dy, rows.opts, ids)
+    rows.structural = next !== afterColumns && !layoutStructureEqual(next, afterColumns)
+    const store = useWorkspaceStore.getState()
+    for (const a of [columns, rows]) void store.copyTrackSizes(a.structural ? drag.layout : next, [a.axis], { live: true })
+    const structural = columns.structural || rows.structural
+    showResizePreview(structural ? next : null, handle)
+    const drawn = structural ? next : drag.layout
+    setGuides([guideOf(drag, columns, rows, drawn), guideOf(drag, rows, columns, drawn)].filter((g) => g != null))
   }
 
   const flush = () => {
@@ -120,18 +166,44 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
     const cols = drawnSizes(table, 'columns')
     const rows = drawnSizes(table, 'rows')
     if (cols.length !== layout.grid.columns.length || rows.length !== layout.grid.rows.length) return null
-    const metrics = measureTableElement(table)
-    const rowPx = new Map(Object.entries(metrics.rowPx))
     const minPx = minPxIn(layout)
-    const axis = (a: GridAxis, line: number, sizes: number[], available: number): AxisDrag => ({
+    const axis = (a: GridAxis, line: number, sizes: number[]): AxisDrag => ({
       axis: a,
       line,
       opts: { sizes, minPx, snapHome: true },
-      basis: { available, gap: metrics.gap, rowPx, sizes },
       delta: 0,
       structural: false,
     })
-    return { columns: axis('columns', col, cols, metrics.width), rows: axis('rows', row, rows, metrics.height) }
+    return { columns: axis('columns', col, cols), rows: axis('rows', row, rows) }
+  }
+
+  const onPointerMove = (e: PointerEvent) => {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== e.pointerId) return
+    pendingRef.current = { dx: e.clientX - drag.x, dy: e.clientY - drag.y }
+    if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush)
+  }
+
+  const onPointerUp = (e: PointerEvent) => {
+    if (dragRef.current?.pointerId !== e.pointerId) return
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current)
+      flush()
+    }
+    const drag = stopDrag()
+    if (!drag) return
+    const store = useWorkspaceStore.getState()
+    // The live frames' sizes saved first (a structural axis put its sizes back to the start).
+    void store.endResize()
+    if (e.type === 'pointerup') {
+      // A structural axis's move, made on the layout as it now stands (the other axis's lines are unchanged by it).
+      for (const a of [drag.columns, drag.rows]) {
+        const working = useWorkspaceStore.getState().working
+        if (a.structural && working) void store.moveEdge(lineOf(working, a), a.delta, a.opts)
+      }
+    }
+    // In the same event: the move's table replaces the preview's in one render.
+    showResizePreview(null, handle)
   }
 
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -144,37 +216,8 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
     e.preventDefault()
     e.currentTarget.setPointerCapture?.(e.pointerId)
     dragRef.current = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, layout, ...axes }
+    pointer.listen(onPointerMove, onPointerUp)
     setDragging(true)
-  }
-
-  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== e.pointerId) return
-    pendingRef.current = { dx: e.clientX - drag.x, dy: e.clientY - drag.y }
-    if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush)
-  }
-
-  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== e.pointerId) return
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current)
-      flush()
-    }
-    dragRef.current = null
-    setDragging(false)
-    setPreview(null)
-    setGuides([])
-    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
-    const store = useWorkspaceStore.getState()
-    // The live frames' sizes saved first (a structural axis put its sizes back to the start).
-    void store.endResize()
-    if (e.type !== 'pointerup') return
-    // A structural axis's move, made on the layout as it now stands (the other axis's lines are unchanged by it).
-    for (const a of [drag.columns, drag.rows]) {
-      const working = useWorkspaceStore.getState().working
-      if (a.structural && working) void store.moveEdge(lineOf(working, a), a.delta, a.opts)
-    }
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -209,12 +252,12 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
     if (Object.keys(sizes).length > 0) void useWorkspaceStore.getState().setTrackSizes(sizes)
   }
 
-  const shift = preview ? `translate(${preview.x}px, ${preview.y}px)` : undefined
   return (
     <>
       <div
+        ref={elRef}
         className={`${styles.crossing} ${dragging ? styles.crossingDragging : ''}`}
-        style={{ ...crossingPlacement(col, row), ...(shift ? { transform: shift } : {}) }}
+        style={crossingPlacement(col, row)}
         role="separator"
         aria-roledescription="crossing handle"
         aria-label="Resize row and column"
@@ -226,9 +269,7 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
         // Its arrow keys move it; none of the app shortcuts (↑ / ↓ select tasks).
         {...shortcutScope('none')}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onLostPointerCapture={(e) => recapture(e.currentTarget, e.pointerId, dragRef.current?.pointerId === e.pointerId)}
         onDoubleClick={onDoubleClick}
         onKeyDown={onKeyDown}
       />

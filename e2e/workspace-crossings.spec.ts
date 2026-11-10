@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { edges, openCellMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed } from './fixtures/workspace'
+import { edges, expectSameEdges, openCellMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed } from './fixtures/workspace'
 import { box, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -145,6 +145,60 @@ test.describe('snapping', () => {
     expect(Math.abs((await edges(wsCell(page, 'b'))).bottom - after.bottom)).toBeLessThanOrEqual(1)
     expect((await edges(wsCell(page, 'b'))).bottom - bBefore.bottom).toBeGreaterThan(60)
     expect(after.right).toBeCloseTo(before.right, 0)
+    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+  })
+})
+
+test.describe('a structural drag previews its result', () => {
+  /** `a b b / d e f`: the a|b piece (left of the "+") can snap onto the e|f line. */
+  const steps: WsLayoutSeed = {
+    name: 'Main',
+    table: {
+      areas: ['a b b', 'd e f'],
+      cells: ['a', 'b', 'd', 'e', 'f'].map((id) => ({ id, tabs: [{ id: `${id}Tab`, kind: 'notes' as const }] })),
+    },
+  }
+
+  test('a piece snapped onto the next line: mid-drag the cells stand where the release puts them, the same elements', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [steps] })
+    // Marks on the cells' elements: a remount would lose them.
+    await page.locator('[data-ws-cell]').evaluateAll((els) => { for (const el of els) (el as HTMLElement & { __mark?: boolean }).__mark = true })
+    const marked = () => page.locator('[data-ws-cell]').evaluateAll((els) => els.every((el) => (el as HTMLElement & { __mark?: boolean }).__mark === true))
+    const a0 = await edges(wsCell(page, 'a'))
+    const from = centre(await box(wsDivider(page, 'a', 'b')))
+    const target = centre(await box(wsDivider(page, 'e', 'f')))
+    const mid: Partial<Record<'a' | 'b', Awaited<ReturnType<typeof edges>>>> = {}
+    // To 4px short of the e|f line: it snaps onto it.
+    await dragHandle(page, from, { x: target.x - 4, y: from.y }, async () => {
+      await expect(page.locator('[data-ws-divider][data-preview]')).toHaveCount(1)
+      await expect(page.getByTestId('ws-snap-guide')).toBeVisible()
+      // a already reaches the e|f line, b starts there.
+      await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).right - (await edges(wsCell(page, 'e'))).right)).toBe(0)
+      mid.a = await edges(wsCell(page, 'a'))
+      mid.b = await edges(wsCell(page, 'b'))
+      expect(await marked()).toBe(true)
+    })
+    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    if (!mid.a || !mid.b) throw new Error('not measured mid-drag')
+    expect(mid.a.right - a0.right).toBeGreaterThan(50)
+    expectSameEdges(await edges(wsCell(page, 'a')), mid.a, 1)
+    expectSameEdges(await edges(wsCell(page, 'b')), mid.b, 1)
+    expect(await marked()).toBe(true)
+  })
+
+  test('Esc mid-drag puts the table back as it was; nothing changes', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [steps] })
+    const a0 = await edges(wsCell(page, 'a'))
+    const from = centre(await box(wsDivider(page, 'a', 'b')))
+    const target = centre(await box(wsDivider(page, 'e', 'f')))
+    await page.mouse.move(from.x, from.y)
+    await page.mouse.down()
+    await page.mouse.move(target.x - 4, from.y, { steps: 12 })
+    await expect(page.locator('[data-ws-divider][data-preview]')).toHaveCount(1)
+    await page.keyboard.press('Escape')
+    await expect(page.locator('[data-ws-divider][data-preview]')).toHaveCount(0)
+    await releaseDrag(page)
+    expectSameEdges(await edges(wsCell(page, 'a')), a0, 1)
     await expect(saveButton(page)).toHaveAccessibleName(SAVED)
   })
 })

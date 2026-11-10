@@ -6,8 +6,7 @@ import { edgeSnapLine, evenStretchDelta, moveEdge, type MoveEdgeOptions } from '
 import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { shortcutScope } from '../../utils/dom-contract'
-import { measureTableElement } from './measure'
-import { drawnSizes, KEY_STEP_PX, minPxIn, previewOffset, probeIds } from './divider-drag'
+import { drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
 import styles from './WorkspaceDivider.module.css'
 
 /** A divider's `aria-valuenow`, with its `aria-valuemax` (none for a px size) and `aria-valuetext`. */
@@ -46,10 +45,6 @@ interface DragState {
   /** What the drag moves: the divider's stretch, or beside a fit row its whole line. */
   moved: EdgeStretch
   opts: MoveEdgeOptions
-  /** The table's room and gap along the axis, and its rows' drawn heights (for the preview). */
-  available: number
-  gap: number
-  rowPx: ReadonlyMap<string, number>
   /** The last frame changed the structure (part of a line moved): drawn as a preview, applied on release. */
   structural: boolean
   delta: number
@@ -68,12 +63,6 @@ function dividerIdentity(axis: GridAxis, beforeId: string, afterId: string): str
   return `${axis}:${beforeId}|${afterId}`
 }
 
-/** Where a snap guide sits: in the gutter before the track after line `line`, across the whole table. */
-function guidePlacement(axis: GridAxis, line: number): CSSProperties {
-  return axis === 'columns'
-    ? { gridColumn: `${line + 1} / span 1`, gridRow: '1 / -1' }
-    : { gridRow: `${line + 1} / span 1`, gridColumn: '1 / -1' }
-}
 
 /**
  * The faint accent guide along the whole grid line a drag has snapped onto
@@ -103,8 +92,11 @@ export function SnapGuide({ axis, line, tracks }: { axis: GridAxis; line: number
  * minimum): when it holds every edge on its line, the two tracks beside it
  * share their size anew, live, saved once at the end as view state; when
  * only part of a line moves (a new line, or onto another line: a piece
- * snapped back onto a line it left re-joins it), it previews where it goes
- * and makes that unsaved edit on release. Beside a Numbers-only row it moves
+ * snapped back onto a line it left re-joins it), the table previews the
+ * result — every cell drawn at the size and place the release gives it
+ * (`workspace-store.resizePreview`), this divider on its new line — and the
+ * release makes that unsaved edit (Esc, or a cancelled pointer, puts the
+ * table back as it was). Beside a Numbers-only row it moves
  * the whole line, the row taking a height of its own (`fitTrackIds`; its
  * `fitPx`, view state). ←/→ (↑/↓)
  * move it 16px, the focus staying on it; a double-click evens a whole
@@ -119,15 +111,50 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
   const rafRef = useRef<number | null>(null)
   const pendingRef = useRef<number | null>(null)
   const [dragging, setDragging] = useState(false)
-  const [preview, setPreview] = useState<number | null>(null)
+  const [previewing, setPreviewing] = useState(false)
   const [snap, setSnap] = useState<{ line: number; tracks: number } | null>(null)
+  /** This divider as a preview's handle: as keyed when its drag started (it keeps that key through the preview). */
+  const handle = { kind: 'divider', axis: stretch.axis, beforeId, afterId } as const
 
-  // Gone mid-drag: what the frames applied is kept all the same.
-  const endRef = useLatestRef(() => { void useWorkspaceStore.getState().endResize() })
+  // Gone mid-drag: what the frames applied is kept all the same; a preview goes.
+  const endRef = useLatestRef(() => {
+    showResizePreview(null, handle)
+    void useWorkspaceStore.getState().endResize()
+  })
   useEffect(() => () => {
     if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
     if (dragRef.current) endRef.current()
   }, [endRef])
+
+  /** Ends the drag under way (its frames and state); returns what it kept. */
+  const stopDrag = (): DragState | null => {
+    const drag = dragRef.current
+    if (!drag) return null
+    if (rafRef.current != null) cancelAnimationFrame(rafRef.current)
+    rafRef.current = null
+    pendingRef.current = null
+    dragRef.current = null
+    pointer.unlisten()
+    setDragging(false)
+    setPreviewing(false)
+    setSnap(null)
+    const el = elRef.current
+    if (el?.hasPointerCapture?.(drag.pointerId)) el.releasePointerCapture(drag.pointerId)
+    return drag
+  }
+
+  // Its pointer's moves and release, wherever they go (listened to from the press).
+  const pointer = useDragPointer()
+
+  // Esc mid-drag: the table back as it was when the drag started.
+  useEscapeCancel(dragging, () => {
+    const drag = stopDrag()
+    if (!drag) return
+    const store = useWorkspaceStore.getState()
+    void store.copyTrackSizes(drag.layout, [stretch.axis], { live: true })
+    showResizePreview(null, handle)
+    void store.endResize()
+  })
 
   // After a key press moved it: keep the focus on it (remounted or moved).
   useLayoutEffect(() => {
@@ -140,7 +167,12 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
   /** What a move of this divider moves in `layout`: its stretch, or beside a fit row the whole line. */
   const movedIn = (layout: LayoutBody): EdgeStretch => (fitTrackIds.length > 0 ? wholeLine(layout, stretch.axis, stretch.line) : stretch)
 
-  /** Applies one frame: a whole-line move live; a structural one only previewed (the sizes back to the start). */
+  /**
+   * Applies one frame: a whole-line move live; a structural one previewed —
+   * the table drawn as the release will leave it (`showResizePreview`), the
+   * working copy's sizes back at the start, which the release's move is
+   * computed from.
+   */
   const frame = (delta: number) => {
     const drag = dragRef.current
     if (!drag) return
@@ -150,9 +182,13 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     const structural = next !== drag.layout && !layoutStructureEqual(next, drag.layout)
     void store.copyTrackSizes(structural ? drag.layout : next, [stretch.axis], { live: true })
     drag.structural = structural
-    setPreview(structural ? previewOffset({ ...drag, sizes: drag.opts.sizes }, stretch.axis, stretch.line, next, beforeId, delta) : null)
-    const line = edgeSnapLine(drag.layout, drag.moved, delta, drag.opts)
-    setSnap(line != null ? { line, tracks: drag.layout.grid[stretch.axis].length } : null)
+    showResizePreview(structural ? next : null, handle)
+    setPreviewing(structural)
+    // The guide in the table as drawn: a preview's line is where this divider's cells now meet.
+    const snapped = edgeSnapLine(drag.layout, drag.moved, delta, drag.opts)
+    const drawn = structural ? next : drag.layout
+    const line = snapped != null && structural ? (endLineOf(next, beforeId, stretch.axis) ?? snapped) : snapped
+    setSnap(line != null ? { line, tracks: drawn.grid[stretch.axis].length } : null)
   }
 
   const flush = () => {
@@ -162,6 +198,29 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     if (delta != null) frame(delta)
   }
 
+  const onPointerMove = (e: PointerEvent) => {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== e.pointerId) return
+    pendingRef.current = (axisX ? e.clientX : e.clientY) - drag.start
+    if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush)
+  }
+
+  const onPointerUp = (e: PointerEvent) => {
+    if (dragRef.current?.pointerId !== e.pointerId) return
+    if (rafRef.current != null) {
+      cancelAnimationFrame(rafRef.current)
+      flush()
+    }
+    const drag = stopDrag()
+    if (!drag) return
+    const store = useWorkspaceStore.getState()
+    // The live frames' sizes saved first (a structural move put them back to the start).
+    void store.endResize()
+    if (drag.structural && e.type === 'pointerup') void store.moveEdge(drag.moved, drag.delta, drag.opts)
+    // In the same event: the move's table replaces the preview's in one render.
+    showResizePreview(null, handle)
+  }
+
   const onPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.button !== 0) return
     const layout = useWorkspaceStore.getState().working
@@ -169,7 +228,6 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     if (!layout || !table) return
     const sizes = drawnSizes(table, stretch.axis)
     if (sizes.length !== layout.grid[stretch.axis].length) return
-    const metrics = measureTableElement(table)
     e.preventDefault()
     e.currentTarget.setPointerCapture?.(e.pointerId)
     dragRef.current = {
@@ -178,38 +236,11 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
       layout,
       moved: movedIn(layout),
       opts: { sizes, minPx: minPxIn(layout) },
-      available: axisX ? metrics.width : metrics.height,
-      gap: metrics.gap,
-      rowPx: new Map(Object.entries(metrics.rowPx)),
       structural: false,
       delta: 0,
     }
+    pointer.listen(onPointerMove, onPointerUp)
     setDragging(true)
-  }
-
-  const onPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== e.pointerId) return
-    pendingRef.current = (axisX ? e.clientX : e.clientY) - drag.start
-    if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush)
-  }
-
-  const onPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== e.pointerId) return
-    if (rafRef.current != null) {
-      cancelAnimationFrame(rafRef.current)
-      flush()
-    }
-    dragRef.current = null
-    setDragging(false)
-    setPreview(null)
-    setSnap(null)
-    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) e.currentTarget.releasePointerCapture(e.pointerId)
-    const store = useWorkspaceStore.getState()
-    // The live frames' sizes saved first (a structural move put them back to the start).
-    void store.endResize()
-    if (drag.structural && e.type === 'pointerup') void store.moveEdge(drag.moved, drag.delta, drag.opts)
   }
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
@@ -256,13 +287,12 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     void useWorkspaceStore.getState().setTrackSizes({ [a.id]: half, [b.id]: half })
   }
 
-  const shift = preview != null ? (axisX ? `translateX(${preview}px)` : `translateY(${preview}px)`) : undefined
   return (
     <>
       <div
         ref={elRef}
         className={`${styles.divider} ${axisX ? styles.betweenColumns : styles.betweenCells} ${dragging ? styles.dragging : ''}`}
-        style={{ ...style, ...(shift ? { transform: shift } : {}) }}
+        style={style}
         role="separator"
         aria-orientation={axisX ? 'vertical' : 'horizontal'}
         aria-valuenow={Math.round(value.now)}
@@ -274,13 +304,11 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
         data-ws-divider={`${beforeId}|${afterId}`}
         data-axis={stretch.axis}
         data-fit={fitTrackIds.length > 0 ? '' : undefined}
-        data-preview={preview != null ? '' : undefined}
+        data-preview={previewing ? '' : undefined}
         // Its arrow keys move it; none of the app shortcuts (↑ / ↓ select tasks).
         {...shortcutScope('none')}
         onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
+        onLostPointerCapture={(e) => recapture(e.currentTarget, e.pointerId, dragRef.current?.pointerId === e.pointerId)}
         onDoubleClick={onDoubleClick}
         onKeyDown={onKeyDown}
       />

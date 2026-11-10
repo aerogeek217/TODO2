@@ -1,12 +1,16 @@
+import { useEffect, useRef, type CSSProperties } from 'react'
 import type { GridAxis, LayoutBody } from '../../models/workspace-layout'
 import type { MoveEdgeOptions } from '../../utils/workspace-layout-ops'
 import { cellById, spanOf } from '../../utils/workspace-grid'
-import { cellMinPx, tableTrackSizes, trackStart } from '../../utils/workspace-table'
+import { cellMinPx } from '../../utils/workspace-table'
+import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 
 /**
  * What the table's resize handles share — a divider (`WorkspaceDivider`)
  * and a crossing handle (`WorkspaceCrossing`): the tracks as drawn, the
- * cells' minimums and throwaway ids for a preview's probe.
+ * cells' minimums, throwaway ids for a preview's probe, the preview itself
+ * and Esc.
  */
 
 /** Keyboard step for a focused divider or crossing handle (px). */
@@ -30,24 +34,82 @@ export function probeIds(): () => string {
   return () => `probe-${++n}`
 }
 
-/** What a preview of a structural move needs from the drag's start: the table's room and gap along the axis, its rows' drawn heights and the tracks' sizes. */
-export interface PreviewBasis {
-  available: number
-  gap: number
-  rowPx: ReadonlyMap<string, number>
-  sizes: readonly number[]
+/** Where a snap guide (or a crossing's line) sits: in the gutter before the track after line `line`, across the whole table. */
+export function guidePlacement(axis: GridAxis, line: number): CSSProperties {
+  return axis === 'columns'
+    ? { gridColumn: `${line + 1} / span 1`, gridRow: '1 / -1' }
+    : { gridRow: `${line + 1} / span 1`, gridColumn: '1 / -1' }
+}
+
+/** The line cell `cellId` ends on along `axis` in `body` (its right / bottom edge); `null` when it isn't there. */
+export function endLineOf(body: LayoutBody, cellId: string, axis: GridAxis): number | null {
+  const cell = cellById(body, cellId)
+  return cell ? spanOf(cell.area, axis)[1] : null
 }
 
 /**
- * The px offset along `axis` that line `line` moves to in `next` from where
- * it was at the drag's start, read off cell `cellId` (which ends on it
- * before and after: it keeps its id): a preview of a move that changes the
- * structure. `fallback` when that cell is gone.
+ * Draws the table as `body` — the probe of a structural move, as the
+ * release will leave it — while the drag of `handle` runs; `null` draws the
+ * working copy again (`workspace-store.resizePreview`, transient).
  */
-export function previewOffset(basis: PreviewBasis, axis: GridAxis, line: number, next: LayoutBody, cellId: string, fallback: number): number {
-  const cell = cellById(next, cellId)
-  if (!cell) return fallback
-  const sizes = tableTrackSizes(next, axis, basis.available, basis.gap, basis.rowPx)
-  const at = trackStart(sizes, spanOf(cell.area, axis)[1], basis.gap)
-  return at - trackStart(basis.sizes, line, basis.gap)
+export function showResizePreview(body: LayoutBody | null, handle: ResizeHandle): void {
+  const store = useWorkspaceStore.getState()
+  const layoutId = store.working?.id
+  store.setResizePreview(body && layoutId != null ? { layoutId, body, handle } : null)
+}
+
+/**
+ * A handle's drag pointer, followed wherever it goes: `listen` (on the
+ * press) hears its moves and its release or cancel on the window until
+ * `unlisten` (or the handle unmounts). The handle's pointer capture alone
+ * isn't enough: a structural preview can make React move the handle's
+ * element among its siblings, which drops the capture (`recapture` takes it
+ * back, for the cursor), and the release must never be missed.
+ */
+export function useDragPointer(): { listen: (onMove: (e: PointerEvent) => void, onEnd: (e: PointerEvent) => void) => void; unlisten: () => void } {
+  const offRef = useRef<(() => void) | null>(null)
+  useEffect(() => () => offRef.current?.(), [])
+  const unlisten = () => offRef.current?.()
+  const listen = (move: (e: PointerEvent) => void, end: (e: PointerEvent) => void) => {
+    unlisten()
+    window.addEventListener('pointermove', move, true)
+    window.addEventListener('pointerup', end, true)
+    window.addEventListener('pointercancel', end, true)
+    offRef.current = () => {
+      window.removeEventListener('pointermove', move, true)
+      window.removeEventListener('pointerup', end, true)
+      window.removeEventListener('pointercancel', end, true)
+      offRef.current = null
+    }
+  }
+  return { listen, unlisten }
+}
+
+/** Takes a dragging handle's pointer capture back after React moved its element (`lostpointercapture` while `dragging`). */
+export function recapture(el: HTMLElement, pointerId: number, dragging: boolean): void {
+  if (!dragging || !el.isConnected) return
+  try {
+    el.setPointerCapture?.(pointerId)
+  } catch {
+    // The pointer is up already: its release ends the drag.
+  }
+}
+
+/**
+ * While `active` (a handle's drag), Esc calls `onCancel` — the drag ends,
+ * the table back as it was when it started — and goes no further.
+ */
+export function useEscapeCancel(active: boolean, onCancel: () => void): void {
+  const cancelRef = useLatestRef(onCancel)
+  useEffect(() => {
+    if (!active) return
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      e.stopPropagation()
+      cancelRef.current()
+    }
+    window.addEventListener('keydown', onKey, true)
+    return () => window.removeEventListener('keydown', onKey, true)
+  }, [active, cancelRef])
 }

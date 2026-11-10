@@ -1,6 +1,8 @@
 import { useMemo, type CSSProperties } from 'react'
 import { getActiveTab, type LayoutTab, type WorkspaceLayout } from '../../models/workspace-layout'
-import { cellAtTrack, edgeStretches, lineCrossings, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
+import { cellAtTrack, cellById, edgeBetween, edgeStretches, lineCrossings, stretchCells, type EdgeStretch } from '../../utils/workspace-grid'
+import { previewedLayout } from '../../utils/workspace-preview'
+import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
 import { isCellCollapsedIn, rowDrawsFitFaces, trackSizing, trackTemplate, WORKSPACE_GUTTER_PX } from '../../utils/workspace-table'
 import { isFitTrack } from '../../utils/workspace-rows'
 import { pairPercent } from '../../utils/workspace-resize'
@@ -92,8 +94,75 @@ function dividerPlacement(stretch: EdgeStretch): CSSProperties {
     : { gridRow: `${line + 1} / span 1`, gridColumn: `${from + 1} / ${to + 1}` }
 }
 
-/** One divider per stretch of grid line between cells (`edgeStretches`), labelled with the cells beside it. */
-function Dividers({ layout }: { layout: WorkspaceLayout }) {
+/** A divider to draw: its stretch, its React key and the first cells on either side. */
+interface DividerItem {
+  stretch: EdgeStretch
+  key: string
+  beforeId: string
+  afterId: string
+}
+
+/** A crossing handle to draw: its lines, its React key and its corner cell. */
+interface CrossingItem {
+  col: number
+  row: number
+  key: string
+  cornerId: string
+}
+
+/**
+ * The dividers to draw (one per stretch, keyed by its axis and first cells).
+ * While a divider drag previews a structural move (`handle`), the dragged
+ * divider keeps the key it had when the drag started — wherever its stretch
+ * now lies (`edgeBetween` its two cells) —, so the element under the
+ * pointer, holding its capture, is never remounted.
+ */
+function dividerItems(layout: WorkspaceLayout, handle: ResizeHandle | null): DividerItem[] {
+  const items: DividerItem[] = []
+  for (const stretch of dividerStretches(layout)) {
+    const { before, after } = stretchCells(layout, stretch)
+    const a = before[0]
+    const b = after[0]
+    if (a && b) items.push({ stretch, key: `${stretch.axis}:${a.id}|${b.id}`, beforeId: a.id, afterId: b.id })
+  }
+  if (handle?.kind !== 'divider') return items
+  const edge = edgeBetween(layout, handle.beforeId, handle.afterId)
+  if (!edge || edge.axis !== handle.axis) return items
+  const dragged = { key: `${handle.axis}:${handle.beforeId}|${handle.afterId}`, beforeId: handle.beforeId, afterId: handle.afterId }
+  const holds = (s: EdgeStretch) => s.axis === edge.axis && s.line === edge.line && s.from <= edge.from && s.to >= edge.to
+  const at = items.findIndex((d) => holds(d.stretch))
+  const others = items.map((d, i) => (i === at ? { ...d, ...dragged } : d)).filter((d, i) => i === at || d.key !== dragged.key)
+  return at >= 0 ? others : [...others, { stretch: edge, ...dragged }]
+}
+
+/**
+ * The crossing handles to draw (one per "+" — none on a row line beside a
+ * collapsed track —, keyed by the cells above-left and below-right). While
+ * a crossing drag previews a structural move (`handle`), the dragged
+ * crossing keeps its key and sits at its corner cell's bottom-right, a "+"
+ * there or not, so it is never remounted under the pointer.
+ */
+function crossingItems(layout: WorkspaceLayout, handle: ResizeHandle | null): CrossingItem[] {
+  const items: CrossingItem[] = []
+  for (const { col, row } of lineCrossings(layout)) {
+    if (!rowLineMoves(layout, row)) continue
+    const corner = cellAtTrack(layout, col - 1, row - 1)
+    const across = cellAtTrack(layout, col, row)
+    if (corner && across) items.push({ col, row, key: `${corner.id}|${across.id}`, cornerId: corner.id })
+  }
+  if (handle?.kind !== 'crossing') return items
+  const corner = cellById(layout, handle.cornerId)
+  if (!corner) return items
+  const col = corner.area.col + corner.area.colSpan
+  const row = corner.area.row + corner.area.rowSpan
+  const dragged = { col, row, key: handle.key, cornerId: handle.cornerId }
+  const at = items.findIndex((x) => x.col === col && x.row === row)
+  const others = items.map((x, i) => (i === at ? dragged : x)).filter((x, i) => i === at || x.key !== handle.key)
+  return at >= 0 ? others : [...others, dragged]
+}
+
+/** One divider per stretch of grid line between cells (`edgeStretches`), labelled with the cells beside it, and a crossing handle at each "+". */
+function Dividers({ layout, handle }: { layout: WorkspaceLayout; handle: ResizeHandle | null }) {
   const active = useMemo(() => layout.cells.map((c) => getActiveTab(c)).filter((t): t is LayoutTab => t != null), [layout.cells])
   const titles = useTabTitles(active)
   const titleOf = (cellId: string | undefined) => {
@@ -104,31 +173,21 @@ function Dividers({ layout }: { layout: WorkspaceLayout }) {
   }
   return (
     <>
-      {dividerStretches(layout).map((stretch) => {
-        const { before, after } = stretchCells(layout, stretch)
-        const a = before[0]
-        const b = after[0]
-        if (!a || !b) return null
-        return (
-          <WorkspaceDivider
-            key={`${stretch.axis}:${a.id}|${b.id}`}
-            stretch={stretch}
-            beforeId={a.id}
-            afterId={b.id}
-            label={`Resize ${titleOf(a.id)} and ${titleOf(b.id)}`}
-            value={dividerValue(layout, stretch)}
-            style={dividerPlacement(stretch)}
-            fitTrackIds={fitTracksBeside(layout, stretch)}
-          />
-        )
-      })}
-      {lineCrossings(layout).filter((x) => rowLineMoves(layout, x.row)).map(({ col, row }) => {
-        const corner = cellAtTrack(layout, col - 1, row - 1)
-        const across = cellAtTrack(layout, col, row)
-        if (!corner || !across) return null
-        const id = `${corner.id}|${across.id}`
-        return <WorkspaceCrossing key={id} col={col} row={row} cornerId={corner.id} testId={id} />
-      })}
+      {dividerItems(layout, handle).map(({ stretch, key, beforeId, afterId }) => (
+        <WorkspaceDivider
+          key={key}
+          stretch={stretch}
+          beforeId={beforeId}
+          afterId={afterId}
+          label={`Resize ${titleOf(beforeId)} and ${titleOf(afterId)}`}
+          value={dividerValue(layout, stretch)}
+          style={dividerPlacement(stretch)}
+          fitTrackIds={fitTracksBeside(layout, stretch)}
+        />
+      ))}
+      {crossingItems(layout, handle).map(({ col, row, key, cornerId }) => (
+        <WorkspaceCrossing key={key} col={col} row={row} cornerId={cornerId} testId={key} />
+      ))}
     </>
   )
 }
@@ -138,9 +197,15 @@ function Dividers({ layout }: { layout: WorkspaceLayout }) {
  * `workspace-table.trackTemplate` (weights as `fr` never under the cells'
  * minimums — the table scrolls when they don't fit —, px, a fit row
  * `auto`, a collapsed row its header), each cell placed on its area, and a
- * divider in the gutter along each stretch of grid line.
+ * divider in the gutter along each stretch of grid line. While a resize
+ * drag previews a structural move (`resizePreview`), the table draws as its
+ * release will leave it: the preview's tracks, each cell (the same element,
+ * keyed by its id) at its area there.
  */
-function Table({ layout }: { layout: WorkspaceLayout }) {
+function Table({ layout: working }: { layout: WorkspaceLayout }) {
+  const preview = useWorkspaceStore((s) => s.resizePreview)
+  const live = preview != null && preview.layoutId === working.id ? preview : null
+  const layout = useMemo(() => (live ? previewedLayout(working, live.body) : working), [working, live])
   const { rows } = layout.grid
   return (
     <div
@@ -166,7 +231,7 @@ function Table({ layout }: { layout: WorkspaceLayout }) {
           />
         )
       })}
-      <Dividers layout={layout} />
+      <Dividers layout={layout} handle={live && layout !== working ? live.handle : null} />
     </div>
   )
 }
