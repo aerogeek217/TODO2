@@ -171,9 +171,8 @@ function RuleField({ ruleKey, config, write }: {
  * tags it follows stay in its ⋯ menu's Tags. A popover under the widget's
  * title, opened by its ⋯ menu's Edit project pulse…. Its controls edit a
  * copy of the config, which the widget draws live (`useEditorDraft`, Edit
- * list's pattern): Save writes the changed rules as one layout config
- * update — the layout is then unsaved until its own Save — and Discard
- * drops them; Tags, written from the ⋯ menu meanwhile, stay. Esc, × or a
+ * list's pattern): Save writes the changed rules for good as one layout
+ * config update — one undo step — and Discard drops them; Tags, written from the ⋯ menu meanwhile, stay. Esc, × or a
  * press elsewhere close it at once while nothing changed, else ask Save /
  * Discard / Keep editing.
  */
@@ -187,7 +186,7 @@ export function PulseEditor({ tab, anchorRef, onClose }: {
   const edit = useEditorDraft<PulseTabConfig>({
     tabId: tab.id,
     stored: tab.config,
-    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, 'pulse', p),
+    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, 'pulse', p, 'Edited project pulse'),
     onClose,
     promptTitle: 'Save changes to project pulse?',
   })

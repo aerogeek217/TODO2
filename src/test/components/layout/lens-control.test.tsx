@@ -13,6 +13,7 @@ import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { makeTodo } from '../../helpers'
 import { emptyBody } from '../../helpers/layout-builders'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 const LAYOUT: PersistedWorkspaceLayout = { id: 1, name: 'Default', sortOrder: 0, ...emptyBody(), createdAt: new Date(0), modifiedAt: new Date(0) }
 const FOCUS_LENS = { id: 'lens-f', name: 'Focus only', predicate: { ...emptyPredicate(), markers: [{ values: ['focus' as const] }] } }
@@ -78,7 +79,7 @@ describe('the lens control and the counter', () => {
     expect(menu).not.toHaveTextContent(/layout/)
     fireEvent.click(items[1]!)
     expect(useSettingsStore.getState().activeLensId).toBe('lens-f')
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     await vi.waitFor(async () => expect((await db.settings.get(SETTING_KEYS.activeLensId))?.value).toBe('lens-f'))
   })
 

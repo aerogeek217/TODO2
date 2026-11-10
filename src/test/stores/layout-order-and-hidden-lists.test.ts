@@ -4,13 +4,14 @@ import { layoutRepository } from '../../data/layout-repository'
 import { createTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import { emptyPredicate } from '../../models/filter-predicate'
 import type { ListDefinition } from '../../models/list-definition'
-import { useWorkspaceStore } from '../../stores/workspace-store'
+import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { resetDb } from '../helpers'
 import { single } from '../helpers/layout-builders'
+import { layoutSteps } from '../helpers/layout-steps'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
@@ -57,17 +58,17 @@ describe('workspace store: the layout order', () => {
     expect(names()).toEqual(['C', 'A', 'B'])
     expect(ws().layouts.map((l) => l.sortOrder)).toEqual([0, 1, 2])
     expect(await storedOrder()).toEqual(['C', 'A', 'B'])
-    expect(ws().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     expect(ws().saved?.sortOrder).toBe(1)
     expect(ws().working?.sortOrder).toBe(1)
     void b
   })
 
-  it('a save after a reorder keeps the new order', async () => {
+  it('an edit after a reorder keeps the new order', async () => {
     const [a, b] = await seedLayouts('A', 'B')
-    ws().closeTab('A-n')
     await ws().reorderLayouts([b!, a!])
-    expect(await ws().save()).toBe(true)
+    ws().closeTab('A-n')
+    await settleLayoutWrites()
     expect(await storedOrder()).toEqual(['B', 'A'])
   })
 
@@ -95,7 +96,7 @@ describe('workspace store: the layout order', () => {
     await useUndoStore.getState().redo()
     expect(names()).toEqual(['C', 'A', 'B'])
     expect(await storedOrder()).toEqual(['C', 'A', 'B'])
-    expect(ws().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     void a
     void b
   })
@@ -127,10 +128,10 @@ describe('workspace store: the layout order', () => {
     expect(names()).toEqual(['A', 'B', 'C'])
   })
 
-  it('Save as puts the new layout last', async () => {
+  it('Duplicate layout puts the new layout last', async () => {
     const [a, b] = await seedLayouts('A', 'B')
     await ws().reorderLayouts([b!, a!])
-    const copy = await ws().saveAs('Copy')
+    const copy = await ws().duplicateLayout('Copy')
     expect(names()).toEqual(['B', 'A', 'Copy'])
     expect(ws().saved).toMatchObject({ id: copy, sortOrder: 2 })
     expect(await storedOrder()).toEqual(['B', 'A', 'Copy'])

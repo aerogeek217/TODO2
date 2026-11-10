@@ -47,14 +47,14 @@ export const MAX_LAYOUT_TABS = 30
 
 /**
  * What the layout tabs show, for their width (not their order): the names,
- * the open one and its unsaved dot, a kept new layout. Past
+ * the open one, and the `Couldn't save · Retry` control while it shows. Past
  * `MAX_LAYOUT_TABS` the names don't matter (the picker shows).
  */
 function layoutTabsKey(s: ReturnType<typeof useWorkspaceStore.getState>): string {
-  const open = s.saved === null ? `new:${s.working?.name ?? ''}` : String(s.activeLayoutId)
+  const open = String(s.activeLayoutId)
   if (s.layouts.length > MAX_LAYOUT_TABS) return `many|${open}`
   const names = [...s.layouts.map((l) => l.name)].sort().join('/')
-  return `${s.layouts.length}|${names}|${open}|${s.isDirty ? 'dirty' : ''}`
+  return `${s.layouts.length}|${names}|${open}|${s.writeFailed ? 'failed' : ''}`
 }
 
 /**

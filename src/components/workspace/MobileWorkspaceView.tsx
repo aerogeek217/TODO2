@@ -52,7 +52,6 @@ function SearchIcon() {
 function LayoutSheet({ onClose }: { onClose: () => void }) {
   const layouts = useWorkspaceStore((s) => s.layouts)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
-  const isDirty = useWorkspaceStore((s) => s.isDirty)
   const unsavedLists = useUnsavedListIds()
   const [pending, setPending] = useState<{ id: number; name: string } | null>(null)
   const currentRowRef = useRef<HTMLButtonElement | null>(null)
@@ -60,8 +59,8 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
 
   const pick = (id: number, name: string) => {
     if (id === activeLayoutId) { onClose(); return }
-    // Unsaved changes can only come from a wider screen in this session; still never lose them silently.
-    if (useWorkspaceStore.getState().isDirty || unsavedLists.length > 0) { setPending({ id, name }); return }
+    // Unsaved list edits can only come from a wider screen in this session; still never lose them silently.
+    if (unsavedLists.length > 0) { setPending({ id, name }); return }
     withViewTransition(() => useWorkspaceStore.getState().load(id))
     onClose()
   }
@@ -95,7 +94,6 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
               >
                 <span className={styles.sheetGlyph}><HuedLayoutIcon hue={l.hue} /></span>
                 <span className={styles.sheetName}>{l.name}</span>
-                {current && isDirty && <span className={styles.sheetNote}>Edited</span>}
                 {current && <span className={styles.sheetCheck}><CheckIcon /></span>}
               </button>
             )
@@ -106,8 +104,6 @@ function LayoutSheet({ onClose }: { onClose: () => void }) {
       {pending && (
         <UnsavedPrompt
           lead={`You’re switching to layout “${pending.name}”.`}
-          layoutLead={`You’re switching to “${pending.name}”.`}
-          layout={isDirty}
           listIds={unsavedLists}
           onDone={() => {
             const { id } = pending

@@ -43,7 +43,7 @@ function showLayout(): void {
     id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT,
     ...single({ id: 'x1', tabs: [{ id: 'eis', kind: 'eisenhower', config: {} }] }),
   }
-  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
 }
 
 function Widget() {

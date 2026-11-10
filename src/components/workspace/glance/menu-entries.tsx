@@ -22,7 +22,7 @@ export interface Choice<V> {
 /**
  * A setting as a submenu item: its name, its current value as the note, a
  * radio choice per value; picking another value calls `pick` (a tab's
- * config — the layout becomes unsaved, as any tab setting).
+ * config, saved at once as one undo step, as any tab setting).
  */
 export function settingEntry<V>(
   label: string,

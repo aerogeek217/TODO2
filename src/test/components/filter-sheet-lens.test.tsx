@@ -10,6 +10,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { makeTodo } from '../helpers'
 import { emptyBody } from '../helpers/layout-builders'
+import { layoutSteps } from '../helpers/layout-steps'
 
 const LAYOUT: PersistedWorkspaceLayout = { id: 1, name: 'Default', sortOrder: 0, ...emptyBody(), createdAt: new Date(0), modifiedAt: new Date(0) }
 const FOCUS = { id: 'lens-f', name: 'Focus only', predicate: { ...emptyPredicate(), markers: [{ values: ['focus' as const] }] } }
@@ -45,7 +46,7 @@ describe('the phone filter sheet’s Lens section', () => {
     expect(screen.queryByRole('button', { name: /^Show \d+ tasks?$/ })).toBeNull()
     fireEvent.click(radios[1]!)
     expect(useSettingsStore.getState().activeLensId).toBe('lens-f')
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     expect(screen.getByRole('button', { name: 'Show 1 task' })).toBeInTheDocument()
   })
 

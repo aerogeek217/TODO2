@@ -45,7 +45,7 @@ beforeEach(() => {
   useUIStore.setState(useUIStore.getInitialState(), true)
   useListOrderStore.setState({ ranks: new Map(), loaded: true })
   const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...single(CELL) }
-  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
   useStatusStore.setState({ statuses: [{ id: 1, name: 'Waiting', color: '#db5', sortOrder: 1 }, { id: 2, name: 'Doing', color: '#5b8', sortOrder: 2 }] })
   useTodoStore.setState({
     todos: [

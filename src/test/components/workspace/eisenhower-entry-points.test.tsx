@@ -25,7 +25,7 @@ beforeEach(() => {
   resetEntityStores()
   useUIStore.setState(useUIStore.getInitialState(), true)
   const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...single(CELL) }
-  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
   useListDefinitionStore.setState({
     listDefinitions: [
       { id: 8, name: 'Eisenhower', sortOrder: 0, sort: 'manual', grouping: 'none', membership: { kind: 'custom', predicate: emptyPredicate() }, owner: { eisenhower: true } },

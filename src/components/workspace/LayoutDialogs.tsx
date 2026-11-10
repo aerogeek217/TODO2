@@ -6,35 +6,6 @@ import { ColorPicker } from '../shared/ColorPicker'
 import { deleteLayoutMessage } from './delete-layout-message'
 import styles from './LayoutDialogs.module.css'
 
-interface UnsavedChangesDialogProps {
-  layoutName: string
-  /** What the user is about to do, e.g. `You’re switching to “Daily”.` */
-  lead: string
-  onSave: () => void
-  onDiscard: () => void
-  onCancel: () => void
-}
-
-/** "Save changes to layout …?" — Save / Discard / Cancel before leaving a layout with unsaved changes. */
-export function UnsavedChangesDialog({ layoutName, lead, onSave, onDiscard, onCancel }: UnsavedChangesDialogProps) {
-  const saveRef = useRef<HTMLButtonElement>(null)
-  return (
-    <Dialog open onClose={onCancel} title={`Save changes to layout “${layoutName}”?`} initialFocusRef={saveRef} nested>
-      <DialogBody>
-        {lead} If you don’t save, your changes to “{layoutName}” will be lost.
-      </DialogBody>
-      <DialogActions className={styles.actions}>
-        <button type="button" className={styles.dangerGhost} onClick={onDiscard}>Discard</button>
-        <span className={styles.spacer} />
-        <button type="button" className={styles.ghost} onClick={onCancel}>
-          Cancel <kbd className={styles.kbd}>Esc</kbd>
-        </button>
-        <button ref={saveRef} type="button" className={styles.primary} onClick={onSave}>Save layout</button>
-      </DialogActions>
-    </Dialog>
-  )
-}
-
 interface LayoutNameDialogProps {
   title: string
   confirmLabel: string
@@ -49,7 +20,7 @@ interface LayoutNameDialogProps {
 }
 
 /**
- * "New layout…" / "Save as new layout…" / "Edit…": one name field, prefilled
+ * "New layout…" / "Duplicate layout…" / "Edit…": one name field, prefilled
  * and selected; empty can't be confirmed. Edit… adds the hue swatches (D19).
  */
 export function LayoutNameDialog({ title, confirmLabel, initialName, placeholder, initialHue, onConfirm, onCancel }: LayoutNameDialogProps) {

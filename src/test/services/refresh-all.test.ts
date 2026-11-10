@@ -17,6 +17,7 @@ import { resetStores } from '../store-tracking'
 import { addTask } from '../add-task'
 import { lensActions } from '../../stores/lens-actions'
 import { emptyBody } from '../helpers/layout-builders'
+import { layoutSteps, settleLayoutWrites } from '../helpers/layout-steps'
 
 beforeEach(async () => {
   await db.delete()
@@ -78,11 +79,15 @@ describe('refreshAllStores', () => {
 
     await useWorkspaceStore.getState().init()
     useWorkspaceStore.getState().addWidget('notes', { kind: 'layout' })
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
-    await db.layouts.update(useWorkspaceStore.getState().activeLayoutId!, { name: 'Imported' })
+    expect(layoutSteps()).toHaveLength(1)
+    await settleLayoutWrites()
+    // The replace writes other data under the same id.
+    await db.layouts.update(useWorkspaceStore.getState().activeLayoutId!, { name: 'Imported', ...emptyBody() })
 
     await refreshAllStores()
-    expect(useWorkspaceStore.getState()).toMatchObject({ isDirty: false })
+    // Its edits' undo steps name the data replaced: gone with the rest of the stack.
+    expect(layoutSteps()).toEqual([])
+    expect(useWorkspaceStore.getState()).toMatchObject({ writeFailed: false })
     expect(useWorkspaceStore.getState().working).toMatchObject({ name: 'Imported', ...emptyBody() })
   })
 

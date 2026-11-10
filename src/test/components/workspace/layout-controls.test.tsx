@@ -6,7 +6,7 @@ import { writeLayoutDraft } from '../../../data/draft-storage'
 import { createTab, type WorkspaceLayout } from '../../../models/workspace-layout'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import { LayoutControls } from '../../../components/workspace/LayoutControls'
-import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { settleLayoutWrites, useWorkspaceStore } from '../../../stores/workspace-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { resetDb } from '../../helpers'
 import { emptyBody, single } from '../../helpers/layout-builders'
@@ -73,12 +73,16 @@ describe('LayoutControls — tabs', () => {
     expect(reached).toEqual(['g'])
   })
 
-  it('the open tab shows the unsaved dot while the layout is unsaved', async () => {
+  it('every edit is saved: no unsaved dot, no save button — Couldn’t save · Retry shows only while a write has failed', async () => {
     await seed('Main')
     render(<LayoutControls mode="tabs" />)
-    expect(within(tab('Main')).queryByRole('img', { name: 'unsaved changes' })).toBeNull()
     act(() => ws().closeTab('Main-n'))
-    expect(within(tab('Main')).getByRole('img', { name: 'unsaved changes' })).toBeInTheDocument()
+    await act(async () => { await settleLayoutWrites() })
+    expect(within(tab('Main')).queryByRole('img')).toBeNull()
+    expect(screen.queryByTestId('layout-save')).toBeNull()
+    expect(screen.queryByTestId('layout-write-failed')).toBeNull()
+    act(() => useWorkspaceStore.setState({ writeFailed: true }))
+    expect(screen.getByTestId('layout-write-failed')).toHaveAccessibleName('Couldn\'t save layout Main. Retry')
   })
 
   it('another tab’s menu: Edit…, Move left / right, Delete layout… (no Save / Discard); Move right moves it', async () => {
@@ -99,8 +103,21 @@ describe('LayoutControls — tabs', () => {
     const menu = screen.getByRole('menu', { name: 'Layout Main' })
     expect(within(menu).getByRole('menuitem', { name: 'Move left' })).toBeDisabled()
     expect(within(menu).getByRole('menuitem', { name: 'Move right' })).toBeEnabled()
-    // The open layout's own actions lead.
-    expect(within(menu).getByRole('menuitem', { name: 'Save as new layout…' })).toBeInTheDocument()
+    // The open layout's own action leads: Duplicate layout… (no Save / Discard).
+    expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual(['Duplicate layout…', 'Edit…', 'Move left', 'Move right', 'Delete layout…'])
+  })
+
+  it('Duplicate layout… asks a name (the layout’s, “copy”) and opens the copy', async () => {
+    await seed('Main')
+    render(<LayoutControls mode="tabs" />)
+    fireEvent.contextMenu(tab('Main'))
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate layout…' }))
+    const dialog = screen.getByRole('dialog', { name: 'Duplicate layout' })
+    expect(within(dialog).getByLabelText('Name')).toHaveValue('Main copy')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Duplicate' }))
+    await waitFor(() => expect(tabNames()).toEqual(['Main', 'Main copy']))
+    expect(tab('Main copy')).toHaveAttribute('aria-selected', 'true')
+    expect(await db.layouts.count()).toBe(2)
   })
 
   it('Delete layout… from a tab names the lists that go with it', async () => {
@@ -131,11 +148,11 @@ describe('LayoutControls — tabs', () => {
     fireEvent.click(create)
     await waitFor(() => expect(tabNames()).toEqual(['Main', 'Planning']))
     expect(tab('Planning')).toHaveAttribute('aria-selected', 'true')
-    expect(ws()).toMatchObject({ isDirty: false })
+    expect(ws()).toMatchObject({ writeFailed: false })
     expect(await db.layouts.count()).toBe(2)
   })
 
-  it('a kept new layout from an older build: the open tab after the saved ones; Save asks its name', async () => {
+  it('a kept new layout from an older build is a stored layout’s tab, open', async () => {
     await seed('Main')
     writeLayoutDraft({ kind: 'new', name: 'Untitled layout', body: { ...emptyBody() } })
     useWorkspaceStore.setState(useWorkspaceStore.getInitialState(), true)
@@ -143,13 +160,7 @@ describe('LayoutControls — tabs', () => {
     render(<LayoutControls mode="tabs" />)
     expect(tabNames()).toEqual(['Main', 'Untitled layout'])
     expect(tab('Untitled layout')).toHaveAttribute('aria-selected', 'true')
-    fireEvent.click(screen.getByTestId('layout-save'))
-    const dialog = screen.getByRole('dialog', { name: 'Save layout' })
-    expect(within(dialog).getByLabelText('Name')).toHaveValue('Untitled layout')
-    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Planning' } })
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Save layout' }))
-    await waitFor(() => expect(tabNames()).toEqual(['Main', 'Planning']))
-    expect(ws().saved?.name).toBe('Planning')
+    expect(await db.layouts.count()).toBe(2)
   })
 })
 
@@ -163,7 +174,7 @@ describe('LayoutControls — folded into the picker', () => {
     const menu = screen.getByRole('menu', { name: 'Layouts' })
     expect(within(menu).getAllByRole('menuitemradio').map((i) => i.textContent)).toEqual(['Second', 'Main'])
     expect(within(menu).getAllByRole('menuitem').map((i) => i.textContent)).toEqual([
-      'New layout…', 'Save changes', 'Save as new layout…', 'Discard changes', 'Edit…', 'Delete layout…',
+      'New layout…', 'Duplicate layout…', 'Edit…', 'Delete layout…',
     ])
     fireEvent.click(within(menu).getByRole('menuitem', { name: 'New layout…' }))
     expect(screen.getByRole('dialog', { name: 'New layout' })).toBeInTheDocument()

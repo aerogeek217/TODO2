@@ -3,6 +3,7 @@ import { layoutBodyOf } from '../../models/workspace-layout'
 import { useWorkspaceStore, type ResizeHandle } from '../../stores/workspace-store'
 import { readLayoutDraft } from '../../data/draft-storage'
 import { resetDb } from '../helpers'
+import { layoutSteps } from '../helpers/layout-steps'
 
 /**
  * A structural resize drag's preview (`resizePreview`, layout feedback item
@@ -28,7 +29,7 @@ describe('workspace-store resizePreview', () => {
     ws().setResizePreview({ layoutId: working.id, body, handle })
     expect(ws().resizePreview?.body).toBe(body)
     expect(ws().working).toBe(working)
-    expect(ws().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     expect(readLayoutDraft()).toEqual(draft)
     ws().setResizePreview(null)
     expect(ws().resizePreview).toBeNull()

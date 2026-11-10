@@ -249,25 +249,24 @@ function PanelGhost({ tabs }: { tabs: WorkspaceDragState['tabs'] }) {
 }
 
 /**
- * Blocks in-app navigation away from unsaved work — the layout or a list
- * definition — until the user answers. Closing or reloading the tab loses
- * nothing: the unsaved changes are kept in the browser and come back unsaved
- * (`data/draft-storage`), so the browser's generic "leave site?" prompt is
- * asked only when they couldn't be kept (storage full or blocked).
+ * Blocks in-app navigation away from unsaved list edits until the user
+ * answers (layouts are saved at once: nothing about them is asked).
+ * Closing or reloading the tab loses nothing: the unsaved list edits are
+ * kept in the browser and come back unsaved (`data/draft-storage`), so the
+ * browser's generic "leave site?" prompt is asked only when they couldn't
+ * be kept (storage full or blocked).
  */
 function UnsavedNavigationGuard() {
-  const isDirty = useWorkspaceStore((s) => s.isDirty)
   const unsavedLists = useUnsavedListIds()
   const blocker = useBlocker(
     useCallback(
       ({ currentLocation, nextLocation }: { currentLocation: { pathname: string }; nextLocation: { pathname: string } }) =>
-        (useWorkspaceStore.getState().isDirty || getUnsavedListIds().length > 0)
-        && currentLocation.pathname !== nextLocation.pathname,
+        getUnsavedListIds().length > 0 && currentLocation.pathname !== nextLocation.pathname,
       [],
     ),
   )
 
-  const unsaved = isDirty || unsavedLists.length > 0
+  const unsaved = unsavedLists.length > 0
   useEffect(() => {
     if (!unsaved) return
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -283,7 +282,6 @@ function UnsavedNavigationGuard() {
   return (
     <UnsavedPrompt
       lead="You’re leaving the workspace."
-      layout={isDirty}
       listIds={unsavedLists}
       onDone={() => blocker.proceed()}
       onCancel={() => blocker.reset()}

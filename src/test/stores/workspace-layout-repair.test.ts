@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
-import { useWorkspaceStore } from '../../stores/workspace-store'
+import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { createTab, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
@@ -9,8 +9,8 @@ import { emptyBody, grid, single } from '../helpers/layout-builders'
 
 // A layout row the app can't use as stored (here: a retired `status` tab and
 // a bad row size, as an old build or a hand edit leaves it) is repaired in
-// memory when read: the workspace opens it without the bad parts, unsaved,
-// and says so. The stored row changes only when the layout is saved.
+// memory when read: the workspace opens it without the bad parts and says
+// so. The stored row changes only with the layout's first edit.
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
@@ -74,17 +74,17 @@ describe('layoutRepository reads', () => {
   })
 })
 
-describe('the workspace store opens a repaired layout unsaved', () => {
-  it('init: the bad parts are gone, the layout is unsaved, the snackbar says what was repaired', async () => {
+describe('the workspace store opens a repaired layout with the repair in memory', () => {
+  it('init: the bad parts are gone, the snackbar says what was repaired and that the next change keeps it', async () => {
     const id = await layoutRepository.insert(corrupt())
     await layoutRepository.setActiveId(id)
     await ws().init()
     expect(ws().working?.cells[0]?.tabs.map((t) => t.kind)).toEqual(['notes'])
-    expect(ws().isDirty).toBe(true)
-    expect(notice()).toEqual({ description: 'Repaired layout "Daily" — size reset, tab dropped. Save it to keep the repair.', notice: true })
+    expect(ws().repairedIds.has(id)).toBe(true)
+    expect(notice()).toEqual({ description: 'Repaired layout "Daily" — size reset, tab dropped. Your next change to it keeps the repair.', notice: true })
   })
 
-  it('nothing writes the repair back until Save; Save writes it and the layout is saved', async () => {
+  it('nothing writes the repair back on open or with view state; the first edit writes it, with the view state of the moment', async () => {
     const id = await layoutRepository.insert(corrupt())
     await layoutRepository.setActiveId(id)
     await ws().init()
@@ -97,48 +97,45 @@ describe('the workspace store opens a repaired layout unsaved', () => {
     expect(ws().working?.grid.rows[0]?.collapsed).toBe(true)
     await ws().rename(id, 'Daily 2')
     expect(await storedRow(id)).toEqual({ ...before, name: 'Daily 2' })
-    // Discard goes back to the repaired layout — still unsaved.
-    expect(ws().addWidget('notes', { kind: 'insert', edge: 'left' })).not.toBeNull()
-    expect(ws().working?.grid.columns).toHaveLength(3)
-    ws().discard()
-    expect(ws().isDirty).toBe(true)
-    expect(ws().working?.grid.columns).toHaveLength(2)
 
-    await ws().save()
-    expect(ws().isDirty).toBe(false)
+    expect(ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })).not.toBeNull()
+    await settleLayoutWrites()
+    expect(ws().repairedIds.has(id)).toBe(false)
     const row = await storedRow(id)
-    expect(row.cells[0]).toMatchObject({ tabs: [{ id: 'a1', kind: 'notes' }] })
+    expect(row.cells.find((c) => c.id === 'ka')).toMatchObject({ tabs: [{ id: 'a1', kind: 'notes' }] })
+    expect(row.cells.find((c) => c.id === 'kb')?.tabs).toHaveLength(2)
     expect(row.grid.columns[0]?.weight).toBe(2000)
+    expect(row.grid.rows[0]?.collapsed).toBe(true)
     expect((await layoutRepository.get(id))?.fixes).toEqual([])
-    // Saved now: view state is written again.
+    // Written now: view state is written again.
     await ws().setTrackCollapsed('R', false)
     expect((await storedRow(id)).grid.rows[0]?.collapsed).toBeUndefined()
   })
 
-  it('load: switching to a repaired layout opens it unsaved with the notice; switching back to a valid one is saved', async () => {
+  it('load: switching to a repaired layout opens it with the notice and writes only the last-used time', async () => {
     const [plain, broken] = [await layoutRepository.insert(valid()), await layoutRepository.insert(corrupt('Old'))]
     await layoutRepository.setActiveId(plain)
     await ws().init()
-    expect(ws().isDirty).toBe(false)
+    expect(ws().repairedIds.has(plain)).toBe(false)
     expect(notice()).toBeNull()
 
     await ws().load(broken)
     expect(ws().activeLayoutId).toBe(broken)
-    expect(ws().isDirty).toBe(true)
-    expect(notice()?.description).toBe('Repaired layout "Old" — size reset, tab dropped. Save it to keep the repair.')
+    expect(ws().repairedIds.has(broken)).toBe(true)
+    expect(notice()?.description).toBe('Repaired layout "Old" — size reset, tab dropped. Your next change to it keeps the repair.')
     // Only the last-used time was written.
     expect((await storedRow(broken)).cells[0]?.tabs).toHaveLength(2)
     expect((await storedRow(broken)).lastUsedAt).toBeInstanceOf(Date)
 
     await ws().load(plain)
-    expect(ws().isDirty).toBe(false)
+    expect(ws().repairedIds.has(plain)).toBe(false)
   })
 
-  it('a valid layout opens saved and silent', async () => {
+  it('a valid layout opens silent', async () => {
     const id = await layoutRepository.insert(valid())
     await layoutRepository.setActiveId(id)
     await ws().init()
-    expect(ws().isDirty).toBe(false)
+    expect(ws().repairedIds.size).toBe(0)
     expect(notice()).toBeNull()
     expect(console.warn).not.toHaveBeenCalled()
   })

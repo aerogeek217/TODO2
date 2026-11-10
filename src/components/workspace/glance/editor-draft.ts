@@ -36,9 +36,9 @@ export interface EditorDraft<C extends object> {
  * A widget editor's Save / Discard (the Number's, a chart's, Project
  * pulse's), Edit list's pattern: the editor edits a copy of the widget's
  * config, which the widget draws live (`widget-preview-store`, as a list
- * shows its draft), and nothing is written until Save — then only the keys
- * that changed (`configPatch`), so a write made meanwhile elsewhere (a ⋯
- * menu's Tags) stays; Discard drops the copy and the widget is as stored
+ * shows its draft), and nothing is written until Save — then, for good and
+ * as one undo step, only the keys that changed (`configPatch`), so a write
+ * made meanwhile elsewhere (a ⋯ menu's Tags) stays; Discard drops the copy and the widget is as stored
  * again. Nothing is kept across a reload.
  * Closing with changes asks first, as Settings' lens editor does (the
  * shared confirm prompt: Save / Discard / Keep editing; its Esc is Keep

@@ -219,11 +219,26 @@ export const layoutRepository = {
   },
 
   /**
+   * A layout edit as it is committed: writes the layout (as `put`) and, in
+   * the same transaction, removes the lists it owns that the row as written
+   * no longer names (`storedListRefs`) — each one another stored layout
+   * names handed to it, the others deleted with their manual order
+   * (`OwnedListsRemoved`, what an undo brings back with `restoreLists`).
+   */
+  async putAndPrune(layout: PersistedWorkspaceLayout): Promise<OwnedListsRemoved> {
+    return db.transaction('rw', db.layouts, db.listDefinitions, db.listOrders, async () => {
+      await layoutRepository.put(layout)
+      const named = storedListRefs(layout)
+      return removeLists(layout.id, (await ownedListIds(layout.id)).filter((id) => !named.has(id)))
+    })
+  },
+
+  /**
    * A view-state change (`apply`: sizes, active tab, collapse, a tab's view state)
-   * to the layout as stored, read and written in one transaction — so a
-   * Save that wrote a new structure just before keeps it, and the change
+   * to the layout as stored, read and written in one transaction — so an
+   * edit that wrote a new structure just before keeps it, and the change
    * lands on top. A row that needs the layout repair is left alone (only a
-   * Save, or the audit's cleanup, writes the repair).
+   * layout edit, or the audit's cleanup, writes the repair).
    */
   async updateView(id: number, apply: (layout: PersistedWorkspaceLayout) => PersistedWorkspaceLayout): Promise<void> {
     await db.transaction('rw', db.layouts, async () => {

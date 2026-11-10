@@ -7,6 +7,7 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { resetDb } from '../helpers'
 import { single } from '../helpers/layout-builders'
+import { layoutSteps } from '../helpers/layout-steps'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 const ws = () => useWorkspaceStore.getState()
@@ -41,7 +42,7 @@ describe('a list tab’s zoom (D25 C + I1)', () => {
   it('is view state: saved at once on the stored layout, never an unsaved edit', async () => {
     const id = await open()
     await setListTabZoom('l1', 'stacked')
-    expect(ws().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     expect((await storedTab(id)).viewState).toEqual({ zoom: 'stacked' })
   })
 
@@ -53,7 +54,7 @@ describe('a list tab’s zoom (D25 C + I1)', () => {
     await stepListTabZoom('l1', 'out')
     expect((await storedTab(id)).viewState?.zoom).toBe('lines')
     await stepListTabZoom('n1', 'in')
-    expect(ws().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 
   it('every control steps through it: the tab menu’s − / + and the palette step the tab they show', async () => {
@@ -67,6 +68,6 @@ describe('a list tab’s zoom (D25 C + I1)', () => {
     // At the end: nothing written.
     await stepListTabZoom({ id: 'l1', viewState: { zoom: 'stacked' } }, 'in')
     expect((await storedTab(id)).viewState?.zoom).toBe('stacked')
-    expect(ws().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 })

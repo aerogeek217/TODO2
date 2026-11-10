@@ -32,7 +32,7 @@ describe('UnsavedPrompt and a failed list save (cr31 W8)', () => {
     const id = await listWithDraft('Inbox')
     vi.spyOn(useListDefinitionStore.getState(), 'update').mockRejectedValue(new Error('disk full'))
     const onDone = vi.fn()
-    render(<UnsavedPrompt lead="Leaving." layout={false} listIds={[id]} onDone={onDone} onCancel={vi.fn()} />)
+    render(<UnsavedPrompt lead="Leaving." listIds={[id]} onDone={onDone} onCancel={vi.fn()} />)
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Save list' })) })
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save list' })).not.toBeDisabled())
     expect(onDone).not.toHaveBeenCalled()
@@ -47,7 +47,7 @@ describe('UnsavedPrompt and a failed list save (cr31 W8)', () => {
       () => new Promise<void>((_, reject) => { release = () => reject(new Error('disk full')) }),
     )
     const onDone = vi.fn()
-    render(<UnsavedPrompt lead="Leaving." layout={false} listIds={[a, b]} onDone={onDone} onCancel={vi.fn()} />)
+    render(<UnsavedPrompt lead="Leaving." listIds={[a, b]} onDone={onDone} onCancel={vi.fn()} />)
     const save = screen.getByRole('button', { name: /Save 2 checked/ })
     fireEvent.click(save)
     fireEvent.click(save)

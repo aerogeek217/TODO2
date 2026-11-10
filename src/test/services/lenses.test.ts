@@ -12,6 +12,7 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { resetDb } from '../helpers'
 import { lensActions } from '../../stores/lens-actions'
 import { emptyBody } from '../helpers/layout-builders'
+import { layoutSteps } from '../helpers/layout-steps'
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 const layout = (name: string): Omit<WorkspaceLayout, 'id' | 'sortOrder'> => ({ name, ...emptyBody(), createdAt: T0, modifiedAt: T0 })
@@ -91,7 +92,7 @@ describe('the keyboard actions', () => {
     await vi.waitFor(() => expect(settings().activeLensId).toBe('lens-a'))
     // A pick is no edit: no undo step, the layout stays saved.
     expect(useUndoStore.getState().undoStack).toHaveLength(0)
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 
   it('Cycle lens follows a reorder in Settings', async () => {
@@ -132,6 +133,6 @@ describe('a layout switch', () => {
     expect(useWorkspaceStore.getState().activeLayoutId).toBe(ids[1])
     expect(settings().activeLensId).toBe('lens-a')
     expect(useUIStore.getState().lensLifted).toBe(true)
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 })
