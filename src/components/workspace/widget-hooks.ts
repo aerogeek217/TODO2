@@ -1,6 +1,9 @@
 import { useMemo } from 'react'
 import { ownerLayoutId } from '../../models/list-definition'
-import { getActiveTab, kindTabTitle, tabListId, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
+import { breakdownPreset } from '../../models/chart-widgets'
+import { getActiveTab, kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
+import { zoomTargetTab } from '../../services/list-zoom'
+import { readingOrder } from '../../utils/workspace-grid'
 import { useChartWidgetsStore } from '../../stores/chart-widgets-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
@@ -144,15 +147,71 @@ export function useListOwnerLayoutId(): number | undefined {
  * (D26 P8; `seed` its preset's config).
  */
 export function useAddWidget() {
-  const addWidget = useWorkspaceStore((s) => s.addWidget)
-  return (kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number, seed?: TabSeed) => {
-    const tabId = addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
-    if (tabId != null && kind === 'number') openNumberEditor(tabId)
-    // D26 P8: a chart opens its editor too.
-    if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'tagMap')) {
-      showTab(tabId)
-      useChartWidgetsStore.getState().openEditor(tabId)
-    }
-    return tabId
+  return addWidgetAt
+}
+
+/**
+ * Adds a widget of `kind` at `target` with `add` (`addWidgetAt`): a list
+ * widget gets a new blank list of layout `layoutId` and opens its Edit list
+ * (`createListThenEdit`); without a stored layout (`layoutId` undefined) no
+ * list is added — it can't own one yet.
+ */
+export function addKindAt(kind: WidgetKind, target: LayoutDropTarget, add: typeof addWidgetAt, layoutId: number | undefined): void {
+  if (!WIDGET_KIND_SPECS[kind].showsList) {
+    add(kind, target)
+    return
   }
+  if (layoutId != null) void createListThenEdit((id) => add('lens', target, id), layoutId)
+}
+
+/**
+ * The cell an Add widget from the palette goes to: the one holding the
+ * focus as the command runs (the palette gives it back first — what had it
+ * when the palette opened), else the list tab's the zoom and review
+ * commands act on (`zoomTargetTab`), else the layout's first in reading
+ * order; null in an empty layout.
+ */
+function paletteTargetCell(layout: LayoutBody, focused: Element | null): string | null {
+  const ids = new Set(layout.cells.map((c) => c.id))
+  const own = focused?.closest('[data-ws-cell]')?.getAttribute('data-ws-cell')
+  if (own && ids.has(own)) return own
+  const tab = zoomTargetTab()
+  const tabCell = tab ? panelOfTab(layout, tab.id)?.id : undefined
+  if (tabCell) return tabCell
+  return readingOrder(layout).at(0)?.id ?? null
+}
+
+/** How far below a cell's top the palette's Where picker opens: the cell's top line (name, tabs) stays in view. */
+const CELL_TOP_LINE_PX = 32
+
+/**
+ * The palette's Add Widget › `kind` (J18): the Where picker of the cell last
+ * used, the kind chosen (`ui-store.requestAddWidget`, drawn by
+ * `AddWidgetRequestHost` under the cell's top line); in an empty layout the
+ * widget is added as its tiles add it (a Breakdown a Custom one).
+ */
+export function addWidgetFromPalette(kind: WidgetKind): void {
+  const { working, saved } = useWorkspaceStore.getState()
+  if (!working) return
+  const cellId = paletteTargetCell(working, document.activeElement)
+  if (cellId == null) {
+    if (kind === 'breakdown') addWidgetAt('breakdown', { kind: 'layout' }, undefined, { breakdown: breakdownPreset('custom') })
+    else addKindAt(kind, { kind: 'layout' }, addWidgetAt, saved?.id)
+    return
+  }
+  const rect = document.querySelector(`[data-ws-cell="${CSS.escape(cellId)}"]`)?.getBoundingClientRect()
+  const anchor = rect ? { x: rect.left + 8, y: rect.top + CELL_TOP_LINE_PX } : { x: 16, y: 64 }
+  useUIStore.getState().requestAddWidget({ cellId, kind, anchor })
+}
+
+/** `useAddWidget`'s add, outside a component (the palette's Add Widget ›). */
+export function addWidgetAt(kind: WidgetKind, target: LayoutDropTarget, listDefinitionId?: number, seed?: TabSeed): string | null {
+  const tabId = useWorkspaceStore.getState().addWidget(kind, target, listDefinitionId != null ? { ...seed, listDefinitionId } : seed)
+  if (tabId != null && kind === 'number') openNumberEditor(tabId)
+  // D26 P8: a chart opens its editor too.
+  if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'tagMap')) {
+    showTab(tabId)
+    useChartWidgetsStore.getState().openEditor(tabId)
+  }
+  return tabId
 }
