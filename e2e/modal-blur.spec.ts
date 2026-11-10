@@ -38,7 +38,9 @@ test('the task editor blurs the page; its delete confirm adds no second blur', a
   await expect(editor).toBeVisible()
   await expect.poll(() => backdropFilters(page)).toEqual([blur])
 
-  await editor.getByRole('button', { name: 'Delete', exact: true }).click()
+  // Delete is the header ⋯'s (board BJ).
+  await editor.getByRole('button', { name: 'More actions' }).click()
+  await page.getByRole('menuitem', { name: 'Delete' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(2)
   await expect.poll(() => backdropFilters(page)).toEqual([blur, 'none'])
 })

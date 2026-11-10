@@ -114,6 +114,16 @@ describe('the layout hues (D19) stand out like the accent', () => {
   })
 })
 
+describe('the task layout’s fact headers (board BJ) read as text', () => {
+  it.each(THEMES)('%s: each fact’s colour at AA on the dialog and the surfaces', (theme) => {
+    for (const fact of ['priority', 'status', 'people', 'tags', 'due', 'followup']) {
+      for (const bg of ['--color-dialog-bg', '--color-surface', '--color-surface-high']) {
+        expect(ratio(theme, `--color-fact-${fact}`, bg), `${theme} ${fact} on ${bg}`).toBeGreaterThanOrEqual(AA_TEXT)
+      }
+    }
+  })
+})
+
 describe('the calendar heat map (D18) reads on every step', () => {
   const STEPS = (hue: 'due' | 'followup') => [1, 2, 3].map((n) => `--cal-heat-${hue}-${n}`)
 

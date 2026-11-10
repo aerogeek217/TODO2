@@ -2,7 +2,6 @@ import { describe, it, expect, afterEach } from 'vitest'
 import { act, cleanup, render, screen } from '@testing-library/react'
 import { UndoSnackbar } from '../../../components/overlays/UndoSnackbar'
 import { useUndoStore } from '../../../stores/undo-store'
-import { readFileSync } from 'node:fs'
 
 afterEach(cleanup)
 
@@ -18,14 +17,5 @@ describe('UndoSnackbar (cr31 T13)', () => {
     expect(screen.getByRole('status')).toBe(live)
     expect(live.textContent).toContain('Complete "Draft OKRs"')
     expect(live.textContent).toContain('and 2 more')
-  })
-})
-
-describe('the editor’s Delete hover (cr31 T15)', () => {
-  it('takes the danger tokens, not the dark theme’s literal tint', () => {
-    const taskEditCss = readFileSync('src/components/task/TaskEditPopup.module.css', 'utf8')
-    const rule = taskEditCss.match(/\.deleteButton:hover\s*\{[^}]*\}/)?.[0] ?? ''
-    expect(rule).toContain('var(--color-danger-ring)')
-    expect(rule).not.toMatch(/rgba\(/)
   })
 })

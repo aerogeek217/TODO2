@@ -1,5 +1,8 @@
+import { useRef, useState } from 'react'
 import type { AutocompleteRow, AutocompleteState } from '../../hooks/use-nlp-autocomplete'
 import { NlpPopup } from '../shared/NlpPopup'
+import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
+import { CloseIcon, MoreIcon } from '../shared/icons'
 import styles from './TaskEditPopup.module.css'
 
 interface TaskEditHeaderProps {
@@ -19,13 +22,17 @@ interface TaskEditHeaderProps {
   onAcHighlight?: (index: number) => void
   /** Draft mode: a dashed ring instead of the checkbox and a Draft badge. */
   isDraft?: boolean
+  /** The ⋯ menu's entries (edit mode: Duplicate, Make subtask of…, Delete); none: no ⋯. */
+  menuEntries?: readonly MenuEntry[]
 }
 
 export function TaskEditHeader({
   isEdit, isCompleted, title, mode, titleRef,
   onToggleComplete, onTitleChange, onTitleBlur, onTitleKeyDown,
-  onClose, acState, onAcPick, onAcHighlight, isDraft = false,
+  onClose, acState, onAcPick, onAcHighlight, isDraft = false, menuEntries,
 }: TaskEditHeaderProps) {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const moreRef = useRef<HTMLButtonElement>(null)
   return (
     <div className={styles.header}>
       {isDraft && <span className={styles.draftRing} aria-hidden="true" />}
@@ -61,8 +68,33 @@ export function TaskEditHeader({
         )}
       </div>
       {isDraft && <span className={styles.draftBadge}>Draft</span>}
-      <button className={styles.closeButton} onClick={onClose} aria-label="Close">
-        ×
+      {menuEntries && menuEntries.length > 0 && (
+        <>
+          <button
+            ref={moreRef}
+            type="button"
+            className={styles.headerButton}
+            aria-label="More actions"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            onClick={() => setMenuOpen((v) => !v)}
+          >
+            <MoreIcon size={16} />
+          </button>
+          {menuOpen && (
+            <MenuPopover
+              anchorRef={moreRef}
+              placement="bottom-end"
+              label="Task actions"
+              entries={menuEntries}
+              width={200}
+              onClose={() => setMenuOpen(false)}
+            />
+          )}
+        </>
+      )}
+      <button type="button" className={styles.headerButton} onClick={onClose} aria-label="Close">
+        <CloseIcon size={12} />
       </button>
     </div>
   )

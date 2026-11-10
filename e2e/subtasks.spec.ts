@@ -352,6 +352,8 @@ test('a new task’s notes convert to its pending subtasks, stored with the task
   await page.keyboard.press('Tab')
   await expect(quick).toBeHidden()
 
+  // A new task's Notes is one line until opened.
+  await page.getByRole('dialog', { name: /task/i }).getByRole('button', { name: 'Add notes' }).click()
   const notes = page.getByRole('dialog', { name: /task/i }).locator('.cm-content')
   await notes.click()
   await page.keyboard.insertText('- First\n- Second')

@@ -74,7 +74,7 @@ describe('TaskEditPopup with concurrent changes to its task', () => {
     })
 
     expect(titleInput().value).toBe('Half-typed tit')
-    expect(screen.getByTitle(/^Due: /)).toBeTruthy()
+    expect(screen.getByTitle(/^Due /)).toBeTruthy()
     // The title wasn't saved yet: the store still has the old one.
     expect(useTodoStore.getState().todos.find((t) => t.id === id)?.title).toBe('Old title')
   })

@@ -145,19 +145,28 @@ describe('the review deck', () => {
     expect(cardTitle()).toBe(FIRST)
   })
 
-  it('a quick button sets the next follow-up at once; None clears it', async () => {
+  it('a quick button sets the next follow-up at once; the field’s × clears it (no None preset)', async () => {
     const [first] = ids as [number]
     await openDeck()
+    // The quick row is the editor's: 1w 2w 1m 3m, nothing else.
+    expect(within(screen.getByRole('group', { name: 'Quick follow-up intervals' })).getAllByRole('button').map((b) => b.textContent))
+      .toEqual(['1w', '2w', '1m', '3m'])
+    expect(screen.queryByRole('button', { name: 'No next follow-up' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'None' })).toBeNull()
     fireEvent.click(screen.getByRole('button', { name: 'Follow up in 1 month' }))
     await waitFor(() => expect(todo(first)?.nextFollowupAt).toBeDefined())
-    fireEvent.click(screen.getByRole('button', { name: 'No next follow-up' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Clear next follow-up' }))
     await waitFor(() => expect(todo(first)?.nextFollowupAt).toBeUndefined())
+    expect(nextField()).toHaveValue('')
+    expect(screen.getByTestId('review-hint')).toHaveTextContent('No next follow-up')
     expect(todo(first)?.lastFollowupAt).toBeUndefined()
   })
 
   it('the notes typed so far are written first, as their own undo step', async () => {
     const [first] = ids as [number]
     await openDeck()
+    // An empty task's Notes is one line: + Add notes opens the editor.
+    fireEvent.click(screen.getByRole('button', { name: 'Add notes' }))
     const view = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)
     if (!view) throw new Error('no notes editor')
     act(() => view.dispatch({ changes: { from: 0, insert: 'Ask infra about the cost' } }))
@@ -366,6 +375,7 @@ describe('the review deck', () => {
 
   it('in the notes editor Alt + arrows are its own (never the browser’s Back)', async () => {
     await openDeck()
+    fireEvent.click(screen.getByRole('button', { name: 'Add notes' }))
     const content = document.querySelector<HTMLElement>('.cm-content')!
     expect(fireEvent.keyDown(content, { key: 'ArrowRight', altKey: true })).toBe(false)
     expect(cardTitle()).toBe(FIRST)
@@ -407,18 +417,23 @@ describe('the review deck', () => {
     expect(useReviewStore.getState().open).toBe(true)
   })
 
-  it('the card is the editor’s layout: fields · Subtasks | Notes · Status updates · Follow-up; no Open in editor', async () => {
+  it('the card is the editor’s layout (board BJ): the facts rail, then the writing; no Open in editor', async () => {
+    useStatusStore.setState({ statuses: [{ id: 1, name: 'Waiting', color: '#f5c842', sortOrder: 0 }] })
     await openDeck()
     const card = document.querySelector('[data-review-card]') as HTMLElement
-    const parts = ['[data-task-fields]', '[data-task-pair]', '[data-status-updates]', '[data-task-followup]']
-      .map((sel) => card.querySelector(sel))
+    const rail = card.querySelector('[data-task-rail]') as HTMLElement
+    const writing = card.querySelector('[data-task-writing]') as HTMLElement
+    // The queue, the facts, the writing: in that order.
+    const queue = document.querySelector('[data-review-rail]')!
+    expect(queue.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(rail.compareDocumentPosition(writing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(Array.from(rail.querySelectorAll('[data-fact]')).map((f) => f.getAttribute('data-fact')))
+      .toEqual(['priority', 'status', 'people', 'tags', 'due', 'followup'])
+    const parts = ['[data-task-notes]', '[data-subtasks]', '[data-status-updates]'].map((sel) => writing.querySelector(sel))
     parts.forEach((el) => expect(el).not.toBeNull())
     for (let i = 1; i < parts.length; i++) {
       expect(parts[i - 1]!.compareDocumentPosition(parts[i]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     }
-    // Subtasks, then Notes, side by side.
-    const pair = card.querySelector('[data-task-pair]')!
-    expect(pair.querySelector('[data-subtasks]')!.compareDocumentPosition(pair.querySelector('[data-task-notes]')!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(within(card).getByRole('region', { name: 'Subtasks' })).toBeInTheDocument()
     expect(within(card).queryByText('Checklist')).toBeNull()
     expect(within(card).getByPlaceholderText('Add subtask')).toBeInTheDocument()
@@ -428,8 +443,9 @@ describe('the review deck', () => {
     expect(within(card).getByRole('button', { name: 'Urgent', pressed: false })).toBeInTheDocument()
     const updates = card.querySelector('[data-status-updates]') as HTMLElement
     expect(updates.querySelector('input:last-of-type')).toBe(updateField())
-    // The Last row: the date only — the deck's Mark followed up is its footer's.
+    // The Last row: the date only — the deck's Mark followed up is its footer's, none in the rail.
     expect(screen.getAllByRole('button', { name: 'Mark followed up' })).toHaveLength(1)
+    expect(within(rail).queryByRole('button', { name: 'Mark followed up' })).toBeNull()
     expect(screen.getByTestId('review-last-followup')).toHaveTextContent('Never followed up')
     expect(screen.queryByRole('button', { name: 'Open in editor' })).toBeNull()
   })
@@ -455,7 +471,7 @@ describe('the review deck', () => {
     await openDeck()
     fireEvent.click(screen.getByRole('button', { name: 'Urgent', pressed: false }))
     await waitFor(() => expect(todo(first)?.urgent).toBe(true))
-    fireEvent.click(screen.getAllByRole('button', { name: '+ Add' })[0]!)
+    fireEvent.click(screen.getByRole('button', { name: 'Add person' }))
     fireEvent.click(await screen.findByText('Aisha'))
     await waitFor(() => expect(usePersonStore.getState().assignedPeopleMap.get(first)?.map((p) => p.id)).toEqual([aisha]))
     await waitFor(() => expect(useUndoStore.getState().undoStack.length).toBe(2))

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, type RefObject, useId, useLayoutEffect, useMemo, useRef, useState, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
+import { useCallback, useEffect, type RefObject, useId, useLayoutEffect, useMemo, useRef, type ChangeEvent as ReactChangeEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { STATUS_UPDATE_TEXT_MAX, type Person, type PersistedTodoItem, type RecurrenceType, type Tag, type TodoChanges } from '../../models'
 import { NEXT_FOLLOWUP_PLACEHOLDER, useFollowupInput } from '../../hooks/use-followup-input'
 import { useToday } from '../../hooks/use-today'
@@ -16,7 +16,7 @@ import { useSubtaskStore } from '../../stores/subtask-store'
 import { useTagStore } from '../../stores/tag-store'
 import { useTodoStore } from '../../stores/todo-store'
 import { useUIStore } from '../../stores/ui-store'
-import { formatDateNumeric, formatRowDate, startOfDay } from '../../utils/date'
+import { formatRowDate, startOfDay } from '../../utils/date'
 import {
   addFollowupInterval,
   formatFollowupDate,
@@ -32,8 +32,10 @@ import { statusUpdateText } from '../../utils/status-updates'
 import { urgentMark, urgentToggleHint } from '../../utils/urgency'
 import { registerModuleReset } from '../../utils/module-reset'
 import { DialogFrame } from '../shared/Dialog'
+import { FollowupDateButton } from '../shared/followup/FollowupDateButton'
 import { FollowupQuickButtons } from '../shared/followup/FollowupQuickButtons'
 import { MarkFollowedUpButton } from '../shared/followup/MarkFollowedUpButton'
+import followupStyles from '../shared/followup/Followup.module.css'
 import { ChevronLeftIcon, ChevronRightIcon } from '../shared/icons'
 import { PriorityRing } from '../shared/PriorityRing'
 import { useTooltip } from '../shared/use-tooltip'
@@ -42,9 +44,9 @@ import { RowCheckbox } from '../task/row-cells'
 import { StatusUpdatesSection } from '../task/status-updates/StatusUpdatesSection'
 import { SubtasksSection } from '../task/subtasks/SubtasksSection'
 import { storedSubtaskMenuEntries } from '../task/subtasks/subtask-menu'
-import { DetailsRow, FollowupBlock, TaskDetailsBody, TaskNotesSection } from '../task/TaskDetailsBody'
+import { TaskDetailsBody, TaskNotesSection } from '../task/TaskDetailsBody'
 import { taskLayoutClasses } from '../task/task-layout-classes'
-import { TaskEditBadges } from '../task/TaskEditBadges'
+import { FactDateField, FactDateWords, FactRow, FollowupFacts, PriorityFacts, StatusFacts, type FactDateTone } from '../task/TaskFacts'
 import { TaskEditMetadata } from '../task/TaskEditMetadata'
 import { useEditorStatusUpdates, useEditorSubtasks } from '../task/use-editor-entries'
 import styles from './ReviewDeck.module.css'
@@ -58,13 +60,15 @@ import styles from './ReviewDeck.module.css'
  * list rows (the priority ring on the box, the follow-up and due dates in
  * words and in their colours), a ✓ on a task followed up here (its new
  * follow-up date in teal), – on a skipped one; a click on a row jumps to it.
- * The card is the task editor's layout (D26 BB, `TaskDetailsBody`): the
- * task's box (it completes the task) and title; the status pill and Focus ·
- * Urgent · Important; Due + repeat, People, Tags; Subtasks | Notes; Status
- * updates oldest first, the deck's update line last (focused as each card
- * opens); the Follow-up group (the Next field, 1w 2w 1m 3m, None; Last as
- * a date only). Footer: a hint of what Mark followed up will do, ‹ Back
- * (K), Skip › (S) and Mark followed up › (⏎).
+ * The card is the task editor's layout (board BJ, `TaskDetailsBody`): the
+ * task's box (it completes the task) and title; then the facts rail —
+ * Priority (Focus · Urgent · Important), Status, People, Tags, Due + repeat
+ * and Follow-up last (the Next field — × clears it —, 1w 2w 1m 3m; Last as
+ * a date only; no Mark followed up there, the footer's is the one) — beside
+ * the writing: Notes, Subtasks, Status updates oldest first with the deck's
+ * update line last (focused as each card opens). Queue, facts and writing
+ * read left to right. Footer: a hint of what Mark followed up will do,
+ * ‹ Back (K), Skip › (S) and Mark followed up › (⏎).
  *
  * Every edit is its own undo step, after the notes typed so far; Back and
  * Skip write nothing (a typed update waits for the task's card). Keys,
@@ -397,13 +401,13 @@ const NO_PEOPLE: Person[] = []
 const NO_TAGS: Tag[] = []
 
 /**
- * The card: the task editor's layout (D26 BB, the shared `TaskDetailsBody`)
- * for one task, every edit written at once, each its own undo step after
- * the notes typed so far — the box and title; the status pill and the
- * Focus · Urgent · Important toggles; Due + repeat, People, Tags; Subtasks |
- * Notes; Status updates (oldest first) with the deck's update line last;
- * the Follow-up group (Next — the field Mark followed up reads —, Last as
- * a date only). One task only, never the selection.
+ * The card: the task editor's layout (board BJ, the shared
+ * `TaskDetailsBody`) for one task, every edit written at once, each its own
+ * undo step after the notes typed so far — the box and title; the facts
+ * rail (Priority, Status, People, Tags, Due + repeat, then Follow-up: Next —
+ * the field Mark followed up reads —, Last as a date only); the writing
+ * (Notes, Subtasks, Status updates oldest first with the deck's update line
+ * last). One task only, never the selection.
  */
 function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean }) {
   const todoId = todo.id
@@ -419,7 +423,6 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
   const draft = useReviewStore((s) => s.drafts[todoId] ?? '')
   const selectOnFocus = useSelectAllOnFocus()
   const uid = useId()
-  const [dropdownOpen, setDropdownOpen] = useState(false)
 
   // Notes: one edit session, written before any other write to the task.
   const notes = useTaskNotesSource({ todoId })
@@ -479,7 +482,7 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
     settleNext(date)
     updateRef.current?.focus()
   }
-  /** None: no next follow-up, at once; the field stays empty (Mark followed up then leaves none). */
+  /** The field's ×: no next follow-up, at once; the field stays empty (Mark followed up then leaves none). */
   const clearNext = () => {
     settleNext(null)
     if (current !== null) setNext(null)
@@ -569,6 +572,11 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
 
   const lastLate = followupState(todo, today) === 'late'
   const last = todo.lastFollowupAt
+  // The Next field's words at rest: the date it holds, coloured as a row's follow-up date.
+  const shownNext = fieldDate === 'invalid' ? null : fieldDate
+  const shownNextState = shownNext ? followupState({ nextFollowupAt: shownNext, isCompleted: todo.isCompleted }, today) : undefined
+  const nextTone: FactDateTone | undefined = shownNextState === 'late' ? 'followup-late' : shownNextState === 'today' ? 'followup-today' : undefined
+  const dues = dueState(todo, today, urgentRange)
 
   const nextWords = fieldDate === 'invalid'
     ? 'Fix the next follow-up date'
@@ -599,37 +607,94 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
           </div>
           <h3 className={`${styles.cardTitle} ${todo.isCompleted ? styles.cardTitleDone : ''}`} data-testid="review-card-title">{todo.title}</h3>
         </div>
-        <TaskEditBadges
-          statuses={statuses}
-          statusId={todo.statusId}
-          onStatusChange={(statusId) => update({ statusId })}
-          focusOn={todo.focus === true}
-          urgentOn={todo.urgent === true}
-          importantOn={todo.important === true}
-          urgentState={urgentState}
-          urgentHint={urgentHint}
-          onToggleFocus={() => afterNotes(() => useTodoStore.getState().bulkSetFocus([todoId], todo.focus !== true))}
-          onToggleUrgent={() => afterNotes(() => useTodoStore.getState().bulkSetUrgent([todoId], todo.urgent !== true))}
-          onToggleImportant={() => afterNotes(() => useTodoStore.getState().bulkSetImportant([todoId], todo.important !== true))}
-        />
         <TaskDetailsBody
-          dropdownOpen={dropdownOpen}
-          fields={(
-            <TaskEditMetadata
-              deadline={todo.dueDate ?? null}
-              recurrenceType={recurrenceType}
-              onDeadlineChange={(next) => update(dueDateChanges(next, todo.recurrenceRule?.type))}
-              onRecurrenceChange={onRecurrenceChange}
-              assignedPeople={assignedPeople}
-              assignedTags={assignedTags}
-              allPeople={allPeople}
-              allTags={allTags}
-              onTogglePerson={togglePerson}
-              onToggleTag={toggleTag}
-              onCreatePerson={createPerson}
-              onCreateTag={createTag}
-              onDropdownChange={setDropdownOpen}
-            />
+          rail={(
+            <>
+              <PriorityFacts
+                focusOn={todo.focus === true}
+                urgentOn={todo.urgent === true}
+                importantOn={todo.important === true}
+                urgentState={urgentState}
+                urgentHint={urgentHint}
+                onToggleFocus={() => afterNotes(() => useTodoStore.getState().bulkSetFocus([todoId], todo.focus !== true))}
+                onToggleUrgent={() => afterNotes(() => useTodoStore.getState().bulkSetUrgent([todoId], todo.urgent !== true))}
+                onToggleImportant={() => afterNotes(() => useTodoStore.getState().bulkSetImportant([todoId], todo.important !== true))}
+              />
+              <StatusFacts statuses={statuses} statusId={todo.statusId} onStatusChange={(statusId) => update({ statusId })} />
+              <TaskEditMetadata
+                deadline={todo.dueDate ?? null}
+                recurrenceType={recurrenceType}
+                dueTone={dues.past ? 'past' : dues.soon ? 'soon' : undefined}
+                onDeadlineChange={(next) => update(dueDateChanges(next, todo.recurrenceRule?.type))}
+                onRecurrenceChange={onRecurrenceChange}
+                assignedPeople={assignedPeople}
+                assignedTags={assignedTags}
+                allPeople={allPeople}
+                allTags={allTags}
+                onTogglePerson={togglePerson}
+                onToggleTag={toggleTag}
+                onCreatePerson={createPerson}
+                onCreateTag={createTag}
+              />
+              <FollowupFacts>
+                <FactRow label="Next">
+                  <FactDateField date={shownNext} kind="next" tone={nextTone} empty="None" showWords={untouched}>
+                    <div className={`${followupStyles.editorInputWrap} ${s.kind === 'invalid' ? followupStyles.inputWrapError : ''}`}>
+                      <input
+                        id={`${uid}-next`}
+                        ref={nextRef}
+                        aria-label="Next follow-up"
+                        className={followupStyles.input}
+                        value={input.text}
+                        placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
+                        onChange={(e) => typeNext(e.target.value)}
+                        {...selectOnFocus}
+                        data-review-next=""
+                        onKeyDown={onNextKeyDown}
+                        aria-invalid={s.kind === 'invalid'}
+                        aria-describedby={`${uid}-next-help`}
+                        autoComplete="off"
+                        spellCheck={false}
+                      />
+                      {input.text !== '' && (
+                        <button
+                          type="button"
+                          className={followupStyles.inputClear}
+                          aria-label="Clear next follow-up"
+                          title="Clear next follow-up"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={clearNext}
+                        >
+                          &times;
+                        </button>
+                      )}
+                      <FollowupDateButton
+                        label="Pick next follow-up date"
+                        value={shownNext ?? undefined}
+                        onPick={(d) => (d ? apply(d) : clearNext())}
+                      />
+                    </div>
+                  </FactDateField>
+                </FactRow>
+                <div className={followupStyles.factIndent}>
+                  <span id={`${uid}-next-help`} className={styles.help} aria-live="polite">
+                    {s.kind === 'valid' && <>→ {formatFollowupDate(s.date, today)} · {relativeDayPhrase(s.date, today)} · ⏎ to set</>}
+                    {s.kind === 'invalid' && <span className={styles.helpError}>{s.message}</span>}
+                    {s.kind === 'empty' && (current !== null ? 'No next follow-up · ⏎ to clear' : 'No next follow-up')}
+                  </span>
+                  <FollowupQuickButtons
+                    intervals={QUICK_FOLLOWUP_INTERVALS}
+                    labelStyle="short"
+                    onPick={(i) => apply(addFollowupInterval(today, i))}
+                  />
+                </div>
+                <FactRow label="Last">
+                  <span className={styles.lastValue} data-late={lastLate || undefined} data-testid="review-last-followup">
+                    <FactDateWords date={last} kind="last" empty="Never followed up" />
+                  </span>
+                </FactRow>
+              </FollowupFacts>
+            </>
           )}
           subtasks={(
             <SubtasksSection
@@ -640,7 +705,7 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
               onRemove={subtasks.remove}
               onMove={subtasks.move}
               extraMenuEntries={storedSubtaskMenuEntries}
-              className={taskLayoutClasses.pairSection}
+              className={taskLayoutClasses.section}
               labelClassName={taskLayoutClasses.label}
             />
           )}
@@ -651,66 +716,31 @@ function ReviewCard({ todo, isLast }: { todo: PersistedTodoItem; isLast: boolean
               onAdd={updates.add}
               onEdit={updates.edit}
               onRemove={updates.remove}
-              className={taskLayoutClasses.updatesSection}
+              className={taskLayoutClasses.section}
               labelClassName={taskLayoutClasses.label}
               addLine={(
-                <input
-                  id={`${uid}-update`}
-                  ref={updateRef}
-                  className={styles.updateInput}
-                  value={draft}
-                  maxLength={STATUS_UPDATE_TEXT_MAX}
-                  placeholder="What’s the latest?"
-                  aria-label="Status update · today"
-                  autoComplete="off"
-                  data-review-update=""
-                  onChange={(e) => useReviewStore.getState().setDraft(todoId, e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
-                    e.preventDefault()
-                    if (!e.repeat) followUp()
-                  }}
-                />
+                <div className={styles.updateLine}>
+                  <input
+                    id={`${uid}-update`}
+                    ref={updateRef}
+                    className={styles.updateInput}
+                    value={draft}
+                    maxLength={STATUS_UPDATE_TEXT_MAX}
+                    placeholder="What’s the latest?"
+                    aria-label="Status update · today"
+                    autoComplete="off"
+                    data-review-update=""
+                    onChange={(e) => useReviewStore.getState().setDraft(todoId, e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key !== 'Enter' || e.nativeEvent.isComposing) return
+                      e.preventDefault()
+                      if (!e.repeat) followUp()
+                    }}
+                  />
+                  <span className={styles.updateHint} aria-hidden="true">⏎ follows up with it</span>
+                </div>
               )}
             />
-          )}
-          followup={(
-            <FollowupBlock>
-              <DetailsRow label="Next">
-                <input
-                  id={`${uid}-next`}
-                  ref={nextRef}
-                  aria-label="Next follow-up"
-                  className={`${styles.nextInput} ${s.kind === 'invalid' ? styles.nextInputError : ''}`}
-                  value={input.text}
-                  placeholder={NEXT_FOLLOWUP_PLACEHOLDER}
-                  onChange={(e) => typeNext(e.target.value)}
-                  {...selectOnFocus}
-                  data-review-next=""
-                  onKeyDown={onNextKeyDown}
-                  aria-invalid={s.kind === 'invalid'}
-                  aria-describedby={`${uid}-next-help`}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <span id={`${uid}-next-help`} className={styles.help} aria-live="polite">
-                  {s.kind === 'valid' && <>→ {formatFollowupDate(s.date, today)} · {relativeDayPhrase(s.date, today)} · ⏎ to set</>}
-                  {s.kind === 'invalid' && <span className={styles.helpError}>{s.message}</span>}
-                  {s.kind === 'empty' && (current !== null ? 'No next follow-up · ⏎ to clear' : 'No next follow-up')}
-                </span>
-                <FollowupQuickButtons
-                  intervals={QUICK_FOLLOWUP_INTERVALS}
-                  labelStyle="short"
-                  onPick={(i) => apply(addFollowupInterval(today, i))}
-                />
-                <button type="button" className={styles.noneBtn} aria-label="No next follow-up" onClick={clearNext}>None</button>
-              </DetailsRow>
-              <DetailsRow label="Last">
-                <span className={styles.lastValue} data-late={lastLate || undefined} data-testid="review-last-followup">
-                  {last ? `${formatDateNumeric(last)} · ${relativeDayPhrase(last, today)}` : 'Never followed up'}
-                </span>
-              </DetailsRow>
-            </FollowupBlock>
           )}
         />
       </div>
