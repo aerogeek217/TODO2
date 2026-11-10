@@ -15,9 +15,10 @@ afterAll(() => { process.env.TZ = originalZone })
 const CHICAGO = { lat: 41.88, lon: -87.63 }
 const settings = (changes: Partial<AmbienceSettings> = {}): AmbienceSettings => ({ ...DEFAULT_AMBIENCE, ...changes })
 const at = (y: number, m: number, d: number, h: number, min = 0) => new Date(y, m, d, h, min)
-const NOON = at(2026, 10, 7, 12)
-const NIGHT = at(2026, 10, 7, 23)
-const DUSK = at(2026, 10, 7, 16, 45)
+// Built when called, after `beforeAll` has set the zone (a time built at import would be read 6 hours off on a UTC runner, as in CI).
+const NOON = () => at(2026, 10, 7, 12)
+const NIGHT = () => at(2026, 10, 7, 23)
+const DUSK = () => at(2026, 10, 7, 16, 45)
 
 /** A generator handing out `values` in turn (then 0.5). */
 const draws = (...values: number[]) => () => values.shift() ?? 0.5
@@ -30,32 +31,32 @@ function seeded(seed: number) {
 
 describe('when the sky events may show', () => {
   it('a shooting star and a UFO at night, an airplane by day', () => {
-    expect(allowedSkyEvents(skyScene(NIGHT, CHICAGO, settings(), 'dark'), false)).toEqual({ shootingStar: true, ufo: true, airplane: false })
-    expect(allowedSkyEvents(skyScene(NOON, CHICAGO, settings(), 'dark'), false)).toEqual({ shootingStar: false, ufo: false, airplane: true })
+    expect(allowedSkyEvents(skyScene(NIGHT(), CHICAGO, settings(), 'dark'), false)).toEqual({ shootingStar: true, ufo: true, airplane: false })
+    expect(allowedSkyEvents(skyScene(NOON(), CHICAGO, settings(), 'dark'), false)).toEqual({ shootingStar: false, ufo: false, airplane: true })
   })
 
   it('none in the twilight between (the sky not yet dark, the sun too low for a clear day)', () => {
-    expect(allowedSkyEvents(skyScene(DUSK, CHICAGO, settings(), 'dark'), false)).toEqual({ shootingStar: false, ufo: false, airplane: false })
+    expect(allowedSkyEvents(skyScene(DUSK(), CHICAGO, settings(), 'dark'), false)).toEqual({ shootingStar: false, ufo: false, airplane: false })
   })
 
   it('the shooting star in the dark theme only, as the stars; the UFO and the airplane in both', () => {
-    expect(allowedSkyEvents(skyScene(NIGHT, CHICAGO, settings(), 'light'), false)).toEqual({ shootingStar: false, ufo: true, airplane: false })
-    expect(allowedSkyEvents(skyScene(NOON, CHICAGO, settings(), 'light'), false).airplane).toBe(true)
+    expect(allowedSkyEvents(skyScene(NIGHT(), CHICAGO, settings(), 'light'), false)).toEqual({ shootingStar: false, ufo: true, airplane: false })
+    expect(allowedSkyEvents(skyScene(NOON(), CHICAGO, settings(), 'light'), false).airplane).toBe(true)
   })
 
   it('none under reduced motion', () => {
-    for (const when of [NIGHT, NOON]) {
+    for (const when of [NIGHT(), NOON()]) {
       expect(allowedSkyEvents(skyScene(when, CHICAGO, settings(), 'dark'), true)).toEqual({ shootingStar: false, ufo: false, airplane: false })
     }
   })
 
   it('none at Header motion 0; fainter at low motion and at Whisper', () => {
-    for (const when of [NIGHT, NOON]) {
+    for (const when of [NIGHT(), NOON()]) {
       const scene = skyScene(when, CHICAGO, settings({ motion: 0 }), 'dark')
       expect(scene.events).toEqual({ shootingStar: 0, ufo: 0, airplane: 0 })
       expect(allowedSkyEvents(scene, false)).toEqual({ shootingStar: false, ufo: false, airplane: false })
     }
-    const ufo = (changes: Partial<AmbienceSettings>) => skyScene(NIGHT, CHICAGO, settings(changes), 'dark').events.ufo
+    const ufo = (changes: Partial<AmbienceSettings>) => skyScene(NIGHT(), CHICAGO, settings(changes), 'dark').events.ufo
     expect(ufo({ motion: 10 })).toBeLessThan(ufo({ motion: 40 }))
     expect(ufo({ sky: 'whisper', motion: 100 })).toBeLessThan(ufo({ sky: 'vivid', motion: 100 }))
     expect(ufo({ sky: 'vivid', motion: 100 })).toBe(1)
@@ -136,7 +137,7 @@ describe('the paths they take', () => {
 
 describe('the stars and the planet', () => {
   it('scales the stars by Sky strength, gone at Header motion 0', () => {
-    const stars = (changes: Partial<AmbienceSettings>) => skyScene(NIGHT, CHICAGO, settings(changes), 'dark').opacity.stars
+    const stars = (changes: Partial<AmbienceSettings>) => skyScene(NIGHT(), CHICAGO, settings(changes), 'dark').opacity.stars
     expect(stars({ sky: 'whisper' })).toBeLessThan(stars({ sky: 'subtle' }))
     expect(stars({ sky: 'subtle' })).toBeLessThan(stars({ sky: 'vivid' }))
     // The defaults (Whisper, motion 40) show them clearly.
