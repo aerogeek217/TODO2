@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -93,7 +93,7 @@ test.describe('desktop', () => {
     await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toHaveCount(0)
     await expect(quadrant(page, 'eisTab', 'delegate').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent · not Important · not Delegated')
     await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('1')
-    await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
     // The other layout's Eisenhower.
     await switchLayout(page, 'Second')
     await expect(row(quadrant(page, 'eis2', 'delegate'), 'Review analytics')).toBeVisible()

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * A Number's shapes (D26 P6, board Y): Against a goal — its bar, its pace
@@ -103,8 +103,7 @@ test('against a goal: a bar, where it stands, lit over the limit or behind its p
   await page.keyboard.press('Escape')
 
   // Saved, it reads back after a reload.
-  await page.getByTestId('layout-save').click()
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await page.reload()
   await expect(numberIn(page, 'g').getByTestId('number-goal-state')).toHaveText('Goal met')
 })
@@ -141,7 +140,7 @@ test('a group: several counts in one cell, each its own filter, each opening its
   await expect(group.getByTestId('number-group-count')).toHaveText(['4', '2'])
   await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor(page)).toHaveCount(0)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
 
   // Each count opens its own tasks.
   await group.getByRole('button', { name: 'Late: 2. Show tasks' }).click()
@@ -153,8 +152,7 @@ test('a group: several counts in one cell, each its own filter, each opening its
   await page.keyboard.press('Escape')
 
   // Saved, it reads back after a reload.
-  await page.getByTestId('layout-save').click()
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await page.reload()
   await expect(numberIn(page, 'n').getByTestId('number-group-count')).toHaveText(['4', '2'])
 })

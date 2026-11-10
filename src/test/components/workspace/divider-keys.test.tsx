@@ -7,6 +7,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { createTab, type LayoutBody, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { edgeStretches, type EdgeStretch } from '../../../utils/workspace-grid'
 import { cell, grid, picture } from '../../helpers/layout-builders'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
  * A divider of the table (D26 P2): ↑ / ↓ move it without running the app's
@@ -20,7 +21,7 @@ const AT = new Date(2026, 0, 1)
 
 function open(body: LayoutBody): void {
   const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...body }
-  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
 }
 
 function working(): LayoutBody {
@@ -71,7 +72,7 @@ describe('workspace dividers and the arrow-key shortcuts', () => {
     const [top, bottom] = working().grid.rows
     expect(top!.weight!).toBeGreaterThan(bottom!.weight!)
     expect(useUIStore.getState().selectedTodoIds.size).toBe(0)
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 })
 
@@ -85,7 +86,7 @@ describe('a divider drag', () => {
     fireEvent.pointerUp(divider, { pointerId: 1, clientX: 10, clientY: 360 })
     const [top, bottom] = working().grid.rows
     expect(top!.weight! / bottom!.weight!).toBeCloseTo(360 / 240)
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     expect(useWorkspaceStore.getState().saved?.grid.rows[0]?.weight).toBeCloseTo(top!.weight!)
   })
 
@@ -102,7 +103,7 @@ describe('a divider drag', () => {
     fireEvent.pointerMove(divider, { pointerId: 1, clientX: 10, clientY: 380 })
     fireEvent.pointerUp(divider, { pointerId: 1, clientX: 10, clientY: 380 })
     expect(picture(working())).toEqual(['a c x', 'a c y', 'b c y'])
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    expect(layoutSteps()).not.toEqual([])
   })
 
   it('a cancelled part-line drag changes nothing', () => {
@@ -117,6 +118,6 @@ describe('a divider drag', () => {
     fireEvent.pointerMove(divider, { pointerId: 1, clientX: 10, clientY: 380 })
     fireEvent.pointerCancel(divider, { pointerId: 1, clientX: 10, clientY: 380 })
     expect(picture(working())).toEqual(picture(before))
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 })

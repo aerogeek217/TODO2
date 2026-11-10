@@ -358,7 +358,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
       {guard && (
         <UnsavedPrompt
           lead={guard.lead}
-          layout={false}
           listIds={guard.listIds}
           onDone={() => { guard.run(); setGuard(null) }}
           onCancel={() => setGuard(null)}

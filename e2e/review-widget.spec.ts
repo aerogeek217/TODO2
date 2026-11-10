@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
-import { openCellMenu, pickInReview, pickWidgetKind, reviewField, seedWorkspace, wsCell, type WorkspaceSeed } from './fixtures/workspace'
+import { expectLayoutStep, expectLayoutStored, openCellMenu, pickInReview, pickWidgetKind, reviewField, seedWorkspace, wsCell, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * Item 12 · the Review widget (boards BK / BM) in the real browser: added
@@ -38,7 +38,6 @@ const cardTitle = (page: Page, tabId: string) => widget(page, tabId).getByTestId
 const railRows = (page: Page, tabId: string) => widget(page, tabId).locator('[data-review-row]')
 const chips = (w: Locator) => w.locator('[data-prompt-row]').getByRole('button', { name: /^Remove / })
 const panel = (page: Page) => page.locator('[data-prompt-panel]')
-const saveState = (page: Page) => page.getByTestId('layout-save')
 
 async function storedTask(page: Page, title: string) {
   return (await readStore<{ id: number; title: string; lastFollowupAt?: Date }>(page, 'todos')).find((t) => t.title === title)
@@ -141,14 +140,14 @@ test('added from the cell’s ⋯: by Person, nothing picked — “Pick a perso
   await expect.poll(async () => isToday((await storedTask(page, 'Vendor contract renewal'))?.lastFollowupAt)).toBe(true)
 })
 
-test('the kind from the row’s label: Tag — the picks go, the layout is unsaved; a reload keeps the kind, not the picks', async ({ page }) => {
+test('the kind from the row’s label: Tag — the picks go, the kind is saved at once (an undo step); a reload keeps the kind, not the picks', async ({ page }) => {
   await seedWorkspace(page, largeSeed())
   const w = widget(page, 'rev1')
   await pickInReview(page, 'rev1', 'Aisha')
   await expect(chips(w)).toHaveCount(1)
   await expect(railRows(page, 'rev1')).toHaveCount(4)
-  // Picking writes nothing to the layout: it stays saved, and its stored row holds no pick.
-  await expect(saveState(page)).toHaveAccessibleName('Layout saved')
+  // Picking writes nothing to the layout: no undo step, and its stored row holds no pick.
+  await expect(page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true })).toHaveCount(0)
   expect((await storedReviewTab(page, 'rev1'))?.config).toEqual({ by: 'person' })
 
   await w.getByTestId('review-by').click()
@@ -165,10 +164,9 @@ test('the kind from the row’s label: Tag — the picks go, the layout is unsav
   await expect(chips(w)).toHaveCount(0)
   await expect(w.getByTestId('review-empty')).toContainText('Pick a tag to review')
   await expect(w.getByRole('button', { name: 'Pick a tag' })).toBeVisible()
-  // The kind is the widget's setting: layout config, unsaved until Save.
-  await expect(saveState(page)).toHaveAccessibleName('Save layout (unsaved changes)')
-  await saveState(page).click()
-  await expect(saveState(page)).toHaveAccessibleName('Layout saved')
+  // The kind is the widget's setting: layout config, saved at once as one undo step.
+  await expectLayoutStep(page, 'Review by Tag')
+  await expect.poll(async () => (await storedReviewTab(page, 'rev1'))?.config).toEqual({ by: 'tag' })
 
   await pickInReview(page, 'rev1', 'legal')
   await expect(railRows(page, 'rev1')).toHaveText([/Vendor contract/, /Hiring scorecard/])
@@ -180,7 +178,7 @@ test('the kind from the row’s label: Tag — the picks go, the layout is unsav
   await expect(w).toHaveAttribute('data-review-by', 'tag')
   await expect(chips(w)).toHaveCount(0)
   await expect(w.getByTestId('review-empty')).toContainText('Pick a tag to review')
-  await expect(saveState(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   const stored = await storedReviewTab(page, 'rev1')
   expect(stored?.config).toEqual({ by: 'tag' })
   expect(stored?.viewState?.currentId).toBeUndefined()
@@ -254,7 +252,7 @@ test('large face: the rail and the deck’s card; ⏎ in the update line follows
   // The rail's sort is view state, saved at once — the layout stays saved, and a reload keeps it.
   await w.getByTestId('review-sort').click()
   await page.getByRole('menu', { name: 'Sort the queue' }).getByRole('menuitemradio', { name: /^Title/ }).click()
-  await expect(saveState(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await expect.poll(async () => (await storedReviewTab(page, 'rev1'))?.viewState).toEqual({ sort: 'title' })
   await page.reload()
   await pickInReview(page, 'rev1', 'Aisha')
@@ -301,7 +299,7 @@ test('a config an earlier build saved (one pick): opens by that pick’s kind, t
   const w = widget(page, 'old')
   await expect(w).toHaveAttribute('data-review-by', 'tag')
   await expect(w.getByTestId('review-empty')).toContainText('Pick a tag to review')
-  await expect(saveState(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await expect(page.getByText(/Repaired layout/)).toHaveCount(0)
 })
 

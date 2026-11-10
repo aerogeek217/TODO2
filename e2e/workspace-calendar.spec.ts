@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, type WorkspaceSeed, type WsTabSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -23,7 +23,6 @@ function layoutWith(calendar: Omit<WsTabSeed, 'id' | 'kind'>, opts: { listWeight
   }]
 }
 
-const saveButton = (page: Page) => page.getByTestId('layout-save')
 const calendar = (page: Page) => page.locator('[data-calendar-widget="calTab"]')
 
 /** The `data-day` key (local `YYYY-MM-DD`, in the page's time zone) of today + `n` days. */
@@ -133,7 +132,7 @@ test.describe('dropping a list task on a day', () => {
     await expect(other.locator('[data-cal-entry="due"]')).toContainText('Draft OKRs')
     expect((await readTodo(page, 'Draft OKRs')).dueDate?.getTime()).toBe(await dayAt(page, 4, 15))
     // Task drops aren't layout changes.
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
   })
 
   test('one date type shown: the drop sets it with no chooser', async ({ page }) => {
@@ -229,7 +228,7 @@ test('month navigation is view state: saved across reload, never unsaved', async
   await expect(label).toHaveText(names.after)
   await calendar(page).getByRole('button', { name: 'Previous month' }).click()
   await expect(label).toHaveText(names.next)
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   await page.reload()
   await expect(label).toHaveText(names.next)
@@ -242,7 +241,7 @@ test('month navigation is view state: saved across reload, never unsaved', async
   await expect(calendar(page).locator('[data-today="true"]')).toHaveCount(1)
   await calendar(page).getByRole('button', { name: 'Next week' }).click()
   await expect(calendar(page).locator('[data-today="true"]')).toHaveCount(0)
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 })
 
 test('date-type toggles are layout config: unsaved until saved; both can be off', async ({ page }) => {
@@ -259,7 +258,7 @@ test('date-type toggles are layout config: unsaved until saved; both can be off'
   await expect(due).toHaveAttribute('aria-pressed', 'false')
   await expect(tomorrow.locator('[data-cal-entry]')).toHaveCount(1)
   await expect(tomorrow.locator('[data-cal-entry="followup"]')).toHaveCount(1)
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
   // The last type on turns off too: nothing shows, and the calendar says why.
   await followup.click()
   await expect(followup).toHaveAttribute('aria-pressed', 'false')

@@ -1,13 +1,15 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { expectOpenLayout, openLayoutAction, openSettings, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow } from './fixtures/workspace'
+import { expectOpenLayout, openCellMenu, openSettings, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { createTab } from '../src/models/workspace-layout'
 import { readStore } from './fixtures/db'
 
 /**
- * Unsaved layout and list changes survive a reload — kept in the browser,
- * still shown unsaved — and go on save, discard or a data restore. Closing
- * the tab asks nothing while they are kept.
+ * A layout change is saved at once (an undo step); unsaved list changes
+ * survive a reload — kept in the browser, still shown unsaved — and go on
+ * save, discard or a data restore. A layout change an older build kept in
+ * the browser is applied once at launch. Closing the tab asks nothing while
+ * the list changes are kept.
  */
 
 test.use({ viewport: { width: 1280, height: 800 } })
@@ -20,7 +22,6 @@ const twoColumns: WsLayoutSeed = {
   ],
 }
 
-const saveButton = (page: Page) => page.getByTestId('layout-save')
 
 /** Whether the page's unload asks "Leave site?" (a `beforeunload` that prevents the default). */
 function unloadAsks(page: Page): Promise<boolean> {
@@ -34,30 +35,56 @@ function unloadAsks(page: Page): Promise<boolean> {
 async function closeEisenhower(page: Page) {
   await wsTab(page, 'eisTab').click()
   await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page, 'Closed tab “Eisenhower”')
 }
 
-test('an unsaved layout change survives a reload, still unsaved; Discard then forgets it', async ({ page }) => {
+test('a layout change is saved at once: closing the tab asks nothing, a reload keeps it, Undo puts it back', async ({ page }) => {
   await seedWorkspace(page, { layouts: [twoColumns] })
   await closeEisenhower(page)
-  // Kept, so closing the tab doesn't ask.
   expect(await unloadAsks(page)).toBe(false)
-
-  await page.reload()
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
-  await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
-  // The stored layout never changed.
   const [stored] = await readStore<{ cells: unknown[] }>(page, 'layouts')
-  expect(JSON.stringify(stored?.cells)).toContain('eisTab')
+  expect(JSON.stringify(stored?.cells)).not.toContain('eisTab')
+  expect(await page.evaluate(() => localStorage.getItem('todo2-unsaved-layout'))).toBeNull()
 
-  await openLayoutAction(page, 'Discard changes')
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
   await page.reload()
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
+
+  // Undo lasts until a reload: made again, then undone.
+  await openCellMenu(page, 'b1')
+  await page.getByRole('menuitem', { name: /^Close cell/ }).click()
+  await expectLayoutStep(page, 'Closed cell “Calendar”')
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab']]])
+  await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
+  await expectLayoutStored(page)
+  await page.reload()
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
+})
+
+test('a layout change an older build kept unsaved is applied once at launch, as one undo step', async ({ page }) => {
+  await seedWorkspace(page, { layouts: [twoColumns] })
+  const [row] = await readStore<{ id: number; grid: unknown; cells: Array<{ id: string; tabs: Array<{ id: string }> }> }>(page, 'layouts')
+  // The older build's draft: the stored table as its base, the Eisenhower tab closed.
+  const body = row!.cells.map((c) => ({ ...c, tabs: c.tabs.filter((t) => t.id !== 'eisTab'), activeTabId: c.tabs[0]?.id }))
+  await page.evaluate(({ id, grid, cells, base }) => {
+    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved', layoutId: id, grid, cells, baseGrid: grid, baseCells: base, schemaVersion: 78 }))
+  }, { id: row!.id, grid: row!.grid, cells: body, base: row!.cells })
+  await page.reload()
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
+  await expectLayoutStep(page, 'Applied unsaved changes to layout “Main”')
+  expect(await page.evaluate(() => localStorage.getItem('todo2-unsaved-layout'))).toBeNull()
+  const [stored] = await readStore<{ cells: unknown[] }>(page, 'layouts')
+  expect(JSON.stringify(stored?.cells)).not.toContain('eisTab')
+
+  await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+  await expectLayoutStored(page)
+  // Once: a reload applies nothing.
+  await page.reload()
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
 })
 
-test('an unsaved new layout an older build kept still opens, after the saved tabs; its Save asks a name', async ({ page }) => {
+test('an unsaved new layout an older build kept becomes a stored layout, after the others, and opens', async ({ page }) => {
   await seedWorkspace(page, { layouts: [twoColumns] })
   // An older build's New layout wasn't stored until saved: it kept the
   // unsaved layout in the browser (stamped v68, the oldest version read — in
@@ -69,20 +96,12 @@ test('an unsaved new layout an older build kept still opens, after the saved tab
   await page.reload()
   await expectOpenLayout(page, 'Untitled layout')
   await expect(page.getByTestId('layout-tab')).toHaveText(['Main', 'Untitled layout'])
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expect(page.getByText('Kept the unsaved new layout “Untitled layout”.')).toBeVisible()
   await expect.poll(() => wsShape(page)).toEqual([[['keptNotes']]])
-
-  await saveButton(page).click()
-  const dialog = page.getByRole('dialog', { name: 'Save layout' })
-  await expect(dialog.getByLabel('Name')).toHaveValue('Untitled layout')
-  await dialog.getByLabel('Name').fill('Planning')
-  await dialog.getByRole('button', { name: 'Save layout' }).click()
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-  await expectOpenLayout(page, 'Planning')
+  await expect.poll(async () => (await readStore(page, 'layouts')).length).toBe(2)
   await page.reload()
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-  await expectOpenLayout(page, 'Planning')
-  await expect(page.getByTestId('layout-tab')).toHaveText(['Main', 'Planning'])
+  await expectOpenLayout(page, 'Untitled layout')
+  await expect(page.getByTestId('layout-tab')).toHaveText(['Main', 'Untitled layout'])
   await expect.poll(() => wsShape(page)).toEqual([[['keptNotes']]])
 })
 
@@ -113,7 +132,7 @@ test('an unsaved list filter survives a reload, still unsaved; Save writes it', 
   await expect(wsCell(page, 'cell').getByTestId('save-list')).toHaveCount(0)
 })
 
-test('a backup restore drops the kept changes: after a reload nothing is unsaved', async ({ page }) => {
+test('a backup restore brings back the layout as backed up, also after a reload', async ({ page }) => {
   await seedWorkspace(page, { layouts: [twoColumns] })
   const settings = await openSettings(page, 'Backups')
   await settings.getByRole('button', { name: 'Create Backup Now' }).click()
@@ -128,20 +147,20 @@ test('a backup restore drops the kept changes: after a reload nothing is unsaved
   await manual.getByRole('button', { name: 'Confirm' }).click()
   await expect(settings.getByText('Restored successfully! The data it replaced was backed up first.')).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   await page.reload()
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
 })
 
-test('when the browser can’t keep them, closing the tab asks first', async ({ page }) => {
+test('a layout change never asks on closing the tab, even when the browser can’t keep anything', async ({ page }) => {
   await seedWorkspace(page, { layouts: [twoColumns] })
   await page.evaluate(() => {
     Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError') }
   })
   await closeEisenhower(page)
-  expect(await unloadAsks(page)).toBe(true)
+  expect(await unloadAsks(page)).toBe(false)
 })
 
 test('a backup restore drops a kept list change too', async ({ page }) => {

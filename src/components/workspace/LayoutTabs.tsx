@@ -14,17 +14,12 @@ type Layout = PersistedWorkspaceLayout
 type MenuPoint = { x: number; y: number }
 
 interface LayoutTabsProps {
-  /** The saved layouts, in their order. */
+  /** The layouts, in their order. */
   layouts: readonly Layout[]
   activeLayoutId: number | null
-  /** A kept new layout not saved yet (open, after the saved ones; not draggable), else `null`. */
-  unsavedNew: Layout | null
-  /** The open layout has unsaved changes: its tab's dot. */
-  dirty: boolean
   onActivate: (layout: Layout) => void
-  /** `id` `null` = the kept new layout's tab. */
-  onOpenMenu: (id: number | null, point: MenuPoint) => void
-  /** A saved layout dragged to position `toIndex` among the saved layouts. */
+  onOpenMenu: (id: number, point: MenuPoint) => void
+  /** A layout dragged to position `toIndex` among the layouts. */
   onMove: (id: number, toIndex: number) => void
   onNew: () => void
 }
@@ -38,15 +33,15 @@ const horizontalOnly: Modifier = ({ transform }) => ({ ...transform, y: 0 })
  * The open layout and the others as tabs in the top bar, then `+` (New
  * layout). Click or Enter / Space opens a layout; ← → / Home / End move the
  * focus; right-click or Shift+F10 / the context-menu key opens the tab's
- * menu. Saved layouts drag sideways to reorder, with their own `DndContext`
+ * menu. Layouts drag sideways to reorder, with their own `DndContext`
  * (never the workspace's).
  */
-export function LayoutTabs({ layouts, activeLayoutId, unsavedNew, dirty, onActivate, onOpenMenu, onMove, onNew }: LayoutTabsProps) {
+export function LayoutTabs({ layouts, activeLayoutId, onActivate, onOpenMenu, onMove, onNew }: LayoutTabsProps) {
   const tabEls = useRef(new Map<string, HTMLDivElement>())
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: DRAG_ACTIVATION_DISTANCE_PX } }))
   const ids = layouts.map((l) => dragIdOf(l.id))
-  const keys = [...ids, ...(unsavedNew ? ['new'] : [])]
-  const focusKey = unsavedNew ? 'new' : activeLayoutId != null ? dragIdOf(activeLayoutId) : ids[0]
+  const keys = ids
+  const focusKey = activeLayoutId != null ? dragIdOf(activeLayoutId) : ids[0]
 
   const focusSibling = (from: string, delta: 1 | -1 | 'first' | 'last') => {
     const i = keys.indexOf(from)
@@ -70,14 +65,13 @@ export function LayoutTabs({ layouts, activeLayoutId, unsavedNew, dirty, onActiv
           <div className={styles.tabs} role="tablist" aria-label="Layouts">
             {layouts.map((l) => {
               const key = dragIdOf(l.id)
-              const active = !unsavedNew && l.id === activeLayoutId
+              const active = l.id === activeLayoutId
               return (
                 <SortableLayoutTab
                   key={l.id}
                   dragId={key}
                   layout={l}
                   active={active}
-                  dirty={active && dirty}
                   focusable={key === focusKey}
                   onActivate={() => onActivate(l)}
                   onOpenMenu={(p) => onOpenMenu(l.id, p)}
@@ -89,21 +83,6 @@ export function LayoutTabs({ layouts, activeLayoutId, unsavedNew, dirty, onActiv
                 />
               )
             })}
-            {unsavedNew && (
-              <LayoutTabView
-                layout={unsavedNew}
-                active
-                dirty={dirty}
-                focusable={focusKey === 'new'}
-                onActivate={() => {}}
-                onOpenMenu={(p) => onOpenMenu(null, p)}
-                onFocusSibling={(d) => focusSibling('new', d)}
-                setRef={(el) => {
-                  if (el) tabEls.current.set('new', el)
-                  else tabEls.current.delete('new')
-                }}
-              />
-            )}
           </div>
         </SortableContext>
       </DndContext>
@@ -139,7 +118,6 @@ function SortableLayoutTab({ dragId, ...props }: LayoutTabViewProps & { dragId: 
 interface LayoutTabViewProps {
   layout: Layout
   active: boolean
-  dirty: boolean
   /** The tab the Tab key reaches (roving focus). */
   focusable: boolean
   onActivate: () => void
@@ -154,7 +132,7 @@ interface LayoutTabViewProps {
   }
 }
 
-function LayoutTabView({ layout, active, dirty, focusable, onActivate, onOpenMenu, onFocusSibling, setRef, sortable }: LayoutTabViewProps) {
+function LayoutTabView({ layout, active, focusable, onActivate, onOpenMenu, onFocusSibling, setRef, sortable }: LayoutTabViewProps) {
   return (
     <div
       ref={(el) => { sortable?.ref(el); setRef(el) }}
@@ -194,7 +172,6 @@ function LayoutTabView({ layout, active, dirty, focusable, onActivate, onOpenMen
     >
       <span className={styles.tabIcon}><LayoutIcon size={12} /></span>
       <span className={styles.tabName}>{layout.name}</span>
-      {dirty && <span className={styles.unsavedDot} role="img" aria-label="unsaved changes" />}
     </div>
   )
 }

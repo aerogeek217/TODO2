@@ -26,6 +26,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import { single } from '../../helpers/layout-builders'
 import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, Q4, SAMPLE_TASKS, STATUSES, TAGS } from '../../fixtures/glance-sample'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
  * One lens switch on every widget the top bar's filter reaches (G3, board
@@ -43,7 +44,7 @@ function layoutOf(tab: LayoutTab): PersistedWorkspaceLayout {
 
 function inLayout(tab: LayoutTab) {
   const layout = layoutOf(tab)
-  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], isDirty: false, hydrated: true })
+  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], writeFailed: false, hydrated: true })
 }
 
 const live = () => useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as LensSwitchTab
@@ -125,7 +126,7 @@ describe('a Breakdown’s switch', () => {
     expect(sw.closest('[data-widget-top-line]')!.lastElementChild?.previousElementSibling?.contains(sw)).toBe(true)
     fireEvent.click(sw)
     expect(live().viewState).toEqual({ ignoreLens: true })
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     expect(count()).toBe(all)
     expect(screen.getByTestId('lens-switch')).toHaveAttribute('aria-pressed', 'false')
   })

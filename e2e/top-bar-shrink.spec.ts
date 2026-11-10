@@ -91,10 +91,10 @@ async function expectEveryFilterButton(page: Page) {
   }
 }
 
-// The storage pill is its 24px dot while all is well: the widths below allow for that.
-test.use({ viewport: { width: 1308, height: 900 } })
+// The storage pill is its 24px dot while all is well and the layout has no save button: the widths below are measured for that.
+test.use({ viewport: { width: 1274, height: 900 } })
 
-test('at 1308px one person ticked keeps every filter button: the search narrows, the name is cut and whole in its tooltip', async ({ page }) => {
+test('at 1274px one person ticked keeps every filter button: the search narrows, the name is cut and whole in its tooltip', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expectEveryFilterButton(page)
   const before = await settled(page)

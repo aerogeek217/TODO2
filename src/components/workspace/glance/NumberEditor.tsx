@@ -133,8 +133,8 @@ export function NumberEditorHost() {
  * the Number, opened by Edit number… (its tab menu) and straight after a
  * Number is added. Its controls edit a copy of the config, which the
  * Number draws live (`useEditorDraft`, Edit list's pattern): Save writes the
- * changes as one layout config update — the layout is then unsaved until
- * its own Save — and Discard drops them (straight after Add widget, the new
+ * changes for good as one layout config update — one undo step — and
+ * Discard drops them (straight after Add widget, the new
  * Number stays with its first config). Esc, × or a press elsewhere close
  * it at once while nothing changed, else ask Save / Discard / Keep editing
  * (an expression that doesn't read holds the first press, as everywhere).
@@ -146,7 +146,7 @@ export function NumberEditor({ tab, anchorRef, onClose }: NumberEditorProps) {
   const edit = useEditorDraft<NumberConfig>({
     tabId: tab.id,
     stored: tab.config,
-    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, 'number', p),
+    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, 'number', p, `Edited number “${(p.name ?? tab.config.name).trim() || 'Number'}”`),
     onClose,
     promptTitle: `Save changes to number “${tab.config.name.trim() || 'Number'}”?`,
   })

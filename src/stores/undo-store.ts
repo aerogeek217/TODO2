@@ -18,6 +18,14 @@ export interface UndoEntry {
    * when taken, never run on its own.
    */
   action?: UndoSnackbarAction
+  /**
+   * Merges a run of pushes into one step: a push whose key matches the
+   * newest entry's (with no group open) replaces that entry's redo instead of
+   * adding an entry, so its undo still goes back to before
+   * the first of them (a name typed letter by letter, a divider stepped by
+   * the arrow keys). See `push`.
+   */
+  mergeKey?: string
   undo: () => void | Promise<void>
   redo: () => void | Promise<void>
 }
@@ -116,7 +124,18 @@ interface UndoState {
   snackbar: { description: string; notice?: true; detail?: string; action?: UndoSnackbarAction } | null
   snackbarTimerId: ReturnType<typeof setTimeout> | null
 
-  push: (entry: UndoEntry, showSnackbar?: boolean) => void
+  /**
+   * Adds `entry` as the newest step (and clears the redo stack). With a
+   * `mergeKey` that the newest entry has too, and no group open, it merges
+   * instead: the newest entry keeps its undo and its name and takes
+   * `entry`'s redo (`mergeTarget` says beforehand whether it would). Returns the entry
+   * that is now the newest.
+   */
+  push: (entry: UndoEntry, showSnackbar?: boolean) => UndoEntry
+  /** The newest entry, when a push with `mergeKey` would merge into it; else `null`. */
+  mergeTarget: (mergeKey: string) => UndoEntry | null
+  /** Drops `entry` when it is the newest entry (a merged run that came back to where it started: nothing left to undo). */
+  dropNewest: (entry: UndoEntry) => void
   /**
    * Undoes the newest entry and moves it to the redo stack — after the
    * compound step in progress, if any, has ended (it is then the newest
@@ -202,33 +221,50 @@ export const useUndoStore = create<UndoState>((set, get) => {
       // Inside a group the stack is not trimmed (that would shift the group's
       // start; `endGroup` trims) and no snackbar shows (`endGroup` decides).
       const inGroup = groupStartIndex != null
-      const trimmed = !inGroup && undoStack.length >= MAX_STACK_SIZE
-        ? undoStack.slice(undoStack.length - MAX_STACK_SIZE + 1)
-        : undoStack
+      const into = entry.mergeKey === undefined ? null : get().mergeTarget(entry.mergeKey)
+      // A merge: the newest step keeps its undo (back to before the run) and
+      // its name, and takes this push's redo.
+      const top = into ? { ...into, redo: entry.redo } : entry
+      const base = into ? undoStack.slice(0, -1) : undoStack
+      const trimmed = !inGroup && base.length >= MAX_STACK_SIZE
+        ? base.slice(base.length - MAX_STACK_SIZE + 1)
+        : base
 
       if (snackbarTimerId != null) clearTimeout(snackbarTimerId)
 
       if (showSnackbar && !inGroup) {
         // A second line is more to read: it stays as long as a notice.
-        const timerId = endSnackbarAfter(entry.detail ? NOTICE_SNACKBAR_MS : UNDO_SNACKBAR_MS)
+        const timerId = endSnackbarAfter(top.detail ? NOTICE_SNACKBAR_MS : UNDO_SNACKBAR_MS)
         set({
-          undoStack: [...trimmed, entry],
+          undoStack: [...trimmed, top],
           redoStack: [],
           snackbar: {
-            description: entry.description,
-            ...(entry.detail ? { detail: entry.detail } : {}),
-            ...(entry.action ? { action: entry.action } : {}),
+            description: top.description,
+            ...(top.detail ? { detail: top.detail } : {}),
+            ...(top.action ? { action: top.action } : {}),
           },
           snackbarTimerId: timerId,
         })
       } else {
         set({
-          undoStack: [...trimmed, entry],
+          undoStack: [...trimmed, top],
           redoStack: [],
           snackbar: null,
           snackbarTimerId: null,
         })
       }
+      return top
+    },
+
+    mergeTarget(mergeKey: string) {
+      const { undoStack, groupStartIndex } = get()
+      const top = undoStack.at(-1)
+      return groupStartIndex == null && top?.mergeKey === mergeKey ? top : null
+    },
+
+    dropNewest(entry: UndoEntry) {
+      const { undoStack } = get()
+      if (undoStack.at(-1) === entry) set({ undoStack: undoStack.slice(0, -1) })
     },
 
     async undo() {

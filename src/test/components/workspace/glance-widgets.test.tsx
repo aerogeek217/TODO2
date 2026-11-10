@@ -28,6 +28,7 @@ import type { WidgetFace } from '../../../utils/widget-face'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, Q4, SAMPLE_EVENTS, SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
 } from '../../fixtures/glance-sample'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 let lastResult: GlanceResult | null = null
 
@@ -210,12 +211,12 @@ describe('Number widget', () => {
     const stored = () => (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as typeof tab).config
     // Nothing written until Save.
     expect(stored()).toBe(tab.config)
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
     expect(document.querySelector('[data-number-editor]')).toBeNull()
     expect(stored()).toMatchObject({ name: 'Late', compare: 'lastWeek', litWhen: 'below', litAt: 7 })
     expect(stored()).not.toHaveProperty('color')
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    expect(layoutSteps()).not.toEqual([])
     // Never drops the threshold.
     act(() => { useUIStore.getState().openNumberEditor('n') })
     editor = document.querySelector<HTMLElement>('[data-number-editor="n"]')!
@@ -258,7 +259,7 @@ describe('a Number’s lens switch (G3)', () => {
     expect(sw).toHaveAttribute('aria-pressed', 'true')
     fireEvent.click(sw)
     expect(live().viewState).toEqual({ ignoreLens: true })
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     expect(numberCount()).toBe('19')
     expect(screen.getByTestId('lens-switch')).toHaveAttribute('aria-pressed', 'false')
   })
@@ -283,7 +284,7 @@ describe('a Number’s lens switch (G3)', () => {
     fireEvent.click(within(row).getByRole('button', { name: 'Apply the lens “Q4” here' }))
     expect(live().viewState).toEqual({ ignoreLens: true })
     expect(live().config).not.toHaveProperty('ignoreLens')
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 })
 

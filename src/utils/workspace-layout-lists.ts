@@ -8,7 +8,7 @@ import { layoutTabs } from './workspace-layout-queries'
 
 /**
  * The lists a layout names (its list tabs', its Numbers' that follow one), counted, collected and
- * renamed — what Save, Save as and Delete reconcile a layout's own lists by.
+ * renamed — what a committed edit, Duplicate layout and Delete reconcile a layout's own lists by.
  * Each write returns the same object when nothing changes. (A Review
  * widget's list picks are temporary, never part of the layout: they name
  * none.)

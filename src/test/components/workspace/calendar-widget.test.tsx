@@ -14,6 +14,7 @@ import { dayKey } from '../../../utils/date'
 import { single } from '../../helpers/layout-builders'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { WidgetFace } from '../../../utils/widget-face'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 const TODAY = new Date(2026, 9, 14, 10) // Wed 14 Oct 2026
 const day = (d: number, m = 9) => new Date(2026, m, d)
@@ -42,7 +43,7 @@ function Host() {
 
 function setup(tab: CalendarTab = calendarTab()) {
   const layout = layoutWith(tab)
-  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
   render(<DndContext><Host /></DndContext>)
 }
 
@@ -57,7 +58,7 @@ beforeEach(() => {
   clearFilterStore()
   useSettingsStore.setState({ weekStartsOn: 1 })
   useUIStore.setState({ selectedTodoId: null, editPopupMode: null })
-  useWorkspaceStore.setState({ layouts: [], activeLayoutId: null, working: null, saved: null, isDirty: false, hydrated: false })
+  useWorkspaceStore.setState({ layouts: [], activeLayoutId: null, working: null, saved: null, writeFailed: false, hydrated: false })
   useTodoStore.setState({
     todos: [
       makeTodo({ id: 1, title: 'Both dates', dueDate: day(16), nextFollowupAt: day(20), sortOrder: 1 }),
@@ -122,7 +123,7 @@ describe('CalendarWidget', () => {
     const group = screen.getByRole('group', { name: 'Date types shown' })
     fireEvent.click(within(group).getByRole('button', { name: /Due/ }))
     expect(workingTab().config.dateTypes).toEqual({ due: false, followup: true })
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    expect(layoutSteps()).not.toEqual([])
     expect(within(dayCell(day(16))!).queryByText('Both dates')).toBeNull()
     expect(within(dayCell(day(20))!).getByText('Both dates')).toBeInTheDocument()
 
@@ -144,7 +145,7 @@ describe('CalendarWidget', () => {
     expect(workingTab().viewState).toEqual({ titles: true, view: 'week', offset: 0 })
     expect(label()).toBe('Oct 12 – 18, 2026')
     expect(screen.getByRole('button', { name: 'Previous week' })).toBeInTheDocument()
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 
   it('an empty view says what it shows nothing of', () => {
@@ -259,7 +260,7 @@ describe('CalendarWidget heat map (titles off)', () => {
     await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Titles' })) })
     expect(workingTab().viewState).toEqual({})
     expect(dayCell(day(16))).toHaveAttribute('data-heat', '1')
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 })
 
@@ -300,7 +301,7 @@ describe('CalendarDropChooser', () => {
 describe('CalendarWidget faces (D25 R)', () => {
   function setupAt(face: WidgetFace, tab: CalendarTab = calendarTab()) {
     const layout = layoutWith(tab)
-    useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+    useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
     render(<DndContext><WidgetFaceContext.Provider value={{ forced: face }}><Host /></WidgetFaceContext.Provider></DndContext>)
   }
 

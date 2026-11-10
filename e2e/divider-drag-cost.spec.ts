@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
 import { expectCounterLive, installRenderCounter, readRenderCounts, resetRenderCounts } from './fixtures/render-count'
-import { seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * What a divider drag costs, held where it is observable without timing.
@@ -165,7 +165,7 @@ test('a list: the drag re-lays the rows out live without re-rendering them or th
   await expect.poll(async () => (await readRenderCounts(page)).ListWidget).toBeGreaterThan(0)
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
   expect(await everyLaidOutDetails(widget.locator('[data-todo-id]'))).toEqual(Array<number>(ROWS).fill(380))
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 })
 
 test('a drag across a dates tier renders each dates cell once, still no row', async ({ page }) => {
@@ -251,7 +251,7 @@ test('a column or fixed-row divider drag: no task row re-renders, nothing is wri
   expect(await layoutWrites(page)).toBe(dbWritesBefore)
   await page.mouse.up()
   await expect.poll(() => layoutWrites(page)).toBe(dbWritesBefore + 1)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   // The fixed row's divider: the same.
   const bandDivider = page.locator('[data-ws-divider="tb|cell"]')
@@ -267,13 +267,13 @@ test('a column or fixed-row divider drag: no task row re-renders, nothing is wri
   expect((await readRenderCounts(page)).TaskRow).toBe(0)
   // Saved, not unsaved: nothing kept in the browser.
   expect(await storageWrites(page)).toBe(writesBefore)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   // Both come back after a reload, saved.
   const widthAfter = (await box(wsCell(page, 'cell'))).width
   await page.reload()
   await expect(widget.locator('[data-todo-id]')).toHaveCount(ROWS)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   expect(Math.round((await box(wsCell(page, 'cell'))).width)).toBe(Math.round(widthAfter))
   await expect(bandDivider).toHaveAttribute('aria-valuenow', '180')
 })

@@ -46,30 +46,32 @@
   color: var(--color-text-primary);
 }
 
-.save {
+.writeFailed {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  padding: 0;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
   border: none;
   border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  opacity: 0.45;
-  cursor: default;
-}
-
-.saveDirty {
-  opacity: 1;
-  background: var(--color-accent-bg-medium);
-  color: var(--color-accent-text);
+  background: var(--color-danger-bg);
+  color: var(--color-danger-text);
+  font: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
   cursor: pointer;
+  flex-shrink: 0;
+  align-self: center;
 }
 
-.saveDirty:hover {
-  background: var(--color-accent-bg);
+.writeFailed:hover {
+  background: var(--color-danger-bg-strong);
+}
+
+.writeFailedAction {
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 /* ═══ The layouts as tabs (the look of a cell's tab strip, in the bar) ═══ */
@@ -158,15 +160,6 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-/* The open layout has unsaved changes. */
-.unsavedDot {
-  flex-shrink: 0;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--color-accent);
 }
 
 .tabDragging,

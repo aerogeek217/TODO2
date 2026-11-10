@@ -16,6 +16,7 @@ import { emptyPredicate } from '../../../models'
 import { db } from '../../../data/database'
 import { resetDb, resetEntityStores } from '../../helpers'
 import { single } from '../../helpers/layout-builders'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
  * A layout's lists in the workspace: a new list widget makes a blank list
@@ -36,7 +37,7 @@ beforeEach(async () => {
   resetEntityStores()
   useUIStore.setState(useUIStore.getInitialState(), true)
   const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'Main', createdAt: AT, modifiedAt: AT, ...single(CELL) }
-  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
   const lists = [def(1, 'Other', { owner: { layoutId: 1 } }), def(2, 'Mine', { owner: { layoutId: 1 } }), def(3, 'Theirs', { owner: { layoutId: 9 } }), def(4, 'No owner')]
   await db.listDefinitions.bulkAdd(lists)
   useListDefinitionStore.setState({ listDefinitions: lists, loaded: true })
@@ -108,7 +109,7 @@ describe('a layout’s lists in the workspace', () => {
     expect(listId).not.toBe(2)
     expect(await db.listDefinitions.get(listId)).toMatchObject({ name: 'New list', owner: { layoutId: 1 } })
     expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: listId, tabId })
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    expect(layoutSteps()).not.toEqual([])
   })
 
   it('an empty layout’s List tile does the same; a layout not stored yet offers it disabled, saying why', async () => {

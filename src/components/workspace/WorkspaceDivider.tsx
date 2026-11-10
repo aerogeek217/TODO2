@@ -95,11 +95,12 @@ export function SnapGuide({ axis, line, tracks }: { axis: GridAxis; line: number
  * snapped back onto a line it left re-joins it), the table previews the
  * result — every cell drawn at the size and place the release gives it
  * (`workspace-store.resizePreview`), this divider on its new line — and the
- * release makes that unsaved edit (Esc, or a cancelled pointer, puts the
+ * release makes that edit, an undo step (Esc, or a cancelled pointer, puts the
  * table back as it was). Beside a Numbers-only row it moves
  * the whole line, the row taking a height of its own (`fitTrackIds`; its
  * `fitPx`, view state). ←/→ (↑/↓)
- * move it 16px, the focus staying on it; a double-click evens a whole
+ * move it 16px, the focus staying on it (a run of them moving part of a
+ * line is one undo step); a double-click evens a whole
  * line's two tracks, or part of a line's own cells, or lets a fit row fit
  * again.
  */
@@ -255,7 +256,8 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
     if (sizes.length !== layout.grid[stretch.axis].length) return
     refocusAfterKey = identity
     requestAnimationFrame(() => { if (refocusAfterKey === identity) refocusAfterKey = null })
-    void useWorkspaceStore.getState().moveEdge(movedIn(layout), e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, { sizes, minPx: minPxIn(layout) })
+    // Key steps on this divider are one undo step (when they move part of a line).
+    void useWorkspaceStore.getState().moveEdge(movedIn(layout), e.key === grow ? KEY_STEP_PX : -KEY_STEP_PX, { sizes, minPx: minPxIn(layout) }, { mergeKey: `divider:${identity}` })
   }
 
   /**

@@ -13,6 +13,8 @@ import {
   wsTab,
   type WsLayoutSeed,
   wsRow,
+  expectLayoutStep,
+  expectLayoutStored,
 } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -27,9 +29,6 @@ import { readStore } from './fixtures/db'
  * stacking a row.
  */
 
-const saveButton = (page: Page) => page.getByTestId('layout-save')
-const UNSAVED = 'Save layout (unsaved changes)'
-const SAVED = 'Layout saved'
 
 /** [colA: (a1: notesTab)] [colB: (b1: calTab)] */
 const twoColumns: WsLayoutSeed = {
@@ -102,7 +101,7 @@ test.describe('sizes and collapse of cells side by side', () => {
     expect(d.height).toBeGreaterThan(100)
     await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 - 100, y: d.y + d.height / 2 })
     await expect.poll(async () => Math.round(before - (await box(c1)).width)).toBeGreaterThan(80)
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
     // a2 spans both columns under them: it keeps its width.
     const resized = Math.round((await box(c1)).width)
     await expect.poll(async () => {
@@ -133,7 +132,7 @@ test.describe('sizes and collapse of cells side by side', () => {
     await expect(wsCell(page, 'c2').getByRole('button', { name: 'Expand row' })).toBeVisible()
     // b1 spans the folded row: it keeps its body.
     await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toBeVisible()
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
     await expect(rowDividers).toHaveCount(0)
     await page.reload()
     await wsCell(page, 'c2').getByRole('button', { name: 'Expand row' }).click()
@@ -164,7 +163,7 @@ test.describe('the cell menu', () => {
     await openCellMenu(page, 'a1')
     await pickCellMenu(page, 'Insert', 'Column at the right')
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
-    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    await expectLayoutStep(page)
   })
 })
 

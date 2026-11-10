@@ -153,7 +153,7 @@ test.describe('desktop', () => {
   })
 
   test('over folded filters the tray expands in place, rightwards over the right zone; closing folds them back — every time', async ({ page }) => {
-    await page.setViewportSize({ width: 1305, height: 800 })
+    await page.setViewportSize({ width: 1206, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await filterToAnn(page)
     // Closed: the layouts as tabs, the filters folded to fit beside them.
@@ -190,7 +190,7 @@ test.describe('desktop', () => {
   })
 
   test('a filter changed in the expanded tray: on close the bar folds as it would for the new filter', async ({ page }) => {
-    await page.setViewportSize({ width: 1333, height: 800 })
+    await page.setViewportSize({ width: 1232, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     // No filter: every button fits beside the tabs.
     await expectEveryFilterButton(page)
@@ -226,7 +226,7 @@ test.describe('desktop', () => {
   })
 
   test('a filter set and cleared without the panel: the filters fold, then unfold again', async ({ page }) => {
-    await page.setViewportSize({ width: 1333, height: 800 })
+    await page.setViewportSize({ width: 1232, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await expectEveryFilterButton(page)
     const none = await bar(page)

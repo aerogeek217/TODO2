@@ -8,7 +8,9 @@ import { pickLayoutBody } from './layout-shape'
 import { upgradeDataSet, type DataRow } from './schema-upgrades'
 
 /**
- * Unsaved layout and list changes kept across a reload, in `localStorage`:
+ * Unsaved list changes kept across a reload, in `localStorage` — and the
+ * unsaved layout change a build before layout autosave kept there, which
+ * launch reads once (applied when it still fits, else dropped) and removes:
  * per browser, outside the Dexie database — so never in the sync file, an
  * export or a backup, and untouched by a data replace (the stores drop them
  * then; `clearUnsavedDrafts`). Each record carries what it was made
@@ -142,9 +144,18 @@ export function readLayoutDraft(): LayoutDraftRecord | null {
   return null
 }
 
-/** Keeps the layout draft (`null` = none). */
+/**
+ * Keeps the layout draft (`null` = none) as a build before layout autosave
+ * did (the app no longer writes one: tests use this to stand in for such a
+ * build's kept draft).
+ */
 export function writeLayoutDraft(record: LayoutDraftRecord | null): void {
   layoutWritten = writeJson(LAYOUT_KEY, record && { ...storedForm(record), schemaVersion: CURRENT_DB_VERSION })
+}
+
+/** Forgets the layout draft an older build kept, once launch has applied or dropped it. */
+export function clearLayoutDraft(): void {
+  layoutWritten = writeJson(LAYOUT_KEY, null)
 }
 
 /** A layout draft as kept: the body's keys flat (`grid`, `cells`), the base's prefixed. */

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
@@ -43,7 +43,6 @@ const tagRows = (page: Page) => chart(page, 'tags').locator('[data-breakdown-row
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
 const dialogTitles = (page: Page) => dialog(page).locator('[data-todo-id]').evaluateAll((rows) =>
   rows.map((r) => r.querySelector('[data-task-title]')?.textContent ?? ''))
-const saveButton = (page: Page) => page.getByTestId('layout-save')
 
 test('the widgets render their counts; the top-bar filter narrows them', async ({ page }) => {
   await seedWorkspace(page, seedWith())
@@ -82,7 +81,7 @@ test('a tag row opens the task dialog with the tasks it counts', async ({ page }
 test('a tab menu’s setting changes its widget, as a layout change', async ({ page }) => {
   await seedWorkspace(page, seedWith())
   await expect(chart(page, 'tags').locator('[data-breakdown-row="none"]')).toBeVisible()
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   await wsCell(page, 'k-tags').hover()
   await wsTab(page, 'tags').click({ button: 'right' })
@@ -92,7 +91,7 @@ test('a tab menu’s setting changes its widget, as a layout change', async ({ p
   await page.getByRole('menuitemradio', { name: 'Hidden', exact: true }).click()
   await expect(chart(page, 'tags').locator('[data-breakdown-row="none"]')).toHaveCount(0)
   await expect(tagRows(page)).toHaveCount(2)
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
 })
 
 test.describe('on a phone', () => {

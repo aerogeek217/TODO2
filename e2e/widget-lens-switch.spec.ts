@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * One lens switch on every widget the top bar's filter reaches (G3, board
@@ -62,7 +62,7 @@ test('the calendar’s switch ends its header; a click ignores the lens there an
   await sw.click()
   await expect(sw).toHaveAttribute('aria-pressed', 'false')
   await expect(sw).not.toContainText('−')
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await page.reload()
   await expect(calendar(page).getByTestId('lens-switch')).toHaveAttribute('aria-pressed', 'false')
 })

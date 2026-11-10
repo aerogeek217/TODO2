@@ -27,6 +27,7 @@ import { numberTab, single } from '../../helpers/layout-builders'
 import {
   ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_EVENTS, SAMPLE_LISTS, SAMPLE_TASKS, SAMPLE_TODAY, STATUSES, TAGS,
 } from '../../fixtures/glance-sample'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
  * A Number's shapes (D26 P6): each shape's widget over the glance sample
@@ -324,7 +325,7 @@ describe('Edit number’s shape fields', () => {
     expect(config()).not.toHaveProperty('list')
     expect(config()).not.toHaveProperty('goal')
     expect(config()).not.toHaveProperty('oldestBy')
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    expect(layoutSteps()).not.toEqual([])
   })
 
   it('a share’s and an oldest’s threshold reads in its unit', () => {

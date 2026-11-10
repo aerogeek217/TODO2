@@ -300,7 +300,7 @@ test('narrowing with a long lens on: it never folds or overflows; the tray folds
 test('over folded filters the tray expands without it; a press on it closes the panel, then its picker picks', async ({ page }) => {
   // Room enough for the expanded tray to the right of where it sits (narrower,
   // it slides left over whatever is beside it — the control too, as the tabs).
-  await page.setViewportSize({ width: 1300, height: 900 })
+  await page.setViewportSize({ width: 1264, height: 900 })
   await seedWorkspace(page, SEED)
   await pickLens(page, 'Has a person')
   await personChip(page, 'Aisha Rahman')
@@ -346,7 +346,7 @@ test('the panel open: a lens change from the palette moves the tray, and the pan
 })
 
 test('over folded filters with the panel open: a lens change moves the expanded tray with its place in the bar', async ({ page }) => {
-  await page.setViewportSize({ width: 1300, height: 900 })
+  await page.setViewportSize({ width: 1264, height: 900 })
   await seedWorkspace(page, SEED)
   await pickLens(page, 'Has a person')
   await personChip(page, 'Aisha Rahman')

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, drag, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, drag, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -113,7 +113,7 @@ test.describe('desktop', () => {
     await expect(quadrant(page, 'delegate').getByTestId('eisenhower-pane-subtitle')).toHaveText('Urgent · not Important · not Delegated')
     await expect(quadrant(page, 'delegate').getByTestId('eisenhower-pane-custom')).toBeVisible()
     await expect(quadrant(page, 'do').getByTestId('eisenhower-pane-custom')).toHaveCount(0)
-    await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
     await expect.poll(() => storedPanes(page)).toMatchObject({ delegate: { filter: { negate: { statusIds: true } } } })
     await expect(wsTab(page, 'eisTab')).toContainText('3 of 4')
 

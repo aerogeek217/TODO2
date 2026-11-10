@@ -577,9 +577,31 @@ export async function switchLayout(page: Page, name: string): Promise<void> {
 }
 
 /**
- * Picks an action for the open layout (Save as new layout…, Edit…,
- * Delete layout…, Discard changes, …): from its tab's menu, or the picker's
- * when the tabs are folded.
+ * Every layout edit is saved at once: waits until the open layout's writes
+ * have landed (`data-layout-writing` off the layout controls) and none has
+ * failed (no `Couldn't save · Retry`). What a spec awaits where it once
+ * clicked the save button, or checked it read "Layout saved".
+ */
+export async function expectLayoutStored(page: Page): Promise<void> {
+  await expect(page.locator('[data-layout-controls][data-layout-writing]')).toHaveCount(0)
+  await expect(page.getByTestId('layout-write-failed')).toHaveCount(0)
+}
+
+/**
+ * A structural layout edit was made: saved at once as an undo step — the
+ * snackbar names it (`name`, when given) and offers Undo — then stored.
+ */
+export async function expectLayoutStep(page: Page, name?: string | RegExp): Promise<void> {
+  const snackbar = page.locator('[data-snackbar-live]')
+  if (name !== undefined) await expect(snackbar).toContainText(name)
+  await expect(snackbar.getByRole('button', { name: 'Undo', exact: true })).toBeVisible()
+  await expectLayoutStored(page)
+}
+
+/**
+ * Picks an action for the open layout (Duplicate layout…, Edit…,
+ * Delete layout…): from its tab's menu, or the picker's when the tabs are
+ * folded.
  */
 export async function openLayoutAction(page: Page, item: string): Promise<void> {
   const menu = await page.getByTestId('layout-picker').isVisible()

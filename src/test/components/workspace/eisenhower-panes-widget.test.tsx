@@ -14,6 +14,7 @@ import { emptyPredicate, type TodoPredicate } from '../../../models'
 import { defaultPaneFilter } from '../../../utils/eisenhower-panes'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 import { single } from '../../helpers/layout-builders'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 const TODAY = new Date(2026, 9, 10, 10)
 
@@ -35,7 +36,7 @@ function Host() {
 /** The workspace with one Eisenhower tab, the app-wide panes setting `panes`. */
 function showLayout(): void {
   const layout = layoutWith({ id: 'eis', kind: 'eisenhower', config: {} })
-  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
 }
 
 function setup(panes: EisenhowerPanes) {
@@ -149,7 +150,7 @@ describe('EisenhowerWidget with custom panes', () => {
     expect(has('delegate', 'Chase vendor')).toBe(true)
     // A setting, written at once as one undo step: the layout isn't touched.
     await vi.waitFor(() => expect(undoNames()).toEqual(['Reset pane “Delegate”']))
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 
   it('Shift+F10 on a pane header opens its menu; a default pane has no Reset pane', () => {

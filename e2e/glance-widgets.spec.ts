@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openCellMenu, pickSplit, seedWorkspace, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { openCellMenu, pickSplit, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep } from './fixtures/workspace'
 
 /**
  * The glance widgets (D25 N) in a real browser: a Number and a Created vs
@@ -55,7 +55,7 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Insights' })
     .getByRole('button', { name: 'Created vs completed' }).click()
   await expect(page.locator('[data-glance="trend"] [data-glance-section="trend"]')).toBeVisible()
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
 
   // The Number's ⋯ menu: Edit number… — the filter set as an expression, the name, when it lights.
   const numberTab = numberCell.locator('[data-ws-tab]')
@@ -77,7 +77,7 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor(page)).toHaveCount(0)
   await expect(numberTab).toContainText('Late')
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
   // The filter back to none for the rest: every open task.
   await numberTab.click({ button: 'right' })
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit number…' }).click()

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openCellMenu, pickSplit, seedWorkspace, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { openCellMenu, pickSplit, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * A Number is a filter (D26 P5, board X): added from Add widget, its editor
@@ -48,7 +48,7 @@ test('add a Number, type a filter, see its count and its tasks', async ({ page }
   await expect(editor(page)).toContainText('KeepTags Project: Atlas')
   await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor(page)).toHaveCount(0)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
 
   // Its tasks: the two late Atlas ones, under its name, saying what it counts.
   await number(page).click()
@@ -62,8 +62,7 @@ test('add a Number, type a filter, see its count and its tasks', async ({ page }
   await expect(dialog).toHaveCount(0)
 
   // Saved, it reads back after a reload.
-  await page.getByTestId('layout-save').click()
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await page.reload()
   await expect(number(page).getByTestId('number-count')).toHaveText('2')
   await expect(number(page)).toContainText('Late on Atlas')

@@ -129,7 +129,7 @@ function ReviewWidgetBody({ tab, face, session, focusOnOpen }: {
   }, [])
 
   // The picks are of the kind they were made for: when the kind changes under them some other way than its
-  // menu (the layout's unsaved kind discarded), they go too — an id means another thing by another kind.
+  // menu (an undo of the kind's change), they go too — an id means another thing by another kind.
   const picksBy = useRef(by)
   useEffect(() => {
     if (picksBy.current === by) return
@@ -181,11 +181,11 @@ function ReviewWidgetBody({ tab, face, session, focusOnOpen }: {
     )
   }
 
-  // The kind is the widget's setting (layout config: unsaved until Save); its picks were of the old kind.
+  // The kind is the widget's setting (layout config: saved at once, one undo step); its picks were of the old kind.
   const setBy = (next: ReviewBy) => {
     if (next === by) return
     useListWidgetStore.getState().setPicks(tab.id, [])
-    useWorkspaceStore.getState().patchTabConfig(tab.id, 'review', { by: next })
+    useWorkspaceStore.getState().patchTabConfig(tab.id, 'review', { by: next }, `Review by ${REVIEW_BY_LABEL[next]}`)
   }
 
   const progress = picked && n > 0 && (
