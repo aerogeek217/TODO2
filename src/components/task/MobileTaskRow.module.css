@@ -1,15 +1,23 @@
+/*
+ * The phone row (D17's quiet row on touch): the checkbox, the title up to two
+ * lines, one muted details line. The title's button is stretched over the
+ * whole row (`.title::after`), so a tap anywhere opens the task; the
+ * checkbox sits above it.
+ */
 .row {
   /* The priority glow (`utils/priority-cues`); the other fills paint over it. */
   background: var(--row-glow);
+  position: relative;
   display: flex;
-  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
   min-height: var(--mobile-row-min-height);
-  padding: 8px 8px 8px 4px;
+  box-sizing: border-box;
+  /* The top padding gives the checkbox's 44px target its room inside the row (12 + 20 + 12). */
+  padding: 12px 12px 10px;
   border-radius: var(--radius-chip);
   transition: background 0.1s;
-  cursor: pointer;
   -webkit-tap-highlight-color: transparent;
-  position: relative;
 }
 
 /* Separator line between list rows, inset from the rounded corners. */
@@ -40,30 +48,33 @@
   outline-offset: -1px;
 }
 
-.selected {
-  background: var(--color-accent-bg-light);
-}
-
+/* Completed and stale read as the desktop row's. */
 .completed {
-  opacity: 0.5;
+  opacity: 0.4;
 }
 
-/* Stale (untouched for the Settings threshold): faded. */
 .row[data-stale] {
   opacity: 0.55;
 }
 
-/* Line 1: primary row */
-.primaryRow {
+/* ── The checkbox: a 44px target drawn as a 20px box ── */
+
+/* The drawn box and the priority ring over it (D25 B; `PriorityRing`, above the target's box). */
+.checkWrap {
+  position: relative;
   display: flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 32px;
+  flex-shrink: 0;
+  width: 20px;
+  /* Level with the title's first line (its line-height). */
+  height: 20px;
 }
 
-/* A 44px target drawn as a 20px box: the input takes the finger-sized
-   square (its margin gives back the room, so the row lays out as before)
-   and its ::before draws the box. */
+.checkWrap > svg {
+  z-index: var(--z-above-2);
+}
+
+/* The input takes the finger-sized square (its margin gives back the room)
+   and its ::before draws the box. Above the title's stretched button. */
 .checkbox {
   appearance: none;
   -webkit-appearance: none;
@@ -75,7 +86,6 @@
   cursor: pointer;
   flex-shrink: 0;
   position: relative;
-  /* Above the markers its target reaches over. */
   z-index: var(--z-above);
   -webkit-tap-highlight-color: transparent;
 }
@@ -116,187 +126,175 @@
   line-height: 1;
 }
 
-/* The title: the row's button (a tap selects the task), drawn as plain text. */
-.titleSemibold {
-  font-weight: var(--font-weight-semibold);
+/* The ring replaces the box's own border. */
+.checkWrap:has([data-priority-ring]) .checkbox:not(:checked)::before {
+  border-color: transparent;
 }
 
-.title {
+/* ── The title and the details line ── */
+
+.body {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* The row's one button: plain text, its hit area the whole row. */
+.title {
+  display: block;
+  width: 100%;
   min-width: 0;
   padding: 0;
   border: none;
   background: none;
   font-family: inherit;
   font-size: 15px;
-  line-height: 1.3;
+  font-weight: var(--font-weight-medium);
+  line-height: 20px;
   text-align: left;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
   color: var(--color-text-primary);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
 }
 
+.title::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+/* The focus ring goes round the row, not the title's text. */
+.title:focus-visible {
+  box-shadow: none;
+}
+
+.title:focus-visible::after {
+  box-shadow: var(--focus-ring);
+}
+
+/* Up to two lines, then an ellipsis. */
+.titleText {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+/* A priority's semibold cue (`utils/priority-cues`). */
+.titleSemibold {
+  font-weight: var(--font-weight-semibold);
+}
+
 .completedTitle {
-  text-decoration: line-through;
   color: var(--color-text-completed);
 }
 
-.statusButton {
-  background: none;
-  border: none;
-  color: var(--color-border-muted);
-  font-size: 18px;
-  padding: 4px;
-  cursor: pointer;
-  flex-shrink: 0;
-  min-width: var(--touch-target-min);
-  min-height: var(--touch-target-min);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  -webkit-tap-highlight-color: transparent;
+.completedTitle .titleText {
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
 }
 
-.statusDotEmpty {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  border: 1.5px solid var(--color-border);
-  display: inline-block;
-}
-
-.chevron {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  font-size: 18px;
-  padding: 4px;
-  cursor: pointer;
-  flex-shrink: 0;
-  min-width: var(--touch-target-min);
-  min-height: var(--touch-target-min);
+/* One muted line: due · follow-up · count · notes · people · tags; the tags give way first. */
+.details {
   display: flex;
   align-items: center;
-  justify-content: center;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* Line 2: metadata row */
-.metaRow {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding-left: 42px;
-  padding-top: 2px;
-  flex-wrap: wrap;
+  gap: 10px;
+  min-width: 0;
+  height: 18px;
   overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-meta);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
 }
 
-.statusUpdateChip {
-  font-size: 11px;
-  color: var(--color-text-muted);
-  padding: 1px 6px;
-  border-radius: var(--radius-chip);
-  background: var(--color-tint-5);
-  white-space: nowrap;
+.part {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-}
-
-.progressBarTrack {
-  display: inline-block;
-  width: 32px;
-  height: 3px;
-  background: var(--color-surface-bright);
-  border-radius: 2px;
-  overflow: hidden;
-  vertical-align: middle;
-}
-
-.progressBarFill {
-  display: block;
-  height: 100%;
-  background: var(--color-accent);
-  border-radius: 2px;
-}
-
-.notesIcon {
-  color: var(--color-text-muted);
   flex-shrink: 0;
-  background: none;
-  border: none;
-  padding: 2px;
-  cursor: pointer;
+}
+
+/* Due: muted until inside the Settings "due soon" range, then the deadline colour; overdue bold (as the desktop date cells). */
+.due[data-due-soon] {
+  color: var(--color-deadline);
+}
+
+.duePast {
+  color: var(--color-deadline);
+  font-weight: 700;
+}
+
+/* The follow-up shows only while today or late: always the follow-up colour. */
+.followup {
+  color: var(--color-followup);
+}
+
+.followup[data-followup="late"] svg {
+  filter: drop-shadow(0 0 3px var(--color-followup-glow));
+}
+
+/* People: initials in 16px circles, muted (touch has no hover to colour them). */
+.avatars {
   display: inline-flex;
   align-items: center;
-  -webkit-tap-highlight-color: transparent;
 }
 
-.hiddenDateInput {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-.emptyDateAction {
-  background: none;
-  border: 1px dashed var(--color-border);
-  color: var(--color-text-muted);
-  font-size: 11px;
-  padding: 1px 6px;
-  border-radius: var(--radius-chip);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  -webkit-tap-highlight-color: transparent;
-}
-
-/* Empty follow-up slot on touch: always shown (no hover), a round ghost flag. */
-.emptyFollowupAction {
-  flex-shrink: 0;
+.avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 20px;
-  height: 20px;
-  padding: 0;
-  border: none;
-  border-radius: 50%;
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--color-border);
-  color: var(--color-text-muted);
-  font-size: 12px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.emptyFollowupActionOpen {
-  color: var(--color-followup);
-  box-shadow: inset 0 0 0 1px var(--color-followup);
-}
-
-/* The checkbox's drawn box and the priority ring over it (D25 B; `PriorityRing`, above the target's box). */
-.checkWrap {
-  position: relative;
-  display: flex;
   flex-shrink: 0;
-  width: 20px;
-  height: 20px;
+  width: 16px;
+  height: 16px;
+  margin-left: -4px;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1.5px var(--color-surface);
+  background: var(--color-surface-bright);
+  color: var(--color-text-secondary);
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.checkWrap > svg {
-  z-index: var(--z-above-2);
+.avatar:first-child {
+  margin-left: 0;
 }
 
-/* The ring replaces the box's own border. */
-.checkWrap:has([data-priority-ring]) .checkbox:not(:checked)::before {
-  border-color: transparent;
+/* The first tag, muted text (the tag's colour stays in the picker); it may ellipsize. */
+.tags {
+  flex-shrink: 1;
+  min-width: 0;
+}
+
+.tag {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.more {
+  flex-shrink: 0;
+}
+
+/* ── The task menu's pickers (`MobileRowActions`) ── */
+
+/* Hidden anchors: the follow-up popover and the due date's picker open at the title's start. */
+.anchor {
+  position: absolute;
+  left: 44px;
+  top: 0;
+  width: 1px;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Portaled person picker panel. */

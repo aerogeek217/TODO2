@@ -411,26 +411,6 @@
   box-shadow: var(--trigger-open-ring), var(--focus-ring);
 }
 
-/* The phone row's chip: `2/5 subtasks`. */
-.chip {
-  height: 24px;
-  padding: 0 10px;
-  border: none;
-  border-radius: var(--radius-pill);
-  background: var(--color-tint-5);
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.chip[data-all-done] {
-  background: var(--color-accent-bg-light);
-  color: var(--color-accent-text);
-}
-
 /* ── The row's popover ── */
 
 .popover {

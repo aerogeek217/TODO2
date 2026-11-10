@@ -1,8 +1,8 @@
 // The desktop row's `2/5` count (cr28, T2): after the title when the task has
 // subtasks, the accent when every one is done; a click opens the checklist
 // popover, whose checks write through the store (the count follows); Esc
-// closes it and hands the focus back to the count. The phone row's chip opens
-// the sheet.
+// closes it and hands the focus back to the count. The phone row shows the
+// count on its details line; its task menu's Add subtask… opens the sheet.
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, render, screen, fireEvent, cleanup, within, waitFor } from '@testing-library/react'
 import { TaskRow } from '../../components/task/TaskRow'
@@ -164,25 +164,28 @@ describe('TaskRow — the add-subtasks mark without a checklist', () => {
   })
 })
 
-describe('MobileTaskRow — the subtasks chip', () => {
-  it('shows `1/3 subtasks` and opens the checklist as a sheet, whose checks write', async () => {
+describe('MobileTaskRow — the subtask count', () => {
+  const rowCount = () => document.querySelector('[data-row-details] [data-subtask-count]')
+
+  it('shows `1/3` on the details line with nothing to press; the menu’s Add subtask… opens the checklist as a sheet, whose checks write', async () => {
     await seed(['[x] a', 'b', 'c'])
     render(<><MobileTaskRow todo={todo()} /><RowPopoverHost /></>)
-    const chip = screen.getByRole('button', { name: '1 of 3 subtasks done, show them' })
-    expect(chip).toHaveTextContent('1/3 subtasks')
-    fireEvent.click(chip)
+    expect(rowCount()).toHaveTextContent('1/3')
+    expect(rowCount()!.tagName).toBe('SPAN')
+    fireEvent.contextMenu(document.querySelector('[data-todo-id]')!, { clientX: 40, clientY: 20 })
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add subtask…' }))
     const sheet = screen.getByRole('dialog', { name: 'Subtasks of Q4 budget' })
     expect(sheet).toHaveAttribute('data-subtasks-sheet')
     await act(async () => { fireEvent.click(within(sheet).getByRole('checkbox', { name: 'Check c' })) })
     expect((await db.subtasks.where('todoId').equals(1).sortBy('sortOrder')).map((s) => s.isCompleted)).toEqual([true, false, true])
-    await waitFor(() => expect(chip).toHaveTextContent('2/3 subtasks'))
+    await waitFor(() => expect(rowCount()).toHaveTextContent('2/3'))
     fireEvent.keyDown(document, { key: 'Escape' })
     expect(screen.queryByRole('dialog', { name: 'Subtasks of Q4 budget' })).toBeNull()
   })
 
-  it('shows no chip without subtasks', async () => {
+  it('shows no count without subtasks', async () => {
     await seed([])
     render(<><MobileTaskRow todo={todo()} /><RowPopoverHost /></>)
-    expect(screen.queryByRole('button', { name: /subtasks? done/ })).toBeNull()
+    expect(rowCount()).toBeNull()
   })
 })

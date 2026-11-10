@@ -3,7 +3,7 @@ import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The phone's subtasks sheet is a modal dialog (cr31 T9): the focus moves in
- * on open (the first open subtask) and comes back to the chip on close, Tab
+ * on open (here the add line: Add subtask…) and comes back to the row on close, Tab
  * stays inside, and a right-click / long-press in it is never the row's task
  * menu (T5).
  */
@@ -19,11 +19,14 @@ const SEED: WorkspaceSeed = {
 test('the sheet takes the focus, keeps Tab inside, gives the focus back on Esc; its right-click is its own', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const row = page.locator('[data-todo-id]').filter({ hasText: 'Q4 budget' }).first()
-  const chip = row.locator('[data-subtask-count]')
-  await chip.click()
+  // The quiet phone row's count is text only (2C): the long-press menu's Add subtask… opens the sheet.
+  await expect(row.locator('[data-subtask-count]')).toHaveText('1/2')
+  await row.dispatchEvent('contextmenu')
+  await page.getByRole('menuitem', { name: 'Add subtask…' }).click()
   const sheet = page.getByRole('dialog', { name: 'Subtasks of Q4 budget' })
   await expect(sheet).toHaveAttribute('aria-modal', 'true')
-  await expect(sheet.getByRole('checkbox', { name: 'Check Headcount' })).toBeFocused()
+  // Add subtask… opens it on its add line.
+  await expect(sheet.getByRole('textbox', { name: 'New subtask' })).toBeFocused()
 
   // Tab cycles inside: past the last control back to the first.
   for (let i = 0; i < 12; i++) {
@@ -37,5 +40,6 @@ test('the sheet takes the focus, keeps Tab inside, gives the focus back on Esc; 
 
   await page.keyboard.press('Escape')
   await expect(sheet).toHaveCount(0)
-  await expect(chip).toBeFocused()
+  // Back on the row's button (the long-press put it there).
+  await expect(row.getByRole('button', { name: 'Q4 budget' })).toBeFocused()
 })

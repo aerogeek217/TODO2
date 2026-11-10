@@ -274,22 +274,29 @@ test.describe('mobile row people picker', () => {
     const r = await box(row)
     expect((await box(panel)).y).toBeGreaterThanOrEqual(r.y)
 
-    // The row is only where it sits, not its trigger: a tap on it closes the picker.
+    // The row is only where it sits, not its trigger: a tap on it closes the
+    // picker, and goes no further — it doesn't open the task too.
     await page.mouse.click(r.x + r.width - 30, r.y + 8)
     await expect(panel).toHaveCount(0)
+    await expect(page.getByRole('dialog', { name: 'Edit task' })).toHaveCount(0)
+    // The next tap opens it.
+    await page.mouse.click(r.x + r.width - 30, r.y + 8)
+    await expect(page.getByRole('dialog', { name: 'Edit task' })).toBeVisible()
   })
 })
 
 /**
  * Both rows open the same pickers through one hook: the menu's Assign people…
- * and Add tag…, the follow-up flag and the notes icon do the same on the
- * desktop and the phone row.
+ * and Add tag… do the same on the desktop and the phone row. The desktop
+ * row's follow-up flag and notes icon open their popovers; the quiet phone
+ * row has neither (2C) — its menu's Follow-up › Pick a date or interval…
+ * opens the follow-up popover, and its notes show as a mark.
  */
 for (const phone of [false, true]) {
   test.describe(phone ? 'phone row pickers' : 'desktop row pickers', () => {
     if (phone) test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
 
-    test('Assign people…, Add tag…, the follow-up flag and the notes icon', async ({ page }) => {
+    test(phone ? 'Assign people…, Add tag… and Follow-up › Pick a date from the menu; the notes mark' : 'Assign people…, Add tag…, the follow-up flag and the notes icon', async ({ page }) => {
       await seedWorkspace(page, {
         listDefinitions: [{ name: 'Tasks' }],
         people: ['Alice'],
@@ -305,7 +312,7 @@ for (const phone of [false, true]) {
       await page.getByRole('menuitem', { name: 'Assign people…' }).click()
       await expect(picker(page)).toBeVisible()
       await picker(page).getByText('Alice', { exact: true }).click()
-      await expect(phone ? row.getByTitle('Alice') : row.getByRole('button', { name: 'People: Alice' })).toBeVisible()
+      await expect(phone ? row.locator('[data-person-avatar="Alice"]') : row.getByRole('button', { name: 'People: Alice' })).toBeVisible()
       await page.keyboard.press('Escape')
       await expect(picker(page)).toHaveCount(0)
 
@@ -317,8 +324,21 @@ for (const phone of [false, true]) {
       await page.keyboard.press('Escape')
       await expect(picker(page)).toHaveCount(0)
 
+      if (phone) {
+        await openMenu()
+        await page.getByRole('menuitem', { name: /^Follow-up/ }).click()
+        await page.getByRole('menuitem', { name: 'Pick a date or interval…' }).click()
+        await expect(page.getByRole('dialog', { name: 'Follow-up' })).toBeVisible()
+        await page.keyboard.press('Escape')
+        await expect(page.getByRole('dialog', { name: 'Follow-up' })).toHaveCount(0)
+        await expect(row.locator('[data-row-part="notes"]')).toBeVisible()
+        await expect(row.getByRole('button', { name: 'Set follow-up' })).toHaveCount(0)
+        await expect(row.getByRole('button', { name: 'Edit status and notes' })).toHaveCount(0)
+        return
+      }
+
       const flag = row.getByRole('button', { name: 'Set follow-up' })
-      if (!phone) await row.hover()
+      await row.hover()
       await flag.click()
       await expect(page.getByRole('dialog', { name: 'Follow-up' })).toBeVisible()
       await expect(flag).toHaveAttribute('aria-expanded', 'true')
