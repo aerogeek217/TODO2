@@ -3,6 +3,7 @@ import { isLensSwitchTab, tabIgnoresLens, type LayoutTab } from '../../models/wo
 import { WidgetLensContext } from '../../hooks/use-widget-lens'
 import { useUIStore } from '../../stores/ui-store'
 import { NotesWidget } from './NotesWidget'
+import { ReviewWidget } from './review/ReviewWidget'
 import { CalendarWidget } from './calendar/CalendarWidget'
 import type { GlanceSummary } from './glance/glance-summary'
 import { EisenhowerWidget } from './eisenhower/EisenhowerWidget'
@@ -47,6 +48,8 @@ function KindBody({ tab, onResult }: WidgetBodyProps): ReactElement {
       return <ListWidget tab={tab} onResult={onResult} />
     case 'calendar':
       return <CalendarWidget tab={tab} />
+    case 'review':
+      return <ReviewWidget tab={tab} />
     case 'notes':
       return <NotesWidget />
     case 'eisenhower':

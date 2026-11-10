@@ -27,7 +27,12 @@ import {
   type EisenhowerTab,
   type LensSwitchTab,
   type LensViewState,
+  // Item 12: the Review widget.
+  type ReviewTab,
+  type ReviewTabConfig,
+  type ReviewTabViewState,
 } from '../models/workspace-layout'
+import { isReviewPick, isReviewSort } from '../models/review'
 import {
   GLANCE_CONFIG_FIELDS,
   numberConfigProblem,
@@ -241,7 +246,44 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     }
     case 'notes':
       return true
+    // Item 12: a Review widget — its pick, and where it stands.
+    case 'review': {
+      if (config.pick !== undefined && !isReviewPick(config.pick)) return `${path}.config.pick`
+      const bad = view ? reviewViewProblem(view) : null
+      return bad ? `${path}.viewState.${bad}` : true
+    }
   }
+}
+
+const DAY_KEY = /^\d{4}-\d{2}-\d{2}$/
+
+const isTaskId = (v: unknown): v is number => typeof v === 'number' && Number.isInteger(v) && v > 0
+
+/** A Review widget's skips as stored: a day key and task ids. */
+function isReviewSkips(v: unknown): v is { day: string; ids: number[] } {
+  return isRecord(v) && typeof v.day === 'string' && DAY_KEY.test(v.day) && Array.isArray(v.ids) && v.ids.every(isTaskId)
+}
+
+/** The first field of a Review widget's view state (item 12) its read would drop, else null. */
+function reviewViewProblem(view: Obj): string | null {
+  if (view.sort !== undefined && !isReviewSort(view.sort)) return 'sort'
+  if (view.currentId !== undefined && !isTaskId(view.currentId)) return 'currentId'
+  if (view.skipped !== undefined && !isReviewSkips(view.skipped)) return 'skipped'
+  return null
+}
+
+/** A Review widget's view state as read (item 12): each field kept when it reads, else dropped. */
+function pickReviewView(view: Obj | undefined): { view: ReviewTabViewState; fixed: boolean } {
+  const out: ReviewTabViewState = {}
+  let fixed = false
+  if (!view) return { view: out, fixed }
+  if (isReviewSort(view.sort)) out.sort = view.sort
+  else if (view.sort !== undefined) fixed = true
+  if (isTaskId(view.currentId)) out.currentId = view.currentId
+  else if (view.currentId !== undefined) fixed = true
+  if (isReviewSkips(view.skipped)) out.skipped = { day: view.skipped.day, ids: [...view.skipped.ids] }
+  else if (view.skipped !== undefined) fixed = true
+  return { view: out, fixed }
 }
 
 /** A chart's filter as stored: a predicate with nothing its read (`pickPredicate`) would change. */
@@ -554,6 +596,17 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
       }
       case 'notes':
         return { id, kind: 'notes', config: {} }
+      // Item 12: a Review widget — a pick that doesn't read is dropped (nothing picked), as is any other key.
+      case 'review': {
+        const reviewConfig: ReviewTabConfig = {}
+        if (isReviewPick(config.pick)) reviewConfig.pick = { kind: config.pick.kind, id: config.pick.id }
+        else if (config.pick !== undefined) fix('settings')
+        const picked = pickReviewView(view)
+        if (picked.fixed) fix('settings')
+        const review: ReviewTab = { id, kind: 'review', config: reviewConfig }
+        if (Object.keys(picked.view).length > 0) review.viewState = picked.view
+        return withLensView<LensSwitchTab>(review)
+      }
       // The glance kinds: a bad or missing setting is reset to its default;
       // no view state but the lens switch (Created vs completed has none).
       case 'number':

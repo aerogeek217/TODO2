@@ -1,4 +1,5 @@
 import { createStore, type StoreApi } from 'zustand/vanilla'
+import type { ReviewSort } from '../models/review'
 import { registerModuleReset } from '../utils/module-reset'
 
 /**
@@ -21,31 +22,8 @@ export interface ReviewDivider {
 /** A task's mark: followed up (today, here or elsewhere — `shownMark`), or skipped in this review. */
 export type ReviewMark = 'done' | 'skipped'
 
-/**
- * The rail's sort (item 7): the queue's own order (`queue`, the default —
- * its group dividers show only then), or by due date, next follow-up, last
- * follow-up, priority or title (`services/review-queue.reviewOrder`).
- */
-export type ReviewSort = 'queue' | 'due' | 'next' | 'last' | 'priority' | 'title'
-
-/** The sorts in menu order, with their names. */
-export const REVIEW_SORTS: ReadonlyArray<{ sort: ReviewSort; label: string }> = [
-  { sort: 'queue', label: 'Queue order' },
-  { sort: 'due', label: 'Due' },
-  { sort: 'next', label: 'Next follow-up' },
-  { sort: 'last', label: 'Last follow-up' },
-  { sort: 'priority', label: 'Priority' },
-  { sort: 'title', label: 'Title' },
-]
-
-export function isReviewSort(v: unknown): v is ReviewSort {
-  return typeof v === 'string' && REVIEW_SORTS.some((s) => s.sort === v)
-}
-
-/** A sort's name (`Queue order`, `Due`, …). */
-export function reviewSortLabel(sort: ReviewSort): string {
-  return REVIEW_SORTS.find((s) => s.sort === sort)?.label ?? 'Queue order'
-}
+// The rail's sort (item 7) is stored by a Review widget: its type lives with the models.
+export { REVIEW_SORTS, isReviewSort, reviewSortLabel, type ReviewSort } from '../models/review'
 
 /** What a session holds. */
 export interface ReviewSessionData {

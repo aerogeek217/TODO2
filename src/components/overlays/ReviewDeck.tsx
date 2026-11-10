@@ -177,7 +177,7 @@ function ReviewDeckPanel() {
       aria-labelledby={titleId}
       aria-describedby={descriptionId}
       className={styles.deck}
-      data={{ 'review-deck': '', 'review-host': 'deck' }}
+      data={{ 'review-deck': '' }}
       panelRef={panelRef}
       onKeyDown={onKeyDown}
     >

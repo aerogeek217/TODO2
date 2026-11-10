@@ -55,7 +55,7 @@ test('a list tab’s menu opens the deck on its tasks, in the list’s order, on
   await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 4')
   await expect(cardTitle(page)).toHaveText('Answer Northwind on the SLA')
   await expect(updateLine(page)).toBeFocused()
-  await expect(rail(page).getByRole('button')).toHaveText([
+  await expect(rail(page).locator('[data-review-row]')).toHaveText([
     /Answer Northwind/, /Map integration/, /Retention addendum/, /Renew the licences/,
   ])
   await expect(railRow(page, 'Answer Northwind')).toHaveAttribute('aria-current', 'true')
@@ -125,7 +125,7 @@ test('a row’s avatar › Review with X…: the deck on the person’s open tas
 
   await expect(personDeck(page)).toBeVisible()
   await expect(personDeck(page).getByTestId('review-position')).toHaveText('1 of 2')
-  await expect(personDeck(page).getByRole('navigation', { name: 'Review queue' }).getByRole('button'))
+  await expect(personDeck(page).getByRole('navigation', { name: 'Review queue' }).locator('[data-review-row]'))
     .toHaveText([/Answer Northwind/, /Shared rollout plan/])
   await expect(personDeck(page).getByLabel('Status update · today')).toBeFocused()
 })
@@ -171,4 +171,73 @@ test('closing with an update typed asks first: Keep reviewing keeps the text, Di
   expect(task?.lastFollowupAt).toBeUndefined()
   const updates = await readStore<{ todoId: number }>(page, 'statusUpdates')
   expect(updates.filter((u) => u.todoId === task?.id)).toEqual([])
+})
+
+// ── Items 7, 10, 11: the rail's sort, the header's lens switch, ✓ when followed up today ──
+
+const LENS_SEED: WorkspaceSeed = {
+  ...SEED,
+  tags: ['legal'],
+  tasks: [
+    { title: 'Answer Northwind on the SLA', people: ['Aisha'], dueInDays: 5, tags: ['legal'] },
+    { title: 'Map integration points', people: ['Aisha'], dueInDays: 1, lastFollowupInDays: 0 },
+    { title: 'Retention addendum', people: ['Aisha'], dueInDays: 3, tags: ['legal'] },
+    { title: 'Renew the licences', people: ['Aisha'] },
+  ],
+  lenses: [{ id: 'lens-legal', name: 'Legal', predicate: { tags: [1] } }],
+}
+
+async function pickLens(page: Page, name: string) {
+  const control = page.locator('header').getByRole('button', { name: /^Lens:/ })
+  await control.click()
+  await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: new RegExp(`^${name}`) }).click()
+  await expect(control).toHaveAccessibleName(`Lens: ${name}`)
+}
+
+async function reviewTab(page: Page, n: number) {
+  await wsTab(page, TAB).click({ button: 'right' })
+  await page.getByRole('menu').getByRole('menuitem', { name: new RegExp(`Review these ${n} tasks`) }).click()
+  await expect(deck(page)).toBeVisible()
+}
+
+test('the rail’s sort reorders the rail, keeps the card and steps in the order shown; ✓ marks a task followed up today', async ({ page }) => {
+  await seedWorkspace(page, LENS_SEED)
+  await wsListWidget(page, TAB).waitFor({ state: 'visible' })
+  await reviewTab(page, 4)
+  // Followed up today outside the review: ✓ from the start, counted.
+  await expect(railRow(page, 'Map integration')).toHaveAttribute('data-mark', 'done')
+  await expect(deck(page).getByTestId('review-followed-up')).toHaveText('1 followed up')
+
+  await deck(page).getByTestId('review-sort').click()
+  await page.getByRole('menu', { name: 'Sort the queue' }).getByRole('menuitemradio', { name: /^Due/ }).click()
+  await expect(deck(page).getByTestId('review-sort')).toHaveText(/Sort:\s*Due/)
+  await expect(rail(page).locator('[data-review-row]')).toHaveText([
+    /Map integration/, /Retention addendum/, /Answer Northwind/, /Renew the licences/,
+  ])
+  await expect(cardTitle(page)).toHaveText('Answer Northwind on the SLA')
+  await expect(deck(page).getByTestId('review-position')).toHaveText('3 of 4')
+  await deck(page).getByRole('button', { name: /^Skip/ }).click()
+  await expect(cardTitle(page)).toHaveText('Renew the licences')
+  await page.keyboard.press('Alt+ArrowLeft')
+  await page.keyboard.press('Alt+ArrowLeft')
+  await expect(cardTitle(page)).toHaveText('Retention addendum')
+})
+
+test('the header’s lens switch: −N under the lens; a click takes the list again without it, keeping the card', async ({ page }) => {
+  await seedWorkspace(page, LENS_SEED)
+  await wsListWidget(page, TAB).waitFor({ state: 'visible' })
+  await pickLens(page, 'Legal')
+  await reviewTab(page, 2)
+  const sw = deck(page).getByTestId('lens-switch')
+  await expect(sw).toHaveAttribute('aria-pressed', 'true')
+  await expect(sw).toHaveText('−2')
+  await deck(page).getByRole('button', { name: /^Skip/ }).click()
+  await expect(cardTitle(page)).toHaveText('Retention addendum')
+  await sw.click()
+  await expect(sw).toHaveAttribute('aria-pressed', 'false')
+  await expect(deck(page).getByTestId('review-position')).toHaveText('3 of 4')
+  await expect(cardTitle(page)).toHaveText('Retention addendum')
+  await expect(railRow(page, 'Answer Northwind')).toHaveAttribute('data-mark', 'skipped')
+  await sw.click()
+  await expect(deck(page).getByTestId('review-position')).toHaveText('2 of 2')
 })

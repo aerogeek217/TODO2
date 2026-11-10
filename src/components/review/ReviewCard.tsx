@@ -1,6 +1,7 @@
 import { useId, useLayoutEffect, useRef, type ChangeEvent as ReactChangeEvent, type RefObject } from 'react'
 import { STATUS_UPDATE_TEXT_MAX, type Person, type PersistedTodoItem, type RecurrenceType, type Tag, type TodoChanges } from '../../models'
 import { NEXT_FOLLOWUP_PLACEHOLDER } from '../../hooks/use-followup-input'
+import { useLatestRef } from '../../hooks/use-latest-ref'
 import { useSelectAllOnFocus } from '../../hooks/use-select-all-on-focus'
 import { usePersonStore } from '../../stores/person-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -50,7 +51,7 @@ const NO_TAGS: Tag[] = []
  * ‹ Back, Skip › and Mark followed up ›. The host lays the card and the
  * footer out (`data-review-card`, `data-review-footer`).
  */
-export function ReviewCard({ todo, keyHints = false }: { todo: PersistedTodoItem; keyHints?: boolean }) {
+export function ReviewCard({ todo, keyHints = false, focusOnOpen }: { todo: PersistedTodoItem; keyHints?: boolean; focusOnOpen?: ReviewFocusOnOpen }) {
   const todoId = todo.id
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const statuses = useStatusStore((s) => s.statuses)
@@ -73,7 +74,7 @@ export function ReviewCard({ todo, keyHints = false }: { todo: PersistedTodoItem
   const update = (changes: TodoChanges) => afterNotes(() => useTodoStore.getState().update(todoId, changes))
   const nextRef = useRef<HTMLInputElement>(null)
 
-  useFocusUpdateLineOnOpen(updateRef)
+  useFocusUpdateLineOnOpen(updateRef, focusOnOpen)
 
   const s = input.state
 
@@ -260,24 +261,30 @@ export function ReviewCard({ todo, keyHints = false }: { todo: PersistedTodoItem
 }
 
 /**
+ * Whether a card opening takes the focus into its update line: the deck's
+ * always (absent); a widget's only while the user is working in it — the
+ * focus was in the widget when the card changed (a card changing under a
+ * list the user is typing in leaves the focus there).
+ */
+export type ReviewFocusOnOpen = () => boolean
+
+/**
  * Each card opens with the focus in its Status update line — unless the
  * keyboard is stepping through the rail (the focus stays there), or the
- * focus is somewhere else on the page than the review (a widget's card
- * changing under a list the user is typing in).
+ * host says not now (`focusOnOpen`).
  */
-function useFocusUpdateLineOnOpen(updateRef: RefObject<HTMLInputElement | null>) {
+function useFocusUpdateLineOnOpen(updateRef: RefObject<HTMLInputElement | null>, focusOnOpen: ReviewFocusOnOpen | undefined) {
+  const focusOnOpenRef = useLatestRef(focusOnOpen)
   useLayoutEffect(() => {
     const line = updateRef.current
     if (!line) return
-    const active = document.activeElement
-    if (active?.closest('[data-review-rail]')) return
-    const host = line.closest('[data-review-host]')
-    const inHost = host != null && (host.getAttribute('data-review-host') === 'deck' || (active != null && host.contains(active)))
-    if (!inHost) return
+    if (document.activeElement?.closest('[data-review-rail]')) return
+    const ask = focusOnOpenRef.current
+    if (ask && !ask()) return
     line.focus({ preventScroll: true })
     // In view inside the card's body (a long checklist or log can push it below the fold); the host itself stays put.
     if (typeof line.scrollIntoView === 'function') line.scrollIntoView({ block: 'nearest' })
-  }, [updateRef])
+  }, [updateRef, focusOnOpenRef])
 }
 
 /** The update line, last in Status updates: ⏎ is Mark followed up with its text. */
@@ -368,7 +375,7 @@ export function ReviewFooter({ followUp: f, keyHints = false, compact = false, o
  * next and last follow-up), the newest status update, the update line (⏎
  * follows up) and the footer — Open card ↗ opens the task in its editor.
  */
-export function ReviewCompactCard({ todo }: { todo: PersistedTodoItem }) {
+export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; focusOnOpen?: ReviewFocusOnOpen }) {
   const todoId = todo.id
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const rowDates = useSettingsStore((s) => s.rowDates)
@@ -376,7 +383,7 @@ export function ReviewCompactCard({ todo }: { todo: PersistedTodoItem }) {
   const newest = useStatusUpdateStore((s) => s.byTodo.get(todoId)?.[0])
   const updateRef = useRef<HTMLInputElement>(null)
   const f = useReviewFollowUp(todo, NO_NOTES, updateRef)
-  useFocusUpdateLineOnOpen(updateRef)
+  useFocusUpdateLineOnOpen(updateRef, focusOnOpen)
   const { today } = f
   const summary = markerSummary(todo, today, urgentRange)
   const dues = dueState(todo, today, urgentRange)

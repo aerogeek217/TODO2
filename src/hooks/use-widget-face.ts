@@ -28,22 +28,26 @@ export const WidgetFaceContext = createContext<WidgetFaceHost>(NO_HOST)
  * `small` / `medium` / `large` from the body's measured size, kept current as
  * the cell resizes (`utils/widget-face.widgetFaceFor`) — or the face its
  * host forces (`WidgetFaceContext`). The host hears every face it settles on.
+ * `faceFor`: a widget's own thresholds (the Review widget's, item 12).
  */
-export function useWidgetFace(): [(el: HTMLElement | null) => void, WidgetFace] {
+export function useWidgetFace(faceFor: FaceFor = widgetFaceFor): [(el: HTMLElement | null) => void, WidgetFace] {
   const host = useContext(WidgetFaceContext)
   const [ref, size] = useElementSize()
-  const face = host.forced ?? hostedFace(size, host)
+  const face = host.forced ?? hostedFace(size, host, faceFor)
   const onFace = host.onFace
   // Before paint, so the cell's small-face click follows in the same frame.
   useLayoutEffect(() => { onFace?.(face) }, [face, onFace])
   return [ref, face]
 }
 
+/** The face for a body's size. */
+type FaceFor = (size: { width: number; height: number }) => WidgetFace
+
 /** The face of a body of `size` in `host` (unmeasured is `large`). */
-export function hostedFace(size: { width: number; height: number }, host: Pick<WidgetFaceHost, 'heightFree'>): WidgetFace {
+export function hostedFace(size: { width: number; height: number }, host: Pick<WidgetFaceHost, 'heightFree'>, faceFor: FaceFor = widgetFaceFor): WidgetFace {
   if (size.width <= 0 && size.height <= 0) return 'large'
   const height = host.heightFree ? Number.POSITIVE_INFINITY : size.height
-  return widgetFaceFor({ width: size.width, height })
+  return faceFor({ width: size.width, height })
 }
 
 /** Opens the full widget over its cell, where the host has one (`WidgetFaceHost.openFull`). */

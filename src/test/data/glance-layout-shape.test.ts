@@ -37,7 +37,7 @@ describe('glance widget kinds', () => {
     expect(glance).toEqual(['number', 'breakdown', 'pivot', 'tagMap', 'trend', 'pulse'])
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
-    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'notes'])
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'notes', 'review'])
     // Numbers & charts (D26): the glance widgets, then the Calendar, the Eisenhower and the Neglect map — whole widgets, not glance ones.
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'glance')).toEqual([...glance, 'calendar', 'eisenhower', 'neglect'])
     expect(['calendar', 'eisenhower', 'neglect'].some((k) => isWidgetKind(k) && isGlanceKind(k))).toBe(false)
