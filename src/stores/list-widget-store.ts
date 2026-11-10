@@ -29,6 +29,8 @@ export interface ShownListSection {
  * the tab takes (`services/review.listReview`).
  */
 export interface ShownList {
+  /** The list it shows. */
+  listId: number
   /** The list's name. */
   label: string
   /** The list in words (its filter, grouping and sort). */

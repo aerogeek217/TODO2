@@ -47,9 +47,10 @@ export function useShownListReport(
   const description = shownListDescription(definition, filters)
   const grouped = definition.grouping !== 'none'
   const label = definition.name
+  const listId = definition.id
   const shown = useMemo<ShownList | null>(
-    () => (sections ? { label, description, grouped, sections } : null),
-    [label, description, grouped, sections],
+    () => (sections ? { listId, label, description, grouped, sections } : null),
+    [listId, label, description, grouped, sections],
   )
   useEffect(() => {
     const list = (writers.get(tabId) ?? []).filter((w) => w.owner !== owner)

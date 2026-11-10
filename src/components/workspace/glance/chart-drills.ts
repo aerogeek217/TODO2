@@ -1,5 +1,9 @@
+import type { BreakdownConfig } from '../../../models/chart-widgets'
+import { breakdownDataOf } from '../../../hooks/use-chart-data'
+import { currentStatsBase } from '../../../hooks/use-glance-data'
 import type { BreakdownRow } from '../../../services/stats/breakdown'
-import type { ReviewPayload } from '../../../services/review'
+import type { ReviewPayload, ReviewPayloadLens } from '../../../services/review'
+import { useSettingsStore } from '../../../stores/settings-store'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import type { ReviewSourceKind } from '../../../stores/review-store'
 import type { GlanceDrill } from './glance-types'
@@ -69,14 +73,34 @@ function reviewKind(row: Pick<BreakdownRow, 'entity'>): ReviewSourceKind {
 }
 
 /** A Breakdown row's review: its tasks (its Review button), or just those a count column counts (a count's click). */
-export function breakdownRowReview(chart: string, row: BreakdownRow, part: RowReviewPart): ReviewPayload {
+export function breakdownRowReview(chart: string, row: BreakdownRow, part: RowReviewPart, lens?: ReviewPayloadLens): ReviewPayload {
   const heading = rowHeading(row)
-  if (part === 'all') return { kind: reviewKind(row), title: heading, description: `${chart}: the tasks ${rowWords(row)}.`, ids: [...row.ids] }
+  const withLens = lens ? { lens } : {}
+  if (part === 'all') return { kind: reviewKind(row), title: heading, description: `${chart}: the tasks ${rowWords(row)}.`, ids: [...row.ids], ...withLens }
   return {
     kind: reviewKind(row),
     title: `${heading} · ${part.heading}`,
     description: `${chart}: the tasks ${rowWords(row)} in ${part.heading}.`,
     ids: [...(row.columns[part.columnId] ?? [])],
+    ...withLens,
+  }
+}
+
+/**
+ * A Breakdown row's review lens (item 10): taken as the widget took it
+ * (`ignored`: its lens switch), and again on the deck's toggle — the
+ * Breakdown computed afresh with / without the top bar's lens, the row
+ * found by its key (gone: no tasks).
+ */
+export function breakdownRowLens(config: BreakdownConfig, ignored: boolean, rowKey: string, part: RowReviewPart): ReviewPayloadLens {
+  return {
+    ignored,
+    requery: (ignoreLens) => {
+      const data = breakdownDataOf(currentStatsBase(ignoreLens), config, useSettingsStore.getState().tabBadges)
+      const row = data.stats.rows.find((r) => r.key === rowKey)
+      if (!row) return { ids: [] }
+      return { ids: part === 'all' ? row.ids : row.columns[part.columnId] ?? [] }
+    },
   }
 }
 

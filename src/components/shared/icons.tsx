@@ -48,6 +48,13 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M6 8h4.5M6 10.5h4.5" />
     </>
   ),
+  // Review (item 12): the review deck's glyph — list lines and a play triangle.
+  review: (
+    <>
+      <path d="M2.5 4h8M2.5 7.5h8M2.5 11h4" />
+      <path d="M9.5 9.5v4.5l3.75-2.25z" />
+    </>
+  ),
   eisenhower: (
     <>
       <rect x="2.5" y="2.5" width="11" height="11" rx="2" />

@@ -4,6 +4,7 @@ import { EditorView } from '@codemirror/view'
 import { ReviewDeck } from '../../../components/overlays/ReviewDeck'
 import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
 import { todoRepository } from '../../../data'
+import { emptyPredicate } from '../../../models'
 import { statusUpdateRepository } from '../../../data/status-update-repository'
 import { useReviewStore } from '../../../stores/review-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -358,9 +359,84 @@ describe('the review deck', () => {
     await openDeck()
     fireEvent.click(markButton())
     await waitFor(() => expect(railRow(FIRST)).toHaveAttribute('data-mark', 'done'))
+    // The ✓ reads the task (item 11): it can show before the follow-up's undo step is in.
+    await waitFor(() => expect(useUndoStore.getState().undoStack).toHaveLength(1))
     await act(async () => { await useUndoStore.getState().undo() })
     await waitFor(() => expect(railRow(FIRST)).not.toHaveAttribute('data-mark'))
     expect(screen.getByTestId('review-followed-up')).toHaveTextContent('0 followed up')
+  })
+
+  it('a task followed up today before the review shows ✓ and counts; a skip leaves its ✓ (item 11)', async () => {
+    const [, second] = ids as [number, number]
+    await useTodoStore.getState().update(second, { lastFollowupAt: new Date() })
+    await openDeck()
+    expect(railRow(SECOND)).toHaveAttribute('data-mark', 'done')
+    expect(screen.getByTestId('review-followed-up')).toHaveTextContent('1 followed up')
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    expect(railRow(FIRST)).toHaveAttribute('data-mark', 'skipped')
+    expect(railRow(SECOND)).toHaveAttribute('data-mark', 'done')
+  })
+
+  it('the rail’s sort (item 7): reorders the rail, the current card stays, Back / Skip step in the order shown; dividers in Queue order only', async () => {
+    const [, , third] = ids as [number, number, number]
+    await useTodoStore.getState().update(third, { dueDate: startOfToday() })
+    useReviewStore.getState().start({
+      source: { kind: 'list', title: 'Aisha 1:1', description: 'list · Manual' },
+      ids,
+      dividers: [{ index: 0, label: 'Open' }, { index: 2, label: 'Later' }],
+    })
+    render(<><ReviewDeck /><ConfirmPromptHost /></>)
+    await act(async () => { await Promise.resolve() })
+    const rail = screen.getByRole('navigation', { name: 'Review queue' })
+    const rowTitles = () => within(rail).getAllByRole('button').filter((b) => b.hasAttribute('data-review-row')).map((b) => b.getAttribute('aria-label')?.split(',')[0])
+    expect(rail.querySelectorAll('li[aria-hidden="true"]')).toHaveLength(2)
+    fireEvent.click(screen.getByTestId('review-sort'))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Due/ }))
+    expect(screen.getByTestId('review-sort')).toHaveTextContent('Sort: Due')
+    expect(rowTitles()).toEqual(['Retention addendum', FIRST, SECOND])
+    expect(rail.querySelectorAll('li[aria-hidden="true"]')).toHaveLength(0)
+    expect(cardTitle()).toBe(FIRST)
+    expect(screen.getByTestId('review-position')).toHaveTextContent('2 of 3')
+    fireEvent.click(screen.getByRole('button', { name: /^Back/ }))
+    expect(cardTitle()).toBe('Retention addendum')
+    fireEvent.keyDown(railRow('Retention addendum'), { key: 'ArrowRight' })
+    expect(cardTitle()).toBe(FIRST)
+    expect(railRow('Retention addendum')).toHaveAttribute('data-mark', 'skipped')
+  })
+
+  it('the header’s lens switch (item 10): −N while the lens hides tasks here; a click takes the queue again without it, the card kept', async () => {
+    const [first, second, third] = ids as [number, number, number]
+    useSettingsStore.setState({ lenses: [{ id: 'l1', name: 'Mine', predicate: emptyPredicate() }], activeLensId: 'l1' })
+    const requery = vi.fn((ignore: boolean) => ({ ids: ignore ? [first, second, third] : [second] }))
+    useReviewStore.getState().start({
+      source: { kind: 'list', title: 'Aisha 1:1', description: 'list · Manual' },
+      ids: [second],
+      lens: { ignored: false, hides: 2, used: false, requery },
+    })
+    render(<><ReviewDeck /><ConfirmPromptHost /></>)
+    await act(async () => { await Promise.resolve() })
+    const lensSwitch = screen.getByRole('button', { name: 'Apply the lens “Mine” here' })
+    expect(lensSwitch).toHaveAttribute('aria-pressed', 'true')
+    expect(lensSwitch).toHaveTextContent('−2')
+    fireEvent.click(lensSwitch)
+    expect(requery).toHaveBeenCalledWith(true)
+    expect(screen.getByTestId('review-position')).toHaveTextContent('2 of 3')
+    expect(cardTitle()).toBe(SECOND)
+    expect(screen.getByRole('button', { name: 'Apply the lens “Mine” here' })).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Apply the lens “Mine” here' }))
+    expect(screen.getByTestId('review-position')).toHaveTextContent('1 of 1')
+  })
+
+  it('no lens picked: no lens switch', async () => {
+    useReviewStore.getState().start({
+      source: { kind: 'list', title: 'Aisha 1:1', description: '' },
+      ids,
+      lens: { ignored: false, hides: 0, used: false, requery: () => ({ ids }) },
+    })
+    render(<ReviewDeck />)
+    await act(async () => { await Promise.resolve() })
+    expect(screen.queryByTestId('lens-switch')).toBeNull()
   })
 
   it('on a Mac, Alt + arrows in a text field move its caret; outside one they still step', async () => {

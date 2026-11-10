@@ -40,12 +40,12 @@ describe('WidgetKindMenu', () => {
     openChangeWidget()
     // The kinds are radio items by group under its caption (D26: the Calendar, the Eisenhower and the Neglect map in Numbers & charts); the current one is checked.
     expect(panelWords(kindsMenu())).toEqual([
-      '[Tasks]', 'List', 'Notes',
+      '[Tasks]', 'List', 'Notes', 'Review',
       '—', '[Numbers & charts]',
       'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
     ])
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
-      'List', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
+      'List', 'Notes', 'Review', 'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
     ])
     expect(screen.getByRole('menuitemradio', { name: /^List/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /^Notes/ })).toHaveAttribute('aria-checked', 'true')
@@ -138,9 +138,12 @@ describe('WidgetKindMenu', () => {
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowRight' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
     const kinds = kindsMenu()
+    fireEvent.keyDown(kinds, { key: 'ArrowDown' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Review/ }))
     // Down skips the separator and the caption.
     fireEvent.keyDown(kinds, { key: 'ArrowDown' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Number$/ }))
+    fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^List/ }))
