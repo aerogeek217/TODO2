@@ -102,7 +102,7 @@ test('a tab’s setting and a new widget are layout changes', async ({ page }) =
   await page.getByTestId('layout-save').click()
   await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
 
-  // Add widget → Numbers & charts › Created vs completed: a second tab, an unsaved layout change.
+  // Add widget → Insights › Created vs completed: a second tab, an unsaved layout change.
   await cell.hover()
   await cell.getByRole('button', { name: 'Cell options' }).click()
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()

@@ -33,10 +33,10 @@ const tab = (page: Page, kind: WidgetKind) => {
   const longer = WIDGET_KINDS.map(title).filter((t) => t !== mine && t.startsWith(mine)).map((t) => t.slice(mine.length))
   return page.getByRole('tab', { name: new RegExp(`^${mine}${longer.length > 0 ? `(?!${longer.join('|')})` : ''}`) })
 }
-/** The add-widget menu's items: the task kinds, then the Numbers & charts submenu. */
+/** The add-widget menu's items: the task kinds, then the Insights submenu. */
 /** The chart kinds (D26 P8): a new one opens its editor. */
 const CHART_KINDS: ReadonlySet<string> = new Set(['breakdown', 'pivot', 'tagMap'])
-const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindLabel), 'Numbers & charts']
+const MENU_ITEMS = [...widgetKindsOf('tasks').map(widgetKindLabel), 'Insights']
 
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1440, height: 900 } })

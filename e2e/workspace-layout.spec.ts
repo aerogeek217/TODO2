@@ -465,14 +465,14 @@ test.describe('adding and changing widgets', () => {
     await page.locator('[data-ws-cell]').hover()
     await page.locator('[data-ws-cell]').getByRole('button', { name: 'Cell options' }).click()
     await page.getByRole('menuitem', { name: 'Add widget…' }).click()
-    // Calendar: in Numbers & charts (D26).
+    // Calendar: in Tasks, in the menu itself.
     await pickWidgetKind(page, 'Add widget', 'Calendar')
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true')
 
     await page.getByRole('tab', { name: 'Calendar' }).click({ button: 'right' })
     const changeWidget = page.getByRole('menu', { name: 'Cell options' })
     await expect(changeWidget.getByRole('menuitem', { name: /^Change widget/ })).toContainText('Calendar')
-    // A Numbers & charts kind, from the Change widget submenu.
+    // An Insights kind, from the Change widget submenu.
     await pickWidgetKind(page, 'Change widget', 'Created vs completed')
     await expect(page.getByRole('tab', { name: /Created vs completed/ })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveCount(0)

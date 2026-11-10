@@ -686,13 +686,13 @@ export function wsDivider(page: Page, a: string, b: string): Locator {
   return page.locator(`[data-ws-divider="${a}|${b}"]`)
 }
 
-/** The Numbers & charts kinds' names: the add-widget and Change widget menus list them in a submenu. */
-const GLANCE_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('glance').map(widgetKindLabel))
+/** The Insights kinds' names: the add-widget and Change widget menus list them in a submenu. */
+const INSIGHTS_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('insights').map(widgetKindLabel))
 
 /**
  * Picks the kind named `label` in the open add-widget (`Add widget`) or
  * cell (`Change widget`: the ⋯ menu, `Cell options`) menu. Adding: a task
- * kind from the menu itself, a Numbers & charts kind from its submenu, and
+ * kind from the menu itself, an Insights kind from its submenu, and
  * a Breakdown one of its presets (`preset`, default Custom: D26 P8), whose
  * editor then opens. Changing: every kind from the Change widget › submenu.
  */
@@ -704,9 +704,9 @@ export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Chang
   }
   const role = 'menuitem'
   let menu = page.getByRole('menu', { name: 'Add widget' })
-  if (GLANCE_LABELS.has(label)) {
-    await menu.getByRole('menuitem', { name: /^Numbers & charts/ }).click()
-    menu = page.getByRole('menu', { name: 'Numbers & charts' })
+  if (INSIGHTS_LABELS.has(label)) {
+    await menu.getByRole('menuitem', { name: /^Insights/ }).click()
+    menu = page.getByRole('menu', { name: 'Insights' })
   }
   await menu.getByRole(role, { name: label, exact: true }).click()
   if (menuName === 'Add widget' && label === 'Breakdown') {

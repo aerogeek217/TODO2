@@ -93,8 +93,7 @@ test('adding a second widget shows the tabs; closing it hides them again', async
   await expect(notes.getByRole('tablist')).toHaveCount(0)
   await openCellMenu(page, 'a')
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()
-  await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: /^Numbers & charts/ }).click()
-  await page.getByRole('menu', { name: 'Numbers & charts' }).getByRole('menuitem', { name: 'Calendar', exact: true }).click()
+  await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'Calendar', exact: true }).click()
 
   await expect(notes.getByRole('tablist')).toBeVisible()
   await expect(notes.getByRole('tab')).toHaveCount(2)

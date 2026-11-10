@@ -130,7 +130,7 @@ export function useWidgetKindMenuEntries(content: WidgetKindMenuContent): MenuEn
  * (the current kind beside it), whose submenu holds every kind by group
  * under its caption. Adding (`currentKind` absent, Add widget): the lead
  * entries, then the kinds — the first group (Tasks) inline under its
- * caption, every other (Numbers & charts) a submenu of its own.
+ * caption, every other (Insights) a submenu of its own.
  * `listChoices` are Change list's items.
  */
 export function widgetKindMenuEntries({

@@ -38,14 +38,14 @@ describe('WidgetKindMenu', () => {
     expect(screen.getByRole('menuitem', { name: /^Change widget/ })).toHaveTextContent('Notes')
     expect(screen.queryAllByRole('menuitemradio')).toEqual([])
     openChangeWidget()
-    // The kinds are radio items by group under its caption (D26: the Calendar, the Eisenhower and the Neglect map in Numbers & charts); the current one is checked.
+    // The kinds are radio items by group under its caption (Tasks: List, Calendar, Eisenhower, Review, Notes; Insights the rest); the current one is checked.
     expect(panelWords(kindsMenu())).toEqual([
-      '[Tasks]', 'List', 'Notes', 'Review',
-      '—', '[Numbers & charts]',
-      'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
+      '[Tasks]', 'List', 'Calendar', 'Eisenhower', 'Review', 'Notes',
+      '—', '[Insights]',
+      'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Neglect map',
     ])
     expect(screen.getAllByRole('menuitemradio').map((el) => el.textContent?.trim())).toEqual([
-      'List', 'Notes', 'Review', 'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Calendar', 'Eisenhower', 'Neglect map',
+      'List', 'Calendar', 'Eisenhower', 'Review', 'Notes', 'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Neglect map',
     ])
     expect(screen.getByRole('menuitemradio', { name: /^List/ })).toHaveAttribute('aria-checked', 'false')
     expect(screen.getByRole('menuitemradio', { name: /^Notes/ })).toHaveAttribute('aria-checked', 'true')
@@ -138,11 +138,13 @@ describe('WidgetKindMenu', () => {
     fireEvent.keyDown(screen.getByRole('menu'), { key: 'ArrowRight' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
     const kinds = kindsMenu()
-    fireEvent.keyDown(kinds, { key: 'ArrowDown' })
-    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Review/ }))
-    // Down skips the separator and the caption.
+    // Notes ends Tasks: Down skips the separator and the caption.
     fireEvent.keyDown(kinds, { key: 'ArrowDown' })
     expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Number$/ }))
+    fireEvent.keyDown(kinds, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Notes/ }))
+    fireEvent.keyDown(kinds, { key: 'ArrowUp' })
+    expect(document.activeElement).toBe(screen.getByRole('menuitemradio', { name: /^Review/ }))
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
     fireEvent.keyDown(kinds, { key: 'ArrowUp' })
@@ -206,8 +208,8 @@ describe('WidgetKindMenu', () => {
     expect(onClose).toHaveBeenCalled()
   })
 
-  describe('Numbers & charts', () => {
-    const openGlance = () => fireEvent.click(screen.getByRole('menuitem', { name: /Numbers & charts/ }))
+  describe('Insights', () => {
+    const openGlance = () => fireEvent.click(screen.getByRole('menuitem', { name: /Insights/ }))
 
     it('changing: a group in Change widget’s submenu; adding: a submenu of its own, the task kinds inline', () => {
       const { rerender } = render(
@@ -218,7 +220,7 @@ describe('WidgetKindMenu', () => {
           onClose={() => {}}
         />,
       )
-      expect(screen.queryByRole('menuitem', { name: /Numbers & charts/ })).toBeNull()
+      expect(screen.queryByRole('menuitem', { name: /Insights/ })).toBeNull()
       expect(screen.queryByRole('menuitemradio', { name: /^Number/ })).toBeNull()
       openChangeWidget()
       expect(screen.getByRole('menuitemradio', { name: /^Number/ })).toHaveAttribute('aria-checked', 'false')
@@ -328,7 +330,7 @@ describe('WidgetKindMenu — widget setting submenu', () => {
     render(<WidgetKindMenu anchor={ANCHOR} currentKind="eisenhower" onChangeKind={() => {}} onClose={() => {}} widgetSetting={setting} />)
     const items = screen.getAllByRole('menuitem')
     expect(items[0]).toHaveTextContent('Due date makes a task urgent3 days')
-    // Change widget names it; in its submenu, under Numbers & charts (D26).
+    // Change widget names it; in its submenu, under Tasks.
     expect(screen.getByRole('menuitem', { name: /^Change widget/ }).textContent).toContain('Eisenhower')
     openChangeWidget()
     expect(screen.getByRole('menuitemradio', { name: /^Eisenhower$/ })).toHaveAttribute('aria-checked', 'true')
