@@ -185,6 +185,40 @@ describe('addStatusUpdate: entering a status counts as following up on its day',
     expect(entries(id)).toEqual([[new Date(2026, 9, 10), 'Sent it', true]])
   })
 
+  it('entries arriving faster than the writes: each reads what the one before it wrote — one follow-up, then plain adds, each its own step', async () => {
+    const id = await taskWith({ next: new Date(2026, 9, 5) })
+    // Not awaited between them, as ⏎ ⏎ ⏎ in the add line.
+    await Promise.all(['sent the draft', 'waiting on legal', 'this too'].map((text) => addStatusUpdate(id, { date: NOW, text })))
+    const stored = (await db.statusUpdates.where('todoId').equals(id).sortBy('id')).map((u) => [u.text, u.followedUp === true])
+    expect(stored).toEqual([['sent the draft', true], ['waiting on legal', false], ['this too', false]])
+    expect(task(id)?.lastFollowupAt).toEqual(NOW)
+    expect(task(id)?.nextFollowupAt).toEqual(new Date(2026, 10, 10))
+    expect(useUndoStore.getState().undoStack.map((e) => e.description))
+      .toEqual(['Followed up · status update added', 'Add status update', 'Add status update'])
+  })
+
+  it('a popover’s Mark followed up with an update, then an entry at once: the entry sees the follow-up', async () => {
+    const id = await taskWith({})
+    await Promise.all([
+      markFollowedUpWithUpdate([id], {}, 'Called them'),
+      addStatusUpdate(id, { date: NOW, text: 'And emailed' }),
+    ])
+    const stored = (await db.statusUpdates.where('todoId').equals(id).sortBy('id')).map((u) => [u.text, u.followedUp === true])
+    expect(stored).toEqual([['Called them', true], ['And emailed', false]])
+  })
+
+  it('a failed write doesn’t hold up the next entry on the task', async () => {
+    const id = await taskWith({})
+    vi.spyOn(statusUpdateRepository, 'addMany').mockRejectedValueOnce(new Error('disk full'))
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    const first = addStatusUpdate(id, { date: NOW, text: 'Lost' })
+    await addStatusUpdate(id, { date: NOW, text: 'Kept' })
+    await first
+    expect(entries(id)).toEqual([[new Date(2026, 9, 10), 'Kept', true]])
+    expect(task(id)?.lastFollowupAt).toEqual(NOW)
+    vi.restoreAllMocks()
+  })
+
   it('blank text writes nothing, and marks nothing', async () => {
     const id = await taskWith({})
     await addStatusUpdate(id, { date: NOW, text: '   ' })
