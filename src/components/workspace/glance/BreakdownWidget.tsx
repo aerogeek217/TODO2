@@ -8,7 +8,7 @@ import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-gl
 import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { openReview } from '../../../services/review'
-import { columnCount, nextBreakdownSort, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
+import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
@@ -33,13 +33,6 @@ import styles from './BreakdownWidget.module.css'
 
 /** Colours for rows without one of their own (a due or age bucket, Unassigned), in order. */
 const PALETTE = ['var(--hue-teal)', 'var(--hue-violet)', 'var(--hue-blue)', 'var(--hue-green)', 'var(--hue-amber)', 'var(--hue-rose)']
-
-const PRIORITY_RING: Record<string, { focus: boolean; urgent: 'flag' | null; important: boolean }> = {
-  focus: { focus: true, urgent: null, important: false },
-  urgentImportant: { focus: false, urgent: 'flag', important: true },
-  urgent: { focus: false, urgent: 'flag', important: false },
-  important: { focus: false, urgent: null, important: true },
-}
 
 const DUE_COLORS: Record<string, string> = {
   overdue: 'var(--color-overdue)',
@@ -72,7 +65,7 @@ function RowMark({ row, color }: { row: BreakdownRow; color: string }) {
       return (
         <span className={styles.ringBox} aria-hidden="true">
           <span className={styles.ringBorder} />
-          <PriorityRing summary={PRIORITY_RING[e.group] ?? { focus: false, urgent: null, important: false }} completed={false} size={14} />
+          <PriorityRing summary={PRIORITY_GROUP_RINGS[e.group]} completed={false} size={14} />
         </span>
       )
     case 'none':
