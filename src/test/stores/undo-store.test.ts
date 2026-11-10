@@ -41,6 +41,73 @@ describe('useUndoStore', () => {
     expect(state.redoStack).toHaveLength(0)
   })
 
+  describe('merge key', () => {
+    it('a push with the newest entry’s key merges: its undo and name stay, the new redo replaces its redo', async () => {
+      const store = useUndoStore.getState()
+      const first = { ...makeEntry('Moved divider'), mergeKey: 'divider:a' }
+      const second = { ...makeEntry('Moved divider again'), mergeKey: 'divider:a' }
+      store.push(first)
+      useUndoStore.setState({ redoStack: [makeEntry('old')] })
+      const top = store.push(second)
+      const { undoStack, redoStack } = useUndoStore.getState()
+      expect(undoStack).toHaveLength(1)
+      expect(undoStack[0]).toBe(top)
+      expect(top.description).toBe('Moved divider')
+      expect(redoStack).toHaveLength(0)
+      await store.undo()
+      expect(first.undo).toHaveBeenCalledOnce()
+      expect(second.undo).not.toHaveBeenCalled()
+      await useUndoStore.getState().redo()
+      expect(second.redo).toHaveBeenCalledOnce()
+      expect(first.redo).not.toHaveBeenCalled()
+    })
+
+    it('another key, no key, or an open group: a step of its own', () => {
+      const store = useUndoStore.getState()
+      store.push({ ...makeEntry('a'), mergeKey: 'k1' })
+      store.push({ ...makeEntry('b'), mergeKey: 'k2' })
+      store.push(makeEntry('c'))
+      store.push({ ...makeEntry('d'), mergeKey: 'k2' })
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['a', 'b', 'c', 'd'])
+      const token = store.beginGroup()
+      store.push({ ...makeEntry('e'), mergeKey: 'k2' })
+      expect(useUndoStore.getState().mergeTarget('k2')).toBeNull()
+      store.push({ ...makeEntry('f'), mergeKey: 'k2' })
+      store.endGroup(token, 'group')
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['a', 'b', 'c', 'd', 'group'])
+      // A group's entry never merges.
+      expect(useUndoStore.getState().mergeTarget('k2')).toBeNull()
+    })
+
+    it('once the merged step is undone, the next push with its key is a step of its own', async () => {
+      const store = useUndoStore.getState()
+      store.push({ ...makeEntry('a'), mergeKey: 'k' })
+      await store.undo()
+      store.push({ ...makeEntry('b'), mergeKey: 'k' })
+      expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['b'])
+      expect(useUndoStore.getState().redoStack).toHaveLength(0)
+    })
+
+    it('a merge with the snackbar shows it again for the step', () => {
+      const store = useUndoStore.getState()
+      store.push({ ...makeEntry('Moved divider'), mergeKey: 'k' }, true)
+      vi.advanceTimersByTime(1000)
+      store.push({ ...makeEntry('Moved divider'), mergeKey: 'k' }, true)
+      expect(useUndoStore.getState().snackbar?.description).toBe('Moved divider')
+      expect(useUndoStore.getState().undoStack).toHaveLength(1)
+    })
+
+    it('dropNewest drops only the newest entry', () => {
+      const store = useUndoStore.getState()
+      const a = store.push(makeEntry('a'))
+      const b = store.push(makeEntry('b'))
+      store.dropNewest(a)
+      expect(useUndoStore.getState().undoStack).toEqual([a, b])
+      store.dropNewest(b)
+      expect(useUndoStore.getState().undoStack).toEqual([a])
+    })
+  })
+
   // 2. push: trims at MAX_STACK_SIZE (50)
   it('push trims undoStack to MAX_STACK_SIZE (50)', () => {
     const entries = Array.from({ length: 50 }, (_, i) => makeEntry(`action${i}`))
