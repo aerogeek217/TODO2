@@ -19,7 +19,7 @@ function openLayouts(n: number): void {
     id: i + 1, name: `Layout ${i + 1}`, sortOrder: i, ...emptyBody(), createdAt: T0, modifiedAt: T0,
   }))
   const [first] = layouts
-  useWorkspaceStore.setState({ layouts, activeLayoutId: 1, working: first ?? null, saved: first ?? null, hydrated: true, isDirty: false })
+  useWorkspaceStore.setState({ layouts, activeLayoutId: 1, working: first ?? null, saved: first ?? null, hydrated: true, writeFailed: false })
 }
 
 function renderBar() {

@@ -276,7 +276,7 @@ describe('the Review widget: its kind', () => {
     expect(items.map((i) => i.textContent)).toEqual(['Person', 'Tag', 'Status', 'List'])
     expect(items.map((i) => i.getAttribute('aria-checked'))).toEqual(['true', 'false', 'false', 'false'])
     fireEvent.click(within(menu).getByRole('menuitemradio', { name: 'Tag' }))
-    expect(patchConfig).toHaveBeenCalledWith('rv', 'review', { by: 'tag' })
+    expect(patchConfig).toHaveBeenCalledWith('rv', 'review', { by: 'tag' }, 'Review by Tag')
     expect(picks()).toBeUndefined()
   })
 

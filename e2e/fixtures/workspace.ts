@@ -201,8 +201,12 @@ export interface WorkspaceSeed {
    * added): each predicate merged over the empty one.
    */
   lenses?: Array<{ id: string; name: string; predicate?: Record<string, unknown> }>
-  /** Settings rows to store as they are (`key` → stored `value`), e.g. `{ rowDensity: 'lines' }`. */
-  settings?: Record<string, string>
+  /**
+   * Settings rows to store as they are (`key` → stored `value`), e.g. `{ rowDensity: 'lines' }`;
+   * `null` stores none. The Default list zoom is seeded as Rows (`rowDensity: 'rows'`) unless given:
+   * Auto (the app's default, no row — `{ rowDensity: null }`) would draw a cell under 480px Stacked.
+   */
+  settings?: Record<string, string | null>
   /** Names, or a name with initials / colour / email. */
   people?: Array<string | { name: string; initials?: string; color?: string; email?: string }>
   /** Names, or a name with its colour (default `#7ec4bc`). */
@@ -467,7 +471,10 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       }]))
       tx.objectStore('settings').put({ key: 'eisenhowerPanes', value: JSON.stringify(panes) })
     }
-    for (const [key, value] of Object.entries(seed.settings ?? {})) tx.objectStore('settings').put({ key, value })
+    for (const [key, value] of Object.entries({ rowDensity: 'rows', ...seed.settings })) {
+      if (value === null) tx.objectStore('settings').delete(key)
+      else tx.objectStore('settings').put({ key, value })
+    }
     if (seed.lenses) {
       const lenses = seed.lenses.map((l) => ({ id: l.id, name: l.name, predicate: { ...seed.predicate, ...(l.predicate ?? {}) } }))
       tx.objectStore('settings').put({ key: 'lenses', value: JSON.stringify(lenses) })
@@ -570,9 +577,31 @@ export async function switchLayout(page: Page, name: string): Promise<void> {
 }
 
 /**
- * Picks an action for the open layout (Save as new layout…, Edit…,
- * Delete layout…, Discard changes, …): from its tab's menu, or the picker's
- * when the tabs are folded.
+ * Every layout edit is saved at once: waits until the open layout's writes
+ * have landed (`data-layout-writing` off the layout controls) and none has
+ * failed (no `Couldn't save · Retry`). What a spec awaits where it once
+ * clicked the save button, or checked it read "Layout saved".
+ */
+export async function expectLayoutStored(page: Page): Promise<void> {
+  await expect(page.locator('[data-layout-controls][data-layout-writing]')).toHaveCount(0)
+  await expect(page.getByTestId('layout-write-failed')).toHaveCount(0)
+}
+
+/**
+ * A structural layout edit was made: saved at once as an undo step — the
+ * snackbar names it (`name`, when given) and offers Undo — then stored.
+ */
+export async function expectLayoutStep(page: Page, name?: string | RegExp): Promise<void> {
+  const snackbar = page.locator('[data-snackbar-live]')
+  if (name !== undefined) await expect(snackbar).toContainText(name)
+  await expect(snackbar.getByRole('button', { name: 'Undo', exact: true })).toBeVisible()
+  await expectLayoutStored(page)
+}
+
+/**
+ * Picks an action for the open layout (Duplicate layout…, Edit…,
+ * Delete layout…): from its tab's menu, or the picker's when the tabs are
+ * folded.
  */
 export async function openLayoutAction(page: Page, item: string): Promise<void> {
   const menu = await page.getByTestId('layout-picker').isVisible()
@@ -695,13 +724,13 @@ export function wsDivider(page: Page, a: string, b: string): Locator {
   return page.locator(`[data-ws-divider="${a}|${b}"]`)
 }
 
-/** The Numbers & charts kinds' names: the add-widget and Change widget menus list them in a submenu. */
-const GLANCE_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('glance').map(widgetKindLabel))
+/** The Insights kinds' names: the add-widget and Change widget menus list them in a submenu. */
+const INSIGHTS_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('insights').map(widgetKindLabel))
 
 /**
  * Picks the kind named `label` in the open add-widget (`Add widget`) or
  * cell (`Change widget`: the ⋯ menu, `Cell options`) menu. Adding: a task
- * kind from the menu itself, a Numbers & charts kind from its submenu, and
+ * kind from the menu itself, an Insights kind from its submenu, and
  * a Breakdown one of its presets (`preset`, default Custom: D26 P8), whose
  * editor then opens. Changing: every kind from the Change widget › submenu.
  */
@@ -713,9 +742,9 @@ export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Chang
   }
   const role = 'menuitem'
   let menu = page.getByRole('menu', { name: 'Add widget' })
-  if (GLANCE_LABELS.has(label)) {
-    await menu.getByRole('menuitem', { name: /^Numbers & charts/ }).click()
-    menu = page.getByRole('menu', { name: 'Numbers & charts' })
+  if (INSIGHTS_LABELS.has(label)) {
+    await menu.getByRole('menuitem', { name: /^Insights/ }).click()
+    menu = page.getByRole('menu', { name: 'Insights' })
   }
   await menu.getByRole(role, { name: label, exact: true }).click()
   if (menuName === 'Add widget' && label === 'Breakdown') {
@@ -831,7 +860,8 @@ export async function gotoSettingsDeepLink(page: Page): Promise<Locator> {
 
 /** The headed parts of the merged Settings sections, by label: their section. */
 const SETTINGS_PART_SECTION: Readonly<Record<string, string>> = {
-  'Task defaults': 'Tasks',
+  'New tasks': 'Tasks',
+  'Lists & rows': 'Tasks',
   Eisenhower: 'Tasks',
   'Completed tasks': 'Tasks',
   'File storage': 'Database',

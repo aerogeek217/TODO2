@@ -450,16 +450,19 @@ export interface TabSeed {
 }
 
 /**
- * The add-widget menus' groups: the task widgets (List, Notes, Review), and the
- * numbers and charts (every other kind — the Calendar, the Eisenhower and
- * the Neglect map among them, D26; the grouping is the menus' only).
+ * The add-widget menus' groups: **Tasks** (the widgets that show tasks to
+ * work on — List, Calendar, Eisenhower, Review, Notes) and **Insights** (the
+ * numbers and charts, and the Neglect map). The grouping is the menus' only:
+ * nothing behavioural reads it — the glance minimums, fit rows and the
+ * right-click rule read `glance` / `fitHeight`, which the Calendar, the
+ * Eisenhower and the Neglect map don't have, whichever group they are in.
  */
-export type WidgetKindGroup = 'tasks' | 'glance'
+export type WidgetKindGroup = 'tasks' | 'insights'
 
 /** The groups in menu order, with their headings. */
 export const WIDGET_KIND_GROUPS: ReadonlyArray<{ group: WidgetKindGroup; label: string }> = [
   { group: 'tasks', label: 'Tasks' },
-  { group: 'glance', label: 'Numbers & charts' },
+  { group: 'insights', label: 'Insights' },
 ]
 
 /** What the app knows about one widget kind. */
@@ -487,9 +490,9 @@ export interface WidgetKindSpec<K extends WidgetKind> {
   newTab: (id: string, seed: TabSeed) => TabOfKind<K>
 }
 
-/** A glance kind's spec: in the Numbers & charts group. */
+/** A glance kind's spec: in the Insights group. */
 function glanceSpec<K extends GlanceWidgetKind>(label: string, newTab: (id: string, seed: TabSeed) => TabOfKind<K>, fitHeight = false): WidgetKindSpec<K> {
-  return { label, showsList: false, group: 'glance', glance: true, fitHeight, newTab }
+  return { label, showsList: false, group: 'insights', glance: true, fitHeight, newTab }
 }
 
 /**
@@ -498,6 +501,7 @@ function glanceSpec<K extends GlanceWidgetKind>(label: string, newTab: (id: stri
  * layout import check uses —, `createTab`, the menus).
  */
 export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> } = {
+  // Tasks.
   lens: {
     label: 'List',
     showsList: true,
@@ -506,21 +510,10 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'lens', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
   },
-  notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
-  // Item 12: the review deck in a cell, by person, nothing picked yet (its prompt row's field).
-  review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: { by: DEFAULT_REVIEW_BY } }) },
-  number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
-  // D26 P8: the chart widgets.
-  breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
-  pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
-  tagMap: glanceSpec('Tag map', (id) => ({ id, kind: 'tagMap', config: newTagMapConfig(emptyPredicate()) })),
-  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
-  pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
-  // Calendar, Eisenhower and Neglect map: in Numbers & charts (D26), but whole widgets, not glance ones.
   calendar: {
     label: 'Calendar',
     showsList: false,
-    group: 'glance',
+    group: 'tasks',
     glance: false,
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'calendar', config: { dateTypes: { ...DEFAULT_CALENDAR_DATE_TYPES } } }),
@@ -528,15 +521,27 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   eisenhower: {
     label: 'Eisenhower',
     showsList: false,
-    group: 'glance',
+    group: 'tasks',
     glance: false,
     fitHeight: false,
     newTab: (id) => ({ id, kind: 'eisenhower', config: {} }),
   },
+  // Item 12: the review deck in a cell, by person, nothing picked yet (its prompt row's field).
+  review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: { by: DEFAULT_REVIEW_BY } }) },
+  notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
+  // Insights.
+  number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
+  // D26 P8: the chart widgets.
+  breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
+  pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
+  tagMap: glanceSpec('Tag map', (id) => ({ id, kind: 'tagMap', config: newTagMapConfig(emptyPredicate()) })),
+  trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
+  pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
+  // In Insights, but a whole widget, not a glance one (no glance minimums).
   neglect: {
     label: 'Neglect map',
     showsList: false,
-    group: 'glance',
+    group: 'insights',
     glance: false,
     fitHeight: false,
     newTab: (id, seed) => ({ id, kind: 'neglect', config: defaultNeglectConfig(seed.neglectTagIds) }),

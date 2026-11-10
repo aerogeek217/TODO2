@@ -298,8 +298,8 @@ function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { f
  * style and what it shows). A popover under the chart's title, opened by
  * its ⋯ menu's Edit … and straight after Add widget. Its controls edit a
  * copy of the config, which the chart draws live (`useEditorDraft`, Edit
- * list's pattern): Save writes the changes as one layout config update —
- * the layout is then unsaved until its own Save — and Discard drops them
+ * list's pattern): Save writes the changes for good as one layout config
+ * update — one undo step — and Discard drops them
  * (straight after Add widget, the new chart stays with its first config).
  * Esc, × or a press elsewhere close it at once while nothing changed, else
  * ask Save / Discard / Keep editing.
@@ -315,7 +315,7 @@ export function ChartEditor({ tab, anchorRef, onClose }: {
   const edit = useEditorDraft<ChartConfig>({
     tabId: tab.id,
     stored: tab.config,
-    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, tab.kind, p),
+    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, tab.kind, p, `Edited ${noun} “${(p.name ?? tab.config.name).trim() || 'Untitled'}”`),
     onClose,
     promptTitle: `Save changes to ${noun} “${tab.config.name.trim() || 'Untitled'}”?`,
   })

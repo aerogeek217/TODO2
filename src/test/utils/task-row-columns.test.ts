@@ -4,6 +4,7 @@ import {
   datesParts,
   REPEAT_DATE_PART,
   DEFAULT_DETAILS_WIDTH,
+  defaultDetailsWidth,
   peopleFit,
   tagsFit,
   taskRowColumns,
@@ -16,14 +17,24 @@ function titleWidth(width: number, laidOut: number): number {
 }
 
 describe('taskRowColumns', () => {
-  it('splits the default details width in a 540px list: people 61, tags 91, the dates 92, title 177', () => {
+  it('nothing stored: the details take 45 % of a 528px list (233): people 34, tags 51, the dates 92, title 244', () => {
     const cols = taskRowColumns(528)
-    expect(cols.details).toBe(DEFAULT_DETAILS_WIDTH)
-    expect(cols.laidOut).toBe(DEFAULT_DETAILS_WIDTH)
-    expect([cols.people, cols.tags, cols.dates, cols.datesTier]).toEqual([61, 91, 92, 'both'])
+    expect(cols.details).toBe(defaultDetailsWidth(518))
+    expect(cols.details).toBe(233)
+    expect(cols.laidOut).toBe(233)
+    expect([cols.people, cols.tags, cols.dates, cols.datesTier]).toEqual([34, 51, 92, 'both'])
     // Status is the last track (the task menu is right-click / Shift+F10 only).
-    expect(cols.template).toBe('8px 18px minmax(0, 1fr) 16px 61px 91px 92px 20px')
-    expect(titleWidth(528, cols.laidOut)).toBe(177)
+    expect(cols.template).toBe('8px 18px minmax(0, 1fr) 16px 34px 51px 92px 20px')
+    expect(titleWidth(528, cols.laidOut)).toBe(244)
+  })
+
+  it('nothing stored in a wide list: the details stop at 300 (people 61, tags 91)', () => {
+    const cols = taskRowColumns(1200)
+    expect(cols.details).toBe(DEFAULT_DETAILS_WIDTH)
+    expect([cols.people, cols.tags, cols.dates]).toEqual([61, 91, 92])
+    expect(titleWidth(1200, cols.laidOut)).toBe(849)
+    expect(defaultDetailsWidth(0)).toBe(0)
+    expect(defaultDetailsWidth(10_000)).toBe(300)
   })
 
   it('people take 40% of F, within 22 … 64; tags the rest', () => {
@@ -53,26 +64,26 @@ describe('taskRowColumns', () => {
     expect(neither.laidOut).toBe(84)
   })
 
-  it('clamps a stored width to min (notes, the dates as icons, status) … max (title keeps 80px); the bounds follow the width', () => {
+  it('clamps a stored width to min (notes, the dates as icons, status) … max (title keeps 140px); the bounds follow the width', () => {
     const wide = taskRowColumns(528, 4000)
-    expect(wide.maxDetails).toBe(528 - 10 - 41 - 80)
+    expect(wide.maxDetails).toBe(528 - 10 - 41 - 140)
     expect(wide.details).toBe(wide.maxDetails)
-    expect(titleWidth(528, wide.laidOut)).toBe(80)
+    expect(titleWidth(528, wide.laidOut)).toBe(140)
     const tight = taskRowColumns(528, 0)
     expect(tight.details).toBe(84)
     expect(tight.minDetails).toBe(84)
     expect(tight.datesTier).toBe('icons')
     // The same stored value in a wider list: no longer clamped.
     expect(taskRowColumns(1200, 600).details).toBe(600)
-    expect(taskRowColumns(700, 600).details).toBe(700 - 10 - 41 - 80)
+    expect(taskRowColumns(700, 600).details).toBe(700 - 10 - 41 - 140)
   })
 
-  it('the list width caps the details, and so the dates: the follow-up date goes first, then the due date', () => {
-    // Both dates while people and tags keep their split at the widest details.
-    expect(taskRowColumns(335)).toMatchObject({ datesTier: 'both', dates: 92 })
-    expect(taskRowColumns(334)).toMatchObject({ datesTier: 'due', dates: 65 })
-    expect(taskRowColumns(308)).toMatchObject({ datesTier: 'due', dates: 65 })
-    expect(taskRowColumns(307)).toMatchObject({ datesTier: 'icons', dates: 38 })
+  it('the list width sets the default details, and so the dates: the follow-up date goes first, then the due date', () => {
+    // Both dates while 45 % of the inner width leaves people and tags their split (D ≥ 204).
+    expect(taskRowColumns(463)).toMatchObject({ details: 204, datesTier: 'both', dates: 92 })
+    expect(taskRowColumns(462)).toMatchObject({ details: 203, datesTier: 'due', dates: 65 })
+    expect(taskRowColumns(403)).toMatchObject({ details: 177, datesTier: 'due', dates: 65 })
+    expect(taskRowColumns(402)).toMatchObject({ details: 176, datesTier: 'icons', dates: 38 })
     // A wider stored width can't widen them past what the list gives.
     expect(taskRowColumns(306, 4000).datesTier).toBe('icons')
     // In a wide list the details width sets them.
@@ -81,15 +92,16 @@ describe('taskRowColumns', () => {
     expect(taskRowColumns(1200, 160).datesTier).toBe('icons')
   })
 
-  it('a 320px list shows the dates as icons and keeps people and tags', () => {
+  it('a 307px list keeps the title its 140px: the dates as icons, tags gone, people kept', () => {
     const cols = taskRowColumns(307)
     expect(cols.minDetails).toBe(84)
-    expect(cols.details).toBe(307 - 10 - 41 - 80)
-    // F = 176 − 74 − 20 = 82.
-    expect([cols.people, cols.tags]).toEqual([33, 49])
+    expect(cols.details).toBe(307 - 10 - 41 - 140)
+    expect(titleWidth(307, cols.laidOut)).toBe(140)
+    // F = 116 − 74 − 20 = 22: people take it and the gap tags had.
+    expect([cols.people, cols.tags, cols.datesTier]).toEqual([27, 0, 'icons'])
   })
 
-  it('a list too narrow even for the fixed tracks keeps them (the title shrinks below 80)', () => {
+  it('a list too narrow even for the fixed tracks keeps them (the title shrinks below 140)', () => {
     const cols = taskRowColumns(200)
     expect(cols.details).toBe(cols.minDetails)
     expect(cols.datesTier).toBe('icons')

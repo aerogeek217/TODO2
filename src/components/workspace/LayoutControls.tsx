@@ -2,65 +2,58 @@ import { useRef, useState } from 'react'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { ownerLayoutId } from '../../models/list-definition'
-import { UNSAVED_LAYOUT_ID } from '../../models/workspace-layout'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { useUnsavedListIds } from '../../hooks/use-list-draft'
 import { DeleteLayoutDialog, LayoutNameDialog } from './LayoutDialogs'
 import { LayoutTabs } from './LayoutTabs'
 import { UnsavedPrompt } from './UnsavedPrompt'
-import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, HuedLayoutIcon, PencilIcon, PlusIcon, RevertIcon, SaveIcon, TrashIcon } from '../shared/icons'
+import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon, CopyIcon, HuedLayoutIcon, PencilIcon, PlusIcon, TrashIcon, WarningIcon } from '../shared/icons'
 import styles from './LayoutControls.module.css'
 import { withViewTransition } from '../shared/view-transition'
 
 /** How the top bar shows the layouts: one tab each, or folded into the picker's drop-down. */
 export type LayoutControlsMode = 'tabs' | 'menu'
 
-/** A layout an action is for: a saved one by id, or (`null`) a kept new layout not saved yet. */
-type LayoutRef = number | null
-
 type Pending =
   | { kind: 'switch'; id: number; name: string }
   | { kind: 'new-name' }
   | { kind: 'new-confirm'; name: string }
-  | { kind: 'save-as' }
-  | { kind: 'save-new' }
-  | { kind: 'rename'; id: LayoutRef; name: string }
-  | { kind: 'delete'; id: LayoutRef; name: string }
+  | { kind: 'duplicate' }
+  | { kind: 'rename'; id: number; name: string }
+  | { kind: 'delete'; id: number; name: string }
 
 /**
  * Top-bar layout chrome on the workspace: the layouts as tabs (`tabs`) or
- * the layout picker (`menu`, when the bar has no room for the tabs), then
- * the save button, lit while the open layout has unsaved changes.
+ * the layout picker (`menu`, when the bar has no room for the tabs). Every
+ * layout edit is saved at once; only while a write has failed does a
+ * `Couldn't save · Retry` control follow (`WriteFailedButton`).
  *
  * - Tabs: click opens a layout; right-click / Shift+F10 → its menu (the open
- *   one: Save changes, Save as new layout…, Discard changes; every one:
- *   Edit…, Move left / right, Delete layout…); drag to reorder; `+` = New layout.
- * - Picker: the layouts (drag to reorder), then New layout…, Save changes,
- *   Save as new layout…, Discard changes, Edit…, Delete layout….
+ *   one: Duplicate layout…; every one: Edit…, Move left / right, Delete
+ *   layout…); drag to reorder; `+` = New layout.
+ * - Picker: the layouts (drag to reorder), then New layout…, Duplicate
+ *   layout…, Edit…, Delete layout….
  *
- * One order feeds both (the store's `layouts`); a reorder is saved at once,
- * not a layout change. New layout asks for a name and stores the empty
- * layout at once. Leaving unsaved changes (to the layout or to a list) for
- * another layout or a new one asks Save / Discard / Cancel first. A new
- * layout an older build kept unsaved shows as the open tab until saved —
- * its Save asks for a name — and deleting it just drops it.
+ * One order feeds both (the store's `layouts`); a reorder is saved at once.
+ * New layout asks for a name and stores the empty layout at once. Leaving
+ * a list with unsaved edits for another layout or a new one asks Save /
+ * Discard / Cancel first (the layout itself never asks: it is saved).
  */
 export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
   const layouts = useWorkspaceStore((s) => s.layouts)
   const working = useWorkspaceStore((s) => s.working)
-  const isDirty = useWorkspaceStore((s) => s.isDirty)
   const activeLayoutId = useWorkspaceStore((s) => s.activeLayoutId)
-  const isNew = useWorkspaceStore((s) => s.working !== null && s.saved === null)
+  const writing = useWorkspaceStore((s) => s.writesPending > 0)
   const unsavedLists = useUnsavedListIds()
   const [menuOpen, setMenuOpen] = useState(false)
-  const [tabMenu, setTabMenu] = useState<{ id: LayoutRef; x: number; y: number } | null>(null)
+  const [tabMenu, setTabMenu] = useState<{ id: number; x: number; y: number } | null>(null)
   const [pending, setPending] = useState<Pending | null>(null)
   const pickerRef = useRef<HTMLButtonElement | null>(null)
 
   if (!working) return null
   const store = useWorkspaceStore.getState
   const name = working.name
-  const unsaved = isDirty || unsavedLists.length > 0
+  const unsaved = unsavedLists.length > 0
 
   const close = () => setPending(null)
   const switchTo = (id: number, targetName: string) => {
@@ -69,21 +62,14 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
     else withViewTransition(() => store().load(id))
   }
   const create = (layoutName: string) => { void store().createLayout(layoutName) }
-  // A kept new layout's Save asks for its name (Save as, under it).
-  const saveOpen = () => {
-    if (isNew) setPending({ kind: 'save-new' })
-    else if (isDirty) void store().save()
-  }
-  const nameOf = (id: LayoutRef) => (id == null ? name : layouts.find((l) => l.id === id)?.name ?? '')
-  const hueOf = (id: LayoutRef) => (id == null ? working.hue : layouts.find((l) => l.id === id)?.hue) ?? null
+  const nameOf = (id: number) => layouts.find((l) => l.id === id)?.name ?? ''
+  const hueOf = (id: number) => layouts.find((l) => l.id === id)?.hue ?? null
   const indexOf = (id: number) => layouts.findIndex((l) => l.id === id)
-  const canDelete = (id: LayoutRef) => id == null || layouts.length > 1
+  const canDelete = layouts.length > 1
 
   /** The open layout's actions (tab menu of the open tab, and the picker). */
   const openLayoutEntries: MenuEntry[] = [
-    { kind: 'item', label: 'Save changes', icon: <SaveIcon />, disabled: !isDirty, onSelect: saveOpen },
-    { kind: 'item', label: 'Save as new layout…', icon: <CopyIcon />, onSelect: () => setPending({ kind: 'save-as' }) },
-    { kind: 'item', label: 'Discard changes', icon: <RevertIcon />, disabled: !isDirty, onSelect: () => store().discard() },
+    { kind: 'item', label: 'Duplicate layout…', icon: <CopyIcon />, onSelect: () => setPending({ kind: 'duplicate' }) },
   ]
 
   const pickerEntries: MenuEntry[] = [
@@ -94,30 +80,32 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
       icon: <HuedLayoutIcon hue={l.hue} />,
       radio: true,
       checked: l.id === activeLayoutId,
-      note: l.id === activeLayoutId && isDirty ? 'Edited' : undefined,
       dragId: String(l.id),
       onSelect: () => switchTo(l.id, l.name),
     })),
-    // A kept new layout, until it's saved.
-    ...(isNew ? [{ kind: 'item' as const, label: name, icon: <HuedLayoutIcon hue={working.hue} />, radio: true, checked: true, note: 'New' }] : []),
     { kind: 'separator' },
     { kind: 'item', label: 'New layout…', icon: <PlusIcon />, onSelect: () => setPending({ kind: 'new-name' }) },
     ...openLayoutEntries,
-    { kind: 'item', label: 'Edit…', icon: <PencilIcon />, onSelect: () => setPending({ kind: 'rename', id: isNew ? null : activeLayoutId, name }) },
+    {
+      kind: 'item',
+      label: 'Edit…',
+      icon: <PencilIcon />,
+      onSelect: () => { if (activeLayoutId != null) setPending({ kind: 'rename', id: activeLayoutId, name }) },
+    },
     { kind: 'separator' },
     {
       kind: 'item',
       label: 'Delete layout…',
       icon: <TrashIcon />,
       danger: true,
-      disabled: !canDelete(isNew ? null : activeLayoutId),
-      onSelect: () => setPending({ kind: 'delete', id: isNew ? null : activeLayoutId, name }),
+      disabled: !canDelete,
+      onSelect: () => { if (activeLayoutId != null) setPending({ kind: 'delete', id: activeLayoutId, name }) },
     },
   ]
 
-  const tabMenuEntries = (id: LayoutRef): MenuEntry[] => {
-    const open = id == null || id === activeLayoutId
-    const index = id == null ? -1 : indexOf(id)
+  const tabMenuEntries = (id: number): MenuEntry[] => {
+    const open = id === activeLayoutId
+    const index = indexOf(id)
     return [
       ...(open ? [...openLayoutEntries, { kind: 'separator' as const }] : []),
       { kind: 'item', label: 'Edit…', icon: <PencilIcon />, onSelect: () => setPending({ kind: 'rename', id, name: nameOf(id) }) },
@@ -126,14 +114,14 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
         label: 'Move left',
         icon: <ChevronLeftIcon />,
         disabled: index <= 0,
-        onSelect: () => { if (id != null) void store().moveLayout(id, index - 1) },
+        onSelect: () => { void store().moveLayout(id, index - 1) },
       },
       {
         kind: 'item',
         label: 'Move right',
         icon: <ChevronRightIcon />,
         disabled: index < 0 || index >= layouts.length - 1,
-        onSelect: () => { if (id != null) void store().moveLayout(id, index + 1) },
+        onSelect: () => { void store().moveLayout(id, index + 1) },
       },
       { kind: 'separator' },
       {
@@ -141,20 +129,18 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
         label: 'Delete layout…',
         icon: <TrashIcon />,
         danger: true,
-        disabled: !canDelete(id),
+        disabled: !canDelete,
         onSelect: () => setPending({ kind: 'delete', id, name: nameOf(id) }),
       },
     ]
   }
 
   return (
-    <div className={styles.controls} data-layout-controls={mode}>
+    <div className={styles.controls} data-layout-controls={mode} data-layout-writing={writing ? '' : undefined}>
       {mode === 'tabs' ? (
         <LayoutTabs
           layouts={layouts}
           activeLayoutId={activeLayoutId}
-          unsavedNew={isNew ? working : null}
-          dirty={isDirty}
           onActivate={(l) => switchTo(l.id, l.name)}
           onOpenMenu={(id, p) => setTabMenu({ id, ...p })}
           onMove={(id, to) => { void store().moveLayout(id, to) }}
@@ -176,17 +162,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           <ChevronDownIcon />
         </button>
       )}
-      <button
-        type="button"
-        className={`${styles.save} ${isDirty ? styles.saveDirty : ''}`}
-        aria-label={isDirty ? 'Save layout (unsaved changes)' : 'Layout saved'}
-        title={isDirty ? 'Save layout · unsaved changes' : 'Layout saved'}
-        aria-disabled={!isDirty}
-        data-testid="layout-save"
-        onClick={saveOpen}
-      >
-        <SaveIcon />
-      </button>
+      <WriteFailedButton />
 
       {menuOpen && mode === 'menu' && (
         <MenuPopover
@@ -212,8 +188,6 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
       {pending?.kind === 'switch' && (
         <UnsavedPrompt
           lead={`You’re switching to layout “${pending.name}”.`}
-          layoutLead={`You’re switching to “${pending.name}”.`}
-          layout={isDirty}
           listIds={unsavedLists}
           onDone={() => { close(); withViewTransition(() => store().load(pending.id)) }}
           onCancel={close}
@@ -235,27 +209,17 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
       {pending?.kind === 'new-confirm' && (
         <UnsavedPrompt
           lead={`You’re starting a new layout “${pending.name}”.`}
-          layout={isDirty}
           listIds={unsavedLists}
           onDone={() => { close(); create(pending.name) }}
           onCancel={close}
         />
       )}
-      {pending?.kind === 'save-as' && (
+      {pending?.kind === 'duplicate' && (
         <LayoutNameDialog
-          title="Save as new layout"
-          confirmLabel="Save layout"
+          title="Duplicate layout"
+          confirmLabel="Duplicate"
           initialName={`${name} copy`}
-          onConfirm={(n) => { close(); void store().saveAs(n) }}
-          onCancel={close}
-        />
-      )}
-      {pending?.kind === 'save-new' && (
-        <LayoutNameDialog
-          title="Save layout"
-          confirmLabel="Save layout"
-          initialName={name}
-          onConfirm={(n) => { close(); void store().saveAs(n) }}
+          onConfirm={(n) => { close(); void store().duplicateLayout(n) }}
           onCancel={close}
         />
       )}
@@ -265,7 +229,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           confirmLabel="Apply"
           initialName={pending.name}
           initialHue={hueOf(pending.id)}
-          onConfirm={(n, hue) => { close(); void store().rename(pending.id ?? UNSAVED_LAYOUT_ID, n, hue) }}
+          onConfirm={(n, hue) => { close(); void store().rename(pending.id, n, hue) }}
           onCancel={close}
         />
       )}
@@ -275,8 +239,7 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
           layoutName={pending.name}
           onConfirm={() => {
             close()
-            if (pending.id == null) store().discard()
-            else void store().delete(pending.id)
+            void store().delete(pending.id)
           }}
           onCancel={close}
         />
@@ -285,15 +248,38 @@ export function LayoutControls({ mode }: { mode: LayoutControlsMode }) {
   )
 }
 
+/**
+ * `Couldn't save · Retry`: shown only while the open layout's last write
+ * failed (`writeFailed`) — a click writes it again.
+ */
+function WriteFailedButton() {
+  const failed = useWorkspaceStore((s) => s.writeFailed)
+  const name = useWorkspaceStore((s) => s.working?.name ?? '')
+  if (!failed) return null
+  return (
+    <button
+      type="button"
+      className={styles.writeFailed}
+      title={`Layout “${name}” couldn’t be saved. Retry`}
+      aria-label={`Couldn't save layout ${name}. Retry`}
+      data-testid="layout-write-failed"
+      onClick={() => { void useWorkspaceStore.getState().retryWrite() }}
+    >
+      <WarningIcon size={12} />
+      <span>Couldn’t save</span>
+      <span aria-hidden="true">·</span>
+      <span className={styles.writeFailedAction}>Retry</span>
+    </button>
+  )
+}
+
 /** Delete layout…'s confirm, naming the lists that go with it. */
 function DeleteLayoutConfirm({ layoutId, layoutName, onConfirm, onCancel }: {
-  layoutId: LayoutRef
+  layoutId: number
   layoutName: string
   onConfirm: () => void
   onCancel: () => void
 }) {
-  const ownedLists = useListDefinitionStore((s) => (layoutId == null
-    ? 0
-    : s.listDefinitions.filter((d) => ownerLayoutId(d) === layoutId).length))
+  const ownedLists = useListDefinitionStore((s) => s.listDefinitions.filter((d) => ownerLayoutId(d) === layoutId).length)
   return <DeleteLayoutDialog layoutName={layoutName} ownedLists={ownedLists} onConfirm={onConfirm} onCancel={onCancel} />
 }

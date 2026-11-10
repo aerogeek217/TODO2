@@ -17,6 +17,7 @@ import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import { numberTab, single } from '../../helpers/layout-builders'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
  * The widget editors' Save / Discard (the Number's, a chart's, Project
@@ -48,7 +49,7 @@ const elsewhere = vi.fn()
 
 function setup(...tabs: LayoutTab[]) {
   const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs }) }
-  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], isDirty: false })
+  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], writeFailed: false })
   return render(
     <DndContext>
       <Adder />
@@ -122,9 +123,10 @@ describe('a widget editor’s Save', () => {
     fireEvent.click(saveButton(editor))
     expect(numberEditor()).toBeNull()
     expect(patchSpy).toHaveBeenCalledTimes(1)
-    expect(patchSpy).toHaveBeenCalledWith('n', 'number', { name: 'Late', compare: 'lastWeek' })
+    expect(patchSpy).toHaveBeenCalledWith('n', 'number', { name: 'Late', compare: 'lastWeek' }, 'Edited number “Late”')
     expect(stored('n')).toMatchObject({ config: { name: 'Late', compare: 'lastWeek' } })
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    // Saved for good, as one undo step.
+    expect(layoutSteps()).toEqual(['Edited number “Late”'])
     expect(document.querySelector('[data-number="n"]')).toHaveTextContent('Late')
     expect(useWidgetPreviewStore.getState().configs).toEqual({})
   })
@@ -155,7 +157,7 @@ describe('a widget editor’s Discard', () => {
     expect(useWidgetPreviewStore.getState().configs).toEqual({})
     expect(patchSpy).not.toHaveBeenCalled()
     expect(stored('n')).toBe(before)
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     // Nothing kept: it opens on the stored config again.
     expect(nameField(openNumber())).toHaveValue('Overdue')
   })
@@ -202,7 +204,7 @@ describe('closing a widget editor', () => {
     await answer(title, 'Discard')
     expect(numberEditor()).toBeNull()
     expect(stored('n')).toMatchObject({ config: { name: 'Overdue' } })
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 
   it('changed, × asks; its Save writes the edits and closes', async () => {
@@ -213,7 +215,7 @@ describe('closing a widget editor', () => {
     await answer('Save changes to number “Overdue”?', 'Save')
     expect(numberEditor()).toBeNull()
     expect(stored('n')).toMatchObject({ config: { name: 'Late' } })
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    expect(layoutSteps()).not.toEqual([])
   })
 
   it('changed, a press elsewhere asks and goes no further; a press on the widget it edits is inside', async () => {

@@ -3,10 +3,7 @@ import { Dialog, DialogActions, DialogBody } from '../shared/Dialog'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { UnsavedChangesDialog } from './LayoutDialogs'
 import { countListWidgets } from '../../hooks/use-list-widget-count'
-import { ownerLayoutId } from '../../models/list-definition'
-import { layoutListRefs } from '../../utils/workspace-layout-lists'
 import styles from './LayoutDialogs.module.css'
 
 interface UnsavedPromptProps {
@@ -15,10 +12,6 @@ interface UnsavedPromptProps {
    * “Daily”.`, `You’re leaving the workspace.`
    */
   lead: string
-  /** The layout name to use in the single-layout prompt's lead (`You’re switching to “Daily”.`). */
-  layoutLead?: string
-  /** Ask about the open layout's unsaved changes. */
-  layout: boolean
   /** Lists with unsaved edits to ask about. */
   listIds: readonly number[]
   /** After Save / Discard: carry on with what the user was doing. */
@@ -27,31 +20,17 @@ interface UnsavedPromptProps {
 }
 
 /**
- * Save / Discard / Cancel before unsaved work would be lost: the layout's
- * prompt when only the layout is unsaved, a list's prompt when only one list
- * is, else one combined prompt with a checked row per item (unchecking an
- * item discards it).
+ * Save / Discard / Cancel before unsaved list edits would be lost: a list's
+ * prompt when one list is unsaved, else one combined prompt with a checked
+ * row per list (unchecking one discards it). (Layouts are saved at once:
+ * nothing about them is asked.)
  */
-export function UnsavedPrompt({ lead, layoutLead, layout, listIds, onDone, onCancel }: UnsavedPromptProps) {
-  const layoutName = useWorkspaceStore((s) => s.working?.name ?? '')
-  if (layout && listIds.length === 0) {
-    return (
-      <UnsavedChangesDialog
-        layoutName={layoutName}
-        lead={layoutLead ?? lead}
-        // A failed save keeps the prompt open (the snackbar says why), so
-        // leaving never drops the changes it was asked to keep.
-        onSave={() => { void useWorkspaceStore.getState().save().then((ok) => { if (ok) onDone() }) }}
-        onDiscard={() => { useWorkspaceStore.getState().discard(); onDone() }}
-        onCancel={onCancel}
-      />
-    )
-  }
+export function UnsavedPrompt({ lead, listIds, onDone, onCancel }: UnsavedPromptProps) {
   const [only] = listIds
-  if (!layout && listIds.length === 1 && only != null) {
+  if (listIds.length === 1 && only != null) {
     return <UnsavedListDialog listId={only} onDone={onDone} onCancel={onCancel} />
   }
-  return <CombinedDialog lead={lead} layout={layout} listIds={listIds} onDone={onDone} onCancel={onCancel} />
+  return <CombinedDialog lead={lead} listIds={listIds} onDone={onDone} onCancel={onCancel} />
 }
 
 function listName(id: number): string {
@@ -119,45 +98,15 @@ function UnsavedListDialog({ listId, onDone, onCancel }: {
   )
 }
 
-/**
- * The open layout's own lists among `listIds` that only its unsaved edits
- * show: discarding the layout deletes them, so their rows follow its row.
- */
-function listsMadeForEdits(listIds: readonly number[]): Set<number> {
-  const { saved } = useWorkspaceStore.getState()
-  if (!saved) return new Set()
-  const shownSaved = layoutListRefs(saved)
-  const defs = useListDefinitionStore.getState().listDefinitions
-  return new Set(listIds.filter((id) => {
-    const def = defs.find((d) => d.id === id)
-    return def != null && ownerLayoutId(def) === saved.id && !shownSaved.has(id)
-  }))
-}
-
-/** "Save your changes?" with one checked row per unsaved layout / list. */
-function CombinedDialog({ lead, layout, listIds, onDone, onCancel }: Omit<UnsavedPromptProps, 'layoutLead'>) {
+/** "Save your changes?" with one checked row per unsaved list. */
+function CombinedDialog({ lead, listIds, onDone, onCancel }: UnsavedPromptProps) {
   const saveRef = useRef<HTMLButtonElement>(null)
-  const layoutName = useWorkspaceStore((s) => s.working?.name ?? '')
-  const [followers] = useState(() => (layout ? listsMadeForEdits(listIds) : new Set<number>()))
-  const items = [
-    ...(layout ? [{ key: 'layout', label: `Layout “${layoutName}”`, note: '', follows: false }] : []),
-    ...listIds.map((id) => {
-      const follows = followers.has(id)
-      const n = widgetCount(id)
-      return {
-        key: `list-${id}`,
-        label: `List “${listName(id)}”`,
-        note: follows ? 'goes with the layout changes' : n === 1 ? '1 widget' : `${n} widgets`,
-        follows,
-      }
-    }),
-  ]
-  const [ticked, setTicked] = useState<ReadonlySet<string>>(() => new Set(items.map((i) => i.key)))
-  // A list made for the layout's edits is saved with them or goes with them.
-  const checked: ReadonlySet<string> = new Set(items
-    .filter((i) => (i.follows ? ticked.has('layout') : ticked.has(i.key)))
-    .map((i) => i.key))
-  const toggle = (key: string) => setTicked((prev) => {
+  const items = listIds.map((id) => {
+    const n = widgetCount(id)
+    return { key: `list-${id}`, label: `List “${listName(id)}”`, note: n === 1 ? '1 widget' : `${n} widgets` }
+  })
+  const [checked, setChecked] = useState<ReadonlySet<string>>(() => new Set(items.map((i) => i.key)))
+  const toggle = (key: string) => setChecked((prev) => {
     const next = new Set(prev)
     if (next.has(key)) next.delete(key)
     else next.add(key)
@@ -170,23 +119,14 @@ function CombinedDialog({ lead, layout, listIds, onDone, onCancel }: Omit<Unsave
     if (busy) return
     setBusy(true)
     try {
-      const workspace = useWorkspaceStore.getState()
       const drafts = useListDraftStore.getState()
-      if (layout) {
-        if (save.has('layout')) {
-          // A failed save keeps the prompt open: leaving would drop the layout.
-          if (!(await workspace.save())) return
-        } else await workspace.discard()
-      }
       let failed = false
       for (const id of listIds) {
         if (save.has(`list-${id}`)) {
           await drafts.save(id)
           // Not stored: the store kept its draft; the prompt stays to say so.
           if (id in useListDraftStore.getState().drafts) failed = true
-        }
-        // A list made for discarded layout edits is gone with its draft.
-        else if (!(layout && followers.has(id) && !save.has('layout'))) drafts.discard(id)
+        } else drafts.discard(id)
       }
       if (failed) return
       onDone()
@@ -202,7 +142,7 @@ function CombinedDialog({ lead, layout, listIds, onDone, onCancel }: Omit<Unsave
         <div className={styles.unsavedItems}>
           {items.map((item) => (
             <label key={item.key} className={styles.unsavedItem}>
-              <input type="checkbox" checked={checked.has(item.key)} disabled={item.follows} onChange={() => toggle(item.key)} />
+              <input type="checkbox" checked={checked.has(item.key)} onChange={() => toggle(item.key)} />
               <span className={styles.unsavedName}>{item.label}</span>
               {item.note && <span className={styles.unsavedNote}>{item.note}</span>}
             </label>

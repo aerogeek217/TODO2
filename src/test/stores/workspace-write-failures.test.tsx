@@ -1,16 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
-import { useWorkspaceStore } from '../../stores/workspace-store'
+import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-store'
 import { useUndoStore } from '../../stores/undo-store'
 import { createTab, type PersistedWorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 import { cleanup } from '@testing-library/react'
 import { emptyBody, single } from '../helpers/layout-builders'
 
-// A layout write that fails (e.g. browser storage full) must not leave the
-// workspace saying the layout is saved, nor reject into the `void` callers
-// (Save button, layout menu, rename / save-as dialogs, tab clicks).
+// A layout write that fails (e.g. browser storage full) must not pass
+// silently (the Couldn't save · Retry control, the notice), lose what is on
+// screen, nor reject into the `void` callers (edits, layout menu, rename /
+// duplicate dialogs, tab clicks).
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 const ws = () => useWorkspaceStore.getState()
@@ -30,7 +31,7 @@ function failWrites() {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   vi.spyOn(console, 'error').mockImplementation(() => {})
   const err = new DOMException('full', 'QuotaExceededError')
-  vi.spyOn(layoutRepository, 'put').mockRejectedValue(err)
+  vi.spyOn(layoutRepository, 'putAndPrune').mockRejectedValue(err)
   vi.spyOn(layoutRepository, 'insert').mockRejectedValue(err)
   vi.spyOn(layoutRepository, 'rename').mockRejectedValue(err)
 }
@@ -45,48 +46,43 @@ afterEach(() => {
 })
 
 describe('workspace layout writes that fail', () => {
-  it('Save keeps the layout unsaved, resolves false and says so', async () => {
+  it('an edit whose write fails stays on screen, marks the layout and says so; the stored row is untouched', async () => {
     const id = await openPlain()
-    ws().closeTab('p2')
-    expect(ws().isDirty).toBe(true)
     failWrites()
-    await expect(ws().save()).resolves.toBe(false)
-    expect(ws().isDirty).toBe(true)
-    expect(ws().saved?.cells[0]?.tabs).toHaveLength(2)
+    ws().closeTab('p2')
+    await settleLayoutWrites()
+    expect(ws().writeFailed).toBe(true)
+    expect(ws().working?.cells[0]?.tabs).toHaveLength(1)
     expect(notice()).toBe('Couldn\'t save layout "Plain".')
     expect(((await db.layouts.get(id)) as PersistedWorkspaceLayout).cells[0]?.tabs).toHaveLength(2)
   })
 
-  it('Save that works resolves true and marks the layout saved', async () => {
+  it('an edit whose write lands leaves the layout unmarked', async () => {
     await openPlain()
     ws().closeTab('p2')
-    await expect(ws().save()).resolves.toBe(true)
-    expect(ws().isDirty).toBe(false)
+    await settleLayoutWrites()
+    expect(ws().writeFailed).toBe(false)
   })
 
-  it('an edit made while Save writes stays unsaved', async () => {
-    await openPlain()
-    ws().closeTab('p2')
-    let release: () => void = () => {}
-    const put = layoutRepository.put.bind(layoutRepository)
-    vi.spyOn(layoutRepository, 'put').mockImplementation(async (l) => {
-      await new Promise<void>((r) => { release = r })
-      return put(l)
-    })
-    const saving = ws().save()
-    await vi.waitFor(() => expect(layoutRepository.put).toHaveBeenCalled())
-    ws().changeTabKind('p1', 'calendar')
-    release()
-    await expect(saving).resolves.toBe(true)
-    expect(ws().isDirty).toBe(true)
-  })
-
-  it('Save as resolves null and says so; the open layout stays as it was', async () => {
+  it('Retry resolves false while the write still fails, true once it lands', async () => {
     const id = await openPlain()
     failWrites()
-    await expect(ws().saveAs('Copy')).resolves.toBeNull()
+    ws().closeTab('p2')
+    await settleLayoutWrites()
+    await expect(ws().retryWrite()).resolves.toBe(false)
+    expect(ws().writeFailed).toBe(true)
+    vi.mocked(layoutRepository.putAndPrune).mockRestore()
+    await expect(ws().retryWrite()).resolves.toBe(true)
+    expect(ws().writeFailed).toBe(false)
+    expect(((await db.layouts.get(id)) as PersistedWorkspaceLayout).cells[0]?.tabs).toHaveLength(1)
+  })
+
+  it('Duplicate layout resolves null and says so; the open layout stays as it was', async () => {
+    const id = await openPlain()
+    failWrites()
+    await expect(ws().duplicateLayout('Copy')).resolves.toBeNull()
     expect(ws().activeLayoutId).toBe(id)
-    expect(notice()).toBe('Couldn\'t save layout "Copy".')
+    expect(notice()).toBe('Couldn\'t duplicate layout "Plain".')
   })
 
   it('Rename resolves false and keeps the old name', async () => {
@@ -146,18 +142,25 @@ describe('switching or deleting a layout when a write fails (cr31 L10)', () => {
   })
 })
 
-describe('the unsaved-changes prompt when Save fails', () => {
-  it('stays open instead of carrying on (which would drop the layout)', async () => {
+describe('leaving a layout whose write failed', () => {
+  it('stays on it instead of switching (which would drop its last changes), and says so; the layout tab shows Couldn’t save · Retry', async () => {
     const { render, screen, fireEvent, waitFor } = await import('@testing-library/react')
-    const { UnsavedPrompt } = await import('../../components/workspace/UnsavedPrompt')
-    await openPlain()
-    ws().closeTab('p2')
+    const { LayoutControls } = await import('../../components/workspace/LayoutControls')
+    const plain = await openPlain()
+    const other = await layoutRepository.insert({ name: 'Second', createdAt: T0, modifiedAt: T0, ...emptyBody() })
+    await ws().init()
     failWrites()
-    const onDone = vi.fn()
-    render(<UnsavedPrompt lead="You’re switching." layout listIds={[]} onDone={onDone} onCancel={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Save layout' }))
-    await waitFor(() => expect(notice()).toBe('Couldn\'t save layout "Plain".'))
-    expect(onDone).not.toHaveBeenCalled()
-    expect(screen.getByRole('button', { name: 'Save layout' })).toBeInTheDocument()
+    ws().closeTab('p2')
+    await settleLayoutWrites()
+    render(<LayoutControls mode="tabs" />)
+    const retry = screen.getByTestId('layout-write-failed')
+    expect(retry).toHaveTextContent('Couldn’t save·Retry')
+    await ws().load(other)
+    expect(ws().activeLayoutId).toBe(plain)
+    expect(notice()).toBe('Couldn\'t save layout "Plain". Retry before leaving it, or its last changes are lost.')
+    vi.mocked(layoutRepository.putAndPrune).mockRestore()
+    fireEvent.click(retry)
+    await waitFor(() => expect(screen.queryByTestId('layout-write-failed')).toBeNull())
+    expect(ws().writeFailed).toBe(false)
   })
 })

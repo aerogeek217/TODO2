@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { openSettings, seedWorkspace, switchLayout, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { openSettings, seedWorkspace, switchLayout, wsListWidget, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * D15 Lenses, as cr22 made them: the top bar's lens control picks one lens
@@ -40,7 +40,6 @@ const glasses = (page: Page) => header(page).getByRole('button', { name: 'Apply 
 const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
 const mainTitles = (page: Page) => rowTitles(wsListWidget(page, 't1'))
 const otherTitles = (page: Page) => rowTitles(wsListWidget(page, 't2'))
-const saveButton = (page: Page) => page.getByTestId('layout-save')
 
 async function pickLens(page: Page, name: string) {
   await lensName(page).click()
@@ -59,24 +58,24 @@ test('a pick is saved at once for every layout: Save stays unlit, a reload and a
   await expect.poll(() => mainTitles(page)).toEqual(ALL)
   await expect(lensName(page)).toHaveAccessibleName('Lens: none')
   await expect(counter(page)).toHaveCount(0)
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   await pickLens(page, 'Has a person')
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
   await expect(counter(page)).toHaveAccessibleName('2 of 3 open tasks shown. Show them')
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   await reload(page)
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
 
   // The other layout shows the same lens.
   await switchLayout(page, 'Other')
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
   await expect.poll(() => otherTitles(page)).toEqual(['Ann plan', 'Ann waits'])
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   // A pick there is the pick everywhere.
   await pickLens(page, 'Plans')

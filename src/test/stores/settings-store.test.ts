@@ -516,9 +516,9 @@ describe('useSettingsStore', () => {
     expect(await db.settings.get('activeLensId')).toEqual({ key: 'activeLensId', value: 'lens-b' })
   })
 
-  it('the default list zoom: rows by default (no row); a level stored, rows removes the row; junk ignored', async () => {
+  it('the default list zoom: auto by default (no row); a level stored, auto removes the row; junk ignored', async () => {
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().listZoom).toBe('rows')
+    expect(useSettingsStore.getState().listZoom).toBe('auto')
     useUndoStore.getState().clear()
 
     await useSettingsStore.getState().setListZoom('stacked')
@@ -528,15 +528,19 @@ describe('useSettingsStore', () => {
     expect(useSettingsStore.getState().listZoom).toBe('stacked')
     await useSettingsStore.getState().setListZoom('lines')
     expect(await db.settings.get('rowDensity')).toEqual({ key: 'rowDensity', value: 'lines' })
+    // Rows is stored (an older build reads it as Rows); Auto is the absent row (an older build reads Rows too).
     await useSettingsStore.getState().setListZoom('rows')
+    expect(await db.settings.get('rowDensity')).toEqual({ key: 'rowDensity', value: 'rows' })
+    await useSettingsStore.getState().setListZoom('auto')
     expect(await db.settings.get('rowDensity')).toBeUndefined()
+    expect(useUndoStore.getState().undoStack.at(-1)?.description).toBe('Default list zoom: Auto')
 
     await db.settings.put({ key: 'rowDensity', value: 'lines' })
     await useSettingsStore.getState().load()
     expect(useSettingsStore.getState().listZoom).toBe('lines')
     await db.settings.put({ key: 'rowDensity', value: 'roomy' })
     await useSettingsStore.getState().load()
-    expect(useSettingsStore.getState().listZoom).toBe('rows')
+    expect(useSettingsStore.getState().listZoom).toBe('auto')
   })
 
   it('reads the densities before the zoom levels as levels: comfortable is Stacked, compact is Rows', async () => {

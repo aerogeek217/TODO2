@@ -1,4 +1,4 @@
-import { useCallback, useLayoutEffect, useRef } from 'react'
+import { useLayoutEffect, useRef } from 'react'
 import { type CalendarDateTypes } from '../../../models/workspace-layout'
 import { type CalendarEntry } from '../../../services/calendar-entries'
 import { dayLabel, monthCellFit, MONTH_ROW_MIN, dayOverflow, weekdayLabels } from '../../../utils/calendar-grid'
@@ -7,7 +7,7 @@ import { dayKey } from '../../../utils/date'
 import { useElementSize } from '../../../hooks/use-element-size'
 import { useTooltip } from '../../shared/use-tooltip'
 import styles from './CalendarWidget.module.css'
-import { MONTH_GRID_PAD, MONTH_GRID_GAP, type DayContext, useDayTarget, dayClasses, washClass } from './calendar-day'
+import { MONTH_GRID_PAD, MONTH_GRID_GAP, MONTH_LEGEND_HEIGHT, type DayContext, useDayTarget, dayClasses, washClass } from './calendar-day'
 import { DropLabel, EntryItem, MoreButton } from './CalendarDayParts'
 
 /** The calendar's month: the grid of days, a heat-map day and its legend. */
@@ -140,15 +140,17 @@ export function MonthGrid({ days, month, entriesByDay, ctx, weekStartsOn, titles
   onMore: (day: Date, cell: HTMLElement) => void
   moreDayMs: number | null
 }) {
-  const [sizeRef, gridSize] = useElementSize()
+  // Measured: the room under the weekdays, which the rows and the legend share.
+  const [areaRef, area] = useElementSize()
   const gridEl = useRef<HTMLDivElement | null>(null)
-  const gridRef = useCallback((el: HTMLDivElement | null) => {
-    gridEl.current = el
-    sizeRef(el)
-  }, [sizeRef])
   const rows = Math.ceil(days.length / 7)
   const minRow = titles ? MONTH_ROW_MIN.titles : MONTH_ROW_MIN.heat
-  const shared = gridSize.height > 0 ? (gridSize.height - MONTH_GRID_PAD - MONTH_GRID_GAP * (rows - 1)) / rows : 0
+  const rowHeight = (height: number) => (height - MONTH_GRID_PAD - MONTH_GRID_GAP * (rows - 1)) / rows
+  // The heat map's legend shows only while every row still gets its least
+  // beside it: else the rows take its room, so it never sits under a week cut
+  // by the grid's scroll (the day's tooltip still names its count).
+  const legend = !titles && (area.height <= 0 || rowHeight(area.height - MONTH_LEGEND_HEIGHT) >= minRow)
+  const shared = area.height > 0 ? rowHeight(area.height - (legend ? MONTH_LEGEND_HEIGHT : 0)) : 0
   // Too short for the rows at their least: they keep it and the grid scrolls.
   const scrolls = shared > 0 && shared < minRow
   const fit = monthCellFit(shared > 0 ? Math.max(shared, minRow) : 0)
@@ -168,38 +170,40 @@ export function MonthGrid({ days, month, entriesByDay, ctx, weekStartsOn, titles
       <div className={styles.weekdays} aria-hidden="true">
         {weekdayLabels(weekStartsOn).map((w) => <span key={w}>{w}</span>)}
       </div>
-      <div
-        ref={gridRef}
-        className={styles.monthGrid}
-        style={{ gridTemplateRows: `repeat(${rows}, minmax(${minRow}px, 1fr))` }}
-        data-cal-grid="month"
-        data-heat-map={titles ? undefined : 'true'}
-        data-scrolls={scrolls ? 'true' : undefined}
-      >
-        {days.map((day) => titles ? (
-          <MonthDay
-            key={day.getTime()}
-            day={day}
-            month={month}
-            entries={entriesByDay.get(dayKey(day)) ?? []}
-            fit={fit}
-            ctx={ctx}
-            onMore={onMore}
-            moreOpen={moreDayMs === day.getTime()}
-          />
-        ) : (
-          <MonthHeatDay
-            key={day.getTime()}
-            day={day}
-            month={month}
-            entries={entriesByDay.get(dayKey(day)) ?? []}
-            ctx={ctx}
-            onMore={onMore}
-            moreOpen={moreDayMs === day.getTime()}
-          />
-        ))}
+      <div ref={areaRef} className={styles.monthArea}>
+        <div
+          ref={gridEl}
+          className={styles.monthGrid}
+          style={{ gridTemplateRows: `repeat(${rows}, minmax(${minRow}px, 1fr))` }}
+          data-cal-grid="month"
+          data-heat-map={titles ? undefined : 'true'}
+          data-scrolls={scrolls ? 'true' : undefined}
+        >
+          {days.map((day) => titles ? (
+            <MonthDay
+              key={day.getTime()}
+              day={day}
+              month={month}
+              entries={entriesByDay.get(dayKey(day)) ?? []}
+              fit={fit}
+              ctx={ctx}
+              onMore={onMore}
+              moreOpen={moreDayMs === day.getTime()}
+            />
+          ) : (
+            <MonthHeatDay
+              key={day.getTime()}
+              day={day}
+              month={month}
+              entries={entriesByDay.get(dayKey(day)) ?? []}
+              ctx={ctx}
+              onMore={onMore}
+              moreOpen={moreDayMs === day.getTime()}
+            />
+          ))}
+        </div>
+        {legend && <HeatLegend types={ctx.dateTypes} lateDay={lateDay} />}
       </div>
-      {!titles && <HeatLegend types={ctx.dateTypes} lateDay={lateDay} />}
     </>
   )
 }

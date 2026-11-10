@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { ADD_FILTER, seedWorkspace, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, seedWorkspace, type WorkspaceSeed, wsRow, editListDraft, expectLayoutStored } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -59,10 +59,10 @@ async function recordAnchorClicks(page: Page) {
 
 const anchors = (page: Page) => page.evaluate(() => (window as unknown as { __anchors: Array<{ href: string; target: string; download: string }> }).__anchors)
 
-async function makeLayoutDirty(page: Page) {
-  await wsTab(page, 'n1').click()
-  await wsTab(page, 'n1').getByRole('button', { name: 'Close Notes' }).click()
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+/** Unsaved work the page asks about before it unloads: a list's unsaved edit (a layout is saved at once). */
+async function makeListUnsaved(page: Page) {
+  await editListDraft(page, 'Team', { name: 'Team edited' })
+  await expect(page.getByTestId('save-list')).toBeVisible()
 }
 
 async function openFromPalette(page: Page) {
@@ -74,16 +74,16 @@ async function openFromPalette(page: Page) {
   return dialog
 }
 
-test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-layout prompt, follow-up + Undo', async ({ page, context }) => {
+test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-changes prompt, follow-up + Undo', async ({ page, context }) => {
   await context.grantPermissions(['clipboard-read', 'clipboard-write'])
   await recordAnchorClicks(page)
   await seedWorkspace(page, seed)
-  // A browser that can't keep the unsaved layout for a reload: leaving the
+  // A browser that can't keep an unsaved list edit for a reload: leaving the
   // page would ask "Leave site?" — what the new-context link must not do.
   await page.evaluate(() => {
     Storage.prototype.setItem = () => { throw new DOMException('full', 'QuotaExceededError') }
   })
-  await makeLayoutDirty(page)
+  await makeListUnsaved(page)
 
   const dialogs: string[] = []
   page.on('dialog', (d) => { dialogs.push(d.type()); void d.dismiss() })
@@ -108,7 +108,7 @@ test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-layout
   expect(await page.evaluate(() => (window as unknown as { __alive?: boolean }).__alive)).toBe(true)
   expect(dialogs).toEqual([])
   await expect(page).toHaveURL(/#\/$/)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStored(page)
 
   // The clipboard holds the email: HTML with each task's ref, and plain text.
   const tasks = await readTasks(page)
@@ -131,7 +131,7 @@ test('Copy & open: rich body on the clipboard, mailto: opened, no unsaved-layout
   await expect.poll(async () => (await readTasks(page)).filter((t) => t.lastFollowupAt).length).toBe(0)
 
   // Control: navigating the page itself to a mailto: link does trip the
-  // unsaved-layout prompt — what the new-context link avoids.
+  // unsaved-changes prompt — what the new-context link avoids.
   await page.evaluate(() => {
     const a = document.createElement('a')
     a.href = 'mailto:x@example.com'

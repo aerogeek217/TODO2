@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openCellMenu, seedWorkspace, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { openCellMenu, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * The Breakdown (D26 P8, boards Z1 / Z3 and review mode's board F): a row,
@@ -68,7 +68,7 @@ test('a row and a stacked segment open their tasks in the task dialog', async ({
   const menu = page.getByRole('menu', { name: 'Cell options' })
   await menu.getByRole('menuitem', { name: /^Style/ }).click()
   await page.getByRole('menuitemradio', { name: 'Stacked bar' }).click()
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
   await chart(page).locator('[data-segment^="person-"]').first().click()
   await expect(dialog(page).getByRole('heading')).toHaveText(/^People · /)
 })
@@ -87,7 +87,7 @@ test('the headings sort (saved at once, per split); the filter row narrows the r
   await expect(open).toContainText('▲')
   await expect.poll(() => rowNames(page)).toEqual(['Cy Young', 'Aisha Rahman', 'Ben Ortiz', 'Unassigned'])
   // View state: the layout stays saved, and the sort comes back after a reload.
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await page.reload()
   await expect.poll(() => rowNames(page)).toEqual(['Cy Young', 'Aisha Rahman', 'Ben Ortiz', 'Unassigned'])
   // A third click: back to the default.
@@ -230,7 +230,7 @@ test('the editor’s count columns: a column with its own filter, name and rule;
   await expect(added.getByTestId('expression-reads-as')).toBeVisible()
   await editor.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor).toHaveCount(0)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
   await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Due', 'Follow-up', 'Waiting'])
   // Ben has two Waiting tasks: lit above 0, solid in its colour; a click reviews those two.
   const waiting = row(page, 'Ben Ortiz').locator('[data-column]').last()
@@ -248,7 +248,7 @@ test('the presets: People · Tags · Status · Custom (no Waiting on)', async ({
   await seedWorkspace(page, SEED)
   await openCellMenu(page, 'k2')
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Add widget…' }).click()
-  await page.getByRole('menuitem', { name: 'Numbers & charts' }).click()
+  await page.getByRole('menuitem', { name: 'Insights' }).click()
   await page.getByRole('menuitem', { name: 'Breakdown' }).click()
   await expect(page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem')).toHaveText(['People', 'Tags', 'Status', 'Custom'])
 })
@@ -271,7 +271,7 @@ test('the lens switch at the header’s end: −N while the lens hides tasks her
   await sw.click()
   await expect(sw).toHaveAttribute('aria-pressed', 'false')
   await expect(chart(page).getByTestId('glance-section-count')).toHaveText('10 open')
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await page.reload()
   await expect(chart(page).getByTestId('lens-switch')).toHaveAttribute('aria-pressed', 'false')
   await expect(chart(page).getByTestId('glance-section-count')).toHaveText('10 open')

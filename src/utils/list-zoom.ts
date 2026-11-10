@@ -1,4 +1,4 @@
-import { LIST_ZOOMS, readListZoom, type ListZoom } from '../models/workspace-layout'
+import { isListZoom, LIST_ZOOMS, readListZoom, type ListZoom } from '../models/workspace-layout'
 import type { TodoItem } from '../models/todo-item'
 import { formatRowDate } from './date'
 import { isDeadlinePast } from './effective-date'
@@ -15,19 +15,64 @@ import type { UrgentDueWithinDays } from './urgency'
  * draw for a task.
  *
  * Settings › Appearance › Default list zoom is the level of a tab that hasn't
- * picked one. It is stored in the `rowDensity` row, where the two densities
+ * picked one — Auto (the default, never stored) or a level. A level is stored in the `rowDensity` row, where the two densities
  * before it are read as levels: `comfortable` → `stacked`, `compact` → `rows`.
  * The phone's rows have one density.
  */
 
-/** A tab that hasn't picked a zoom, with no Settings default stored. */
-export const DEFAULT_LIST_ZOOM: ListZoom = 'rows'
+/**
+ * Settings › Appearance › Default list zoom: a level, or **Auto** — Stacked
+ * in a narrow list, Rows in a wide one (`autoListZoom`). Auto is never
+ * stored: it is the absent `rowDensity` row (the default), so an older build
+ * reads it as Rows.
+ */
+export type ListZoomSetting = ListZoom | 'auto'
+
+/** The Default list zoom's choices, as Settings offers them. */
+export const LIST_ZOOM_SETTINGS: readonly ListZoomSetting[] = ['auto', 'stacked', 'rows', 'lines']
+
+/** The Default list zoom with no `rowDensity` row stored. */
+export const DEFAULT_LIST_ZOOM: ListZoomSetting = 'auto'
+
+/** The level Auto shows while the list's width isn't measured (first paint, JSDOM). */
+export const UNMEASURED_LIST_ZOOM: ListZoom = 'rows'
+
+export function isListZoomSetting(v: unknown): v is ListZoomSetting {
+  return v === 'auto' || isListZoom(v)
+}
 
 /** The levels' names, as Settings and the tab menu show them. */
 export const LIST_ZOOM_LABELS: Readonly<Record<ListZoom, string>> = {
   stacked: 'Stacked',
   rows: 'Rows',
   lines: 'Lines',
+}
+
+/** The Default list zoom's choices' names. */
+export const LIST_ZOOM_SETTING_LABELS: Readonly<Record<ListZoomSetting, string>> = { auto: 'Auto', ...LIST_ZOOM_LABELS }
+
+/** Auto: a list narrower than this (its measured width, px) is Stacked, from it Rows. */
+export const AUTO_ZOOM_BREAKPOINT = 480
+/** Auto changes level only once the width is this far past the breakpoint (px), so a divider drag across it doesn't flicker. */
+export const AUTO_ZOOM_HYSTERESIS = 16
+
+/**
+ * The level Auto shows in a list `width` px wide: Stacked under
+ * `AUTO_ZOOM_BREAKPOINT`, Rows from it. With the level it showed last
+ * (`previous`), it changes only once the width is `AUTO_ZOOM_HYSTERESIS`
+ * past the breakpoint (Rows → Stacked under 464, Stacked → Rows from 496).
+ * An unmeasured width (0) is Rows.
+ */
+export function autoListZoom(width: number, previous?: ListZoom): ListZoom {
+  if (!(width > 0)) return UNMEASURED_LIST_ZOOM
+  if (previous === 'stacked') return width >= AUTO_ZOOM_BREAKPOINT + AUTO_ZOOM_HYSTERESIS ? 'rows' : 'stacked'
+  if (previous === 'rows') return width < AUTO_ZOOM_BREAKPOINT - AUTO_ZOOM_HYSTERESIS ? 'stacked' : 'rows'
+  return width < AUTO_ZOOM_BREAKPOINT ? 'stacked' : 'rows'
+}
+
+/** The level a tab without its own zoom shows under the Default list zoom `setting` (Auto: by its `width`, `autoListZoom`). */
+export function defaultListZoom(setting: ListZoomSetting, width = 0, previous?: ListZoom): ListZoom {
+  return setting === 'auto' ? autoListZoom(width, previous) : setting
 }
 
 /** The stored densities before the zoom levels, read as levels. */

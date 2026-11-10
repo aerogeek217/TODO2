@@ -274,8 +274,8 @@ test.describe('Task follow-up', () => {
     await expect.poll(() => followupOf(page, 'gamma')).toEqual({ next: '2026-11-10 00:00', last: null })
   })
 
-  test('no automatic next follow-up (Settings › Task defaults): Quick Add shows no default chip and adds none; /followup still sets one', async ({ page }) => {
-    const settings = await openSettings(page, 'Task defaults')
+  test('no automatic next follow-up (Settings › Tasks › New tasks): Quick Add shows no default chip and adds none; /followup still sets one', async ({ page }) => {
+    const settings = await openSettings(page, 'New tasks')
     const toggle = settings.getByRole('switch', { name: 'Set a next follow-up automatically' })
     await expect(toggle).toHaveAttribute('aria-checked', 'true')
     await toggle.click()

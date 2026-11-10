@@ -1,5 +1,5 @@
 import { test, expect, type Page } from '@playwright/test'
-import { openSettings, seedWorkspace, wsRow } from './fixtures/workspace'
+import { openSettings, seedWorkspace, wsRow, expectLayoutStored } from './fixtures/workspace'
 import { readStore, readStores, writeStores } from './fixtures/db'
 
 /**
@@ -36,11 +36,12 @@ test('the audit repairs a corrupt active layout instead of deleting it', async (
   await page.reload()
 
   // Opened repaired in memory: the notes tab renders (no error boundary), the
-  // retired tab is gone, the layout is unsaved and the snackbar says why.
+  // retired tab is gone and the snackbar says why.
   await expect(page.getByRole('region', { name: 'Notes cell' })).toBeVisible()
   await expect(page.locator('[data-ws-tab]')).toHaveCount(1)
-  await expect(page.getByText('Repaired layout "Daily" — size reset, tab dropped. Save it to keep the repair.')).toBeVisible()
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expect(page.getByText('Repaired layout "Daily" — size reset, tab dropped. Your next change to it keeps the repair.')).toBeVisible()
+  // Not written on open: the stored row keeps what this build can't read.
+  await expectLayoutStored(page)
   expect(errors.filter((e) => e.includes('ErrorBoundary') || e.includes("reading 'label'"))).toEqual([])
 
   const settings = await openSettings(page, 'Data integrity')
@@ -62,8 +63,8 @@ test('the audit repairs a corrupt active layout instead of deleting it', async (
     cells: [expect.objectContaining({ id: 'k1', tabs: [{ id: 'n1', kind: 'notes', config: {} }] })],
   })])
 
-  // The workspace reloaded the repaired row: nothing left unsaved.
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  // The workspace reloaded the repaired row.
+  await expectLayoutStored(page)
 
   await settings.getByRole('button', { name: 'Run Audit' }).click()
   await expect(settings.getByText('No issues found.')).toBeVisible()

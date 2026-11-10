@@ -4,16 +4,16 @@ import { db } from '../../../data/database'
 import { layoutRepository } from '../../../data/layout-repository'
 import { createTab } from '../../../models/workspace-layout'
 import { UnsavedPrompt } from '../../../components/workspace/UnsavedPrompt'
-import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { settleLayoutWrites, useWorkspaceStore } from '../../../stores/workspace-store'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { resetDb } from '../../helpers'
 import { single } from '../../helpers/layout-builders'
 
 /**
- * The combined Save / Discard prompt with a layout's list made for the
- * unsaved layout edits: the list goes with them on Discard, so its row
- * follows the layout's row instead of offering a Save that would do nothing.
+ * A list made for a new tab: the tab is saved with the layout at once (its
+ * list stays), so leaving asks only about the list's own unsaved edits —
+ * never about the layout.
  */
 
 const T0 = new Date('2026-09-01T09:00:00.000Z')
@@ -41,36 +41,30 @@ beforeEach(() => {
   useListDraftStore.setState({ drafts: {} })
 })
 
-describe('UnsavedPrompt with a list made for the layout edits', () => {
-  it('its row follows the layout row: unticking the layout unticks it, and it can’t be ticked alone', async () => {
+describe('UnsavedPrompt with a list made for a new tab', () => {
+  it('asks about the list alone: the layout is saved already', async () => {
     const { fresh } = await setup()
-    render(<UnsavedPrompt lead="You’re leaving." layout listIds={[fresh]} onDone={vi.fn()} onCancel={vi.fn()} />)
-    const layoutBox = screen.getByRole('checkbox', { name: /Layout “A”/ })
-    const listBox = screen.getByRole('checkbox', { name: /List “Fresh”/ })
-    expect(listBox).toBeDisabled()
-    expect(listBox).toBeChecked()
-    expect(screen.getByText('goes with the layout changes')).toBeInTheDocument()
-    fireEvent.click(layoutBox)
-    expect(listBox).not.toBeChecked()
-    expect(screen.getByRole('button', { name: /Save 0 checked/ })).toBeDisabled()
+    render(<UnsavedPrompt lead="You’re leaving." listIds={[fresh]} onDone={vi.fn()} onCancel={vi.fn()} />)
+    expect(screen.getByRole('dialog', { name: 'Save changes to list “Fresh”?' })).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox', { name: /Layout/ })).toBeNull()
   })
 
-  it('Save saves both; Discard all drops both (the list is deleted, nothing left unsaved)', async () => {
+  it('Save list saves the list; Discard drops its edits and keeps the list (its tab is stored)', async () => {
     const { fresh } = await setup()
     const onDone = vi.fn()
-    const { unmount } = render(<UnsavedPrompt lead="You’re leaving." layout listIds={[fresh]} onDone={onDone} onCancel={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: /Save 2 checked/ }))
+    const { unmount } = render(<UnsavedPrompt lead="You’re leaving." listIds={[fresh]} onDone={onDone} onCancel={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Save list' }))
     await waitFor(() => expect(onDone).toHaveBeenCalled())
     expect((await db.listDefinitions.get(fresh))?.name).toBe('Fresh edited')
-    expect(ws().isDirty).toBe(false)
     unmount()
 
     const second = await setup()
     const done2 = vi.fn()
-    render(<UnsavedPrompt lead="You’re leaving." layout listIds={[second.fresh]} onDone={done2} onCancel={vi.fn()} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Discard all' }))
+    render(<UnsavedPrompt lead="You’re leaving." listIds={[second.fresh]} onDone={done2} onCancel={vi.fn()} />)
+    fireEvent.click(screen.getByRole('button', { name: 'Discard' }))
     await waitFor(() => expect(done2).toHaveBeenCalled())
-    await waitFor(async () => expect(await db.listDefinitions.get(second.fresh)).toBeUndefined())
+    await settleLayoutWrites()
+    expect((await db.listDefinitions.get(second.fresh))?.name).toBe('Fresh')
     expect(useListDraftStore.getState().drafts[second.fresh]).toBeUndefined()
   })
 })

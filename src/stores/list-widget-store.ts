@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { WorkspaceLayout } from '../models/workspace-layout'
+import type { ListZoom, WorkspaceLayout } from '../models/workspace-layout'
 import { useWorkspaceStore } from './workspace-store'
 import { layoutTabs } from '../utils/workspace-layout-queries'
 
@@ -64,6 +64,13 @@ interface ListWidgetState {
    * screen (written by the widget, removed when it goes). Never saved.
    */
   shown: Readonly<Record<string, ShownList>>
+  /**
+   * The zoom level each list tab on screen shows, by tab id (written by the
+   * widget, removed when it goes) — its own pick, else the Default list
+   * zoom, Auto resolved by the list's width. The zoom controls step from it
+   * (`services/list-zoom.listTabZoom`). Never saved.
+   */
+  zoom: Readonly<Record<string, ListZoom>>
 
   /** Sets a tab's prompt picks; an empty list clears them. */
   setPicks: (tabId: string, ids: readonly number[]) => void
@@ -72,6 +79,8 @@ interface ListWidgetState {
   setCollapsed: (tabId: string, sectionKeys: readonly string[]) => void
   /** Sets (or with `null`, removes) a tab's shown tasks. */
   setShown: (tabId: string, shown: ShownList | null) => void
+  /** Sets (or with `null`, removes) the level a tab shows. */
+  setShownZoom: (tabId: string, zoom: ListZoom | null) => void
 }
 
 function addTabIds(layout: WorkspaceLayout | null, into: Set<string>): void {
@@ -96,6 +105,7 @@ export const useListWidgetStore = create<ListWidgetState>((set, get) => ({
   picks: {},
   collapsed: {},
   shown: {},
+  zoom: {},
 
   setPicks(tabId, ids) {
     const next = withoutGoneTabs(get().picks)
@@ -126,5 +136,14 @@ export const useListWidgetStore = create<ListWidgetState>((set, get) => ({
     if (shown) next[tabId] = shown
     else delete next[tabId]
     set({ shown: next })
+  },
+
+  setShownZoom(tabId, zoom) {
+    const current = get().zoom
+    if (current[tabId] === (zoom ?? undefined)) return
+    const next = { ...current }
+    if (zoom) next[tabId] = zoom
+    else delete next[tabId]
+    set({ zoom: next })
   },
 }))

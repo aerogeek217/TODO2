@@ -20,11 +20,12 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { WidgetFace } from '../../../utils/widget-face'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 import { single } from '../../helpers/layout-builders'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
  * Project pulse's rules (G5) in JSDOM: a layout without them reads the
  * defaults and stays saved; Edit project pulse… opens the editor under its
- * title, whose Save writes the rules (the layout unsaved until its Save) — names in the
+ * title, whose Save writes the rules (for good, one undo step) — names in the
  * counts and Copy, a filter of its own changing a count, back to the default.
  */
 
@@ -63,7 +64,7 @@ function Live({ face }: { face: WidgetFace }) {
 
 function setup(tab: PulseTab, face: WidgetFace = 'large') {
   const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [tab] }) }
-  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], isDirty: false })
+  useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout], writeFailed: false })
   return render(<DndContext><Live face={face} /><PulseEditorHost /></DndContext>)
 }
 
@@ -104,7 +105,7 @@ describe('Project pulse’s rules', () => {
     expect(count('late')).toBe('1 late (25%)')
     expect(count('stale')).toBe('1 stale')
     expect(current().config).toEqual({ tagIds: [1] })
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 
   it('its names read in the counts, the small face and Copy; a filter of its own changes the count', () => {
@@ -132,7 +133,7 @@ describe('the editor', () => {
     expect(within(rule('stale')).getByTestId('pulse-stale-default')).toHaveTextContent('Follows Settings: untouched 30 days')
     // Opening it writes nothing.
     expect(current().config).toEqual({ tagIds: [1] })
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 
   it('a name edits the draft; Save writes its rule (unsaved); the default name and no filter write none again', () => {
@@ -142,11 +143,11 @@ describe('the editor', () => {
     // The widget draws the edit live; nothing is written until Save.
     expect(count('late')).toBe('1 behind (25%)')
     expect(current().config).toEqual({ tagIds: [1] })
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     save()
     expect(current().config.late).toEqual({ name: 'behind' })
     expect(count('late')).toBe('1 behind (25%)')
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    expect(layoutSteps()).not.toEqual([])
     open()
     fireEvent.change(within(rule('late')).getByRole('textbox', { name: 'Late name' }), { target: { value: 'late' } })
     save()

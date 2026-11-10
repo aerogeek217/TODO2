@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { pickWidgetKind, seedWorkspace, wsCell, wsTab, type WorkspaceSeed } from './fixtures/workspace'
+import { pickWidgetKind, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
@@ -47,7 +47,6 @@ const count = (page: Page, metric: string) => page.locator(`[data-glance-tab="${
 /** A section by its kind (`trend`), or a chart by its tab id. */
 const section = (page: Page, id: string) => page.locator(`[data-glance-section="${id}"], [data-chart="${id}"]`)
 const rows = (page: Page, id: string) => section(page, id).locator('[data-breakdown-row]')
-const saveButton = (page: Page) => page.getByTestId('layout-save')
 
 test('a cold-loaded layout of glance widgets renders their counts and the rows’ chips', async ({ page }) => {
   await seedWorkspace(page, seedWith())
@@ -89,7 +88,7 @@ test('the top-bar filter turns counts into shown of total', async ({ page }) => 
 test('a tab’s setting and a new widget are layout changes', async ({ page }) => {
   await seedWorkspace(page, seedWith())
   await expect(section(page, 'people').locator('[data-breakdown-row="none"]')).toBeVisible()
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   // People's Unassigned row, hidden from its tab menu.
   const cell = wsCell(page, 'k-people')
@@ -98,18 +97,17 @@ test('a tab’s setting and a new widget are layout changes', async ({ page }) =
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: /^Unassigned/ }).click()
   await page.getByRole('menuitemradio', { name: 'Hidden', exact: true }).click()
   await expect(section(page, 'people').locator('[data-breakdown-row="none"]')).toHaveCount(0)
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
-  await page.getByTestId('layout-save').click()
-  await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+  await expectLayoutStep(page)
+  await expectLayoutStored(page)
 
-  // Add widget → Numbers & charts › Created vs completed: a second tab, an unsaved layout change.
+  // Add widget → Insights › Created vs completed: a second tab, an unsaved layout change.
   await cell.hover()
   await cell.getByRole('button', { name: 'Cell options' }).click()
   await page.getByRole('menuitem', { name: 'Add widget…' }).click()
   await pickWidgetKind(page, 'Add widget', 'Created vs completed')
   await expect(cell.getByRole('tab')).toHaveCount(2)
   await expect(section(page, 'trend')).toBeVisible()
-  await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
 })
 
 test('narrow section cells keep their parts inside: People keeps the names, Created vs completed its stats and key', async ({ page }) => {

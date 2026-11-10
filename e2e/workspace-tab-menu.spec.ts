@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { seedWorkspace, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep } from './fixtures/workspace'
 
 /**
  * A widget's menu — the cell's merged ⋯ menu (D26 AA1), its widget's
@@ -51,7 +51,7 @@ test('hovering Change list opens the flyout; picking a list switches the tab', a
   await expect(flyout(page)).toHaveCount(0)
   await expect(tab).toContainText('Target list')
   // The tab's list is layout config: the layout is now unsaved.
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
 })
 
 test('keyboard: ArrowRight on Change list opens the flyout, Escape closes it back to the menu', async ({ page }) => {

@@ -19,7 +19,8 @@ export type SettingsSectionId =
 
 /** The headed parts of the merged sections (Tasks, Database, Appearance). */
 export type SettingsPartId =
-  | 'task-defaults'
+  | 'new-tasks'
+  | 'lists-and-rows'
   | 'lenses'
   | 'eisenhower'
   | 'completed'
@@ -34,7 +35,8 @@ export type SettingsPartId =
 export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSectionId>> = {
   'theme-and-lists': 'appearance',
   ambience: 'appearance',
-  'task-defaults': 'tasks',
+  'new-tasks': 'tasks',
+  'lists-and-rows': 'tasks',
   lenses: 'tasks',
   eisenhower: 'tasks',
   completed: 'tasks',
@@ -52,6 +54,38 @@ export function eisenhowerPaneFocus(q: EisenhowerQuadrant): string {
 /** The `data-settings-focus` of lens `lensId`'s row (its head button) in Settings › Tasks › Lenses. */
 export function lensFocus(lensId: string): string {
   return `lens-${lensId}`
+}
+
+/** Every section id (a stored section is read back only as one of these). */
+const SETTINGS_SECTION_IDS: readonly SettingsSectionId[] = ['appearance', 'tasks', 'entities', 'database', 'shortcuts', 'about']
+
+/** Where Settings opens before any section was shown in this browser. */
+export const FIRST_SETTINGS_SECTION: SettingsSectionId = 'appearance'
+
+/**
+ * The browser's last shown Settings section, kept in `localStorage` (a
+ * per-browser convenience, not data: outside Dexie, like the sync file's
+ * bookkeeping) so Settings reopens on it after a reload.
+ */
+export const SETTINGS_SECTION_KEY = 'todo2-settings-section'
+
+/** The section Settings last showed in this browser (`FIRST_SETTINGS_SECTION` when none, or unreadable). */
+export function readLastSettingsSection(): SettingsSectionId {
+  try {
+    const stored = localStorage.getItem(SETTINGS_SECTION_KEY)
+    return SETTINGS_SECTION_IDS.find((id) => id === stored) ?? FIRST_SETTINGS_SECTION
+  } catch {
+    return FIRST_SETTINGS_SECTION
+  }
+}
+
+/** Keeps `section` as the one Settings reopens on; storage that refuses it is ignored (it is a convenience). */
+function rememberSettingsSection(section: SettingsSectionId): void {
+  try {
+    localStorage.setItem(SETTINGS_SECTION_KEY, section)
+  } catch {
+    // Private mode / blocked storage: Settings opens on Appearance next time.
+  }
 }
 
 /** Where Settings can open: a section, or a part of one (shown scrolled to it). */
@@ -296,7 +330,11 @@ interface UIState {
    * the route, so opening it never triggers the unsaved-layout prompt.
    */
   settingsOpen: boolean
-  /** The section the Settings modal shows; kept while the app stays open. */
+  /**
+   * The section the Settings modal shows: the last one shown, across reloads
+   * (`SETTINGS_SECTION_KEY`; Appearance the first time). An explicit target
+   * (`openSettings(section)`, a deep link to a part) shows its own.
+   */
   settingsSection: SettingsSectionId
   /** A part of it to scroll to (a deep link such as the storage pill's); cleared once shown. */
   settingsPart: SettingsPartId | null
@@ -471,7 +509,7 @@ export const useUIStore = create<UIState>((set, get) => ({
   quickAddDraft: null,
   recentlyCreated: null,
   settingsOpen: false,
-  settingsSection: 'database',
+  settingsSection: readLastSettingsSection(),
   settingsPart: null,
   settingsFocus: null,
   checkinDialog: null,
@@ -698,6 +736,7 @@ export const useUIStore = create<UIState>((set, get) => ({
     // it opens on that, whatever was asked — never with the work out of sight.
     const work = unsavedWorkOutOfSight(get())
     if (work) {
+      rememberSettingsSection(work.settingsSection)
       set({ settingsOpen: true, ...work })
       return
     }
@@ -707,7 +746,10 @@ export const useUIStore = create<UIState>((set, get) => ({
     }
     const { section, part } = resolveSettingsTarget(target)
     // A control is focused only on the way to a part (the modal clears both once there).
-    const go = () => set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null })
+    const go = () => {
+      rememberSettingsSection(section)
+      set({ settingsOpen: true, settingsSection: section, settingsPart: part, settingsFocus: part ? (focus ?? null) : null })
+    }
     afterSettled(leavesUnsavedWork(get(), section), go)
   },
 
@@ -722,7 +764,10 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   setSettingsSection(target) {
     const { section, part } = resolveSettingsTarget(target)
-    afterSettled(leavesUnsavedWork(get(), section), () => set({ settingsSection: section, settingsPart: part, settingsFocus: null }))
+    afterSettled(leavesUnsavedWork(get(), section), () => {
+      rememberSettingsSection(section)
+      set({ settingsSection: section, settingsPart: part, settingsFocus: null })
+    })
   },
 
   clearSettingsPart() {

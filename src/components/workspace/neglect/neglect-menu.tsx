@@ -28,8 +28,8 @@ export function untouchedLabel(days: number): string {
  * A Neglect map tab's menu items, listed first: **Colour by ›** (Tags,
  * People or None, then a checkbox per tag — ticking one colours by tags;
  * the submenu stays open while tags are ticked) and **Untouched after ›**
- * (the threshold). Both are layout config: a change makes the layout
- * unsaved, as any tab setting.
+ * (the threshold). Both are layout config: a change is saved at once as
+ * one undo step, as any tab setting.
  */
 export function useNeglectMenuEntries(tab: NeglectTab | undefined): MenuEntry[] {
   const tags = useTagStore((s) => s.tags)

@@ -100,8 +100,12 @@ async function expectDateParts(row: Locator, tier: string): Promise<void> {
   else await expect(followup.locator('svg')).toHaveCount(1)
 }
 
-/** Which dates the rows show, per column width: the narrower, the fewer. */
-const DATES_TIER: Record<number, string> = { 300: 'icons', 340: 'due', 360: 'both', 380: 'both', 455: 'both', 560: 'both' }
+/**
+ * Which dates the rows show, per column width: the narrower, the fewer. With
+ * nothing stored the details take 45 % of the row (at most 300) and the title
+ * keeps 140px, so a narrow column's dates go to icons before its title shrinks.
+ */
+const DATES_TIER: Record<number, string> = { 300: 'icons', 340: 'icons', 360: 'icons', 380: 'icons', 455: 'due', 560: 'both' }
 
 test.describe('task rows fit their container', () => {
   for (const width of [300, 340, 360, 380, 455, 560]) {

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { layoutTab, openLayoutTabMenu, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { layoutTab, openLayoutTabMenu, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * D19 · a hue per layout: picked with the name in the Edit layout dialog's
@@ -43,7 +43,7 @@ test('a hued layout keeps its hue across a reload, the top bar’s lens with it;
   await page.locator('header').getByRole('button', { name: /^Lens:/ }).click()
   await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Plans/ }).click()
   await expect.poll(() => rowTitles(wsListWidget(page, 't1'))).toEqual(['Plan the launch'])
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   // The hue, with the name, in Edit….
   const menu = await openLayoutTabMenu(page, 'Main')
@@ -55,7 +55,7 @@ test('a hued layout keeps its hue across a reload, the top bar’s lens with it;
   await expect(dialog).toBeHidden()
 
   await expect(area(page)).toHaveAttribute('data-layout-hue', 'violet')
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   expect(await cssVar(page, '[data-ws-area]', '--layout-hue')).toBe('#a78bfa')
   // The focus ring inside the layout reads the hue (dark theme: #a78bfa).
   await page.keyboard.press('Shift')
@@ -80,7 +80,7 @@ test('a hued layout keeps its hue across a reload, the top bar’s lens with it;
   await expect(custom).toBeHidden()
   await expect(area(page)).toHaveAttribute('data-layout-hue', 'custom')
   expect(await cssVar(page, '[data-ws-area]', '--layout-hue')).toBe('#ff6600')
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   // None again: back to the accent.
   const again = await openLayoutTabMenu(page, 'Main')

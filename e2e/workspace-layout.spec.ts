@@ -1,8 +1,28 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
-  drag, dragTab, expectOpenLayout, openCellMenu, pickCellMenu, pickSplit, pickWidgetKind, openLayoutAction, openLayoutTab, openLayoutTabMenu, openSettings, seedWorkspace, switchLayout, withSpareLayouts, wsCell, wsDivider, wsGhost, wsShape, wsTab,
+  drag,
+  dragTab,
+  expectOpenLayout,
+  openCellMenu,
+  pickCellMenu,
+  pickSplit,
+  pickWidgetKind,
+  openLayoutAction,
+  openLayoutTab,
+  openLayoutTabMenu,
+  openSettings,
+  seedWorkspace,
+  switchLayout,
+  withSpareLayouts,
+  wsCell,
+  wsDivider,
+  wsGhost,
+  wsShape,
+  wsTab,
   type WsLayoutSeed,
   wsRow,
+  expectLayoutStep,
+  expectLayoutStored,
 } from './fixtures/workspace'
 import { box, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -10,10 +30,10 @@ import { readStore } from './fixtures/db'
 /**
  * Workspace layout editing in a real browser: the tab drop targets (a
  * cell's middle and edges, the layout's edge, a tab strip) with the drop
- * ghost, the dividers (view state), collapse, and the saved-layout flow
- * (save icon, the Save / Discard / Cancel prompt on layout switch and on
- * leaving the route, none when Settings opens over the workspace,
- * persistence across reload).
+ * ghost, the dividers (view state), collapse, and layout autosave (every
+ * edit stored at once as an undo step: no prompt on a layout switch, on
+ * leaving the route or when Settings opens over the workspace; persistence
+ * across reload).
  */
 
 const twoColumns: WsLayoutSeed = {
@@ -24,7 +44,6 @@ const twoColumns: WsLayoutSeed = {
   ],
 }
 
-const saveButton = (page: Page) => page.getByTestId('layout-save')
 
 function bodyPoint(page: Page, cellId: string, fy: number, fx = 0.5): Promise<Point> {
   return pointIn(wsCell(page, cellId).locator('[data-ws-cell-body]'), fx, fy)
@@ -40,7 +59,7 @@ test.describe('tab drop targets', () => {
     })
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'eisTab']]])
     await expect(wsTab(page, 'eisTab')).toHaveAttribute('aria-selected', 'true')
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expectLayoutStep(page)
   })
 
   test('cell top / bottom edge splits it above / below; a vacated cell goes to the cells along a side that cover it', async ({ page }) => {
@@ -101,7 +120,7 @@ test.describe('tab drop targets', () => {
     await page.keyboard.press('Escape')
     await page.mouse.up()
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
   })
 })
 
@@ -113,11 +132,11 @@ test.describe('resize and collapse', () => {
     const d = await box(divider)
     await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 + 120, y: d.y + d.height / 2 })
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a1'))).width - before.width)).toBeGreaterThan(100)
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
     const resized = Math.round((await box(wsCell(page, 'a1'))).width)
     await page.reload()
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a1'))).width)).toBe(resized)
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
 
     // Far past the other cell's minimum: it stops at 120px.
     const d2 = await box(divider)
@@ -140,13 +159,13 @@ test.describe('resize and collapse', () => {
     const d = await box(divider)
     await drag(page, { x: d.x + 200, y: d.y + d.height / 2 }, { x: d.x + 200, y: d.y + d.height / 2 - 100 })
     await expect.poll(async () => Math.round(top.height - (await box(wsCell(page, 'a1'))).height)).toBeGreaterThan(80)
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
 
     // Far up: the top cell stops at its minimum (112px).
     const d2 = await box(divider)
     await drag(page, { x: d2.x + 200, y: d2.y + 3 }, { x: d2.x + 200, y: 0 })
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a1'))).height)).toBe(112)
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
   })
 
   test('the cell menu’s Collapse row, Expand row and split / close', async ({ page }) => {
@@ -155,7 +174,7 @@ test.describe('resize and collapse', () => {
     await openCellMenu(page, 'b1')
     await page.getByRole('menuitem', { name: 'Collapse row' }).click()
     await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toBeHidden()
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
     await wsCell(page, 'b1').getByRole('button', { name: 'Expand row' }).click()
     await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toBeVisible()
 
@@ -164,38 +183,32 @@ test.describe('resize and collapse', () => {
     await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page))[1]?.length).toBe(2)
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expectLayoutStep(page)
   })
 
-  test('with an unsaved new column, a column resize stays unsaved with it (kept over a reload); Save keeps the widths', async ({ page }) => {
+  test('a new column and a resize of it are stored at once, kept over a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await openCellMenu(page, 'b1')
     await pickCellMenu(page, 'Insert', 'Column at the right')
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expectLayoutStep(page)
+    const storedWeights = async () => ((await readStore<{ grid: { columns: Array<{ weight: number }> } }>(page, 'layouts'))[0]?.grid.columns ?? []).map((c) => c.weight)
+    await expect.poll(async () => (await storedWeights()).length).toBe(3)
 
     const a1 = wsCell(page, 'a1')
     const before = (await box(a1)).width
     const d = await box(wsDivider(page, 'a1', 'b1'))
     await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 - 100, y: d.y + d.height / 2 })
     await expect.poll(async () => Math.round(before - (await box(a1)).width)).toBeGreaterThan(80)
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expectLayoutStored(page)
     const widths = async () => Promise.all((await page.locator('[data-ws-cell]').all()).map(async (c) => Math.round((await box(c)).width)))
     const resized = await widths()
-    // The stored layout has neither the column nor the widths yet.
-    const storedWeights = async () => ((await readStore<{ grid: { columns: Array<{ weight: number }> } }>(page, 'layouts'))[0]?.grid.columns ?? []).map((c) => c.weight)
-    expect(await storedWeights()).toEqual([500, 500])
+    await expect.poll(async () => (await storedWeights())[0]).toBeLessThan(500)
 
     await page.reload()
     await expect.poll(widths).toEqual(resized)
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
-    await saveButton(page).click()
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-    await expect.poll(async () => (await storedWeights()).length).toBe(3)
-    await page.reload()
-    await expect.poll(widths).toEqual(resized)
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
   })
 })
 
@@ -296,53 +309,40 @@ test.describe('saved layouts', () => {
     columns: [{ id: 'colZ', rows: [wsRow({ id: 'z1', tabs: [{ id: 'zTab', kind: 'eisenhower' }] })] }],
   }
 
-  test('save persists across reload; switching layouts prompts Save / Discard / Cancel', async ({ page }) => {
+  test('an edit is stored at once: no dot, switching layouts asks nothing, a reload keeps it', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns, second] })
     await expectOpenLayout(page, 'Main')
 
-    // An unsaved change: close the Eisenhower tab. The open tab shows the dot.
     await wsTab(page, 'eisTab').click()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
-    await expect(openLayoutTab(page).getByRole('img', { name: 'unsaved changes' })).toBeVisible()
+    await expectLayoutStep(page, 'Closed tab “Eisenhower”')
+    await expect(openLayoutTab(page).getByRole('img')).toHaveCount(0)
 
-    // Switch → prompt → Cancel stays.
     await switchLayout(page, 'Second')
-    const dialog = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
-    await expect(dialog).toContainText('You’re switching to “Second”.')
-    await dialog.getByRole('button', { name: /Cancel/ }).click()
-    await expect(dialog).toBeHidden()
-    await expectOpenLayout(page, 'Main')
-
-    // Switch → Save: the change is kept and the other layout opens.
-    await switchLayout(page, 'Second')
-    await dialog.getByRole('button', { name: 'Save layout' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
     await expectOpenLayout(page, 'Second')
     await expect.poll(() => wsShape(page)).toEqual([[['zTab']]])
 
-    // Reload: still on Second; Main kept the saved change.
+    // Reload: still on Second; Main kept the change.
     await page.reload()
     await expectOpenLayout(page, 'Second')
     await switchLayout(page, 'Main')
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
   })
 
-  test('the folded picker: the layouts (the open one checked, Edited while unsaved) and its actions', async ({ page }) => {
+  test('the folded picker: the layouts (the open one checked) and its actions', async ({ page }) => {
     await page.setViewportSize({ width: 700, height: 800 })
     // A third layout, so the tabs fold even with the tray shrunk.
     await seedWorkspace(page, withSpareLayouts({ layouts: [twoColumns, second] }, 1))
     await wsTab(page, 'eisTab').click()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
+    await expectLayoutStep(page)
     await page.getByTestId('layout-picker').click()
-    await expect(page.getByRole('menuitemradio', { name: /Main/ })).toContainText('Edited')
+    await expect(page.getByRole('menuitemradio', { name: /Main/ })).not.toContainText('Edited')
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).toHaveAttribute('aria-checked', 'true')
     await expect(page.getByRole('menu', { name: 'Layouts' }).getByRole('menuitem')).toHaveText([
-      'New layout…', 'Save changes', 'Save as new layout…', 'Discard changes', 'Edit…', 'Delete layout…',
+      'New layout…', 'Duplicate layout…', 'Edit…', 'Delete layout…',
     ])
-    await page.getByRole('menuitem', { name: 'Discard changes' }).click()
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
-    // The closed tab is back (a narrow cell may show its tabs in another order).
-    await expect(wsTab(page, 'eisTab')).toBeVisible()
   })
 
   test('New layout asks a name; the empty layout is stored and opened at once', async ({ page }) => {
@@ -352,95 +352,91 @@ test.describe('saved layouts', () => {
     await dialog.getByLabel('Name').fill('Planning')
     await dialog.getByRole('button', { name: 'Create layout' }).click()
     await expectOpenLayout(page, 'Planning')
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
     await expect(page.getByText('This layout is empty')).toBeVisible()
     expect(await wsShape(page)).toEqual([])
 
     await page.getByRole('button', { name: 'Notes' }).first().click()
-    await saveButton(page).click()
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStep(page)
     await page.reload()
     await expectOpenLayout(page, 'Planning')
     await expect(page.getByTestId('layout-tab')).toHaveText(['Main', 'Second', 'Planning'])
+    await expect.poll(async () => (await wsShape(page)).flat(2).length).toBe(1)
   })
 
-  test('New layout with unsaved changes asks Save / Discard / Cancel first', async ({ page }) => {
+  test('New layout right after an edit asks nothing; Main keeps the edit', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await wsTab(page, 'eisTab').click()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
     await page.getByRole('button', { name: 'New layout', exact: true }).click()
     await page.getByRole('dialog', { name: 'New layout' }).getByLabel('Name').fill('Planning')
     await page.getByRole('dialog', { name: 'New layout' }).getByRole('button', { name: 'Create layout' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
-    await expect(dialog).toContainText('You’re starting a new layout “Planning”.')
-    await dialog.getByRole('button', { name: 'Discard' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
     await expectOpenLayout(page, 'Planning')
-    // Main lost the discarded change; nothing to ask about now.
     await switchLayout(page, 'Main')
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
   })
 
-  test('switching with Discard drops the change', async ({ page }) => {
+  test('Undo takes an edit back once its layout is open again', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns, second] })
     await wsTab(page, 'eisTab').click()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
+    await expectLayoutStep(page)
     await switchLayout(page, 'Second')
-    await page.getByRole('dialog').getByRole('button', { name: 'Discard' }).click()
     await expectOpenLayout(page, 'Second')
     await switchLayout(page, 'Main')
+    await page.locator('[data-ws-area]').click({ position: { x: 5, y: 5 } })
+    await page.keyboard.press('Control+z')
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+    await expectLayoutStored(page)
+    await page.reload()
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
   })
 
-  test('opening Settings with unsaved changes shows no prompt and keeps the layout dirty', async ({ page }) => {
+  test('opening Settings after an edit shows no prompt; the edit stays', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await wsTab(page, 'eisTab').click()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expectLayoutStep(page)
 
     const settings = await openSettings(page)
     await expect(page.getByRole('dialog', { name: /Save changes/ })).toHaveCount(0)
     await expect(page).toHaveURL(/#\/$/)
     await settings.getByRole('button', { name: 'Close settings' }).click()
     await expect(settings).toBeHidden()
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expectLayoutStored(page)
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
   })
 
-  test('leaving the workspace with unsaved changes prompts; Cancel stays, Discard leaves', async ({ page }) => {
+  test('leaving the workspace right after a layout edit asks nothing; the edit is kept', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     await wsTab(page, 'eisTab').click()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
+    await expectLayoutStep(page)
 
     // Only the phone's Settings tab still navigates away from the workspace.
     await page.setViewportSize({ width: 390, height: 844 })
-    const settingsTab = page.getByRole('button', { name: 'Settings' })
-    await settingsTab.click()
-    const dialog = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
-    await expect(dialog).toContainText('You’re leaving the workspace.')
-    await dialog.getByRole('button', { name: /Cancel/ }).click()
-    await expect(page).toHaveURL(/#\/$/)
-
-    await settingsTab.click()
-    await dialog.getByRole('button', { name: 'Discard' }).click()
+    await page.getByRole('button', { name: 'Settings' }).click()
     await expect(page).toHaveURL(/#\/settings$/)
+    await expect(page.getByRole('dialog', { name: /Save changes/ })).toHaveCount(0)
 
-    // Back on the workspace: the discarded change is gone, nothing to save.
     await page.getByRole('button', { name: 'Workspace' }).click()
     await page.setViewportSize({ width: 1280, height: 800 })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']]])
+    await expectLayoutStored(page)
   })
 
-  test('save as, rename and delete from the open layout’s tab menu', async ({ page }) => {
+  test('duplicate, rename and delete from the open layout’s tab menu', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const only = await openLayoutTabMenu(page)
     await expect(only.getByRole('menuitem', { name: 'Delete layout…' })).toBeDisabled()
-    await only.getByRole('menuitem', { name: 'Save as new layout…' }).click()
-    const nameDialog = page.getByRole('dialog', { name: 'Save as new layout' })
+    await only.getByRole('menuitem', { name: 'Duplicate layout…' }).click()
+    const nameDialog = page.getByRole('dialog', { name: 'Duplicate layout' })
     await expect(nameDialog.getByLabel('Name')).toHaveValue('Main copy')
     await nameDialog.getByLabel('Name').fill('Planning')
-    await nameDialog.getByRole('button', { name: 'Save layout' }).click()
+    await nameDialog.getByRole('button', { name: 'Duplicate' }).click()
     await expectOpenLayout(page, 'Planning')
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
 
     await openLayoutAction(page, 'Edit…')
     const renameDialog = page.getByRole('dialog', { name: 'Edit layout' })
@@ -465,18 +461,18 @@ test.describe('adding and changing widgets', () => {
     await page.locator('[data-ws-cell]').hover()
     await page.locator('[data-ws-cell]').getByRole('button', { name: 'Cell options' }).click()
     await page.getByRole('menuitem', { name: 'Add widget…' }).click()
-    // Calendar: in Numbers & charts (D26).
+    // Calendar: in Tasks, in the menu itself.
     await pickWidgetKind(page, 'Add widget', 'Calendar')
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true')
 
     await page.getByRole('tab', { name: 'Calendar' }).click({ button: 'right' })
     const changeWidget = page.getByRole('menu', { name: 'Cell options' })
     await expect(changeWidget.getByRole('menuitem', { name: /^Change widget/ })).toContainText('Calendar')
-    // A Numbers & charts kind, from the Change widget submenu.
+    // An Insights kind, from the Change widget submenu.
     await pickWidgetKind(page, 'Change widget', 'Created vs completed')
     await expect(page.getByRole('tab', { name: /Created vs completed/ })).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveCount(0)
-    await expect(saveButton(page)).toHaveAccessibleName('Save layout (unsaved changes)')
+    await expectLayoutStep(page)
   })
 })
 
@@ -502,6 +498,6 @@ test.describe('task drags inside the workspace', () => {
     })
     await expect(day).toContainText('Move me')
     // A task drop is not a layout change.
-    await expect(saveButton(page)).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
   })
 })

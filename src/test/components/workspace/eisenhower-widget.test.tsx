@@ -17,6 +17,7 @@ import { useListOrderStore } from '../../../stores/list-order-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { clearFilterStore, makePerson, makeTodo, patchScreenFilter, resetEntityStores } from '../../helpers'
 import { single } from '../../helpers/layout-builders'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 const TODAY = new Date(2026, 9, 10, 10) // Sat 10 Oct 2026
 const day = (n: number) => new Date(2026, 9, 10 + n)
@@ -36,7 +37,7 @@ function Host() {
 
 function setup(tab: EisenhowerTab = { id: 'eis', kind: 'eisenhower', config: {} }) {
   const layout = layoutWith(tab)
-  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, isDirty: false, hydrated: true })
+  useWorkspaceStore.setState({ layouts: [layout], activeLayoutId: 1, working: layout, saved: layout, writeFailed: false, hydrated: true })
   render(<DndContext><Host /></DndContext>)
 }
 
@@ -54,7 +55,7 @@ beforeEach(() => {
   clearFilterStore()
   useSettingsStore.setState({ urgentDueWithinDays: 3 })
   useUIStore.setState({ quickAddOpen: false, quickAddDraft: null, selectedTodoIds: new Set(), selectionScope: null })
-  useWorkspaceStore.setState({ layouts: [], activeLayoutId: null, working: null, saved: null, isDirty: false, hydrated: false })
+  useWorkspaceStore.setState({ layouts: [], activeLayoutId: null, working: null, saved: null, writeFailed: false, hydrated: false })
   useTodoStore.setState({
     todos: [
       makeTodo({ id: 1, title: 'Fix outage', urgent: true, important: true, dueDate: day(0), sortOrder: 1 }),
@@ -162,7 +163,7 @@ describe('EisenhowerWidget', () => {
     const toggle = within(quadrant('schedule')).getByRole('button', { expanded: true })
     fireEvent.click(toggle)
     expect(useWorkspaceStore.getState().working?.cells[0]?.tabs[0]?.viewState).toEqual({ collapsed: ['schedule'] })
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     expect(quadrant('schedule').getAttribute('data-collapsed')).toBe('true')
     expect(titles('schedule')).toEqual([])
     // The count stays; → expands again.

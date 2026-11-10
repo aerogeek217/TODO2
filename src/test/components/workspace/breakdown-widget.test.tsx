@@ -23,6 +23,7 @@ import type { WidgetFace } from '../../../utils/widget-face'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
 import { single } from '../../helpers/layout-builders'
 import { ASSIGNED_PEOPLE, ASSIGNED_TAGS, PEOPLE, SAMPLE_TASKS, STATUSES, TAGS } from '../../fixtures/glance-sample'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 /**
  * The Breakdown (D26 P8) in JSDOM: its headings sort (view state), the
@@ -92,7 +93,7 @@ describe('the headings sort (view state, per split)', () => {
     const open = () => document.querySelector<HTMLButtonElement>('[data-sort-key="open"]')!
     await act(async () => { fireEvent.click(open()) })
     expect(current().viewState?.sorts?.people).toEqual({ by: 'open' })
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     expect(document.querySelector('[data-testid="chart-sub"]')).toBeNull()
     expect(open().closest('[role="columnheader"]')!.getAttribute('aria-sort')).toBe('descending')
     const counts = rows().filter((r) => r.dataset.breakdownRow !== 'none').map((r) => Number(r.querySelector('[data-testid="breakdown-figure"]')!.textContent))
@@ -160,7 +161,7 @@ describe('the filter row (temporary, per split)', () => {
     fireEvent.click(document.querySelector('[aria-label="Clear the person filter"]')!)
     expect(keys().length).toBeGreaterThan(2)
     // Never in the layout.
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
   })
 
   it('a pick that matches no row any more is ignored: no chip, every row shown, and a new pick replaces it', () => {
@@ -237,7 +238,9 @@ describe('clicks: a row drills, its Review button and a count review', () => {
     const all = priya.querySelector<HTMLElement>('[data-column="all"]')!
     expect(all.textContent).toBe('4')
     expect(all.hasAttribute('data-solid')).toBe(true)
-    expect(all.style.getPropertyValue('--col-color')).toBe('#7ec4bc')
+    // The teal preset: its text token outlined, its hex as the solid fill (J21).
+    expect(all.style.getPropertyValue('--col-color')).toBe('var(--hue-teal-text)')
+    expect(all.style.getPropertyValue('--col-fill')).toBe('#7ec4bc')
     expect(priya.querySelector('[data-column="quiet"]')!.hasAttribute('data-solid')).toBe(false)
     expect(priya.querySelector('[data-column="nobody"]')).toBeNull()
     expect(within(priya).getByLabelText('No tasks in Nobody').textContent).toBe('–')
@@ -251,8 +254,8 @@ describe('clicks: a row drills, its Review button and a count review', () => {
     const counts = [...document.querySelectorAll<HTMLElement>('[data-column="due"], [data-column="followup"]')]
     expect(counts.length).toBeGreaterThan(0)
     for (const el of counts) expect(el.hasAttribute('data-solid')).toBe(true)
-    expect(document.querySelector<HTMLElement>('[data-column="due"]')!.style.getPropertyValue('--col-color')).toBe('#e86bf0')
-    expect(document.querySelector<HTMLElement>('[data-column="followup"]')!.style.getPropertyValue('--col-color')).toBe('#f5c842')
+    expect(document.querySelector<HTMLElement>('[data-column="due"]')!.style.getPropertyValue('--col-color')).toBe('var(--color-overdue)')
+    expect(document.querySelector<HTMLElement>('[data-column="followup"]')!.style.getPropertyValue('--col-color')).toBe('var(--color-followup)')
   })
 
   it('no Review while the deck is open', () => {
@@ -407,10 +410,10 @@ describe('the editor (D26 P8, the Number editor’s pattern)', () => {
     fireEvent.click(within(editor).getByRole('checkbox', { name: 'Show Unassigned' }))
     // Nothing written until Save.
     expect(current().config.name).toBe('People')
-    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    expect(layoutSteps()).toEqual([])
     editor = saveAndReopen()
     expect(current().config).toMatchObject({ name: 'Waiting on', style: 'donut', show: 'oldest', oldestBy: 'created', checkins: true, showNone: false })
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    expect(layoutSteps()).not.toEqual([])
     // Another split drops the check-ins; Count drops oldestBy.
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Split by' }), { target: { value: 'status' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Show' }), { target: { value: 'count' } })
@@ -437,7 +440,7 @@ describe('the editor’s Count columns (board BC)', () => {
     // The follow-up range was `overdue`: its column counts the late ones only (up to yesterday), as written.
     expect(current().config.columns?.[1]?.filter.dates?.followup).toEqual({ match: 'range', start: null, end: { kind: 'offset', days: -1 } })
     expect(current().config).not.toHaveProperty('badges')
-    expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    expect(layoutSteps()).not.toEqual([])
     // The table follows: its headings are the columns' names.
     expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toContain('Late')
   })
@@ -474,11 +477,11 @@ describe('the editor’s Count columns (board BC)', () => {
   })
 })
 
-describe('Add widget › Numbers & charts › Breakdown › its presets', () => {
+describe('Add widget › Insights › Breakdown › its presets', () => {
   /** A menu item by its label (`&` in a selector trips JSDOM's). */
   const byLabel = (label: string) => [...document.querySelectorAll<HTMLElement>('[data-menu-label]')].find((e) => e.dataset.menuLabel === label)!
   const openPresets = () => {
-    fireEvent.click(byLabel('Numbers & charts'))
+    fireEvent.click(byLabel('Insights'))
     fireEvent.click(byLabel('Breakdown'))
     return [...document.querySelectorAll<HTMLElement>('[role="menu"][aria-label="Breakdown"] [role="menuitem"]')]
   }

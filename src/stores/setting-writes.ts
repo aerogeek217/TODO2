@@ -119,8 +119,11 @@ export function settingWriter<S, K extends keyof S>(store: SettingStore<S>, spec
   let saved = {} as V
   /** The newest write's value. */
   let newest = saved
-  /** The newest undo step a merge key can still update. */
-  let merging: { mergeKey: string; entry: UndoEntry; prev: V; setNext: (value: V) => void } | null = null
+  /**
+   * This writer's newest merged step (`UndoEntry.mergeKey`) and the value
+   * saved before its run, to tell when a run comes back to where it started.
+   */
+  let merging: { entry: UndoEntry; prev: V } | null = null
 
   function save(value: V): Promise<Save<V>> {
     return trackWrite(() => {
@@ -168,21 +171,26 @@ export function settingWriter<S, K extends keyof S>(store: SettingStore<S>, spec
   function record(before: V, next: V, description: string, mergeKey: string | undefined): void {
     const undo = useUndoStore.getState()
     if (undo.isPerformingUndoRedo) return
-    const last = merging
-    if (mergeKey !== undefined && last?.mergeKey === mergeKey && undo.undoStack.at(-1) === last.entry && undo.groupStartIndex == null) {
-      if (sameRows(spec.rows(last.prev), spec.rows(next))) {
-        // Typed back to where it started (a letter typed, then erased): no step left to undo.
-        useUndoStore.setState({ undoStack: undo.undoStack.slice(0, -1) })
-        merging = null
-      } else {
-        last.setNext(next)
-      }
+    // The run this write continues: this writer's newest step, still the
+    // newest on the stack with the same key (the undo store's merge rule).
+    const into = mergeKey === undefined ? null : undo.mergeTarget(mergeKey)
+    const last = into && merging?.entry === into ? merging : null
+    if (into && last && sameRows(spec.rows(last.prev), spec.rows(next))) {
+      // Typed back to where it started (a letter typed, then erased): no step left to undo.
+      undo.dropNewest(into)
+      merging = null
       return
     }
-    let target = next
-    const entry: UndoEntry = { description, undo: () => mustSave(before), redo: () => mustSave(target) }
-    undo.push(entry, mergeKey === undefined)
-    merging = mergeKey === undefined ? null : { mergeKey, entry, prev: before, setNext: (v) => { target = v } }
+    // Another writer's step under the same key isn't this run's: a step of its own (unkeyed).
+    const keyed = mergeKey !== undefined && !(into && !last)
+    const entry: UndoEntry = {
+      description,
+      undo: () => mustSave(before),
+      redo: () => mustSave(next),
+      ...(keyed ? { mergeKey } : {}),
+    }
+    const top = undo.push(entry, mergeKey === undefined)
+    merging = keyed ? { entry: top, prev: last ? last.prev : before } : null
   }
 
   return {

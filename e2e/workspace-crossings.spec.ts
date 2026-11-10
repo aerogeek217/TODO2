@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { edges, expectSameEdges, openCellMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed } from './fixtures/workspace'
+import { edges, expectSameEdges, openCellMenu, releaseDrag, seedWorkspace, wsCell, wsDivider, type WsLayoutSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { box, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -11,9 +11,6 @@ import { readStore } from './fixtures/db'
  * it; a Numbers-only row gets a divider that gives it a height.
  */
 
-const saveButton = (page: Page) => page.getByTestId('layout-save')
-const UNSAVED = 'Save layout (unsaved changes)'
-const SAVED = 'Layout saved'
 
 /** `a b / c d`: four Notes cells meeting at one "+". */
 const quad: WsLayoutSeed = {
@@ -66,7 +63,7 @@ test.describe('pieces and crossings', () => {
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).right - a0.right)).toBeGreaterThan(90)
     // c | d stays (a new track takes one more gap from the weighted columns: a few px).
     expect(Math.abs((await edges(wsCell(page, 'c'))).right - c0.right)).toBeLessThanOrEqual(4)
-    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    await expectLayoutStep(page)
     await expect(crossing(page)).toHaveCount(0)
   })
 
@@ -83,7 +80,7 @@ test.describe('pieces and crossings', () => {
     expect(Math.abs((await edges(wsCell(page, 'c'))).right - a2.right)).toBeLessThanOrEqual(1)
     expect(Math.abs((await edges(wsCell(page, 'b'))).bottom - a2.bottom)).toBeLessThanOrEqual(1)
     expect((await edges(wsCell(page, 'd'))).right).toBeCloseTo(d1.right, 0)
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
     await expect.poll(async () => (await storedRows(page)).map((r) => Math.round(r.weight ?? 0))).not.toEqual([1000, 1000])
   })
 
@@ -151,7 +148,7 @@ test.describe('snapping', () => {
     let from = centre(await box(wsDivider(page, 'b', 'd')))
     await dragHandle(page, from, { x: from.x, y: from.y + 80 })
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'b'))).bottom - a0.bottom)).toBeGreaterThan(70)
-    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    await expectLayoutStep(page)
     await expect(crossing(page)).toHaveCount(0)
     expect(Math.abs((await edges(wsCell(page, 'a'))).bottom - a0.bottom)).toBeLessThanOrEqual(4)
 
@@ -172,7 +169,7 @@ test.describe('snapping', () => {
     // Re-joined: one row line through both columns again — the layout as saved.
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'b'))).bottom)).toBe(Math.round((await edges(wsCell(page, 'a'))).bottom))
     await expect(crossing(page)).toHaveCount(1)
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
 
     // 3. The crossing, mostly vertically (a few px sideways): both pieces move together, the column line stays put.
     const before = await edges(wsCell(page, 'a'))
@@ -184,7 +181,7 @@ test.describe('snapping', () => {
     expect(Math.abs((await edges(wsCell(page, 'b'))).bottom - after.bottom)).toBeLessThanOrEqual(1)
     expect((await edges(wsCell(page, 'b'))).bottom - bBefore.bottom).toBeGreaterThan(60)
     expect(after.right).toBeCloseTo(before.right, 0)
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
   })
 })
 
@@ -217,7 +214,7 @@ test.describe('a structural drag previews its result', () => {
       mid.b = await edges(wsCell(page, 'b'))
       expect(await marked()).toBe(true)
     })
-    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    await expectLayoutStep(page)
     if (!mid.a || !mid.b) throw new Error('not measured mid-drag')
     expect(mid.a.right - a0.right).toBeGreaterThan(50)
     expectSameEdges(await edges(wsCell(page, 'a')), mid.a, 1)
@@ -238,7 +235,7 @@ test.describe('a structural drag previews its result', () => {
     await expect(page.locator('[data-ws-divider][data-preview]')).toHaveCount(0)
     await releaseDrag(page)
     expectSameEdges(await edges(wsCell(page, 'a')), a0, 1)
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
   })
 })
 
@@ -266,7 +263,7 @@ test.describe('a Numbers-only row', () => {
     await dragHandle(page, from, { x: from.x, y: from.y + 80 })
     await expect.poll(async () => Math.round((await box(wsCell(page, 'n1'))).height)).toBeGreaterThan(fit + 70)
     const tall = Math.round((await box(wsCell(page, 'n1'))).height)
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
     // Its own height (fitPx), beside its weight — never a px.
     await expect.poll(async () => (await storedRows(page))[0]?.fitPx).toBe(tall)
     expect((await storedRows(page))[0]).toMatchObject({ weight: expect.any(Number) as number })

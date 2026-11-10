@@ -13,8 +13,10 @@ import styles from './StoragePill.module.css'
 import { PopoverRoot } from '../shared/PopoverRoot'
 
 /**
- * Where the data lives, in the top bar, and every sync warning: Local only /
- * Synced (the sync file's name in its tooltip and popover), or — most urgent first — Permission needed, Sync
+ * Where the data lives, in the top bar, and every sync warning: while all is
+ * well a dot alone — Local only / Synced in its tooltip and accessible name
+ * (the sync file's name in its tooltip and popover) —, or — most urgent first,
+ * as text — Permission needed, Sync
  * paused, Sync error (red), Backup warning (amber), with a count when
  * several are active. Its popover explains each warning with its ways
  * forward (Grant access, Retry / Keep browser data…, Dismiss, Open

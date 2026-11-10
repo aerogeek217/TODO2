@@ -13,11 +13,11 @@ beforeEach(async () => {
 afterEach(cleanup)
 
 describe('AppearanceSection — default list zoom', () => {
-  it('offers Stacked | Rows | Lines under the theme, Rows checked by default; a pick is saved and Rows removes the row', async () => {
+  it('offers Auto | Stacked | Rows | Lines under the theme, Auto checked by default; a pick is saved and Auto removes the row', async () => {
     render(<AppearanceSection />)
     const group = screen.getByRole('radiogroup', { name: 'Default list zoom' })
-    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Stacked', 'Rows', 'Lines'])
-    expect(within(group).getByRole('radio', { name: 'Rows' })).toHaveAttribute('aria-checked', 'true')
+    expect(within(group).getAllByRole('radio').map((r) => r.textContent)).toEqual(['Auto', 'Stacked', 'Rows', 'Lines'])
+    expect(within(group).getByRole('radio', { name: 'Auto' })).toHaveAttribute('aria-checked', 'true')
     expect(screen.getByText(/How a list tab draws its tasks until you zoom it/)).toBeInTheDocument()
 
     fireEvent.click(within(group).getByRole('radio', { name: 'Lines' }))
@@ -25,8 +25,13 @@ describe('AppearanceSection — default list zoom', () => {
     expect(within(group).getByRole('radio', { name: 'Lines' })).toHaveAttribute('aria-checked', 'true')
     await waitFor(async () => expect((await db.settings.get('rowDensity'))?.value).toBe('lines'))
 
+    // Rows is a choice of its own now: stored.
     fireEvent.click(within(group).getByRole('radio', { name: 'Rows' }))
     await waitFor(() => expect(useSettingsStore.getState().listZoom).toBe('rows'))
+    await waitFor(async () => expect((await db.settings.get('rowDensity'))?.value).toBe('rows'))
+
+    fireEvent.click(within(group).getByRole('radio', { name: 'Auto' }))
+    await waitFor(() => expect(useSettingsStore.getState().listZoom).toBe('auto'))
     await waitFor(async () => expect(await db.settings.get('rowDensity')).toBeUndefined())
   })
 })
