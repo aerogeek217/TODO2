@@ -1,51 +1,102 @@
-import type { ReactNode } from 'react'
-import { FollowupFlagIcon } from '../shared/FollowupIcons'
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react'
 import { NotesBody, type NotesSource } from './notes/NotesBody'
 import type { NoteSubtaskTarget } from '../../services/note-subtasks'
-import styles from './TaskEditPopup.module.css'
+import { PlusIcon } from '../shared/icons'
+import styles from './TaskDetails.module.css'
 
 /**
- * The one task layout's body (D26 BB / BG): what the task editor
+ * The one task layout's body (board BJ): what the task editor
  * (`TaskEditPopup`, every mode) and the review card (`ReviewDeck`) show
- * between their header and footer, in one order — the fields (Due + repeat,
- * People, Tags) · **Subtasks | Notes side by side** (the row grows to
- * ~240px, then each scrolls inside; stacked under 640px of window) ·
- * **Status updates** (oldest first, the add line last; ~200px, then the
- * list scrolls inside, opening at the bottom) · the **Follow-up** group
- * last. The body scrolls between the host's header and footer; a picker
- * open in the fields stops it scrolling (`dropdownOpen`), so the picker
- * stays under its row. The header and badges are the host's, above it.
+ * between their header and footer. **Two columns**: on the left the
+ * **facts rail** (236px, a darker ground, `rail` — Priority, Status,
+ * People, Tags, Due, then Follow-up in its yellow box, `TaskFacts`); on
+ * the right **the writing** — Notes, Subtasks, Status updates, in that
+ * order, each an add line while empty. The rail stays put while the writing
+ * scrolls (it scrolls on its own only when it is taller than the body), so
+ * Follow-up never leaves the screen. Under 640px of body (a narrow window,
+ * the phone's sheet) the rail goes above the writing, its facts in two
+ * columns, and the body scrolls as one. The header and footer are the
+ * host's.
  */
-export function TaskDetailsBody({ fields, subtasks, notes, statusUpdates, followup, dropdownOpen = false }: {
-  fields: ReactNode
-  subtasks: ReactNode
+export function TaskDetailsBody({ rail, notes, subtasks, statusUpdates }: {
+  rail: ReactNode
   notes: ReactNode
+  subtasks: ReactNode
   statusUpdates: ReactNode
-  followup: ReactNode
-  dropdownOpen?: boolean
 }) {
   return (
-    <div className={`${styles.scrollBody} ${dropdownOpen ? styles.scrollBodyDropdownOpen : ''}`} data-task-body="">
-      {fields}
-      <div className={styles.pair} data-task-pair="">
-        <div className={styles.pairCell}>{subtasks}</div>
-        <div className={styles.pairCell}>{notes}</div>
+    <div className={styles.bodyFrame}>
+      <div className={styles.body} data-task-body="">
+        <div className={styles.rail} data-task-rail="">{rail}</div>
+        <div className={styles.writing} data-task-writing="">
+          {/* A slot each: the hosts key their sections by the task, and two siblings mustn't share a key. */}
+          <Fragment key="notes">{notes}</Fragment>
+          <Fragment key="subtasks">{subtasks}</Fragment>
+          <Fragment key="updates">{statusUpdates}</Fragment>
+        </div>
       </div>
-      {statusUpdates}
-      {followup}
     </div>
   )
 }
 
-/** The task layout's Notes: the label and the notes editor with its toolbar, filling its half of the row. */
+/**
+ * The task layout's Notes, first in the writing: the label and the notes
+ * editor in its dark box, its toolbar along the top. Empty, it is one line
+ * — `+ Add notes` — that opens the editor, focused; it stays open for the
+ * rest of the visit (and opens by itself when notes come in from elsewhere:
+ * an undo, a check-in reply).
+ */
 export function TaskNotesSection({ source, subtaskTarget }: {
   source: NotesSource
   subtaskTarget: NoteSubtaskTarget
 }) {
+  const hasText = source.get() !== ''
+  const [opened, setOpened] = useState(hasText)
+  // `+ Add notes` pressed: the editor, once there, takes the focus.
+  const focusOnOpen = useRef(false)
+  const boxRef = useRef<HTMLDivElement>(null)
+  const open = opened || hasText
+
+  // The notes editor makes its view in an effect of its own: focus it a frame later.
+  useEffect(() => {
+    if (!open || !focusOnOpen.current) return
+    let frame = 0
+    let tries = 0
+    // The flag stays until the focus lands (a re-run of the effect — StrictMode's — tries again).
+    const focus = () => {
+      const content = boxRef.current?.querySelector<HTMLElement>('.cm-content')
+      if (content) {
+        focusOnOpen.current = false
+        content.focus()
+      } else if (++tries < 10) {
+        frame = requestAnimationFrame(focus)
+      } else {
+        focusOnOpen.current = false
+      }
+    }
+    // From the next frame: the editor's view is the one that stays (StrictMode makes and unmakes one first).
+    frame = requestAnimationFrame(focus)
+    return () => cancelAnimationFrame(frame)
+  }, [open])
+
+  if (!open) {
+    return (
+      <section className={styles.writingSection} aria-label="Notes" data-task-notes="" data-empty="">
+        <button
+          type="button"
+          className={styles.addLine}
+          onClick={() => { focusOnOpen.current = true; setOpened(true) }}
+        >
+          <span className={styles.addLineIcon} aria-hidden="true"><PlusIcon size={13} strokeWidth={2} /></span>
+          Add notes
+        </button>
+      </section>
+    )
+  }
   return (
-    <section className={styles.pairSection} aria-label="Notes" data-task-notes="">
-      <div className={styles.notesLabel}>Notes</div>
-      <div className={styles.notesBodyWrap}>
+    <section className={styles.writingSection} aria-label="Notes" data-task-notes="">
+      <div className={styles.sectionLabel}>Notes</div>
+      <div className={styles.notesBox} ref={boxRef}>
         <NotesBody
           source={source}
           showToolbar
@@ -54,35 +105,5 @@ export function TaskNotesSection({ source, subtaskTarget }: {
         />
       </div>
     </section>
-  )
-}
-
-/** The Follow-up group's block, last in the layout: the inset, its heading, then the host's rows (Next, Last). */
-export function FollowupBlock({ children }: { children: ReactNode }) {
-  return (
-    <div className={styles.followupBlock} data-task-followup="">
-      <div className={styles.followupHeading}>
-        <FollowupFlagIcon />
-        Follow-up
-      </div>
-      {children}
-    </div>
-  )
-}
-
-/** A labelled row of the layout's blocks (the fields', the Follow-up group's): `NEXT  …`. */
-export function DetailsRow({ label, labelFor, children }: {
-  label: string
-  /** The field the label names (a `<label>`), else a plain caption. */
-  labelFor?: string
-  children: ReactNode
-}) {
-  return (
-    <div className={styles.metaRow}>
-      {labelFor
-        ? <label className={styles.metaLabel} htmlFor={labelFor}>{label}</label>
-        : <span className={styles.metaLabel}>{label}</span>}
-      {children}
-    </div>
   )
 }

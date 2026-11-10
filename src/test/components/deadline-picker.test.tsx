@@ -19,12 +19,25 @@ function getDateInput(container: HTMLElement): HTMLInputElement {
 describe('DeadlinePicker', () => {
   it('renders default label when value is null', () => {
     const { container } = render(<DeadlinePicker value={null} onChange={() => {}} />)
-    expect(getTrigger(container).textContent).toContain('Due date')
+    expect(getTrigger(container).textContent).toBe('Set a date')
+    expect(getTrigger(container)).toHaveAccessibleName('Set due date')
   })
 
-  it('renders a formatted date when a value is set', () => {
-    const { container } = render(<DeadlinePicker value={new Date(2026, 3, 20)} onChange={() => {}} />)
-    expect(getTrigger(container).textContent).toMatch(/4\/20\/2026|Apr 20/)
+  it('reads a date as the rows do (board BJ): its words, how late, the full date in the tooltip', () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date(2026, 10, 9, 10))
+    try {
+      const { container, rerender } = render(<DeadlinePicker value={new Date(2026, 10, 6)} onChange={() => {}} tone="past" />)
+      const trigger = getTrigger(container)
+      expect(trigger.textContent).toBe('11/063 days late')
+      expect(trigger.querySelector('[data-tone="past"]')?.textContent).toBe('11/06')
+      expect(trigger).toHaveAttribute('title', 'Due Friday, November 6, 2026')
+      // Within the week: the weekday, nothing more.
+      rerender(<DeadlinePicker value={new Date(2026, 10, 12)} onChange={() => {}} />)
+      expect(getTrigger(container).textContent).toBe('Thu')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('calls showPicker when the trigger is clicked', () => {

@@ -1,0 +1,633 @@
+/*
+ * The one task layout (board BJ): the task editor and the review card. The
+ * facts rail on the left, the writing on the right; under 640px of body the
+ * rail goes above the writing.
+ */
+
+/* ── The body: rail | writing ── */
+
+/* The container the narrow layout is measured on (the editor's card, the review card). */
+.bodyFrame {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  container-type: inline-size;
+  container-name: task-body;
+}
+
+.body {
+  display: grid;
+  grid-template-columns: 236px minmax(0, 1fr);
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+  border-top: 1px solid var(--color-border-muted);
+}
+
+/* The facts: a darker ground, a hairline on its right; scrolls on its own only when taller than the body. */
+.rail {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 20px 18px;
+  box-sizing: border-box;
+  background: var(--color-inset-light);
+  border-right: 1px solid var(--color-border-muted);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+/* The writing: Notes, Subtasks, Status updates, ~28px apart; it scrolls. */
+.writing {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 28px 22px 24px;
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-tint-8) transparent;
+}
+
+/* ── A fact: its header in its colour, then its value; hairlines between ── */
+
+.fact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 9px 0;
+}
+
+.fact:first-child {
+  padding-top: 0;
+}
+
+.fact:last-child {
+  padding-bottom: 0;
+}
+
+.fact + .fact {
+  border-top: 1px solid var(--color-border-muted);
+}
+
+.factHeading {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  letter-spacing: 0.05em;
+  line-height: 15px;
+  text-transform: uppercase;
+}
+
+.fact[data-fact='priority'] .factHeading { color: var(--color-fact-priority); }
+.fact[data-fact='status'] .factHeading { color: var(--color-fact-status); }
+.fact[data-fact='people'] .factHeading { color: var(--color-fact-people); }
+.fact[data-fact='tags'] .factHeading { color: var(--color-fact-tags); }
+.fact[data-fact='due'] .factHeading { color: var(--color-fact-due); }
+.fact[data-fact='followup'] .factHeading { color: var(--color-fact-followup); }
+
+/* Follow-up, last: the one fact in a box — a faint yellow, the one the review acts on. */
+.followupBox {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0 -12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--color-followup) 6%, transparent);
+}
+
+/* A labelled line inside a fact (Next, Last): the label, then the value. */
+.factRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.factRowLabel {
+  flex: none;
+  width: 30px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+/* ── Dates: the rows' words ── */
+
+.dateWords {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-primary);
+}
+
+.dateWords[data-tone='due-soon'] {
+  color: var(--color-deadline);
+}
+
+.dateWords[data-tone='due-past'] {
+  color: var(--color-deadline);
+  font-weight: var(--font-weight-bold);
+}
+
+.dateWords[data-tone='followup-today'],
+.dateWords[data-tone='followup-late'] {
+  color: var(--color-followup);
+}
+
+.dateWords[data-tone='followup-late'] {
+  font-weight: var(--font-weight-bold);
+}
+
+.dateRelative {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.dateEmpty {
+  color: var(--color-text-muted);
+}
+
+/* A typed date field at rest: its words drawn over it, its own text hidden; focused, the field as typed. */
+.dateField {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.dateField > div {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+.dateFieldWords {
+  position: absolute;
+  inset: 0 52px 0 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  font-size: var(--font-size-task);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* At rest (not hovered, not focused) the field draws no box and no buttons: the date reads as text. */
+.dateField[data-words]:not(:hover):not(:focus-within) > div {
+  background: transparent;
+  box-shadow: none;
+}
+
+.dateField[data-words]:not(:hover):not(:focus-within) > div button {
+  visibility: hidden;
+}
+
+.dateField[data-words]:not(:hover):not(:focus-within) .dateFieldWords {
+  right: 4px;
+}
+
+.dateField[data-words] input {
+  color: transparent;
+}
+
+.dateField[data-words] input::placeholder {
+  color: transparent;
+}
+
+.dateField[data-words]:focus-within input {
+  color: var(--color-text-primary);
+}
+
+.dateField[data-words]:focus-within input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.dateField[data-words]:focus-within .dateFieldWords {
+  visibility: hidden;
+}
+
+/* ── Priority ── */
+
+.markerRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.markerToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-tint-8);
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  transition: background var(--transition-medium), color var(--transition-medium);
+}
+
+.markerToggle:hover {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+.markerToggle:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-tint-8), var(--focus-ring);
+}
+
+.markerToggle[data-marker='focus'][aria-pressed='true'] {
+  background: var(--color-accent-bg-medium);
+  box-shadow: none;
+  color: var(--color-marker-focus);
+}
+
+.markerToggle[data-marker='urgent'][aria-pressed='true'] {
+  background: var(--color-danger-bg);
+  box-shadow: none;
+  color: var(--color-marker-urgent);
+}
+
+.markerToggle[data-marker='important'][aria-pressed='true'] {
+  background: var(--color-followup-bg);
+  box-shadow: none;
+  color: var(--color-marker-important);
+}
+
+.markerToggle[aria-pressed='true']:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+/* Urgent by due date while unflagged: a faint clock after the label. */
+.markerHint {
+  display: inline-flex;
+  color: var(--color-marker-urgent);
+  opacity: 0.6;
+}
+
+/* ── Status ── */
+
+.statusWrap {
+  display: flex;
+}
+
+.statusPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  height: 26px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--color-tint-8);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.statusPill:hover {
+  background: var(--color-tint-6);
+}
+
+.statusPill:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--color-tint-8), var(--focus-ring);
+}
+
+.statusIcon {
+  display: inline-flex;
+}
+
+.statusNone {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+.statusCaret {
+  color: var(--color-text-muted);
+  font-size: 10px;
+}
+
+.statusMenu {
+  composes: menu from '../shared/dropdown.module.css';
+  min-width: 160px;
+  border-radius: 16px;
+  padding: 4px;
+}
+
+.statusOption {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 14px;
+  background: transparent;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background var(--transition-fast);
+  border-radius: 10px;
+}
+
+.statusOption:hover {
+  background: var(--color-tint-5);
+}
+
+.statusOptionActive {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+/* ── People and tags ── */
+
+.chipArea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.personChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  font-size: 12.5px;
+  color: var(--color-text-secondary);
+}
+
+.tagChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 1px 4px 1px 8px;
+  border: 1px solid;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+}
+
+/* A chip's name: the button that opens its picker, drawn as the chip's text. */
+.chipOpen {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.personName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chipOpen:hover .personName {
+  color: var(--color-text-primary);
+}
+
+.personAvatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  color: var(--color-text-on-accent);
+}
+
+/* The chip's ×: shown on its hover and keyboard focus. */
+.chipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1;
+  opacity: 0.45;
+  cursor: pointer;
+}
+
+.chipRemove:hover,
+.chipRemove:focus-visible {
+  opacity: 1;
+  background: var(--color-tint-8);
+}
+
+/* + : opens the picker (with `Add` while there is no chip). */
+.chipAdd {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+}
+
+.chipAdd:hover,
+.chipAdd[aria-expanded='true'] {
+  background: var(--color-tint-6);
+  color: var(--color-text-primary);
+}
+
+.chipDropdown {
+  composes: menu from '../shared/dropdown.module.css';
+  min-width: 200px;
+  border-radius: 16px;
+}
+
+/* ── Due ── */
+
+.dueLine {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
+}
+
+.repeat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+
+.repeatSelect {
+  max-width: 96px;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 11.5px;
+  cursor: pointer;
+}
+
+.repeatSelect:hover {
+  color: var(--color-text-primary);
+}
+
+/* ── The writing ── */
+
+/* Empty sections, one line each, sit close together (board BJ's empty task). */
+.writing > [data-empty] + [data-empty] {
+  margin-top: -16px;
+}
+
+.writingSection {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: none;
+}
+
+/* A section's label (`NOTES`, `SUBTASKS`, `STATUS UPDATES`). */
+.sectionLabel {
+  margin-bottom: 6px;
+  font-size: 11px;
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* An empty section's one line (`+ Add notes`): the accent plus, muted words. */
+.addLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 4px 0 2px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-task);
+  text-align: left;
+  cursor: text;
+}
+
+.addLine:hover {
+  color: var(--color-text-secondary);
+}
+
+.addLineIcon {
+  display: inline-flex;
+  justify-content: center;
+  width: 15px;
+  color: var(--color-accent-text);
+}
+
+/* Notes: the dark box, its toolbar along the top; it grows with the text, then scrolls inside. */
+.notesBox {
+  display: flex;
+  flex-direction: column;
+  min-height: 96px;
+  max-height: 300px;
+  border-radius: 10px;
+  background: var(--color-notes-bg);
+  box-shadow: inset 0 0 0 1px var(--color-tint-6);
+  overflow: hidden;
+}
+
+.notesBox:focus-within {
+  box-shadow: inset 0 0 0 1px var(--color-accent-glow), 0 0 0 3px var(--color-accent-bg-subtle);
+}
+
+/* ── Narrow: the rail above the writing, its facts in two columns; the body scrolls as one ── */
+
+@container task-body (max-width: 640px) {
+  .body {
+    display: block;
+    overflow-y: auto;
+  }
+
+  .rail {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    column-gap: 20px;
+    overflow: visible;
+    padding: 14px 16px;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border-muted);
+  }
+
+  .fact,
+  .fact:first-child,
+  .fact:last-child {
+    padding: 9px 0;
+  }
+
+  .fact + .fact {
+    border-top: none;
+  }
+
+  .fact {
+    border-bottom: 1px solid var(--color-border-muted);
+  }
+
+  .fact[data-fact='followup'] {
+    grid-column: 1 / -1;
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
+  .writing {
+    overflow: visible;
+    padding: 16px;
+  }
+}
+
+/* The phone's full-screen sheet: room under the writing for the tab bar. */
+@media (max-width: 640px) {
+  .body {
+    padding-bottom: calc(var(--mobile-tab-bar-height) + env(safe-area-inset-bottom, 0px));
+  }
+}

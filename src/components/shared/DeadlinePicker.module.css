@@ -1,54 +1,87 @@
-.triggerChip {
+/* The task layout's due date (board BJ): the rows' words, then × to clear. */
+
+.picker {
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-1) var(--space-3);
+  gap: 2px;
+  min-width: 0;
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  height: 26px;
+  margin-left: -6px;
+  padding: 0 6px;
+  border: none;
+  border-radius: var(--radius-md);
   background: transparent;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-chip);
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-meta);
+  color: var(--color-text-primary);
   font-family: inherit;
+  font-size: var(--font-size-task);
+  line-height: 26px;
   cursor: pointer;
-  transition: background 0.1s, border-color 0.1s, color 0.1s;
+  white-space: nowrap;
 }
 
-.triggerChip:hover {
-  background: var(--color-surface-high);
+.trigger:hover {
+  background: var(--color-tint-6);
 }
 
-.triggerChipActive {
-  background: var(--color-deadline-bg);
-  border-color: var(--color-deadline);
+.words {
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+}
+
+.words[data-tone='soon'] {
   color: var(--color-deadline);
 }
 
-.triggerLabel {
-  white-space: nowrap;
+.words[data-tone='past'] {
+  color: var(--color-deadline);
+  font-weight: var(--font-weight-bold);
+}
+
+.relative {
+  font-size: 11.5px;
+  color: var(--color-text-muted);
+}
+
+.empty {
+  color: var(--color-text-muted);
 }
 
 .clearButton {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 14px;
-  height: 14px;
-  margin-left: var(--space-1);
+  flex-shrink: 0;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: none;
   border-radius: 50%;
-  cursor: pointer;
-  font-size: 12px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 14px;
   line-height: 1;
-  opacity: 0.7;
+  cursor: pointer;
 }
 
 .clearButton:hover {
-  opacity: 1;
-  background: var(--color-surface-high);
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
 }
 
+/* Under the trigger's left edge, where the browser opens its picker. */
 .hiddenDateInput {
   position: absolute;
+  left: 0;
+  bottom: 0;
   width: 1px;
   height: 1px;
   opacity: 0;

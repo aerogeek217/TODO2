@@ -17,10 +17,14 @@ import { draftEditorTitle, type EditorTaskFields, type TaskDraft } from '../../s
 import { TaskEditHeader } from './TaskEditHeader'
 import { TaskEditMetadata } from './TaskEditMetadata'
 import { TaskEditFooter } from './TaskEditFooter'
-import { TaskEditBadges } from './TaskEditBadges'
 import { taskLayoutClasses } from './task-layout-classes'
-import { FollowupBlock, TaskDetailsBody, TaskNotesSection } from './TaskDetailsBody'
-import { FollowupEditorGroup } from '../shared/followup/FollowupEditorGroup'
+import { TaskDetailsBody, TaskNotesSection } from './TaskDetailsBody'
+import { FollowupFacts, PriorityFacts, StatusFacts } from './TaskFacts'
+import { FollowupEditorGroup } from './FollowupEditorGroup'
+import { CopyIcon, IndentIcon, TrashIcon } from '../shared/icons'
+import type { MenuEntry } from '../shared/MenuPopover'
+import { useToday } from '../../hooks/use-today'
+import { dueState, followupState } from '../../utils/row-date-state'
 import { StatusUpdatesSection } from './status-updates/StatusUpdatesSection'
 import { useEditorStatusUpdates, useEditorSubtasks } from './use-editor-entries'
 import { SubtasksSection } from './subtasks/SubtasksSection'
@@ -227,8 +231,6 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     ? allTags.filter(t => pendingTagIds.has(t.id!))
     : assignedTags
 
-  // A people / tags picker open: the body stops scrolling under it.
-  const [dropdownOpen, setDropdownOpen] = useState(false)
   const titleRef = useRef<HTMLInputElement>(null)
 
   const acPeople = useMemo(() => personItems(allPeople), [allPeople])
@@ -613,6 +615,31 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
     if (props.mode === 'edit') afterNotes(props.onUpdate)({ statusId: next })
   }
 
+  // The dates' colours, as the task's row has them (the due date as shown, the follow-up as stored or drafted).
+  const today = useToday()
+  const dueTone = (() => {
+    const s = dueState({ dueDate: deadline ?? undefined, isCompleted: todo?.isCompleted === true, urgent: urgentOn }, today, urgentRange)
+    return s.past ? 'past' as const : s.soon ? 'soon' as const : undefined
+  })()
+  const nextState = followupState({
+    nextFollowupAt: isEdit ? todo?.nextFollowupAt : draftNextFollowup,
+    isCompleted: todo?.isCompleted === true,
+  }, today)
+  const nextTone = nextState === 'late' ? 'followup-late' as const : nextState === 'today' ? 'followup-today' as const : undefined
+
+  // The header's ⋯ (edit mode): the task's own actions, each after the notes typed so far.
+  const menuEntries: MenuEntry[] | undefined = props.mode === 'edit' && todo ? [
+    ...(props.onDuplicate ? [{ kind: 'item' as const, label: 'Duplicate', icon: <CopyIcon />, onSelect: afterNotes(props.onDuplicate) }] : []),
+    {
+      kind: 'item',
+      label: 'Make subtask of…',
+      icon: <IndentIcon />,
+      onSelect: afterNotes(() => useUIStore.getState().openTaskPicker({ kind: 'make-subtask', todoId: todo.id })),
+    },
+    { kind: 'separator' },
+    { kind: 'item', label: 'Delete', icon: <TrashIcon />, danger: true, onSelect: afterNotes(props.onDelete) },
+  ] : undefined
+
   return (
     // The shared dialog frame: Esc (after a text field's first), a backdrop
     // press, focus in / kept inside / back to the opener, no app shortcuts
@@ -642,40 +669,55 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
           onAcPick={(row) => ac.select(row, titleRef.current)}
           onAcHighlight={ac.highlight}
           isDraft={isDraft}
-        />
-
-        <TaskEditBadges
-          statuses={statuses}
-          statusId={statusId}
-          onStatusChange={handleStatusChange}
-          focusOn={focusOn}
-          urgentOn={urgentOn}
-          importantOn={importantOn}
-          urgentState={urgentState}
-          urgentHint={urgentHint}
-          onToggleFocus={handleToggleFocus}
-          onToggleUrgent={handleToggleUrgent}
-          onToggleImportant={handleToggleImportant}
+          menuEntries={menuEntries}
         />
 
         <TaskDetailsBody
-          dropdownOpen={dropdownOpen}
-          fields={(
-            <TaskEditMetadata
-              deadline={deadline}
-              recurrenceType={recurrenceType}
-              onDeadlineChange={handleDeadlineChange}
-              onRecurrenceChange={handleRecurrenceChange}
-              assignedPeople={effectiveAssignedPeople}
-              assignedTags={effectiveAssignedTags}
-              allPeople={allPeople}
-              allTags={allTags}
-              onTogglePerson={togglePerson}
-              onToggleTag={toggleTag}
-              onCreatePerson={handleCreatePerson}
-              onCreateTag={handleCreateTag}
-              onDropdownChange={setDropdownOpen}
-            />
+          rail={(
+            <>
+              <PriorityFacts
+                focusOn={focusOn}
+                urgentOn={urgentOn}
+                importantOn={importantOn}
+                urgentState={urgentState}
+                urgentHint={urgentHint}
+                onToggleFocus={handleToggleFocus}
+                onToggleUrgent={handleToggleUrgent}
+                onToggleImportant={handleToggleImportant}
+              />
+              <StatusFacts statuses={statuses} statusId={statusId} onStatusChange={handleStatusChange} />
+              <TaskEditMetadata
+                deadline={deadline}
+                recurrenceType={recurrenceType}
+                dueTone={dueTone}
+                onDeadlineChange={handleDeadlineChange}
+                onRecurrenceChange={handleRecurrenceChange}
+                assignedPeople={effectiveAssignedPeople}
+                assignedTags={effectiveAssignedTags}
+                allPeople={allPeople}
+                allTags={allTags}
+                onTogglePerson={togglePerson}
+                onToggleTag={toggleTag}
+                onCreatePerson={handleCreatePerson}
+                onCreateTag={handleCreateTag}
+              />
+              <FollowupFacts>
+                <FollowupEditorGroup
+                  next={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
+                  last={isEdit ? todo?.lastFollowupAt : draftLastWithUpdates}
+                  nextTone={nextTone}
+                  nextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
+                    ? `Default · ${describeFollowupInterval(followupInterval)}`
+                    : undefined}
+                  // The untouched default is a proposal: focus selects it, so typing replaces it.
+                  selectNextOnFocus={!isEdit && nextFollowupIsDefault && !!draftNextFollowup}
+                  onNextChange={handleNextFollowupChange}
+                  onLastChange={handleLastFollowupChange}
+                  onFollowedUp={handleFollowedUp}
+                  hideLast={isDraft}
+                />
+              </FollowupFacts>
+            </>
           )}
           subtasks={(
             // Keyed by the task: Duplicate switches the editor to the copy, and a
@@ -689,7 +731,7 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
               onRemove={subtasks.remove}
               onMove={subtasks.move}
               extraMenuEntries={isEdit ? storedSubtaskMenuEntries : undefined}
-              className={taskLayoutClasses.pairSection}
+              className={taskLayoutClasses.section}
               labelClassName={taskLayoutClasses.label}
               commitRef={subtasks.commitRef}
             />
@@ -702,42 +744,15 @@ export function TaskEditPopup(props: TaskEditPopupProps) {
               onAdd={statusUpdates.add}
               onEdit={statusUpdates.edit}
               onRemove={statusUpdates.remove}
-              className={taskLayoutClasses.updatesSection}
+              className={taskLayoutClasses.section}
               labelClassName={taskLayoutClasses.label}
               commitRef={statusUpdates.commitRef}
             />
           )}
-          followup={(
-            <FollowupBlock>
-              <FollowupEditorGroup
-                bare
-                next={isEdit ? todo?.nextFollowupAt : draftNextFollowup}
-                last={isEdit ? todo?.lastFollowupAt : draftLastWithUpdates}
-                nextHint={!isEdit && nextFollowupIsDefault && draftNextFollowup
-                  ? `Default · ${describeFollowupInterval(followupInterval)}`
-                  : undefined}
-                // The untouched default is a proposal: focus selects it, so typing replaces it.
-                selectNextOnFocus={!isEdit && nextFollowupIsDefault && !!draftNextFollowup}
-                onNextChange={handleNextFollowupChange}
-                onLastChange={handleLastFollowupChange}
-                onFollowedUp={handleFollowedUp}
-                hideLast={isDraft}
-                rowClassName={styles.metaRow}
-                labelClassName={styles.metaLabel}
-              />
-            </FollowupBlock>
-          )}
         />
 
         {isEdit && todo ? (
-          <TaskEditFooter
-            mode="edit"
-            todo={todo}
-            onDelete={afterNotes(props.onDelete)}
-            onDuplicate={props.onDuplicate && afterNotes(props.onDuplicate)}
-            onMakeSubtaskOf={afterNotes(() => useUIStore.getState().openTaskPicker({ kind: 'make-subtask', todoId: todo.id }))}
-            onClose={onClose}
-          />
+          <TaskEditFooter mode="edit" todo={todo} onClose={onClose} />
         ) : (
           <TaskEditFooter mode="create" onClose={onClose} onCreate={handleCreate} titleValid={!!title.trim()} isDraft={isDraft} />
         )}

@@ -1,12 +1,13 @@
-/* The review deck (D26): header, the queue rail beside the card, the footer —
+/* The review deck (D26; board BJ): header, the queue rail beside the card, the footer —
  * a grid on the dialog's panel (the card and its footer are one component, so
  * both sit straight in the grid). On the overlay tier, as the task dialog. */
 
 .deck {
-  width: min(1060px, calc(100vw - 32px));
+  width: min(1120px, calc(100vw - 32px));
   height: min(800px, calc(100vh - 32px));
   display: grid;
-  grid-template-columns: 300px minmax(0, 1fr);
+  /* The queue (240px: room for a title beside its two dates), then the card: its facts rail, then its writing. */
+  grid-template-columns: 240px minmax(0, 1fr);
   grid-template-rows: 52px minmax(0, 1fr) 58px;
   grid-template-areas:
     'header header'
@@ -299,9 +300,9 @@
 
 /* ── Card ───────────────────────────────────────────────────────────────── */
 
-/* The task editor's layout (D26 BB): the box and title, the badges, then
- * the shared body (`TaskDetailsBody`), which scrolls between them and the
- * footer; the editor's glass. */
+/* The task editor's layout (board BJ): the box and title, then the shared
+ * body (`TaskDetailsBody`: the facts rail and the writing, which scrolls)
+ * between them and the footer; the editor's glass. */
 .card {
   grid-area: card;
   display: flex;
@@ -328,7 +329,7 @@
   display: flex;
   align-items: flex-start;
   gap: 12px;
-  padding: 22px 28px 12px;
+  padding: 18px 20px 12px 24px;
 }
 
 .cardBox {
@@ -352,11 +353,18 @@
   text-decoration: line-through;
 }
 
-/* The update line, last in Status updates: focused as each card opens. */
+/* The update line, last in Status updates: focused as each card opens; what ⏎ does at its end. */
+.updateLine {
+  position: relative;
+  display: flex;
+}
+
 .updateInput {
-  height: 32px;
+  flex: 1;
+  min-width: 0;
+  height: 34px;
   box-sizing: border-box;
-  padding: 0 10px;
+  padding: 0 136px 0 10px;
   border: none;
   border-radius: 8px;
   background: var(--color-surface);
@@ -372,83 +380,49 @@
   box-shadow: inset 0 0 0 1.5px var(--color-accent);
 }
 
-.updateInput::placeholder,
-.nextInput::placeholder {
+.updateInput::placeholder {
   color: var(--color-text-muted);
 }
 
-/* ── Follow-up group (the Next and Last rows) ───────────────────────────── */
-
-.lastValue {
-  font-size: 12.5px;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
+.updateHint {
+  position: absolute;
+  top: 0;
+  right: 10px;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  pointer-events: none;
 }
 
-.lastValue[data-late] {
+/* ── Follow-up (the rail's Next and Last) ───────────────────────────────── */
+
+/* Last: a date only, in the rows' words (yellow while the next follow-up is late). */
+.lastValue {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  font-size: var(--font-size-task);
+}
+
+.lastValue[data-late] > :first-child {
   color: var(--color-followup);
 }
 
-.nextInput {
-  flex: 0 0 150px;
-  width: 150px;
-  height: 26px;
-  box-sizing: border-box;
-  padding: 0 8px;
-  border: none;
-  border-radius: 6px;
-  background: var(--color-surface);
-  box-shadow: inset 0 0 0 1px var(--color-border);
-  color: var(--color-text-primary);
-  font-family: inherit;
-  font-size: 12.5px;
-  outline: none;
-}
-
-.nextInput:focus,
-.nextInput:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--color-accent);
-}
-
-.nextInputError,
-.nextInputError:focus,
-.nextInputError:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--color-danger);
-}
-
-.noneBtn {
-  flex: none;
-  height: 22px;
-  padding: 0 8px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--color-border);
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
-.noneBtn:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--color-border), var(--focus-ring);
-}
-
-.noneBtn:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text-primary);
-}
-
-/* What the Next field holds, in words: it takes the row's free width. */
+/* What the Next field holds, in words, while typed into (empty at rest). */
 .help {
-  flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 11.5px;
   color: var(--color-text-muted);
+}
+
+.help:empty {
+  display: none;
 }
 
 .helpError {

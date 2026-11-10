@@ -1,6 +1,6 @@
 /*
  * Follow-up popover (row pill / empty-slot flag / row menu) and the task
- * editor's Follow-up group. Yellow (`--color-followup*`) marks follow-up
+ * layout's Follow-up rows. Yellow (`--color-followup*`) marks follow-up
  * state; overdue due dates stay magenta elsewhere.
  */
 
@@ -276,25 +276,19 @@
   opacity: 0.75;
 }
 
-/* ═══ Editor group ═══ */
+/* ═══ The task layout's Follow-up rows (board BJ) ═══ */
 
-.editorGroup {
+/* Under a Next / Last field, past its label (30px + the 8px gap): the help line, the quick intervals. */
+.factIndent {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  margin-top: 4px;
-  padding-top: 6px;
-  border-top: 1px solid var(--color-border-muted);
+  gap: 4px;
+  min-width: 0;
+  padding-left: 38px;
 }
 
-.editorHeading {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 14px 2px;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-followup);
+.factIndent:empty {
+  display: none;
 }
 
 .editorHint {
@@ -305,10 +299,6 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-}
-
-.editorHintAccent {
-  color: var(--color-accent-text);
 }
 
 @media (max-width: 640px) {

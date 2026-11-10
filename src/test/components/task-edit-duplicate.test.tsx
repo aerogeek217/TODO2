@@ -46,7 +46,8 @@ describe('TaskEditPopup Duplicate with a line still being typed', () => {
 
     fireEvent.change(screen.getByRole('textbox', { name: 'New status update' }), { target: { value: 'typed for A' } })
     fireEvent.change(screen.getByRole('textbox', { name: 'New subtask' }), { target: { value: 'step for A' } })
-    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Duplicate' })) })
+    fireEvent.click(screen.getByRole('button', { name: 'More actions' }))
+    await act(async () => { fireEvent.click(screen.getByRole('menuitem', { name: 'Duplicate' })) })
 
     // The editor now shows the copy.
     await vi.waitFor(() => expect(useUIStore.getState().selectedTodoId).not.toBe(id))

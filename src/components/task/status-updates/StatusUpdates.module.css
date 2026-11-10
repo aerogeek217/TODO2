@@ -122,11 +122,21 @@
   margin: 8px 0 0;
   padding: 0;
   list-style: none;
-  /* The section grows to ~200px (label, list, add line), then the list scrolls inside. */
-  max-height: 136px;
+  /* The list grows to ~7 entries, then scrolls inside. */
+  max-height: 200px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--color-tint-8) transparent;
+}
+
+/* An empty section's label: it names the region, the add line is all that shows. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 /* The add line, last: the default one (`.textInput`) or the host's. */
@@ -134,6 +144,10 @@
   display: flex;
   flex-direction: column;
   margin-top: 8px;
+}
+
+[data-empty] > .addLine {
+  margin-top: 0;
 }
 
 .entry {

@@ -44,13 +44,18 @@ function clickCreate() {
 }
 
 function openPeopleDropdown() {
-  const addButtons = screen.getAllByText('+ Add')
-  fireEvent.click(addButtons[0]!)
+  fireEvent.click(screen.getByRole('button', { name: 'Add person' }))
 }
 
 function openTagsDropdown() {
-  const addButtons = screen.getAllByText('+ Add')
-  fireEvent.click(addButtons[1]!)
+  fireEvent.click(screen.getByRole('button', { name: 'Add tag' }))
+}
+
+/** The due date's hidden `type="date"` input (the browser's picker). */
+function dueDateInput(): HTMLInputElement {
+  const input = document.querySelector<HTMLInputElement>('[data-fact="due"] input[type="date"]')
+  if (!input) throw new Error('no due date input')
+  return input
 }
 
 function renderCreateMode(overrides: Record<string, unknown> = {}) {
@@ -297,7 +302,7 @@ describe('TaskEditPopup', () => {
     })
 
     it('typing in the title doesn’t reconfigure the notes editor (a stable subtask target)', () => {
-      renderEditMode(makeTodo({}))
+      renderEditMode(makeTodo({ notes: 'Some notes' }))
       const view = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)!
       const dispatch = vi.spyOn(view, 'dispatch')
       const title = document.querySelector('[role="dialog"] input:not([type="checkbox"])') as HTMLInputElement
@@ -601,7 +606,7 @@ describe('TaskEditPopup', () => {
     it('create mode: a draft due date shows the clock hint, not a pressed Urgent; the toggle flips the draft flag', async () => {
       const { onCreate } = renderCreateMode()
       typeTitle('Call plumber')
-      fireEvent.change(screen.getByTitle('Set due date').querySelector('input')!, { target: { value: '2026-10-11' } })
+      fireEvent.change(dueDateInput(), { target: { value: '2026-10-11' } })
       const urgent = () => screen.getByRole('button', { name: 'Urgent' })
       expect(urgent()).toHaveAttribute('data-urgent', 'date')
       expect(urgent()).toHaveAttribute('aria-pressed', 'false')
@@ -776,12 +781,18 @@ describe('TaskEditPopup — notes are written as one edit session at a time', ()
 
   // CodeMirror's contenteditable doesn't take React's input events: type
   // through the editor's own view, one change per keystroke.
+  // An empty task's Notes is one line, + Add notes: open the editor first.
+  const openNotes = () => {
+    const add = screen.queryByRole('button', { name: 'Add notes' })
+    if (add) fireEvent.click(add)
+  }
   const view = () => {
     const v = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)
     if (!v) throw new Error('no editor')
     return v
   }
   const type = (text: string) => {
+    openNotes()
     for (const ch of text) act(() => view().dispatch({ changes: { from: view().state.doc.length, insert: ch } }))
   }
   const storedNotes = () => useTodoStore.getState().todos[0]?.notes ?? ''
