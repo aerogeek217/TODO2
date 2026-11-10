@@ -261,7 +261,7 @@ describe('MobileTaskRow', () => {
       )
       expect(details()).toHaveAttribute('aria-hidden', 'true')
       const title = screen.getByRole('button', { name: 'Call' })
-      expect(title).toHaveAccessibleDescription(/^Due .+ \(late\) · Alice$/)
+      expect(title.getAttribute('aria-description')).toMatch(/^Due .+ \(late\) · Alice$/)
     })
 
     it('rolls its due date over at midnight without new props (cr33 M10)', () => {

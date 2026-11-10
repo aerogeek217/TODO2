@@ -1,4 +1,4 @@
-import { memo, useId, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import { memo, useRef, useState, type CSSProperties, type RefObject } from 'react'
 import type { PersistedTodoItem, Person, Tag } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
 import { useSettingsStore } from '../../stores/settings-store'
@@ -71,8 +71,8 @@ function popoverOpenOutside(el: HTMLElement): boolean {
 export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople, onOpenDetail }: MobileTaskRowProps) {
   const people = assignedPeople ?? NO_PEOPLE
   const rowRef = useRef<HTMLDivElement>(null)
+  const titleRef = useRef<HTMLButtonElement>(null)
   const swallowClick = useRef(false)
-  const descriptionId = useId()
   // The task menu at the long-press point; its pickers mount on the first one and stay (a pick opens one after the menu closes).
   const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
   const [actions, setActions] = useState(false)
@@ -113,6 +113,8 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
         e.stopPropagation()
         // A long-press in the menu or a picker (portaled, but children here) isn't the row's.
         if (!own(e)) return
+        // The row's button holds the focus, so the menu, and a picker or sheet opened from it, hand it back there.
+        titleRef.current?.focus({ preventScroll: true })
         setActions(true)
         setMenuAt({ x: e.clientX, y: e.clientY })
       }}
@@ -132,10 +134,12 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
 
       <div className={styles.body}>
         <button
+          ref={titleRef}
           type="button"
           className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
           data-task-title={todo.title}
-          aria-describedby={description ? descriptionId : undefined}
+          // What the details line says, in words (an attribute, so no text search finds it twice).
+          aria-description={description || undefined}
           // A press that closes an open popover or menu goes no further: it doesn't open the task too.
           onPointerDown={(e) => { swallowClick.current = popoverOpenOutside(e.currentTarget) }}
           onClick={() => {
@@ -149,7 +153,6 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
           <span className={styles.titleText}>{todo.title}</span>
         </button>
         <MobileRowDetails todo={todo} today={today} people={people} tags={tags} count={count} hasNotes={hasNotes} />
-        {description && <span id={descriptionId} className={styles.srOnly}>{description}</span>}
       </div>
 
       {actions && (
@@ -157,6 +160,7 @@ export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople,
           todo={todo}
           assignedPeople={people}
           rowRef={rowRef}
+          focusRef={titleRef}
           menuAt={menuAt}
           onCloseMenu={() => setMenuAt(null)}
           onOpenDetail={onOpenDetail}
@@ -240,10 +244,12 @@ function MobileRowDetails({ todo, today, people, tags, count, hasNotes }: {
  * bottom sheet, the follow-up popover and the due date's picker from hidden
  * anchors at the title's start. As a Lines row's (`TaskLine`).
  */
-function MobileRowActions({ todo, assignedPeople, rowRef, menuAt, onCloseMenu, onOpenDetail }: {
+function MobileRowActions({ todo, assignedPeople, rowRef, focusRef, menuAt, onCloseMenu, onOpenDetail }: {
   todo: PersistedTodoItem
   assignedPeople: Person[]
   rowRef: RefObject<HTMLDivElement | null>
+  /** The row's button: where the focus goes back. */
+  focusRef: RefObject<HTMLButtonElement | null>
   menuAt: { x: number; y: number } | null
   onCloseMenu: () => void
   onOpenDetail?: (todoId: number) => void
@@ -290,7 +296,14 @@ function MobileRowActions({ todo, assignedPeople, rowRef, menuAt, onCloseMenu, o
         <TaskMenu
           todo={todo}
           point={menuAt}
-          handlers={menuHandlers}
+          handlers={{
+            ...menuHandlers,
+            // The sheet hands the focus back to what had it when it opened: the row's button, not the gone menu item.
+            onAddSubtask: menuHandlers.onAddSubtask && (() => {
+              focusRef.current?.focus({ preventScroll: true })
+              menuHandlers.onAddSubtask?.()
+            }),
+          }}
           onClose={onCloseMenu}
         />
       )}
