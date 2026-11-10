@@ -7,7 +7,7 @@ import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
 import { trackSizing } from '../../utils/workspace-table'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { shortcutScope } from '../../utils/dom-contract'
-import { drawnSizes, endLineOf, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
+import { drawnSizes, endLineOf, guidePlacement, KEY_STEP_PX, minPxIn, probeIds, recapture, showResizePreview, useDragPointer, useEscapeCancel } from './divider-drag'
 import { SnapGuide } from './WorkspaceDivider'
 import styles from './WorkspaceDivider.module.css'
 
@@ -52,8 +52,11 @@ function crossingPlacement(col: number, row: number): CSSProperties {
 
 /**
  * A crossing handle (D26 follow-ups, board BE): at a "+" where four cells
- * meet, a small handle that moves both whole lines through it at once — the
- * level line with the pointer's y, the upright one with its x. Each is
+ * meet, a handle that moves both whole lines through it at once — the
+ * level line with the pointer's y, the upright one with its x. Its hit area
+ * reaches 9px past the gutters' square (24px), over the dividers; on hover
+ * (after 120ms), on focus and while dragging it lights the two whole lines
+ * it moves, across and down the table, as a divider lights its own. Each is
  * a whole-line move (`moveEdge` over `wholeLine`): its two tracks share
  * their size anew, live, saved once at the drag's end as view state; each
  * snaps back onto its own place within 8px (`snapHome`), so a mostly
@@ -272,6 +275,21 @@ export function WorkspaceCrossing({ col, row, cornerId, testId }: WorkspaceCross
         onLostPointerCapture={(e) => recapture(e.currentTarget, e.pointerId, dragRef.current?.pointerId === e.pointerId)}
         onDoubleClick={onDoubleClick}
         onKeyDown={onKeyDown}
+      />
+      {/* The two whole lines it moves, lit by its hover, focus and drag (CSS: the siblings right after it). */}
+      <div
+        className={`${styles.crossingLine} ${styles.guideColumns}`}
+        style={guidePlacement('columns', col)}
+        aria-hidden="true"
+        data-ws-crossing-line={testId}
+        data-axis="columns"
+      />
+      <div
+        className={`${styles.crossingLine} ${styles.guideRows}`}
+        style={guidePlacement('rows', row)}
+        aria-hidden="true"
+        data-ws-crossing-line={testId}
+        data-axis="rows"
       />
       {guides.map((g) => <SnapGuide key={g.axis} axis={g.axis} line={g.line} tracks={g.tracks} />)}
     </>

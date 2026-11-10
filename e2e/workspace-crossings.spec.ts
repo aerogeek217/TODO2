@@ -87,6 +87,45 @@ test.describe('pieces and crossings', () => {
     await expect.poll(async () => (await storedRows(page)).map((r) => Math.round(r.weight ?? 0))).not.toEqual([1000, 1000])
   })
 
+  test('hovering the crossing lights both whole lines it moves; it takes a pointer 9px off the gutter\'s centre', async ({ page }) => {
+    await seedWorkspace(page, { layouts: [quad] })
+    const lines = page.locator('[data-ws-crossing-line]')
+    await expect(lines).toHaveCount(2)
+    const opacity = (l: Locator) => l.evaluate((el) => getComputedStyle(el).opacity)
+    const upright = lines.and(page.locator('[data-axis="columns"]'))
+    const level = lines.and(page.locator('[data-axis="rows"]'))
+    // Hidden at rest.
+    expect(await opacity(upright)).toBe('0')
+    expect(await opacity(level)).toBe('0')
+
+    const x = centre(await box(crossing(page)))
+    const hitAt = (p: Point) => page.evaluate(({ x, y }) => document.elementFromPoint(x, y)?.hasAttribute('data-ws-crossing') ?? false, p)
+    // 9px off its centre on every side (diagonally too): still the crossing, over the dividers.
+    for (const [dx, dy] of [[9, 9], [-9, -9], [9, -9], [-9, 9], [9, 0], [0, -9]] as const) {
+      expect(await hitAt({ x: x.x + dx, y: x.y + dy }), `${dx},${dy}`).toBe(true)
+    }
+    const off = { x: x.x + 9, y: x.y + 9 }
+    await page.mouse.move(off.x, off.y)
+    await expect.poll(() => opacity(upright)).toBe('1')
+    await expect.poll(() => opacity(level)).toBe('1')
+    // Whole lines: down and across the whole table.
+    const table = await box(page.locator('[data-ws-table]'))
+    expect((await box(upright)).height).toBeGreaterThan(table.height - 24)
+    expect((await box(level)).width).toBeGreaterThan(table.width - 24)
+    // Away from it: hidden again.
+    await page.mouse.move(table.x + 40, table.y + 40)
+    await expect.poll(() => opacity(upright)).toBe('0')
+
+    // Grabbed 9px off its centre, it drags both lines.
+    const a0 = await edges(wsCell(page, 'a'))
+    await dragHandle(page, off, { x: off.x + 60, y: off.y + 40 }, async () => {
+      await expect.poll(() => opacity(upright)).toBe('1')
+      await expect.poll(() => opacity(level)).toBe('1')
+    })
+    await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).right - a0.right)).toBeGreaterThan(50)
+    expect((await edges(wsCell(page, 'a'))).bottom - a0.bottom).toBeGreaterThan(30)
+  })
+
   test('the crossing\'s keys: ↑↓ the row line, ←→ the column line, 16px; a double-click evens both', async ({ page }) => {
     await seedWorkspace(page, { layouts: [quad] })
     const a0 = await edges(wsCell(page, 'a'))
