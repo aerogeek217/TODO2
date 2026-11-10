@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, screen, fireEvent, act, within } from '@testing-library/react'
 import { EditListHost } from '../../../components/workspace/list/EditList'
 import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
+import { openEditList } from '../../../components/workspace/widget-hooks'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -247,6 +248,21 @@ describe('Edit list', () => {
     expect(useUIStore.getState().listEditor).not.toBeNull()
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Other list' }))
     expect(useUIStore.getState().listEditor).toBeNull()
+  })
+
+  it('Edit list asked for another list while this one has changes asks first; nothing else opens', async () => {
+    const dialog = open()
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
+    act(() => openEditList('t2', 8))
+    expect(question()).toBeInTheDocument()
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+    await answer('Discard')
+    expect(useUIStore.getState().listEditor).toBeNull()
+    // Unchanged, it gives way at once.
+    act(() => useUIStore.getState().openListEditor(7, 't1'))
+    act(() => openEditList('t1', 7))
+    expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
   })
 
   it('opening Settings closes it, and its draft goes', () => {

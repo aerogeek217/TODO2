@@ -807,20 +807,22 @@ export async function pickInReview(page: Page, tabId: string, ...names: string[]
 }
 
 /**
- * An unsaved edit to the list named `listName` made outside Edit list (as the
- * filter line's chips make them): its shared draft, with Edit list closed.
+ * An edit to the list named `listName` written for good, as Edit list's
+ * Save writes one (`list-definition-store.editList`: one undo step) —
+ * without going through the dialog.
  */
-export async function editListDraft(page: Page, listName: string, changes: Record<string, unknown>): Promise<void> {
+export async function editListNow(page: Page, listName: string, changes: Record<string, unknown>): Promise<void> {
   await page.evaluate(async ({ name, patch }) => {
     const defs = (await import(/* @vite-ignore */ '/src/stores/list-definition-store.ts' as string)) as {
-      useListDefinitionStore: { getState: () => { listDefinitions: Array<{ id: number; name: string }> } }
+      useListDefinitionStore: { getState: () => {
+        listDefinitions: Array<{ id: number; name: string }>
+        editList: (id: number, fn: (d: Record<string, unknown>) => Record<string, unknown>, description: string) => Promise<boolean>
+      } }
     }
-    const drafts = (await import(/* @vite-ignore */ '/src/stores/list-draft-store.ts' as string)) as {
-      useListDraftStore: { getState: () => { edit: (id: number, fn: (d: Record<string, unknown>) => Record<string, unknown>) => void } }
-    }
-    const def = defs.useListDefinitionStore.getState().listDefinitions.find((d) => d.name === name)
+    const store = defs.useListDefinitionStore.getState()
+    const def = store.listDefinitions.find((d) => d.name === name)
     if (!def) throw new Error(`no list “${name}”`)
-    drafts.useListDraftStore.getState().edit(def.id, (d) => ({ ...d, ...patch }))
+    if (!(await store.editList(def.id, (d) => ({ ...d, ...patch }), `Edited list “${name}”`))) throw new Error(`list “${name}” not edited`)
   }, { name: listName, patch: changes })
 }
 
@@ -906,9 +908,19 @@ export async function openListFilterEditor(page: Page, scope: Locator): Promise<
   return editor
 }
 
-/** Closes an open Edit list with its × (the list keeps its draft). */
+/**
+ * Finishes an open Edit list: its Save (written for good, one undo step)
+ * while it has changes, else its × (nothing to save).
+ */
 export async function closeListFilterEditor(page: Page): Promise<void> {
   const editor = page.getByTestId('edit-list')
-  await editor.getByRole('button', { name: 'Close Edit list' }).click()
+  const save = editor.getByRole('button', { name: 'Save', exact: true })
+  if (await save.isEnabled()) await save.click()
+  else await editor.getByRole('button', { name: 'Close Edit list' }).click()
   await expect(editor).toHaveCount(0)
+}
+
+/** Edit list's Save button (the dialog's own; the list's line has none). */
+export function editListSave(page: Page): Locator {
+  return page.getByTestId('edit-list').getByRole('button', { name: 'Save', exact: true })
 }

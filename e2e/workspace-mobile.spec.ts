@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { seedWorkspace, wsCell, wsTab, type WsLayoutSeed, wsRow } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
+import { readStore } from './fixtures/db'
 
 /**
  * The workspace on a phone (D26): every cell of the table in reading order
@@ -240,31 +241,32 @@ test('a list alone: its ⋯ opens Edit list, a half sheet with the list live abo
   await sheet.getByRole('button', { name: 'Sort by: Manual' }).click()
   await sheet.getByRole('radio', { name: /^Name/ }).click()
   await expect(sheet.getByRole('button', { name: 'Sort by: Name' })).toBeVisible()
-  await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
   await expect(wsCell(page, 'a1').locator('[data-todo-id]').first()).toContainText('Call plumber')
+  // No unsaved marks: the draft is the sheet's.
+  await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
 
-  // A tap above the sheet closes it at once, nothing asked: the list stays unsaved.
+  // A tap above the sheet asks (it has changes); Keep editing keeps it open.
   await page.mouse.click(195, 100)
-  await expect(sheet).toHaveCount(0)
-  await expect(page.getByRole('dialog', { name: /^Save changes to list/ })).toHaveCount(0)
-  await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
-  // × closes it the same way.
-  await openEditList()
+  const question = page.getByRole('dialog', { name: 'Save changes to list “Today”?' })
+  await expect(question).toBeVisible()
+  await question.getByRole('button', { name: 'Keep editing' }).tap()
+  await expect(sheet).toBeVisible()
+  // × asks the same way; Discard puts the list back.
   await sheet.getByRole('button', { name: 'Close Edit list' }).click()
+  await question.getByRole('button', { name: 'Discard' }).tap()
   await expect(sheet).toHaveCount(0)
-  await expect(wsTab(page, 'todayTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
+  expect((await readStore<{ name: string; sort: string }>(page, 'listDefinitions')).find((d) => d.name === 'Today')?.sort).toBe('manual')
 
-  // The unsaved list: Revert · Save on the filter line, at touch size.
+  // Again, and Save: written; the filter line stays (Every open task), with no Revert · Save.
+  await openEditList()
+  await sheet.getByRole('button', { name: 'Sort by: Manual' }).click()
+  await sheet.getByRole('radio', { name: /^Name/ }).click()
+  await sheet.getByRole('button', { name: 'Save', exact: true }).tap()
+  await expect(sheet).toHaveCount(0)
+  await expect.poll(async () => (await readStore<{ name: string; sort: string }>(page, 'listDefinitions')).find((d) => d.name === 'Today')?.sort).toBe('name')
   const line = wsCell(page, 'a1').getByTestId('list-filter-row')
   await expect(line).toContainText('Every open task')
-  await expect(line.getByTestId('save-list')).toHaveText('Save')
-  expect(Math.round((await box(line.getByTestId('save-list'))).height)).toBe(36)
-  const revert = await box(line.getByTestId('revert-list'))
-  expect([Math.round(revert.width), Math.round(revert.height)]).toEqual([36, 36])
-  await line.getByTestId('save-list').click()
-  // Saved: the line stays (Every open task), without Revert · Save.
   await expect(line.getByTestId('save-list')).toHaveCount(0)
-  await expect(line).toContainText('Every open task')
 })
 
 test('switching between desktop and phone widths keeps the drag sensors stable (no React deps error)', async ({ page }) => {

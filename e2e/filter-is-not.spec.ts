@@ -88,12 +88,11 @@ test.describe('desktop', () => {
     await expect.poll(() => titles(page)).toEqual(['Bob task', 'Nobody task'])
     await expect(editList.getByTestId('list-filter-chip')).toHaveText(/People\s*not Ann/)
     await expect(editList.locator('[data-changed]')).toHaveText(['Filters'])
-    // Esc closes the picker; Edit list's Save list writes the edit.
+    // Esc closes the picker; Edit list's Save writes the edit.
     await page.keyboard.press('Escape')
     await expect(picker).toBeHidden()
-    await editList.getByRole('button', { name: 'Save list' }).click()
+    await editList.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(editList).toHaveCount(0)
-    await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
 
     // The list's filter line reads it in words (2A), its tooltip the exact filter.
     const words = wsListWidget(page, 't1').getByTestId('list-filter-expression')

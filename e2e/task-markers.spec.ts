@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { filterChip, filterMenuRow, openFilterMenu, setShowCompleted } from './fixtures/filters'
-import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, openSettings, seedTaskList, wsCell, wsListWidget, TASK_LIST_TAB } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, openSettings, seedTaskList, wsListWidget, TASK_LIST_TAB } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 
 /**
@@ -156,7 +156,6 @@ test('a list’s own Priority filter (Edit list › + Filter › Priority) narro
   await closeListFilterEditor(page)
   await expect.poll(() => rowTitles(widget)).toEqual(['Important only', 'Important focus'])
 
-  await wsCell(page, 'cell').getByTestId('save-list').click()
   await page.reload()
   await expect.poll(() => rowTitles(wsListWidget(page, TASK_LIST_TAB))).toEqual(['Important only', 'Important focus'])
 })

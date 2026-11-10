@@ -5,7 +5,6 @@ import {
   readListOrders,
   releaseDrag,
   seedWorkspace,
-  wsCell,
   wsListWidget,
   wsTab,
   type WorkspaceSeed,
@@ -84,8 +83,6 @@ test('reordering a manual list saves at once and survives a reload', async ({ pa
     await expect(wsListWidget(page, 't1').locator('[data-drop-slot]')).toHaveCount(1)
   })
   await expect.poll(() => titles(page)).toEqual(['Alpha', 'Delta', 'Bravo', 'Charlie'])
-  // Not a list edit: nothing unsaved.
-  await expect(wsCell(page, 'k1').getByTestId('save-list')).toHaveCount(0)
   // Stored: the ranks alone give the order shown.
   await expect.poll(() => storedOrder(page, 'Order')).toEqual(['Alpha', 'Delta', 'Bravo', 'Charlie'])
 
@@ -142,11 +139,11 @@ test('dragging in a sorted list asks to switch to manual order', async ({ page }
   await page.getByTestId('switch-to-manual').getByRole('button', { name: 'Switch to manual' }).click()
   await expect.poll(() => titles(page)).toEqual(['Delta', 'Alpha', 'Bravo', 'Charlie'])
   expect(await readListOrders(page)).toHaveLength(4)
-  // The sort change is a list edit: unsaved until saved.
-  const save = wsCell(page, 'k1').getByTestId('save-list')
-  await expect(save).toBeVisible()
-  await save.click()
+  // The sort change is a list edit, saved at once as one undo step.
   await expect.poll(async () => (await readListDefinitions(page))[0]?.sort).toBe('manual')
+  await expect(page.getByText('Switched “Sorted” to manual order')).toBeVisible()
+  await page.getByRole('button', { name: 'Undo' }).click()
+  await expect.poll(async () => (await readListDefinitions(page))[0]?.sort).not.toBe('manual')
 })
 
 test('dragging into another person’s group reassigns the task after a confirm', async ({ page }) => {

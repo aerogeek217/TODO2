@@ -1,15 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { ADD_FILTER, closeListFilterEditor, expectOpenLayout, openCellMenu, openListFilterEditor, openSettings, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, expectOpenLayout, openCellMenu, openListFilterEditor, openSettings, seedTaskList, seedWorkspace, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { createTab } from '../src/models/workspace-layout'
 import { readStore } from './fixtures/db'
 
 /**
- * A layout change is saved at once (an undo step); unsaved list changes
- * survive a reload — kept in the browser, still shown unsaved — and go on
- * save, discard or a data restore. A layout change an older build kept in
- * the browser is applied once at launch. Closing the tab asks nothing while
- * the list changes are kept.
+ * A layout change is saved at once (an undo step), and so is a list's —
+ * Edit list's Save; an Edit list left open with changes is not kept for a
+ * reload. A layout or list change an older build kept in the browser is
+ * applied once at launch, one undo step each. Closing the tab never asks.
  */
 
 test.use({ viewport: { width: 1280, height: 800 } })
@@ -30,6 +29,16 @@ function unloadAsks(page: Page): Promise<boolean> {
     window.dispatchEvent(ev)
     return ev.defaultPrevented
   })
+}
+
+/** Edit list (from the task list's line) › + Filter › Priority › Important; left open. */
+async function addImportantFilter(page: Page) {
+  const editor = await openListFilterEditor(page, wsListWidget(page, TASK_LIST_TAB))
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
+  await page.getByRole('menuitem', { name: 'Priority' }).click()
+  await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Important' }).click()
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('list-filter-picker')).toBeHidden()
 }
 
 async function closeEisenhower(page: Page) {
@@ -105,31 +114,43 @@ test('an unsaved new layout an older build kept becomes a stored layout, after t
   await expect.poll(() => wsShape(page)).toEqual([[['keptNotes']]])
 })
 
-test('an unsaved list filter survives a reload, still unsaved; Save writes it', async ({ page }) => {
+test('a list filter saved in Edit list survives a reload; an open Edit list’s changes are not kept', async ({ page }) => {
   await seedTaskList(page, {
     tasks: [{ title: 'Important one', important: true }, { title: 'Plain one' }],
   })
   const widget = wsListWidget(page, TASK_LIST_TAB)
-  const editor = await openListFilterEditor(page, widget)
-  await editor.getByRole('button', { name: ADD_FILTER }).click()
-  await page.getByRole('menuitem', { name: 'Priority' }).click()
-  await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Important' }).click()
-  await page.keyboard.press('Escape')
-  await closeListFilterEditor(page)
-  await expect(wsCell(page, 'cell').getByTestId('save-list')).toBeVisible()
+  await addImportantFilter(page)
+  // Left open, its changes drawn but not stored: a reload drops them, and asks nothing.
+  await expect.poll(() => rowTitles(widget)).toEqual(['Important one'])
   expect(await unloadAsks(page)).toBe(false)
-
   await page.reload()
-  const after = wsListWidget(page, TASK_LIST_TAB)
-  await expect(wsCell(page, 'cell').getByTestId('save-list')).toBeVisible()
-  await expect(after.getByTestId('list-filter-expression')).toContainText('Important')
-  await expect.poll(() => rowTitles(after)).toEqual(['Important one'])
+  await expect.poll(() => rowTitles(wsListWidget(page, TASK_LIST_TAB))).toEqual(['Important one', 'Plain one'])
+  expect(await page.evaluate(() => localStorage.getItem('todo2-unsaved-lists'))).toBeNull()
 
-  await wsCell(page, 'cell').getByTestId('save-list').click()
-  await expect(wsCell(page, 'cell').getByTestId('save-list')).toHaveCount(0)
+  await addImportantFilter(page)
+  await closeListFilterEditor(page)
+  await expect(wsListWidget(page, TASK_LIST_TAB).getByTestId('list-filter-expression')).toContainText('Important')
   await page.reload()
   await expect.poll(() => rowTitles(wsListWidget(page, TASK_LIST_TAB))).toEqual(['Important one'])
-  await expect(wsCell(page, 'cell').getByTestId('save-list')).toHaveCount(0)
+})
+
+test('a list change an older build kept unsaved is applied once at launch, as one undo step', async ({ page }) => {
+  await seedTaskList(page, { tasks: [{ title: 'Beta' }, { title: 'Alpha' }] })
+  const [list] = await readStore<Record<string, unknown> & { id: number; name: string }>(page, 'listDefinitions')
+  await page.evaluate((def) => {
+    localStorage.setItem('todo2-unsaved-lists', JSON.stringify({ [def.id]: { draft: { ...def, sort: 'name' }, base: def, schemaVersion: 78 } }))
+  }, list!)
+  await page.reload()
+  await expect(page.getByText(`Applied unsaved changes to list “${list!.name}”`)).toBeVisible()
+  await expect.poll(async () => (await readStore<{ sort: string }>(page, 'listDefinitions'))[0]?.sort).toBe('name')
+  expect(await page.evaluate(() => localStorage.getItem('todo2-unsaved-lists'))).toBeNull()
+  await expect.poll(() => rowTitles(wsListWidget(page, TASK_LIST_TAB))).toEqual(['Alpha', 'Beta'])
+
+  await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect.poll(async () => (await readStore<{ sort: string }>(page, 'listDefinitions'))[0]?.sort).toBe(list!.sort)
+  // Once: a reload applies nothing.
+  await page.reload()
+  await expect.poll(async () => (await readStore<{ sort: string }>(page, 'listDefinitions'))[0]?.sort).toBe(list!.sort)
 })
 
 test('a backup restore brings back the layout as backed up, also after a reload', async ({ page }) => {
@@ -163,7 +184,7 @@ test('a layout change never asks on closing the tab, even when the browser can�
   expect(await unloadAsks(page)).toBe(false)
 })
 
-test('a backup restore drops a kept list change too', async ({ page }) => {
+test('a backup restore brings back the list as backed up', async ({ page }) => {
   await seedTaskList(page, { tasks: [{ title: 'Important one', important: true }, { title: 'Plain one' }] })
   const settings = await openSettings(page, 'Backups')
   await settings.getByRole('button', { name: 'Create Backup Now' }).click()
@@ -171,13 +192,9 @@ test('a backup restore drops a kept list change too', async ({ page }) => {
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
 
-  const editor = await openListFilterEditor(page, wsListWidget(page, TASK_LIST_TAB))
-  await editor.getByRole('button', { name: ADD_FILTER }).click()
-  await page.getByRole('menuitem', { name: 'Priority' }).click()
-  await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Important' }).click()
-  await page.keyboard.press('Escape')
+  await addImportantFilter(page)
   await closeListFilterEditor(page)
-  await expect(wsCell(page, 'cell').getByTestId('save-list')).toBeVisible()
+  await expect.poll(() => rowTitles(wsListWidget(page, TASK_LIST_TAB))).toEqual(['Important one'])
 
   await openSettings(page, 'Backups')
   const manual = settings.locator('[data-trigger="manual"]')
@@ -185,9 +202,8 @@ test('a backup restore drops a kept list change too', async ({ page }) => {
   await manual.getByRole('button', { name: 'Confirm' }).click()
   await expect(settings.getByText('Restored successfully! The data it replaced was backed up first.')).toBeVisible()
   await page.keyboard.press('Escape')
-  await expect(wsCell(page, 'cell').getByTestId('save-list')).toHaveCount(0)
+  await expect.poll(() => rowTitles(wsListWidget(page, TASK_LIST_TAB))).toEqual(['Important one', 'Plain one'])
 
   await page.reload()
   await expect.poll(() => rowTitles(wsListWidget(page, TASK_LIST_TAB))).toEqual(['Important one', 'Plain one'])
-  await expect(wsCell(page, 'cell').getByTestId('save-list')).toHaveCount(0)
 })

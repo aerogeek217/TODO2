@@ -35,7 +35,7 @@ test('Add widget… (as a tab) › List: the tab appears with the new list\'s ow
   await name.fill('Errands')
   await expect(wsCell(page, 'cell').getByRole('tab', { name: 'Errands' })).toBeVisible()
   await expect(editListDialog(page, 'Errands')).toBeVisible()
-  await editListDialog(page, 'Errands').getByRole('button', { name: 'Save list' }).click()
+  await editListDialog(page, 'Errands').getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(wsCell(page, 'cell').getByRole('tab', { name: 'Errands' })).toBeVisible()
 })

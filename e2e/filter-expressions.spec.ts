@@ -82,7 +82,7 @@ test('Edit list: type an expression with an autocomplete pick; an error writes n
   await field.fill('@Ann or !Waiting')
   await field.blur()
   await expect.poll(() => sorted(page)).toEqual(['Ann active', 'Ann waiting', 'Bob waiting'])
-  await page.keyboard.press('Escape')
+  await editList.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editList).toHaveCount(0)
   const chip = widget.getByTestId('list-filter-expression')
   await expect(chip).toHaveText('Ann, or Waiting')
@@ -115,7 +115,9 @@ test('Edit list: a text that doesn’t read holds the first close, saying so, an
   await expect(editList).toBeVisible()
   await expect(editList.getByTestId('expression-error')).toContainText('close again to drop it')
   await expect(field).toBeFocused()
+  // The second close drops the text; the list has changes, so it asks — Save keeps the filter as it last read.
   await close.click()
+  await page.getByRole('dialog', { name: /^Save changes to list/ }).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editList).toHaveCount(0)
   await expect.poll(() => sorted(page)).toEqual(['Ann active', 'Ann waiting', 'Bob waiting'])
 
