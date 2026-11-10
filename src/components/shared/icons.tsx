@@ -369,26 +369,6 @@ export function StatusRingIcon({ size = 14 }: { size?: number }) {
   )
 }
 
-/** A circle with its top-right quarter filled: priority (the task layout's Priority facts). */
-export function PriorityIcon({ size = 14 }: { size?: number }) {
-  return (
-    <Svg size={size}>
-      <circle cx="8" cy="8" r="5.5" />
-      <path d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5H8z" fill="currentColor" />
-    </Svg>
-  )
-}
-
-/** A clock face: a due date (the task layout's Due facts). */
-export function DueClockIcon({ size = 14 }: { size?: number }) {
-  return (
-    <Svg size={size}>
-      <circle cx="8" cy="8" r="5.5" />
-      <path d="M8 5v3l2 1.5" />
-    </Svg>
-  )
-}
-
 /** A magnifier: text search. */
 export function SearchIcon({ size = 14 }: { size?: number }) {
   return (

@@ -6,39 +6,35 @@ import { factDateWords, type FactDateKind } from '../../utils/fact-dates'
 import type { UrgentMark } from '../../utils/urgency'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { UrgentClockIcon } from '../shared/MarkerIcons'
-import { DueClockIcon, FlagIcon, HashIcon, PersonIcon, PriorityIcon, StatusRingIcon } from '../shared/icons'
 import { StatusIcon } from '../shared/StatusIcon'
 import { useTooltip } from '../shared/use-tooltip'
 import styles from './TaskDetails.module.css'
 
-/** The facts rail's sections (board BJ), top to bottom. */
+/** The facts rail's sections (boards BJ, BL), top to bottom. */
 export type FactKind = 'priority' | 'status' | 'people' | 'tags' | 'due' | 'followup'
 
-const FACTS: Record<FactKind, { label: string; icon: ReactNode }> = {
-  priority: { label: 'Priority', icon: <PriorityIcon size={13} /> },
-  status: { label: 'Status', icon: <StatusRingIcon size={13} /> },
-  people: { label: 'People', icon: <PersonIcon size={13} /> },
-  tags: { label: 'Tags', icon: <HashIcon size={13} /> },
-  due: { label: 'Due', icon: <DueClockIcon size={13} /> },
-  followup: { label: 'Follow-up', icon: <FlagIcon size={13} /> },
+const FACT_LABELS: Record<FactKind, string> = {
+  priority: 'Priority',
+  status: 'Status',
+  people: 'People',
+  tags: 'Tags',
+  due: 'Due',
+  followup: 'Follow-up',
 }
 
 /**
- * A section of the task layout's facts rail (board BJ — the task editor and
- * the review card alike): its header — the fact's icon and name in its own
- * colour (`--color-fact-*`), small caps — then its value. A hairline
- * separates it from the section above. Follow-up, last, keeps a faint
- * yellow box around its header and rows.
+ * A section of the task layout's facts rail (boards BJ, BL — the task
+ * editor and the review card alike): its header — the fact's name as the
+ * app's standard section label (the writing's `NOTES` / `SUBTASKS`: 11px
+ * bold caps, muted; no colour, no icon — colour is the values') — then its
+ * value. A hairline separates it from the section above. Follow-up, last,
+ * keeps a faint yellow box around its header and rows.
  */
 export function FactSection({ fact, children }: { fact: FactKind; children: ReactNode }) {
   const id = useId()
-  const { label, icon } = FACTS[fact]
   const body = (
     <>
-      <div className={styles.factHeading} id={id}>
-        {icon}
-        {label}
-      </div>
+      <div className={styles.factHeading} id={id}>{FACT_LABELS[fact]}</div>
       {children}
     </>
   )

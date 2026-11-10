@@ -41,12 +41,13 @@ const NO_TAGS: Tag[] = []
 
 /**
  * The review card (D26; the deck's and the Review widget's large face): the
- * task editor's layout (board BJ, the shared `TaskDetailsBody`) for one
- * task, every edit written at once, each its own undo step after the notes
- * typed so far — the box and title; the facts rail (Priority, Status,
+ * task editor's layout (boards BJ, BL, the shared `TaskDetailsBody`) for
+ * one task, every edit written at once, each its own undo step after the
+ * notes typed so far — the box and title; the facts rail (Priority, Status,
  * People, Tags, Due + repeat, then Follow-up: Next — the field Mark
- * followed up reads —, Last as a date only); the writing (Notes, Subtasks,
- * Status updates oldest first with the review's update line last). One task
+ * followed up reads —, Last as a date only); the writing (Notes and
+ * Subtasks above the dock: Status updates oldest first with the review's
+ * update line last, so that line is in the same place on every card). One task
  * only, never the selection. Then the footer (`ReviewFooter`): the hint,
  * ‹ Back, Skip › and Mark followed up ›. The host lays the card and the
  * footer out (`data-review-card`, `data-review-footer`).
@@ -369,18 +370,28 @@ export function ReviewFooter({ followUp: f, keyHints = false, compact = false, o
   )
 }
 
+/** How many of a task's status updates the medium face shows (the latest ones). */
+const COMPACT_UPDATES = 2
+
 /**
- * The review card's essentials (the Review widget's medium face, item 12):
- * the box and title, a one-line summary of the facts (due, status, priority,
- * next and last follow-up), the newest status update, the update line (⏎
- * follows up) and the footer — Open card ↗ opens the task in its editor.
+ * The review card's essentials (the Review widget's medium face, item 12;
+ * board BM): the box and title, a one-line summary of the facts (due,
+ * status, priority, next and last follow-up), then the **updates dock** —
+ * the Status updates heading (with the count once there is an entry), the
+ * latest two entries oldest first (read-only: Open card ↗ edits them) and
+ * the update line (⏎ follows up) — and the footer; Open card ↗ opens the
+ * task in its editor. In a short cell the older entry, the log, then the
+ * heading give way (`Review.module.css`).
  */
 export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoItem; focusOnOpen?: ReviewFocusOnOpen }) {
   const todoId = todo.id
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const rowDates = useSettingsStore((s) => s.rowDates)
   const status = useStatusStore((s) => (todo.statusId != null ? s.statuses.find((st) => st.id === todo.statusId) : undefined))
-  const newest = useStatusUpdateStore((s) => s.byTodo.get(todoId)?.[0])
+  // Newest first (the store's order).
+  const updates = useStatusUpdateStore((s) => s.byTodo.get(todoId))
+  const latest = (updates ?? []).slice(0, COMPACT_UPDATES).toReversed()
+  const headingId = useId()
   const updateRef = useRef<HTMLInputElement>(null)
   const f = useReviewFollowUp(todo, NO_NOTES, updateRef)
   useFocusUpdateLineOnOpen(updateRef, focusOnOpen)
@@ -405,26 +416,49 @@ export function ReviewCompactCard({ todo, focusOnOpen }: { todo: PersistedTodoIt
   return (
     <>
       <div className={styles.compactCard} data-review-card={todoId} data-review-face="medium">
-        <div className={styles.compactTop}>
-          <RowCheckbox
-            summary={summary}
-            checked={todo.isCompleted}
-            onChange={toggleComplete}
-            aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
-          />
-          <h3 className={`${styles.compactTitle} ${todo.isCompleted ? styles.cardTitleDone : ''}`} data-testid="review-card-title">{todo.title}</h3>
-        </div>
-        <p className={styles.compactFacts} data-testid="review-facts">
-          {facts.map((fact, i) => (
-            <span key={fact.key} data-tone={fact.tone}>{i > 0 ? ' · ' : ''}{fact.text}</span>
-          ))}
-        </p>
-        {newest && (
-          <p className={styles.compactNewest} data-testid="review-newest-update">
-            <span className={styles.compactDay}>{formatDateNumeric(newest.date)}</span> {newest.text}
+        <div className={styles.compactHead}>
+          <div className={styles.compactTop}>
+            <RowCheckbox
+              summary={summary}
+              checked={todo.isCompleted}
+              onChange={toggleComplete}
+              aria-label={todo.isCompleted ? 'Mark incomplete' : 'Mark complete'}
+            />
+            <h3 className={`${styles.compactTitle} ${todo.isCompleted ? styles.cardTitleDone : ''}`} data-testid="review-card-title">{todo.title}</h3>
+          </div>
+          <p className={styles.compactFacts} data-testid="review-facts">
+            {facts.map((fact, i) => (
+              <span key={fact.key} data-tone={fact.tone}>{i > 0 ? ' · ' : ''}{fact.text}</span>
+            ))}
           </p>
-        )}
-        <ReviewUpdateLine followUp={f} inputRef={updateRef} compact />
+        </div>
+        <section className={styles.compactDock} aria-labelledby={headingId} data-review-dock="">
+          <h4 className={styles.compactHeading} id={headingId}>
+            Status updates
+            {updates != null && updates.length > 0 && <span className={styles.compactCount} data-status-update-count="">{updates.length}</span>}
+          </h4>
+          {latest.length > 0 && (
+            <ul className={styles.compactLog} aria-label="Latest status updates" data-status-update-list="">
+              {latest.map((entry, i) => {
+                const newest = i === latest.length - 1
+                return (
+                  <li
+                    key={entry.id}
+                    className={styles.compactEntry}
+                    data-status-update=""
+                    data-newest={newest ? 'true' : undefined}
+                    data-testid={newest ? 'review-newest-update' : undefined}
+                    title={`${formatDateNumeric(entry.date)} ${entry.text}`}
+                  >
+                    <span className={styles.compactDay}>{formatDateNumeric(entry.date)}</span>
+                    <span className={styles.compactText}>{entry.text}</span>
+                  </li>
+                )
+              })}
+            </ul>
+          )}
+          <ReviewUpdateLine followUp={f} inputRef={updateRef} compact />
+        </section>
       </div>
       <ReviewFooter followUp={f} compact onOpenCard={() => useUIStore.getState().openEditPopup(todoId)} />
     </>
