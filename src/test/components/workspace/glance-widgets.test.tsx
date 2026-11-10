@@ -101,7 +101,7 @@ describe('Number widget', () => {
     setup(numberTab('n', 'overdue'))
     expect(numberCount()).toBe('2')
     expect(number().dataset.lit).toBe('true')
-    expect(within(number()).getByTestId('number-count').style.color).toBe('rgb(232, 107, 240)')
+    expect(within(number()).getByTestId('number-count').style.color).toBe('var(--color-overdue)')
     expect(number().textContent).toContain('Overdue')
   })
 

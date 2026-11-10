@@ -29,6 +29,7 @@ import type { GlanceDrill, OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { GlanceSmallFace } from './GlanceSmallFace'
 import { Empty } from './section-parts'
+import { themeColor } from '../../../utils/theme-color'
 import styles from './BreakdownWidget.module.css'
 
 /** Colours for rows without one of their own (a due or age bucket, Unassigned), in order. */
@@ -90,7 +91,9 @@ function ColumnCount({ n, column, label, onOpen }: {
   if (n === 0) return <span className={styles.dash} aria-label={`No tasks in ${columnHeading(column)}`}>–</span>
   const lit = columnIsLit(column, n)
   const cls = `${styles.badge} ${lit ? styles.badgeSolid : ''}`
-  const style = { '--col-color': column.color } as CSSProperties
+  // Outlined, the count is text in the colour as the theme draws it (J21);
+  // solid, the fill is the colour as picked, under the dark on-hue text.
+  const style = { '--col-color': themeColor(column.color), '--col-fill': column.color } as CSSProperties
   const marks = { 'data-column': column.id, 'data-solid': lit ? '' : undefined }
   if (!onOpen) return <span className={cls} style={style} {...marks}>{n}</span>
   return (
