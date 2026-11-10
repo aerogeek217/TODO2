@@ -4,7 +4,7 @@ import { isMacLike } from '../../utils/platform'
 import { toggleReviewLens, unrecordedReviewPrompt } from '../../services/review'
 import type { LensMark } from '../../hooks/use-widget-lens'
 import { useAppliedLens } from '../../stores/screen-filter'
-import { allReviewed, followedUpCount, unrecordedDraftIds, useReviewStore } from '../../stores/review-store'
+import { allReviewed, followedUpCount, shownMark, unrecordedDraftIds, useReviewStore } from '../../stores/review-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { useSubtaskStore } from '../../stores/subtask-store'
 import { useTodoStore } from '../../stores/todo-store'
@@ -12,6 +12,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { isFollowedUpToday } from '../../utils/followup'
 import { registerModuleReset } from '../../utils/module-reset'
 import { DialogFrame } from '../shared/Dialog'
+import { CloseIcon, ReviewIcon } from '../shared/icons'
 import { LensSwitch } from '../shared/LensSwitch'
 import { ReviewCard } from '../review/ReviewCard'
 import { ReviewRail } from '../review/ReviewRail'
@@ -20,29 +21,39 @@ import reviewStyles from '../review/Review.module.css'
 import styles from './ReviewDeck.module.css'
 
 /**
- * The review deck (D26): a dialog over the workspace that steps through a
- * frozen set of tasks one card at a time (`review-store`, opened by
- * `services/review.openReview`). Header: Review · the source · what was
- * taken · `k of N` (`All N reviewed` once every task has a mark) · a
- * progress bar · `n followed up` · the lens switch (item 10: the standard
+ * The review deck (D26, board BL): a dialog over the workspace that steps
+ * through a frozen set of tasks one card at a time (`review-store`, opened
+ * by `services/review.openReview`). `min(1200px, 100vw − 32px)` wide; **its
+ * height fits the task** — never under 650px (about the facts column),
+ * taller only when a lot is written, up to `100vh − 32px`, where the
+ * writing scrolls above its dock. Header: the review tile; who / what is
+ * reviewed over a small line (`Review · N open tasks`, then the source's
+ * own words where they add to its name — a list's, several people's); then
+ * on the right **a dot per task** in the order shown (followed up: accent,
+ * filled; skipped: grey, filled; current: an accent ring; to do: hollow —
+ * decorative; past `REVIEW_DOTS_MAX` tasks a thin progress bar instead) ·
+ * `k of N` (`All N reviewed` once every task has a mark) · `n followed up`
+ * (` · m skipped` while any is) · the lens switch (item 10: the standard
  * `LensSwitch` — glasses and `−N` while the top bar's lens hides tasks of
  * this queue, slashed while the review ignores it, absent with no lens; a
  * click takes the queue again from its source with / without the lens,
  * `services/review.toggleReviewLens`) · ×. The queue rail on the left
- * (`components/review/ReviewRail`, shared with the Review widget) has the
- * sort at its top (item 7) and reads like list rows (the priority ring on
- * the box, the follow-up and due dates in words and in their colours), a ✓
- * on a task followed up today — here or anywhere else (its follow-up date in
- * teal) —, – on one skipped here and not followed up today; a click on a row
- * jumps to it. The header's `n followed up` counts the ✓ rows.
+ * (300px; `components/review/ReviewRail`, shared with the Review widget) has
+ * the sort at its top (item 7) and a two-line row per task (the priority
+ * ring on the box and the whole title; under it the follow-up and due dates
+ * in words and in their colours), a ✓ on a task followed up today — here or
+ * anywhere else (its title dimmed) —, – on one skipped here and not followed
+ * up today; a click on a row jumps to it. The header's `n followed up`
+ * counts the ✓ rows.
  * The card (`components/review/ReviewCard`, shared with the widget) is the
- * task editor's layout (board BJ, `TaskDetailsBody`): the task's box (it
- * completes the task) and title; then the facts rail — Priority (Focus ·
+ * task editor's layout (boards BJ, BL, `TaskDetailsBody`): the task's box
+ * (it completes the task) and title; then the facts rail — Priority (Focus ·
  * Urgent · Important), Status, People, Tags, Due + repeat and Follow-up last
  * (the Next field — × clears it —, 1w 2w 1m 3m; Last as a date only; no Mark
- * followed up there, the footer's is the one) — beside the writing: Notes,
- * Subtasks, Status updates oldest first with the deck's update line last
- * (focused as each card opens). Queue, facts and writing read left to right.
+ * followed up there, the footer's is the one) — beside the writing: Notes
+ * and Subtasks above the dock — Status updates oldest first with the deck's
+ * update line last (focused as each card opens), in the same place on every
+ * card of the same height. Queue, facts and writing read left to right.
  * Footer: a hint of what Mark followed up will do, ‹ Back (K), Skip › (S)
  * and Mark followed up › (⏎). Back and Skip step in the order shown.
  *
@@ -61,6 +72,9 @@ export function ReviewDeck() {
   const open = useReviewStore((s) => s.open)
   return open ? <ReviewSessionContext.Provider value={useReviewStore}><ReviewDeckPanel /></ReviewSessionContext.Provider> : null
 }
+
+/** The header draws a dot per task up to this many; a longer queue gets a thin progress bar. */
+const REVIEW_DOTS_MAX = 20
 
 const editorIsOpen = () => useUIStore.getState().editPopupMode != null
 
@@ -166,7 +180,15 @@ function ReviewDeckPanel() {
     return t != null && isFollowedUpToday(t, today)
   }, [todoById, today])
   const done = followedUpCount(marks, order, followedUpToday)
+  const skipped = order.filter((id) => shownMark(marks, id, followedUpToday) === 'skipped').length
   const finished = allReviewed(marks, order, followedUpToday)
+  // Under the title: how many tasks (open ones, unless the source brought completed ones too), then the
+  // source's own words where they add to its name (a list's group · sort, several people's names).
+  const openCount = order.filter((id) => todoById.get(id)?.isCompleted === false).length
+  const taskCountWords = openCount === n
+    ? `${n} open ${n === 1 ? 'task' : 'tasks'}`
+    : `${n} ${n === 1 ? 'task' : 'tasks'}`
+  const sourceWords = source && source.kind !== 'person' && source.kind !== 'tag' ? source.description : ''
 
   return (
     <DialogFrame
@@ -182,26 +204,43 @@ function ReviewDeckPanel() {
       onKeyDown={onKeyDown}
     >
       <header className={styles.header}>
-        <span className={styles.eyebrow}>Review</span>
-        <h2 id={titleId} className={styles.title}>{source?.title ?? 'Review'}</h2>
-        <span id={descriptionId} className={styles.description}>{source?.description}</span>
+        <span className={styles.tile} aria-hidden="true"><ReviewIcon size={15} /></span>
+        <div className={styles.heading}>
+          <h2 id={titleId} className={styles.title}>{source?.title ?? 'Review'}</h2>
+          <span id={descriptionId} className={styles.description} data-testid="review-description" title={sourceWords || undefined}>
+            Review · {taskCountWords}{sourceWords && ` · ${sourceWords}`}
+          </span>
+        </div>
         <span className={styles.spacer} />
+        {n > 0 && n <= REVIEW_DOTS_MAX ? (
+          // A dot per task, in the order shown. Decorative: the counts beside them say it.
+          <span className={styles.dots} aria-hidden="true" data-testid="review-dots">
+            {order.map((id, i) => (
+              <span key={id} className={styles.dot} data-dot={i === index ? 'current' : shownMark(marks, id, followedUpToday) ?? 'todo'} />
+            ))}
+          </span>
+        ) : n > 0 && (
+          <span
+            className={styles.progress}
+            role="progressbar"
+            aria-label="Followed up"
+            aria-valuemin={0}
+            aria-valuemax={n}
+            aria-valuenow={done}
+            data-testid="review-progress"
+          >
+            <span className={styles.progressFill} style={{ width: `${Math.round((done / n) * 100)}%` }} />
+          </span>
+        )}
         <span className={styles.position} data-testid="review-position" aria-live="polite">
           {finished ? `All ${n} reviewed` : n > 0 ? `${index + 1} of ${n}` : 'Nothing to review'}
         </span>
-        <span
-          className={styles.progress}
-          role="progressbar"
-          aria-label="Followed up"
-          aria-valuemin={0}
-          aria-valuemax={n}
-          aria-valuenow={done}
-        >
-          <span className={styles.progressFill} style={{ width: `${n > 0 ? Math.round((done / n) * 100) : 0}%` }} />
+        <span className={styles.counts}>
+          <span data-testid="review-followed-up">{done} followed up</span>
+          {skipped > 0 && <span data-testid="review-skipped"> · {skipped} skipped</span>}
         </span>
-        <span className={styles.followedUp} data-testid="review-followed-up">{done} followed up</span>
         {lensMark && <LensSwitch lens={lensMark} noun="review" onToggle={toggleReviewLens} />}
-        <button type="button" className={styles.closeBtn} aria-label="Close review" onClick={close}>×</button>
+        <button type="button" className={styles.closeBtn} aria-label="Close review" onClick={close}><CloseIcon size={12} /></button>
       </header>
       <ReviewRail todoById={todoById} followedUpToday={followedUpToday} />
       {todo ? (

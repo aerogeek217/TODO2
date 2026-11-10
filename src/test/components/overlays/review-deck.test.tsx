@@ -574,6 +574,101 @@ describe('the review deck', () => {
     expect(screen.getByTestId('review-position')).toHaveTextContent('1 of 2')
   })
 
+  // ── Board BL: the header, the two-line rows, the always-there headings ──
+
+  it('the header: who is reviewed over `Review · N open tasks` and the source’s words; a dot per task; the counts', async () => {
+    await openDeck()
+    expect(screen.getByRole('heading', { name: 'Aisha 1:1' })).toBeInTheDocument()
+    expect(screen.getByTestId('review-description')).toHaveTextContent('Review · 3 open tasks · list · Manual')
+    expect(screen.getByRole('dialog', { name: 'Aisha 1:1' })).toHaveAccessibleDescription('Review · 3 open tasks · list · Manual')
+    // The dots are decorative: the counts beside them are the words.
+    const dotStrip = screen.getByTestId('review-dots')
+    expect(dotStrip).toHaveAttribute('aria-hidden', 'true')
+    const dots = () => [...screen.getByTestId('review-dots').children].map((d) => d.getAttribute('data-dot'))
+    expect(dots()).toEqual(['current', 'todo', 'todo'])
+    expect(screen.queryByRole('progressbar')).toBeNull()
+    expect(screen.queryByTestId('review-skipped')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    fireEvent.click(markButton())
+    await waitFor(() => expect(dots()).toEqual(['skipped', 'done', 'current']))
+    expect(screen.getByTestId('review-position')).toHaveTextContent('3 of 3')
+    expect(screen.getByTestId('review-followed-up')).toHaveTextContent('1 followed up')
+    expect(screen.getByTestId('review-skipped')).toHaveTextContent('· 1 skipped')
+  })
+
+  it('a person’s review says only the count under the name; with a completed task in the queue, `N tasks`', async () => {
+    const [first] = ids as [number]
+    useReviewStore.getState().start({
+      source: { kind: 'person', title: 'Aisha', description: 'Open tasks assigned to Aisha.' },
+      ids,
+    })
+    render(<ReviewDeck />)
+    await act(async () => { await Promise.resolve() })
+    expect(screen.getByTestId('review-description')).toHaveTextContent(/^Review · 3 open tasks$/)
+    await act(async () => { await useTodoStore.getState().toggleComplete(first) })
+    expect(screen.getByTestId('review-description')).toHaveTextContent(/^Review · 3 tasks$/)
+  })
+
+  it('past 20 tasks: a thin progress bar in place of the dots', async () => {
+    const many = [...ids]
+    for (let i = 0; i < 18; i++) many.push(await addTask(`Task ${i}`))
+    await useTodoStore.getState().update(many[1]!, { lastFollowupAt: new Date() })
+    await openDeck({ ids: many })
+    expect(screen.queryByTestId('review-dots')).toBeNull()
+    const bar = screen.getByRole('progressbar', { name: 'Followed up' })
+    expect(bar).toHaveAttribute('aria-valuemax', '21')
+    expect(bar).toHaveAttribute('aria-valuenow', '1')
+    cleanup()
+    // Twenty: still a dot each.
+    await openDeck({ ids: many.slice(0, 20) })
+    expect(screen.getByTestId('review-dots').children).toHaveLength(20)
+    expect(screen.queryByRole('progressbar')).toBeNull()
+  })
+
+  it('a rail row is two lines: the title, then its follow-up (a flag) and due date (a clock) — none without a date', async () => {
+    const [first, second] = ids as [number, number]
+    await useTodoStore.getState().update(first, { nextFollowupAt: addDays(startOfToday(), -1), dueDate: addDays(startOfToday(), 30) })
+    await useTodoStore.getState().update(second, { nextFollowupAt: startOfToday() })
+    await openDeck()
+    const row = railRow(FIRST)
+    const title = row.querySelector('[data-review-row-title]')!
+    const dates = row.querySelector('[data-review-row-dates]')!
+    expect(title).toHaveTextContent(FIRST)
+    expect(title.compareDocumentPosition(dates) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    // The follow-up first (late: its colour state), then the due date; an icon each.
+    expect([...dates.children].map((d) => [d.querySelectorAll('svg').length, d.getAttribute('data-followup')])).toEqual([[1, 'late'], [1, null]])
+    expect(row).toHaveAccessibleName(/^Answer Northwind, follow-up .+, due .+/)
+    // One date: just the follow-up (today).
+    const secondDates = railRow(SECOND).querySelector('[data-review-row-dates]')!
+    expect(secondDates.children).toHaveLength(1)
+    expect(secondDates.firstElementChild).toHaveAttribute('data-followup', 'today')
+    // No date: no second line.
+    expect(railRow('Retention addendum').querySelector('[data-review-row-dates]')).toBeNull()
+  })
+
+  it('the writing: Notes and Subtasks, then the dock with Status updates — each heading shown while empty', async () => {
+    const [first] = ids as [number]
+    await openDeck()
+    const card = document.querySelector('[data-review-card]') as HTMLElement
+    const scroll = card.querySelector('[data-task-writing-scroll]') as HTMLElement
+    const dock = card.querySelector('[data-task-dock]') as HTMLElement
+    expect(scroll.querySelector('[data-task-notes] .cm-editor')).not.toBeNull()
+    expect(scroll.querySelector('[data-subtasks]')).not.toBeNull()
+    expect(dock.querySelector('[data-status-updates]')).not.toBeNull()
+    expect(scroll.querySelector('[data-status-updates]')).toBeNull()
+    // The headings are there with nothing written, without a count.
+    expect(within(scroll).getByText('Notes')).toBeVisible()
+    expect(within(scroll).getByText('Subtasks')).toBeVisible()
+    expect(within(dock).getByText('Status updates')).toBeVisible()
+    expect(dock.querySelector('[data-status-update-count]')).toBeNull()
+    expect(within(dock).queryByRole('list')).toBeNull()
+    // With an entry, its count beside the heading.
+    await act(async () => { await useStatusUpdateStore.getState().add(first, { date: startOfToday(), text: 'kicked off' }) })
+    await waitFor(() => expect(dock.querySelector('[data-status-update-count]')).toHaveTextContent('1'))
+    expect(within(dock).getByRole('region', { name: /Status updates/ })).toBeInTheDocument()
+  })
+
   it('the card’s box completes the task (after the notes)', async () => {
     const [first] = ids as [number]
     await openDeck()
