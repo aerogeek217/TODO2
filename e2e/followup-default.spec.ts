@@ -229,7 +229,7 @@ test.describe('the new-task editor', () => {
 
     editor = await openEditor(page, 'delta')
     // At rest the field reads as a date (board BJ); its × shows on hover and focus.
-    await editor.getByRole('textbox', { name: 'Next follow-up' }).hover()
+    await editor.getByRole('textbox', { name: 'Next follow-up' }).focus()
     await editor.getByRole('button', { name: 'Clear next follow-up' }).click()
     await expect(editor.getByRole('textbox', { name: 'Next follow-up' })).toHaveValue('')
     await editor.getByRole('button', { name: 'Create task' }).click()

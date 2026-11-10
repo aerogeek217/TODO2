@@ -258,7 +258,7 @@ test.describe('the review card', () => {
     await page.screenshot({ path: test.info().outputPath('review-card-bj.png') })
 
     // The field's × (shown on its hover and focus): no next follow-up (Mark followed up then leaves none).
-    await followup.getByRole('textbox', { name: 'Next follow-up' }).hover()
+    await followup.getByRole('textbox', { name: 'Next follow-up' }).focus()
     await followup.getByRole('button', { name: 'Clear next follow-up' }).click()
     await expect(followup.getByRole('textbox', { name: 'Next follow-up' })).toHaveValue('')
     await expect(deck.getByTestId('review-hint')).toHaveText('No next follow-up')
