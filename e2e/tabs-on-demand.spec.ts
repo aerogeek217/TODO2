@@ -38,6 +38,40 @@ const topLine = (cell: Locator) => cell.locator('[data-widget-top-line]').first(
 const slotControls = (cell: Locator) => cell.locator('[data-cell-controls] > span').last()
 const opacity = (el: Locator) => el.evaluate((e) => Number(getComputedStyle(e).opacity))
 
+test('a cell of several widgets: the active tab’s × and the add-tab + show on the cell’s hover and keyboard focus, the strip’s fit unchanged', async ({ page }) => {
+  await seedWorkspace(page, {
+    layouts: [{
+      name: 'Main',
+      table: {
+        areas: ['a b'],
+        cells: [
+          { id: 'a', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'calTab', kind: 'calendar' }] },
+          { id: 'b', tabs: [{ id: 'notes2', kind: 'notes' }] },
+        ],
+      },
+    }],
+  })
+  const cell = wsCell(page, 'a')
+  const close = cell.getByRole('tab', { selected: true }).getByRole('button', { name: /^Close / })
+  const add = cell.getByRole('button', { name: 'Add widget as tab' })
+  const tabBox = () => box(cell.getByRole('tab', { selected: true }))
+  await page.mouse.move(2, 2)
+  await expect.poll(() => opacity(close)).toBe(0)
+  await expect.poll(() => opacity(add)).toBe(0)
+  const atRest = await tabBox()
+  await cell.hover()
+  await expect.poll(() => opacity(close)).toBe(1)
+  await expect.poll(() => opacity(add)).toBe(1)
+  // Opacity only: the tab keeps its width and place.
+  expect(await tabBox()).toEqual(atRest)
+  await page.mouse.move(2, 2)
+  await expect.poll(() => opacity(add)).toBe(0)
+  // Keyboard focus in the cell shows them too.
+  await cell.getByRole('tab', { selected: true }).focus()
+  await expect.poll(() => opacity(close)).toBe(1)
+  await expect.poll(() => opacity(add)).toBe(1)
+})
+
 test('a one-widget cell has no tablist; its top line’s grip and ⋯ show on hover and on keyboard focus', async ({ page }) => {
   await seedWorkspace(page, { layouts: [notesCalendar] })
   const cal = wsCell(page, 'b')

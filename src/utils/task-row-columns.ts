@@ -7,7 +7,8 @@
  *
  * The **details width** D is the notes … status tracks plus the gaps between them;
  * the title takes the rest (D is capped by the list's width: the title keeps
- * its minimum). Notes and status never shrink; people and tags flex: F = P + T
+ * its minimum, 140px). Nothing stored, D is 45 % of the row's inner width,
+ * at most 300 (`defaultDetailsWidth`). Notes and status never shrink; people and tags flex: F = P + T
  * is what is left of D after the fixed tracks. As D shrinks, people and tags
  * shrink to their split minimum (`SPLIT_MIN`), then the dates give way — the
  * widest of `DATES_TIERS` that still leaves people and tags that minimum: the
@@ -76,7 +77,7 @@ export const TASK_ROW = {
   gutter: 8,
   checkbox: 18,
   /** The title never gets narrower than this while the details can give way. */
-  titleMin: 80,
+  titleMin: 140,
   notes: 16,
   status: 20,
   gap: 5,
@@ -84,8 +85,20 @@ export const TASK_ROW = {
   padRight: 8,
 } as const
 
-/** The details width nothing is stored for. */
+/** The widest details width nothing is stored for (a wide list's). */
 export const DEFAULT_DETAILS_WIDTH = 300
+
+/** The details' share of the row's inner width while nothing is stored, so the title always gets the larger part. */
+export const DEFAULT_DETAILS_SHARE = 0.45
+
+/**
+ * The details width nothing is stored for in rows `inner` px wide (inside
+ * their padding): `min(300, round(0.45 × inner))` — a narrow list's title
+ * gets more than half the row, a wide list's details stop at 300.
+ */
+export function defaultDetailsWidth(inner: number): number {
+  return Math.min(DEFAULT_DETAILS_WIDTH, Math.round(DEFAULT_DETAILS_SHARE * Math.max(0, inner)))
+}
 
 /** F below this removes the tags track. */
 const SPLIT_MIN = 56
@@ -140,7 +153,7 @@ export function taskRowColumns(listWidth: number, stored?: number): TaskRowColum
   // The narrowest details: the dates as icons, people and tags removed.
   const minDetails = span([TASK_ROW.notes, DATES_TIERS.icons, TASK_ROW.status])
   const maxDetails = Math.max(minDetails, room)
-  const details = Math.round(clamp(stored ?? DEFAULT_DETAILS_WIDTH, minDetails, maxDetails))
+  const details = Math.round(clamp(stored ?? defaultDetailsWidth(inner), minDetails, maxDetails))
 
   // The widest dates track that leaves people and tags their split at D.
   const datesTier = TIER_ORDER.find((tier) => flex(details, DATES_TIERS[tier]) >= SPLIT_MIN) ?? 'icons'

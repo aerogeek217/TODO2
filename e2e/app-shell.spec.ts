@@ -118,6 +118,9 @@ test('the red funnel, left of search, clears every screen filter at once; there 
   await expect(tray(page)).toHaveAttribute('data-filtered', 'true')
   await expect(tray(page).getByText('Clear all', { exact: true })).toHaveCount(0)
 
+  // The search's results (a popover) close first: no tooltip opens beside an open popover (UX cleanup 1A).
+  await search.evaluate((el) => (el as HTMLInputElement).blur())
+  await expect(page.getByRole('listbox', { name: 'Search results' })).toHaveCount(0)
   await funnel.hover()
   await expect(page.getByRole('tooltip')).toHaveText(/Clear all filters/)
   await funnel.click()

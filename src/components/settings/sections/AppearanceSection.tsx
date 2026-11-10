@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useSettingsStore, type RowDates, type ThemeMode } from '../../../stores/settings-store'
-import { LIST_ZOOMS } from '../../../models/workspace-layout'
-import { LIST_ZOOM_LABELS } from '../../../utils/list-zoom'
+import { LIST_ZOOM_SETTING_LABELS, LIST_ZOOM_SETTINGS } from '../../../utils/list-zoom'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { ThemeColorsEditor } from '../ThemeColorsEditor'
 import { NlpSyntaxModal } from '../NlpSyntaxModal'
@@ -53,10 +52,10 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="Default list zoom"
-        help="How a list tab draws its tasks until you zoom it (Ctrl + scroll over the list, or its tab menu): Stacked puts the details under the name, Rows one row per task, Lines the names alone."
+        help="How a list tab draws its tasks until you zoom it (Ctrl + scroll over the list, or its tab menu): Auto is Stacked in a list narrower than 480px and Rows in a wider one, Stacked puts the details under the name, Rows one row per task, Lines the names alone."
       >
         <div className={styles.segmented} role="radiogroup" aria-label="Default list zoom">
-          {LIST_ZOOMS.map((zoom) => (
+          {LIST_ZOOM_SETTINGS.map((zoom) => (
             <button
               key={zoom}
               type="button"
@@ -65,7 +64,7 @@ export function AppearanceSection() {
               className={`${styles.segment} ${listZoom === zoom ? styles.segmentActive : ''}`}
               onClick={() => void setListZoom(zoom)}
             >
-              {LIST_ZOOM_LABELS[zoom]}
+              {LIST_ZOOM_SETTING_LABELS[zoom]}
             </button>
           ))}
         </div>

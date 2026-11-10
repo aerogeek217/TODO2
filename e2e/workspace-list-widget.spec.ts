@@ -179,7 +179,15 @@ test('Edit list from the tab menu groups the list; the edit is shared by every w
     await expect(wsListWidget(page, tabId).getByTestId('list-group-name')).toHaveText(['Alice', 'Bob'])
     await expect(wsTab(page, tabId).getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
   }
-  // Hovering isn't a press: Edit list stays open.
+  // Hovering isn't a press: Edit list stays open — and no tooltip opens beside it (UX cleanup 1A).
+  await wsCell(page, 'k1').getByTestId('save-list').hover()
+  await page.waitForTimeout(700)
+  await expect(page.getByTestId('edit-list')).toBeVisible()
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+  // Edit list closed, the Save button's tooltip opens.
+  await page.keyboard.press('Escape')
+  await expect(page.getByTestId('edit-list')).toBeHidden()
+  await page.mouse.move(2, 2)
   await wsCell(page, 'k1').getByTestId('save-list').hover()
   await expect(page.getByRole('tooltip')).toHaveText(/Save list “Team”\s*Shared · shown in 2 widgets/)
 })

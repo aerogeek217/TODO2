@@ -31,6 +31,35 @@ describe('useTooltip / <Tooltip> — the app tooltip', () => {
     expect(screen.queryByRole('tooltip')).toBeNull()
   })
 
+  it('doesn’t open while a popover is open that the trigger isn’t in; one inside the popover opens', () => {
+    render(
+      <>
+        <Trigger text="Behind" />
+        <div data-popover-level="1"><Trigger text="Inside" /></div>
+      </>,
+    )
+    const [behind, inside] = screen.getAllByRole('button', { name: 'Copy' })
+    fireEvent.pointerEnter(behind!)
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    fireEvent.pointerLeave(behind!)
+    fireEvent.pointerEnter(inside!)
+    act(() => { vi.advanceTimersByTime(TOOLTIP_DELAY_MS) })
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Inside')
+  })
+
+  it('a popover that closes before the delay ends doesn’t hold it back', () => {
+    const popover = document.createElement('div')
+    popover.setAttribute('data-popover-level', '1')
+    document.body.appendChild(popover)
+    render(<Trigger text="Copy tasks" />)
+    fireEvent.pointerEnter(screen.getByRole('button', { name: 'Copy' }))
+    act(() => { vi.advanceTimersByTime(200) })
+    popover.remove()
+    act(() => { vi.advanceTimersByTime(200) })
+    expect(screen.getByRole('tooltip')).toHaveTextContent('Copy tasks')
+  })
+
   it('leaving before the delay cancels it', () => {
     render(<Trigger text="Copy tasks" />)
     const btn = screen.getByRole('button', { name: 'Copy' })

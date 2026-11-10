@@ -27,7 +27,9 @@ function seed(opts: {
   tasks?: WorkspaceSeed['tasks']
   grouping?: string
   sort?: string
-  settings?: Record<string, string>
+  settings?: Record<string, string | null>
+  /** A Notes column beside the list's, each half the width. */
+  notesBeside?: boolean
 } = {}): WorkspaceSeed {
   return {
     people: ['Ann', 'Bob'],
@@ -42,7 +44,10 @@ function seed(opts: {
     listDefinitions: [{ name: 'Zoomed', grouping: opts.grouping ?? 'none', sort: opts.sort ?? 'manual' }],
     layouts: [{
       name: 'Main',
-      columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: TAB, kind: 'lens', listDefIdx: 0, ...(opts.zoom ? { zoom: opts.zoom } : {}) }] })] }],
+      columns: [
+        { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: TAB, kind: 'lens', listDefIdx: 0, ...(opts.zoom ? { zoom: opts.zoom } : {}) }] })] },
+        ...(opts.notesBeside ? [{ id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'n1', kind: 'notes' as const }] })] }] : []),
+      ],
     }],
   }
 }
@@ -373,6 +378,49 @@ test('a tab that hasn’t picked a zoom shows the Settings default; the old Comf
   // A tab's own pick wins.
   await open(page, { zoom: 'lines', settings: { rowDensity: 'comfortable' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
+})
+
+test('Auto (the default with no row): Stacked under 480px of list, Rows from it, with hysteresis; the controls step from the level shown', async ({ page }) => {
+  await page.setViewportSize({ width: 1200, height: 700 })
+  await open(page, { settings: { rowDensity: null }, notesBeside: true })
+  await expect(widget(page)).toHaveAttribute('data-zoom', 'rows')
+  // The list's width follows the window's (half of it, well above the phone's 640): size the window for a list `w` px wide.
+  const listWidth = () => widget(page).evaluate((el) => el.getBoundingClientRect().width)
+  let viewport = 1200
+  const listAt = async (w: number) => {
+    // A few corrections: the top bar's fold can change what the window gives the list.
+    for (let i = 0; i < 4; i++) {
+      viewport += Math.round(2 * (w - await listWidth()))
+      await page.setViewportSize({ width: viewport, height: 700 })
+      await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))))
+      if (Math.abs(await listWidth() - w) <= 1) return
+    }
+    expect(Math.abs(await listWidth() - w)).toBeLessThanOrEqual(1)
+  }
+  // Rows holds down to 464 (16px past the breakpoint), then Stacked…
+  await listAt(470)
+  await expect(widget(page)).toHaveAttribute('data-zoom', 'rows')
+  await listAt(450)
+  await expect(widget(page)).toHaveAttribute('data-zoom', 'stacked')
+  await expect(rowOf(page, 'Alpha').locator('[data-stacked-details]')).toBeVisible()
+  // …which holds up to 496.
+  await listAt(490)
+  await expect(widget(page)).toHaveAttribute('data-zoom', 'stacked')
+  await listAt(520)
+  await expect(widget(page)).toHaveAttribute('data-zoom', 'rows')
+
+  // Narrow again: the tab menu's stepper starts at the level shown.
+  await listAt(400)
+  await expect(widget(page)).toHaveAttribute('data-zoom', 'stacked')
+  await wsTab(page, TAB).click({ button: 'right' })
+  const zoom = page.getByRole('group', { name: 'Zoom' })
+  await expect(zoom.locator('[data-menu-stepper-value]')).toHaveText('Stacked')
+  await expect(zoom.getByRole('menuitem', { name: 'Zoom in' })).toBeDisabled()
+  await page.keyboard.press('Escape')
+  // Ctrl + wheel out: Rows, saved as the tab's own, which wins over Auto in a narrow list.
+  await ctrlWheel(page, 100)
+  await expect(widget(page)).toHaveAttribute('data-zoom', 'rows')
+  await expect.poll(() => storedZoom(page)).toBe('rows')
 })
 
 test('a tab, or the Settings default, stored at the removed Strips opens at Lines, the layout not unsaved', async ({ page }) => {

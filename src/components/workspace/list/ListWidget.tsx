@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { PersistedTodoItem } from '../../../models'
-import type { LensTab, ListZoom } from '../../../models/workspace-layout'
+import { readListZoom, type LensTab, type ListZoom } from '../../../models/workspace-layout'
 import type { PersistedListDefinition, RuntimeFilterField } from '../../../models/list-definition'
 import { useIsMobile } from '../../../hooks/use-is-mobile'
 import { useBuiltList } from '../../../hooks/use-built-list'
@@ -67,7 +67,8 @@ import { useDropRefusedCursor } from '../../../hooks/use-drop-refused-cursor'
 import styles from './ListWidget.module.css'
 import { useWidgetSelection } from '../../../hooks/use-widget-selection'
 import { LIST_SECTION_ATTR, LIST_WIDGET_ATTR, SELECTION_SCOPE_ATTR } from '../../../utils/dom-contract'
-import { listTabZoom, stepListTabZoom } from '../../../services/list-zoom'
+import { stepListTabZoom } from '../../../services/list-zoom'
+import { autoListZoom, UNMEASURED_LIST_ZOOM } from '../../../utils/list-zoom'
 import { zoomOnCtrlWheel } from './zoom-wheel'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { transitionName, withViewTransition } from '../../shared/view-transition'
@@ -152,10 +153,17 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   faceRef: (el: HTMLElement | null) => void
 }) {
   const isMobile = useIsMobile()
-  // The tab's zoom (D25 C + I1): its own, else the Settings default. The phone has one density.
-  const defaultZoom = useSettingsStore((s) => s.listZoom)
-  const zoom: ListZoom = isMobile ? 'rows' : listTabZoom(tab, defaultZoom)
+  // The tab's zoom (D25 C + I1): its own, else the Settings default — Auto by
+  // the list's measured width (`autoListZoom`). The phone has one density.
+  const zoomSetting = useSettingsStore((s) => s.listZoom)
+  const [autoZoom, measureAutoZoom] = useAutoListZoom()
+  const ownZoom = readListZoom(tab.viewState?.zoom)
+  const zoom: ListZoom = isMobile ? 'rows' : ownZoom ?? (zoomSetting === 'auto' ? autoZoom : zoomSetting)
   const zoomRef = useLatestRef(isMobile ? null : zoom)
+  // The level shown, for the zoom controls to step from (`services/list-zoom.listTabZoom`).
+  const setShownZoom = useListWidgetStore((s) => s.setShownZoom)
+  useEffect(() => { if (!isMobile) setShownZoom(tab.id, zoom) }, [isMobile, setShownZoom, tab.id, zoom])
+  useEffect(() => () => setShownZoom(tab.id, null), [setShownZoom, tab.id])
   const tabRef = useLatestRef(tab)
   const picks = useListWidgetStore((s) => s.picks[tab.id])
   const setPicks = useListWidgetStore((s) => s.setPicks)
@@ -191,12 +199,14 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
     widgetRef.current = el
     faceRef(el)
     const stopWheel = el ? zoomOnCtrlWheel(el, () => zoomRef.current != null, (dir) => void stepListTabZoom(tabRef.current, dir)) : undefined
+    const stopMeasure = measureAutoZoom(el)
     return () => {
       widgetRef.current = null
       faceRef(null)
       stopWheel?.()
+      stopMeasure?.()
     }
-  }, [faceRef, zoomRef, tabRef])
+  }, [faceRef, zoomRef, tabRef, measureAutoZoom])
   const [pendingSwitch, setPendingSwitch] = useState<PendingSwitch | null>(null)
   const [pendingReassign, setPendingReassign] = useState<PendingReassign | null>(null)
   const [headerMenu, setHeaderMenu] = useState<{ section: Section; person: GroupPerson | null; at: { x: number; y: number } } | null>(null)
@@ -528,7 +538,6 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
     )
   }
 
-  const footerHeight = canAddTask ? 32 : 0
   const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
 
   return (
@@ -564,24 +573,31 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
           onChange={(ids) => setPicks(tab.id, ids)}
         />
       )}
-      <div ref={setScrollEl} className={styles.scroll}>
+      <div
+        ref={setScrollEl}
+        className={styles.scroll}
+        // Its groups' transition pictures nest in its own and are clipped to it, so a
+        // layout switch or a collapse never draws rows past the list (`view-transition-group`).
+        style={isMobile ? undefined : { viewTransitionName: transitionName('ws-list', tab.id) }}
+      >
         {body}
+        {/* Add task: the list's last row, inside the scroll — it never covers a row. */}
+        {canAddTask && (
+          <button
+            type="button"
+            className={styles.addTask}
+            title="Add a task to this list"
+            onClick={() => {
+              if (!mergedPredicate) return
+              useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate) })
+            }}
+          >
+            <span className={styles.addTaskIcon} aria-hidden="true"><PlusIcon size={12} strokeWidth={2} /></span>
+            Add task
+          </button>
+        )}
       </div>
-      {canAddTask && (
-        <button
-          type="button"
-          className={styles.addTask}
-          title="Add a task to this list"
-          onClick={() => {
-            if (!mergedPredicate) return
-            useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate) })
-          }}
-        >
-          <span className={styles.addTaskIcon} aria-hidden="true"><PlusIcon size={12} strokeWidth={2} /></span>
-          Add task
-        </button>
-      )}
-      {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={footerHeight + 12} />}
+      {showBulkBar && <ListBulkBar ids={[...selectedIds]} />}
       {refusal && drag?.pointer && (
         <RefusalTooltip lines={refusal} pointer={drag.pointer} boundsRef={widgetRef} followPointer testId="list-drop-refusal" />
       )}
@@ -623,6 +639,35 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
 async function applyCrossGroup(listDefinitionId: number, mutation: CrossGroupMutation, rankWrites: RankWrite[]): Promise<void> {
   await dispatchCrossGroupMutation(mutation)
   if (rankWrites.length > 0) await useListOrderStore.getState().setRanks(listDefinitionId, rankWrites)
+}
+
+/**
+ * The level Auto shows for a list widget (Settings › Appearance › Default
+ * list zoom): measured on the widget element `measure(el)` is handed — once
+ * before the first paint, then on every resize — through `autoListZoom`, the
+ * first measurement plain, later ones with hysteresis from the level shown.
+ * Unmeasured (JSDOM, a zero width), Rows. `measure` returns the observer's
+ * removal.
+ */
+function useAutoListZoom(): [ListZoom, (el: HTMLElement | null) => (() => void) | undefined] {
+  const [auto, setAuto] = useState<{ zoom: ListZoom; measured: boolean }>({ zoom: UNMEASURED_LIST_ZOOM, measured: false })
+  const measure = useCallback((el: HTMLElement | null) => {
+    if (!el) return undefined
+    const update = () => {
+      const width = el.getBoundingClientRect().width
+      if (!(width > 0)) return
+      setAuto((prev) => {
+        const zoom = autoListZoom(width, prev.measured ? prev.zoom : undefined)
+        return prev.measured && prev.zoom === zoom ? prev : { zoom, measured: true }
+      })
+    }
+    update()
+    if (typeof ResizeObserver === 'undefined') return undefined
+    const ro = new ResizeObserver(update)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return [auto.zoom, measure]
 }
 
 /** How a row looks while a row of its widget is dragged. */
