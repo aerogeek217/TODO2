@@ -377,6 +377,33 @@ describe('the review deck', () => {
     expect(railRow(SECOND)).toHaveAttribute('data-mark', 'done')
   })
 
+  it('the rail’s sort (item 7): reorders the rail, the current card stays, Back / Skip step in the order shown; dividers in Queue order only', async () => {
+    const [, , third] = ids as [number, number, number]
+    await useTodoStore.getState().update(third, { dueDate: startOfToday() })
+    useReviewStore.getState().start({
+      source: { kind: 'list', title: 'Aisha 1:1', description: 'list · Manual' },
+      ids,
+      dividers: [{ index: 0, label: 'Open' }, { index: 2, label: 'Later' }],
+    })
+    render(<><ReviewDeck /><ConfirmPromptHost /></>)
+    await act(async () => { await Promise.resolve() })
+    const rail = screen.getByRole('navigation', { name: 'Review queue' })
+    const rowTitles = () => within(rail).getAllByRole('button').filter((b) => b.hasAttribute('data-review-row')).map((b) => b.getAttribute('aria-label')?.split(',')[0])
+    expect(rail.querySelectorAll('li[aria-hidden="true"]')).toHaveLength(2)
+    fireEvent.click(screen.getByTestId('review-sort'))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: /^Due/ }))
+    expect(screen.getByTestId('review-sort')).toHaveTextContent('Sort: Due')
+    expect(rowTitles()).toEqual(['Retention addendum', FIRST, SECOND])
+    expect(rail.querySelectorAll('li[aria-hidden="true"]')).toHaveLength(0)
+    expect(cardTitle()).toBe(FIRST)
+    expect(screen.getByTestId('review-position')).toHaveTextContent('2 of 3')
+    fireEvent.click(screen.getByRole('button', { name: /^Back/ }))
+    expect(cardTitle()).toBe('Retention addendum')
+    fireEvent.keyDown(railRow('Retention addendum'), { key: 'ArrowRight' })
+    expect(cardTitle()).toBe(FIRST)
+    expect(railRow('Retention addendum')).toHaveAttribute('data-mark', 'skipped')
+  })
+
   it('on a Mac, Alt + arrows in a text field move its caret; outside one they still step', async () => {
     vi.spyOn(navigator, 'platform', 'get').mockReturnValue('MacIntel')
     await openDeck()

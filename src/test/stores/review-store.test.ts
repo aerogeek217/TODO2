@@ -101,18 +101,23 @@ describe('unrecordedDraftIds', () => {
 
 describe('pruning', () => {
   it('drops gone tasks, moves the dividers with them and drops an emptied group', () => {
-    const queue = { ids: [1, 2, 3, 4, 5], dividers: [{ index: 0, label: 'A' }, { index: 2, label: 'B' }, { index: 3, label: 'C' }], index: 4 }
+    const ids = [1, 2, 3, 4, 5]
+    const queue = { ids, order: ids, dividers: [{ index: 0, label: 'A' }, { index: 2, label: 'B' }, { index: 3, label: 'C' }], index: 4 }
     expect(pruneQueue(queue, new Set([1, 2, 4, 5]))).toEqual({
       ids: [1, 2, 4, 5],
+      order: [1, 2, 4, 5],
       dividers: [{ index: 0, label: 'A' }, { index: 2, label: 'C' }],
       index: 3,
     })
   })
 
-  it('the current task gone: the card after it (or the last one)', () => {
-    expect(pruneQueue({ ids: [1, 2, 3], dividers: [], index: 1 }, new Set([1, 3])).index).toBe(1)
-    expect(pruneQueue({ ids: [1, 2, 3], dividers: [], index: 2 }, new Set([1, 2])).index).toBe(1)
-    expect(pruneQueue({ ids: [1, 2], dividers: [], index: 1 }, new Set())).toEqual({ ids: [], dividers: [], index: 0 })
+  it('the current task gone: the card after it in the order shown (or the last one)', () => {
+    const q = (ids: number[], index: number, order = ids) => ({ ids, order, dividers: [], index })
+    expect(pruneQueue(q([1, 2, 3], 1), new Set([1, 3])).index).toBe(1)
+    expect(pruneQueue(q([1, 2, 3], 2), new Set([1, 2])).index).toBe(1)
+    expect(pruneQueue(q([1, 2], 1), new Set())).toEqual({ ids: [], order: [], dividers: [], index: 0 })
+    // Sorted: the order shown keeps its sort; the place moves to the next shown.
+    expect(pruneQueue(q([1, 2, 3], 0, [3, 1, 2]), new Set([1, 2]))).toMatchObject({ ids: [1, 2], order: [1, 2], index: 0 })
   })
 
   it('a task deleted while the review is open leaves the queue; a completed one stays', () => {

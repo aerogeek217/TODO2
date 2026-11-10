@@ -7,7 +7,7 @@ import { chipKey, predicateLineItems, type FilterChip } from '../../../utils/fil
 import { groupSortSummary } from '../../../utils/list-options'
 import { ChevronDownIcon, FunnelIcon } from '../../shared/icons'
 import type { ListLensMark } from './ListWidget'
-import { LensSwitch } from '../LensSwitch'
+import { LensSwitch } from '../../shared/LensSwitch'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
 import { ListDraftButtons } from './ListDraftButtons'

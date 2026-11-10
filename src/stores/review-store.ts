@@ -1,10 +1,30 @@
 import { create } from 'zustand'
 import { useTodoStore } from './todo-store'
+import {
+  EMPTY_SESSION,
+  reviewSessionActions,
+  type ReviewDivider,
+  type ReviewSession,
+} from './review-session'
+
+export {
+  allReviewed,
+  followedUpCount,
+  shownMark,
+  unrecordedDraftIds,
+  type ReviewDivider,
+  type ReviewMark,
+  type ReviewSort,
+} from './review-session'
 
 /**
- * The review deck's state (D26): a frozen set of tasks stepped through one
- * card at a time. UI state only — never saved, so reopening starts fresh
- * (no resume). `services/review.openReview` starts one; the deck
+ * The review deck's state (D26): a **frozen** queue stepped through one card
+ * at a time — the tasks taken when it opened (a task deleted since is
+ * pruned), re-taken only by an explicit toggle of its lens switch (item 10:
+ * the source evaluated again with / without the top bar's lens). Its place,
+ * sort, marks and typed text are a review session (`review-session`); UI
+ * state only — never saved, so reopening starts fresh (no resume).
+ * `services/review.openReview` starts one; the deck
  * (`components/overlays/ReviewDeck`) shows it while `open`.
  */
 
@@ -19,14 +39,25 @@ export interface ReviewSource {
   description: string
 }
 
-/** A group header of the source list, as a divider in the queue before task `index`. */
-export interface ReviewDivider {
-  index: number
-  label: string
+/** A queue as a source gives it: its tasks in order, each once, and its group headers. */
+export interface ReviewQueue {
+  ids: readonly number[]
+  dividers?: readonly ReviewDivider[]
 }
 
-/** A task's mark: followed up (today, here or elsewhere — `shownMark`), or skipped in this review. */
-export type ReviewMark = 'done' | 'skipped'
+/**
+ * The top bar's lens on the deck (item 10): whether the queue was taken
+ * without it (`ignored`), how many tasks of the source it hides there
+ * (`hides`, the switch's `−N`, taken with the queue) and how to take the
+ * queue again with or without it (`requery`).
+ */
+export interface ReviewLens {
+  ignored: boolean
+  hides: number
+  /** The switch was used in this review: it stays shown while the lens does. */
+  used: boolean
+  requery: (ignoreLens: boolean) => ReviewQueue
+}
 
 /** What a review starts with. */
 export interface ReviewStart {
@@ -34,60 +65,42 @@ export interface ReviewStart {
   /** The tasks in queue order, each once. */
   ids: readonly number[]
   dividers?: readonly ReviewDivider[]
+  /** Its lens switch; absent: a source that can't be taken again (no switch). */
+  lens?: ReviewLens
 }
 
-interface ReviewState {
+interface ReviewState extends ReviewSession {
   open: boolean
   source: ReviewSource | null
-  /** The queue, fixed when the review starts (a task deleted since is pruned). */
-  ids: readonly number[]
-  dividers: readonly ReviewDivider[]
-  /** The current card's place in `ids`. */
-  index: number
-  marks: Readonly<Record<number, ReviewMark>>
-  /** The Status update field's text per task, kept while the review is open (Back brings it back). */
-  drafts: Readonly<Record<number, string>>
-  /** The Next follow-up field's text per task while it is typed and not set yet (Back brings it back). */
-  nextDrafts: Readonly<Record<number, string>>
+  lens: ReviewLens | null
 
-  /** Opens a review of `start` (replacing one that is open), on its first card. */
+  /** Opens a review of `start` (replacing one that is open), on its first card, in queue order. */
   start: (start: ReviewStart) => void
   close: () => void
-  /** Jumps to card `i` (clamped). */
-  go: (i: number) => void
-  next: () => void
-  back: () => void
-  /** Marks task `id`; a task followed up stays `done` (a later Skip doesn't take it back). */
-  mark: (id: number, mark: ReviewMark) => void
-  setDraft: (id: number, text: string) => void
-  /** Sets (or with `null`, drops) the Next follow-up text typed for `id` and not set yet. */
-  setNextDraft: (id: number, text: string | null) => void
+  setLens: (lens: ReviewLens | null) => void
   /** Drops the tasks not in `live` (deleted meanwhile), keeping the current card where it can. */
   prune: (live: ReadonlySet<number>) => void
 }
 
 const CLOSED = {
+  ...EMPTY_SESSION,
   open: false,
   source: null,
-  ids: [] as readonly number[],
-  dividers: [] as readonly ReviewDivider[],
-  index: 0,
-  marks: {} as Readonly<Record<number, ReviewMark>>,
-  drafts: {} as Readonly<Record<number, string>>,
-  nextDrafts: {} as Readonly<Record<number, string>>,
+  lens: null,
 }
 
 const clamp = (i: number, n: number) => Math.max(0, Math.min(n - 1, i))
 
 /**
- * `ids` without the ones not in `live`, its dividers moved with them (a
- * divider whose group lost every task goes) and the current place kept on
- * the same task — or, that one gone, on the task after it.
+ * `ids` and `order` without the tasks not in `live`, the dividers moved with
+ * them (a divider whose group lost every task goes) and the current place
+ * kept on the same task — or, that one gone, on the task after it in the
+ * order shown.
  */
 export function pruneQueue(
-  queue: { ids: readonly number[]; dividers: readonly ReviewDivider[]; index: number },
+  queue: { ids: readonly number[]; dividers: readonly ReviewDivider[]; order: readonly number[]; index: number },
   live: ReadonlySet<number>,
-): { ids: number[]; dividers: ReviewDivider[]; index: number } {
+): { ids: number[]; dividers: ReviewDivider[]; order: number[]; index: number } {
   const ids: number[] = []
   /** Each old place's new one: the count of kept tasks before it. */
   const before: number[] = []
@@ -103,61 +116,34 @@ export function pruneQueue(
     const to = before[end] ?? ids.length
     if (to > from) dividers.push({ index: from, label: d.label })
   })
-  const index = ids.length === 0 ? 0 : clamp(before[queue.index] ?? 0, ids.length)
-  return { ids, dividers, index }
+  const order: number[] = []
+  let index = 0
+  queue.order.forEach((id, i) => {
+    if (i === queue.index) index = order.length
+    if (live.has(id)) order.push(id)
+  })
+  return { ids, dividers, order, index: order.length === 0 ? 0 : clamp(index, order.length) }
 }
 
 export const useReviewStore = create<ReviewState>((set, get) => ({
   ...CLOSED,
+  ...reviewSessionActions(set, get),
 
-  start({ source, ids, dividers = [] }) {
-    set({ ...CLOSED, open: true, source, ids: [...ids], dividers: [...dividers] })
+  start({ source, ids, dividers = [], lens }) {
+    set({ ...CLOSED, open: true, source, ids: [...ids], dividers: [...dividers], order: [...ids], lens: lens ?? null })
   },
 
   close() {
     set(CLOSED)
   },
 
-  go(i) {
-    const n = get().ids.length
-    if (n > 0) set({ index: clamp(i, n) })
-  },
-
-  next() {
-    get().go(get().index + 1)
-  },
-
-  back() {
-    get().go(get().index - 1)
-  },
-
-  mark(id, mark) {
-    const marks = get().marks
-    if (marks[id] === mark || (mark === 'skipped' && marks[id] === 'done')) return
-    set({ marks: { ...marks, [id]: mark } })
-  },
-
-  setDraft(id, text) {
-    const drafts = get().drafts
-    if ((drafts[id] ?? '') === text) return
-    const next = { ...drafts }
-    if (text === '') delete next[id]
-    else next[id] = text
-    set({ drafts: next })
-  },
-
-  setNextDraft(id, text) {
-    const nextDrafts = get().nextDrafts
-    if (text === null ? !(id in nextDrafts) : nextDrafts[id] === text) return
-    const next = { ...nextDrafts }
-    if (text === null) delete next[id]
-    else next[id] = text
-    set({ nextDrafts: next })
+  setLens(lens) {
+    set({ lens })
   },
 
   prune(live) {
     const s = get()
-    if (!s.open || s.ids.every((id) => live.has(id))) return
+    if (!s.open || s.order.every((id) => live.has(id))) return
     set(pruneQueue(s, live))
   },
 }))
@@ -167,46 +153,3 @@ useTodoStore.subscribe((state, prev) => {
   if (state.todos === prev.todos || !useReviewStore.getState().open) return
   useReviewStore.getState().prune(new Set(state.todos.map((t) => t.id)))
 })
-
-/**
- * The tasks of the review whose field (`drafts`: the Status update line's,
- * `nextDrafts`: the Next follow-up field's) holds text not recorded or set
- * yet (only spaces count as none), in queue order.
- */
-export function unrecordedDraftIds(drafts: Readonly<Record<number, string>>, ids: readonly number[]): number[] {
-  return ids.filter((id) => (drafts[id] ?? '').trim() !== '')
-}
-
-/**
- * Task `id`'s mark as the deck shows it (item 11): `done` — ✓ — while the
- * task's last follow-up is today (`followedUpToday`), whether it was
- * followed up in this review or anywhere else today (an undo of the
- * follow-up takes the ✓ away); else `skipped` — – — as marked here; else
- * none.
- */
-export function shownMark(
-  marks: Readonly<Record<number, ReviewMark>>,
-  id: number,
-  followedUpToday: (id: number) => boolean,
-): ReviewMark | undefined {
-  if (followedUpToday(id)) return 'done'
-  return marks[id] === 'skipped' ? 'skipped' : undefined
-}
-
-/** The header's `N followed up`: how many tasks of the queue are followed up today (its ✓ rows), wherever that happened. */
-export function followedUpCount(
-  marks: Readonly<Record<number, ReviewMark>>,
-  ids: readonly number[],
-  followedUpToday: (id: number) => boolean,
-): number {
-  return ids.filter((id) => shownMark(marks, id, followedUpToday) === 'done').length
-}
-
-/** Every task of the review has a mark as shown (followed up today or skipped). */
-export function allReviewed(
-  marks: Readonly<Record<number, ReviewMark>>,
-  ids: readonly number[],
-  followedUpToday: (id: number) => boolean,
-): boolean {
-  return ids.length > 0 && ids.every((id) => shownMark(marks, id, followedUpToday) != null)
-}
