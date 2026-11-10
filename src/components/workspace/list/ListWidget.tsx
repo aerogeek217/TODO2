@@ -538,7 +538,6 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
     )
   }
 
-  const footerHeight = canAddTask ? 32 : 0
   const showBulkBar = !isMobile && inScope && selectedIds.size >= 2
 
   return (
@@ -574,24 +573,31 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
           onChange={(ids) => setPicks(tab.id, ids)}
         />
       )}
-      <div ref={setScrollEl} className={styles.scroll}>
+      <div
+        ref={setScrollEl}
+        className={styles.scroll}
+        // Its groups' transition pictures nest in its own and are clipped to it, so a
+        // layout switch or a collapse never draws rows past the list (`view-transition-group`).
+        style={isMobile ? undefined : { viewTransitionName: transitionName('ws-list', tab.id) }}
+      >
         {body}
+        {/* Add task: the list's last row, inside the scroll — it never covers a row. */}
+        {canAddTask && (
+          <button
+            type="button"
+            className={styles.addTask}
+            title="Add a task to this list"
+            onClick={() => {
+              if (!mergedPredicate) return
+              useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate) })
+            }}
+          >
+            <span className={styles.addTaskIcon} aria-hidden="true"><PlusIcon size={12} strokeWidth={2} /></span>
+            Add task
+          </button>
+        )}
       </div>
-      {canAddTask && (
-        <button
-          type="button"
-          className={styles.addTask}
-          title="Add a task to this list"
-          onClick={() => {
-            if (!mergedPredicate) return
-            useUIStore.getState().openQuickAdd({ defaults: predicateToFilterDefaults(mergedPredicate) })
-          }}
-        >
-          <span className={styles.addTaskIcon} aria-hidden="true"><PlusIcon size={12} strokeWidth={2} /></span>
-          Add task
-        </button>
-      )}
-      {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={footerHeight + 12} />}
+      {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
       {refusal && drag?.pointer && (
         <RefusalTooltip lines={refusal} pointer={drag.pointer} boundsRef={widgetRef} followPointer testId="list-drop-refusal" />
       )}
