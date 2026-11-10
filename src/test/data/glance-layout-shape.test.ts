@@ -115,6 +115,9 @@ describe('glance widget kinds', () => {
     for (const config of [
       numberTab('t').config,
       numberTab('t', 'overdue', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 12, compare: 'none', color: '#abc' }).config,
+      // The breakdowns that came later (no schema step): status and priority.
+      numberTab('t', 'open', { breakdown: 'status' }).config,
+      numberTab('t', 'open', { breakdown: 'priority' }).config,
       numberTab('t', 'open', { name: '', filter: { ...emptyPredicate(), expression: { kind: 'tag', id: 4 } } }).config,
     ]) {
       const good = layoutRow({ id: 't', kind: 'number', config })
@@ -134,7 +137,8 @@ describe('glance widget kinds', () => {
     ['litAt', 1.5, { litAt: 0 }],
     ['compare', 'lastYear', { compare: 'yesterday' }],
     ['ignoreLens', false, {}],
-    ['breakdown', 'status', {}],
+    ['breakdown', 'person', {}],
+    ['breakdown', 'due', {}],
   ] as const)('a Number’s %s %j is reset (a fix)', (key, value, reset) => {
     const base = numberTab('t', 'overdue').config
     const row = layoutRow({ id: 't', kind: 'number', config: { ...base, [key]: value } })

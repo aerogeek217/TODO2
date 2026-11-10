@@ -349,6 +349,8 @@ describe('glance tab menus', () => {
 
   it.each([
     ['number', 'Breakdown', 'By tag', { breakdown: 'tags' }],
+    ['number', 'Breakdown', 'By status', { breakdown: 'status' }],
+    ['number', 'Breakdown', 'By priority', { breakdown: 'priority' }],
     ['trend', 'Range', '12 weeks', { range: '12w' }],
     ['breakdown', 'Split by', 'Tags', { splitBy: 'tags', checkins: undefined }],
     ['breakdown', 'Style', 'Donut', { style: 'donut' }],
@@ -417,6 +419,52 @@ describe('faces (D25 R)', () => {
     expect(drill.title).toMatch(/^Open · /)
     if (drill.source.kind !== 'todos') throw new Error('a line opens its tasks')
     expect(drill.source.todoIds).toHaveLength(count(rows[0]!))
+  })
+
+  it('a large Number by status: each status in Settings’ order with its glyph, No status last; a line opens its tasks', () => {
+    const onDrill = vi.fn()
+    setup(numberTab('n', 'open', { breakdown: 'status' }), onDrill, 'large')
+    const list = screen.getByTestId('number-breakdown')
+    expect(list.getAttribute('aria-label')).toBe('Open by status')
+    const rows = [...list.querySelectorAll<HTMLElement>('[data-breakdown]')]
+    const keys = rows.map((r) => r.dataset.breakdown!)
+    const named = keys.filter((k) => k !== 'none').map((k) => Number(k.replace('status-', '')))
+    expect(named.length).toBeGreaterThan(0)
+    // Settings' order (sortOrder = id in the sample).
+    expect(named).toEqual([...named].sort((a, b) => a - b))
+    expect(keys.indexOf('none')).toBeOneOf([-1, keys.length - 1])
+    // A status line leads with its glyph (an svg), not a dot.
+    const first = rows[0]!
+    expect(first.querySelector('svg')).not.toBeNull()
+    expect(first.querySelector('i')).toBeNull()
+    fireEvent.click(first)
+    const drill = onDrill.mock.calls[0]![0] as GlanceDrill
+    expect(drill.description).toMatch(/^Open: the ones with the status /)
+    if (drill.source.kind !== 'todos') throw new Error('a line opens its tasks')
+    expect(drill.source.todoIds).toHaveLength(Number(first.lastElementChild!.textContent))
+  })
+
+  it('a large Number by priority: the Priority sort’s groups in order, each with its ring, No priority last', () => {
+    const onDrill = vi.fn()
+    setup(numberTab('n', 'open', { breakdown: 'priority' }), onDrill, 'large')
+    const list = screen.getByTestId('number-breakdown')
+    expect(list.getAttribute('aria-label')).toBe('Open by priority')
+    const rows = [...list.querySelectorAll<HTMLElement>('[data-breakdown]')]
+    const keys = rows.map((r) => r.dataset.breakdown!)
+    const order = ['priority-focus', 'priority-urgentImportant', 'priority-urgent', 'priority-important', 'none']
+    expect(keys.length).toBeGreaterThan(1)
+    expect(keys).toEqual(order.filter((k) => keys.includes(k)))
+    // Each group line leads with its ring box; the none line with a dot.
+    for (const row of rows) {
+      const key = row.dataset.breakdown!
+      if (key === 'none') expect(row.querySelector('[data-priority]')).toBeNull()
+      else expect(row.querySelector('[data-priority]')!.getAttribute('data-priority')).toBe(key.replace('priority-', ''))
+    }
+    // Every counted task is in exactly one group (five lines at most: all shown).
+    const total = rows.reduce((n, r) => n + Number(r.lastElementChild!.textContent), 0)
+    expect(total).toBe(Number(numberCount()))
+    fireEvent.click(rows[0]!)
+    expect((onDrill.mock.calls[0]![0] as GlanceDrill).description).toMatch(/^Open: the ones with the priority /)
   })
 
   it('a large Number with no breakdown (absent or none) draws none', () => {
