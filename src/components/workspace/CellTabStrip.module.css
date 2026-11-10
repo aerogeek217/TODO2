@@ -241,22 +241,19 @@
  * Construction controls on hover (UX cleanup 1A): in a cell of several
  * widgets, the active tab's × and the add-tab + show while the pointer is
  * over the cell or focus is in it. Opacity only, so the strip's fit (what
- * folds into `+N`) never changes. A device that can't hover, and the phone's
- * strip (its tabs are `.touch`), keep them shown.
+ * folds into `+N`) never changes and they stay in the accessibility tree.
+ * No fade: while opacity is between 0 and 1 an element is a stacking
+ * context, painted over its earlier siblings — in a cramped strip the + then
+ * took the press meant to drag the tab clipped beside it; at 1 they stack
+ * and hit-test exactly as before. A device that can't hover, and the
+ * phone's strip (its tabs are `.touch`), keep them shown.
  */
 @media (hover: hover) {
-  .strip:not(:has(.touch)) .active .close,
-  .strip:not(:has(.touch)) .add {
+  :global([data-ws-cell]):not(:hover):not(:focus-within) .strip:not(:has(.touch)) .active .close,
+  :global([data-ws-cell]):not(:hover):not(:focus-within) .strip:not(:has(.touch)) .add {
     opacity: 0;
-    transition: opacity var(--transition-fast);
-  }
-
-  :global([data-ws-cell]):is(:hover, :focus-within) .strip .active .close,
-  :global([data-ws-cell]):is(:hover, :focus-within) .strip .add {
-    opacity: 1;
   }
 }
-
 /* Touch layout (mobile): taller tabs, and a swipe that starts on a tab still
    scrolls the page (tabs aren't drag handles here). */
 .touch {
