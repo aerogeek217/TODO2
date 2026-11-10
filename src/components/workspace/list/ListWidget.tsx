@@ -597,7 +597,7 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
           </button>
         )}
       </div>
-      {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
+      {showBulkBar && <ListBulkBar ids={[...selectedIds]} />}
       {refusal && drag?.pointer && (
         <RefusalTooltip lines={refusal} pointer={drag.pointer} boundsRef={widgetRef} followPointer testId="list-drop-refusal" />
       )}

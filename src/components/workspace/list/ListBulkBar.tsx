@@ -36,7 +36,9 @@ function sharedIds(map: Map<number, Array<{ id?: number }>>, todoIds: readonly n
 }
 
 /**
- * The floating bar over a list widget with 2+ rows selected: set due date,
+ * The bar docked at the foot of a list widget (an Eisenhower, a Neglect map)
+ * with 2+ rows selected — a flex child after its scroll, so it covers no row,
+ * wrapping in a narrow cell (UX cleanup 1A): set due date,
  * set follow-up, assign people, add tag, complete, ⋯ More, delete, clear.
  * ⋯ More holds Mark followed up and the Markers (Focus / Urgent / Important) as
  * tri-state checkbox items by flag: when only some tasks have one, a click
@@ -44,7 +46,7 @@ function sharedIds(map: Map<number, Array<{ id?: number }>>, todoIds: readonly n
  * too: a due date that keeps a task urgent is left alone). Each goes through the existing bulk paths
  * (`bulkSet*`, `bulkAssign*`, `markFollowedUp`; Delete asks through `showBulkConfirmation`).
  */
-export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: number }) {
+export function ListBulkBar({ ids }: { ids: readonly number[] }) {
   const [open, setOpen] = useState<OpenPicker>(null)
   const dateRef = useRef<HTMLInputElement>(null)
   const followupRef = useRef<HTMLButtonElement>(null)
@@ -87,7 +89,6 @@ export function ListBulkBar({ ids, bottom }: { ids: readonly number[]; bottom: n
   return (
     <div
       className={styles.bulkBar}
-      style={{ bottom }}
       role="toolbar"
       aria-label="Selected tasks"
       data-testid="list-bulk-bar"

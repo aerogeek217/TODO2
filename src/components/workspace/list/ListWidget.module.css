@@ -382,23 +382,35 @@
 
 /* ── Bulk bar (2+ selected) ─────────────────────────────────────────────── */
 
+/*
+ * Docked at the widget's foot (UX cleanup 1A): a flex child after the scroll
+ * (the list, the Eisenhower's panes, the Neglect map), so the scroll gives it
+ * room and it covers no row; in a narrow cell its buttons wrap. Sticky at the
+ * bottom for a widget that grows past its cell (a stacked Neglect map scrolls
+ * the cell body).
+ */
 .bulkBar {
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
+  position: sticky;
+  bottom: 6px;
   z-index: 2;
   display: flex;
+  flex: none;
+  flex-wrap: wrap;
   align-items: center;
+  align-self: center;
+  max-width: calc(100% - 12px);
   gap: 0;
-  height: 36px;
-  padding: 0 4px 0 12px;
+  min-height: 36px;
+  margin: 6px;
+  padding: 2px 4px 2px 12px;
+  box-sizing: border-box;
   border-radius: 8px;
   background: var(--color-popover-bg);
   box-shadow: var(--shadow-dropdown);
-  white-space: nowrap;
 }
 
 .bulkCount {
+  white-space: nowrap;
   margin-right: 4px;
   font-size: var(--font-size-meta);
   font-weight: var(--font-weight-bold);

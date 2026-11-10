@@ -450,8 +450,9 @@ function NeglectMapFull({ tab }: { tab: NeglectTab }) {
         untouchedDays={untouchedDays}
         selectedIds={inScope ? selectedIds : undefined}
       />
-      {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
     </div>
+    {/* Docked at the foot, after the map (the face host is a column): it covers no dot. */}
+    {showBulkBar && <ListBulkBar ids={[...selectedIds]} />}
     </>
   )
 }
