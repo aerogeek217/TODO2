@@ -27,7 +27,7 @@ const SEED: WorkspaceSeed = {
 }
 
 const tray = (page: Page) => page.locator('header').getByRole('group', { name: 'Screen filters — apply to every widget' })
-const search = (page: Page) => tray(page).getByRole('textbox', { name: 'Search tasks' })
+const search = (page: Page) => tray(page).getByRole('textbox', { name: 'Filter tasks' })
 const results = (page: Page) => page.getByRole('listbox', { name: 'Search results' })
 const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
 const listTitles = (page: Page) => rowTitles(wsListWidget(page, 't1'))

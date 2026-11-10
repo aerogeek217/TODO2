@@ -21,7 +21,7 @@ function renderBar() {
 }
 
 const northwind: Tag = { id: 10, name: 'northwind', color: '#888' }
-const input = () => screen.getByRole('textbox', { name: 'Search tasks' }) as HTMLInputElement
+const input = () => screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
 
 /** Types `value` as the whole field's text, the caret at its end. */
 function type(value: string) {
@@ -266,11 +266,11 @@ describe('TopBar search: the placeholder hints', () => {
   it('cycles token examples while the empty box has the focus', () => {
     vi.useFakeTimers()
     renderBar()
-    expect(input().placeholder).toBe('Search…')
+    expect(input().placeholder).toBe('Filter…')
     act(() => { input().focus() })
     act(() => { vi.advanceTimersByTime(2600) })
-    expect(input().placeholder).toBe('Search… @person')
+    expect(input().placeholder).toBe('Filter… @person')
     act(() => { input().blur() })
-    expect(input().placeholder).toBe('Search…')
+    expect(input().placeholder).toBe('Filter…')
   })
 })

@@ -46,7 +46,7 @@ describe('TopBar grouped search', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
 
     await act(async () => {
       input.focus()
@@ -72,7 +72,7 @@ describe('TopBar grouped search', () => {
       todos: Array.from({ length: 7 }, (_, i) => makeTodo({ id: i + 1, title: `task ${i + 1}`, notes: '' })),
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'task' } })
@@ -100,7 +100,7 @@ describe('TopBar grouped search', () => {
       ]]]),
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'friday' } })
@@ -122,7 +122,7 @@ describe('TopBar grouped search', () => {
       ]]]),
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'travel' } })
@@ -142,7 +142,7 @@ describe('TopBar grouped search', () => {
       todos: [makeTodo({ id: 1, title: 'hello' })],
     })
     renderBar()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'zzz' } })
@@ -172,7 +172,7 @@ describe('TopBar grouped search', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'urgent' } })
@@ -191,7 +191,7 @@ describe('TopBar grouped search', () => {
     vi.useFakeTimers()
     try {
       const view = renderBar()
-      const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+      const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
       act(() => {
         input.focus()
         fireEvent.change(input, { target: { value: 'zzz' } })
@@ -215,7 +215,7 @@ describe('TopBar grouped search', () => {
     })
 
     renderBar()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'urgent' } })
@@ -237,7 +237,7 @@ describe('TopBar search box and the filter store', () => {
 
   it('shows the store’s search text when it changes elsewhere (e.g. Clear all)', async () => {
     renderBar()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
     await act(async () => {
       fireEvent.change(input, { target: { value: 'budget' } })
     })
@@ -288,7 +288,7 @@ describe('TopBar renders for the tasks only while it searches them', () => {
 
   it('while the dropdown shows, it follows a task changed meanwhile', async () => {
     renderCounted()
-    const input = screen.getByPlaceholderText('Search…') as HTMLInputElement
+    const input = screen.getByPlaceholderText('Filter…') as HTMLInputElement
     await act(async () => {
       input.focus()
       fireEvent.change(input, { target: { value: 'buy' } })

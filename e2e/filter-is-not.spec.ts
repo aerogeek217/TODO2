@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test'
 import { openListFilterEditor, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 import { rowTitles } from './fixtures/seed'
+import { filterChip, filterMenu, filterMenuButton, filterMenuRow, openFilterPicker } from './fixtures/filters'
 
 /**
  * Is / Is not on the People, Status and Tags filters: a toggle at the top of
@@ -32,7 +33,7 @@ test.describe('desktop', () => {
     await seedWorkspace(page, SEED)
     await expect.poll(() => titles(page)).toEqual(ALL)
 
-    await page.getByRole('button', { name: 'Status filter' }).click()
+    await openFilterPicker(page, 'Status')
     const mode = page.getByRole('radiogroup', { name: 'Status: is or is not' })
     await expect(mode.getByRole('radio', { name: 'Is', exact: true })).toHaveAttribute('aria-checked', 'true')
     await mode.getByRole('radio', { name: 'Is not' }).click()
@@ -56,9 +57,11 @@ test.describe('desktop', () => {
     await waitingRow.click()
     await expect.poll(() => titles(page)).toEqual(['Bob task', 'Nobody task'])
     await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await expect(filterMenu(page)).toHaveCount(0)
 
-    const button = page.getByRole('button', { name: 'Status filter: not Waiting' })
-    await expect(button).toBeVisible()
+    const button = filterChip(page, 'Status')
+    await expect(button).toHaveAccessibleName('Status filter: not Waiting')
     await button.hover()
     await expect(page.getByRole('tooltip')).toHaveText(/Status: not Waiting\s*Hides tasks with that status/)
     // The list's line doesn't repeat the top bar's filter (J13): its count says it narrows it.
@@ -68,7 +71,7 @@ test.describe('desktop', () => {
     await page.getByRole('button', { name: 'Clear status filter' }).click()
     await expect.poll(() => titles(page)).toEqual(ALL)
     // Cleared with its switch: the picker opens on Is.
-    await page.getByRole('button', { name: 'Status filter' }).click()
+    await openFilterPicker(page, 'Status')
     await expect(mode.getByRole('radio', { name: 'Is', exact: true })).toHaveAttribute('aria-checked', 'true')
   })
 
@@ -121,16 +124,15 @@ test.describe('desktop', () => {
 test.describe('narrow window', () => {
   test.use({ viewport: { width: 1100, height: 800 } })
 
-  test('the folded Filters menu: People is not Bob', async ({ page }) => {
-    // Other layouts take the bar's room: the filters fold.
+  test('the Filter menu with the chips folded: People is not Bob', async ({ page }) => {
+    // Other layouts take the bar's room: the chips fold into the Filter button.
     await seedWorkspace(page, withSpareLayouts(SEED))
-    await page.getByRole('button', { name: 'Filters', exact: true }).click()
-    await page.getByRole('group', { name: 'Screen filters' }).getByRole('button', { name: 'People filter' }).click()
+    await openFilterPicker(page, 'People')
     await page.getByRole('radiogroup', { name: 'People: is or is not' }).getByRole('radio', { name: 'Is not' }).click()
     await page.getByRole('option', { name: 'Bob' }).click()
     await expect.poll(() => titles(page)).toEqual(['Ann waiting', 'Nobody task'])
-    await expect(page.getByRole('group', { name: 'Screen filters' }).getByRole('button', { name: 'People filter: not Bob' })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'Filters, 1 active' })).toBeVisible()
+    await expect(filterMenuRow(page, 'People')).toHaveAccessibleName('People filter: not Bob')
+    await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 1 active')
   })
 })
 

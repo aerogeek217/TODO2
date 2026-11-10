@@ -84,21 +84,21 @@ test('keys another shortcut uses are refused, and recording never fires a shortc
   await seedWorkspace(page, seed)
   const settings = await openSettings(page, 'Keyboard shortcuts')
 
-  await record(page, 'Focus filters', 'ControlOrMeta+k')
+  await record(page, 'Open filter menu', 'ControlOrMeta+k')
   await expect(settings.getByRole('alert')).toHaveText(`${modLabel('K')} is already used by Command Palette.`)
   await expect(palette(page)).toBeHidden()
   // A browser key is refused too.
   await page.keyboard.press('ControlOrMeta+r')
   await expect(settings.getByRole('alert')).toHaveText(`${modLabel('R')} is used by the browser (Reload).`)
   // Still recording, nothing stored.
-  await expect(settings.getByRole('textbox', { name: 'New keys for Focus filters' })).toBeFocused()
+  await expect(settings.getByRole('textbox', { name: 'New keys for Open filter menu' })).toBeFocused()
   expect(await storedShortcuts(page)).toBeUndefined()
 
   await page.keyboard.press('Escape')
-  await expect(settings.getByRole('textbox', { name: 'New keys for Focus filters' })).toBeHidden()
+  await expect(settings.getByRole('textbox', { name: 'New keys for Open filter menu' })).toBeHidden()
   await expect(settings).toBeVisible()
   await expect(keysOf(page, 'focus-filters')).toHaveText('F')
-  await expect(settings.getByRole('button', { name: 'Change keys for Focus filters' })).toBeFocused()
+  await expect(settings.getByRole('button', { name: 'Change keys for Open filter menu' })).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
 })
@@ -107,7 +107,7 @@ test('Reset puts one shortcut back; Reset all asks first and puts every one back
   await seedWorkspace(page, seed)
   const settings = await openSettings(page, 'Keyboard shortcuts')
   await record(page, 'Command Palette', 'ControlOrMeta+Shift+P')
-  await record(page, 'Focus filters', 'n', 'Enter')
+  await record(page, 'Open filter menu', 'n', 'Enter')
   await expect(keysOf(page, 'focus-filters')).toHaveText('N')
 
   await settings.getByRole('button', { name: `Reset Command Palette to ${modLabel('K')}` }).click()

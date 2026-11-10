@@ -221,7 +221,7 @@ export function CommandPalette({ commands, onSearchDynamic, onClose }: CommandPa
               setActiveIndex(0)
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Search tasks, commands... (> for commands only)"
+            placeholder="Find tasks, commands… (> for commands only)"
             role="combobox"
             aria-expanded
             aria-controls={listboxId}

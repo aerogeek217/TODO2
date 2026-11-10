@@ -6,14 +6,15 @@ import { LENS_NAME_ATTR, LENS_NAME_MAX_WIDTH } from '../shared/filters/lens-fold
 
 /**
  * What of the top bar is folded so that it never wraps or overflows:
- * `none`; `filters` = the screen-filter buttons into the Filters menu;
- * `both` = the layout tabs into the layout picker too. Before anything
- * folds, the tray shrinks (`traySqueeze`): the search narrows, then long
- * filter values are cut.
+ * `none`; `filters` = the chips of the filters that are on, into the Filter
+ * button (which then shows their count); `both` = the layout tabs into the
+ * layout picker too. Before anything folds, the tray shrinks
+ * (`traySqueeze`): the field narrows, then long filter values are cut. With
+ * no filter on there are no chips, so only the tabs fold.
  */
 export type TopBarFold = 'none' | 'filters' | 'both'
 
-/** Whether the filter buttons show as the one Filters menu. */
+/** Whether the set filters' chips are folded into the Filter button. */
 export function filtersFolded(fold: TopBarFold): boolean {
   return fold !== 'none'
 }
@@ -23,7 +24,7 @@ export function tabsFolded(fold: TopBarFold): boolean {
   return fold === 'both'
 }
 
-/** The search box's width, and the least it narrows to (its icon and `Search…` still show). */
+/** The filter field's width, and the least it narrows to (its icon and `Filter…` still show). */
 export const SEARCH_WIDTH = 200
 export const SEARCH_MIN_WIDTH = 110
 /** The least a filter value is cut to (a shorter value is never cut): its first 6–8 letters and the ellipsis. */
@@ -43,15 +44,15 @@ export interface TopBarMeasure {
   bar: number
   /** What every fold needs besides the filter tray and the layout controls (padding, gaps, the lens control, the right zone with New task). */
   base: number
-  /** The tray with its filter buttons, at its natural width. */
+  /** The tray with the set filters' chips, at its natural width. */
   trayOpen?: number
-  /** The same, shrunk as far as it goes (the search and the values at their least). */
+  /** The same, shrunk as far as it goes (the field and the values at their least). */
   trayOpenMin?: number
-  /** The tray with the Filters menu, at its natural width. */
+  /** The tray with the chips folded into the Filter button, at its natural width. */
   trayFolded?: number
-  /** The same, shrunk as far as it goes (the search at its least). */
+  /** The same, shrunk as far as it goes (the field at its least). */
   trayFoldedMin?: number
-  /** The values on the filter buttons, at their natural widths. */
+  /** The values on the chips, at their natural widths. */
   values?: readonly TrayValue[]
   /** The layout tabs, when last shown, with what they showed then (`tabsKey`). */
   tabs?: { width: number; key: string }
@@ -140,13 +141,11 @@ export function traySqueeze(natural: number, width: number, values: readonly Tra
 }
 
 /**
- * The bar's parts, by their `data-fold-part`: the filter tray, the slot
- * that stands in for it while it is lifted out of the bar (expanded over
- * the bar under the filtered-tasks panel), the layout controls, the lens
- * control (a fixed part, like New task: never folds, counted in the base)
- * and the right zone (its auto margin is free space).
+ * The bar's parts, by their `data-fold-part`: the filter tray, the layout
+ * controls, the lens control (a fixed part, like New task: never folds,
+ * counted in the base) and the right zone (its auto margin is free space).
  */
-export const FOLD_PART = { tray: 'tray', traySlot: 'tray-slot', layout: 'layout', lens: 'lens', spring: 'spring' } as const
+export const FOLD_PART = { tray: 'tray', layout: 'layout', lens: 'lens', spring: 'spring' } as const
 
 /** On the tray's search box (`SEARCH_WIDTH` wide, narrowed by `traySqueeze`). */
 export const FOLD_SEARCH_ATTR = 'data-fold-search'
@@ -196,13 +195,14 @@ function trayContentWidth(tray: HTMLElement): number {
 type TrayMeasure = Pick<TopBarMeasure, 'trayOpen' | 'trayOpenMin' | 'trayFolded' | 'trayFoldedMin' | 'values'>
 
 /**
- * The tray's width with its filter buttons and with the Filters menu, each
- * natural and shrunk as far as it goes, all measured now whatever is shown
- * or cut: the filter bar lays out both folds hidden at their natural widths
- * (`FilterChipBar`'s `measureFold`), so neither goes stale (a filter set or
- * cleared, Show N tasks come or gone) and each value's natural width is
- * known while it is cut; the search counts at `SEARCH_WIDTH`. Without the
- * hidden folds, only the shown one (`shownFolded`).
+ * The tray's width with the set filters' chips and with them folded into
+ * the Filter button, each natural and shrunk as far as it goes, all measured
+ * now whatever is shown or cut: the filter bar lays out both folds hidden at
+ * their natural widths (`FilterChipBar`'s `measureFold`), so neither goes
+ * stale (a filter set or cleared, the counter come or gone) and each value's
+ * natural width is known while it is cut; the field counts at
+ * `SEARCH_WIDTH`. Without the hidden folds, only the shown one
+ * (`shownFolded`).
  */
 function measureTray(tray: HTMLElement, shownFolded: boolean): TrayMeasure {
   const content = trayContentWidth(tray)
@@ -251,7 +251,7 @@ export function measureTopBar(bar: HTMLElement, fold: TopBarFold, tabsKey: strin
     if (ccs.display === 'none' || ccs.position === 'absolute' || ccs.position === 'fixed') continue
     const margins = part === FOLD_PART.spring ? 0 : (parseFloat(ccs.marginLeft) || 0) + (parseFloat(ccs.marginRight) || 0)
     // The tray's own width is what each fold decides; its place (gap, margins) is the base's.
-    const width = part === FOLD_PART.tray || part === FOLD_PART.traySlot ? 0 : child.offsetWidth
+    const width = part === FOLD_PART.tray ? 0 : child.offsetWidth
     need += width + margins + (shown > 0 ? gap : 0)
     shown++
     if (part === FOLD_PART.layout) layout = width
@@ -295,27 +295,19 @@ function remeasure(bar: HTMLElement, shown: { fold: TopBarFold; tabsKey: string 
   }
 }
 
-/** The top bar's fold, how the tray shrinks at it, and the tray's widths (once measured). */
+/** The top bar's fold and how the tray shrinks at it (once measured). */
 export interface TopBarFoldState {
   fold: TopBarFold
   /** The tray shrunk into the room the bar leaves it at `fold`; `null` = natural. */
   squeeze: TraySqueeze | null
-  /** The tray with its filter buttons, natural. */
-  trayOpen: number | undefined
-  /** The same, shrunk as far as it goes. */
-  trayOpenMin: number | undefined
-  /** The tray with the Filters menu, natural. */
-  trayFolded: number | undefined
-  /** The values on the filter buttons, natural. */
-  values: readonly TrayValue[] | undefined
   /** The width the lens control's name is cut to (the bar short even folded as far as it goes); `null` = uncut. */
   lensName: number | null
 }
 
 /**
  * The top bar's fold, measured (never a breakpoint): the tray shrinks
- * first (the search, then long values), then the filters fold, then the
- * layout tabs. `barRef` = the bar, whose children carry `data-fold-part`;
+ * first (the field, then long values), then the chips fold into the Filter
+ * button, then the layout tabs. `barRef` = the bar, whose children carry `data-fold-part`;
  * `tabsKey` says what the tabs show (their widths depend on it, not on
  * their order); `partsKey` changes when the bar's children do. Every resize
  * of the bar or a child re-measures; the shrinking itself measures the same.
@@ -372,13 +364,5 @@ export function useTopBarFold(
   const folded = filtersFolded(fold)
   const natural = folded ? measure.trayFolded : measure.trayOpen
   const squeeze = room === null || natural === undefined ? null : traySqueeze(natural, room, folded ? [] : measure.values)
-  return {
-    fold,
-    squeeze,
-    trayOpen: measure.trayOpen,
-    trayOpenMin: measure.trayOpenMin,
-    trayFolded: measure.trayFolded,
-    values: measure.values,
-    lensName: lensNameSqueeze(measure, fold),
-  }
+  return { fold, squeeze, lensName: lensNameSqueeze(measure, fold) }
 }

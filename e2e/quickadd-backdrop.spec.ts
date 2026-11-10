@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expectPeopleLoaded } from './fixtures/filters'
 import { seedTaskList } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -21,7 +22,7 @@ const bar = (page: Page) => page.getByRole('dialog', { name: 'Quick add task' })
 const backdrop = (page: Page) => page.getByTestId('quickadd-backdrop')
 
 async function openQuickAdd(page: Page): Promise<Locator> {
-  await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+  await expectPeopleLoaded(page)
   await page.keyboard.press('Control+Space')
   const input = bar(page).getByPlaceholder('New task…')
   await expect(input).toBeFocused()
@@ -39,7 +40,7 @@ async function isOnTop(locator: Locator): Promise<boolean> {
 
 test('the backdrop dims and blurs the app like the command palette', async ({ page }) => {
   await seedTaskList(page, SEED)
-  await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+  await expectPeopleLoaded(page)
   await page.keyboard.press('Control+k')
   const paletteBackdrop = page.locator('[data-dialog-backdrop]')
   await expect(paletteBackdrop).toBeVisible()

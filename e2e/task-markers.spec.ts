@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { filterChip, filterMenuRow, openFilterMenu, setShowCompleted } from './fixtures/filters'
 import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, openSettings, seedTaskList, wsCell, wsListWidget, TASK_LIST_TAB } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 
@@ -112,16 +113,16 @@ const markerTasks = [
   { title: 'Plain' },
 ]
 
-test('the top-bar Priority filter (first of the filters) keeps tasks with any of its values', async ({ page }) => {
+test('the top-bar Priority filter (first in the Filter menu) keeps tasks with any of its values', async ({ page }) => {
   const widget = await seedTaskList(page, { statuses: ['Doing'], people: ['Ann'], tags: ['home'], tasks: markerTasks })
   await expect.poll(() => rowTitles(widget)).toHaveLength(5)
   await expect(page.getByRole('button', { name: /^Focus filter/ })).toHaveCount(0)
-  const names = await page.getByRole('group').filter({ has: page.getByRole('button', { name: 'Priority filter' }) })
-    .getByRole('button').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')).filter((n) => n?.endsWith(' filter')))
+  const names = await (await openFilterMenu(page)).getByRole('button')
+    .evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')).filter((n) => n?.endsWith(' filter')))
   expect(names).toEqual(['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
 
   const marker = (name: string) => page.getByRole('option', { name })
-  await page.getByRole('button', { name: 'Priority filter' }).click()
+  await filterMenuRow(page, 'Priority').click()
   await marker('Urgent').click()
   await expect.poll(() => rowTitles(widget)).toEqual(['Flagged urgent', 'Due tomorrow'])
 
@@ -132,7 +133,8 @@ test('the top-bar Priority filter (first of the filters) keeps tasks with any of
   await marker('Important').click()
   await expect.poll(() => rowTitles(widget)).toEqual(['Important only', 'Important focus'])
   await page.keyboard.press('Escape')
-  await expect(page.getByRole('button', { name: 'Priority filter: Focus or Important' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(filterChip(page, 'Priority')).toHaveAccessibleName('Priority filter: Focus or Important')
   await expect(page.locator('[data-filter-row]')).toHaveAttribute('data-filtered', 'true')
 
   await page.getByRole('button', { name: 'Clear priority filter' }).click()
@@ -141,7 +143,7 @@ test('the top-bar Priority filter (first of the filters) keeps tasks with any of
 
 test('a list’s own Priority filter (Edit list › + Filter › Priority) narrows the list and is saved with it', async ({ page }) => {
   await seedTaskList(page, { tasks: markerTasks })
-  await page.getByRole('button', { name: 'Show completed' }).click()
+  await setShowCompleted(page, true)
   const widget = wsListWidget(page, TASK_LIST_TAB)
   const editor = await openListFilterEditor(page, widget)
   await editor.getByRole('button', { name: ADD_FILTER }).click()

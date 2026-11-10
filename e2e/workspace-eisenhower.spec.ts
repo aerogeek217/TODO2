@@ -133,14 +133,14 @@ test('a task urgent by its due date can\'t be dropped on a not-urgent quadrant',
 test('the top-bar filter narrows the widget', async ({ page }) => {
   await seedWorkspace(page, { listDefinitions: [TASK_LIST], tasks: TASKS, layouts: layoutWith() })
   await expect(widget(page).locator('[data-row-key]')).toHaveCount(7)
-  await page.getByPlaceholder('Search…').fill('review')
+  await page.getByPlaceholder('Filter…').fill('review')
   await expect(widget(page).locator('[data-row-key]')).toHaveCount(2)
   await expect(row(quadrant(page, 'delegate'), 'Review analytics')).toBeVisible()
   await expect(row(quadrant(page, 'drop'), 'Review Q4 deck')).toBeVisible()
   await expect(wsTab(page, 'eisTab')).toContainText('2 of 7')
   await expect(quadrant(page, 'do')).toContainText('Nothing urgent and important')
 
-  await page.getByPlaceholder('Search…').fill('zzz')
+  await page.getByPlaceholder('Filter…').fill('zzz')
   await expect(widget(page).getByRole('status')).toContainText('All 7 open tasks are hidden by the screen filter.')
   // The note sits under the panes, over no pane's header.
   await expect(widget(page)).toHaveAttribute('data-layout', 'grid')

@@ -8,6 +8,7 @@ import type { ListFilterField } from '../../../../stores/list-widget-store'
 import { usePersonStore } from '../../../../stores/person-store'
 import { useTagStore } from '../../../../stores/tag-store'
 import { makePerson } from '../../../helpers'
+import { openFieldPicker } from './filter-menu-helpers'
 
 beforeEach(() => {
   usePersonStore.setState({
@@ -34,7 +35,7 @@ function ListPicker({ field, initial, onClose }: { field: ListFilterField; initi
 describe('the filter pickers’ clear ×', () => {
   it('the top bar People picker: Search... gets a × while it has text; a click empties it and keeps the focus there', () => {
     render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: /^People filter/ }))
+    openFieldPicker('People')
     const search = screen.getByPlaceholderText('Search...')
     expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull()
     fireEvent.change(search, { target: { value: 'ali' } })

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { openFilterPicker } from './fixtures/filters'
 import { pickWidgetKind, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
@@ -72,8 +73,9 @@ test('a cold-loaded layout of glance widgets renders their counts and the rowsâ€
 
 test('the top-bar filter turns counts into shown of total', async ({ page }) => {
   await seedWorkspace(page, seedWith())
-  await page.getByRole('button', { name: 'Tags filter' }).click()
+  await openFilterPicker(page, 'Tags')
   await page.getByRole('option', { name: 'q4' }).click()
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
   await expect(count(page, 'open')).toHaveText('2of 4')

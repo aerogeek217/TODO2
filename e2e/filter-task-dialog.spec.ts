@@ -1,18 +1,21 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
+import {
+  clearAllFilters, completedChip, filterChip, filterField, filterMenu, filterMenuButton, filterMenuRow, openFilterMenu, openFilterPicker,
+  setShowCompleted,
+} from './fixtures/filters'
 
 /**
  * The screen filter's tasks. Desktop: the top bar's Show N tasks (while a
  * filter is on) and the palette drop the filtered-tasks panel from the
- * filter tray, joined to it; the tray stays the filter's editor (its
- * pickers open above the panel and take the first Esc; a change re-resolves
- * the rows and the workspace behind follows). Opening it changes nothing in
- * the bar's layout: over folded filters the tray expands in place to show
- * every filter button (rightwards over the free space and the right zone,
- * shrunk, then slid left only as far as the window needs). A scrim dims and blurs the
- * workspace and a press on it closes the panel. On a phone the Filters
- * sheet ends with the button and the task dialog's Filters edit the filter.
+ * filter tray, joined to it; the tray stays the filter's editor (the field,
+ * the Filter menu and the chips: their pickers open above the panel and take
+ * the first Esc; a change re-resolves the rows and the workspace behind
+ * follows). Opening it changes nothing in the bar's layout. A scrim dims and
+ * blurs the workspace and a press on it closes the panel. On a phone the
+ * Filters sheet ends with the button and the task dialog's Filters edit the
+ * filter.
  */
 
 const SEED: WorkspaceSeed = {
@@ -66,23 +69,13 @@ const joint = (page: Page) => page.evaluate(() => {
   return { top: Math.round(p.top - t.bottom), left: Math.round(p.left - t.left), right: Math.round(window.innerWidth - p.right) }
 })
 
-const filtersMenu = (page: Page) => tray(page).getByRole('button', { name: /^Filters/ })
-const FILTER_BUTTONS = ['Priority filter', 'Tags filter', /^People filter/, 'Dates filter', 'Status filter']
-
-/** Ticks `option` in a filter's picker, from its button or (folded) the Filters menu. */
+/** Ticks `option` in a filter's picker, opened from the Filter menu; closes the picker and the menu. */
 async function pickFilter(page: Page, field: 'People' | 'Tags', option: string) {
-  const name = new RegExp(`^${field} filter`)
-  if (await filtersMenu(page).isVisible()) {
-    await filtersMenu(page).click()
-    await page.getByRole('group', { name: 'Screen filters' }).getByRole('button', { name }).click()
-    await page.getByRole('option', { name: option }).click()
-    await page.keyboard.press('Escape')
-    await page.keyboard.press('Escape')
-  } else {
-    await tray(page).getByRole('button', { name }).click()
-    await page.getByRole('option', { name: option }).click()
-    await page.keyboard.press('Escape')
-  }
+  await openFilterPicker(page, field)
+  await page.getByRole('option', { name: option }).click()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(filterMenu(page)).toHaveCount(0)
 }
 
 /** The People filter on Ann. */
@@ -104,24 +97,16 @@ const bar = (page: Page) => header(page).evaluate((el) => {
   }
 })
 
-/** Every filter button shown in the tray (none in a Filters menu). */
-async function expectEveryFilterButton(page: Page) {
-  await expect(filtersMenu(page)).toHaveCount(0)
-  for (const name of FILTER_BUTTONS) {
-    await expect(tray(page).getByRole('button', { name, exact: typeof name === 'string' })).toBeVisible()
-  }
-}
-
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1280, height: 800 } })
 
-  test('Show N tasks drops the panel joined to the tray; with everything fitting nothing in the bar moves', async ({ page }) => {
+  test('Show N tasks drops the panel joined to the tray; nothing in the bar moves', async ({ page }) => {
     await page.setViewportSize({ width: 1600, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await expect.poll(() => workspaceTitles(page)).toEqual(ALL)
     await expect(showTasks(page)).toHaveCount(0)
     await filterToAnn(page)
-    await expectEveryFilterButton(page)
+    await expect(filterChip(page, 'People')).toBeVisible()
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
     const closed = await bar(page)
     expect(closed).toMatchObject({ fold: 'none', tabs: 2 })
@@ -136,10 +121,9 @@ test.describe('desktop', () => {
     await expect(panel(page).getByRole('heading')).toHaveText('Filtered tasks')
     await expect(panel(page).getByTestId('task-dialog-count')).toHaveText('2')
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Ann call'])
-    // Open: the bar exactly as it was — the tabs, the tray where it was, every filter button.
+    // Open: the bar exactly as it was — the tabs, the tray where it was, its chip.
     expect(await bar(page)).toEqual(closed)
-    await expect(header(page).locator('[data-expanded]')).toHaveCount(0)
-    await expectEveryFilterButton(page)
+    await expect(filterChip(page, 'People')).toBeVisible()
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
     // Joined: its top on the tray's bottom border, its left on the tray's left.
     await expect.poll(() => joint(page)).toMatchObject({ top: -1, left: 0 })
@@ -152,53 +136,48 @@ test.describe('desktop', () => {
     expect(await bar(page)).toEqual(closed)
   })
 
-  test('over folded filters the tray expands in place, rightwards over the right zone; closing folds them back — every time', async ({ page }) => {
-    await page.setViewportSize({ width: 1206, height: 800 })
+  test('with the chips folded the panel changes nothing in the bar; the Filter menu over it edits the filter — every time', async ({ page }) => {
+    // Measured with one spare layout and Ann picked: the chip folds below 838px, the layout tabs below 784px.
+    await page.setViewportSize({ width: 810, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
     await filterToAnn(page)
-    // Closed: the layouts as tabs, the filters folded to fit beside them.
-    await expect(filtersMenu(page)).toBeVisible()
+    // Closed: the chip folded into the Filter button.
+    await expect(filterChip(page, 'People')).toHaveCount(0)
+    await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 1 active')
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
     const closed = await bar(page)
-    expect(closed).toMatchObject({ fold: 'filters', tabs: 2 })
+    expect(closed.fold).not.toBe('none')
 
-    const show = tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' })
-    for (const close of ['scrim', 'toggle', 'escape', 'scrim'] as const) {
+    const show = tray(page).getByRole('button', { name: /^\d of 4 open tasks shown\. Show them$/ })
+    for (const close of ['scrim', 'toggle', 'escape'] as const) {
       await show.click()
       await expect(panel(page)).toBeVisible()
-      // Expanded: the same left edge, every filter button, over the right zone; the tabs stay.
-      await expectEveryFilterButton(page)
-      const open = await bar(page)
-      expect(open).toMatchObject({ fold: 'filters', trayLeft: closed.trayLeft, springLeft: closed.springLeft, tabs: 2 })
-      expect(open.trayRight).toBeGreaterThan(closed.springLeft)
-      // The right zone under it: a press there is the tray's.
-      expect(await header(page).evaluate((el, x) => {
-        const hit = document.elementFromPoint(x, 20)
-        return hit != null && el.querySelector('[data-filter-row]')!.contains(hit)
-      }, closed.springLeft + 4)).toBe(true)
-      await expect.poll(() => joint(page)).toMatchObject({ top: -1, left: 0 })
+      expect(await bar(page)).toEqual(closed)
+      // Hung from the tray (slid left as far as its least width needs in a window this narrow).
+      await expect.poll(async () => (await joint(page)).top).toBe(-1)
       await expect.poll(() => fit(page)).toEqual(ONE_LINE)
+      // The menu's People row shows the value and opens its picker above the panel.
+      const row = (await openFilterMenu(page)).getByRole('button', { name: /^People filter: / })
+      expect(await onTop(row)).toBe(true)
+      await page.keyboard.press('Escape')
+      await expect(filterMenu(page)).toHaveCount(0)
+      await expect(panel(page)).toBeVisible()
 
       if (close === 'scrim') await page.mouse.click(640, 700)
       else if (close === 'toggle') await show.click()
       else await page.keyboard.press('Escape')
       await expect(panel(page)).toHaveCount(0)
-      await expect(filtersMenu(page)).toBeVisible()
       expect(await bar(page)).toEqual(closed)
       await expect.poll(() => fit(page)).toEqual(ONE_LINE)
     }
   })
 
-  test('a filter changed in the expanded tray: on close the bar folds as it would for the new filter', async ({ page }) => {
-    await page.setViewportSize({ width: 1232, height: 800 })
+  test('a filter changed over the panel: on close the bar shows as it would for the new filter', async ({ page }) => {
+    await page.setViewportSize({ width: 1100, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
-    // No filter: every button fits beside the tabs.
-    await expectEveryFilterButton(page)
     await filterToAnn(page)
-    await expect(filtersMenu(page)).toBeVisible()
 
     await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
-    await expectEveryFilterButton(page)
     await pickFilter(page, 'People', 'Bob')
     await pickFilter(page, 'Tags', 'q4')
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Bob task'])
@@ -215,35 +194,35 @@ test.describe('desktop', () => {
     await expect.poll(() => workspaceTitles(page)).toEqual(['Ann plan', 'Bob task'])
     await expect.poll(() => bar(page)).toEqual(after)
 
-    // Cleared in the expanded tray: on close every button is back.
+    // Cleared over the panel: on close the bar is back at rest.
     await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect(panel(page)).toBeVisible()
-    await tray(page).getByRole('button', { name: 'Clear all filters' }).click()
+    await clearAllFilters(page)
     await page.keyboard.press('Escape')
     await expect(panel(page)).toHaveCount(0)
-    await expectEveryFilterButton(page)
+    await expect(filterChip(page, 'People')).toHaveCount(0)
+    await expect(filterMenuButton(page)).toHaveAccessibleName('Filter')
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
   })
 
-  test('a filter set and cleared without the panel: the filters fold, then unfold again', async ({ page }) => {
-    await page.setViewportSize({ width: 1232, height: 800 })
+  test('a filter set and cleared without the panel: the bar comes back as it was', async ({ page }) => {
+    await page.setViewportSize({ width: 1100, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED, 1))
-    await expectEveryFilterButton(page)
     const none = await bar(page)
     await filterToAnn(page)
-    await expect(filtersMenu(page)).toBeVisible()
-    await tray(page).getByRole('button', { name: 'Clear all filters' }).click()
-    await expectEveryFilterButton(page)
+    await expect(filterChip(page, 'People')).toBeVisible()
+    await clearAllFilters(page)
+    await expect(filterChip(page, 'People')).toHaveCount(0)
     await expect.poll(() => bar(page)).toEqual(none)
   })
 
-  test('a filter picker from the tray opens above the panel and edits its rows and the workspace; Esc closes the picker, then the panel', async ({ page }) => {
+  test('a picker from the Filter menu opens above the panel and edits its rows and the workspace; Esc closes the picker, the menu, then the panel', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await filterToAnn(page)
     await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Ann call'])
 
-    await tray(page).getByRole('button', { name: 'Tags filter' }).click()
+    await openFilterPicker(page, 'Tags')
     const q4 = page.getByRole('option', { name: 'q4' })
     await expect(q4).toBeVisible()
     expect(await onTop(q4)).toBe(true)
@@ -252,11 +231,17 @@ test.describe('desktop', () => {
     await expect(panel(page).getByTestId('task-dialog-count')).toHaveText('1')
     await expect.poll(() => workspaceTitles(page)).toEqual(['Ann plan'])
 
-    // Esc: the picker first, the panel stays; then the panel, the focus back on Show N tasks.
+    // Esc: the picker first (the focus back on its row), then the menu (back on the Filter button), then the panel.
     await page.keyboard.press('Escape')
     await expect(q4).toBeHidden()
     await expect(panel(page)).toBeVisible()
-    await expect(tray(page).getByRole('button', { name: 'Tags filter: q4' })).toBeFocused()
+    await expect(filterMenuRow(page, 'Tags')).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(filterMenu(page)).toHaveCount(0)
+    await expect(panel(page)).toBeVisible()
+    await expect(filterMenuButton(page)).toBeFocused()
+    // Its chip is in the tray now; it reopens the picker too.
+    await expect(filterChip(page, 'Tags')).toHaveAccessibleName('Tags filter: q4')
     await page.keyboard.press('Escape')
     await expect(panel(page)).toHaveCount(0)
     await expect(tray(page).getByRole('button', { name: '1 of 4 open tasks shown. Show them' })).toBeFocused()
@@ -264,24 +249,54 @@ test.describe('desktop', () => {
 
   test('the Dates and Priority pickers open above the panel and take the first Esc too', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    await tray(page).getByRole('button', { name: 'Show completed' }).click()
+    await setShowCompleted(page, true)
     await tray(page).getByRole('button', { name: '4 of 4 tasks shown. Show them' }).click()
     await expect(panel(page)).toBeVisible()
-    for (const name of ['Dates filter', 'Priority filter']) {
-      const button = tray(page).getByRole('button', { name, exact: true })
-      await button.click()
-      await expect(button).toHaveAttribute('aria-expanded', 'true')
-      const picker = name === 'Dates filter'
+    for (const field of ['Dates', 'Priority'] as const) {
+      await openFilterMenu(page)
+      const row = filterMenuRow(page, field)
+      await row.click()
+      await expect(row).toHaveAttribute('aria-expanded', 'true')
+      const picker = field === 'Dates'
         ? page.getByRole('dialog', { name: 'Date filters' })
         : page.getByRole('group', { name: 'Priority', exact: true })
       await expect(picker).toBeVisible()
       expect(await onTop(picker)).toBe(true)
       await page.keyboard.press('Escape')
-      await expect(button).toHaveAttribute('aria-expanded', 'false')
+      await expect(row).toHaveAttribute('aria-expanded', 'false')
+      await expect(panel(page)).toBeVisible()
+      await page.keyboard.press('Escape')
+      await expect(filterMenu(page)).toHaveCount(0)
       await expect(panel(page)).toBeVisible()
     }
     await page.keyboard.press('Escape')
     await expect(panel(page)).toHaveCount(0)
+  })
+
+  test('the tray and the panel are one Tab cycle: the field, the Filter button, the chips, the counter, then the panel', async ({ page }) => {
+    await seedWorkspace(page, SEED)
+    await filterToAnn(page)
+    await setShowCompleted(page, true)
+    const show = tray(page).getByRole('button', { name: /^\d of 4 tasks shown\. Show them$/ })
+    await show.click()
+    await expect(panel(page)).toBeFocused()
+    await filterField(page).focus()
+    const order: string[] = []
+    for (let i = 0; i < 6; i++) {
+      await page.keyboard.press('Tab')
+      order.push(await page.evaluate(() => {
+        const el = document.activeElement as HTMLElement
+        if (el.closest('[data-filter-panel]')) return 'panel'
+        return el.getAttribute('aria-label') ?? el.textContent ?? ''
+      }))
+    }
+    expect(order.slice(0, 5)).toEqual([
+      'Filter, 2 active', 'People filter: Ann', 'Clear people filter', 'Show completed', expect.stringMatching(/^\d of 4 tasks shown\. Show them$/),
+    ])
+    expect(order[5]).toBe('panel')
+    // Shift+Tab from the panel's first control goes back to the counter.
+    await page.keyboard.press('Shift+Tab')
+    await expect(show).toBeFocused()
   })
 
   test('a row opens the editor above the panel; Esc closes the editor, then the panel', async ({ page }) => {
@@ -309,7 +324,7 @@ test.describe('desktop', () => {
     // It covers the workspace, not the top bar, and blurs it as a modal's backdrop does.
     expect(await scrim.evaluate((el) => el.getBoundingClientRect().top)).toBe(40)
     expect(await scrim.evaluate((el) => getComputedStyle(el).backdropFilter)).toMatch(/^blur\(\d+(\.\d+)?px\)$/)
-    expect(await onTop(tray(page).getByRole('button', { name: 'Show completed' }))).toBe(true)
+    expect(await onTop(filterMenuButton(page))).toBe(true)
     expect(await onTop(wsListWidget(page, 't1'))).toBe(false)
     await page.mouse.click(640, 700)
     await expect(panel(page)).toHaveCount(0)
@@ -323,9 +338,9 @@ test.describe('desktop', () => {
     await expect(page.getByRole('dialog', { name: 'Settings' })).toBeVisible()
   })
 
-  test('Clear all keeps it open on every open task; rows stay fixed between filter changes; the search narrows them with no dropdown', async ({ page }) => {
+  test('Clear all keeps it open on every open task; rows stay fixed between filter changes; the field narrows them with no dropdown', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    const search = tray(page).getByRole('textbox', { name: 'Search tasks' })
+    const search = filterField(page)
     await search.fill('ann')
     await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Ann call'])
@@ -337,12 +352,12 @@ test.describe('desktop', () => {
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Ann call'])
     await expect.poll(() => workspaceTitles(page)).toEqual(['Ann plan'])
 
-    // Typing in the tray's search narrows the rows; no results dropdown over the panel.
+    // Typing in the tray's field narrows the rows; no results dropdown over the panel.
     await search.fill('ann pl')
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan'])
     await expect(page.locator('#search-results')).toHaveCount(0)
 
-    await tray(page).getByRole('button', { name: 'Clear all filters' }).click()
+    await clearAllFilters(page)
     await expect(panel(page)).toBeVisible()
     await expect.poll(() => panelTitles(page)).toEqual(['Ann plan', 'Bob task', 'Nobody task'])
     await expect(search).toHaveValue('')
@@ -368,43 +383,15 @@ test.describe('desktop', () => {
     await expect(tray(page).getByRole('button', { name: '4 of 4 open tasks shown. Show them' })).toHaveAttribute('aria-expanded', 'true')
   })
 
-  test('where the expanded tray would cross the window’s right gutter it shrinks, then slides left by just what still crosses, over the layout tabs', async ({ page }) => {
-    await page.setViewportSize({ width: 1000, height: 800 })
-    await seedWorkspace(page, withSpareLayouts(SEED, 1))
-    await filterToAnn(page)
-    const closed = await bar(page)
-    expect(closed.fold).not.toBe('none')
-    await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
-    await expect(panel(page)).toBeVisible()
-    await expectEveryFilterButton(page)
-    const open = await bar(page)
-    // Shrunk first (the search as narrow as it goes), then its right edge on
-    // the gutter, its left moved by the overflow only; nothing else moved.
-    expect(await header(page).locator('[data-fold-search]').evaluate((el) => el.getBoundingClientRect().width)).toBe(110)
-    expect(Math.abs(open.trayRight - (1000 - 16))).toBeLessThanOrEqual(1)
-    expect(open.trayLeft).toBeLessThan(closed.trayLeft)
-    expect(open).toMatchObject({ fold: closed.fold, springLeft: closed.springLeft, tabs: closed.tabs })
-    expect((await joint(page)).left).toBe(0)
-    await expect.poll(() => fit(page)).toEqual(ONE_LINE)
-    // A resize while open places it again (here: room enough, the bar unfolds as it would closed).
-    await page.setViewportSize({ width: 1600, height: 800 })
-    await expect.poll(async () => (await bar(page)).fold).toBe('none')
-    await expect(header(page).locator('[data-expanded]')).toHaveCount(0)
-    await expect.poll(() => joint(page)).toMatchObject({ top: -1, left: 0 })
-    await page.keyboard.press('Escape')
-    await expect(panel(page)).toHaveCount(0)
-  })
-
-  test('too narrow for every filter button even across the window, they stay folded and the panel still fits', async ({ page }) => {
-    // The lens control is no part of the expanded tray (cr22): narrower than
-    // when it was, before the filter buttons can't fit across the window.
+  test('in the narrowest bar the chips stay folded with the panel open, and the panel still fits', async ({ page }) => {
     await page.setViewportSize({ width: 740, height: 800 })
     await seedWorkspace(page, withSpareLayouts(SEED))
     await filterToAnn(page)
     const closed = await bar(page)
     await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
     await expect(panel(page)).toBeVisible()
-    await expect(filtersMenu(page)).toBeVisible()
+    await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 1 active')
+    await expect(filterChip(page, 'People')).toHaveCount(0)
     expect(await bar(page)).toEqual(closed)
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
     const j = await joint(page)
@@ -415,12 +402,13 @@ test.describe('desktop', () => {
 
   test('without a filter Show N tasks isn’t there and the room comes back', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    await tray(page).getByRole('button', { name: 'Show completed' }).click()
+    await setShowCompleted(page, true)
     await expect(tray(page).getByRole('button', { name: '4 of 4 tasks shown. Show them' })).toBeVisible()
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
-    await tray(page).getByRole('button', { name: 'Clear all filters' }).click()
+    await clearAllFilters(page)
     await expect(showTasks(page)).toHaveCount(0)
-    await expect(tray(page).getByRole('button', { name: 'Status filter', exact: true })).toBeVisible()
+    await expect(completedChip(page)).toHaveCount(0)
+    await expect(filterMenuButton(page)).toHaveAccessibleName('Filter')
     await expect.poll(() => fit(page)).toEqual(ONE_LINE)
   })
 })
@@ -434,9 +422,10 @@ test.describe('phone', () => {
     await expect(rows).toHaveCount(4)
     await page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Filters', exact: true }).click()
     await expect(page.getByRole('button', { name: /^Show \d+ tasks?$/ })).toHaveCount(0)
-    await page.getByPlaceholder('Search tasks...').fill('ann')
+    const sheet = page.getByRole('dialog', { name: 'Filters' })
+    await sheet.getByPlaceholder('Filter…').fill('ann')
     await page.getByRole('button', { name: 'Show 2 tasks' }).click()
-    await expect(page.getByPlaceholder('Search tasks...')).toHaveCount(0)
+    await expect(sheet).toHaveCount(0)
     await expect(dialog(page)).toBeVisible()
     // Phone rows: their text (no title attribute on a phone row).
     const dialogRows = dialog(page).locator('[data-todo-id]')
@@ -450,7 +439,7 @@ test.describe('phone', () => {
     await dialog(page).getByText('Show / hide', { exact: true }).click()
     await dialog(page).getByRole('switch', { name: 'Show completed' }).click()
     await expect(dialog(page).getByRole('button', { name: 'Filters, 1 active' })).toBeVisible()
-    await dialog(page).getByRole('textbox', { name: 'Search tasks' }).fill('')
+    await dialog(page).getByRole('textbox', { name: 'Filter tasks' }).fill('')
     await expect(dialogRows).toHaveCount(4)
     await expect(rows).toHaveCount(4)
   })

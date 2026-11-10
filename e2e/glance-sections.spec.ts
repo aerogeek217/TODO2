@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { openFilterPicker } from './fixtures/filters'
 import { seedWorkspace, wsCell, wsTab, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
@@ -54,8 +55,9 @@ test('the widgets render their counts; the top-bar filter narrows them', async (
   await expect(tagRows(page).filter({ hasText: '#q4' }).getByTestId('breakdown-figure')).toHaveText('2')
   await expect(chartCount(page, 'status')).toHaveText('4 open')
 
-  await page.getByRole('button', { name: 'Tags filter' }).click()
+  await openFilterPicker(page, 'Tags')
   await page.getByRole('option', { name: 'q4' }).click()
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
   // The # pick narrows the Tags rows to q4 (as a list grouped by Tag); Status counts what the top bar shows.

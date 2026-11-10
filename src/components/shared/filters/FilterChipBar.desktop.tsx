@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { attrSelector, FILTER_MENU_ATTR } from '../../../utils/dom-contract'
 import { createPortal } from 'react-dom'
 import { usePopoverAnchor, type PopoverCaret } from '../../../hooks/use-popover-anchor'
 import { datesSpokenValue, datesTooltip, datesValue, filterChips, FILTER_FIELD_ORDER, type FilterChipField } from '../../../utils/filter-chips'
@@ -16,6 +17,7 @@ import {
   ChevronDownIcon,
   ChevronRightIcon,
   CloseIcon,
+  FunnelIcon,
   HashIcon,
   StatusRingIcon,
   WidgetKindIcon,
@@ -25,7 +27,7 @@ import { DateFilterPanel } from './DateFilterPanel'
 import { DatePendingNotContext, screenPendingNot } from './date-pending-not'
 import { DATE_FILTER_DIALOG_LABEL, DATE_FILTER_POPOVER_CLASS } from './date-filter-popover'
 import { useTooltip } from '../use-tooltip'
-import { useReturnFocus } from '../use-popover-focus'
+import { usePopoverFocus, useReturnFocus } from '../use-popover-focus'
 import {
   FOLD_HIDDEN_ATTR,
   FOLD_HOLD_ATTR,
@@ -163,9 +165,17 @@ function PeopleCheckinAction({ people, onDone }: { people: readonly { id: number
  * then a chevron — or, while on, a round × that clears just this field.
  * `valueWidth` cuts the value to that width (ellipsis); the tooltip then
  * shows it whole (`People: Aisha Rahman`), unless the field has its own
- * tooltip, which already spells it out.
+ * tooltip, which already spells it out. `onOpenChange` tells the bar while
+ * its picker is open (the bar keeps the chip while it is, even with its
+ * value cleared from the picker); `onCleared` after its × cleared it.
  */
-function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; consumeEscape: boolean; valueWidth?: number }) {
+function FilterButton({ field, consumeEscape, valueWidth, onOpenChange, onCleared }: {
+  field: FieldDef
+  consumeEscape: boolean
+  valueWidth?: number
+  onOpenChange?: (open: boolean) => void
+  onCleared?: () => void
+}) {
   const [open, setOpen] = useState(false)
   const pillRef = useRef<HTMLDivElement>(null)
   const mainRef = useRef<HTMLButtonElement>(null)
@@ -174,7 +184,8 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
   const close = useCallback(() => {
     setOpen(false)
     onClose?.()
-  }, [onClose])
+    onOpenChange?.(false)
+  }, [onClose, onOpenChange])
   const { panelRef, style, caret } = usePopoverAnchor({ anchor: { kind: 'ref', ref: pillRef }, open, onClose: close, consumeEscape, caret: true })
   const on = field.value != null
   const cut = on && valueWidth != null
@@ -199,7 +210,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
         {...triggerProps}
         onClick={() => {
           if (open) close()
-          else { setOpen(true); onOpen?.() }
+          else { setOpen(true); onOpen?.(); onOpenChange?.(true) }
         }}
       >
         <span className={styles.icon}>{field.icon}</span>
@@ -218,7 +229,7 @@ function FilterButton({ field, consumeEscape, valueWidth }: { field: FieldDef; c
           type="button"
           className={styles.clearField}
           aria-label={clearName(field)}
-          onClick={() => { close(); field.onClear() }}
+          onClick={() => { close(); field.onClear(); onCleared?.() }}
         >
           <CloseIcon size={8} />
         </button>
@@ -268,16 +279,36 @@ function FieldPopover({ field, panelRef, position, caret = null, children }: {
 }
 
 /**
- * The narrow-window fold: one Filters button (with a count badge) whose menu
- * lists every screen filter; each row opens that filter's picker beside it.
+ * The top bar's Filter button (the funnel and `Filter`) and its menu: every
+ * screen filter as a row — each opens that filter's picker beside the menu
+ * — then Completed (a toggle) and, while any filter is on, Clear all
+ * filters. `folded` = the set filters' chips are folded into it (the bar is
+ * short of room): it then shows how many are on, in the accent. The menu
+ * holds the keyboard as a popover does: its first row takes the focus on
+ * opening, Tab wraps inside it, and the focus comes back to the button (from
+ * a picker, to its row) when it closes. `measureOnly` = a copy laid out for
+ * the top bar's measure (no shortcut target).
  */
-function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]; onClearAll: () => void; consumeEscape: boolean }) {
+function FilterMenu({ fields, folded, showCompleted, onToggleCompleted, active, onClearAll, consumeEscape, measureOnly }: {
+  fields: FieldDef[]
+  folded: boolean
+  showCompleted: boolean
+  onToggleCompleted: () => void
+  /** Any screen filter on (Clear all filters shows). */
+  active: boolean
+  onClearAll: () => void
+  consumeEscape: boolean
+  measureOnly: boolean
+}) {
   const [open, setOpen] = useState(false)
   const [sub, setSub] = useState<{ key: FieldKey; x: number; y: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
+  const subRowRef = useRef<HTMLButtonElement | null>(null)
+  const menuId = useId()
   const level = usePopoverLevel()
-  const count = fields.filter((f) => f.value != null).length
+  const count = fields.filter((f) => f.value != null).length + (showCompleted ? 1 : 0)
   const subField = sub ? fields.find((f) => f.key === sub.key) : undefined
   const subOnClose = subField?.onClose
 
@@ -289,6 +320,8 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
     closeSub()
     setOpen(false)
   }, [closeSub])
+  // A picker closed with the focus in it: back to its row.
+  useReturnFocus(sub != null, subRowRef)
 
   const { panelRef: menuPanelRef, style: menuStyle, caret: menuCaret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: triggerRef },
@@ -312,38 +345,50 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
     subRef.current = el
     subPanelRef(el)
   }, [subPanelRef])
+  const setMenuRef = useCallback((el: HTMLDivElement | null) => {
+    menuRef.current = el
+    menuPanelRef(el)
+  }, [menuPanelRef])
+  const onMenuKeyDown = usePopoverFocus({ open, panelRef: menuRef, triggerRef })
 
-  const openSub = (field: FieldDef, row: HTMLElement) => {
+  const openSub = (field: FieldDef, button: HTMLButtonElement) => {
     if (sub?.key === field.key) { closeSub(); return }
     closeSub()
-    const rect = row.getBoundingClientRect()
+    subRowRef.current = button
+    const rect = (button.parentElement ?? button).getBoundingClientRect()
     setSub({ key: field.key, x: rect.right + 4, y: rect.top - 4 })
     field.onOpen?.()
   }
 
+  const badge = folded && count > 0
   return (
     <>
       <button
         ref={triggerRef}
         type="button"
-        className={`${styles.filterButton} ${styles.filterMain} ${styles.filtersTrigger} ${count > 0 ? styles.filterButtonActive : ''}`}
+        className={`${styles.filterButton} ${styles.filterMain} ${styles.filtersTrigger} ${badge ? styles.filterButtonActive : ''}`}
         aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
         {...(open ? { [FOLD_HOLD_ATTR]: '' } : {})}
-        aria-label={count > 0 ? `Filters, ${count} active` : 'Filters'}
+        {...(measureOnly ? {} : { [FILTER_MENU_ATTR]: '' })}
+        aria-label={count > 0 ? `Filter, ${count} active` : 'Filter'}
         onClick={() => (open ? closeAll() : setOpen(true))}
       >
-        <span className={styles.filterLabel}>Filters</span>
-        {count > 0 && <span className={styles.countBadge}>{count}</span>}
+        <span className={styles.icon}><FunnelIcon size={14} /></span>
+        <span className={styles.filterLabel}>Filter</span>
+        {badge && <span className={styles.countBadge}>{count}</span>}
         <span className={`${styles.chevron} ${open ? styles.chevronOpen : ''}`}><ChevronDownIcon /></span>
       </button>
       {open && createPortal(
         <PopoverRoot
-          ref={menuPanelRef}
+          ref={setMenuRef}
+          id={menuId}
           caret={menuCaret}
           className={styles.menu}
           style={{ position: menuStyle.position, left: menuStyle.left, top: menuStyle.top }}
           role="group"
           aria-label="Screen filters"
+          onKeyDown={onMenuKeyDown}
         >
           <div className={styles.menuLabel}>Screen filters · apply to every widget</div>
           {fields.map((field) => (
@@ -353,7 +398,7 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
                 className={styles.menuRowMain}
                 aria-expanded={sub?.key === field.key}
                 aria-label={filterName(field)}
-                onClick={(e) => openSub(field, e.currentTarget.parentElement ?? e.currentTarget)}
+                onClick={(e) => openSub(field, e.currentTarget)}
               >
                 <span className={styles.icon}>{field.icon}</span>
                 <span className={styles.menuRowName}>{field.label}</span>
@@ -374,14 +419,31 @@ function FiltersMenu({ fields, onClearAll, consumeEscape }: { fields: FieldDef[]
             </div>
           ))}
           <div className={styles.menuSeparator} role="separator" />
-          <button
-            type="button"
-            className={styles.menuClearAll}
-            disabled={count === 0}
-            onClick={() => { onClearAll(); closeAll() }}
-          >
-            Clear all filters
-          </button>
+          <div className={styles.menuRow}>
+            <button
+              type="button"
+              className={styles.menuRowMain}
+              aria-pressed={showCompleted}
+              aria-label="Show completed"
+              onClick={() => { if (sub) closeSub(); onToggleCompleted() }}
+            >
+              <span className={`${styles.icon} ${showCompleted ? styles.iconOn : ''}`}><CheckIcon size={12} /></span>
+              <span className={styles.menuRowName}>Completed</span>
+              <span className={showCompleted ? styles.menuRowValue : styles.menuRowAny}>{showCompleted ? 'Shown' : 'Hidden'}</span>
+            </button>
+          </div>
+          {active && (
+            <>
+              <div className={styles.menuSeparator} role="separator" />
+              <button
+                type="button"
+                className={styles.menuClearAll}
+                onClick={() => { onClearAll(); closeAll() }}
+              >
+                Clear all filters
+              </button>
+            </>
+          )}
         </PopoverRoot>,
         document.body,
       )}
@@ -432,14 +494,17 @@ function useFieldValues(p: TodoPredicate, names: Parameters<typeof filterChips>[
 }
 
 /**
- * The top bar's screen filters: Priority, Tags, People, Dates and Status
- * buttons (folded into one Filters menu — which ends with Clear all filters —
- * when `fold` is set), then Show completed (labelled `Completed`). The top bar's funnel clears them
- * all. The pickers are the shared `FilterPanels`. With `measureFold` both
- * folds are laid out too, hidden and inert, at their natural widths, for the
- * top bar's measure; `valueWidths` cuts the shown values. With `consumeEscape` (the
- * top bar's filtered-tasks panel is open) the Esc that closes a picker or
- * the Filters menu stops there: the next one closes the panel.
+ * The top bar's screen filters: the one Filter button, whose menu holds
+ * Priority, Tags, People, Dates and Status (each opening its picker), then
+ * Completed and Clear all filters — and after it a chip for each filter that
+ * is on (its button: value, ×, a click reopens its picker) and `Completed`
+ * while Show completed is on. With `fold` the chips fold into the Filter
+ * button (it shows their count). The pickers are the shared `FilterPanels`.
+ * With `measureFold` both folds are laid out too, hidden and inert, at their
+ * natural widths, for the top bar's measure; `valueWidths` cuts the shown
+ * values. With `consumeEscape` (the top bar's filtered-tasks panel is open)
+ * the Esc that closes a picker or the Filter menu stops there: the next one
+ * closes the panel.
  */
 export function FilterChipBarDesktop({
   predicate,
@@ -453,11 +518,26 @@ export function FilterChipBarDesktop({
 }: FilterChipBarProps) {
   const [previewEmpty, setPreviewEmpty] = useState<EntityKey | null>(null)
   const resetDensityState = useCallback(() => setPreviewEmpty(null), [])
+  // The chip whose picker is open (kept while it is open).
+  const [openChip, setOpenChip] = useState<FieldKey | null>(null)
+  // A chip that went with the focus in it (its × or its emptied picker
+  // closing): the focus goes to the Filter button rather than nowhere.
+  const focusMenuIfLost = useCallback(() => {
+    requestAnimationFrame(() => {
+      const active = document.activeElement
+      if (active && active !== document.body && active.isConnected) return
+      document.querySelector<HTMLElement>(attrSelector(FILTER_MENU_ATTR))?.focus()
+    })
+  }, [])
+  const chipOpenChange = useCallback((key: FieldKey, open: boolean) => {
+    setOpenChip((cur) => (open ? key : cur === key ? null : cur))
+    if (!open) focusMenuIfLost()
+  }, [focusMenuIfLost])
 
   const s = useFilterChipBarState(predicate, onChange, onClearAll, onClearExtra, resetDensityState)
   const {
     p, people, statuses, sortedTags, allTagIds, personIdsSet, statusIdsSet, tagIdsSet,
-    peopleActive, statusActive, tagsActive, dateActive, negated, update,
+    peopleActive, statusActive, tagsActive, dateActive, active, negated, update,
     setPersonIds, setStatusIds, setTags, setNegated, dropPendingMode, clearField, clearAll,
   } = s
 
@@ -653,12 +733,41 @@ export function FilterChipBarDesktop({
       render: () => <MarkerClausePicker clause={p.markers?.[0] ?? null} onChange={(c) => update({ markers: c ? [c] : null })} />,
     },
   })
-  // Buttons and the folded menu in display order (Priority, Tags, People, Dates, Status).
+  // The menu's rows and the chips in display order (Priority, Tags, People, Dates, Status).
   fields.sort((a, b) => FILTER_FIELD_ORDER.indexOf(a.key) - FILTER_FIELD_ORDER.indexOf(b.key))
 
-  const variant = (folded: boolean, widths?: FilterChipBarProps['valueWidths']) => (folded
-    ? <FiltersMenu fields={fields} onClearAll={clearAll} consumeEscape={consumeEscape} />
-    : fields.map((field) => <FilterButton key={field.key} field={field} consumeEscape={consumeEscape} valueWidth={widths?.[field.key]} />))
+  const toggleCompleted = () => update({ showCompleted: !p.showCompleted })
+  // The Filter button, then (unfolded) a chip per filter that is on — and
+  // the chip whose picker is open, though the picker emptied it, so the
+  // picker isn't pulled away mid-edit. The button keeps its key in both
+  // folds, so a fold change keeps its menu.
+  const shownChips = fields.filter((field) => field.value != null || field.key === openChip)
+  const variant = (folded: boolean, widths?: FilterChipBarProps['valueWidths'], measureOnly = false) => [
+    <FilterMenu
+      key="menu"
+      fields={fields}
+      folded={folded}
+      showCompleted={p.showCompleted}
+      onToggleCompleted={toggleCompleted}
+      active={active}
+      onClearAll={clearAll}
+      consumeEscape={consumeEscape}
+      measureOnly={measureOnly}
+    />,
+    ...(folded ? [] : [
+      ...(measureOnly ? fields.filter((field) => field.value != null) : shownChips).map((field) => (
+        <FilterButton
+          key={field.key}
+          field={field}
+          consumeEscape={consumeEscape}
+          valueWidth={widths?.[field.key]}
+          onOpenChange={measureOnly ? undefined : (open) => chipOpenChange(field.key, open)}
+          onCleared={measureOnly ? undefined : focusMenuIfLost}
+        />
+      )),
+      ...(p.showCompleted ? [<CompletedChip key="completed" onHide={() => { toggleCompleted(); if (!measureOnly) focusMenuIfLost() }} />] : []),
+    ]),
+  ]
 
   return (
     <>
@@ -674,20 +783,35 @@ export function FilterChipBarDesktop({
           inert
           {...{ [FOLD_VARIANT_ATTR]: folded ? 'folded' : 'open', [FOLD_HIDDEN_ATTR]: '' }}
         >
-          {variant(folded)}
+          {variant(folded, undefined, true)}
         </span>
       ))}
-      <span className={styles.separator} aria-hidden="true" />
+    </>
+  )
+}
+
+/**
+ * Show completed as a set filter's chip in the bar (while it is on): `✓
+ * Completed ×`; a click anywhere on it hides the completed tasks again (it
+ * has no picker). It stays the `Show completed` toggle, pressed.
+ */
+function CompletedChip({ onHide }: { onHide: () => void }) {
+  const { triggerProps, tooltip } = useTooltip('Completed tasks are shown · click to hide them')
+  return (
+    <div className={`${styles.filterButton} ${styles.filterButtonActive} ${styles.filterButtonOn}`}>
       <button
         type="button"
-        className={`${styles.completed} ${p.showCompleted ? styles.completedOn : ''}`}
-        onClick={() => update({ showCompleted: !p.showCompleted })}
-        aria-pressed={p.showCompleted}
+        className={`${styles.filterMain} ${styles.completedChip}`}
+        aria-pressed="true"
         aria-label="Show completed"
+        onClick={onHide}
+        {...triggerProps}
       >
-        <CheckIcon size={12} />
-        Completed
+        <span className={styles.icon}><CheckIcon size={12} /></span>
+        <span className={styles.filterLabel}>Completed</span>
+        <span className={styles.chipCross} aria-hidden="true"><CloseIcon size={8} /></span>
       </button>
-    </>
+      {tooltip}
+    </div>
   )
 }

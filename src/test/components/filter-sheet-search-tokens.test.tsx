@@ -19,7 +19,7 @@ function renderSheet() {
   act(() => { useUIStore.setState({ isFilterSheetOpen: true }) })
 }
 
-const input = () => screen.getByRole('textbox', { name: 'Search tasks' }) as HTMLInputElement
+const input = () => screen.getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
 function type(value: string) {
   act(() => {
     input().focus()
@@ -52,7 +52,7 @@ describe('FilterSheet search tokens (D16, phone)', () => {
     renderSheet()
     type('budget @ai')
     // Inside the sheet, not portaled out of it.
-    const popup = screen.getByRole('textbox', { name: 'Search tasks' }).closest('div')?.parentElement?.querySelector<HTMLElement>('[data-nlp-popup]') ?? null
+    const popup = screen.getByRole('textbox', { name: 'Filter tasks' }).closest('div')?.parentElement?.querySelector<HTMLElement>('[data-nlp-popup]') ?? null
     expect(popup).not.toBeNull()
     const option = within(popup!).getByRole('option', { name: 'Aisha Rahman' })
     fireEvent.mouseDown(option, { button: 0 })

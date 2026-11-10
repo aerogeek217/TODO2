@@ -1,6 +1,7 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { TodoPredicate } from '../../models'
 import { unmatchedNote, useSearchBox } from '../../hooks/use-search-box'
+import { useFilterPlaceholder } from '../../hooks/use-filter-placeholder'
 import { useFilterStore } from '../../stores/filter-store'
 import { countActiveFilters, criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
 import { FilterChipBar } from '../shared/filters/FilterChipBar'
@@ -13,7 +14,7 @@ import styles from './TaskDialogFilterBar.module.css'
  * The screen filter's task dialog's filter bar (a phone: desktop edits the
  * filter in the top bar's tray over its filtered-tasks panel): the screen
  * filter itself, not a copy — every change here applies to every widget
- * behind at once (the dialog's rows follow it). The search, then the
+ * behind at once (the dialog's rows follow it). The filter field, then the
  * filter sheet's sections under a Filters disclosure (closed at first).
  */
 export function TaskDialogFilterBar() {
@@ -61,6 +62,8 @@ export function TaskDialogFilterBar() {
 function SearchField() {
   const inputRef = useRef<HTMLInputElement>(null)
   const box = useSearchBox({ inputRef })
+  const [focused, setFocused] = useState(false)
+  const placeholder = useFilterPlaceholder(focused && box.text === '')
   const mirrorRef = useRef<HTMLDivElement>(null)
   const syncMirror = useCallback(() => {
     if (mirrorRef.current && inputRef.current) mirrorRef.current.scrollLeft = inputRef.current.scrollLeft
@@ -75,8 +78,10 @@ function SearchField() {
           ref={inputRef}
           className={styles.searchInput}
           type="text"
-          placeholder="Search…"
-          aria-label="Search tasks"
+          placeholder={placeholder}
+          aria-label="Filter tasks"
+          onFocus={() => setFocused(true)}
+          onBlur={() => setFocused(false)}
           value={box.text}
           onChange={(e) => box.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length, e.target)}
           onSelect={syncMirror}
@@ -106,7 +111,7 @@ function SearchField() {
           <button
             type="button"
             className={styles.searchClear}
-            aria-label="Clear search"
+            aria-label="Clear filter text"
             tabIndex={-1}
             onMouseDown={(e) => { e.preventDefault(); box.clear(); inputRef.current?.focus() }}
           >

@@ -438,11 +438,11 @@ test('a modal keeps app shortcuts out: Ctrl+F and Ctrl+K do nothing inside Setti
   await page.keyboard.press('Control+f')
   expect(await focusInside(settings)).toBe(true)
   await page.keyboard.press('Control+k')
-  await expect(page.getByPlaceholder(/Search tasks, commands/)).toHaveCount(0)
+  await expect(page.getByPlaceholder(/Find tasks, commands/)).toHaveCount(0)
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
   await page.keyboard.press('Control+k')
-  await expect(page.getByPlaceholder(/Search tasks, commands/)).toBeVisible()
+  await expect(page.getByPlaceholder(/Find tasks, commands/)).toBeVisible()
 })
 
 /** The Settings editors and the notes → tasks preview: the frame's contract, and their stacks. */

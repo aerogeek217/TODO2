@@ -49,7 +49,7 @@ describe('FilterSheet', () => {
 
     it('renders content when open', () => {
       renderSheet()
-      expect(screen.getByPlaceholderText('Search tasks...')).toBeInTheDocument()
+      expect(screen.getByPlaceholderText('Filter…')).toBeInTheDocument()
     })
 
     it('closes when backdrop is clicked', () => {
@@ -73,13 +73,13 @@ describe('FilterSheet', () => {
     it('is a modal dialog named Filters; Esc closes it', () => {
       renderSheet()
       expect(screen.getByRole('dialog', { name: 'Filters' })).toHaveAttribute('aria-modal', 'true')
-      fireEvent.keyDown(screen.getByPlaceholderText('Search tasks...'), { key: 'Escape' })
+      fireEvent.keyDown(screen.getByPlaceholderText('Filter…'), { key: 'Escape' })
       expect(useUIStore.getState().isFilterSheetOpen).toBe(false)
     })
 
     it('Esc something inside took first leaves the sheet open', () => {
       renderSheet()
-      const input = screen.getByPlaceholderText('Search tasks...')
+      const input = screen.getByPlaceholderText('Filter…')
       input.addEventListener('keydown', (e) => e.preventDefault())
       fireEvent.keyDown(input, { key: 'Escape' })
       expect(useUIStore.getState().isFilterSheetOpen).toBe(true)
@@ -100,8 +100,8 @@ describe('FilterSheet', () => {
 
     it('the search’s × is named', () => {
       renderSheet()
-      fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'milk' } })
-      expect(screen.getByRole('button', { name: 'Clear search' })).toBeInTheDocument()
+      fireEvent.change(screen.getByPlaceholderText('Filter…'), { target: { value: 'milk' } })
+      expect(screen.getByRole('button', { name: 'Clear filter text' })).toBeInTheDocument()
     })
   })
 
@@ -124,13 +124,13 @@ describe('FilterSheet', () => {
   describe('search', () => {
     it('updates searchText in filter store', () => {
       renderSheet()
-      fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'hello' } })
+      fireEvent.change(screen.getByPlaceholderText('Filter…'), { target: { value: 'hello' } })
       expect(useFilterStore.getState().filters.searchText).toBe('hello')
     })
 
     it('clears search with the clear button', () => {
       renderSheet()
-      fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'query' } })
+      fireEvent.change(screen.getByPlaceholderText('Filter…'), { target: { value: 'query' } })
       fireEvent.click(screen.getByText('\u00d7'))
       expect(useFilterStore.getState().filters.searchText).toBe('')
     })
@@ -383,7 +383,7 @@ describe('FilterSheet', () => {
     it('clears filters and closes sheet', () => {
       renderSheet()
       // Activate a filter — search text
-      fireEvent.change(screen.getByPlaceholderText('Search tasks...'), { target: { value: 'x' } })
+      fireEvent.change(screen.getByPlaceholderText('Filter…'), { target: { value: 'x' } })
       expect(useFilterStore.getState().isActive).toBe(true)
 
       fireEvent.click(screen.getByText('Clear all filters'))

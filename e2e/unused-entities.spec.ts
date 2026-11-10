@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { openSettings, seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { assignedNames, readStore } from './fixtures/db'
+import { filterMenu, openFilterPicker } from './fixtures/filters'
 
 /**
  * Settings › People, statuses & tags › Find unused… opens the Unused people
@@ -23,12 +24,15 @@ const SEED: WorkspaceSeed = {
 
 /** The names a top-bar filter picker offers (its options, without the None / No tags row). */
 async function pickerNames(page: Page, field: 'People' | 'Tags'): Promise<string[]> {
-  await page.getByRole('button', { name: new RegExp(`^${field} filter`) }).click()
+  await openFilterPicker(page, field)
   const list = page.getByRole('listbox', { name: field })
   await expect(list).toBeVisible()
   const names = (await list.getByRole('option').allTextContents()).map((t) => t.trim()).filter((t) => t !== 'None' && t !== 'No tags')
   await page.keyboard.press('Escape')
   await expect(list).toHaveCount(0)
+  // And the Filter menu it opened from.
+  await page.keyboard.press('Escape')
+  await expect(filterMenu(page)).toHaveCount(0)
   return names
 }
 

@@ -1,13 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { filterMenu, filterMenuButton, filterMenuRow, openFilterMenu, openFilterPicker } from './fixtures/filters'
 
 /**
  * The top bar shrinks its filter tray before it folds anything: short of
- * room, the search narrows first, then long filter values are cut with an
- * ellipsis (the whole value stays in the button's name and tooltip); only
- * when the tray shrunk as far as it goes still doesn't fit do the filter
- * buttons fold into the Filters menu (then the layout tabs into the picker).
- * Nothing left of the tray moves for it, and the bar never wraps.
+ * room, the field narrows first, then long values on the set filters' chips
+ * are cut with an ellipsis (the whole value stays in the chip's name and
+ * tooltip); only when the tray shrunk as far as it goes still doesn't fit do
+ * the chips fold into the Filter button (then the layout tabs into the
+ * picker). Nothing left of the tray moves for it, and the bar never wraps.
  */
 
 /** Two layouts named like the dev seed's, so the tray starts where it does there. */
@@ -28,9 +29,7 @@ const SEED: WorkspaceSeed = {
 
 const header = (page: Page) => page.locator('header')
 const tray = (page: Page) => header(page).getByRole('group', { name: 'Screen filters — apply to every widget' })
-const filtersMenu = (page: Page) => tray(page).getByRole('button', { name: /^Filters/ })
 const people = (page: Page) => tray(page).getByRole('button', { name: /^People filter/ })
-const FILTER_BUTTONS = ['Priority filter', 'Tags filter', /^People filter/, 'Dates filter', 'Status filter']
 
 /** The bar now: its fold, the tray's edges, the search's width, the People value's widths, how it fits. */
 const bar = (page: Page) => header(page).evaluate((el) => {
@@ -84,29 +83,32 @@ async function settled(page: Page) {
   return bar(page)
 }
 
-async function expectEveryFilterButton(page: Page) {
-  await expect(filtersMenu(page)).toHaveCount(0)
-  for (const name of FILTER_BUTTONS) {
-    await expect(tray(page).getByRole('button', { name, exact: typeof name === 'string' })).toBeVisible()
-  }
+/** Picks `option` in `field`'s picker from the Filter menu; closes the picker and the menu. */
+async function pick(page: Page, field: 'People' | 'Status', ...options: string[]) {
+  await openFilterPicker(page, field)
+  for (const option of options) await page.getByRole('option', { name: option }).click()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(filterMenu(page)).toHaveCount(0)
 }
 
-// The storage pill is its 24px dot while all is well and the layout has no save button: the widths below are measured for that.
-test.use({ viewport: { width: 1274, height: 900 } })
+// The storage pill is its 24px dot while all is well. Measured on this seed
+// with Aisha Rahman picked: the field narrows below 968px, her name is cut
+// below 876px, the chip folds into the Filter button below 852px and the
+// layout tabs fold below 766px. With nothing picked the field narrows only
+// below 776px and nothing folds.
+test.use({ viewport: { width: 862, height: 900 } })
 
-test('at 1274px one person ticked keeps every filter button: the search narrows, the name is cut and whole in its tooltip', async ({ page }) => {
+test('at 862px one person picked shows her chip: the field narrows, the name is cut and whole in its tooltip', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  await expectEveryFilterButton(page)
+  await expect(filterMenuButton(page)).toHaveAccessibleName('Filter')
   const before = await settled(page)
   expect(before).toMatchObject({ fold: 'none', search: 200, valueCut: null, oneLine: true })
 
-  await people(page).click()
-  await page.getByRole('option', { name: 'Aisha Rahman' }).click()
-  await page.keyboard.press('Escape')
+  await pick(page, 'People', 'Aisha Rahman')
   await expect(people(page)).toHaveAccessibleName('People filter: Aisha Rahman')
 
   // Shrunk, not folded: the tray where it was, up to the right zone.
-  await expectEveryFilterButton(page)
   const shrunk = await settled(page)
   expect(shrunk).toMatchObject({ fold: 'none', trayLeft: before.trayLeft, valueCut: true, oneLine: true })
   expect(shrunk.search).toBe(110)
@@ -116,7 +118,7 @@ test('at 1274px one person ticked keeps every filter button: the search narrows,
   await expect(page.getByRole('tooltip')).toHaveText('People: Aisha Rahman')
   await page.mouse.move(640, 600)
 
-  // Wider: the full search and the whole name, no tooltip needed.
+  // Wider: the full field and the whole name, no tooltip needed.
   await page.setViewportSize({ width: 1600, height: 900 })
   await expect.poll(async () => (await settled(page)).search).toBe(200)
   expect(await settled(page)).toMatchObject({ fold: 'none', trayLeft: before.trayLeft, valueCut: false, oneLine: true })
@@ -124,26 +126,30 @@ test('at 1274px one person ticked keeps every filter button: the search narrows,
   await expect(page.getByRole('tooltip')).toHaveCount(0)
   await page.mouse.move(640, 600)
 
-  // Too narrow even shrunk: the filters fold as before, the search back to its width.
-  await page.setViewportSize({ width: 1200, height: 900 })
-  await expect(filtersMenu(page)).toHaveAccessibleName('Filters, 1 active')
-  expect(await settled(page)).toMatchObject({ fold: 'filters', trayLeft: before.trayLeft, search: 200, oneLine: true })
+  // Too narrow even shrunk: the chip folds into the Filter button, the field wider again.
+  await page.setViewportSize({ width: 820, height: 900 })
+  await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 1 active')
+  await expect(people(page)).toHaveCount(0)
+  const folded = await settled(page)
+  expect(folded).toMatchObject({ fold: 'filters', trayLeft: before.trayLeft, oneLine: true })
+  expect(folded.search).toBeGreaterThan(110)
+  // Its menu still says what is on.
+  await openFilterMenu(page)
+  await expect(filterMenu(page).getByRole('button', { name: 'People filter: Aisha Rahman' })).toBeVisible()
 })
 
-test('narrowing: the search narrows first, then the value is cut, then the filters fold, then the tabs; never a wrap, never a flicker', async ({ page }) => {
-  // About 60 widths, each waited out: longer than the default under a parallel run.
+test('narrowing: the field narrows first, then the value is cut, then the chips fold, then the tabs; never a wrap, never a flicker', async ({ page }) => {
+  // About 70 widths, each waited out: longer than the default under a parallel run.
   test.setTimeout(90_000)
   await page.setViewportSize({ width: 1600, height: 900 })
   await seedWorkspace(page, SEED)
-  await people(page).click()
-  await page.getByRole('option', { name: 'Aisha Rahman' }).click()
-  await page.keyboard.press('Escape')
+  await pick(page, 'People', 'Aisha Rahman')
   const wide = await settled(page)
 
   const seen = new Set<string>()
   // 20 px steps, 5 px across the narrow band where the value is cut (about
-  // 1312–1290 px in this seed), so each phase is seen more than once.
-  for (let width = 1600; width >= 760; width -= width <= 1335 && width > 1265 ? 5 : 20) {
+  // 876–852 px in this seed), so each phase is seen more than once.
+  for (let width = 1600; width >= 700; width -= width <= 890 && width > 840 ? 5 : 20) {
     await page.setViewportSize({ width, height: 900 })
     const s = await settled(page)
     expect(s.oneLine, `at ${width}px`).toBe(true)
@@ -152,7 +158,7 @@ test('narrowing: the search narrows first, then the value is cut, then the filte
       expect(s.trayLeft, `at ${width}px`).toBe(wide.trayLeft)
       expect(s.trayRight, `at ${width}px`).toBeLessThanOrEqual(s.springLeft)
     }
-    // The value is cut only once the search is as narrow as it goes.
+    // The value is cut only once the field is as narrow as it goes.
     if (s.valueCut) expect(s.search, `at ${width}px`).toBe(110)
     seen.add(s.fold === 'none' ? (s.valueCut ? 'value cut' : s.search < 200 ? 'search narrowed' : 'natural') : s.fold!)
   }
@@ -164,27 +170,28 @@ test('narrowing: the search narrows first, then the value is cut, then the filte
   await expect.poll(() => settled(page)).toEqual(wide)
 })
 
-test('a pick that needs the fold waits for its picker to close: the button and its picker stay put mid-pick (cr31 UI F10)', async ({ page }) => {
-  // Just wide enough for every filter button with no value; a Status value folds them.
-  await page.setViewportSize({ width: 1234, height: 900 })
+test('a pick that needs the fold waits for the Filter menu to close: the menu and its picker stay put mid-pick (cr31 UI F10)', async ({ page }) => {
+  // Aisha's chip fits (the field narrowed); a Status value as well folds the chips (below 960px).
+  await page.setViewportSize({ width: 920, height: 900 })
   await seedWorkspace(page, SEED)
-  await expectEveryFilterButton(page)
+  await pick(page, 'People', 'Aisha Rahman')
   expect((await settled(page)).fold).toBe('none')
 
-  const status = tray(page).getByRole('button', { name: /^Status filter/ })
-  await status.click()
+  await openFilterPicker(page, 'Status')
   const list = page.getByRole('listbox', { name: 'Status' })
   await list.getByRole('option', { name: 'Assigned' }).click()
   await list.getByRole('option', { name: 'Waiting' }).click()
   // Still open, both picked, the bar unfolded under it.
   await expect(list.getByRole('option', { name: 'Waiting' })).toHaveAttribute('aria-selected', 'true')
   await expect(list.getByRole('option', { name: 'Assigned' })).toHaveAttribute('aria-selected', 'true')
-  await expect(filtersMenu(page)).toHaveCount(0)
-  await expect(status).toHaveAccessibleName('Status filter: Assigned or Waiting')
+  await expect(filterMenuRow(page, 'Status')).toHaveAccessibleName('Status filter: Assigned or Waiting')
+  expect(await header(page).getAttribute('data-fold')).toBe('none')
 
   // Closed: now it folds.
   await page.keyboard.press('Escape')
   await expect(list).toHaveCount(0)
-  await expect(filtersMenu(page)).toHaveAccessibleName('Filters, 1 active')
+  await page.keyboard.press('Escape')
+  await expect(filterMenu(page)).toHaveCount(0)
+  await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 2 active')
   expect(await settled(page)).toMatchObject({ fold: 'filters', oneLine: true })
 })

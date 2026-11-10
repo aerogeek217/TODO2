@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback, useEffect, useMemo, useLayoutEffect } from 'react'
+import { useState, useRef, useCallback, useMemo, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation } from 'react-router'
 import { ROUTE_WORKSPACE } from '../../routes'
@@ -15,11 +15,11 @@ import { SearchResultContextMenu, SearchResultsGroups, type SearchResultPillCont
 import { LayoutControls } from '../workspace/LayoutControls'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { StoragePill } from './StoragePill'
-import { CloseIcon, FunnelIcon, GearIcon, PlusIcon, SearchIcon } from '../shared/icons'
-import { useTooltip } from '../shared/use-tooltip'
+import { CloseIcon, GearIcon, PlusIcon, SearchIcon } from '../shared/icons'
 import { useShortcutLabel } from '../../hooks/use-shortcut-label'
+import { useFilterPlaceholder } from '../../hooks/use-filter-placeholder'
 import styles from './TopBar.module.css'
-import { filtersFolded, FOLD_PART, FOLD_SEARCH_ATTR, SEARCH_WIDTH, tabsFolded, traySqueeze, useTopBarFold } from './use-top-bar-fold'
+import { filtersFolded, FOLD_PART, FOLD_SEARCH_ATTR, SEARCH_WIDTH, tabsFolded, useTopBarFold } from './use-top-bar-fold'
 import { ShowFilteredTasksButton } from './ShowFilteredTasksButton'
 import { LensControl } from '../shared/filters/LensControl'
 import { usePickedLens, useScreenFilter } from '../../stores/screen-filter'
@@ -32,7 +32,6 @@ import { useFilterSettings } from '../../hooks/use-filter-settings'
 import { FILTER_ROW_ATTR, SEARCH_INPUT_ATTR } from '../../utils/dom-contract'
 import { FilteredTasksPanel } from '../overlays/FilteredTasksPanel'
 import { tabAcross } from '../../utils/focusables'
-import { trayExpansion, type TrayExpansion } from './tray-expansion'
 import { PopoverRoot } from '../shared/PopoverRoot'
 import { AmbienceSky } from '../ambience/AmbienceSky'
 
@@ -57,45 +56,6 @@ function layoutTabsKey(s: ReturnType<typeof useWorkspaceStore.getState>): string
   return `${s.layouts.length}|${names}|${open}|${s.writeFailed ? 'failed' : ''}`
 }
 
-/**
- * The filter tray's funnel, left of search: red while any screen filter is
- * on; a click clears them all. Disabled while none is on.
- */
-function ClearFiltersButton({ active }: { active: boolean }) {
-  const { triggerProps, tooltip } = useTooltip(active ? 'Clear all filters\nFilters apply to every widget on screen' : null)
-  return (
-    <button
-      type="button"
-      className={styles.funnel}
-      aria-label="Clear all filters"
-      disabled={!active}
-      onClick={() => useFilterStore.getState().clearAll()}
-      data-clear-filters=""
-      {...triggerProps}
-    >
-      <FunnelIcon size={14} />
-      {tooltip}
-    </button>
-  )
-}
-
-/**
- * The search box's placeholder: `Search…`, and while the empty box has the
- * focus the token examples in turn (D16), so the grammar can be found.
- */
-const SEARCH_PLACEHOLDERS = ['Search…', 'Search… @person', 'Search… #tag', 'Search… !status', 'Search… overdue', 'Search… due fri']
-const PLACEHOLDER_MS = 2500
-
-function useSearchPlaceholder(cycling: boolean): string {
-  const [step, setStep] = useState(0)
-  useEffect(() => {
-    if (!cycling) return
-    const id = setInterval(() => setStep((n) => n + 1), PLACEHOLDER_MS)
-    return () => clearInterval(id)
-  }, [cycling])
-  return cycling ? SEARCH_PLACEHOLDERS[step % SEARCH_PLACEHOLDERS.length] ?? 'Search…' : 'Search…'
-}
-
 const NO_TODOS: PersistedTodoItem[] = []
 
 export function TopBar() {
@@ -108,7 +68,7 @@ export function TopBar() {
   const box = useSearchBox({ inputRef: searchInputRef })
   const searchWords = box.words
   const [searchFocused, setSearchFocused] = useState(false)
-  const searchPlaceholder = useSearchPlaceholder(searchFocused && box.text === '')
+  const searchPlaceholder = useFilterPlaceholder(searchFocused && box.text === '')
   const miniListRef = useRef<HTMLDivElement>(null)
   // Right-click menu state is kept on TopBar (not SearchResultRow) so the
   // menu outlives the search dropdown closing when the menu opens — the row
@@ -116,8 +76,9 @@ export function TopBar() {
   const [searchContextMenu, setSearchContextMenu] = useState<
     { todoId: number; x: number; y: number } | null
   >(null)
-  // The filtered-tasks panel: while it is open its rows are the search's
-  // results (no dropdown), and the tray is its filter editor.
+  // The filtered-tasks panel: while it is open its rows are the field's
+  // results (no dropdown), and the tray — the field, the Filter menu, the
+  // chips — is its filter editor.
   const panelOpen = useUIStore((s) => s.filterPanelOpen)
   const trayRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -191,8 +152,8 @@ export function TopBar() {
   const isWorkspace = location.pathname === ROUTE_WORKSPACE
   const settingsOpen = useUIStore((s) => s.settingsOpen)
   // The bar never wraps or overflows: measured, the tray shrinks first (the
-  // search narrows, then long filter values are cut), then the filter
-  // buttons fold into one Filters menu, then the layout tabs into the layout
+  // field narrows, then long filter values are cut), then the set filters'
+  // chips fold into the Filter button, then the layout tabs into the layout
   // picker. The filtered-tasks panel changes none of it.
   const barRef = useRef<HTMLElement | null>(null)
   const tabsKey = useWorkspaceStore(layoutTabsKey)
@@ -202,49 +163,8 @@ export function TopBar() {
   // Clear all empties the filter).
   const lensPicked = usePickedLens() != null
   const showTasksButton = isActive || lensPicked || panelOpen
-  // While the panel is open over folded filters, the tray expands in place
-  // to show every filter button: lifted out of the bar (a slot of its folded
-  // width keeps its place, so nothing else moves), from its left edge
-  // rightwards over the free space and the right zone — shrunk, then slid
-  // left only as far as the window needs. When even the window can't hold it
-  // shrunk, it stays folded. Placed before paint, again on every change of
-  // the bar's widths.
-  // The right zone it reaches into hides under it (no part of the storage
-  // pill peeking out beside it).
-  const [placed, setPlaced] = useState<(TrayExpansion & { top: number; coversRight: boolean }) | null>(null)
-  const slotRef = useRef<HTMLDivElement>(null)
-  const rightRef = useRef<HTMLDivElement>(null)
-  // The tray gains or loses Show N tasks, or is lifted out: measured again then.
-  const { fold, squeeze: barSqueeze, trayOpen, trayOpenMin, trayFolded, values, lensName } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}|${panelOpen}|${placed !== null}`)
-  const expandable = panelOpen && filtersFolded(fold) && trayOpen !== undefined
-  const expansion = expandable ? placed : null
-  // The expanded tray shrinks to its own width; in the bar, to the bar's room.
-  const squeeze = expansion && trayOpen !== undefined ? traySqueeze(trayOpen, expansion.width, values) : barSqueeze
-  useLayoutEffect(() => {
-    if (!expandable || trayOpen === undefined) return
-    const place = () => {
-      // The slot while expanded, else the tray itself: the place in the bar.
-      const anchor = slotRef.current ?? trayRef.current
-      if (!anchor) return
-      const box = anchor.getBoundingClientRect()
-      const at = trayExpansion(box.left, trayOpen, window.innerWidth, trayOpenMin)
-      const rightZone = rightRef.current?.getBoundingClientRect().left ?? Infinity
-      const next = at && { ...at, top: box.top, coversRight: at.left + at.width > rightZone }
-      setPlaced((prev) => (prev?.left === next?.left && prev?.top === next?.top && prev?.width === next?.width
-        && prev?.coversRight === next?.coversRight ? prev : next))
-    }
-    place()
-    // A part before it changing width (the lens control on a pick from the
-    // keyboard or the palette, the layout tabs) moves its place unresized.
-    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(place)
-    const anchor = slotRef.current ?? trayRef.current
-    for (let part = anchor?.previousElementSibling; part; part = part.previousElementSibling) observer?.observe(part)
-    window.addEventListener('resize', place)
-    return () => {
-      observer?.disconnect()
-      window.removeEventListener('resize', place)
-    }
-  }, [expandable, trayOpen, trayOpenMin, trayFolded, tabsKey])
+  // The tray gains or loses Show N tasks: measured again then.
+  const { fold, squeeze, lensName } = useTopBarFold(barRef, tabsKey, `${isWorkspace}|${showTasksButton}`)
 
   const clearSearch = box.clear
   const handleOpenTodo = useCallback((todoId: number) => {
@@ -299,22 +219,16 @@ export function TopBar() {
           </div>
         )}
 
-        {expansion && (
-          <div ref={slotRef} className={styles.traySlot} style={{ width: trayFolded }} data-fold-part={FOLD_PART.traySlot} aria-hidden="true" />
-        )}
         <div
           ref={trayRef}
-          className={`${styles.tray} ${isActive ? styles.trayActive : ''} ${panelOpen ? styles.trayPanelOpen : ''} ${expansion ? styles.trayExpanded : ''}`}
-          style={expansion ? { left: expansion.left, top: expansion.top } : undefined}
+          className={`${styles.tray} ${isActive ? styles.trayActive : ''} ${panelOpen ? styles.trayPanelOpen : ''}`}
           data-fold-part={FOLD_PART.tray}
-          data-expanded={expansion ? '' : undefined}
           role="group"
           aria-label="Screen filters — apply to every widget"
           {...{ [FILTER_ROW_ATTR]: '' }}
           data-filtered={isActive || undefined}
           onKeyDown={panelOpen ? (e) => tabAcross(e, trayRef.current, panelRef.current) : undefined}
         >
-          <ClearFiltersButton active={isActive} />
           <div className={styles.searchWrapper} style={{ width: squeeze?.search ?? SEARCH_WIDTH }} {...{ [FOLD_SEARCH_ATTR]: '' }}>
             <span className={styles.searchIcon}><SearchIcon size={14} /></span>
             <input
@@ -322,7 +236,7 @@ export function TopBar() {
               className={styles.searchInput}
               type="text"
               placeholder={searchPlaceholder}
-              aria-label="Search tasks"
+              aria-label="Filter tasks"
               value={box.text}
               onChange={(e) => box.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length, e.target)}
               onSelect={syncMirror}
@@ -381,7 +295,7 @@ export function TopBar() {
               <button
                 type="button"
                 className={styles.searchClear}
-                aria-label="Clear search"
+                aria-label="Clear filter text"
                 tabIndex={-1}
                 onMouseDown={(e) => { e.preventDefault(); box.clear(); searchInputRef.current?.focus() }}
               >
@@ -414,7 +328,7 @@ export function TopBar() {
             predicate={filterPredicate}
             onChange={handleFilterChange}
             onClearAll={() => useFilterStore.getState().clearAll()}
-            fold={filtersFolded(fold) && !expansion}
+            fold={filtersFolded(fold)}
             measureFold
             valueWidths={squeeze?.values}
             consumeEscape={panelOpen}
@@ -422,11 +336,7 @@ export function TopBar() {
           {showTasksButton && <ShowFilteredTasksButton open={panelOpen} />}
         </div>
 
-        <div
-          ref={rightRef}
-          className={`${styles.right} ${expansion?.coversRight ? styles.rightCovered : ''}`}
-          data-fold-part={FOLD_PART.spring}
-        >
+        <div className={styles.right} data-fold-part={FOLD_PART.spring}>
           <StoragePill />
           <button
             type="button"
@@ -464,7 +374,7 @@ export function TopBar() {
           />
         )}
       </header>
-      {panelOpen && <FilteredTasksPanel trayRef={trayRef} topBarRef={barRef} panelRef={panelRef} trayLeft={expansion?.left} />}
+      {panelOpen && <FilteredTasksPanel trayRef={trayRef} topBarRef={barRef} panelRef={panelRef} />}
       {popupOpen && box.ac.state.view && createPortal(
         <NlpPopup
           view={box.ac.state.view}

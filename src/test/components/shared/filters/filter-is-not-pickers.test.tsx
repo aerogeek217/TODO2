@@ -10,6 +10,7 @@ import { useStatusStore } from '../../../../stores/status-store'
 import { useTagStore } from '../../../../stores/tag-store'
 import { useUIStore } from '../../../../stores/ui-store'
 import { makePerson } from '../../../helpers'
+import { openFieldPicker } from './filter-menu-helpers'
 
 /**
  * The Is / Is not toggle in the People / Status / Tags pickers — the top
@@ -96,7 +97,7 @@ describe('the top bar’s Status picker', () => {
 describe('the top bar’s People picker: Email check-in for an "is not" filter', () => {
   const openPeople = (predicate: TodoPredicate) => {
     render(<FilterChipBar predicate={predicate} onChange={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: /^People filter/ }))
+    openFieldPicker('People')
   }
 
   it('is not Bob: emails the people not ticked', () => {
@@ -159,12 +160,13 @@ describe('the Tags pickers’ No tags row', () => {
   it('the top bar: No tags is a row like People’s None; Is not No tags reads “has a tag”', () => {
     const updates: TodoPredicate[] = []
     render(<TopBar initial={emptyPredicate()} updates={updates} />)
-    fireEvent.click(screen.getByRole('button', { name: /^Tags filter/ }))
+    openFieldPicker('Tags')
     fireEvent.click(screen.getByRole('option', { name: 'No tags' }))
     expect(updates.at(-1)).toMatchObject({ tags: [0] })
     choose('Tags', 'Is not')
     expect(updates.at(-1)).toMatchObject({ tags: [0], negate: { tags: true } })
-    expect(screen.getByRole('button', { name: /^Tags filter: has a tag/ })).toBeInTheDocument()
+    // The menu's row and the chip in the bar.
+    expect(screen.getAllByRole('button', { name: /^Tags filter: has a tag/ })).toHaveLength(2)
   })
 
   it('a list’s Tags picker offers it too, and a search for “no” finds it', () => {

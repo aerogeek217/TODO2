@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { expectPeopleLoaded } from './fixtures/filters'
 import { seedTaskList } from './fixtures/workspace'
 import { readStore, readStores } from './fixtures/db'
 
@@ -44,13 +45,11 @@ test.describe('QuickAddBar @ mention picker', () => {
       ],
     })
 
-    // The top bar's People filter renders only when
-    // `usePersonStore.people.length > 0`, so its visibility is the cheapest
-    // signal that the person store has loaded. `seedTaskList` reloads the page
+    // Wait for the person store to load: `seedTaskList` reloads the page
     // after writing IDB, but the app's init chain races the test's first `@`
     // keystroke; without this gate the autocomplete filters an empty list and
     // the popup never opens.
-    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await expectPeopleLoaded(page)
 
     // Open QuickAddBar via the global hotkey.
     await page.keyboard.press('Control+Space')
@@ -105,7 +104,7 @@ test.describe('QuickAddBar @ mention picker', () => {
 test.describe('QuickAddBar @ popup: the highlighted row is what you get', () => {
   test('the pointer moves the highlight; a space typed after @Fr completes to the highlighted person', async ({ page }) => {
     await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }, { name: 'Frida', initials: 'FA' }] })
-    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await expectPeopleLoaded(page)
     await page.keyboard.press('Control+Space')
     const dialog = page.getByRole('dialog', { name: 'Quick add task' })
     const input = dialog.getByPlaceholder('New task…')
@@ -132,7 +131,7 @@ test.describe('QuickAddBar @ popup: the highlighted row is what you get', () => 
 test.describe('QuickAddBar @ popup: the Create row', () => {
   test('@Ed with Fred stored: Fred highlighted, ↓ to Create "Ed", Tab makes Ed at once; the task gets Ed', async ({ page }) => {
     await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }] })
-    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await expectPeopleLoaded(page)
     await page.keyboard.press('Control+Space')
     const dialog = page.getByRole('dialog', { name: 'Quick add task' })
     const input = dialog.getByPlaceholder('New task…')
@@ -157,7 +156,7 @@ test.describe('QuickAddBar @ popup: the Create row', () => {
 test.describe('QuickAddBar # popup: a tag no bare #slug can spell', () => {
   test('R&D: typing #R& offers it; Tab writes #"R&D"; the task gets R&D and no tag "R" is made', async ({ page }) => {
     await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }], tags: ['R&D', 'rd'] })
-    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await expectPeopleLoaded(page)
     await page.keyboard.press('Control+Space')
     const dialog = page.getByRole('dialog', { name: 'Quick add task' })
     const input = dialog.getByPlaceholder('New task…')
@@ -185,7 +184,7 @@ test.describe('QuickAddBar # popup: a tag no bare #slug can spell', () => {
 test.describe('QuickAddBar # popup: a match inside the name is listed, not taken unpicked', () => {
   test('#ui lists build but a space keeps #ui, which becomes a new tag; #alp → Tab picks Project: Alpha', async ({ page }) => {
     await seedTaskList(page, { people: [{ name: 'Fred', initials: 'FR' }], tags: ['build', 'Project: Alpha'] })
-    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await expectPeopleLoaded(page)
     await page.keyboard.press('Control+Space')
     const dialog = page.getByRole('dialog', { name: 'Quick add task' })
     const input = dialog.getByPlaceholder('New task…')

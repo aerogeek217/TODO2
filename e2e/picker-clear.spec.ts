@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test'
+import { openFilterPicker } from './fixtures/filters'
 import { rowTitles, taskRowByTitle } from './fixtures/seed'
 import { ADD_FILTER, openListFilterEditor, seedTaskList } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
@@ -61,7 +62,7 @@ test('a row’s people picker: × empties the search, the picker stays open with
 
 test('the top bar’s People filter: × empties Search..., the picker stays open', async ({ page }) => {
   await seedTaskList(page, SEED)
-  await page.getByRole('button', { name: 'People filter' }).click()
+  await openFilterPicker(page, 'People')
   const search = page.getByPlaceholder('Search...')
   await expect(search).toBeFocused()
   await page.keyboard.type('ali')
@@ -76,7 +77,7 @@ test('the top bar’s People filter: × empties Search..., the picker stays open
 
 test('the top bar’s People filter: Esc empties Search... first, the next Esc closes the picker', async ({ page }) => {
   await seedTaskList(page, SEED)
-  await page.getByRole('button', { name: 'People filter' }).click()
+  await openFilterPicker(page, 'People')
   const search = page.getByPlaceholder('Search...')
   await expect(search).toBeFocused()
   await page.keyboard.type('ali')

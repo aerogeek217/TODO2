@@ -38,8 +38,9 @@ function isOwnTarget(target: EventTarget | null, panel: HTMLElement | null, topB
  * The top bar's filtered-tasks panel (desktop, `ui-store.filterPanelOpen`):
  * the screen filter's tasks (`TaskDialogContent` on the `screen` source),
  * dropped from the filter tray's bottom edge and joined to it — the tray
- * above stays the filter's editor (its pickers open above the panel; every
- * change re-resolves the rows). A scrim dims and blurs the workspace below
+ * above stays the filter's editor (the field, the Filter menu and the set
+ * filters' chips; their pickers open above the panel; every change
+ * re-resolves the rows). A scrim dims and blurs the workspace below
  * the top bar; a press on it closes the panel.
  *
  * Not modal: the top bar stays live. Opening (and the palette's command
@@ -49,12 +50,10 @@ function isOwnTarget(target: EventTarget | null, panel: HTMLElement | null, topB
  * Show N tasks. No app shortcut fires from inside it (as from the task
  * dialog it was).
  */
-export function FilteredTasksPanel({ trayRef, topBarRef, panelRef, trayLeft }: {
+export function FilteredTasksPanel({ trayRef, topBarRef, panelRef }: {
   trayRef: RefObject<HTMLElement | null>
   topBarRef: RefObject<HTMLElement | null>
   panelRef: RefObject<HTMLDivElement | null>
-  /** The tray's left while expanded over the bar (it moves without resizing), else `undefined`. */
-  trayLeft?: number
 }) {
   const close = useUIStore((s) => s.closeFilterPanel)
   const focusKey = useUIStore((s) => s.filterPanelFocusKey)
@@ -66,9 +65,9 @@ export function FilteredTasksPanel({ trayRef, topBarRef, panelRef, trayLeft }: {
   const scrimPress = useBackdropPress(close)
 
   // Placed under the tray before paint, and again whenever the tray or the
-  // window changes size (a filter's value, the fold, a resize), the tray
-  // expands, slides or comes back, or a part before it in the bar changes
-  // width (the lens control, the layout tabs: the tray moves, unresized).
+  // window changes size (a chip, a filter's value, the fold, a resize), or a
+  // part before it in the bar changes width (the lens control, the layout
+  // tabs: the tray moves, unresized).
   useLayoutEffect(() => {
     const tray = trayRef.current
     if (!tray) return
@@ -87,7 +86,7 @@ export function FilteredTasksPanel({ trayRef, topBarRef, panelRef, trayLeft }: {
       observer?.disconnect()
       window.removeEventListener('resize', update)
     }
-  }, [trayRef, topBarRef, trayLeft])
+  }, [trayRef, topBarRef])
 
   // Focus in on open and on each request while open (the palette's command).
   useEffect(() => {

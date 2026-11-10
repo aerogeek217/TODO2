@@ -199,7 +199,7 @@ test('the tab menu’s − / + from the keyboard: the step that reaches its end 
 test('the palette’s Zoom List Out / In act on the list on screen', async ({ page }) => {
   await open(page)
   await page.keyboard.press('Control+k')
-  const search = page.getByPlaceholder(/Search tasks, commands/)
+  const search = page.getByPlaceholder(/Find tasks, commands/)
   await search.pressSequentially('zoom list out')
   await expect(page.getByRole('option', { name: /Zoom List Out/ })).toContainText('Rows → Lines')
   await page.keyboard.press('Enter')

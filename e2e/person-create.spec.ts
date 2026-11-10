@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { expectPeopleLoaded } from './fixtures/filters'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedTaskList } from './fixtures/workspace'
 import { assignedNames, readStore } from './fixtures/db'
@@ -114,7 +115,7 @@ test.describe('person picker — lookup or create', () => {
 test.describe('Quick Add @ — create on pick, or on submit', () => {
   test.beforeEach(async ({ page }) => {
     await seedTaskList(page, { people: [{ name: 'Dana Kim', initials: 'DK' }] })
-    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await expectPeopleLoaded(page)
   })
 
   test('nothing matches: Tab on the Create row makes the person at once; a quoted name typed and left is made on submit', async ({ page }) => {

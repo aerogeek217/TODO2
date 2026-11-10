@@ -99,7 +99,7 @@ async function sweep(page: Page, change: () => Promise<void>, undo: () => Promis
 }
 
 test('the active tab’s count growing fits the strip again (its title stays whole)', async ({ page }) => {
-  const search = page.getByPlaceholder('Search…')
+  const search = page.getByPlaceholder('Filter…')
   const active = wsTab(page, 'l1')
   const widthsCut = await sweep(
     page,
