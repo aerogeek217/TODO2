@@ -174,15 +174,22 @@ test.describe('recording a follow-up from a row stamps today', () => {
 test.describe('the phone row', () => {
   test.use({ viewport: { width: 390, height: 844 } })
 
-  test('its follow-up pill → Mark followed up stamps today', async ({ page }) => {
+  // The quiet phone row (2C) has no follow-up pill: a long-press's menu, or the task's editor.
+  test('its long-press menu’s Mark followed up stamps today', async ({ page }) => {
     await page.clock.setFixedTime(NOW)
     await seedWorkspace(page, { ...SEED, tasks: [{ title: 'Planned pill', followupInDays: 3 }] })
     const row = page.locator('[data-todo-id]').filter({ hasText: 'Planned pill' }).first()
-    await row.getByRole('button', { name: /^Follow-up:/ }).click()
-    // Opens on Mark followed up, as on desktop.
-    const followedUp = popover(page).getByRole('button', { name: /^Mark followed up/ })
-    await expect(followedUp).toBeFocused()
-    await followedUp.click()
+    await row.dispatchEvent('contextmenu')
+    await page.getByRole('menuitem', { name: /^Mark followed up/ }).click()
+    await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(kept('2026-10-13'))
+  })
+
+  test('a tap opens the task; its editor’s Mark followed up stamps today', async ({ page }) => {
+    await page.clock.setFixedTime(NOW)
+    await seedWorkspace(page, { ...SEED, tasks: [{ title: 'Planned pill', followupInDays: 3 }] })
+    await page.locator('[data-todo-id]').filter({ hasText: 'Planned pill' }).first().click()
+    const editor = page.getByRole('dialog', { name: 'Edit task' })
+    await editor.getByRole('button', { name: /^Mark followed up/ }).click()
     await expect.poll(() => followupOf(page, 'Planned pill')).toEqual(kept('2026-10-13'))
   })
 })
