@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
-import { seedWorkspace, wsCell, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { pickInReview, seedWorkspace, wsCell, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 
 /**
  * Board BL · the reviewer, revised — the one task layout in the task
@@ -462,13 +462,14 @@ test.describe('the Review widget’s faces (boards BL, BM)', () => {
           cols: [460, 980],
           rows: [{ px: 330 }],
           cells: [
-            { id: 'med', tabs: [{ id: 'rm', kind: 'review', review: { person: 'Aisha' } }] },
+            { id: 'med', tabs: [{ id: 'rm', kind: 'review', review: { by: 'person' } }] },
             { id: 'notes', tabs: [{ id: 'n1', kind: 'notes' }] },
           ],
         },
       }],
     })
     const med = widget(page, 'rm')
+    await pickInReview(page, 'rm', 'Aisha')
     await expect(med).toHaveAttribute('data-review-face', 'medium')
     await expect(med.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
     const dock = med.locator('[data-review-dock]')
@@ -512,13 +513,14 @@ test.describe('the Review widget’s faces (boards BL, BM)', () => {
             areas: ['rv notes'],
             cols,
             cells: [
-              { id: 'rv', tabs: [{ id: 'rev1', kind: 'review', review: { person: 'Aisha' } }] },
+              { id: 'rv', tabs: [{ id: 'rev1', kind: 'review', review: { by: 'person' } }] },
               { id: 'notes', tabs: [{ id: 'n1', kind: 'notes' }] },
             ],
           },
         }],
       })
       const w = widget(page, 'rev1')
+      await pickInReview(page, 'rev1', 'Aisha')
       await expect(w).toHaveAttribute('data-review-face', 'large')
       await w.locator('[data-review-row]').filter({ hasText: 'Vendor contract renewal' }).click()
       await expect(w.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
