@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { expectPeopleLoaded } from './fixtures/filters'
 import { seedTaskList } from './fixtures/workspace'
 import { taskRowByTitle } from './fixtures/seed'
 import { afterTransactionsOn, readStore } from './fixtures/db'
@@ -237,7 +238,7 @@ test.describe('Quick Add metadata write', () => {
     page.on('pageerror', (e) => errors.push(`${e.name}: ${e.message}`))
     page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()) })
     await seedTaskList(page, { tags: ['ops'], people: [{ name: 'Dana Kim', initials: 'DK' }] })
-    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await expectPeopleLoaded(page)
 
     const { dialog, input } = await openQuickAdd(page)
     await input.pressSequentially('Ship it #ops @Dana /due tomorrow ')

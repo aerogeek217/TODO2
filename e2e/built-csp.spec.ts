@@ -273,7 +273,7 @@ test('the offline file requests nothing but itself through its main flows', asyn
 
   // The check-in dialog's preview: the email in its sandboxed srcdoc frame.
   await page.keyboard.press('Control+k')
-  await page.getByPlaceholder(/Search tasks, commands/).fill('>check-in')
+  await page.getByPlaceholder(/Find tasks, commands/).fill('>check-in')
   await page.getByRole('option', { name: /Email task check-ins/ }).click()
   const checkin = page.getByRole('dialog', { name: 'Email task check-ins' })
   await checkin.locator('[data-checkin-row]').filter({ hasText: 'Ada Lovelace' }).getByRole('checkbox').check()

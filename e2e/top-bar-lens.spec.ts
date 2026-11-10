@@ -3,8 +3,8 @@ import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * cr22: the top bar's lens control is its own part of the bar, between the
- * layout tabs and the screen-filter tray — never inside the tray, never
- * lifted with it over the filtered-tasks panel. While a lens is on the
+ * layout tabs and the screen-filter tray — never inside the tray, and the
+ * filtered-tasks panel hanging from the tray moves none of it. While a lens is on the
  * whole control takes the accent (a tinted surface, an inset accent border,
  * the glasses and the name in the text accent), as the tray takes red while
  * a filter is on; lifted or with no lens it is neutral. It never folds: the
@@ -185,7 +185,6 @@ async function settled(page: Page) {
 
 const panel = (page: Page) => page.locator('[data-filter-panel]')
 const counter = (page: Page) => tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ })
-const expanded = (page: Page) => header(page).locator('[data-expanded]')
 
 /** The panel's left edge against the tray's, px (0: lined up). */
 const panelOffset = (page: Page) => page.evaluate(() => {
@@ -275,7 +274,8 @@ test('narrowing with a long lens on: it never folds or overflows; the tray folds
   expect(wide.nameWidth).toBe(160)
 
   const seen = new Set<string>()
-  for (let width = 1600; width >= 760; width -= 40) {
+  // Measured on this seed: the chip folds below 978px, the tabs below 890px, the name is cut below 744px.
+  for (let width = 1600; width >= 720; width -= 40) {
     await page.setViewportSize({ width, height: 900 })
     const g = await settled(page)
     expect(g.oneLine, `at ${width}px`).toBe(true)
@@ -297,24 +297,22 @@ test('narrowing with a long lens on: it never folds or overflows; the tray folds
   await expect.poll(() => settled(page)).toEqual(wide)
 })
 
-test('over folded filters the tray expands without it; a press on it closes the panel, then its picker picks', async ({ page }) => {
-  // Room enough for the expanded tray to the right of where it sits (narrower,
-  // it slides left over whatever is beside it — the control too, as the tabs).
-  await page.setViewportSize({ width: 1264, height: 900 })
+test('with the chips folded and the panel open the control stays put; a press on it closes the panel, then its picker picks', async ({ page }) => {
+  // Measured on this seed with this lens and Aisha picked: the chip folds below 890px, the tabs below 806px.
+  await page.setViewportSize({ width: 850, height: 900 })
   await seedWorkspace(page, SEED)
   await pickLens(page, 'Has a person')
   await personChip(page, 'Aisha Rahman')
-  await expect(tray(page).getByRole('button', { name: /^Filters/ })).toBeVisible()
+  await expect(tray(page).getByRole('button', { name: 'Filter, 1 active' })).toBeVisible()
   const closed = await settled(page)
+  expect(closed.fold).toBe('filters')
 
   await tray(page).getByRole('button', { name: /tasks shown(, .+)?\. Show them$/ }).click()
   const panel = page.locator('[data-filter-panel]')
   await expect(panel).toBeVisible()
-  await expect(header(page).locator('[data-expanded]')).toHaveCount(1)
-  // The control stays where it was in the bar, outside the expanded tray.
+  // The control stays where it was in the bar, outside the tray; nothing in the bar moved.
   expect(await inTray(page, control(page))).toBe(false)
-  const open = await geometry(page)
-  expect(open).toMatchObject({ lensLeft: closed.lensLeft, lensRight: closed.lensRight, layoutRight: closed.layoutRight, trayLeft: closed.trayLeft })
+  expect(await geometry(page)).toEqual(closed)
 
   // A press on it is a press on the bar outside the tray: the panel closes, its picker opens.
   await lensName(page).click()
@@ -323,7 +321,6 @@ test('over folded filters the tray expands without it; a press on it closes the 
   await expect(lensName(page)).toHaveAccessibleName('Lens: none')
   await expect(control(page)).toHaveAttribute('data-state', 'none')
 })
-
 test('the panel open: a lens change from the palette moves the tray, and the panel moves with it', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await personChip(page, 'Aisha Rahman')
@@ -345,34 +342,3 @@ test('the panel open: a lens change from the palette moves the tray, and the pan
   }
 })
 
-test('over folded filters with the panel open: a lens change moves the expanded tray with its place in the bar', async ({ page }) => {
-  await page.setViewportSize({ width: 1264, height: 900 })
-  await seedWorkspace(page, SEED)
-  await pickLens(page, 'Has a person')
-  await personChip(page, 'Aisha Rahman')
-  await expect(tray(page).getByRole('button', { name: /^Filters/ })).toBeVisible()
-  await counter(page).click()
-  await expect(panel(page)).toBeVisible()
-  await expect(expanded(page)).toHaveCount(1)
-  const leftOf = (loc: Locator) => loc.evaluate((el) => Math.round(el.getBoundingClientRect().left))
-  const slot = header(page).locator('[data-fold-part="tray-slot"]')
-  const first = { slot: await leftOf(slot), tray: await leftOf(expanded(page)) }
-
-  await cycleLensFromPalette(page)
-  await expect(lensName(page)).toHaveAccessibleName('Lens: Customer escalations this quarter')
-  await expect(panel(page)).toBeVisible()
-  await expect(expanded(page)).toHaveCount(1)
-  await expect.poll(() => leftOf(slot)).toBeGreaterThan(first.slot)
-  // It follows its slot (as far as the window's right gutter lets it), the panel under it…
-  await expect.poll(() => leftOf(expanded(page))).toBeGreaterThan(first.tray)
-  await expect.poll(() => panelOffset(page)).toBe(0)
-  await settled(page)
-  const live = await leftOf(expanded(page))
-  // …to where a fresh open places it.
-  await page.keyboard.press('Escape')
-  await expect(panel(page)).toHaveCount(0)
-  await counter(page).click()
-  await expect(expanded(page)).toHaveCount(1)
-  await expect.poll(() => leftOf(expanded(page))).toBe(live)
-  await expect.poll(() => panelOffset(page)).toBe(0)
-})

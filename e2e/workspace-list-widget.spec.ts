@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { openFilterPicker, setShowCompleted } from './fixtures/filters'
 import { expectOpenLayout, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, editListDraft, wsRow, expectLayoutStep } from './fixtures/workspace'
 
 /**
@@ -62,7 +63,7 @@ test('a completed task comes back in a list widget when the top bar shows comple
   await expect(row).toHaveCount(0)
 
   // Top bar → Show completed: it is back, and the widget shows the screen filter.
-  await page.getByRole('button', { name: 'Show completed' }).click()
+  await setShowCompleted(page, true)
   await expect(row).toBeVisible()
   await expect(row.getByRole('checkbox')).toBeChecked()
   await expect(widget.getByTestId('screen-filter-chip')).toHaveText(/Completed shown/)
@@ -70,8 +71,9 @@ test('a completed task comes back in a list widget when the top bar shows comple
 
 test('a screen filter narrows every list widget and shows the count as shown of total', async ({ page }) => {
   await seedWorkspace(page, team)
-  await page.getByRole('button', { name: 'People filter' }).click()
+  await openFilterPicker(page, 'People')
   await page.getByRole('option', { name: 'Alice' }).click()
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   for (const tabId of ['t1', 't2']) {
     await expect(rows(page, tabId)).toHaveCount(1)
@@ -83,7 +85,7 @@ test('a screen filter narrows every list widget and shows the count as shown of 
 test('adding a filter from the filter row makes the list unsaved; saving keeps it across a reload', async ({ page }) => {
   await seedWorkspace(page, team)
   // A screen filter shows the filter row (with its + Filter).
-  await page.getByRole('button', { name: 'Show completed' }).click()
+  await setShowCompleted(page, true)
   const widget = wsListWidget(page, 't1')
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'People' }).click()
@@ -117,7 +119,7 @@ test('a list’s date filters: a due-date range and Next follow-up Any both narr
     ],
     layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
-  await page.getByRole('button', { name: 'Show completed' }).click()
+  await setShowCompleted(page, true)
   const widget = wsListWidget(page, 't1')
   await expect(rows(page, 't1')).toHaveCount(4)
 

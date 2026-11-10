@@ -70,7 +70,7 @@ test.describe('list widget — visible-groups intersection', () => {
     await expect(rows('T1 Alice and Bob'), 'unfiltered, T1 shows under both of its people').toHaveCount(2)
 
     const tray = page.locator('header').getByRole('group', { name: 'Screen filters — apply to every widget' })
-    await tray.getByRole('textbox', { name: 'Search tasks' }).click()
+    await tray.getByRole('textbox', { name: 'Filter tasks' }).click()
     await page.keyboard.type('@Alice', { delay: 20 })
     await page.getByRole('listbox', { name: 'People' }).getByRole('option', { name: 'Alice' }).waitFor()
     await page.keyboard.press('Enter')

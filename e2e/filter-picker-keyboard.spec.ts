@@ -1,10 +1,11 @@
 import { expect, test, type Page } from '@playwright/test'
 import { openSettings, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
+import { filterMenuRow, openFilterPickerByKeyboard } from './fixtures/filters'
 
 /**
  * The filter pickers by keyboard alone: the top bar's People picker opens on
- * Enter with the focus in its search, ↓ goes into the rows, Space ticks one,
+ * Enter (on its Filter menu row) with the focus in its search, ↓ goes into the rows, Space ticks one,
  * Esc closes it; Tab / Enter in its search pick the highlighted row, and in a
  * list's prompt field the highlighted match — the focus staying in the field.
  * Real-browser because focus handoffs are.
@@ -28,9 +29,7 @@ test('tick a person in the top bar’s People picker with the keyboard only', as
   await seedWorkspace(page, SEED)
   await expect.poll(() => titles(page)).toEqual(['Ann task', 'Bob task'])
 
-  const button = page.getByRole('button', { name: /^People filter/ })
-  await button.focus()
-  await page.keyboard.press('Enter')
+  await openFilterPickerByKeyboard(page, 'People')
   const search = page.getByPlaceholder('Search...')
   await expect(search).toBeFocused()
 
@@ -48,7 +47,8 @@ test('tick a person in the top bar’s People picker with the keyboard only', as
   await expect(ann).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(list).toHaveCount(0)
-  await expect(button).toBeFocused()
+  // Back on its row in the Filter menu.
+  await expect(filterMenuRow(page, 'People')).toBeFocused()
   await expect.poll(() => titles(page)).toEqual(['Ann task'])
 })
 
@@ -56,9 +56,7 @@ test('Tab in the People picker’s search ticks the highlighted row and keeps th
   await seedWorkspace(page, SEED)
   await expect.poll(() => titles(page)).toEqual(['Ann task', 'Bob task'])
 
-  const button = page.getByRole('button', { name: /^People filter/ })
-  await button.focus()
-  await page.keyboard.press('Enter')
+  await openFilterPickerByKeyboard(page, 'People')
   const search = page.getByPlaceholder('Search...')
   await expect(search).toBeFocused()
 
@@ -90,8 +88,7 @@ test('a named row wins the search’s pick; ↓ goes to it, and the focused row 
   await seedWorkspace(page, SEED)
   await expect.poll(() => titles(page)).toEqual(['Ann task', 'Bob task'])
 
-  await page.getByRole('button', { name: /^People filter/ }).focus()
-  await page.keyboard.press('Enter')
+  await openFilterPickerByKeyboard(page, 'People')
   // The search is a combobox over the rows' listbox.
   const search = page.getByRole('combobox', { name: 'Search...' })
   await expect(search).toBeFocused()
@@ -157,9 +154,7 @@ test('the top bar’s Priority picker takes the focus: arrows and Space tick a v
   })
   await expect.poll(() => titles(page)).toEqual(['Calm task', 'Focus task'])
 
-  const button = page.getByRole('button', { name: /^Priority filter/ })
-  await button.focus()
-  await page.keyboard.press('Enter')
+  await openFilterPickerByKeyboard(page, 'Priority')
   const list = page.getByRole('listbox', { name: 'Priority' })
   // No search box: the focus is on its first row.
   await expect(list.getByRole('option').first()).toBeFocused()
@@ -171,7 +166,7 @@ test('the top bar’s Priority picker takes the focus: arrows and Space tick a v
   await expect.poll(() => titles(page)).toEqual(['Focus task'])
   await page.keyboard.press('Escape')
   await expect(list).toHaveCount(0)
-  await expect(button).toBeFocused()
+  await expect(filterMenuRow(page, 'Priority')).toBeFocused()
 })
 
 test('a lens’s Priority picker in Settings takes the focus too', async ({ page }) => {

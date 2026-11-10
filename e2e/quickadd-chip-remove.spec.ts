@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expectPeopleLoaded } from './fixtures/filters'
 import { seedTaskList } from './fixtures/workspace'
 import { assignedNames, readStore } from './fixtures/db'
 import { taskRowByTitle } from './fixtures/seed'
@@ -19,7 +20,7 @@ const bar = (page: Page) => page.getByRole('dialog', { name: 'Quick add task' })
 const chips = (page: Page) => bar(page).getByRole('group', { name: 'What the task gets' })
 
 async function openQuickAdd(page: Page): Promise<Locator> {
-  await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+  await expectPeopleLoaded(page)
   await page.keyboard.press('Control+Space')
   const input = bar(page).getByPlaceholder('New task…')
   await expect(input).toBeFocused()

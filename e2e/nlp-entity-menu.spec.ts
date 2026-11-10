@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expectPeopleLoaded } from './fixtures/filters'
 import { seedWorkspace, wsRow } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -32,7 +33,7 @@ async function isOnTop(locator: Locator): Promise<boolean> {
 }
 
 async function openQuickAdd(page: Page): Promise<Locator> {
-  await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+  await expectPeopleLoaded(page)
   await page.keyboard.press('Control+Space')
   const input = page.getByRole('dialog', { name: 'Quick add task' }).getByPlaceholder('New task…')
   await expect(input).toBeFocused()
@@ -126,7 +127,7 @@ test.describe('Quick Add', () => {
 
 test.describe('notes editor', () => {
   async function typeInNotes(page: Page, text: string): Promise<Locator> {
-    await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+    await expectPeopleLoaded(page)
     const editor = page.getByRole('region', { name: 'Notes cell' }).locator('.cm-content')
     await editor.click()
     await page.keyboard.type(text)

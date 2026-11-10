@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { setShowCompleted } from './fixtures/filters'
 import { rowTitles } from './fixtures/seed'
 import { expectOpenLayout, openCellMenu, openSettings, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { createTab } from '../src/models/workspace-layout'
@@ -110,7 +111,7 @@ test('an unsaved list filter survives a reload, still unsaved; Save writes it', 
     tasks: [{ title: 'Important one', important: true }, { title: 'Plain one' }],
   })
   // A screen filter shows the filter row (with its + Filter).
-  await page.getByRole('button', { name: 'Show completed' }).click()
+  await setShowCompleted(page, true)
   const widget = wsListWidget(page, TASK_LIST_TAB)
   await widget.getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Priority' }).click()
@@ -171,7 +172,7 @@ test('a backup restore drops a kept list change too', async ({ page }) => {
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
 
-  await page.getByRole('button', { name: 'Show completed' }).click()
+  await setShowCompleted(page, true)
   await wsListWidget(page, TASK_LIST_TAB).getByRole('button', { name: 'Filter', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Priority' }).click()
   await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Important' }).click()

@@ -1,10 +1,14 @@
 import { expect, test, type Page } from '@playwright/test'
 import { openSettings, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import {
+  clearAllFilters, completedChip, filterChip, filterField, filterMenu, filterMenuButton, filterMenuRow, openFilterMenu, openFilterPicker,
+  setShowCompleted,
+} from './fixtures/filters'
 
 /**
  * The app shell in a real browser: one top bar (New task, the layout tabs,
  * the screen-filter tray, the storage pill, the Settings gear), the Settings
- * modal, and the narrow-window Filters menu. The unsaved-layout case (Settings
+ * modal, and the Filter button with its menu and chips. The unsaved-layout case (Settings
  * never prompts) lives in `workspace-layout.spec.ts`, the layout tabs and
  * the measured fold in `layout-tabs.spec.ts`; the storage pill's
  * warning states in `storage-pill.spec.ts`.
@@ -71,88 +75,120 @@ test('an editor opened from Settings stacks over it and owns Esc', async ({ page
   await expect(settings).toBeVisible()
 })
 
-test('the filter tray turns red while a screen filter is on', async ({ page }) => {
+test('the filter tray turns red while a screen filter is on; the filter shows as a chip', async ({ page }) => {
   await seedWorkspace(page, team)
-  const funnel = tray(page).getByRole('button', { name: 'Clear all filters' })
-  const funnelColor = () => funnel.evaluate((el) => getComputedStyle(el).color)
-  const danger = await page.evaluate(() => {
-    const probe = document.createElement('span')
-    probe.style.color = 'var(--color-danger)'
-    document.body.appendChild(probe)
-    const c = getComputedStyle(probe).color
-    probe.remove()
-    return c
-  })
   const restShadow = await tray(page).evaluate((el) => getComputedStyle(el).boxShadow)
-  expect(await funnelColor()).not.toBe(danger)
+  // At rest: the field and the Filter button, no chip.
+  await expect(filterMenuButton(page)).toHaveAccessibleName('Filter')
+  await expect(filterChip(page, 'People')).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'People filter' }).click()
+  await openFilterPicker(page, 'People')
   await page.getByRole('option', { name: 'Alice' }).click()
   await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+  await expect(filterMenu(page)).toHaveCount(0)
   await expect(tray(page)).toHaveAttribute('data-filtered', 'true')
-  await expect(page.getByRole('button', { name: 'People filter: Alice' })).toBeVisible()
+  await expect(filterChip(page, 'People')).toHaveAccessibleName('People filter: Alice')
   await expect(rows(page)).toHaveCount(1)
   expect(await tray(page).evaluate((el) => getComputedStyle(el).boxShadow)).not.toBe(restShadow)
-  expect(await funnelColor()).toBe(danger)
 
-  // The × clears just that filter.
-  await page.getByRole('button', { name: 'Clear people filter' }).click()
+  // The chip reopens its picker beside it.
+  await filterChip(page, 'People').click()
+  await expect(page.getByRole('option', { name: 'Alice' })).toHaveAttribute('aria-selected', 'true')
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+
+  // The × clears just that filter, and the chip goes.
+  await tray(page).getByRole('button', { name: 'Clear people filter' }).click()
   await expect(tray(page)).not.toHaveAttribute('data-filtered')
+  await expect(filterChip(page, 'People')).toHaveCount(0)
   await expect(rows(page)).toHaveCount(2)
 })
 
-test('the red funnel, left of search, clears every screen filter at once; there is no Clear all text', async ({ page }) => {
+test('the Filter menu’s Clear all filters clears every screen filter at once; the funnel no longer clears', async ({ page }) => {
   await seedWorkspace(page, team)
-  const funnel = tray(page).getByRole('button', { name: 'Clear all filters' })
-  const search = tray(page).getByRole('textbox', { name: 'Search tasks' })
-  await expect(funnel).toBeDisabled()
-  const funnelBox = await funnel.boundingBox()
+  const search = filterField(page)
+  const button = filterMenuButton(page)
+  // The Filter button follows the field.
+  const buttonBox = await button.boundingBox()
   const searchBox = await search.boundingBox()
-  expect(funnelBox && searchBox && funnelBox.x + funnelBox.width <= searchBox.x).toBe(true)
+  expect(buttonBox && searchBox && searchBox.x + searchBox.width <= buttonBox.x).toBe(true)
+  await expect(tray(page).getByRole('button', { name: 'Clear all filters' })).toHaveCount(0)
+  // No Clear all in the menu while nothing is on.
+  await openFilterMenu(page)
+  await expect(filterMenu(page).getByRole('button', { name: 'Clear all filters' })).toHaveCount(0)
 
-  await page.getByRole('button', { name: 'People filter' }).click()
+  await filterMenuRow(page, 'People').click()
   await page.getByRole('option', { name: 'Alice' }).click()
   await page.keyboard.press('Escape')
-  await page.getByRole('button', { name: 'Show completed' }).click()
+  await filterMenu(page).getByRole('button', { name: 'Show completed' }).click()
+  await page.keyboard.press('Escape')
   await search.fill('a')
   await expect(tray(page)).toHaveAttribute('data-filtered', 'true')
+  await expect(completedChip(page)).toHaveText('Completed')
   await expect(tray(page).getByText('Clear all', { exact: true })).toHaveCount(0)
 
-  // The search's results (a popover) close first: no tooltip opens beside an open popover (UX cleanup 1A).
   await search.evaluate((el) => (el as HTMLInputElement).blur())
-  await expect(page.getByRole('listbox', { name: 'Search results' })).toHaveCount(0)
-  await funnel.hover()
-  await expect(page.getByRole('tooltip')).toHaveText(/Clear all filters/)
-  await funnel.click()
+  await clearAllFilters(page)
   await expect(tray(page)).not.toHaveAttribute('data-filtered')
   await expect(search).toHaveValue('')
-  await expect(page.getByRole('button', { name: 'Show completed' })).toHaveAttribute('aria-pressed', 'false')
+  await expect(completedChip(page)).toHaveCount(0)
   await expect(rows(page)).toHaveCount(2)
-  await expect(funnel).toBeDisabled()
+  await expect(button).toBeFocused()
 })
 
-test('with other layouts taking the room, the filters fold into a Filters menu that sets and clears a filter', async ({ page }) => {
-  await page.setViewportSize({ width: 1180, height: 800 })
+test('F opens the Filter menu on its first row; Tab stays in it; Esc gives the focus back', async ({ page }) => {
+  await seedWorkspace(page, team)
+  await expect(filterMenuButton(page)).toBeVisible()
+  await page.keyboard.press('f')
+  await expect(filterMenu(page)).toBeVisible()
+  await expect(filterMenuButton(page)).toHaveAttribute('aria-expanded', 'true')
+  await expect(filterMenuRow(page, 'Priority')).toBeFocused()
+  // Tab wraps inside the menu.
+  await page.keyboard.press('Shift+Tab')
+  await expect(filterMenu(page).getByRole('button', { name: 'Show completed' })).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(filterMenuRow(page, 'Priority')).toBeFocused()
+  // Enter on a row opens its picker beside the menu; Esc closes it, the focus back on the row.
+  await page.keyboard.press('Tab')
+  await page.keyboard.press('Tab')
+  await expect(filterMenuRow(page, 'People')).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('option', { name: 'Alice' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('option', { name: 'Alice' })).toHaveCount(0)
+  await expect(filterMenuRow(page, 'People')).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(filterMenu(page)).toHaveCount(0)
+  await expect(filterMenuButton(page)).toBeFocused()
+
+  // The palette's Open Filter Menu does the same.
+  await page.keyboard.press('Control+k')
+  await page.getByPlaceholder(/Find tasks, commands/).fill('>open filter menu')
+  await page.keyboard.press('Enter')
+  await expect(filterMenu(page)).toBeVisible()
+  await expect(filterMenuRow(page, 'Priority')).toBeFocused()
+})
+
+test('in a narrow bar the chips fold into the Filter button, which counts them; its menu still sets and clears a filter', async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 800 })
   await seedWorkspace(page, withSpareLayouts(team))
-  await expect(page.getByRole('button', { name: 'People filter' })).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Show completed' })).toHaveText('Completed')
   const box = await page.locator('header').boundingBox()
   expect(box?.height).toBe(40)
 
-  const filters = page.getByRole('button', { name: 'Filters', exact: true })
-  await filters.click()
-  const menu = page.getByRole('group', { name: 'Screen filters', exact: true })
+  const menu = await openFilterMenu(page)
   await expect(menu).toContainText('Screen filters · apply to every widget')
-  await menu.getByRole('button', { name: 'Tags filter' }).click()
+  await filterMenuRow(page, 'Tags').click()
   await page.getByRole('option', { name: 'q4' }).click()
   await expect(rows(page)).toHaveCount(1)
   await expect(menu.getByRole('button', { name: 'Tags filter: q4' })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Filters, 1 active' })).toBeVisible()
+  await expect(filterMenuButton(page)).toHaveAccessibleName('Filter, 1 active')
+  await expect(filterChip(page, 'Tags')).toHaveCount(0)
   await expect(tray(page)).toHaveAttribute('data-filtered', 'true')
 
   await menu.getByRole('button', { name: 'Clear tags filter' }).click()
   await expect(rows(page)).toHaveCount(2)
-  await expect(page.getByRole('button', { name: 'Filters', exact: true })).toBeVisible()
+  await expect(filterMenuButton(page)).toHaveAccessibleName('Filter')
   await page.keyboard.press('Escape')
   await expect(menu).toBeHidden()
 })
@@ -203,17 +239,18 @@ test('without file sync, the pill’s Import / Export… opens Database scrolled
   expect(scroll.top >= scroll.max - 1 || scroll.offset < 40).toBe(true)
 })
 
-test('at 1280px every filter button shows and the bar still fits: New task is the + alone, Show completed reads Completed', async ({ page }) => {
+test('at 1280px the bar fits with a filter on: the Filter button and its chips, New task the + alone', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await seedWorkspace(page, { ...team, statuses: ['Waiting'] })
-  for (const name of ['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter']) {
-    await expect(page.getByRole('button', { name, exact: true })).toBeVisible()
-  }
+  await expect(filterMenuButton(page)).toHaveText('Filter')
+  // No filter button per field any more: they are the menu's rows.
+  await expect(tray(page).getByRole('button', { name: / filter$/ })).toHaveCount(0)
   const newTask = page.getByRole('button', { name: 'New task' })
   await expect(newTask).toHaveText('')
   await expect(newTask).toHaveAttribute('title', 'New task (Ctrl+Space)')
-  await expect(page.getByRole('button', { name: 'Show completed' })).toHaveText('Completed')
-  await expect(page.getByPlaceholder('Search…')).toBeVisible()
+  await setShowCompleted(page, true)
+  await expect(completedChip(page)).toHaveText('Completed')
+  await expect(page.getByPlaceholder('Filter…')).toBeVisible()
   await expect(page.locator('header kbd')).toHaveCount(0)
   const fit = await page.locator('header').evaluate((bar) => {
     const box = bar.getBoundingClientRect()

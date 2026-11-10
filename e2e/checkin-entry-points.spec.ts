@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test'
 import { readStore, writeStores } from './fixtures/db'
+import { filterChip, filterMenu, openFieldPicker, openFilterPicker } from './fixtures/filters'
 import { emptyPredicate, seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
@@ -172,7 +173,7 @@ test('A: the person task dialog’s Email check-in button sends at once — with
 test('B: the palette lists Email check-in per person with open tasks; Enter sends it once the palette closes', async ({ page, context }) => {
   await setup(page, context)
   await page.keyboard.press('Control+k')
-  const input = page.getByPlaceholder(/Search tasks, commands/)
+  const input = page.getByPlaceholder(/Find tasks, commands/)
   await input.fill('>check-in:')
   const email = page.getByRole('group', { name: 'Email' })
   await expect(email.getByRole('option', { name: /Email check-in: Ada Lovelace/ })).toContainText('2 open tasks')
@@ -314,8 +315,7 @@ test('C: near the bottom of the window the header menu opens upward', async ({ p
 
 test('D: the top-bar People filter emails the one person it is narrowed to, or opens the dialog for several', async ({ page, context }) => {
   await setup(page, context)
-  const peopleButton = page.getByRole('button', { name: /^People filter/ })
-  await peopleButton.click()
+  await openFilterPicker(page, 'People')
   // Not narrowed: a hint.
   await expect(page.getByText('Narrow to some people to review or email them.')).toBeVisible()
   // One person (the first pick replaces "everyone"): sends at once and closes the picker.
@@ -329,8 +329,9 @@ test('D: the top-bar People filter emails the one person it is narrowed to, or o
     titles: ['Overdue report', 'Review plan'],
   })
 
-  // Two people: the dialog with both ticked.
-  await peopleButton.click()
+  // The menu closed with the picker. Two people, from the chip: the dialog with both ticked.
+  await expect(filterMenu(page)).toHaveCount(0)
+  await filterChip(page, 'People').click()
   await page.getByRole('option', { name: 'Bob Stone' }).click()
   const action = page.getByRole('button', { name: 'Email check-in to 2 people…' })
   await expect(action).toBeVisible()
@@ -344,7 +345,7 @@ test('fallback: no open tasks match the saved check-in filter: opens the dialog 
   await setup(page, context)
   await withCheckinSettings(page, { checkinTaskFilter: JSON.stringify({ ...emptyPredicate(), markers: [{ values: ['focus'] }] }) })
   await page.keyboard.press('Control+k')
-  await page.getByPlaceholder(/Search tasks, commands/).pressSequentially('email ada')
+  await page.getByPlaceholder(/Find tasks, commands/).pressSequentially('email ada')
   // The command exists once Ada's tasks and their people have loaded (the reload above).
   const top = page.getByRole('listbox').getByRole('option').first()
   await expect(top).toContainText('Email check-in: Ada Lovelace')
@@ -430,7 +431,7 @@ test('paste a reply: the envelope menus, the header menu and the People footer o
   await expect(taskDialog).toHaveCount(0)
 
   // The top-bar People filter narrowed to one person: Paste reply from <name>… closes the picker.
-  await page.getByRole('button', { name: /^People filter/ }).click()
+  await openFieldPicker(page, 'People')
   await page.getByRole('option', { name: 'Bob Stone' }).click()
   await page.getByRole('button', { name: 'Paste reply from Bob Stone…' }).click()
   await expect(page.getByPlaceholder('Search...')).toHaveCount(0)

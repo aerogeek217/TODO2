@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test'
+import { openFilterPicker } from './fixtures/filters'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedWorkspace, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
@@ -67,7 +68,7 @@ test('row people picker: the assigned first; a pick with text clears it and re-s
 test('top bar People filter: Space on a row with search text clears it; the row keeps the focus at the top', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await wsListWidget(page, 't1').waitFor({ state: 'visible' })
-  await page.getByRole('button', { name: /^People filter/ }).click()
+  await openFilterPicker(page, 'People')
   const search = page.getByPlaceholder('Search...')
   await expect(search).toBeFocused()
   const list = page.getByRole('listbox', { name: 'People' })
