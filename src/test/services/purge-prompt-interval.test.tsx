@@ -9,16 +9,18 @@ import { useUndoStore } from '../../stores/undo-store'
 import { useFileStorageStore } from '../../services/file-storage-store'
 import { fileStorageService, type SyncConflictInfo } from '../../services/file-storage'
 import { backupScheduler } from '../../data/backup-scheduler'
-import { expiredCompletedUids, recordPurgePromptShown } from '../../services/purge-completed'
+import { dismissPurgeNotice, expiredCompletedUids, offerPurgeNotice, recordPurgePromptShown, reviewPurgeNotice } from '../../services/purge-completed'
 import { runAppStartup } from '../../services/app-startup'
 import { nextPurgePromptDay } from '../../utils/completed-at'
-import { StartupPurgePrompt } from '../../components/overlays/StartupPurgePrompt'
+import { PurgeNoticeHost } from '../../components/overlays/PurgeNoticeHost'
+import { usePurgeNoticeStore } from '../../stores/purge-notice-store'
 import { CompletedTasksSection } from '../../components/settings/sections/CompletedTasksSection'
 import { makeTodo, resetDb } from '../helpers'
 
-// The launch prompt about old completed tasks asks at most once every N
-// days (Settings › Tasks › Completed tasks, 7 by default), counted from the
-// day it last showed, whatever was answered.
+// The notice about old completed tasks (the storage pill's) is offered at
+// most once every N days (Settings › Tasks › Completed tasks, 7 by default),
+// counted from the day the user was last asked — the purge dialog opened or
+// Not now pressed —, whatever was answered. Merely showing it stamps nothing.
 
 /** This time of day, `n` calendar days ago: the interval counts calendar days, so a fixed 24 h step would come up a day short across a DST change. */
 function daysAgo(n: number): Date {
@@ -108,28 +110,74 @@ describe('the purge check (launch, and after a sync-file load)', () => {
   })
 })
 
-describe('StartupPurgePrompt — the stamp is the showing', () => {
-  it('stamps when the prompt shows; Not now doesn’t clear it', async () => {
-    const onClose = vi.fn()
+describe('PurgeNoticeHost — the notice counts, the dialog opens on Review…, the stamp is the asking', () => {
+  /** The notice offered for the expired task, its host mounted, and its read landed. */
+  async function offered() {
+    offerPurgeNotice(new Set([expiredUid]))
+    const view = render(<PurgeNoticeHost />)
+    await waitFor(() => expect(usePurgeNoticeStore.getState().count).toBe(1))
+    return view
+  }
+
+  it('offering it opens no dialog and writes no stamp; Review… opens the dialog and stamps; Not now there settles it', async () => {
+    await offered()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
+    expect(await db.settings.get(SETTING_KEYS.purgePromptLastAt)).toBeUndefined()
+
     const before = Date.now()
-    render(<StartupPurgePrompt launchUids={new Set([expiredUid])} onClose={onClose} />)
+    act(() => reviewPurgeNotice())
     await screen.findByRole('dialog', { name: 'Delete 1 old completed task?' })
     await waitFor(() => expect(useSettingsStore.getState().purgePromptLastAt).not.toBeNull())
     expect(useSettingsStore.getState().purgePromptLastAt!.getTime()).toBeGreaterThanOrEqual(before)
     await waitFor(async () => expect(await db.settings.get(SETTING_KEYS.purgePromptLastAt)).toBeDefined())
+
     fireEvent.click(screen.getByRole('button', { name: 'Not now' }))
-    expect(onClose).toHaveBeenCalled()
-    expect(useSettingsStore.getState().purgePromptLastAt).not.toBeNull()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(usePurgeNoticeStore.getState()).toMatchObject({ uids: null, count: 0, reviewing: false })
+    // Nothing deleted.
+    expect(await db.todos.count()).toBe(1)
+    // Answered this session: a later sync-file load doesn't offer it again.
+    offerPurgeNotice(new Set([expiredUid]))
+    expect(usePurgeNoticeStore.getState().uids).toBeNull()
   })
 
-  it('no stamp while it waits behind a sync-file prompt, or when nothing is left to ask about', async () => {
-    // The prompt's read of the expired tasks, watched so the test waits for
+  it('Not now in the notice: nothing deleted, the notice goes, and the stamp is written', async () => {
+    await offered()
+    await act(async () => { await dismissPurgeNotice() })
+    expect(usePurgeNoticeStore.getState()).toMatchObject({ uids: null, count: 0 })
+    expect(useSettingsStore.getState().purgePromptLastAt).not.toBeNull()
+    expect(await db.settings.get(SETTING_KEYS.purgePromptLastAt)).toBeDefined()
+    expect(await db.todos.count()).toBe(1)
+    expect(screen.queryByRole('dialog')).toBeNull()
+  })
+
+  it('a data change that leaves nothing expired removes the notice; retention switched off too', async () => {
+    await offered()
+    await db.todos.update(1, { isCompleted: false, completedAt: undefined })
+    act(() => useTodoStore.setState({ todosVersion: useTodoStore.getState().todosVersion + 1 }))
+    await waitFor(() => expect(usePurgeNoticeStore.getState().count).toBe(0))
+    cleanup()
+
+    usePurgeNoticeStore.setState(usePurgeNoticeStore.getInitialState(), true)
+    await db.todos.update(1, { isCompleted: true, completedAt: daysAgo(90) })
+    await offered()
+    act(() => useSettingsStore.setState({ completedRetentionDays: null }))
+    await waitFor(() => expect(usePurgeNoticeStore.getState().count).toBe(0))
+    expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
+  })
+
+  it('no count, no dialog and no stamp while a sync-file prompt waits, or when nothing is left to ask about', async () => {
+    // The host's read of the expired tasks, watched so the test waits for
     // it (not for a timer) before saying nothing showed.
     const reads = vi.spyOn(todoRepository, 'getByUids')
     act(() => useFileStorageStore.setState({ pendingConflict: { fileName: 'f.json' } as unknown as SyncConflictInfo }))
-    const view = render(<StartupPurgePrompt launchUids={new Set([expiredUid])} onClose={vi.fn()} />)
+    offerPurgeNotice(new Set([expiredUid]))
+    const view = render(<PurgeNoticeHost />)
     await act(async () => {})
     expect(reads).not.toHaveBeenCalled()
+    expect(usePurgeNoticeStore.getState().count).toBe(0)
+    act(() => reviewPurgeNotice())
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
     view.unmount()
@@ -137,10 +185,12 @@ describe('StartupPurgePrompt — the stamp is the showing', () => {
     act(() => useFileStorageStore.setState({ pendingConflict: null }))
     await db.todos.clear()
     useTodoStore.setState({ todosVersion: useTodoStore.getState().todosVersion + 1 })
-    render(<StartupPurgePrompt launchUids={new Set([expiredUid])} onClose={vi.fn()} />)
+    render(<PurgeNoticeHost />)
     await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(1))
     // The read finished and its result reached the component.
     await act(async () => { await reads.mock.results[0]?.value })
+    expect(usePurgeNoticeStore.getState().count).toBe(0)
+    act(() => reviewPurgeNotice())
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(useSettingsStore.getState().purgePromptLastAt).toBeNull()
     expect(await db.settings.get(SETTING_KEYS.purgePromptLastAt)).toBeUndefined()

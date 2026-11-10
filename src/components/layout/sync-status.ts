@@ -1,15 +1,24 @@
 import { useMemo } from 'react'
 import { useFileStorageStore } from '../../services/file-storage-store'
 import { useFileOpsStore } from '../../stores/file-ops-store'
+import { usePurgeNoticeStore } from '../../stores/purge-notice-store'
+import { useSettingsStore } from '../../stores/settings-store'
 import type { SyncPauseReason } from '../../services/file-storage'
 
 /**
  * Everything the storage pill (desktop) and the phone's status button say
  * about where the data lives and what needs the user: one state, the most
  * urgent first — Permission needed › Sync paused › Sync error › Backup
- * warning › Synced / Local only.
+ * warning › the purge notice (`17 old completed`) › Synced / Local only.
  */
-export type StoragePillKind = 'local' | 'syncing' | 'permission' | 'paused' | 'error' | 'backup'
+export type StoragePillKind = 'local' | 'syncing' | 'permission' | 'paused' | 'error' | 'backup' | 'purge'
+
+/** The purge notice, as the pill reads it: how many completed tasks are past the retention, and the settings its words name. */
+export interface PurgeNoticeInput {
+  count: number
+  retentionDays: number
+  intervalDays: number
+}
 
 export interface StoragePillInput {
   isConnected: boolean
@@ -20,6 +29,8 @@ export interface StoragePillInput {
   dismissedError: string | null
   /** A backup that would not restore, or an operation run without one (`file-ops-store`). */
   snapshotWarning: string | null
+  /** Completed tasks past the retention, offered for review (`purge-notice-store`); absent or null: none. Not about file storage, but one more thing waiting for the user in the same place. */
+  purge?: PurgeNoticeInput | null
 }
 
 /** Something waiting for the user, in the pill's order. */
@@ -28,6 +39,7 @@ export type SyncWarning =
   | { kind: 'paused'; reason: SyncPauseReason | null; message: string; fileName: string | null }
   | { kind: 'error'; message: string }
   | { kind: 'backup'; message: string }
+  | ({ kind: 'purge' } & PurgeNoticeInput)
 
 export interface StoragePillState {
   kind: StoragePillKind
@@ -57,14 +69,25 @@ export function syncWarnings(s: StoragePillInput): SyncWarning[] {
     out.push({ kind: 'error', message: s.error })
   }
   if (s.snapshotWarning) out.push({ kind: 'backup', message: s.snapshotWarning })
+  // Last: any sync or backup warning outranks it in the pill's one line.
+  if (s.purge && s.purge.count > 0) out.push({ kind: 'purge', ...s.purge })
   return out
 }
 
-const WARNING_TEXT: Record<SyncWarning['kind'], string> = {
+const WARNING_TEXT: Record<Exclude<SyncWarning['kind'], 'purge'>, string> = {
   permission: 'Permission needed',
   paused: 'Sync paused',
   error: 'Sync error',
   backup: 'Backup warning',
+}
+
+/** A warning's words on the pill: the purge notice says how many (`17 old completed`). */
+function warningText(w: SyncWarning): string {
+  return w.kind === 'purge' ? `${w.count} old completed` : WARNING_TEXT[w.kind]
+}
+
+function plural(n: number, word: string): string {
+  return `${n} ${word}${n === 1 ? '' : 's'}`
 }
 
 /**
@@ -74,7 +97,7 @@ const WARNING_TEXT: Record<SyncWarning['kind'], string> = {
 export function storagePillState(s: StoragePillInput): StoragePillState {
   const warnings = syncWarnings(s)
   const first = warnings.at(0)
-  if (first) return { kind: first.kind, text: WARNING_TEXT[first.kind], warningCount: warnings.length }
+  if (first) return { kind: first.kind, text: warningText(first), warningCount: warnings.length }
   if (s.isConnected) return { kind: 'syncing', text: 'Synced', warningCount: 0 }
   return { kind: 'local', text: 'Local only', warningCount: 0 }
 }
@@ -84,9 +107,14 @@ export function storagePillLabel(state: StoragePillState): string {
   return state.warningCount > 1 ? `Storage: ${state.text}, ${state.warningCount} warnings` : `Storage: ${state.text}`
 }
 
-/** Red for a failure; amber for waiting on the user; none for Local only / Syncing. */
-export function warningTone(kind: StoragePillKind): 'danger' | 'warning' | null {
+/**
+ * Red for a failure; amber for waiting on the user; quiet (`notice`) for the
+ * purge notice — nothing is wrong, and nothing happens until the user
+ * chooses —; none for Local only / Syncing.
+ */
+export function warningTone(kind: StoragePillKind): 'danger' | 'warning' | 'notice' | null {
   if (kind === 'error') return 'danger'
+  if (kind === 'purge') return 'notice'
   if (kind === 'local' || kind === 'syncing') return null
   return 'warning'
 }
@@ -157,6 +185,13 @@ export function syncWarningCopy(w: SyncWarning): SyncWarningCopy {
           ? 'It was saved anyway — a partly restorable backup beats none. Check it in Settings › Database › Backups.'
           : 'Free up browser storage so the next one works, or delete old backups.',
       }
+    case 'purge':
+      return {
+        title: 'Old completed tasks',
+        why: `${plural(w.count, 'completed task')} ${w.count === 1 ? 'is' : 'are'} older than ${plural(w.retentionDays, 'day')}.`,
+        flag: null,
+        body: `Review… lists them; nothing is deleted until you choose there. Not now asks again in ${plural(w.intervalDays, 'day')}.`,
+      }
   }
 }
 
@@ -169,10 +204,13 @@ export function useStoragePillInput(): StoragePillInput {
   const error = useFileStorageStore((s) => s.error)
   const dismissedError = useFileStorageStore((s) => s.dismissedError)
   const snapshotWarning = useFileOpsStore((s) => s.snapshotWarning)
-  return useMemo(
-    () => ({ isConnected, fileName, needsPermission, paused, error, dismissedError, snapshotWarning }),
-    [isConnected, fileName, needsPermission, paused, error, dismissedError, snapshotWarning],
-  )
+  const purgeCount = usePurgeNoticeStore((s) => s.count)
+  const retentionDays = useSettingsStore((s) => s.completedRetentionDays)
+  const intervalDays = useSettingsStore((s) => s.purgePromptIntervalDays)
+  return useMemo(() => {
+    const purge = purgeCount > 0 && retentionDays != null ? { count: purgeCount, retentionDays, intervalDays } : null
+    return { isConnected, fileName, needsPermission, paused, error, dismissedError, snapshotWarning, purge }
+  }, [isConnected, fileName, needsPermission, paused, error, dismissedError, snapshotWarning, purgeCount, retentionDays, intervalDays])
 }
 
 /** The storage pill's state and its active warnings, from the stores. */

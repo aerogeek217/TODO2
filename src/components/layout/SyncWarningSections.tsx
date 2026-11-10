@@ -1,6 +1,7 @@
 import { useFileStorageStore } from '../../services/file-storage-store'
 import { useFileOpsStore } from '../../stores/file-ops-store'
-import { AlertCircleIcon, LockIcon, PauseIcon, WarningIcon } from '../shared/icons'
+import { dismissPurgeNotice, reviewPurgeNotice } from '../../services/purge-completed'
+import { AlertCircleIcon, LockIcon, PauseIcon, TrashIcon, WarningIcon } from '../shared/icons'
 import { FileSyncPausedControls } from './FileSyncPausedControls'
 import { syncWarningCopy, warningTone, type SyncWarning } from './sync-status'
 import styles from './SyncWarningSections.module.css'
@@ -12,6 +13,7 @@ export function SyncWarningIcon({ kind, size }: { kind: SyncWarning['kind']; siz
     case 'paused': return <PauseIcon size={size} />
     case 'error': return <AlertCircleIcon size={size} />
     case 'backup': return <WarningIcon size={size} />
+    case 'purge': return <TrashIcon size={size} />
   }
 }
 
@@ -21,14 +23,14 @@ interface SyncWarningSectionsProps {
   variant: 'popover' | 'sheet'
   /** The first section's title id (the surface's `aria-labelledby`). */
   titleId: string
-  /** Grant access, Retry, Overwrite file and Open Backups… close the surface. */
+  /** Grant access, Retry, Overwrite file, Open Backups… and Review… close the surface. */
   onClose: () => void
   /** Settings on Backups, where the surface can open it (the phone has no Backups part). */
   onOpenBackups?: () => void
 }
 
 /**
- * One section per active warning, most urgent first: title (with its icon
+ * One section per active warning (the purge notice last), most urgent first: title (with its icon
  * tile), why it shows, an optional flag, what it means, and the ways
  * forward. Dismiss removes its section; the surface closes once no section
  * is left.
@@ -67,6 +69,15 @@ export function SyncWarningSections({ warnings, variant, titleId, onClose, onOpe
             </button>
           </>
         )
+      case 'purge':
+        // Review… opens the purge dialog — its own buttons are the only way
+        // anything is deleted. Not now deletes nothing.
+        return (
+          <>
+            <button type="button" className={styles.secondary} onClick={() => { onClose(); reviewPurgeNotice() }}>Review…</button>
+            <button type="button" className={styles.ghost} onClick={dismiss(() => { void dismissPurgeNotice() })}>Not now</button>
+          </>
+        )
     }
   }
 
@@ -74,7 +85,8 @@ export function SyncWarningSections({ warnings, variant, titleId, onClose, onOpe
     <>
       {warnings.map((w, i) => {
         const copy = syncWarningCopy(w)
-        const tone = warningTone(w.kind) === 'danger' ? styles.danger : styles.warning
+        const t = warningTone(w.kind)
+        const tone = t === 'danger' ? styles.danger : t === 'notice' ? styles.notice : styles.warning
         return (
           <section key={w.kind} className={`${styles.section} ${v}`} data-warning={w.kind}>
             <div className={styles.titleRow}>

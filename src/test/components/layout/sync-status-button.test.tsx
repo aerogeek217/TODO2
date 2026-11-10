@@ -4,6 +4,8 @@ import { MemoryRouter, Route, Routes, useLocation } from 'react-router'
 import { SyncStatusButton } from '../../../components/layout/SyncStatusButton'
 import { useFileStorageStore } from '../../../services/file-storage-store'
 import { useFileOpsStore } from '../../../stores/file-ops-store'
+import { usePurgeNoticeStore } from '../../../stores/purge-notice-store'
+import { useSettingsStore } from '../../../stores/settings-store'
 
 function Where() {
   const location = useLocation()
@@ -73,5 +75,20 @@ describe('SyncStatusButton (phone top bar)', () => {
     fireEvent.click(screen.getByRole('button', { name: 'File storage settings' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.getByTestId('where')).toHaveTextContent('/settings {"section":"database","part":"file-storage"}')
+  })
+
+  it('the purge notice shows it too, quiet; its sheet section has Review… (opens the dialog) and Not now', () => {
+    useSettingsStore.setState({ completedRetentionDays: 30, purgePromptIntervalDays: 7 })
+    usePurgeNoticeStore.setState({ uids: new Set(['a', 'b']), count: 2 })
+    renderButton()
+    const button = screen.getByRole('button', { name: 'Storage: 2 old completed' })
+    expect(button).toHaveAttribute('data-state', 'purge')
+    expect(button.querySelector('span')?.className).toMatch(/notice/)
+    fireEvent.click(button)
+    const sheet = screen.getByRole('dialog', { name: 'Old completed tasks' })
+    expect(sheet).toHaveTextContent('2 completed tasks are older than 30 days.')
+    fireEvent.click(within(sheet).getByRole('button', { name: 'Review…' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(usePurgeNoticeStore.getState().reviewing).toBe(true)
   })
 })

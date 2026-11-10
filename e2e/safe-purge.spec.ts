@@ -1,10 +1,12 @@
 import { expect, test, type Page } from '@playwright/test'
 import { gotoSettingsDeepLink, openSettings } from './fixtures/workspace'
 import { readStore, readStores, writeStores } from './fixtures/db'
+import { dismissPurgeNotice, openPurgeNotice, purgeDialog, reviewPurge } from './fixtures/purge-notice'
 
 /**
- * Safe purge: the launch prompt for completed tasks past the
- * retention setting, "Export & delete" to a task archive, and the append
+ * Safe purge: the storage pill's notice for completed tasks past the
+ * retention setting (no dialog at launch), its purge dialog, "Export &
+ * delete" to a task archive, and the append
  * import's duplicate picker — dialogs + focus + real file pickers, so a real
  * browser.
  *
@@ -61,7 +63,7 @@ async function boot(page: Page, path = '/') {
   if (path === '/') await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
 }
 
-test('launch prompt: Not now waits the prompt interval; Export & delete archives, deletes, and the archive appends back with the duplicate picker', async ({ page }) => {
+test('purge notice: no dialog at launch; Review… opens the dialog and stamps; Not now waits the interval; Export & delete archives, deletes, and the archive appends back with the duplicate picker', async ({ page }) => {
   await stubPickers(page)
   await boot(page)
   await seed(page, [
@@ -73,15 +75,27 @@ test('launch prompt: Not now waits the prompt interval; Export & delete archives
   ], 30)
 
   await page.reload()
-  const prompt = page.getByRole('dialog', { name: 'Delete 2 old completed tasks?' })
-  await expect(prompt).toBeVisible()
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  // No dialog at launch: the pill says it, and nothing is stamped until the user is asked.
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveText('2 old completed')
+  await expect(pill).toHaveAttribute('data-state', 'purge')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  const section = await openPurgeNotice(page)
+  await expect(section).toContainText('2 completed tasks are older than 30 days.')
+  expect((await readStore<{ key: string }>(page, 'settings')).some((r) => r.key === 'purgePromptLastAt')).toBe(false)
+  // A reload with the notice unanswered: it is there again.
+  await page.reload()
+  await expect(pill).toHaveText('2 old completed')
+
+  const prompt = await reviewPurge(page, { count: 2 })
   await expect(prompt.getByTestId('purge-task-list')).toContainText('Old A')
   await expect(prompt.getByTestId('purge-task-list')).toContainText('Old B')
   await expect(prompt.getByTestId('purge-task-list')).not.toContainText('Recent done')
   // Focus lands inside the dialog, on the safe choice.
   await expect(prompt.getByRole('button', { name: 'Not now' })).toBeFocused()
 
-  // Showing it stamped the setting the interval counts from.
+  // Opening it stamped the setting the interval counts from.
   await expect.poll(async () => (await readStore<{ key: string; value: string }>(page, 'settings')).find((r) => r.key === 'purgePromptLastAt')?.value)
     .toBeTruthy()
 
@@ -89,14 +103,16 @@ test('launch prompt: Not now waits the prompt interval; Export & delete archives
   await prompt.getByRole('button', { name: 'Not now' }).click()
   await expect(prompt).toBeHidden()
   expect((await dbTodos(page)).map((t) => t.title).sort()).toEqual(['Active', 'Old A', 'Old B', 'Old B', 'Recent done'])
+  await expect(pill).toHaveAttribute('data-state', 'local')
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(pill).toHaveAttribute('data-state', 'local')
 
-  // Once the interval has passed: asked again.
+  // Once the interval has passed: the notice again.
   await writeStores(page, { put: { settings: [{ key: 'purgePromptLastAt', value: new Date(Date.now() - 7 * 86_400_000).toISOString() }] } })
   await page.reload()
-  await expect(prompt).toBeVisible()
+  await reviewPurge(page, { count: 2 })
 
   // Export & delete → archive written first, then exactly those two deleted.
   await prompt.getByRole('button', { name: 'Export & delete' }).click()
@@ -106,10 +122,13 @@ test('launch prompt: Not now waits the prompt interval; Export & delete archives
   expect(archive.todos.map((t) => t.title).sort()).toEqual(['Old A', 'Old B'])
   expect((await dbTodos(page)).map((t) => t.title).sort()).toEqual(['Active', 'Old B', 'Recent done'])
 
-  // Next launch: nothing expired, no prompt.
+  await expect(pill).toHaveAttribute('data-state', 'local')
+
+  // Next launch: nothing expired, no notice.
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(pill).toHaveAttribute('data-state', 'local')
 
   // Append the archive back: Old B is a title duplicate of the active task.
   await gotoSettingsDeepLink(page)
@@ -141,7 +160,7 @@ test('launch prompt: Not now waits the prompt interval; Export & delete archives
   expect(after.filter((t) => archivedUids.has(t.uid)).map((t) => t.title).sort()).toEqual(['Old A', 'Old B'])
 })
 
-test('launch prompt: Delete removes the expired tasks without a file; a cancelled file picker deletes nothing', async ({ page }) => {
+test('purge dialog: Delete removes the expired tasks without a file; a cancelled file picker deletes nothing', async ({ page }) => {
   await page.addInitScript(() => {
     const abort = async () => { throw new DOMException('cancelled', 'AbortError') }
     Object.defineProperty(window, 'showSaveFilePicker', { value: abort, configurable: true })
@@ -150,8 +169,7 @@ test('launch prompt: Delete removes the expired tasks without a file; a cancelle
   await seed(page, [{ title: 'Stale', completedDaysAgo: 20 }, { title: 'Keep' }], 7)
 
   await page.reload()
-  const prompt = page.getByRole('dialog', { name: 'Delete 1 old completed task?' })
-  await expect(prompt).toBeVisible()
+  const prompt = await reviewPurge(page, { count: 1 })
 
   await prompt.getByRole('button', { name: 'Export & delete' }).click()
   // Picker cancelled → still asking, nothing deleted.
@@ -202,24 +220,31 @@ async function attachFileWithExpiredTask(page: Page, settings: Array<{ key: stri
     await w.close()
   }, { name: SYNC_FILE, text })
 
-  // No prompt at launch: the browser had nothing expired.
-  await expect(page.getByRole('dialog', { name: /old completed task/ })).toHaveCount(0)
+  // No notice at launch: the browser had nothing expired.
+  await expect(page.getByTestId('storage-pill')).toHaveAttribute('data-state', 'local')
 
   await gotoSettingsDeepLink(page)
   await (await openSettings(page, 'File storage')).getByRole('button', { name: 'Attach to File' }).click()
 }
 
 /**
- * The launch prompt's check runs again after a sync file is loaded later
- * (here: attached from Settings into a browser with no expired tasks), so
- * the file's own expired tasks are asked about too — unless the file's data
- * says the prompt showed within its interval.
+ * The notice's check runs again after a sync file is loaded later (here:
+ * attached from Settings into a browser with no expired tasks), so the
+ * file's own expired tasks are offered too — unless the file's data says the
+ * user was asked within the interval.
  */
-test('attaching a sync file with expired tasks brings up the prompt for them', async ({ page }) => {
+test('attaching a sync file with expired tasks brings up the notice for them, not a dialog', async ({ page }) => {
   await attachFileWithExpiredTask(page)
-  const prompt = page.getByRole('dialog', { name: 'Delete 1 old completed task?' })
-  await expect(prompt).toBeVisible()
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveText('1 old completed')
+  await expect(purgeDialog(page)).toHaveCount(0)
+  await page.keyboard.press('Escape') // Settings
+  await expect(page.getByRole('dialog', { name: 'Settings' })).toHaveCount(0)
+  const prompt = await reviewPurge(page, { count: 1 })
   await expect(prompt.getByTestId('purge-task-list')).toContainText('Old file task')
+  await prompt.getByRole('button', { name: 'Not now' }).click()
+  await expect(prompt).toBeHidden()
+  await expect(pill).toHaveAttribute('data-state', 'syncing')
 })
 
 test('attaching a sync file whose prompt showed within its interval asks nothing', async ({ page }) => {
@@ -231,5 +256,20 @@ test('attaching a sync file whose prompt showed within its interval asks nothing
   await expect.poll(async () => (await dbTodos(page)).map((t) => t.title)).toEqual(['Old file task'])
   await expect(page.getByTestId('storage-pill')).toHaveAttribute('data-state', 'syncing')
   // … and nothing asked about it.
-  await expect(page.getByRole('dialog', { name: /old completed task/ })).toHaveCount(0)
+  await expect(purgeDialog(page)).toHaveCount(0)
+  await expect(page.getByTestId('storage-popover')).toHaveCount(0)
+})
+
+test('Not now in the notice: nothing deleted, no dialog, not offered again within the interval', async ({ page }) => {
+  await boot(page)
+  await seed(page, [{ title: 'Stale', completedDaysAgo: 20 }, { title: 'Keep' }], 7)
+  await page.reload()
+  await dismissPurgeNotice(page)
+  await expect(purgeDialog(page)).toHaveCount(0)
+  expect((await dbTodos(page)).map((t) => t.title).sort()).toEqual(['Keep', 'Stale'])
+  const pill = page.getByTestId('storage-pill')
+  await expect(pill).toHaveAttribute('data-state', 'local')
+  await page.reload()
+  await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  await expect(pill).toHaveAttribute('data-state', 'local')
 })
