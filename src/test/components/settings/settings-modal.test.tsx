@@ -4,7 +4,7 @@ import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHos
 import { SettingsModal } from '../../../components/settings/SettingsModal'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import { useLensDraftStore } from '../../../stores/lens-draft-store'
-import { useUIStore } from '../../../stores/ui-store'
+import { readLastSettingsSection, SETTINGS_SECTION_KEY, useUIStore } from '../../../stores/ui-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 
@@ -30,13 +30,18 @@ describe('SettingsModal', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('opens on Database, Import / Export first (exporting is the common errand)', () => {
+  it('opens on Appearance the first time', () => {
     render(<SettingsModal />)
     open()
-    expect(sectionHeading()).toBe('Database')
-    expect(screen.getByRole('dialog', { name: 'Settings' }).querySelector('h3')?.textContent).toBe('Import / Export')
+    expect(sectionHeading()).toBe('Appearance')
     const nav = screen.getByRole('navigation', { name: 'Settings sections' })
-    expect(within(nav).getByRole('button', { name: 'Database' })).toHaveAttribute('aria-current', 'true')
+    expect(within(nav).getByRole('button', { name: 'Appearance' })).toHaveAttribute('aria-current', 'true')
+  })
+
+  it('Database shows Import / Export first (exporting is the common errand)', () => {
+    render(<SettingsModal />)
+    open('database')
+    expect(screen.getByRole('dialog', { name: 'Settings' }).querySelector('h3')?.textContent).toBe('Import / Export')
   })
 
   it('lists Database, Appearance, Tasks, People statuses & tags, Keyboard shortcuts, About — a merged section’s parts under it', () => {
@@ -46,7 +51,7 @@ describe('SettingsModal', () => {
     expect(within(nav).getAllByRole('button').map((b) => b.textContent)).toEqual([
       'Database', 'Import / Export', 'File storage', 'Backups', 'Data integrity',
       'Appearance', 'Theme and lists', 'Ambience',
-      'Tasks', 'Task defaults', 'Lenses', 'Eisenhower', 'Completed tasks',
+      'Tasks', 'New tasks', 'Lists & rows', 'Lenses', 'Eisenhower', 'Completed tasks',
       'People, statuses & tags',
       'Keyboard shortcuts',
       'About',
@@ -112,11 +117,49 @@ describe('SettingsModal', () => {
     expect(sectionHeading()).toBe('Database')
   })
 
-  it('Tasks holds Task defaults, Lenses, Eisenhower, then Completed tasks; Database Import / Export, File storage, Backups, Data integrity — each headed', () => {
+  describe('the last section, across reloads', () => {
+    beforeEach(() => localStorage.removeItem(SETTINGS_SECTION_KEY))
+    afterEach(() => localStorage.removeItem(SETTINGS_SECTION_KEY))
+
+    it('is kept in this browser as each section shows, and read back as the section a reload opens on', () => {
+      render(<SettingsModal />)
+      expect(readLastSettingsSection()).toBe('appearance')
+      open()
+      fireEvent.click(within(screen.getByRole('navigation', { name: 'Settings sections' })).getByRole('button', { name: 'About' }))
+      expect(localStorage.getItem(SETTINGS_SECTION_KEY)).toBe('about')
+      expect(readLastSettingsSection()).toBe('about')
+      // An explicit target (the storage pill's Import / Export) shows its own section, and is then the last one.
+      act(() => useUIStore.getState().closeSettings())
+      open('import-export')
+      expect(sectionHeading()).toBe('Database')
+      expect(readLastSettingsSection()).toBe('database')
+    })
+
+    it('a reload opens on it (the store starts from the stored section)', () => {
+      localStorage.setItem(SETTINGS_SECTION_KEY, 'tasks')
+      act(() => useUIStore.setState({ settingsSection: readLastSettingsSection() }))
+      render(<SettingsModal />)
+      open()
+      expect(sectionHeading()).toBe('Tasks')
+    })
+
+    it('an unknown or unreadable stored value reads as Appearance', () => {
+      localStorage.setItem(SETTINGS_SECTION_KEY, 'new-tasks')
+      expect(readLastSettingsSection()).toBe('appearance')
+      const spy = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('blocked') })
+      try {
+        expect(readLastSettingsSection()).toBe('appearance')
+      } finally {
+        spy.mockRestore()
+      }
+    })
+  })
+
+  it('Tasks holds New tasks, Lists & rows, Lenses, Eisenhower, then Completed tasks; Database Import / Export, File storage, Backups, Data integrity — each headed', () => {
     render(<SettingsModal />)
     open('tasks')
     const parts = () => Array.from(screen.getByRole('dialog', { name: 'Settings' }).querySelectorAll('h3')).map((h) => h.textContent)
-    expect(parts()).toEqual(['Task defaults', 'Lenses', 'Eisenhower', 'Completed tasks'])
+    expect(parts()).toEqual(['New tasks', 'Lists & rows', 'Lenses', 'Eisenhower', 'Completed tasks'])
     expect(screen.getByRole('region', { name: 'Completed tasks' })).toHaveAttribute('data-settings-part', 'completed')
     fireEvent.click(screen.getByRole('button', { name: 'Database' }))
     expect(parts()).toEqual(['Import / Export', 'File storage', 'Backups', 'Data integrity'])

@@ -697,7 +697,7 @@ test.describe('notes → tasks', () => {
   test('Settings’ Remove note lines after converting: the lines go, asking nothing; Ctrl+Z brings them back', async ({ page }) => {
     const text = ['- first', '- second', 'plain'].join('\n')
     const editor = await writeNote(page, text)
-    const settings = await openSettings(page, 'Task defaults')
+    const settings = await openSettings(page, 'New tasks')
     const setting = settings.getByRole('switch', { name: 'Remove note lines after converting' })
     await setting.click()
     await expect(setting).toHaveAttribute('aria-checked', 'true')

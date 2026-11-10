@@ -26,20 +26,21 @@ const team: WorkspaceSeed = {
 const tray = (page: Page) => page.getByRole('group', { name: 'Screen filters — apply to every widget' })
 const rows = (page: Page) => wsListWidget(page, 't1').locator('[data-todo-id]')
 
-test('the gear opens Settings over the workspace; Esc closes it', async ({ page }) => {
+test('the gear opens Settings over the workspace; Esc closes it; it reopens on the last section, after a reload too', async ({ page }) => {
   await seedWorkspace(page, team)
   await expect(page.getByRole('button', { name: /theme/i })).toHaveCount(0)
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   const settings = page.getByRole('dialog', { name: 'Settings' })
   await expect(settings).toBeVisible()
-  // It opens on Database, Import / Export first (exporting is the common errand).
-  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
-  await expect(settings.getByRole('heading', { level: 3 }).first()).toHaveText('Import / Export')
-  await expect(page).toHaveURL(/#\/$/)
-
-  await settings.getByRole('button', { name: 'Appearance', exact: true }).click()
+  // The first time, it opens on Appearance.
   await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Appearance')
   await expect(settings.getByRole('radiogroup', { name: 'Theme' })).toBeVisible()
+  await expect(page).toHaveURL(/#\/$/)
+
+  // Database: Import / Export first (exporting is the common errand).
+  await settings.getByRole('button', { name: 'Database', exact: true }).click()
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
+  await expect(settings.getByRole('heading', { level: 3 }).first()).toHaveText('Import / Export')
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
   await expect(page.locator('[data-ws-area]')).toBeVisible()
@@ -47,8 +48,17 @@ test('the gear opens Settings over the workspace; Esc closes it', async ({ page 
   // Reopens on the last section viewed; G then S opens it too.
   await page.keyboard.press('g')
   await page.keyboard.press('s')
-  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Appearance')
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('Database')
+  await settings.getByRole('button', { name: 'About', exact: true }).click()
   await settings.getByRole('button', { name: 'Close settings' }).click()
+  await expect(settings).toBeHidden()
+
+  // After a reload too.
+  await page.reload()
+  await expect(page.locator('[data-ws-area]')).toBeVisible()
+  await page.getByRole('button', { name: 'Settings', exact: true }).click()
+  await expect(settings.getByRole('heading', { level: 2 })).toHaveText('About')
+  await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
 })
 

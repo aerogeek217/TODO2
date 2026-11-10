@@ -91,9 +91,10 @@ async function expectEveryFilterButton(page: Page) {
   }
 }
 
-test.use({ viewport: { width: 1370, height: 900 } })
+// The storage pill is its 24px dot while all is well: the widths below allow for that.
+test.use({ viewport: { width: 1308, height: 900 } })
 
-test('at 1370px one person ticked keeps every filter button: the search narrows, the name is cut and whole in its tooltip', async ({ page }) => {
+test('at 1308px one person ticked keeps every filter button: the search narrows, the name is cut and whole in its tooltip', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expectEveryFilterButton(page)
   const before = await settled(page)
@@ -141,8 +142,8 @@ test('narrowing: the search narrows first, then the value is cut, then the filte
 
   const seen = new Set<string>()
   // 20 px steps, 5 px across the narrow band where the value is cut (about
-  // 1375–1352 px in this seed), so each phase is seen more than once.
-  for (let width = 1600; width >= 760; width -= width <= 1400 && width > 1330 ? 5 : 20) {
+  // 1312–1290 px in this seed), so each phase is seen more than once.
+  for (let width = 1600; width >= 760; width -= width <= 1335 && width > 1265 ? 5 : 20) {
     await page.setViewportSize({ width, height: 900 })
     const s = await settled(page)
     expect(s.oneLine, `at ${width}px`).toBe(true)
@@ -165,7 +166,7 @@ test('narrowing: the search narrows first, then the value is cut, then the filte
 
 test('a pick that needs the fold waits for its picker to close: the button and its picker stay put mid-pick (cr31 UI F10)', async ({ page }) => {
   // Just wide enough for every filter button with no value; a Status value folds them.
-  await page.setViewportSize({ width: 1290, height: 900 })
+  await page.setViewportSize({ width: 1234, height: 900 })
   await seedWorkspace(page, SEED)
   await expectEveryFilterButton(page)
   expect((await settled(page)).fold).toBe('none')

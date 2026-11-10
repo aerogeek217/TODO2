@@ -46,7 +46,7 @@ for (const theme of ['dark', 'light'] as const) {
     await seedWorkspace(page, SEED)
     await setTheme(page, theme)
 
-    const settings = await openSettings(page, 'Task defaults')
+    const settings = await openSettings(page, 'Lists & rows')
     const inSettings = await optionColours(settings)
     expect(inSettings.got.length).toBeGreaterThan(0)
     // The surface colour is opaque, so the open list never shows through to white.

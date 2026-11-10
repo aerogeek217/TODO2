@@ -476,11 +476,11 @@ describe('the editor’s Count columns (board BC)', () => {
   })
 })
 
-describe('Add widget › Numbers & charts › Breakdown › its presets', () => {
+describe('Add widget › Insights › Breakdown › its presets', () => {
   /** A menu item by its label (`&` in a selector trips JSDOM's). */
   const byLabel = (label: string) => [...document.querySelectorAll<HTMLElement>('[data-menu-label]')].find((e) => e.dataset.menuLabel === label)!
   const openPresets = () => {
-    fireEvent.click(byLabel('Numbers & charts'))
+    fireEvent.click(byLabel('Insights'))
     fireEvent.click(byLabel('Breakdown'))
     return [...document.querySelectorAll<HTMLElement>('[role="menu"][aria-label="Breakdown"] [role="menuitem"]')]
   }

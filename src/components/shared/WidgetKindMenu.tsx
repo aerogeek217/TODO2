@@ -14,8 +14,8 @@ export type {
  * add-tab menu, as a {@link MenuPopover} at the pointer: the widget's own
  * items first (a list's Edit list… / Change list ›, a
  * widget setting's radio submenu, widget actions), then the kinds under "Change widget" (radio items, the
- * current one checked) or "Add widget": the task kinds inline, the numbers
- * and charts in their own submenu (`Numbers & charts ›`, the current one's
+ * current one checked) or "Add widget": the task kinds inline, the insights
+ * in their own submenu (`Insights ›`, the current one's
  * name as its note), so the menu fits a short window under a tab.
  */
 export function WidgetKindMenu({ anchor, onClose, heading = 'Change widget', ...content }: WidgetKindMenuProps) {

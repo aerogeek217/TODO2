@@ -377,7 +377,7 @@ test('Settings: contract; Esc over it closes the people editor only, focused or 
 
 test('Settings: Esc in the follow-up interval reverts the typed value and keeps Settings; the next Esc closes it', async ({ page }) => {
   await seedWorkspace(page, SEED)
-  const settings = await openSettings(page, 'Task defaults')
+  const settings = await openSettings(page, 'New tasks')
   const interval = settings.getByRole('textbox', { name: 'Follow-up interval' })
   const stored = await interval.inputValue()
   await interval.fill('3w')

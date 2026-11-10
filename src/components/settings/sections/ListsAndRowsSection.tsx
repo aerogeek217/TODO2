@@ -1,7 +1,5 @@
 import { Fragment, useState } from 'react'
 import { useSettingsStore } from '../../../stores/settings-store'
-import { useStatusStore } from '../../../stores/status-store'
-import { FollowupIntervalSetting } from '../FollowupIntervalSetting'
 import {
   URGENT_DUE_WITHIN_CHOICES,
   formatUrgentDueWithinDays,
@@ -97,18 +95,13 @@ function PriorityCuesSetting() {
 }
 
 /**
- * Defaults for new tasks: status, whether they get a next follow-up and the
- * follow-up interval, when a due date makes a task urgent, when an untouched task's row fades, the first day of the week, how
- * new lists sort and group, and what a note's converted lines become.
+ * How lists and their rows read: when a due date makes a task urgent, when an
+ * untouched task's row fades, the tab badges' ranges, what a priority adds to
+ * its row, the first day of the week, and how new lists sort and group.
  */
-export function TaskDefaultsSection() {
-  const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
-  const setDefaultStatusId = useSettingsStore((s) => s.setDefaultStatusId)
+export function ListsAndRowsSection() {
   const weekStartsOn = useSettingsStore((s) => s.weekStartsOn)
   const setWeekStartsOn = useSettingsStore((s) => s.setWeekStartsOn)
-  const statuses = useStatusStore((s) => s.statuses)
-  const removeConvertedLines = useSettingsStore((s) => s.removeConvertedLines)
-  const setRemoveConvertedLines = useSettingsStore((s) => s.setRemoveConvertedLines)
   const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
   const setUrgentRange = useSettingsStore((s) => s.setUrgentDueWithinDays)
   const tabBadges = useSettingsStore((s) => s.tabBadges)
@@ -120,33 +113,6 @@ export function TaskDefaultsSection() {
 
   return (
     <div className={styles.section}>
-      <SettingRow label="Default status" help="Given to every new task.">
-        <select
-          className={styles.select}
-          aria-label="Default status for new tasks"
-          value={defaultStatusId ?? ''}
-          onChange={(e) => setDefaultStatusId(e.target.value ? Number(e.target.value) : null)}
-        >
-          <option value="">None</option>
-          {statuses.map((s) => (
-            <option key={s.id} value={s.id}>{s.name}</option>
-          ))}
-        </select>
-      </SettingRow>
-      <FollowupIntervalSetting />
-      <SettingRow
-        label="Remove note lines after converting"
-        help="A line made into a task goes from the note, without asking. Ctrl+Z in the note brings it back. Off: one converted line stays marked ✓, and converting several asks."
-      >
-        <button
-          type="button"
-          role="switch"
-          aria-checked={removeConvertedLines}
-          aria-label="Remove note lines after converting"
-          className={`${styles.switch} ${removeConvertedLines ? styles.switchOn : ''}`}
-          onClick={() => void setRemoveConvertedLines(!removeConvertedLines)}
-        />
-      </SettingRow>
       <SettingRow
         label="Due date makes a task urgent"
         help="Overdue tasks count too. A task urgent by its due date gets a dashed ring."
