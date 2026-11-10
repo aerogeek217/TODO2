@@ -271,7 +271,7 @@ test('switching between desktop and phone widths keeps the drag sensors stable (
   await seed(page)
   await expect(page.locator('[data-ws-mobile]')).toBeVisible()
   await page.setViewportSize({ width: 1280, height: 800 })
-  await expect(page.getByTestId('layout-save')).toBeVisible()
+  await expect(page.locator('[data-layout-controls]')).toBeVisible()
   await page.setViewportSize({ width: 390, height: 844 })
   await expect(page.locator('[data-ws-mobile]')).toBeVisible()
   expect(errors.filter((e) => e.includes('changed size between renders'))).toEqual([])

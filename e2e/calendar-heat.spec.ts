@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * D18 calendar heat map in a real browser: with Titles off (the default) a
@@ -87,7 +87,7 @@ test('titles off: the month is a heat map; Titles brings the bars back and survi
   await expect(titles).toHaveAttribute('aria-pressed', 'true')
   await expect((await day(page, 1)).locator('[data-cal-entry]')).toContainText('Tomorrow')
   await expect(calendar(page).locator('[data-cal-legend]')).toHaveCount(0)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await page.reload()
   await expect(calendar(page).getByRole('button', { name: 'Titles' })).toHaveAttribute('aria-pressed', 'true')
   await expect((await day(page, 1)).locator('[data-cal-entry]')).toContainText('Tomorrow')

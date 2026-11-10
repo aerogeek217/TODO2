@@ -1,8 +1,19 @@
 import { expect, test, type Page } from '@playwright/test'
 import {
-  drag, layoutTab, layoutTabNames, openLayoutTab, openLayoutTabMenu, readListDefinitions, seedWorkspace, wsShape, wsTab,
-  type WorkspaceSeed, type WsLayoutSeed,
+  drag,
+  layoutTab,
+  layoutTabNames,
+  openLayoutTab,
+  openLayoutTabMenu,
+  readListDefinitions,
+  seedWorkspace,
+  wsShape,
+  wsTab,
+  type WorkspaceSeed,
+  type WsLayoutSeed,
   wsRow,
+  expectLayoutStep,
+  expectLayoutStored,
 } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -11,7 +22,8 @@ import { readStore } from './fixtures/db'
  * The layouts as tabs in the top bar: drag to reorder (saved at once, one
  * undo step, the picker shows the same order), Move left / right from a
  * tab's menu, New layout's name prompt (the layout is stored at once),
- * switching tabs with unsaved changes, Delete from a tab's menu, and the
+ * switching tabs right after an edit (saved at once: nothing asks),
+ * Duplicate layout…, Delete from a tab's menu, and the
  * measured fold — the filters fold first, then the tabs into the picker —
  * with nothing leaving the 40px bar.
  */
@@ -38,7 +50,7 @@ test('dragging a tab reorders the layouts, saved at once (no unsaved dot); Undo 
   await expect.poll(() => layoutTabNames(page)).toEqual(['Third', 'Main', 'Second'])
   // Not a layout change: Main is still open and saved.
   await expect(openLayoutTab(page)).toHaveText('Main')
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await expect.poll(() => storedOrder(page)).toEqual(['Third', 'Main', 'Second'])
 
   await expect(page.getByText('Moved layout “Third”')).toBeVisible()
@@ -76,7 +88,7 @@ test('Move left / right from a tab’s menu, by keyboard; each is one undo step'
   await page.keyboard.press('Shift+F10')
   const menu = page.getByRole('menu', { name: 'Layout Second' })
   await expect(menu.getByRole('menuitem', { name: 'Move left' })).toBeEnabled()
-  await expect(menu.getByRole('menuitem', { name: 'Save changes' })).toHaveCount(0)
+  await expect(menu.getByRole('menuitem', { name: 'Duplicate layout…' })).toHaveCount(0)
   await menu.getByRole('menuitem', { name: 'Move right' }).click()
   await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Third', 'Second'])
   await expect.poll(() => storedOrder(page)).toEqual(['Main', 'Third', 'Second'])
@@ -93,7 +105,7 @@ test('Move left / right from a tab’s menu, by keyboard; each is one undo step'
   await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Third', 'Second'])
   // The open layout's menu leads with its own actions.
   const open = await openLayoutTabMenu(page)
-  await expect(open.getByRole('menuitem')).toHaveText(['Save changes', 'Save as new layout…', 'Discard changes', 'Edit…', 'Move left', 'Move right', 'Delete layout…'])
+  await expect(open.getByRole('menuitem')).toHaveText(['Duplicate layout…', 'Edit…', 'Move left', 'Move right', 'Delete layout…'])
   await expect(open.getByRole('menuitem', { name: 'Move left' })).toBeDisabled()
 })
 
@@ -108,52 +120,58 @@ test('New layout (the tabs’ +) asks a name; the empty layout is stored at once
   await expect(dialog).toBeHidden()
   await expect(openLayoutTab(page)).toHaveText('Planning')
   await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Second', 'Third', 'Planning'])
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await expect(page.getByText('This layout is empty')).toBeVisible()
   await expect.poll(() => storedOrder(page)).toEqual(['Main', 'Second', 'Third', 'Planning'])
   await page.reload()
   await expect(openLayoutTab(page)).toHaveText('Planning')
 })
 
-test('New layout with unsaved changes: the name first, then Save / Discard / Cancel; Cancel creates nothing', async ({ page }) => {
+test('New layout right after an edit asks nothing about the layout: the edit is saved, no unsaved dot', async ({ page }) => {
   await seedWorkspace(page, three)
   await wsTab(page, 'm-cal').click()
   await wsTab(page, 'm-cal').getByRole('button', { name: 'Close Calendar' }).click()
-  await expect(openLayoutTab(page).getByRole('img', { name: 'unsaved changes' })).toBeVisible()
+  await expectLayoutStep(page, 'Closed tab “Calendar”')
+  await expect(openLayoutTab(page).getByRole('img')).toHaveCount(0)
 
   await page.getByRole('button', { name: 'New layout', exact: true }).click()
   await page.getByRole('dialog', { name: 'New layout' }).getByLabel('Name').fill('Planning')
   await page.getByRole('dialog', { name: 'New layout' }).getByRole('button', { name: 'Create layout' }).click()
-  const prompt = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
-  await expect(prompt).toContainText('You’re starting a new layout “Planning”.')
-  await prompt.getByRole('button', { name: /Cancel/ }).click()
-  await expect(openLayoutTab(page)).toHaveText('Main')
-  expect(await layoutTabNames(page)).toEqual(['Main', 'Second', 'Third'])
-
-  await page.getByRole('button', { name: 'New layout', exact: true }).click()
-  await page.getByRole('dialog', { name: 'New layout' }).getByLabel('Name').fill('Planning')
-  await page.getByRole('dialog', { name: 'New layout' }).getByRole('button', { name: 'Create layout' }).click()
-  await prompt.getByRole('button', { name: 'Save layout' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(openLayoutTab(page)).toHaveText('Planning')
   await layoutTab(page, 'Main').click()
   await expect.poll(() => wsShape(page)).toEqual([[['m']]])
 })
 
-test('switching tabs with unsaved changes asks Save / Discard / Cancel', async ({ page }) => {
+test('switching tabs right after an edit asks nothing; the edit is kept, and Undo there says to open its layout', async ({ page }) => {
   await seedWorkspace(page, three)
   await wsTab(page, 'm-cal').click()
   await wsTab(page, 'm-cal').getByRole('button', { name: 'Close Calendar' }).click()
   await layoutTab(page, 'Second').click()
-  const prompt = page.getByRole('dialog', { name: 'Save changes to layout “Main”?' })
-  await expect(prompt).toContainText('You’re switching to “Second”.')
-  await prompt.getByRole('button', { name: /Cancel/ }).click()
-  await expect(openLayoutTab(page)).toHaveText('Main')
-
-  await layoutTab(page, 'Second').click()
-  await prompt.getByRole('button', { name: 'Discard' }).click()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(openLayoutTab(page)).toHaveText('Second')
+  // Ctrl+Z here: the step is Main's.
+  await page.locator('[data-ws-area]').click({ position: { x: 5, y: 5 } })
+  await page.keyboard.press('Control+z')
+  await expect(page.locator('[data-snackbar-live]')).toContainText('Open layout “Main” to undo: Closed tab “Calendar”.')
   await layoutTab(page, 'Main').click()
+  await expect.poll(() => wsShape(page)).toEqual([[['m']]])
+  await page.locator('[data-ws-area]').click({ position: { x: 5, y: 5 } })
+  await page.keyboard.press('Control+z')
   await expect.poll(() => wsShape(page)).toEqual([[['m', 'm-cal']]])
+})
+
+test('Duplicate layout… from the open tab’s menu copies it under a new name and opens the copy', async ({ page }) => {
+  await seedWorkspace(page, three)
+  const menu = await openLayoutTabMenu(page)
+  await menu.getByRole('menuitem', { name: 'Duplicate layout…' }).click()
+  const dialog = page.getByRole('dialog', { name: 'Duplicate layout' })
+  await expect(dialog.getByLabel('Name')).toHaveValue('Main copy')
+  await dialog.getByRole('button', { name: 'Duplicate' }).click()
+  await expect(openLayoutTab(page)).toHaveText('Main copy')
+  await expect.poll(() => layoutTabNames(page)).toEqual(['Main', 'Second', 'Third', 'Main copy'])
+  await expect.poll(() => wsShape(page)).toEqual([[['m', 'm-cal']]])
+  await expect.poll(() => storedOrder(page)).toEqual(['Main', 'Second', 'Third', 'Main copy'])
 })
 
 test('Delete from a tab’s menu names the lists that go with it', async ({ page }) => {

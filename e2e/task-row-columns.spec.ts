@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box, pointIn, type Box } from './fixtures/geometry'
-import { drag, seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
+import { drag, seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * The desktop task row's columns: every row of a list shares one set of
@@ -166,7 +166,7 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   expect(Math.round((await box(first.locator('[data-task-title]'))).width)).toBe(Math.round(titleBefore - 60))
   // People and tags grew; the dates / status didn't.
   await expect.poll(() => storedTabView(page, 'tab')).toEqual({ detailsWidth: 360 })
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   expect(Math.round((await box(first.locator('[data-row-cell="dates"]'))).width)).toBe(92)
 
   await page.reload()
@@ -197,7 +197,7 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   await divider(widget).dblclick()
   await expect.poll(() => dividerValue(widget)).toBe(300)
   await expect.poll(() => storedTabView(page, 'tab')).toEqual({})
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 })
 
 test('a 280px column: the title keeps 80px and nothing passes the row edge', async ({ page }) => {

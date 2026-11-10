@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
-import { openCellMenu, pickWidgetKind, seedWorkspace, wsCell, type WorkspaceSeed } from './fixtures/workspace'
+import { openCellMenu, pickWidgetKind, seedWorkspace, wsCell, type WorkspaceSeed, expectLayoutStep } from './fixtures/workspace'
 
 /**
  * Item 12 · the Review widget (board BK) in the real browser: added from
@@ -67,7 +67,7 @@ test('added from the cell’s ⋯ with nothing picked: “Who do you want to rev
   await expect(w.getByTestId('review-widget-progress')).toHaveText('1 of 4 · 0 followed up')
   await expect(railRows(page, await w.getAttribute('data-review-widget') ?? '')).toHaveCount(4)
   // The pick is layout config: unsaved until Save.
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName(/unsaved|Save/i)
+  await expectLayoutStep(page)
 })
 
 function largeSeed(): WorkspaceSeed {

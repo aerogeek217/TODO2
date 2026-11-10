@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box } from './fixtures/geometry'
-import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { dragRow, seedWorkspace, wsListWidget, wsTab, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * D25 C + I1 · a list tab's zoom, in the real browser: the three levels'
@@ -143,7 +143,7 @@ test('Ctrl + wheel over the list steps the zoom without zooming the page, saved 
 
   // View state: saved at once, the layout not unsaved.
   await expect.poll(() => storedZoom(page)).toBe('lines')
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await page.reload()
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
 })
@@ -378,7 +378,7 @@ test('a tab that hasn’t picked a zoom shows the Settings default; the old Comf
 test('a tab, or the Settings default, stored at the removed Strips opens at Lines, the layout not unsaved', async ({ page }) => {
   await open(page, { zoom: 'strips' })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
   await open(page, { settings: { rowDensity: 'strips' } })
   await expect(grid(page)).toHaveAttribute('data-zoom', 'lines')
 })

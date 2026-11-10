@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
+import { seedWorkspace, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 
 /**
  * Project pulse's rules (G5) in a real browser: Edit project pulse… opens
@@ -61,10 +61,10 @@ test('Edit project pulse…: Stale given a filter and a name changes the card’
   await stale.getByRole('textbox', { name: 'Stale name' }).fill('quiet')
   await expect(card(page).locator('[data-pulse-count="stale"]')).toHaveText('3 quiet')
   // Drawn live; written on Save.
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor(page)).toHaveCount(0)
   await expect(card(page).locator('[data-pulse-count="stale"]')).toHaveText('3 quiet')
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
+  await expectLayoutStep(page)
 })

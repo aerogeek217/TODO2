@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { expectOpenLayout, openLayoutAction, openSettings, readListDefinitions, seedWorkspace, switchLayout as openLayout, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { expectOpenLayout, openLayoutAction, openSettings, readListDefinitions, seedWorkspace, switchLayout as openLayout, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -71,9 +71,8 @@ test('a new list widget’s list is the open layout’s, offered only there (Cha
   await editor.getByRole('textbox', { name: 'Name' }).fill('Errands')
   await page.getByRole('dialog', { name: 'Edit list Errands' }).getByRole('button', { name: 'Save list' }).click()
   await expect.poll(async () => (await lists(page)).find((d) => d.name === 'Errands')?.owner).toEqual({ layoutId: await layoutId(page, 'Main') })
-  // The tab is a layout edit: save the layout.
-  await page.getByTestId('layout-save').click()
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  // The tab is a layout edit, saved at once.
+  await expectLayoutStored(page)
 
   expect(await changeListChoices(page, 'sharedTab')).toEqual(['Shared', 'Mine', 'Errands'])
   await switchLayout(page, 'Second')
@@ -84,20 +83,20 @@ test('a new list widget’s list is the open layout’s, offered only there (Cha
   await expect(settings.getByRole('button', { name: 'Manage lists…' })).toHaveCount(0)
 })
 
-test('Save as: the new layout shows copies of its lists that edit on their own', async ({ page }) => {
+test('Duplicate layout: the new layout shows copies of its lists that edit on their own', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const mine = (await lists(page)).find((d) => d.name === 'Mine')!
-  await layoutMenu(page, 'Save as new layout…')
-  const dialog = page.getByRole('dialog', { name: 'Save as new layout' })
+  await layoutMenu(page, 'Duplicate layout…')
+  const dialog = page.getByRole('dialog', { name: 'Duplicate layout' })
   await dialog.getByLabel('Name').fill('Copy')
-  await dialog.getByRole('button', { name: 'Save layout' }).click()
+  await dialog.getByRole('button', { name: 'Duplicate' }).click()
   await expectOpenLayout(page, 'Copy')
   const copyId = await layoutId(page, 'Copy')
   await expect.poll(async () => (await lists(page)).filter((d) => d.name === 'Mine').map((d) => d.owner?.layoutId).sort())
     .toEqual([mine.owner!.layoutId, copyId].sort())
   const copy = (await lists(page)).find((d) => d.name === 'Mine' && d.owner?.layoutId === copyId)!
   expect(copy.id).not.toBe(mine.id)
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStored(page)
 
   // Edit the copy's filter from its line: Text contains "plumber"; Save.
   await wsTab(page, 'mineTab').click()
@@ -131,18 +130,18 @@ test('Delete layout takes its lists with it; the confirm says so', async ({ page
   expect((await lists(page)).some((d) => d.name === 'Theirs')).toBe(true)
 })
 
-test('a closed tab’s list goes when the layout is saved; Discard keeps it', async ({ page }) => {
+test('closing a list’s last tab deletes the list at once; Undo brings back the list and its tab', async ({ page }) => {
   await seedWorkspace(page, SEED)
   const mine = (await lists(page)).find((d) => d.name === 'Mine')!
   await wsTab(page, 'mineTab').hover()
   await wsTab(page, 'mineTab').getByRole('button', { name: 'Close Mine' }).click()
-  await layoutMenu(page, 'Discard changes')
-  await expect(wsTab(page, 'mineTab')).toBeVisible()
-  expect((await lists(page)).some((d) => d.id === mine.id)).toBe(true)
-
-  await wsTab(page, 'mineTab').hover()
-  await wsTab(page, 'mineTab').getByRole('button', { name: 'Close Mine' }).click()
-  await page.getByTestId('layout-save').click()
-  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+  await expectLayoutStep(page, 'Closed tab “Mine”')
   await expect.poll(async () => (await lists(page)).some((d) => d.id === mine.id)).toBe(false)
+
+  await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(wsTab(page, 'mineTab')).toBeVisible()
+  await expect.poll(async () => (await lists(page)).find((d) => d.id === mine.id)?.owner).toEqual(mine.owner)
+  await expectLayoutStored(page)
+  await page.reload()
+  await expect(wsTab(page, 'mineTab')).toBeVisible()
 })

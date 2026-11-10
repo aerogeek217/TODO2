@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, drag, pickWidgetKind, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, drag, pickWidgetKind, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -103,7 +103,7 @@ test.describe('desktop', () => {
     await expect(unsavedDot(tab)).toBeVisible()
     await expect(unsavedDot(wsTab(page, 'lensTab'))).toHaveCount(0)
     // An edit to a list, not to the layout.
-    await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
+    await expectLayoutStored(page)
 
     const save = filterLine(page).getByTestId('save-list')
     await save.click()

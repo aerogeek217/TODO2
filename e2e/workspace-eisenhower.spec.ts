@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixtures/workspace'
+import { drag, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, type WsTabSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
@@ -159,7 +159,7 @@ test('narrow cells stack; a collapsed section is view state that survives a relo
   await quadrant(page, 'schedule').getByRole('button', { expanded: true }).click()
   await expect(quadrant(page, 'schedule')).toHaveAttribute('data-collapsed', 'true')
   await expect(row(quadrant(page, 'schedule'), 'Draft OKRs')).toHaveCount(0)
-  await expect(page.getByTestId('layout-save')).toHaveAttribute('aria-disabled', 'true')
+  await expectLayoutStored(page)
   await page.reload()
   await expect(quadrant(page, 'schedule')).toHaveAttribute('data-collapsed', 'true')
   await expect(quadrant(page, 'schedule').getByTestId('eisenhower-count')).toHaveText('2')

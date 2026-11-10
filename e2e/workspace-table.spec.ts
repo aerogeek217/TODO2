@@ -17,6 +17,8 @@ import {
   wsShape,
   wsTab,
   type WsLayoutSeed,
+  expectLayoutStep,
+  expectLayoutStored,
 } from './fixtures/workspace'
 import { box, expectInsideViewport, pointIn, type Point } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
@@ -32,9 +34,6 @@ import { readStore } from './fixtures/db'
  * Collapse row.
  */
 
-const saveButton = (page: Page) => page.getByTestId('layout-save')
-const UNSAVED = 'Save layout (unsaved changes)'
-const SAVED = 'Layout saved'
 
 /** `a b / c b`: a (Notes, Eisenhower) over c (Notes), b (Calendar) down the right. */
 const aBc: WsLayoutSeed = {
@@ -91,7 +90,7 @@ test.describe('drops and the ghost', () => {
       const ghost = await dragWithGhost(page, 'eisTab', await bodyPoint(page, 'b', at[0], at[1]), label)
       await expect.poll(() => wsShape(page)).toEqual(shape)
       expectSameEdges(ghost, await edges(cellOf(page, 'eisTab')))
-      await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+      await expectLayoutStep(page)
     })
   }
 
@@ -125,7 +124,7 @@ test.describe('drops and the ghost', () => {
     await dragTab(page, wsTab(page, 'calTab'), await bodyPoint(page, 'b', 0.5, 0.5), async () => {
       await expect(wsGhost(page)).toHaveCount(0)
     })
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
 
     const t = await box(wsTab(page, 'eisTab'))
     const to = await bodyPoint(page, 'b', 0.5, 0.5)
@@ -138,7 +137,7 @@ test.describe('drops and the ghost', () => {
     await releaseDrag(page)
     await expect(wsGhost(page)).toHaveCount(0)
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab'], ['notes2']], [['calTab']]])
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
   })
 })
 
@@ -159,7 +158,7 @@ test.describe('whole-cell drags', () => {
     await page.mouse.move(p.x + 3, p.y, { steps: 2 })
     await expect(page.getByTestId('ws-panel-ghost')).toHaveCount(0)
     await page.mouse.up()
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
   })
 
   test('a cell into another’s middle: all its tabs join, the first moved one active', async ({ page }) => {
@@ -196,7 +195,7 @@ test.describe('whole-cell drags', () => {
     await dragPanel(page, 'b', await bodyPoint(page, 'b', 0.5, 0.5), {
       during: async () => { await expect(wsGhost(page)).toHaveCount(0) },
     })
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
     const a = await areaBox(page)
     const to = { x: a.x + 300, y: a.y + a.height - 3 }
     await dragPanel(page, 'a', to, {
@@ -219,7 +218,7 @@ test.describe('the cell menu', () => {
     await expect(page.getByRole('menuitem', { name: 'Right', exact: true })).toBeDisabled()
     await page.getByRole('menuitem', { name: 'Below', exact: true }).click()
     await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab', 'notes2']], [['calTab']]])
-    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    await expectLayoutStep(page)
 
     await openCellMenu(page, 'b')
     await pickCellMenu(page, 'Insert', 'Row at the top')
@@ -283,7 +282,7 @@ test.describe('dividers', () => {
     const d = await box(divider)
     await drag(page, { x: d.x + d.width / 2, y: d.y + d.height / 2 }, { x: d.x + d.width / 2 + 100, y: d.y + d.height / 2 })
     await expect.poll(async () => Math.round((await box(a)).width - before)).toBeGreaterThan(90)
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
     const resized = Math.round((await box(a)).width)
     expect(Math.round((await box(wsCell(page, 'c'))).width)).toBe(resized)
     await expect.poll(async () => {
@@ -335,10 +334,9 @@ test.describe('dividers', () => {
     // x and y keep their line.
     // (A new track takes one more gap from the weighted rows: a few px.)
     expect(Math.abs((await edges(wsCell(page, 'x'))).bottom - xBottom)).toBeLessThanOrEqual(4)
-    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    await expectLayoutStep(page)
     const moved = Math.round((await edges(wsCell(page, 'a'))).bottom)
-    await saveButton(page).click()
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
     await page.reload()
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom)).toBe(moved)
   })
@@ -362,7 +360,7 @@ test.describe('dividers', () => {
     const d = await box(wsDivider(page, 't', 'a'))
     await drag(page, { x: d.x + 300, y: d.y + d.height / 2 }, { x: d.x + 300, y: d.y + d.height / 2 + 40 })
     await expect.poll(async () => Math.round((await box(wsCell(page, 't'))).height)).toBe(200)
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
     await expect.poll(async () => (await readStore<{ grid: { rows: Array<{ px?: number }> } }>(page, 'layouts'))[0]?.grid.rows[0]?.px).toBe(200)
   })
 
@@ -400,7 +398,7 @@ test.describe('dividers', () => {
     await expect.poll(async () => Math.abs(Math.round((await box(wsCell(page, 'a'))).width - (await box(wsCell(page, 'b'))).width))).toBeLessThanOrEqual(8)
     // c|d stays at 600 : 400 (a new track takes one more gap: a few px).
     expect(Math.abs(Math.round((await box(wsCell(page, 'c'))).width) - cWidth)).toBeLessThanOrEqual(4)
-    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    await expectLayoutStep(page)
   })
 
   test('a narrow window: the cells keep 120px and the table scrolls sideways', async ({ page }) => {
@@ -450,7 +448,7 @@ test.describe('rows that size themselves', () => {
     // b spans the folded row and the one under it: it keeps its place and size.
     expect(Math.round((await box(wsCell(page, 'b'))).height)).toBe(Math.round(bBefore.height))
     await expect(wsCell(page, 'b').locator('[data-ws-cell-body]')).toBeVisible()
-    await expect(saveButton(page)).toHaveAccessibleName(SAVED)
+    await expectLayoutStored(page)
     // No divider beside a folded row.
     await expect(page.locator('[data-ws-divider][data-axis="rows"]')).toHaveCount(0)
     await page.reload()
@@ -461,14 +459,15 @@ test.describe('rows that size themselves', () => {
 })
 
 test.describe('reload and lists', () => {
-  test('an unsaved drop comes back after a reload, still unsaved', async ({ page }) => {
+  test('a drop is saved at once and comes back after a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [aBc] })
     const a = await areaBox(page)
     await dragPanel(page, 'c', { x: a.x + 300, y: a.y + 3 })
     await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).width)).toBe(Math.round(a.width - 12))
+    await expectLayoutStep(page, 'Moved cell')
     await page.reload()
     await expect.poll(async () => Math.round((await box(cellOf(page, 'notes2'))).width)).toBe(Math.round(a.width - 12))
-    await expect(saveButton(page)).toHaveAccessibleName(UNSAVED)
+    await expectLayoutStored(page)
   })
 
   test('Edit list for a list tab in a fixed row opens on screen', async ({ page }) => {
