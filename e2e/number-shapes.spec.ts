@@ -93,7 +93,7 @@ test('against a goal: a bar, where it stands, lit over the limit or behind its p
   await editor(page).getByTestId('number-editor-show').selectOption('goal')
   await expect(goal.getByTestId('number-goal-target')).toHaveText('/ 2')
   await expect(editor(page).getByRole('combobox', { name: 'Pace' })).toHaveValue('week')
-  await page.keyboard.press('Escape')
+  await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor(page)).toHaveCount(0)
 
   // Its tasks: the late ones.
@@ -139,7 +139,7 @@ test('a group: several counts in one cell, each its own filter, each opening its
   // Removing a count.
   await items.getByRole('button', { name: 'Remove count 3' }).click()
   await expect(group.getByTestId('number-group-count')).toHaveText(['4', '2'])
-  await page.keyboard.press('Escape')
+  await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor(page)).toHaveCount(0)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
 

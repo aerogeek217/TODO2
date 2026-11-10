@@ -26,17 +26,21 @@ import { NONE_ROW_LABELS } from '../../../services/stats/breakdown'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { hasFilterClause } from '../../../utils/filter-clauses'
 import { HUE_PRESET_HEX } from '../../../utils/layout-hue'
 import { emptyPredicate } from '../../../models/filter-predicate'
 import { getTab } from '../../../utils/workspace-layout-queries'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
+import { ExpressionReportProvider } from '../../shared/filters/expression-report'
 import { CloseIcon, PlusIcon } from '../../shared/icons'
 import { PopoverRoot } from '../../shared/PopoverRoot'
 import { ColorPicker } from '../../shared/ColorPicker'
 import { LitWhenControl } from './LitWhenField'
 import { OLDEST_BY_LABELS, SHOW_LABELS, SPLIT_CHOICE_LABELS, STYLE_LABELS } from './breakdown-copy'
 import { useEscapeCloses } from './editor-escape'
+import { useEditorDraft, usePressElsewhereCloses } from './editor-draft'
+import { EditorFooter } from './EditorFooter'
 import styles from './ChartEditor.module.css'
 
 /** The chart tab `tabId` names in the open layout, if it is one. */
@@ -58,8 +62,10 @@ export function ChartEditorHost() {
   const tabId = useChartWidgetsStore((s) => s.editorTabId)
   const tab = useChartTab(tabId)
   const close = useChartWidgetsStore((s) => s.closeEditor)
-  // The layout: a change (the tab made active, a row expanded) may bring the chart on screen.
+  // The layout: a change (the tab made active, a row expanded) may bring the chart on screen;
+  // the editor's live preview may draw its title anew.
   const working = useWorkspaceStore((s) => s.working)
+  const preview = useWidgetPreviewStore((s) => (tabId != null ? s.configs[tabId] : undefined))
   const anchorRef = useRef<HTMLElement | null>(null)
   const [found, setFound] = useState<string | null>(null)
   useLayoutEffect(() => {
@@ -75,7 +81,7 @@ export function ChartEditorHost() {
     }
     look()
     return () => cancelAnimationFrame(raf)
-  }, [tab, working])
+  }, [tab, working, preview])
   useEffect(() => {
     if (tabId != null && !tab) close()
   }, [tabId, tab, close])
@@ -250,30 +256,35 @@ function PivotFields({ config, patch }: { config: PivotConfig; patch: (p: Partia
   )
 }
 
-/** What each chart kind's editor is titled, its filter's label and its own fields (a case per chart kind). */
-function kindParts(tab: ChartTab): { title: string; filterLabel: string; fields: ReactNode } {
-  const ws = useWorkspaceStore.getState
+/** A chart's config, as its editor's draft holds it. */
+type ChartConfig = ChartTab['config']
+
+/** Each chart kind's noun, as its editor's title and close question name it. */
+const KIND_NOUNS: Record<ChartTab['kind'], string> = { breakdown: 'breakdown', pivot: 'pivot', tagMap: 'tag map' }
+
+/**
+ * What each chart kind's editor's filter is labelled and its own fields,
+ * over the draft (`tab` carrying the draft config; a case per chart kind).
+ */
+function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { filterLabel: string; fields: ReactNode } {
   switch (tab.kind) {
     case 'breakdown':
       return {
-        title: 'Edit breakdown',
         filterLabel: 'Split tasks where',
         fields: (
           <>
-            <BreakdownFields config={tab.config} patch={(p) => ws().patchTabConfig(tab.id, 'breakdown', p)} />
-            <CountColumnsField config={tab.config} patch={(p) => ws().patchTabConfig(tab.id, 'breakdown', p)} />
+            <BreakdownFields config={tab.config} patch={patch} />
+            <CountColumnsField config={tab.config} patch={patch} />
           </>
         ),
       }
     case 'pivot':
       return {
-        title: 'Edit pivot',
         filterLabel: 'Split tasks where',
-        fields: <PivotFields config={tab.config} patch={(p) => ws().patchTabConfig(tab.id, 'pivot', p)} />,
+        fields: <PivotFields config={tab.config} patch={patch} />,
       }
     case 'tagMap':
       return {
-        title: 'Edit tag map',
         filterLabel: 'Open tasks where',
         fields: <span className={styles.hint}>Its ⋯ menu’s Tags picks the tags it maps; Every tag by default.</span>,
       }
@@ -285,9 +296,13 @@ function kindParts(tab: ChartTab): { title: string; filterLabel: string; fields:
  * name, the filter it splits — the Graphical / Expression filter Edit list
  * has, with Reads as — and its kind's own fields (a Breakdown's split,
  * style and what it shows). A popover under the chart's title, opened by
- * its ⋯ menu's Edit … and straight after Add widget. Every control writes
- * the tab's config at once — layout config, so the layout is unsaved
- * until Save. Esc, × or a press elsewhere close it.
+ * its ⋯ menu's Edit … and straight after Add widget. Its controls edit a
+ * copy of the config, which the chart draws live (`useEditorDraft`, Edit
+ * list's pattern): Save writes the changes as one layout config update —
+ * the layout is then unsaved until its own Save — and Discard drops them
+ * (straight after Add widget, the new chart stays with its first config).
+ * Esc, × or a press elsewhere close it at once while nothing changed, else
+ * ask Save / Discard / Keep editing.
  */
 export function ChartEditor({ tab, anchorRef, onClose }: {
   tab: ChartTab
@@ -295,24 +310,33 @@ export function ChartEditor({ tab, anchorRef, onClose }: {
   anchorRef: RefObject<HTMLElement | null>
   onClose: () => void
 }) {
-  const config = tab.config
   const id = useId()
-  /** The fields every chart has: its name and its filter. */
-  const patch = (p: { name?: string; filter?: ChartTab['config']['filter'] }) => useWorkspaceStore.getState().patchTabConfig(tab.id, tab.kind, p)
+  const noun = KIND_NOUNS[tab.kind]
+  const edit = useEditorDraft<ChartConfig>({
+    tabId: tab.id,
+    stored: tab.config,
+    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, tab.kind, p),
+    onClose,
+    promptTitle: `Save changes to ${noun} “${tab.config.name.trim() || 'Untitled'}”?`,
+  })
+  const config = edit.draft
+  const patch = edit.patch
   const { panelRef, style, caret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: anchorRef },
     open: true,
-    onClose,
+    onClose: edit.requestClose,
     placement: 'bottom-start',
-    closeOnScroll: 'user',
+    closeOnScroll: false,
     closeOnResize: false,
     closeOnEscape: false,
+    closeOnOutsideClick: false,
     observeSize: true,
     caret: true,
   })
   const [panel, setPanel] = useState<HTMLDivElement | null>(null)
   const panelEl = useLatestRef(panel)
-  useEscapeCloses(panelEl, onClose)
+  useEscapeCloses(panelEl, edit.requestClose)
+  usePressElsewhereCloses(panelEl, anchorRef, edit.requestClose)
 
   // The focus goes back to the chart when it was inside the editor as it closed.
   useEffect(() => () => {
@@ -322,7 +346,8 @@ export function ChartEditor({ tab, anchorRef, onClose }: {
     }
   }, [anchorRef, panelEl])
 
-  const { title, filterLabel, fields } = kindParts(tab)
+  const title = `Edit ${noun}`
+  const { filterLabel, fields } = kindParts({ ...tab, config } as ChartTab, patch)
   const noFilter = !hasFilterClause(config.filter) && !config.filter.expression
   return createPortal(
     <PopoverRoot
@@ -339,36 +364,39 @@ export function ChartEditor({ tab, anchorRef, onClose }: {
     >
       <div className={styles.header}>
         <span id={`${id}-title`} className={styles.title}>{title}</span>
-        <button type="button" className={styles.close} aria-label="Close" onClick={onClose}><CloseIcon size={14} /></button>
+        <button type="button" className={styles.close} aria-label="Close" onClick={() => { edit.requestClose() }}><CloseIcon size={14} /></button>
       </div>
-      <div className={styles.body}>
-        <label className={styles.field}>
-          <span className={styles.label}>Name</span>
-          <input
-            type="text"
-            className={styles.input}
-            value={config.name}
-            maxLength={CHART_NAME_MAX}
-            placeholder="Name"
-            autoFocus
-            onChange={(e) => patch({ name: e.target.value.slice(0, CHART_NAME_MAX) })}
-          />
-        </label>
-        <div className={styles.fieldset} role="group" aria-labelledby={`${id}-filter`}>
-          <span id={`${id}-filter`} className={styles.label}>{filterLabel}</span>
-          <div className={styles.filter} data-testid="chart-editor-filter">
-            <PredicateChips
-              predicate={config.filter}
-              onChange={(filter) => patch({ filter })}
-              addLabel={filterLabel}
-              layout="stack"
-              inDialog
-              before={noFilter ? <span className={styles.noFilter}>No filter — every open task</span> : undefined}
+      <ExpressionReportProvider value={edit.reportExpression}>
+        <div className={styles.body}>
+          <label className={styles.field}>
+            <span className={styles.label}>Name</span>
+            <input
+              type="text"
+              className={styles.input}
+              value={config.name}
+              maxLength={CHART_NAME_MAX}
+              placeholder="Name"
+              autoFocus
+              onChange={(e) => patch({ name: e.target.value.slice(0, CHART_NAME_MAX) })}
             />
+          </label>
+          <div className={styles.fieldset} role="group" aria-labelledby={`${id}-filter`}>
+            <span id={`${id}-filter`} className={styles.label}>{filterLabel}</span>
+            <div className={styles.filter} data-testid="chart-editor-filter">
+              <PredicateChips
+                predicate={config.filter}
+                onChange={(filter) => patch({ filter })}
+                addLabel={filterLabel}
+                layout="stack"
+                inDialog
+                before={noFilter ? <span className={styles.noFilter}>No filter — every open task</span> : undefined}
+              />
+            </div>
           </div>
+          {fields}
         </div>
-        {fields}
-      </div>
+      </ExpressionReportProvider>
+      <EditorFooter draft={edit} />
     </PopoverRoot>,
     document.body,
   )

@@ -4,8 +4,8 @@ import { seedWorkspace, type WorkspaceSeed } from './fixtures/workspace'
 /**
  * Project pulse's rules (G5) in a real browser: Edit project pulse… opens
  * the editor under the widget's title; Stale given its own filter — typed
- * as an expression — and a name changes the card's count and its words;
- * the layout is then unsaved.
+ * as an expression — and a name changes the card's count and its words
+ * (drawn live); its Save writes them and the layout is then unsaved.
  */
 
 test.use({ viewport: { width: 1440, height: 900 } })
@@ -60,8 +60,11 @@ test('Edit project pulse…: Stale given a filter and a name changes the card’
   await expect(card(page).locator('[data-pulse-count="stale"]')).toHaveText('3 stale')
   await stale.getByRole('textbox', { name: 'Stale name' }).fill('quiet')
   await expect(card(page).locator('[data-pulse-count="stale"]')).toHaveText('3 quiet')
+  // Drawn live; written on Save.
+  await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Layout saved')
 
-  await page.keyboard.press('Escape')
+  await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor(page)).toHaveCount(0)
+  await expect(card(page).locator('[data-pulse-count="stale"]')).toHaveText('3 quiet')
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
 })

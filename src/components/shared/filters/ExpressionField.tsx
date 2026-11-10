@@ -13,6 +13,7 @@ import { NlpPopup } from '../NlpPopup'
 import { TintedText } from '../TintedText'
 import { useTooltip } from '../use-tooltip'
 import { ExpressionSyntaxModal } from './ExpressionSyntaxModal'
+import { useReportExpressionField } from './expression-report'
 import styles from './ExpressionField.module.css'
 
 /** Line height of the field (px) and how many lines it grows to before it scrolls. */
@@ -47,6 +48,7 @@ export function ExpressionField({ predicate, onChange, allowPeople = true, allow
   const [syntaxOpen, setSyntaxOpen] = useState(false)
   const field = useExpressionField({ predicate, onChange, inputRef, allowPeople, allowCompleted, allowDone })
   const { text, parse, tints, ac, closeHeld } = field
+  useReportExpressionField({ pending: field.unsettled, unreadable: field.unreadable })
   const error = parse.ok ? null : parse.error
   const errorTip = useTooltip(error?.hint ?? null)
 
