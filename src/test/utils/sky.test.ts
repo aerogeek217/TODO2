@@ -73,6 +73,24 @@ describe('skyScene', () => {
     expect(skyScene(at(2026, 6, 12, 23), CHICAGO, settings(), 'dark').weather).toBe('firefly')
   })
 
+  it('fades the clouds and the daytime weather out after dusk; snow and fireflies stay', () => {
+    const autumnNoon = skyScene(at(2026, 10, 7, 12), CHICAGO, settings(), 'dark')
+    const autumnNight = skyScene(at(2026, 10, 7, 23), CHICAGO, settings(), 'dark')
+    expect(autumnNoon.opacity.clouds).toBeGreaterThan(0)
+    expect(autumnNoon.opacity.weather).toBeGreaterThan(0)
+    expect(autumnNight.weather).toBe('leaf')
+    expect(autumnNight.opacity.clouds).toBe(0)
+    expect(autumnNight.opacity.weather).toBe(0)
+    expect(skyScene(at(2026, 3, 12, 23), CHICAGO, settings(), 'dark').opacity.weather).toBe(0)
+    expect(skyScene(at(2026, 0, 18, 23), CHICAGO, settings(), 'dark').opacity.weather).toBeGreaterThan(0)
+    expect(skyScene(at(2026, 6, 12, 23), CHICAGO, settings(), 'dark').opacity.weather).toBeGreaterThan(0)
+    // Half way through dusk they are fading, not gone.
+    const dusk = skyScene(at(2026, 10, 7, 17, 15), CHICAGO, settings(), 'dark')
+    expect(dusk.night).toBeGreaterThan(0)
+    expect(dusk.night).toBeLessThan(1)
+    expect(dusk.opacity.clouds).toBeLessThan(autumnNoon.opacity.clouds)
+  })
+
   it('drops the weather and the aurora with Seasons off', () => {
     const s = skyScene(at(2026, 0, 18, 23), CHICAGO, settings({ seasons: false }), 'dark')
     expect(s.weather).toBeNull()

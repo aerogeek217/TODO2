@@ -268,12 +268,13 @@ export function skyScene(now: Date, place: AmbiencePlace, settings: AmbienceSett
       stars: dark ? clamp01(night * starK) : 0,
       planet: dark ? clamp01(planetUp * starK) : 0,
       moon: clamp01(moonUp * (dark ? 0.5 : 0.4) * motion * 1.4),
-      clouds: clamp01(CLOUD_COVER[season] * motion * 0.5 * CLOUDS[strength]),
+      // Daytime things: the clouds, and the leaves, petals and seeds, fade out through dusk (gone by full night); snow keeps falling, fireflies come out.
+      clouds: clamp01(CLOUD_COVER[season] * motion * 0.5 * CLOUDS[strength] * (1 - night)),
       aurora: seasons && winter ? clamp01(night * motion * 1.4 * SOFT[strength]) : 0,
       mist: clamp01(mistK * MIST_SEASON[season] * motion * 2.2 * SOFT[strength]),
       sunbeam: clamp01(beamK * SOFT[strength]),
       lamp: clamp01(lampK * LIGHT[strength]),
-      weather: seasons ? clamp01(motion) : 0,
+      weather: seasons ? clamp01(motion * (weather === 'flake' || weather === 'firefly' ? 1 : 1 - night)) : 0,
     },
     events: {
       shootingStar: dark && night > 0.5 ? clamp01(starK) : 0,
