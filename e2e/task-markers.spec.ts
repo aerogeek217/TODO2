@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { openSettings, seedTaskList, wsCell, wsListWidget, TASK_LIST_TAB } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, openSettings, seedTaskList, wsCell, wsListWidget, TASK_LIST_TAB } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 
 /**
@@ -139,18 +139,19 @@ test('the top-bar Priority filter (first of the filters) keeps tasks with any of
   await expect.poll(() => rowTitles(widget)).toHaveLength(5)
 })
 
-test('a list’s own Priority filter (+ Filter › Priority) narrows the list and is saved with it', async ({ page }) => {
+test('a list’s own Priority filter (Edit list › + Filter › Priority) narrows the list and is saved with it', async ({ page }) => {
   await seedTaskList(page, { tasks: markerTasks })
-  // A screen filter shows the filter row (with its + Filter).
   await page.getByRole('button', { name: 'Show completed' }).click()
   const widget = wsListWidget(page, TASK_LIST_TAB)
-  await widget.getByRole('button', { name: 'Filter', exact: true }).click()
+  const editor = await openListFilterEditor(page, widget)
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Priority' }).click()
   const picker = page.getByTestId('list-filter-picker')
   await picker.getByRole('option', { name: 'Important' }).click()
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
-  await expect(widget.getByTestId('list-filter-chip')).toHaveText(/Priority\s*Important/)
+  await expect(editor.getByTestId('list-filter-chip')).toHaveText(/Priority\s*Important/)
+  await closeListFilterEditor(page)
   await expect.poll(() => rowTitles(widget)).toEqual(['Important only', 'Important focus'])
 
   await wsCell(page, 'cell').getByTestId('save-list').click()

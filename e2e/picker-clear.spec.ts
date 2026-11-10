@@ -1,6 +1,6 @@
 import { expect, test, type Locator } from '@playwright/test'
 import { rowTitles, taskRowByTitle } from './fixtures/seed'
-import { seedTaskList } from './fixtures/workspace'
+import { ADD_FILTER, openListFilterEditor, seedTaskList } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
@@ -91,7 +91,9 @@ test('the top bar’s People filter: Esc empties Search... first, the next Esc c
 
 test('a list’s Text contains: Clear text filter empties the filter, the field keeps the focus', async ({ page }) => {
   const widget = await seedTaskList(page, SEED)
-  await widget.getByRole('button', { name: 'Filter', exact: true }).click()
+  // The list's filter is edited in Edit list (2A).
+  const editor = await openListFilterEditor(page, widget)
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Text contains…' }).click()
   const field = page.getByLabel('Text contains')
   await expect(field).toBeFocused()

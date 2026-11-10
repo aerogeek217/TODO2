@@ -1,9 +1,9 @@
 import { expect, test, type Page } from '@playwright/test'
-import { expectOpenLayout, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, editListDraft, wsRow, expectLayoutStep } from './fixtures/workspace'
+import { closeListFilterEditor, expectOpenLayout, openListFilterEditor, openSettings, ADD_FILTER, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, editListDraft, wsRow, expectLayoutStep } from './fixtures/workspace'
 
 /**
  * List widgets in the workspace: the top-bar (screen) filter narrows them,
- * their own definition is edited in place (filter row, Edit list) and
+ * their own definition is edited in Edit list (opened from the filter line, which reads it in words) and
  * stays unsaved — dot on the tab, Revert · Save on the filter line, a prompt
  * before the edits would be lost — until saved.
  */
@@ -61,11 +61,12 @@ test('a completed task comes back in a list widget when the top bar shows comple
   await row.getByRole('checkbox').click()
   await expect(row).toHaveCount(0)
 
-  // Top bar → Show completed: it is back, and the widget shows the screen filter.
+  // Top bar → Show completed: it is back; the list's line doesn't repeat the top bar's filter (J13).
   await page.getByRole('button', { name: 'Show completed' }).click()
   await expect(row).toBeVisible()
   await expect(row.getByRole('checkbox')).toBeChecked()
-  await expect(widget.getByTestId('screen-filter-chip')).toHaveText(/Completed shown/)
+  await expect(widget.getByTestId('list-filter-row')).toContainText('Every open task')
+  await expect(widget.getByTestId('list-filter-row')).not.toContainText('Completed')
 })
 
 test('a screen filter narrows every list widget and shows the count as shown of total', async ({ page }) => {
@@ -80,19 +81,22 @@ test('a screen filter narrows every list widget and shows the count as shown of 
   await expect(wsListWidget(page, 't1').getByTestId('list-count')).toHaveText('1 of 2')
 })
 
-test('adding a filter from the filter row makes the list unsaved; saving keeps it across a reload', async ({ page }) => {
+test('adding a filter in Edit list (opened from the line’s words) makes the list unsaved; saving keeps it across a reload', async ({ page }) => {
   await seedWorkspace(page, team)
-  // A screen filter shows the filter row (with its + Filter).
-  await page.getByRole('button', { name: 'Show completed' }).click()
   const widget = wsListWidget(page, 't1')
-  await widget.getByRole('button', { name: 'Filter', exact: true }).click()
+  const editor = await openListFilterEditor(page, widget)
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'People' }).click()
   const picker = page.getByTestId('list-filter-picker')
   await picker.getByRole('option', { name: 'Bob' }).click()
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
 
-  await expect(widget.getByTestId('list-filter-chip')).toHaveText(/People\s*Bob/)
+  await expect(editor.getByTestId('list-filter-chip')).toHaveText(/People\s*Bob/)
+  await closeListFilterEditor(page)
+  // The line reads it in words, with no chip to edit there.
+  await expect(widget.getByTestId('list-filter-expression')).toHaveText(/Bob/)
+  await expect(widget.getByTestId('list-filter-chip')).toHaveCount(0)
   await expect(rows(page, 't1')).toHaveCount(1)
   await expect(wsTab(page, 't1').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
   const save = wsCell(page, 'k1').getByTestId('save-list')
@@ -103,7 +107,7 @@ test('adding a filter from the filter row makes the list unsaved; saving keeps i
   await expect(wsTab(page, 't1').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
   await page.reload()
   await expect(rows(page, 't1')).toHaveCount(1)
-  await expect(wsListWidget(page, 't1').getByTestId('list-filter-chip')).toHaveText(/People\s*Bob/)
+  await expect(wsListWidget(page, 't1').getByTestId('list-filter-expression')).toHaveText(/Bob/)
 })
 
 test('a list’s date filters: a due-date range and Next follow-up Any both narrow it, saved as one clause per date type', async ({ page }) => {
@@ -125,7 +129,8 @@ test('a list’s date filters: a due-date range and Next follow-up Any both narr
   const inFive = new Date()
   inFive.setDate(inFive.getDate() + 5)
   const ymd = `${inFive.getFullYear()}-${String(inFive.getMonth() + 1).padStart(2, '0')}-${String(inFive.getDate()).padStart(2, '0')}`
-  await widget.getByRole('button', { name: 'Filter', exact: true }).click()
+  const editor = await openListFilterEditor(page, widget)
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
   const picker = page.getByTestId('list-filter-picker')
   await expect(picker.getByRole('tab', { name: 'Due' })).toHaveAttribute('aria-selected', 'true')
@@ -137,7 +142,7 @@ test('a list’s date filters: a due-date range and Next follow-up Any both narr
 
   // + Filter › Dates opens on the first date type not filtering yet (Due filters): Next follow-up,
   // which writes nothing until Any.
-  await widget.getByRole('button', { name: 'Filter', exact: true }).click()
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
   await expect(picker.getByRole('tab', { name: 'Next follow-up' })).toHaveAttribute('aria-selected', 'true')
   await expect(picker.getByRole('tab', { name: 'Due, filtering' })).toHaveAttribute('aria-selected', 'false')
@@ -146,7 +151,8 @@ test('a list’s date filters: a due-date range and Next follow-up Any both narr
   await picker.getByRole('radio', { name: 'Any' }).click()
   await expect(rows(page, 't1')).toHaveCount(1)
   await page.keyboard.press('Escape')
-  await expect(widget.getByTestId('list-filter-chip')).toHaveText([/Due\s*on or before .+/, /Next follow-up\s*any date/])
+  await expect(editor.getByTestId('list-filter-chip')).toHaveText([/Due\s*on or before .+/, /Next follow-up\s*any date/])
+  await closeListFilterEditor(page)
 
   await wsCell(page, 'k1').getByTestId('save-list').click()
   await page.reload()
@@ -256,7 +262,8 @@ test('prompt picks are temporary: empty again after a reload', async ({ page }) 
   })
   const widget = wsListWidget(page, 't1')
   await expect(widget).toContainText('Pick a person to show this list')
-  await expect(widget.getByTestId('list-count')).toHaveText('—')
+  // One number per list (2A): nothing picked is no count, not `—`.
+  await expect(widget.getByTestId('list-count')).toHaveCount(0)
   await widget.getByLabel('Filter tasks by person').click()
   await page.getByRole('option', { name: 'Bob', exact: true }).click()
   await page.keyboard.press('Escape')
