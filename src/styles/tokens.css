@@ -386,6 +386,15 @@
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 12%, transparent);
   /* A Lines tick's due-soon state (D25 I1): the deadline colour at 45%. */
   --color-deadline-soon: color-mix(in srgb, var(--color-deadline) 45%, transparent);
+  /* The task layout's facts rail (board BJ): each section's header colour —
+     Priority coral, Status lavender, People blue, Tags teal, Due magenta,
+     Follow-up yellow. Each reads at 4.5 : 1 on the dialog and the rail. */
+  --color-fact-priority: var(--color-danger-text);
+  --color-fact-status: #b4a7f5;
+  --color-fact-people: #7fb2e8;
+  --color-fact-tags: var(--color-accent-text);
+  --color-fact-due: var(--color-deadline);
+  --color-fact-followup: var(--color-followup);
   /* A Lines tick's other states (D25 I1): a plain task in the
      muted text at 80% (3.7 : 1 on the surface, a non-text graphic's 3 : 1),
      a stale one at 35% (1.7 : 1) — still there, plainly dimmer. */
@@ -644,6 +653,13 @@
   --color-deadline: #a32cab;
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 10%, transparent);
   --color-deadline-soon: color-mix(in srgb, var(--color-deadline) 45%, transparent);
+  /* The facts rail's header colours (board BJ), darkened to read on white. */
+  --color-fact-priority: var(--color-danger-text);
+  --color-fact-status: #6650c4;
+  --color-fact-people: #2d68b0;
+  --color-fact-tags: var(--color-accent-text);
+  --color-fact-due: var(--color-deadline);
+  --color-fact-followup: var(--color-followup);
   /* 3.4 : 1 and 1.6 : 1 on the surface. */
   --color-row-tone-plain: color-mix(in srgb, var(--color-text-muted) 80%, transparent);
   --color-row-tone-stale: color-mix(in srgb, var(--color-text-muted) 35%, transparent);
