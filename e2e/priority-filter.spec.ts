@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { filterChip, filterMenu, filterMenuRow, filterTray, openFilterPicker } from './fixtures/filters'
-import { ADD_FILTER, openSettings, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, openListFilterEditor, openSettings, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 import { readStore } from './fixtures/db'
 
@@ -60,7 +60,9 @@ test.describe('desktop', () => {
     await expect(not).toHaveAccessibleName('Priority filter: not Urgent')
     await not.hover()
     await expect(page.getByRole('tooltip')).toHaveText(/Priority: not Urgent\s*Hides tasks that are Urgent \(flagged or due soon\)/)
-    await expect(wsListWidget(page, 't1').getByText('not Urgent')).toBeVisible()
+    // The list's line doesn't repeat it (J13); its count says it narrows the list.
+    await expect(wsListWidget(page, 't1').getByText('not Urgent')).toHaveCount(0)
+    await expect(wsListWidget(page, 't1').getByTestId('list-count')).toBeVisible()
 
     // No priority: no marker, effective Urgent counted.
     await not.click()
@@ -111,10 +113,11 @@ test.describe('desktop', () => {
 
     await page.reload()
     await expect.poll(() => sorted(page)).toEqual(['Due tomorrow', 'Flagged urgent'])
-    const chips = wsListWidget(page, 't1').getByTestId('list-filter-chip')
+    // Reopened from the line's words: each chip opens on its own condition; × takes only that one.
+    const reopened = await openListFilterEditor(page, wsListWidget(page, 't1'))
+    const chips = reopened.getByTestId('list-filter-chip')
     await expect(chips).toHaveText([/Priority\s*not Important/, /Priority\s*Urgent/])
-    // Each chip opens on its own condition; × takes only that one.
-    await chips.nth(1).click()
+    await chips.nth(1).getByRole('button', { name: /Priority/ }).click()
     await expect(picker.getByRole('radio', { name: 'Is', exact: true })).toHaveAttribute('aria-checked', 'true')
     await expect(picker.getByRole('option', { name: 'Urgent' })).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('Escape')

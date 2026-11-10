@@ -55,7 +55,8 @@ test.describe('dragging between quadrants', () => {
   test('sideways sets Urgent; diagonal changes both, with a preview and one undo step', async ({ page }) => {
     await seedWorkspace(page, { listDefinitions: [TASK_LIST], tasks: TASKS, layouts: layoutWith() })
     await expect(row(quadrant(page, 'schedule'), 'Send board update')).toBeVisible()
-    await expect(wsTab(page, 'eisTab')).toContainText('7')
+    // Nothing narrows it: no count (one number, 2A).
+    await expect(page.getByTestId('eisenhower-line-count')).toHaveCount(0)
 
     // Schedule → Do: + Urgent.
     await dragOnto(page, row(quadrant(page, 'schedule'), 'Draft OKRs'), quadrant(page, 'do'), async () => {

@@ -1,8 +1,14 @@
-/* A widget's lens switch over the top-right corner of what holds it (a widget with no header line in a cell of several widgets). */
+/* A widget's lens switch over the top-right corner of what holds it (a widget with no header line in a cell of several widgets).
+ * The wrapper takes no press of its own: while the switch is hidden (quiet, UX cleanup 2A) a press there reaches the widget. */
 .floating {
   position: absolute;
   top: 6px;
   right: 8px;
   z-index: var(--z-above-2);
   display: inline-flex;
+  pointer-events: none;
+}
+
+.floating > * {
+  pointer-events: auto;
 }

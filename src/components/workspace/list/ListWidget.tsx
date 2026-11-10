@@ -79,13 +79,15 @@ export type ListLensMark = LensMark
 /** What a list widget reports to its cell (tab count, its menu's lens switch, Copy tasks). */
 export interface ListWidgetResult {
   /**
-   * The tab's count — `N`, `shown of total` when screen filters hide tasks,
-   * or `—` while the prompt is unanswered — only while the list's filter
+   * The tab's count — `shown of total`, only while the screen filter or the
+   * lens narrows the list (UX cleanup 2A) — only while the list's filter
    * line is hidden; the line shows it otherwise.
    */
   countLabel?: string
-  /** The top bar's lens on this list, while one applies there: the tab menu's switch; on the tab while the line is hidden. */
+  /** The top bar's lens on this list, while one applies there: the tab menu's switch. */
   lens?: ListLensMark & { listId: number }
+  /** The lens mark on the tab: while the filter line is hidden and the list ignores the lens. */
+  tabLens?: ListLensMark
   /** The sections shown, for Copy tasks. */
   sections: readonly Section[]
   /** The list shows group headers (Collapse all / Expand all groups apply). */
@@ -228,7 +230,9 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
   const sections = list?.sections ?? EMPTY_SECTIONS
   const shown = useMemo(() => uniqueCount(sections), [sections])
   const total = list?.todos.length ?? 0
-  const countLabel = runtimeFilterPending ? '—' : shown < baseCount ? `${shown} of ${baseCount}` : String(shown)
+  // One number per list (UX cleanup 2A): the tab's badge says what is due; a
+  // count shows only while the screen filter or the lens narrows the list.
+  const countLabel = !runtimeFilterPending && shown < baseCount ? `${shown} of ${baseCount}` : undefined
 
   const predicate = definition.membership.predicate
   const listItems = useMemo(() => predicateLineItems(predicate, names), [predicate, names])
@@ -274,14 +278,17 @@ function ListWidgetBody({ tab, definition, onResult, faceRef }: {
 
   const onResultRef = useLatestRef(onResult)
   const tabCount = filterLineShown ? undefined : countLabel
+  // On the tab while the line is hidden: the lens only while the list ignores it (the count says what it narrows).
+  const tabLens = !filterLineShown && lensMark?.ignored ? lensMark : undefined
   useEffect(() => {
     onResultRef.current?.({
       ...(tabCount != null ? { countLabel: tabCount } : {}),
       ...(lensMark ? { lens: { ...lensMark, listId: definition.id } } : {}),
+      ...(tabLens ? { tabLens } : {}),
       sections,
       grouped,
     })
-  }, [tabCount, lensMark, definition.id, sections, grouped, onResultRef])
+  }, [tabCount, lensMark, tabLens, definition.id, sections, grouped, onResultRef])
   // The tasks as shown, for a review of the tab (its menu, the shortcut, the palette).
   useShownListReport(tab.id, definition, runtimeFilterPending ? null : sections)
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { openListFilterEditor, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 import { rowTitles } from './fixtures/seed'
 import { filterChip, filterMenu, filterMenuButton, filterMenuRow, openFilterPicker } from './fixtures/filters'
@@ -64,8 +64,9 @@ test.describe('desktop', () => {
     await expect(button).toHaveAccessibleName('Status filter: not Waiting')
     await button.hover()
     await expect(page.getByRole('tooltip')).toHaveText(/Status: not Waiting\s*Hides tasks with that status/)
-    // The list shows the screen filter as a chip.
-    await expect(wsListWidget(page, 't1').getByText('not Waiting')).toBeVisible()
+    // The list's line doesn't repeat the top bar's filter (J13): its count says it narrows it.
+    await expect(wsListWidget(page, 't1').getByText('not Waiting')).toHaveCount(0)
+    await expect(wsListWidget(page, 't1').getByTestId('list-count')).toBeVisible()
 
     await page.getByRole('button', { name: 'Clear status filter' }).click()
     await expect.poll(() => titles(page)).toEqual(ALL)
@@ -94,11 +95,11 @@ test.describe('desktop', () => {
     await expect(editList).toHaveCount(0)
     await expect(wsListWidget(page, 't1').getByTestId('save-list')).toHaveCount(0)
 
-    // The list's filter line: the chip, whose tooltip spells it out.
-    const chip = wsListWidget(page, 't1').getByTestId('list-filter-chip')
-    await expect(chip).toHaveText(/People\s*not Ann/)
-    await chip.hover()
-    await expect(page.getByRole('tooltip')).toHaveText(/People: not Ann\s*Hides tasks assigned to them/)
+    // The list's filter line reads it in words (2A), its tooltip the exact filter.
+    const words = wsListWidget(page, 't1').getByTestId('list-filter-expression')
+    await expect(words).toHaveText(/not\s*Ann/)
+    await words.hover()
+    await expect(page.getByRole('tooltip')).toContainText('not @Ann')
     const people = await readStore<{ id: number; name: string }>(page, 'people')
     const ann = people.find((p) => p.name === 'Ann')!.id
     await expect.poll(async () => ((await readListDefinitions(page))[0]?.membership as { predicate: unknown }).predicate)
@@ -106,9 +107,10 @@ test.describe('desktop', () => {
 
     await page.reload()
     await expect.poll(() => titles(page)).toEqual(['Bob task', 'Nobody task'])
-    await expect(wsListWidget(page, 't1').getByTestId('list-filter-chip')).toHaveText(/People\s*not Ann/)
-    // Reopened, the picker is on Is not with Ann ticked.
-    await wsListWidget(page, 't1').getByTestId('list-filter-chip').click()
+    // Reopened (Edit list, from the line's words), its chip's picker is on Is not with Ann ticked.
+    const reopened = await openListFilterEditor(page, wsListWidget(page, 't1'))
+    await expect(reopened.getByTestId('list-filter-chip')).toHaveText(/People\s*not Ann/)
+    await reopened.getByTestId('list-filter-chip').getByRole('button', { name: /People/ }).click()
     await expect(picker.getByRole('radio', { name: 'Is not' })).toHaveAttribute('aria-checked', 'true')
     // Is not Ann + Unassigned: only Bob's task.
     await picker.getByRole('option', { name: 'None' }).click()

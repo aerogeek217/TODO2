@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -212,11 +212,13 @@ test.describe('desktop', () => {
 
   test('Revert in Settings drops the draft for every Eisenhower; the snackbar’s Undo brings it back', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    const widgetLine = wsCell(page, 'a1').getByTestId('list-filter-row')
-    await widgetLine.getByRole('button', { name: 'Filter', exact: true }).click()
+    // The widget's line reads the filter in words; Edit list (from them) edits it.
+    const editor = await openListFilterEditor(page, wsCell(page, 'a1'))
+    await editor.getByRole('button', { name: ADD_FILTER }).click()
     await page.getByRole('menuitem', { name: 'Status' }).click()
     await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Delegated' }).click()
     await page.keyboard.press('Escape')
+    await closeListFilterEditor(page)
     await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
 
     await openSettings(page, 'Eisenhower')

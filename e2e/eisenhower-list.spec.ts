@@ -1,11 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { ADD_FILTER, drag, pickWidgetKind, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, drag, openListFilterEditor, pickWidgetKind, readListDefinitions, seedWorkspace, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 import { box, pointIn } from './fixtures/geometry'
 import { readStore } from './fixtures/db'
 
 /**
  * The Eisenhower's own list, in a real browser: every Eisenhower shows its
- * filter line (`No filters` = every task); editing it makes the list
+ * filter line in words (`Every open task` = no filter; a click opens Edit list,
+ * where it is edited); editing it makes the list
  * unsaved — the tab's dot, Revert · Save — and Save writes it, still the
  * Eisenhower's; Edit list… from the tab menu
  * opens beside the panel and its Save is what another Eisenhower's small
@@ -69,25 +70,27 @@ async function openTabMenu(page: Page, tabId: string): Promise<Locator> {
   return menu
 }
 
-/** + Filter › Status › (Is not) › Waiting on the Eisenhower's filter line. */
+/** Edit list (from the Eisenhower's filter line) › + Filter › Status › (Is not) › Waiting; Edit list closed. */
 async function filterWaiting(page: Page, isNot: boolean): Promise<void> {
-  await filterLine(page).getByRole('button', { name: 'Filter', exact: true }).click()
+  const editor = await openListFilterEditor(page, wsCell(page, 'b1'))
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Status' }).click()
   const picker = page.getByTestId('list-filter-picker')
   if (isNot) await picker.getByRole('radio', { name: 'Is not' }).click()
   await picker.getByRole('option', { name: 'Waiting' }).click()
   await page.keyboard.press('Escape')
   await expect(picker).toBeHidden()
+  await closeListFilterEditor(page)
 }
 
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1600, height: 900 } })
 
-  test('its own list’s filter line: Status is not Waiting; the tab unsaved; Save writes it, still the Eisenhower’s', async ({ page }) => {
+  test('its own list’s filter line opens Edit list: Status is not Waiting; the tab unsaved; Save writes it, still the Eisenhower’s', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await expect(row(quadrant(page, 'do'), 'Waiting on legal')).toBeVisible()
     // Always there: no filter = every task; no group · sort summary.
-    await expect(filterLine(page)).toContainText('No filters')
+    await expect(filterLine(page)).toContainText('Every open task')
     await expect(filterLine(page).getByTestId('list-summary')).toHaveCount(0)
     const tab = wsTab(page, 'eisTab')
     await expect(tab).toHaveAttribute('title', 'Eisenhower')
@@ -217,7 +220,7 @@ test.describe('desktop', () => {
     await openTabMenu(page, 'eisTab')
     await pickWidgetKind(page, 'Change widget', 'Eisenhower')
     await expect(widget(page)).toBeVisible()
-    await expect(filterLine(page)).toContainText('No filters')
+    await expect(filterLine(page)).toContainText('Every open task')
   })
 
   test('closing the last widget on its unsaved list asks first', async ({ page }) => {
@@ -240,7 +243,7 @@ test.describe('phone', () => {
   test('the tab’s sheet: Edit list… and the urgent range; Edit list is the half sheet', async ({ page }) => {
     await seedWorkspace(page, ON_TEAM)
     await expect(widget(page)).toHaveAttribute('data-layout', 'stacked')
-    await expect(filterLine(page)).toContainText('No filters')
+    await expect(filterLine(page)).toContainText('Every open task')
     // Mobile browsers turn a long press into `contextmenu`.
     await wsTab(page, 'eisTab').dispatchEvent('contextmenu')
     const sheet = page.getByRole('menu', { name: 'Eisenhower' })

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsListWidget, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, seedWorkspace, wsCell, wsListWidget, wsRow } from './fixtures/workspace'
 import { box, expectInsideViewport } from './fixtures/geometry'
 import { completedChip, filterChip, filterMenu, filterMenuButton, filterMenuRow, openFilterPicker } from './fixtures/filters'
 
@@ -136,7 +136,7 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await page.keyboard.press('Escape')
   await expect(filterMenu(page)).toHaveCount(0)
 
-  // Its chip reads both names; its tooltip lists each type; every list shows a screen chip per type.
+  // Its chip reads both names; its tooltip lists each type.
   const button = filterChip(page, 'Dates')
   await expect(button).toHaveAccessibleName('Dates filter: Due in 14 days or earlier; Modified 7+ days ago')
   await expect(button).toHaveText('Due + Modified')
@@ -146,7 +146,9 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await expect(tip).toContainText(`Due: in 14 days or earlier · on or before ${dayWords(14)}`)
   await expect(tip).toContainText(`Modified: 7+ days ago · on or before ${dayWords(-7)}`)
   await expect(tip).toContainText('Tasks must match both · × clears both')
-  await expect(wsListWidget(page, 't1').getByTestId('screen-filter-chip')).toHaveText(['Due in 14 days or earlier', 'Modified 7+ days ago'])
+  // A list's line doesn't repeat the top bar's filters (J13): its count says they narrow it.
+  await expect(wsListWidget(page, 't1').getByTestId('list-filter-row')).not.toContainText('Modified')
+  await expect(wsListWidget(page, 't1').getByTestId('list-count')).toHaveText('1 of 4')
 
   // The × clears every date type.
   await page.getByRole('button', { name: 'Clear date filters' }).click()
@@ -252,7 +254,7 @@ test('a saved Calendar date emptied from the keyboard keeps Calendar and the foc
   await expect(to).toBeFocused()
 })
 
-test('list chips: one per date type; a chip opens the panel under it on its type; its × clears only that type', async ({ page }) => {
+test('Edit list’s chips: one per date type; a chip opens the panel under it on its type; its × clears only that type', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await seedWorkspace(page, {
     listDefinitions: [
@@ -275,7 +277,10 @@ test('list chips: one per date type; a chip opens the panel under it on its type
   })
   const widget = wsListWidget(page, 't2')
   await expect(rows(page, 't2')).toHaveText([/Due only/])
-  const chips = widget.getByTestId('list-filter-chip')
+  // The line reads the filter in words; its chips are Edit list's (2A).
+  await expect(widget.getByTestId('list-filter-chip')).toHaveCount(0)
+  const editor = await openListFilterEditor(page, widget)
+  const chips = editor.getByTestId('list-filter-chip')
   await expect(chips).toHaveText([/Due\s*any date/, /Next follow-up\s*none/])
 
   // The Next follow-up chip (in the right-hand column) opens the panel under it, inside the viewport, on Next follow-up.
@@ -301,7 +306,7 @@ test('list chips: one per date type; a chip opens the panel under it on its type
 
   // + Filter › Dates: the panel opens on the first type that doesn't filter
   // yet (cr25 P4b) — Due, before Next follow-up —, focused there, so it adds a chip.
-  await widget.getByRole('button', { name: 'Filter', exact: true }).click()
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
   await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toBeFocused()
   await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toHaveAttribute('aria-selected', 'true')
@@ -363,7 +368,8 @@ test('a list with Completed this week shows the tasks completed this week, witho
   await expect(completedChip(page)).toHaveCount(0)
   await expect(rows(page, 't1')).toHaveText([/Open task/])
   await expect(rows(page, 't2')).toHaveText([/Done today/])
-  await expect(wsListWidget(page, 't2').getByTestId('list-filter-chip')).toHaveText([/Completed\s*start of week – today/])
+  // Its line reads the range in words.
+  await expect(wsListWidget(page, 't2').getByTestId('list-filter-expression')).toContainText(/completed/i)
 
   // The same range in the top bar brings it into every list (the open task fails it).
   await openFilterPicker(page, 'Dates')
@@ -400,12 +406,15 @@ test('Last follow-up "14+ days ago, or never": in a list, and as a lens in the t
   await expect(rows(page, 't1')).toHaveCount(4)
   // Oldest first, never followed up last.
   await expect(rows(page, 't2')).toHaveText([/Chased a month ago/, /Chased 20 days ago/, /Never chased/])
-  const chip = wsListWidget(page, 't2').getByTestId('list-filter-chip')
+  // Its chip (in Edit list, opened from the line's words, 2A).
+  const editor = await openListFilterEditor(page, wsListWidget(page, 't2'))
+  const chip = editor.getByTestId('list-filter-chip')
   await expect(chip).toHaveText([/Last follow-up\s*14\+ days ago, or never/])
   // Its tooltip spells the exact last day, and the never-followed-up tasks it keeps (cr25 P7).
   await chip.hover()
   await expect(page.getByRole('tooltip')).toHaveText(`Last follow-up: 14+ days ago, or neverLast followed up on or before ${dayWords(-14)}, or never`)
   await page.mouse.move(0, 0)
+  await closeListFilterEditor(page)
 
   await page.getByRole('button', { name: /^Lens:/ }).click()
   await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Stale follow-ups/ }).click()

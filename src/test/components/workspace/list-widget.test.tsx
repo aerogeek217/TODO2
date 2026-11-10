@@ -91,28 +91,44 @@ describe('ListWidget', () => {
     }
   })
 
-  it('shows the list’s open tasks and reports the count', () => {
+  it('shows the list’s open tasks; nothing narrows it, so no count', () => {
     const { result } = setup(def())
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
-    // The count is on the filter line, not reported to the tab.
-    expect(screen.getByTestId('list-count')).toHaveTextContent('3')
+    // One number per list (2A): the tab's badge; a count only while the screen filter or the lens narrows it.
+    expect(screen.queryByTestId('list-count')).toBeNull()
     expect(result()?.countLabel).toBeUndefined()
-    // No filters anywhere: the filter line still shows (the way in to setting them) — No filters, + Filter,
-    // the summary (`Manual` for an ungrouped manual list); no Revert · Save while saved.
+    // No filters anywhere: the filter line reads `Every open task` in words (no chips, no + Filter),
+    // then the summary (`Manual` for an ungrouped manual list); no Revert · Save while saved.
     const row = screen.getByTestId('list-filter-row')
-    expect(row).toHaveTextContent('No filters')
-    expect(within(row).getByRole('button', { name: /Filter/ })).toBeInTheDocument()
+    expect(within(row).getByRole('button', { name: 'Every open task' })).toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: /Filter/ })).toBeNull()
     expect(screen.getByTestId('list-summary')).toHaveTextContent('Manual')
     expect(screen.queryByTestId('save-list')).toBeNull()
     expect(screen.queryByTestId('revert-list')).toBeNull()
   })
 
-  it('the screen filter narrows it, with a read-only screen chip and a shown-of-total count', () => {
+  it('the screen filter narrows it: a shown-of-total count, and no screen chips on the line (J13)', () => {
     setup(def())
     act(() => useFilterStore.getState().setPersonIds(new Set([1])))
     expect(titles()).toEqual(['Alice task', 'Shared task'])
     expect(screen.getByTestId('list-count')).toHaveTextContent('2 of 3')
-    expect(screen.getByTestId('screen-filter-chip').textContent).toContain('Alice')
+    expect(screen.getByTestId('list-filter-row')).not.toHaveTextContent('Alice')
+  })
+
+  it('reads its filter in words; a click opens Edit list, and closes it when it is open', () => {
+    useStatusStore.setState({ statuses: [{ id: 5, name: 'Waiting', color: '#aa0', sortOrder: 0 }] })
+    setup(def({}, { personIds: [1], statusIds: [5], negate: { statusIds: true } }))
+    render(<EditListHost />)
+    const row = screen.getByTestId('list-filter-row')
+    const words = within(row).getByTestId('list-filter-expression')
+    expect(words).toHaveTextContent(/Alice.*not.*Waiting/)
+    // Words, not editable chips: no remove ×, no + Filter.
+    expect(within(row).queryByLabelText('Remove filter')).toBeNull()
+    expect(within(row).queryByRole('button', { name: /Add a filter/ })).toBeNull()
+    fireEvent.click(words)
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+    fireEvent.click(words)
+    expect(useUIStore.getState().listEditor).toBeNull()
   })
 
   it('screen and list filters on the same field AND strictly', () => {
@@ -184,7 +200,7 @@ describe('ListWidget', () => {
     expect(screen.queryByTestId('save-list')).toBeNull()
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
     const row = screen.getByTestId('list-filter-row')
-    expect(row).toHaveTextContent('No filters')
+    expect(row).toHaveTextContent('Every open task')
     expect(screen.getByRole('button', { name: 'Revert list changes' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save list Team' })).toBeInTheDocument()
     // The summary reads the draft.
@@ -279,7 +295,7 @@ describe('ListWidget', () => {
   it('shows every task: no "Showing N of M" line', () => {
     setup(def())
     expect(titles()).toHaveLength(3)
-    expect(screen.getByTestId('list-count')).toHaveTextContent('3')
+    expect(screen.queryByTestId('list-count')).toBeNull()
     expect(screen.queryByText(/Showing/)).toBeNull()
     expect(screen.queryByRole('button', { name: 'switch to scroll' })).toBeNull()
   })
@@ -327,22 +343,23 @@ describe('ListWidget', () => {
     expect(ticked.some((t) => t?.includes('Bob'))).toBe(true)
   })
 
-  it('renders the unsaved draft, and removing a list chip edits the draft', () => {
+  it('renders the unsaved draft: its filter in words on the line', () => {
     useStatusStore.setState({ statuses: [{ id: 5, name: 'Waiting', color: '#aa0', sortOrder: 0 }] })
     setup(def({}, { statusIds: [5] }))
-    fireEvent.click(screen.getByLabelText('Remove filter'))
-    expect(useListDraftStore.getState().drafts[7]?.membership.predicate.statusIds).toBeNull()
+    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, membership: { kind: 'custom', predicate: { ...d.membership.predicate, statusIds: null } } })))
     expect(useListDefinitionStore.getState().listDefinitions[0]!.membership.predicate.statusIds).toEqual([5])
     expect(titles()).toHaveLength(3)
+    expect(screen.getByTestId('list-filter-row')).toHaveTextContent('Every open task')
   })
 
-  it('a prompt shows its row; nothing picked = the pick-a-value state and a — count', () => {
+  it('a prompt shows its row; nothing picked = the pick-a-value state, no count', () => {
     setup(def({ runtimeFilter: { field: 'person' } }))
     expect(screen.getByText('Pick a person to show this list')).toBeInTheDocument()
-    expect(screen.getByTestId('list-count')).toHaveTextContent('—')
+    expect(screen.queryByTestId('list-count')).toBeNull()
     act(() => useListWidgetStore.getState().setPicks('t1', [2]))
     expect(titles()).toEqual(['Bob task', 'Shared task'])
-    expect(screen.getByTestId('list-count')).toHaveTextContent('2')
+    // The pick is the list's own narrowing, not the screen filter's: still no count.
+    expect(screen.queryByTestId('list-count')).toBeNull()
   })
 
   it('the pick-a-value state’s one action puts the focus in the prompt’s field', () => {
@@ -720,7 +737,6 @@ describe('ListWidget rows: occurrences, selection, manual order', () => {
     })
     setup(def({}, { markers: [{ values: ['urgent', 'focus'] }] }))
     expect(titles()).toEqual(['Alice task', 'Bob task'])
-    expect(screen.getByTestId('list-count')).toHaveTextContent('2')
     act(() => useSettingsStore.setState({ urgentDueWithinDays: null }))
     expect(titles()).toEqual(['Bob task'])
   })

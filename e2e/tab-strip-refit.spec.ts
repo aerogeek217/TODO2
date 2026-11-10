@@ -3,7 +3,7 @@ import { editListDraft, seedWorkspace, wsTab, type WsTabSeed, wsRow } from './fi
 
 /**
  * A shrunk tab strip fits again when a tab's own content changes, not only
- * when a box resizes: the active list's count (`5` → `1 of 5`; on the tab while
+ * when a box resizes: the active list's count (none → `1 of 5`, shown only while narrowed; on the tab while
  * the list's filter line is hidden), its unsaved
  * dot. The shrunk tabs' widths are pinned, so no ResizeObserver fires for
  * these (cr31 UI W5).
@@ -78,7 +78,9 @@ async function sweep(page: Page, change: () => Promise<void>, undo: () => Promis
   test.slow()
   await seed(page, 1800)
   const active = wsTab(page, 'l1')
-  await expect(active).toContainText('5')
+  // Nothing narrows the list: no count yet (one number per list, 2A).
+  await expect(active).toContainText('Inbox')
+  await expect(active).not.toContainText('of 5')
   const widthsCut: number[] = []
   let tried = 0
   for (let width = 1700; width >= 1100; width -= 10) {

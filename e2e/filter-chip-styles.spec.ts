@@ -3,13 +3,13 @@ import { ADD_FILTER, seedWorkspace, wsTab, type WorkspaceSeed, wsRow } from './f
 import LOOKS from './fixtures/filter-chip-looks.json' with { type: 'json' }
 
 /**
- * The filter chips look the same wherever they render — a list widget's
- * filter row (desktop and phone) and the Edit list form — in both themes:
- * computed styles of the list chip, its label and × button, + Filter, the
- * screen-filter chip and the group · sort summary, pinned to their values
+ * The filter chips look the same wherever they render — the Edit list form —
+ * in both themes: computed styles of the list chip, its label and × button,
+ * + Filter, and the list widget's group · sort summary, pinned to their values
  * (`fixtures/filter-chip-looks.json`, recorded before the chips' styles moved;
  * the muted and accent text colours are the AA-contrast tokens' values —
- * in the Edit list form, a popover, the muted is the popover muted, D21).
+ * in the Edit list form, a popover, the muted is the popover muted, D21). A
+ * widget's filter line has no chips (UX cleanup 2A: it reads in words).
  */
 
 const SEED: WorkspaceSeed = {
@@ -38,7 +38,7 @@ async function setTheme(page: Page, mode: 'dark' | 'light') {
   await expect(page.locator('html')).toHaveAttribute('data-theme', mode)
 }
 
-/** Turns on a screen filter (the top bar's People: Alice) so the screen chip shows. */
+/** Turns on a screen filter (the top bar's People: Alice): the line still shows no chip of it (J13). */
 async function screenFilterOn(page: Page) {
   await page.evaluate(async () => {
     const people = (await import(/* @vite-ignore */ '/src/stores/person-store.ts' as string)) as {
@@ -72,11 +72,12 @@ for (const theme of ['dark', 'light'] as const) {
         await setTheme(page, theme)
         await screenFilterOn(page)
         const row = page.getByTestId('list-filter-row')
-        await expect(row.getByTestId('list-filter-chip')).toHaveCount(1)
-        const widget = await rowLooks(row)
-        const screenChip = await look(row.locator('[class*="screenChip"]').first())
+        // Words, not chips: no list chip, no screen chip, no + Filter on the line.
+        await expect(row.getByTestId('list-filter-expression')).toBeVisible()
+        await expect(row.getByTestId('list-filter-chip')).toHaveCount(0)
+        await expect(row.getByRole('button', { name: ADD_FILTER })).toHaveCount(0)
         const summary = await look(row.locator('[class*="summary"]').first())
-        expect({ ...widget, screenChip, summary }).toEqual(LOOKS[`${theme} desktop-row`])
+        expect(summary).toEqual(LOOKS[`${theme} desktop-row`].summary)
 
         await wsTab(page, 'list').click({ button: 'right' })
         await page.getByRole('menuitem', { name: 'Edit list…' }).click()
@@ -95,11 +96,10 @@ for (const theme of ['dark', 'light'] as const) {
         await setTheme(page, theme)
         await screenFilterOn(page)
         const row = page.getByTestId('list-filter-row')
-        await expect(row.getByTestId('list-filter-chip')).toHaveCount(1)
-        const widget = await rowLooks(row)
-        const screenChip = await look(row.locator('[class*="screenChip"]').first())
+        await expect(row.getByTestId('list-filter-expression')).toBeVisible()
+        await expect(row.getByTestId('list-filter-chip')).toHaveCount(0)
         const summary = await look(row.locator('[class*="summary"]').first())
-        expect({ ...widget, screenChip, summary }).toEqual(LOOKS[`${theme} phone-row`])
+        expect(summary).toEqual(LOOKS[`${theme} phone-row`].summary)
       })
     })
   })
