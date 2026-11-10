@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { PersistedListDefinition } from '../../../models/list-definition'
 import type { TodoPredicate } from '../../../models/filter-predicate'
-import { useIsListDirty } from '../../../hooks/use-list-draft'
 import { useQuietLensSwitch } from '../../../hooks/use-widget-lens'
-import { useListDraftStore } from '../../../stores/list-draft-store'
+import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { expressionNamesOf, predicateLineItems } from '../../../utils/filter-chips'
 import { printExpression, wholeExpression } from '../../../utils/filter-expression'
@@ -14,8 +13,7 @@ import { LensSwitch } from '../../shared/LensSwitch'
 import { ExpressionWords } from '../../shared/filters/ExpressionWords'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
 import { useChipNames } from '../../shared/filters/filter-menu'
-import { ListDraftButtons } from './ListDraftButtons'
-import { EDIT_LIST_KEEP_ATTR } from './edit-list-keep'
+import { EDIT_LIST_KEEP_ATTR, requestEditListClose } from './edit-list-keep'
 import { openEditList } from '../widget-hooks'
 import { WidgetTopLine } from '../WidgetTopLine'
 import chipStyles from '../../shared/filters/ListFilterChips.module.css'
@@ -27,7 +25,7 @@ interface ListFilterRowProps {
    * outside a widget (Settings › Tasks › Eisenhower): no summary.
    */
   tabId?: string
-  /** The list as shown: its unsaved draft, else the saved list. */
+  /** The list as shown: Edit list's draft while it is open on it, else the saved list. */
   definition: PersistedListDefinition
   /** The group · sort summary that opens Edit list (off where the list's group and sort don't apply). */
   summary?: boolean
@@ -45,7 +43,7 @@ interface ListFilterRowProps {
   onToggleLens?: () => void
   /**
    * It is its list widget's top line (D26 AA1): alone in its cell it starts
-   * with `lead` (the list's name, unsaved dot and badge) and ends with the
+   * with `lead` (the list's name and badge) and ends with the
    * cell's controls (`WidgetTopLine`).
    */
   topLine?: { lead: ReactNode }
@@ -58,33 +56,30 @@ interface ListFilterRowProps {
  * `ListFilterWords`; a click opens Edit list, where it is edited; the top
  * bar's chips are not repeated here), then the list's count while the
  * screen filter or the lens narrows it (`22 of 23`, else none), the group ·
- * sort summary that opens Edit list, and — while the list is unsaved —
- * Revert · Save; it ends with the top bar's lens switch (while it hides
- * something here, or the list ignores it; the standard switch, G3, quiet in
- * a desktop cell), before the cell's ⋯. Used by list widgets, by the
- * Eisenhower widget (its own list, without the summary) and by Settings ›
- * Tasks › Eisenhower (`inDialog`: the same list and draft, an editor — its
- * filter as editable chips with + Filter). Phones (a `data-touch-chips`
- * ancestor) get touch sizes.
+ * sort summary that opens Edit list; it ends with the top bar's lens switch
+ * (while it hides something here, or the list ignores it; the standard
+ * switch, G3, quiet in a desktop cell), before the cell's ⋯. Used by list
+ * widgets, by the Eisenhower widget (its own list, without the summary) and
+ * by Settings › Tasks › Eisenhower (`inDialog`: the same list, its filter
+ * as editable chips with + Filter, each change saved at once as an undo
+ * step). Phones (a `data-touch-chips` ancestor) get touch sizes.
  *
  * A list set not to show it (`showFilterLine: false`) shows nothing in its
- * widgets — but the whole line while it is unsaved, so Revert · Save are
- * there; Edit list stays in the tab menu.
+ * widgets; Edit list stays in the ⋯ menu.
  */
 export function ListFilterRow(props: ListFilterRowProps) {
-  const unsaved = useIsListDirty(props.definition.id)
-  if (props.definition.showFilterLine === false && !unsaved && !props.inDialog) return null
-  return <FilterRowBody {...props} unsaved={unsaved} />
+  if (props.definition.showFilterLine === false && !props.inDialog) return null
+  return <FilterRowBody {...props} />
 }
 
-function FilterRowBody({ tabId, definition, summary = true, inDialog = false, count, lens, onToggleLens, topLine, trailing, unsaved }: ListFilterRowProps & { unsaved: boolean }) {
+function FilterRowBody({ tabId, definition, summary = true, inDialog = false, count, lens, onToggleLens, topLine, trailing }: ListFilterRowProps) {
   const editorOpen = useUIStore((s) => tabId != null && s.listEditor?.tabId === tabId)
   const quietLens = useQuietLensSwitch()
   const id = definition.id
-  // Opens Edit list beside the tab (closes it while open): the summary's and the words' click.
+  // Opens Edit list beside the tab (asks it to close while open — Save / Discard / Keep editing with changes): the summary's and the words' click.
   const toggleEditor = tabId != null
     ? () => {
-        if (editorOpen) useUIStore.getState().closeListEditor()
+        if (editorOpen) requestEditListClose()
         else openEditList(tabId, id)
       }
     : undefined
@@ -114,7 +109,6 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, co
           <ChevronDownIcon />
         </button>
       )}
-      {unsaved && <ListDraftButtons listDefinitionId={id} />}
       {lens && onToggleLens && <LensSwitch lens={lens} onToggle={onToggleLens} noun="list" quiet={quietLens} />}
       {trailing}
     </>
@@ -125,10 +119,14 @@ function FilterRowBody({ tabId, definition, summary = true, inDialog = false, co
 }
 
 /**
- * The list's filter as editable chips (Settings › Tasks › Eisenhower, an
- * editor): editing them makes the list unsaved; `No filters` when there are
- * none; + Filter adds one.
+ * The list's filter as editable chips (Settings › Tasks › Eisenhower, which
+ * saves at once as its panes do): each change is written for good as one
+ * undo step (`Changed the Eisenhower’s filter`); `No filters` when there
+ * are none; + Filter adds one.
  */
+/** The undo step of a change to the Eisenhower list's filter in Settings. */
+const EISENHOWER_FILTER_STEP = 'Changed the Eisenhower’s filter'
+
 function EditableChips({ definition }: { definition: PersistedListDefinition }) {
   const names = useChipNames()
   const predicate = definition.membership.predicate
@@ -140,7 +138,9 @@ function EditableChips({ definition }: { definition: PersistedListDefinition }) 
     <div ref={chipsRef} className={`${styles.chips} ${chipsOverflow ? styles.chipsClipped : ''}`}>
       <PredicateChips
         predicate={predicate}
-        onChange={(next) => useListDraftStore.getState().edit(id, (d) => ({ ...d, membership: { kind: 'custom', predicate: next } }))}
+        onChange={(next) => {
+          void useListDefinitionStore.getState().editList(id, (d) => ({ ...d, membership: { kind: 'custom', predicate: next } }), EISENHOWER_FILTER_STEP)
+        }}
         inDialog
         before={hasListChips ? undefined : <span className={styles.noFilters}>No filters</span>}
       />

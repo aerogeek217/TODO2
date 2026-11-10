@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
+  clearListDrafts,
   clearUnsavedDrafts,
   readLayoutDraft,
   readListDrafts,
-  unsavedDraftsKept,
   writeLayoutDraft,
   writeListDrafts,
 } from '../../data/draft-storage'
@@ -188,35 +188,19 @@ describe('draft storage', () => {
     expect(readListDrafts().size).toBe(0)
   })
 
-  it('storage that refuses a write is reported (nothing is kept), and never throws', () => {
-    const spy = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('full', 'QuotaExceededError') })
-    vi.spyOn(console, 'warn').mockImplementation(() => {})
-    expect(() => writeLayoutDraft(savedDraft)).not.toThrow()
-    expect(unsavedDraftsKept()).toBe(false)
-    spy.mockRestore()
-    writeLayoutDraft(savedDraft)
-    expect(unsavedDraftsKept()).toBe(true)
-  })
-
-  it('a draft another tab replaced or removed is no longer kept for this one', () => {
+  it('clearListDrafts forgets the list drafts only', () => {
     writeLayoutDraft(savedDraft)
     writeListDrafts(new Map([[4, { draft: listDef({ name: 'B' }), base: listDef() }]]))
-    expect(unsavedDraftsKept()).toBe(true)
-    // Another tab (same storage) discards its layout changes.
-    localStorage.removeItem('todo2-unsaved-layout')
-    expect(unsavedDraftsKept()).toBe(false)
-    writeLayoutDraft(savedDraft)
-    expect(unsavedDraftsKept()).toBe(true)
-    // … or keeps list drafts of its own over these.
-    localStorage.setItem('todo2-unsaved-lists', '{}')
-    expect(unsavedDraftsKept()).toBe(false)
+    clearListDrafts()
+    expect(readLayoutDraft()).not.toBeNull()
+    expect(readListDrafts().size).toBe(0)
   })
 
-  it('a draft another tab keeps doesn’t matter to a tab with nothing of that kind kept', () => {
-    writeLayoutDraft(null)
-    writeListDrafts(new Map())
-    localStorage.setItem('todo2-unsaved-layout', JSON.stringify({ kind: 'saved' }))
-    expect(unsavedDraftsKept()).toBe(true)
+  it('storage that refuses a write is logged, and never throws', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new DOMException('full', 'QuotaExceededError') })
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(() => writeLayoutDraft(savedDraft)).not.toThrow()
+    expect(warn).toHaveBeenCalled()
   })
 
   it('storage that can’t be read reads as nothing kept', () => {

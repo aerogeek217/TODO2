@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import type { PersistedListDefinition } from '../models/list-definition'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import { useListDraftStore } from '../stores/list-draft-store'
+import { listAsShown, useListDraftStore } from '../stores/list-draft-store'
 import { usePersonStore } from '../stores/person-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
@@ -12,7 +12,7 @@ import { copySourceGroups, type CopySourceGroup, type CopySourceRef } from '../u
 
 /** A list Copy from offers. */
 export interface CopySource extends CopySourceRef {
-  /** The list as it shows: its unsaved draft, else the saved list. */
+  /** The list as it shows (`listAsShown`). */
   def: PersistedListDefinition
   /** Its name as it shows (a blank draft name reads as the saved one). */
   name: string
@@ -38,7 +38,7 @@ export function useCopySources(excludeId?: number): CopySourceGroup<CopySource>[
     const names = { people, tags, statuses }
     // Grouped by the saved list's owner and order (a draft keeps both).
     const lists = defs.map((saved): CopySource => {
-      const def = drafts[saved.id] ?? saved
+      const def = listAsShown(saved, drafts) ?? saved
       return {
         id: saved.id,
         owner: saved.owner,

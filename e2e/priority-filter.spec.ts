@@ -106,7 +106,7 @@ test.describe('desktop', () => {
     await expect.poll(() => sorted(page)).toEqual(['Due tomorrow', 'Flagged urgent'])
     await expect(editList.getByTestId('list-filter-chip')).toHaveText([/Priority\s*not Important/, /Priority\s*Urgent/])
     await page.keyboard.press('Escape')
-    await editList.getByRole('button', { name: 'Save list' }).click()
+    await editList.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(editList).toHaveCount(0)
     await expect.poll(async () => ((await readListDefinitions(page))[0]?.membership as { predicate: unknown }).predicate)
       .toMatchObject({ markers: [{ values: ['important'], not: true }, { values: ['urgent'] }] })

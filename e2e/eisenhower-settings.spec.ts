@@ -8,8 +8,8 @@ import { readStore } from './fixtures/db'
  * every Eisenhower tab (on two layouts, one at its small face — the old
  * Eisenhower summary) follows; Esc in a pane's filter picker closes only the picker; each
  * change is one undo step and is kept across a reload. The Eisenhower's own
- * list's filter is edited there too — the same unsaved draft as every
- * Eisenhower's filter line, with Revert · Save. The workspace's entries are
+ * list's filter is edited there too, saved at once as an undo step like the
+ * panes (Edit list from a widget's line saves with its Save). The workspace's entries are
  * shortcuts into it: the tab menu's Customize panes…, the cell ⋯ menu's, a
  * pane header's Edit pane… (focuses that pane's name). On a phone there is
  * no entry.
@@ -118,7 +118,7 @@ test.describe('desktop', () => {
     await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('1')
   })
 
-  test('its list’s filter: Settings edits the same draft as every Eisenhower’s filter line; Save; the small face follows; reload', async ({ page }) => {
+  test('its list’s filter: a change in Settings is saved at once, one undo step; every Eisenhower and the small face follow; reload', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('2')
     await openSettings(page, 'Eisenhower')
@@ -135,29 +135,23 @@ test.describe('desktop', () => {
     await page.keyboard.press('Escape')
     await expect(picker).toBeHidden()
     await expect(settingsDialog(page)).toBeVisible()
-    // Unsaved: Revert · Save beside it; the counts follow the draft.
-    await expect(line.getByTestId('save-list')).toBeVisible()
+    // Saved at once: no Revert · Save; the counts follow.
+    await expect(line.getByTestId('save-list')).toHaveCount(0)
     await expect(card(page, 'delegate').getByTestId('customize-pane-count')).toHaveText('1 now')
-    await closeSettings(page)
-
-    // The widget's filter line shows the same draft, unsaved; the small face counts it too.
-    const widgetLine = wsCell(page, 'a1').getByTestId('list-filter-row')
-    await expect(widgetLine).toContainText('not Delegated')
-    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
-    await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toHaveCount(0)
-    await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('1')
-    // Save from the widget: Settings' line is saved too.
-    await widgetLine.getByTestId('save-list').click()
-    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
     const source = await storedSource(page)
     const eisenhower = (await readListDefinitions(page)).find((d) => `list:${d.id}` === source)!
     expect(eisenhower.owner).toEqual({ eisenhower: true })
     await expect.poll(async () => ((await readListDefinitions(page)).find((d) => d.id === eisenhower.id)?.membership as { predicate: unknown }).predicate)
       .toMatchObject({ negate: { statusIds: true } })
-    await openSettings(page, 'Eisenhower')
-    await expect(part(page).getByTestId('eisenhower-list-line').getByTestId('save-list')).toHaveCount(0)
-    await expect(part(page).getByTestId('eisenhower-list-line')).toContainText('not Delegated')
+    const snackbar = page.locator('[data-keeps-selection]').filter({ hasText: 'Undo' })
+    await expect(snackbar).toContainText('Changed the Eisenhower’s filter')
     await closeSettings(page)
+
+    // The widget's filter line reads it; the small face counts it too.
+    const widgetLine = wsCell(page, 'a1').getByTestId('list-filter-row')
+    await expect(widgetLine).toContainText('not Delegated')
+    await expect(row(quadrant(page, 'eisTab', 'delegate'), 'Chase vendor')).toHaveCount(0)
+    await expect(glanceQuadrantCount(page, 'delegate')).toHaveText('1')
 
     // Kept across a reload; the other layout's Eisenhower too.
     await page.reload()
@@ -210,7 +204,7 @@ test.describe('desktop', () => {
     await expect(settingsDialog(page)).toBeVisible()
   })
 
-  test('Revert in Settings drops the draft for every Eisenhower; the snackbar’s Undo brings it back', async ({ page }) => {
+  test('Edit list’s Save on the widget’s line shows in Settings; Undo puts the filter back for every Eisenhower', async ({ page }) => {
     await seedWorkspace(page, SEED)
     // The widget's line reads the filter in words; Edit list (from them) edits it.
     const editor = await openListFilterEditor(page, wsCell(page, 'a1'))
@@ -219,20 +213,19 @@ test.describe('desktop', () => {
     await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Delegated' }).click()
     await page.keyboard.press('Escape')
     await closeListFilterEditor(page)
-    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
+    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toHaveCount(0)
 
     await openSettings(page, 'Eisenhower')
     const line = part(page).getByTestId('eisenhower-list-line')
     await expect(line).toContainText('Delegated')
-    await line.getByTestId('revert-list').click()
-    await expect(line).toContainText('No filters')
-    await expect(line.getByTestId('save-list')).toHaveCount(0)
-    const snackbar = page.locator('[data-keeps-selection]').filter({ hasText: 'Undo' })
-    await expect(snackbar).toContainText('List changes reverted')
-    await snackbar.getByRole('button', { name: 'Undo' }).click()
-    await expect(line.getByTestId('save-list')).toBeVisible()
+    await expect(line.getByTestId('revert-list')).toHaveCount(0)
     await closeSettings(page)
-    await expect(wsTab(page, 'eisTab').getByRole('img', { name: 'unsaved list changes' })).toBeVisible()
+    // One undo step: Ctrl+Z puts the filter back, in the widget and in Settings.
+    await page.locator('body').click({ position: { x: 5, y: 5 } })
+    await page.keyboard.press('Control+z')
+    await expect(wsCell(page, 'a1').getByTestId('list-filter-row')).toContainText('Every open task')
+    await openSettings(page, 'Eisenhower')
+    await expect(line).toContainText('No filters')
   })
 
   test('the tab menu’s and the cell menu’s Customize panes…, a pane header’s Edit pane…, land on the part', async ({ page }) => {

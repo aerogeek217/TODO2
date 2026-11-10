@@ -1,13 +1,4 @@
-.actions {
-  align-items: center;
-}
-
-.spacer {
-  flex: 1;
-}
-
 .ghost,
-.dangerGhost,
 .primary,
 .danger {
   display: inline-flex;
@@ -33,15 +24,6 @@
   color: var(--color-text-primary);
 }
 
-.dangerGhost {
-  background: transparent;
-  color: var(--color-danger);
-}
-
-.dangerGhost:hover {
-  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
-}
-
 .primary {
   background: var(--color-accent);
   color: var(--color-text-on-accent);
@@ -59,16 +41,6 @@
 .danger {
   background: var(--color-danger);
   color: var(--color-surface);
-}
-
-.kbd {
-  padding: 0 4px;
-  border-radius: var(--radius-sm);
-  background: var(--color-tint-8);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-muted);
 }
 
 .form {
@@ -150,45 +122,4 @@
 
 .swatchNone:focus-visible {
   box-shadow: inset 0 0 0 1.5px var(--color-text-muted), var(--focus-ring);
-}
-
-/* Combined unsaved prompt: one checked row per layout / list. */
-.unsavedItems {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  margin-top: 12px;
-}
-
-.unsavedItem {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 40px;
-  padding: 0 12px;
-  border-radius: 8px;
-  background: var(--color-tint-4);
-  color: var(--color-text-primary);
-  cursor: pointer;
-}
-
-.unsavedItem input {
-  width: 16px;
-  height: 16px;
-  margin: 0;
-  accent-color: var(--color-accent);
-}
-
-.unsavedName {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.unsavedNote {
-  flex-shrink: 0;
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
 }

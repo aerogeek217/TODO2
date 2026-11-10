@@ -6,14 +6,13 @@ import { readStore } from './fixtures/db'
 /**
  * The Eisenhower's own list, in a real browser: every Eisenhower shows its
  * filter line in words (`Every open task` = no filter; a click opens Edit list,
- * where it is edited); editing it makes the list
- * unsaved — the tab's dot, Revert · Save — and Save writes it, still the
- * Eisenhower's; Edit list… from the tab menu
+ * where it is edited, drawn live); Edit list's Save writes it for good,
+ * still the Eisenhower's; Edit list… from the tab menu
  * opens beside the panel and its Save is what another Eisenhower's small
  * face (D26: the old Eisenhower summary) counts; drags between quadrants still set the flags and "+" adds
  * with the list's defaults; an Eisenhower switched to List picks a list —
- * never the Eisenhower's; closing the last widget on its unsaved list asks
- * first; on a phone the tab's sheet has Edit list….
+ * never the Eisenhower's; closing the last widget on its list asks nothing;
+ * on a phone the tab's sheet has Edit list….
  */
 
 const SEED: WorkspaceSeed = {
@@ -70,7 +69,7 @@ async function openTabMenu(page: Page, tabId: string): Promise<Locator> {
   return menu
 }
 
-/** Edit list (from the Eisenhower's filter line) › + Filter › Status › (Is not) › Waiting; Edit list closed. */
+/** Edit list (from the Eisenhower's filter line) › + Filter › Status › (Is not) › Waiting; Edit list saved and closed. */
 async function filterWaiting(page: Page, isNot: boolean): Promise<void> {
   const editor = await openListFilterEditor(page, wsCell(page, 'b1'))
   await editor.getByRole('button', { name: ADD_FILTER }).click()
@@ -86,7 +85,7 @@ async function filterWaiting(page: Page, isNot: boolean): Promise<void> {
 test.describe('desktop', () => {
   test.use({ viewport: { width: 1600, height: 900 } })
 
-  test('its own list’s filter line opens Edit list: Status is not Waiting; the tab unsaved; Save writes it, still the Eisenhower’s', async ({ page }) => {
+  test('its own list’s filter line opens Edit list: Status is not Waiting; Save writes it, still the Eisenhower’s', async ({ page }) => {
     await seedWorkspace(page, SEED)
     await expect(row(quadrant(page, 'do'), 'Waiting on legal')).toBeVisible()
     // Always there: no filter = every task; no group · sort summary.
@@ -103,15 +102,10 @@ test.describe('desktop', () => {
     await expect(row(quadrant(page, 'do'), 'Fix checkout outage')).toBeVisible()
     // The list tab shows another list: untouched.
     await expect(wsCell(page, 'a1').locator('[data-row-key]').filter({ hasText: 'Waiting on legal' })).toBeVisible()
-    await expect(unsavedDot(tab)).toBeVisible()
-    await expect(unsavedDot(wsTab(page, 'lensTab'))).toHaveCount(0)
+    await expect(unsavedDot(tab)).toHaveCount(0)
     // An edit to a list, not to the layout.
     await expectLayoutStored(page)
 
-    const save = filterLine(page).getByTestId('save-list')
-    await save.click()
-    await expect(save).toHaveCount(0)
-    await expect(unsavedDot(tab)).toHaveCount(0)
     const statuses = await readStore<{ id: number; name: string }>(page, 'statuses')
     const waiting = statuses.find((s) => s.name === 'Waiting')!.id
     await expect.poll(async () => ((await eisenhowerList(page))?.membership as { predicate: unknown } | undefined)?.predicate)
@@ -125,7 +119,7 @@ test.describe('desktop', () => {
     await expect(filterLine(page)).toContainText('not Waiting')
   })
 
-  test('Edit list… → a filter → Save list: an Eisenhower’s small face counts what the widget shows', async ({ page }) => {
+  test('Edit list… → a filter → Save: an Eisenhower’s small face counts what the widget shows', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
       layouts: [{
@@ -161,9 +155,8 @@ test.describe('desktop', () => {
     // The draft counts already, in both.
     await expect(row(quadrant(page, 'do'), 'Fix checkout outage')).toHaveCount(0)
     await expect(glanceDo).toHaveText('1')
-    await editList.getByRole('button', { name: 'Save list' }).click()
+    await editList.getByRole('button', { name: 'Save', exact: true }).click()
     await expect(editList).toHaveCount(0)
-    await expect(unsavedDot(wsTab(page, 'eisTab'))).toHaveCount(0)
     await expect(glanceDo).toHaveText('1')
     await expect(row(quadrant(page, 'do'), 'Waiting on legal')).toBeVisible()
     await expect.poll(async () => ((await eisenhowerList(page))?.membership as { predicate: { statusIds: unknown } } | undefined)?.predicate.statusIds)
@@ -223,17 +216,16 @@ test.describe('desktop', () => {
     await expect(filterLine(page)).toContainText('Every open task')
   })
 
-  test('closing the last widget on its unsaved list asks first', async ({ page }) => {
+  test('closing the last widget on its list asks nothing; the Eisenhower’s list stays', async ({ page }) => {
     await seedWorkspace(page, ON_TEAM)
     await filterWaiting(page, false)
-    await expect(unsavedDot(wsTab(page, 'eisTab'))).toBeVisible()
+    await expect.poll(async () => ((await eisenhowerList(page))?.membership as { predicate: { statusIds: unknown } } | undefined)?.predicate.statusIds).toHaveLength(1)
 
     await wsTab(page, 'eisTab').hover()
     await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Save changes to list “Team”?' })
-    await expect(dialog).toBeVisible()
-    await dialog.getByRole('button', { name: 'Cancel' }).click()
-    await expect(wsTab(page, 'eisTab')).toBeVisible()
+    await expect(page.getByRole('dialog', { name: /^Save changes to list/ })).toHaveCount(0)
+    await expect(wsTab(page, 'eisTab')).toHaveCount(0)
+    expect((await eisenhowerList(page))?.name).toBe('Team')
   })
 })
 

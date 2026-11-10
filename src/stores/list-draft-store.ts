@@ -2,19 +2,18 @@ import { create } from 'zustand'
 import type { PersistedListDefinition } from '../models/list-definition'
 import { defsEqual } from '../utils/list-def-equal'
 import { registerModuleReset } from '../utils/module-reset'
-import { readListDrafts, writeListDrafts, type ListDraftRecord } from '../data/draft-storage'
+import { clearListDrafts, readListDrafts } from '../data/draft-storage'
 import { useListDefinitionStore } from './list-definition-store'
-import { undoable } from './undoable'
 
 /**
- * Unsaved edits to list definitions ("drafts"), made from list widgets.
- *
- * A draft belongs to the list definition, not to a widget: every widget
- * showing the list renders the draft and shows it as unsaved, and saving
- * writes the definition for all of them. Drafts are also kept in the
- * browser (`data/draft-storage`, never the database): `restore()` — when the
- * workspace opens — takes back each one whose list is still as it was saved
- * when the draft was made.
+ * Edit list's draft: the list as the open Edit list has it, not saved yet —
+ * its live preview. Every widget showing the list draws it (`listAsShown`)
+ * while Edit list is open, as a widget editor's copy is drawn
+ * (`widget-preview-store`); Edit list's Save writes it for good as one undo
+ * step (`list-definition-store.editList`) and Discard drops it. In memory
+ * only — never kept in the browser, gone on a reload, a data replace
+ * (`refresh-all`) or the list's deletion. One list at a time in practice
+ * (one Edit list is open), keyed by list id.
  */
 interface ListDraftState {
   /** Edited definitions by id. Never equal to the saved definition. */
@@ -26,68 +25,18 @@ interface ListDraftState {
    * the draft. Unknown id → no-op.
    */
   edit: (id: number, fn: (def: PersistedListDefinition) => PersistedListDefinition) => void
-  /** Writes the draft over the saved definition and drops it. */
-  save: (id: number) => Promise<void>
-  /** Drops the draft. */
+  /** Drops the draft (none → no-op). */
   discard: (id: number) => void
-  /**
-   * Drops the draft as an undo step (the snackbar's Undo brings it back).
-   * No draft → no-op.
-   */
-  revert: (id: number) => void
-  /**
-   * Takes back the drafts kept from before a reload (the workspace calls it
-   * when it opens): those whose saved list still matches what they were made
-   * against; the rest are forgotten. Drafts on screen win.
-   */
-  restore: () => Promise<void>
 }
 
 function savedDef(id: number): PersistedListDefinition | undefined {
   return useListDefinitionStore.getState().listDefinitions.find((d) => d.id === id)
 }
 
-/**
- * The draft as Save writes it: its name trimmed (a blank one keeps the
- * saved name), the saved list's owner — an edit never changes who a list
- * belongs to (a draft kept from before the list had one has none) — and the
- * saved list's lens switch (`ignoreLens`: saved at once, never a draft edit).
- */
-function toSave(draft: PersistedListDefinition, saved: PersistedListDefinition): PersistedListDefinition {
-  const { owner: _draftOwner, ignoreLens: _draftLens, ...rest } = draft
-  void _draftOwner
-  void _draftLens
-  return {
-    ...rest,
-    name: draft.name.trim() || saved.name,
-    ...(saved.owner ? { owner: saved.owner } : {}),
-    ...(saved.ignoreLens ? { ignoreLens: true as const } : {}),
-  }
-}
-
 function without(drafts: Readonly<Record<number, PersistedListDefinition>>, id: number): Record<number, PersistedListDefinition> {
   const next = { ...drafts }
   delete next[id]
   return next
-}
-
-/** A `restore()` running (shared by concurrent callers); kept drafts aren't written before one ran. */
-let restoring: Promise<void> | null = null
-let restored = false
-registerModuleReset(() => {
-  restoring = null
-  restored = false
-})
-
-/** Keeps the drafts in the browser, each with the saved list it was made against. */
-function keep(drafts: Readonly<Record<number, PersistedListDefinition>>): void {
-  if (!restored) return
-  const records = new Map<number, ListDraftRecord>()
-  for (const [key, draft] of Object.entries(drafts)) {
-    const base = savedDef(Number(key))
-    if (base) records.set(Number(key), { draft, base })
-  }
-  writeListDrafts(records)
 }
 
 export const useListDraftStore = create<ListDraftState>((set, get) => ({
@@ -98,77 +47,62 @@ export const useListDraftStore = create<ListDraftState>((set, get) => ({
     if (!saved) return
     const next = fn(get().drafts[id] ?? saved)
     set({ drafts: defsEqual(next, saved) ? without(get().drafts, id) : { ...get().drafts, [id]: next } })
-    keep(get().drafts)
-  },
-
-  async save(id) {
-    const draft = get().drafts[id]
-    const saved = savedDef(id)
-    if (!draft) return
-    if (!saved) {
-      set({ drafts: without(get().drafts, id) })
-      keep(get().drafts)
-      return
-    }
-    // The update applies to the store before it persists, so dropping the
-    // draft right after never shows the old definition in between.
-    const pending = useListDefinitionStore.getState().update(toSave(draft, saved))
-    set({ drafts: without(get().drafts, id) })
-    keep(get().drafts)
-    try {
-      await pending
-    } catch {
-      // The list store logged it and rolled back; keep the edits unsaved.
-      set({ drafts: { ...get().drafts, [id]: draft } })
-      keep(get().drafts)
-    }
   },
 
   discard(id) {
     if (!(id in get().drafts)) return
     set({ drafts: without(get().drafts, id) })
-    keep(get().drafts)
-  },
-
-  revert(id) {
-    const draft = get().drafts[id]
-    if (!draft) return
-    get().discard(id)
-    undoable(
-      'List changes reverted',
-      () => get().discard(id),
-      () => get().edit(id, () => draft),
-      true,
-    )
-  },
-
-  restore() {
-    restoring ??= (async () => {
-      const kept = readListDrafts()
-      if (kept.size > 0) await useListDefinitionStore.getState().ensureLoaded()
-      const back: Record<number, PersistedListDefinition> = {}
-      for (const [id, { draft, base }] of kept) {
-        const saved = savedDef(id)
-        if (saved && defsEqual(saved, base) && !defsEqual(draft, saved)) back[id] = draft
-      }
-      restored = true
-      set({ drafts: { ...back, ...get().drafts } })
-      keep(get().drafts)
-    })().finally(() => { restoring = null })
-    return restoring
   },
 }))
 
-/** The ids of lists with unsaved edits whose definition still exists. */
-export function draftListIds(
-  drafts: Readonly<Record<number, PersistedListDefinition>>,
-  defs: readonly PersistedListDefinition[],
-): number[] {
-  const live = new Set(defs.map((d) => d.id))
-  return Object.keys(drafts).map(Number).filter((id) => live.has(id))
+/**
+ * The list as it shows: Edit list's draft while one is open on it, else the
+ * saved definition — `undefined` for a list that isn't saved (any more).
+ * Every reader of a list's definition for display goes through this (or
+ * `useEffectiveListDefinition`), so the preview reads the same everywhere.
+ */
+export function listAsShown(
+  saved: PersistedListDefinition | undefined,
+  drafts: Readonly<Record<number, PersistedListDefinition | undefined>>,
+): PersistedListDefinition | undefined {
+  return saved ? (drafts[saved.id] ?? saved) : undefined
 }
 
-/** Ids of the lists with unsaved edits, now. */
-export function getUnsavedListIds(): number[] {
-  return draftListIds(useListDraftStore.getState().drafts, useListDefinitionStore.getState().listDefinitions)
+/** `listAsShown` of list `id`, now. */
+export function listAsShownNow(id: number): PersistedListDefinition | undefined {
+  return listAsShown(savedDef(id), useListDraftStore.getState().drafts)
+}
+
+/** The page load's application of the drafts an older build kept, while it runs (shared by concurrent callers). */
+let applyingKept: Promise<void> | null = null
+let appliedKept = false
+registerModuleReset(() => {
+  applyingKept = null
+  appliedKept = false
+})
+
+/**
+ * Once per page load (the workspace calls it when it opens): the unsaved
+ * list edits a build before list autosave kept in the browser
+ * (`data/draft-storage`). Each is written for good — one undo step with
+ * the snackbar, `Applied unsaved changes to list “X”` — while its list is
+ * still as it was saved when the edits were made; the rest are dropped.
+ * Then the kept drafts are forgotten.
+ */
+export function applyKeptListDrafts(): Promise<void> {
+  if (applyingKept) return applyingKept
+  if (appliedKept) return Promise.resolve()
+  applyingKept = (async () => {
+    const kept = readListDrafts()
+    clearListDrafts()
+    appliedKept = true
+    if (kept.size === 0) return
+    await useListDefinitionStore.getState().ensureLoaded()
+    for (const [id, { draft, base }] of kept) {
+      const saved = savedDef(id)
+      if (!saved || !defsEqual(saved, base) || defsEqual(draft, saved)) continue
+      await useListDefinitionStore.getState().editList(id, () => draft, `Applied unsaved changes to list “${saved.name}”`)
+    }
+  })().finally(() => { applyingKept = null })
+  return applyingKept
 }

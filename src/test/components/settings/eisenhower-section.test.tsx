@@ -238,36 +238,20 @@ describe('Settings › Tasks › Eisenhower › its list’s filter line', () =>
     expect(within(line(part)).queryByTestId('list-summary')).toBeNull()
   })
 
-  it('a change edits the same draft as the widget’s filter line: both unsaved, Save from Settings writes it', async () => {
+  it('a change is saved at once as one undo step: the widget counts it, no Revert · Save anywhere', async () => {
     useListDefinitionStore.setState({ listDefinitions: [own(NOT_DELEGATED_LIST)] })
     const { part } = open({}, { widget: true })
-    const widgetLine = () => document.querySelector<HTMLElement>('[data-eisenhower]')!.parentElement!.querySelector<HTMLElement>('[data-testid="list-filter-row"]')!
     expect(within(quadrant('delegate')).getByTestId('eisenhower-count').textContent).toBe('1')
     fireEvent.click(within(line(part)).getByRole('button', { name: 'Remove filter' }))
-    expect(useListDraftStore.getState().drafts[8]?.membership.predicate.statusIds).toBeNull()
-    // Both lines show it unsaved; the widget counts the draft.
-    expect(within(line(part)).getByTestId('save-list')).toBeTruthy()
-    expect(within(widgetLine()).getByTestId('save-list')).toBeTruthy()
+    await vi.waitFor(() => expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === 8)!.membership.predicate.statusIds).toBeNull())
+    expect(useListDraftStore.getState().drafts[8]).toBeUndefined()
     expect(within(quadrant('delegate')).getByTestId('eisenhower-count').textContent).toBe('2')
-    fireEvent.click(within(line(part)).getByTestId('save-list'))
-    expect(useListDraftStore.getState().drafts[8]).toBeUndefined()
-    const saved = useListDefinitionStore.getState().listDefinitions.find((d) => d.id === 8)!
-    expect(saved.membership.predicate.statusIds).toBeNull()
+    expect(document.querySelector('[data-testid="save-list"]')).toBeNull()
     // Still the Eisenhower's own list.
-    expect(saved.owner).toEqual({ eisenhower: true })
     await vi.waitFor(async () => expect((await db.listDefinitions.get(8))?.owner).toEqual({ eisenhower: true }))
-    expect(within(line(part)).queryByTestId('save-list')).toBeNull()
-  })
-
-  it('Revert drops the draft, undoable from the snackbar', async () => {
-    useListDefinitionStore.setState({ listDefinitions: [own(NOT_DELEGATED_LIST)] })
-    useListDraftStore.setState({ drafts: { 8: own() } })
-    const { part } = open()
-    fireEvent.click(within(line(part)).getByTestId('revert-list'))
-    expect(useListDraftStore.getState().drafts[8]).toBeUndefined()
-    expect(useUndoStore.getState().snackbar).toEqual({ description: 'List changes reverted' })
+    await vi.waitFor(() => expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Changed the Eisenhower’s filter' }))
     await act(() => useUndoStore.getState().undo())
-    expect(useListDraftStore.getState().drafts[8]).toBeDefined()
+    expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === 8)!.membership.predicate.statusIds).not.toBeNull()
   })
 
   it('shown even when the list hides its filter line in its widgets', () => {

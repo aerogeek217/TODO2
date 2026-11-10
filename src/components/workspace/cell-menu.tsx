@@ -35,7 +35,7 @@ import { useNeglectMenuEntries } from './neglect/neglect-menu'
 import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
 import { useListReviewMenuEntries } from './list/review-menu'
-import { createListThenEdit, NO_LIST_LAYOUT_REASON, openEditList, useListOwnerLayoutId } from './widget-hooks'
+import { createListThenEdit, openEditList, useListOwnerLayoutId } from './widget-hooks'
 
 /**
  * A cell's ⋯ menu (D26 AA1): the widget's own entries first, under its
@@ -185,9 +185,6 @@ function useLensMenuAction(tab: LayoutTab | undefined, listId: number | undefine
   return { label: `Apply lens “${lens.name}” here`, checked: !ignored, onSelect: () => setTabIgnoresLens(tab, !ignored) }
 }
 
-/** Asks first about unsaved lists that would lose their last widget with `tabIds` (`FilledCell`'s prompt), then runs `run`. */
-export type GuardedRun = (tabIds: readonly string[], lead: string, run: () => void) => void
-
 /**
  * The widget part of the ⋯ menu for `tab` (what its tab menu had): its
  * list's Edit list… / Change list ›, its settings, its actions (Copy, the
@@ -198,7 +195,6 @@ export type GuardedRun = (tabIds: readonly string[], lead: string, run: () => vo
 export function useWidgetMenuContent(
   tab: LayoutTab | undefined,
   result: WidgetResult | undefined,
-  guarded: GuardedRun,
 ): WidgetKindMenuContent | undefined {
   const changeTabKind = useWorkspaceStore((s) => s.changeTabKind)
   const patchTabConfig = useWorkspaceStore((s) => s.patchTabConfig)
@@ -228,15 +224,13 @@ export function useWidgetMenuContent(
     if (kind === tab.kind) return
     if (WIDGET_KIND_SPECS[kind].showsList) {
       if (layoutId == null) return
-      // An Eisenhower tab shows the Eisenhower's list: asked about first,
-      // as any change of the last widget showing an unsaved list.
-      guarded([tab.id], 'You’re changing the last widget that shows it.', () => createListThenEdit((id) => {
+      void createListThenEdit((id) => {
         changeTabKind(tab.id, 'lens', { listDefinitionId: id })
         return tab.id
-      }, layoutId))
+      }, layoutId)
       return
     }
-    guarded([tab.id], 'You’re changing the last widget that shows it.', () => changeTabKind(tab.id, kind))
+    changeTabKind(tab.id, kind)
   }
 
   const listActions = (): WidgetMenuAction[] | undefined => {
@@ -272,11 +266,10 @@ export function useWidgetMenuContent(
   return {
     currentKind: tab.kind,
     onChangeKind: changeKind,
-    unavailableKinds: layoutId == null ? { lens: NO_LIST_LAYOUT_REASON } : undefined,
     pickListForLens: tab.kind === 'lens'
       ? (id) => {
           if (id === tab.config.listDefinitionId) return
-          guarded([tab.id], 'You’re changing the last widget that shows it.', () => patchTabConfig(tab.id, 'lens', { listDefinitionId: id }))
+          patchTabConfig(tab.id, 'lens', { listDefinitionId: id })
         }
       : undefined,
     onEditList: listId != null && (tab.kind === 'lens' || listName != null)

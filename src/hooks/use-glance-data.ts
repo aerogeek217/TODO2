@@ -10,7 +10,7 @@ import { pulseRuleFilter, type PulseRuleKey, type PulseTabConfig } from '../mode
 import { statsFilter, type StatsContext } from '../services/stats/stats-context'
 import { computeTrend, type TrendStats } from '../services/stats/trend'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import { useListDraftStore } from '../stores/list-draft-store'
+import { listAsShown, useListDraftStore } from '../stores/list-draft-store'
 import { usePersonStore } from '../stores/person-store'
 import { useSettingsStore } from '../stores/settings-store'
 import { useStatusStore } from '../stores/status-store'
@@ -392,8 +392,7 @@ const eisenhowerListMemo = sharedMemo((
   defs: readonly PersistedListDefinition[],
   drafts: Readonly<Record<number, PersistedListDefinition | undefined>>,
 ): PersistedListDefinition | undefined => {
-  const saved = listId != null ? defs.find((d) => d.id === listId) : undefined
-  return saved ? (drafts[saved.id] ?? saved) : undefined
+  return listAsShown(listId != null ? defs.find((d) => d.id === listId) : undefined, drafts)
 })
 
 const setupMemo = sharedMemo((

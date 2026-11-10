@@ -109,7 +109,7 @@ test('a hidden filter line comes back while the list is unsaved and leaves after
   await expect(widget(page).locator('[data-task-title="Someday"]')).toBeVisible()
   await expect(line).toHaveCount(0)
 
-  // Edit list from the tab menu: an edit makes the list unsaved, and the line shows with Revert · Save.
+  // Edit list from the tab menu: an edit shows in the list at once; the line stays hidden (the draft keeps it so).
   await wsTab(page, 't1').click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Edit list…' }).click()
   const editor = page.getByTestId('edit-list')
@@ -117,10 +117,9 @@ test('a hidden filter line comes back while the list is unsaved and leaves after
   await expect(showLine).not.toBeChecked()
   await editor.getByRole('button', { name: /^Sort by/ }).click()
   await page.getByRole('menuitemradio', { name: /^Name/ }).click()
-  await expect(line).toBeVisible()
-  await expect(line.getByTestId('save-list')).toBeVisible()
+  await expect(line).toHaveCount(0)
 
-  await editor.getByRole('button', { name: 'Save list' }).click()
+  await editor.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor).toHaveCount(0)
   await expect(line).toHaveCount(0)
   await expect.poll(async () => (await readStore<{ sort: string; showFilterLine?: boolean }>(page, 'listDefinitions'))[0])
@@ -130,8 +129,7 @@ test('a hidden filter line comes back while the list is unsaved and leaves after
   await wsTab(page, 't1').click({ button: 'right' })
   await page.getByRole('menuitem', { name: 'Edit list…' }).click()
   await editor.getByRole('checkbox', { name: 'Show filter line' }).check()
-  await editor.getByRole('button', { name: 'Save list' }).click()
+  await editor.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(line).toBeVisible()
-  await expect(line.getByTestId('save-list')).toHaveCount(0)
   await expect.poll(async () => 'showFilterLine' in ((await readStore<Record<string, unknown>>(page, 'listDefinitions'))[0] ?? {})).toBe(false)
 })

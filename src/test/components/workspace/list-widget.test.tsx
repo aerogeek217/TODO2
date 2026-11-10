@@ -98,7 +98,7 @@ describe('ListWidget', () => {
     expect(screen.queryByTestId('list-count')).toBeNull()
     expect(result()?.countLabel).toBeUndefined()
     // No filters anywhere: the filter line reads `Every open task` in words (no chips, no + Filter),
-    // then the summary (`Manual` for an ungrouped manual list); no Revert · Save while saved.
+    // then the summary (`Manual` for an ungrouped manual list).
     const row = screen.getByTestId('list-filter-row')
     expect(within(row).getByRole('button', { name: 'Every open task' })).toBeInTheDocument()
     expect(within(row).queryByRole('button', { name: /Filter/ })).toBeNull()
@@ -194,56 +194,38 @@ describe('ListWidget', () => {
     expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('an unsaved list adds Revert · Save to its filter line', () => {
+  it('draws Edit list’s draft live, with no Revert · Save or unsaved mark on its line', () => {
     setup(def())
-    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
-    expect(screen.queryByTestId('save-list')).toBeNull()
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
     const row = screen.getByTestId('list-filter-row')
     expect(row).toHaveTextContent('Every open task')
-    expect(screen.getByRole('button', { name: 'Revert list changes' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save list Team' })).toBeInTheDocument()
+    expect(screen.queryByTestId('save-list')).toBeNull()
+    expect(screen.queryByTestId('revert-list')).toBeNull()
+    expect(screen.queryByRole('img', { name: 'unsaved list changes' })).toBeNull()
     // The summary reads the draft.
     expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Name$/)
   })
 
-  it('a direction change in the draft re-sorts the rows live, shows ↓ in the summary and makes the list unsaved', () => {
+  it('a direction change in the draft re-sorts the rows live and shows ↓ in the summary', () => {
     setup(def({ sort: 'name' }))
     expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
     expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Name$/)
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sortDirection: 'desc' })))
     expect(titles()).toEqual(['Shared task', 'Bob task', 'Alice task'])
     expect(screen.getByTestId('list-summary')).toHaveTextContent(/^Name ↓$/)
-    expect(screen.getByTestId('save-list')).toBeInTheDocument()
   })
 
-  it('Save on the filter line writes the draft; the line stays, without Revert · Save', async () => {
-    setup(def())
-    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
-    await act(async () => { fireEvent.click(screen.getByTestId('save-list')) })
-    expect(useListDraftStore.getState().drafts).toEqual({})
-    expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('name')
-    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
-    expect(screen.queryByTestId('save-list')).toBeNull()
-  })
-
-  it('a list set to hide its filter line shows none — until it is unsaved, and again none once saved', async () => {
+  it('a list set to hide its filter line shows none, its draft too', () => {
     setup(def({ showFilterLine: false }))
     expect(screen.queryByTestId('list-filter-row')).toBeNull()
-    expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task'])
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
-    expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
-    expect(screen.getByTestId('save-list')).toBeInTheDocument()
-    await act(async () => { fireEvent.click(screen.getByTestId('save-list')) })
-    expect(useListDefinitionStore.getState().listDefinitions[0]).toMatchObject({ sort: 'name', showFilterLine: false })
     expect(screen.queryByTestId('list-filter-row')).toBeNull()
-  })
-
-  it('hiding the filter line from a draft keeps it shown while unsaved', () => {
-    setup(def())
-    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, showFilterLine: false })))
+    act(() => useListDraftStore.getState().edit(7, (d) => {
+      const { showFilterLine: hidden, ...shown } = d
+      void hidden
+      return shown
+    }))
     expect(screen.getByTestId('list-filter-row')).toBeInTheDocument()
-    expect(screen.getByTestId('revert-list')).toBeInTheDocument()
   })
 
   it('grouped by Priority: Focus, Urgent, Important, No priority; a task in each of its groups', () => {
@@ -267,23 +249,6 @@ describe('ListWidget', () => {
     fireEvent.click(document.querySelector('[data-list-group="priority-focus"] button[aria-expanded]')!)
     expect(rowsIn('priority-focus')).toEqual([])
     expect(rowsIn('priority-urgent')).toEqual(['1'])
-  })
-
-  it('Revert on the filter line drops the draft (Undo brings it back)', async () => {
-    setup(def())
-    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, sort: 'name' })))
-    fireEvent.click(screen.getByTestId('revert-list'))
-    expect(useListDraftStore.getState().drafts).toEqual({})
-    expect(screen.queryByTestId('revert-list')).toBeNull()
-    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'List changes reverted' })
-    await act(() => useUndoStore.getState().undo())
-    expect(screen.getByTestId('save-list')).toBeInTheDocument()
-  })
-
-  it('a blank draft name can’t be saved from the filter line', () => {
-    setup(def())
-    act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, name: '  ' })))
-    expect(screen.getByTestId('save-list')).toBeDisabled()
   })
 
   it('an empty list without filters', () => {

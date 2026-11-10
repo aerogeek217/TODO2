@@ -1,18 +1,13 @@
 import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent, type RefObject } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import { getActiveTab, isGlanceKind, tabListId, type LayoutTab } from '../../models/workspace-layout'
+import { getActiveTab, isGlanceKind, type LayoutTab } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
-import { getUnsavedListIds } from '../../stores/list-draft-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { useWidgetKindMenuEntries, type WidgetKindMenuContent } from '../shared/widget-kind-menu-entries'
 import { CellTabStrip, JoinPreviewStrip } from './CellTabStrip'
 import { WidgetBody, type WidgetResult } from './WidgetBody'
 import { AddWidgetFlow } from './AddWidgetFlow'
 import type { AddWhere } from './add-widget-where'
-import { countListWidgets } from '../../hooks/use-list-widget-count'
-import { layoutTabs } from '../../utils/workspace-layout-queries'
 import { useTabTitle, useTabTitles } from './widget-hooks'
-import { UnsavedPrompt } from './UnsavedPrompt'
 import { MenuPopover } from '../shared/MenuPopover'
 import { ChevronDownIcon, ChevronUpIcon, GripIcon, MoreIcon } from '../shared/icons'
 import {
@@ -28,7 +23,7 @@ import { WidgetFaceContext } from '../../hooks/use-widget-face'
 import { smallFaceClick, useCellFace } from './cell-face'
 import { SmallFaceOpener, WidgetFacePopover } from './CellFaceParts'
 import { transitionName, withViewTransition } from '../shared/view-transition'
-import { cellMenuEntries, mergedCellMenu, useWidgetMenuContent, type GuardedRun } from './cell-menu'
+import { cellMenuEntries, mergedCellMenu, useWidgetMenuContent } from './cell-menu'
 import { CellControlsContext, TOP_LINE_ATTR, type CellControlsValue } from './cell-controls'
 import { CellControls } from './WidgetTopLine'
 
@@ -55,26 +50,6 @@ function PanelHandle({ panelId, tabs }: { panelId: string; tabs: readonly Layout
       <span className={styles.grip}><GripIcon /></span>
     </div>
   )
-}
-
-/**
- * Lists with unsaved edits whose last widget (in any layout) is among
- * `tabIds` of the open layout — closing or re-pointing those tabs would leave
- * the edits nowhere to be saved from.
- */
-function listsLosingLastWidget(tabIds: readonly string[]): number[] {
-  const state = useWorkspaceStore.getState()
-  const unsaved = new Set(getUnsavedListIds())
-  if (!state.working || unsaved.size === 0) return []
-  const except = new Set(tabIds)
-  const out = new Set<number>()
-  const eisenhowerListId = useSettingsStore.getState().eisenhowerListId
-  for (const tab of layoutTabs(state.working)) {
-    if (!except.has(tab.id)) continue
-    const id = tabListId(tab, eisenhowerListId)
-    if (id != null && unsaved.has(id) && countListWidgets(state, id, except) === 0) out.add(id)
-  }
-  return [...out]
 }
 
 /** Before any menu is open: the widget part builds nothing. */
@@ -125,7 +100,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const cellRef = useRef<HTMLElement | null>(null)
   /** What the active tab's widget last reported (any kind): its count label, shown sections or summary. */
   const [widgetResult, setWidgetResult] = useState<{ tabId: string; result: WidgetResult } | null>(null)
-  const [guard, setGuard] = useState<{ listIds: number[]; lead: string; run: () => void } | null>(null)
   const [menu, setMenu] = useState<{ tabId: string; at: MenuAt } | null>(null)
   const [addFlow, setAddFlow] = useState<{ anchor: { x: number; y: number }; where: AddWhere } | null>(null)
   // The ⋯ buttons drawn (the strip's header's, a top line's slot, the cell's own while no top line
@@ -157,14 +131,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   const activeResult = widgetResult && widgetResult.tabId === active?.id ? widgetResult.result : undefined
   const activeCount = activeResult?.countLabel
 
-  /** Runs `run`, first asking about unsaved lists that would lose their last widget with `tabIds`. */
-  const guarded: GuardedRun = (tabIds, lead, run) => {
-    const listIds = listsLosingLastWidget(tabIds)
-    if (listIds.length === 0) run()
-    else setGuard({ listIds, lead, run })
-  }
-  const closeTabGuarded = (tabId: string) => guarded([tabId], 'You’re closing the last widget that shows it.', () => closeTab(tabId))
-  const closeCellGuarded = () => guarded(cell.tabs.map((t) => t.id), 'You’re closing the last widget that shows them.', () => closeCell(cell.id))
 
   const hit = drag?.hit
   const stripHit = hit?.kind === 'tab-strip' && hit.cellId === cell.id && drag?.accepts ? hit : null
@@ -177,7 +143,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
   // ── The merged ⋯ menu ──
   const menuTab = menu ? cell.tabs.find((t) => t.id === menu.tabId) : undefined
   const menuTitle = useTabTitle(menuTab)
-  const widgetContent = useWidgetMenuContent(menuTab, menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result : undefined, guarded)
+  const widgetContent = useWidgetMenuContent(menuTab, menuTab && widgetResult?.tabId === menuTab.id ? widgetResult.result : undefined)
   const widgetEntries = useWidgetKindMenuEntries(widgetContent ?? NO_WIDGET_MENU)
   const menuEntries = menu && menuTab
     ? mergedCellMenu(widgetEntries, cellMenuEntries({
@@ -190,8 +156,8 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
         onMerge: (other) => { mergeCells(cell.id, other) },
         onInsert: (edge) => { insertTrack(edge) },
         onCollapse: setRowCollapsed,
-        onCloseTab: closeTabGuarded,
-        onCloseCell: closeCellGuarded,
+        onCloseTab: closeTab,
+        onCloseCell: () => closeCell(cell.id),
       }))
     : null
   const openMenu = useCallback((tabId: string, at: MenuAt) => setMenu({ tabId, at }), [])
@@ -264,7 +230,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
                 if (collapsed) setRowCollapsed(false)
               })
             }}
-            onClose={closeTabGuarded}
+            onClose={closeTab}
             onOpenTabMenu={(tabId, p) => openMenu(tabId, p)}
             onAddTab={(ref) => setAddFlow({ anchor: anchorBelow(ref), where: 'tab' })}
           />
@@ -353,14 +319,6 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
           initialWhere={addFlow.where}
           anchor={addFlow.anchor}
           onClose={() => setAddFlow(null)}
-        />
-      )}
-      {guard && (
-        <UnsavedPrompt
-          lead={guard.lead}
-          listIds={guard.listIds}
-          onDone={() => { guard.run(); setGuard(null) }}
-          onCancel={() => setGuard(null)}
         />
       )}
       {cellFace.fullOpen && active && !collapsed && (

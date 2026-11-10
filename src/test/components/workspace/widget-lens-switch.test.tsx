@@ -159,7 +159,7 @@ describe('the calendar’s, the Pivot’s and Project pulse’s', () => {
 })
 
 describe('the ⋯ menu’s Apply lens “X” here', () => {
-  const actions = (tab: LayoutTab) => renderHook(() => useWidgetMenuContent(tab, { sections: [] }, (_ids, _lead, run) => run())).result.current?.widgetActions ?? []
+  const actions = (tab: LayoutTab) => renderHook(() => useWidgetMenuContent(tab, { sections: [] })).result.current?.widgetActions ?? []
 
   it('offered on every lens-switch kind while a lens applies; a click writes the switch', () => {
     for (const kind of LENS_SWITCH_KINDS) {

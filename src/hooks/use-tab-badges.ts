@@ -4,7 +4,7 @@ import type { PersistedListDefinition, TabBadgeRanges } from '../models/list-def
 import type { LayoutTab } from '../models/workspace-layout'
 import { applyRuntimeFilter } from '../services/build-list'
 import { useListDefinitionStore } from '../stores/list-definition-store'
-import { useListDraftStore } from '../stores/list-draft-store'
+import { listAsShown, useListDraftStore } from '../stores/list-draft-store'
 import { useListWidgetStore } from '../stores/list-widget-store'
 import { useScreenFilter } from '../stores/screen-filter'
 import { useFilterStore } from '../stores/filter-store'
@@ -83,8 +83,8 @@ export function useTabBadges(tabs: readonly LayoutTab[]): ReadonlyMap<string, Ta
       const id = tab.config.listDefinitionId
       if (id == null) continue
       const saved = defs.find((d) => d.id === id)
-      if (!saved) continue
-      const def = drafts[id] ?? saved
+      const def = listAsShown(saved, drafts)
+      if (!saved || !def) continue
       const ranges = tabBadgeRangesFor(def.tabBadges, appRanges)
       if (ranges.due === 'off' && ranges.followup === 'off') continue
       const pick = picks[tab.id]
@@ -92,6 +92,7 @@ export function useTabBadges(tabs: readonly LayoutTab[]): ReadonlyMap<string, Ta
       const predicate = def.runtimeFilter && pick && pick.length > 0
         ? applyRuntimeFilter(def.membership.predicate, def.runtimeFilter, pick)
         : def.membership.predicate
+      // The lens switch is the saved list's (never a draft edit).
       const match = matcherFor(saved)
       const counts = countTabBadges(candidatesFor(ranges).filter((t) => match(predicate, t)), ranges, today)
       if (counts.due + counts.followup > 0) badges.set(tab.id, { counts, summary: tabBadgeSummary(counts, ranges) })

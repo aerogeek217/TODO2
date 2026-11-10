@@ -1,6 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, cleanup, screen, fireEvent, act, within } from '@testing-library/react'
 import { EditListHost } from '../../../components/workspace/list/EditList'
+import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
+import { openEditList } from '../../../components/workspace/widget-hooks'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useListDraftStore } from '../../../stores/list-draft-store'
 import { useUIStore } from '../../../stores/ui-store'
@@ -29,10 +31,18 @@ function Cell() {
 }
 
 function open() {
-  render(<><Cell /><EditListHost /></>)
+  render(<><Cell /><EditListHost /><ConfirmPromptHost /></>)
   act(() => useUIStore.getState().openListEditor(7, 't1'))
   return screen.getByRole('dialog', { name: 'Edit list Waiting on' })
 }
+
+const QUESTION = 'Save changes to list “Waiting on”?'
+const question = () => screen.getByRole('dialog', { name: QUESTION })
+/** Answers the close question; its follow-up (a write, the close) lands after. */
+async function answer(label: 'Save' | 'Discard' | 'Keep editing') {
+  await act(async () => { fireEvent.click(within(question()).getByRole('button', { name: label })) })
+}
+const editorOpen = () => screen.queryByRole('dialog', { name: /^Edit list/ }) != null
 
 const draft = () => useListDraftStore.getState().drafts[7]
 
@@ -50,13 +60,13 @@ beforeEach(() => {
 afterEach(() => cleanup())
 
 describe('Edit list', () => {
-  it('opens on the list as saved: focus in Name, Revert and Save list disabled, nothing marked changed', () => {
+  it('opens on the list as saved: focus in Name, Save disabled, nothing marked changed', () => {
     const dialog = open()
     expect(dialog).not.toHaveAttribute('aria-modal')
     expect(within(dialog).getByLabelText('Name')).toHaveValue('Waiting on')
     expect(document.activeElement).toBe(within(dialog).getByLabelText('Name'))
-    expect(within(dialog).getByRole('button', { name: 'Revert' })).toBeDisabled()
-    expect(within(dialog).getByRole('button', { name: 'Save list' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Discard' })).toBeEnabled()
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
     expect(dialog.querySelectorAll('[data-changed]')).toHaveLength(0)
     expect(within(dialog).getByRole('button', { name: /^Group by/ })).toHaveTextContent('People')
     expect(within(dialog).getByRole('button', { name: /^Sort by/ })).toHaveTextContent('Due date')
@@ -66,7 +76,7 @@ describe('Edit list', () => {
     expect(dialog).not.toHaveTextContent('Max tasks:')
   })
 
-  it('every control edits the shared draft at once, and the changed rows are marked', () => {
+  it('every control edits the draft at once (the list’s widgets draw it), nothing is written, and the changed rows are marked', () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: /^Group by/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Status' }))
@@ -89,7 +99,9 @@ describe('Edit list', () => {
 
     const marked = Array.from(dialog.querySelectorAll('[data-changed]')).map((el) => el.textContent)
     expect(marked).toEqual(['Name', 'Filters', 'Group by', 'Sort by'])
-    expect(within(dialog).getByRole('button', { name: 'Save list' })).toBeEnabled()
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeEnabled()
+    expect(useListDefinitionStore.getState().listDefinitions[0]).toBe(saved)
+    expect(localStorage.getItem('todo2-unsaved-lists')).toBeNull()
   })
 
   it('typing in the form measures the list’s panel no more; a resize measures it again', () => {
@@ -117,36 +129,48 @@ describe('Edit list', () => {
     expect(dialog.querySelectorAll('[data-changed]')).toHaveLength(0)
   })
 
-  it('Save list writes the draft and closes it', async () => {
+  it('Save writes the draft for good as one undo step, and closes it', async () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Name' }))
-    await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save list' })) })
+    await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save' })) })
     expect(draft()).toBeUndefined()
     expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('name')
-    expect(screen.queryByRole('dialog', { name: 'Edit list Waiting on' })).not.toBeInTheDocument()
+    expect(editorOpen()).toBe(false)
     expect(useUIStore.getState().listEditor).toBeNull()
+    await vi.waitFor(() => expect(useUndoStore.getState().undoStack.map((e) => e.description)).toEqual(['Edited list “Waiting on”']))
+    await act(() => useUndoStore.getState().undo())
+    expect(useListDefinitionStore.getState().listDefinitions[0]!.sort).toBe('deadline')
   })
 
-  it('Revert drops the draft, closes it and offers Undo', () => {
+  it('Save writes only what the draft changed: a lens switch written meanwhile stays', async () => {
+    const dialog = open()
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
+    await act(() => useListDefinitionStore.getState().setIgnoreLens(7, true))
+    await act(async () => { fireEvent.click(within(dialog).getByRole('button', { name: 'Save' })) })
+    expect(useListDefinitionStore.getState().listDefinitions[0]).toMatchObject({ name: 'Waiting', ignoreLens: true, sort: 'deadline' })
+  })
+
+  it('Discard drops the draft and closes it, writing nothing', () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Name' }))
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Revert' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }))
     expect(draft()).toBeUndefined()
-    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'List changes reverted' })
-    expect(screen.queryByRole('dialog', { name: 'Edit list Waiting on' })).not.toBeInTheDocument()
+    expect(editorOpen()).toBe(false)
+    expect(useListDefinitionStore.getState().listDefinitions[0]).toBe(saved)
+    expect(useUndoStore.getState().undoStack).toHaveLength(0)
   })
 
   it('an empty name can’t be saved', () => {
     const dialog = open()
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: ' ' } })
     expect(within(dialog).getByLabelText('Name')).toHaveAttribute('aria-invalid', 'true')
-    expect(within(dialog).getByRole('button', { name: 'Save list' })).toBeDisabled()
-    expect(within(dialog).getByRole('button', { name: 'Revert' })).toBeEnabled()
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(within(dialog).getByRole('button', { name: 'Save' })).toHaveAttribute('title', 'Name the list to save it')
   })
 
-  it('Esc closes a list with no unsaved changes at once; an Esc that closes a menu inside only closes the menu', () => {
+  it('Esc closes a list with no changes at once; an Esc that closes a menu inside only closes the menu', () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: /^Sort by/ }))
     fireEvent.keyDown(screen.getByRole('menu', { name: 'Sort by' }), { key: 'Escape' })
@@ -155,69 +179,100 @@ describe('Edit list', () => {
 
     fireEvent.keyDown(within(dialog).getByLabelText('Name'), { key: 'Escape' })
     expect(useUIStore.getState().listEditor).toBeNull()
-    expect(screen.queryByRole('dialog', { name: /Edit list/ })).toBeNull()
+    expect(editorOpen()).toBe(false)
+    expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
   })
 
   it.each([
     ['Esc', (dialog: HTMLElement) => fireEvent.keyDown(within(dialog).getByLabelText('Name'), { key: 'Escape' })],
     ['×', (dialog: HTMLElement) => fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))],
-  ])('%s on an unsaved list closes it at once, nothing asked: the edits stay as the list’s draft', (_key, close) => {
+  ])('%s with changes asks Save / Discard / Keep editing: Keep editing keeps them, Discard drops them', async (_key, close) => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: /^Group by/ }))
     fireEvent.click(screen.getByRole('menuitemradio', { name: 'Status' }))
     close(dialog)
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(useUIStore.getState().listEditor).toBeNull()
+    await answer('Keep editing')
+    expect(editorOpen()).toBe(true)
     expect(draft()).toMatchObject({ grouping: 'status' })
+    close(screen.getByRole('dialog', { name: 'Edit list Waiting on' }))
+    await answer('Discard')
+    expect(editorOpen()).toBe(false)
+    expect(draft()).toBeUndefined()
     expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('people')
   })
 
-  it('× on a list with no unsaved changes closes it at once', () => {
+  it('the question’s Save writes the edits and closes', async () => {
+    const dialog = open()
+    fireEvent.click(within(dialog).getByRole('button', { name: /^Group by/ }))
+    fireEvent.click(screen.getByRole('menuitemradio', { name: 'Status' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
+    await answer('Save')
+    expect(editorOpen()).toBe(false)
+    expect(useListDefinitionStore.getState().listDefinitions[0]!.grouping).toBe('status')
+  })
+
+  it('× on a list with no changes closes it at once', () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close Edit list' }))
     expect(useUIStore.getState().listEditor).toBeNull()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(editorOpen()).toBe(false)
   })
 
-  it('a press in the previewed list closes a list with no unsaved changes, and the press reaches the list', () => {
+  it('a press in the previewed list closes a list with no changes, and the press reaches the list', () => {
     open()
     const row = screen.getByRole('button', { name: 'A row' })
     expect(fireEvent.pointerDown(row)).toBe(true)
     expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('a press elsewhere on an unsaved list closes it at once, and the press reaches what it pressed; the draft stays', () => {
+  it('a press elsewhere with changes asks, and goes no further', async () => {
     const dialog = open()
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
     const row = screen.getByRole('button', { name: 'A row' })
     let clicked = 0
     row.addEventListener('click', () => { clicked++ })
-    expect(fireEvent.pointerDown(row)).toBe(true)
-    expect(fireEvent.mouseDown(row)).toBe(true)
+    fireEvent.pointerDown(row)
+    fireEvent.mouseDown(row)
     fireEvent.click(row)
-    expect(clicked).toBe(1)
-    expect(useUIStore.getState().listEditor).toBeNull()
-    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(clicked).toBe(0)
+    expect(question()).toBeInTheDocument()
+    expect(editorOpen()).toBe(true)
+    await answer('Keep editing')
     expect(draft()).toMatchObject({ name: 'Waiting' })
   })
 
-  it('a press on its own list’s Revert · Save or summary toggle is not a press elsewhere', () => {
-    render(<><Cell /><button type="button" data-edit-list-keep="7">Save</button><button type="button" data-edit-list-keep="8">Other list</button><EditListHost /></>)
+  it('a press on a control acting on its own list (the line’s words or summary) is not a press elsewhere', () => {
+    render(<><Cell /><button type="button" data-edit-list-keep="7">Words</button><button type="button" data-edit-list-keep="8">Other list</button><EditListHost /></>)
     act(() => useUIStore.getState().openListEditor(7, 't1'))
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'Save' }))
+    fireEvent.pointerDown(screen.getByRole('button', { name: 'Words' }))
     expect(useUIStore.getState().listEditor).not.toBeNull()
     fireEvent.pointerDown(screen.getByRole('button', { name: 'Other list' }))
     expect(useUIStore.getState().listEditor).toBeNull()
   })
 
-  it('opening Settings closes it at once while the list is unsaved; the draft stays', () => {
+  it('Edit list asked for another list while this one has changes asks first; nothing else opens', async () => {
+    const dialog = open()
+    fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
+    act(() => openEditList('t2', 8))
+    expect(question()).toBeInTheDocument()
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+    await answer('Discard')
+    expect(useUIStore.getState().listEditor).toBeNull()
+    // Unchanged, it gives way at once.
+    act(() => useUIStore.getState().openListEditor(7, 't1'))
+    act(() => openEditList('t1', 7))
+    expect(useUIStore.getState().confirmPrompts).toHaveLength(0)
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 't1' })
+  })
+
+  it('opening Settings closes it, and its draft goes', () => {
     const dialog = open()
     fireEvent.change(within(dialog).getByLabelText('Name'), { target: { value: 'Waiting' } })
     act(() => useUIStore.getState().openSettings())
     expect(useUIStore.getState().listEditor).toBeNull()
     expect(useUIStore.getState().settingsOpen).toBe(true)
-    expect(screen.queryByRole('dialog')).toBeNull()
-    expect(draft()).toMatchObject({ name: 'Waiting' })
+    expect(editorOpen()).toBe(false)
+    expect(draft()).toBeUndefined()
   })
 
   it('closes when its tab shows another list now (Change list by keyboard): the list left the screen', () => {
@@ -266,7 +321,7 @@ describe('Edit list › Copy from…', () => {
     expect(within(menu).getByRole('menuitem', { name: /^Sibling/ })).toHaveTextContent('All tasks')
   })
 
-  it('a pick copies the source’s parts into the draft — the name kept — as an unsaved edit; Revert drops it', () => {
+  it('a pick copies the source’s parts into the draft — the name kept — as an unsaved edit; Discard drops it', () => {
     const dialog = open()
     fireEvent.click(within(dialog).getByRole('button', { name: 'Copy from…' }))
     fireEvent.click(within(screen.getByRole('menu', { name: 'Copy from' })).getByRole('menuitem', { name: /^Calls/ }))
@@ -278,7 +333,7 @@ describe('Edit list › Copy from…', () => {
     expect(within(dialog).getByRole('status')).toHaveTextContent('Copied from “Calls” · unsaved')
     expect(Array.from(dialog.querySelectorAll('[data-changed]')).map((el) => el.textContent)).toEqual(['Filters', 'Group by', 'Sort by', 'Prompt for', 'Filter line'])
     expect(within(dialog).getByLabelText('Name')).toHaveValue('Waiting on')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Revert' }))
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Discard' }))
     expect(draft()).toBeUndefined()
   })
 
