@@ -1,5 +1,6 @@
-/* A list's top line (list widgets, an Eisenhower widget on a list): screen
- * + list filter chips, the group · sort summary and an unsaved list's
+/* A list's top line (list widgets, an Eisenhower widget on a list): the
+ * list's filter in words (Settings › Eisenhower: its chips), the count while
+ * narrowed, the group · sort summary and an unsaved list's
  * Revert · Save. The host widget is the size container for the narrow
  * rules; a `data-touch-chips` ancestor (phones) gets touch sizes. */
 
@@ -35,11 +36,46 @@
   display: none;
 }
 
-.chipSep {
-  flex-shrink: 0;
-  width: 1px;
-  height: 14px;
-  background: var(--color-border);
+/* A widget's filter in words (UX cleanup 2A): it takes the line's room after
+ * the list's name; `ExpressionWords` clips and fades inside it. */
+.words {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+/* A filter that narrows by nothing: `Every open task`, as muted as the words. */
+.everyTask {
+  display: inline-flex;
+  flex: 0 1 auto;
+  align-items: center;
+  min-width: 0;
+  height: 22px;
+  margin: 0;
+  padding: 0 4px 0 2px;
+  overflow: hidden;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+button.everyTask {
+  cursor: pointer;
+}
+
+button.everyTask:hover {
+  background: var(--color-tint-4);
+  color: var(--color-text-secondary);
+}
+
+[data-touch-chips] .everyTask {
+  height: 32px;
 }
 
 /* Chips wider than their space fade out at the right (Save / Revert never hide). */

@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { rowTitles } from './fixtures/seed'
-import { expectOpenLayout, openCellMenu, openSettings, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, expectOpenLayout, openCellMenu, openListFilterEditor, openSettings, seedTaskList, seedWorkspace, wsCell, wsListWidget, wsShape, wsTab, TASK_LIST_TAB, type WsLayoutSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { createTab } from '../src/models/workspace-layout'
 import { readStore } from './fixtures/db'
 
@@ -109,20 +109,20 @@ test('an unsaved list filter survives a reload, still unsaved; Save writes it', 
   await seedTaskList(page, {
     tasks: [{ title: 'Important one', important: true }, { title: 'Plain one' }],
   })
-  // A screen filter shows the filter row (with its + Filter).
-  await page.getByRole('button', { name: 'Show completed' }).click()
   const widget = wsListWidget(page, TASK_LIST_TAB)
-  await widget.getByRole('button', { name: 'Filter', exact: true }).click()
+  const editor = await openListFilterEditor(page, widget)
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Priority' }).click()
   await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Important' }).click()
   await page.keyboard.press('Escape')
+  await closeListFilterEditor(page)
   await expect(wsCell(page, 'cell').getByTestId('save-list')).toBeVisible()
   expect(await unloadAsks(page)).toBe(false)
 
   await page.reload()
   const after = wsListWidget(page, TASK_LIST_TAB)
   await expect(wsCell(page, 'cell').getByTestId('save-list')).toBeVisible()
-  await expect(after.getByTestId('list-filter-chip')).toHaveText(/Priority\s*Important/)
+  await expect(after.getByTestId('list-filter-expression')).toContainText('Important')
   await expect.poll(() => rowTitles(after)).toEqual(['Important one'])
 
   await wsCell(page, 'cell').getByTestId('save-list').click()
@@ -171,11 +171,12 @@ test('a backup restore drops a kept list change too', async ({ page }) => {
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()
 
-  await page.getByRole('button', { name: 'Show completed' }).click()
-  await wsListWidget(page, TASK_LIST_TAB).getByRole('button', { name: 'Filter', exact: true }).click()
+  const editor = await openListFilterEditor(page, wsListWidget(page, TASK_LIST_TAB))
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Priority' }).click()
   await page.getByTestId('list-filter-picker').getByRole('option', { name: 'Important' }).click()
   await page.keyboard.press('Escape')
+  await closeListFilterEditor(page)
   await expect(wsCell(page, 'cell').getByTestId('save-list')).toBeVisible()
 
   await openSettings(page, 'Backups')

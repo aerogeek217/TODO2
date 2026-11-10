@@ -253,14 +253,14 @@ test('the presets: People · Tags · Status · Custom (no Waiting on)', async ({
   await expect(page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem')).toHaveText(['People', 'Tags', 'Status', 'Custom'])
 })
 
-test('the lens switch at the header’s end: −N while the lens hides tasks here; a click ignores it here (saved at once)', async ({ page }) => {
+test('the lens switch at the header’s end, quiet while it follows the lens (2A); a click ignores it here (saved at once)', async ({ page }) => {
   await seedWorkspace(page, { ...SEED, lenses: [{ id: 'lens-aisha', name: 'Aisha', predicate: { personIds: [1] } }] })
   await expect(chart(page).getByTestId('lens-switch')).toHaveCount(0)
   const control = page.locator('header').getByRole('button', { name: /^Lens:/ })
   await control.click()
   await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Aisha/ }).click()
   const sw = chart(page).getByTestId('lens-switch')
-  await expect(sw).toHaveText('−7')
+  await expect(sw).toHaveAttribute('data-lens-hides', '7')
   await expect(chart(page).getByTestId('glance-section-count')).toHaveText('3 open')
   // At the header's right end, before the ⋯ (shown on hover).
   await chart(page).locator('[data-chart-head]').hover()

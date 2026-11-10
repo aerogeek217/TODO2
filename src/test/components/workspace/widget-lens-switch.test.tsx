@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { WidgetBody } from '../../../components/workspace/WidgetBody'
+import { LensSwitch } from '../../../components/shared/LensSwitch'
 import { useWidgetMenuContent } from '../../../components/workspace/cell-menu'
 import { CellControlsContext, type CellControlsValue } from '../../../components/workspace/cell-controls'
 import { checkLayoutBody } from '../../../data/layout-shape'
@@ -111,7 +112,7 @@ describe('the lens switch in a stored layout (view state)', () => {
 })
 
 describe('a Breakdown’s switch', () => {
-  it('absent with no lens; with one, −N at the end of its header; a click ignores the lens there and the rows follow', () => {
+  it('absent with no lens; with one, quiet at the end of its header; a click ignores the lens there and the rows follow', () => {
     inLayout(createTab('breakdown', 'b', { breakdown: { name: 'People' } }))
     render(<DndContext><CellControlsContext.Provider value={CONTROLS}><Live /></CellControlsContext.Provider></DndContext>)
     expect(screen.queryByTestId('lens-switch')).toBeNull()
@@ -121,7 +122,10 @@ describe('a Breakdown’s switch', () => {
     const lensed = count()
     expect(lensed).not.toBe(all)
     const sw = screen.getByTestId('lens-switch')
-    expect(sw.textContent).toBe(`−${Number.parseInt(all!) - Number.parseInt(lensed!)}`)
+    // Quiet in a desktop cell (2A): no `−N` on it, the number for its tooltip.
+    expect(sw.textContent).toBe('')
+    expect(sw).toHaveAttribute('data-quiet')
+    expect(sw).toHaveAttribute('data-lens-hides', String(Number.parseInt(all!) - Number.parseInt(lensed!)))
     // At the header's end, just before the cell's controls.
     expect(sw.closest('[data-widget-top-line]')!.lastElementChild?.previousElementSibling?.contains(sw)).toBe(true)
     fireEvent.click(sw)
@@ -148,7 +152,7 @@ describe('the calendar’s, the Pivot’s and Project pulse’s', () => {
       return
     }
     expect(sw).not.toBeNull()
-    expect(sw!.textContent).toMatch(/^−[1-9]\d*$/)
+    expect(sw!.getAttribute('data-lens-hides')).toMatch(/^[1-9]\d*$/)
     fireEvent.click(sw!)
     expect(live().viewState).toMatchObject({ ignoreLens: true })
   })
@@ -195,5 +199,28 @@ describe('the Eisenhower’s and the Neglect map’s', () => {
     unmount()
     render(<DndContext><Live /></DndContext>)
     expect(screen.getByTestId('lens-switch').closest('[data-neglect-map]')).not.toBeNull()
+  })
+})
+
+describe('the quiet switch (UX cleanup 2A)', () => {
+  const on = { name: 'Mine', ignored: false, hides: 4 }
+  it('quiet and following the lens: the glasses alone, the number for its tooltip', () => {
+    render(<LensSwitch lens={on} onToggle={() => {}} quiet />)
+    const sw = screen.getByTestId('lens-switch')
+    expect(sw.textContent).toBe('')
+    expect(sw).toHaveAttribute('data-quiet')
+    expect(sw).toHaveAttribute('data-lens-hides', '4')
+  })
+
+  it('quiet but ignoring the lens: never hidden (the slashed glasses are the exception it flags)', () => {
+    render(<LensSwitch lens={{ ...on, ignored: true }} onToggle={() => {}} quiet />)
+    expect(screen.getByTestId('lens-switch')).not.toHaveAttribute('data-quiet')
+  })
+
+  it('not quiet (the review deck, an editor, the phone): its −N on it, always shown', () => {
+    render(<LensSwitch lens={on} onToggle={() => {}} />)
+    const sw = screen.getByTestId('lens-switch')
+    expect(sw).toHaveTextContent('−4')
+    expect(sw).not.toHaveAttribute('data-quiet')
   })
 })

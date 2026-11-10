@@ -96,7 +96,7 @@ interface TabProps {
   active: boolean
   collapsed: boolean
   count?: string
-  /** The top bar's lens on the tab's list, beside its count (while the list's filter line is hidden). */
+  /** The top bar's lens on the tab's list, before its count (while the list's filter line is hidden and it ignores the lens). */
   lens?: ListLensMark
   /** Touch layout: taller tabs, no close ×, not draggable. */
   touch: boolean
@@ -226,9 +226,9 @@ interface CellTabStripProps {
   /** The cell whose tabs these are. */
   cell: Pick<LayoutCell, 'tabs' | 'activeTabId'>
   collapsed: boolean
-  /** Task count of the active tab (list / Eisenhower: `N`, `shown of total`, or `—`). */
+  /** Task count of the active tab (list / Eisenhower: `shown of total`, only while the screen filter or the lens narrows it). */
   activeCount?: string
-  /** The top bar's lens on the active tab's list, beside its count (a list whose filter line is hidden). */
+  /** The top bar's lens on the active tab's list: slashed, while a list whose filter line is hidden ignores it. */
   activeLens?: ListLensMark
   /** While a tab or a panel is dragged over this panel's middle: the ghost tab(s), at the end of the strip. */
   ghosts?: readonly DraggedTab[] | null

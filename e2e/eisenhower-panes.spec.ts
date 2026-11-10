@@ -115,7 +115,8 @@ test.describe('desktop', () => {
     await expect(quadrant(page, 'do').getByTestId('eisenhower-pane-custom')).toHaveCount(0)
     await expectLayoutStored(page)
     await expect.poll(() => storedPanes(page)).toMatchObject({ delegate: { filter: { negate: { statusIds: true } } } })
-    await expect(wsTab(page, 'eisTab')).toContainText('3 of 4')
+    // The screen filter narrows nothing: no count (one number, 2A) — the line under the matrix says it.
+    await expect(page.getByTestId('eisenhower-line-count')).toHaveCount(0)
 
     // The line under the matrix opens the task in the task dialog.
     await expect(noPane(page)).toHaveText('1 open task in no pane')

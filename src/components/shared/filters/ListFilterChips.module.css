@@ -186,17 +186,7 @@
   min-height: 32px;
 }
 
-/* The list widget's own chips: a screen filter (read-only) and the
- * group · sort summary that opens Edit list. */
-.screenChip {
-  composes: chip;
-  padding-left: 6px;
-  background: transparent;
-  box-shadow: inset 0 0 0 1px var(--color-accent-dim);
-  color: var(--color-accent-text);
-  cursor: default;
-}
-
+/* The list widget's group · sort summary that opens Edit list. */
 .summary {
   composes: chip;
   flex-shrink: 0;

@@ -1,6 +1,7 @@
 import { createContext, useContext, useState } from 'react'
 import { tabIgnoresLens, type LensSwitchTab } from '../models/workspace-layout'
 import { useFilterStore } from '../stores/filter-store'
+import { useIsMobile } from './use-is-mobile'
 import { useAppliedLens, type ScreenFilterState } from '../stores/screen-filter'
 import { useWorkspaceStore } from '../stores/workspace-store'
 import { withLens, type Lens } from '../utils/lens'
@@ -70,6 +71,16 @@ export function setTabIgnoresLens(tab: LensSwitchTab, ignore: boolean): void {
     case 'pivot': void ws.patchTabViewState(tab.id, 'pivot', patch); return
     case 'tagMap': void ws.patchTabViewState(tab.id, 'tagMap', patch); return
   }
+}
+
+/**
+ * Whether a widget's (or a list's) lens switch in a cell is quiet (UX
+ * cleanup 2A, `LensSwitch`'s `quiet`): on desktop, where a cell has hover —
+ * following the lens it shows only on the cell's hover and focus, without
+ * its `−N`. The phone keeps it shown, with its `−N`.
+ */
+export function useQuietLensSwitch(): boolean {
+  return !useIsMobile()
 }
 
 /** A widget's switch: its mark (while shown) and its toggle. */

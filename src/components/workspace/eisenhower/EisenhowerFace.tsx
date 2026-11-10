@@ -34,13 +34,13 @@ function paneTotal(summary: EisenhowerSummary): number {
  *   undated last, `sortOrder`). A count opens its pane's tasks in the task
  *   dialog; a title opens the task.
  *
- * Reports the panes' open count for the tab (`n of N` while the screen
- * filter hides some), as the whole widget reports its own.
+ * Reports the panes' open count for the tab (`n of N`, only while the
+ * screen filter hides some), as the whole widget reports its own.
  */
 export function EisenhowerFace({ face, tabId, onCount }: {
   face: Exclude<WidgetFace, 'large'>
   tabId: string
-  onCount?: (countLabel: string) => void
+  onCount?: (countLabel: string | undefined) => void
 }) {
   const base = useStatsBase()
   const { eisenhower, eisenhowerSetup } = useEisenhowerStats(base)
@@ -51,7 +51,8 @@ export function EisenhowerFace({ face, tabId, onCount }: {
 
   const open = paneTotal(shown)
   const openTotal = paneTotal(total)
-  const countLabel = open < openTotal ? `${open} of ${openTotal}` : String(open)
+  // One number (UX cleanup 2A): a tab count only while the screen filter or the lens hides some.
+  const countLabel = open < openTotal ? `${open} of ${openTotal}` : undefined
   const onCountRef = useLatestRef(onCount)
   useEffect(() => { onCountRef.current?.(countLabel) }, [countLabel, onCountRef])
 

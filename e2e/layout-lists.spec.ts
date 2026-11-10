@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { expectOpenLayout, openLayoutAction, openSettings, readListDefinitions, seedWorkspace, switchLayout as openLayout, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, expectOpenLayout, openListFilterEditor, openLayoutAction, openSettings, readListDefinitions, seedWorkspace, switchLayout as openLayout, wsCell, wsTab, type WorkspaceSeed, wsRow, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
@@ -98,14 +98,16 @@ test('Duplicate layout: the new layout shows copies of its lists that edit on th
   expect(copy.id).not.toBe(mine.id)
   await expectLayoutStored(page)
 
-  // Edit the copy's filter from its line: Text contains "plumber"; Save.
+  // Edit the copy's filter (Edit list, from its line's words): Text contains "plumber"; Save.
   await wsTab(page, 'mineTab').click()
   const widget = wsCell(page, 'a1')
-  await filterLine(widget).getByRole('button', { name: 'Filter', exact: true }).click()
+  const editor = await openListFilterEditor(page, widget)
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: /Text contains/ }).click()
   await page.keyboard.type('plumber')
   await page.keyboard.press('Enter')
   await expect(widget.locator('[data-row-key]').filter({ hasText: 'Book flights' })).toHaveCount(0)
+  await closeListFilterEditor(page)
   await filterLine(widget).getByTestId('save-list').click()
   await expect.poll(async () => (await lists(page)).find((d) => d.id === copy.id)?.membership.predicate.searchText).toBe('plumber')
   expect((await lists(page)).find((d) => d.id === mine.id)?.membership.predicate.searchText).toBe('')

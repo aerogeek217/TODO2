@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import type { LensTab } from '../../../models/workspace-layout'
 import { useIsListDirty } from '../../../hooks/use-list-draft'
+import { useQuietLensSwitch } from '../../../hooks/use-widget-lens'
 import { useTabBadges } from '../../../hooks/use-tab-badges'
 import { BadgeCapsule } from '../../shared/BadgeCapsule'
 import { LensSwitch } from '../../shared/LensSwitch'
@@ -30,19 +31,21 @@ export function ListTopLineLead({ tab, listId }: { tab: LensTab; listId: number 
 /**
  * A list whose filter line is hidden, alone in its cell: its top line is a
  * slim one with what its tab would show — the name, the unsaved dot, the
- * badge and the count — and, at its end, the lens switch (G3).
+ * badge and the count (while the screen filter or the lens narrows it) —
+ * and, at its end, the lens switch (G3; quiet on desktop).
  */
 export function ListNameLine({ tab, listId, count, lens, onToggleLens }: {
   tab: LensTab
   listId: number
-  count: string
+  count?: string
   lens?: ListLensMark
   onToggleLens?: () => void
 }) {
+  const quietLens = useQuietLensSwitch()
   return (
     <WidgetTopLine alone className={styles.nameLine} lead={<ListTopLineLead tab={tab} listId={listId} />} data-testid="list-name-line">
-      <span className={styles.count} data-testid="list-count">{count}</span>
-      {lens && onToggleLens && <LensSwitch lens={lens} onToggle={onToggleLens} noun="list" />}
+      {count != null && <span className={styles.count} data-testid="list-count">{count}</span>}
+      {lens && onToggleLens && <LensSwitch lens={lens} onToggle={onToggleLens} noun="list" quiet={quietLens} />}
     </WidgetTopLine>
   )
 }

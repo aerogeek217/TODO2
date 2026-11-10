@@ -18,8 +18,8 @@ import { db } from '../../../data/database'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
 
 /**
- * A list's switch for the top bar's lens (its filter line's glasses and
- * `−N`, then the list's count): what the lens hides here, turned off and on
+ * A list's switch for the top bar's lens (its filter line's glasses — quiet
+ * on desktop, its `−N` in the tooltip — and the list's count while narrowed): what the lens hides here, turned off and on
  * for this list alone, saved at once on the saved list — never a draft
  * edit. With the line hidden, the tab carries the count and the lens.
  */
@@ -52,7 +52,7 @@ async function setup(d: PersistedListDefinition) {
 
 const titles = () => Array.from(document.querySelectorAll('[data-todo-id]')).map((el) => el.querySelector('[data-task-title]')?.getAttribute('data-task-title'))
 const lensSwitch = () => screen.queryByTestId('lens-switch')
-const count = () => screen.getByTestId('list-count').textContent
+const count = () => screen.queryByTestId('list-count')?.textContent ?? null
 
 /** Picks a lens keeping Alice's tasks (it hides Bob's). */
 function pickAliceLens(predicate = { ...emptyPredicate(), personIds: [1] }) {
@@ -81,10 +81,10 @@ afterEach(async () => {
 })
 
 describe('a list’s lens switch', () => {
-  it('no lens, or a lens that hides nothing here: no switch; the count is on the line, not the tab', async () => {
+  it('no lens, or a lens that hides nothing here: no switch and no count (one number per list, 2A)', async () => {
     const { result } = await setup(def())
     expect(lensSwitch()).toBeNull()
-    expect(count()).toBe('3')
+    expect(count()).toBeNull()
     expect(result()?.countLabel).toBeUndefined()
     act(() => pickAliceLens({ ...emptyPredicate(), personIds: [1, 2] }))
     expect(lensSwitch()).toBeNull()
@@ -97,12 +97,14 @@ describe('a list’s lens switch', () => {
     expect(count()).toBe('2 of 3')
     const on = lensSwitch()!
     expect(on).toHaveAttribute('aria-pressed', 'true')
-    expect(on).toHaveTextContent('−1')
+    // Quiet in a desktop cell (2A): no `−N` on it; its tooltip says what it hides.
+    expect(on.textContent).toBe('')
+    expect(on).toHaveAttribute('data-lens-hides', '1')
     expect(on).toHaveAccessibleName('Apply the lens “Alice only” here')
 
     fireEvent.click(on)
     await waitFor(() => expect(titles()).toEqual(['Alice task', 'Bob task', 'Shared task']))
-    expect(count()).toBe('3')
+    expect(count()).toBeNull()
     const off = lensSwitch()!
     expect(off).toHaveAttribute('aria-pressed', 'false')
     // The same name: a toggle's state is its `aria-pressed` alone (U7).
@@ -131,7 +133,7 @@ describe('a list’s lens switch', () => {
     const on = lensSwitch()
     expect(on).toBe(off)
     expect(on).toHaveAttribute('aria-pressed', 'true')
-    expect(on).toHaveTextContent('−0')
+    expect(on).toHaveAttribute('data-lens-hides', '0')
     expect(document.activeElement).toBe(on)
     // Another lens picked: the switch is back to its rule (nothing hidden here, so none).
     act(() => useSettingsStore.setState({
@@ -171,5 +173,14 @@ describe('a list’s lens switch', () => {
     const { result } = await setup(def({ showFilterLine: false }))
     expect(screen.queryByTestId('list-filter-row')).toBeNull()
     expect(result()).toMatchObject({ countLabel: '2 of 3', lens: { name: 'Alice only', ignored: false, hides: 1, listId: 7 } })
+    // Following the lens, the tab's count says it: no lens mark on the tab.
+    expect(result()?.tabLens).toBeUndefined()
+  })
+
+  it('with the filter line hidden, a list that ignores the lens marks its tab, with no count', async () => {
+    pickAliceLens()
+    const { result } = await setup(def({ showFilterLine: false, ignoreLens: true }))
+    expect(result()?.countLabel).toBeUndefined()
+    expect(result()?.tabLens).toMatchObject({ name: 'Alice only', ignored: true })
   })
 })

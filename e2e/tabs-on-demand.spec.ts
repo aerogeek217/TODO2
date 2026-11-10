@@ -172,15 +172,17 @@ test('a list widget alone: its name and badge sit on its filter line', async ({ 
   await expect(line.getByTestId('top-line-name')).toHaveText('Inbox')
   await expect(line.locator('[data-top-line-badge]')).toBeVisible()
   await expect(line.locator('[data-top-line-badge] [data-badge-part="due"]')).toHaveText('1')
-  await expect(line.getByTestId('list-count')).toHaveText('2')
+  // One number per list (2A): the badge; no count while nothing narrows the list.
+  await expect(line.getByTestId('list-count')).toHaveCount(0)
   await expect(cell.getByRole('tablist')).toHaveCount(0)
-  // Name, badge and the line's own chips on one line, the ⋯ at its end.
+  // Name, badge and the line's filter in words on one line, the ⋯ at its end.
+  await expect(line.getByTestId('list-filter-every')).toHaveText('Every open task')
   const nameBox = await box(line.getByTestId('top-line-name'))
   const moreBox = await box(line.getByRole('button', { name: 'Cell options' }))
   expect(Math.abs(nameBox.y + nameBox.height / 2 - (moreBox.y + moreBox.height / 2))).toBeLessThanOrEqual(2)
 })
 
-test('a list whose filter line is hidden: alone, a slim top line still names it with its badge and count', async ({ page }) => {
+test('a list whose filter line is hidden: alone, a slim top line still names it with its badge (no count while nothing narrows it)', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Inbox', showFilterLine: false }],
     tasks: [{ title: 'Due today', dueInDays: 0 }],
@@ -191,7 +193,7 @@ test('a list whose filter line is hidden: alone, a slim top line still names it 
   const line = cell.getByTestId('list-name-line')
   await expect(line.getByTestId('top-line-name')).toHaveText('Inbox')
   await expect(line.locator('[data-top-line-badge]')).toBeVisible()
-  await expect(line.getByTestId('list-count')).toHaveText('1')
+  await expect(line.getByTestId('list-count')).toHaveCount(0)
 })
 
 test('a collapsed row shows each cell’s top line', async ({ page }) => {

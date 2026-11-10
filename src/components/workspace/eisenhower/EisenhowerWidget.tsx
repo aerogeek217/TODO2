@@ -82,8 +82,8 @@ export const EISENHOWER_STACK_BREAKPOINT_PX = 560
 
 /** What the widget reports to its cell: the tab count. */
 export interface EisenhowerResult {
-  /** Open tasks shown; `shown of total` when the screen filter (or the panes) hide some. */
-  countLabel: string
+  /** `shown of total` open tasks — only while the screen filter or the lens hides some (UX cleanup 2A: else no count). */
+  countLabel?: string
 }
 
 /** The default panes' empty lines (each quadrant's filter, `eisenhower-panes`' `QUADRANT_MARKERS`, in words). */
@@ -503,8 +503,10 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
     [panes, names],
   )
   const noneOpen = useMemo(() => none.filter((t) => !t.isCompleted), [none])
-  const openShown = useMemo(() => countOpen(shown) - noneOpen.length, [shown, noneOpen])
-  const countLabel = openShown < openTotal ? `${openShown} of ${openTotal}` : String(openShown)
+  const openConsidered = useMemo(() => countOpen(shown), [shown])
+  const openShown = openConsidered - noneOpen.length
+  // One number (UX cleanup 2A): a count only while the screen filter or the lens narrows the list's tasks.
+  const countLabel = openConsidered < openTotal ? `${openShown} of ${openTotal}` : undefined
 
   const onResultRef = useLatestRef(onResult)
   useEffect(() => {
@@ -582,7 +584,7 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
     >
       {/* Alone in its cell, its top line (D26 AA1): a slim name line. */}
       <WidgetNameLine name="Eisenhower" unsaved={listUnsaved}>
-        <span className={styles.lineCount} data-testid="eisenhower-line-count">{countLabel}</span>
+        {countLabel != null && <span className={styles.lineCount} data-testid="eisenhower-line-count">{countLabel}</span>}
         {alone && lensSwitch}
       </WidgetNameLine>
       {list && <ListFilterRow tabId={tab.id} definition={list.definition} summary={false} trailing={alone ? undefined : lensSwitch} />}

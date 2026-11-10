@@ -3,7 +3,8 @@ import { seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStored } from './
 
 /**
  * One lens switch on every widget the top bar's filter reaches (G3, board
- * BD): the list's glasses with `−N`, at the right end of the widget's
+ * BD): the list's glasses — quiet in a cell (UX cleanup 2A: shown on the
+ * cell's hover and focus, its `−N` in the tooltip) —, at the right end of the widget's
  * header before the cell's ⋯ — a Number's over its top-right corner, as
  * its label is inside its button — slashed once the widget ignores the
  * lens, saved at once (never an unsaved layout edit), its data following.
@@ -50,7 +51,9 @@ test('the calendar’s switch ends its header; a click ignores the lens there an
   await expect(page.getByTestId('lens-switch')).toHaveCount(0)
   await pickLens(page, 'Aisha')
   const sw = calendar(page).getByTestId('lens-switch')
-  await expect(sw).toHaveText('−2')
+  // Quiet (2A): the glasses alone, what it hides in its tooltip.
+  await expect(sw).toHaveText('')
+  await expect(sw).toHaveAttribute('data-lens-hides', '2')
   await expect(sw).toHaveAttribute('aria-pressed', 'true')
   // The header's last control before the ⋯ (shown on hover).
   await calendar(page).getByTestId('calendar-range-label').hover()
@@ -73,7 +76,7 @@ test('a Number’s switch sits over its top-right corner, left of the cell’s �
   const count = number(page).getByTestId('number-count')
   await expect(count).toHaveText('1of 3')
   const sw = number(page).getByTestId('lens-switch')
-  await expect(sw).toHaveText('−2')
+  await expect(sw).toHaveAttribute('data-lens-hides', '2')
   await number(page).hover()
   const more = (await page.locator('[data-ws-cell="k2"]').getByRole('button', { name: 'Cell options' }).boundingBox())!
   const sb = (await sw.boundingBox())!
@@ -90,10 +93,18 @@ test('in a cell of several widgets the Neglect map’s switch floats over its co
   await seedWorkspace(page, SEED)
   await pickLens(page, 'Aisha')
   const cell = page.locator('[data-ws-cell="k3"]')
-  await expect(cell.locator('[data-neglect-map]').getByTestId('lens-switch')).toHaveText('−2')
+  const floating = cell.locator('[data-neglect-map]').getByTestId('lens-switch')
+  await expect(floating).toHaveAttribute('data-lens-hides', '2')
+  // Hidden at rest, the floating switch takes no press: one at its spot reaches the map under it.
+  await page.mouse.move(2, 2)
+  await expect.poll(() => floating.evaluate((el) => {
+    const r = el.getBoundingClientRect()
+    const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+    return { opacity: getComputedStyle(el).opacity, onSwitch: hit != null && el.parentElement!.contains(hit) }
+  })).toEqual({ opacity: '0', onSwitch: false })
   await cell.getByRole('tab', { name: /Pivot/ }).click()
   const pivot = page.locator('[data-chart="pv"]')
-  await expect(pivot.locator('[data-widget-top-line]').getByTestId('lens-switch')).toHaveText('−2')
+  await expect(pivot.locator('[data-widget-top-line]').getByTestId('lens-switch')).toHaveAttribute('data-lens-hides', '2')
   await pivot.getByTestId('lens-switch').click()
   await expect(pivot.getByTestId('glance-section-count')).toHaveText('3 open')
 })
