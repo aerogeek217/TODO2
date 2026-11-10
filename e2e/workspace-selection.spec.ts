@@ -148,7 +148,7 @@ test('a click outside the rows clears the selection; rows, the bulk bar, menus a
   await expect(selected).toHaveCount(2)
 
   // Cleared: the top bar's search box.
-  await page.getByRole('textbox', { name: 'Search tasks' }).click()
+  await page.getByRole('textbox', { name: 'Filter tasks' }).click()
   await expect(selected).toHaveCount(0)
   await expect(bulkBar).toHaveCount(0)
 

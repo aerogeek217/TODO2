@@ -289,15 +289,15 @@ test('Esc closes it (after a menu inside) and returns focus to the summary; unsa
   await expect(summary).toHaveText('Name')
 })
 
-test('the filter line always shows (No filters + the summary); Revert · Save join it while unsaved; Revert drops the edit with Undo; reload keeps it unsaved', async ({ page }) => {
+test('the filter line always shows (Every open task + the summary); Revert · Save join it while unsaved; Revert drops the edit with Undo; reload keeps it unsaved', async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 })
   await seedWorkspace(page, shared)
   const widget = wsListWidget(page, 't1')
-  // Saved, nothing set: the line is there — No filters, + Filter and Manual — without Revert · Save.
+  // Saved, nothing set: the line is there — `Every open task` in words (no + Filter, 2A) and Manual — without Revert · Save.
   const saved = widget.getByTestId('list-filter-row')
   await expect(saved).toBeVisible()
-  await expect(saved).toContainText('No filters')
-  await expect(saved.getByRole('button', { name: ADD_FILTER }).first()).toBeVisible()
+  await expect(saved).toContainText('Every open task')
+  await expect(saved.getByRole('button', { name: ADD_FILTER })).toHaveCount(0)
   await expect(saved.getByTestId('list-summary')).toHaveText('Manual')
   await expect(saved.getByTestId('save-list')).toHaveCount(0)
   await expect(saved.getByTestId('revert-list')).toHaveCount(0)
@@ -307,7 +307,7 @@ test('the filter line always shows (No filters + the summary); Revert · Save jo
 
   await editListDraft(page, 'Team', { sort: 'priority' })
   const line = widget.getByTestId('list-filter-row')
-  await expect(line).toContainText('No filters')
+  await expect(line).toContainText('Every open task')
   await expect(line.getByTestId('list-summary')).toHaveText('Priority')
   // Order: summary · Revert · Save, at the line's right end.
   const [s, r, v] = await Promise.all([line.getByTestId('list-summary'), line.getByTestId('revert-list'), line.getByTestId('save-list')].map(box))
@@ -318,7 +318,7 @@ test('the filter line always shows (No filters + the summary); Revert · Save jo
 
   // Reload: still unsaved, the line still there.
   await page.reload()
-  await expect(wsListWidget(page, 't1').getByTestId('list-filter-row')).toContainText('No filters')
+  await expect(wsListWidget(page, 't1').getByTestId('list-filter-row')).toContainText('Every open task')
   await expect(wsListWidget(page, 't1').getByTestId('save-list')).toBeVisible()
 
   // Revert: Revert · Save gone in every widget (the line stays); Undo brings them back.
@@ -362,4 +362,43 @@ test('a narrow widget: Revert · Save become icon buttons, never hidden', async 
     expect(b.x + b.width).toBeLessThanOrEqual((await box(line)).x + (await box(line)).width)
   }
   await expect(line.getByTestId('list-summary')).toBeHidden()
+})
+
+test('the filter line reads the list’s filter in words; a click on them opens Edit list, a second closes it (2A)', async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await seedWorkspace(page, { ...shared, listDefinitions: [{ name: 'Team', people: ['Alice'] }, { name: 'Other' }] })
+  const line = wsListWidget(page, 't1').getByTestId('list-filter-row')
+  // Words, muted, one line: no chips, no ×, no + Filter.
+  const words = line.getByTestId('list-filter-expression')
+  await expect(words).toContainText('Alice')
+  await expect(line.getByTestId('list-filter-chip')).toHaveCount(0)
+  await expect(line.getByRole('button', { name: 'Remove filter' })).toHaveCount(0)
+  await expect(line.getByRole('button', { name: ADD_FILTER })).toHaveCount(0)
+  const b = await box(words)
+  expect(b.height).toBeLessThanOrEqual(22.5)
+  await words.click()
+  await expect(editList(page)).toBeVisible()
+  await expect(editList(page).getByTestId('list-filter-chip')).toHaveText(/People\s*Alice/)
+  await words.click()
+  await expect(editList(page)).toHaveCount(0)
+  // An empty filter reads Every open task, and opens Edit list the same way.
+  await wsListWidget(page, 't0').getByRole('button', { name: 'Every open task' }).click()
+  await expect(editList(page)).toBeVisible()
+})
+
+test.describe('phone', () => {
+  test.use({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
+
+  test('the filter line reads in words; a tap opens Edit list (its sheet)', async ({ page }) => {
+    await seedWorkspace(page, {
+      ...shared,
+      listDefinitions: [{ name: 'Team', people: ['Alice'] }],
+      layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
+    })
+    const line = wsCell(page, 'k1').getByTestId('list-filter-row')
+    await expect(line.getByTestId('list-filter-chip')).toHaveCount(0)
+    await line.getByTestId('list-filter-expression').tap()
+    await expect(editList(page)).toBeVisible()
+    await expect(editList(page).getByTestId('list-filter-chip')).toHaveText(/People\s*Alice/)
+  })
 })

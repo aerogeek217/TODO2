@@ -86,7 +86,7 @@ describe('EisenhowerWidget', () => {
     // Overdue (urgent by date) first, then the undated flagged task.
     expect(titles('delegate')).toEqual(['Call plumber', 'Analytics'])
     expect(titles('drop')).toEqual(['Vendor', 'Blog'])
-    expect(lastResult).toEqual({ countLabel: '7' })
+    expect(lastResult).toEqual({ countLabel: undefined })
   })
 
   it('completed tasks show with "Show completed", by their flags, last, and don\'t count', () => {
@@ -95,7 +95,7 @@ describe('EisenhowerWidget', () => {
     // Overdue but completed: only its flag counts (urgent, not important).
     expect(titles('delegate')).toEqual(['Call plumber', 'Analytics', 'Old report'])
     expect(count('delegate')).toBe('2')
-    expect(lastResult).toEqual({ countLabel: '7' })
+    expect(lastResult).toEqual({ countLabel: undefined })
   })
 
   it('the urgent range moves tasks: Off → only flags count', () => {
@@ -126,13 +126,13 @@ describe('EisenhowerWidget', () => {
     expect(panel).toHaveTextContent('All 7 open tasks are hidden by the screen filter.')
     expect(within(quadrant('do')).queryByText('Nothing urgent and important')).toBeNull()
     fireEvent.click(within(panel).getByRole('button', { name: 'Clear screen filter' }))
-    expect(lastResult).toEqual({ countLabel: '7' })
+    expect(lastResult).toEqual({ countLabel: undefined })
   })
 
   it('no tasks at all: every quadrant shows its own lines', () => {
     useTodoStore.setState({ todos: [] })
     setup()
-    expect(lastResult).toEqual({ countLabel: '0' })
+    expect(lastResult).toEqual({ countLabel: undefined })
     expect(within(widget()).queryByRole('status')).toBeNull()
     expect(within(quadrant('drop')).getByText('Tasks with neither flag land here.')).toBeInTheDocument()
   })
@@ -205,7 +205,7 @@ describe('EisenhowerWidget on its list', () => {
     // Draft OKRs (2) and Blog (7) are Waiting: the list leaves them out.
     expect(titles('schedule')).toEqual(['Board update'])
     expect(titles('drop')).toEqual(['Vendor'])
-    expect(lastResult).toEqual({ countLabel: '5' })
+    expect(lastResult).toEqual({ countLabel: undefined })
     // The list's filter line, without the group · sort summary.
     const line = within(document.querySelector<HTMLElement>('[data-list-host="eis"]')!).getByTestId('list-filter-row')
     expect(line).toHaveTextContent('not Waiting')
@@ -225,10 +225,10 @@ describe('EisenhowerWidget on its list', () => {
   it('switching the source back to all tasks shows every task again', () => {
     useListDefinitionStore.setState({ listDefinitions: [listDef({}, notWaiting)] })
     setupOnList()
-    expect(lastResult).toEqual({ countLabel: '5' })
+    expect(lastResult).toEqual({ countLabel: undefined })
     act(() => useSettingsStore.setState({ eisenhowerListId: null }))
     expect(titles('schedule')).toEqual(['Draft OKRs', 'Board update'])
-    expect(lastResult).toEqual({ countLabel: '7' })
+    expect(lastResult).toEqual({ countLabel: undefined })
     expect(document.querySelector('[data-list-host]')).toBeNull()
   })
 
@@ -236,9 +236,9 @@ describe('EisenhowerWidget on its list', () => {
     const saved = listDef()
     useListDefinitionStore.setState({ listDefinitions: [saved] })
     setupOnList()
-    expect(lastResult).toEqual({ countLabel: '7' })
+    expect(lastResult).toEqual({ countLabel: undefined })
     act(() => useListDraftStore.getState().edit(7, (d) => ({ ...d, membership: { kind: 'custom', predicate: { ...d.membership.predicate, ...notWaiting } } })))
-    expect(lastResult).toEqual({ countLabel: '5' })
+    expect(lastResult).toEqual({ countLabel: undefined })
     expect(screen.getByTestId('save-list')).toBeInTheDocument()
   })
 
@@ -254,13 +254,13 @@ describe('EisenhowerWidget on its list', () => {
   it('ignores the list\'s prompt (a temporary pick): every member shows', () => {
     useListDefinitionStore.setState({ listDefinitions: [listDef({ runtimeFilter: { field: 'status' } }, notWaiting)] })
     setupOnList()
-    expect(lastResult).toEqual({ countLabel: '5' })
+    expect(lastResult).toEqual({ countLabel: undefined })
   })
 
   it('names the list\'s filter when it hides every open task', () => {
     useListDefinitionStore.setState({ listDefinitions: [listDef({}, { searchText: 'nothing like this' })] })
     setupOnList()
-    expect(lastResult).toEqual({ countLabel: '0' })
+    expect(lastResult).toEqual({ countLabel: undefined })
     const panel = within(widget()).getByRole('status')
     expect(panel).toHaveTextContent('All 7 open tasks are hidden by the filters of “Not waiting”.')
     fireEvent.click(within(panel).getByRole('button', { name: 'Edit list' }))
@@ -286,8 +286,11 @@ describe('EisenhowerWidget on its list', () => {
     usePersonStore.setState({ people: [makePerson({ id: 9, name: 'Dana' })] })
     useListDefinitionStore.setState({ listDefinitions: [listDef({ name: 'Eisenhower', owner: { eisenhower: true } })] })
     setupOnList()
-    expect(lastResult).toEqual({ countLabel: '7' })
-    expect(within(screen.getByTestId('list-filter-row')).getByText('No filters')).toBeInTheDocument()
+    expect(lastResult).toEqual({ countLabel: undefined })
+    // In words (2A): a filter that narrows by nothing; a click opens Edit list.
+    fireEvent.click(within(screen.getByTestId('list-filter-row')).getByRole('button', { name: 'Every open task' }))
+    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: 7, tabId: 'eis' })
+    act(() => useUIStore.getState().closeListEditor())
     act(() => useFilterStore.getState().setPersonIds(new Set([9])))
     fireEvent.click(within(quadrant('do')).getByRole('button', { name: 'Add task to Do' }))
     expect(useUIStore.getState().quickAddDraft).toMatchObject({
@@ -299,7 +302,7 @@ describe('EisenhowerWidget on its list', () => {
   it('a list that is gone (not loaded yet) shows every task', () => {
     useListDefinitionStore.setState({ listDefinitions: [] })
     setupOnList()
-    expect(lastResult).toEqual({ countLabel: '7' })
+    expect(lastResult).toEqual({ countLabel: undefined })
     expect(screen.queryByText('This list was deleted')).toBeNull()
     expect(screen.queryByTestId('list-filter-row')).toBeNull()
   })
@@ -337,7 +340,7 @@ describe('EisenhowerWidget — a completed row leaves its quadrant (D19)', () =>
     expect(leavingOf('schedule', 2)).toBe('fold')
     act(() => { vi.advanceTimersByTime(180) })
     expect(titles('schedule')).toEqual(['Board update'])
-    expect(lastResult).toEqual({ countLabel: '6' })
+    expect(lastResult).toEqual({ countLabel: undefined })
   })
 
   it('reopened while it lingers, it simply stays', () => {

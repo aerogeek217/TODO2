@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { expectPeopleLoaded } from './fixtures/filters'
 import { seedTaskList } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
@@ -16,7 +17,7 @@ const surfaceOf = (page: Page) => page.getByRole('dialog', { name: 'Quick add ta
 
 async function openQuickAdd(page: Page): Promise<Locator> {
   await seedTaskList(page, { people: [{ name: 'Alice Smith', initials: 'AS' }] })
-  await expect(page.getByRole('button', { name: 'People filter' })).toBeVisible()
+  await expectPeopleLoaded(page)
   await page.keyboard.press('Control+Space')
   const input = page.getByRole('dialog', { name: 'Quick add task' }).getByPlaceholder('New task…')
   await expect(input).toBeFocused()
@@ -68,7 +69,7 @@ test('a `/` command popup also leaves the Details button uncovered', async ({ pa
 
 test('a long title keeps it inside the window, under the input; a resize re-places it', async ({ page }) => {
   const input = await openQuickAdd(page)
-  // Narrowed after the load signal (the People filter folds away below 1280px).
+  // Narrowed after the load signal (the people loaded).
   await page.setViewportSize({ width: 900, height: 700 })
   await expect.poll(async () => Math.round((await box(input)).x + (await box(input)).width)).toBeLessThan(900)
   await page.keyboard.type('A long task title that runs well along the field and then keeps on going for a while @al')

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { ADD_FILTER, openSettings, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { filterChip, filterMenu, filterMenuRow, filterTray, openFilterPicker } from './fixtures/filters'
+import { ADD_FILTER, openListFilterEditor, openSettings, readListDefinitions, seedWorkspace, withSpareLayouts, wsListWidget, wsTab, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 import { rowTitles } from './fixtures/seed'
 import { readStore } from './fixtures/db'
 
@@ -35,7 +36,7 @@ test.describe('desktop', () => {
     await seedWorkspace(page, SEED)
     await expect.poll(() => sorted(page)).toEqual(ALL.toSorted())
 
-    await page.getByRole('button', { name: 'Priority filter' }).click()
+    await openFilterPicker(page, 'Priority')
     await expect(page.getByRole('radio', { name: 'Is', exact: true })).toHaveAttribute('aria-checked', 'true')
     await row(page, 'Urgent').click()
     await expect.poll(() => sorted(page)).toEqual(['Both', 'Due tomorrow', 'Flagged urgent'])
@@ -43,8 +44,10 @@ test.describe('desktop', () => {
     await row(page, 'Important').click()
     await expect.poll(() => sorted(page)).toEqual(['Both', 'Due tomorrow', 'Flagged urgent', 'Important only'])
     await page.keyboard.press('Escape')
-    const both = page.getByRole('button', { name: 'Priority filter: Urgent or Important' })
-    await expect(both).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(filterMenu(page)).toHaveCount(0)
+    const both = filterChip(page, 'Priority')
+    await expect(both).toHaveAccessibleName('Priority filter: Urgent or Important')
 
     // Is not turns the same ticks round.
     await both.click()
@@ -53,16 +56,20 @@ test.describe('desktop', () => {
     await row(page, 'Important').click()
     await expect.poll(() => sorted(page)).toEqual(['Important only', 'Plain'])
     await page.keyboard.press('Escape')
-    const not = page.getByRole('button', { name: 'Priority filter: not Urgent' })
+    const not = filterChip(page, 'Priority')
+    await expect(not).toHaveAccessibleName('Priority filter: not Urgent')
     await not.hover()
     await expect(page.getByRole('tooltip')).toHaveText(/Priority: not Urgent\s*Hides tasks that are Urgent \(flagged or due soon\)/)
-    await expect(wsListWidget(page, 't1').getByText('not Urgent')).toBeVisible()
+    // The list's line doesn't repeat it (J13); its count says it narrows the list.
+    await expect(wsListWidget(page, 't1').getByText('not Urgent')).toHaveCount(0)
+    await expect(wsListWidget(page, 't1').getByTestId('list-count')).toBeVisible()
 
     // No priority: no marker, effective Urgent counted.
     await not.click()
     await page.getByRole('radio', { name: 'Is', exact: true }).click()
     await row(page, 'Urgent').click()
-    await expect(page.getByRole('button', { name: 'Priority filter' })).toBeVisible()
+    // No filter now; the chip stays, as its label, while its picker is open.
+    await expect(filterTray(page).getByRole('button', { name: 'Priority filter', exact: true })).toBeVisible()
     await row(page, 'No priority').click()
     await expect.poll(() => titles(page)).toEqual(['Plain'])
     await page.keyboard.press('Escape')
@@ -72,7 +79,7 @@ test.describe('desktop', () => {
 
   test('search tokens: /urgent /important are any of them, as other tokens', async ({ page }) => {
     await seedWorkspace(page, SEED)
-    await page.getByRole('textbox', { name: 'Search tasks' }).click()
+    await page.getByRole('textbox', { name: 'Filter tasks' }).click()
     await page.keyboard.type('/urgent /important ')
     await expect.poll(() => sorted(page)).toEqual(['Both', 'Due tomorrow', 'Flagged urgent', 'Important only'])
     await expect(page.getByRole('button', { name: 'Priority filter: Urgent or Important' })).toBeVisible()
@@ -106,10 +113,11 @@ test.describe('desktop', () => {
 
     await page.reload()
     await expect.poll(() => sorted(page)).toEqual(['Due tomorrow', 'Flagged urgent'])
-    const chips = wsListWidget(page, 't1').getByTestId('list-filter-chip')
+    // Reopened from the line's words: each chip opens on its own condition; × takes only that one.
+    const reopened = await openListFilterEditor(page, wsListWidget(page, 't1'))
+    const chips = reopened.getByTestId('list-filter-chip')
     await expect(chips).toHaveText([/Priority\s*not Important/, /Priority\s*Urgent/])
-    // Each chip opens on its own condition; × takes only that one.
-    await chips.nth(1).click()
+    await chips.nth(1).getByRole('button', { name: /Priority/ }).click()
     await expect(picker.getByRole('radio', { name: 'Is', exact: true })).toHaveAttribute('aria-checked', 'true')
     await expect(picker.getByRole('option', { name: 'Urgent' })).toHaveAttribute('aria-selected', 'true')
     await page.keyboard.press('Escape')
@@ -148,14 +156,12 @@ test.describe('desktop', () => {
 test.describe('narrow window', () => {
   test.use({ viewport: { width: 1100, height: 800 } })
 
-  test('the folded Filters menu: Priority › Important', async ({ page }) => {
-    // Other layouts take the bar's room: the filters fold.
+  test('the Filter menu with other layouts taking the room: Priority › Important', async ({ page }) => {
     await seedWorkspace(page, withSpareLayouts(SEED))
-    await page.getByRole('button', { name: 'Filters', exact: true }).click()
-    await page.getByRole('group', { name: 'Screen filters' }).getByRole('button', { name: 'Priority filter' }).click()
+    await openFilterPicker(page, 'Priority')
     await row(page, 'Important').click()
     await expect.poll(() => sorted(page)).toEqual(['Both', 'Important only'])
-    await expect(page.getByRole('group', { name: 'Screen filters' }).getByRole('button', { name: 'Priority filter: Important' })).toBeVisible()
+    await expect(filterMenuRow(page, 'Priority')).toHaveAccessibleName('Priority filter: Important')
   })
 })
 

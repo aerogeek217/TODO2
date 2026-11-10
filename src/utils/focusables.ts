@@ -2,9 +2,9 @@
 export const TABBABLE =
   'button:not([disabled]),[href],input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
 
-/** A panel's tabbable controls in order; where the browser lays out, only the rendered ones. */
+/** A panel's tabbable controls in order (none inside an `inert` part); where the browser lays out, only the rendered ones. */
 export function tabbables(panel: HTMLElement): HTMLElement[] {
-  const all = Array.from(panel.querySelectorAll<HTMLElement>(TABBABLE))
+  const all = Array.from(panel.querySelectorAll<HTMLElement>(TABBABLE)).filter((el) => el.closest('[inert]') == null)
   if (panel.getClientRects().length === 0) return all
   return all.filter((el) => el.getClientRects().length > 0 || el === document.activeElement)
 }

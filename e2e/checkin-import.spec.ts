@@ -73,7 +73,7 @@ async function pasteReply(target: Locator, html: string, plain: string) {
 
 async function openFromPalette(page: Page, query: string, name: RegExp) {
   await page.keyboard.press('Control+k')
-  await page.getByPlaceholder(/Search tasks, commands/).fill(query)
+  await page.getByPlaceholder(/Find tasks, commands/).fill(query)
   await page.getByRole('option', { name }).click()
 }
 

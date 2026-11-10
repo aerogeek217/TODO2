@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { clearAllFilters, openFilterPicker } from './fixtures/filters'
 import { rowTitles } from './fixtures/seed'
 import { openSettings, seedWorkspace, switchLayout, wsListWidget, type WorkspaceSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 
@@ -120,13 +121,14 @@ test('the glasses lift the lens for now; a layout switch keeps the lift, a reloa
 test('a chip on top narrows further and turns the tray red; Clear all leaves the lens', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await pickLens(page, 'Has a person')
-  await tray(page).getByRole('button', { name: /^Status filter/ }).click()
+  await openFilterPicker(page, 'Status')
   await page.getByRole('option', { name: 'Waiting' }).click()
+  await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
   await expect.poll(() => mainTitles(page)).toEqual(['Ann waits'])
   await expect(counter(page)).toHaveAccessibleName('1 of 3 open tasks shown. Show them')
   await expect(tray(page)).toHaveAttribute('data-filtered', 'true')
-  await tray(page).getByRole('button', { name: 'Clear all filters' }).click()
+  await clearAllFilters(page)
   await expect.poll(() => mainTitles(page)).toEqual(['Ann plan', 'Ann waits'])
   await expect(lensName(page)).toHaveAccessibleName('Lens: Has a person')
   await expect(tray(page)).not.toHaveAttribute('data-filtered')

@@ -101,7 +101,7 @@ describe('shortcutRefusal', () => {
 
   it('refuses a single key that starts a sequence, and a sequence starting with a used key', () => {
     expect(shortcutRefusal('focus-filters', chord('g'), {})).toBe('G starts G then S (Open Settings).')
-    expect(shortcutRefusal('open-settings', chord('f s'), {})).toBe('F is already used by Focus filters, so a sequence can\'t start with it.')
+    expect(shortcutRefusal('open-settings', chord('f s'), {})).toBe('F is already used by Open filter menu, so a sequence can\'t start with it.')
     expect(shortcutRefusal('open-settings', chord('g s'), {})).toBeNull()
   })
 
@@ -187,11 +187,11 @@ describe('readShortcutOverrides', () => {
     // Two overrides on the same keys: the later one goes.
     const both = readShortcutOverrides('{"focus-filters":"n","toggle-complete":"n"}')
     expect(formatShortcutOverrides(both.overrides)).toBe('{"focus-filters":"n"}')
-    expect(both.dropped).toEqual(['Toggle complete: clashes with Focus filters — dropped'])
+    expect(both.dropped).toEqual(['Toggle complete: clashes with Open filter menu — dropped'])
     // An override on a default's keys: the override goes.
     const onDefault = readShortcutOverrides('{"focus-filters":"Mod-k"}')
     expect(onDefault.overrides).toEqual({})
-    expect(onDefault.dropped).toEqual(['Focus filters: clashes with Command Palette — dropped'])
+    expect(onDefault.dropped).toEqual(['Open filter menu: clashes with Command Palette — dropped'])
   })
 
   it('quietly drops an override equal to the default', () => {

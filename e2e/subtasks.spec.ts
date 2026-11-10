@@ -230,7 +230,7 @@ test('Make a task from the popover’s ⋯: a new row with the parent’s people
 
 test('the top bar’s search finds a task by a subtask’s words, under a Subtasks group with the line as a snippet', async ({ page }) => {
   await seedWorkspace(page, { ...SEED, tasks: [...SEED.tasks!, { title: 'Travel budget review' }] })
-  const search = page.locator('header').getByRole('textbox', { name: 'Search tasks' })
+  const search = page.locator('header').getByRole('textbox', { name: 'Filter tasks' })
   await search.click()
   await search.fill('travel')
   const listbox = page.getByRole('listbox', { name: /search results/i })

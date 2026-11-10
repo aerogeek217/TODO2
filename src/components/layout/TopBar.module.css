@@ -1,10 +1,11 @@
-/* The app's one top bar (desktop): the layout tabs (or picker) + save, the
- * lens control, the screen-filter tray, then the storage pill, the Settings
- * gear and New task.
+/* The app's one top bar (desktop): the layout tabs (or picker), the lens
+ * control, the screen-filter tray (the field, the Filter button, the set
+ * filters' chips, the counter), then the storage pill, the Settings gear and
+ * New task.
  * It never wraps; when it runs out of room (measured) the tray shrinks (the
- * search, then long filter values), then the filters fold into a menu, then
- * the layout tabs into the picker. The filtered-tasks panel
- * changes none of that: over folded filters the tray expands in place. */
+ * field, then long filter values), then the chips fold into the Filter
+ * button, then the layout tabs into the picker. The filtered-tasks panel
+ * changes none of that. */
 
 .topBar {
   position: relative;
@@ -89,11 +90,8 @@
   flex-shrink: 0;
 }
 
-/* The tray (or its slot) right after it: as far from it as the tray's own
- * buttons were from the control when it sat in the tray (behind a
- * separator), so no fold moves for the move. */
-.lensSlot + .tray,
-.lensSlot + .traySlot {
+/* The tray right after it. */
+.lensSlot + .tray {
   margin-left: 7px;
 }
 
@@ -119,29 +117,6 @@
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-danger) 45%, transparent);
 }
 
-/* While the filtered-tasks panel is open over folded filters: lifted out of
- * the bar to show every filter button, over the bar's free space and the
- * right zone (its slot keeps its place in the bar), above everything in it. */
-.trayExpanded {
-  position: fixed;
-  z-index: var(--z-above);
-  width: max-content;
-  margin-left: 0;
-}
-
-/* Lifted over the bar's other controls: opaque, so they don't show through. */
-.trayExpanded:not(.trayActive) {
-  background: var(--color-surface);
-}
-
-/* Where the tray sits in the bar while it is lifted out: its folded width. */
-.traySlot {
-  height: 32px;
-  margin-left: 10px;
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
 /* The filtered-tasks panel hangs from it: its bottom corners squared, its
  * border the panel's (which overlaps the bottom edge, so they share it). */
 .trayPanelOpen {
@@ -151,34 +126,6 @@
 
 .trayPanelOpen:not(.trayActive) {
   box-shadow: inset 0 0 0 1px var(--color-border);
-}
-
-.funnel {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  margin: 0 0 0 2px;
-  padding: 0;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-muted);
-  flex-shrink: 0;
-}
-
-.funnel:disabled {
-  cursor: default;
-}
-
-.trayActive .funnel {
-  color: var(--color-danger);
-  cursor: pointer;
-}
-
-.trayActive .funnel:hover {
-  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
 }
 
 /* ═══ The counter (61 of 109): the tray's end while a filter or the lens hides tasks ═══ */
@@ -386,11 +333,6 @@
   gap: 6px;
   margin-left: auto;
   flex-shrink: 0;
-}
-
-/* Under the expanded tray: hidden, so nothing of it shows beside the tray. */
-.rightCovered {
-  visibility: hidden;
 }
 
 .gear {

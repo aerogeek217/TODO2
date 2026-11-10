@@ -274,7 +274,7 @@ test('the live queue: a task leaving the picks leaves the rail — the current o
   await expect(railRows(page, 'rev1')).toHaveText([/Q4 headcount/, /Onboarding checklist/, /Hiring scorecard/])
 })
 
-test('the widget’s lens switch: −N while the top bar’s lens hides tasks of the picks; off, all of them', async ({ page }) => {
+test('the widget’s lens switch: quiet while the top bar’s lens hides tasks of the picks (2A); off, all of them', async ({ page }) => {
   await seedWorkspace(page, largeSeed())
   const control = page.locator('header').getByRole('button', { name: /^Lens:/ })
   await control.click()
@@ -285,7 +285,9 @@ test('the widget’s lens switch: −N while the top bar’s lens hides tasks of
   await pickInReview(page, 'rev1', 'Aisha', 'Ben')
   await expect(railRows(page, 'rev1')).toHaveCount(1)
   const sw = w.getByTestId('lens-switch')
-  await expect(sw).toHaveText('−4')
+  await expect(sw).toHaveAttribute('data-lens-hides', '4')
+  // Quiet (2A): shown on the cell's hover.
+  await w.hover()
   await sw.click()
   await expect(sw).toHaveAttribute('aria-pressed', 'false')
   await expect(railRows(page, 'rev1')).toHaveCount(5)

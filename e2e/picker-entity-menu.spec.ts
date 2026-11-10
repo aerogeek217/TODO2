@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { filterMenuRow, openFilterPicker } from './fixtures/filters'
 import { taskRowByTitle } from './fixtures/seed'
 import { seedTaskList } from './fixtures/workspace'
 import { box, expectInsideViewport } from './fixtures/geometry'
@@ -154,7 +155,7 @@ test('Show tasks from the bulk bar’s tag picker closes the picker and opens th
 
 test('the top bar’s People filter: the menu and the editor stack above its picker; Esc steps back one layer at a time', async ({ page }) => {
   await seedTaskList(page, SEED)
-  await page.getByRole('button', { name: 'People filter' }).click()
+  await openFilterPicker(page, 'People')
   const filter = page.locator('[class*="dropdownPanel"]').filter({ hasText: 'Ben Ortiz' })
   await expect(filter).toBeVisible()
   await filter.getByText('Ben Ortiz').click({ button: 'right' })
@@ -162,7 +163,7 @@ test('the top bar’s People filter: the menu and the editor stack above its pic
   await expect(menu).toBeVisible()
   expect(await isOnTop(menu)).toBe(true)
   // Not ticked: the filter stays off.
-  await expect(page.getByRole('button', { name: 'People filter', exact: true })).toBeVisible()
+  await expect(filterMenuRow(page, 'People')).toHaveAccessibleName('People filter')
 
   await menu.getByRole('menuitem', { name: 'Edit…' }).click()
   const editor = page.getByRole('dialog', { name: 'People', exact: true })

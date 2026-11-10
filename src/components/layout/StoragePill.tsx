@@ -20,7 +20,10 @@ import { PopoverRoot } from '../shared/PopoverRoot'
  * paused, Sync error (red), Backup warning (amber), with a count when
  * several are active. Its popover explains each warning with its ways
  * forward (Grant access, Retry / Keep browser data…, Dismiss, Open
- * Backups…), or the storage state and Settings → File storage.
+ * Backups…), or the storage state and Settings → File storage. Completed
+ * tasks past the retention show here too, after any warning (a quiet
+ * `17 old completed`, its section's Review… opening the purge dialog and
+ * Not now waiting the interval) — launch never opens a dialog about them.
  */
 export function StoragePill() {
   const isSupported = useFileStorageStore((s) => s.isSupported)

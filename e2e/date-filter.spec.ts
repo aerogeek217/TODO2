@@ -1,13 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
-import { seedWorkspace, wsCell, wsListWidget, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, closeListFilterEditor, openListFilterEditor, seedWorkspace, wsCell, wsListWidget, wsRow } from './fixtures/workspace'
 import { box, expectInsideViewport } from './fixtures/geometry'
+import { completedChip, filterChip, filterMenu, filterMenuButton, filterMenuRow, openFilterPicker } from './fixtures/filters'
 
 /**
  * The date panel in a real browser: one clause per date type (Due · Next
  * follow-up · Last follow-up / Completed · Created · Modified, two rows of
  * three), several at once (all must match), a type's tab lit while it
  * filters, and selecting a tab never fills in a date. Opened from the top
- * bar's Dates button, a list's date chip / + Filter, and the phone Filters
+ * bar's Filter menu (Dates) or its Dates chip, a list's date chip / + Filter, and the phone Filters
  * sheet. A Completed range brings in the tasks completed in it without Show
  * completed; Last follow-up is an optional date (cr24 P4, D22). Show picks
  * Calendar · Relative (· Any · None on the optional types); a new range is
@@ -107,7 +108,7 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   })
   await expect(rows(page, 't1')).toHaveCount(4)
 
-  await page.getByRole('button', { name: 'Dates filter', exact: true }).click()
+  await openFilterPicker(page, 'Dates')
   const panel = dialog(page)
   await expect(panel.getByRole('tab', { name: 'Due' })).toBeFocused()
   await expect(panel.getByText('Not filtering')).toBeVisible()
@@ -132,9 +133,12 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await expect(rows(page, 't1')).toHaveText([/Due soon, old/])
   await page.keyboard.press('Escape')
   await expect(panel).toBeHidden()
+  await page.keyboard.press('Escape')
+  await expect(filterMenu(page)).toHaveCount(0)
 
-  // The button reads both names; its tooltip lists each type; every list shows a screen chip per type.
-  const button = page.getByRole('button', { name: /^Dates filter: Due in 14 days or earlier; Modified 7\+ days ago$/ })
+  // Its chip reads both names; its tooltip lists each type.
+  const button = filterChip(page, 'Dates')
+  await expect(button).toHaveAccessibleName('Dates filter: Due in 14 days or earlier; Modified 7+ days ago')
   await expect(button).toHaveText('Due + Modified')
   await button.hover()
   const tip = page.getByRole('tooltip')
@@ -142,12 +146,14 @@ test('top bar: Due then Modified filter the screen together; switching tabs fill
   await expect(tip).toContainText(`Due: in 14 days or earlier · on or before ${dayWords(14)}`)
   await expect(tip).toContainText(`Modified: 7+ days ago · on or before ${dayWords(-7)}`)
   await expect(tip).toContainText('Tasks must match both · × clears both')
-  await expect(wsListWidget(page, 't1').getByTestId('screen-filter-chip')).toHaveText(['Due in 14 days or earlier', 'Modified 7+ days ago'])
+  // A list's line doesn't repeat the top bar's filters (J13): its count says they narrow it.
+  await expect(wsListWidget(page, 't1').getByTestId('list-filter-row')).not.toContainText('Modified')
+  await expect(wsListWidget(page, 't1').getByTestId('list-count')).toHaveText('1 of 4')
 
   // The × clears every date type.
   await page.getByRole('button', { name: 'Clear date filters' }).click()
   await expect(rows(page, 't1')).toHaveCount(4)
-  await expect(page.getByRole('button', { name: 'Dates filter', exact: true })).toBeVisible()
+  await expect(filterChip(page, 'Dates')).toHaveCount(0)
 })
 
 test('keyboard: Enter opens the panel on Due; arrows move between tabs without writing; Tab enters the body', async ({ page }) => {
@@ -156,7 +162,12 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
     tasks: [{ title: 'One' }],
     layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
-  await page.getByRole('button', { name: 'Dates filter', exact: true }).focus()
+  // The Filter button opens its menu on its first row (no people, tags or statuses here: Priority, then Dates).
+  await filterMenuButton(page).focus()
+  await page.keyboard.press('Enter')
+  await expect(filterMenuRow(page, 'Priority')).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(filterMenuRow(page, 'Dates')).toBeFocused()
   await page.keyboard.press('Enter')
   const panel = dialog(page)
   await expect(panel.getByRole('tab', { name: 'Due' })).toBeFocused()
@@ -180,7 +191,8 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await page.keyboard.press('Tab')
   await expect(panel.getByRole('button', { name: 'From: No start' })).toBeFocused()
   // Nothing written so far.
-  await expect(page.getByRole('button', { name: 'Dates filter', exact: true })).toBeVisible()
+  await expect(filterMenuRow(page, 'Dates')).toHaveAccessibleName('Dates filter')
+  await expect(filterChip(page, 'Dates')).toHaveCount(0)
   // Its menu by keyboard: Enter opens it, ↓ / Enter pick, Esc closes only the menu.
   await page.keyboard.press('Enter')
   const menu = page.getByRole('menu', { name: 'From' })
@@ -199,7 +211,7 @@ test('keyboard: Enter opens the panel on Due; arrows move between tabs without w
   await page.keyboard.type('30')
   await expect(panel.getByLabel('From: number of days')).toHaveValue('30')
   await expect(panel.getByRole('tabpanel')).toContainText('30 days ago or later')
-  await expect(page.getByRole('button', { name: /^Dates filter: Modified 30 days ago or later$/ })).toBeVisible()
+  await expect(filterMenuRow(page, 'Dates')).toHaveAccessibleName('Dates filter: Modified 30 days ago or later')
   await page.keyboard.press('Escape')
   await expect(panel).toBeHidden()
 })
@@ -222,7 +234,8 @@ test('a saved Calendar date emptied from the keyboard keeps Calendar and the foc
     st.setAllFilters({ ...st.filters, dates: { deadline: { match: 'range', start: null, end: { kind: 'fixed', iso: d.toISOString() } } } })
     return d.getMonth() + 1
   })
-  await page.getByRole('button', { name: /^Dates filter: Due on or before / }).click()
+  await expect(filterChip(page, 'Dates')).toHaveAccessibleName(/^Dates filter: Due on or before /)
+  await filterChip(page, 'Dates').click()
   const panel = dialog(page)
   const calendar = panel.getByRole('radiogroup', { name: 'Which tasks' }).getByRole('radio', { name: 'Calendar' })
   await expect(calendar).toHaveAttribute('aria-checked', 'true')
@@ -241,7 +254,7 @@ test('a saved Calendar date emptied from the keyboard keeps Calendar and the foc
   await expect(to).toBeFocused()
 })
 
-test('list chips: one per date type; a chip opens the panel under it on its type; its × clears only that type', async ({ page }) => {
+test('Edit list’s chips: one per date type; a chip opens the panel under it on its type; its × clears only that type', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   await seedWorkspace(page, {
     listDefinitions: [
@@ -264,7 +277,10 @@ test('list chips: one per date type; a chip opens the panel under it on its type
   })
   const widget = wsListWidget(page, 't2')
   await expect(rows(page, 't2')).toHaveText([/Due only/])
-  const chips = widget.getByTestId('list-filter-chip')
+  // The line reads the filter in words; its chips are Edit list's (2A).
+  await expect(widget.getByTestId('list-filter-chip')).toHaveCount(0)
+  const editor = await openListFilterEditor(page, widget)
+  const chips = editor.getByTestId('list-filter-chip')
   await expect(chips).toHaveText([/Due\s*any date/, /Next follow-up\s*none/])
 
   // The Next follow-up chip (in the right-hand column) opens the panel under it, inside the viewport, on Next follow-up.
@@ -290,7 +306,7 @@ test('list chips: one per date type; a chip opens the panel under it on its type
 
   // + Filter › Dates: the panel opens on the first type that doesn't filter
   // yet (cr25 P4b) — Due, before Next follow-up —, focused there, so it adds a chip.
-  await widget.getByRole('button', { name: 'Filter', exact: true }).click()
+  await editor.getByRole('button', { name: ADD_FILTER }).click()
   await page.getByRole('menuitem', { name: 'Dates' }).click()
   await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toBeFocused()
   await expect(panel.getByRole('tab', { name: 'Due', exact: true })).toHaveAttribute('aria-selected', 'true')
@@ -307,7 +323,7 @@ test('the six types sit in two rows of three at 336px; no label clips, every typ
     layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   await lightEveryDateType(page)
-  await page.getByRole('button', { name: /^Dates filter/ }).click()
+  await filterChip(page, 'Dates').click()
   const panel = dialog(page)
   expect(Math.round((await box(panel)).width)).toBe(336)
   for (const name of ['Due', 'Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified']) {
@@ -349,13 +365,14 @@ test('a list with Completed this week shows the tasks completed this week, witho
     }],
   })
   // Show completed is off: the plain list hides both completed tasks; the Completed range brings in this week's.
-  await expect(page.getByRole('button', { name: 'Show completed' })).toHaveAttribute('aria-pressed', 'false')
+  await expect(completedChip(page)).toHaveCount(0)
   await expect(rows(page, 't1')).toHaveText([/Open task/])
   await expect(rows(page, 't2')).toHaveText([/Done today/])
-  await expect(wsListWidget(page, 't2').getByTestId('list-filter-chip')).toHaveText([/Completed\s*start of week – today/])
+  // Its line reads the range in words.
+  await expect(wsListWidget(page, 't2').getByTestId('list-filter-expression')).toContainText(/completed/i)
 
   // The same range in the top bar brings it into every list (the open task fails it).
-  await page.getByRole('button', { name: 'Dates filter', exact: true }).click()
+  await openFilterPicker(page, 'Dates')
   const panel = dialog(page)
   await panel.getByRole('tab', { name: 'Completed' }).click()
   await pickRelative(page, 'From', 'start of week')
@@ -389,12 +406,15 @@ test('Last follow-up "14+ days ago, or never": in a list, and as a lens in the t
   await expect(rows(page, 't1')).toHaveCount(4)
   // Oldest first, never followed up last.
   await expect(rows(page, 't2')).toHaveText([/Chased a month ago/, /Chased 20 days ago/, /Never chased/])
-  const chip = wsListWidget(page, 't2').getByTestId('list-filter-chip')
+  // Its chip (in Edit list, opened from the line's words, 2A).
+  const editor = await openListFilterEditor(page, wsListWidget(page, 't2'))
+  const chip = editor.getByTestId('list-filter-chip')
   await expect(chip).toHaveText([/Last follow-up\s*14\+ days ago, or never/])
   // Its tooltip spells the exact last day, and the never-followed-up tasks it keeps (cr25 P7).
   await chip.hover()
   await expect(page.getByRole('tooltip')).toHaveText(`Last follow-up: 14+ days ago, or neverLast followed up on or before ${dayWords(-14)}, or never`)
   await page.mouse.move(0, 0)
+  await closeListFilterEditor(page)
 
   await page.getByRole('button', { name: /^Lens:/ }).click()
   await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Stale follow-ups/ }).click()

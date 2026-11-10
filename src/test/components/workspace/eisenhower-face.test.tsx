@@ -90,14 +90,14 @@ describe('the Eisenhower picks its face (useWidgetFace)', () => {
 })
 
 describe('the small face: the 2×2 of counts (the old Eisenhower summary)', () => {
-  it('each pane’s name and open count, in position order; the tab hears the open count', () => {
+  it('each pane’s name and open count, in position order; nothing narrowed, no tab count (2A)', () => {
     setup('small')
     expect(Array.from(faceEl()!.querySelectorAll<HTMLElement>('[data-eis-cell]')).map((el) => el.dataset.eisCell))
       .toEqual(['do', 'schedule', 'delegate', 'drop'])
     expect(counts()).toEqual(['3', '1', '5', '10'])
     expect(pane('do').textContent).toContain('Do')
     expect(faceEl()!.getAttribute('aria-label')).toBe('Eisenhower: Do 3, Schedule 1, Delegate 5, Drop 10')
-    expect(lastResult?.countLabel).toBe('19')
+    expect(lastResult?.countLabel).toBeUndefined()
   })
 
   it('is not interactive: a click goes to the cell, which opens the whole widget', () => {
@@ -165,7 +165,7 @@ describe('the faces follow the app-wide panes and the Eisenhower’s list', () =
     setup('medium')
     // The list's five open tasks (the q4 tag).
     expect(counts()).toEqual(['0', '1', '1', '3'])
-    expect(lastResult?.countLabel).toBe('5')
+    expect(lastResult?.countLabel).toBeUndefined()
     expect(pane('delegate').textContent).toContain('Hand off')
     fireEvent.click(within(pane('delegate')).getByRole('button', { name: /^Hand off: 1/ }))
     expect(useUIStore.getState().taskDialog).toMatchObject({ title: 'Hand off', source: { kind: 'todos', todoIds: [7] } })
@@ -183,6 +183,6 @@ describe('the faces follow the app-wide panes and the Eisenhower’s list', () =
   it('its list not loaded yet: every task is counted', () => {
     useSettingsStore.setState({ eisenhowerListId: 99 })
     setup('small')
-    expect(lastResult?.countLabel).toBe('19')
+    expect(lastResult?.countLabel).toBeUndefined()
   })
 })

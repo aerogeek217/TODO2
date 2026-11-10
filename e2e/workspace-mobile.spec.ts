@@ -46,7 +46,9 @@ test('mobile opens the workspace; list widgets use touch rows and tabs are not d
 
   const rows = wsCell(page, 'a1').locator('[data-todo-id]')
   await expect(rows).toHaveCount(2)
-  await expect(wsCell(page, 'a1').getByRole('button', { name: 'Open task details', exact: true })).toHaveCount(2)
+  // The quiet phone row (2C): its title is its one button; no ▸, pills or flag.
+  await expect(rows.first().getByRole('button')).toHaveCount(1)
+  await expect(wsCell(page, 'a1').getByRole('button', { name: 'Open task details', exact: true })).toHaveCount(0)
   await expect(wsCell(page, 'a1').locator('[data-row-key]')).toHaveCount(0)
 
   // Switching only: no close ×, no add-tab +, no drag handle semantics.
@@ -254,15 +256,15 @@ test('a list alone: its ⋯ opens Edit list, a half sheet with the list live abo
 
   // The unsaved list: Revert · Save on the filter line, at touch size.
   const line = wsCell(page, 'a1').getByTestId('list-filter-row')
-  await expect(line).toContainText('No filters')
+  await expect(line).toContainText('Every open task')
   await expect(line.getByTestId('save-list')).toHaveText('Save')
   expect(Math.round((await box(line.getByTestId('save-list'))).height)).toBe(36)
   const revert = await box(line.getByTestId('revert-list'))
   expect([Math.round(revert.width), Math.round(revert.height)]).toEqual([36, 36])
   await line.getByTestId('save-list').click()
-  // Saved: the line stays (No filters), without Revert · Save.
+  // Saved: the line stays (Every open task), without Revert · Save.
   await expect(line.getByTestId('save-list')).toHaveCount(0)
-  await expect(line).toContainText('No filters')
+  await expect(line).toContainText('Every open task')
 })
 
 test('switching between desktop and phone widths keeps the drag sensors stable (no React deps error)', async ({ page }) => {
@@ -291,7 +293,22 @@ test('the task editor on a phone fills the screen (on the dialog frame)', async 
   }).toEqual([0, 0, 390, 844])
 })
 
-test('touch targets: a cell’s tabs and a row’s checkbox take taps across 44px', async ({ page }) => {
+test('a tap anywhere on a row opens the task: its title, its details line, its empty right end', async ({ page }) => {
+  await seed(page)
+  const row = wsCell(page, 'a1').locator('[data-todo-id]').filter({ hasText: 'Call plumber' })
+  const editor = page.getByRole('dialog', { name: 'Edit task' })
+  const b = await box(row)
+  const details = await box(row.locator('[data-row-details]'))
+  for (const [x, y] of [[b.x + 60, b.y + 18], [details.x + 4, details.y + details.height / 2], [b.x + b.width - 12, b.y + b.height / 2]] as const) {
+    await page.touchscreen.tap(x, y)
+    await expect(editor).toBeVisible()
+    await expect(editor.getByPlaceholder('Task title')).toHaveValue('Call plumber')
+    await page.keyboard.press('Escape')
+    await expect(editor).toHaveCount(0)
+  }
+})
+
+test('touch targets: a cell’s tabs, a row and its checkbox take taps across 44px', async ({ page }) => {
   await seed(page)
   /** How far, in px, taps along a vertical line through the element's centre still land on it. */
   const tappableHeight = (selector: string) => page.evaluate((sel) => {
@@ -309,6 +326,7 @@ test('touch targets: a cell’s tabs and a row’s checkbox take taps across 44p
   await expect(wsTab(page, 'todayTab')).toBeVisible()
   expect(await tappableHeight('[data-ws-tab="todayTab"]')).toBeGreaterThanOrEqual(44)
   const row = wsCell(page, 'a1').locator('[data-todo-id]').first()
+  expect((await box(row)).height).toBeGreaterThanOrEqual(44)
   const id = await row.getAttribute('data-todo-id')
   const checkbox = wsCell(page, 'a1').locator(`[data-todo-id="${id}"]`).getByRole('checkbox', { name: 'Toggle complete' })
   await expect(checkbox).toBeVisible()

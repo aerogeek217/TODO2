@@ -1,321 +1,312 @@
-import { useCallback, useRef, useState, memo, type CSSProperties, type RefObject } from 'react'
-import { type PersistedTodoItem, type Person, DEFAULT_STATUS_ICON } from '../../models'
-import { useStatusStore } from '../../stores/status-store'
+import { memo, useRef, useState, type CSSProperties, type RefObject } from 'react'
+import type { PersistedTodoItem, Person, Tag } from '../../models'
 import { useUIStore } from '../../stores/ui-store'
-import { StatusIcon } from '../shared/StatusIcon'
-import { TaskPillBar } from '../shared/TaskPillBar'
-import { TagChipSelector } from '../shared/TagChipSelector'
-import { TaskMenu } from './TaskMenu'
-import { FollowupFlagIcon } from '../shared/FollowupIcons'
-import { NotesIcon } from '../shared/icons'
 import { useSettingsStore } from '../../stores/settings-store'
-import { useTodoStore } from '../../stores/todo-store'
+import { useTagStore } from '../../stores/tag-store'
 import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
 import { useSubtaskStore } from '../../stores/subtask-store'
-import { describeSubtaskCount, formatSubtaskCount, subtaskCount } from '../../utils/subtasks'
-import subtaskStyles from './subtasks/Subtasks.module.css'
+import { useTaskRowActions } from '../../hooks/use-task-row-actions'
 import { useToday } from '../../hooks/use-today'
-import { formatDateNumeric, toDateInputValue } from '../../utils/date'
-import { daysUntil, dateIntensity } from '../../utils/effective-date'
-import { PriorityRing } from '../shared/PriorityRing'
-import { rowCue } from '../../utils/priority-cues'
+import { formatRowDate, toDateInputValue } from '../../utils/date'
+import { rowSummaryText } from '../../utils/list-zoom'
 import { markerSummary } from '../../utils/markers'
+import { statusNotesPreview } from '../../utils/notes-preview'
+import { rowCue } from '../../utils/priority-cues'
+import { dueState, followupState } from '../../utils/row-date-state'
 import { isStale } from '../../utils/stale'
-import { useTaskRowPickers } from './use-task-row-pickers'
-import { keepRowTextUnselected } from './row-events'
-import styles from './MobileTaskRow.module.css'
+import { subtaskCount, type SubtaskCount } from '../../utils/subtasks'
 import { TODO_ID_ATTR } from '../../utils/dom-contract'
+import { FollowupFlagIcon } from '../shared/FollowupIcons'
+import { NotesIcon, RepeatIcon } from '../shared/icons'
+import { ClockIcon } from '../shared/MarkerIcons'
+import { POPOVER_LEVEL_ATTR } from '../shared/popover-level'
+import { PriorityRing } from '../shared/PriorityRing'
+import { TagPicker } from '../shared/TagChipSelector'
+import { SubtaskCountStatic } from './subtasks/SubtaskCountButton'
+import { keepRowTextUnselected } from './row-events'
+import { TaskMenu } from './TaskMenu'
+import { useTaskRowPickers } from './use-task-row-pickers'
+import styles from './MobileTaskRow.module.css'
 
 interface MobileTaskRowProps {
   todo: PersistedTodoItem
   assignedPeople?: Person[]
-  isSelected?: boolean
-  onSelect?: (todoId: number, mods: { shift: boolean; ctrl: boolean }) => void
+  /** A tap on the row (or Enter on its title) opens the task. */
   onOpenDetail?: (todoId: number) => void
 }
 
-// Mobile feature parity: chip taps
-// open the same popovers/pickers as `TaskRow`, and a long-press on the row
-// fires `onContextMenu` (browser-emulated on touch) to open the shared task
-// menu (`TaskMenu`). The menu mirrors desktop, so the only
-// surface that's intentionally desktop-only is the inline avatar context
-// menu (right-click on a person chip to show a filtered list) — that
-// gesture has no touch analogue.
 const NO_PEOPLE: Person[] = []
+const NO_TAGS: Tag[] = []
 /** The checkbox's drawn box, px (its touch target is larger: `.checkbox`). */
 const CHECKBOX_BOX = 20
+/** Initials the details line shows before `+N`, as a stacked desktop row. */
+const SHOWN_PEOPLE = 3
 
-export const MobileTaskRow = memo(function MobileTaskRow({
-  todo, assignedPeople, isSelected,
-  onSelect, onOpenDetail,
-}: MobileTaskRowProps) {
+/** A popover or menu is open that the element isn't in: a press now is the one that closes it. */
+function popoverOpenOutside(el: HTMLElement): boolean {
+  for (const popover of document.querySelectorAll(`[${POPOVER_LEVEL_ATTR}]`)) {
+    if (!popover.contains(el)) return true
+  }
+  return false
+}
+
+/**
+ * The phone's task row: the desktop row's quiet sibling (D17). The checkbox
+ * (a 44px target, the priority its ring as on desktop — `PriorityRing`), the
+ * title up to two lines, and one muted details line under it: the due date
+ * in words · the follow-up only while today or late · the checklist's count
+ * · a notes / status-update mark · people's initials · the first tag and
+ * `+N`. Colour only for what needs action now — an overdue or due-soon date,
+ * a follow-up today or late — as the desktop row's date cells colour them
+ * (`utils/row-date-state`). A completed row and a stale one read as on
+ * desktop.
+ *
+ * A tap anywhere on it opens the task (its title is the row's one button,
+ * stretched over it); the checkbox completes it. A long-press (the browser's
+ * `contextmenu`) opens the task menu, which is how the due date, follow-up,
+ * people, tags, subtasks and priority are reached without opening the task;
+ * its pickers open at the row (`MobileRowActions`). The row has no pickers
+ * of its own to tap: the task editor holds them all.
+ */
+export const MobileTaskRow = memo(function MobileTaskRow({ todo, assignedPeople, onOpenDetail }: MobileTaskRowProps) {
   const people = assignedPeople ?? NO_PEOPLE
+  const rowRef = useRef<HTMLDivElement>(null)
+  const titleRef = useRef<HTMLButtonElement>(null)
+  const swallowClick = useRef(false)
+  // The task menu at the long-press point; its pickers mount on the first one and stay (a pick opens one after the menu closes).
+  const [menuAt, setMenuAt] = useState<{ x: number; y: number } | null>(null)
+  const [actions, setActions] = useState(false)
+  const { handleToggleComplete } = useTaskRowActions({ todo })
   const hoveredSynced = useUIStore((s) => s.hoveredTodoId === todo.id)
   const today = useToday()
-  const deadlineIntensity = dateIntensity(daysUntil(todo.dueDate, today))
-  const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
-  const primaryRowRef = useRef<HTMLDivElement>(null)
-  // The status chip: the task's newest status update.
+  const tags = useTagStore((s) => s.assignedTagsMap.get(todo.id)) ?? NO_TAGS
   const newestUpdate = useStatusUpdateStore((s) => newestStatusUpdate(todo.id, s.byTodo))
-  // The `2/5 subtasks` chip (cr28): opens the checklist as a sheet.
   const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
   const count = subtasks && subtasks.length > 0 ? subtaskCount(subtasks) : null
+  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
+  const priorityCues = useSettingsStore((s) => s.priorityCues)
+  const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
+  const markers = markerSummary(todo, today, urgentRange)
+  const cue = rowCue(todo, priorityCues, today, urgentRange)
+  const stale = isStale(todo, today, staleAfterDays)
+  const hasNotes = statusNotesPreview(newestUpdate, todo.notes) !== null
+  // What the details line says, in words, for a screen reader (the line itself is drawn for the eye).
+  const description = rowSummaryText(todo, today, {
+    people: people.map((p) => p.name),
+    tags: tags.map((t) => t.name),
+    count,
+    stale,
+  }).split('\n').slice(1).join('. ')
+  const own = (e: React.SyntheticEvent) => e.target instanceof Node && e.currentTarget.contains(e.target)
 
+  return (
+    <div
+      ref={rowRef}
+      style={cue.glow ? ({ '--row-glow': cue.glow } as CSSProperties) : undefined}
+      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''}`}
+      {...{ [TODO_ID_ATTR]: todo.id }}
+      data-stale={stale || undefined}
+      data-hovered-synced={hoveredSynced ? 'true' : undefined}
+      onMouseDown={(e) => { if (own(e)) keepRowTextUnselected(e) }}
+      onContextMenu={(e) => {
+        e.preventDefault()
+        e.stopPropagation()
+        // A long-press in the menu or a picker (portaled, but children here) isn't the row's.
+        if (!own(e)) return
+        // The row's button holds the focus, so the menu, and a picker or sheet opened from it, hand it back there.
+        titleRef.current?.focus({ preventScroll: true })
+        setActions(true)
+        setMenuAt({ x: e.clientX, y: e.clientY })
+      }}
+      onMouseEnter={() => useUIStore.getState().setHoveredTodoId(todo.id)}
+      onMouseLeave={() => useUIStore.getState().setHoveredTodoId(null)}
+    >
+      <span className={styles.checkWrap}>
+        <input
+          type="checkbox"
+          className={styles.checkbox}
+          checked={todo.isCompleted}
+          onChange={handleToggleComplete}
+          aria-label="Toggle complete"
+        />
+        <PriorityRing summary={markers} completed={todo.isCompleted} size={CHECKBOX_BOX} label={markers.label} />
+      </span>
+
+      <div className={styles.body}>
+        <button
+          ref={titleRef}
+          type="button"
+          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
+          data-task-title={todo.title}
+          // What the details line says, in words (an attribute, so no text search finds it twice).
+          aria-description={description || undefined}
+          // A press that closes an open popover or menu goes no further: it doesn't open the task too.
+          onPointerDown={(e) => { swallowClick.current = popoverOpenOutside(e.currentTarget) }}
+          onClick={() => {
+            if (swallowClick.current) {
+              swallowClick.current = false
+              return
+            }
+            onOpenDetail?.(todo.id)
+          }}
+        >
+          <span className={styles.titleText}>{todo.title}</span>
+        </button>
+        <MobileRowDetails todo={todo} today={today} people={people} tags={tags} count={count} hasNotes={hasNotes} />
+      </div>
+
+      {actions && (
+        <MobileRowActions
+          todo={todo}
+          assignedPeople={people}
+          rowRef={rowRef}
+          focusRef={titleRef}
+          menuAt={menuAt}
+          onCloseMenu={() => setMenuAt(null)}
+          onOpenDetail={onOpenDetail}
+        />
+      )}
+    </div>
+  )
+})
+
+/**
+ * The details line (drawn only; the title's description says it in words):
+ * due · follow-up (today or late only) · checklist count · notes mark ·
+ * initials · first tag `+N`. Nothing when there is nothing to say.
+ */
+function MobileRowDetails({ todo, today, people, tags, count, hasNotes }: {
+  todo: PersistedTodoItem
+  today: Date
+  people: readonly Person[]
+  tags: readonly Tag[]
+  count: SubtaskCount | null
+  hasNotes: boolean
+}) {
+  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
+  const rowDates = useSettingsStore((s) => s.rowDates)
+  const due = todo.dueDate
+  const { past, soon } = dueState(todo, today, urgentRange)
+  const next = todo.nextFollowupAt
+  const followup = followupState(todo, today)
+  const showFollowup = next != null && (followup === 'today' || followup === 'late')
+  const shownPeople = people.slice(0, SHOWN_PEOPLE)
+  const morePeople = people.length - shownPeople.length
+  const firstTag = tags[0]
+  if (!due && !showFollowup && !count && !hasNotes && people.length === 0 && !firstTag) return null
+  return (
+    <div className={styles.details} data-row-details="" aria-hidden="true">
+      {due && (
+        <span
+          className={`${styles.part} ${styles.due} ${past ? styles.duePast : ''}`}
+          data-row-part="due"
+          data-due-soon={soon || undefined}
+          data-due-past={past || undefined}
+        >
+          {todo.recurrenceRule ? <RepeatIcon size={11} /> : <ClockIcon />}
+          {formatRowDate(due, today, rowDates)}
+        </span>
+      )}
+      {showFollowup && (
+        <span className={`${styles.part} ${styles.followup}`} data-row-part="followup" data-followup={followup}>
+          <FollowupFlagIcon filled />
+          {formatRowDate(next, today, rowDates)}
+        </span>
+      )}
+      {count && <SubtaskCountStatic count={count} />}
+      {hasNotes && <span className={styles.part} data-row-part="notes"><NotesIcon size={12} /></span>}
+      {people.length > 0 && (
+        <span className={styles.part} data-row-part="people">
+          <span className={styles.avatars}>
+            {shownPeople.map((p) => (
+              <span key={p.id} className={styles.avatar} data-person-avatar={p.name}>
+                {p.initials || p.name.slice(0, 2).toUpperCase()}
+              </span>
+            ))}
+          </span>
+          {morePeople > 0 && <span>+{morePeople}</span>}
+        </span>
+      )}
+      {firstTag && (
+        <span className={`${styles.part} ${styles.tags}`} data-row-part="tags">
+          <span className={styles.tag} data-tag-name={firstTag.name}>#{firstTag.name}</span>
+          {tags.length > 1 && <span className={styles.more}>+{tags.length - 1}</span>}
+        </span>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The row's task menu (long-press) and the pickers its items open (the row's
+ * own, `useTaskRowPickers`): the row has no triggers for them, so they open
+ * at the row — the people and tag pickers under it, the checklist as the
+ * bottom sheet, the follow-up popover and the due date's picker from hidden
+ * anchors at the title's start. As a Lines row's (`TaskLine`).
+ */
+function MobileRowActions({ todo, assignedPeople, rowRef, focusRef, menuAt, onCloseMenu, onOpenDetail }: {
+  todo: PersistedTodoItem
+  assignedPeople: Person[]
+  rowRef: RefObject<HTMLDivElement | null>
+  /** The row's button: where the focus goes back. */
+  focusRef: RefObject<HTMLButtonElement | null>
+  menuAt: { x: number; y: number } | null
+  onCloseMenu: () => void
+  onOpenDetail?: (todoId: number) => void
+}) {
   const {
-    handleToggleComplete, assignedTags, tagSelectorProps, togglePeople, peopleRef, followupOpen, toggleFollowup,
-    followupAnchorRef, toggleNotes, notesIconRef, deadlineInputRef, openDeadlinePicker, onDeadlineInputChange,
-    subtasksOpen, toggleSubtasks, subtasksRef,
-    menuHandlers, panels,
+    followupAnchorRef, deadlineInputRef, onDeadlineInputChange, menuHandlers, panels,
+    tagPickerOpen, closeTagPicker, assignedTags, allTags, toggleTag, createTag,
   } = useTaskRowPickers({
     todo,
     assignedPeople,
     onOpenDetail,
     peoplePickerClassName: styles.chipDropdown,
     subtasksPanel: 'sheet',
-    // With nobody assigned there are no avatars to anchor to (Assign people… from the menu).
-    fallbackPeopleAnchorRef: primaryRowRef,
-    useFallbackPeopleAnchor: people.length === 0,
+    fallbackPeopleAnchorRef: rowRef,
+    useFallbackPeopleAnchor: true,
+    fallbackSubtasksAnchorRef: rowRef,
+    useFallbackSubtasksAnchor: true,
   })
-
-  const handleChevronTap = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onOpenDetail?.(todo.id)
-  }, [onOpenDetail, todo.id])
-
-  const handleRowTap = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation()
-    onSelect?.(todo.id, { shift: false, ctrl: false })
-  }, [onSelect, todo.id])
-
-  const handleContextMenu = useCallback((e: React.MouseEvent) => {
-    e.preventDefault()
-    e.stopPropagation()
-    setContextMenu({ x: e.clientX, y: e.clientY })
-  }, [])
-
-  const status = useStatusStore((s) => {
-    if (!todo.statusId) return undefined
-    return s.statuses.find(st => st.id === todo.statusId)
-  })
-  // The status button gives a task without one the default status (Settings › Tasks), when it still exists.
-  const defaultStatusId = useSettingsStore((s) => s.defaultStatusId)
-  const hasDefaultStatus = useStatusStore((s) => defaultStatusId != null && s.statuses.some((st) => st.id === defaultStatusId))
-  const urgentRange = useSettingsStore((s) => s.urgentDueWithinDays)
-  const markers = markerSummary(todo, today, urgentRange)
-  const priorityCues = useSettingsStore((s) => s.priorityCues)
-  const cue = rowCue(todo, priorityCues, today, urgentRange)
-  const staleAfterDays = useSettingsStore((s) => s.staleAfterDays)
-  // The due chip's date as Settings › Appearance › Dates says (`formatRowDate`).
-  const rowDates = useSettingsStore((s) => s.rowDates)
-  const stale = isStale(todo, today, staleAfterDays)
-
-  const hasPeople = people.length > 0
-  const hasMetadata =
-    !!todo.dueDate || !!todo.nextFollowupAt ||
-    hasPeople ||
-    assignedTags.length > 0 ||
-    !!todo.notes || !!newestUpdate || count !== null
-
-  // Touch has no hover, so an empty follow-up slot always shows its flag.
-  const emptyFollowupFlag = (
-    <button
-      ref={followupAnchorRef}
-      type="button"
-      className={`${styles.emptyFollowupAction} ${followupOpen ? styles.emptyFollowupActionOpen : ''}`}
-      onClick={toggleFollowup}
-      aria-label="Set follow-up"
-      aria-haspopup="dialog"
-      aria-expanded={followupOpen}
-    >
-      <FollowupFlagIcon />
-    </button>
-  )
-
   return (
-    <div
-      style={cue.glow ? ({ '--row-glow': cue.glow } as CSSProperties) : undefined}
-      className={`${styles.row} ${todo.isCompleted ? styles.completed : ''} ${isSelected ? styles.selected : ''}`}
-      {...{ [TODO_ID_ATTR]: todo.id }}
-      data-stale={stale || undefined}
-      data-hovered-synced={hoveredSynced ? 'true' : undefined}
-      // A tap anywhere selects; the keyboard's way is the title button (the row holds controls of its own).
-      onClick={handleRowTap}
-      onMouseDown={keepRowTextUnselected}
-      onContextMenu={handleContextMenu}
-      onMouseEnter={() => useUIStore.getState().setHoveredTodoId(todo.id)}
-      onMouseLeave={() => useUIStore.getState().setHoveredTodoId(null)}
-    >
-      {/* Line 1 */}
-      <div className={styles.primaryRow} ref={primaryRowRef}>
-        {/* The priority is the ring on the box (D25 B), named; the task menu (long-press) sets it. */}
-        <span className={styles.checkWrap}>
-          <input
-            type="checkbox"
-            className={styles.checkbox}
-            checked={todo.isCompleted}
-            onChange={handleToggleComplete}
-            onClick={(e) => e.stopPropagation()}
-            aria-label="Toggle complete"
-          />
-          <PriorityRing summary={markers} completed={todo.isCompleted} size={CHECKBOX_BOX} label={markers.label} />
-        </span>
-
-        <button
-          type="button"
-          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''}`}
-          aria-pressed={!!isSelected}
-          data-task-title={todo.title}
-          onClick={handleRowTap}
-        >
-          {todo.title}
-        </button>
-
-        <button
-          className={styles.statusButton}
-          style={status ? { color: status.color } : undefined}
-          onClick={(e) => {
-            e.stopPropagation()
-            if (!todo.statusId && defaultStatusId != null && hasDefaultStatus) {
-              useTodoStore.getState().update(todo.id, { statusId: defaultStatusId })
-            } else if (todo.statusId) {
-              useTodoStore.getState().update(todo.id, { statusId: undefined })
-            }
-          }}
-          aria-label={status ? `Status: ${status.name}` : 'Set status'}
-        >
-          {status ? (
-            <StatusIcon icon={status.icon || DEFAULT_STATUS_ICON} filled />
-          ) : (
-            <span className={styles.statusDotEmpty} />
-          )}
-        </button>
-
-        <button className={styles.chevron} onClick={handleChevronTap} aria-label="Open task details">
-          ▸
-        </button>
-      </div>
-
-      {/* Line 2: metadata */}
-      {hasMetadata && (
-        <div className={styles.metaRow}>
-          <input
-            ref={deadlineInputRef}
-            type="date"
-            className={styles.hiddenDateInput}
-            value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
-            onChange={onDeadlineInputChange}
-          />
-
-          {/* Inline tag chips — populated chips render always; empty `#`
-              trigger is always visible on mobile (no hover state). Rendered
-              first so the metaRow reads `# @ date` (status sits on line 1). */}
-          <TagChipSelector {...tagSelectorProps} />
-
-          {/* Shared pill bar — people / due date / follow-up. Status
-              lives on line 1 (primaryRow), so showStatus={false}. */}
-          <TaskPillBar
-            todo={todo}
-            people={people}
-            today={today}
-            density="small"
-            dateFormat={rowDates === 'relative' ? 'relative' : 'numeric'}
-            followupFlagOnly
-            deadlineIntensity={deadlineIntensity}
-            peopleAnchorRef={peopleRef as RefObject<HTMLDivElement | null>}
-            followupAnchorRef={followupAnchorRef}
-            followupOpen={followupOpen}
-            showStatus={false}
-            onPeopleClick={togglePeople}
-            onDeadlineClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
-            onFollowupClick={toggleFollowup}
-          />
-
-          {!todo.nextFollowupAt && emptyFollowupFlag}
-
-          {newestUpdate && (
-            <span className={styles.statusUpdateChip} data-status-chip="">
-              {formatDateNumeric(newestUpdate.date)} {newestUpdate.text}
-              {(() => {
-                // A percentage in the update's text (`60% done`) draws its bar.
-                const m = newestUpdate.text.match(/(\d+)\s*%/)
-                if (!m || m[1] == null) return null
-                const pct = Math.min(100, Math.max(0, parseInt(m[1])))
-                return (
-                  <span className={styles.progressBarTrack}>
-                    <span className={styles.progressBarFill} style={{ width: `${pct}%` }} />
-                  </span>
-                )
-              })()}
-            </span>
-          )}
-
-          {count && (
-            <button
-              ref={subtasksRef}
-              type="button"
-              className={subtaskStyles.chip}
-              data-subtask-count=""
-              data-all-done={count.done === count.total ? '' : undefined}
-              aria-label={`${describeSubtaskCount(count)}, show them`}
-              aria-haspopup="dialog"
-              aria-expanded={subtasksOpen}
-              onClick={toggleSubtasks}
-            >
-              {formatSubtaskCount(count)} subtasks
-            </button>
-          )}
-
-          {(todo.notes || newestUpdate) && (
-            <button
-              ref={notesIconRef}
-              type="button"
-              className={styles.notesIcon}
-              onClick={toggleNotes}
-              aria-label="Edit status and notes"
-            >
-              <NotesIcon size={12} />
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Empty-state date slot — exposes a tap target so users can set a due
-         date or tag a previously-unset todo without opening the detail popup.
-         Order matches the populated metaRow: `# @ date`. */}
-      {!hasMetadata && (
-        <div className={styles.metaRow}>
-          <input
-            ref={deadlineInputRef}
-            type="date"
-            className={styles.hiddenDateInput}
-            value=""
-            onChange={onDeadlineInputChange}
-          />
-          <TagChipSelector {...tagSelectorProps} />
-          <button
-            type="button"
-            className={styles.emptyDateAction}
-            onClick={(e) => { e.stopPropagation(); openDeadlinePicker() }}
-            aria-label="Set due date"
-          >
-            <StatusIcon icon="calendar" />
-          </button>
-          {emptyFollowupFlag}
-        </div>
-      )}
-
-      {/* The people picker, the follow-up popover and the notes popover. */}
+    <>
+      <button ref={followupAnchorRef} type="button" className={styles.anchor} tabIndex={-1} aria-hidden="true" />
+      <input
+        ref={deadlineInputRef}
+        type="date"
+        className={styles.anchor}
+        tabIndex={-1}
+        aria-hidden="true"
+        value={todo.dueDate ? toDateInputValue(todo.dueDate) : ''}
+        onChange={onDeadlineInputChange}
+      />
       {panels}
-
-      {contextMenu && (
-        <TaskMenu
-          todo={todo}
-          point={contextMenu}
-          handlers={menuHandlers}
-          onClose={() => setContextMenu(null)}
+      {tagPickerOpen && (
+        <TagPicker
+          anchorRef={rowRef}
+          anchorIsInside={false}
+          assignedTags={assignedTags}
+          allTags={allTags}
+          onToggle={toggleTag}
+          onCreate={createTag}
+          onClose={closeTagPicker}
         />
       )}
-
-    </div>
+      {menuAt && (
+        <TaskMenu
+          todo={todo}
+          point={menuAt}
+          handlers={{
+            ...menuHandlers,
+            // The sheet hands the focus back to what had it when it opened: the row's button, not the gone menu item.
+            onAddSubtask: menuHandlers.onAddSubtask && (() => {
+              focusRef.current?.focus({ preventScroll: true })
+              menuHandlers.onAddSubtask?.()
+            }),
+          }}
+          onClose={onCloseMenu}
+        />
+      )}
+    </>
   )
-})
+}

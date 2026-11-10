@@ -67,7 +67,7 @@ async function makeListUnsaved(page: Page) {
 
 async function openFromPalette(page: Page) {
   await page.keyboard.press('Control+k')
-  await page.getByPlaceholder(/Search tasks, commands/).fill('>check-in')
+  await page.getByPlaceholder(/Find tasks, commands/).fill('>check-in')
   await page.getByRole('option', { name: /Email task check-ins/ }).click()
   const dialog = page.getByRole('dialog', { name: 'Email task check-ins' })
   await expect(dialog).toBeVisible()
@@ -225,7 +225,7 @@ test('Which tasks is a filter line: it narrows the counts, is remembered, and a 
 
   // A one-click send uses it: the palette counts what it picks, the email holds that one task.
   await page.keyboard.press('Control+k')
-  await page.getByPlaceholder(/Search tasks, commands/).pressSequentially('email ada')
+  await page.getByPlaceholder(/Find tasks, commands/).pressSequentially('email ada')
   await expect(page.getByRole('option', { name: /Email check-in: Ada Lovelace/ })).toContainText('1 of 2 open tasks')
   await page.keyboard.press('Enter')
   await expect.poll(async () => (await anchors(page)).map((a) => a.href).filter((h) => h.startsWith('mailto:')))

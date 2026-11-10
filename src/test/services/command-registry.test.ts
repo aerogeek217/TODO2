@@ -174,34 +174,31 @@ describe('createCommands — focus-filter command', () => {
     expect(commands.some(c => c.id === 'focus-filter')).toBe(true)
   })
 
-  it('createCommands_focusFilter_actionFocusesFirstButtonInFilterRow', () => {
-    // Arrange: create a DOM structure matching what the action queries
-    const filterRow = document.createElement('div')
-    filterRow.setAttribute('data-filter-row', '')
+  it('is named Open Filter Menu; its action focuses and presses the Filter button', () => {
     const btn = document.createElement('button')
-    btn.focus = vi.fn()
-    filterRow.appendChild(btn)
-    document.body.appendChild(filterRow)
+    btn.setAttribute('data-filter-menu', '')
+    btn.setAttribute('aria-expanded', 'false')
+    const onClick = vi.fn()
+    btn.addEventListener('click', onClick)
+    document.body.appendChild(btn)
 
     try {
-      const ctx = makeContext()
-      const commands = createCommands(ctx)
-      const cmd = commands.find(c => c.id === 'focus-filter')!
-
-      // Act
+      const cmd = createCommands(makeContext()).find(c => c.id === 'focus-filter')!
+      expect(cmd.name).toBe('Open Filter Menu')
       cmd.action()
-
-      // Assert
-      expect(btn.focus).toHaveBeenCalled()
+      expect(document.activeElement).toBe(btn)
+      expect(onClick).toHaveBeenCalledTimes(1)
+      // Already open: not pressed again (that would close it).
+      btn.setAttribute('aria-expanded', 'true')
+      cmd.action()
+      expect(onClick).toHaveBeenCalledTimes(1)
     } finally {
-      document.body.removeChild(filterRow)
+      btn.remove()
     }
   })
 
-  it('createCommands_focusFilter_actionDoesNotThrowWhenFilterRowAbsent', () => {
-    // Ensure no data-filter-row in document
-    const existing = document.querySelector('[data-filter-row]')
-    if (existing) existing.remove()
+  it('createCommands_focusFilter_actionDoesNotThrowWhenFilterButtonAbsent', () => {
+    document.querySelector('[data-filter-menu]')?.remove()
 
     const ctx = makeContext()
     const commands = createCommands(ctx)

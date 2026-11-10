@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test'
 import { readStore, readStores, writeStores } from './fixtures/db'
 import { answerPermission, attachSyncHandle, readSyncFile, setPermissionAnswer, stubFilePermission } from './fixtures/sync-file'
+import { dismissPurgeNotice, reviewPurge } from './fixtures/purge-notice'
 
 /**
  * The launch question: an attached sync file whose handle needs the
@@ -25,7 +26,7 @@ async function schemaVersion(page: Page): Promise<number> {
 
 /**
  * A booted app with an old completed task and a 30-day retention (so launch
- * has a purge prompt to show), no backups yet (so launch takes its automatic
+ * has a purge notice to show), no backups yet (so launch takes its automatic
  * one), and the sync file attached — holding this browser's data, or the
  * same data with every task renamed (`differ`). Returns the file's text.
  */
@@ -55,6 +56,8 @@ async function setUp(page: Page, { differ = false, fileOnlyTask }: { differ?: bo
 
 const launchQuestion = (page: Page) => page.getByRole('dialog', { name: `Allow access to ${SYNC_FILE}` })
 const purgePrompt = (page: Page) => page.getByRole('dialog', { name: 'Delete 1 old completed task?' })
+/** The storage pill's purge section (no dialog at launch). */
+const purgeNotice = (page: Page) => page.locator('[data-warning="purge"]')
 
 /** Whether the stores launch loads have loaded (read from the app's own module instances). */
 async function storesLoaded(page: Page): Promise<{ people: boolean; tags: boolean; todos: boolean }> {
@@ -98,7 +101,7 @@ test('the question waits over the start screen; Continue without the file opens 
   await page.keyboard.press('Control+k')
   await expect(page.getByRole('dialog', { name: /command palette/i })).toHaveCount(0)
 
-  // Nothing ran on the browser's data: no store loaded, no purge prompt, no backup.
+  // Nothing ran on the browser's data: no store loaded, no purge notice, no backup.
   expect(await storesLoaded(page)).toEqual({ people: false, tags: false, todos: false })
   await expect(purgePrompt(page)).toHaveCount(0)
   expect(await readStore(page, 'backups')).toHaveLength(0)
@@ -107,17 +110,18 @@ test('the question waits over the start screen; Continue without the file opens 
   // Esc = Continue without the file.
   await page.keyboard.press('Escape')
   await expect(question).toBeHidden()
-  // Launch goes on: the purge prompt, then automatic backups.
-  await expect(purgePrompt(page)).toBeVisible()
-  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
+  // Launch goes on — no purge dialog: the pill's notice —, then automatic backups.
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect.poll(async () => (await readStore(page, 'backups')).length).toBeGreaterThan(0)
   expect(await page.evaluate(() => (window as PermissionWindow).__e2ePermissionRequests ?? 0)).toBe(0)
-  // The storage pill carries it: Permission needed (amber), no strip.
+  // The storage pill carries it: Permission needed (amber) outranks the notice, both counted; no strip.
   const pill = page.getByTestId('storage-pill')
   await expect(pill).toHaveAttribute('data-state', 'permission')
-  await expect(pill).toHaveText('Permission needed')
+  await expect(pill).toHaveAttribute('aria-label', 'Storage: Permission needed, 2 warnings')
+  await expect(purgePrompt(page)).toHaveCount(0)
   await expect(page.getByRole('alert')).toHaveCount(0)
+  await dismissPurgeNotice(page)
+  await expect(pill).toHaveText('Permission needed')
 
   // Sync stays paused: an edit is kept as unsynced and never reaches the file.
   await page.keyboard.press('Control+Space')
@@ -138,9 +142,12 @@ test('Continue, then Grant access from the pill: the file loads and its own expi
   await setUp(page, { differ: true, fileOnlyTask: 'File-only old task' })
   await page.reload()
   await launchQuestion(page).getByRole('button', { name: /Continue without the file/ }).click()
-  await expect(purgePrompt(page)).toContainText('Old done task')
-  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  await expect(purgePrompt(page)).toHaveCount(0)
+  const first = await reviewPurge(page, { count: 1 })
+  await expect(first).toContainText('Old done task')
+  await first.getByRole('button', { name: 'Not now' }).click()
+  await expect(first).toBeHidden()
 
   const pill = page.getByTestId('storage-pill')
   await pill.click()
@@ -151,22 +158,23 @@ test('Continue, then Grant access from the pill: the file loads and its own expi
   const conflict = page.getByRole('dialog', { name: 'Browser data and sync file differ' })
   await conflict.getByRole('radio', { name: new RegExp(SYNC_FILE.replace('.', '\\.')) }).check()
   await conflict.getByRole('button', { name: `Keep ${SYNC_FILE}` }).click()
-  // Asked about the file's expired task only — the other was asked at launch.
-  await expect(purgePrompt(page)).toBeVisible()
-  await expect(purgePrompt(page).getByTestId('purge-task-list')).toContainText('File-only old task')
-  await expect(purgePrompt(page).getByTestId('purge-task-list')).not.toContainText('File: Old done task')
-  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
+  // The notice offers the file's expired task only — the other was answered this session.
+  await expect(pill).toHaveText('1 old completed')
+  await expect(purgePrompt(page)).toHaveCount(0)
+  const second = await reviewPurge(page, { count: 1 })
+  await expect(second.getByTestId('purge-task-list')).toContainText('File-only old task')
+  await expect(second.getByTestId('purge-task-list')).not.toContainText('File: Old done task')
+  await second.getByRole('button', { name: 'Not now' }).click()
   await expect(pill).toHaveAttribute('data-state', 'syncing')
 })
 
-test('Continue, the purge prompt shows, then Grant access from the pill: the unchanged browser loads the file with no conflict', async ({ page }) => {
+test('Continue, Not now on the purge notice, then Grant access from the pill: the unchanged browser loads the file with no conflict', async ({ page }) => {
   await setUp(page)
   await page.reload()
   await launchQuestion(page).getByRole('button', { name: /Continue without the file/ }).click()
-  await expect(purgePrompt(page)).toBeVisible()
-  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
-  // The prompt stamped when it showed; that alone is no change to sync.
+  await dismissPurgeNotice(page)
+  // Not now stamped the interval; that alone is no change to sync.
   await expect.poll(async () => (await readStore<{ key: string }>(page, 'settings')).some((r) => r.key === 'purgePromptLastAt')).toBe(true)
   const syncState = JSON.parse(await page.evaluate(() => localStorage.getItem('todo2-file-sync-state')) ?? '{}') as { dirtySince?: string | null }
   expect(syncState.dirtySince ?? null).toBeNull()
@@ -201,11 +209,11 @@ test('Grant access: waiting for the browser, then the load decision — its prom
 
   await conflict.getByRole('radio', { name: new RegExp(SYNC_FILE.replace('.', '\\.')) }).check()
   await conflict.getByRole('button', { name: `Keep ${SYNC_FILE}` }).click()
-  // Launch goes on with the file's data; its old completed task is asked about.
-  await expect(purgePrompt(page)).toBeVisible()
-  await expect(purgePrompt(page)).toContainText('File: Old done task')
-  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
+  // Launch goes on with the file's data; its old completed task is in the notice.
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  const purge = await reviewPurge(page, { count: 1 })
+  await expect(purge).toContainText('File: Old done task')
+  await purge.getByRole('button', { name: 'Not now' }).click()
   expect((await readStore<{ title: string }>(page, 'todos')).map((t) => t.title)).toEqual(['File: Old done task'])
 })
 
@@ -225,10 +233,10 @@ test('refused: the question says so and stays; Try again grants and loads', asyn
   await setPermissionAnswer(page, 'granted')
   await page.keyboard.press('Enter')
   await expect(question).toBeHidden()
-  // The file holds this browser's data: it loads without a prompt.
-  await expect(purgePrompt(page)).toBeVisible()
-  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
+  // The file holds this browser's data: it loads without a prompt (the purge notice is no dialog).
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
+  await expect(purgePrompt(page)).toHaveCount(0)
+  await dismissPurgeNotice(page)
 
   // Granted for this session: a reload doesn't ask (once the start's own
   // writes reached the file, so the browser isn't left with unsaved changes).
@@ -238,7 +246,9 @@ test('refused: the question says so and stays; Try again grants and loads', asyn
   await page.reload()
   await page.locator('[data-ws-area]').waitFor({ state: 'visible' })
   await expect(launchQuestion(page)).toHaveCount(0)
-  // The purge prompt showed this launch: not asked again within its interval.
+  // Not now on the notice this launch: not offered again within its interval.
+  await expect(page.getByTestId('storage-pill')).toHaveAttribute('data-state', 'syncing')
+  await expect(purgeNotice(page)).toHaveCount(0)
   await expect(purgePrompt(page)).toHaveCount(0)
 })
 
@@ -260,11 +270,10 @@ test('phone: the same question, the answers as two stacked full-width buttons', 
   expect(box.x + box.width).toBeLessThanOrEqual(390 - 15)
 
   await continueWithout.click()
-  await expect(purgePrompt(page)).toBeVisible()
-  await purgePrompt(page).getByRole('button', { name: 'Not now' }).click()
+  await expect(purgePrompt(page)).toHaveCount(0)
 
-  // The top bar's status button (between the layout picker and search) carries it; no strip.
-  const status = page.getByRole('button', { name: 'Storage: Permission needed' })
+  // The top bar's status button (between the layout picker and search) carries it and the purge notice; no strip.
+  const status = page.getByRole('button', { name: 'Storage: Permission needed, 2 warnings' })
   await expect(status).toBeVisible()
   await expect(page.getByRole('alert')).toHaveCount(0)
   const s = (await status.boundingBox())!
@@ -277,6 +286,12 @@ test('phone: the same question, the answers as two stacked full-width buttons', 
   const sheet = page.getByRole('dialog', { name: 'Permission needed' })
   await expect(sheet).toContainText(`Sync to ${SYNC_FILE} is paused until your browser lets TODO2 open the file.`)
   await expect(sheet.getByRole('button', { name: 'Grant access' })).toBeVisible()
+  // The purge notice's section, after the warning: Review… and Not now.
+  await expect(sheet.locator('[data-warning]')).toHaveCount(2)
+  const notice = sheet.locator('[data-warning="purge"]')
+  await expect(notice).toContainText('1 completed task is older than 30 days.')
+  await expect(notice.getByRole('button', { name: 'Review…' })).toBeVisible()
+  await expect(notice.getByRole('button', { name: 'Not now' })).toBeVisible()
   const sheetBox = (await sheet.boundingBox())!
   expect(Math.round(sheetBox.y + sheetBox.height)).toBe(844)
   await sheet.getByRole('button', { name: 'File storage settings' }).click()

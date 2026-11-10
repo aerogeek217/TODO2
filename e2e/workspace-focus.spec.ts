@@ -45,7 +45,8 @@ test('putting tasks in focus fills the Focus list, whose order persists', async 
 
   // Task editor toggle.
   await rowIn(page, all, 'Charlie').locator('[data-task-title]').dblclick()
-  const toggle = page.getByRole('button', { name: 'Focus', exact: true })
+  // (In the editor: the Focus list's filter line reads `Focus` in words too.)
+  const toggle = page.getByRole('dialog', { name: 'Edit task' }).getByRole('button', { name: 'Focus', exact: true })
   await expect(toggle).toHaveAttribute('aria-pressed', 'false')
   await toggle.click()
   await expect(toggle).toHaveAttribute('aria-pressed', 'true')

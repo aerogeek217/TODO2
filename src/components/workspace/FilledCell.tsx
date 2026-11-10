@@ -256,7 +256,7 @@ export function FilledCell({ cell, rowTrackIds, collapsed, fitRow = false, style
             cell={cell}
             collapsed={collapsed}
             activeCount={activeCount}
-            activeLens={activeCount != null ? activeResult?.lens : undefined}
+            activeLens={activeResult?.tabLens}
             ghosts={ghosts}
             onActivate={(tabId) => {
               withViewTransition(() => {

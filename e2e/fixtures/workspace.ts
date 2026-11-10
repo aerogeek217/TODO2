@@ -891,3 +891,24 @@ export async function openSettings(page: Page, section?: string): Promise<Locato
 
 /** The + Filter button's name: `Filter`, or in an editor with a row already, `Another filter (AND)`. */
 export const ADD_FILTER = /^(Filter|Another filter \(AND\))$/
+
+/**
+ * Opens Edit list from a list's filter line inside `scope` (a list widget,
+ * or the Eisenhower's cell): the line reads the filter in words (UX cleanup
+ * 2A), and a click on them opens Edit list, where the filter is edited — its
+ * chips, + Filter, Another filter (AND). Returns the open Edit list; the
+ * edits there are the list's draft, kept when it closes (Esc).
+ */
+export async function openListFilterEditor(page: Page, scope: Locator): Promise<Locator> {
+  await scope.getByTestId('list-filter-row').getByTestId(/^list-filter-(expression|every)$/).click()
+  const editor = page.getByTestId('edit-list')
+  await expect(editor).toBeVisible()
+  return editor
+}
+
+/** Closes an open Edit list with its × (the list keeps its draft). */
+export async function closeListFilterEditor(page: Page): Promise<void> {
+  const editor = page.getByTestId('edit-list')
+  await editor.getByRole('button', { name: 'Close Edit list' }).click()
+  await expect(editor).toHaveCount(0)
+}

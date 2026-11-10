@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, fireEvent, within, screen } from '@testing-library/react'
+import { render, cleanup, fireEvent, within, screen, act } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { WorkspaceCell } from '../../../components/workspace/WorkspaceCell'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -8,6 +8,7 @@ import { makeTodo, resetEntityStores } from '../../helpers'
 import { emptyPredicate } from '../../../models'
 import { useListDefinitionStore } from '../../../stores/list-definition-store'
 import { useTodoStore } from '../../../stores/todo-store'
+import { useFilterStore } from '../../../stores/filter-store'
 import { cell, grid, picture, single, type CellSpec } from '../../helpers/layout-builders'
 
 /**
@@ -402,7 +403,7 @@ describe('a cell’s widget faces (D25 R)', () => {
     expect(screen.queryByRole('button', { name: 'Open Team' })).toBeNull()
   })
 
-  it('a list whose filter line is hidden: alone, a slim top line with its name and count', () => {
+  it('a list whose filter line is hidden: alone, a slim top line with its name, and a count only while narrowed', () => {
     stubSize(400, 400)
     useListDefinitionStore.setState({
       listDefinitions: [{
@@ -416,7 +417,10 @@ describe('a cell’s widget faces (D25 R)', () => {
     expect(within(cellEl('k')).queryByTestId('list-filter-row')).toBeNull()
     const line = within(cellEl('k')).getByTestId('list-name-line')
     expect(within(line).getByTestId('top-line-name')).toHaveTextContent('Team')
-    expect(within(line).getByTestId('list-count')).toHaveTextContent('2')
+    // One number per list (2A): nothing narrows it, so no count.
+    expect(within(line).queryByTestId('list-count')).toBeNull()
+    act(() => useFilterStore.getState().setSearchText('zzz-no-match'))
+    expect(within(line).getByTestId('list-count')).toHaveTextContent('0 of 2')
   })
 
   it('a fit row’s cell shows its widget’s small face, whatever its measured size', () => {

@@ -108,8 +108,9 @@ describe('FilteredTasksPanel', () => {
     expect(tray().className).toMatch(/trayPanelOpen/)
     expect(document.querySelector('[data-filter-panel-scrim]')).not.toBeNull()
     expect(useUIStore.getState().taskDialog).toBeNull()
-    // The tray keeps every filter button (the layout tabs fold instead).
-    expect(within(tray()).queryByRole('button', { name: /^Filters/ })).toBeNull()
+    // The tray keeps the Filter button and the chip of the filter that is on.
+    expect(within(tray()).getByRole('button', { name: 'Filter, 1 active' })).toBeTruthy()
+    expect(within(tray()).getByRole('button', { name: /^People filter: / })).toBeTruthy()
     // Footer: Copy tasks and Close.
     expect(within(panel()!).getByRole('button', { name: /Copy tasks/ })).toBeTruthy()
   })
@@ -119,7 +120,9 @@ describe('FilteredTasksPanel', () => {
     const draft = SAMPLE_TASKS.find((t) => t.title === 'Draft homepage copy')!
     act(() => useTodoStore.setState({ todos: SAMPLE_TASKS.map((t) => (t.id === draft.id ? { ...t, isCompleted: true } : t)) }))
     expect(rowTitles()).toEqual(PRIYA_OPEN)
-    fireEvent.click(within(tray()).getByRole('button', { name: 'Show completed' }))
+    // From the Filter menu on; the chip it leaves in the tray, off.
+    fireEvent.click(within(tray()).getByRole('button', { name: /^Filter, / }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Screen filters' })).getByRole('button', { name: 'Show completed' }))
     expect(rowTitles()).toEqual(expect.arrayContaining([...PRIYA_OPEN, 'Team lunch booking']))
     expect(panel()!.textContent).toContain('Tasks matching the screen filter, completed ones included.')
     fireEvent.click(within(tray()).getByRole('button', { name: 'Show completed' }))
@@ -128,7 +131,7 @@ describe('FilteredTasksPanel', () => {
 
   it('typing in the tray’s search narrows the rows; no search dropdown while it is open', async () => {
     openPanel()
-    const search = within(tray()).getByRole('textbox', { name: 'Search tasks' })
+    const search = within(tray()).getByRole('textbox', { name: 'Filter tasks' })
     fireEvent.focus(search)
     fireEvent.change(search, { target: { value: 'q4 forecast' } })
     await vi.waitFor(() => expect(rowTitles()).toEqual(['Q4 forecast']))
@@ -138,7 +141,8 @@ describe('FilteredTasksPanel', () => {
 
   it('Clear all keeps it open on every open task, with Show N tasks still its toggle', () => {
     openPanel()
-    fireEvent.click(within(tray()).getByRole('button', { name: 'Clear all filters' }))
+    fireEvent.click(within(tray()).getByRole('button', { name: /^Filter, / }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Screen filters' })).getByRole('button', { name: 'Clear all filters' }))
     expect(panel()).not.toBeNull()
     expect(within(panel()!).getByTestId('task-dialog-count').textContent).toBe(String(SAMPLE_OPEN_COUNT))
     expect(panel()!.textContent).toContain('Every open task: no screen filter is on.')
@@ -163,7 +167,7 @@ describe('FilteredTasksPanel', () => {
 
   it('Esc in the tray’s search: the text first, then the panel', async () => {
     openPanel()
-    const search = within(tray()).getByRole('textbox', { name: 'Search tasks' })
+    const search = within(tray()).getByRole('textbox', { name: 'Filter tasks' })
     fireEvent.change(search, { target: { value: 'q4' } })
     fireEvent.keyDown(search, { key: 'Escape' })
     expect(panel()).not.toBeNull()
@@ -197,7 +201,7 @@ describe('FilteredTasksPanel', () => {
 
   it('a press on the bar outside the tray closes it first, then does its own thing; one in the tray doesn’t', () => {
     openPanel()
-    fireEvent.mouseDown(within(tray()).getByRole('textbox', { name: 'Search tasks' }))
+    fireEvent.mouseDown(within(tray()).getByRole('textbox', { name: 'Filter tasks' }))
     expect(panel()).not.toBeNull()
     const gear = document.querySelector<HTMLElement>('header button[aria-label="Settings"]')!
     fireEvent.mouseDown(gear)

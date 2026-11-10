@@ -64,7 +64,7 @@ test('dragging a tab reorders the layouts, saved at once (no unsaved dot); Undo 
   await page.reload()
   await expect.poll(() => layoutTabNames(page)).toEqual(['Third', 'Main', 'Second'])
   // A window too narrow for the tabs (the picker then).
-  await page.setViewportSize({ width: 700, height: 800 })
+  await page.setViewportSize({ width: 660, height: 800 }) // the tabs fold below 674px here
   await page.getByTestId('layout-picker').click()
   await expect(page.getByRole('menuitemradio')).toHaveText(['Third', 'Main', 'Second'])
 })
@@ -198,7 +198,7 @@ test('Delete from a tab’s menu names the lists that go with it', async ({ page
 })
 
 test('the folded picker: drag a layout to reorder it', async ({ page }) => {
-  await page.setViewportSize({ width: 700, height: 800 })
+  await page.setViewportSize({ width: 660, height: 800 }) // the tabs fold below 674px here
   await seedWorkspace(page, three)
   await page.getByTestId('layout-picker').click()
   const item = (name: string) => page.getByRole('menuitemradio', { name, exact: true })
@@ -229,30 +229,40 @@ async function barState(page: Page) {
       height: r.height,
       overflows: bar.scrollWidth > bar.clientWidth || parts.some((p) => p.right > r.right + 0.5 || p.bottom > r.bottom + 0.5 || p.top < r.top - 0.5),
       overlap,
-      // Not the fold laid out hidden for the bar's measure.
-      filtersFolded: Array.from(document.querySelectorAll('[aria-label="People filter"]')).every((el) => el.closest('[data-fold-hidden]')),
+      // The set filters' chips shown in the bar (not the fold laid out hidden for the bar's measure).
+      filtersFolded: Array.from(document.querySelectorAll('[aria-label^="People filter:"]')).every((el) => el.closest('[data-fold-hidden]')),
       tabsFolded: document.querySelector('[data-testid="layout-picker"]') != null,
     }
   })
 }
 
-test('the fold, measured: the filters fold first (once the tray is shrunk), then the layout tabs; nothing leaves or overlaps the 40px bar', async ({ page }) => {
+test('the fold, measured: the chips fold first (once the tray is shrunk), then the layout tabs; nothing leaves or overlaps the 40px bar', async ({ page }) => {
+  test.setTimeout(90_000)
   await seedWorkspace(page, {
     people: ['Alice'],
     tags: ['q4'],
     statuses: ['Waiting'],
     layouts: [layout('Main', 'm'), layout('Weekly planning', 's'), layout('Projects review', 't'), layout('Inbox', 'i')],
   })
-  // Folded parts per width: [filters, tabs] — the filters fold first.
-  const expected: Array<[number, [boolean, boolean]]> = [[1600, [false, false]], [1280, [true, false]], [1130, [true, false]], [860, [true, true]]]
-  for (const [width, folded] of expected) {
+  await page.evaluate(async () => {
+    const mod = (await import(/* @vite-ignore */ '/src/stores/filter-store.ts' as string)) as {
+      useFilterStore: { getState: () => { setPersonIds: (s: Set<number> | null) => void } }
+    }
+    mod.useFilterStore.getState().setPersonIds(new Set([1]))
+  })
+  // Narrowing: [chips folded, tabs folded] at each width, in the order they first appear.
+  const seen: string[] = []
+  for (let width = 1600; width >= 700; width -= 20) {
     await page.setViewportSize({ width, height: 800 })
-    await expect.poll(async () => {
-      const s = await barState(page)
-      return [s.filtersFolded, s.tabsFolded, s.overflows]
-    }, { message: `at ${width}px` }).toEqual([...folded, false])
-    expect(await barState(page), `at ${width}px`).toMatchObject({ height: 40, overflows: false, overlap: false })
+    await expect.poll(async () => (await barState(page)).overflows, { message: `at ${width}px` }).toBe(false)
+    const s = await barState(page)
+    expect(s, `at ${width}px`).toMatchObject({ height: 40, overflows: false, overlap: false })
+    // The tabs never fold while the chip still shows.
+    if (s.tabsFolded) expect(s.filtersFolded, `at ${width}px`).toBe(true)
+    const state = JSON.stringify([s.filtersFolded, s.tabsFolded])
+    if (seen.at(-1) !== state) seen.push(state)
   }
+  expect(seen).toEqual(['[false,false]', '[true,false]', '[true,true]'])
   // And back: wide again, everything unfolds.
   await page.setViewportSize({ width: 1600, height: 800 })
   await expect.poll(async () => (await barState(page)).tabsFolded).toBe(false)

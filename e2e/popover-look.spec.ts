@@ -1,7 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
+import { filterChip, filterMenu, filterMenuButton, filterMenuRow } from './fixtures/filters'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
-import { ADD_FILTER, openSettings, seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { ADD_FILTER, openListFilterEditor, openSettings, seedWorkspace, wsCell, wsListWidget, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * Popovers stand off the page (D21): a popover over the page (level 1) and
@@ -144,27 +145,24 @@ for (const theme of ['dark', 'light'] as const) {
       await setTheme(page, theme)
     })
 
-    test('over the list: + Filter’s menu and a chip’s picker are level 1, each with a caret under its ringed trigger; the menu’s muted text the popover muted', async ({ page }) => {
+    test('over the list: the line’s words open Edit list at level 1; its + Filter menu is level 2, with a caret under its ringed trigger; the menu’s muted text that level’s muted', async ({ page }) => {
+      // The line reads the filter in words (2A): no chips or + Filter there; Edit list holds them.
       const row = wsListWidget(page, 't1').getByTestId('list-filter-row')
-      const addFilter = row.getByRole('button', { name: ADD_FILTER })
+      await expect(row.getByRole('button', { name: ADD_FILTER })).toHaveCount(0)
+      const editList = await openListFilterEditor(page, wsListWidget(page, 't1'))
+      await expectLevel(page, editList, 1, theme)
+      const addFilter = editList.getByRole('button', { name: ADD_FILTER })
       await expectRinged(page, addFilter, false)
       await addFilter.click()
       const menu = page.getByRole('menu', { name: 'Add a filter' })
-      await expectLevel(page, menu, 1, theme)
-      expect(await expectCaretAt(menu, addFilter, 'top')).toBe(SURFACE[theme][1])
+      await expectLevel(page, menu, 2, theme)
+      expect(await expectCaretAt(menu, addFilter, 'top')).toBe(SURFACE[theme][2])
       await expectRinged(page, addFilter, true)
-      const heading = menu.getByText('Add a filter to this list')
-      expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe((await tokens(page, 1)).muted)
+      const heading = menu.getByText(/^Add a filter/)
+      expect(await heading.evaluate((el) => getComputedStyle(el).color)).toBe((await tokens(page, 2)).muted)
       await page.keyboard.press('Escape')
       await expect(menu).toHaveCount(0)
       await expectRinged(page, addFilter, false)
-
-      const chip = row.getByTestId('list-filter-chip')
-      await chip.click()
-      const picker = page.getByTestId('list-filter-picker')
-      await expectLevel(page, picker, 1, theme)
-      await expectCaretAt(picker, chip, 'top')
-      await expectRinged(page, chip, true)
     })
 
     test('a picker from Edit list is level 2, its caret in the level-2 surface; Edit list itself level 1', async ({ page }) => {
@@ -186,9 +184,22 @@ for (const theme of ['dark', 'light'] as const) {
       await expectLevel(page, page.getByRole('menu', { name: 'Add a filter' }), 2, theme)
     })
 
-    test('the top bar’s filter button and the lens name: a caret under each, ringed while open', async ({ page }) => {
-      const people = page.getByRole('button', { name: 'People filter' })
-      // The ring goes round the button's frame (the button and, while on, its ×).
+    test('the top bar’s Filter button, a filter’s chip and the lens name: a caret under each, ringed while open', async ({ page }) => {
+      const button = filterMenuButton(page)
+      await button.click()
+      await expectCaretAt(filterMenu(page), button, 'top')
+      await expectRinged(page, button, true)
+      // A row's picker opens beside the menu, with no caret.
+      await filterMenuRow(page, 'People').click()
+      await page.getByRole('option', { name: 'Ann' }).click()
+      await page.keyboard.press('Escape')
+      await page.keyboard.press('Escape')
+      await expect(filterMenu(page)).toHaveCount(0)
+      await page.mouse.move(5, 300)
+      await expectRinged(page, button, false)
+
+      // The People chip: the ring goes round its frame (the chip and its ×).
+      const people = filterChip(page, 'People')
       const frame = people.locator('..')
       await people.click()
       const picker = page.locator('[data-popover-level]').filter({ hasText: 'Select all' })
@@ -196,6 +207,7 @@ for (const theme of ['dark', 'light'] as const) {
       await expectRinged(page, frame, true)
       await page.keyboard.press('Escape')
       await expectRinged(page, frame, false)
+      await page.getByRole('button', { name: 'Clear people filter' }).click()
 
       // No lens: the control neutral, the name ringed while its picker is open.
       const none = page.getByRole('button', { name: 'Lens: none' })
@@ -212,7 +224,7 @@ for (const theme of ['dark', 'light'] as const) {
     })
 
     test('a filter picker with a caret only fades in: the caret stays on its edge every frame (cr33 U2)', async ({ page }) => {
-      await page.getByRole('button', { name: 'People filter' }).click()
+      await filterMenuButton(page).click()
       // Per frame from the open, through the fade: the caret's centre against the panel's top edge (+1).
       const offsets = await page.evaluate(() => new Promise<number[]>((resolve) => {
         const out: number[] = []
@@ -275,73 +287,58 @@ test.describe('the filter line does not clip an open or focused trigger’s ring
     }],
   }
 
-  test('desktop: a list’s chip and + Filter, and the Eisenhower’s + Filter, ringed whole while open; the line 36px', async ({ page }) => {
+  test('desktop: the list’s words and the Eisenhower’s `Every open task`, ringed whole when focused; the line 36px', async ({ page }) => {
     await page.setViewportSize({ width: 1400, height: 900 })
     await seedWorkspace(page, LINES)
     const row = wsListWidget(page, 't1').getByTestId('list-filter-row')
     expect(Math.round((await box(row)).height)).toBe(36)
-
-    // The first chip sits at the scroller's start: its left side too.
-    const chip = row.getByTestId('list-filter-chip')
-    await chip.click()
-    await expect(page.getByTestId('list-filter-picker')).toBeVisible()
-    await expectRinged(page, chip, true)
-    await expectRingRoom(chip)
-    await page.keyboard.press('Escape')
-    await expect(page.getByTestId('list-filter-picker')).toHaveCount(0)
-
-    const addFilter = row.getByRole('button', { name: ADD_FILTER })
-    await addFilter.click()
-    await expect(page.getByRole('menu', { name: 'Add a filter' })).toBeVisible()
-    await expectRinged(page, addFilter, true)
-    await expectRingRoom(addFilter)
-    await page.keyboard.press('Escape')
+    // Words, not chips (2A): the line's one way in to its filter is a button reading it.
+    const words = row.getByTestId('list-filter-expression')
+    await words.focus()
+    await expectRingRoom(words)
 
     const eisLine = wsCell(page, 'k2').getByTestId('list-filter-row')
     expect(Math.round((await box(eisLine)).height)).toBe(36)
-    const eisAdd = eisLine.getByRole('button', { name: ADD_FILTER })
-    await eisAdd.click()
-    await expect(page.getByRole('menu', { name: 'Add a filter' })).toBeVisible()
-    await expectRinged(page, eisAdd, true)
-    await expectRingRoom(eisAdd)
+    const every = eisLine.getByRole('button', { name: 'Every open task' })
+    await every.focus()
+    await expectRingRoom(every)
   })
 
-  test('phone (touch chips): room for the ring round the 32px chips; the line 48px', async ({ browser }) => {
+  test('phone (touch chips): room for the ring round the 32px words; the line 48px', async ({ browser }) => {
     const context = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true })
     const page = await context.newPage()
     try {
       await seedWorkspace(page, LINES)
       const row = wsCell(page, 'k1').getByTestId('list-filter-row')
       expect(Math.round((await box(row)).height)).toBe(48)
-      const chip = row.getByTestId('list-filter-chip')
-      expect(Math.round((await box(chip)).height)).toBe(32)
-      await expectRingRoom(chip)
-      await expectRingRoom(row.getByRole('button', { name: ADD_FILTER }))
+      const words = row.getByTestId('list-filter-expression')
+      expect(Math.round((await box(words)).height)).toBe(32)
+      await expectRingRoom(words)
     } finally {
       await context.close()
     }
   })
 })
 
-test('a chip’s picker flipped above it: searching shortens it, it stays on its gap and the caret on its edge', async ({ page }) => {
+test('a row’s picker flipped above it: searching shortens it, it stays on its gap and the caret on its edge', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 800 })
   const people = ['Ann', ...Array.from({ length: 14 }, (_, n) => `Person number ${n + 1}`)]
   await seedWorkspace(page, {
     people,
-    // Team asks for a tag first: its prompt row puts the filter line lower in the band.
-    listDefinitions: [{ name: 'Notes' }, { name: 'Team', people: ['Ann'], runtimeFilter: { field: 'tag' } }],
+    listDefinitions: [{ name: 'Notes' }, { name: 'Team', people: ['Ann'] }],
     tasks: [{ title: 'Ann one', people: ['Ann'] }],
     layouts: [{
       name: 'Main',
       columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'n1', kind: 'notes' }] })] }],
       // A list in the bottom band (the shortest that shows the full list: a body over 260px,
-      // D25 R): its filter line sits low, so the picker flips above the chip.
+      // D25 R): its row sits low, so its people picker flips above the cell.
       bottom: { id: 'bb-band', height: 296, cells: [{ id: 'bb', tabs: [{ id: 'band', kind: 'lens', listDefIdx: 1 }] }] },
     }],
   })
-  const chip = wsListWidget(page, 'band').getByTestId('list-filter-chip')
+  // (The filter line's chips moved into Edit list, 2A: a row's picker is the same anchored popover.)
+  const chip = wsListWidget(page, 'band').locator('[data-todo-id]').first().locator('[data-row-cell="people"]')
   await chip.click()
-  const picker = page.getByTestId('list-filter-picker')
+  const picker = page.locator('[data-anchored-picker]')
   await expect(picker.getByRole('option', { name: 'Person number 14' })).toBeVisible()
   await expectCaretAt(picker, chip, 'bottom')
   const before = await box(picker)
