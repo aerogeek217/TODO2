@@ -202,6 +202,8 @@ test.describe('Task follow-up', () => {
     await taskRowByTitle(page, 'alpha').locator('span[data-task-title="alpha"]').dblclick()
     const editor = page.getByRole('dialog', { name: 'Edit task' })
     const calendar = editor.getByRole('button', { name: 'Pick next follow-up date' })
+    // At rest the field reads as a date (board BJ); its buttons show on hover and focus.
+    await editor.getByRole('textbox', { name: 'Next follow-up' }).hover()
     await expect(calendar).toBeVisible()
     await calendar.locator('xpath=following-sibling::input[@type="date"]').fill('2026-10-30', { force: true })
     await expect(editor.getByRole('textbox', { name: 'Next follow-up' })).toHaveValue('Fri 30 Oct')

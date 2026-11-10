@@ -22,15 +22,11 @@ test('TaskEditPopup edit mode shows registry tags in the Tags picker', async ({ 
   const taskRow = taskRowByTitle(page, 'Some task')
   await taskRow.locator('span[data-task-title="Some task"]').dblclick()
 
-  // Wait for the popup. The "Tags" row in `TaskEditMetadata` exposes a
-  // `+ Add` button that toggles the chip selector dropdown.
-  // (The top bar's Tags filter button reads "Tags" too — skip the filter tray.)
-  const tagsLabel = page.getByText('Tags', { exact: true }).and(page.locator(':not([data-filter-row] *)'))
-  await expect(tagsLabel).toBeVisible()
-  // The Tags row's "+ Add" button — `.chipAddBtn` is reused by people/tags
-  // rows, so we scope to the Tags row by walking from the visible label.
-  const tagsRow = tagsLabel.locator('..')
-  await tagsRow.getByRole('button', { name: '+ Add' }).click()
+  // Wait for the popup. The facts rail's Tags section has a `+` (Add tag)
+  // that toggles the chip selector.
+  const editor = page.getByRole('dialog', { name: 'Edit task' })
+  await expect(editor.getByRole('region', { name: 'Tags' })).toBeVisible()
+  await editor.getByRole('button', { name: 'Add tag' }).click()
 
   // Both seeded tags appear in the picker. Pre-fix this list would be empty.
   await expect(page.getByRole('option', { name: 'urgent', exact: true })).toBeVisible()

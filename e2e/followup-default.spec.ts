@@ -228,6 +228,8 @@ test.describe('the new-task editor', () => {
     await expect.poll(() => followupOf(page, 'epsilon')).toEqual({ next: '2026-10-24 00:00', last: null })
 
     editor = await openEditor(page, 'delta')
+    // At rest the field reads as a date (board BJ); its × shows on hover and focus.
+    await editor.getByRole('textbox', { name: 'Next follow-up' }).hover()
     await editor.getByRole('button', { name: 'Clear next follow-up' }).click()
     await expect(editor.getByRole('textbox', { name: 'Next follow-up' })).toHaveValue('')
     await editor.getByRole('button', { name: 'Create task' }).click()
