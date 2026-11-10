@@ -43,6 +43,23 @@
   align-items: center;
   flex: 1 1 0;
   min-width: 0;
+  /* Its own size container: its content never sets its width (size containment on the inline axis), so
+   * the words only ever take the room the line has left — they give way first, before the name's tail. */
+  container: list-words / inline-size;
+}
+
+/* The words shrink to nothing (`ExpressionWords`' 96px floor is for the chip scroller): they fade with
+ * `+N more`, and are never wider than their room — so they can't draw over the count or group · sort. */
+.words > * {
+  min-width: 0;
+}
+
+/* Too little room to read: none at all (the tooltip-less line keeps the name, badge, count and group · sort
+ * whole; Edit list and the ⋯ menu still have the filter). */
+@container list-words (max-width: 55px) {
+  .words > * {
+    display: none;
+  }
 }
 
 /* A filter that narrows by nothing: `Every open task`, as muted as the words. */
