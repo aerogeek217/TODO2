@@ -13,8 +13,9 @@ const SHEET_PLACEMENT: CSSProperties = { margin: 'auto 0 0', width: '100%' }
 
 /**
  * The phone's storage status, in its top bar: shown only while a sync or
- * backup warning is active — a capsule coloured as the desktop pill (amber /
- * red) with the most urgent warning's glyph and a count from two warnings.
+ * backup warning or the purge notice is active — a capsule coloured as the
+ * desktop pill (amber / red / quiet for the notice) with the most urgent
+ * warning's glyph and a count from two warnings.
  * Tap → a bottom sheet with the same sections as the pill's popover, then
  * File storage settings (the Settings page on Database).
  */
@@ -27,7 +28,8 @@ export function SyncStatusButton() {
   const first = warnings.at(0)
   // The last warning went: the sheet closes (and stays closed for the next one).
   if (!first && open) setOpen(false)
-  const tone = warningTone(state.kind) === 'danger' ? styles.danger : styles.warning
+  const t = warningTone(state.kind)
+  const tone = t === 'danger' ? styles.danger : t === 'notice' ? styles.notice : styles.warning
 
   // One tree whether or not a warning shows, so the live region stays mounted
   // and announces the first warning that appears.

@@ -3,6 +3,7 @@ import { todoRepository } from '../data/todo-repository'
 import { useTodoStore } from '../stores/todo-store'
 import { useUIStore } from '../stores/ui-store'
 import { useSettingsStore } from '../stores/settings-store'
+import { usePurgeNoticeStore } from '../stores/purge-notice-store'
 import { nextPurgePromptDay, selectExpiredCompleted } from '../utils/completed-at'
 import { buildTaskArchive, selfCheckTaskArchiveJson, taskArchiveFileName } from './task-archive'
 import { saveTextFile } from './save-file'
@@ -10,7 +11,7 @@ import { saveTextFile } from './save-file'
 /**
  * Completed tasks past `retentionDays`, read from the database (the todo
  * store may not be loaded yet). With `uids`, only those tasks —
- * the launch prompt keeps the set it found at launch.
+ * the purge notice keeps the set its check found.
  */
 export async function listExpiredCompleted(
   retentionDays: number,
@@ -21,11 +22,11 @@ export async function listExpiredCompleted(
 }
 
 /**
- * uids of the completed tasks the launch prompt would ask about at `now`:
- * those past the retention setting — null when retention is off, none are,
- * or the prompt showed less than its interval ago (Settings' "Ask at most
- * every N days", `nextPurgePromptDay`; whatever was answered). uids survive
- * a sync-file restore; ids don't.
+ * uids of the completed tasks the purge notice would offer at `now`: those
+ * past the retention setting — null when retention is off, none are, or the
+ * user was asked less than the interval ago (Settings' "Ask at most every N
+ * days", `nextPurgePromptDay`: the dialog opened, or Not now in the notice;
+ * whatever was answered). uids survive a sync-file restore; ids don't.
  */
 export async function expiredCompletedUids(now: Date = new Date()): Promise<ReadonlySet<string> | null> {
   const { completedRetentionDays, purgePromptLastAt, purgePromptIntervalDays } = useSettingsStore.getState()
@@ -36,12 +37,38 @@ export async function expiredCompletedUids(now: Date = new Date()): Promise<Read
 }
 
 /**
- * Records that the launch prompt showed at `now`: the next one waits the
- * interval from that day, whatever the answer. An internal stamp — no undo
- * step, no notice.
+ * Records that the user was asked at `now` (the purge dialog opened, or Not
+ * now in the notice): the next notice waits the interval from that day,
+ * whatever the answer. An internal stamp — no undo step, no notice.
  */
 export function recordPurgePromptShown(now: Date = new Date()): Promise<void> {
   return useSettingsStore.getState().setPurgePromptLastAt(now)
+}
+
+/**
+ * Completed tasks past retention are never purged silently, and launch never
+ * opens a dialog about them: the check's uids (launch, a later sync-file
+ * load) become the storage pill's notice — those not already answered this
+ * session. Showing it writes nothing.
+ */
+export function offerPurgeNotice(uids: ReadonlySet<string> | null): void {
+  if (uids && uids.size > 0) usePurgeNoticeStore.getState().offer(uids)
+}
+
+/** Review… in the notice: the purge dialog opens (it stamps the interval as it shows). */
+export function reviewPurgeNotice(): void {
+  usePurgeNoticeStore.getState().openReview()
+}
+
+/** Not now in the notice: nothing deleted, the notice goes, and the next waits the interval. */
+export async function dismissPurgeNotice(): Promise<void> {
+  usePurgeNoticeStore.getState().settle()
+  await recordPurgePromptShown()
+}
+
+/** The purge dialog closed in any way (Not now, Escape, Delete, Export & delete): the notice goes until the next check finds tasks. */
+export function closePurgeReview(): void {
+  usePurgeNoticeStore.getState().settle()
 }
 
 /**

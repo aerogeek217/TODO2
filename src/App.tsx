@@ -39,9 +39,9 @@ import type { TooNewDBInfo, TooOldDBInfo } from './services/migration-check'
 import { DatabaseChangedElsewhereGuard, DatabaseTooNewDialog, DatabaseTooOldDialog } from './components/overlays/DatabaseVersionDialog'
 import { SyncConflictDialog } from './components/overlays/SyncConflictDialog'
 import { FileUpgradeDialog } from './components/overlays/FileUpgradeDialog'
-import { StartupPurgePrompt } from './components/overlays/StartupPurgePrompt'
+import { PurgeNoticeHost } from './components/overlays/PurgeNoticeHost'
 import { LaunchPermissionDialog } from './components/overlays/LaunchPermissionDialog'
-import { expiredCompletedUids } from './services/purge-completed'
+import { expiredCompletedUids, offerPurgeNotice } from './services/purge-completed'
 import { KeyboardShortcutsModal } from './components/settings/KeyboardShortcutsModal'
 import { BottomTabBar } from './components/layout/BottomTabBar'
 import { FilterSheet } from './components/overlays/FilterSheet'
@@ -215,11 +215,6 @@ function AppQuickAddBar() {
   )
 }
 
-/** Both sets of uids (the prompt lists every task either asks about). */
-function mergeUids(prev: ReadonlySet<string> | null, next: ReadonlySet<string>): ReadonlySet<string> {
-  return prev ? new Set([...prev, ...next]) : next
-}
-
 /**
  * `#/settings`: the Settings page on mobile; on desktop a deep link that
  * opens the workspace with the Settings modal open.
@@ -247,10 +242,6 @@ function AppShell() {
   const [initTooOld, setInitTooOld] = useState<{ storedVersion: number | null } | null>(null)
   const [showPalette, setShowPalette] = useState(false)
   const [showShortcuts, setShowShortcuts] = useState(false)
-  /** uids of the completed tasks past retention at launch (for the purge prompt). */
-  const [purgeLaunchUids, setPurgeLaunchUids] = useState<ReadonlySet<string> | null>(null)
-  /** uids the purge prompt already asked about this launch (any answer): a later file load doesn't ask again. */
-  const purgeAskedRef = useRef(new Set<string>())
   /** Set once launch's completed-task check began reading: a sync-file load from then on gets its own check. */
   const purgeCheckStartedRef = useRef(false)
   /** While launch waits for the sync file's permission answer the start screen shows no spinner. */
@@ -289,10 +280,11 @@ function AppShell() {
     // the file needs permission (`runAppStartup`).
     runAppStartup({ onPurgeCheck: () => { purgeCheckStartedRef.current = true } })
       .then(({ expiredUids }) => {
-        // Completed tasks past retention are never purged silently — the
-        // prompt asks about the ones expired once the sync file was loaded
-        // (or its prompts answered), so the list reflects the data kept.
-        if (expiredUids) setPurgeLaunchUids((prev) => mergeUids(prev, expiredUids))
+        // Completed tasks past retention are never purged silently, and
+        // launch opens no dialog about them: the storage pill's notice
+        // offers the ones expired once the sync file was loaded (or its
+        // prompts answered), so its list reflects the data kept.
+        offerPurgeNotice(expiredUids)
         setInitialized(true)
       })
       .catch((err) => {
@@ -307,19 +299,17 @@ function AppShell() {
   }, [])
 
   // A sync file loaded once launch's check began (Grant access, Attach /
-  // Open file, a retry or a resolved conflict) replaced the data: ask about
-  // its expired tasks too — those the prompt hasn't already asked about this
-  // launch — unless the loaded data says the prompt showed within its
-  // interval (`expiredCompletedUids`). A load before that is covered by
-  // launch's own check. Runs after the stores reloaded (`replaceData`), so
-  // the interval is the loaded data's.
+  // Open file, a retry or a resolved conflict) replaced the data: the notice
+  // offers its expired tasks too — those not already answered this session
+  // (`usePurgeNoticeStore.offer`) — unless the loaded data says the user was
+  // asked within the interval (`expiredCompletedUids`). A load before that
+  // is covered by launch's own check. Runs after the stores reloaded
+  // (`replaceData`), so the interval is the loaded data's.
   useEffect(() => {
     return onDataReplaced(async (source) => {
       if (source !== 'sync-file' || !purgeCheckStartedRef.current) return
       try {
-        const expired = await expiredCompletedUids()
-        const fresh = [...(expired ?? [])].filter((uid) => !purgeAskedRef.current.has(uid))
-        if (fresh.length > 0) setPurgeLaunchUids((prev) => mergeUids(prev, new Set(fresh)))
+        offerPurgeNotice(await expiredCompletedUids())
       } catch (err) {
         console.warn('[purge] could not read expired tasks', err)
       }
@@ -408,15 +398,7 @@ function AppShell() {
       )}
 
       <AppBulkConfirmDialog />
-      {purgeLaunchUids && (
-        <StartupPurgePrompt
-          launchUids={purgeLaunchUids}
-          onClose={() => {
-            for (const uid of purgeLaunchUids) purgeAskedRef.current.add(uid)
-            setPurgeLaunchUids(null)
-          }}
-        />
-      )}
+      <PurgeNoticeHost />
       <AppQuickAddBar />
       <RecentTaskPill />
       <UndoSnackbar />

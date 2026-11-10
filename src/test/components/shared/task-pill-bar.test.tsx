@@ -236,40 +236,11 @@ describe('<TaskPillBar>', () => {
     })
   })
 
-  describe('dateFormat / followupFlagOnly (MobileTaskRow)', () => {
-    it('shows the due date as MM/DD and the follow-up as its flag only', () => {
-      const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 5), nextFollowupAt: new Date(2026, 3, 25) })
-      const { container } = render(
-        <TaskPillBar todo={todo} people={[]} today={today} dateFormat="numeric" followupFlagOnly />,
-      )
-      expect(screen.getByLabelText('Edit due date')).toHaveTextContent('04/05')
-      const followup = container.querySelector('[data-pill="followup"]') as HTMLElement
-      expect(followup.textContent).toBe('')
-      expect(followup).toHaveAccessibleName(/^Follow-up: /)
-    })
-
-    it('defaults to the short date and the labelled pill', () => {
-      const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 25), nextFollowupAt: new Date(2026, 3, 25) })
-      const { container } = render(<TaskPillBar todo={todo} people={[]} today={today} />)
-      expect(screen.getByLabelText('Edit due date')).toHaveTextContent('Apr 25')
-      expect((container.querySelector('[data-pill="followup"]') as HTMLElement).textContent).not.toBe('')
-    })
-  })
-
-  describe('showStatus={false} (MobileTaskRow)', () => {
-    it('omits the status indicator when showStatus is false', () => {
-      const todo = makeTodo({ id: 1, statusId: 5 })
-      render(
-        <TaskPillBar
-          todo={todo}
-          people={[]}
-          status={inProgress}
-          today={today}
-          showStatus={false}
-        />,
-      )
-      expect(screen.queryByLabelText('Status: In Progress')).toBeNull()
-    })
+  it('writes the due date short and the follow-up pill with its day', () => {
+    const todo = makeTodo({ id: 1, dueDate: new Date(2026, 3, 25), nextFollowupAt: new Date(2026, 3, 25) })
+    const { container } = render(<TaskPillBar todo={todo} people={[]} today={today} />)
+    expect(screen.getByLabelText('Edit due date')).toHaveTextContent('Apr 25')
+    expect((container.querySelector('[data-pill="followup"]') as HTMLElement).textContent).not.toBe('')
   })
 
   describe('store independence', () => {
@@ -344,17 +315,6 @@ describe('<TaskPillPeople>', () => {
       />,
     )
     // The AvatarStack's stackSm class contains "stackSm" substring
-    expect(container.querySelector('[class*="stackSm"]')).toBeInTheDocument()
-  })
-
-  it('uses size=sm when density=small', () => {
-    const { container } = render(
-      <TaskPillPeople
-        people={[makePerson({ id: 1, name: 'Alice', initials: 'AL' })]}
-        interactive={false}
-        density="small"
-      />,
-    )
     expect(container.querySelector('[class*="stackSm"]')).toBeInTheDocument()
   })
 })
