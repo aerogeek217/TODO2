@@ -111,7 +111,8 @@ describe('glance widgets — the design sample', () => {
     expect(['open', 'focus', 'urgent', 'overdue', 'followupDue'].filter((id) => tile(id).dataset.lit === 'true'))
       .toEqual(['urgent', 'overdue', 'followupDue'])
     const count = (id: string) => tile(id).querySelector<HTMLElement>('[data-testid="number-count"]')!.style.color
-    expect(count('overdue')).toBe('rgb(232, 107, 240)')
+    // v78's overdue hex, drawn as the overdue token (its light twin in light, J21).
+    expect(count('overdue')).toBe('var(--color-overdue)')
     expect(count('open')).toBe('var(--color-text-primary)')
     expect(count('focus')).toBe('var(--color-text-primary)')
   })

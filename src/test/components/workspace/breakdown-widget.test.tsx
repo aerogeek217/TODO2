@@ -237,7 +237,9 @@ describe('clicks: a row drills, its Review button and a count review', () => {
     const all = priya.querySelector<HTMLElement>('[data-column="all"]')!
     expect(all.textContent).toBe('4')
     expect(all.hasAttribute('data-solid')).toBe(true)
-    expect(all.style.getPropertyValue('--col-color')).toBe('#7ec4bc')
+    // The teal preset: its text token outlined, its hex as the solid fill (J21).
+    expect(all.style.getPropertyValue('--col-color')).toBe('var(--hue-teal-text)')
+    expect(all.style.getPropertyValue('--col-fill')).toBe('#7ec4bc')
     expect(priya.querySelector('[data-column="quiet"]')!.hasAttribute('data-solid')).toBe(false)
     expect(priya.querySelector('[data-column="nobody"]')).toBeNull()
     expect(within(priya).getByLabelText('No tasks in Nobody').textContent).toBe('–')
@@ -251,8 +253,8 @@ describe('clicks: a row drills, its Review button and a count review', () => {
     const counts = [...document.querySelectorAll<HTMLElement>('[data-column="due"], [data-column="followup"]')]
     expect(counts.length).toBeGreaterThan(0)
     for (const el of counts) expect(el.hasAttribute('data-solid')).toBe(true)
-    expect(document.querySelector<HTMLElement>('[data-column="due"]')!.style.getPropertyValue('--col-color')).toBe('#e86bf0')
-    expect(document.querySelector<HTMLElement>('[data-column="followup"]')!.style.getPropertyValue('--col-color')).toBe('#f5c842')
+    expect(document.querySelector<HTMLElement>('[data-column="due"]')!.style.getPropertyValue('--col-color')).toBe('var(--color-overdue)')
+    expect(document.querySelector<HTMLElement>('[data-column="followup"]')!.style.getPropertyValue('--col-color')).toBe('var(--color-followup)')
   })
 
   it('no Review while the deck is open', () => {

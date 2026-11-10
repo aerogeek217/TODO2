@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { DEFAULT_THEMED_COLORS } from '../../models/theme-colors'
+import { HUE_NAMES } from '../../models/workspace-layout'
+import { HUE_PRESET_HEX } from '../../utils/layout-hue'
+import { themeColor, UPGRADE_COLOR_TOKENS } from '../../utils/theme-color'
 import { contrast, resolveColor, sourceFiles, themeTokens, type Rgb, type ThemeName } from './css-source'
 
 /** WCAG AA for normal-size text. */
@@ -110,6 +113,54 @@ describe('the layout hues (D19) stand out like the accent', () => {
       for (const bg of ['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg']) {
         expect(ratio(theme, `--hue-${hue}`, bg), `${hue} on ${bg}`).toBeGreaterThanOrEqual(AA_GRAPHIC)
       }
+    }
+  })
+})
+
+/** A colour's sRGB channels scaled towards black by `share` in oklab (`color-mix(in oklab, c, #000 share)`). */
+function shadeInOklab([r, g, b]: Rgb, share: number): Rgb {
+  const toLin = (c: number) => { const s = c / 255; return s <= 0.04045 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4 }
+  const toByte = (v: number) => 255 * Math.min(1, Math.max(0, v <= 0.0031308 ? 12.92 * v : 1.055 * v ** (1 / 2.4) - 0.055))
+  const [lr, lg, lb] = [toLin(r), toLin(g), toLin(b)]
+  // Mixing with black (L = a = b = 0) scales L, a and b alike, so it scales the cone responses' cube roots.
+  const k = 1 - share
+  const l = (k * Math.cbrt(0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb)) ** 3
+  const m = (k * Math.cbrt(0.2119034982 * lr + 0.6806995451 * lg + 0.1073969566 * lb)) ** 3
+  const s = (k * Math.cbrt(0.0883024619 * lr + 0.2817188376 * lg + 0.6299787005 * lb)) ** 3
+  return [
+    toByte(4.0767416621 * l - 3.3077115913 * m + 0.2309699292 * s),
+    toByte(-1.2684380046 * l + 2.6097574011 * m - 0.3413193965 * s),
+    toByte(-0.0041960863 * l - 0.7034186147 * m + 1.707614701 * s),
+  ]
+}
+
+describe('a stored colour as text reads in light (J21, `utils/theme-color`)', () => {
+  const light = themeTokens('light')
+  const at = (value: string) => resolveColor(value, light)
+  // Where a Number and a Breakdown's outlined counts sit: the cell, the page, the
+  // popovers (a small face opened), a dialog — and a hovered Number (6% black
+  // over the cell's ground, `--color-surface`).
+  const UNDER: Array<[string, Rgb]> = [
+    ...['--color-surface', '--color-surface-high', '--color-app-bg', '--color-header-bg', '--color-popover-bg', '--color-dialog-bg']
+      .map((name): [string, Rgb] => [name, at(`var(${name})`)]),
+    ['a hovered cell', at('var(--color-surface)').map((c) => c * 0.94) as Rgb],
+  ]
+
+  it.each(HUE_NAMES)('the %s preset at 4.5:1', (hue) => {
+    const fg = at(themeColor(HUE_PRESET_HEX[hue]))
+    for (const [name, bg] of UNDER) expect(contrast(fg, bg), `${hue} on ${name}`).toBeGreaterThanOrEqual(AA_TEXT)
+  })
+
+  it.each(Object.keys(UPGRADE_COLOR_TOKENS))('v78’s %s at 4.5:1', (hex) => {
+    const fg = at(themeColor(hex))
+    for (const [name, bg] of UNDER) expect(contrast(fg, bg), `${hex} on ${name}`).toBeGreaterThanOrEqual(AA_TEXT)
+  })
+
+  it('a custom pick of a dark-theme tone (each dark preset’s hex as if custom) reads once shaded', () => {
+    const share = Number(/^([\d.]+)%$/.exec(light.get('--custom-color-shade') ?? '')?.[1]) / 100
+    for (const hex of Object.values(HUE_PRESET_HEX)) {
+      const fg = shadeInOklab(at(hex), share)
+      for (const [name, bg] of UNDER) expect(contrast(fg, bg), `${hex} shaded on ${name}`).toBeGreaterThanOrEqual(AA_TEXT)
     }
   })
 })
