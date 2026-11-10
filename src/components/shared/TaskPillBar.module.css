@@ -1,6 +1,6 @@
 /*
- * Shared task-pill bar — used by MobileTaskRow, the top bar's
- * SearchResultRow and calendar entries. Every surface shares
+ * Shared task-pill bar — used by the top bar's SearchResultRow and
+ * calendar entries. Every surface shares
  * one set of chip styles, with mode flags driving icon-only / read-only
  * variants.
  *
@@ -31,16 +31,14 @@
 /* ═══ Due-date chip ═══ */
 
 .deadlineChip {
-  --date-intensity: 1;
-  --fade: calc((1 - var(--date-intensity)) * 100%);
   position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 2px;
   font-size: var(--font-size-meta);
-  color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
-  background: color-mix(in srgb, transparent var(--fade), var(--color-deadline-bg));
+  color: var(--color-deadline);
+  background: var(--color-deadline-bg);
   padding: 1px 4px;
   line-height: 14px;
   border-radius: var(--radius-chip);
@@ -55,7 +53,7 @@
 }
 
 .deadlineChip:hover {
-  border-color: color-mix(in srgb, var(--color-text-muted) var(--fade), var(--color-deadline));
+  border-color: var(--color-deadline);
 }
 
 .deadlineChipPast {
@@ -240,13 +238,6 @@
 
 .followupChipWithClear {
   padding-right: 2px;
-}
-
-/* Just the flag (the phone row). */
-.followupChipFlagOnly {
-  width: 20px;
-  padding: 0;
-  justify-content: center;
 }
 
 .followupChipToday,
