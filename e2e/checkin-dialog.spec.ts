@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { expect, test, type Page } from '@playwright/test'
-import { ADD_FILTER, seedWorkspace, wsTab, type WorkspaceSeed, wsRow, editListDraft, expectLayoutStored } from './fixtures/workspace'
+import { ADD_FILTER, seedWorkspace, type WorkspaceSeed, wsRow, editListDraft, expectLayoutStored } from './fixtures/workspace'
 import { readStore } from './fixtures/db'
 
 /**
