@@ -16,11 +16,19 @@ interface AnchorRect { left: number; top: number; right: number; bottom: number 
  * is `caretX` (a viewport x) when the host measures it, else `caretLeft` in
  * from the input's left. Null until the input is mounted.
  */
-function measureAnchor(input: HTMLElement | null, caretLeft: number, caretX: number | null): AnchorRect | null {
+function measureAnchor(
+  input: HTMLElement | null,
+  caretLeft: number,
+  caretX: number | null,
+  surface: HTMLElement | null,
+): AnchorRect | null {
   if (!input) return null
   const r = input.getBoundingClientRect()
   const left = caretX == null ? r.left + caretLeft : Math.min(Math.max(caretX, r.left), r.right)
-  return { left, top: r.top, right: r.right, bottom: r.bottom }
+  // A host's surface (Quick Add's bar): the popup goes under — or over — the
+  // whole surface, still at the caret's column, so it covers none of it.
+  const s = surface?.getBoundingClientRect()
+  return { left, top: s ? s.top : r.top, right: r.right, bottom: s ? s.bottom : r.bottom }
 }
 
 /**
@@ -71,6 +79,14 @@ export function useNlpPopupAnchor(
    * and what it is measured for (`key`: measured again when it changes).
    */
   caret?: { x: () => number | null; key: unknown },
+  /**
+   * The surface the field sits in, when the popup must clear all of it
+   * rather than only the field (Quick Add: its chips and Details button lie
+   * under the field). The popup then opens below the surface's bottom (above
+   * its top when it would clip), at the caret's column. Measured again with
+   * `caret.key`, as the surface grows with what is typed.
+   */
+  surfaceRef?: RefObject<HTMLElement | null>,
 ) {
   const [anchor, setAnchor] = useState<AnchorRect | null>(null)
   const popupRef = useRef<HTMLDivElement | null>(null)
@@ -81,9 +97,9 @@ export function useNlpPopupAnchor(
   const measure = useCallback(() => {
     // A new key is a new measure (the layout effect below runs again).
     void caretKey
-    const next = measureAnchor(inputRef.current, caretLeft, caretXOf?.() ?? null)
+    const next = measureAnchor(inputRef.current, caretLeft, caretXOf?.() ?? null, surfaceRef?.current ?? null)
     setAnchor((prev) => (sameRect(prev, next) ? prev : next))
-  }, [inputRef, caretLeft, caretXOf, caretKey])
+  }, [inputRef, caretLeft, caretXOf, caretKey, surfaceRef])
 
   useLayoutEffect(() => {
     if (!visible) return

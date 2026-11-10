@@ -577,13 +577,14 @@ export function QuickAddBar({
   }, [open, fitHeight])
 
   // Popup placement (`useNlpPopupAnchor`), portal'd to body: at the token's
-  // character in the mirror, which wraps as the field does.
+  // character in the mirror, which wraps as the field does, and under the
+  // whole bar — its chips and Details button stay uncovered.
   const popupAnchorIndex = ac.state.view?.anchor ?? null
   const caretX = useCallback(
     () => (mirrorRef.current && popupAnchorIndex != null ? mirrorCharX(mirrorRef.current, popupAnchorIndex) : null),
     [popupAnchorIndex],
   )
-  const { popupRef, setPopupEl, style: popupStyle } = useNlpPopupAnchor(inputRef, ac.state, { x: caretX, key: raw })
+  const { popupRef, setPopupEl, style: popupStyle } = useNlpPopupAnchor(inputRef, ac.state, { x: caretX, key: raw }, surfaceRef)
 
   // A press outside the bar and its backdrop (the backdrop closes on its own
   // click) closes the bar. The backdrop covers the page, so this is only

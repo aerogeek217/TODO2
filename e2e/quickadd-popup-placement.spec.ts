@@ -3,13 +3,16 @@ import { seedTaskList } from './fixtures/workspace'
 import { box } from './fixtures/geometry'
 
 /**
- * Quick Add's `@ # /` popup is placed by `usePopoverAnchor` against the
- * input's box from the caret column: 4px below the input at the trigger
- * character, kept inside the window, and re-placed when the window resizes. Caret-relative
+ * Quick Add's `@ # /` popup is placed by `usePopoverAnchor` at the caret
+ * column, under the whole bar: 4px below the bar's surface at the trigger
+ * character (its chips and Details button uncovered), kept inside the window,
+ * and re-placed when the window resizes. Caret-relative
  * placement reads real layout, so a real browser is the authoritative surface.
  */
 
 const MARGIN = 8
+
+const surfaceOf = (page: Page) => page.getByRole('dialog', { name: 'Quick add task' })
 
 async function openQuickAdd(page: Page): Promise<Locator> {
   await seedTaskList(page, { people: [{ name: 'Alice Smith', initials: 'AS' }] })
@@ -34,16 +37,33 @@ async function caretX(input: Locator, index: number): Promise<number> {
   }, index)
 }
 
-test('opens 4px below the input at the trigger character', async ({ page }) => {
+test('opens 4px below the bar at the trigger character, clear of its Details button', async ({ page }) => {
   const input = await openQuickAdd(page)
   await page.keyboard.type('Call about the invoice @al')
   const popup = page.getByRole('listbox', { name: 'People' })
   await expect(popup).toBeVisible()
-  const i = await box(input)
+  const s = await box(surfaceOf(page))
   const p = await box(popup)
   const at = await caretX(input, 'Call about the invoice '.length)
   expect(Math.abs(p.x - at)).toBeLessThan(3)
-  expect(Math.round(p.y - (i.y + i.height))).toBe(4)
+  expect(Math.round(p.y - (s.y + s.height))).toBe(4)
+  // The footer's Details button is uncovered: the popup starts below it.
+  const details = await box(surfaceOf(page).getByRole('button', { name: /Details/ }))
+  expect(p.y).toBeGreaterThan(details.y + details.height)
+})
+
+test('a `/` command popup also leaves the Details button uncovered', async ({ page }) => {
+  await openQuickAdd(page)
+  await page.keyboard.type('Ship the release notes /')
+  const popup = page.getByRole('listbox')
+  await expect(popup).toBeVisible()
+  const details = await box(surfaceOf(page).getByRole('button', { name: /Details/ }))
+  const p = await box(popup)
+  const overlaps = p.x < details.x + details.width && details.x < p.x + p.width
+    && p.y < details.y + details.height && details.y < p.y + p.height
+  expect(overlaps).toBe(false)
+  // A click on Details reaches it (nothing over it).
+  await expect(surfaceOf(page).getByRole('button', { name: /Details/ })).toBeEnabled()
 })
 
 test('a long title keeps it inside the window, under the input; a resize re-places it', async ({ page }) => {
@@ -58,7 +78,8 @@ test('a long title keeps it inside the window, under the input; a resize re-plac
   const p = await box(popup)
   expect(p.x).toBeGreaterThanOrEqual(i.x)
   expect(p.x + p.width).toBeLessThanOrEqual(900 - MARGIN)
-  expect(Math.round(p.y - (i.y + i.height))).toBe(4)
+  const s = await box(surfaceOf(page))
+  expect(Math.round(p.y - (s.y + s.height))).toBe(4)
 
   // The bar is centred: a wider window moves the input, and the popup follows it.
   await page.setViewportSize({ width: 1300, height: 700 })
@@ -78,7 +99,7 @@ test('a title too long for one line wraps, the field growing; the popup opens at
   // Wrapped, never scrolled sideways: every word shows.
   await expect.poll(async () => (await box(input)).height).toBeGreaterThan(oneLine * 2 - 1)
   expect(await input.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true)
-  // The `@` sits on a later line, in from the field's left: the popup is at it, under the field.
+  // The `@` sits on a later line, in from the field's left: the popup is at it, under the bar.
   const at = await page.getByTestId('quickadd-mirror').evaluate((mirror, text) => {
     const node = document.createTreeWalker(mirror, NodeFilter.SHOW_TEXT)
     let seen = 0
@@ -101,7 +122,8 @@ test('a title too long for one line wraps, the field growing; the popup opens at
   expect(at.y).toBeGreaterThan(i.y + oneLine - 1)
   const p = await box(popup)
   expect(Math.abs(p.x - at.x)).toBeLessThan(2)
-  expect(Math.round(p.y - (i.y + i.height))).toBe(4)
+  const s = await box(surfaceOf(page))
+  expect(Math.round(p.y - (s.y + s.height))).toBe(4)
   // ⏎ picks the person; the title stays one line of text however it wraps.
   await page.keyboard.press('Enter')
   expect(await input.inputValue()).not.toContain('\n')
