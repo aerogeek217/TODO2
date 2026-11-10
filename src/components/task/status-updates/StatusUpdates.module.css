@@ -1,7 +1,9 @@
 /*
- * A task's status updates in the task layout (the editor, the review card):
- * the label with its count, then the entries oldest first, one `MM/DD text`
- * line each (the list scrolls inside past its limit), then the add line.
+ * A task's status updates in the task layout (the editor, the review card;
+ * the writing's dock): the label — always shown, its count beside it —,
+ * then the entries oldest first, one `MM/DD text` line each (the list
+ * scrolls inside past its limit), then the add line. The dates start at
+ * the label's left edge.
  */
 
 .headingRow {
@@ -19,16 +21,14 @@
   margin-bottom: 0;
 }
 
-/* The entry count beside the label. */
+/* The entry count beside the label: plain, as the checklist's `2 of 4`. */
 .count {
-  padding: 0 6px;
-  border-radius: var(--radius-pill);
-  background: var(--color-tint-8);
-  color: var(--color-text-secondary);
+  color: var(--color-text-muted);
   font-size: 11px;
-  line-height: 16px;
+  font-weight: var(--font-weight-semibold);
   letter-spacing: 0;
   text-transform: none;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── The edit row ── */
@@ -39,7 +39,7 @@
   flex-direction: column;
   gap: 6px;
   min-width: 0;
-  padding: 6px 0;
+  padding: 6px 0 6px 6px;
 }
 
 .textInput {
@@ -119,7 +119,8 @@
   display: flex;
   flex-direction: column;
   gap: 1px;
-  margin: 8px 0 0;
+  /* 6px into the gutter: an entry's hover ground starts there, its date at the label's edge. */
+  margin: 8px 0 0 -6px;
   padding: 0;
   list-style: none;
   /* The list grows to ~7 entries, then scrolls inside. */
@@ -129,25 +130,23 @@
   scrollbar-color: var(--color-tint-8) transparent;
 }
 
-/* An empty section's label: it names the region, the add line is all that shows. */
-.visuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/* The add line, last: the default one (`.textInput`) or the host's. */
+/* The add line, last: the default one (`.textInput`, at the review line's size) or the host's. */
 .addLine {
   display: flex;
   flex-direction: column;
   margin-top: 8px;
 }
 
-[data-empty] > .addLine {
-  margin-top: 0;
+.addLine > .textInput {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 9px;
+  font-size: 13px;
+}
+
+.addLine > .textInput:focus,
+.addLine > .textInput:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
 }
 
 .entry {
@@ -183,6 +182,7 @@
 
 .entryDate {
   flex-shrink: 0;
+  min-width: 36px;
   font-size: var(--font-size-meta);
   font-variant-numeric: tabular-nums;
 }

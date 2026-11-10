@@ -37,6 +37,8 @@ interface NotesBodyProps {
   source?: NotesSource
   /** Placeholder text for the editor. */
   placeholder?: string
+  /** Draws the placeholder in the empty editor (the task layout's Notes box). */
+  showPlaceholder?: boolean
   /** A task's notes: the toolbar's Convert, Alt+T and the hover icon make that task's subtasks, not tasks. */
   subtaskTarget?: NoteSubtaskTarget
 }
@@ -47,7 +49,7 @@ interface NotesBodyProps {
  * (the toolbar's Convert, Alt+T — `useNotesConvert`); the outer chrome is
  * supplied by each surface.
  */
-export function NotesBody({ onConvertToast, showToolbar = true, source, placeholder, subtaskTarget }: NotesBodyProps) {
+export function NotesBody({ onConvertToast, showToolbar = true, source, placeholder, showPlaceholder, subtaskTarget }: NotesBodyProps) {
   const activeId = useNoteStore((s) => s.activeId)
   const notes = useNoteStore((s) => s.notes)
   const storeSetContent = useNoteStore((s) => s.setContent)
@@ -170,6 +172,7 @@ export function NotesBody({ onConvertToast, showToolbar = true, source, placehol
         onSelectionChange={setSelection}
         extraKeymap={extraKeymap}
         placeholder={placeholder ?? 'Jot notes here…'}
+        showPlaceholder={showPlaceholder}
         viewRef={viewRef}
         nlp={nlp}
         onNlpError={onConvertToast}

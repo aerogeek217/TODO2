@@ -49,22 +49,6 @@
   color: var(--color-text-primary);
 }
 
-/* A pick takes its kind's colour, as the facts' headings do. */
-.pickChip[data-kind='person'] {
-  background: color-mix(in srgb, var(--color-fact-people) 16%, transparent);
-  color: var(--color-fact-people);
-}
-
-.pickChip[data-kind='tag'] {
-  background: color-mix(in srgb, var(--color-fact-tags) 16%, transparent);
-  color: var(--color-fact-tags);
-}
-
-.pickChip[data-kind='status'] {
-  background: color-mix(in srgb, var(--color-fact-status) 16%, transparent);
-  color: var(--color-fact-status);
-}
-
 .pickName {
   min-width: 0;
   overflow: hidden;
@@ -87,16 +71,20 @@
 
 /* ── Faces ──────────────────────────────────────────────────────────────── */
 
-/* Large: the rail, then the card over its footer (board BK). */
+/* Large: the dialog's layout (board BL) — the queue beside the card, the footer under both. The
+ * columns give way in a small cell (board BM): the queue from 300px down to 220px, the card's
+ * facts rail (`TaskDetails.module.css` reads `--task-rail-width`) from 268px down to 220px. */
 .large {
+  --task-rail-width: clamp(220px, 33cqw, 268px);
+
   flex: 1;
   min-height: 0;
   display: grid;
-  grid-template-columns: 252px minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr) 50px;
+  grid-template-columns: clamp(220px, 26.4%, 300px) minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 60px;
   grid-template-areas:
     'rail card'
-    'rail footer';
+    'footer footer';
   overflow: hidden;
 }
 

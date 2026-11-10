@@ -166,8 +166,8 @@ describe('the review deck', () => {
   it('the notes typed so far are written first, as their own undo step', async () => {
     const [first] = ids as [number]
     await openDeck()
-    // An empty task's Notes is one line: + Add notes opens the editor.
-    fireEvent.click(screen.getByRole('button', { name: 'Add notes' }))
+    // An empty task's Notes box is there already (board BL): no + Add notes to press.
+    expect(screen.queryByRole('button', { name: 'Add notes' })).toBeNull()
     const view = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)
     if (!view) throw new Error('no notes editor')
     act(() => view.dispatch({ changes: { from: 0, insert: 'Ask infra about the cost' } }))
@@ -451,7 +451,6 @@ describe('the review deck', () => {
 
   it('in the notes editor Alt + arrows are its own (never the browser’s Back)', async () => {
     await openDeck()
-    fireEvent.click(screen.getByRole('button', { name: 'Add notes' }))
     const content = document.querySelector<HTMLElement>('.cm-content')!
     expect(fireEvent.keyDown(content, { key: 'ArrowRight', altKey: true })).toBe(false)
     expect(cardTitle()).toBe(FIRST)
