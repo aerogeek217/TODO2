@@ -5,6 +5,7 @@ import { clearLayoutDraft, readLayoutDraft, type LayoutDraftRecord } from '../da
 import { ownerLayoutId } from '../models/list-definition'
 import { UndoGone, UndoRefused, useUndoStore, type UndoEntry } from './undo-store'
 import { undoable } from './undoable'
+import { assertNoReplaceHold, refusedByReplaceHold, registerReplaceSettle, replaceHoldActive } from './replace-hold'
 import { useListDefinitionStore } from './list-definition-store'
 import { useListOrderStore } from './list-order-store'
 import { useTagStore } from './tag-store'
@@ -132,6 +133,11 @@ export interface EditUndoOptions {
  *   against, else dropped; a kept new layout becomes a stored one.
  * - `load(id)` switches layouts; `createLayout(name)` stores a new, empty
  *   layout at once and opens it.
+ * - While a data replace holds layout and list writes (`replace-hold`: from
+ *   its database write until `refresh-all` has opened the new data), the
+ *   layout in memory is the replaced one: nothing writes it — an edit, a
+ *   rename, a reorder, a delete, a switch or a new layout changes nothing
+ *   and says so, an undo / redo is refused, view state isn't written.
  */
 export interface WorkspaceState {
   /** Stored layouts in the picker's order (`sortOrder`, then oldest first). */
@@ -525,6 +531,8 @@ export async function settleLayoutWrites(): Promise<void> {
   while (layoutWrites.size > 0) await Promise.allSettled([...layoutWrites])
 }
 registerModuleSettle(settleLayoutWrites)
+// A data replace writes once they have landed (`replace-hold`).
+registerReplaceSettle(settleLayoutWrites)
 
 export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   /**
@@ -572,6 +580,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    * open (`UndoRefused`, the step stays) and still exist (`UndoGone`).
    */
   function openFor(run: EditRun, verb: 'undo' | 'redo', description: string): Layout {
+    assertNoReplaceHold()
     const { layouts, saved } = get()
     const layout = layouts.find((l) => l.id === run.layoutId)
     if (!layout) throw new UndoGone(`Can’t ${verb}: ${description} — its layout is gone.`)
@@ -641,6 +650,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
   function edit(fn: (layout: Layout, genId: IdGen) => Layout, describe: string | ((before: Layout, next: Layout) => string), opts: EditUndoOptions = {}): boolean {
     const { working, saved } = get()
     if (!working || !saved) return false
+    if (refusedByReplaceHold()) return false
     let next = fn(working, idGenFor(working))
     if (next === working) return false
     const foreign = foreignListRefs(working, next, working.id)
@@ -698,7 +708,8 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
    */
   async function editView(fn: (layout: Layout) => Layout): Promise<void> {
     const { working, saved, layouts, repairedIds } = get()
-    if (!working) return
+    // The layout in memory is the replaced one (the reload opens the new data next).
+    if (!working || replaceHoldActive()) return
     const nextWorking = fn(working)
     const nextSaved = saved ? fn(saved) : saved
     if (nextWorking === working && nextSaved === saved) return
@@ -907,12 +918,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async load(id) {
+      if (refusedByReplaceHold()) return
       if (id === get().activeLayoutId || await readyToLeave()) await openLayout(id)
     },
 
     async createLayout(name) {
       const clean = cleanName(name)
-      if (!clean) return null
+      if (!clean || refusedByReplaceHold()) return null
       if (!(await readyToLeave())) return null
       const now = new Date()
       const record = { name: clean, ...emptyLayoutBody(), createdAt: now, modifiedAt: now, lastUsedAt: now }
@@ -936,13 +948,14 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     async retryWrite() {
       const { saved, writeFailed } = get()
       if (!saved || !writeFailed) return true
+      if (refusedByReplaceHold()) return false
       return (await commit(saved)).ok
     },
 
     async duplicateLayout(name) {
       const clean = cleanName(name)
       const source = get().saved
-      if (!clean || !source) return null
+      if (!clean || !source || refusedByReplaceHold()) return null
       if (!(await readyToLeave())) return null
       const now = new Date()
       const { id: _from, sortOrder: _order, ...body } = source
@@ -977,7 +990,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     async rename(id, name, hue) {
       const clean = cleanName(name)
-      if (!clean) return false
+      if (!clean || refusedByReplaceHold()) return false
       const renamed = <L extends WorkspaceLayout>(layout: L): L => {
         const next = { ...layout, name: clean }
         return hue === undefined ? next : setLayoutHue(next, hue)
@@ -1003,6 +1016,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async delete(id) {
+      if (refusedByReplaceHold()) return false
       const name = get().layouts.find((l) => l.id === id)?.name ?? 'the layout'
       // Its lists go with it.
       let removed: OwnedListsRemoved | null
@@ -1034,13 +1048,15 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     },
 
     async reorderLayouts(orderedIds, description = 'Reordered layouts') {
+      if (refusedByReplaceHold()) return false
       const before = get().layouts.map((l) => l.id)
       if (!(await applyOrder(orderedIds))) return false
       const after = get().layouts.map((l) => l.id)
       if (after.length === before.length && after.every((id, i) => id === before[i])) return true
       // Undo / redo throw on a failed write: the entry stays, to try again.
       const apply = (ids: readonly number[]) => async () => {
-            if (!(await applyOrder(ids, false))) throw new Error('the layout order was not saved')
+        assertNoReplaceHold()
+        if (!(await applyOrder(ids, false))) throw new Error('the layout order was not saved')
       }
       undoable(description, apply(after), apply(before), true)
       return true

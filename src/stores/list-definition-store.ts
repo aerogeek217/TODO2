@@ -17,6 +17,7 @@ import { useListOrderStore } from './list-order-store'
 import { useSettingsStore } from './settings-store'
 import { UndoGone, useUndoStore } from './undo-store'
 import { undoable } from './undoable'
+import { assertNoReplaceHold, refusedByReplaceHold } from './replace-hold'
 import { configPatch, withConfigPatch } from '../utils/config-patch'
 import { defsEqual } from '../utils/list-def-equal'
 
@@ -47,7 +48,8 @@ interface ListDefinitionState {
   add: (input: AddInput) => Promise<number>
   /**
    * Writes `def` over the stored list (no undo step). Rejects when the
-   * write fails (the store then has the list as it was).
+   * write fails (the store then has the list as it was). Under a data
+   * replace's hold (`replace-hold`) nothing is written.
    */
   update: (def: PersistedListDefinition) => Promise<void>
   /**
@@ -59,7 +61,8 @@ interface ListDefinitionState {
    * changed — over the list as it is then, so a later write to another part
    * (the lens switch) stays — and Redo writes them again; either says so
    * when the list is gone. Resolves whether it wrote (nothing changed, an
-   * unknown list, or a failed write — the snackbar says so: false).
+   * unknown list, a failed write — the snackbar says so — or a data replace
+   * under way: false).
    */
   editList: (id: number, fn: (def: PersistedListDefinition) => PersistedListDefinition, description: string) => Promise<boolean>
   /**
@@ -141,6 +144,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
 
   async update(def) {
+    if (refusedByReplaceHold()) return
     const prev = get().listDefinitions.find(d => d.id === def.id)
     const applied = { ...def }
     const put = (next: PersistedListDefinition) =>
@@ -155,6 +159,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
   },
 
   async editList(id, fn, description) {
+    if (refusedByReplaceHold()) return false
     const saved = get().listDefinitions.find((d) => d.id === id)
     if (!saved) return false
     const next = editedOf(fn(saved), saved)
@@ -168,6 +173,7 @@ export const useListDefinitionStore = create<ListDefinitionState>((set, get) => 
       return false
     }
     const replay = (patch: Partial<PersistedListDefinition>) => async () => {
+      assertNoReplaceHold()
       const now = get().listDefinitions.find((d) => d.id === id)
       if (!now) throw new UndoGone(`The list “${next.name}” is gone.`)
       await get().update(withConfigPatch(now, patch))

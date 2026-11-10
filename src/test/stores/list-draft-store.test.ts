@@ -6,6 +6,7 @@ import { emptyPredicate } from '../../models'
 import { applyKeptListDrafts, listAsShown, listAsShownNow, useListDraftStore } from '../../stores/list-draft-store'
 import type { PersistedListDefinition } from '../../models/list-definition'
 import { useUndoStore } from '../../stores/undo-store'
+import { beginReplaceHold } from '../../stores/replace-hold'
 import { resetDb } from '../helpers'
 
 async function addList(name: string): Promise<PersistedListDefinition> {
@@ -106,6 +107,17 @@ describe('editList: a list edit written for good as one undo step', () => {
     useListDefinitionStore.getState().forgetLists([def.id])
     await useUndoStore.getState().undo()
     expect(useUndoStore.getState().snackbar?.description).toContain('is gone')
+  })
+
+  it('under a data replace’s hold: nothing written, and Undo is refused (the step stays)', async () => {
+    const def = await addList('Team')
+    await useListDefinitionStore.getState().editList(def.id, (d) => ({ ...d, sort: 'name' }), 'Sorted')
+    const release = beginReplaceHold()
+    expect(await useListDefinitionStore.getState().editList(def.id, (d) => ({ ...d, grouping: 'people' }), 'Grouped')).toBe(false)
+    await useUndoStore.getState().undo()
+    release()
+    expect((await db.listDefinitions.get(def.id))!).toMatchObject({ sort: 'name', grouping: 'none' })
+    expect(useUndoStore.getState().undoStack).toHaveLength(1)
   })
 })
 
