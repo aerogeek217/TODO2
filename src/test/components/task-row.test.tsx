@@ -272,7 +272,7 @@ describe('TaskRow', () => {
     })
 
     it('a narrower list drops the follow-up date first, then the due date (the icons and names stay)', () => {
-      const { unmount } = render(inList(330))
+      const { unmount } = render(inList(420))
       expect(screen.getByRole('button', { name: 'Due Mon 20 Apr' })).toHaveTextContent('Mon')
       expect(screen.getByRole('button', { name: 'Follow-up: Fri 24' }).textContent).toBe('')
       expect(screen.queryByRole('button', { name: 'Clear follow-up' })).toBeNull()
@@ -638,10 +638,10 @@ describe('TaskRow', () => {
     it('as many avatars as fit the column, then +N', () => {
       const people = [1, 2, 3, 4].map((id) => makePerson({ id, name: `P${id}`, initials: `P${id}` }))
       render(<TaskRow todo={makeTodo({ id: 1 })} assignedPeople={people} />)
-      // The default people column (55px) fits two avatars and "+2".
-      expect(screen.getByText('P2')).toBeInTheDocument()
-      expect(screen.queryByText('P3')).toBeNull()
-      expect(screen.getByText('+2')).toBeInTheDocument()
+      // The default people column (34px, unmeasured) fits one avatar, "+3" its badge.
+      expect(screen.getByText('P1')).toBeInTheDocument()
+      expect(screen.queryByText('P2')).toBeNull()
+      expect(screen.getByText('+3')).toBeInTheDocument()
     })
 
     it('right-click on an avatar: the person menu — Review · the check-ins · Show tasks · Edit… · Delete…', () => {
