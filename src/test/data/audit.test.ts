@@ -643,7 +643,7 @@ describe('sanitisable settings audit (keyboard shortcuts)', () => {
     const report = await auditData()
     expect(report.issues).toEqual([expect.objectContaining({ table: 'settings', fix: 'sanitize', count: 1, keys: ['keyboardShortcuts'] })])
     const note = report.issues[0]!.samples![0]!.note
-    expect(note).toMatch(/^Cleanup: unknown shortcut "nope" dropped, Undo: .*\(Close tab\) — dropped, Toggle complete: clashes with Focus filters — dropped$/)
+    expect(note).toMatch(/^Cleanup: unknown shortcut "nope" dropped, Undo: .*\(Close tab\) — dropped, Toggle complete: clashes with Open filter menu — dropped$/)
   })
 
   it('cleanup rewrites the row to what import keeps; a clean row is not reported', async () => {

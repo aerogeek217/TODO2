@@ -24,7 +24,7 @@ import {
 } from '../utils/scoped-selection'
 import {
   attrSelector,
-  FILTER_ROW_ATTR,
+  FILTER_MENU_ATTR,
   readTodoIds,
   ROW_KEY_ATTR,
   SEARCH_INPUT_ATTR,
@@ -39,7 +39,7 @@ export interface ShortcutCallbacks {
 }
 
 /** What a handler reads of the key press: a `KeyboardEvent`, or `NO_KEY_PRESS` from the palette. */
-export type ShortcutInput = Pick<KeyboardEvent, 'key' | 'shiftKey' | 'preventDefault'>
+export type ShortcutInput = Pick<KeyboardEvent, 'key' | 'shiftKey' | 'preventDefault'> & { defaultPrevented?: boolean }
 
 export interface ShortcutCtx {
   e: ShortcutInput
@@ -226,12 +226,22 @@ export const SHORTCUT_HANDLERS: Readonly<Record<ShortcutId, ShortcutHandler>> = 
   },
   'focus-search': focusSearch,
   'focus-search-alt': focusSearch,
+  // Opens the top bar's Filter menu (its first row takes the focus); with the
+  // menu already open, the focus goes back into it. Not for an F a menu's
+  // type-ahead or an item's own key already took (the calendar's drop
+  // chooser: F is Follow-up there).
   'focus-filters': ({ e }) => {
-    const filterRow = document.querySelector(attrSelector(FILTER_ROW_ATTR))
-    const firstBtn = filterRow?.querySelector<HTMLElement>('button')
-    if (!firstBtn) return
+    if (e.defaultPrevented) return
+    const button = document.querySelector<HTMLElement>(attrSelector(FILTER_MENU_ATTR))
+    if (!button) return
     e.preventDefault()
-    firstBtn.focus()
+    if (button.getAttribute('aria-expanded') === 'true') {
+      const menu = document.getElementById(button.getAttribute('aria-controls') ?? '')
+      menu?.querySelector<HTMLElement>('button')?.focus()
+      return
+    }
+    button.focus()
+    button.click()
   },
   'open-settings': ({ callbacks }) => callbacks.openSettings(),
   'select-previous': arrowKeyHandler,

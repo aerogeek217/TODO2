@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useFilterPlaceholder } from '../../hooks/use-filter-placeholder'
 import { useLocation } from 'react-router'
 import { useFilterStore } from '../../stores/filter-store'
 import { criteriaToPredicate, predicateToCriteria } from '../../utils/filter-criteria'
@@ -25,6 +26,8 @@ export function FilterSheet() {
   // The search: its tokens become the sections' values (the screen filter's chips), its words the text search.
   const searchRef = useRef<HTMLInputElement>(null)
   const box = useSearchBox({ inputRef: searchRef, debounce: false })
+  const [focused, setFocused] = useState(false)
+  const placeholder = useFilterPlaceholder(focused && box.text === '')
   const mirrorRef = useRef<HTMLDivElement>(null)
   const syncMirror = useCallback(() => {
     if (mirrorRef.current && searchRef.current) mirrorRef.current.scrollLeft = searchRef.current.scrollLeft
@@ -91,9 +94,11 @@ export function FilterSheet() {
               ref={searchRef}
               className={styles.searchInput}
               type="text"
-              placeholder="Search tasks..."
-              aria-label="Search tasks"
+              placeholder={placeholder}
+              aria-label="Filter tasks"
               autoFocus={focusSearch}
+              onFocus={() => setFocused(true)}
+              onBlur={() => setFocused(false)}
               value={box.text}
               onChange={(e) => box.onChange(e.target.value, e.target.selectionStart ?? e.target.value.length, e.target)}
               onSelect={syncMirror}
@@ -114,7 +119,7 @@ export function FilterSheet() {
               <TintedText text={box.text} spans={box.tints} />
             </div>
             {box.text && (
-              <button type="button" className={styles.searchClear} aria-label="Clear search" onClick={box.clear}>
+              <button type="button" className={styles.searchClear} aria-label="Clear filter text" onClick={box.clear}>
                 ×
               </button>
             )}

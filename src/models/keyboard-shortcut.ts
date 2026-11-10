@@ -95,15 +95,15 @@ export const SHORTCUT_SPECS = {
     chord: one({ key: '?' }),
   },
   'focus-search': {
-    description: 'Focus search', category: 'navigation', editable: true, allowInInput: true,
+    description: 'Focus filter field', category: 'navigation', editable: true, allowInInput: true,
     chord: one({ key: 'f', mod: true }),
   },
   'focus-search-alt': {
-    description: 'Focus search (outside text fields)', category: 'navigation', editable: true,
+    description: 'Focus filter field (outside text fields)', category: 'navigation', editable: true,
     chord: one({ key: '/' }),
   },
   'focus-filters': {
-    description: 'Focus filters', category: 'navigation', editable: true,
+    description: 'Open filter menu', category: 'navigation', editable: true,
     chord: one({ key: 'f' }),
   },
   'open-settings': {

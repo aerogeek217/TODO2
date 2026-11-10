@@ -115,8 +115,8 @@ export function createCommands(
   const commands: Command[] = [
     // Navigation
     bound('open-settings', 'Open Settings', 'open-settings', 'navigation'),
-    bound('focus-filter', 'Focus Filters', 'focus-filters', 'navigation'),
-    bound('focus-search', 'Focus Search', 'focus-search', 'navigation'),
+    bound('focus-filter', 'Open Filter Menu', 'focus-filters', 'navigation'),
+    bound('focus-search', 'Focus Filter Field', 'focus-search', 'navigation'),
     ...(ctx.shortcuts.openShortcutsModal ? [bound('keyboard-shortcuts', 'Keyboard Shortcuts', 'show-shortcuts', 'navigation')] : []),
 
     // Task actions

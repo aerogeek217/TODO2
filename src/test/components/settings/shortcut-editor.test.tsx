@@ -68,7 +68,7 @@ describe('Settings › Keyboard shortcuts editor', () => {
 
   it('refuses keys another shortcut uses, saying which, and keeps recording', async () => {
     openShortcuts()
-    const capture = startRecording('Focus filters')
+    const capture = startRecording('Open filter menu')
     fireEvent.keyDown(capture, { key: 'k', code: 'KeyK', ctrlKey: true })
     expect(await screen.findByRole('alert')).toHaveTextContent('Ctrl+K is already used by Command Palette.')
     expect(capture).toHaveFocus()
@@ -90,7 +90,7 @@ describe('Settings › Keyboard shortcuts editor', () => {
     fireEvent.keyDown(capture, { key: 'o', code: 'KeyO' })
     await waitFor(() => expect(keysOf('open-settings')).toBe('G then O'))
 
-    capture = startRecording('Focus filters')
+    capture = startRecording('Open filter menu')
     fireEvent.keyDown(capture, { key: 'n', code: 'KeyN' })
     fireEvent.keyDown(capture, { key: 'Enter', code: 'Enter' })
     await waitFor(() => expect(keysOf('focus-filters')).toBe('N'))

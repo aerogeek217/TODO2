@@ -611,7 +611,7 @@ describe('validateImportData', () => {
       if (!result.ok) return
       expect(result.data.settings).toEqual([{ key: 'keyboardShortcuts', value: '{"focus-filters":"n","open-settings":"g o"}' }])
       expect(result.warnings).toHaveLength(1)
-      expect(result.warnings[0]).toMatch(/^Fixed settings: keyboard shortcuts \(unknown shortcut "nope" dropped, Undo: unreadable keys dropped, Select all visible tasks: .* \(Close tab\) — dropped, Toggle complete: clashes with Focus filters — dropped\)$/)
+      expect(result.warnings[0]).toMatch(/^Fixed settings: keyboard shortcuts \(unknown shortcut "nope" dropped, Undo: unreadable keys dropped, Select all visible tasks: .* \(Close tab\) — dropped, Toggle complete: clashes with Open filter menu — dropped\)$/)
     })
 
     it('resets a huge value with one short warning instead of naming every part', () => {

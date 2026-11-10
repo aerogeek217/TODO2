@@ -246,7 +246,7 @@ describe('TaskDialog — the screen filter’s tasks (a phone)', () => {
 
   it('its search edits the screen filter’s text; Esc with text clears it, the next Esc closes', async () => {
     open(screenTaskDialog())
-    const search = within(bar()).getByRole('textbox', { name: 'Search tasks' })
+    const search = within(bar()).getByRole('textbox', { name: 'Filter tasks' })
     fireEvent.change(search, { target: { value: 'q4 forecast' } })
     await vi.waitFor(() => expect(useFilterStore.getState().filters.searchText).toBe('q4 forecast'))
     expect(rowTitles()).toEqual(['Q4 forecast'])
@@ -260,7 +260,7 @@ describe('TaskDialog — the screen filter’s tasks (a phone)', () => {
 
   it('its search takes tokens (D16): @name makes a People chip, the words stay the text search', async () => {
     open(screenTaskDialog())
-    const search = within(bar()).getByRole('textbox', { name: 'Search tasks' }) as HTMLInputElement
+    const search = within(bar()).getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     const type = (value: string) => fireEvent.change(search, { target: { value, selectionStart: value.length, selectionEnd: value.length } })
     act(() => search.focus())
     type('forecast @pri')
@@ -285,7 +285,7 @@ describe('TaskDialog — the screen filter’s tasks (a phone)', () => {
 
   it('Esc on the popup closes the popup only, not the dialog', () => {
     open(screenTaskDialog())
-    const search = within(bar()).getByRole('textbox', { name: 'Search tasks' }) as HTMLInputElement
+    const search = within(bar()).getByRole('textbox', { name: 'Filter tasks' }) as HTMLInputElement
     act(() => search.focus())
     fireEvent.change(search, { target: { value: '@pri', selectionStart: 4, selectionEnd: 4 } })
     expect(bar().querySelector('[data-nlp-popup]')).not.toBeNull()

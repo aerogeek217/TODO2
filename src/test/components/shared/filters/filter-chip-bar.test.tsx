@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { render, fireEvent, cleanup, screen, within, act } from '@testing-library/react'
+import { useState } from 'react'
 import { TOOLTIP_DELAY_MS } from '../../../../components/shared/use-tooltip'
 import { FilterChipBar } from '../../../../components/shared/filters/FilterChipBar'
 import { ADD_FILTER_ITEMS } from '../../../../components/shared/filters/filter-menu'
@@ -12,6 +13,7 @@ import { emptyPredicate } from '../../../../models'
 import { makePerson, makeTodo } from '../../../helpers'
 import { useReviewStore } from '../../../../stores/review-store'
 import { useTodoStore } from '../../../../stores/todo-store'
+import { filterMenuButton, openFilterMenu, openFilterPicker } from './filter-menu-helpers'
 
 /** A row of the Priority picker. */
 function priorityRow(name: string): HTMLElement {
@@ -42,50 +44,106 @@ describe('FilterChipBar — primitive', () => {
   // ── Desktop density ──────────────────────────────────────────────────
 
   describe('desktop density', () => {
-    it('offers Show completed but no show-hidden toggle', () => {
-      const updates: TodoPredicate[] = []
-      render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
-      const toggle = screen.getByRole('button', { name: 'Show completed' })
-      expect(toggle).toHaveAttribute('aria-pressed', 'false')
-      fireEvent.click(toggle)
-      expect(updates.at(-1)?.showCompleted).toBe(true)
-      expect(screen.queryByRole('button', { name: /hidden/i })).toBeNull()
+    it('at rest: the Filter button alone — no chips, no Completed, no Clear all', () => {
+      const { container } = render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
+      expect(filterMenuButton()).toHaveAccessibleName('Filter')
+      expect(filterMenuButton()).toHaveTextContent('Filter')
+      expect(filterMenuButton()).toHaveAttribute('data-filter-menu')
+      expect(container.querySelectorAll('button')).toHaveLength(1)
     })
 
-    it('an active filter button shows its value and a × that clears only that field', () => {
+    it('Completed is a toggle row in the menu; while on, a Completed chip in the bar hides them again', () => {
+      const updates: TodoPredicate[] = []
+      const { rerender } = render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
+      const menu = openFilterMenu()
+      const row = within(menu).getByRole('button', { name: 'Show completed' })
+      expect(row).toHaveAttribute('aria-pressed', 'false')
+      fireEvent.click(row)
+      expect(updates.at(-1)?.showCompleted).toBe(true)
+      // The menu stays open for another pick.
+      expect(screen.getByRole('group', { name: 'Screen filters' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: /hidden/i })).toBeNull()
+      rerender(<FilterChipBar predicate={{ ...emptyPredicate(), showCompleted: true }} onChange={(p) => updates.push(p)} />)
+      expect(within(menu).getByRole('button', { name: 'Show completed' })).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(filterMenuButton())
+      expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
+      const chip = screen.getByRole('button', { name: 'Show completed' })
+      expect(chip).toHaveTextContent('Completed')
+      expect(chip).toHaveAttribute('aria-pressed', 'true')
+      fireEvent.click(chip)
+      expect(updates.at(-1)?.showCompleted).toBe(false)
+    })
+
+    it('a filter that is on shows as a chip: its value and a × that clears only that field', () => {
       const updates: TodoPredicate[] = []
       const active: TodoPredicate = { ...emptyPredicate(), personIds: [1], tags: [10, 20] }
       render(<FilterChipBar predicate={active} onChange={(p) => updates.push(p)} />)
       expect(screen.getByRole('button', { name: 'People filter: Alice' })).toHaveTextContent('Alice')
       expect(screen.getByRole('button', { name: 'Tags filter: urgent or soon' })).toHaveTextContent('urgent or soon')
+      // Only the fields that are on.
+      expect(screen.queryByRole('button', { name: /^(Status|Dates|Priority) filter/ })).toBeNull()
       fireEvent.click(screen.getByRole('button', { name: 'Clear people filter' }))
       expect(updates.at(-1)?.personIds).toBeNull()
       expect(updates.at(-1)?.tags).toEqual([10, 20])
       expect(screen.queryByRole('button', { name: 'Clear status filter' })).toBeNull()
     })
 
-    it('folded: one Filters menu with a count; a row opens its picker, × clears, Clear all filters', () => {
-      const updates: TodoPredicate[] = []
-      const active: TodoPredicate = { ...emptyPredicate(), personIds: [1], tags: [10] }
-      render(<FilterChipBar predicate={active} onChange={(p) => updates.push(p)} onClearAll={() => updates.push(emptyPredicate())} fold />)
-      expect(screen.queryByRole('button', { name: /^People/ })).toBeNull()
-      expect(screen.getByRole('button', { name: 'Show completed' })).toHaveTextContent('Completed')
-      fireEvent.click(screen.getByRole('button', { name: 'Filters, 2 active' }))
-      const menu = screen.getByRole('group', { name: 'Screen filters' })
-      expect(menu).toHaveTextContent('Screen filters · apply to every widget')
-      fireEvent.click(screen.getByRole('button', { name: 'Status filter' }))
-      fireEvent.click(screen.getByText('Active'))
-      expect(updates.at(-1)?.statusIds).toEqual([1])
-      fireEvent.click(screen.getByRole('button', { name: 'Clear tags filter' }))
-      expect(updates.at(-1)?.tags).toBeNull()
-      fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }))
-      expect(updates.at(-1)).toEqual(emptyPredicate())
+    it('the chips read in the menu’s order; a chip’s click reopens its picker', () => {
+      const active: TodoPredicate = { ...emptyPredicate(), statusIds: [1], personIds: [1], tags: [10], markers: [{ values: ['urgent'] }], showCompleted: true }
+      render(<FilterChipBar predicate={active} onChange={() => {}} />)
+      expect(screen.getAllByRole('button', { name: / filter: |^Show completed$/ }).map((b) => b.getAttribute('aria-label')))
+        .toEqual(['Priority filter: Urgent', 'Tags filter: urgent', 'People filter: Alice', 'Status filter: Active', 'Show completed'])
+      fireEvent.click(screen.getByRole('button', { name: 'Status filter: Active' }))
+      expect(screen.getByPlaceholderText('Search...')).toBeInTheDocument()
     })
 
-    it('the filter buttons read Markers, Tags, People, Dates, Status', () => {
+    it('a chip whose picker empties its filter stays until the picker closes', () => {
+      function Live() {
+        const [p, setP] = useState<TodoPredicate>({ ...emptyPredicate(), personIds: [1] })
+        return <FilterChipBar predicate={p} onChange={setP} />
+      }
+      render(<Live />)
+      fireEvent.click(screen.getByRole('button', { name: 'People filter: Alice' }))
+      fireEvent.click(screen.getByRole('button', { name: 'Select all' }))
+      // Everyone: no filter, but the chip (now its label) and its picker stay.
+      expect(screen.getByRole('button', { name: 'People filter' })).toHaveAttribute('aria-expanded', 'true')
+      expect(screen.getByPlaceholderText('Search...')).toBeInTheDocument()
+      fireEvent.keyDown(screen.getByPlaceholderText('Search...'), { key: 'Escape' })
+      expect(screen.queryByRole('button', { name: /^People filter/ })).toBeNull()
+    })
+
+    it('the menu: a count on the button; a row opens its picker, × clears, Clear all filters', () => {
+      const updates: TodoPredicate[] = []
+      const active: TodoPredicate = { ...emptyPredicate(), personIds: [1], tags: [10] }
+      render(<FilterChipBar predicate={active} onChange={(p) => updates.push(p)} onClearAll={() => updates.push(emptyPredicate())} />)
+      expect(filterMenuButton()).toHaveAccessibleName('Filter, 2 active')
+      const menu = openFilterMenu()
+      expect(menu).toHaveTextContent('Screen filters · apply to every widget')
+      fireEvent.click(within(menu).getByRole('button', { name: 'Status filter' }))
+      fireEvent.click(screen.getByText('Active'))
+      expect(updates.at(-1)?.statusIds).toEqual([1])
+      fireEvent.click(within(menu).getByRole('button', { name: 'Clear tags filter' }))
+      expect(updates.at(-1)?.tags).toBeNull()
+      fireEvent.click(within(menu).getByRole('button', { name: 'Clear all filters' }))
+      expect(updates.at(-1)).toEqual(emptyPredicate())
+      expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
+    })
+
+    it('the menu lists Priority, Tags, People, Dates, Status, then Completed; Clear all only while a filter is on', () => {
       render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
-      expect(screen.getAllByRole('button', { name: / filter$/ }).map((b) => b.getAttribute('aria-label')))
-        .toEqual(['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
+      const menu = openFilterMenu()
+      expect(within(menu).getAllByRole('button').map((b) => b.getAttribute('aria-label')))
+        .toEqual(['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter', 'Show completed'])
+      expect(within(menu).queryByRole('button', { name: 'Clear all filters' })).toBeNull()
+    })
+
+    it('folded: no chips; the button counts them in the accent', () => {
+      const active: TodoPredicate = { ...emptyPredicate(), personIds: [1], showCompleted: true }
+      render(<FilterChipBar predicate={active} onChange={() => {}} fold />)
+      expect(screen.queryByRole('button', { name: /^People/ })).toBeNull()
+      expect(screen.queryByRole('button', { name: 'Show completed' })).toBeNull()
+      expect(filterMenuButton()).toHaveAccessibleName('Filter, 2 active')
+      expect(filterMenuButton()).toHaveTextContent('Filter2')
     })
 
     it('measureFold: both folds are laid out too — hidden, inert, out of the accessibility tree', () => {
@@ -98,20 +156,23 @@ describe('FilterChipBar — primitive', () => {
         { variant: 'folded', hidden: true, inert: true, ariaHidden: 'true' },
       ]
       expect(variants()).toEqual([{ variant: 'open', hidden: false, inert: false, ariaHidden: null }, ...hiddenFolds])
-      // Only the shown fold is reachable.
+      // Only the shown fold is reachable, and only its Filter button is the shortcut's.
       expect(screen.getByRole('button', { name: 'People filter: Alice' })).toBeInTheDocument()
-      expect(screen.queryByRole('button', { name: /^Filters/ })).toBeNull()
+      expect(container.querySelectorAll('[data-filter-menu]')).toHaveLength(1)
       // The value is marked for the measure, cut only where shown (the hidden open fold keeps its natural width).
       const values = [...container.querySelectorAll<HTMLElement>('[data-fold-value]')]
       expect(values.map((el) => [el.dataset.foldValue, el.style.maxWidth, !!el.closest('[data-fold-hidden]')])).toEqual([
         ['people', '30px', false], ['people', '', true],
       ])
 
+      const shownButton = filterMenuButton()
       rerender(<FilterChipBar predicate={active} onChange={() => {}} measureFold fold />)
       expect(variants()).toEqual([{ variant: 'folded', hidden: false, inert: false, ariaHidden: null }, ...hiddenFolds])
-      expect(screen.getByRole('button', { name: 'Filters, 1 active' })).toBeInTheDocument()
+      // The same Filter button (a fold change keeps its menu).
+      expect(filterMenuButton()).toBe(shownButton)
+      expect(filterMenuButton()).toHaveAccessibleName('Filter, 1 active')
       expect(screen.queryByRole('button', { name: 'People filter: Alice' })).toBeNull()
-      // The hidden buttons carry the same labels (their width is the open tray's).
+      // The hidden chips carry the same labels (their width is the open tray's).
       expect(container.querySelector('[data-fold-variant="open"][data-fold-hidden]')).toHaveTextContent('Alice')
     })
 
@@ -153,25 +214,17 @@ describe('FilterChipBar — primitive', () => {
     })
 
     it('without measureFold: only the shown fold, unwrapped', () => {
-      const { container } = render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} fold />)
+      const { container } = render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds: [1] }} onChange={() => {}} fold />)
       expect(container.querySelector('[data-fold-variant]')).toBeNull()
-      expect(screen.queryByRole('button', { name: 'People filter' })).toBeNull()
+      expect(screen.queryByRole('button', { name: /^People filter/ })).toBeNull()
     })
 
-    it('folded: the Filters menu lists the same order', () => {
-      render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} fold />)
-      fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
-      const menu = screen.getByRole('group', { name: 'Screen filters' })
-      expect(within(menu).getAllByRole('button', { name: / filter$/ }).map((b) => b.getAttribute('aria-label')))
-        .toEqual(['Priority filter', 'Tags filter', 'People filter', 'Dates filter', 'Status filter'])
-    })
-
-    it('the Priority button picks as Status does: several values OR; emptied is no filter', () => {
+    it('the Priority picker picks as Status does: several values OR; emptied is no filter', () => {
       const updates: TodoPredicate[] = []
       const { rerender } = render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
       expect(screen.queryByRole('button', { name: /^Focus filter/ })).toBeNull()
 
-      fireEvent.click(screen.getByRole('button', { name: 'Priority filter' }))
+      openFilterPicker('Priority filter')
       expect(screen.getByText('Urgent includes urgent by due date.')).toBeInTheDocument()
       expect(screen.getByRole('radio', { name: 'Is' })).toHaveAttribute('aria-checked', 'true')
       expect(screen.getAllByRole('option').map((o) => o.textContent)).toEqual(['No priority', 'Focus', 'Urgent', 'Important'])
@@ -183,7 +236,8 @@ describe('FilterChipBar — primitive', () => {
       fireEvent.click(priorityRow('Important'))
       expect(updates.at(-1)?.markers).toEqual([{ values: ['focus', 'important'] }])
       rerender(<FilterChipBar predicate={{ ...emptyPredicate(), markers: [{ values: ['focus', 'important'] }] }} onChange={(p) => updates.push(p)} />)
-      expect(screen.getByRole('button', { name: 'Priority filter: Focus or Important' })).toBeInTheDocument()
+      // The chip in the bar and the menu's row.
+      expect(screen.getAllByRole('button', { name: 'Priority filter: Focus or Important' })).toHaveLength(2)
       fireEvent.click(priorityRow('Focus'))
       expect(updates.at(-1)?.markers).toEqual([{ values: ['important'] }])
       rerender(<FilterChipBar predicate={{ ...emptyPredicate(), markers: [{ values: ['important'] }] }} onChange={(p) => updates.push(p)} />)
@@ -194,7 +248,7 @@ describe('FilterChipBar — primitive', () => {
     it('Is not turns the ticks round, and holds until the first tick with nothing ticked', () => {
       const updates: TodoPredicate[] = []
       const { rerender } = render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
-      fireEvent.click(screen.getByRole('button', { name: 'Priority filter' }))
+      openFilterPicker('Priority filter')
       fireEvent.click(screen.getByRole('radio', { name: 'Is not' }))
       expect(updates).toEqual([])
       fireEvent.click(priorityRow('Urgent'))
@@ -236,8 +290,8 @@ describe('FilterChipBar — primitive', () => {
           onChange={(p) => { captured = p }}
         />,
       )
-      fireEvent.click(screen.getByRole('button', { name: /Tags/i }))
-      // Desktop chip enters "preview-empty" mode on open (all-selected hidden,
+      openFilterPicker('Tags filter')
+      // Desktop picker enters "preview-empty" mode on open (all-selected hidden,
       // first click commits only the clicked entity). Matches the legacy
       // TopBar / ListFilterEditor semantics.
       fireEvent.click(screen.getByText('urgent'))
@@ -245,17 +299,17 @@ describe('FilterChipBar — primitive', () => {
       expect(captured!.tags).toEqual([10])
     })
 
-    it('the Dates button opens the date panel (a “Date filters” dialog) and writes nothing', () => {
+    it('the Dates row opens the date panel (a “Date filters” dialog) and writes nothing', () => {
       const updates: TodoPredicate[] = []
       render(<FilterChipBar predicate={emptyPredicate()} onChange={(p) => updates.push(p)} />)
-      const button = screen.getByRole('button', { name: 'Dates filter' })
-      fireEvent.click(button)
+      openFilterPicker('Dates filter')
       const dialog = screen.getByRole('dialog', { name: 'Date filters' })
       expect(within(dialog).getAllByRole('tab').map((t) => t.textContent)).toEqual(['Due', 'Next follow-up', 'Last follow-up', 'Completed', 'Created', 'Modified'])
       expect(within(dialog).getByRole('tab', { name: 'Due' })).toHaveAttribute('aria-selected', 'true')
       expect(within(dialog).getByRole('tab', { name: 'Due' })).toHaveFocus()
       for (const t of within(dialog).getAllByRole('tab')) fireEvent.click(t)
-      fireEvent.click(button)
+      // The row again closes it.
+      fireEvent.click(within(screen.getByRole('group', { name: 'Screen filters' })).getByRole('button', { name: 'Dates filter' }))
       expect(screen.queryByRole('dialog', { name: 'Date filters' })).toBeNull()
       expect(updates).toEqual([])
     })
@@ -325,11 +379,11 @@ describe('FilterChipBar — primitive', () => {
       expect(last.dates.deadline).toEqual({ match: 'set' })
     })
 
-    it('folded: the Dates row shows the same value and its submenu is the date panel', () => {
+    it('the menu’s Dates row shows the same value and its submenu is the date panel', () => {
       const created = { match: 'range' as const, start: { kind: 'relative' as const, token: 'start-of-month' as const }, end: null }
       render(<FilterChipBar predicate={{ ...emptyPredicate(), dates: { deadline: { match: 'set' }, created } }} onChange={() => {}} fold />)
-      fireEvent.click(screen.getByRole('button', { name: 'Filters, 1 active' }))
-      const menu = screen.getByRole('group', { name: 'Screen filters' })
+      expect(filterMenuButton()).toHaveAccessibleName('Filter, 1 active')
+      const menu = openFilterMenu()
       const row = within(menu).getByRole('button', { name: /^Dates filter:/ })
       expect(row).toHaveTextContent('Due + Created')
       fireEvent.click(row)
@@ -352,7 +406,7 @@ describe('FilterChipBar — primitive', () => {
           fold
         />,
       )
-      fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
+      openFilterMenu()
       fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }))
       expect(cleared).toBe(1)
       // onChange was NOT called with DEFAULT_PREDICATE — override takes over.
@@ -363,7 +417,7 @@ describe('FilterChipBar — primitive', () => {
     // real-browser e2e (see e2e/list-editor-dropdowns.spec.ts) — JSDOM's
     // synthetic getBoundingClientRect can't drive the hook's measurement
     // pass meaningfully (per ARCHITECTURE.md / Testing).
-    it('has no Clear all button of its own (the top bar’s funnel clears)', () => {
+    it('Clear all is only in the menu: none in the bar, and no funnel that clears', () => {
       const active: TodoPredicate = { ...emptyPredicate(), showCompleted: true, personIds: [1] }
       render(<FilterChipBar predicate={active} onChange={() => {}} />)
       expect(screen.queryByRole('button', { name: /^Clear all/ })).toBeNull()
@@ -371,9 +425,9 @@ describe('FilterChipBar — primitive', () => {
     })
 
     describe('Esc in a picker’s search', () => {
-      it('a bar button’s picker: the first Esc empties the search, the next closes the picker', () => {
-        render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
-        fireEvent.click(screen.getByRole('button', { name: 'People filter' }))
+      it('a chip’s picker: the first Esc empties the search, the next closes the picker', () => {
+        render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds: [1] }} onChange={() => {}} />)
+        fireEvent.click(screen.getByRole('button', { name: 'People filter: Alice' }))
         const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
         fireEvent.change(search, { target: { value: 'bo' } })
         fireEvent.keyDown(search, { key: 'Escape' })
@@ -383,10 +437,9 @@ describe('FilterChipBar — primitive', () => {
         expect(screen.queryByPlaceholderText('Search...')).toBeNull()
       })
 
-      it('folded: the first Esc empties the search, the next closes the picker', () => {
+      it('from the menu: the first Esc empties the search, the next closes the picker', () => {
         render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} fold />)
-        fireEvent.click(screen.getByRole('button', { name: 'Filters' }))
-        fireEvent.click(screen.getByRole('button', { name: 'Tags filter' }))
+        openFilterPicker('Tags filter')
         const search = screen.getByPlaceholderText('Search...') as HTMLInputElement
         fireEvent.change(search, { target: { value: 'ur' } })
         fireEvent.keyDown(search, { key: 'Escape' })
@@ -405,9 +458,11 @@ describe('FilterChipBar — primitive', () => {
         })
       })
 
+      // From its chip while on, else from the menu.
       const openPeople = (personIds: number[] | null) => {
         render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds }} onChange={() => {}} />)
-        fireEvent.click(screen.getByRole('button', { name: /^People filter/ }))
+        if (personIds === null) openFilterPicker('People filter')
+        else fireEvent.click(screen.getByRole('button', { name: /^People filter/ }))
       }
 
       // No tasks loaded here: a one-click send has nothing to send, so it opens the dialog for the person with the reason.
@@ -490,10 +545,9 @@ describe('FilterChipBar — primitive', () => {
         expect(screen.queryByRole('button', { name: /^(Review|Email check-in|Paste reply)/ })).toBeNull()
       })
 
-      it('folded: the action closes the Filters menu too', () => {
+      it('from the menu: the action closes the Filter menu too', () => {
         render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds: [1] }} onChange={() => {}} fold />)
-        fireEvent.click(screen.getByRole('button', { name: /^Filters/ }))
-        fireEvent.click(screen.getByRole('button', { name: 'People filter: Alice' }))
+        openFilterPicker('People filter: Alice')
         fireEvent.click(screen.getByRole('button', { name: 'Email check-in to Alice' }))
         expect(useUIStore.getState().checkinDialog).toMatchObject({ personIds: [1] })
         expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
@@ -501,7 +555,7 @@ describe('FilterChipBar — primitive', () => {
 
       it('Tags and Status pickers have no such footer', () => {
         render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
-        fireEvent.click(screen.getByRole('button', { name: 'Tags filter' }))
+        openFilterPicker('Tags filter')
         expect(screen.queryByText('Narrow to some people to review or email them.')).toBeNull()
       })
     })

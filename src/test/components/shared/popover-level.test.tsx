@@ -58,13 +58,19 @@ describe('popover levels (D21)', () => {
     expect(level(screen.getByRole('menu', { name: 'Menu' }))).toBe('2')
   })
 
-  it('a top-bar picker is level 1', () => {
+  it('a top-bar chip’s picker is level 1; the Filter menu level 1, a picker beside it level 2', () => {
     usePersonStore.setState({ people: [makePerson({ id: 1, name: 'Alice' })], assignedPeopleMap: new Map() })
-    render(<FilterChipBar predicate={emptyPredicate()} onChange={() => {}} />)
-    fireEvent.click(screen.getByRole('button', { name: 'People filter' }))
+    render(<FilterChipBar predicate={{ ...emptyPredicate(), personIds: [1] }} onChange={() => {}} />)
+    fireEvent.click(screen.getByRole('button', { name: 'People filter: Alice' }))
     const panel = screen.getByPlaceholderText('Search...').closest(`[${POPOVER_LEVEL_ATTR}]`)
     expect(panel).not.toBeNull()
     expect(level(panel!)).toBe('1')
+    fireEvent.keyDown(screen.getByPlaceholderText('Search...'), { key: 'Escape' })
+    fireEvent.click(screen.getByRole('button', { name: 'Filter, 1 active' }))
+    const menu = screen.getByRole('group', { name: 'Screen filters' })
+    expect(level(menu)).toBe('1')
+    fireEvent.click(within(menu).getByRole('button', { name: 'People filter: Alice' }))
+    expect(level(screen.getByPlaceholderText('Search...').closest(`[${POPOVER_LEVEL_ATTR}]`)!)).toBe('2')
   })
 
   describe('Edit list', () => {

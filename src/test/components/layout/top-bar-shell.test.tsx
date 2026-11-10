@@ -58,34 +58,35 @@ describe('TopBar — app shell', () => {
     expect(tray).not.toHaveAttribute('data-filtered')
     act(() => useFilterStore.getState().setShowCompleted(true))
     expect(tray).toHaveAttribute('data-filtered', 'true')
-    fireEvent.click(screen.getByRole('button', { name: 'Clear all filters' }))
+    // Show completed's chip: a click hides them again.
+    fireEvent.click(within(tray).getByRole('button', { name: 'Show completed' }))
     expect(tray).not.toHaveAttribute('data-filtered')
   })
 
   it('the search is a plain text box: no aria-expanded, and it controls the results only while they show (cr31 UI F9)', () => {
     renderBar()
-    const search = within(screen.getByRole('group', { name: 'Screen filters — apply to every widget' })).getByRole('textbox', { name: 'Search tasks' })
+    const search = within(screen.getByRole('group', { name: 'Screen filters — apply to every widget' })).getByRole('textbox', { name: 'Filter tasks' })
     expect(search).not.toHaveAttribute('aria-expanded')
     expect(search).not.toHaveAttribute('aria-controls')
   })
 
-  it('the funnel, left of search, clears every screen filter; disabled while none is on; no Clear all text', () => {
+  it('the Filter button follows the field; its menu’s Clear all filters clears every screen filter; no Clear all in the bar', () => {
     renderBar()
     const tray = screen.getByRole('group', { name: 'Screen filters — apply to every widget' })
-    const funnel = within(tray).getByRole('button', { name: 'Clear all filters' })
-    const search = within(tray).getByRole('textbox', { name: 'Search tasks' })
-    expect(funnel.compareDocumentPosition(search) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-    expect(funnel).toBeDisabled()
+    const search = within(tray).getByRole('textbox', { name: 'Filter tasks' })
+    const filter = within(tray).getByRole('button', { name: 'Filter' })
+    expect(search.compareDocumentPosition(filter) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(within(tray).queryByRole('button', { name: 'Clear all filters' })).toBeNull()
     act(() => {
       useFilterStore.getState().setPersonIds(new Set([1]))
       useFilterStore.getState().setShowCompleted(true)
     })
-    expect(funnel).toBeEnabled()
-    expect(within(tray).queryByText('Clear all')).toBeNull()
-    fireEvent.click(funnel)
+    expect(within(tray).queryByRole('button', { name: 'Clear all filters' })).toBeNull()
+    fireEvent.click(within(tray).getByRole('button', { name: /^Filter, \d+ active$/ }))
+    fireEvent.click(within(screen.getByRole('group', { name: 'Screen filters' })).getByRole('button', { name: 'Clear all filters' }))
     expect(useFilterStore.getState().isActive).toBe(false)
     expect(useFilterStore.getState().filters.personIds).toBeNull()
-    expect(funnel).toBeDisabled()
+    expect(screen.queryByRole('group', { name: 'Screen filters' })).toBeNull()
   })
 
   it('the counter ends the tray while a filter is on: what it keeps of every task; a click opens the filtered-tasks panel', () => {

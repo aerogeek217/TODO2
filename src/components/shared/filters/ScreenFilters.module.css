@@ -1,6 +1,6 @@
-/* The top bar's screen-filter buttons, Show completed, Clear all, and the
- * narrow-window Filters menu. The pickers keep `TopBar.module.css`'s panel
- * styles. */
+/* The top bar's Filter button and its menu (the fields, Completed, Clear
+ * all), and the chips of the filters that are on. The pickers keep
+ * `FilterPicker.module.css`'s panel styles. */
 
 .filterButton {
   display: inline-flex;
@@ -52,7 +52,8 @@
   flex-shrink: 0;
 }
 
-.filterButtonActive .icon {
+.filterButtonActive .icon,
+.iconOn {
   color: var(--color-accent-text);
 }
 
@@ -141,53 +142,34 @@
   pointer-events: none;
 }
 
-.separator {
-  width: 1px;
-  height: 16px;
-  margin: 0 3px;
-  background: var(--color-border-muted);
-  flex-shrink: 0;
+/* Show completed's chip (while it is on): one button, its × a glyph drawn
+ * as the other chips' round × (a click anywhere on it hides them). */
+.completedChip {
+  padding-right: 4px;
 }
 
-/* Show completed */
-.completed {
+.chipCross {
   display: inline-flex;
   align-items: center;
-  gap: 5px;
-  height: 26px;
-  padding: 0 7px;
-  border: none;
-  border-radius: var(--radius-md);
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: var(--font-size-meta);
-  font-weight: var(--font-weight-semibold);
-  white-space: nowrap;
-  cursor: pointer;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--color-tint-12);
   flex-shrink: 0;
 }
 
-.completed svg {
-  color: var(--color-text-muted);
-}
-
-.completed:hover {
-  background: var(--color-tint-6);
+.completedChip:hover .chipCross {
+  background: var(--color-tint-20);
   color: var(--color-text-primary);
 }
 
-.completedOn,
-.completedOn:hover,
-.completedOn svg {
-  color: var(--color-accent-text);
-}
-
-/* ═══ Filters (narrow windows) ═══ */
+/* ═══ The Filter button and its menu ═══ */
 
 .filtersTrigger {
   composes: filterMain;
-  gap: 6px;
+  gap: 5px;
 }
 
 /* Its menu open: the open trigger's ring (D21). */
@@ -202,7 +184,8 @@
   box-shadow: var(--trigger-open-ring), var(--focus-ring);
 }
 
-.filtersTrigger[aria-expanded='true'] .chevron {
+.filtersTrigger[aria-expanded='true'] .chevron,
+.filtersTrigger[aria-expanded='true'] .icon {
   color: var(--color-accent-text);
 }
 
@@ -314,14 +297,9 @@
   cursor: pointer;
 }
 
-.menuClearAll:hover:not(:disabled) {
+.menuClearAll:hover {
   background: var(--color-tint-6);
   color: var(--color-text-primary);
-}
-
-.menuClearAll:disabled {
-  opacity: 0.4;
-  cursor: default;
 }
 
 /* ── People picker footer: Review, Email check-in ───────────────────────── */

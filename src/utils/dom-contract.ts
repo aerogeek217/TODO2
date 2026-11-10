@@ -11,8 +11,10 @@
 export const TODO_ID_ATTR = 'data-todo-id'
 /** The top bar's search field. */
 export const SEARCH_INPUT_ATTR = 'data-search-input'
-/** The top bar's filter tray: its first button is where Focus Filters lands. */
+/** The top bar's filter tray (the field, the Filter button, the set filters' chips, the counter). */
 export const FILTER_ROW_ATTR = 'data-filter-row'
+/** The top bar's Filter button: what Open filter menu (`F`) presses. */
+export const FILTER_MENU_ATTR = 'data-filter-menu'
 /** The tray's Show N tasks (the filtered-tasks panel's toggle): where the focus goes back when the panel closes. */
 export const SHOW_FILTERED_TASKS_ATTR = 'data-show-filtered-tasks'
 /** A widget that owns a row selection (list, Eisenhower, a glance row widget): its scope, the tab id. */
