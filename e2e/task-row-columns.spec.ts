@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { readStore } from './fixtures/db'
 import { box, pointIn, type Box } from './fixtures/geometry'
+import { defaultDetailsWidth, taskRowColumns, TASK_ROW } from '../src/utils/task-row-columns'
 import { drag, seedWorkspace, wsListWidget, type WorkspaceSeed, type WsTabSeed, wsRow, expectLayoutStored } from './fixtures/workspace'
 
 /**
@@ -97,7 +98,7 @@ test('each column lines up across rows, filled or empty, in one order', async ({
   }
 })
 
-test('status is the last column, flush with the row’s right padding; the default split keeps people and tags their room beside both dates', async ({ page }) => {
+test('status is the last column, flush with the row’s right padding; the default split (45 % of the row, at most 300) keeps people and tags their room beside both dates', async ({ page }) => {
   await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 640))
   const widget = wsListWidget(page, 'tab')
   await expect(widget.locator('[data-todo-id]')).toHaveCount(TASKS.length)
@@ -105,12 +106,16 @@ test('status is the last column, flush with the row’s right padding; the defau
     const rb = await box(r)
     const status = await box(r.locator('[data-row-cell="status"]'))
     expect(Math.round(rb.x + rb.width - 8 - (status.x + status.width))).toBe(0)
-    // The default details width (300) holds both dates and people / tags at about their old room.
-    expect(await laidOutDetails(r)).toBe(300)
+    // Nothing stored: the details take 45 % of the row's inner width, at most 300 (defaultDetailsWidth) — the title the larger part.
+    expect(await laidOutDetails(r)).toBe(defaultDetailsWidth(rb.width - TASK_ROW.padLeft - TASK_ROW.padRight))
+    expect(await laidOutDetails(r)).toBeLessThan(rb.width / 2)
   }
   const busy = row(widget, 'Draft the Q4 roadmap review deck')
-  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(61)
-  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(91)
+  // That split leaves people and tags their room beside both dates (people 40 % of what is left, tags the rest).
+  const cols = taskRowColumns((await box(busy)).width)
+  expect(cols.datesTier).toBe('both')
+  expect(Math.round((await box(busy.locator('[data-row-cell="people"]'))).width)).toBe(cols.people)
+  expect(Math.round((await box(busy.locator('[data-row-cell="tags"]'))).width)).toBe(cols.tags)
   expect(Math.round((await box(busy.locator('[data-row-cell="dates"]'))).width)).toBe(92)
   await expect(busy.locator('[data-row-cell="due"]')).toHaveText(ROW_DATE)
   await expect(busy.locator('[data-row-cell="followup"]')).toHaveText(ROW_DATE)
@@ -189,8 +194,8 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   await page.keyboard.press('End')
   const max = Number(await divider(widget).getAttribute('aria-valuemax'))
   await expect.poll(() => dividerValue(widget)).toBe(max)
-  // At the maximum the title keeps 80px.
-  expect(Math.round((await box(first.locator('[data-task-title]'))).width)).toBe(80)
+  // At the maximum the title keeps its minimum (140px: titles first).
+  expect(Math.round((await box(first.locator('[data-task-title]'))).width)).toBe(TASK_ROW.titleMin)
   await expect.poll(() => storedTabView(page, 'tab')).toEqual({ detailsWidth: max })
 
   // Double-click: back to the default, nothing stored.
@@ -200,14 +205,16 @@ test('the divider: dragging sets the details width (view state, not unsaved), it
   await expectLayoutStored(page)
 })
 
-test('a 280px column: the title keeps 80px and nothing passes the row edge', async ({ page }) => {
+test('a 280px column: a stored wide split gives way, the title keeping all the narrowest details leave; nothing passes the row edge', async ({ page }) => {
   await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0, detailsWidth: 4000 }, 280))
   const widget = wsListWidget(page, 'tab')
   await expect(widget.locator('[data-todo-id]')).toHaveCount(TASKS.length)
   for (const t of TASKS) {
     const r = row(widget, t.title)
     const rb = await box(r)
-    expect((await box(r.locator('[data-task-title]'))).width, t.title).toBeGreaterThanOrEqual(79.5)
+    // Under the title's 140px minimum here: the details are at their narrowest (84), the title has the rest.
+    const narrowest = taskRowColumns(rb.width, 0).laidOut
+    expect((await box(r.locator('[data-task-title]'))).width, t.title).toBeGreaterThanOrEqual(rb.width - TASK_ROW.padLeft - TASK_ROW.padRight - TASK_ROW.gutter - TASK_ROW.checkbox - 3 * TASK_ROW.gap - narrowest - 0.5)
     for (const name of CELLS) {
       const c = r.locator(`[data-row-cell="${name}"]`)
       if (await c.count() === 0) continue
@@ -232,7 +239,8 @@ test('Eisenhower quadrants use their tab’s value', async ({ page }) => {
     layouts: [{
       name: 'Main',
       columns: [
-        { id: 'a', weight: 1, rows: [wsRow({ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] })] },
+        // Wide enough that each pane's rows hold 160 beside the title's 140 (a half-width Eisenhower's panes clamp to the 84 minimum).
+        { id: 'a', weight: 3, rows: [wsRow({ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] })] },
         { id: 'b', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] })] },
       ],
     }],
@@ -386,8 +394,8 @@ test('a drag can start on a cell; a click there without moving opens its picker;
   await expect(page.locator('[data-anchored-picker]')).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Edit task' })).toHaveCount(0)
   await page.keyboard.press('Escape')
-  // On the title it opens the editor.
-  await row(eis, 'Plain task').locator('[data-task-title]').dblclick()
+  // On the title's text it opens the editor (its middle may be past the text, on the hover-revealed Add subtasks mark).
+  await row(eis, 'Plain task').locator('[data-task-title]').dblclick({ position: { x: 8, y: 10 } })
   await expect(page.getByRole('dialog', { name: 'Edit task' })).toBeVisible()
 })
 
