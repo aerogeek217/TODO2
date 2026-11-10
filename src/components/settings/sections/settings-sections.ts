@@ -2,7 +2,8 @@ import type { ComponentType } from 'react'
 import type { SettingsPartId, SettingsSectionId } from '../../../stores/ui-store'
 import { AppearanceSection } from './AppearanceSection'
 import { AmbienceSection } from './AmbienceSection'
-import { TaskDefaultsSection } from './TaskDefaultsSection'
+import { NewTasksSection } from './NewTasksSection'
+import { ListsAndRowsSection } from './ListsAndRowsSection'
 import { EntitiesSection } from './EntitiesSection'
 import { CompletedTasksSection } from './CompletedTasksSection'
 import { EisenhowerSection } from './EisenhowerSection'
@@ -95,7 +96,8 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
     label: 'Tasks',
     Icon: TasksIcon,
     parts: [
-      { id: 'task-defaults', label: 'Task defaults', Body: TaskDefaultsSection, mobile: false },
+      { id: 'new-tasks', label: 'New tasks', Body: NewTasksSection, mobile: false },
+      { id: 'lists-and-rows', label: 'Lists & rows', Body: ListsAndRowsSection, mobile: false },
       { id: 'lenses', label: 'Lenses', Body: LensesSection, mobile: false, help: LENSES_HELP },
       { id: 'eisenhower', label: 'Eisenhower', Body: EisenhowerSection, mobile: false, help: EISENHOWER_HELP },
       { id: 'completed', label: 'Completed tasks', Body: CompletedTasksSection, mobile: false },

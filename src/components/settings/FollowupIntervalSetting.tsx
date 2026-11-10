@@ -9,7 +9,7 @@ import { SettingRow } from './sections/SettingRow'
 import styles from './sections/sections.module.css'
 
 /**
- * Settings → Task defaults: "Set a next follow-up automatically" and the
+ * Settings › Tasks › New tasks: "Set a next follow-up automatically" and the
  * follow-up interval (`1m`, `2w`, `10d`, `1y`). While the switch is on, new
  * tasks and "Mark followed up" set the next follow-up to today + the
  * interval; off, new tasks get none and Mark followed up clears it. Either

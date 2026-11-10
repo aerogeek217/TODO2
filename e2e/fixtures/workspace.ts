@@ -803,7 +803,8 @@ export async function gotoSettingsDeepLink(page: Page): Promise<Locator> {
 
 /** The headed parts of the merged Settings sections, by label: their section. */
 const SETTINGS_PART_SECTION: Readonly<Record<string, string>> = {
-  'Task defaults': 'Tasks',
+  'New tasks': 'Tasks',
+  'Lists & rows': 'Tasks',
   Eisenhower: 'Tasks',
   'Completed tasks': 'Tasks',
   'File storage': 'Database',

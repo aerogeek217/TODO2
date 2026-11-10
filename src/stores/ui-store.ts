@@ -19,7 +19,8 @@ export type SettingsSectionId =
 
 /** The headed parts of the merged sections (Tasks, Database, Appearance). */
 export type SettingsPartId =
-  | 'task-defaults'
+  | 'new-tasks'
+  | 'lists-and-rows'
   | 'lenses'
   | 'eisenhower'
   | 'completed'
@@ -34,7 +35,8 @@ export type SettingsPartId =
 export const SETTINGS_PART_SECTION: Readonly<Record<SettingsPartId, SettingsSectionId>> = {
   'theme-and-lists': 'appearance',
   ambience: 'appearance',
-  'task-defaults': 'tasks',
+  'new-tasks': 'tasks',
+  'lists-and-rows': 'tasks',
   lenses: 'tasks',
   eisenhower: 'tasks',
   completed: 'tasks',

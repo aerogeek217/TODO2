@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup, waitFor, within } from '@testing-library/react'
-import { TaskDefaultsSection } from '../../../components/settings/sections/TaskDefaultsSection'
+import { NewTasksSection } from '../../../components/settings/sections/NewTasksSection'
+import { ListsAndRowsSection } from '../../../components/settings/sections/ListsAndRowsSection'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useStatusStore } from '../../../stores/status-store'
 import { useTodoStore } from '../../../stores/todo-store'
@@ -16,9 +17,31 @@ beforeEach(async () => {
 
 afterEach(cleanup)
 
-describe('TaskDefaultsSection — follow-up', () => {
+describe('Tasks › New tasks and Lists & rows', () => {
+  const rowNames = (root: HTMLElement) => Array.from(root.querySelectorAll('[aria-label]'))
+    .map((el) => el.getAttribute('aria-label'))
+    .filter((name): name is string => name != null && !name.startsWith('About '))
+
+  it('New tasks holds what a new task gets; Lists & rows how lists and rows read', () => {
+    const { container: newTasks, unmount } = render(<NewTasksSection />)
+    expect(rowNames(newTasks)).toEqual([
+      'Default status for new tasks', 'Set a next follow-up automatically', 'Follow-up interval', 'Remove note lines after converting',
+    ])
+    unmount()
+    const { container: lists } = render(<ListsAndRowsSection />)
+    const names = rowNames(lists)
+    for (const name of ['Due date makes a task urgent', 'Fade tasks untouched for (days)', 'Tab badges: due', 'Tab badges: follow-up', 'Urgent glow', 'Week starts on', 'New lists sort by', 'New lists group by']) {
+      expect(names).toContain(name)
+    }
+    for (const name of ['Default status for new tasks', 'Set a next follow-up automatically', 'Follow-up interval', 'Remove note lines after converting']) {
+      expect(names).not.toContain(name)
+    }
+  })
+})
+
+describe('NewTasksSection — follow-up', () => {
   it('Set a next follow-up automatically, above the interval: on by default, its help says both uses; off is stored, on removes the row', async () => {
-    render(<TaskDefaultsSection />)
+    render(<NewTasksSection />)
     const sw = screen.getByRole('switch', { name: 'Set a next follow-up automatically' })
     expect(sw).toHaveAttribute('aria-checked', 'true')
     const interval = screen.getByRole('textbox', { name: 'Follow-up interval' })
@@ -38,9 +61,9 @@ describe('TaskDefaultsSection — follow-up', () => {
   })
 })
 
-describe('TaskDefaultsSection — Remove note lines after converting', () => {
+describe('NewTasksSection — Remove note lines after converting', () => {
   it('is off by default; the switch saves it, stored only while on', async () => {
-    render(<TaskDefaultsSection />)
+    render(<NewTasksSection />)
     const sw = screen.getByRole('switch', { name: 'Remove note lines after converting' })
     expect(sw).toHaveAttribute('aria-checked', 'false')
     fireEvent.click(sw)
@@ -56,9 +79,9 @@ describe('TaskDefaultsSection — Remove note lines after converting', () => {
   })
 })
 
-describe('TaskDefaultsSection — Priority cues', () => {
+describe('ListsAndRowsSection — Priority cues', () => {
   it('each priority shows its checkbox mark as the rows draw it (D25 B): Focus the glow, Urgent / Important their rings', () => {
-    render(<TaskDefaultsSection />)
+    render(<ListsAndRowsSection />)
     const rings = Array.from(document.querySelectorAll('[data-cue-ring]')).map((el) => [
       el.getAttribute('data-cue-ring'),
       el.querySelector('[data-priority-ring]')?.getAttribute('data-priority-ring') ?? null,
@@ -69,9 +92,9 @@ describe('TaskDefaultsSection — Priority cues', () => {
   })
 })
 
-describe('TaskDefaultsSection — Due date makes a task urgent', () => {
+describe('ListsAndRowsSection — Due date makes a task urgent', () => {
   it('shows the range (default Within 3 days) with its help line and offers Off · Today · 1 · 2 · 3 days · 1 · 2 weeks', () => {
-    render(<TaskDefaultsSection />)
+    render(<ListsAndRowsSection />)
     const select = screen.getByRole('combobox', { name: 'Due date makes a task urgent' }) as HTMLSelectElement
     expect(select.selectedOptions[0]!.textContent).toBe('Within 3 days')
     expect([...select.options].map((o) => o.textContent)).toEqual([
@@ -81,7 +104,7 @@ describe('TaskDefaultsSection — Due date makes a task urgent', () => {
   })
 
   it('picking a choice saves the setting', async () => {
-    render(<TaskDefaultsSection />)
+    render(<ListsAndRowsSection />)
     fireEvent.change(screen.getByRole('combobox', { name: 'Due date makes a task urgent' }), { target: { value: 'off' } })
     await waitFor(() => expect(useSettingsStore.getState().urgentDueWithinDays).toBeNull())
     expect((await db.settings.get('urgentDueWithinDays'))!.value).toBe('off')
@@ -89,15 +112,15 @@ describe('TaskDefaultsSection — Due date makes a task urgent', () => {
 
   it('a range outside the choices (e.g. imported) still shows', () => {
     useSettingsStore.setState({ urgentDueWithinDays: 5 })
-    render(<TaskDefaultsSection />)
+    render(<ListsAndRowsSection />)
     const select = screen.getByRole('combobox', { name: 'Due date makes a task urgent' }) as HTMLSelectElement
     expect(select.selectedOptions[0]!.textContent).toBe('Within 5 days')
   })
 })
 
-describe('TaskDefaultsSection — fade untouched tasks', () => {
+describe('ListsAndRowsSection — fade untouched tasks', () => {
   it('shows the threshold (default 30 days); a whole number 0–365 commits on blur, 0 reads as off, anything else reverts', async () => {
-    render(<TaskDefaultsSection />)
+    render(<ListsAndRowsSection />)
     const input = screen.getByRole('spinbutton', { name: 'Fade tasks untouched for (days)' }) as HTMLInputElement
     expect(input.value).toBe('30')
     expect(screen.getByText('days')).toBeInTheDocument()
@@ -118,9 +141,9 @@ describe('TaskDefaultsSection — fade untouched tasks', () => {
   })
 })
 
-describe('TaskDefaultsSection — new lists', () => {
+describe('ListsAndRowsSection — new lists', () => {
   it('New lists sort by: Manual by default with no order choice; a sort with a direction offers its order in words', async () => {
-    render(<TaskDefaultsSection />)
+    render(<ListsAndRowsSection />)
     const sort = screen.getByRole('combobox', { name: 'New lists sort by' })
     expect(sort).toHaveValue('manual')
     expect(within(sort).getAllByRole('option').map((o) => o.textContent)).toEqual(['Manual', 'Priority', 'Due date', 'Next follow-up', 'Last followed up', 'Completed', 'Name', 'People', 'Status', 'Created', 'Modified'])
@@ -144,7 +167,7 @@ describe('TaskDefaultsSection — new lists', () => {
   })
 
   it('Completed starts newest first and Last followed up oldest first, whatever the order before', async () => {
-    render(<TaskDefaultsSection />)
+    render(<ListsAndRowsSection />)
     const sort = screen.getByRole('combobox', { name: 'New lists sort by' })
     fireEvent.change(sort, { target: { value: 'completed' } })
     await waitFor(() => expect(useSettingsStore.getState()).toMatchObject({ newListSort: 'completed', newListSortDirection: 'desc' }))
@@ -157,7 +180,7 @@ describe('TaskDefaultsSection — new lists', () => {
   })
 
   it('New lists group by: No grouping by default; a pick is saved', async () => {
-    render(<TaskDefaultsSection />)
+    render(<ListsAndRowsSection />)
     const group = screen.getByRole('combobox', { name: 'New lists group by' })
     expect(group).toHaveValue('none')
     expect(within(group).getAllByRole('option').map((o) => o.textContent)).toEqual(['No grouping', 'Priority', 'Due date', 'Next follow-up date', 'People', 'Status', 'Tag'])
@@ -168,7 +191,7 @@ describe('TaskDefaultsSection — new lists', () => {
 
   it('a stored sort the menu no longer offers still shows', () => {
     useSettingsStore.setState({ newListSort: 'people' })
-    render(<TaskDefaultsSection />)
+    render(<ListsAndRowsSection />)
     expect(screen.getByRole('combobox', { name: 'New lists sort by' })).toHaveValue('people')
   })
 })

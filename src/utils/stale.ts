@@ -4,7 +4,7 @@ import { formatDateWith } from './date'
 
 /**
  * Stale tasks: open tasks nobody has changed for the Settings threshold
- * ("Fade tasks untouched for N days", Settings › Tasks › Task defaults). A
+ * ("Fade tasks untouched for N days", Settings › Tasks › Lists & rows). A
  * stale row is drawn faded (D17); its title tooltip says when it was last
  * edited. Reads `modifiedAt`, which any edit moves — a reorder or a bulk
  * edit too (accepted: no separate stamp).
