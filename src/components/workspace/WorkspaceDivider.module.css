@@ -141,9 +141,11 @@
 }
 
 /* A crossing handle: at a "+" where four cells meet, the gutters' square.
- * Its hit area reaches 5px past it on each side (16px); a dot shows on
- * hover (after 120ms), on focus and while dragging. It moves both whole
- * lines through it. */
+ * Its hit area reaches 9px past it on each side (24px), over the dividers.
+ * It moves both whole lines through it, so on hover (after 120ms), on focus
+ * and while dragging it lights both — its two line elements, the siblings
+ * right after it, across and down the whole table — as a divider lights
+ * its own line. */
 .crossing {
   position: relative;
   z-index: var(--z-above-3);
@@ -161,38 +163,52 @@
 .crossing::before {
   content: '';
   position: absolute;
-  inset: -5px;
-}
-
-.crossing::after {
-  content: '';
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  background: var(--color-accent-dim);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--transition-fast) 0ms;
-}
-
-.crossing:hover::after {
-  opacity: 1;
-  transition-delay: 120ms;
+  inset: -9px;
 }
 
 .crossing:focus-visible {
   box-shadow: none;
 }
 
-.crossing:focus-visible::after,
-.crossingDragging::after,
-.crossingDragging:hover::after {
+/* A crossing's line: placed as a snap guide (`guideColumns` / `guideRows`),
+ * drawn as a divider's line — hidden at rest, accent-dim on the crossing's
+ * hover (after 120ms), accent on its focus, accent + halo while dragging. */
+.crossingLine {
+  position: relative;
+  z-index: var(--z-above-2);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--transition-fast) 0ms;
+}
+
+.crossingLine::after {
+  content: '';
+  position: absolute;
+  border-radius: 1px;
+  background: var(--color-accent-dim);
+}
+
+.crossing:hover + .crossingLine,
+.crossing:hover + .crossingLine + .crossingLine {
   opacity: 1;
+  transition-delay: 120ms;
+}
+
+.crossing:focus-visible + .crossingLine,
+.crossing:focus-visible + .crossingLine + .crossingLine,
+.crossingDragging + .crossingLine,
+.crossingDragging + .crossingLine + .crossingLine {
+  opacity: 1;
+  transition-delay: 0ms;
+}
+
+.crossing:focus-visible + .crossingLine::after,
+.crossing:focus-visible + .crossingLine + .crossingLine::after {
+  background: var(--color-accent);
+}
+
+.crossingDragging + .crossingLine::after,
+.crossingDragging + .crossingLine + .crossingLine::after {
   background: var(--color-accent);
   box-shadow: 0 0 0 3px var(--color-accent-bg);
-  transition-delay: 0ms;
 }

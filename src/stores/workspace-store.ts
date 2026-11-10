@@ -53,12 +53,39 @@ import {
   type MoveEdgeOptions,
 } from '../utils/workspace-layout-ops'
 import type { EdgeStretch, Side } from '../utils/workspace-grid'
+import { samePreviewBody } from '../utils/workspace-preview'
 
 type Layout = PersistedWorkspaceLayout
+
+function sameHandle(a: ResizeHandle, b: ResizeHandle): boolean {
+  if (a.kind === 'divider') return b.kind === 'divider' && a.axis === b.axis && a.beforeId === b.beforeId && a.afterId === b.afterId
+  return b.kind === 'crossing' && a.cornerId === b.cornerId && a.key === b.key
+}
 
 /** A resize from a divider: `live` = one frame of a drag (see `setTrackSizes`). */
 export interface ResizeOptions {
   live?: boolean
+}
+
+/**
+ * The resize handle a preview belongs to: a divider (its axis and the first
+ * cells on either side, as it was keyed when the drag started) or a crossing
+ * handle (its corner cell, above-left, and its key).
+ */
+export type ResizeHandle =
+  | { kind: 'divider'; axis: GridAxis; beforeId: string; afterId: string }
+  | { kind: 'crossing'; cornerId: string; key: string }
+
+/**
+ * A resize drag whose move changes the structure (part of a line moved, or a
+ * line onto or past another): the table as its release will leave it
+ * (`moveEdge`'s probe, throwaway track ids), drawn instead of the working
+ * copy's grid while the drag runs (`utils/workspace-preview`).
+ */
+export interface ResizePreview {
+  layoutId: number
+  body: LayoutBody
+  handle: ResizeHandle
 }
 
 /**
@@ -110,6 +137,12 @@ export interface WorkspaceState {
    */
   repairedIds: ReadonlySet<number>
   hydrated: boolean
+  /**
+   * Transient: a structural resize drag's preview (`ResizePreview`), set by
+   * the handle per frame and cleared at its end — never saved, never kept
+   * in the browser, never unsaved, never an undo step.
+   */
+  resizePreview: ResizePreview | null
 
   /**
    * Opens the active layout (creating an empty "Default" one when none
@@ -223,6 +256,8 @@ export interface WorkspaceState {
   clearTrackFitPx: (trackId: string) => Promise<void>
   /** The end of a live resize: saves what its frames changed (and keeps it in the browser), once. */
   endResize: () => Promise<void>
+  /** Sets (or clears, `null`) the structural resize preview; a preview drawing the same table as the current one changes nothing. */
+  setResizePreview: (preview: ResizePreview | null) => void
   /**
    * Layout config of a tab (e.g. a lens tab's list, a calendar's date types).
    * A list tab's list must be this layout's own
@@ -714,7 +749,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     const { layout, fixes } = read
     set({
       layouts, repairedIds, activeLayoutId: layout.id, working: layout, saved: layout,
-      isDirty: repairedIds.has(layout.id), hydrated: true, previousLayoutId: null,
+      isDirty: repairedIds.has(layout.id), hydrated: true, previousLayoutId: null, resizePreview: null,
     })
     if (fixes.length > 0) reportRepair(layout, fixes)
     keepDraft()
@@ -791,6 +826,7 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
     isDirty: false,
     repairedIds: new Set(),
     hydrated: false,
+    resizePreview: null,
 
     init() {
       if (get().hydrated) return openActive(null)
@@ -1106,6 +1142,13 @@ export const useWorkspaceStore = create<WorkspaceState>((set, get) => {
 
     endResize() {
       return commitSizes()
+    },
+
+    setResizePreview(preview) {
+      const current = get().resizePreview
+      if (preview === current) return
+      if (preview && current && preview.layoutId === current.layoutId && sameHandle(preview.handle, current.handle) && samePreviewBody(preview.body, current.body)) return
+      set({ resizePreview: preview })
     },
 
     copyTrackSizes(from, axes, opts) {
