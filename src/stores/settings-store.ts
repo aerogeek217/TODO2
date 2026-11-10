@@ -51,8 +51,7 @@ import {
 } from '../utils/completed-at'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from '../data/checkin-filter-shape'
 import { DEFAULT_STALE_AFTER_DAYS, isStaleAfterDays, parseStaleAfterDays } from '../utils/stale'
-import { DEFAULT_LIST_ZOOM, LIST_ZOOM_LABELS, parseListZoomSetting } from '../utils/list-zoom'
-import { isListZoom, type ListZoom } from '../models/workspace-layout'
+import { DEFAULT_LIST_ZOOM, isListZoomSetting, LIST_ZOOM_SETTING_LABELS, parseListZoomSetting, type ListZoomSetting } from '../utils/list-zoom'
 import { DEFAULT_ROW_DATES, isRowDates, type RowDates } from '../utils/row-dates'
 import { DEFAULT_AMBIENCE, SKY_STRENGTH_LABELS, type AmbienceSettings } from '../models/ambience'
 import {
@@ -159,8 +158,8 @@ interface SettingsData {
   tabBadges: TabBadgeRanges
   /** What each priority adds to a task's row (`utils/priority-cues`). */
   priorityCues: PriorityCues
-  /** The zoom of a list tab that hasn't picked one (Settings › Appearance › Default list zoom; `utils/list-zoom`). */
-  listZoom: ListZoom
+  /** The zoom of a list tab that hasn't picked one — Auto (by the list's width) or a level (Settings › Appearance › Default list zoom; `utils/list-zoom`). */
+  listZoom: ListZoomSetting
   /** How the task rows show their due and follow-up dates (`utils/row-dates`). */
   rowDates: RowDates
   /** Ambience: the time of day and the season in the chrome (Settings › Appearance › Ambience; `models/ambience`). */
@@ -244,8 +243,8 @@ interface SettingsState extends SettingsData {
   setStaleAfterDays: (days: number) => Promise<void>
   setTabBadges: (ranges: TabBadgeRanges) => Promise<void>
   setPriorityCues: (cues: PriorityCues) => Promise<void>
-  /** The default list zoom (an unknown value is ignored); stored only when not `rows`. */
-  setListZoom: (zoom: ListZoom) => Promise<void>
+  /** The default list zoom (an unknown value is ignored); stored only when not `auto` (Auto is the absent row). */
+  setListZoom: (zoom: ListZoomSetting) => Promise<void>
   /** How the task rows show dates (an unknown value is ignored); stored only when not `relative`. */
   setRowDates: (dates: RowDates) => Promise<void>
   /**
@@ -633,7 +632,7 @@ export const SETTINGS = {
     rows: ({ listZoom }) => rowUnlessDefault(K.rowDensity, listZoom, listZoom === DEFAULT_LIST_ZOOM),
     label: 'the default list zoom',
     failure: 'Couldn’t save the default list zoom.',
-    undo: ({ listZoom }) => `Default list zoom: ${LIST_ZOOM_LABELS[listZoom]}`,
+    undo: ({ listZoom }) => `Default list zoom: ${LIST_ZOOM_SETTING_LABELS[listZoom]}`,
   }),
   rowDates: setting(['rowDates'], {
     read: (rows) => ({ rowDates: rowOr(rows, K.rowDates, DEFAULT_ROW_DATES, (v) => (isRowDates(v) ? v : DEFAULT_ROW_DATES)) }),
@@ -807,7 +806,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   },
 
   async setListZoom(zoom) {
-    if (isListZoom(zoom)) await SETTINGS.listZoom.write({ listZoom: zoom })
+    if (isListZoomSetting(zoom)) await SETTINGS.listZoom.write({ listZoom: zoom })
   },
 
   async setRowDates(dates) {

@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest'
 import { LIST_ZOOMS, isListZoom, readListZoom } from '../../models/workspace-layout'
 import {
+  autoListZoom,
   canStepListZoom,
+  DEFAULT_LIST_ZOOM,
+  defaultListZoom,
+  isListZoomSetting,
+  LIST_ZOOM_SETTINGS,
   parseListZoomSetting,
   lineDate,
   rowSummaryText,
@@ -14,6 +19,39 @@ const day = (n: number) => new Date(2026, 10, 6 + n)
 const SETTINGS = { urgentRange: 3, staleAfterDays: 30 }
 const task = (fields: Partial<{ dueDate: Date; nextFollowupAt: Date; isCompleted: boolean; modifiedAt: Date; title: string }> = {}) => ({
   title: 'A task', isCompleted: false, modifiedAt: TODAY, ...fields,
+})
+
+describe('Auto, the Default list zoom’s default (UX cleanup 1A)', () => {
+  it('is Stacked under 480px, Rows from 480px; unmeasured, Rows', () => {
+    expect(autoListZoom(0)).toBe('rows')
+    expect(autoListZoom(Number.NaN)).toBe('rows')
+    expect(autoListZoom(479)).toBe('stacked')
+    expect(autoListZoom(480)).toBe('rows')
+  })
+
+  it('changes level only 16px past the breakpoint (hysteresis)', () => {
+    expect(autoListZoom(470, 'rows')).toBe('rows')
+    expect(autoListZoom(464, 'rows')).toBe('rows')
+    expect(autoListZoom(463, 'rows')).toBe('stacked')
+    expect(autoListZoom(490, 'stacked')).toBe('stacked')
+    expect(autoListZoom(495, 'stacked')).toBe('stacked')
+    expect(autoListZoom(496, 'stacked')).toBe('rows')
+    // Lines isn't Auto's: a level it never shows reads as no previous one.
+    expect(autoListZoom(470, 'lines')).toBe('stacked')
+  })
+
+  it('a level is shown as itself; Auto by the width', () => {
+    expect(defaultListZoom('lines', 300)).toBe('lines')
+    expect(defaultListZoom('auto', 300)).toBe('stacked')
+    expect(defaultListZoom('auto')).toBe('rows')
+    expect(LIST_ZOOM_SETTINGS).toEqual(['auto', 'stacked', 'rows', 'lines'])
+    expect(DEFAULT_LIST_ZOOM).toBe('auto')
+    expect(isListZoomSetting('auto')).toBe(true)
+    expect(isListZoomSetting('rows')).toBe(true)
+    expect(isListZoomSetting('cosy')).toBe(false)
+    // Auto is never stored, so the stored row never reads as it.
+    expect(parseListZoomSetting('auto')).toBeUndefined()
+  })
 })
 
 describe('the zoom step (D25 C + I1)', () => {

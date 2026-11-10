@@ -3,6 +3,7 @@ import { db } from '../../data/database'
 import { layoutRepository } from '../../data/layout-repository'
 import { createTab, type LensTab, type WorkspaceLayout } from '../../models/workspace-layout'
 import { listTabZoom, setListTabZoom, stepListTabZoom } from '../../services/list-zoom'
+import { useListWidgetStore } from '../../stores/list-widget-store'
 import { useSettingsStore } from '../../stores/settings-store'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { resetDb } from '../helpers'
@@ -34,8 +35,28 @@ beforeEach(async () => {
 describe('a list tab’s zoom (D25 C + I1)', () => {
   it('without its own, a tab shows the Settings default', () => {
     useSettingsStore.setState({ listZoom: 'lines' })
-    expect(listTabZoom({})).toBe('lines')
-    expect(listTabZoom({ viewState: { zoom: 'stacked' } })).toBe('stacked')
+    expect(listTabZoom({ id: 't' })).toBe('lines')
+    expect(listTabZoom({ id: 't', viewState: { zoom: 'stacked' } })).toBe('stacked')
+  })
+
+  it('Auto: the level the widget shows (by its width), Rows before it is measured; the tab’s own pick wins', () => {
+    useSettingsStore.setState({ listZoom: 'auto' })
+    expect(listTabZoom({ id: 't' })).toBe('rows')
+    useListWidgetStore.getState().setShownZoom('t', 'stacked')
+    expect(listTabZoom({ id: 't' })).toBe('stacked')
+    expect(listTabZoom({ id: 't', viewState: { zoom: 'lines' } })).toBe('lines')
+    useListWidgetStore.getState().setShownZoom('t', null)
+    expect(useListWidgetStore.getState().zoom).toEqual({})
+  })
+
+  it('steps from the level shown: Auto showing Stacked zooms out to Rows, saved as the tab’s own', async () => {
+    useSettingsStore.setState({ listZoom: 'auto' })
+    const id = await open()
+    useListWidgetStore.getState().setShownZoom('l1', 'stacked')
+    await stepListTabZoom('l1', 'in')
+    expect((await storedTab(id)).viewState?.zoom).toBeUndefined()
+    await stepListTabZoom('l1', 'out')
+    expect((await storedTab(id)).viewState?.zoom).toBe('rows')
   })
 
   it('is view state: saved at once on the stored layout, never an unsaved edit', async () => {

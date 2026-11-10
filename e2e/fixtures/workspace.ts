@@ -196,8 +196,12 @@ export interface WorkspaceSeed {
    * added): each predicate merged over the empty one.
    */
   lenses?: Array<{ id: string; name: string; predicate?: Record<string, unknown> }>
-  /** Settings rows to store as they are (`key` → stored `value`), e.g. `{ rowDensity: 'lines' }`. */
-  settings?: Record<string, string>
+  /**
+   * Settings rows to store as they are (`key` → stored `value`), e.g. `{ rowDensity: 'lines' }`;
+   * `null` stores none. The Default list zoom is seeded as Rows (`rowDensity: 'rows'`) unless given:
+   * Auto (the app's default, no row — `{ rowDensity: null }`) would draw a cell under 480px Stacked.
+   */
+  settings?: Record<string, string | null>
   /** Names, or a name with initials / colour / email. */
   people?: Array<string | { name: string; initials?: string; color?: string; email?: string }>
   /** Names, or a name with its colour (default `#7ec4bc`). */
@@ -458,7 +462,10 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       }]))
       tx.objectStore('settings').put({ key: 'eisenhowerPanes', value: JSON.stringify(panes) })
     }
-    for (const [key, value] of Object.entries(seed.settings ?? {})) tx.objectStore('settings').put({ key, value })
+    for (const [key, value] of Object.entries({ rowDensity: 'rows', ...seed.settings })) {
+      if (value === null) tx.objectStore('settings').delete(key)
+      else tx.objectStore('settings').put({ key, value })
+    }
     if (seed.lenses) {
       const lenses = seed.lenses.map((l) => ({ id: l.id, name: l.name, predicate: { ...seed.predicate, ...(l.predicate ?? {}) } }))
       tx.objectStore('settings').put({ key: 'lenses', value: JSON.stringify(lenses) })

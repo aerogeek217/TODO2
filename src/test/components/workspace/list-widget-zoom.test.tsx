@@ -72,6 +72,30 @@ afterEach(() => {
 })
 
 describe('a list tab’s zoom', () => {
+  it('Auto: Rows while the list is unmeasured (JSDOM), Stacked in a list under 480px, Rows from it; the tab’s own zoom wins', () => {
+    useSettingsStore.setState({ listZoom: 'auto' })
+    const { unmount } = show()
+    expect(widget()).toHaveAttribute('data-zoom', 'rows')
+    expect(useListWidgetStore.getState().zoom.t1).toBe('rows')
+    unmount()
+    expect(useListWidgetStore.getState().zoom.t1).toBeUndefined()
+
+    let width = 300
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(() => new DOMRect(0, 0, width, 600))
+    const narrow = show()
+    expect(widget()).toHaveAttribute('data-zoom', 'stacked')
+    // The level shown is what the controls step from.
+    expect(useListWidgetStore.getState().zoom.t1).toBe('stacked')
+    narrow.unmount()
+    width = 600
+    const wide = show()
+    expect(widget()).toHaveAttribute('data-zoom', 'rows')
+    wide.unmount()
+    width = 300
+    show('lines')
+    expect(widget()).toHaveAttribute('data-zoom', 'lines')
+  })
+
   it('a tab without its own zoom shows the Settings default', () => {
     useSettingsStore.setState({ listZoom: 'lines' })
     show()
