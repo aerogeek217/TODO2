@@ -138,13 +138,13 @@ async function expectLineClear(page: Page, cellId: string, label: string) {
   const names = Object.keys(p)
   for (let i = 0; i < names.length; i++) {
     for (let j = i + 1; j < names.length; j++) {
-      expect(overlaps(p[names[i]!]!, p[names[j]!]!), `:  overlaps `).toBe(false)
+      expect(overlaps(p[names[i]!]!, p[names[j]!]!), `${label}: ${names[i]} overlaps ${names[j]}`).toBe(false)
     }
   }
   const l = await box(line)
   const c = await box(cell)
-  expect(Math.round(l.height), `: one line`).toBe(36)
-  for (const [name, b] of Object.entries(p)) expect(b.x + b.width, `:  inside`).toBeLessThanOrEqual(c.x + c.width + 0.5)
+  expect(Math.round(l.height), `${label}: one line`).toBe(36)
+  for (const [name, b] of Object.entries(p)) expect(b.x + b.width, `${label}: ${name} inside`).toBeLessThanOrEqual(c.x + c.width + 0.5)
 }
 
 test('the filter line under a tab strip and the Eisenhower’s: the words give way, nothing overlaps (narrowed)', async ({ page }) => {
@@ -166,7 +166,7 @@ test('the filter line under a tab strip and the Eisenhower’s: the words give w
       eisenhower: { listDefIdx: 0 },
     }))
     await screenSearch(page, 'one')
-    await expectLineClear(page, 'l', `px, under a strip`)
-    await expectLineClear(page, 'e', `px, the Eisenhower`)
+    await expectLineClear(page, 'l', `${width}px, under a strip`)
+    await expectLineClear(page, 'e', `${width}px, the Eisenhower`)
   }
 })
