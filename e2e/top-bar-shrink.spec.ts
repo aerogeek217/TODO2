@@ -91,9 +91,9 @@ async function expectEveryFilterButton(page: Page) {
   }
 }
 
-test.use({ viewport: { width: 1370, height: 900 } })
+test.use({ viewport: { width: 1338, height: 900 } })
 
-test('at 1370px one person ticked keeps every filter button: the search narrows, the name is cut and whole in its tooltip', async ({ page }) => {
+test('at 1338px one person ticked keeps every filter button: the search narrows, the name is cut and whole in its tooltip', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await expectEveryFilterButton(page)
   const before = await settled(page)

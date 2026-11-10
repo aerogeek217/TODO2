@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { expectOpenLayout, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, editListDraft, wsRow } from './fixtures/workspace'
+import { expectOpenLayout, openSettings, readListDefinitions, seedWorkspace, switchLayout, wsCell, wsListWidget, wsTab, type WorkspaceSeed, editListDraft, wsRow, expectLayoutStep } from './fixtures/workspace'
 
 /**
  * List widgets in the workspace: the top-bar (screen) filter narrows them,
@@ -184,7 +184,7 @@ test('Edit list from the tab menu groups the list; the edit is shared by every w
   await expect(page.getByRole('tooltip')).toHaveText(/Save list “Team”\s*Shared · shown in 2 widgets/)
 })
 
-test('switching layouts with an unsaved list asks first; Discard drops the edit', async ({ page }) => {
+test('switching layouts with an unsaved list asks about the list alone; Discard drops the edit', async ({ page }) => {
   await seedWorkspace(page, team)
   await editListDraft(page, 'Team', { sort: 'name' })
 
@@ -194,24 +194,24 @@ test('switching layouts with an unsaved list asks first; Discard drops the edit'
   await dialog.getByRole('button', { name: /Cancel/ }).click()
   await expectOpenLayout(page, 'Main')
 
-  // Also make the layout unsaved: one combined prompt with a row each. (Alone in its cell, its ⋯ › Close cell.)
+  // A layout edit meanwhile is saved at once: switching still asks about the list alone. (Alone in its cell, its ⋯ › Close cell.)
   await wsTab(page, 't2').hover()
   await wsTab(page, 't2').getByRole('button', { name: 'Cell options' }).click()
   await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
+  await expectLayoutStep(page, 'Closed cell “Other”')
   await switchLayout(page, 'Second')
-  const combined = page.getByRole('dialog', { name: 'Save your changes?' })
-  await expect(combined).toContainText('You’re switching to layout “Second”.')
-  await expect(combined.getByRole('checkbox')).toHaveCount(2)
-  await combined.getByRole('button', { name: 'Discard all' }).click()
+  await expect(page.getByRole('dialog', { name: 'Save your changes?' })).toHaveCount(0)
+  await expect(dialog).toContainText('Your changes will be lost if you don’t save.')
+  await dialog.getByRole('button', { name: 'Discard' }).click()
   await expectOpenLayout(page, 'Second')
 
   await switchLayout(page, 'Main')
-  await expect(wsTab(page, 't2')).toBeVisible()
+  await expect(wsTab(page, 't2')).toHaveCount(0)
   await openEditList(page, 't1')
   await expect(page.getByTestId('edit-list').getByRole('button', { name: /^Sort by/ })).toHaveText('Manual')
 })
 
-test('closing the last widget of an unsaved list asks first; leaving the workspace too', async ({ page }) => {
+test('closing the last widget of an unsaved list asks first (then the list goes, Undo brings it back); leaving the workspace too', async ({ page }) => {
   await seedWorkspace(page, team)
   await editListDraft(page, 'Team', { grouping: 'people' })
 
@@ -233,6 +233,11 @@ test('closing the last widget of an unsaved list asks first; leaving the workspa
   await page.getByRole('menuitem', { name: 'Close cell', exact: true }).click()
   await dialog.getByRole('button', { name: 'Save list' }).click()
   await expect(wsTab(page, 't1')).toHaveCount(0)
+  // Its last tab gone, the list goes at once; Undo brings it back, as saved.
+  await expectLayoutStep(page, 'Closed cell “Team”')
+  await expect.poll(async () => (await readListDefinitions(page)).some((d) => d.name === 'Team')).toBe(false)
+  await page.locator('[data-snackbar-live]').getByRole('button', { name: 'Undo', exact: true }).click()
+  await expect(wsTab(page, 't1')).toBeVisible()
   await expect.poll(async () => (await readListDefinitions(page)).find((d) => d.name === 'Team')?.grouping).toBe('people')
 })
 

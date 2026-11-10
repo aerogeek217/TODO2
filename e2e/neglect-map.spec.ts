@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { box } from './fixtures/geometry'
-import { seedWorkspace, wsCell, type WorkspaceSeed, wsRow } from './fixtures/workspace'
+import { expectLayoutStep, seedWorkspace, wsCell, type WorkspaceSeed, wsRow } from './fixtures/workspace'
 
 /**
  * The Neglect map widget (D25 board H) in a real browser: a task due soon
@@ -145,8 +145,8 @@ test('the ⋯ menu sets Colour by and Untouched after', async ({ page }) => {
   await page.getByRole('menuitemradio', { name: '30 days' }).click()
   await expect(dots(page, 'slipping')).toHaveCount(2)
   await expect(slippingList(page).getByRole('listitem')).toHaveText([/Clean up the backlog/, /Renew the vendor contract/])
-  // Layout config: the layout is unsaved.
-  await expect(page.getByRole('button', { name: /^Save/ }).first()).toBeVisible()
+  // Layout config: saved at once, an undo step.
+  await expectLayoutStep(page, 'Changed “Neglect map”')
 })
 
 test.describe('phone', () => {
