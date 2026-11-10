@@ -275,6 +275,29 @@ describe('view state', () => {
     expect('lensId' in (await stored(id!))).toBe(false)
   })
 
+  it('a Review widget an earlier build stored with a pick and a place opens clean — by that pick’s kind, not unsaved, no repair — and takes the new shape at its next write (board BM)', async () => {
+    // As that build stored it: one saved pick, the current task, a day's skips.
+    const legacyTab = { id: 'rv', kind: 'review', config: { pick: { kind: 'tag', id: 3 } }, viewState: { sort: 'due', currentId: 7, skipped: { day: '2026-11-09', ids: [4] } } }
+    const KR = cell('kr', [legacyTab as unknown as ReturnType<typeof createTab>], { activeTabId: 'rv' })
+    const [id] = await seedAndInit({ sortOrder: 0, name: 'Daily', createdAt: T0, modifiedAt: T0, ...grid([[KA, KR]], { colIds: ['A', 'B'], rowIds: ['R'] }) })
+    expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual(legacyTab)
+    expect(ws().isDirty).toBe(false)
+    expect(ws().repairedIds.size).toBe(0)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+    const opened = { id: 'rv', kind: 'review', config: { by: 'tag' }, viewState: { sort: 'due' } }
+    expect(cellOf(ws().working, 'kr')!.tabs[0]).toEqual(opened)
+    expect(cellOf(ws().saved, 'kr')!.tabs[0]).toEqual(opened)
+    // A view-state write (saved at once) stores the row in the new shape; the layout stays saved.
+    await ws().patchTabViewState('rv', 'review', { sort: 'title' })
+    expect(ws().isDirty).toBe(false)
+    expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual({ id: 'rv', kind: 'review', config: { by: 'tag' }, viewState: { sort: 'title' } })
+    // Its kind is layout config: a change is unsaved until Save, and going back reads saved again.
+    ws().patchTabConfig('rv', 'review', { by: 'person' })
+    expect(ws().isDirty).toBe(true)
+    ws().patchTabConfig('rv', 'review', { by: 'tag' })
+    expect(ws().isDirty).toBe(false)
+  })
+
   it('with unsaved changes: view state still reaches the stored layout, structure does not', async () => {
     const [id] = await seedAndInit(twoColumns())
     const tabId = ws().addWidget('notes', { kind: 'cell', cellId: 'kb' })!

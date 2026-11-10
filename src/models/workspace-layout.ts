@@ -40,7 +40,7 @@ import {
   type PivotConfig,
   type TagMapConfig,
 } from './chart-widgets'
-import type { ReviewPick, ReviewSort } from './review'
+import { DEFAULT_REVIEW_BY, type ReviewBy, type ReviewSort } from './review'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
@@ -203,24 +203,23 @@ export interface EisenhowerTabViewState extends TaskRowsViewState, LensViewState
 export type NoTabSettings = Record<string, never>
 
 /**
- * A Review widget's settings (item 12, layout config): what it reviews —
- * a person's, a tag's or a status's open tasks, or one of the layout's
- * lists (`ReviewPick`); absent = nothing picked yet.
+ * A Review widget's settings (board BM, layout config): what it reviews by —
+ * people, tags, statuses or the layout's lists (`ReviewBy`). Who or what is
+ * picked is temporary (`list-widget-store.picks`), never saved. Read it
+ * through `models/review.reviewBy`: a config an earlier build stored (one
+ * saved `pick`, or nothing) reads as that pick's kind, or Person.
  */
 export interface ReviewTabConfig {
-  pick?: ReviewPick
+  by: ReviewBy
 }
 
 /**
- * Where a Review widget stands (item 12, view state, saved at once): its
- * lens switch, the rail's sort, the current task, and the tasks skipped on
- * `skipped.day` (a day's skips: they read as none on another day, as the ✓ —
- * followed up today — does).
+ * A Review widget's view state (saved at once): its lens switch and the
+ * rail's sort. Where it stands — the current task, the – marks — lasts as
+ * long as its picks (`review-session`) and is never saved.
  */
 export interface ReviewTabViewState extends LensViewState {
   sort?: ReviewSort
-  currentId?: number
-  skipped?: { day: string; ids: number[] }
 }
 
 /**
@@ -508,8 +507,8 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     newTab: (id, seed) => ({ id, kind: 'lens', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
   },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
-  // Item 12: the review deck in a cell, nothing picked yet (its top line's picker).
-  review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: {} }) },
+  // Item 12: the review deck in a cell, by person, nothing picked yet (its prompt row's field).
+  review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: { by: DEFAULT_REVIEW_BY } }) },
   number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
   // D26 P8: the chart widgets.
   breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),

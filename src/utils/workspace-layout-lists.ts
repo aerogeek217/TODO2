@@ -7,9 +7,11 @@ import {
 import { layoutTabs } from './workspace-layout-queries'
 
 /**
- * The lists a layout names (its list tabs', its Numbers' that follow one, its Review widgets' list picks), counted, collected and
+ * The lists a layout names (its list tabs', its Numbers' that follow one), counted, collected and
  * renamed — what Save, Save as and Delete reconcile a layout's own lists by.
- * Each write returns the same object when nothing changes.
+ * Each write returns the same object when nothing changes. (A Review
+ * widget's list picks are temporary, never part of the layout: they name
+ * none.)
  */
 
 /**
@@ -38,8 +40,6 @@ export function countListTabs(
 function namedListId(tab: LayoutTab): number | undefined {
   if (tab.kind === 'lens') return tab.config.listDefinitionId
   if (tab.kind === 'number' && tab.config.show === 'list') return tab.config.list?.listDefinitionId
-  // A Review widget reviewing one of the layout's lists (item 12).
-  if (tab.kind === 'review' && tab.config.pick?.kind === 'list') return tab.config.pick.id
   return undefined
 }
 
@@ -79,7 +79,6 @@ export function repointLayoutLists<B extends LayoutBody>(layout: B, ids: Readonl
     if (to == null) return tab
     if (tab.kind === 'lens') return { ...tab, config: { ...tab.config, listDefinitionId: to } }
     if (tab.kind === 'number') return { ...tab, config: { ...tab.config, list: { listDefinitionId: to } } }
-    if (tab.kind === 'review') return { ...tab, config: { ...tab.config, pick: { kind: 'list', id: to } } }
     return tab
   }
   return mapLayoutCells(layout, (cell) => {

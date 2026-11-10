@@ -200,8 +200,8 @@ function buildSeed(): Seed {
             { id: 't6', kind: 'lens', config: {} },
             { id: 't7', kind: 'eisenhower', config: {}, viewState: { collapsed: ['schedule', 'drop'] } },
             { id: 't11', kind: 'neglect', config: { colourBy: { kind: 'tags', tagIds: [1] }, untouchedDays: 21 } },
-            // Item 12: a Review widget on a list, where it stands.
-            { id: 't14', kind: 'review', config: { pick: { kind: 'list', id: 1 } }, viewState: { sort: 'next', currentId: 1, skipped: { day: '2026-11-09', ids: [2] }, ignoreLens: true } },
+            // Item 12: a Review widget by list, its sort and lens switch.
+            { id: 't14', kind: 'review', config: { by: 'list' }, viewState: { sort: 'next', ignoreLens: true } },
             // The glance widgets, each with a setting off its default.
             numberTab('g1', 'closedThisWeek'),
             { id: 'g4', kind: 'trend', config: { range: '12w' } },

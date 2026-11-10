@@ -1,7 +1,9 @@
-/* The Review widget (item 12, board BK): its top line, its faces (large: the
- * rail beside the deck's card, its footer under the card; medium: the card's
- * essentials over the footer; small: the pick and what is left), its empty
- * state and its picker. The rail, card and footer are `components/review`'s. */
+/* The Review widget (item 12, boards BK / BM): its top line and prompt row,
+ * its faces (large: the rail beside the deck's card, its footer under the
+ * card; medium: the card's essentials over the footer; small: the picks and
+ * what is left) and its empty states. The prompt row's field is
+ * `components/shared/PromptField`; the rail, card and footer are
+ * `components/review`'s. */
 
 .faceHost {
   /* The rail's sticky sort head takes the cell's ground. */
@@ -13,65 +15,19 @@
   min-height: 0;
 }
 
-/* ── Top line ───────────────────────────────────────────────────────────── */
+/* ── Top line and prompt row (board BM) ─────────────────────────────────── */
 
+/* Alone in its cell: `Review`, the progress, the lens switch, the cell's ⋯. The prompt row under it draws the hairline. */
 .topLine {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
   flex-shrink: 0;
   height: 36px;
   padding: 0 4px 0 12px;
-  border-bottom: 1px solid var(--color-border-muted);
 }
 
-.pickChip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  flex: 0 1 auto;
-  min-width: 0;
-  height: 24px;
-  padding: 0 9px;
-  border: none;
-  border-radius: var(--radius-pill);
-  background: var(--color-tint-8);
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: 12px;
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
-.pickChip:hover,
-.pickChip[aria-expanded='true'] {
-  background: var(--color-tint-12);
-  color: var(--color-text-primary);
-}
-
-/* A pick takes its kind's colour, as the facts' headings do. */
-.pickChip[data-kind='person'] {
-  background: color-mix(in srgb, var(--color-fact-people) 16%, transparent);
-  color: var(--color-fact-people);
-}
-
-.pickChip[data-kind='tag'] {
-  background: color-mix(in srgb, var(--color-fact-tags) 16%, transparent);
-  color: var(--color-fact-tags);
-}
-
-.pickChip[data-kind='status'] {
-  background: color-mix(in srgb, var(--color-fact-status) 16%, transparent);
-  color: var(--color-fact-status);
-}
-
-.pickName {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
+/* `3 of 12 · 2 followed up`: on the top line, or at the prompt row's end in a cell of several widgets. */
 .progress {
   flex: none;
   font-size: var(--font-size-meta);
@@ -80,9 +36,40 @@
   white-space: nowrap;
 }
 
-.spacer {
-  flex: 1;
-  min-width: 4px;
+.progress strong {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+/* The prompt row's label: the kind, a small menu button (`Person ▾`). */
+.kindButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  height: 26px;
+  padding: 0 6px 0 8px;
+  border: none;
+  border-radius: 6px;
+  background: var(--color-tint-5);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.kindButton:hover,
+.kindButton[aria-expanded='true'] {
+  background: var(--color-tint-10);
+  color: var(--color-text-primary);
+}
+
+/* An option's glyph in the field's list and on its chip: a tag's #, a status's icon, a list's — in its colour. */
+.optionMark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ── Faces ──────────────────────────────────────────────────────────────── */
@@ -170,13 +157,6 @@
   text-align: center;
 }
 
-.emptyTitle {
-  margin: 0;
-  font-size: var(--font-size-task);
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-text-primary);
-}
-
 .emptyWords {
   margin: 0;
   max-width: 360px;
@@ -184,163 +164,21 @@
   color: var(--color-text-muted);
 }
 
-.emptyButton {
-  height: 30px;
-  padding: 0 14px;
-  border: none;
-  border-radius: 8px;
-  background: var(--color-accent-bg-medium);
-  color: var(--color-accent-text);
-  font-family: inherit;
-  font-size: 12.5px;
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-}
-
-.emptyButton:hover {
-  background: var(--color-accent-focus);
-}
-
-/* ── The picker ─────────────────────────────────────────────────────────── */
-
-.picker {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: 260px;
-  padding: 8px;
-  box-sizing: border-box;
-}
-
-.segments {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 2px;
-  padding: 2px;
-  border-radius: 8px;
-  background: var(--color-inset);
-}
-
-.segment {
-  height: 24px;
-  border: none;
-  border-radius: 6px;
-  background: transparent;
-  color: var(--color-text-muted);
-  font-family: inherit;
-  font-size: 12px;
-  cursor: pointer;
-}
-
-.segment:hover {
-  color: var(--color-text-primary);
-}
-
-.segment[aria-checked='true'] {
-  background: var(--color-surface-bright);
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-semibold);
-}
-
-.pickerSearch {
-  height: 30px;
-  padding: 0 10px;
-  box-sizing: border-box;
-  border: none;
-  border-radius: 8px;
-  background: var(--color-inset);
-  box-shadow: inset 0 0 0 1px var(--color-border);
-  color: var(--color-text-primary);
-  font-family: inherit;
-  font-size: 12.5px;
-  outline: none;
-}
-
-.pickerSearch:focus-visible {
-  box-shadow: inset 0 0 0 1.5px var(--color-accent);
-}
-
-.pickerRows {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  max-height: 260px;
-  overflow-y: auto;
-}
-
-.pickerRow {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  height: 30px;
-  flex-shrink: 0;
-  padding: 0 8px;
-  border: none;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-family: inherit;
-  font-size: 12.5px;
-  text-align: left;
-  cursor: pointer;
-}
-
-.pickerRow:hover {
-  background: var(--color-surface-hover);
-  color: var(--color-text-primary);
-}
-
-.pickerRow[data-on] {
-  background: var(--color-accent-bg);
-  color: var(--color-text-primary);
-}
-
-.pickerName {
+/* Nothing picked: the list's prompt empty state (`EmptyState`), in the room under the prompt row. */
+.emptyPrompt {
   flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  min-height: 0;
+  overflow: auto;
+  container-type: size;
 }
 
-.pickerCount {
-  flex: none;
-  font-size: var(--font-size-row-meta);
-  color: var(--color-text-muted);
-  font-variant-numeric: tabular-nums;
-}
+/* A short cell: the words and the button alone, closer together. */
+@container (max-height: 200px) {
+  .emptyPrompt :global([data-empty-state]) {
+    padding-block: 8px;
+  }
 
-.pickerEmpty {
-  margin: 6px 8px;
-  font-size: var(--font-size-meta);
-  color: var(--color-text-muted);
-}
-
-.avatar {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  color: var(--color-text-on-accent);
-  font-size: 10px;
-  font-weight: var(--font-weight-bold);
-}
-
-.dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  margin: 0 5px;
-  border-radius: 50%;
-}
-
-.statusMark {
-  flex: none;
-  display: inline-flex;
-  width: 18px;
-  justify-content: center;
-  color: var(--color-text-muted);
+  .emptyPrompt :global([data-empty-state]) > svg {
+    display: none;
+  }
 }
