@@ -5,12 +5,14 @@ import { SubtaskChecklist, type ChecklistItem } from './SubtaskChecklist'
 import styles from './Subtasks.module.css'
 
 /**
- * The task layout's **Subtasks** (cr28, T1; board BJ — the task editor
- * and the review card, second in the writing): the label with `2 of 5` and
- * a thin progress bar, then the checklist — check, rename by a click on the title, drag to
+ * The task layout's **Subtasks** (cr28, T1; boards BJ, BL — the task
+ * editor and the review card, second in the writing): the label — always
+ * shown —, with `2 of 5` and a thin progress bar once there is a subtask,
+ * then the checklist — check, rename by a click on the title, drag to
  * reorder (`onMove`), ⋯ for the menu — and **+ Add subtask** as its last
- * line (⏎ adds and keeps the line for the next). Empty, the section is that
- * one line (the label only names the region). The list and its add line
+ * line (⏎ adds and keeps the line for the next). The checkboxes and the
+ * add line's plus start at the label's left edge (the grip hangs in the
+ * gutter). The list and its add line
  * scroll inside the section past ~260px. What the
  * callbacks write is the host's (the store in edit mode, the pending rows
  * in create mode, where the ⋯ menu has no Make a task / Move);
@@ -34,8 +36,7 @@ export function SubtasksSection({ items, onAdd, onRename, onSetDone, onRemove, o
   return (
     <section className={className} aria-labelledby={labelId} data-subtasks="" data-empty={count.total === 0 || undefined}>
       <div className={styles.headingRow}>
-        {/* Empty, the section is its + Add subtask line: the label only names it. */}
-        <div className={`${labelClassName ?? ''} ${styles.heading} ${count.total === 0 ? styles.visuallyHidden : ''}`} id={labelId}>
+        <div className={`${labelClassName ?? ''} ${styles.heading}`} id={labelId}>
           Subtasks
           {count.total > 0 && <span className={styles.countText} data-subtask-count-text="">{count.done} of {count.total}</span>}
         </div>

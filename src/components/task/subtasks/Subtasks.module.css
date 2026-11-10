@@ -21,34 +21,37 @@
   margin-bottom: 0;
 }
 
-/* The section's checklist and its + Add subtask line: they scroll inside past ~260px. */
+/* The section's checklist and its + Add subtask line: they scroll inside past ~260px. The box
+ * reaches 20px into the gutter left of the label, where a row's grip hangs (board BL: one left
+ * edge — the checkboxes and the add line's plus start under the label). */
 .sectionScroll {
   flex: 1 1 auto;
   min-height: 0;
   max-height: 260px;
+  margin: 6px 0 0 -20px;
+  padding-left: 20px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--color-tint-8) transparent;
 }
 
+.sectionScroll .list {
+  margin-top: 0;
+}
+
+/* A row with a grip: the grip in the gutter (2px + 10px + the 8px gap), its checkbox at the label's edge. */
+.sectionScroll .item:has(.grip) {
+  margin-left: -20px;
+}
+
+/* A row without one (no reordering): its checkbox there too. */
+.sectionScroll .item:not(:has(.grip)) {
+  margin-left: -2px;
+}
+
 /* The layout's + Add subtask line: the accent plus, the words muted until typed into. */
 .sectionScroll .addInput::placeholder {
   color: var(--color-text-muted);
-}
-
-/* Empty, the add line lines up with the writing's other one-line sections (no checkbox column to align with). */
-[data-empty] > .sectionScroll .addRow[data-density='editor'] {
-  padding-left: 2px;
-}
-
-/* An empty section's label: it names the region, the add line is all that shows. */
-.visuallyHidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
 }
 
 .countText {
@@ -62,8 +65,8 @@
 
 /* How much of the checklist is done: a thin bar after the label. */
 .bar {
-  width: 80px;
-  height: 4px;
+  width: 50px;
+  height: 3px;
   border-radius: var(--radius-pill);
   background: var(--color-tint-8);
   overflow: hidden;
@@ -278,8 +281,9 @@
   padding: 0 6px;
 }
 
+/* The layout's add line: its plus under the checkboxes, at the label's edge. */
 .addRow[data-density="editor"] {
-  padding-left: 20px;
+  padding-left: 0;
 }
 
 .addIcon {

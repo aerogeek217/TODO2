@@ -46,12 +46,15 @@ export type ListFilterField = 'people' | 'tags' | 'status' | 'markers' | 'dates'
 /**
  * State of workspace list widgets that is never saved: per-tab prompt picks
  * and collapsed groups (keyed by layout tab id, so they follow a tab that is
- * moved to another cell).
+ * moved to another cell). A Review widget's prompt row keeps its picks here
+ * too (board BM), under its own tab id.
  */
 interface ListWidgetState {
   /**
-   * Picks of a list's runtime prompt by tab id. Temporary by design: never
-   * saved, so a reload starts with nothing picked. Absent = nothing picked.
+   * Picks of a prompt row by tab id: a list tab's runtime prompt, a Review
+   * widget's field (the people, tags, statuses or lists it reviews).
+   * Temporary by design: never saved, so a reload starts with nothing
+   * picked. Absent = nothing picked.
    */
   picks: Readonly<Record<string, number[]>>
   /** Collapsed section keys by tab id. */

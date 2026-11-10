@@ -37,8 +37,13 @@ export interface WsTabSeed {
     colourBy?: { tags: string[] } | 'people' | 'none'
     untouchedDays?: number
   }
-  /** Review tabs (item 12): the pick — a person or tag by name, or a list (index into `listDefinitions`). */
-  review?: { person?: string; tag?: string; listDefIdx?: number }
+  /**
+   * Review tabs (item 12, board BM): what the widget reviews by (default
+   * Person). Its picks are temporary — type them into its field
+   * (`pickInReview`). `legacyPick` stores the config an earlier build saved
+   * (one person or tag by name) instead.
+   */
+  review?: { by?: 'person' | 'tag' | 'status' | 'list'; legacyPick?: { person?: string; tag?: string } }
 }
 
 export interface WsCellSeed {
@@ -412,11 +417,15 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       if (tab.kind === 'pulse' && tab.tagNames) {
         config.tagIds = tab.tagNames.map((name) => tagIds.get(name)).filter((id) => id != null)
       }
-      if (tab.kind === 'review' && tab.review) {
-        const r = tab.review
-        const id = r.person != null ? personIds.get(r.person) : r.tag != null ? tagIds.get(r.tag) : r.listDefIdx != null ? defIds[r.listDefIdx] : undefined
-        const kind = r.person != null ? 'person' : r.tag != null ? 'tag' : 'list'
-        if (id != null) config.pick = { kind, id }
+      if (tab.kind === 'review') {
+        const legacy = tab.review?.legacyPick
+        const id = legacy?.person != null ? personIds.get(legacy.person) : legacy?.tag != null ? tagIds.get(legacy.tag) : undefined
+        if (legacy && id != null) {
+          delete config.by
+          config.pick = { kind: legacy.person != null ? 'person' : 'tag', id }
+        } else {
+          config.by = tab.review?.by ?? 'person'
+        }
       }
       if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
@@ -747,6 +756,25 @@ export async function dragTab(page: Page, tab: Locator, to: Point, during?: () =
 
 export function wsListWidget(page: Page, tabId: string): Locator {
   return page.locator(`[data-list-widget="${tabId}"]`)
+}
+
+/** The field of Review widget `tabId`'s prompt row (board BM). */
+export function reviewField(page: Page, tabId: string): Locator {
+  return page.locator(`[data-review-widget="${tabId}"]`).getByRole('combobox', { name: / to review$/ })
+}
+
+/**
+ * Picks in Review widget `tabId` by typing: each of `names` typed into its
+ * field and taken with ⏎ (the first match), as a user would — its picks are
+ * temporary, so no seed holds them. The option list is closed afterwards.
+ */
+export async function pickInReview(page: Page, tabId: string, ...names: string[]): Promise<void> {
+  const field = reviewField(page, tabId)
+  for (const name of names) {
+    await field.fill(name)
+    await field.press('Enter')
+  }
+  await field.press('Escape')
 }
 
 /**

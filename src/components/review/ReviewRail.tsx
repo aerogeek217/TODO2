@@ -7,21 +7,27 @@ import { useSettingsStore } from '../../stores/settings-store'
 import { formatRowDate } from '../../utils/date'
 import { markerSummary, type MarkerSummary } from '../../utils/markers'
 import { dueState, followupState } from '../../utils/row-date-state'
-import { ChevronDownIcon } from '../shared/icons'
+import { ChevronDownIcon, FlagIcon } from '../shared/icons'
+import { ClockIcon } from '../shared/MarkerIcons'
 import { MenuPopover, type MenuEntry } from '../shared/MenuPopover'
 import { PriorityRing } from '../shared/PriorityRing'
 import { useReviewSession, useReviewSessionApi } from './review-session-context'
 import styles from './Review.module.css'
 
 /**
- * A review's queue rail (D26 — the deck's and the Review widget's): at its
- * top the sort (item 7: `Sort: Queue order ▾` — Queue order, Due, Next
- * follow-up, Last follow-up, Priority, Title; the session's, never saved by
- * the deck), then a row per task in the order shown, reading like list rows
- * — its mark first (✓ followed up today, item 11; – skipped here), the box
- * with the priority ring, the title, the follow-up and due dates in words
- * and their colours. The source's group dividers show in Queue order only.
- * A click on a row jumps to it; ← / → on a row go Back / Skip.
+ * A review's queue rail (D26, board BL — the deck's and the Review
+ * widget's): at its top the sort (item 7: `Sort: Queue order ▾` — Queue
+ * order, Due, Next follow-up, Last follow-up, Priority, Title; the
+ * session's, never saved by the deck), which stays put, then a row per task
+ * in the order shown, **on two lines**: its mark (✓ followed up today, item
+ * 11; – skipped here), the box with the priority ring and the whole title
+ * (cut only at the rail's width); under the title the next follow-up after
+ * a small flag and the due date after a small clock, in words and in the
+ * rows' colours (a follow-up today or late yellow, a due date soon or late
+ * magenta). The current row has the accent's tint and a 2px accent edge on
+ * its left; a row followed up today dims its title. The source's group
+ * dividers show in Queue order only. A click on a row jumps to it; ← / →
+ * on a row go Back / Skip.
  */
 export function ReviewRail({ todoById, followedUpToday, className, label = 'Review queue' }: {
   todoById: ReadonlyMap<number, PersistedTodoItem>
@@ -113,9 +119,22 @@ export function ReviewRail({ todoById, followedUpToday, className, label = 'Revi
               >
                 <span className={styles.railMark} aria-hidden="true">{mark === 'done' ? '✓' : mark === 'skipped' ? '–' : ''}</span>
                 <StaticBox summary={markerSummary(todo, today, urgentRange)} completed={todo.isCompleted} />
-                <span className={styles.railTitle}>{todo.title}</span>
-                <span className={styles.railFollowup} data-followup={followupState(todo, today)} data-marked={mark === 'done' || undefined}>{fuText}</span>
-                <span className={styles.railDue} data-due-soon={dues.soon || undefined} data-due-past={dues.past || undefined}>{dueText}</span>
+                <span className={styles.railTitle} data-review-row-title="">{todo.title}</span>
+                {(fuText || dueText) && (
+                  // The second line, under the title: the name above already says both dates.
+                  <span className={styles.railDates} aria-hidden="true" data-review-row-dates="">
+                    {fuText && (
+                      <span className={styles.railFollowup} data-followup={followupState(todo, today)}>
+                        <FlagIcon size={10} />{fuText}
+                      </span>
+                    )}
+                    {dueText && (
+                      <span className={styles.railDue} data-due-soon={dues.soon || undefined} data-due-past={dues.past || undefined}>
+                        <span className={styles.railClock}><ClockIcon /></span>{dueText}
+                      </span>
+                    )}
+                  </span>
+                )}
               </button>
             </li>
           )
