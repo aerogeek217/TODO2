@@ -154,9 +154,11 @@ test('hover and keyboard focus preview the newest update and the notes; filled c
   await page.mouse.move(0, 0)
   await expect(tip).toHaveCount(0)
 
-  // Keyboard focus (Tab from the checkbox) previews too.
+  // Keyboard focus (Tab from the checkbox, past the add-subtasks mark of a task with no checklist) previews too.
   const statusRow = taskRowByTitle(page, 'Status only')
   await statusRow.getByRole('checkbox').focus()
+  await page.keyboard.press('Tab')
+  await expect(statusRow.getByRole('button', { name: 'Add subtasks' })).toBeFocused()
   await page.keyboard.press('Tab')
   await expect(notesCell(statusRow)).toBeFocused()
   await expect(tip).toHaveText(`${mmdd()} Waiting on legal`)
