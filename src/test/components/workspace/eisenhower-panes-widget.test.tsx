@@ -77,11 +77,11 @@ afterEach(() => {
 })
 
 describe('EisenhowerWidget with custom panes', () => {
-  it('a task no pane matches is hidden and counted under the panes; the count opens it in the task dialog', () => {
+  it('a task no pane matches is hidden and counted under the panes (no tab count: the screen filter narrows nothing); the count opens it in the task dialog', () => {
     setup({ delegate: { filter: NOT_DELEGATED } })
     expect(has('delegate', 'Analytics')).toBe(true)
     expect(has('delegate', 'Chase vendor')).toBe(false)
-    expect(lastResult?.countLabel).toBe('3 of 4')
+    expect(lastResult?.countLabel).toBeUndefined()
     const line = screen.getByTestId('eisenhower-no-pane')
     expect(line.textContent).toBe('1 open task in no pane')
     fireEvent.click(line)
@@ -91,7 +91,7 @@ describe('EisenhowerWidget with custom panes', () => {
   it('the default panes leave no task out: no line', () => {
     setup({})
     expect(screen.queryByTestId('eisenhower-no-pane')).toBeNull()
-    expect(lastResult?.countLabel).toBe('4')
+    expect(lastResult?.countLabel).toBeUndefined()
   })
 
   it('every Eisenhower follows the setting: a change shows at once', () => {
