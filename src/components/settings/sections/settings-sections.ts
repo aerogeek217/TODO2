@@ -73,7 +73,8 @@ const APPEARANCE: SettingsSectionDef = {
 
 /**
  * The Settings sections, in list order. The modal and the mobile page both
- * render from this. Database leads (Settings opens on it), Import / Export
+ * render from this. Database leads (Settings opens on the section last
+ * shown, Appearance the first time: `ui-store.readLastSettingsSection`), Import / Export
  * first in it: exporting is the most common errand here.
  */
 export const SETTINGS_SECTIONS: readonly SettingsSectionDef[] = [
