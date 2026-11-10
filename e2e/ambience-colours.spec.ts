@@ -6,7 +6,7 @@ import RECORDED from './fixtures/ambience-colours.json' with { type: 'json' }
 /**
  * The ambience draws the same colours in both themes at a fixed clock and
  * place: the computed colours of every layer (the sky, sun, moon, clouds,
- * stars, aurora, mist, hairline, sunbeam, lamp and each season's weather),
+ * stars, the planet, aurora, mist, hairline, sunbeam, lamp and each season's weather),
  * pinned to `fixtures/ambience-colours.json` — recorded before the colours
  * moved from the components into `tokens.css` (cr33 A1). Each colour may
  * differ by under one step of 255 (the old `rgba()` rounded to whole
@@ -66,6 +66,9 @@ async function sample(page: Page): Promise<Record<string, string>> {
     put('aurora', first('aurora'), 'background-image')
     put('mist', first('mist'), 'background-image')
     put('star', first('star'), 'background-color')
+    put('starBright glow', first('starBright'), 'box-shadow')
+    put('planet', first('planet'), 'background-color')
+    put('planet glow', first('planet'), 'box-shadow')
     const moon = first('moon')
     put('moonDisc', moon?.querySelector('circle') ?? undefined, 'fill')
     put('moonLit', moon?.querySelector('path') ?? undefined, 'fill')

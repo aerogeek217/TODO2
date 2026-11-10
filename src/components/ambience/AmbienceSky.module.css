@@ -70,17 +70,36 @@
   border-radius: 50%;
   /* A cool star-white; the stars show in the dark theme only (`utils/sky`). */
   background: var(--ambience-star);
-  animation: twinkle 4s ease-in-out infinite;
+  opacity: var(--o, 0.6);
+  /* Slow and shallow: each star's own length and phase (set inline). */
+  animation: twinkle 7s ease-in-out infinite;
 }
 
-.starBig {
+.starMid {
   width: 2px;
   height: 2px;
 }
 
+.starBright {
+  width: 2.5px;
+  height: 2.5px;
+  box-shadow: 0 0 3px 0.5px var(--ambience-star-glow);
+}
+
 @keyframes twinkle {
-  0%, 100% { opacity: 0.9; }
-  50% { opacity: 0.25; }
+  0%, 100% { opacity: var(--o, 0.6); }
+  50% { opacity: calc(var(--o, 0.6) * 0.6); }
+}
+
+/* The evening planet: a steady, slightly larger warm point — it doesn't twinkle. */
+.planet {
+  position: absolute;
+  width: 3.5px;
+  height: 3.5px;
+  margin: -1.75px 0 0 -1.75px;
+  border-radius: 50%;
+  background: var(--ambience-planet);
+  box-shadow: 0 0 4px 1px var(--ambience-planet-glow);
 }
 
 /*
