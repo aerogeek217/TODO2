@@ -16,13 +16,17 @@ import { useLatestRef } from '../../../hooks/use-latest-ref'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useSettingsStore } from '../../../stores/settings-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
+import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { hasFilterClause } from '../../../utils/filter-clauses'
 import { DEFAULT_STALE_AFTER_DAYS } from '../../../utils/stale'
 import { getTab } from '../../../utils/workspace-layout-queries'
 import { PredicateChips } from '../../shared/filters/PredicateChips'
+import { ExpressionReportProvider } from '../../shared/filters/expression-report'
 import { CloseIcon } from '../../shared/icons'
 import { PopoverRoot } from '../../shared/PopoverRoot'
 import { useEscapeCloses } from './editor-escape'
+import { useEditorDraft, usePressElsewhereCloses } from './editor-draft'
+import { EditorFooter } from './EditorFooter'
 import styles from './ChartEditor.module.css'
 
 /** The Project pulse tab `tabId` names in the open layout, if it is one. */
@@ -44,8 +48,10 @@ export function PulseEditorHost() {
   const tabId = useChartWidgetsStore((s) => s.pulseEditorTabId)
   const tab = usePulseTab(tabId)
   const close = useChartWidgetsStore((s) => s.closePulseEditor)
-  // The layout: a change (the tab made active, a row expanded) may bring the widget on screen.
+  // The layout: a change (the tab made active, a row expanded) may bring the widget on screen;
+  // the editor's live preview may draw its title anew.
   const working = useWorkspaceStore((s) => s.working)
+  const preview = useWidgetPreviewStore((s) => (tabId != null ? s.configs[tabId] : undefined))
   const anchorRef = useRef<HTMLElement | null>(null)
   const [found, setFound] = useState<string | null>(null)
   useLayoutEffect(() => {
@@ -61,7 +67,7 @@ export function PulseEditorHost() {
     }
     look()
     return () => cancelAnimationFrame(raf)
-  }, [tab, working])
+  }, [tab, working, preview])
   useEffect(() => {
     if (tabId != null && !tab) close()
   }, [tabId, tab, close])
@@ -163,9 +169,13 @@ function RuleField({ ruleKey, config, write }: {
  * what counts as late (a card's ring and late count) and as stale — each
  * a name and a Graphical / Expression filter over a card's open tasks. The
  * tags it follows stay in its ⋯ menu's Tags. A popover under the widget's
- * title, opened by its ⋯ menu's Edit project pulse…. Every control writes
- * the tab's config at once — layout config, so the layout is unsaved until
- * Save. Esc, × or a press elsewhere close it.
+ * title, opened by its ⋯ menu's Edit project pulse…. Its controls edit a
+ * copy of the config, which the widget draws live (`useEditorDraft`, Edit
+ * list's pattern): Save writes the changed rules as one layout config
+ * update — the layout is then unsaved until its own Save — and Discard
+ * drops them; Tags, written from the ⋯ menu meanwhile, stay. Esc, × or a
+ * press elsewhere close it at once while nothing changed, else ask Save /
+ * Discard / Keep editing.
  */
 export function PulseEditor({ tab, anchorRef, onClose }: {
   tab: PulseTab
@@ -174,23 +184,32 @@ export function PulseEditor({ tab, anchorRef, onClose }: {
   onClose: () => void
 }) {
   const id = useId()
+  const edit = useEditorDraft<PulseTabConfig>({
+    tabId: tab.id,
+    stored: tab.config,
+    write: (p) => useWorkspaceStore.getState().patchTabConfig(tab.id, 'pulse', p),
+    onClose,
+    promptTitle: 'Save changes to project pulse?',
+  })
   const write = (key: PulseRuleKey, name: string, filter: TodoPredicate | undefined) => {
-    useWorkspaceStore.getState().patchTabConfig(tab.id, 'pulse', { [key]: pulseRuleOf(key, name, filter) })
+    edit.patch({ [key]: pulseRuleOf(key, name, filter) })
   }
   const { panelRef, style, caret } = usePopoverAnchor({
     anchor: { kind: 'ref', ref: anchorRef },
     open: true,
-    onClose,
+    onClose: edit.requestClose,
     placement: 'bottom-start',
-    closeOnScroll: 'user',
+    closeOnScroll: false,
     closeOnResize: false,
     closeOnEscape: false,
+    closeOnOutsideClick: false,
     observeSize: true,
     caret: true,
   })
   const [panel, setPanel] = useState<HTMLDivElement | null>(null)
   const panelEl = useLatestRef(panel)
-  useEscapeCloses(panelEl, onClose)
+  useEscapeCloses(panelEl, edit.requestClose)
+  usePressElsewhereCloses(panelEl, anchorRef, edit.requestClose)
 
   // The focus goes back to the widget when it was inside the editor as it closed.
   useEffect(() => () => {
@@ -215,13 +234,16 @@ export function PulseEditor({ tab, anchorRef, onClose }: {
     >
       <div className={styles.header}>
         <span id={`${id}-title`} className={styles.title}>Edit project pulse</span>
-        <button type="button" className={styles.close} aria-label="Close" onClick={onClose}><CloseIcon size={14} /></button>
+        <button type="button" className={styles.close} aria-label="Close" onClick={() => { edit.requestClose() }}><CloseIcon size={14} /></button>
       </div>
-      <div className={styles.body}>
-        <span className={styles.hint}>Its ⋯ menu’s Tags picks the tags it follows, a card each.</span>
-        <RuleField ruleKey="late" config={tab.config} write={write} />
-        <RuleField ruleKey="stale" config={tab.config} write={write} />
-      </div>
+      <ExpressionReportProvider value={edit.reportExpression}>
+        <div className={styles.body}>
+          <span className={styles.hint}>Its ⋯ menu’s Tags picks the tags it follows, a card each.</span>
+          <RuleField ruleKey="late" config={edit.draft} write={write} />
+          <RuleField ruleKey="stale" config={edit.draft} write={write} />
+        </div>
+      </ExpressionReportProvider>
+      <EditorFooter draft={edit} />
     </PopoverRoot>,
     document.body,
   )

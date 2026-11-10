@@ -228,5 +228,8 @@ export function useExpressionField({ predicate, onChange, inputRef, allowPeople 
     [parse, view],
   )
 
-  return { text, parse, tints, names, ac, onTextChange, onSelect, onKeyDown, onBlur, closeHeld, holdClose }
+  /** Typed text the filter doesn't hold yet (written after the pause, or never when it doesn't read). */
+  const unsettled = text !== stored
+
+  return { text, parse, tints, names, ac, onTextChange, onSelect, onKeyDown, onBlur, closeHeld, holdClose, unsettled, unreadable }
 }

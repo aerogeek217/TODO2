@@ -184,7 +184,8 @@ test('with check-ins, a person row’s envelope sits beside Review and opens Ema
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit breakdown…' }).click()
   const editor = page.locator('[data-chart-editor]')
   await editor.getByRole('checkbox', { name: 'Check-in envelope on each person' }).check()
-  await page.keyboard.press('Escape')
+  await editor.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(editor).toHaveCount(0)
   const ben = row(page, 'Ben Ortiz')
   const envelope = ben.getByRole('button', { name: 'Email check-in options for Ben Ortiz' })
   await ben.hover()
@@ -227,7 +228,7 @@ test('the editor’s count columns: a column with its own filter, name and rule;
   // A blur writes it once it reads.
   await columns.getByRole('textbox', { name: 'Column 3 name' }).click()
   await expect(added.getByTestId('expression-reads-as')).toBeVisible()
-  await page.keyboard.press('Escape')
+  await editor.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor).toHaveCount(0)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
   await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Due', 'Follow-up', 'Waiting'])

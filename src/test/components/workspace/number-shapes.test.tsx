@@ -238,9 +238,16 @@ describe('Edit number’s shape fields', () => {
   const config = () => (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as NumberTab).config
   const show = (editor: HTMLElement, value: string) => fireEvent.change(within(editor).getByTestId('number-editor-show'), { target: { value } })
   const has = (editor: HTMLElement, name: string) => within(editor).queryByRole('combobox', { name }) != null
+  /** The editor's Save (it writes its copy and closes), then the editor opened again. */
+  const saveAndReopen = (editor: HTMLElement) => {
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
+    expect(document.querySelector('[data-number-editor]')).toBeNull()
+    act(() => { useUIStore.getState().openNumberEditor('n') })
+    return document.querySelector<HTMLElement>('[data-number-editor="n"]')!
+  }
 
   it('shows only the active shape’s fields, and keeps only its field', () => {
-    const editor = openEditor(numberTab('n', 'overdue'))
+    let editor = openEditor(numberTab('n', 'overdue'))
     expect(within(editor).getByTestId('number-editor-show')).toHaveValue('count')
     expect(has(editor, 'Compare with')).toBe(true)
 
@@ -248,6 +255,7 @@ describe('Edit number’s shape fields', () => {
     expect(within(editor).getByTestId('number-editor-of')).not.toBeNull()
     expect(within(editor).getByTestId('number-editor-filter')).not.toBeNull()
     expect(has(editor, 'Compare with')).toBe(true)
+    editor = saveAndReopen(editor)
     expect(config()).toMatchObject({ show: 'share' })
     expect(config()).not.toHaveProperty('of')
 
@@ -255,44 +263,67 @@ describe('Edit number’s shape fields', () => {
     expect(within(editor).queryByTestId('number-editor-of')).toBeNull()
     expect(has(editor, 'Age by')).toBe(true)
     expect(has(editor, 'Compare with')).toBe(false)
+    editor = saveAndReopen(editor)
     expect(config()).toMatchObject({ show: 'oldest', oldestBy: 'lastFollowup' })
-    fireEvent.change(within(editor).getByRole('combobox', { name: 'Age by' }), { target: { value: 'deadline' } })
 
     show(editor, 'goal')
     expect(has(editor, 'Light up when')).toBe(false)
     expect(has(editor, 'Goal')).toBe(true)
+    editor = saveAndReopen(editor)
     expect(config()).toMatchObject({ show: 'goal', goal: { atLeast: 10, period: 'week' } })
     expect(config()).not.toHaveProperty('oldestBy')
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Goal' }), { target: { value: 'atMost' } })
     fireEvent.change(within(editor).getByRole('spinbutton', { name: 'Goal: at most' }), { target: { value: '3' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Pace' }), { target: { value: 'none' } })
+    editor = saveAndReopen(editor)
     expect(config().goal).toEqual({ atMost: 3 })
 
     show(editor, 'group')
     expect(within(editor).queryByTestId('number-editor-filter')).toBeNull()
     expect(within(editor).queryByRole('group', { name: 'Colour' })).toBeNull()
     expect(within(editor).getByRole('textbox', { name: 'Count 1 name' })).toHaveValue('Overdue')
+    editor = saveAndReopen(editor)
     expect(config().items).toEqual([{ name: 'Overdue', filter: numberTab('n', 'overdue').config.filter, color: numberTab('n', 'overdue').config.color }])
+    expect(config()).not.toHaveProperty('goal')
     fireEvent.click(within(editor).getByRole('button', { name: 'Add a count' }))
+    editor = saveAndReopen(editor)
     expect(config().items).toHaveLength(2)
 
     show(editor, 'list')
     expect(within(editor).queryByTestId('number-editor-filter')).toBeNull()
     expect(has(editor, 'Top-bar lens')).toBe(false)
+    editor = saveAndReopen(editor)
     // The layout's first list.
     expect(config()).toMatchObject({ show: 'list', list: { listDefinitionId: 1 } })
-    fireEvent.change(within(editor).getByTestId('number-editor-list'), { target: { value: '3' } })
-    expect(config().list).toEqual({ listDefinitionId: 3 })
     expect(config()).not.toHaveProperty('items')
+    fireEvent.change(within(editor).getByTestId('number-editor-list'), { target: { value: '3' } })
+    editor = saveAndReopen(editor)
+    expect(config().list).toEqual({ listDefinitionId: 3 })
 
-    // Back to each: as it was left in this editor.
+    // Within one editor, back to each: as it was left there.
     show(editor, 'goal')
-    expect(config().goal).toEqual({ atMost: 3 })
-    expect(config()).not.toHaveProperty('list')
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Goal' }), { target: { value: 'atMost' } })
+    fireEvent.change(within(editor).getByRole('spinbutton', { name: 'Goal: at most' }), { target: { value: '3' } })
     show(editor, 'oldest')
-    expect(config().oldestBy).toBe('deadline')
+    fireEvent.change(within(editor).getByRole('combobox', { name: 'Age by' }), { target: { value: 'deadline' } })
     show(editor, 'group')
+    fireEvent.click(within(editor).getByRole('button', { name: 'Add a count' }))
+    show(editor, 'list')
+    expect(within(editor).getByTestId('number-editor-list')).toHaveValue('3')
+    show(editor, 'goal')
+    expect(within(editor).getByRole('combobox', { name: 'Goal' })).toHaveValue('atMost')
+    expect(within(editor).getByRole('spinbutton', { name: 'Goal: at most' })).toHaveValue(3)
+    show(editor, 'oldest')
+    expect(within(editor).getByRole('combobox', { name: 'Age by' })).toHaveValue('deadline')
+    show(editor, 'group')
+    expect(within(editor).getByRole('textbox', { name: 'Count 2 name' })).toBeInTheDocument()
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
+    // Saved: only the active shape's field.
+    expect(config()).toMatchObject({ show: 'group' })
     expect(config().items).toHaveLength(2)
+    expect(config()).not.toHaveProperty('list')
+    expect(config()).not.toHaveProperty('goal')
+    expect(config()).not.toHaveProperty('oldestBy')
     expect(useWorkspaceStore.getState().isDirty).toBe(true)
   })
 
@@ -302,18 +333,23 @@ describe('Edit number’s shape fields', () => {
   })
 
   it('a group’s counts: renamed, recoloured, removed down to one, up to six', () => {
-    const editor = openEditor(numberTab('n', 'open', { name: 'Due', show: 'group', items: [{ name: 'A', filter: emptyPredicate() }] }))
+    let editor = openEditor(numberTab('n', 'open', { name: 'Due', show: 'group', items: [{ name: 'A', filter: emptyPredicate() }] }))
     expect(within(editor).queryByRole('button', { name: 'Remove count 1' })).toBeNull()
     for (let i = 0; i < 5; i++) fireEvent.click(within(editor).getByRole('button', { name: 'Add a count' }))
-    expect(config().items).toHaveLength(6)
     expect(within(editor).queryByRole('button', { name: 'Add a count' })).toBeNull()
+    editor = saveAndReopen(editor)
+    expect(config().items).toHaveLength(6)
     fireEvent.change(within(editor).getByRole('textbox', { name: 'Count 2 name' }), { target: { value: 'Late' } })
-    const second = within(editor).getByRole('group', { name: 'Count 2' })
+    let second = within(editor).getByRole('group', { name: 'Count 2' })
     fireEvent.click(within(second).getAllByRole('radio')[2]!)
+    editor = saveAndReopen(editor)
     expect(config().items![1]).toMatchObject({ name: 'Late', color: expect.stringMatching(/^#/) })
+    second = within(editor).getByRole('group', { name: 'Count 2' })
     fireEvent.click(within(second).getByRole('radio', { name: /^Auto/ }))
+    editor = saveAndReopen(editor)
     expect(config().items![1]).not.toHaveProperty('color')
     fireEvent.click(within(editor).getByRole('button', { name: 'Remove count 1' }))
+    fireEvent.click(within(editor).getByRole('button', { name: 'Save' }))
     expect(config().items).toHaveLength(5)
     expect(config().items![0]!.name).toBe('Late')
   })

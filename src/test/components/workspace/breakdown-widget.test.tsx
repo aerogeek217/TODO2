@@ -381,12 +381,22 @@ describe('the tab menu', () => {
   })
 })
 
+/** The open chart editor. */
+const chartEditor = () => document.querySelector<HTMLElement>('[data-chart-editor="b"]')!
+/** The editor's Save (it writes its copy and closes), then the editor opened again. */
+function saveAndReopen(): HTMLElement {
+  fireEvent.click(within(chartEditor()).getByRole('button', { name: 'Save' }))
+  expect(document.querySelector('[data-chart-editor]')).toBeNull()
+  act(() => { useChartWidgetsStore.getState().openEditor('b') })
+  return chartEditor()
+}
+
 describe('the editor (D26 P8, the Number editor’s pattern)', () => {
-  it('opens under its title; its controls write the tab’s config (unsaved), × closes it', () => {
+  it('opens under its title; its controls edit a copy, Save writes the tab’s config (unsaved), × closes it', () => {
     setup(breakdown())
     expect(document.querySelector('[data-chart-editor]')).toBeNull()
     act(() => { useChartWidgetsStore.getState().openEditor('b') })
-    const editor = document.querySelector<HTMLElement>('[data-chart-editor="b"]')!
+    let editor = chartEditor()
     expect(editor).not.toBeNull()
     expect(within(editor).getByRole('textbox', { name: 'Name' })).toHaveValue('People')
     fireEvent.change(within(editor).getByRole('textbox', { name: 'Name' }), { target: { value: 'Waiting on' } })
@@ -395,14 +405,19 @@ describe('the editor (D26 P8, the Number editor’s pattern)', () => {
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Oldest by' }), { target: { value: 'created' } })
     fireEvent.click(within(editor).getByRole('checkbox', { name: 'Check-in envelope on each person' }))
     fireEvent.click(within(editor).getByRole('checkbox', { name: 'Show Unassigned' }))
+    // Nothing written until Save.
+    expect(current().config.name).toBe('People')
+    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    editor = saveAndReopen()
     expect(current().config).toMatchObject({ name: 'Waiting on', style: 'donut', show: 'oldest', oldestBy: 'created', checkins: true, showNone: false })
     expect(useWorkspaceStore.getState().isDirty).toBe(true)
     // Another split drops the check-ins; Count drops oldestBy.
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Split by' }), { target: { value: 'status' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Show' }), { target: { value: 'count' } })
+    expect(within(editor).getByRole('checkbox', { name: 'Show No status' })).not.toBeChecked()
+    editor = saveAndReopen()
     expect(current().config).not.toHaveProperty('checkins')
     expect(current().config).not.toHaveProperty('oldestBy')
-    expect(within(editor).getByRole('checkbox', { name: 'Show No status' })).not.toBeChecked()
     fireEvent.click(within(editor).getByRole('button', { name: 'Close' }))
     expect(document.querySelector('[data-chart-editor]')).toBeNull()
   })
@@ -417,6 +432,7 @@ describe('the editor’s Count columns (board BC)', () => {
     expect([...columnsBox().querySelectorAll<HTMLInputElement>('input[aria-label$="name"]')].map((i) => i.value)).toEqual(['Due', 'Follow-up'])
     expect(current().config).not.toHaveProperty('columns')
     fireEvent.change(within(columnsBox()).getByRole('textbox', { name: 'Column 1 name' }), { target: { value: 'Late' } })
+    fireEvent.click(within(chartEditor()).getByRole('button', { name: 'Save' }))
     expect(current().config.columns?.map((c) => [c.id, c.name, c.litWhen, c.litAt])).toEqual([['due', 'Late', 'above', 0], ['followup', 'Follow-up', 'above', 0]])
     // The follow-up range was `overdue`: its column counts the late ones only (up to yesterday), as written.
     expect(current().config.columns?.[1]?.filter.dates?.followup).toEqual({ match: 'range', start: null, end: { kind: 'offset', days: -1 } })
@@ -431,24 +447,29 @@ describe('the editor’s Count columns (board BC)', () => {
     act(() => { useChartWidgetsStore.getState().openEditor('b') })
     // Two derived: room for two more.
     fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Add column' }))
+    saveAndReopen()
     expect(current().config.columns?.map((c) => c.name)).toEqual(['Due', 'Follow-up', 'Count 3'])
     fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Add column' }))
     // Four: the cap — no Add column.
     expect(within(columnsBox()).queryByRole('button', { name: 'Add column' })).toBeNull()
     fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Remove Follow-up' }))
-    expect(current().config.columns?.map((c) => c.name)).toEqual(['Due', 'Count 3', 'Count 4'])
     expect(within(columnsBox()).getByRole('button', { name: 'Add column' })).toBeTruthy()
+    saveAndReopen()
+    expect(current().config.columns?.map((c) => c.name)).toEqual(['Due', 'Count 3', 'Count 4'])
     const added = current().config.columns?.at(-1)
     expect(added).toMatchObject({ name: 'Count 4', litWhen: 'above', litAt: 0 })
     expect(added?.filter.statusIds).toBeNull()
     fireEvent.change(within(columnsBox()).getByRole('combobox', { name: 'Count 4: light up when' }), { target: { value: 'never' } })
+    saveAndReopen()
     expect(current().config.columns?.at(-1)).not.toHaveProperty('litAt')
     expect(current().config.columns?.at(-1)?.litWhen).toBe('never')
     fireEvent.change(within(columnsBox()).getByRole('combobox', { name: 'Count 4: light up when' }), { target: { value: 'below' } })
     fireEvent.change(within(columnsBox()).getByRole('spinbutton', { name: 'Count 4: light up when below' }), { target: { value: '3' } })
+    saveAndReopen()
     expect(current().config.columns?.at(-1)).toMatchObject({ litWhen: 'below', litAt: 3 })
     // Its colour: the app's picker.
     fireEvent.click(within(columnsBox().querySelector<HTMLElement>(`[data-column-editor="${added!.id}"]`)!).getByRole('radio', { name: 'Rose' }))
+    fireEvent.click(within(chartEditor()).getByRole('button', { name: 'Save' }))
     expect(current().config.columns?.at(-1)?.color).toBe('#e07a9a')
   })
 })
