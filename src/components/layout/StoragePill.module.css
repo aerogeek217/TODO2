@@ -100,19 +100,18 @@
   font-weight: var(--font-weight-bold);
 }
 
-/* Below 1024px Local only and Syncing shrink to the dot; warnings keep their label. */
-@media (max-width: 1023px) {
-  .local,
-  .syncing {
-    width: 24px;
-    padding: 0;
-    justify-content: center;
-  }
+/* While all is well (Local only, Syncing) the pill is its dot: the words
+   stay in its tooltip and accessible name. A warning keeps its label. */
+.local,
+.syncing {
+  width: 24px;
+  padding: 0;
+  justify-content: center;
+}
 
-  .local .text,
-  .syncing .text {
-    display: none;
-  }
+.local .text,
+.syncing .text {
+  display: none;
 }
 
 .visuallyHidden {
