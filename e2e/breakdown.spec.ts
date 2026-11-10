@@ -47,7 +47,7 @@ const chart = (page: Page, tabId = 'people') => page.locator(`[data-chart="${tab
 const row = (page: Page, name: string, tabId = 'people'): Locator =>
   chart(page, tabId).locator('[data-breakdown-row]').filter({ has: page.getByRole('button', { name: new RegExp(`^${name}:`) }) })
 const rowNames = (page: Page, tabId = 'people') =>
-  chart(page, tabId).locator('[data-breakdown-row] > [role="cell"]:first-child button:first-child')
+  chart(page, tabId).locator('[data-breakdown-row] > [role="cell"]:first-child > button:first-child')
     .evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')?.split(':')[0]))
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
 const deck = (page: Page) => page.locator('[data-review-deck]')
@@ -113,18 +113,35 @@ test('the headings sort (saved at once, per split); the filter row narrows the r
   await expect.poll(() => rowNames(page)).toHaveLength(4)
 })
 
-test('Review and the envelope are icon buttons at the row’s end, always shown; a count column’s count reviews just its tasks', async ({ page }) => {
+/** The opacity of a row's actions (Review, the envelope), which show on the row's hover or focus. */
+const actionsOpacity = (l: Locator) => l.evaluate((el) => Number(getComputedStyle(el.parentElement!).opacity))
+
+test('Review and the envelope sit right after the name, shown on the row’s hover or focus; a count column’s count reviews just its tasks', async ({ page }) => {
   await seedWorkspace(page, SEED)
+  await page.mouse.move(0, 0)
   const aisha = row(page, 'Aisha Rahman')
   const review = aisha.getByTestId('breakdown-review')
-  // Always there (no hover pill), muted, 24px, at the row's end.
-  await expect(review).toBeVisible()
   await expect(review).toHaveAccessibleName('Review Aisha Rahman: 3 tasks')
+  // Hidden at rest (opacity only: it keeps its place), shown on the row's hover, hidden again off it.
+  await expect.poll(() => actionsOpacity(review)).toBe(0)
+  const before = (await review.boundingBox())!
+  await aisha.hover()
+  await expect.poll(() => actionsOpacity(review)).toBe(1)
   const rb = (await review.boundingBox())!
-  const ab = (await aisha.boundingBox())!
+  expect(rb).toEqual(before)
   expect(Math.round(rb.width)).toBe(24)
   expect(Math.round(rb.height)).toBe(24)
-  expect(ab.x + ab.width - (rb.x + rb.width)).toBeLessThan(16)
+  // Right after the name, in the name column (no actions column at the row's end).
+  const name = (await aisha.getByText('Aisha Rahman', { exact: true }).boundingBox())!
+  expect(rb.x).toBeGreaterThan(name.x + name.width)
+  expect(rb.x - (name.x + name.width)).toBeLessThan(12)
+  const head = (await chart(page).getByRole('columnheader', { name: 'Open' }).boundingBox())!
+  expect(rb.x + rb.width).toBeLessThan(head.x)
+  await page.mouse.move(0, 0)
+  await expect.poll(() => actionsOpacity(review)).toBe(0)
+  // Keyboard focus in the row shows it too.
+  await aisha.getByRole('button', { name: /^Aisha Rahman:/ }).focus()
+  await expect.poll(() => actionsOpacity(review)).toBe(1)
   await expect(chart(page)).not.toContainText('Review ▸')
   await review.click()
   await expect(deck(page)).toBeVisible()
@@ -170,7 +187,8 @@ test('with check-ins, a person row’s envelope sits beside Review and opens Ema
   await page.keyboard.press('Escape')
   const ben = row(page, 'Ben Ortiz')
   const envelope = ben.getByRole('button', { name: 'Email check-in options for Ben Ortiz' })
-  await expect(envelope).toBeVisible()
+  await ben.hover()
+  await expect.poll(() => actionsOpacity(envelope)).toBe(1)
   const eb = (await envelope.boundingBox())!
   const rb = (await ben.getByTestId('breakdown-review').boundingBox())!
   expect(Math.round(eb.width)).toBe(24)
@@ -178,6 +196,9 @@ test('with check-ins, a person row’s envelope sits beside Review and opens Ema
   expect(eb.x).toBeGreaterThan(rb.x)
   await envelope.click()
   await expect(page.getByRole('menu', { name: 'Check-in for Ben Ortiz' }).getByRole('menuitem')).toHaveText(['Email check-in to Ben Ortiz', 'Paste reply from Ben Ortiz…'])
+  // Shown while its menu is open, the pointer gone.
+  await page.mouse.move(0, 0)
+  await expect.poll(() => actionsOpacity(envelope)).toBe(1)
 })
 
 test('a person row’s right-click opens the person menu', async ({ page }) => {

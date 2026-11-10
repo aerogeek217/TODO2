@@ -205,10 +205,24 @@ describe('clicks: a row drills, its Review button and a count review', () => {
     expect(useReviewStore.getState().source?.title).toMatch(new RegExp(` · ${heading}$`))
   })
 
-  it('every row ends with its Review button, always there (no hover pill)', () => {
+  it('every row has its Review button right after its name, in the name cell (no actions column, no pill)', () => {
     setup(breakdown())
-    for (const row of rows()) expect(within(row).getByTestId('breakdown-review').tagName).toBe('BUTTON')
+    for (const row of rows()) {
+      const review = within(row).getByTestId('breakdown-review')
+      expect(review.tagName).toBe('BUTTON')
+      const nameCell = row.querySelector('[role="cell"]')!
+      expect(nameCell.contains(review)).toBe(true)
+      expect(review.parentElement!.previousElementSibling).toBe(nameCell.querySelector('button'))
+    }
+    expect(document.querySelectorAll('[role="columnheader"]')).toHaveLength(document.querySelectorAll('[data-sort-key]').length)
     expect(document.body.textContent).not.toContain('Review ▸')
+  })
+
+  it('the medium face keeps Review after the name, no envelope', () => {
+    setup(breakdown({ checkins: true }), { face: 'medium' })
+    const priya = rowOf('person-4')
+    expect(priya.querySelector('[role="cell"]')!.contains(within(priya).getByTestId('breakdown-review'))).toBe(true)
+    expect(within(priya).queryByRole('button', { name: /Email check-in/ })).toBeNull()
   })
 
   it('a count is solid while it meets its column’s Light up when rule, outlined otherwise; 0 is a dim –', () => {
@@ -285,14 +299,14 @@ describe('the table’s columns', () => {
     expect(document.querySelector('[data-testid="glance-priority-badges"]')).toBeNull()
     expect(document.querySelector('[data-priority]')).toBeNull()
     const table = document.querySelector<HTMLElement>('[role="table"]')!
-    expect(table.style.getPropertyValue('--bd-cols')).toBe('minmax(0, 1fr) 84px 44px 40px 40px 26px')
-    expect(table.style.getPropertyValue('--bd-cols-narrow')).toBe('minmax(0, 1fr) 44px 30px 30px 26px')
+    expect(table.style.getPropertyValue('--bd-cols')).toBe('minmax(0, 1fr) 84px 44px 40px 40px')
+    expect(table.style.getPropertyValue('--bd-cols-narrow')).toBe('minmax(0, 1fr) 44px 30px 30px')
   })
 
   it('a long column name keeps the same width, its heading cut short with its name in the tooltip', () => {
     setup(breakdown({ columns: [{ id: 'col-a', name: 'Waiting on someone else', color: '#7ec4bc', filter: { ...current0().config.filter }, litWhen: 'never' }] }))
     const table = document.querySelector<HTMLElement>('[role="table"]')!
-    expect(table.style.getPropertyValue('--bd-cols')).toBe('minmax(0, 1fr) 84px 44px 40px 26px')
+    expect(table.style.getPropertyValue('--bd-cols')).toBe('minmax(0, 1fr) 84px 44px 40px')
     expect(document.querySelector<HTMLElement>('[data-sort-key="col-a"]')!.title).toBe('Waiting on someone else')
   })
 

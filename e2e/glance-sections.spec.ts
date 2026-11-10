@@ -104,7 +104,7 @@ test.describe('on a phone', () => {
     // A narrow table: the bar and Priority give way, so a tag's name fits beside its counts.
     await expect(tagRows(page)).toHaveCount(3)
     await expect(chart(page, 'tags').locator('[data-col="bar"]').first()).toBeHidden()
-    const names = chart(page, 'tags').locator('[data-breakdown-row] [role="cell"]:first-child button:first-child')
+    const names = chart(page, 'tags').locator('[data-breakdown-row] [role="cell"]:first-child > button:first-child')
     expect(await names.evaluateAll((els) => els.filter((el) => el.scrollWidth > el.clientWidth + 1).length)).toBe(0)
     // One column: each widget as wide as the page.
     const tags = await box(chart(page, 'tags'))
