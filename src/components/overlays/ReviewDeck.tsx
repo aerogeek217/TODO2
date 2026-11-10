@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useId, useMemo, useRef, type RefObject, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import { useToday } from '../../hooks/use-today'
 import { isMacLike } from '../../utils/platform'
-import { unrecordedReviewPrompt } from '../../services/review'
+import { toggleReviewLens, unrecordedReviewPrompt } from '../../services/review'
+import type { LensMark } from '../../hooks/use-widget-lens'
+import { useAppliedLens } from '../../stores/screen-filter'
 import { allReviewed, followedUpCount, unrecordedDraftIds, useReviewStore } from '../../stores/review-store'
 import { useStatusUpdateStore } from '../../stores/status-update-store'
 import { useSubtaskStore } from '../../stores/subtask-store'
@@ -10,6 +12,7 @@ import { useUIStore } from '../../stores/ui-store'
 import { isFollowedUpToday } from '../../utils/followup'
 import { registerModuleReset } from '../../utils/module-reset'
 import { DialogFrame } from '../shared/Dialog'
+import { LensSwitch } from '../shared/LensSwitch'
 import { ReviewCard } from '../review/ReviewCard'
 import { ReviewRail } from '../review/ReviewRail'
 import { ReviewSessionContext } from '../review/review-session-context'
@@ -21,7 +24,11 @@ import styles from './ReviewDeck.module.css'
  * frozen set of tasks one card at a time (`review-store`, opened by
  * `services/review.openReview`). Header: Review · the source · what was
  * taken · `k of N` (`All N reviewed` once every task has a mark) · a
- * progress bar · `n followed up` · ×. The queue rail on the left
+ * progress bar · `n followed up` · the lens switch (item 10: the standard
+ * `LensSwitch` — glasses and `−N` while the top bar's lens hides tasks of
+ * this queue, slashed while the review ignores it, absent with no lens; a
+ * click takes the queue again from its source with / without the lens,
+ * `services/review.toggleReviewLens`) · ×. The queue rail on the left
  * (`components/review/ReviewRail`, shared with the Review widget) has the
  * sort at its top (item 7) and reads like list rows (the priority ring on
  * the box, the follow-up and due dates in words and in their colours), a ✓
@@ -77,6 +84,12 @@ function ReviewDeckPanel() {
   const order = useReviewStore((s) => s.order)
   const index = useReviewStore((s) => s.index)
   const marks = useReviewStore((s) => s.marks)
+  const lens = useReviewStore((s) => s.lens)
+  const appliedLens = useAppliedLens()
+  // The top bar's lens on this queue (item 10), shown as a widget's: while it hides something here, the review ignores it, or the switch was used.
+  const lensMark: LensMark | undefined = appliedLens && lens && (lens.ignored || lens.hides > 0 || lens.used)
+    ? { name: appliedLens.name, ignored: lens.ignored, hides: lens.hides }
+    : undefined
   const todos = useTodoStore((s) => s.todos)
   const editPopupMode = useUIStore((s) => s.editPopupMode)
   const todoById = useMemo(() => new Map(todos.map((t) => [t.id, t])), [todos])
@@ -187,6 +200,7 @@ function ReviewDeckPanel() {
           <span className={styles.progressFill} style={{ width: `${n > 0 ? Math.round((done / n) * 100) : 0}%` }} />
         </span>
         <span className={styles.followedUp} data-testid="review-followed-up">{done} followed up</span>
+        {lensMark && <LensSwitch lens={lensMark} noun="review" onToggle={toggleReviewLens} />}
         <button type="button" className={styles.closeBtn} aria-label="Close review" onClick={close}>×</button>
       </header>
       <ReviewRail todoById={todoById} followedUpToday={followedUpToday} />
@@ -194,7 +208,7 @@ function ReviewDeckPanel() {
         <ReviewCard key={todo.id} todo={todo} keyHints />
       ) : (
         <div className={reviewStyles.empty}>
-          <p>Every task of this review was deleted.</p>
+          <p>{lens && !lens.ignored && appliedLens ? `The lens “${appliedLens.name}” hides every task of this review.` : 'Every task of this review was deleted.'}</p>
           <button type="button" className={reviewStyles.secondaryBtn} onClick={close}>Close</button>
         </div>
       )}

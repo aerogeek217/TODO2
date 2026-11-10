@@ -4,6 +4,7 @@ import { EditorView } from '@codemirror/view'
 import { ReviewDeck } from '../../../components/overlays/ReviewDeck'
 import { ConfirmPromptHost } from '../../../components/overlays/ConfirmPromptHost'
 import { todoRepository } from '../../../data'
+import { emptyPredicate } from '../../../models'
 import { statusUpdateRepository } from '../../../data/status-update-repository'
 import { useReviewStore } from '../../../stores/review-store'
 import { useSettingsStore } from '../../../stores/settings-store'
@@ -402,6 +403,40 @@ describe('the review deck', () => {
     fireEvent.keyDown(railRow('Retention addendum'), { key: 'ArrowRight' })
     expect(cardTitle()).toBe(FIRST)
     expect(railRow('Retention addendum')).toHaveAttribute('data-mark', 'skipped')
+  })
+
+  it('the header’s lens switch (item 10): −N while the lens hides tasks here; a click takes the queue again without it, the card kept', async () => {
+    const [first, second, third] = ids as [number, number, number]
+    useSettingsStore.setState({ lenses: [{ id: 'l1', name: 'Mine', predicate: emptyPredicate() }], activeLensId: 'l1' })
+    const requery = vi.fn((ignore: boolean) => ({ ids: ignore ? [first, second, third] : [second] }))
+    useReviewStore.getState().start({
+      source: { kind: 'list', title: 'Aisha 1:1', description: 'list · Manual' },
+      ids: [second],
+      lens: { ignored: false, hides: 2, used: false, requery },
+    })
+    render(<><ReviewDeck /><ConfirmPromptHost /></>)
+    await act(async () => { await Promise.resolve() })
+    const lensSwitch = screen.getByRole('button', { name: 'Apply the lens “Mine” here' })
+    expect(lensSwitch).toHaveAttribute('aria-pressed', 'true')
+    expect(lensSwitch).toHaveTextContent('−2')
+    fireEvent.click(lensSwitch)
+    expect(requery).toHaveBeenCalledWith(true)
+    expect(screen.getByTestId('review-position')).toHaveTextContent('2 of 3')
+    expect(cardTitle()).toBe(SECOND)
+    expect(screen.getByRole('button', { name: 'Apply the lens “Mine” here' })).toHaveAttribute('aria-pressed', 'false')
+    fireEvent.click(screen.getByRole('button', { name: 'Apply the lens “Mine” here' }))
+    expect(screen.getByTestId('review-position')).toHaveTextContent('1 of 1')
+  })
+
+  it('no lens picked: no lens switch', async () => {
+    useReviewStore.getState().start({
+      source: { kind: 'list', title: 'Aisha 1:1', description: '' },
+      ids,
+      lens: { ignored: false, hides: 0, used: false, requery: () => ({ ids }) },
+    })
+    render(<ReviewDeck />)
+    await act(async () => { await Promise.resolve() })
+    expect(screen.queryByTestId('lens-switch')).toBeNull()
   })
 
   it('on a Mac, Alt + arrows in a text field move its caret; outside one they still step', async () => {

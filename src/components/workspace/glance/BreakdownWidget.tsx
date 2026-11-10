@@ -2,7 +2,7 @@ import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { DEFAULT_STATUS_ICON } from '../../../models'
 import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey, type BreakdownSplit } from '../../../models/chart-widgets'
-import type { BreakdownTab } from '../../../models/workspace-layout'
+import { tabIgnoresLens, type BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
 import { TabLensSwitch } from '../LensSwitch'
@@ -22,7 +22,7 @@ import { useTooltip } from '../../shared/use-tooltip'
 import {
   breakdownLines, columnHeading, filteredRows, livePicks, rowFigure, sortHeading, SPLIT_GLYPHS, SPLIT_ROW_LABELS,
 } from './breakdown-copy'
-import { breakdownColumnDrill, breakdownRowDrill, breakdownRowReview, rowHeading } from './chart-drills'
+import { breakdownColumnDrill, breakdownRowDrill, breakdownRowLens, breakdownRowReview, rowHeading } from './chart-drills'
 import { ChartPanel } from './chart-parts'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import type { GlanceDrill, OnGlanceDrill } from './glance-types'
@@ -200,6 +200,8 @@ interface TableProps {
   onDrill?: OnGlanceDrill
   /** Reviews open from here (desktop, outside dialogs, no deck open). */
   review: boolean
+  /** The widget ignores the top bar's lens (its switch): how a row's review starts (item 10). */
+  ignoresLens: boolean
   /** The bar column (bars at the large face). */
   bars: boolean
 }
@@ -212,7 +214,7 @@ interface TableProps {
  * a count column's count open the review deck on them; a person's or tag's
  * right-click (or Shift+F10) opens its menu.
  */
-function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, bars }: TableProps) {
+function BreakdownTable({ title, config, columns, rows, compact, sortBy, reversed, onSort, onDrill, review, ignoresLens, bars }: TableProps) {
   const { splitBy, show } = config
   const [menu, setMenu] = useState<{ entity: MenuEntity; at: { x: number; y: number } } | null>(null)
   const envelope = !compact && config.checkins === true && splitBy === 'people'
@@ -305,7 +307,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                 </button>
                 {(review || (envelope && row.entity.kind === 'person')) && (
                   <span className={styles.nameActions} data-testid="breakdown-row-actions">
-                    {review && <RowReview heading={heading} n={n} onReview={() => { openReview(breakdownRowReview(title, row, 'all')) }} />}
+                    {review && <RowReview heading={heading} n={n} onReview={() => { openReview(breakdownRowReview(title, row, 'all', breakdownRowLens(config, ignoresLens, row.key, 'all'))) }} />}
                     {envelope && row.entity.kind === 'person' && <RowEnvelope person={row.entity.person} />}
                   </span>
                 )}
@@ -331,7 +333,7 @@ function BreakdownTable({ title, config, columns, rows, compact, sortBy, reverse
                       column={column}
                       label={`${review ? 'Review' : 'Show'} ${heading}'s ${count} in ${name}`}
                       onOpen={review
-                        ? () => { openReview(breakdownRowReview(title, row, { columnId: column.id, heading: name })) }
+                        ? () => { openReview(breakdownRowReview(title, row, { columnId: column.id, heading: name }, breakdownRowLens(config, ignoresLens, row.key, { columnId: column.id, heading: name }))) }
                         : onDrill ? () => onDrill(breakdownColumnDrill(title, row, column.id, name)) : undefined}
                     />
                   </span>
@@ -584,6 +586,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
         onSort={onSort}
         onDrill={drill}
         review={offers.review}
+        ignoresLens={tabIgnoresLens(tab)}
         bars={config.style === 'bars'}
       />
     )
