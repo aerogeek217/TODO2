@@ -31,8 +31,7 @@ test('a desktop row’s tag cell: part of a tag name, Tab, the task has the tag'
 
 test('the task editor’s People: part of a name, Tab, the task has the person', async ({ page }) => {
   await taskRowByTitle(page, 'Fix the sink').locator('span[data-task-title="Fix the sink"]').dblclick()
-  const peopleLabel = page.getByText('People', { exact: true }).and(page.locator(':not([data-filter-row] *)'))
-  await peopleLabel.locator('..').getByRole('button', { name: '+ Add' }).click()
+  await page.getByRole('dialog', { name: 'Edit task' }).getByRole('button', { name: 'Add person' }).click()
   const search = page.getByRole('combobox').and(page.locator(':focus'))
   await expect(search).toBeFocused()
   await search.pressSequentially('bo')

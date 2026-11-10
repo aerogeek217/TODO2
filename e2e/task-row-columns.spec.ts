@@ -54,8 +54,8 @@ async function cellBoxes(scope: Locator): Promise<Array<Record<string, Box>>> {
       const b = el.getBoundingClientRect()
       out[name] = { x: b.x, y: b.y, width: b.width, height: b.height }
     }
-    // (The date parts' × overlays are not columns.)
-    for (const el of Array.from(row.querySelectorAll('[data-row-cell]:not([data-row-cell$="-clear"])'))) add(el.getAttribute('data-row-cell')!, el)
+    // (The date parts' × overlays are not columns, nor the subtasks count / add mark, which sits inside the title after its text.)
+    for (const el of Array.from(row.querySelectorAll('[data-row-cell]:not([data-row-cell$="-clear"]):not([data-row-cell="subtasks"])'))) add(el.getAttribute('data-row-cell')!, el)
     add('title', row.querySelector('[data-task-title]'))
     return out
   }))

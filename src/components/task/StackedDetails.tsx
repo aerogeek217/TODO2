@@ -11,7 +11,7 @@ import { FollowupFlagIcon } from '../shared/FollowupIcons'
 import { RepeatIcon } from '../shared/icons'
 import { ClockIcon } from '../shared/MarkerIcons'
 import { useTooltip } from '../shared/use-tooltip'
-import { SubtaskCountButton, SubtaskCountStatic } from './subtasks/SubtaskCountButton'
+import { SubtaskAddButton, SubtaskCountButton, SubtaskCountStatic } from './subtasks/SubtaskCountButton'
 import styles from './TaskRow.module.css'
 
 /** Avatars a stacked row shows before `+N`. */
@@ -38,6 +38,8 @@ export interface StackedDetailsProps {
   tags: readonly Tag[]
   /** The checklist's count, or `null` with no checklist. */
   count: SubtaskCount | null
+  /** No checklist on an open task: the add mark stands where the count would be, shown on hover. */
+  canAddSubtasks?: boolean
   /** The drag overlay's copy: nothing to press. */
   ghost?: boolean
   deadlineInputRef: RefObject<HTMLInputElement | null>
@@ -70,7 +72,7 @@ export interface StackedDetailsProps {
  * tags first, which ellipsize. Every part is a row cell (`data-row-cell`).
  */
 export function StackedDetails(props: StackedDetailsProps) {
-  const { count, ghost } = props
+  const { count, ghost, canAddSubtasks = false } = props
   return (
     <div className={styles.stackedDetails} data-stacked-details="">
       <StackedDue {...props} />
@@ -78,6 +80,9 @@ export function StackedDetails(props: StackedDetailsProps) {
       {count && (ghost
         ? <SubtaskCountStatic count={count} />
         : <SubtaskCountButton count={count} open={props.subtasksOpen} buttonRef={props.subtasksRef} onClick={props.onToggleSubtasks} />)}
+      {canAddSubtasks && (
+        <SubtaskAddButton open={props.subtasksOpen} buttonRef={props.subtasksRef} onClick={props.onToggleSubtasks} className={styles.subtaskAdd} />
+      )}
       <StackedPeople {...props} />
       <StackedTags {...props} />
     </div>

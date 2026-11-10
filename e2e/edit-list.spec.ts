@@ -149,7 +149,7 @@ test('no unsaved changes: a press in its own panel closes Edit list, and the pre
   const popover = await openFromTabMenu(page, 't1')
   const widget = wsListWidget(page, 't1')
   const row = widget.locator('[data-row-key]', { hasText: 'Charlie' })
-  await row.locator('[data-task-title]').click()
+  await row.locator('[data-title-text]').click()
   await expect(popover).toHaveCount(0)
   await expect(unsavedPrompt(page)).toHaveCount(0)
   await expect(row).toHaveAttribute('data-selected', 'true')
@@ -171,7 +171,7 @@ test('an unsaved list: a press elsewhere closes Edit list at once, nothing asked
 
   // A press on a row in another panel: Edit list closes, the row is selected.
   const other = wsListWidget(page, 't0').locator('[data-row-key]', { hasText: 'Alpha' })
-  await other.locator('[data-task-title]').click()
+  await other.locator('[data-title-text]').click()
   await expect(popover).toHaveCount(0)
   await expect(unsavedPrompt(page)).toHaveCount(0)
   await expect(other).toHaveAttribute('data-selected', 'true')

@@ -392,8 +392,7 @@ test('the task editor’s glass People dropdown keeps the page surface as the fo
     layouts: [{ name: 'Main', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
   await taskRowByTitle(page, 'Fix the sink').locator('span[data-task-title="Fix the sink"]').dblclick()
-  const peopleLabel = page.getByText('People', { exact: true }).and(page.locator(':not([data-filter-row] *)'))
-  await peopleLabel.locator('..').getByRole('button', { name: '+ Add' }).click()
+  await page.getByRole('dialog', { name: 'Edit task' }).getByRole('button', { name: 'Add person' }).click()
   const search = page.getByRole('combobox').and(page.locator(':focus'))
   await expect(search).toBeFocused()
   const gaps = await search.evaluate((el) => {

@@ -19,7 +19,7 @@ import { isV77Metric, numberConfigOfMetric } from './number-metrics'
  *   | overdue        | `overdue`                    |
  *   | dueToday       | `due today`                  |
  *   | dueNext7       | `due within 6 days` (today … today + 6, the metric's 7 days) |
- *   | followupDue    | `followup by today`          |
+ *   | followupDue    | `followup <= today`          |
  *   | noFollowup     | `no followup`                |
  *   | focus          | `/focus`                     |
  *   | urgent         | `/urgent` (flagged, or due within Settings' range) |

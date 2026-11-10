@@ -5,12 +5,13 @@ import { SubtaskChecklist, type ChecklistItem } from './SubtaskChecklist'
 import styles from './Subtasks.module.css'
 
 /**
- * The task layout's **Subtasks** (cr28, T1; D26 BB / BG — the task editor
- * and the review card): the label with `2 of 5` and a thin progress bar,
- * then the checklist — check, rename by a click on the title, drag to
+ * The task layout's **Subtasks** (cr28, T1; board BJ — the task editor
+ * and the review card, second in the writing): the label with `2 of 5` and
+ * a thin progress bar, then the checklist — check, rename by a click on the title, drag to
  * reorder (`onMove`), ⋯ for the menu — and **+ Add subtask** as its last
- * line (⏎ adds and keeps the line for the next). The list and its add
- * line scroll inside the section past the layout's height. What the
+ * line (⏎ adds and keeps the line for the next). Empty, the section is that
+ * one line (the label only names the region). The list and its add line
+ * scroll inside the section past ~260px. What the
  * callbacks write is the host's (the store in edit mode, the pending rows
  * in create mode, where the ⋯ menu has no Make a task / Move);
  * `commitRef` (create mode) adds a line still being typed before the host
@@ -31,9 +32,10 @@ export function SubtasksSection({ items, onAdd, onRename, onSetDone, onRemove, o
   const labelId = useId()
   const count = subtaskCount(items)
   return (
-    <section className={className} aria-labelledby={labelId} data-subtasks="">
+    <section className={className} aria-labelledby={labelId} data-subtasks="" data-empty={count.total === 0 || undefined}>
       <div className={styles.headingRow}>
-        <div className={`${labelClassName ?? ''} ${styles.heading}`} id={labelId}>
+        {/* Empty, the section is its + Add subtask line: the label only names it. */}
+        <div className={`${labelClassName ?? ''} ${styles.heading} ${count.total === 0 ? styles.visuallyHidden : ''}`} id={labelId}>
           Subtasks
           {count.total > 0 && <span className={styles.countText} data-subtask-count-text="">{count.done} of {count.total}</span>}
         </div>

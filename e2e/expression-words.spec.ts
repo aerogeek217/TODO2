@@ -65,10 +65,10 @@ test('the filter line reads an expression in words; its tooltip is the exact tex
   await expect(line.getByTestId('list-filter-expression-more')).toHaveCount(0)
 
   await line.hover()
-  await expect(page.getByRole('tooltip')).toContainText('(@Ann or (#q4 and not !Waiting)) and followed by 7 days ago')
+  await expect(page.getByRole('tooltip')).toContainText('(@Ann or (#q4 and not !Waiting)) and followed <= -7d')
 
   await line.click()
-  await expect(page.getByTestId('edit-list').getByRole('textbox', { name: 'Filter expression' })).toHaveValue('(@Ann or (#q4 and not !Waiting)) and followed by 7 days ago')
+  await expect(page.getByTestId('edit-list').getByRole('textbox', { name: 'Filter expression' })).toHaveValue('(@Ann or (#q4 and not !Waiting)) and followed <= -7d')
 })
 
 test('too long for its space: the line fades at its end and counts the terms not shown; a click still opens Edit list', async ({ page }) => {

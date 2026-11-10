@@ -47,7 +47,7 @@ const chart = (page: Page, tabId = 'people') => page.locator(`[data-chart="${tab
 const row = (page: Page, name: string, tabId = 'people'): Locator =>
   chart(page, tabId).locator('[data-breakdown-row]').filter({ has: page.getByRole('button', { name: new RegExp(`^${name}:`) }) })
 const rowNames = (page: Page, tabId = 'people') =>
-  chart(page, tabId).locator('[data-breakdown-row] > [role="cell"]:first-child button:first-child')
+  chart(page, tabId).locator('[data-breakdown-row] > [role="cell"]:first-child > button:first-child')
     .evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')?.split(':')[0]))
 const dialog = (page: Page) => page.locator('[data-task-dialog]')
 const deck = (page: Page) => page.locator('[data-review-deck]')
@@ -113,18 +113,35 @@ test('the headings sort (saved at once, per split); the filter row narrows the r
   await expect.poll(() => rowNames(page)).toHaveLength(4)
 })
 
-test('Review and the envelope are icon buttons at the row’s end, always shown; a count column’s count reviews just its tasks', async ({ page }) => {
+/** The opacity of a row's actions (Review, the envelope), which show on the row's hover or focus. */
+const actionsOpacity = (l: Locator) => l.evaluate((el) => Number(getComputedStyle(el.parentElement!).opacity))
+
+test('Review and the envelope sit right after the name, shown on the row’s hover or focus; a count column’s count reviews just its tasks', async ({ page }) => {
   await seedWorkspace(page, SEED)
+  await page.mouse.move(0, 0)
   const aisha = row(page, 'Aisha Rahman')
   const review = aisha.getByTestId('breakdown-review')
-  // Always there (no hover pill), muted, 24px, at the row's end.
-  await expect(review).toBeVisible()
   await expect(review).toHaveAccessibleName('Review Aisha Rahman: 3 tasks')
+  // Hidden at rest (opacity only: it keeps its place), shown on the row's hover, hidden again off it.
+  await expect.poll(() => actionsOpacity(review)).toBe(0)
+  const before = (await review.boundingBox())!
+  await aisha.hover()
+  await expect.poll(() => actionsOpacity(review)).toBe(1)
   const rb = (await review.boundingBox())!
-  const ab = (await aisha.boundingBox())!
+  expect(rb).toEqual(before)
   expect(Math.round(rb.width)).toBe(24)
   expect(Math.round(rb.height)).toBe(24)
-  expect(ab.x + ab.width - (rb.x + rb.width)).toBeLessThan(16)
+  // Right after the name, in the name column (no actions column at the row's end).
+  const name = (await aisha.getByText('Aisha Rahman', { exact: true }).boundingBox())!
+  expect(rb.x).toBeGreaterThan(name.x + name.width)
+  expect(rb.x - (name.x + name.width)).toBeLessThan(12)
+  const head = (await chart(page).getByRole('columnheader', { name: 'Open' }).boundingBox())!
+  expect(rb.x + rb.width).toBeLessThan(head.x)
+  await page.mouse.move(0, 0)
+  await expect.poll(() => actionsOpacity(review)).toBe(0)
+  // Keyboard focus in the row shows it too.
+  await aisha.getByRole('button', { name: /^Aisha Rahman:/ }).focus()
+  await expect.poll(() => actionsOpacity(review)).toBe(1)
   await expect(chart(page)).not.toContainText('Review ▸')
   await review.click()
   await expect(deck(page)).toBeVisible()
@@ -132,21 +149,33 @@ test('Review and the envelope are icon buttons at the row’s end, always shown;
   await page.keyboard.press('Escape')
   await expect(deck(page)).toHaveCount(0)
 
-  // The derived count columns (Settings' ranges): Overdue lit (solid), Due soon outlined.
-  await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Priority', 'Overdue', 'Due soon', 'Follow-up late', 'Follow-up due'])
-  const overdue = aisha.locator('[data-column="overdue"]')
-  await expect(overdue).toHaveText('1')
-  await expect(overdue).toHaveAttribute('data-solid', '')
-  await expect(overdue).toHaveCSS('background-color', 'rgb(232, 107, 240)')
-  const soon = aisha.locator('[data-column="due-soon"]')
-  await expect(soon).toHaveText('1')
-  await expect(soon).not.toHaveAttribute('data-solid', '')
-  await soon.click()
-  await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 1')
-  await expect(deck(page).getByRole('navigation', { name: 'Review queue' }).getByRole('button')).toHaveText([/Aisha soon/])
+  // The derived count columns (Settings' ranges), no Priority column: Due (overdue and the next 3 days) lit above 0.
+  await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Due', 'Follow-up'])
+  const due = aisha.locator('[data-column="due"]')
+  await expect(due).toHaveText('2')
+  await expect(due).toHaveAttribute('data-solid', '')
+  await expect(due).toHaveCSS('background-color', 'rgb(232, 107, 240)')
+  await due.click()
+  await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 2')
+  await expect(deck(page).getByRole('navigation', { name: 'Review queue' }).locator('[data-review-row]')).toHaveText([/Aisha late/, /Aisha soon/])
   await page.keyboard.press('Escape')
   // None: a dim dash.
-  await expect(aisha.getByLabel('No tasks in Follow-up late')).toHaveText('–')
+  await expect(aisha.getByLabel('No tasks in Follow-up')).toHaveText('–')
+})
+
+test('a count column is its number’s room: the heading is cut short (its name in the tooltip), the names keep their room', async ({ page }) => {
+  await seedWorkspace(page, SEED)
+  const heads = chart(page).locator('[role="columnheader"]')
+  const followup = chart(page).locator('[data-sort-key="followup"]')
+  await expect(followup).toHaveAttribute('title', 'Follow-up')
+  const fb = (await chart(page).getByRole('columnheader', { name: 'Follow-up' }).boundingBox())!
+  expect(Math.round(fb.width)).toBe(40)
+  // Its label overflows into an ellipsis rather than widening the column.
+  expect(await followup.locator('span').first().evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true)
+  // The name column takes the rest: wider than every other heading together.
+  const widths = await heads.evaluateAll((els) => els.map((el) => el.getBoundingClientRect().width))
+  expect(widths[0]).toBeGreaterThan(widths.slice(1).reduce((a, b) => a + b, 0))
+  await expect(row(page, 'Aisha Rahman').getByText('Aisha Rahman', { exact: true })).toBeVisible()
 })
 
 test('with check-ins, a person row’s envelope sits beside Review and opens Email check-in · Paste reply', async ({ page }) => {
@@ -155,10 +184,12 @@ test('with check-ins, a person row’s envelope sits beside Review and opens Ema
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit breakdown…' }).click()
   const editor = page.locator('[data-chart-editor]')
   await editor.getByRole('checkbox', { name: 'Check-in envelope on each person' }).check()
-  await page.keyboard.press('Escape')
+  await editor.getByRole('button', { name: 'Save', exact: true }).click()
+  await expect(editor).toHaveCount(0)
   const ben = row(page, 'Ben Ortiz')
   const envelope = ben.getByRole('button', { name: 'Email check-in options for Ben Ortiz' })
-  await expect(envelope).toBeVisible()
+  await ben.hover()
+  await expect.poll(() => actionsOpacity(envelope)).toBe(1)
   const eb = (await envelope.boundingBox())!
   const rb = (await ben.getByTestId('breakdown-review').boundingBox())!
   expect(Math.round(eb.width)).toBe(24)
@@ -166,6 +197,9 @@ test('with check-ins, a person row’s envelope sits beside Review and opens Ema
   expect(eb.x).toBeGreaterThan(rb.x)
   await envelope.click()
   await expect(page.getByRole('menu', { name: 'Check-in for Ben Ortiz' }).getByRole('menuitem')).toHaveText(['Email check-in to Ben Ortiz', 'Paste reply from Ben Ortiz…'])
+  // Shown while its menu is open, the pointer gone.
+  await page.mouse.move(0, 0)
+  await expect.poll(() => actionsOpacity(envelope)).toBe(1)
 })
 
 test('a person row’s right-click opens the person menu', async ({ page }) => {
@@ -183,23 +217,21 @@ test('the editor’s count columns: a column with its own filter, name and rule;
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit breakdown…' }).click()
   const editor = page.locator('[data-chart-editor]')
   const columns = editor.getByTestId('chart-editor-columns')
-  await expect(columns.getByRole('textbox', { name: /^Column \d name$/ })).toHaveCount(4)
-  // Four: the cap. Remove Follow-up due, then add one.
-  await expect(columns.getByRole('button', { name: 'Add column' })).toHaveCount(0)
-  await columns.getByRole('button', { name: 'Remove Follow-up due' }).click()
+  // Due and Follow-up (derived, ordinary columns); add a third.
+  await expect(columns.getByRole('textbox', { name: /^Column \d name$/ })).toHaveCount(2)
   await columns.getByRole('button', { name: 'Add column' }).click()
-  await columns.getByRole('textbox', { name: 'Column 4 name' }).fill('Waiting')
+  await columns.getByRole('textbox', { name: 'Column 3 name' }).fill('Waiting')
   const added = columns.locator('[data-column-editor]').last()
   await added.getByRole('radiogroup', { name: 'Filter mode' }).getByRole('radio', { name: 'Expression' }).click()
   const field = added.getByRole('textbox', { name: 'Filter expression' })
   await field.fill('!Waiting')
   // A blur writes it once it reads.
-  await columns.getByRole('textbox', { name: 'Column 4 name' }).click()
+  await columns.getByRole('textbox', { name: 'Column 3 name' }).click()
   await expect(added.getByTestId('expression-reads-as')).toBeVisible()
-  await page.keyboard.press('Escape')
+  await editor.getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor).toHaveCount(0)
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
-  await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Priority', 'Overdue', 'Due soon', 'Follow-up late', 'Waiting'])
+  await expect(chart(page).locator('[data-sort-key]')).toHaveText(['Person', 'Open', 'Due', 'Follow-up', 'Waiting'])
   // Ben has two Waiting tasks: lit above 0, solid in its colour; a click reviews those two.
   const waiting = row(page, 'Ben Ortiz').locator('[data-column]').last()
   await expect(waiting).toHaveText('2')

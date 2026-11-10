@@ -47,8 +47,6 @@ function opts(splitBy: BreakdownSplit, over: Partial<BreakdownOptions> = {}): Br
   return { splitBy, show: 'count', oldestBy: 'lastFollowup', columns: [], ...over }
 }
 
-const NONE = { focus: 0, urgent: 0, important: 0 }
-
 describe('computeBreakdown — people', () => {
   const tasks = [
     makeTodo({ id: 1, focus: true, dueDate: day(-2) }),
@@ -78,13 +76,13 @@ describe('computeBreakdown — people', () => {
     expect(out.ids).toEqual([1, 4, 2, 3, 5])
   })
 
-  it('counts each priority (a task with two counts in both; urgent by its due date counts) and its overdue tasks (the bar)', () => {
+  it('counts its overdue tasks (the bar); no priority counts (the Priority column went)', () => {
     const out = computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), withColumns)
     const amyRow = out.rows.find((r) => r.label === 'Amy')
-    expect(amyRow?.priority).toEqual({ focus: 1, urgent: 2, important: 0 })
     expect(amyRow?.overdue).toBe(1)
     expect(out.rows.find((r) => r.label === 'Zed')?.overdue).toBe(1)
-    expect(out.rows.find((r) => r.label === 'Bob')?.priority).toEqual(NONE)
+    expect(out.rows.find((r) => r.label === 'Bob')?.overdue).toBe(0)
+    expect(amyRow).not.toHaveProperty('priority')
   })
 
   it('each column counts the row\'s tasks it keeps, by its id; a column it doesn\'t name counts 0; no columns, none', () => {
@@ -97,10 +95,10 @@ describe('computeBreakdown — people', () => {
     expect(computeBreakdown(tasks, ctx({ assignedPeopleMap: people }), opts('people')).rows.every((r) => Object.keys(r.columns).length === 0)).toBe(true)
   })
 
-  it('a completed task the filter let through counts in its row but in no priority or overdue count', () => {
+  it('a completed task the filter let through counts in its row but in no overdue count', () => {
     const done = makeTodo({ id: 9, isCompleted: true, focus: true, dueDate: day(-1) })
     const out = computeBreakdown([done], ctx({ assignedPeopleMap: new Map([[9, [amy]]]) }), opts('people', { columns: dueColumns([done]) }))
-    expect(out.rows.map((r) => [r.label, r.ids, r.columns.due, r.priority, r.overdue])).toEqual([['Amy', [9], [], NONE, 0]])
+    expect(out.rows.map((r) => [r.label, r.ids, r.columns.due, r.overdue])).toEqual([['Amy', [9], [], 0]])
   })
 
   it('no tasks, no rows', () => {
@@ -252,6 +250,9 @@ describe('sorting the rows by a heading', () => {
     expect(labels({ by: 'due' }, ['followup'])).toEqual(labels(undefined))
     expect(labels({ by: 'due' }, ['due'])).toEqual(['Amy', 'Bob', 'Unassigned'])
     expect(labels({ by: 'open', reversed: true }, [])).toEqual(['Amy', 'Bob', 'Unassigned'])
+    // The old Priority column's sort: no heading has it any more.
+    expect(labels({ by: 'priority' }, ['due', 'followup'])).toEqual(labels(undefined))
+    expect(labels({ by: 'priority', reversed: true }, ['due', 'followup'])).toEqual(labels(undefined))
   })
 
   it('a heading click: its default direction, then reversed, then back to the default order', () => {

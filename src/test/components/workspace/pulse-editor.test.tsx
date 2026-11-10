@@ -24,7 +24,7 @@ import { single } from '../../helpers/layout-builders'
 /**
  * Project pulse's rules (G5) in JSDOM: a layout without them reads the
  * defaults and stays saved; Edit project pulse… opens the editor under its
- * title, whose edits write the rules (unsaved until Save) — names in the
+ * title, whose Save writes the rules (the layout unsaved until its Save) — names in the
  * counts and Copy, a filter of its own changing a count, back to the default.
  */
 
@@ -73,6 +73,12 @@ const count = (rule: 'late' | 'stale') => card().querySelector<HTMLElement>(`[da
 const editor = () => document.querySelector<HTMLElement>('[data-pulse-editor="p"]')!
 const rule = (key: 'late' | 'stale') => editor().querySelector<HTMLElement>(`[data-pulse-rule="${key}"]`)!
 const item = (entries: readonly MenuEntry[], label: string) => entries.find((e): e is MenuItemEntry => e.kind === 'item' && e.label === label)!
+const open = () => act(() => { useChartWidgetsStore.getState().openPulseEditor('p') })
+/** The editor's Save: writes its edits and closes. */
+const save = () => {
+  fireEvent.click(within(editor()).getByRole('button', { name: 'Save' }))
+  expect(document.querySelector('[data-pulse-editor]')).toBeNull()
+}
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date'] })
@@ -129,39 +135,61 @@ describe('the editor', () => {
     expect(useWorkspaceStore.getState().isDirty).toBe(false)
   })
 
-  it('a name writes its rule (unsaved); the default name and no filter write none again', () => {
+  it('a name edits the draft; Save writes its rule (unsaved); the default name and no filter write none again', () => {
     setup(pulse())
-    act(() => { useChartWidgetsStore.getState().openPulseEditor('p') })
+    open()
     fireEvent.change(within(rule('late')).getByRole('textbox', { name: 'Late name' }), { target: { value: 'behind' } })
+    // The widget draws the edit live; nothing is written until Save.
+    expect(count('late')).toBe('1 behind (25%)')
+    expect(current().config).toEqual({ tagIds: [1] })
+    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    save()
     expect(current().config.late).toEqual({ name: 'behind' })
     expect(count('late')).toBe('1 behind (25%)')
     expect(useWorkspaceStore.getState().isDirty).toBe(true)
+    open()
     fireEvent.change(within(rule('late')).getByRole('textbox', { name: 'Late name' }), { target: { value: 'late' } })
+    save()
     expect(current().config).toEqual({ tagIds: [1] })
   })
 
   it('Late’s first filter edit writes the default as its own (same count); Use the default drops it', () => {
     setup(pulse())
-    act(() => { useChartWidgetsStore.getState().openPulseEditor('p') })
+    open()
     fireEvent.click(within(rule('late')).getByRole('radio', { name: 'Expression' }))
+    save()
     expect(current().config.late?.name).toBe('late')
     expect(current().config.late?.filter?.expression).toEqual({ kind: 'date', field: 'deadline', match: pulseLateDefaultFilter().dates.deadline })
     expect(count('late')).toBe('1 late (25%)')
+    open()
     fireEvent.click(within(rule('late')).getByRole('button', { name: 'Use the default (overdue)' }))
+    save()
     expect(current().config).toEqual({ tagIds: [1] })
   })
 
   it('Stale: Use a filter starts from Settings’ threshold (same count); its own filter changes it; Use the default follows Settings again', () => {
     setup(pulse())
-    act(() => { useChartWidgetsStore.getState().openPulseEditor('p') })
+    open()
     fireEvent.click(within(rule('stale')).getByRole('button', { name: 'Use a filter' }))
+    save()
     expect(current().config.stale).toEqual({ name: 'stale', filter: pulseStaleFilterFor(30) })
     expect(count('stale')).toBe('1 stale')
     act(() => { useWorkspaceStore.getState().patchTabConfig('p', 'pulse', { stale: { name: 'stale', filter: pulseStaleFilterFor(1) } }) })
     expect(count('stale')).toBe('4 stale')
+    open()
     fireEvent.click(within(rule('stale')).getByRole('button', { name: 'Use the default (follow Settings)' }))
+    save()
     expect(current().config).toEqual({ tagIds: [1] })
     expect(count('stale')).toBe('1 stale')
+  })
+
+  it('Save writes only the rules it changed: Tags picked from the ⋯ menu meanwhile stay', () => {
+    setup(pulse())
+    open()
+    fireEvent.change(within(rule('stale')).getByRole('textbox', { name: 'Stale name' }), { target: { value: 'quiet' } })
+    act(() => { useWorkspaceStore.getState().patchTabConfig('p', 'pulse', { tagIds: [1, 2] }) })
+    save()
+    expect(current().config).toEqual({ tagIds: [1, 2], stale: { name: 'quiet' } })
   })
 
   it('Stale with fading off says so; × closes', () => {

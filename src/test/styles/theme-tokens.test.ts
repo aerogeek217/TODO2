@@ -19,7 +19,7 @@ describe('theming lives in tokens.css', () => {
 
   describe('the ambience takes every colour from tokens.css (cr33 A1)', () => {
     const files = sourceFiles(/\.(tsx?|css)$/)
-      .filter(([path]) => path.startsWith('components/ambience/') || path === 'utils/sky.ts')
+      .filter(([path]) => path.startsWith('components/ambience/') || path === 'utils/sky.ts' || path === 'utils/sky-events.ts')
     /** A colour written out: hex, a colour function, or a common colour name. */
     const LITERAL = /#[0-9a-f]{3,8}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color)\(|\b(?:white|black|red|green|blue|yellow|orange|pink|purple|gr[ae]y|silver|gold)\b/i
     const code = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '').replace(/\s\/\/ .*$/gm, '')

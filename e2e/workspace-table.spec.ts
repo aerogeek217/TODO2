@@ -320,14 +320,18 @@ test.describe('dividers', () => {
     const aBox = await edges(wsCell(page, 'a'))
     const d = await box(divider)
     const from = { x: d.x + d.width / 2, y: d.y + d.height / 2 }
+    let mid = { a: 0, b: 0 }
     await drag(page, from, { x: from.x, y: from.y + 100 }, {
       during: async () => {
         await expect(divider).toHaveAttribute('data-preview', '')
-        // The cells wait for the release.
-        expect((await edges(wsCell(page, 'a'))).bottom).toBeCloseTo(aBox.bottom, 0)
+        // The cells already stand where the release puts them.
+        await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - aBox.bottom)).toBeGreaterThan(90)
+        mid = { a: (await edges(wsCell(page, 'a'))).bottom, b: (await edges(wsCell(page, 'b'))).top }
       },
     })
     await expect.poll(async () => Math.round((await edges(wsCell(page, 'a'))).bottom - aBox.bottom)).toBeGreaterThan(90)
+    expect(Math.abs((await edges(wsCell(page, 'a'))).bottom - mid.a)).toBeLessThanOrEqual(1)
+    expect(Math.abs((await edges(wsCell(page, 'b'))).top - mid.b)).toBeLessThanOrEqual(1)
     // x and y keep their line.
     // (A new track takes one more gap from the weighted rows: a few px.)
     expect(Math.abs((await edges(wsCell(page, 'x'))).bottom - xBottom)).toBeLessThanOrEqual(4)

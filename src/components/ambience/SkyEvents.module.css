@@ -1,0 +1,168 @@
+/*
+ * The top bar's rare sky events (`SkyEvents.tsx`), inside the sky layer (under
+ * the bar's content, clipped to the bar): each one-shot, its path from custom
+ * properties the component sets, `forwards` so it ends where it faded out.
+ * Not drawn under reduced motion (the component leaves them out).
+ */
+
+.events {
+  position: absolute;
+  inset: 0;
+  container-type: size;
+}
+
+/* A shooting star: the frame turned to its heading, the streak running along it. */
+.shootingStar {
+  position: absolute;
+  width: 0;
+  height: 0;
+  transform: rotate(var(--angle, 10deg));
+}
+
+.streak {
+  position: absolute;
+  right: 0;
+  top: -0.75px;
+  width: var(--len, 70px);
+  height: 1.5px;
+  border-radius: 1px;
+  background: linear-gradient(to right, transparent, var(--ambience-shooting-star));
+  transform-origin: right center;
+  animation: shoot var(--dur, 1s) ease-out forwards;
+}
+
+/* Its head: a bright point with a soft glow. */
+.streak::after {
+  content: '';
+  position: absolute;
+  right: -1px;
+  top: -0.75px;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: var(--ambience-shooting-star);
+  box-shadow: 0 0 4px 1px var(--ambience-shooting-star-glow);
+}
+
+@keyframes shoot {
+  from { transform: translateX(0) scaleX(0.25); opacity: 0; }
+  12% { opacity: 1; }
+  65% { opacity: 0.9; }
+  to { transform: translateX(var(--travel, 160px)) scaleX(1); opacity: 0; }
+}
+
+/* A UFO: the frame drifts (in, a hover midway, on), the saucer bobs and hops. */
+.ufo {
+  position: absolute;
+  width: 16px;
+  height: 8px;
+  margin: -4px 0 0 -8px;
+  animation: ufo-drift var(--dur, 16s) ease-in-out forwards;
+}
+
+@keyframes ufo-drift {
+  0% { transform: translateX(0); opacity: 0; }
+  8% { opacity: 1; }
+  42% { transform: translateX(calc(var(--travel, 25cqw) * 0.46)); }
+  58% { transform: translateX(calc(var(--travel, 25cqw) * 0.5)); }
+  92% { opacity: 1; }
+  100% { transform: translateX(var(--travel, 25cqw)); opacity: 0; }
+}
+
+.ufoBody {
+  display: block;
+  width: 16px;
+  height: 8px;
+  overflow: visible;
+  filter: drop-shadow(0 0 2.5px var(--ambience-ufo-glow));
+  animation: ufo-hop var(--dur, 16s) ease-in-out forwards;
+}
+
+@keyframes ufo-hop {
+  0%, 100% { transform: translateY(0); }
+  20% { transform: translateY(-1px); }
+  36% { transform: translateY(0.5px); }
+  48% { transform: translateY(0); }
+  51% { transform: translateY(-4px); }
+  54% { transform: translateY(0); }
+  56% { transform: translateY(-1.5px); }
+  58% { transform: translateY(0); }
+  78% { transform: translateY(-1px); }
+}
+
+.ufoDome {
+  fill: var(--ambience-ufo-dome);
+}
+
+.ufoDisc {
+  fill: var(--ambience-ufo-body);
+}
+
+.ufoLight {
+  fill: var(--ambience-ufo-light);
+  animation: ufo-blink 1.2s steps(1, end) infinite;
+}
+
+.ufoLight:nth-of-type(2) { animation-delay: 0.4s; }
+.ufoLight:nth-of-type(3) { animation-delay: 0.8s; }
+
+@keyframes ufo-blink {
+  0%, 100% { opacity: 1; }
+  33% { opacity: 0.2; }
+}
+
+/* An airplane: across the whole bar (container widths), slowly, facing its way. */
+.airplane {
+  position: absolute;
+  left: 0;
+  width: 14px;
+  height: 6px;
+  margin-top: -3px;
+  animation: plane-cross var(--dur, 60s) linear forwards;
+}
+
+@keyframes plane-cross {
+  from { transform: translateX(var(--from, -4cqw)); }
+  to { transform: translateX(var(--to, 104cqw)); }
+}
+
+.plane {
+  position: relative;
+  width: 14px;
+  height: 6px;
+  transform: scaleX(var(--flip, 1));
+}
+
+.planeBody {
+  display: block;
+  width: 14px;
+  height: 6px;
+  fill: var(--ambience-plane);
+}
+
+/* The contrail behind it, thinning away. */
+.contrail {
+  position: absolute;
+  right: 100%;
+  top: 2.6px;
+  width: 90px;
+  height: 1px;
+  background: linear-gradient(to left, var(--ambience-contrail), transparent);
+}
+
+/* The light on its tail: a short blink every second and a half. */
+.planeLight {
+  position: absolute;
+  left: 0.5px;
+  top: 0;
+  width: 1.6px;
+  height: 1.6px;
+  border-radius: 50%;
+  background: var(--ambience-plane-light);
+  animation: plane-blink 1.5s steps(1, end) infinite;
+}
+
+@keyframes plane-blink {
+  0%, 100% { opacity: 0; }
+  86% { opacity: 1; }
+}

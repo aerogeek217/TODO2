@@ -21,19 +21,34 @@
   margin-bottom: 0;
 }
 
-/* The section's checklist and its + Add subtask line: they scroll inside past the layout's row height. */
+/* The section's checklist and its + Add subtask line: they scroll inside past ~260px. */
 .sectionScroll {
   flex: 1 1 auto;
   min-height: 0;
+  max-height: 260px;
   overflow-y: auto;
   scrollbar-width: thin;
   scrollbar-color: var(--color-tint-8) transparent;
 }
 
-/* The layout's + Add subtask line reads as an action until typed into. */
+/* The layout's + Add subtask line: the accent plus, the words muted until typed into. */
 .sectionScroll .addInput::placeholder {
-  color: var(--color-accent-text);
-  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+}
+
+/* Empty, the add line lines up with the writing's other one-line sections (no checkbox column to align with). */
+[data-empty] > .sectionScroll .addRow[data-density='editor'] {
+  padding-left: 2px;
+}
+
+/* An empty section's label: it names the region, the add line is all that shows. */
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 
 .countText {
@@ -336,6 +351,16 @@
 .count:hover {
   background: var(--color-tint-8);
   color: var(--color-text-primary);
+}
+
+/* No checklist yet: the add mark, no fill until pointed at. */
+.addGhost {
+  padding: 0 4px;
+  background: transparent;
+}
+
+.addGhost:hover {
+  background: var(--color-tint-8);
 }
 
 /* Every subtask done: the task is ready to complete. */

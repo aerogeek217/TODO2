@@ -1,0 +1,346 @@
+/* The Review widget (item 12, board BK): its top line, its faces (large: the
+ * rail beside the deck's card, its footer under the card; medium: the card's
+ * essentials over the footer; small: the pick and what is left), its empty
+ * state and its picker. The rail, card and footer are `components/review`'s. */
+
+.faceHost {
+  /* The rail's sticky sort head takes the cell's ground. */
+  --review-rail-bg: var(--color-surface);
+
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+/* ── Top line ───────────────────────────────────────────────────────────── */
+
+.topLine {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 36px;
+  padding: 0 4px 0 12px;
+  border-bottom: 1px solid var(--color-border-muted);
+}
+
+.pickChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  flex: 0 1 auto;
+  min-width: 0;
+  height: 24px;
+  padding: 0 9px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--color-tint-8);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.pickChip:hover,
+.pickChip[aria-expanded='true'] {
+  background: var(--color-tint-12);
+  color: var(--color-text-primary);
+}
+
+/* A pick takes its kind's colour, as the facts' headings do. */
+.pickChip[data-kind='person'] {
+  background: color-mix(in srgb, var(--color-fact-people) 16%, transparent);
+  color: var(--color-fact-people);
+}
+
+.pickChip[data-kind='tag'] {
+  background: color-mix(in srgb, var(--color-fact-tags) 16%, transparent);
+  color: var(--color-fact-tags);
+}
+
+.pickChip[data-kind='status'] {
+  background: color-mix(in srgb, var(--color-fact-status) 16%, transparent);
+  color: var(--color-fact-status);
+}
+
+.pickName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.progress {
+  flex: none;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.spacer {
+  flex: 1;
+  min-width: 4px;
+}
+
+/* ── Faces ──────────────────────────────────────────────────────────────── */
+
+/* Large: the rail, then the card over its footer (board BK). */
+.large {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 252px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) 50px;
+  grid-template-areas:
+    'rail card'
+    'rail footer';
+  overflow: hidden;
+}
+
+/* Medium: the card's essentials over the footer. */
+.medium {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr) 44px;
+  grid-template-areas:
+    'card'
+    'footer';
+  overflow: hidden;
+}
+
+/* Small: the glyph, then `Review · <pick>` over `N left · M followed up`. */
+.small {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 100%;
+  min-width: 0;
+  padding: 0 12px;
+  box-sizing: border-box;
+  cursor: pointer;
+}
+
+.smallGlyph {
+  flex: none;
+  display: inline-flex;
+  color: var(--color-accent);
+}
+
+.smallText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.smallTitle,
+.smallCaption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.smallTitle {
+  font-size: var(--font-size-meta);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.smallCaption {
+  font-size: var(--font-size-row-meta);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Empty states ───────────────────────────────────────────────────────── */
+
+.empty {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  text-align: center;
+}
+
+.emptyTitle {
+  margin: 0;
+  font-size: var(--font-size-task);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.emptyWords {
+  margin: 0;
+  max-width: 360px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.emptyButton {
+  height: 30px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-accent-bg-medium);
+  color: var(--color-accent-text);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: var(--font-weight-semibold);
+  cursor: pointer;
+}
+
+.emptyButton:hover {
+  background: var(--color-accent-focus);
+}
+
+/* ── The picker ─────────────────────────────────────────────────────────── */
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 260px;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.segments {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2px;
+  padding: 2px;
+  border-radius: 8px;
+  background: var(--color-inset);
+}
+
+.segment {
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.segment:hover {
+  color: var(--color-text-primary);
+}
+
+.segment[aria-checked='true'] {
+  background: var(--color-surface-bright);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.pickerSearch {
+  height: 30px;
+  padding: 0 10px;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 8px;
+  background: var(--color-inset);
+  box-shadow: inset 0 0 0 1px var(--color-border);
+  color: var(--color-text-primary);
+  font-family: inherit;
+  font-size: 12.5px;
+  outline: none;
+}
+
+.pickerSearch:focus-visible {
+  box-shadow: inset 0 0 0 1.5px var(--color-accent);
+}
+
+.pickerRows {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.pickerRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 30px;
+  flex-shrink: 0;
+  padding: 0 8px;
+  border: none;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 12.5px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pickerRow:hover {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.pickerRow[data-on] {
+  background: var(--color-accent-bg);
+  color: var(--color-text-primary);
+}
+
+.pickerName {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pickerCount {
+  flex: none;
+  font-size: var(--font-size-row-meta);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.pickerEmpty {
+  margin: 6px 8px;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+}
+
+.avatar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  color: var(--color-text-on-accent);
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin: 0 5px;
+  border-radius: 50%;
+}
+
+.statusMark {
+  flex: none;
+  display: inline-flex;
+  width: 18px;
+  justify-content: center;
+  color: var(--color-text-muted);
+}

@@ -12,7 +12,7 @@ import { predicateToCriteria, type FilterCriteria } from '../utils/filter-criter
 import { matchesFilterWithLookups, type FilterSettings } from '../utils/filter-match'
 import type { TodoNameLookups } from '../utils/filter'
 import { sharedMemoByKey } from '../utils/shared-memo'
-import { lookupsFor, useNumberCount, type NumberCount, type StatsBase } from './use-glance-data'
+import { lookupsFor, numberCountOf, useNumberCount, type NumberCount, type StatsBase } from './use-glance-data'
 
 /**
  * The chart widgets' data (D26 P8), over the glance widgets' shared base
@@ -120,7 +120,17 @@ export interface BreakdownData extends ChartTasks {
 /** A Breakdown's rows (`services/stats/breakdown`) over its filter's tasks, with its count columns. */
 export function useBreakdownData(base: StatsBase, config: BreakdownConfig): BreakdownData {
   const appRanges = useSettingsStore((s) => s.tabBadges)
-  const chart = useChartTasks(base, config.filter)
+  return breakdownDataOf(base, config, appRanges)
+}
+
+/**
+ * `useBreakdownData` outside a render (no hook inside): a Breakdown row's
+ * tasks taken again over another base — the review deck's lens toggle
+ * (item 10) on a row's review.
+ */
+export function breakdownDataOf(base: StatsBase, config: BreakdownConfig, appRanges: TabBadgeRanges): BreakdownData {
+  const count = numberCountOf(base, { filter: config.filter })
+  const chart: ChartTasks = { count, tasks: tasksOfMemo(count.ids.shown, base.todoById) }
   const columns = columnsMemo(config, appRanges)
   const criteria = columnCriteriaMemo(columns)
   const keeps = columnKeepsMemo(columns, criteria, chart.tasks, lookupsFor(base, ...criteria), base.ctx, base.markerSettings)

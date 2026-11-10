@@ -140,7 +140,8 @@ describe('TaskEditPopup — follow-up group', () => {
   it('create mode: Mark followed up stamps last = now and next = default', async () => {
     const { onCreate } = renderCreate()
     fireEvent.click(screen.getByRole('button', { name: 'Mark followed up' }))
-    expect(screen.getByText('✓ Today')).toBeInTheDocument()
+    // At rest the Last field reads as a row's date: Today.
+    expect(lastInput().closest('[data-words]')).toHaveTextContent('Today')
     fireEvent.click(screen.getByText('Create task'))
     await waitFor(() => expect(onCreate).toHaveBeenCalled())
     const partial = onCreate.mock.calls[0]![0]
@@ -182,7 +183,9 @@ describe('TaskEditPopup — follow-up group', () => {
     const todo = makeTodo({ id: 7, nextFollowupAt: day(2026, 10, 13) })
     const { onUpdate } = renderEdit(todo)
     expect(nextInput().value).toBe('Tue 13 Oct')
-    expect(screen.getByText('in 3 days')).toBeInTheDocument()
+    // At rest it reads as a row's date (the weekday within the week), the full date in the tooltip.
+    expect(nextInput().closest('[data-words]')).toHaveTextContent('Tue')
+    expect(nextInput().closest('[data-words]')).toHaveAttribute('title', 'Tuesday, October 13, 2026')
 
     fireEvent.change(nextInput(), { target: { value: 'whenever' } })
     expect(screen.getByText('Try 2w, 10d, 1m, fri, 24 Oct or 10/24')).toBeInTheDocument()

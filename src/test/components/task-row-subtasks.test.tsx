@@ -112,12 +112,55 @@ describe('TaskRow — Add subtask… without a checklist', () => {
     const dialog = popover()
     const add = within(dialog).getByRole('textbox', { name: 'New subtask' })
     expect(document.activeElement).toBe(add)
-    // Placed by the anchor hook, at the row (never at its off-screen start).
+    // Placed by the anchor hook, at the row's add mark (never at its off-screen start).
     expect(dialog.style.position).toBe('fixed')
     fireEvent.change(add, { target: { value: 'First line' } })
     await act(async () => { fireEvent.keyDown(add, { key: 'Enter' }) })
     await vi.waitFor(() => expect(count()).toHaveTextContent('0/1'))
     expect((await db.subtasks.where('todoId').equals(1).toArray()).map((s) => s.title)).toEqual(['First line'])
+  })
+})
+
+describe('TaskRow — the add-subtasks mark without a checklist', () => {
+  const add = () => screen.queryByRole('button', { name: 'Add subtasks' })
+
+  it('stands after the title of an open task with no subtasks, hidden until the row is hovered (CSS); a click opens the empty checklist on its add field', async () => {
+    await seed([])
+    render(<><TaskRow todo={todo()} /><RowPopoverHost /></>)
+    const mark = add()!
+    expect(mark).toHaveAttribute('data-row-cell', 'subtasks')
+    expect(mark.className).toMatch(/subtaskAdd/)
+    expect(mark.closest('[data-task-title]')).not.toBeNull()
+    fireEvent.click(mark)
+    const dialog = popover()
+    expect(document.activeElement).toBe(within(dialog).getByRole('textbox', { name: 'New subtask' }))
+    expect(mark).toHaveAttribute('aria-expanded', 'true')
+    expect(mark).toHaveAttribute('data-open')
+    fireEvent.change(document.activeElement!, { target: { value: 'First line' } })
+    await act(async () => { fireEvent.keyDown(document.activeElement!, { key: 'Enter' }) })
+    // The first subtask: the count takes the mark's place.
+    await vi.waitFor(() => expect(count()).toHaveTextContent('0/1'))
+    expect(add()).toBeNull()
+  })
+
+  it('is absent on a task with subtasks, a completed task and the drag ghost', async () => {
+    await seed(['a'])
+    const { unmount } = render(<><TaskRow todo={todo()} /><RowPopoverHost /></>)
+    expect(add()).toBeNull()
+    unmount()
+    await resetDb()
+    await seed([])
+    const done = render(<TaskRow todo={{ ...todo(), isCompleted: true, completedAt: new Date() }} />)
+    expect(add()).toBeNull()
+    done.unmount()
+    render(<TaskRow todo={todo()} ghost />)
+    expect(add()).toBeNull()
+  })
+
+  it('the Stacked zoom shows it in the details line', async () => {
+    await seed([])
+    render(<><TaskRow todo={todo()} stacked /><RowPopoverHost /></>)
+    expect(add()!.closest('[data-stacked-details]')).not.toBeNull()
   })
 })
 

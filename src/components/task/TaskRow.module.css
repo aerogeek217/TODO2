@@ -347,6 +347,19 @@
   opacity: 1;
 }
 
+/* The add-subtasks mark of a task with no checklist (`SubtaskAddButton`): revealed as the placeholders are, and while its popover is open. */
+.subtaskAdd {
+  opacity: 0;
+  transition: opacity 0.12s, background var(--transition-fast), color var(--transition-fast);
+}
+
+.row:hover .subtaskAdd,
+.row:focus-within .subtaskAdd,
+.rowDropdownOpen .subtaskAdd,
+.subtaskAdd[data-open] {
+  opacity: 1;
+}
+
 .cell:hover .ph {
   color: var(--color-text-secondary);
 }
@@ -631,6 +644,7 @@
 /* Touch screens have no hover: placeholders and the gutter's flag stay visible. */
 @media (hover: none) {
   .ph,
+  .subtaskAdd,
   .gutterFlag {
     opacity: 1;
   }

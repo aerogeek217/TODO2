@@ -186,7 +186,7 @@ export function AmbienceSection() {
           />
           <output className={own.sliderValue}>{motion}%</output>
         </SettingRow>
-        <SettingRow label="Seasons" help="Weather in the top bar and behind the cells, the season in the checkmark when you complete a task, and the aurora on winter nights.">
+        <SettingRow label="Seasons" help="Weather in the top bar, the season in the checkmark when you complete a task, and the aurora on winter nights.">
           <button
             type="button"
             role="switch"

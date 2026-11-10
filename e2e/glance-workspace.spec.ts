@@ -138,7 +138,7 @@ test('narrow section cells keep their parts inside: People keeps the names, Crea
   expect(await spill(people)).toEqual([])
   expect(await spill(trend)).toEqual([])
 
-  // People: each name keeps room to read (the bar and Priority go first).
+  // People: each name keeps room to read (the bar goes first).
   const names = await people.locator('[data-breakdown-row]').evaluateAll((rows) => rows.map((r) => r.firstElementChild!.getBoundingClientRect().width))
   for (const w of names) expect(w).toBeGreaterThan(60)
 })

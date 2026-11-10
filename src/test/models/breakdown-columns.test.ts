@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   breakdownColumns,
   columnIsLit,
+  defaultBreakdownColumns,
   derivedBreakdownColumns,
   DUE_COLUMN_COLOR,
   FOLLOWUP_COLUMN_COLOR,
@@ -9,57 +10,67 @@ import {
   liveBreakdownSort,
   newBreakdownColumnId,
   newBreakdownConfig,
+  pickBreakdownView,
   type BreakdownColumn,
 } from '../../models/chart-widgets'
 import { emptyPredicate, type TodoPredicate } from '../../models/filter-predicate'
 import type { TabBadgeRanges } from '../../models/list-definition'
 
 /**
- * A Breakdown's count columns (board BC, G3): a config from before them
- * reads its old Due / Follow-up ranges as columns — each split into a lit
- * late column and an unlit due-soon one — with no schema step.
+ * A Breakdown's count columns (board BC, G3; every column a count column):
+ * a new Breakdown writes Due and Follow-up as its `columns`; a config from
+ * before reads its old Due / Follow-up ranges as those two — overdue
+ * included — with no schema step.
  */
 
 const APP: TabBadgeRanges = { due: 3, followup: 0 }
 
-const range = (field: 'deadline' | 'followup', start: number | null, end: number): TodoPredicate => ({
+/** A range from any day before up to `end` days from today. */
+const by = (field: 'deadline' | 'followup', end: number): TodoPredicate => ({
   ...emptyPredicate(),
-  dates: { [field]: { match: 'range', start: start == null ? null : { kind: 'offset', days: start }, end: { kind: 'offset', days: end } } },
+  dates: { [field]: { match: 'range', start: null, end: { kind: 'offset', days: end } } },
 })
 
-const summary = (cols: readonly BreakdownColumn[]) => cols.map((c) => [c.id, c.name, c.litWhen, c.litAt])
+const summary = (cols: readonly BreakdownColumn[]) => cols.map((c) => [c.id, c.name, c.color, c.litWhen, c.litAt])
 
 describe('derivedBreakdownColumns: the old ranges as count columns', () => {
-  it('Settings’ ranges: Overdue (lit above 0) and Due soon (today … +N, never lit); Follow-up late and Follow-up due (today only at 0)', () => {
+  it('Settings’ ranges: Due (by today + N, overdue included) and Follow-up (by today + its N), each lit above 0 in its colour', () => {
     const cols = derivedBreakdownColumns(undefined, APP)
     expect(summary(cols)).toEqual([
-      ['overdue', 'Overdue', 'above', 0],
-      ['due-soon', 'Due soon', 'never', undefined],
-      ['followup-late', 'Follow-up late', 'above', 0],
-      ['followup-due', 'Follow-up due', 'never', undefined],
+      ['due', 'Due', DUE_COLUMN_COLOR, 'above', 0],
+      ['followup', 'Follow-up', FOLLOWUP_COLUMN_COLOR, 'above', 0],
     ])
-    expect(cols.map((c) => c.filter)).toEqual([
-      range('deadline', null, -1),
-      range('deadline', 0, 3),
-      range('followup', null, -1),
-      range('followup', 0, 0),
-    ])
-    expect(cols.map((c) => c.color)).toEqual([DUE_COLUMN_COLOR, DUE_COLUMN_COLOR, FOLLOWUP_COLUMN_COLOR, FOLLOWUP_COLUMN_COLOR])
+    expect(cols.map((c) => c.filter)).toEqual([by('deadline', 3), by('followup', 0)])
   })
 
-  it('`overdue` keeps only the late column; `off` drops both; its own range wins over Settings’, the other follows Settings', () => {
-    expect(summary(derivedBreakdownColumns({ due: 'overdue' }, APP)).map((c) => c[0])).toEqual(['overdue', 'followup-late', 'followup-due'])
-    expect(summary(derivedBreakdownColumns({ followup: 'off' }, APP)).map((c) => c[0])).toEqual(['overdue', 'due-soon'])
+  it('a range `off` drops its column; `overdue` counts only the late tasks (up to yesterday)', () => {
+    expect(derivedBreakdownColumns({ followup: 'off' }, APP).map((c) => c.id)).toEqual(['due'])
+    expect(derivedBreakdownColumns({ due: 'off' }, APP).map((c) => c.id)).toEqual(['followup'])
     expect(derivedBreakdownColumns('off', APP)).toEqual([])
-    expect(derivedBreakdownColumns({ due: 7 }, APP)[1]?.filter).toEqual(range('deadline', 0, 7))
-    expect(derivedBreakdownColumns(undefined, { due: 'off', followup: 'overdue' }).map((c) => c.id)).toEqual(['followup-late'])
+    const late = derivedBreakdownColumns({ due: 'overdue' }, APP)
+    expect(late.map((c) => [c.id, c.filter])).toEqual([['due', by('deadline', -1)], ['followup', by('followup', 0)]])
+    expect(derivedBreakdownColumns(undefined, { due: 'off', followup: 'overdue' }).map((c) => [c.id, c.filter])).toEqual([['followup', by('followup', -1)]])
   })
 
-  it('a config’s own columns win; without them (a new Breakdown too) the derived ones', () => {
+  it('its own range wins over Settings’; the other follows Settings', () => {
+    expect(derivedBreakdownColumns({ due: 7 }, APP).map((c) => c.filter)).toEqual([by('deadline', 7), by('followup', 0)])
+    expect(derivedBreakdownColumns({ followup: 5 }, { due: 'overdue', followup: 0 }).map((c) => c.filter)).toEqual([by('deadline', -1), by('followup', 5)])
+  })
+
+  it('a config’s own columns win; without them the derived ones', () => {
     const own: BreakdownColumn[] = [{ id: 'col-a', name: 'Waiting', color: '#7ec4bc', filter: emptyPredicate(), litWhen: 'never' }]
     expect(breakdownColumns({ ...newBreakdownConfig(emptyPredicate()), columns: own, badges: 'off' }, APP)).toBe(own)
-    expect(breakdownColumns(newBreakdownConfig(emptyPredicate()), APP)).toHaveLength(4)
+    expect(breakdownColumns(newBreakdownConfig(emptyPredicate()), APP).map((c) => c.id)).toEqual(['due', 'followup'])
     expect(breakdownColumns({ ...newBreakdownConfig(emptyPredicate()), columns: [] }, APP)).toEqual([])
+  })
+})
+
+describe('defaultBreakdownColumns: a new Breakdown’s', () => {
+  it('Due and Follow-up in Settings’ ranges of the moment, as ordinary columns', () => {
+    expect(defaultBreakdownColumns(APP)).toEqual(derivedBreakdownColumns(undefined, APP))
+    expect(defaultBreakdownColumns({ due: 'off', followup: 2 }).map((c) => [c.id, c.filter])).toEqual([['followup', by('followup', 2)]])
+    // Each a valid stored column id.
+    expect(defaultBreakdownColumns(APP).every((c) => isBreakdownColumnId(c.id))).toBe(true)
   })
 })
 
@@ -86,17 +97,31 @@ describe('liveBreakdownSort: a stored sort as the headings read it', () => {
 
   it('a fixed heading or a column it has: as stored; one it no longer has: the default order', () => {
     expect(liveBreakdownSort({ by: 'open', reversed: true }, derived)).toEqual({ by: 'open', reversed: true })
-    expect(liveBreakdownSort({ by: 'due-soon' }, derived)).toEqual({ by: 'due-soon' })
+    expect(liveBreakdownSort({ by: 'name' }, derived)).toEqual({ by: 'name' })
+    expect(liveBreakdownSort({ by: 'due' }, derived)).toEqual({ by: 'due' })
+    expect(liveBreakdownSort({ by: 'followup', reversed: true }, derived)).toEqual({ by: 'followup', reversed: true })
     expect(liveBreakdownSort({ by: 'col-gone' }, derived)).toBeUndefined()
     expect(liveBreakdownSort(undefined, derived)).toBeUndefined()
   })
 
-  it('the old Due / Follow-up columns’ sort (overdue included) reads as the late column, keeping its direction', () => {
-    expect(liveBreakdownSort({ by: 'due' }, derived)).toEqual({ by: 'overdue' })
-    expect(liveBreakdownSort({ by: 'followup', reversed: true }, derived)).toEqual({ by: 'followup-late', reversed: true })
-    // Without the late column: the default order.
-    expect(liveBreakdownSort({ by: 'due' }, derivedBreakdownColumns({ due: 'off' }, APP).map((c) => c.id))).toBeUndefined()
-    // A column of its own named so wins.
-    expect(liveBreakdownSort({ by: 'due' }, ['due', 'overdue'])).toEqual({ by: 'due' })
+  it('the old Priority column’s sort reads as the default order', () => {
+    expect(liveBreakdownSort({ by: 'priority' }, derived)).toBeUndefined()
+    expect(liveBreakdownSort({ by: 'priority', reversed: true }, [])).toBeUndefined()
+  })
+
+  it('the older derived columns’ sorts read as the Due / Follow-up column that holds their tasks, keeping the direction', () => {
+    expect(liveBreakdownSort({ by: 'overdue' }, derived)).toEqual({ by: 'due' })
+    expect(liveBreakdownSort({ by: 'due-soon', reversed: true }, derived)).toEqual({ by: 'due', reversed: true })
+    expect(liveBreakdownSort({ by: 'followup-late' }, derived)).toEqual({ by: 'followup' })
+    expect(liveBreakdownSort({ by: 'followup-due', reversed: true }, derived)).toEqual({ by: 'followup', reversed: true })
+    // Without that column: the default order.
+    expect(liveBreakdownSort({ by: 'overdue' }, derivedBreakdownColumns({ due: 'off' }, APP).map((c) => c.id))).toBeUndefined()
+    // Columns written under the older ids (edited before) keep their own sorts.
+    expect(liveBreakdownSort({ by: 'overdue' }, ['overdue', 'due-soon'])).toEqual({ by: 'overdue' })
+  })
+
+  it('a stored view keeps those sorts as they are (read at render, never a fix that marks the layout)', () => {
+    const sorts = { people: { by: 'priority' }, tags: { by: 'followup-late', reversed: true } }
+    expect(pickBreakdownView({ sorts })).toEqual({ config: { sorts }, fixed: false })
   })
 })

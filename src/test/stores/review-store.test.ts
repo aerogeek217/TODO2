@@ -66,20 +66,21 @@ describe('review-store', () => {
     expect(store()).toMatchObject({ open: false, source: null, ids: [], marks: {}, index: 0 })
   })
 
-  it('counts: followed up, and all reviewed once every task has a mark', () => {
-    const yes = () => true
-    expect(followedUpCount({ 1: 'done', 2: 'skipped' }, [1, 2, 3], yes)).toBe(1)
-    expect(allReviewed({ 1: 'done', 2: 'skipped' }, [1, 2, 3], yes)).toBe(false)
-    expect(allReviewed({ 1: 'done', 2: 'skipped', 3: 'done' }, [1, 2, 3], yes)).toBe(true)
-    expect(allReviewed({}, [], yes)).toBe(false)
+  it('counts: the tasks followed up today, and all reviewed once every task is followed up today or skipped', () => {
+    const today = (id: number) => id === 1 || id === 3
+    expect(followedUpCount({ 2: 'skipped' }, [1, 2, 3], (id) => id === 1)).toBe(1)
+    expect(allReviewed({ 2: 'skipped' }, [1, 2, 3], (id) => id === 1)).toBe(false)
+    expect(allReviewed({ 2: 'skipped' }, [1, 2, 3], today)).toBe(true)
+    expect(allReviewed({}, [], today)).toBe(false)
   })
 
-  it('a done mark shows only while the task is still followed up today (an undo takes it away)', () => {
-    const marks = { 1: 'done', 2: 'done', 3: 'skipped' } as const
-    const onlyOne = (id: number) => id === 1
-    expect([1, 2, 3].map((id) => shownMark(marks, id, onlyOne))).toEqual(['done', undefined, 'skipped'])
-    expect(followedUpCount(marks, [1, 2, 3], onlyOne)).toBe(1)
-    expect(allReviewed(marks, [1, 2, 3], onlyOne)).toBe(false)
+  it('✓ (item 11): every task followed up today, here or elsewhere; – only while not followed up today', () => {
+    const marks = { 2: 'done', 3: 'skipped', 4: 'skipped' } as const
+    // 1: followed up today outside the review; 2: followed up here, then undone; 3: skipped; 4: skipped, then followed up today.
+    const today = (id: number) => id === 1 || id === 4
+    expect([1, 2, 3, 4, 5].map((id) => shownMark(marks, id, today))).toEqual(['done', undefined, 'skipped', 'done', undefined])
+    expect(followedUpCount(marks, [1, 2, 3, 4, 5], today)).toBe(2)
+    expect(allReviewed(marks, [1, 3, 4], today)).toBe(true)
   })
 
   it('next drafts: kept per task, null drops one', () => {
@@ -100,18 +101,23 @@ describe('unrecordedDraftIds', () => {
 
 describe('pruning', () => {
   it('drops gone tasks, moves the dividers with them and drops an emptied group', () => {
-    const queue = { ids: [1, 2, 3, 4, 5], dividers: [{ index: 0, label: 'A' }, { index: 2, label: 'B' }, { index: 3, label: 'C' }], index: 4 }
+    const ids = [1, 2, 3, 4, 5]
+    const queue = { ids, order: ids, dividers: [{ index: 0, label: 'A' }, { index: 2, label: 'B' }, { index: 3, label: 'C' }], index: 4 }
     expect(pruneQueue(queue, new Set([1, 2, 4, 5]))).toEqual({
       ids: [1, 2, 4, 5],
+      order: [1, 2, 4, 5],
       dividers: [{ index: 0, label: 'A' }, { index: 2, label: 'C' }],
       index: 3,
     })
   })
 
-  it('the current task gone: the card after it (or the last one)', () => {
-    expect(pruneQueue({ ids: [1, 2, 3], dividers: [], index: 1 }, new Set([1, 3])).index).toBe(1)
-    expect(pruneQueue({ ids: [1, 2, 3], dividers: [], index: 2 }, new Set([1, 2])).index).toBe(1)
-    expect(pruneQueue({ ids: [1, 2], dividers: [], index: 1 }, new Set())).toEqual({ ids: [], dividers: [], index: 0 })
+  it('the current task gone: the card after it in the order shown (or the last one)', () => {
+    const q = (ids: number[], index: number, order = ids) => ({ ids, order, dividers: [], index })
+    expect(pruneQueue(q([1, 2, 3], 1), new Set([1, 3])).index).toBe(1)
+    expect(pruneQueue(q([1, 2, 3], 2), new Set([1, 2])).index).toBe(1)
+    expect(pruneQueue(q([1, 2], 1), new Set())).toEqual({ ids: [], order: [], dividers: [], index: 0 })
+    // Sorted: the order shown keeps its sort; the place moves to the next shown.
+    expect(pruneQueue(q([1, 2, 3], 0, [3, 1, 2]), new Set([1, 2]))).toMatchObject({ ids: [1, 2], order: [1, 2], index: 0 })
   })
 
   it('a task deleted while the review is open leaves the queue; a completed one stays', () => {

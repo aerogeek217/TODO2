@@ -399,25 +399,33 @@
   white-space: nowrap;
 }
 
-.priority {
-  display: flex;
-  justify-content: flex-end;
-}
-
 .countCell {
   display: flex;
   justify-content: center;
+  min-width: 0;
 }
 
-/* The row's actions (board BC): Review and a person's envelope, two matching icon buttons at its end. */
-.actionsCell {
+/* The row's actions: Review and a person's envelope, two matching icon buttons right after its name
+   (the name ellipsizes before them). Shown while the row is hovered or holds the focus, or a menu is
+   open from them; opacity only, so nothing shifts. Always shown without hover (touch). */
+.nameActions {
   display: flex;
-  justify-content: flex-end;
+  flex: none;
   gap: 2px;
+  opacity: 0;
+  transition: opacity 120ms ease;
 }
 
-.actionGap {
-  width: 24px;
+.row:hover .nameActions,
+.row:focus-within .nameActions,
+.nameActions:has([aria-expanded='true']) {
+  opacity: 1;
+}
+
+@media (hover: none) {
+  .nameActions {
+    opacity: 1;
+  }
 }
 
 .dash {
@@ -482,23 +490,13 @@ button.badge:focus-visible {
   color: var(--color-text-primary);
 }
 
-.srOnly {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-/* Last, over the rules above: a narrow table (a donut beside it, a slim cell) keeps the names and counts: the bar and Priority go. */
+/* Last, over the rules above: a narrow table (a donut beside it, a slim cell) keeps the names and counts: the bar goes. */
 @container (max-width: 400px) {
   .grid {
     grid-template-columns: var(--bd-cols-narrow);
   }
 
-  [data-col='bar'],
-  [data-col='priority'] {
+  [data-col='bar'] {
     display: none;
   }
 

@@ -288,7 +288,7 @@ test.describe('desktop', () => {
     await seedWorkspace(page, SEED)
     await filterToAnn(page)
     await tray(page).getByRole('button', { name: '2 of 4 open tasks shown. Show them' }).click()
-    await panel(page).locator('[data-todo-id]').filter({ hasText: 'Ann call' }).locator('[data-task-title]').click()
+    await panel(page).locator('[data-todo-id]').filter({ hasText: 'Ann call' }).locator('[data-title-text]').click()
     const editor = page.getByRole('dialog', { name: 'Edit task' })
     await expect(editor).toBeVisible()
     expect(await onTop(editor.getByRole('button', { name: 'Done' }))).toBe(true)

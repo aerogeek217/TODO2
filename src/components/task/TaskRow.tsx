@@ -22,7 +22,7 @@ import { statusNotesPreview } from '../../utils/notes-preview'
 import { newestStatusUpdate, useStatusUpdateStore } from '../../stores/status-update-store'
 import { useSubtaskStore } from '../../stores/subtask-store'
 import { subtaskCount } from '../../utils/subtasks'
-import { SubtaskCountButton, SubtaskCountStatic } from './subtasks/SubtaskCountButton'
+import { SubtaskAddButton, SubtaskCountButton, SubtaskCountStatic } from './subtasks/SubtaskCountButton'
 import { StackedDetails } from './StackedDetails'
 import {
   DatesCell, MarkerGutter, MarkerGutterStatic, NotesCell, NotesGlyph, PeopleCell, RowCheckbox, StatusCell, TagsCell, StatusMenu } from './row-cells'
@@ -97,6 +97,8 @@ export const TaskRow = memo(function TaskRow({
   // The checklist's `2/5` after the title (cr28): the row re-renders when the task's checklist changes.
   const subtasks = useSubtaskStore((s) => s.byTodo.get(todo.id))
   const count = subtasks && subtasks.length > 0 ? subtaskCount(subtasks) : null
+  // No checklist on an open task: the add mark stands where the count would be (shown on hover), and anchors the popover.
+  const canAddSubtasks = count === null && !ghost && !todo.isCompleted
 
   const {
     bulk, handleToggleComplete, assignedTags, allTags, tagPickerOpen, toggleTagPicker, closeTagPicker, toggleTag, createTag,
@@ -115,7 +117,7 @@ export const TaskRow = memo(function TaskRow({
     useFallbackPeopleAnchor: !stacked && !hasPeople,
     // Without a checklist there is no count: the popover (Add subtask…) opens at the row.
     fallbackSubtasksAnchorRef: rowRef,
-    useFallbackSubtasksAnchor: count === null,
+    useFallbackSubtasksAnchor: count === null && !canAddSubtasks,
   })
 
   // The notes cell's first line (the row re-renders only when the task's newest changes).
@@ -237,7 +239,7 @@ export const TaskRow = memo(function TaskRow({
         />
       ) : (
         <span
-          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${count && !stacked ? styles.titleWithCount : ''}`}
+          className={`${styles.title} ${cue.semibold ? styles.titleSemibold : ''} ${todo.isCompleted ? styles.completedTitle : ''} ${(count || canAddSubtasks) && !stacked ? styles.titleWithCount : ''}`}
           data-task-title={todo.title}
           {...titleTipProps}
           onPointerEnter={onTitlePointerEnter}
@@ -256,6 +258,9 @@ export const TaskRow = memo(function TaskRow({
           {count && !stacked && (ghost
             ? <SubtaskCountStatic count={count} />
             : <SubtaskCountButton count={count} open={subtasksOpen} buttonRef={subtasksRef} onClick={toggleSubtasks} />)}
+          {canAddSubtasks && !stacked && (
+            <SubtaskAddButton open={subtasksOpen} buttonRef={subtasksRef} onClick={toggleSubtasks} className={styles.subtaskAdd} />
+          )}
           {titleTip}
         </span>
       )}
@@ -267,6 +272,7 @@ export const TaskRow = memo(function TaskRow({
           people={people}
           tags={assignedTags}
           count={count}
+          canAddSubtasks={canAddSubtasks}
           ghost={ghost}
           deadlineInputRef={deadlineInputRef}
           onOpenDue={openDeadlinePicker}

@@ -37,7 +37,7 @@ describe('glance widget kinds', () => {
     expect(glance).toEqual(['number', 'breakdown', 'pivot', 'tagMap', 'trend', 'pulse'])
     expect(glance.every(isGlanceKind)).toBe(true)
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].fitHeight)).toEqual(['number'])
-    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'notes'])
+    expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'notes', 'review'])
     // Numbers & charts (D26): the glance widgets, then the Calendar, the Eisenhower and the Neglect map — whole widgets, not glance ones.
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'glance')).toEqual([...glance, 'calendar', 'eisenhower', 'neglect'])
     expect(['calendar', 'eisenhower', 'neglect'].some((k) => isWidgetKind(k) && isGlanceKind(k))).toBe(false)
@@ -115,6 +115,9 @@ describe('glance widget kinds', () => {
     for (const config of [
       numberTab('t').config,
       numberTab('t', 'overdue', { breakdown: 'tags', ignoreLens: true, litWhen: 'below', litAt: 12, compare: 'none', color: '#abc' }).config,
+      // The breakdowns that came later (no schema step): status and priority.
+      numberTab('t', 'open', { breakdown: 'status' }).config,
+      numberTab('t', 'open', { breakdown: 'priority' }).config,
       numberTab('t', 'open', { name: '', filter: { ...emptyPredicate(), expression: { kind: 'tag', id: 4 } } }).config,
     ]) {
       const good = layoutRow({ id: 't', kind: 'number', config })
@@ -134,7 +137,8 @@ describe('glance widget kinds', () => {
     ['litAt', 1.5, { litAt: 0 }],
     ['compare', 'lastYear', { compare: 'yesterday' }],
     ['ignoreLens', false, {}],
-    ['breakdown', 'status', {}],
+    ['breakdown', 'person', {}],
+    ['breakdown', 'due', {}],
   ] as const)('a Number’s %s %j is reset (a fix)', (key, value, reset) => {
     const base = numberTab('t', 'overdue').config
     const row = layoutRow({ id: 't', kind: 'number', config: { ...base, [key]: value } })

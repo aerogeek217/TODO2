@@ -1,14 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import type { Person, Tag, RecurrenceType } from '../../models'
 import { ChipSelector } from '../shared/ChipSelector'
 import { NEUTRAL_PERSON_COLOR } from '../../constants'
 import { personPickerItems, PERSON_PICKER_PLACEHOLDER } from '../../utils/person'
-import { isInLayerAbove } from '../../utils/dom-layers'
-import { useLatestRef } from '../../hooks/use-latest-ref'
+import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { DeadlinePicker } from '../shared/DeadlinePicker'
-import styles from './TaskEditPopup.module.css'
+import { PlusIcon, RepeatIcon } from '../shared/icons'
 import { byName } from '../../utils/sort-order'
-import { PopoverRoot } from '../shared/PopoverRoot'
+import { FactSection } from './TaskFacts'
+import styles from './TaskDetails.module.css'
 
 type MetadataDropdown = 'people' | 'tags'
 
@@ -18,6 +18,8 @@ interface TaskEditMetadataProps {
   recurrenceType: RecurrenceType | ''
   onDeadlineChange: (next: Date | null) => void
   onRecurrenceChange: (e: React.ChangeEvent<HTMLSelectElement>) => void
+  /** The due date's state, as its row colours it (`row-date-state.dueState`). */
+  dueTone?: 'past' | 'soon'
 
   // People & tags
   assignedPeople: Person[]
@@ -28,89 +30,43 @@ interface TaskEditMetadataProps {
   onToggleTag: (id: number) => void
   onCreatePerson?: (name: string) => Promise<void>
   onCreateTag?: (name: string) => Promise<void>
-
-  /** A people / tags picker opened or closed (the host's scroll body stops scrolling under it). */
-  onDropdownChange?: (open: boolean) => void
 }
 
 /**
- * The task layout's fields block (D26 BB / BG — the task editor and the
- * review card alike): DUE with its repeat, PEOPLE and TAGS, in the inset
- * container. A chip's name opens its picker, its × unassigns; + Add opens
- * the picker. A press outside a picker closes it — not one in a layer
- * stacked above (a person's / tag's menu or the dialog it opened). The
- * Follow-up group is a block of its own, last (`FollowupBlock`).
+ * The facts rail's People, Tags and Due (board BJ — the task editor and the
+ * review card alike), in that order between Status and Follow-up. A chip's
+ * name opens its picker, its × unassigns; + opens the picker. The picker
+ * is placed by `AnchoredPicker` under the section's chips (flipped above
+ * near the bottom, clamped inside the viewport, following them as the rail
+ * scrolls); a press outside closes it — not one in a layer stacked above
+ * (a person's / tag's menu or the dialog it opened), and not one on the
+ * chips, whose own toggle runs. Due: the date in the rows' words (its
+ * tooltip the full date), a click opens the date picker, × clears it; its
+ * repeat beside it.
  */
 export function TaskEditMetadata({
-  deadline, recurrenceType,
+  deadline, recurrenceType, dueTone,
   onDeadlineChange, onRecurrenceChange,
   assignedPeople, assignedTags, allPeople, allTags,
   onTogglePerson, onToggleTag,
   onCreatePerson, onCreateTag,
-  onDropdownChange,
 }: TaskEditMetadataProps) {
-  const [openDropdown, setOpenDropdownState] = useState<MetadataDropdown | null>(null)
-  const sectionRef = useRef<HTMLDivElement>(null)
+  const [openDropdown, setOpenDropdown] = useState<MetadataDropdown | null>(null)
   const peopleRef = useRef<HTMLDivElement>(null)
   const tagsRef = useRef<HTMLDivElement>(null)
-  const onDropdownChangeRef = useLatestRef(onDropdownChange)
-  const setOpenDropdown = (next: MetadataDropdown | null) => {
-    setOpenDropdownState(next)
-    onDropdownChange?.(next !== null)
-  }
   const toggleDropdown = (which: MetadataDropdown) => setOpenDropdown(openDropdown === which ? null : which)
-
-  // Close the picker on an outside press — not one in a layer stacked above.
-  useEffect(() => {
-    if (!openDropdown) return
-    const handler = (e: MouseEvent) => {
-      const target = e.target as Node
-      const section = sectionRef.current
-      if (section && isInLayerAbove(section, target)) return
-      const own = openDropdown === 'people' ? peopleRef.current : tagsRef.current
-      if (own && !own.contains(target)) {
-        setOpenDropdownState(null)
-        onDropdownChangeRef.current?.(false)
-      }
-    }
-    document.addEventListener('mousedown', handler, true)
-    return () => document.removeEventListener('mousedown', handler, true)
-  }, [openDropdown, onDropdownChangeRef])
+  const close = () => setOpenDropdown(null)
 
   const assignedPeopleIds = new Set(assignedPeople.flatMap((p) => (p.id != null ? [p.id] : [])))
   const assignedTagIds = new Set(assignedTags.flatMap((t) => (t.id != null ? [t.id] : [])))
 
   return (
-    <div className={styles.metaSection} ref={sectionRef} data-task-fields="">
-      {/* Due date */}
-      <div className={styles.metaRow}>
-        <span className={styles.metaLabel}>Due</span>
-        <DeadlinePicker value={deadline} onChange={onDeadlineChange} />
-        {deadline && (
-          <select
-            className={styles.personSelect}
-            value={recurrenceType}
-            onChange={onRecurrenceChange}
-            aria-label="Repeat"
-          >
-            <option value="">No repeat</option>
-            <option value="daily">Daily</option>
-            <option value="weekly">Weekly</option>
-            <option value="biweekly">Biweekly</option>
-            <option value="monthly">Monthly</option>
-            <option value="quarterly">Quarterly</option>
-            <option value="yearly">Yearly</option>
-          </select>
-        )}
-      </div>
-
-      {/* People */}
-      <div className={styles.metaRow}>
-        <span className={styles.metaLabel}>People</span>
-        <div className={styles.chipArea} ref={peopleRef}>
+    <>
+      <FactSection fact="people">
+        <div className={styles.chipArea} ref={peopleRef} data-task-people="">
           {/* A chip: its name opens the picker, its × (a button of its own, beside it) unassigns. */}
           {assignedPeople.map((person) => (
-            <span key={`p-${person.id}`} className={styles.personTag}>
+            <span key={`p-${person.id}`} className={styles.personChip}>
               <button type="button" className={styles.chipOpen}
                 onClick={() => toggleDropdown('people')}>
                 <span className={styles.personAvatar} style={{ background: person.color || NEUTRAL_PERSON_COLOR }} aria-hidden="true">
@@ -122,31 +78,33 @@ export function TaskEditMetadata({
                 onClick={() => { if (person.id != null) onTogglePerson(person.id) }}>&times;</button>
             </span>
           ))}
-          <button type="button" className={styles.chipAddBtn}
+          <button type="button" className={styles.chipAdd} aria-label="Add person" title="Add person"
+            aria-expanded={openDropdown === 'people'}
             onClick={() => toggleDropdown('people')}>
-            + Add
+            <PlusIcon size={12} strokeWidth={2} />
+            {assignedPeople.length === 0 && <span>Add</span>}
           </button>
           {openDropdown === 'people' && (
-            <PopoverRoot className={styles.chipDropdown}>
-              <ChipSelector
-                items={personPickerItems(allPeople)}
-                selectedIds={assignedPeopleIds}
-                onToggle={onTogglePerson}
-                onCreate={onCreatePerson}
-                onClose={() => setOpenDropdown(null)}
-                avatars
-                entityMenu="person"
-                placeholder={PERSON_PICKER_PLACEHOLDER}
-              />
-            </PopoverRoot>
+            <AnchoredPicker anchorRef={peopleRef} onClose={close}>
+              <div className={styles.chipDropdown}>
+                <ChipSelector
+                  items={personPickerItems(allPeople)}
+                  selectedIds={assignedPeopleIds}
+                  onToggle={onTogglePerson}
+                  onCreate={onCreatePerson}
+                  onClose={close}
+                  avatars
+                  entityMenu="person"
+                  placeholder={PERSON_PICKER_PLACEHOLDER}
+                />
+              </div>
+            </AnchoredPicker>
           )}
         </div>
-      </div>
+      </FactSection>
 
-      {/* Tags */}
-      <div className={styles.metaRow}>
-        <span className={styles.metaLabel}>Tags</span>
-        <div className={styles.chipArea} ref={tagsRef}>
+      <FactSection fact="tags">
+        <div className={styles.chipArea} ref={tagsRef} data-task-tags="">
           {assignedTags.map((tag) => (
             <span key={`t-${tag.id}`} className={styles.tagChip} style={{ color: tag.color, borderColor: tag.color }}>
               <button type="button" className={styles.chipOpen}
@@ -157,25 +115,54 @@ export function TaskEditMetadata({
                 onClick={() => { if (tag.id != null) onToggleTag(tag.id) }}>&times;</button>
             </span>
           ))}
-          <button type="button" className={styles.chipAddBtn}
+          <button type="button" className={styles.chipAdd} aria-label="Add tag" title="Add tag"
+            aria-expanded={openDropdown === 'tags'}
             onClick={() => toggleDropdown('tags')}>
-            + Add
+            <PlusIcon size={12} strokeWidth={2} />
+            {assignedTags.length === 0 && <span>Add</span>}
           </button>
           {openDropdown === 'tags' && (
-            <PopoverRoot className={styles.chipDropdown}>
-              <ChipSelector
-                items={allTags.toSorted(byName).flatMap((t) => (t.id != null ? [{ id: t.id, name: t.name, color: t.color }] : []))}
-                selectedIds={assignedTagIds}
-                onToggle={onToggleTag}
-                onCreate={onCreateTag}
-                onClose={() => setOpenDropdown(null)}
-                placeholder="Search tags..."
-                entityMenu="tag"
-              />
-            </PopoverRoot>
+            <AnchoredPicker anchorRef={tagsRef} onClose={close}>
+              <div className={styles.chipDropdown}>
+                <ChipSelector
+                  items={allTags.toSorted(byName).flatMap((t) => (t.id != null ? [{ id: t.id, name: t.name, color: t.color }] : []))}
+                  selectedIds={assignedTagIds}
+                  onToggle={onToggleTag}
+                  onCreate={onCreateTag}
+                  onClose={close}
+                  placeholder="Search tags..."
+                  entityMenu="tag"
+                />
+              </div>
+            </AnchoredPicker>
           )}
         </div>
-      </div>
-    </div>
+      </FactSection>
+
+      <FactSection fact="due">
+        <div className={styles.dueLine}>
+          <DeadlinePicker value={deadline} onChange={onDeadlineChange} tone={dueTone} />
+          {deadline && (
+            <label className={styles.repeat}>
+              <RepeatIcon size={11} />
+              <select
+                className={styles.repeatSelect}
+                value={recurrenceType}
+                onChange={onRecurrenceChange}
+                aria-label="Repeat"
+              >
+                <option value="">No repeat</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="biweekly">Biweekly</option>
+                <option value="monthly">Monthly</option>
+                <option value="quarterly">Quarterly</option>
+                <option value="yearly">Yearly</option>
+              </select>
+            </label>
+          )}
+        </div>
+      </FactSection>
+    </>
   )
 }

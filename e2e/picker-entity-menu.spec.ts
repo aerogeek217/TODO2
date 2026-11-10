@@ -184,8 +184,9 @@ test('the task editor’s people picker: Delete… asks on top and the picker st
   await seedTaskList(page, SEED)
   await taskRowByTitle(page, 'Call the plumber').locator('span[data-task-title="Call the plumber"]').dblclick()
   const editor = page.getByRole('dialog', { name: 'Edit task' })
-  await editor.getByRole('button', { name: '+ Add' }).first().click()
-  const options = editor.getByRole('listbox')
+  await editor.getByRole('button', { name: 'Add person' }).click()
+  // The picker is placed by `AnchoredPicker`, portaled out of the editor.
+  const options = page.locator('[data-anchored-picker]').getByRole('listbox')
   await options.getByRole('option', { name: 'Ben Ortiz' }).click({ button: 'right' })
   await page.getByRole('menu', { name: '@Ben Ortiz' }).getByRole('menuitem', { name: 'Delete…' }).click()
   const confirm = page.getByRole('dialog', { name: 'Delete person' })
@@ -193,5 +194,5 @@ test('the task editor’s people picker: Delete… asks on top and the picker st
   await confirm.getByRole('button', { name: 'Delete' }).click()
   await expect(options.getByRole('option', { name: 'Ben Ortiz' })).toHaveCount(0)
   await expect(options.getByRole('option', { name: 'Alice Chen' })).toBeVisible()
-  await expect(editor.getByRole('combobox')).toBeFocused()
+  await expect(page.locator('[data-anchored-picker]').getByRole('combobox')).toBeFocused()
 })

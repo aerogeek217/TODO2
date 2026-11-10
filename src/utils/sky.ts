@@ -90,8 +90,8 @@ const LIGHT: Readonly<Record<SkyStrength, number>> = { whisper: 0.6, subtle: 1, 
 const SOFT: Readonly<Record<SkyStrength, number>> = { whisper: 0.4, subtle: 0.68, vivid: 1 }
 /** The clouds, fainter still at Whisper. */
 const CLOUDS: Readonly<Record<SkyStrength, number>> = { whisper: 0.27, subtle: 0.68, vivid: 1 }
-/** The weather behind the cells. */
-const BEHIND: Readonly<Record<SkyStrength, number>> = { whisper: 0.54, subtle: 0.77, vivid: 0.9 }
+/** The stars, the planet and the sky events (fainter at Whisper, never gone). */
+const STARS: Readonly<Record<SkyStrength, number>> = { whisper: 0.75, subtle: 0.88, vivid: 1 }
 /** More clouds in the grey months. */
 const CLOUD_COVER: Readonly<Record<Season, number>> = { winter: 0.95, autumn: 0.85, spring: 0.65, summer: 0.45 }
 /** Mist is heaviest in spring and autumn. */
@@ -119,7 +119,10 @@ export interface SkyScene {
   night: number
   /** The angle the sunbeam falls at, degrees (leaning away from the sun). */
   beamAngle: number
-  /** What falls in the bar and behind the cells; `null` when Seasons is off. */
+  /** The evening planet's place (as the moon's), drawn when `opacity.planet` > 0. */
+  planetX: number
+  planetY: number
+  /** What falls in the top bar; `null` when Seasons is off. */
   weather: WeatherKind | null
   /** Each layer's opacity, Sky strength and Header motion applied (0 = not drawn). */
   opacity: {
@@ -127,6 +130,8 @@ export interface SkyScene {
     sunGlow: number
     sunDisc: number
     stars: number
+    /** The steady evening planet (some nights, the dark theme only). */
+    planet: number
     moon: number
     clouds: number
     aurora: number
@@ -135,9 +140,13 @@ export interface SkyScene {
     lamp: number
     /** The bar's weather particles. */
     weather: number
-    /** The weather behind the cells. */
-    behind: number
   }
+  /**
+   * How visible each rare sky event would be now (0 = it may not show):
+   * the shooting star and the UFO in the dark sky (the shooting star in the
+   * dark theme only, as the stars), the airplane by full day.
+   */
+  events: { shootingStar: number; ufo: number; airplane: number }
   /** The bright point on the hairline: under the sun by day, the moon by night; `null` when neither shows. */
   hairline: { x: number; color: CssColor; alpha: number; glowAlpha: number } | null
 }
@@ -159,6 +168,22 @@ function nightProgress(day: SunDay, hours: number): number {
   if (day.polar) return hours / 24
   const h = hours < day.rise ? hours + 24 : hours
   return (h - day.set) / (24 - (day.set - day.rise))
+}
+
+/** The local day's number since the epoch. */
+function localDayNumber(d: Date): number {
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000)
+}
+
+/**
+ * Whether the planet shows tonight: about three nights in five, the same all
+ * night — keyed by the evening's date (the small hours belong to the night
+ * before) — and a little to one side or the other of its usual path.
+ */
+export function planetTonight(now: Date): { shows: boolean; offset: number } {
+  const evening = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours() - 12)
+  const h = Math.imul(localDayNumber(evening) ^ 0x5bd1e995, 2654435761) >>> 0
+  return { shows: h % 100 < 60, offset: ((h >>> 8) % 1000) / 10_000 }
 }
 
 /**
@@ -190,6 +215,16 @@ export function skyScene(now: Date, place: AmbiencePlace, settings: AmbienceSett
   const sunUp = clamp01((altitude + 3) / 5)
   const moonUp = clamp01((-altitude - 3) / 6)
   const lampK = clamp01(-altitude / 8)
+  // The stars, the planet and the events: scaled by Sky strength, gone at Header motion 0.
+  const starK = STARS[strength] * clamp01(motion * 2)
+  // The planet: up from dusk low mid-bar (right of the filter tray, where the
+  // bar is mostly empty), drifting toward the sunset's side and down by the
+  // night's last quarter — always right of the moon, which starts at the left.
+  const tonight = planetTonight(now)
+  const planetArc = clamp01(nf / 0.75)
+  const planetX = 0.5 + tonight.offset + nf * 0.4
+  const planetY = 34 - Math.sin(planetArc * Math.PI) * 18
+  const planetUp = tonight.shows ? clamp01((-altitude - 2) / 4) * clamp01((0.75 - nf) / 0.12) : 0
   const sinceRise = hours - day.rise
   const mistK = day.polar || sinceRise < -0.5 || sinceRise > 2 ? 0 : sinceRise < 0.3 ? (sinceRise + 0.5) / 0.8 : 1 - (sinceRise - 0.3) / 1.7
   const beamK = clamp01(1 - Math.abs(altitude - 5) / 10)
@@ -223,20 +258,28 @@ export function skyScene(now: Date, place: AmbiencePlace, settings: AmbienceSett
     glow,
     night,
     beamAngle: 90 + (clamp01(frac) - 0.5) * 80,
+    planetX,
+    planetY,
     weather,
     opacity: {
       sky: SKY_SHOW[strength],
       sunGlow: clamp01(sunUp * 0.8 * motion * SKY_SHOW[strength] * 2.5),
       sunDisc: clamp01(sunUp * 0.38 * motion),
-      stars: dark ? clamp01(night * 0.85 * motion) : 0,
+      stars: dark ? clamp01(night * starK) : 0,
+      planet: dark ? clamp01(planetUp * starK) : 0,
       moon: clamp01(moonUp * (dark ? 0.5 : 0.4) * motion * 1.4),
-      clouds: clamp01(CLOUD_COVER[season] * motion * 0.5 * CLOUDS[strength]),
+      // Daytime things: the clouds, and the leaves, petals and seeds, fade out through dusk (gone by full night); snow keeps falling, fireflies come out.
+      clouds: clamp01(CLOUD_COVER[season] * motion * 0.5 * CLOUDS[strength] * (1 - night)),
       aurora: seasons && winter ? clamp01(night * motion * 1.4 * SOFT[strength]) : 0,
       mist: clamp01(mistK * MIST_SEASON[season] * motion * 2.2 * SOFT[strength]),
       sunbeam: clamp01(beamK * SOFT[strength]),
       lamp: clamp01(lampK * LIGHT[strength]),
-      weather: seasons ? clamp01(motion) : 0,
-      behind: seasons ? BEHIND[strength] : 0,
+      weather: seasons ? clamp01(motion * (weather === 'flake' || weather === 'firefly' ? 1 : 1 - night)) : 0,
+    },
+    events: {
+      shootingStar: dark && night > 0.5 ? clamp01(starK) : 0,
+      ufo: night > 0.5 ? clamp01(starK) : 0,
+      airplane: altitude > 6 ? clamp01(starK) : 0,
     },
     hairline,
   }

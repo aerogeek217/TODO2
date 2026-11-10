@@ -1,15 +1,19 @@
 import { useMemo, type MouseEvent } from 'react'
+import { DEFAULT_STATUS_ICON } from '../../../models'
 import { DEFAULT_NUMBER_BREAKDOWN } from '../../../models/glance-widgets'
 import type { NumberTab } from '../../../models/workspace-layout'
 import { useNumberCount, useNumberHistory, useStatsBase } from '../../../hooks/use-glance-data'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
+import { PRIORITY_GROUP_RINGS } from '../../../services/stats/breakdown'
 import { historyDelta } from '../../../services/stats/number-count'
 import { numberBreakdown, type BreakdownEntry } from '../../../services/stats/number-breakdown'
 import { useChipNames } from '../../shared/filters/filter-menu'
+import { PriorityRing } from '../../shared/PriorityRing'
+import { StatusIcon } from '../../shared/StatusIcon'
 import { approximateNote, countOf, deltaLabel, numberDescription } from './glance-copy'
 import { glanceDrill, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { numberLines } from './glance-summary'
-import { breakdownDrill, numberDrill } from './glance-drills'
+import { breakdownDrill, numberDrill, type NumberBreakdownBy } from './glance-drills'
 import type { OnGlanceDrill } from './glance-types'
 import { GlanceFrame } from './GlanceFrame'
 import { WidgetTopLine } from '../WidgetTopLine'
@@ -18,16 +22,37 @@ import { numberColors } from './number-colors'
 import { GoalNumber, GroupNumber, ListNumber, OldestNumber, ShareNumber } from './NumberShapes'
 import styles from './NumberWidget.module.css'
 
-/** The large face's breakdown lists this many people / tags; the rest fold into one line. */
+/** The large face's breakdown lists this many lines; the rest fold into one line. */
 export const BREAKDOWN_SHOWN = 5
 
+/** The breakdown's list name: `Overdue by person`. */
+const BY_WORDS: Record<NumberBreakdownBy, string> = { people: 'person', tags: 'tag', status: 'status', priority: 'priority' }
+
+/** What leads a breakdown line: a status's glyph, a priority group's ring (as on a task's checkbox), else a dot in its colour. */
+function EntryMark({ entry }: { entry: BreakdownEntry }) {
+  const mark = entry.mark
+  if (mark?.kind === 'status') {
+    return <span className={styles.breakdownMark} style={{ color: entry.color }} aria-hidden="true"><StatusIcon icon={mark.icon ?? DEFAULT_STATUS_ICON} filled /></span>
+  }
+  if (mark?.kind === 'priority') {
+    return (
+      <span className={styles.breakdownRing} aria-hidden="true" data-priority={mark.group}>
+        <span className={styles.breakdownRingBorder} />
+        <PriorityRing summary={PRIORITY_GROUP_RINGS[mark.group]} completed={false} size={14} />
+      </span>
+    )
+  }
+  return <i className={styles.breakdownDot} style={{ background: entry.color ?? 'var(--color-text-muted)' }} aria-hidden="true" />
+}
+
 /**
- * The large face's breakdown: a line per person / tag with a bar of its
- * share and its count (each opens its tasks), the rest as `N more`.
+ * The large face's breakdown: a line per person / tag / status / priority
+ * group with a bar of its share and its count (each opens its tasks), the
+ * rest as `N more`.
  */
 function Breakdown({ entries, by, total, title, onDrill }: {
   entries: readonly BreakdownEntry[]
-  by: 'people' | 'tags'
+  by: NumberBreakdownBy
   total: number
   title: string
   onDrill?: OnGlanceDrill
@@ -37,11 +62,11 @@ function Breakdown({ entries, by, total, title, onDrill }: {
   const rest = entries.length - shown.length
   const max = Math.max(1, ...shown.map((e) => e.ids.length))
   return (
-    <div className={styles.breakdown} role="list" aria-label={`${title} by ${by === 'tags' ? 'tag' : 'person'}`} data-testid="number-breakdown">
+    <div className={styles.breakdown} role="list" aria-label={`${title} by ${BY_WORDS[by]}`} data-testid="number-breakdown">
       {shown.map((e) => {
         const content = (
           <>
-            <i className={styles.breakdownDot} style={{ background: e.color ?? 'var(--color-text-muted)' }} aria-hidden="true" />
+            <EntryMark entry={e} />
             <span className={styles.breakdownName}>{e.label}</span>
             <span className={styles.breakdownBar} aria-hidden="true"><span style={{ width: `${Math.round((e.ids.length / max) * 100)}%` }} /></span>
             <span className={styles.breakdownCount}>{e.ids.length}</span>
@@ -92,7 +117,7 @@ export function NumberWidget(props: GlanceWidgetProps<NumberTab>) {
  * 14-day line (`filter-history`, ≈ when the history log doesn't hold all
  * it reads for the whole line) and its change against yesterday or the
  * same day last week (`compare`); large draws it bigger and adds the
- * breakdown its config picks (by person or tag). Lit in its colour while
+ * breakdown its config picks (by person, tag, status or priority). Lit in its colour while
  * its count crosses its threshold (D18, `litWhen`). A click opens its
  * tasks, at every face. Its editor (Edit number…, `NumberEditorHost`)
  * opens beside its body (`data-number-body`).
@@ -119,8 +144,8 @@ function CountNumber({ tab, onResult, onDrill }: GlanceWidgetProps<NumberTab>) {
   const colors = numberColors(config, shown)
   const countText = countOf(shown, total)
   const breakdown = useMemo(
-    () => (large ? numberBreakdown(shownIds, breakdownBy, base.ctx) : []),
-    [large, shownIds, breakdownBy, base.ctx],
+    () => (large ? numberBreakdown(shownIds, breakdownBy, base.ctx, base.todoById) : []),
+    [large, shownIds, breakdownBy, base.ctx, base.todoById],
   )
 
   const lines = useMemo(() => numberLines(name, countText, deltaText ?? ''), [name, countText, deltaText])

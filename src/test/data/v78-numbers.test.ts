@@ -40,7 +40,7 @@ describe('v78 numbers: a Number’s metric becomes the filter that counts the sa
     ['overdue', 'Overdue', '#e86bf0', 'overdue'],
     ['dueToday', 'Due today', '#e86bf0', 'due today'],
     ['dueNext7', 'Due in the next 7 days', '#e86bf0', 'due within 6 days'],
-    ['followupDue', 'Follow-up due', '#f5c842', 'followup by today'],
+    ['followupDue', 'Follow-up due', '#f5c842', 'followup <= today'],
     ['noFollowup', 'No follow-up date', '#8f8a83', 'no followup'],
     ['focus', 'Focus', undefined, '/focus'],
     ['urgent', 'Urgent', '#ee7d77', '/urgent'],

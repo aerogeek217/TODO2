@@ -73,7 +73,7 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await expect(number(page).getByTestId('number-count')).toHaveText('2')
   await editor(page).getByRole('combobox', { name: 'Light up when' }).selectOption('above')
   await expect(number(page)).toHaveAttribute('data-lit', 'true')
-  await editor(page).getByRole('button', { name: 'Close' }).click()
+  await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor(page)).toHaveCount(0)
   await expect(numberTab).toContainText('Late')
   await expect(page.getByTestId('layout-save')).toHaveAccessibleName('Save layout (unsaved changes)')
@@ -83,7 +83,7 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await field.fill('')
   await field.press('Enter')
   await expect(number(page).getByTestId('number-count')).toHaveText('4')
-  await page.keyboard.press('Escape')
+  await editor(page).getByRole('button', { name: 'Save', exact: true }).click()
   await expect(editor(page)).toHaveCount(0)
   // In its fit row it shows its small face (label and count, D25 R); its full widget,
   // opened from the keyboard, has Open's 14 days.

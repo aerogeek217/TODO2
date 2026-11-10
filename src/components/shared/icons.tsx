@@ -48,6 +48,13 @@ const KIND_PATHS: Record<WidgetKind, ReactNode> = {
       <path d="M6 8h4.5M6 10.5h4.5" />
     </>
   ),
+  // Review (item 12): the review deck's glyph — list lines and a play triangle.
+  review: (
+    <>
+      <path d="M2.5 4h8M2.5 7.5h8M2.5 11h4" />
+      <path d="M9.5 9.5v4.5l3.75-2.25z" />
+    </>
+  ),
   eisenhower: (
     <>
       <rect x="2.5" y="2.5" width="11" height="11" rx="2" />
@@ -358,6 +365,26 @@ export function StatusRingIcon({ size = 14 }: { size?: number }) {
     <Svg size={size}>
       <circle cx="8" cy="8" r="5.5" />
       <path d="M8 2.5v11a5.5 5.5 0 0 0 0-11z" fill="currentColor" />
+    </Svg>
+  )
+}
+
+/** A circle with its top-right quarter filled: priority (the task layout's Priority facts). */
+export function PriorityIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5H8z" fill="currentColor" />
+    </Svg>
+  )
+}
+
+/** A clock face: a due date (the task layout's Due facts). */
+export function DueClockIcon({ size = 14 }: { size?: number }) {
+  return (
+    <Svg size={size}>
+      <circle cx="8" cy="8" r="5.5" />
+      <path d="M8 5v3l2 1.5" />
     </Svg>
   )
 }

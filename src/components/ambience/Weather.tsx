@@ -9,19 +9,16 @@ export function Particle({ spec, className }: { spec: ParticleSpec; className?: 
 }
 
 /**
- * The season's weather over a field (the top bar, or the space behind the
- * cells): `count` particles looping on their own paths, in the theme's
+ * The season's weather over the top bar: `count` particles looping on their own paths, in the theme's
  * colours (`--ambience-*`, `tokens.css`). Not drawn under reduced motion
  * (the caller leaves it out).
  */
-export function Weather({ kind, count, tall, opacity }: {
+export function Weather({ kind, count, opacity }: {
   kind: WeatherKind
   count: number
-  /** Behind the cells: a tall field, crossed more slowly. */
-  tall: boolean
   opacity: number
 }) {
-  const particles = useMemo(() => weatherParticles(kind, count, tall), [kind, count, tall])
+  const particles = useMemo(() => weatherParticles(kind, count), [kind, count])
   return (
     <div className={styles.field} style={{ opacity }} aria-hidden="true" data-ambience-weather={kind}>
       {particles.map((spec, i) => <Particle key={i} spec={spec} />)}

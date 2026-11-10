@@ -64,14 +64,18 @@ const SECTIONS: SyntaxSection[] = [
   {
     label: 'When — after any date word',
     rows: [
-      { syntax: 'due fri', meaning: 'One day: today, tomorrow, yesterday, fri, next fri, in 3 days, 3 days ago, 11/30, 11/30/27' },
+      { syntax: 'due fri', meaning: 'One day: today, tomorrow, yesterday, fri, next fri, 11/30, 11/30/27' },
+      { syntax: 'due +3d  ·  created -30d', meaning: 'Days from today: +3d in 3 days, -30d 30 days ago (+0d is today)' },
       { syntax: 'due this week', meaning: 'A period: this / next / last week or month' },
-      { syntax: 'due before fri  ·  due by fri', meaning: 'Earlier; by includes the day' },
-      { syntax: 'due after 11/30  ·  due from mon', meaning: 'Later; from includes the day' },
-      { syntax: 'due 11/1..11/30', meaning: 'A range, both ends included' },
+      { syntax: 'due <= fri  ·  due < fri', meaning: 'On or before the day; < stops the day before' },
+      { syntax: 'followup >= +7d  ·  followup > +7d', meaning: 'On or after the day; > starts the day after' },
+      { syntax: 'created <= -30d', meaning: 'Created 30 or more days ago' },
+      { syntax: 'due < start of week', meaning: 'Compare with a week or month by its start or end (= this week is the period)' },
+      { syntax: 'due -3d..+7d  ·  due 11/1..11/30', meaning: 'A range, both ends included' },
       { syntax: 'due within 3 days  ·  created within last 7 days', meaning: 'Counted from today, so the filter moves with it' },
       { syntax: 'not due this week', meaning: 'Outside it (no due date passes)' },
       { syntax: '(due this week or no due)', meaning: 'Also tasks without the date' },
+      { syntax: 'due by fri  ·  due from mon', meaning: 'The older words still read: before <, by <=, after >, from >=; in 3 days, 3 days ago' },
     ],
   },
 ]

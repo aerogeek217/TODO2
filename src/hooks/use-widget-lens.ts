@@ -61,6 +61,7 @@ export function setTabIgnoresLens(tab: LensSwitchTab, ignore: boolean): void {
   const patch = { ignoreLens: ignore }
   switch (tab.kind) {
     case 'calendar': void ws.patchTabViewState(tab.id, 'calendar', patch); return
+    case 'review': void ws.patchTabViewState(tab.id, 'review', patch); return
     case 'eisenhower': void ws.patchTabViewState(tab.id, 'eisenhower', patch); return
     case 'neglect': void ws.patchTabViewState(tab.id, 'neglect', patch); return
     case 'number': void ws.patchTabViewState(tab.id, 'number', patch); return

@@ -37,6 +37,8 @@ export interface WsTabSeed {
     colourBy?: { tags: string[] } | 'people' | 'none'
     untouchedDays?: number
   }
+  /** Review tabs (item 12): the pick — a person or tag by name, or a list (index into `listDefinitions`). */
+  review?: { person?: string; tag?: string; listDefIdx?: number }
 }
 
 export interface WsCellSeed {
@@ -409,6 +411,12 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       }
       if (tab.kind === 'pulse' && tab.tagNames) {
         config.tagIds = tab.tagNames.map((name) => tagIds.get(name)).filter((id) => id != null)
+      }
+      if (tab.kind === 'review' && tab.review) {
+        const r = tab.review
+        const id = r.person != null ? personIds.get(r.person) : r.tag != null ? tagIds.get(r.tag) : r.listDefIdx != null ? defIds[r.listDefIdx] : undefined
+        const kind = r.person != null ? 'person' : r.tag != null ? 'tag' : 'list'
+        if (id != null) config.pick = { kind, id }
       }
       if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }

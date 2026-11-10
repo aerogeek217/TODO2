@@ -40,6 +40,7 @@ import {
   type PivotConfig,
   type TagMapConfig,
 } from './chart-widgets'
+import type { ReviewPick, ReviewSort } from './review'
 
 /**
  * Widget kinds a tab can hold. The ids are stored in layouts: `lens` is the
@@ -51,10 +52,11 @@ import {
  * completed, What changed and Today, and made the Eisenhower summary the
  * Eisenhower's small face; P8 made People, Tags and Status Breakdowns. The
  * Status flow chart (P8) was removed after v78 shipped: a saved one is
- * dropped by the layout repair (`data/layout-shape`).
+ * dropped by the layout repair (`data/layout-shape`). `review` (item 12) is
+ * the review deck in a cell.
  */
 export type WidgetKind =
-  | 'lens' | 'calendar' | 'notes' | 'eisenhower' | 'neglect'
+  | 'lens' | 'calendar' | 'notes' | 'review' | 'eisenhower' | 'neglect'
   | GlanceWidgetKind
 
 /** The glance widget kinds (D25 N): a Number, the charts and Project pulse, each a widget. */
@@ -201,6 +203,27 @@ export interface EisenhowerTabViewState extends TaskRowsViewState, LensViewState
 export type NoTabSettings = Record<string, never>
 
 /**
+ * A Review widget's settings (item 12, layout config): what it reviews —
+ * a person's, a tag's or a status's open tasks, or one of the layout's
+ * lists (`ReviewPick`); absent = nothing picked yet.
+ */
+export interface ReviewTabConfig {
+  pick?: ReviewPick
+}
+
+/**
+ * Where a Review widget stands (item 12, view state, saved at once): its
+ * lens switch, the rail's sort, the current task, and the tasks skipped on
+ * `skipped.day` (a day's skips: they read as none on another day, as the ✓ —
+ * followed up today — does).
+ */
+export interface ReviewTabViewState extends LensViewState {
+  sort?: ReviewSort
+  currentId?: number
+  skipped?: { day: string; ids: number[] }
+}
+
+/**
  * What colours a Neglect map's dots: the picked tags (a task with several
  * takes the first of the picks it has, in pick order), the task's first
  * person, or nothing (every dot neutral).
@@ -248,6 +271,7 @@ interface TabOf<K extends WidgetKind, C, V> {
 export type LensTab = TabOf<'lens', LensTabConfig, ListTabViewState>
 export type CalendarTab = TabOf<'calendar', CalendarTabConfig, CalendarTabViewState>
 export type NotesTab = TabOf<'notes', NoTabSettings, NoTabSettings>
+export type ReviewTab = TabOf<'review', ReviewTabConfig, ReviewTabViewState>
 export type EisenhowerTab = TabOf<'eisenhower', EisenhowerTabConfig, EisenhowerTabViewState>
 export type NeglectTab = TabOf<'neglect', NeglectTabConfig, LensViewState>
 export type NumberTab = TabOf<'number', NumberConfig, LensViewState>
@@ -264,7 +288,7 @@ export type ChartTab = BreakdownTab | PivotTab | TagMapTab
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
 
-export type LayoutTab = LensTab | CalendarTab | NotesTab | EisenhowerTab | NeglectTab | GlanceTab
+export type LayoutTab = LensTab | CalendarTab | NotesTab | ReviewTab | EisenhowerTab | NeglectTab | GlanceTab
 
 export type TabOfKind<K extends WidgetKind> = Extract<LayoutTab, { kind: K }>
 export type TabConfigOf<K extends WidgetKind> = TabOfKind<K>['config']
@@ -427,7 +451,7 @@ export interface TabSeed {
 }
 
 /**
- * The add-widget menus' groups: the task widgets (List, Notes), and the
+ * The add-widget menus' groups: the task widgets (List, Notes, Review), and the
  * numbers and charts (every other kind — the Calendar, the Eisenhower and
  * the Neglect map among them, D26; the grouping is the menus' only).
  */
@@ -484,6 +508,8 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
     newTab: (id, seed) => ({ id, kind: 'lens', config: seed.listDefinitionId != null ? { listDefinitionId: seed.listDefinitionId } : {} }),
   },
   notes: { label: 'Notes', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'notes', config: {} }) },
+  // Item 12: the review deck in a cell, nothing picked yet (its top line's picker).
+  review: { label: 'Review', showsList: false, group: 'tasks', glance: false, fitHeight: false, newTab: (id) => ({ id, kind: 'review', config: {} }) },
   number: glanceSpec('Number', (id) => ({ id, kind: 'number', config: newNumberConfig(emptyPredicate()) }), true),
   // D26 P8: the chart widgets.
   breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
@@ -545,7 +571,7 @@ export function isGlanceKind(kind: WidgetKind): kind is GlanceWidgetKind {
 
 /** A glance widget's tab. */
 /** The kinds with a lens switch of their own in their view state (G3; a list's is its list's). */
-export const LENS_SWITCH_KINDS = ['calendar', 'eisenhower', 'neglect', 'number', 'pulse', 'breakdown', 'pivot', 'tagMap'] as const
+export const LENS_SWITCH_KINDS = ['calendar', 'review', 'eisenhower', 'neglect', 'number', 'pulse', 'breakdown', 'pivot', 'tagMap'] as const
 export type LensSwitchKind = (typeof LENS_SWITCH_KINDS)[number]
 export type LensSwitchTab = Extract<LayoutTab, { kind: LensSwitchKind }>
 

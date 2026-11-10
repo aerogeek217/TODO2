@@ -9,7 +9,7 @@ import type { GlanceDrill } from '../../../components/workspace/glance/glance-ty
 import type { MenuEntry, MenuItemEntry } from '../../../components/shared/MenuPopover'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import type { BreakdownConfig } from '../../../models/chart-widgets'
-import { createTab, type BreakdownTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import { createTab, type BreakdownTab, type LayoutTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { usePersonStore } from '../../../stores/person-store'
 import { useReviewStore } from '../../../stores/review-store'
@@ -36,7 +36,7 @@ function breakdown(over: Partial<BreakdownConfig> = {}, id = 'b'): BreakdownTab 
 }
 
 /** The tab in the open layout, so its writes land there. */
-function inLayout(tab: BreakdownTab) {
+function inLayout(tab: LayoutTab) {
   const layout: PersistedWorkspaceLayout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [tab] }) }
   useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
 }
@@ -106,21 +106,31 @@ describe('the headings sort (view state, per split)', () => {
     expect(keys()).toEqual(before)
   })
 
-  it('a sort stored by the old Due / Follow-up columns ranks by the late columns while the columns are derived', async () => {
+  it('a sort stored by the older derived columns (Overdue … Follow-up due) ranks by the Due / Follow-up column that holds them', async () => {
     setup(breakdown({}, 'b'))
-    act(() => { useWorkspaceStore.getState().patchTabViewState('b', 'breakdown', { sorts: { people: { by: 'due' }, tags: { by: 'followup', reversed: true } } }) })
+    act(() => { useWorkspaceStore.getState().patchTabViewState('b', 'breakdown', { sorts: { people: { by: 'overdue' }, tags: { by: 'followup-due', reversed: true } } }) })
     const heading = (key: string) => document.querySelector(`[data-sort-key="${key}"]`)!.closest('[role="columnheader"]')!
-    expect(heading('overdue').getAttribute('aria-sort')).toBe('descending')
-    expect(heading('due-soon').getAttribute('aria-sort')).toBe('none')
-    const overdue = rows().filter((r) => r.dataset.breakdownRow !== 'none')
-      .map((r) => Number(r.querySelector('[data-column="overdue"]')?.textContent?.replace('–', '0') ?? 0))
-    expect(overdue).toEqual([...overdue].sort((a, b) => b - a))
-    expect(item(glanceMenu(current(), undefined)!.settingEntries, 'Sort').note).toBe('Most Overdue first')
-    // A click on the late heading goes on from there: reversed.
-    await act(async () => { fireEvent.click(document.querySelector('[data-sort-key="overdue"]')!) })
-    expect(current().viewState?.sorts?.people).toEqual({ by: 'overdue', reversed: true })
+    expect(heading('due').getAttribute('aria-sort')).toBe('descending')
+    expect(heading('followup').getAttribute('aria-sort')).toBe('none')
+    const due = rows().filter((r) => r.dataset.breakdownRow !== 'none')
+      .map((r) => Number(r.querySelector('[data-column="due"]')?.textContent?.replace('–', '0') ?? 0))
+    expect(due).toEqual([...due].sort((a, b) => b - a))
+    expect(item(glanceMenu(current(), undefined)!.settingEntries, 'Sort').note).toBe('Most Due first')
+    // A click on the Due heading goes on from there: reversed.
+    await act(async () => { fireEvent.click(document.querySelector('[data-sort-key="due"]')!) })
+    expect(current().viewState?.sorts?.people).toEqual({ by: 'due', reversed: true })
     act(() => { useWorkspaceStore.getState().patchTabConfig('b', 'breakdown', { splitBy: 'tags' }) })
-    expect(heading('followup-late').getAttribute('aria-sort')).toBe('ascending')
+    expect(heading('followup').getAttribute('aria-sort')).toBe('ascending')
+  })
+
+  it('a sort stored by the old Priority column reads as the default order', () => {
+    setup(breakdown({}, 'b'))
+    const before = keys()
+    act(() => { useWorkspaceStore.getState().patchTabViewState('b', 'breakdown', { sorts: { people: { by: 'priority' } } }) })
+    expect(keys()).toEqual(before)
+    expect(document.querySelector('[data-sort-key="priority"]')).toBeNull()
+    expect(document.querySelector('[role="columnheader"][aria-sort="descending"], [role="columnheader"][aria-sort="ascending"]')).toBeNull()
+    expect(item(glanceMenu(current(), undefined)!.settingEntries, 'Sort').note).toBe('Most counted first')
   })
 
   it('each split keeps its own sort', async () => {
@@ -172,7 +182,7 @@ describe('the filter row (temporary, per split)', () => {
   it('the medium face has no filter row and shows name · the count columns', () => {
     setup(breakdown(), { face: 'medium' })
     expect(document.querySelector('[data-testid="breakdown-filter-row"]')).toBeNull()
-    expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toEqual(['Person', 'Overdue', 'Due soon', 'Follow-up late', 'Follow-up due'])
+    expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toEqual(['Person', 'Due', 'Follow-up'])
   })
 })
 
@@ -195,10 +205,24 @@ describe('clicks: a row drills, its Review button and a count review', () => {
     expect(useReviewStore.getState().source?.title).toMatch(new RegExp(` · ${heading}$`))
   })
 
-  it('every row ends with its Review button, always there (no hover pill)', () => {
+  it('every row has its Review button right after its name, in the name cell (no actions column, no pill)', () => {
     setup(breakdown())
-    for (const row of rows()) expect(within(row).getByTestId('breakdown-review').tagName).toBe('BUTTON')
+    for (const row of rows()) {
+      const review = within(row).getByTestId('breakdown-review')
+      expect(review.tagName).toBe('BUTTON')
+      const nameCell = row.querySelector('[role="cell"]')!
+      expect(nameCell.contains(review)).toBe(true)
+      expect(review.parentElement!.previousElementSibling).toBe(nameCell.querySelector('button'))
+    }
+    expect(document.querySelectorAll('[role="columnheader"]')).toHaveLength(document.querySelectorAll('[data-sort-key]').length)
     expect(document.body.textContent).not.toContain('Review ▸')
+  })
+
+  it('the medium face keeps Review after the name, no envelope', () => {
+    setup(breakdown({ checkins: true }), { face: 'medium' })
+    const priya = rowOf('person-4')
+    expect(priya.querySelector('[role="cell"]')!.contains(within(priya).getByTestId('breakdown-review'))).toBe(true)
+    expect(within(priya).queryByRole('button', { name: /Email check-in/ })).toBeNull()
   })
 
   it('a count is solid while it meets its column’s Light up when rule, outlined otherwise; 0 is a dim –', () => {
@@ -222,10 +246,13 @@ describe('clicks: a row drills, its Review button and a count review', () => {
     if (one) expect(one.querySelector('[data-column="all"]')!.hasAttribute('data-solid')).toBe(false)
   })
 
-  it('the derived columns light the late ones only: Overdue and Follow-up late fill, Due soon and Follow-up due stay outlined', () => {
+  it('the derived Due and Follow-up columns are ordinary columns: lit above 0, in their colours', () => {
     setup(breakdown())
-    for (const el of document.querySelectorAll<HTMLElement>('[data-column="overdue"], [data-column="followup-late"]')) expect(el.hasAttribute('data-solid')).toBe(true)
-    for (const el of document.querySelectorAll<HTMLElement>('[data-column="due"], [data-column="followup"]')) expect(el.hasAttribute('data-solid')).toBe(false)
+    const counts = [...document.querySelectorAll<HTMLElement>('[data-column="due"], [data-column="followup"]')]
+    expect(counts.length).toBeGreaterThan(0)
+    for (const el of counts) expect(el.hasAttribute('data-solid')).toBe(true)
+    expect(document.querySelector<HTMLElement>('[data-column="due"]')!.style.getPropertyValue('--col-color')).toBe('#e86bf0')
+    expect(document.querySelector<HTMLElement>('[data-column="followup"]')!.style.getPropertyValue('--col-color')).toBe('#f5c842')
   })
 
   it('no Review while the deck is open', () => {
@@ -261,6 +288,33 @@ describe('the check-in envelope', () => {
     cleanup()
     setup(breakdown())
     expect(document.querySelector('[aria-label^="Email check-in options"]')).toBeNull()
+  })
+})
+
+describe('the table’s columns', () => {
+  it('large: name · bar · Open · each count column — no Priority column; a count column is its number’s room, the name takes the rest', () => {
+    setup(breakdown())
+    expect([...document.querySelectorAll('[data-sort-key]')].map((b) => b.textContent)).toEqual(['Person', 'Open', 'Due', 'Follow-up'])
+    expect(document.querySelector('[data-col="priority"]')).toBeNull()
+    expect(document.querySelector('[data-testid="glance-priority-badges"]')).toBeNull()
+    expect(document.querySelector('[data-priority]')).toBeNull()
+    const table = document.querySelector<HTMLElement>('[role="table"]')!
+    expect(table.style.getPropertyValue('--bd-cols')).toBe('minmax(0, 1fr) 84px 44px 40px 40px')
+    expect(table.style.getPropertyValue('--bd-cols-narrow')).toBe('minmax(0, 1fr) 44px 30px 30px')
+  })
+
+  it('a long column name keeps the same width, its heading cut short with its name in the tooltip', () => {
+    setup(breakdown({ columns: [{ id: 'col-a', name: 'Waiting on someone else', color: '#7ec4bc', filter: { ...current0().config.filter }, litWhen: 'never' }] }))
+    const table = document.querySelector<HTMLElement>('[role="table"]')!
+    expect(table.style.getPropertyValue('--bd-cols')).toBe('minmax(0, 1fr) 84px 44px 40px')
+    expect(document.querySelector<HTMLElement>('[data-sort-key="col-a"]')!.title).toBe('Waiting on someone else')
+  })
+
+  it('a priority split keeps its rings on the row names', () => {
+    setup(breakdown({ name: 'Priority', splitBy: 'priority' }))
+    expect(keys()).toContain('priority-focus')
+    expect(rowOf('priority-focus').querySelector('svg')).not.toBeNull()
+    expect(document.querySelector('[data-sort-key="priority"]')).toBeNull()
   })
 })
 
@@ -306,8 +360,16 @@ describe('the tab menu', () => {
     expect(useChartWidgetsStore.getState().editorTabId).toBe('b')
     const sort = item(menu.settingEntries, 'Sort')
     expect(sort.note).toBe('Most counted first')
-    item(sort.children!, 'Due soon: Most Due soon first').onSelect!()
-    expect(current().viewState?.sorts?.people).toEqual({ by: 'due-soon' })
+    // Name, Open and each count column — no Priority.
+    expect(sort.children!.flatMap((e) => (e.kind === 'item' ? [e.label] : []))).toEqual([
+      'Default: Most counted first',
+      'Person: A–Z', 'Person: Z–A',
+      'Open: Most open first', 'Open: Fewest open first',
+      'Due: Most Due first', 'Due: Fewest Due first',
+      'Follow-up: Most Follow-up first', 'Follow-up: Fewest Follow-up first',
+    ])
+    item(sort.children!, 'Follow-up: Most Follow-up first').onSelect!()
+    expect(current().viewState?.sorts?.people).toEqual({ by: 'followup' })
   })
 
   it('has no Due › or Follow-up › range submenus (count columns are the editor’s)', () => {
@@ -319,12 +381,22 @@ describe('the tab menu', () => {
   })
 })
 
+/** The open chart editor. */
+const chartEditor = () => document.querySelector<HTMLElement>('[data-chart-editor="b"]')!
+/** The editor's Save (it writes its copy and closes), then the editor opened again. */
+function saveAndReopen(): HTMLElement {
+  fireEvent.click(within(chartEditor()).getByRole('button', { name: 'Save' }))
+  expect(document.querySelector('[data-chart-editor]')).toBeNull()
+  act(() => { useChartWidgetsStore.getState().openEditor('b') })
+  return chartEditor()
+}
+
 describe('the editor (D26 P8, the Number editor’s pattern)', () => {
-  it('opens under its title; its controls write the tab’s config (unsaved), × closes it', () => {
+  it('opens under its title; its controls edit a copy, Save writes the tab’s config (unsaved), × closes it', () => {
     setup(breakdown())
     expect(document.querySelector('[data-chart-editor]')).toBeNull()
     act(() => { useChartWidgetsStore.getState().openEditor('b') })
-    const editor = document.querySelector<HTMLElement>('[data-chart-editor="b"]')!
+    let editor = chartEditor()
     expect(editor).not.toBeNull()
     expect(within(editor).getByRole('textbox', { name: 'Name' })).toHaveValue('People')
     fireEvent.change(within(editor).getByRole('textbox', { name: 'Name' }), { target: { value: 'Waiting on' } })
@@ -333,14 +405,19 @@ describe('the editor (D26 P8, the Number editor’s pattern)', () => {
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Oldest by' }), { target: { value: 'created' } })
     fireEvent.click(within(editor).getByRole('checkbox', { name: 'Check-in envelope on each person' }))
     fireEvent.click(within(editor).getByRole('checkbox', { name: 'Show Unassigned' }))
+    // Nothing written until Save.
+    expect(current().config.name).toBe('People')
+    expect(useWorkspaceStore.getState().isDirty).toBe(false)
+    editor = saveAndReopen()
     expect(current().config).toMatchObject({ name: 'Waiting on', style: 'donut', show: 'oldest', oldestBy: 'created', checkins: true, showNone: false })
     expect(useWorkspaceStore.getState().isDirty).toBe(true)
     // Another split drops the check-ins; Count drops oldestBy.
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Split by' }), { target: { value: 'status' } })
     fireEvent.change(within(editor).getByRole('combobox', { name: 'Show' }), { target: { value: 'count' } })
+    expect(within(editor).getByRole('checkbox', { name: 'Show No status' })).not.toBeChecked()
+    editor = saveAndReopen()
     expect(current().config).not.toHaveProperty('checkins')
     expect(current().config).not.toHaveProperty('oldestBy')
-    expect(within(editor).getByRole('checkbox', { name: 'Show No status' })).not.toBeChecked()
     fireEvent.click(within(editor).getByRole('button', { name: 'Close' }))
     expect(document.querySelector('[data-chart-editor]')).toBeNull()
   })
@@ -352,10 +429,13 @@ describe('the editor’s Count columns (board BC)', () => {
   it('shows the derived columns until edited; the first edit writes them all as columns and drops the old ranges', () => {
     setup(breakdown({ badges: { followup: 'overdue' } }))
     act(() => { useChartWidgetsStore.getState().openEditor('b') })
-    expect([...columnsBox().querySelectorAll<HTMLInputElement>('input[aria-label$="name"]')].map((i) => i.value)).toEqual(['Overdue', 'Due soon', 'Follow-up late'])
+    expect([...columnsBox().querySelectorAll<HTMLInputElement>('input[aria-label$="name"]')].map((i) => i.value)).toEqual(['Due', 'Follow-up'])
     expect(current().config).not.toHaveProperty('columns')
     fireEvent.change(within(columnsBox()).getByRole('textbox', { name: 'Column 1 name' }), { target: { value: 'Late' } })
-    expect(current().config.columns?.map((c) => c.name)).toEqual(['Late', 'Due soon', 'Follow-up late'])
+    fireEvent.click(within(chartEditor()).getByRole('button', { name: 'Save' }))
+    expect(current().config.columns?.map((c) => [c.id, c.name, c.litWhen, c.litAt])).toEqual([['due', 'Late', 'above', 0], ['followup', 'Follow-up', 'above', 0]])
+    // The follow-up range was `overdue`: its column counts the late ones only (up to yesterday), as written.
+    expect(current().config.columns?.[1]?.filter.dates?.followup).toEqual({ match: 'range', start: null, end: { kind: 'offset', days: -1 } })
     expect(current().config).not.toHaveProperty('badges')
     expect(useWorkspaceStore.getState().isDirty).toBe(true)
     // The table follows: its headings are the columns' names.
@@ -365,22 +445,31 @@ describe('the editor’s Count columns (board BC)', () => {
   it('+ Add column adds one (lit above 0, an empty filter) up to four; × removes one; Light up when writes its rule', () => {
     setup(breakdown())
     act(() => { useChartWidgetsStore.getState().openEditor('b') })
-    // Four derived: the cap — no Add column.
-    expect(within(columnsBox()).queryByRole('button', { name: 'Add column' })).toBeNull()
-    fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Remove Follow-up due' }))
-    expect(current().config.columns?.map((c) => c.id)).toEqual(['overdue', 'due-soon', 'followup-late'])
+    // Two derived: room for two more.
     fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Add column' }))
+    saveAndReopen()
+    expect(current().config.columns?.map((c) => c.name)).toEqual(['Due', 'Follow-up', 'Count 3'])
+    fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Add column' }))
+    // Four: the cap — no Add column.
+    expect(within(columnsBox()).queryByRole('button', { name: 'Add column' })).toBeNull()
+    fireEvent.click(within(columnsBox()).getByRole('button', { name: 'Remove Follow-up' }))
+    expect(within(columnsBox()).getByRole('button', { name: 'Add column' })).toBeTruthy()
+    saveAndReopen()
+    expect(current().config.columns?.map((c) => c.name)).toEqual(['Due', 'Count 3', 'Count 4'])
     const added = current().config.columns?.at(-1)
     expect(added).toMatchObject({ name: 'Count 4', litWhen: 'above', litAt: 0 })
     expect(added?.filter.statusIds).toBeNull()
     fireEvent.change(within(columnsBox()).getByRole('combobox', { name: 'Count 4: light up when' }), { target: { value: 'never' } })
+    saveAndReopen()
     expect(current().config.columns?.at(-1)).not.toHaveProperty('litAt')
     expect(current().config.columns?.at(-1)?.litWhen).toBe('never')
     fireEvent.change(within(columnsBox()).getByRole('combobox', { name: 'Count 4: light up when' }), { target: { value: 'below' } })
     fireEvent.change(within(columnsBox()).getByRole('spinbutton', { name: 'Count 4: light up when below' }), { target: { value: '3' } })
+    saveAndReopen()
     expect(current().config.columns?.at(-1)).toMatchObject({ litWhen: 'below', litAt: 3 })
     // Its colour: the app's picker.
     fireEvent.click(within(columnsBox().querySelector<HTMLElement>(`[data-column-editor="${added!.id}"]`)!).getByRole('radio', { name: 'Rose' }))
+    fireEvent.click(within(chartEditor()).getByRole('button', { name: 'Save' }))
     expect(current().config.columns?.at(-1)?.color).toBe('#e07a9a')
   })
 })
@@ -402,7 +491,28 @@ describe('Add widget › Numbers & charts › Breakdown › its presets', () => 
     fireEvent.click(presets[2]!)
     const added = useWorkspaceStore.getState().working!.cells[0]!.tabs.at(-1) as BreakdownTab
     expect(added.config).toMatchObject({ name: 'Status', splitBy: 'status' })
-    expect(added.config).not.toHaveProperty('columns')
     expect(useChartWidgetsStore.getState().editorTabId).toBe(added.id)
+  })
+
+  it('every preset writes the Due and Follow-up columns in Settings’ ranges of the moment; later Settings changes leave them', () => {
+    useSettingsStore.setState({ tabBadges: { due: 5, followup: 'overdue' } })
+    inLayout(breakdown())
+    render(<DndContext><AddWidgetFlow cellId="c" anchor={{ x: 10, y: 10 }} onClose={() => {}} /></DndContext>)
+    fireEvent.click(openPresets()[3]!)
+    const added = () => useWorkspaceStore.getState().working!.cells[0]!.tabs.at(-1) as BreakdownTab
+    expect(added().config.columns?.map((c) => [c.id, c.name, c.color, c.litWhen, c.litAt, c.filter.dates])).toEqual([
+      ['due', 'Due', '#e86bf0', 'above', 0, { deadline: { match: 'range', start: null, end: { kind: 'offset', days: 5 } } }],
+      ['followup', 'Follow-up', '#f5c842', 'above', 0, { followup: { match: 'range', start: null, end: { kind: 'offset', days: -1 } } }],
+    ])
+    expect(added().config).not.toHaveProperty('badges')
+    const written = added().config.columns
+    act(() => { useSettingsStore.setState({ tabBadges: { due: 'off', followup: 0 } }) })
+    expect(added().config.columns).toBe(written)
+  })
+
+  it('Change widget to a Breakdown writes them too', () => {
+    inLayout(createTab('notes', 'b'))
+    act(() => { useWorkspaceStore.getState().changeTabKind('b', 'breakdown') })
+    expect(current().config.columns?.map((c) => c.id)).toEqual(['due', 'followup'])
   })
 })

@@ -167,7 +167,15 @@
   --ambience-moon-point: #c8d4ea;
   /* What the clouds' lit side lifts toward (the share is the theme's). */
   --ambience-cloud-white: #ffffff;
+  /* The stars, the evening planet and the shooting stars — drawn in the dark
+     theme only (`utils/sky`): a bright star's glow, the planet's warm point,
+     a shooting star's streak and the glow round its head. */
   --ambience-star: #f2f5fb;
+  --ambience-star-glow: rgba(200, 215, 255, 0.55);
+  --ambience-planet: #fff1d2;
+  --ambience-planet-glow: rgba(255, 232, 190, 0.45);
+  --ambience-shooting-star: #f6f8ff;
+  --ambience-shooting-star-glow: rgba(205, 220, 255, 0.6);
   /* The winter aurora's ribbon: green, blue, violet, green. */
   --ambience-aurora-1: rgba(80, 230, 170, 0.9);
   --ambience-aurora-2: rgba(110, 200, 255, 0.55);
@@ -386,6 +394,15 @@
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 12%, transparent);
   /* A Lines tick's due-soon state (D25 I1): the deadline colour at 45%. */
   --color-deadline-soon: color-mix(in srgb, var(--color-deadline) 45%, transparent);
+  /* The task layout's facts rail (board BJ): each section's header colour —
+     Priority coral, Status lavender, People blue, Tags teal, Due magenta,
+     Follow-up yellow. Each reads at 4.5 : 1 on the dialog and the rail. */
+  --color-fact-priority: var(--color-danger-text);
+  --color-fact-status: #b4a7f5;
+  --color-fact-people: #7fb2e8;
+  --color-fact-tags: var(--color-accent-text);
+  --color-fact-due: var(--color-deadline);
+  --color-fact-followup: var(--color-followup);
   /* A Lines tick's other states (D25 I1): a plain task in the
      muted text at 80% (3.7 : 1 on the surface, a non-text graphic's 3 : 1),
      a stale one at 35% (1.7 : 1) — still there, plainly dimmer. */
@@ -505,6 +522,15 @@
   --ambience-cloud-tint-base: 0;
   --ambience-cloud-tint-night: 1;
   --ambience-cloud-shade: #282e42;
+  /* The rare sky events: a UFO (its disc, dome, faint glow and rim lights),
+     an airplane (its silhouette, tail light and contrail). */
+  --ambience-ufo-body: rgba(160, 165, 190, 0.8);
+  --ambience-ufo-dome: rgba(205, 195, 245, 0.6);
+  --ambience-ufo-glow: rgba(185, 160, 255, 0.55);
+  --ambience-ufo-light: #eef4ff;
+  --ambience-plane: rgba(215, 222, 236, 0.6);
+  --ambience-plane-light: #fff6e6;
+  --ambience-contrail: rgba(225, 232, 245, 0.3);
 }
 
 /* ═══════════════════════════════════════════
@@ -644,6 +670,13 @@
   --color-deadline: #a32cab;
   --color-deadline-bg: color-mix(in srgb, var(--color-deadline) 10%, transparent);
   --color-deadline-soon: color-mix(in srgb, var(--color-deadline) 45%, transparent);
+  /* The facts rail's header colours (board BJ), darkened to read on white. */
+  --color-fact-priority: var(--color-danger-text);
+  --color-fact-status: #6650c4;
+  --color-fact-people: #2d68b0;
+  --color-fact-tags: var(--color-accent-text);
+  --color-fact-due: var(--color-deadline);
+  --color-fact-followup: var(--color-followup);
   /* 3.4 : 1 and 1.6 : 1 on the surface. */
   --color-row-tone-plain: color-mix(in srgb, var(--color-text-muted) 80%, transparent);
   --color-row-tone-stale: color-mix(in srgb, var(--color-text-muted) 35%, transparent);
@@ -739,6 +772,14 @@
   --ambience-cloud-tint-base: 0.55;
   --ambience-cloud-tint-night: 0;
   --ambience-cloud-shade: #5a647d;
+  /* The sky events on paper: slate silhouettes, a white contrail. */
+  --ambience-ufo-body: rgba(80, 88, 112, 0.55);
+  --ambience-ufo-dome: rgba(140, 125, 190, 0.45);
+  --ambience-ufo-glow: rgba(140, 115, 210, 0.35);
+  --ambience-ufo-light: #ffffff;
+  --ambience-plane: rgba(70, 82, 105, 0.5);
+  --ambience-plane-light: #ffffff;
+  --ambience-contrail: rgba(255, 255, 255, 0.75);
 }
 
 /* ═══════════════════════════════════════════

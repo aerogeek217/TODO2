@@ -30,7 +30,7 @@ export interface AmbienceSettings {
   sky: SkyStrength
   /** Header motion: how visible the moving things in the top bar are, 0–100 (%). */
   motion: number
-  /** Weather in the bar and behind the cells, the season in the checkmark and the winter aurora. */
+  /** Weather in the bar, the season in the checkmark and the winter aurora. */
   seasons: boolean
 }
 
@@ -44,5 +44,5 @@ export const DEFAULT_AMBIENCE: AmbienceSettings = {
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
 
-/** What falls in the bar (and behind the cells) — the season's, and the summer's by day or night. */
+/** What falls in the bar — the season's, and the summer's by day or night. */
 export type WeatherKind = 'flake' | 'leaf' | 'petal' | 'seed' | 'firefly'

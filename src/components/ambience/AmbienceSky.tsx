@@ -5,6 +5,9 @@ import { useTodoStore } from '../../stores/todo-store'
 import { attrSelector, TODO_ID_ATTR } from '../../utils/dom-contract'
 import { cumulusBackground, CUMULUS_SHAPES, moonPath, skyBackground, withAlpha, type SkyScene } from '../../utils/sky'
 import { useLatestRef } from '../../hooks/use-latest-ref'
+import { useSkyEvents } from '../../hooks/use-sky-events'
+import { allowedSkyEvents, type SkyEventKind } from '../../utils/sky-events'
+import { SkyEventsLayer } from './SkyEvents'
 import { Particle, Weather } from './Weather'
 import { BAR_COUNTS, burstParticles, type ParticleKind, type ParticleSpec } from './weather-particles'
 import styles from './AmbienceSky.module.css'
@@ -17,18 +20,31 @@ const CLOUDS = [
   { h: 32, base: 35, start: 0.86, dur: 360 },
 ] as const
 
-/** A seeded scatter of stars across the bar. */
+/**
+ * A seeded scatter of stars across the bar: mostly faint and small, some a
+ * little larger, a few bright with a soft glow; each twinkles slowly on its
+ * own length and phase, dimming only part way (`--o` → 60 % of it).
+ */
 const STARS = (() => {
   let s = 7
   const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647
-  return Array.from({ length: 34 }, () => ({
-    left: `${(rnd() * 100).toFixed(2)}%`,
-    top: `${(8 + rnd() * 70).toFixed(1)}%`,
-    delay: `${(-rnd() * 4).toFixed(2)}s`,
-    opacity: Number((0.4 + rnd() * 0.6).toFixed(2)),
-    big: rnd() > 0.85,
-  }))
+  return Array.from({ length: 40 }, () => {
+    const r = rnd()
+    const size = r > 0.88 ? 'bright' : r > 0.6 ? 'mid' : 'small'
+    return {
+      size,
+      style: {
+        left: `${(rnd() * 100).toFixed(2)}%`,
+        top: `${(8 + rnd() * 70).toFixed(1)}%`,
+        '--o': (size === 'bright' ? 0.9 + rnd() * 0.1 : size === 'mid' ? 0.6 + rnd() * 0.3 : 0.4 + rnd() * 0.35).toFixed(2),
+        animationDuration: `${(5 + rnd() * 4).toFixed(2)}s`,
+        animationDelay: `${(-rnd() * 9).toFixed(2)}s`,
+      } as CSSProperties,
+    }
+  })
 })()
+
+const NO_EVENTS: Readonly<Record<SkyEventKind, boolean>> = { shootingStar: false, ufo: false, airplane: false }
 
 const pct = (v: number) => `${(v * 100).toFixed(2)}%`
 
@@ -93,11 +109,12 @@ function useCompletedCheckboxes(active: boolean, onComplete: (rects: DOMRect[]) 
 /**
  * Ambience in the top bar (desktop): rendered as the bar's first children.
  * The sky layer sits over the bar's glass and under its content — the sky at
- * the share the glass would let through, then the sun, stars, moon, clouds,
- * aurora, mist and the season's weather; the hairline layer draws the sun's
- * (or moon's) point on the bar's bottom edge, its glow, and the ripple a
- * completed task sends along it. A completed task's season burst rises from
- * its checkbox in a layer over the page.
+ * the share the glass would let through, then the sun, stars, the evening
+ * planet, moon, clouds, aurora, mist, the season's weather and the rare sky
+ * events (a shooting star or a UFO at night, an airplane by day — `SkyEvents`);
+ * the hairline layer draws the sun's (or moon's) point on the bar's bottom
+ * edge, its glow, and the ripple a completed task sends along it. A completed
+ * task's season burst rises from its checkbox in a layer over the page.
  */
 export function AmbienceSky() {
   const ambience = useAmbience()
@@ -108,6 +125,8 @@ export function AmbienceSky() {
 
   const scene = ambience?.scene
   const moving = !!ambience && !ambience.still
+  const allowed = scene ? allowedSkyEvents(scene, !moving) : NO_EVENTS
+  const skyEvents = useSkyEvents(allowed)
   useCompletedCheckboxes(moving, (rects) => {
     if (!scene || !moving) return
     const bar = hairlineRef.current?.getBoundingClientRect()
@@ -170,17 +189,21 @@ export function AmbienceSky() {
         {o.stars > 0 && (
           <div className={styles.stars} style={{ opacity: o.stars }}>
             {STARS.map((s, i) => (
-              <i key={i} className={s.big ? `${styles.star} ${styles.starBig}` : styles.star} style={{ left: s.left, top: s.top, opacity: s.opacity, animationDelay: s.delay }} />
+              <i key={i} className={`${styles.star} ${s.size === 'bright' ? styles.starBright : s.size === 'mid' ? styles.starMid : ''}`} style={s.style} />
             ))}
           </div>
+        )}
+        {o.planet > 0 && (
+          <i className={styles.planet} style={{ left: pct(scene.planetX), top: scene.planetY, opacity: o.planet }} />
         )}
         {o.moon > 0 && <Moon scene={scene} />}
         {o.mist > 0 && (
           <div className={styles.mist} style={{ opacity: o.mist }} />
         )}
         {!still && scene.weather && o.weather > 0 && (
-          <Weather kind={scene.weather} count={BAR_COUNTS[scene.weather]} tall={false} opacity={o.weather} />
+          <Weather kind={scene.weather} count={BAR_COUNTS[scene.weather]} opacity={o.weather} />
         )}
+        {!still && <SkyEventsLayer events={skyEvents} scene={scene} />}
       </div>
       <div ref={hairlineRef} className={styles.hairline} aria-hidden="true" data-ambience="hairline">
         {hair && <div className={styles.hairlineGlow} style={hair.glow} />}
