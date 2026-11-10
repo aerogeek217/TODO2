@@ -1,4 +1,4 @@
-/* Prompt row: a labelled multi-value field above the list. */
+/* A prompt row (`PromptField`): a labelled multi-value field above a list's or the Review widget's body. */
 .row {
   position: relative;
   display: flex;
@@ -58,6 +58,18 @@
   text-overflow: ellipsis;
 }
 
+/* A chip's mark (`chipMarks`): its option's, a size down. */
+.chipMark {
+  --prompt-avatar-size: 14px;
+  --prompt-avatar-font-size: 8.5px;
+
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-right: 3px;
+  color: var(--color-text-muted);
+}
+
 .chipRemove {
   width: 16px;
   height: 16px;
@@ -74,7 +86,7 @@
 
 /* Clears every pick: the clearable fields' ×, at the field's end (in the row, not over the text). */
 .clearAll {
-  composes: clear from '../../shared/ClearableField.module.css';
+  composes: clear from './ClearableField.module.css';
 }
 
 .field > .clearAll {
@@ -98,6 +110,11 @@
   font-family: inherit;
   font-size: var(--font-size-body);
   padding: 0 2px;
+}
+
+/* The field's accent border is the focus ring (`.field:focus-within`): no square ring of the input's own inside it. */
+.input:focus-visible {
+  box-shadow: none;
 }
 
 .input::placeholder {
@@ -190,14 +207,32 @@
   font-style: italic;
 }
 
+/* An option's mark, before its name: an avatar, a glyph. */
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 18px;
+  color: var(--color-text-muted);
+}
+
+/* An option's count, at its end. */
+.count {
+  flex-shrink: 0;
+  font-size: var(--font-size-row-meta);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
 .avatar {
   display: inline-grid;
   place-items: center;
   flex-shrink: 0;
-  width: 18px;
-  height: 18px;
+  width: var(--prompt-avatar-size, 18px);
+  height: var(--prompt-avatar-size, 18px);
   border-radius: 50%;
-  font-size: 9px;
+  font-size: var(--prompt-avatar-font-size, 9px);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-on-accent);
 }
