@@ -16,6 +16,17 @@ describe('glance drills: every glance click’s task dialog, built in one place'
     expect(breakdownDrill('Overdue tasks', 'tags', { key: 'none', label: 'No tag', ids: [1] }).description).toBe('Overdue tasks: the ones with no tag.')
   })
 
+  it('a Number’s breakdown line by status or priority: its tasks, in its words', () => {
+    expect(breakdownDrill('Open', 'status', { key: 'status-3', label: 'Waiting', ids: [4, 2] })).toEqual({
+      title: 'Open · Waiting', glyph: 'status', description: 'Open: the ones with the status Waiting.', source: { kind: 'todos', todoIds: [4, 2] },
+    })
+    expect(breakdownDrill('Open', 'status', { key: 'none', label: 'No status', ids: [1] }).description).toBe('Open: the ones with no status.')
+    expect(breakdownDrill('Open', 'priority', { key: 'priority-urgent', label: 'Urgent', ids: [5] })).toEqual({
+      title: 'Open · Urgent', glyph: 'focus', description: 'Open: the ones with the priority Urgent.', source: { kind: 'todos', todoIds: [5] },
+    })
+    expect(breakdownDrill('Open', 'priority', { key: 'none', label: 'No priority', ids: [1] }).description).toBe('Open: the ones with no priority.')
+  })
+
   it('the statistics stay pure: no file under services/stats builds a dialog payload', () => {
     const dir = path.resolve(__dirname, '../../../services/stats')
     for (const name of fs.readdirSync(dir)) {

@@ -2,7 +2,7 @@ import type { MarkerKey, PersistedTodoItem, Person, Status, Tag } from '../../mo
 import { MARKER_KEYS } from '../../models/filter-predicate'
 import type { BreakdownOldestBy, BreakdownShow, BreakdownSort, BreakdownSortKey, BreakdownSplit } from '../../models/chart-widgets'
 import { daysUntil } from '../../utils/effective-date'
-import { hasMarker, NO_PRIORITY_LABEL, priorityRank } from '../../utils/markers'
+import { hasMarker, NO_PRIORITY_LABEL, priorityRank, type MarkerSummary } from '../../utils/markers'
 import { keepsNoneRow, restrictedRows, type RowRestrictions } from './row-restrictions'
 import { idsByDate, type StatsContext } from './stats-context'
 
@@ -26,6 +26,14 @@ export const PRIORITY_GROUP_LABELS: Record<PriorityGroupKey, string> = {
   urgentImportant: 'Urgent + Important',
   urgent: 'Urgent',
   important: 'Important',
+}
+
+/** Each priority group's ring (`PriorityRing`'s summary): what a task of the group shows on its checkbox. */
+export const PRIORITY_GROUP_RINGS: Record<PriorityGroupKey, Pick<MarkerSummary, 'focus' | 'urgent' | 'important'>> = {
+  focus: { focus: true, urgent: null, important: false },
+  urgentImportant: { focus: false, urgent: 'flag', important: true },
+  urgent: { focus: false, urgent: 'flag', important: false },
+  important: { focus: false, urgent: null, important: true },
 }
 
 /** The due-date buckets, in order (no due date is the none row). */

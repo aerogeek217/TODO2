@@ -250,8 +250,13 @@ function pickShapeField(raw: Obj, config: NumberConfig, readPredicate: NumberPre
   }
 }
 
-/** What a Number's large face breaks its tasks down by (D25 R): their people, their tags, or nothing. */
-export const NUMBER_BREAKDOWNS = ['none', 'people', 'tags'] as const
+/**
+ * What a Number's large face breaks its tasks down by (D25 R): their people,
+ * their tags, their status, their priority (the Priority sort's groups), or
+ * nothing. Status and priority came later with no schema step: an older
+ * build reads them as invalid and drops them (no breakdown).
+ */
+export const NUMBER_BREAKDOWNS = ['none', 'people', 'tags', 'status', 'priority'] as const
 export type NumberBreakdown = (typeof NUMBER_BREAKDOWNS)[number]
 
 /** A Number shows no breakdown until one is picked (a config without one reads as this). */
@@ -262,6 +267,8 @@ export const NUMBER_BREAKDOWN_LABELS: Record<NumberBreakdown, string> = {
   none: 'None',
   people: 'By person',
   tags: 'By tag',
+  status: 'By status',
+  priority: 'By priority',
 }
 
 export function isNumberBreakdown(v: unknown): v is NumberBreakdown {

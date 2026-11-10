@@ -1,7 +1,9 @@
 import type { Tag } from '../../../models'
+import type { NumberBreakdown } from '../../../models/glance-widgets'
 import type { EisenhowerQuadrant } from '../../../models/workspace-layout'
 import type { EisenhowerPane } from '../../../utils/eisenhower-panes'
 import { formatFollowupDay } from '../../../utils/followup'
+import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import { urgentRangeLabel, type UrgentDueWithinDays } from '../../../utils/urgency'
 import { trendBucketLabel } from './glance-copy'
 import type { GlanceDrill } from './glance-types'
@@ -23,14 +25,24 @@ export function numberDrill(name: string, description: string, ids: readonly num
   return { title: name, glyph: 'open', description, source: todos(ids) }
 }
 
-/** One line of a Number's breakdown: its tasks among the Number's (`label` the person's or tag's, `key` `none` for the no-one / no-tag line). */
-export function breakdownDrill(title: string, by: 'people' | 'tags', entry: { key: string; label: string; ids: readonly number[] }): GlanceDrill {
-  const which = entry.key === 'none'
-    ? (by === 'tags' ? 'with no tag' : 'with nobody assigned')
-    : (by === 'tags' ? `tagged ${entry.label}` : `assigned to ${entry.label}`)
+/** How a Number's breakdown line reads its tasks: its glyph, the words for a named line and for the line with none. */
+const BREAKDOWN_WORDS: Record<NumberBreakdownBy, { glyph: GlanceGlyphName; named: (label: string) => string; none: string }> = {
+  people: { glyph: 'people', named: (label) => `assigned to ${label}`, none: 'with nobody assigned' },
+  tags: { glyph: 'tag', named: (label) => `tagged ${label}`, none: 'with no tag' },
+  status: { glyph: 'status', named: (label) => `with the status ${label}`, none: 'with no status' },
+  priority: { glyph: 'focus', named: (label) => `with the priority ${label}`, none: 'with no priority' },
+}
+
+/** What a shown breakdown is by (every choice but `none`). */
+export type NumberBreakdownBy = Exclude<NumberBreakdown, 'none'>
+
+/** One line of a Number's breakdown: its tasks among the Number's (`label` the person's, tag's, status's or priority group's, `key` `none` for the line with none). */
+export function breakdownDrill(title: string, by: NumberBreakdownBy, entry: { key: string; label: string; ids: readonly number[] }): GlanceDrill {
+  const words = BREAKDOWN_WORDS[by]
+  const which = entry.key === 'none' ? words.none : words.named(entry.label)
   return {
     title: `${title} · ${entry.label}`,
-    glyph: by === 'tags' ? 'tag' : 'people',
+    glyph: words.glyph,
     description: `${title}: the ones ${which}.`,
     source: todos(entry.ids),
   }

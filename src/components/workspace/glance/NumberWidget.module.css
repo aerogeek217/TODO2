@@ -149,7 +149,7 @@ button.number:hover {
 
 .breakdownRow {
   display: grid;
-  grid-template-columns: 8px minmax(0, 1fr) 72px 28px;
+  grid-template-columns: 14px minmax(0, 1fr) 72px 28px;
   align-items: center;
   gap: 8px;
   height: 24px;
@@ -173,9 +173,32 @@ button.breakdownRow:hover {
 }
 
 .breakdownDot {
+  justify-self: center;
   width: 8px;
   height: 8px;
   border-radius: 50%;
+}
+
+/* A status line's glyph, in the status's colour. */
+.breakdownMark {
+  display: inline-flex;
+  justify-self: center;
+  font-size: 13px;
+}
+
+/* A priority line's ring, on a box like a task's checkbox. */
+.breakdownRing {
+  position: relative;
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+}
+
+.breakdownRingBorder {
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-checkbox);
+  box-shadow: inset 0 0 0 1.5px var(--color-border);
 }
 
 .breakdownName {
@@ -205,7 +228,7 @@ button.breakdownRow:hover {
 }
 
 .breakdownMore {
-  padding: 2px 6px 0 22px;
+  padding: 2px 6px 0 28px;
   font-size: var(--font-size-meta);
   color: var(--color-text-muted);
 }
