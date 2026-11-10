@@ -66,20 +66,21 @@ describe('review-store', () => {
     expect(store()).toMatchObject({ open: false, source: null, ids: [], marks: {}, index: 0 })
   })
 
-  it('counts: followed up, and all reviewed once every task has a mark', () => {
-    const yes = () => true
-    expect(followedUpCount({ 1: 'done', 2: 'skipped' }, [1, 2, 3], yes)).toBe(1)
-    expect(allReviewed({ 1: 'done', 2: 'skipped' }, [1, 2, 3], yes)).toBe(false)
-    expect(allReviewed({ 1: 'done', 2: 'skipped', 3: 'done' }, [1, 2, 3], yes)).toBe(true)
-    expect(allReviewed({}, [], yes)).toBe(false)
+  it('counts: the tasks followed up today, and all reviewed once every task is followed up today or skipped', () => {
+    const today = (id: number) => id === 1 || id === 3
+    expect(followedUpCount({ 2: 'skipped' }, [1, 2, 3], (id) => id === 1)).toBe(1)
+    expect(allReviewed({ 2: 'skipped' }, [1, 2, 3], (id) => id === 1)).toBe(false)
+    expect(allReviewed({ 2: 'skipped' }, [1, 2, 3], today)).toBe(true)
+    expect(allReviewed({}, [], today)).toBe(false)
   })
 
-  it('a done mark shows only while the task is still followed up today (an undo takes it away)', () => {
-    const marks = { 1: 'done', 2: 'done', 3: 'skipped' } as const
-    const onlyOne = (id: number) => id === 1
-    expect([1, 2, 3].map((id) => shownMark(marks, id, onlyOne))).toEqual(['done', undefined, 'skipped'])
-    expect(followedUpCount(marks, [1, 2, 3], onlyOne)).toBe(1)
-    expect(allReviewed(marks, [1, 2, 3], onlyOne)).toBe(false)
+  it('✓ (item 11): every task followed up today, here or elsewhere; – only while not followed up today', () => {
+    const marks = { 2: 'done', 3: 'skipped', 4: 'skipped' } as const
+    // 1: followed up today outside the review; 2: followed up here, then undone; 3: skipped; 4: skipped, then followed up today.
+    const today = (id: number) => id === 1 || id === 4
+    expect([1, 2, 3, 4, 5].map((id) => shownMark(marks, id, today))).toEqual(['done', undefined, 'skipped', 'done', undefined])
+    expect(followedUpCount(marks, [1, 2, 3, 4, 5], today)).toBe(2)
+    expect(allReviewed(marks, [1, 3, 4], today)).toBe(true)
   })
 
   it('next drafts: kept per task, null drops one', () => {

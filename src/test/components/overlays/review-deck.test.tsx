@@ -358,9 +358,23 @@ describe('the review deck', () => {
     await openDeck()
     fireEvent.click(markButton())
     await waitFor(() => expect(railRow(FIRST)).toHaveAttribute('data-mark', 'done'))
+    // The ✓ reads the task (item 11): it can show before the follow-up's undo step is in.
+    await waitFor(() => expect(useUndoStore.getState().undoStack).toHaveLength(1))
     await act(async () => { await useUndoStore.getState().undo() })
     await waitFor(() => expect(railRow(FIRST)).not.toHaveAttribute('data-mark'))
     expect(screen.getByTestId('review-followed-up')).toHaveTextContent('0 followed up')
+  })
+
+  it('a task followed up today before the review shows ✓ and counts; a skip leaves its ✓ (item 11)', async () => {
+    const [, second] = ids as [number, number]
+    await useTodoStore.getState().update(second, { lastFollowupAt: new Date() })
+    await openDeck()
+    expect(railRow(SECOND)).toHaveAttribute('data-mark', 'done')
+    expect(screen.getByTestId('review-followed-up')).toHaveTextContent('1 followed up')
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    expect(railRow(FIRST)).toHaveAttribute('data-mark', 'skipped')
+    expect(railRow(SECOND)).toHaveAttribute('data-mark', 'done')
   })
 
   it('on a Mac, Alt + arrows in a text field move its caret; outside one they still step', async () => {

@@ -25,7 +25,7 @@ export interface ReviewDivider {
   label: string
 }
 
-/** A task's mark in this review: followed up here, or skipped. */
+/** A task's mark: followed up (today, here or elsewhere — `shownMark`), or skipped in this review. */
 export type ReviewMark = 'done' | 'skipped'
 
 /** What a review starts with. */
@@ -178,20 +178,22 @@ export function unrecordedDraftIds(drafts: Readonly<Record<number, string>>, ids
 }
 
 /**
- * Task `id`'s mark as the deck shows it: `done` only while the task is still
- * followed up today (`followedUpToday`) — an undo of the follow-up takes the
- * ✓ away (no mark then) —; `skipped` as marked.
+ * Task `id`'s mark as the deck shows it (item 11): `done` — ✓ — while the
+ * task's last follow-up is today (`followedUpToday`), whether it was
+ * followed up in this review or anywhere else today (an undo of the
+ * follow-up takes the ✓ away); else `skipped` — – — as marked here; else
+ * none.
  */
 export function shownMark(
   marks: Readonly<Record<number, ReviewMark>>,
   id: number,
   followedUpToday: (id: number) => boolean,
 ): ReviewMark | undefined {
-  const mark = marks[id]
-  return mark === 'done' && !followedUpToday(id) ? undefined : mark
+  if (followedUpToday(id)) return 'done'
+  return marks[id] === 'skipped' ? 'skipped' : undefined
 }
 
-/** How many tasks of the review are followed up in it (and still followed up today). */
+/** The header's `N followed up`: how many tasks of the queue are followed up today (its ✓ rows), wherever that happened. */
 export function followedUpCount(
   marks: Readonly<Record<number, ReviewMark>>,
   ids: readonly number[],
@@ -200,7 +202,7 @@ export function followedUpCount(
   return ids.filter((id) => shownMark(marks, id, followedUpToday) === 'done').length
 }
 
-/** Every task of the review has a mark as shown (followed up or skipped). */
+/** Every task of the review has a mark as shown (followed up today or skipped). */
 export function allReviewed(
   marks: Readonly<Record<number, ReviewMark>>,
   ids: readonly number[],

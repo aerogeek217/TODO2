@@ -58,8 +58,10 @@ import styles from './ReviewDeck.module.css'
  * taken · `k of N` (`All N reviewed` once every task has a mark) · a
  * progress bar · `n followed up` · ×. The queue rail on the left reads like
  * list rows (the priority ring on the box, the follow-up and due dates in
- * words and in their colours), a ✓ on a task followed up here (its new
- * follow-up date in teal), – on a skipped one; a click on a row jumps to it.
+ * words and in their colours), a ✓ on a task followed up today — here or
+ * anywhere else (its follow-up date in teal) —, – on one skipped here and
+ * not followed up today; a click on a row jumps to it. The header's
+ * `n followed up` counts the ✓ rows.
  * The card is the task editor's layout (board BJ, `TaskDetailsBody`): the
  * task's box (it completes the task) and title; then the facts rail —
  * Priority (Focus · Urgent · Important), Status, People, Tags, Due + repeat

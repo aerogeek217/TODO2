@@ -282,7 +282,7 @@
   font-weight: var(--font-weight-bold);
 }
 
-/* Followed up in this review: the date it has now, in teal. */
+/* Followed up today (here or elsewhere): the date it has now, in teal. */
 .railFollowup[data-marked],
 .railFollowup[data-marked][data-followup] {
   color: var(--color-accent);
