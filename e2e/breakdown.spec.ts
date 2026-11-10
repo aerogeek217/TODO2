@@ -157,7 +157,7 @@ test('Review and the envelope sit right after the name, shown on the row’s hov
   await expect(due).toHaveCSS('background-color', 'rgb(232, 107, 240)')
   await due.click()
   await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 2')
-  await expect(deck(page).getByRole('navigation', { name: 'Review queue' }).getByRole('button')).toHaveText([/Aisha late/, /Aisha soon/])
+  await expect(deck(page).getByRole('navigation', { name: 'Review queue' }).locator('[data-review-row]')).toHaveText([/Aisha late/, /Aisha soon/])
   await page.keyboard.press('Escape')
   // None: a dim dash.
   await expect(aisha.getByLabel('No tasks in Follow-up')).toHaveText('–')
