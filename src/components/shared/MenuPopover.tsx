@@ -200,7 +200,7 @@ export function MenuPopover({
 }: MenuPopoverProps) {
   const menuRef = useRef<HTMLDivElement | null>(null)
   const subRef = useRef<HTMLDivElement | null>(null)
-  /** A submenu's own submenu (one level more: Add widget › Numbers & charts › Breakdown ›, D26 P8). */
+  /** A submenu's own submenu (one level more: Add widget › Insights › Breakdown ›, D26 P8). */
   const nestedRef = useRef<HTMLDivElement | null>(null)
   /** While the submenu's own submenu (a third level) is open: closes it alone (Esc). */
   const closeNestedRef = useRef<(() => void) | null>(null)

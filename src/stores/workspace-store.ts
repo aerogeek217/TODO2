@@ -106,8 +106,9 @@ export interface EditUndoOptions {
  *   layout changes, its row is written (`layoutRepository.putAndPrune`) and
  *   the edit is one undo step with the snackbar, named in words
  *   (`Closed tab “This week”`). The lists the layout owns that it no longer
- *   shows (`layoutListRefs`: list tabs, Numbers that follow a list, Review
- *   picks) are deleted in the same write. Undo brings those lists back
+ *   shows (`layoutListRefs`: list tabs and Numbers that follow a list; a
+ *   Review widget's picks are temporary and name none) are deleted in the
+ *   same write. Undo brings those lists back
  *   first, then the layout's table as it was before the edit, carrying the
  *   view state of the moment it runs (`withViewStateOf`: sizes, collapse,
  *   active tabs, tabs' view state); Redo removes them again. Either runs

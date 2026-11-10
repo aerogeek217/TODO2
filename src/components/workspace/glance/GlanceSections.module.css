@@ -246,12 +246,16 @@ button.trendGroup:hover {
   flex: none;
 }
 
+/* Labelled every so many buckets by the measured width (`trendAxisStep`), so a
+   label may be wider than its column: centred on it, spilling both ways. */
 .trendAxis span {
-  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
   font-size: var(--font-size-sm);
   line-height: 16px;
+  height: 16px;
   color: var(--color-text-muted);
-  text-align: center;
   white-space: nowrap;
 }
 

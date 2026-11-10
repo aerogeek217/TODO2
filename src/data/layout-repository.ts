@@ -1,6 +1,7 @@
 import { db } from './database'
 import { SETTING_KEYS } from './setting-keys'
 import { rowFixes, sanitizeRow } from './import-validation'
+import { withoutLegacyReview } from './layout-shape'
 import {
   DEFAULT_LAYOUT_NAME,
   DEFAULT_WEIGHT,
@@ -39,7 +40,7 @@ export interface ReadLayout {
  * dropped.
  */
 function readable(stored: PersistedWorkspaceLayout): ReadLayout {
-  const row = withoutLegacyLens(stored)
+  const row = withoutLegacy(stored)
   const fixes = rowFixes('layouts', row)
   if (fixes.length === 0) return { layout: row, fixes }
   return { layout: { ...sanitizeRow('layouts', row), id: row.id } as PersistedWorkspaceLayout, fixes }
@@ -55,6 +56,16 @@ function withoutLegacyLens(row: PersistedWorkspaceLayout): PersistedWorkspaceLay
   const next: PersistedWorkspaceLayout & { lensId?: unknown } = { ...row }
   delete next.lensId
   return next
+}
+
+/**
+ * `row` without what an earlier build kept on it that this one reads another
+ * way: the layout's lens pick (`withoutLegacyLens`), and a Review widget's
+ * saved pick and place (`layout-shape.withoutLegacyReview`: the kind it
+ * reviews by stays, board BM). Neither is a repair.
+ */
+function withoutLegacy(row: PersistedWorkspaceLayout): PersistedWorkspaceLayout {
+  return withoutLegacyReview(withoutLegacyLens(row))
 }
 
 /** Picker order: by `sortOrder`, then oldest first. */
@@ -244,7 +255,7 @@ export const layoutRepository = {
     await db.transaction('rw', db.layouts, async () => {
       const stored = (await db.layouts.get(id)) as PersistedWorkspaceLayout | undefined
       if (!stored) return
-      const row = withoutLegacyLens(stored)
+      const row = withoutLegacy(stored)
       if (rowFixes('layouts', row).length > 0) return
       const next = apply(row)
       if (next !== row) await db.layouts.put(next)

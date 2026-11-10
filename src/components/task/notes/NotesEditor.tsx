@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { EditorState, Compartment, Prec, Transaction } from '@codemirror/state'
-import { EditorView, keymap } from '@codemirror/view'
+import { EditorView, keymap, placeholder as placeholderExtension } from '@codemirror/view'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { commonmarkLanguage, markdownKeymap, pasteURLAsLink } from '@codemirror/lang-markdown'
 import { htmlToMarkdown } from '../../../services/notes-export'
@@ -23,6 +23,13 @@ interface NotesEditorProps {
   /** Extra key bindings added to the editor (e.g. ⌘T convert-to-task). */
   extraKeymap?: Array<{ key: string; run: (view: EditorView) => boolean }>
   placeholder?: string
+  /**
+   * Draws `placeholder` in the empty editor (CodeMirror's own, muted; it
+   * also names it for assistive tech). Read once, when the editor is
+   * created. The task layout's Notes box (board BL) — always there, so it
+   * says what it is for while empty.
+   */
+  showPlaceholder?: boolean
   /**
    * Optional external ref — populated with the live `EditorView` after mount
    * and cleared on unmount. Lets a parent dispatch commands (toolbar buttons,
@@ -71,6 +78,7 @@ export function NotesEditor({
   onSelectionChange,
   extraKeymap = [],
   placeholder,
+  showPlaceholder = false,
   viewRef: externalViewRef,
   nlp,
   onNlpError,
@@ -131,6 +139,7 @@ export function NotesEditor({
         historyCompartment.current.of(history()),
         notesMarkdown,
         EditorView.lineWrapping,
+        showPlaceholder && placeholder ? placeholderExtension(placeholder) : [],
         pasteHandler,
         keymapCompartment.current.of(buildKeymap()),
         nlp

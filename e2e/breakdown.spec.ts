@@ -248,7 +248,7 @@ test('the presets: People · Tags · Status · Custom (no Waiting on)', async ({
   await seedWorkspace(page, SEED)
   await openCellMenu(page, 'k2')
   await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Add widget…' }).click()
-  await page.getByRole('menuitem', { name: 'Numbers & charts' }).click()
+  await page.getByRole('menuitem', { name: 'Insights' }).click()
   await page.getByRole('menuitem', { name: 'Breakdown' }).click()
   await expect(page.getByRole('menu', { name: 'Breakdown' }).getByRole('menuitem')).toHaveText(['People', 'Tags', 'Status', 'Custom'])
 })

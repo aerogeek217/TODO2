@@ -46,8 +46,8 @@ test('the marker gutter names the priority the checkbox ring draws; urgent by du
   await expect(gutter('Later')).toHaveAccessibleName('No priority')
   await expect(ring('Later')).toHaveCount(0)
 
-  // Settings › Task defaults: range Off → the clocks go; the flag stays.
-  const settings = await openSettings(page, 'Task defaults')
+  // Settings › Tasks › Lists & rows: range Off → the clocks go; the flag stays.
+  const settings = await openSettings(page, 'Lists & rows')
   await settings.getByRole('combobox', { name: 'Due date makes a task urgent' }).selectOption('off')
   await page.keyboard.press('Escape')
   await expect(settings).toBeHidden()

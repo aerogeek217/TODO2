@@ -780,19 +780,14 @@ describe('TaskEditPopup — notes are written as one edit session at a time', ()
   }
 
   // CodeMirror's contenteditable doesn't take React's input events: type
-  // through the editor's own view, one change per keystroke.
-  // An empty task's Notes is one line, + Add notes: open the editor first.
-  const openNotes = () => {
-    const add = screen.queryByRole('button', { name: 'Add notes' })
-    if (add) fireEvent.click(add)
-  }
+  // through the editor's own view, one change per keystroke. (An empty
+  // task's Notes box is there from the start — board BL.)
   const view = () => {
     const v = EditorView.findFromDOM(document.querySelector('.cm-editor') as HTMLElement)
     if (!v) throw new Error('no editor')
     return v
   }
   const type = (text: string) => {
-    openNotes()
     for (const ch of text) act(() => view().dispatch({ changes: { from: view().state.doc.length, insert: ch } }))
   }
   const storedNotes = () => useTodoStore.getState().todos[0]?.notes ?? ''

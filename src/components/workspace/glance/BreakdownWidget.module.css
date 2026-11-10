@@ -434,7 +434,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* A count column's count: outlined in its colour (`--col-color`), solid while it meets the column's Light up when rule. */
+/* A count column's count: outlined in its colour as text (`--col-color`, `utils/theme-color`), solid in the picked colour (`--col-fill`) while it meets the column's Light up when rule. */
 .badge {
   min-width: 22px;
   height: 18px;
@@ -460,7 +460,7 @@ button.badge {
 }
 
 .badgeSolid {
-  background: var(--col-color);
+  background: var(--col-fill);
   box-shadow: none;
   color: var(--color-text-on-hue);
 }

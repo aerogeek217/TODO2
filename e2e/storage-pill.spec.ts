@@ -105,15 +105,29 @@ test('light theme: darker amber and red text that keep their contrast', async ({
   expect(await textColour(page)).toBe('rgb(184, 53, 47)')
 })
 
-test('narrow window: Local only shrinks to its dot, a warning keeps its label', async ({ page }) => {
-  await page.setViewportSize({ width: 1000, height: 800 })
+test('all well, at any width: Local only and Synced are a dot, their words in the tooltip and name; a warning keeps its label', async ({ page }) => {
   const pill = page.getByTestId('storage-pill')
-  await expect(pill).toHaveAttribute('data-state', 'local')
-  expect(Math.round((await pill.boundingBox())!.width)).toBe(24)
-  await setStorage(page, STATES.permission.fileStorage)
-  await expect(pill).toHaveAttribute('data-state', 'permission')
-  await expect(pill.getByText('Permission needed')).toBeVisible()
-  expect((await pill.boundingBox())!.width).toBeGreaterThan(100)
+  for (const width of [1440, 1000]) {
+    await page.setViewportSize({ width, height: 800 })
+    await setStorage(page, { isConnected: false, fileName: null, needsPermission: false, paused: null, error: null })
+    await expect(pill).toHaveAttribute('data-state', 'local')
+    expect(Math.round((await pill.boundingBox())!.width), `${width}px`).toBe(24)
+    await expect(pill.getByText('Local only')).toBeHidden()
+    await expect(pill).toHaveAccessibleName('Storage: Local only')
+    await expect(pill).toHaveAttribute('title', 'Local only')
+
+    await setStorage(page, { isConnected: true, fileName: 'todo2.json', needsPermission: false, paused: null, error: null })
+    await expect(pill).toHaveAttribute('data-state', 'syncing')
+    expect(Math.round((await pill.boundingBox())!.width), `${width}px`).toBe(24)
+    await expect(pill.getByText('Synced')).toBeHidden()
+    await expect(pill).toHaveAccessibleName('Storage: Synced')
+    await expect(pill).toHaveAttribute('title', 'Syncing to todo2.json')
+
+    await setStorage(page, STATES.permission.fileStorage)
+    await expect(pill).toHaveAttribute('data-state', 'permission')
+    await expect(pill.getByText('Permission needed')).toBeVisible()
+    expect((await pill.boundingBox())!.width, `${width}px`).toBeGreaterThan(100)
+  }
 })
 
 test('keyboard: the popover takes the focus, keeps Tab inside, and gives the focus back to the pill', async ({ page }) => {

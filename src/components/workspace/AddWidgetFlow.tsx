@@ -94,7 +94,7 @@ interface AddWidgetButtonsProps {
 
 /**
  * One button per widget kind (an empty layout's tiles, an empty cell's row),
- * by group under its caption (Tasks, Numbers & charts): adds that widget at
+ * by group under its caption (Tasks, Insights): adds that widget at
  * `target` (`useAddKind` — a list opens its Edit list).
  */
 export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconSize }: AddWidgetButtonsProps) {

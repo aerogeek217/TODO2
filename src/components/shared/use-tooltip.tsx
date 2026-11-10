@@ -1,8 +1,22 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { TooltipBubble } from './TooltipBubble'
+import { POPOVER_LEVEL_ATTR } from './popover-level'
 
 /** How long the pointer (or keyboard focus) rests on a trigger before its tooltip opens. */
 export const TOOLTIP_DELAY_MS = 400
+
+/**
+ * A popover is open (`data-popover-level`, every popover's root) that
+ * `anchor` isn't inside: a tooltip for something behind it (a row resting
+ * under the pointer beside Edit list, an Add widget menu) would sit beside
+ * the popover the user is working in, so it doesn't open (UX cleanup 1A).
+ */
+function popoverOpenElsewhere(anchor: HTMLElement): boolean {
+  for (const popover of document.querySelectorAll(`[${POPOVER_LEVEL_ATTR}]`)) {
+    if (!popover.contains(anchor)) return true
+  }
+  return false
+}
 
 interface TooltipTriggerProps {
   onPointerEnter: (e: React.PointerEvent<HTMLElement>) => void
@@ -23,7 +37,8 @@ export interface UseTooltipResult {
 /**
  * The app's tooltip: opens after {@link TOOLTIP_DELAY_MS} of hover or
  * keyboard focus on the trigger and closes on leave, blur, press, Escape or
- * scroll. Touch never opens it. `text` may hold several lines (`\n`): the
+ * scroll. Touch never opens it, nor does a trigger outside an open popover
+ * (`popoverOpenElsewhere`). `text` may hold several lines (`\n`): the
  * first (or the first `labelLines`) is the label, the rest muted lines. `shortcut` adds a muted
  * key after the label (`Complete Space`). Only labels and shortcuts go in a
  * tooltip, never anything clickable.
@@ -52,6 +67,7 @@ export function useTooltip(text: string | null | undefined, opts: { shortcut?: s
     cancel()
     timerRef.current = window.setTimeout(() => {
       timerRef.current = null
+      if (popoverOpenElsewhere(el)) return
       setOpen(true)
     }, TOOLTIP_DELAY_MS)
   }, [cancel])

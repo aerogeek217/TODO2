@@ -35,6 +35,24 @@ async function hoverForTooltip(page: Page, trigger: Locator): Promise<Locator> {
   return tip
 }
 
+test('no tooltip opens beside an open popover for a trigger outside it; once it closes, the tooltip opens', async ({ page }) => {
+  const widget = await open(page, [{ title: 'Alpha', urgent: true }, { title: 'Bravo' }], 2)
+  const marker = taskRowByTitle(page, 'Alpha').getByRole('button', { name: 'Priority: Urgent' })
+  // The cell's ⋯ menu (a popover) open from the list's top line.
+  await widget.locator('[data-widget-top-line]').first().click({ button: 'right', position: { x: 40, y: 10 } })
+  const menu = page.getByRole('menu', { name: 'Cell options' })
+  await expect(menu).toBeVisible()
+  expect(await menu.evaluate((el) => el.closest('[data-popover-level]') != null)).toBe(true)
+  await marker.hover()
+  // Well past the 400 ms delay: nothing opens.
+  await page.waitForTimeout(800)
+  await expect(page.getByRole('tooltip')).toHaveCount(0)
+  await page.keyboard.press('Escape')
+  await expect(menu).toBeHidden()
+  await page.mouse.move(2, 2)
+  await hoverForTooltip(page, marker)
+})
+
 test('centred 6px below its trigger', async ({ page }) => {
   await open(page, [{ title: 'Alpha', urgent: true }], 2)
   const marker = taskRowByTitle(page, 'Alpha').getByRole('button', { name: 'Priority: Urgent' })

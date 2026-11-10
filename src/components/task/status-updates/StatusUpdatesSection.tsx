@@ -26,11 +26,11 @@ export interface StatusUpdateFields {
 const STATUS_UPDATE_ADD_PLACEHOLDER = 'What’s the latest?'
 
 /**
- * The task layout's **Status updates** (board BJ — the task editor and
- * the review card, last in the writing): the label with the count, then
- * every entry **oldest first**, like a log, one line each `MM/DD text` (the newest — the last —
- * in the primary colour), then the **add line** — all there is while the
- * task has none (the label only names the region). The list grows to its
+ * The task layout's **Status updates** (boards BJ, BL — the task editor
+ * and the review card, in the writing's dock): the label — always shown,
+ * the count beside it once there is an entry —, then every entry **oldest
+ * first**, like a log, one line each `MM/DD text` (the newest — the last —
+ * in the primary colour), then the **add line**. The list grows to its
  * limit, then scrolls inside, opening scrolled to the bottom (and going
  * back there as an entry is added). Hover or focus shows an entry's edit
  * and delete; a click on its text edits too. Editing puts the day and text
@@ -167,10 +167,10 @@ export function StatusUpdatesSection({ entries, onAdd, onEdit, onRemove, classNa
   return (
     <section className={className} aria-labelledby={labelId} data-status-updates="" data-empty={entries.length === 0 || undefined}>
       <div className={styles.headingRow}>
-        {/* Empty, the section is its add line: the label only names it. */}
-        <div className={`${labelClassName ?? ''} ${styles.heading} ${entries.length === 0 ? styles.visuallyHidden : ''}`} id={labelId}>
+        {/* Always shown (board BL): without it an empty section read as gone. */}
+        <div className={`${labelClassName ?? ''} ${styles.heading}`} id={labelId}>
           Status updates
-          {entries.length > 0 && <span className={styles.count}>{entries.length}</span>}
+          {entries.length > 0 && <span className={styles.count} data-status-update-count="">{entries.length}</span>}
         </div>
       </div>
       {entries.length > 0 && (

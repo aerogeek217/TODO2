@@ -37,8 +37,13 @@ export interface WsTabSeed {
     colourBy?: { tags: string[] } | 'people' | 'none'
     untouchedDays?: number
   }
-  /** Review tabs (item 12): the pick — a person or tag by name, or a list (index into `listDefinitions`). */
-  review?: { person?: string; tag?: string; listDefIdx?: number }
+  /**
+   * Review tabs (item 12, board BM): what the widget reviews by (default
+   * Person). Its picks are temporary — type them into its field
+   * (`pickInReview`). `legacyPick` stores the config an earlier build saved
+   * (one person or tag by name) instead.
+   */
+  review?: { by?: 'person' | 'tag' | 'status' | 'list'; legacyPick?: { person?: string; tag?: string } }
 }
 
 export interface WsCellSeed {
@@ -196,8 +201,12 @@ export interface WorkspaceSeed {
    * added): each predicate merged over the empty one.
    */
   lenses?: Array<{ id: string; name: string; predicate?: Record<string, unknown> }>
-  /** Settings rows to store as they are (`key` → stored `value`), e.g. `{ rowDensity: 'lines' }`. */
-  settings?: Record<string, string>
+  /**
+   * Settings rows to store as they are (`key` → stored `value`), e.g. `{ rowDensity: 'lines' }`;
+   * `null` stores none. The Default list zoom is seeded as Rows (`rowDensity: 'rows'`) unless given:
+   * Auto (the app's default, no row — `{ rowDensity: null }`) would draw a cell under 480px Stacked.
+   */
+  settings?: Record<string, string | null>
   /** Names, or a name with initials / colour / email. */
   people?: Array<string | { name: string; initials?: string; color?: string; email?: string }>
   /** Names, or a name with its colour (default `#7ec4bc`). */
@@ -412,11 +421,15 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       if (tab.kind === 'pulse' && tab.tagNames) {
         config.tagIds = tab.tagNames.map((name) => tagIds.get(name)).filter((id) => id != null)
       }
-      if (tab.kind === 'review' && tab.review) {
-        const r = tab.review
-        const id = r.person != null ? personIds.get(r.person) : r.tag != null ? tagIds.get(r.tag) : r.listDefIdx != null ? defIds[r.listDefIdx] : undefined
-        const kind = r.person != null ? 'person' : r.tag != null ? 'tag' : 'list'
-        if (id != null) config.pick = { kind, id }
+      if (tab.kind === 'review') {
+        const legacy = tab.review?.legacyPick
+        const id = legacy?.person != null ? personIds.get(legacy.person) : legacy?.tag != null ? tagIds.get(legacy.tag) : undefined
+        if (legacy && id != null) {
+          delete config.by
+          config.pick = { kind: legacy.person != null ? 'person' : 'tag', id }
+        } else {
+          config.by = tab.review?.by ?? 'person'
+        }
       }
       if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
@@ -458,7 +471,10 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       }]))
       tx.objectStore('settings').put({ key: 'eisenhowerPanes', value: JSON.stringify(panes) })
     }
-    for (const [key, value] of Object.entries(seed.settings ?? {})) tx.objectStore('settings').put({ key, value })
+    for (const [key, value] of Object.entries({ rowDensity: 'rows', ...seed.settings })) {
+      if (value === null) tx.objectStore('settings').delete(key)
+      else tx.objectStore('settings').put({ key, value })
+    }
     if (seed.lenses) {
       const lenses = seed.lenses.map((l) => ({ id: l.id, name: l.name, predicate: { ...seed.predicate, ...(l.predicate ?? {}) } }))
       tx.objectStore('settings').put({ key: 'lenses', value: JSON.stringify(lenses) })
@@ -708,13 +724,13 @@ export function wsDivider(page: Page, a: string, b: string): Locator {
   return page.locator(`[data-ws-divider="${a}|${b}"]`)
 }
 
-/** The Numbers & charts kinds' names: the add-widget and Change widget menus list them in a submenu. */
-const GLANCE_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('glance').map(widgetKindLabel))
+/** The Insights kinds' names: the add-widget and Change widget menus list them in a submenu. */
+const INSIGHTS_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('insights').map(widgetKindLabel))
 
 /**
  * Picks the kind named `label` in the open add-widget (`Add widget`) or
  * cell (`Change widget`: the ⋯ menu, `Cell options`) menu. Adding: a task
- * kind from the menu itself, a Numbers & charts kind from its submenu, and
+ * kind from the menu itself, an Insights kind from its submenu, and
  * a Breakdown one of its presets (`preset`, default Custom: D26 P8), whose
  * editor then opens. Changing: every kind from the Change widget › submenu.
  */
@@ -726,9 +742,9 @@ export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Chang
   }
   const role = 'menuitem'
   let menu = page.getByRole('menu', { name: 'Add widget' })
-  if (GLANCE_LABELS.has(label)) {
-    await menu.getByRole('menuitem', { name: /^Numbers & charts/ }).click()
-    menu = page.getByRole('menu', { name: 'Numbers & charts' })
+  if (INSIGHTS_LABELS.has(label)) {
+    await menu.getByRole('menuitem', { name: /^Insights/ }).click()
+    menu = page.getByRole('menu', { name: 'Insights' })
   }
   await menu.getByRole(role, { name: label, exact: true }).click()
   if (menuName === 'Add widget' && label === 'Breakdown') {
@@ -769,6 +785,25 @@ export async function dragTab(page: Page, tab: Locator, to: Point, during?: () =
 
 export function wsListWidget(page: Page, tabId: string): Locator {
   return page.locator(`[data-list-widget="${tabId}"]`)
+}
+
+/** The field of Review widget `tabId`'s prompt row (board BM). */
+export function reviewField(page: Page, tabId: string): Locator {
+  return page.locator(`[data-review-widget="${tabId}"]`).getByRole('combobox', { name: / to review$/ })
+}
+
+/**
+ * Picks in Review widget `tabId` by typing: each of `names` typed into its
+ * field and taken with ⏎ (the first match), as a user would — its picks are
+ * temporary, so no seed holds them. The option list is closed afterwards.
+ */
+export async function pickInReview(page: Page, tabId: string, ...names: string[]): Promise<void> {
+  const field = reviewField(page, tabId)
+  for (const name of names) {
+    await field.fill(name)
+    await field.press('Enter')
+  }
+  await field.press('Escape')
 }
 
 /**
@@ -825,7 +860,8 @@ export async function gotoSettingsDeepLink(page: Page): Promise<Locator> {
 
 /** The headed parts of the merged Settings sections, by label: their section. */
 const SETTINGS_PART_SECTION: Readonly<Record<string, string>> = {
-  'Task defaults': 'Tasks',
+  'New tasks': 'Tasks',
+  'Lists & rows': 'Tasks',
   Eisenhower: 'Tasks',
   'Completed tasks': 'Tasks',
   'File storage': 'Database',

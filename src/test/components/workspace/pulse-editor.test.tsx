@@ -25,7 +25,7 @@ import { layoutSteps } from '../../helpers/layout-steps'
 /**
  * Project pulse's rules (G5) in JSDOM: a layout without them reads the
  * defaults and stays saved; Edit project pulse… opens the editor under its
- * title, whose Save writes the rules (the layout unsaved until its Save) — names in the
+ * title, whose Save writes the rules (for good, one undo step) — names in the
  * counts and Copy, a filter of its own changing a count, back to the default.
  */
 

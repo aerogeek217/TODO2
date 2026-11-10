@@ -12,6 +12,7 @@ import {
 import { trendBucketDrill, trendTotalDrill } from './glance-drills'
 import { glanceDrill, GLANCE_PANEL_CLASS, useReportLines, type GlanceWidgetProps } from './glance-hooks'
 import { trendLines } from './glance-summary'
+import { trendAxisStep } from './trend-axis'
 import { GlanceFrame } from './GlanceFrame'
 import { GlanceSmallFace } from './GlanceSmallFace'
 import { SECTION_META } from './section-meta'
@@ -39,6 +40,8 @@ function TrendSection({ data, onDrill, style, className }: SectionProps<TrendSec
   const columns = { gridTemplateColumns: `repeat(${Math.max(1, buckets.length)}, minmax(0, 1fr))` }
   const granularity = trend?.window.granularity ?? 'day'
   const rangeWords = trendRangeWords(trendRange)
+  const labels = buckets.map((b) => trendBucketLabel(b.start, granularity))
+  const step = trendAxisStep(size.width, labels.length, Math.max(0, ...labels.map((l) => l.length)))
   return (
     <Panel
       def={SECTION_META.trend}
@@ -95,8 +98,10 @@ function TrendSection({ data, onDrill, style, className }: SectionProps<TrendSec
           })}
         </div>
         <div className={styles.trendAxis} style={columns}>
-          {buckets.map((b, i) => (
-            <span key={i} data-today={i === buckets.length - 1 ? 'true' : undefined}>{trendBucketLabel(b.start, granularity)}</span>
+          {labels.map((label, i) => (
+            <span key={i} data-today={i === labels.length - 1 ? 'true' : undefined}>
+              {(labels.length - 1 - i) % step === 0 ? label : null}
+            </span>
           ))}
         </div>
       </div>

@@ -642,7 +642,6 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
             testId="eisenhower-refusal"
           />
         )}
-        {showBulkBar && <ListBulkBar ids={[...selectedIds]} bottom={12} />}
       </div>
       {noneOpen.length > 0 && (
         <button
@@ -654,6 +653,8 @@ function EisenhowerBody({ tab, onResult, shown, openTotal, list, leaving, kept, 
           {noneOpen.length} open {noneOpen.length === 1 ? 'task' : 'tasks'} in no pane
         </button>
       )}
+      {/* Docked at the foot, under the panes: it covers no row. */}
+      {showBulkBar && <ListBulkBar ids={[...selectedIds]} />}
       {paneMenu && paneMenuEntries.length > 0 && (
         <MenuPopover
           point={{ x: paneMenu.x, y: paneMenu.y }}

@@ -15,8 +15,11 @@ describe('a Number’s colour: lit only when its count crosses its threshold (D1
     expect(numberIsLit({ litWhen: 'above' }, 1)).toBe(true)
   })
 
-  it('lit: label and count in its colour — Auto’s the accent', () => {
-    expect(numberColors({ color: '#e86bf0', litWhen: 'above', litAt: 0 }, 3)).toEqual({ lit: true, label: '#e86bf0', count: '#e86bf0' })
+  it('lit: label and count in its colour as the theme draws it (J21) — Auto’s the accent', () => {
+    // v78's overdue hex → the overdue token; a preset → its text token; any other hex shaded by the theme's token.
+    expect(numberColors({ color: '#e86bf0', litWhen: 'above', litAt: 0 }, 3)).toEqual({ lit: true, label: 'var(--color-overdue)', count: 'var(--color-overdue)' })
+    expect(numberColors({ color: '#A78BFA', litWhen: 'above', litAt: 0 }, 3).count).toBe('var(--hue-violet-text)')
+    expect(numberColors({ color: '#123456', litWhen: 'above', litAt: 0 }, 3).count).toBe('color-mix(in oklab, #123456, #000 var(--custom-color-shade))')
     expect(numberColors({ litWhen: 'below', litAt: 10 }, 3)).toEqual({ lit: true, label: 'var(--color-accent)', count: 'var(--color-accent)' })
   })
 

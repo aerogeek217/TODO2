@@ -29,14 +29,15 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
     layouts: [{ name: 'Glance', columns: [{ id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 'list', kind: 'lens', listDefIdx: 0 }] })] }] }],
   })
 
-  // Split below, then the Number from the Numbers & charts group.
+  // Split below, then the Number from the Insights group.
   await openCellMenu(page, 'k1')
   await pickSplit(page, 'Below')
   const empty = page.getByRole('region', { name: 'Empty cell' })
-  // Tasks: List and Notes; the Calendar is in Numbers & charts (D26).
+  // Tasks: List, Calendar, Eisenhower, Review, Notes; Insights: the numbers and charts, and the Neglect map.
   await expect(empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Notes' })).toBeVisible()
-  await expect(empty.getByRole('group', { name: 'Numbers & charts' }).getByRole('button', { name: 'Calendar' })).toBeVisible()
-  await empty.getByRole('group', { name: 'Numbers & charts' }).getByRole('button', { name: 'Number', exact: true }).click()
+  await expect(empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Calendar' })).toBeVisible()
+  await expect(empty.getByRole('group', { name: 'Insights' }).getByRole('button', { name: 'Neglect map' })).toBeVisible()
+  await empty.getByRole('group', { name: 'Insights' }).getByRole('button', { name: 'Number', exact: true }).click()
   // A new Number counts every open task, its editor open beside it, its name focused.
   await expect(number(page).getByTestId('number-count')).toHaveText('4')
   await expect(number(page)).not.toHaveAttribute('data-lit', 'true')
@@ -51,7 +52,7 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await numberCell.hover()
   await numberCell.getByRole('button', { name: 'Cell options' }).click()
   await pickSplit(page, 'Below')
-  await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Numbers & charts' })
+  await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Insights' })
     .getByRole('button', { name: 'Created vs completed' }).click()
   await expect(page.locator('[data-glance="trend"] [data-glance-section="trend"]')).toBeVisible()
   await expectLayoutStep(page)

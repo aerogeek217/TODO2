@@ -32,7 +32,7 @@ test('add a Number, type a filter, see its count and its tasks', async ({ page }
   await seedWorkspace(page, SEED)
   await openCellMenu(page, 'k1')
   await pickSplit(page, 'Below')
-  await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Numbers & charts' })
+  await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Insights' })
     .getByRole('button', { name: 'Number', exact: true }).click()
 
   // A new Number: every open task, its editor open at once.
@@ -72,7 +72,7 @@ test('closing the editor with changes asks Save / Discard / Keep editing; a pres
   await seedWorkspace(page, SEED)
   await openCellMenu(page, 'k1')
   await pickSplit(page, 'Below')
-  await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Numbers & charts' })
+  await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Insights' })
     .getByRole('button', { name: 'Number', exact: true }).click()
   await expect(editor(page)).toBeVisible()
   const name = editor(page).getByRole('textbox', { name: 'Name' })

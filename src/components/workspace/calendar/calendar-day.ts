@@ -15,6 +15,8 @@ import styles from './CalendarWidget.module.css'
 /** Month grid: bottom padding and row gap (px), for the cell-height fit. */
 export const MONTH_GRID_PAD = 6
 export const MONTH_GRID_GAP = 2
+/** The heat map's legend under the month grid (px; `.heatLegend`'s height). */
+export const MONTH_LEGEND_HEIGHT = 20
 
 export type CalendarMode = 'month' | 'compact' | 'rows' | 'columns'
 
