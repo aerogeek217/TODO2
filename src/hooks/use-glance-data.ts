@@ -1,7 +1,8 @@
 import { useMemo } from 'react'
 import type { PersistedTodoItem, Tag, TodoEvent, TodoPredicate } from '../models'
-import { TREND_RANGES, type NumberConfig, type TrendRange } from '../models/glance-widgets'
-import { filterHistory, historyExactness, type HistoryExactness } from '../services/stats/filter-history'
+import { TREND_RANGES, type NumberConfig, type TrendRange, type TrendTabConfig } from '../models/glance-widgets'
+import { emptyPredicate } from '../models/filter-predicate'
+import { filterHistory, historyExactFrom, historyExactness, type HistoryExactness, type HistoryField } from '../services/stats/filter-history'
 import { numberHistoryDays, numberIds, numberStages } from '../services/stats/number-count'
 import { computePulse, type PulseCard } from '../services/stats/pulse'
 import { pulseRuleFilter, type PulseRuleKey, type PulseTabConfig } from '../models/pulse-config'
@@ -17,6 +18,7 @@ import { useTodoStore } from '../stores/todo-store'
 import { useFilterStore } from '../stores/filter-store'
 import { currentAppliedLens } from '../stores/screen-filter'
 import { startOfToday } from '../utils/date'
+import { trendFieldsWindow } from '../utils/trend-window'
 import { withLens } from '../utils/lens'
 import { todoNameLookups, type TodoNameLookups } from '../utils/filter'
 import { admitsCompleted, countActiveFilters, predicateToCriteria, type FilterCriteria } from '../utils/filter-criteria'
@@ -211,10 +213,81 @@ type Tasks = readonly PersistedTodoItem[]
 const trendMemo = sharedMemo((shown: Tasks, events: readonly TodoEvent[], ctx: StatsContext, range: TrendRange): TrendStats => (
   computeTrend(shown, events, ctx, range)
 ), TREND_RANGES.length)
-/** Created vs completed over `range`; `null` until the history has been read. */
+/** Created vs completed over `range`, every task the top bar shows as it is now; `null` until the history has been read. */
 export function useTrendStats(base: StatsBase, range: TrendRange): TrendStats | null {
   const events = useTrendEvents(range)
   return events ? trendMemo(base.shown, events, base.ctx, range) : null
+}
+
+/** What Created vs completed draws: its statistics, and from which day they are exact. */
+export interface TrendData {
+  stats: TrendStats
+  /** The index of the first of the window's days from which every count is exact (`days.length`: none is); the days before it are marked ≈. */
+  exactFrom: number
+  /** What reads as it is now on the days before `exactFrom` (the ≈ mark's tooltip). */
+  approximate: HistoryField[]
+  /** The screen filter narrows what it counts (its drills say so). */
+  filtered: boolean
+}
+
+/** No filter: every task (a config without one). */
+const EVERY_TASK: TodoPredicate = emptyPredicate()
+
+/** Created vs completed's filter: its own, else one keeping every task (the same object each time, so the memos keyed on it hit). */
+export function trendFilter(config: Pick<TrendTabConfig, 'filter'>): TodoPredicate {
+  return config.filter ?? EVERY_TASK
+}
+
+/** Whether a filter narrows the tasks (completion aside). */
+function narrows(f: FilterCriteria): boolean {
+  return f.expression != null || countActiveFilters({ ...f, showCompleted: false }) > 0
+}
+
+// One memo per range, each keeping a set per filter (`sharedMemoByKey`): any
+// number of these widgets on screen never evict one another, and two with the
+// same filter and range compute once.
+const filteredTrendMemos = Object.fromEntries(TREND_RANGES.map((range) => [range, sharedMemoByKey(function filteredTrend(
+  filter: FilterCriteria,
+  screen: FilterCriteria,
+  todos: Tasks,
+  events: readonly TodoEvent[],
+  ctx: StatsContext,
+  lookups: TodoNameLookups,
+  settings: FilterSettings,
+): TrendStats {
+  const stages = [statsFilter(screen), { ...filter, showCompleted: true }]
+  return computeTrend(todos, events, ctx, range, { stages, lookups, settings })
+})])) as Record<TrendRange, (filter: FilterCriteria, screen: FilterCriteria, todos: Tasks, events: readonly TodoEvent[], ctx: StatsContext, lookups: TodoNameLookups, settings: FilterSettings) => TrendStats>
+
+const trendExactMemo = sharedMemoByKey(function trendExact(stats: TrendStats, filter: FilterCriteria | null, screen: FilterCriteria, historyLogSince: Date | null) {
+  return filter ? historyExactFrom([statsFilter(screen), filter], stats.window.days, historyLogSince) : { from: 0, approximate: [] }
+})
+
+const trendDataMemo = sharedMemoByKey(function trendData(stats: TrendStats, exact: { from: number; approximate: HistoryField[] }, filtered: boolean): TrendData {
+  return { stats, exactFrom: exact.from, approximate: exact.approximate, filtered }
+})
+
+/**
+ * Created vs completed's data (its filter and range): among the tasks the
+ * top bar shows — the base's, without the lens while the widget ignores it.
+ * While neither its filter nor the screen filter narrows, every task is
+ * read as it is (`useTrendStats`'s read); else each task is replayed to
+ * each day's end and counted while the filter and the screen filter kept it
+ * then (`computeTrend`'s filter, a Number line's replay), the days the log
+ * can't say exactly marked by `exactFrom`. `null` until the history has been read.
+ */
+export function useTrend(base: StatsBase, config: Pick<TrendTabConfig, 'range' | 'filter'>): TrendData | null {
+  const range = config.range
+  const filter = numberCriteriaMemo(trendFilter(config))
+  const replay = base.filtered || narrows(filter)
+  const events = useTrendEvents(replay ? trendFieldsWindow(range) : range)
+  const historyLogSince = useSettingsStore((s) => s.historyLogSince)
+  if (!events) return null
+  const stats = replay
+    ? filteredTrendMemos[range](filter, base.screen, base.todos, events, base.ctx, lookupsFor(base, base.screen, filter), base.markerSettings)
+    : trendMemo(base.shown, events, base.ctx, range)
+  const exact = trendExactMemo(stats, replay ? filter : null, base.screen, historyLogSince)
+  return trendDataMemo(stats, exact, base.filtered)
 }
 
 // ── A Number (D26 P5) ──────────────────────────────────────────────────────

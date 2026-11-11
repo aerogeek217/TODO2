@@ -65,6 +65,7 @@ export function setTabIgnoresLens(tab: LensSwitchTab, ignore: boolean): void {
     case 'review': void ws.patchTabViewState(tab.id, 'review', patch); return
     case 'neglect': void ws.patchTabViewState(tab.id, 'neglect', patch); return
     case 'number': void ws.patchTabViewState(tab.id, 'number', patch); return
+    case 'trend': void ws.patchTabViewState(tab.id, 'trend', patch); return
     case 'pulse': void ws.patchTabViewState(tab.id, 'pulse', patch); return
     case 'breakdown': void ws.patchTabViewState(tab.id, 'breakdown', patch); return
     case 'pivot': void ws.patchTabViewState(tab.id, 'pivot', patch); return
