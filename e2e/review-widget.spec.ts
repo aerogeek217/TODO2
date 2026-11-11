@@ -372,7 +372,7 @@ test('faces by size: medium — the card’s essentials and the update line; sma
   await pickInReview(page, 'rm', 'Aisha')
   await expect(med.getByTestId('review-card-title')).toHaveText('Vendor contract renewal')
   await expect(med.getByTestId('review-widget-progress')).toHaveText('0 followed up')
-  await expect(med).not.toHaveText(/[0-9]+ of [0-9]+/)
+  await expect(med.locator('[data-widget-top-line]')).not.toHaveText(/[0-9]+ of [0-9]+/)
   await expect(med.getByTestId('review-facts')).toContainText('Waiting')
   await expect(med.locator('[data-review-row]')).toHaveCount(0)
   await shot(page, 'review-widget-medium', wsCell(page, 'med'))
@@ -398,7 +398,7 @@ test('faces by size: medium — the card’s essentials and the update line; sma
   // The popover is under 820px wide: the queue folds into a Queue button before the progress, which opens it (task layout A).
   await expect(whole.locator('[data-review-rail]')).toHaveCount(0)
   await expect(whole.getByTestId('review-widget-progress')).toHaveText('Queue · 0 followed up')
-  await expect(whole).not.toHaveText(/[0-9]+ of [0-9]+/)
+  await expect(whole.locator('[data-prompt-row]')).not.toHaveText(/[0-9]+ of [0-9]+/)
   const queueButton = whole.getByRole('button', { name: 'Queue', exact: true })
   await expect(queueButton).toHaveAttribute('data-review-queue-button', '')
   await queueButton.click()

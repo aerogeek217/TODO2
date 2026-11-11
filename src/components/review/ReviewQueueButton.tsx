@@ -48,6 +48,8 @@ export function ReviewQueueButton({ todoById, followedUpToday, label, className 
         className={`${styles.queueButton} ${className ?? ''}`}
         aria-haspopup="dialog"
         aria-expanded={open}
+        // The word alone: the style's ▾ (generated content) would join the name.
+        aria-label="Queue"
         data-review-queue-button=""
         {...tipProps}
         onClick={() => setOpen((o) => !o)}
