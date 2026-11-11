@@ -325,7 +325,7 @@ describe('Edit list', () => {
     expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Edit list closed: its changes to “Waiting on” weren’t saved.' })
   })
 
-  it('closes when its tab shows another list now (Change list by keyboard): the list left the screen', () => {
+  it('closes when its tab shows another list now (an undo, a kind change): the list left the screen', () => {
     open()
     const switched: PersistedWorkspaceLayout = {
       ...layout,

@@ -3,7 +3,7 @@ import {
   drag,
   dragTab,
   expectOpenLayout,
-  openCellMenu,
+  openCellLayoutMenu,
   pickCellMenu,
   pickSplit,
   pickWidgetKind,
@@ -171,14 +171,14 @@ test.describe('resize and collapse', () => {
   test('the cell menu’s Collapse row, Expand row and split / close', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     // D26: collapse is a row track's — the row b1 lies in. One widget: its top line stays (AA1).
-    await openCellMenu(page, 'b1')
+    await openCellLayoutMenu(page, 'b1')
     await page.getByRole('menuitem', { name: 'Collapse row' }).click()
     await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toBeHidden()
     await expectLayoutStored(page)
     await wsCell(page, 'b1').getByRole('button', { name: 'Expand row' }).click()
     await expect(wsCell(page, 'b1').locator('[data-ws-cell-body]')).toBeVisible()
 
-    await openCellMenu(page, 'b1')
+    await openCellLayoutMenu(page, 'b1')
     await pickSplit(page, 'Below')
     await expect(page.getByRole('region', { name: 'Empty cell' })).toBeVisible()
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
@@ -188,7 +188,7 @@ test.describe('resize and collapse', () => {
 
   test('a new column and a resize of it are stored at once, kept over a reload', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await openCellMenu(page, 'b1')
+    await openCellLayoutMenu(page, 'b1')
     await pickCellMenu(page, 'Insert', 'Column at the right')
     await page.getByRole('region', { name: 'Empty cell' }).getByRole('button', { name: 'Notes' }).click()
     await expect.poll(async () => (await wsShape(page)).length).toBe(3)

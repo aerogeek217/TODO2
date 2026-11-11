@@ -44,8 +44,10 @@
 
 /* The controls slot: an Expand button while collapsed (always shown), then
  * the grip and ⋯ — shown while the pointer is over the cell, while focus is
- * in it and while its menu is open, always on touch. Opacity only, so the
- * line never moves. */
+ * in it and while a menu of the cell is open, always on touch. Opacity only,
+ * so the line never moves, and no fade (a fading control is a stacking
+ * context drawn over its neighbours, UX cleanup 1A). In a top line the slot
+ * is a flex item of its own at the line's end: nothing lies under it. */
 .slot {
   display: inline-flex;
   align-items: center;
@@ -59,7 +61,6 @@
   align-items: center;
   gap: 2px;
   opacity: 0;
-  transition: opacity var(--transition-fast);
 }
 
 :global([data-ws-cell]):hover .controls,
@@ -69,13 +70,33 @@
   opacity: 1;
 }
 
+/* Floating over the face, hidden, it takes no press (UX cleanup 4A): a tap
+ * on a screen with no hover, or a press before the pointer has made the cell
+ * show it, reaches the face under it (a Number's or a small face's corner). */
+.floating .controls {
+  pointer-events: none;
+}
+
+:global([data-ws-cell]):hover .floating .controls,
+:global([data-ws-cell]):focus-within .floating .controls,
+.floating[data-open] .controls,
+.floating[data-touch] .controls {
+  pointer-events: auto;
+}
+
 /* The cell's own slot, for a face without a top line that holds it: over
- * the cell's top-right corner, on the surface so it reads over the face. */
+ * the cell's top-right corner, on the surface so it reads over the face.
+ * Its box passes presses on to the face under it (its buttons take theirs). */
 .floating {
   position: absolute;
   top: 4px;
   right: 4px;
   z-index: var(--z-above-2);
+  pointer-events: none;
+}
+
+.floating > .button {
+  pointer-events: auto;
 }
 
 .floating .controls {
@@ -114,18 +135,29 @@
   color: var(--color-text-primary);
 }
 
+/* The grip (a button: a click opens the cell's layout menu, a drag moves the cell). */
 .grip {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 16px;
   height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
   color: var(--color-text-muted);
   cursor: grab;
   touch-action: none;
 }
 
 .grip:hover {
+  background: var(--color-tint-8);
+  color: var(--color-text-primary);
+}
+
+.grip.pressed {
+  background: var(--color-tint-12);
   color: var(--color-text-primary);
 }
 

@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
-import { openCellMenu, pickSplit, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep } from './fixtures/workspace'
+import { openCellLayoutMenu, pickSplit, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep } from './fixtures/workspace'
 
 /**
  * The glance widgets (D25 N) in a real browser: a Number and a Created vs
@@ -30,7 +30,7 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   })
 
   // Split below, then the Number from the Insights group.
-  await openCellMenu(page, 'k1')
+  await openCellLayoutMenu(page, 'k1')
   await pickSplit(page, 'Below')
   const empty = page.getByRole('region', { name: 'Empty cell' })
   // Tasks: List, Calendar, Eisenhower, Review, Notes; Insights: the numbers and charts, and the Neglect map.
@@ -50,7 +50,7 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   // And Created vs completed below it.
   const numberCell = page.locator('[data-ws-cell]').filter({ has: page.locator('[data-glance="number"]') })
   await numberCell.hover()
-  await numberCell.getByRole('button', { name: 'Cell options' }).click()
+  await numberCell.getByRole('button', { name: 'Cell layout' }).click()
   await pickSplit(page, 'Below')
   await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Insights' })
     .getByRole('button', { name: 'Created vs completed' }).click()

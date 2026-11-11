@@ -14,8 +14,10 @@ import { registerModuleReset } from '../../utils/module-reset'
 import { panelOfTab } from '../../utils/workspace-layout-queries'
 import { cellRowTracks } from '../../utils/workspace-layout-ops'
 import { type LayoutDropTarget } from '../../utils/workspace-layout-ops'
-import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
 import { afterLeavingEditors } from '../../stores/editor-leave'
+
+/** A deleted list's name where its name would show (a tab title). */
+export const DELETED_LIST_TITLE = '(Deleted list)'
 
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by

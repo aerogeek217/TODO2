@@ -3,6 +3,7 @@ import {
   drag,
   edges,
   expectSameEdges,
+  openCellLayoutMenu,
   openCellMenu,
   seedWorkspace,
   wsCell,
@@ -135,7 +136,7 @@ test('adding a second widget shows the tabs; closing it hides them again', async
   await expect(notes.locator('[data-widget-top-line][data-ws-tab]')).toHaveCount(0)
 
   // Close the new one from the merged ⋯ menu (the strip's header holds it now).
-  await openCellMenu(page, 'a')
+  await openCellLayoutMenu(page, 'a')
   await page.getByRole('menuitem', { name: 'Close tab “Calendar”' }).click()
   await expect(notes.getByRole('tablist')).toHaveCount(0)
   await expect(topLine(notes)).toHaveAttribute('data-ws-tab', 'notesTab')
