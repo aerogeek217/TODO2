@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test'
 import { openCellMenu, seedWorkspace, wsRow, type WorkspaceSeed, expectLayoutStep, expectLayoutStored } from './fixtures/workspace'
+import { expectDeckAt } from './fixtures/review'
 
 /**
  * The Breakdown (D26 P8, boards Z1 / Z3 and review mode's board F): a row,
@@ -145,7 +146,7 @@ test('Review and the envelope sit right after the name, shown on the row’s hov
   await expect(chart(page)).not.toContainText('Review ▸')
   await review.click()
   await expect(deck(page)).toBeVisible()
-  await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 3')
+  await expectDeckAt(deck(page), 1, 3)
   await page.keyboard.press('Escape')
   await expect(deck(page)).toHaveCount(0)
 
@@ -156,7 +157,7 @@ test('Review and the envelope sit right after the name, shown on the row’s hov
   await expect(due).toHaveAttribute('data-solid', '')
   await expect(due).toHaveCSS('background-color', 'rgb(232, 107, 240)')
   await due.click()
-  await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 2')
+  await expectDeckAt(deck(page), 1, 2)
   await expect(deck(page).getByRole('navigation', { name: 'Review queue' }).locator('[data-review-row]')).toHaveText([/Aisha late/, /Aisha soon/])
   await page.keyboard.press('Escape')
   // None: a dim dash.
@@ -208,7 +209,7 @@ test('a person row’s right-click opens the person menu', async ({ page }) => {
   const menu = page.getByRole('menu', { name: '@Ben Ortiz' })
   await expect(menu.getByRole('menuitem')).toHaveText(['Review with Ben Ortiz…', 'Email check-in to Ben Ortiz', 'Paste reply from Ben Ortiz…', 'Show tasks', 'Edit…', 'Delete…'])
   await menu.getByRole('menuitem', { name: 'Review with Ben Ortiz…' }).click()
-  await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 5')
+  await expectDeckAt(deck(page), 1, 5)
 })
 
 test('the editor’s count columns: a column with its own filter, name and rule; the table follows', async ({ page }) => {
@@ -237,7 +238,7 @@ test('the editor’s count columns: a column with its own filter, name and rule;
   await expect(waiting).toHaveText('2')
   await expect(waiting).toHaveAttribute('data-solid', '')
   await waiting.click()
-  await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 2')
+  await expectDeckAt(deck(page), 1, 2)
   await page.keyboard.press('Escape')
   // Its heading sorts by it.
   await chart(page).getByRole('button', { name: /^Waiting/ }).click()

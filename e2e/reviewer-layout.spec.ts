@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test'
 import { box } from './fixtures/geometry'
 import { taskRowByTitle } from './fixtures/seed'
 import { pickInReview, seedWorkspace, wsCell, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { expectDeckAt } from './fixtures/review'
 
 /**
  * Board BL · the reviewer, revised — the one task layout in the task
@@ -362,7 +363,7 @@ test.describe('the review dialog (board BL)', () => {
     await shot(page, 'dialog-queue')
   })
 
-  test('the header: who is reviewed, a dot per task, `k of N`, the counts, ×', async ({ page }) => {
+  test('the header: who is reviewed, a dot per task, no `k of N`, the counts, ×', async ({ page }) => {
     const dialog = await openDeck(page)
     await expect(dialog.getByRole('heading', { name: 'Aisha' })).toBeVisible()
     await expect(dialog.getByTestId('review-description')).toHaveText('Review · 8 open tasks')
@@ -379,7 +380,7 @@ test.describe('the review dialog (board BL)', () => {
     const start = await states()
     expect(start[0]).toBe('current')
     expect(start.filter((s) => s === 'done')).toHaveLength(at('Q4 headcount plan') === 0 ? 0 : 1)
-    await expect(dialog.getByTestId('review-position')).toHaveText('1 of 8')
+    await expectDeckAt(dialog, 1, 8)
     await expect(dialog.getByTestId('review-skipped')).toHaveCount(0)
 
     // Skip one, follow one up: its dot grey, the other's the accent; the counts say so.
@@ -396,7 +397,8 @@ test.describe('the review dialog (board BL)', () => {
     expect(now[at('Q4 headcount plan')]).toBe('done')
     expect(now[at('Empty task')]).toBe('current')
     expect(now.filter((s) => s === 'todo')).toHaveLength(4)
-    await expect(dialog.getByTestId('review-position')).toHaveText(`${at('Empty task') + 1} of 8`)
+    await expectDeckAt(dialog, at('Empty task') + 1, 8)
+    await expect(dialog.getByTestId('review-position')).toHaveCount(0)
     await expect(dialog.getByTestId('review-followed-up')).toHaveText('2 followed up')
     await expect(dialog.getByTestId('review-skipped')).toHaveText('· 1 skipped')
     // The four looks differ.
@@ -418,7 +420,7 @@ test.describe('the review dialog (board BL)', () => {
     await expect(bar).toHaveAttribute('aria-valuemax', '23')
     await expect(bar).toHaveAttribute('aria-valuenow', '0')
     expect((await box(bar)).height).toBeLessThanOrEqual(4)
-    await expect(dialog.getByTestId('review-position')).toHaveText('1 of 23')
+    await expectDeckAt(dialog, 1, 23)
     // The queue scrolls; the dialog stays as tall as its (empty) task, not as its queue.
     expect(Math.round((await box(dialog)).height)).toBe(640)
     expect(await dialog.locator('[data-review-rail] ol').evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true)

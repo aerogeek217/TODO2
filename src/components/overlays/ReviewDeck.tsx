@@ -192,8 +192,9 @@ function ReviewDeckPanel() {
     ? `${n} open ${n === 1 ? 'task' : 'tasks'}`
     : `${n} ${n === 1 ? 'task' : 'tasks'}`
   const sourceWords = source && source.kind !== 'person' && source.kind !== 'tag' ? source.description : ''
-  const positionWords = finished ? `All ${n} reviewed` : n > 0 ? `${index + 1} of ${n}` : 'Nothing to review'
-  // Under 820px of deck the queue folds into the position (`3 of 8`), which opens it.
+  // No place in the queue (the card and the dots say it): words only for a status.
+  const statusWords = finished ? `All ${n} reviewed` : n > 0 ? null : 'Nothing to review'
+  // Under 820px of deck the queue folds into a Queue button in the header, which opens it.
   const [headerRef, headerSize] = useElementSize()
   const queueFolded = reviewQueueFolds(headerSize.width)
 
@@ -239,13 +240,14 @@ function ReviewDeckPanel() {
             <span className={styles.progressFill} style={{ width: `${Math.round((done / n) * 100)}%` }} />
           </span>
         )}
-        <span className={styles.position} data-testid="review-position" aria-live="polite">
-          {queueFolded && n > 0 ? (
-            <ReviewQueueButton todoById={todoById} followedUpToday={followedUpToday} label="Review queue" words={positionWords}>
-              {positionWords}
-            </ReviewQueueButton>
-          ) : positionWords}
-        </span>
+        {queueFolded && n > 0 && (
+          <span className={styles.position}>
+            <ReviewQueueButton todoById={todoById} followedUpToday={followedUpToday} label="Review queue" />
+          </span>
+        )}
+        {statusWords != null && (
+          <span className={styles.position} data-testid="review-position" aria-live="polite">{statusWords}</span>
+        )}
         <span className={styles.counts}>
           <span data-testid="review-followed-up">{done} followed up</span>
           {skipped > 0 && <span data-testid="review-skipped"> · {skipped} skipped</span>}

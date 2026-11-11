@@ -188,9 +188,10 @@ describe('the Review widget: its field', () => {
   it('several picks are any of them: Aisha or Ben — each task once', () => {
     renderAt('large')
     setPicks(1)
-    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent('1 of 3 · 1 followed up')
+    expect(document.querySelectorAll('[data-review-row]')).toHaveLength(3)
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
     setPicks(1, 2)
-    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent('1 of 4 · 1 followed up')
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
     const rail = screen.getByRole('navigation', { name: 'Review queue: Aisha or Ben' })
     expect([...rail.querySelectorAll('[data-review-row]')].map((r) => r.getAttribute('data-review-row'))).toEqual(['1', '2', '3', '4'])
   })
@@ -310,6 +311,19 @@ describe('the Review widget: its kind', () => {
 })
 
 describe('the Review widget: the progress and its faces', () => {
+  it('no place in the queue (`k of N`) at any face; once every task has a mark the large face says all reviewed', () => {
+    const { unmount } = renderAt('medium')
+    setPicks(1)
+    expect(document.querySelector('[data-review-widget]')).not.toHaveTextContent(/\d+ of \d+/)
+    unmount()
+    renderAlone('large')
+    expect(document.querySelector('[data-review-widget]')).not.toHaveTextContent(/\d+ of \d+/)
+    expect(screen.queryByRole('button', { name: 'Queue' })).toBeNull()
+    for (let i = 0; i < 3; i++) fireEvent.click(screen.getByRole('button', { name: /^Skip/ }))
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^All 3 reviewed · 1 followed up$/)
+    expect(within(screen.getByTestId('review-widget-progress')).getByText('All 3 reviewed').tagName).toBe('STRONG')
+  })
+
   it('alone in its cell: a top line — Review, the progress, then the prompt row under it', () => {
     renderAlone('large')
     const top = document.querySelector<HTMLElement>('[data-widget-top-line]')!
@@ -317,7 +331,7 @@ describe('the Review widget: the progress and its faces', () => {
     // Nothing picked: no progress.
     expect(screen.queryByTestId('review-widget-progress')).toBeNull()
     setPicks(1)
-    expect(within(top).getByTestId('review-widget-progress')).toHaveTextContent('1 of 3 · 1 followed up')
+    expect(within(top).getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
     const row = document.querySelector<HTMLElement>('[data-prompt-row]')!
     expect(within(row).queryByTestId('review-widget-progress')).toBeNull()
     expect(top.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
@@ -331,14 +345,13 @@ describe('the Review widget: the progress and its faces', () => {
     const row = document.querySelector<HTMLElement>('[data-prompt-row]')!
     expect(host.firstElementChild).toBe(row)
     expect(row.lastElementChild).toBe(within(row).getByTestId('review-widget-progress'))
-    expect(within(row).getByTestId('review-widget-progress')).toHaveTextContent('1 of 3 · 1 followed up')
+    expect(within(row).getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
   })
 
-  it('medium face: the picks’ first open task, the progress and the update line', () => {
+  it('medium face: the picks’ first open task, how many are followed up and the update line', () => {
     renderAt('medium')
     setPicks(1)
-    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent('1 of 3')
-    expect(screen.getByTestId('review-widget-progress')).not.toHaveTextContent('followed up')
+    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent(/^1 followed up$/)
     expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
     expect(screen.getByLabelText('Status update · today')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /Open card/ })).toBeInTheDocument()
@@ -387,7 +400,7 @@ describe('the Review widget: the queue and where it stands', () => {
     })
     expect(screen.getByTestId('review-card-title')).toHaveTextContent('Q4 headcount plan')
     expect(session.getState().order).toEqual([1, 2])
-    expect(screen.getByTestId('review-widget-progress')).toHaveTextContent('2 of 2')
+    expect(session.getState().index).toBe(1)
     fireEvent.click(screen.getByRole('button', { name: /^Back/ }))
     expect(screen.getByTestId('review-card-title')).toHaveTextContent('Vendor contract renewal')
     expect(session.getState().order).toEqual([1])

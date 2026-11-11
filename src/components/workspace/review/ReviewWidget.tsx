@@ -34,8 +34,8 @@ import styles from './ReviewWidget.module.css'
 
 /**
  * The Review widget (item 12, board BM): the review deck in a cell. Alone in
- * its cell its top line reads `Review`, the progress (`3 of 12 · 2 followed
- * up`, with picks), its lens switch and the cell's ⋯; under it the prompt
+ * its cell its top line reads `Review`, the progress (`2 followed up`, with
+ * picks; under 820px wide a Queue button before it), its lens switch and the cell's ⋯; under it the prompt
  * row (`ReviewField`): the kind it reviews by as the row's label — a small
  * menu, the widget's saved setting (layout config `by`) — and the field the
  * user types in, a list's Prompt for. In a cell of several widgets there is
@@ -195,21 +195,22 @@ function ReviewWidgetBody({ tab, face, width, session, focusOnOpen }: {
     useWorkspaceStore.getState().patchTabConfig(tab.id, 'review', { by: next }, `Review by ${REVIEW_BY_LABEL[next]}`)
   }
 
-  // Medium: the place alone; large: with how many are followed up — `All N reviewed` once every task has a mark.
-  const place = face === 'large' && finished ? `All ${n} reviewed` : `${index + 1} of ${n}`
+  // How many are followed up; on the large face `All N reviewed` before it once every task has a mark. No
+  // place in the queue: the card is the current task.
   const queueLabel = `Review queue: ${names}`
-  // The large face under 820px wide: no queue column; the place opens the queue.
+  // The large face under 820px wide: no queue column; a Queue button opens it.
   const queueFolded = face === 'large' && !!todo && reviewQueueFolds(width)
+  const status = face === 'large' && finished ? `All ${n} reviewed` : null
   const progress = picked && n > 0 && (
     <span className={styles.progress} data-testid="review-widget-progress" aria-live="polite">
-      {queueFolded
-        ? (
-          <ReviewQueueButton todoById={todoById} followedUpToday={followedUpToday} label={queueLabel} words={place}>
-            <strong>{place}</strong>
-          </ReviewQueueButton>
-        )
-        : <strong>{place}</strong>}
-      {face === 'large' && ` · ${done} followed up`}
+      {queueFolded && (
+        <>
+          <strong><ReviewQueueButton todoById={todoById} followedUpToday={followedUpToday} label={queueLabel} /></strong>
+          {' · '}
+        </>
+      )}
+      {status != null && <><strong>{status}</strong>{' · '}</>}
+      {`${done} followed up`}
     </span>
   )
   const lensSwitch = picked && <TabLensSwitch tab={tab} hides={queue.hides} />
