@@ -13,6 +13,7 @@ import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import { createTab, type GlanceTab, type LayoutTab, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useUIStore } from '../../../stores/ui-store'
+import { useUndoStore } from '../../../stores/undo-store'
 import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { clearFilterStore, resetEntityStores } from '../../helpers'
@@ -175,6 +176,31 @@ describe('a widget editor’s Discard', () => {
 })
 
 describe('closing a widget editor', () => {
+  it('changed, opening Settings or another widget’s editor asks first (the one rule, `editor-leave`); Save writes, then it goes on', async () => {
+    setup(numberTab('n', 'overdue'))
+    const title = 'Save changes to number “Overdue”?'
+    rename(openNumber(), 'Late')
+    act(() => { useUIStore.getState().openSettings() })
+    expect(question(title)).toBeInTheDocument()
+    expect(useUIStore.getState().settingsOpen).toBe(false)
+    await answer(title, 'Keep editing')
+    expect(numberEditor()).not.toBeNull()
+    expect(useUIStore.getState().settingsOpen).toBe(false)
+    act(() => { useUIStore.getState().openSettings() })
+    await answer(title, 'Save')
+    expect(stored('n')).toMatchObject({ config: { name: 'Late' } })
+    expect(useUIStore.getState().settingsOpen).toBe(true)
+    expect(numberEditor()).toBeNull()
+  })
+
+  it('changed, closed from outside (its widget gone) says its changes weren’t saved', () => {
+    setup(numberTab('n', 'overdue'))
+    rename(openNumber(), 'Late')
+    act(() => { useUIStore.getState().closeNumberEditor() })
+    expect(numberEditor()).toBeNull()
+    expect(useUndoStore.getState().snackbar?.description).toContain('weren’t saved')
+  })
+
   it('unchanged, Esc, × and a press elsewhere close it at once, asking nothing (the press goes on)', () => {
     setup(numberTab('n', 'overdue'))
     fireEvent.keyDown(nameField(openNumber()), { key: 'Escape' })

@@ -15,7 +15,7 @@ import { panelOfTab } from '../../utils/workspace-layout-queries'
 import { cellRowTracks } from '../../utils/workspace-layout-ops'
 import { type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { DELETED_LIST_TITLE } from '../shared/list-choice-entries'
-import { requestEditListClose } from './list/edit-list-keep'
+import { afterLeavingEditors } from '../../stores/editor-leave'
 
 /**
  * A tab's title: a list tab shows its list's name (`listName`, looked up by
@@ -70,14 +70,26 @@ export function useTabTitles(tabs: readonly LayoutTab[]): string[] {
  * Opens Edit list for a list tab: the tab is made its cell's active one and
  * the row tracks it covers expanded (so the list it previews is on screen), then the
  * surface opens beside it, in place of another list's open Edit list —
- * which, holding changes, asks first, and then nothing opens until the user
- * asks again.
+ * which, holding changes, asks first: Save or Discard, then this one opens;
+ * Keep editing, nothing changes (`openBeside`).
  */
 export function openEditList(tabId: string, listDefinitionId: number): void {
-  // An open Edit list with changes asks first (Save / Discard / Keep editing); this waits for the user.
-  if (requestEditListClose()) return
-  showTab(tabId)
-  useUIStore.getState().openListEditor(listDefinitionId, tabId)
+  const open = useUIStore.getState().listEditor
+  if (open?.listDefinitionId === listDefinitionId && open.tabId === tabId) return
+  openBeside(tabId, () => useUIStore.getState().openListEditor(listDefinitionId, tabId))
+}
+
+/**
+ * Shows tab `tabId` (`showTab`) and opens an editor beside it (`open`) —
+ * once an open editor holding changes was saved or discarded (its question
+ * asked first, `editor-leave`), never on Keep editing: showing the tab
+ * could take that editor's subject off the screen.
+ */
+function openBeside(tabId: string, open: () => void): void {
+  afterLeavingEditors(() => {
+    showTab(tabId)
+    open()
+  })
 }
 
 /** Makes `tabId` its cell's active tab and expands the row tracks the cell covers, so the widget is on screen. */
@@ -97,8 +109,8 @@ export function showTab(tabId: string): void {
  * shows its list's (`showTab`), then the popover beside the Number.
  */
 export function openNumberEditor(tabId: string): void {
-  showTab(tabId)
-  useUIStore.getState().openNumberEditor(tabId)
+  if (useUIStore.getState().numberEditorTabId === tabId) return
+  openBeside(tabId, () => useUIStore.getState().openNumberEditor(tabId))
 }
 
 /** `base` as a list name layout `layoutId` doesn't use yet: `base`, `base 2`, … */
@@ -210,8 +222,8 @@ export function addWidgetAt(kind: WidgetKind, target: LayoutDropTarget, listDefi
   if (tabId != null && kind === 'number') openNumberEditor(tabId)
   // D26 P8: a chart opens its editor too.
   if (tabId != null && (kind === 'breakdown' || kind === 'pivot' || kind === 'tagMap')) {
-    showTab(tabId)
-    useChartWidgetsStore.getState().openEditor(tabId)
+    const chartTab = tabId
+    openBeside(chartTab, () => useChartWidgetsStore.getState().openEditor(chartTab))
   }
   return tabId
 }

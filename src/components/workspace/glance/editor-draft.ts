@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { useLatestRef } from '../../../hooks/use-latest-ref'
-import { useUIStore } from '../../../stores/ui-store'
+import { useEditorLeave } from '../../../hooks/use-editor-leave'
 import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import { configPatch, sameConfigValue } from '../../../utils/config-patch'
 import { isInLayerAbove } from '../../../utils/dom-layers'
@@ -44,7 +44,7 @@ export interface EditorDraft<C extends object> {
  * shared confirm prompt: Save / Discard / Keep editing; its Esc is Keep
  * editing).
  */
-export function useEditorDraft<C extends object>({ tabId, stored, write, onClose, promptTitle }: {
+export function useEditorDraft<C extends object>({ tabId, stored, write, onClose, promptTitle, droppedNotice = 'The editor closed: its changes weren’t saved.' }: {
   /** The widget's tab (its live preview). */
   tabId: string
   /** The widget's config as stored (read once, as the editor opens). */
@@ -54,6 +54,8 @@ export function useEditorDraft<C extends object>({ tabId, stored, write, onClose
   onClose: () => void
   /** The close question's title. */
   promptTitle: string
+  /** The notice when it is closed with changes from outside (its widget gone). */
+  droppedNotice?: string
 }): EditorDraft<C> {
   const [base] = useState(stored)
   const [draft, setDraft] = useState(stored)
@@ -86,35 +88,23 @@ export function useEditorDraft<C extends object>({ tabId, stored, write, onClose
     if (Object.keys(p).length > 0) writeRef.current(p)
     onCloseRef.current()
   }, [base, writeRef, onCloseRef])
+  const close = useCallback(() => onCloseRef.current(), [onCloseRef])
+
+  // The question, and the app's one rule for leaving an editor with changes (`stores/editor-leave`).
+  const changedRef = useLatestRef(changed)
+  const leave = useEditorLeave({
+    changedRef,
+    title: promptTitle,
+    save: saveNow,
+    discard: close,
+    dropped: droppedNotice,
+  })
 
   const canSaveRef = useLatestRef(canSave)
+  const leaveSave = leave.save
   const save = useCallback(() => {
-    if (canSaveRef.current) saveNow()
-  }, [canSaveRef, saveNow])
-
-  const changedRef = useLatestRef(changed)
-  const titleRef = useLatestRef(promptTitle)
-  const asking = useRef(false)
-  const requestClose = useCallback((): boolean => {
-    if (asking.current) return true
-    if (!changedRef.current) {
-      onCloseRef.current()
-      return false
-    }
-    asking.current = true
-    void useUIStore.getState().askChoice({
-      title: titleRef.current,
-      message: 'Your changes will be lost if you don’t save.',
-      confirmLabel: 'Save',
-      discardLabel: 'Discard',
-      cancelLabel: 'Keep editing',
-    }).then((answer) => {
-      asking.current = false
-      if (answer === 'confirm') saveNow()
-      else if (answer === 'discard') onCloseRef.current()
-    })
-    return true
-  }, [changedRef, onCloseRef, titleRef, saveNow])
+    if (canSaveRef.current) leaveSave()
+  }, [canSaveRef, leaveSave])
 
   return {
     draft,
@@ -122,8 +112,8 @@ export function useEditorDraft<C extends object>({ tabId, stored, write, onClose
     changed,
     canSave,
     save,
-    discard: onClose,
-    requestClose,
+    discard: leave.discard,
+    requestClose: leave.requestClose,
     reportExpression: expressions.report,
   }
 }
