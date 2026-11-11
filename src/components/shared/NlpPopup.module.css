@@ -81,6 +81,42 @@
   flex-shrink: 0;
 }
 
+/* A list of people, tags and statuses together (`view.mixed`): a person's initials on their colour. */
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-inline: -2px;
+  border-radius: 50%;
+  font-size: var(--font-size-avatar-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-on-accent);
+}
+
+/* A row's open tasks, at its end. */
+.count {
+  flex-shrink: 0;
+  font-size: var(--font-size-row-meta);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* A group's heading inside the list (`People`, `Tags`, `Status`). */
+.section {
+  padding: 6px 8px 2px;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.section:first-child {
+  padding-top: 4px;
+}
+
 .name {
   flex: 1;
   min-width: 0;

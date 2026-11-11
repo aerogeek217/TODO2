@@ -36,12 +36,12 @@ export interface WsTabSeed {
     untouchedDays?: number
   }
   /**
-   * Review tabs (item 12, board BM): what the widget reviews by (default
-   * Person). Its picks are temporary — type them into its field
-   * (`pickInReview`). `legacyPick` stores the config an earlier build saved
-   * (one person or tag by name) instead.
+   * Review tabs (widget feedback 2A): no settings — the filter is temporary,
+   * typed into its field (`pickInReview`). What earlier builds stored, for
+   * the tests that open it: `legacyBy` (board BM's kind), `legacyPick` (board
+   * BK's one person or tag, by name).
    */
-  review?: { by?: 'person' | 'tag' | 'status' | 'list'; legacyPick?: { person?: string; tag?: string } }
+  review?: { legacyBy?: 'person' | 'tag' | 'status' | 'list'; legacyPick?: { person?: string; tag?: string } }
 }
 
 export interface WsCellSeed {
@@ -408,12 +408,8 @@ export async function seedWorkspace(page: Page, seed: WorkspaceSeed, { url = '/#
       if (tab.kind === 'review') {
         const legacy = tab.review?.legacyPick
         const id = legacy?.person != null ? personIds.get(legacy.person) : legacy?.tag != null ? tagIds.get(legacy.tag) : undefined
-        if (legacy && id != null) {
-          delete config.by
-          config.pick = { kind: legacy.person != null ? 'person' : 'tag', id }
-        } else {
-          config.by = tab.review?.by ?? 'person'
-        }
+        if (legacy && id != null) config.pick = { kind: legacy.person != null ? 'person' : 'tag', id }
+        if (tab.review?.legacyBy) config.by = tab.review.legacyBy
       }
       if (tab.glance) Object.assign(config, tab.glance)
       if (tab.detailsWidth != null) out.viewState = { ...(out.viewState as object | undefined), detailsWidth: tab.detailsWidth }
@@ -776,23 +772,27 @@ export function wsListWidget(page: Page, tabId: string): Locator {
   return page.locator(`[data-list-widget="${tabId}"]`)
 }
 
-/** The field of Review widget `tabId`'s prompt row (board BM). */
+/** The filter field of Review widget `tabId` (widget feedback 2A). */
 export function reviewField(page: Page, tabId: string): Locator {
-  return page.locator(`[data-review-widget="${tabId}"]`).getByRole('combobox', { name: / to review$/ })
+  return page.locator(`[data-review-widget="${tabId}"]`).getByRole('textbox', { name: 'Review filter' })
 }
 
 /**
- * Picks in Review widget `tabId` by typing: each of `names` typed into its
- * field and taken with ⏎ (the first match), as a user would — its picks are
- * temporary, so no seed holds them. The option list is closed afterwards.
+ * Picks in Review widget `tabId` by typing: each of `names` typed bare at the
+ * field's end and taken with ⏎ (the first match — a second person joins with
+ * `or`), as a user would; its filter is temporary, so no seed holds it. The
+ * field is left afterwards (its text settled, the list closed).
  */
 export async function pickInReview(page: Page, tabId: string, ...names: string[]): Promise<void> {
   const field = reviewField(page, tabId)
+  await field.click()
   for (const name of names) {
-    await field.fill(name)
+    await field.press('End')
+    await field.pressSequentially(name)
+    await expect(page.locator('[data-nlp-popup]').getByRole('option').first()).toBeVisible()
     await field.press('Enter')
   }
-  await field.press('Escape')
+  await field.blur()
 }
 
 /**

@@ -1,8 +1,9 @@
 import { useMemo } from 'react'
 import { ownerLayoutId } from '../../models/list-definition'
 import { breakdownPreset } from '../../models/chart-widgets'
-import { getActiveTab, kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
+import { kindTabTitle, tabListId, WIDGET_KIND_SPECS, type LayoutBody, type LayoutTab, type TabSeed, type WidgetKind } from '../../models/workspace-layout'
 import { zoomTargetTab } from '../../services/list-zoom'
+import { showTab } from '../../services/workspace-tabs'
 import { readingOrder } from '../../utils/workspace-grid'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
 import { useListDraftStore } from '../../stores/list-draft-store'
@@ -11,7 +12,6 @@ import { useWorkspaceStore } from '../../stores/workspace-store'
 import { uniqueListName } from '../../utils/list-copy'
 import { registerModuleReset } from '../../utils/module-reset'
 import { panelOfTab } from '../../utils/workspace-layout-queries'
-import { cellRowTracks } from '../../utils/workspace-layout-ops'
 import { type LayoutDropTarget } from '../../utils/workspace-layout-ops'
 import { afterLeavingEditors } from '../../stores/editor-leave'
 
@@ -93,17 +93,7 @@ function openBeside(tabId: string, open: () => void): void {
   })
 }
 
-/** Makes `tabId` its cell's active tab and expands the row tracks the cell covers, so the widget is on screen. */
-export function showTab(tabId: string): void {
-  const ws = useWorkspaceStore.getState()
-  const working = ws.working
-  const cell = working ? panelOfTab(working, tabId) : undefined
-  if (working && cell) {
-    if (getActiveTab(cell)?.id !== tabId) void ws.setActiveTab(tabId)
-    const collapsed = cellRowTracks(working, cell.id).filter((t) => t.collapsed === true)
-    if (collapsed.length > 0) void ws.setTrackCollapsed(collapsed.map((t) => t.id), false)
-  }
-}
+export { showTab } from '../../services/workspace-tabs'
 
 /**
  * Opens a Number's editor (Edit number…, D26 P5): the tab shown as Edit list

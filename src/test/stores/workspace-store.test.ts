@@ -431,7 +431,7 @@ describe('view state', () => {
     expect('lensId' in (await stored(id!))).toBe(false)
   })
 
-  it('a Review widget an earlier build stored with a pick and a place opens clean — by that pick’s kind, no repair — and takes the new shape at its next write (board BM)', async () => {
+  it('a Review widget an earlier build stored with a pick and a place opens clean — the pick not read, no repair — and takes the new shape at its next write', async () => {
     // As that build stored it: one saved pick, the current task, a day's skips.
     const legacyTab = { id: 'rv', kind: 'review', config: { pick: { kind: 'tag', id: 3 } }, viewState: { sort: 'due', currentId: 7, skipped: { day: '2026-11-09', ids: [4] } } }
     const KR = cell('kr', [legacyTab as unknown as ReturnType<typeof createTab>], { activeTabId: 'rv' })
@@ -439,19 +439,25 @@ describe('view state', () => {
     expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual(legacyTab)
     expect(ws().repairedIds.size).toBe(0)
     expect(useUndoStore.getState().snackbar).toBeNull()
-    const opened = { id: 'rv', kind: 'review', config: { by: 'tag' }, viewState: { sort: 'due' } }
+    // 2A: no kind any more — the pick isn't read, the config is empty.
+    const opened = { id: 'rv', kind: 'review', config: {}, viewState: { sort: 'due' } }
     expect(cellOf(ws().working, 'kr')!.tabs[0]).toEqual(opened)
     expect(cellOf(ws().saved, 'kr')!.tabs[0]).toEqual(opened)
     // A view-state write (saved at once, no undo step) stores the row in the new shape.
     await ws().patchTabViewState('rv', 'review', { sort: 'title' })
     expect(undoNames()).toEqual([])
-    expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual({ id: 'rv', kind: 'review', config: { by: 'tag' }, viewState: { sort: 'title' } })
-    // Its kind is layout config: a change is saved at once as one undo step; Undo puts the kind back.
-    ws().patchTabConfig('rv', 'review', { by: 'person' }, 'Review by Person')
-    expect(undoNames()).toEqual(['Review by Person'])
-    expect(cellOf(await stored(id!), 'kr')!.tabs[0]!.config).toEqual({ by: 'person' })
-    await undo()
-    expect(cellOf(await stored(id!), 'kr')!.tabs[0]!.config).toEqual({ by: 'tag' })
+    expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual({ id: 'rv', kind: 'review', config: {}, viewState: { sort: 'title' } })
+  })
+
+  it('a Review widget stored with a kind (board BM’s `by`) opens clean, no repair, its kind not read (2A)', async () => {
+    const legacyTab = { id: 'rv', kind: 'review', config: { by: 'status' }, viewState: { sort: 'next' } }
+    const KR = cell('kr', [legacyTab as unknown as ReturnType<typeof createTab>], { activeTabId: 'rv' })
+    const [id] = await seedAndInit({ sortOrder: 0, name: 'Daily', createdAt: T0, modifiedAt: T0, ...grid([[KA, KR]], { colIds: ['A', 'B'], rowIds: ['R'] }) })
+    expect(ws().repairedIds.size).toBe(0)
+    expect(useUndoStore.getState().snackbar).toBeNull()
+    expect(cellOf(ws().working, 'kr')!.tabs[0]).toEqual({ id: 'rv', kind: 'review', config: {}, viewState: { sort: 'next' } })
+    // Left stored until the layout's next write (schema v79 drops it everywhere).
+    expect(cellOf(await stored(id!), 'kr')!.tabs[0]).toEqual(legacyTab)
   })
 })
 
