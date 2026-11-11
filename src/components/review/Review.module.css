@@ -38,7 +38,7 @@
 
 .railDivider {
   padding: 10px 10px 4px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -63,7 +63,7 @@
   background: transparent;
   color: var(--color-text-secondary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   text-align: left;
   cursor: pointer;
 }
@@ -94,7 +94,7 @@
 }
 
 .railMark {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   line-height: 1;
   text-align: center;
@@ -171,7 +171,7 @@
 /* The clock, at the flag's size (its glyph is 1em). */
 .railClock {
   display: inline-flex;
-  font-size: 10px;
+  font-size: var(--font-size-glyph-sm);
 }
 
 .railFollowup[data-followup='today'],
@@ -253,7 +253,7 @@
 
 .queueButton::after {
   content: '▾';
-  font-size: 10px;
+  font-size: var(--font-size-glyph-sm);
   color: var(--color-text-muted);
 }
 
@@ -318,7 +318,7 @@
 .cardTitle {
   margin: 0;
   min-width: 0;
-  font-size: 17px;
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   line-height: 1.4;
   letter-spacing: -0.01em;
@@ -349,7 +349,7 @@
   box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text-primary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   outline: none;
 }
 
@@ -369,7 +369,7 @@
   bottom: 0;
   display: flex;
   align-items: center;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   pointer-events: none;
 }
@@ -399,7 +399,7 @@
   box-shadow: inset 0 0 0 1px var(--color-tint-10);
   color: var(--color-text-secondary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   white-space: nowrap;
   cursor: pointer;
 }
@@ -415,7 +415,7 @@
 
 .key {
   font-family: inherit;
-  font-size: 10.5px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 
@@ -425,7 +425,7 @@
   margin-left: 0;
   padding: 0 16px;
   border-radius: 9px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 .spacer {
@@ -472,7 +472,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
 }
@@ -512,7 +512,7 @@
   align-items: center;
   gap: 8px;
   margin: 0;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.05em;
   line-height: 14px;
@@ -541,7 +541,7 @@
   align-items: baseline;
   gap: 10px;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 19px;
   color: var(--color-text-muted);
 }
@@ -636,7 +636,7 @@
   height: 28px;
   padding: 0 10px;
   border-radius: 7px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 /* The medium face's Back and Skip: words alone (board BM). */
@@ -661,7 +661,7 @@
   background: transparent;
   color: var(--color-text-secondary);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 

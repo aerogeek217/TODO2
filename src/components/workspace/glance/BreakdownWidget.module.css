@@ -75,7 +75,7 @@
   background: transparent;
   color: inherit;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1;
   cursor: pointer;
 }
@@ -153,7 +153,7 @@
 }
 
 .donutTotal {
-  font-size: 8px;
+  font-size: var(--font-size-donut-total);
   font-weight: var(--font-weight-bold);
   fill: var(--color-text-primary);
 }
@@ -237,7 +237,7 @@
 }
 
 .sortMark {
-  font-size: 8px;
+  font-size: var(--font-size-glyph-xs);
 }
 
 .body {
@@ -331,7 +331,7 @@
   width: 16px;
   height: 16px;
   border-radius: var(--radius-pill);
-  font-size: 10px;
+  font-size: var(--font-size-avatar-lg);
   font-weight: var(--font-weight-bold);
   font-style: normal;
   color: var(--color-text-on-accent);

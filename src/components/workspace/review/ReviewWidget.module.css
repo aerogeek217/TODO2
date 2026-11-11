@@ -27,7 +27,7 @@
   padding: 0 4px 0 12px;
 }
 
-/* `3 of 12 · 2 followed up`: on the top line, or at the prompt row's end in a cell of several widgets. */
+/* `2 followed up` (a Queue button before it while folded): on the top line, or at the prompt row's end in a cell of several widgets. */
 .progress {
   flex: none;
   font-size: var(--font-size-meta);

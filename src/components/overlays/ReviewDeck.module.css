@@ -28,7 +28,7 @@
   box-shadow: var(--shadow-glass-card);
 }
 
-/* Under 820px of deck the queue folds into the header's position (`3 of 8`), which opens it. */
+/* Under 820px of deck the queue folds into the header's Queue button, which opens it. */
 .deck[data-queue-folded] {
   grid-template-columns: minmax(0, 1fr);
   grid-template-areas:
@@ -76,7 +76,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
   line-height: 19px;
   color: var(--color-text-primary);
@@ -144,7 +144,7 @@
 
 .position {
   flex: none;
-  font-size: 12.5px;
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;

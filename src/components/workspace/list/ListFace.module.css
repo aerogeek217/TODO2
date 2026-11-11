@@ -78,7 +78,7 @@
 
 .count {
   flex: none;
-  font-size: 22px;
+  font-size: var(--font-size-display-md);
   font-weight: var(--font-weight-bold);
   line-height: 28px;
   font-variant-numeric: tabular-nums;
@@ -87,7 +87,7 @@
 }
 
 .medium .count {
-  font-size: 18px;
+  font-size: var(--font-size-display-xs);
   line-height: 22px;
 }
 

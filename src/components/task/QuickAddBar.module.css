@@ -57,7 +57,7 @@
 
 .mirror,
 .titleInput {
-  font-size: 18px;
+  font-size: var(--font-size-lg);
   font-family: inherit;
   line-height: 28px;
   letter-spacing: normal;
@@ -129,7 +129,7 @@
   box-sizing: border-box;
   background: var(--color-tint-8);
   border-radius: var(--radius-md);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   white-space: nowrap;
 }
@@ -168,13 +168,22 @@
   border-radius: 50%;
   background: transparent;
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: 400;
   line-height: 1;
   color: currentColor;
   opacity: 0.6;
   cursor: pointer;
   transition: opacity var(--transition-fast), background var(--transition-fast);
+  position: relative;
+}
+
+/* A 24px target round the 14px circle (UX cleanup 5A): 5px each way — 2px
+ * into the 4px gap after the chip, never onto the next chip. */
+.chipRemove::after {
+  content: '';
+  position: absolute;
+  inset: -5px;
 }
 
 .chipRemove:hover {
@@ -227,7 +236,7 @@
   border-radius: 50%;
   display: grid;
   place-items: center;
-  font-size: 8px;
+  font-size: var(--font-size-avatar);
   font-weight: 700;
   color: var(--color-text-on-accent);
   margin-left: -2px;
@@ -249,7 +258,7 @@
   align-items: baseline;
   gap: 6px;
   padding: 4px var(--space-5) 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -276,7 +285,7 @@
   justify-content: space-between;
   gap: 12px;
   padding: 6px var(--space-5) var(--space-4);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 
@@ -305,7 +314,7 @@
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-md);
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-family: inherit;
   cursor: pointer;
 }
@@ -324,7 +333,7 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 
@@ -336,7 +345,7 @@
   background: var(--color-tint-6);
   border: 1px solid var(--color-border);
   border-radius: 3px;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--color-text-secondary);
   line-height: 1.4;

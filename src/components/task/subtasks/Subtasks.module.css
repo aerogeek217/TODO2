@@ -56,7 +56,7 @@
 
 .countText {
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0;
   text-transform: none;
@@ -185,7 +185,7 @@
 }
 
 .list[data-density="touch"] .title {
-  font-size: 15px;
+  font-size: var(--font-size-body);
   white-space: normal;
   overflow-wrap: anywhere;
 }
@@ -323,7 +323,7 @@
 
 .addRow[data-density="touch"] .addInput {
   height: 32px;
-  font-size: 15px;
+  font-size: var(--font-size-input);
 }
 
 .addInput::placeholder {
@@ -463,7 +463,7 @@
   gap: 10px;
   padding: 8px 6px 0;
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .openLink {
@@ -520,7 +520,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 15px;
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-semibold);
 }
 
@@ -610,7 +610,7 @@
 .pickerMeta {
   min-height: 1em;
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 .pickerEmpty {

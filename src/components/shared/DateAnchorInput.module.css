@@ -20,7 +20,7 @@
   box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text-primary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   outline: none;
 }
 
@@ -86,7 +86,7 @@
 .touch .field {
   height: 44px;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: var(--font-size-input);
 }
 
 .touch .dateInput {

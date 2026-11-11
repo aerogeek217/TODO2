@@ -72,7 +72,8 @@ test('a long title keeps it inside the window, under the input; a resize re-plac
   // Narrowed after the load signal (the people loaded).
   await page.setViewportSize({ width: 900, height: 700 })
   await expect.poll(async () => Math.round((await box(input)).x + (await box(input)).width)).toBeLessThan(900)
-  await page.keyboard.type('A long task title that runs well along the field and then keeps on going for a while @al')
+  // Long enough to wrap at the field's 16px text, so the token starts the second line.
+  await page.keyboard.type('A long task title that runs well along the field and then keeps on going for quite a while longer @al')
   const popup = page.getByRole('listbox', { name: 'People' })
   await expect(popup).toBeVisible()
   const i = await box(input)

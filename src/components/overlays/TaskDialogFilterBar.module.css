@@ -34,7 +34,7 @@
   background: var(--color-search-bg);
   box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text-primary);
-  font-size: 16px;
+  font-size: var(--font-size-input);
   font-family: inherit;
   outline: none;
 }
@@ -78,7 +78,7 @@
   background: var(--color-tint-6);
   color: var(--color-text-secondary);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
   flex-shrink: 0;
 }
@@ -98,7 +98,7 @@
   border-radius: var(--radius-pill);
   background: var(--color-accent);
   color: var(--color-text-on-accent);
-  font-size: 10px;
+  font-size: var(--font-size-badge);
   font-weight: var(--font-weight-bold);
 }
 
@@ -137,7 +137,7 @@
   align-items: center;
   overflow: hidden;
   padding: 0 28px 0 29px;
-  font-size: 16px;
+  font-size: var(--font-size-input);
   font-family: inherit;
   white-space: pre;
   color: var(--color-text-primary);
@@ -159,7 +159,7 @@
 .searchNote {
   flex: 1 0 100%;
   margin: 0 2px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.4;
   color: var(--color-text-secondary);
 }

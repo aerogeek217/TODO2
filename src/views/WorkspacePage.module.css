@@ -129,6 +129,6 @@
   border-radius: 8px;
   background: var(--color-accent);
   color: var(--color-text-on-accent);
-  font-size: 10px;
+  font-size: var(--font-size-badge);
   font-weight: 700;
 }

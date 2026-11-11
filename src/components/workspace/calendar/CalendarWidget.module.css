@@ -318,7 +318,7 @@ button.heatDay {
   position: absolute;
   top: 3px;
   right: 5px;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   line-height: 16px;
   font-variant-numeric: tabular-nums;
@@ -365,7 +365,7 @@ button.heatDay {
   line-height: 14px;
   flex-shrink: 0;
   overflow: hidden;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   white-space: nowrap;
 }
@@ -443,7 +443,7 @@ button.heatDay {
 }
 
 .weekdayName {
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -451,7 +451,7 @@ button.heatDay {
 }
 
 .weekDate {
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-secondary);
 }
@@ -540,7 +540,7 @@ button.heatDay {
 
 .compactCount {
   height: 12px;
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   line-height: 12px;
   font-variant-numeric: tabular-nums;
   color: var(--color-text-secondary);

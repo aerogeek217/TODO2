@@ -3,6 +3,7 @@ import { readStore } from './fixtures/db'
 import { rowTitles } from './fixtures/seed'
 import { seedWorkspace, wsListWidget, wsRow, type WorkspaceSeed } from './fixtures/workspace'
 import { openFilterPicker } from './fixtures/filters'
+import { expectDeckAt } from './fixtures/review'
 
 /**
  * The filtered-tasks panel (the top bar's `N of M` counter) offers Review
@@ -49,7 +50,7 @@ test('Review these 3 tasks opens the deck on the panel’s tasks, in its order; 
   await reviewButton(page).click()
   await expect(panel(page)).toHaveCount(0)
   await expect(deck(page)).toBeVisible()
-  await expect(deck(page).getByTestId('review-position')).toHaveText('1 of 3')
+  await expectDeckAt(deck(page), 1, 3)
   const rail = deck(page).getByRole('navigation', { name: 'Review queue' })
   await expect(rail.locator('[data-review-row]')).toHaveText(listed.map((t) => new RegExp(t)))
   await expect(deck(page).getByTestId('review-card-title')).toHaveText(listed[0]!)

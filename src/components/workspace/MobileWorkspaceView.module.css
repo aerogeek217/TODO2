@@ -99,7 +99,7 @@
   background: var(--color-tint-8);
   color: var(--color-text-secondary);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   cursor: pointer;

@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
 import { edges, expectOpenLayout, layoutTab, seedWorkspace, wsCell, wsRow, type WorkspaceSeed } from './fixtures/workspace'
+import { expectDeckAt } from './fixtures/review'
 
 /**
  * The command palette's second steps (UX cleanup 3B), in the real browser:
@@ -171,7 +172,7 @@ test('Review With › person opens the review deck on their open tasks', async (
   await page.keyboard.press('Enter')
   const deck = page.locator('[data-review-deck]')
   await expect(deck).toBeVisible()
-  await expect(deck.getByTestId('review-position')).toHaveText('1 of 2')
+  await expectDeckAt(deck, 1, 2)
 })
 
 test('Theme › switches the theme, the current one marked', async ({ page }) => {

@@ -29,7 +29,7 @@
   border: none;
   color: var(--color-text-muted);
   cursor: pointer;
-  font-size: 18px;
+  font-size: var(--font-size-glyph-lg);
   padding: 2px 6px;
   border-radius: var(--radius-sm);
   line-height: 1;
@@ -308,7 +308,7 @@
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   padding: 0;
 }
 
@@ -341,7 +341,7 @@
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   cursor: pointer;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   padding: 0;
   color: var(--color-text-secondary);
 }
@@ -359,7 +359,7 @@
 /* Icon preview in row */
 .iconPreview {
   flex-shrink: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   display: flex;
   align-items: center;
   cursor: pointer;

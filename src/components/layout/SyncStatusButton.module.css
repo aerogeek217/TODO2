@@ -84,7 +84,7 @@
   border-radius: var(--radius-pill);
   background: var(--color-warning-bg-strong);
   color: var(--color-warning-text);
-  font-size: 10px;
+  font-size: var(--font-size-badge);
   font-weight: var(--font-weight-bold);
 }
 
@@ -134,7 +134,7 @@
   background: transparent;
   color: var(--color-text-secondary);
   font-family: inherit;
-  font-size: 15px;
+  font-size: var(--font-size-body);
   text-align: left;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;

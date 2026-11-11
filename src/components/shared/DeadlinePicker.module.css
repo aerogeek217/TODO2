@@ -46,7 +46,7 @@
 }
 
 .relative {
-  font-size: 11.5px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -67,7 +67,7 @@
   background: transparent;
   color: var(--color-text-muted);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   line-height: 1;
   cursor: pointer;
 }

@@ -34,7 +34,7 @@
 
 .count {
   flex: none;
-  font-size: 22px;
+  font-size: var(--font-size-display-md);
   font-weight: var(--font-weight-bold);
   line-height: 26px;
   font-variant-numeric: tabular-nums;
@@ -127,7 +127,7 @@
 }
 
 .weekCount {
-  font-size: 18px;
+  font-size: var(--font-size-display-xs);
   font-weight: var(--font-weight-bold);
   line-height: 22px;
   font-variant-numeric: tabular-nums;

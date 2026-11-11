@@ -33,7 +33,7 @@
   composes: avatar from './CheckinDialog.module.css';
   width: 30px;
   height: 30px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .avatarEmpty {
@@ -63,7 +63,7 @@
   background: var(--color-tint-3);
   color: var(--color-text-primary);
   font-family: inherit;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   resize: none;
   caret-color: transparent;
 }
@@ -81,7 +81,7 @@
 
 .help {
   margin: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
   color: var(--color-text-muted);
 }
@@ -91,7 +91,7 @@
   border: 1px solid var(--color-danger);
   border-radius: 8px;
   background: var(--color-danger-bg);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.45;
   color: var(--color-text-primary);
 }
@@ -125,14 +125,14 @@
   align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
 }
 
 .personPick {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-regular);
   padding: 4px 6px;
   border: 1px solid var(--color-border-strong);
@@ -146,18 +146,18 @@
 }
 
 .counts {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 
 .note {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
   color: var(--color-text-muted);
 }
 
 .warn {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.45;
   color: var(--color-warning);
 }
@@ -183,7 +183,7 @@
 .cardTitle {
   flex: 1;
   min-width: 0;
-  font-size: 15px;
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   overflow-wrap: anywhere;
@@ -192,7 +192,7 @@
 .ref {
   flex: none;
   font-family: Consolas, 'Cascadia Mono', ui-monospace, monospace;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 
@@ -214,7 +214,7 @@
 .changeLabel {
   flex-shrink: 0;
   width: 78px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.45;
   color: var(--color-text-secondary);
   cursor: pointer;
@@ -223,7 +223,7 @@
 .changeBody {
   flex: 1;
   min-width: 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.45;
 }
 
@@ -361,7 +361,7 @@
   align-items: flex-start;
   gap: 12px;
   padding: 4px 2px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.45;
   color: var(--color-text-secondary);
   cursor: pointer;
@@ -378,7 +378,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -394,7 +394,7 @@
   background: var(--color-accent);
   color: var(--color-text-on-accent);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   cursor: pointer;
 }

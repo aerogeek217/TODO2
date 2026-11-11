@@ -232,7 +232,7 @@
 }
 
 .pulseSmallShare {
-  font-size: 24px;
+  font-size: var(--font-size-display-lg);
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
   color: var(--color-overdue);

@@ -26,7 +26,7 @@
 .title {
   flex: 1;
   margin: 0;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
 }
@@ -39,7 +39,7 @@
   border-radius: 6px;
   background: transparent;
   color: var(--color-text-muted);
-  font-size: 18px;
+  font-size: var(--font-size-glyph-lg);
   line-height: 1;
   cursor: pointer;
 }
@@ -66,7 +66,7 @@
 }
 
 .groupLabel {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -75,7 +75,7 @@
 
 .empty {
   padding: 12px 0;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--color-text-muted);
 }
 
@@ -113,7 +113,7 @@
   align-items: center;
   justify-content: center;
   color: var(--color-text-on-accent);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-bold);
 }
 
@@ -134,19 +134,19 @@
 }
 
 .name {
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
 }
 
 .email {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 
 .count {
   flex: none;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   font-variant-numeric: tabular-nums;
 }
@@ -157,7 +157,7 @@
   padding: 6px 10px;
   border-radius: 6px;
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   cursor: pointer;
 }
 
@@ -197,7 +197,7 @@
   flex: none;
   min-width: 118px;
   text-align: right;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-accent-text);
 }
 
@@ -221,7 +221,7 @@
 .radio {
   display: flex;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.4;
   color: var(--color-text-primary);
   cursor: pointer;
@@ -256,7 +256,7 @@
 }
 
 .help {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -269,7 +269,7 @@
 }
 
 .noFilter {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -289,7 +289,7 @@
   border: 1px solid var(--color-border-strong);
   border-radius: 8px;
   background: var(--color-tint-6);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--color-text-primary);
 }
 
@@ -316,7 +316,7 @@
 .hint {
   flex: 1;
   min-width: 0;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -328,7 +328,7 @@
   background: transparent;
   color: var(--color-text-primary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   cursor: pointer;
 }
 
@@ -348,7 +348,7 @@
   background: transparent;
   color: var(--color-accent-text);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   cursor: pointer;
 }
 
@@ -371,7 +371,7 @@
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--color-text-primary);
 }
 
@@ -391,7 +391,7 @@
 
 .previewPick select {
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   padding: 4px 6px;
   border: 1px solid var(--color-border-strong);
   border-radius: 6px;

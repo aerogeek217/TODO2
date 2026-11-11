@@ -113,6 +113,16 @@
   transition: border-color 0.15s, background 0.15s;
 }
 
+/* A 24px target round the 18px box (UX cleanup 5A): 3px each way — into the
+ * 5px gaps beside it (the priority gutter's and the title's presses stay
+ * theirs) and, Stacked, to the row's top edge. Lines rows draw no checkbox. */
+.checkbox::after {
+  content: '';
+  position: absolute;
+  /* From the padding box: the 1.5px border, then the 3px. */
+  inset: -4.5px;
+}
+
 .checkbox:hover {
   border-color: var(--color-text-secondary);
 }
@@ -179,7 +189,7 @@
   background: transparent;
   border: none;
   color: var(--color-text-secondary);
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-family: inherit;
   cursor: pointer;
   border-radius: 8px;
@@ -459,7 +469,7 @@
   box-shadow: 0 0 0 1.5px var(--color-surface);
   background: var(--color-surface-bright);
   color: var(--color-text-secondary);
-  font-size: 8px;
+  font-size: var(--font-size-avatar);
   font-weight: 700;
   line-height: 1;
   transition: background var(--transition-fast), color var(--transition-fast);
@@ -487,7 +497,7 @@
   border-radius: 6px;
   background: var(--color-surface-bright);
   color: var(--color-text-secondary);
-  font-size: 8px;
+  font-size: var(--font-size-avatar);
   font-weight: 700;
   line-height: 11px;
   text-align: center;
@@ -580,7 +590,7 @@
   background: var(--color-surface-high);
   color: var(--color-text-secondary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1;
   opacity: 0;
   pointer-events: none;
@@ -623,7 +633,7 @@
  * placeholder trigger set; empty = a dot placeholder.
  */
 .status {
-  font-size: 14px;
+  font-size: var(--font-size-body);
   line-height: 0;
 }
 

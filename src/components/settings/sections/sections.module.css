@@ -34,7 +34,7 @@
 }
 
 .label {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
 }
@@ -156,7 +156,7 @@
   border-radius: var(--radius-md);
   background: transparent;
   color: var(--color-text-secondary);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   font-family: inherit;
   cursor: pointer;
@@ -182,7 +182,7 @@
   background: var(--color-inset);
   box-shadow: inset 0 0 0 1px var(--color-border);
   color: var(--color-text-primary);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-family: inherit;
   cursor: pointer;
   outline: none;
@@ -268,7 +268,7 @@
 }
 
 .about {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   color: var(--color-text-secondary);
   line-height: 1.8;
 }
@@ -309,7 +309,7 @@
 .backupBadge {
   padding: 1px 6px;
   border-radius: var(--radius-chip);
-  font-size: 10px;
+  font-size: var(--font-size-xs);
   text-transform: uppercase;
   letter-spacing: 0.3px;
   background: var(--color-surface);
@@ -337,7 +337,7 @@
 .backupBtn {
   padding: 2px 8px;
   border-radius: var(--radius-md);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-family: inherit;
   cursor: pointer;
   background: transparent;
@@ -506,7 +506,7 @@
   display: flex;
   align-items: flex-start;
   gap: 10px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.4;
   color: var(--color-text-primary);
   cursor: pointer;
@@ -557,7 +557,7 @@
 
 .partTitle {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
 }
