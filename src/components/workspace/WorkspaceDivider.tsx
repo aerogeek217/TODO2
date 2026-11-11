@@ -1,8 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { flushSync } from 'react-dom'
 import type { GridAxis, LayoutBody } from '../../models/workspace-layout'
 import { useWorkspaceStore } from '../../stores/workspace-store'
 import { isWholeLine, wholeLine, type EdgeStretch } from '../../utils/workspace-grid'
-import { edgeSnapLine, evenStretchDelta, moveEdge, type MoveEdgeOptions } from '../../utils/workspace-layout-ops'
+import { edgeSnapLine, evenStretchDelta, moveEdge, withRowDrawnAt, type MoveEdgeOptions } from '../../utils/workspace-layout-ops'
+import { withoutTrackFitPx } from '../../utils/workspace-layout-sizes'
+import { trackSizing } from '../../utils/workspace-table'
 import { layoutStructureEqual } from '../../utils/workspace-layout-queries'
 import { useLatestRef } from '../../hooks/use-latest-ref'
 import { shortcutScope } from '../../utils/dom-contract'
@@ -261,6 +264,36 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
   }
 
   /**
+   * The fit rows beside it lose the height a drag gave them and fit their
+   * content again. One beside a weighted row: only this line moves (J14) —
+   * the row is drawn fitting (at once, to measure its height), then the
+   * weighted row across the line takes the difference, re-weighted so the
+   * other rows keep their sizes (`withRowDrawnAt`), saved once as view state.
+   */
+  const clearFitHeights = (layout: LayoutBody, table: HTMLElement | null) => {
+    const store = useWorkspaceStore.getState()
+    const rows = layout.grid.rows
+    const given = fitTrackIds.filter((id) => rows.some((t) => t.id === id && t.fitPx != null))
+    if (given.length === 0) return
+    const cleared = given.reduce((l, id) => withoutTrackFitPx(l, id), layout)
+    const fitAt = rows.findIndex((t) => t.id === given[0])
+    const across = fitAt === stretch.line - 1 ? stretch.line : stretch.line - 1
+    const before = table ? drawnSizes(table, 'rows') : []
+    const oneBesideWeighted = given.length === 1 && stretch.axis === 'rows' && trackSizing(layout, 'rows', across).kind === 'weighted'
+    if (!table || !oneBesideWeighted || before.length !== rows.length) {
+      for (const id of given) void store.clearTrackFitPx(id)
+      return
+    }
+    flushSync(() => { void store.copyTrackSizes(cleared, ['rows'], { live: true }) })
+    const fitted = drawnSizes(table, 'rows')[fitAt]
+    if (fitted != null) {
+      const grown = (before[across] ?? 0) + (before[fitAt] ?? 0) - fitted
+      void store.copyTrackSizes(withRowDrawnAt(cleared, across, grown, before), ['rows'], { live: true })
+    }
+    void store.endResize()
+  }
+
+  /**
    * A whole line's two weighted tracks share their size evenly; part of a
    * line moves, as a drag would, midway between its own cells
    * (`evenStretchDelta`) — the rest of its line stays. Beside a fit row
@@ -269,9 +302,7 @@ export function WorkspaceDivider({ stretch, beforeId, afterId, label, value, sty
   const onDoubleClick = (e: ReactMouseEvent<HTMLDivElement>) => {
     const layout = useWorkspaceStore.getState().working
     if (fitTrackIds.length > 0) {
-      for (const id of fitTrackIds) {
-        if (layout?.grid.rows.some((t) => t.id === id && t.fitPx != null)) void useWorkspaceStore.getState().clearTrackFitPx(id)
-      }
+      if (layout) clearFitHeights(layout, e.currentTarget.closest<HTMLElement>('[data-ws-table]'))
       return
     }
     if (layout && !isWholeLine(layout, stretch)) {
