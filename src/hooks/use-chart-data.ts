@@ -1,10 +1,9 @@
 import type { PersistedTodoItem, TodoPredicate } from '../models'
-import { breakdownColumns, DEFAULT_BREAKDOWN_OLDEST_BY, type BreakdownColumn, type BreakdownConfig, type PivotConfig, type TagMapConfig } from '../models/chart-widgets'
+import { breakdownColumns, DEFAULT_BREAKDOWN_OLDEST_BY, type BreakdownColumn, type BreakdownConfig, type PivotConfig } from '../models/chart-widgets'
 import type { TabBadgeRanges } from '../models/list-definition'
 import { groupRestrictions } from '../services/build-list'
 import { computeBreakdown, type BreakdownColumnKeep, type BreakdownStats } from '../services/stats/breakdown'
 import { computePivot, type PivotStats } from '../services/stats/pivot'
-import { computeTagMap, type TagMapTile } from '../services/stats/tag-map'
 import type { RowRestrictions } from '../services/stats/row-restrictions'
 import type { StatsContext } from '../services/stats/stats-context'
 import { useSettingsStore } from '../stores/settings-store'
@@ -161,22 +160,4 @@ export function usePivotData(base: StatsBase, config: PivotConfig): ChartTasks &
   const people = restrictionsMemo(config.filter, 'personIds', chart.count.screen)
   const tags = restrictionsTagsMemo(config.filter, 'tags', chart.count.screen)
   return { ...chart, stats: pivotMemo(config, chart.tasks, base.ctx, people, tags, appRanges) }
-}
-
-// ── Tag map ─────────────────────────────────────────────────────────────────
-
-const tagMapMemo = sharedMemoByKey(function tagMap(
-  config: TagMapConfig,
-  tasks: readonly PersistedTodoItem[],
-  ctx: StatsContext,
-  restrictions: RowRestrictions,
-): TagMapTile[] {
-  return computeTagMap(tasks, ctx, config.tagIds, restrictions)
-})
-
-/** A Tag map's tiles (`services/stats/tag-map`) over its filter's tasks, narrowed by the `#` picks as a Breakdown by tags. */
-export function useTagMapData(base: StatsBase, config: TagMapConfig): ChartTasks & { tiles: TagMapTile[] } {
-  const chart = useChartTasks(base, config.filter)
-  const restrictions = restrictionsTagsMemo(config.filter, 'tags', chart.count.screen)
-  return { ...chart, tiles: tagMapMemo(config, chart.tasks, base.ctx, restrictions) }
 }

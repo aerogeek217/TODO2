@@ -720,8 +720,8 @@ const INSIGHTS_LABELS: ReadonlySet<string> = new Set(widgetKindsOf('insights').m
  * Picks the kind named `label` in the open add-widget (`Add widget`) or
  * cell (`Change widget`: the ⋯ menu, `Cell options`) menu. Adding: a task
  * kind from the menu itself, an Insights kind from its submenu, and
- * a Breakdown one of its presets (`preset`, default Custom: D26 P8), whose
- * editor then opens. Changing: every kind from the Change widget › submenu.
+ * a Breakdown one of its presets (`preset`, default Custom: D26 P8); no
+ * editor opens. Changing: every kind from the Change widget › submenu.
  */
 export async function pickWidgetKind(page: Page, menuName: 'Add widget' | 'Change widget', label: string, preset = 'Custom'): Promise<void> {
   if (menuName === 'Change widget') {

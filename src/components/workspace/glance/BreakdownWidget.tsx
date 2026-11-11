@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState, type CSSProperties, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { NEUTRAL_PERSON_COLOR } from '../../../constants'
 import { DEFAULT_STATUS_ICON } from '../../../models'
-import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey, type BreakdownSplit } from '../../../models/chart-widgets'
+import { columnIsLit, liveBreakdownSort, type BreakdownColumn, type BreakdownConfig, type BreakdownSortKey } from '../../../models/chart-widgets'
 import { tabIgnoresLens, type BreakdownTab } from '../../../models/workspace-layout'
 import { useBreakdownData } from '../../../hooks/use-chart-data'
 import { lensHidesFor, useLensHidden, useStatsBase } from '../../../hooks/use-glance-data'
@@ -9,7 +9,6 @@ import { TabLensSwitch } from '../LensSwitch'
 import { useWidgetFace } from '../../../hooks/use-widget-face'
 import { openReview } from '../../../services/review'
 import { columnCount, nextBreakdownSort, PRIORITY_GROUP_RINGS, sortBreakdownRows, type BreakdownRow } from '../../../services/stats/breakdown'
-import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import { trackScrollEdges } from '../../../utils/scroll-edges'
 import { EntityMenu, type MenuEntity } from '../../shared/EntityMenu'
@@ -20,7 +19,7 @@ import { PriorityRing } from '../../shared/PriorityRing'
 import { StatusIcon } from '../../shared/StatusIcon'
 import { useTooltip } from '../../shared/use-tooltip'
 import {
-  breakdownLines, columnHeading, filteredRows, livePicks, rowFigure, sortHeading, SPLIT_GLYPHS, SPLIT_ROW_LABELS,
+  breakdownLines, columnHeading, rowFigure, sortHeading, SPLIT_GLYPHS,
 } from './breakdown-copy'
 import { breakdownColumnDrill, breakdownRowDrill, breakdownRowLens, breakdownRowReview, rowHeading } from './chart-drills'
 import { ChartPanel } from './chart-parts'
@@ -417,102 +416,12 @@ function Donut({ title, rows, onDrill }: { title: string; rows: readonly Breakdo
 }
 
 /**
- * The filter row (large face only, board F): a label (Person / Tag /
- * Status / Priority …) and a field. Typing narrows the rows by name;
- * Enter picks the first match as a chip (picks OR); Backspace in the empty
- * field takes the last chip back, Esc clears the text, × clears it all.
- * Temporary: per tab and split, never in the layout.
- */
-function BreakdownFilterRow({ split, rows, picks, text, onPicks, onText }: {
-  split: BreakdownSplit
-  rows: readonly BreakdownRow[]
-  picks: readonly string[]
-  text: string
-  onPicks: (keys: readonly string[]) => void
-  onText: (text: string) => void
-}) {
-  const label = SPLIT_ROW_LABELS[split]
-  const inputRef = useRef<HTMLInputElement>(null)
-  const byKey = new Map(rows.map((r) => [r.key, r]))
-  const picked = picks.flatMap((k) => {
-    const r = byKey.get(k)
-    return r ? [r] : []
-  })
-  const query = text.trim().toLowerCase()
-  return (
-    <div className={styles.filterRow} data-testid="breakdown-filter-row">
-      <span className={styles.filterLabel} aria-hidden="true">{label}</span>
-      <span className={styles.filterField} onClick={() => inputRef.current?.focus()}>
-        {picked.map((r) => (
-          <span key={r.key} className={styles.chip} data-testid="breakdown-filter-chip">
-            {rowHeading(r)}
-            <button
-              type="button"
-              className={styles.chipRemove}
-              aria-label={`Remove ${rowHeading(r)}`}
-              onClick={(e) => {
-                e.stopPropagation()
-                onPicks(picks.filter((k) => k !== r.key))
-              }}
-            >
-              ×
-            </button>
-          </span>
-        ))}
-        <input
-          ref={inputRef}
-          type="text"
-          className={styles.filterInput}
-          aria-label={`Filter by ${label.toLowerCase()}`}
-          placeholder={picked.length > 0 ? '' : `Type a ${label.toLowerCase()}…`}
-          value={text}
-          onChange={(e) => onText(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault()
-              if (!query) return
-              const first = rows.find((r) => !picks.includes(r.key) && r.label.toLowerCase().includes(query))
-              if (first) onPicks([...picks, first.key])
-              onText('')
-            } else if (e.key === 'Backspace' && text === '' && picks.length > 0) {
-              e.preventDefault()
-              onPicks(picks.slice(0, -1))
-            } else if (e.key === 'Escape' && text !== '') {
-              e.preventDefault()
-              e.stopPropagation()
-              onText('')
-            }
-          }}
-        />
-        {(picked.length > 0 || text !== '') && (
-          <button
-            type="button"
-            className={styles.clear}
-            aria-label={`Clear the ${label.toLowerCase()} filter`}
-            onClick={(e) => {
-              e.stopPropagation()
-              onPicks([])
-              onText('')
-              inputRef.current?.focus()
-            }}
-          >
-            ×
-          </button>
-        )}
-      </span>
-    </div>
-  )
-}
-
-const NO_PICKS: readonly string[] = []
-
-/**
  * The Breakdown widget (D26 P8, board Z1): the tasks its filter keeps under
  * the top bar's filter, split by people, tags, status, priority, due date
  * or age — a row each, as bars, a donut or one stacked bar. By its face
  * (D25 R): small is its title and the top row; medium a compact table
  * (name · its count columns); large the chart, the table with its sortable
- * headings (view state, per split) and the filter row. Its editor (Edit
+ * headings (view state, per split). Its editor (Edit
  * breakdown…, `ChartEditorHost`) opens under its title (`data-chart-head`).
  */
 export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<BreakdownTab>) {
@@ -525,9 +434,6 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
   const columnIds = useMemo(() => data.columns.map((c) => c.id), [data.columns])
   // A sort by a column it no longer has reads as the default order; an older derived column's as the Due / Follow-up column.
   const sort = liveBreakdownSort(storedSort, columnIds)
-  const picks = useChartWidgetsStore((s) => s.rowPicks[tab.id]?.[config.splitBy]) ?? NO_PICKS
-  const [typed, setTyped] = useState<{ split: BreakdownSplit; text: string }>({ split: config.splitBy, text: '' })
-  const text = typed.split === config.splitBy ? typed.text : ''
 
   const title = config.name.trim() || 'Breakdown'
   const all = useMemo(
@@ -535,8 +441,6 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
     [data.stats.rows, config.showNone, sort, config.show, columnIds],
   )
   const large = face === 'large'
-  const shownPicks = useMemo(() => livePicks(all, picks), [all, picks])
-  const rows = large ? filteredRows(all, shownPicks, text) : all
   // What the rows shown hold (a task in several rows once): the header, Copy and the count's drill
   // agree, a hidden none row counted in none of them.
   const total = useMemo(() => new Set(all.flatMap((r) => r.ids)).size, [all])
@@ -575,7 +479,7 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
         title={title}
         config={config}
         columns={data.columns}
-        rows={rows}
+        rows={all}
         compact={!large}
         sortBy={sort?.by ?? null}
         reversed={sort?.reversed === true}
@@ -600,20 +504,10 @@ export function BreakdownWidget({ tab, onResult, onDrill }: GlanceWidgetProps<Br
           <Empty title="No tasks" hint="The tasks this breakdown's filter keeps show here." />
         ) : (
           <>
-            {large && (
-              <BreakdownFilterRow
-                split={config.splitBy}
-                rows={all}
-                picks={shownPicks}
-                text={text}
-                onPicks={(keys) => useChartWidgetsStore.getState().setRowPicks(tab.id, config.splitBy, keys)}
-                onText={(t) => setTyped({ split: config.splitBy, text: t })}
-              />
-            )}
-            {config.style === 'stacked' && <StackedBar title={title} rows={rows} onDrill={drill} />}
+            {config.style === 'stacked' && <StackedBar title={title} rows={all} onDrill={drill} />}
             {config.style === 'donut' && large ? (
               <div className={styles.donutLayout}>
-                <Donut title={title} rows={rows} onDrill={drill} />
+                <Donut title={title} rows={all} onDrill={drill} />
                 {table}
               </div>
             ) : table}

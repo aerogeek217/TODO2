@@ -14,8 +14,7 @@ import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { MenuEntry } from '../../shared/MenuPopover'
 import { showTab } from '../widget-hooks'
 import { sortHeading, sortWords, SPLIT_CHOICE_LABELS, STYLE_LABELS } from './breakdown-copy'
-import { knownTagCount, settingEntry, TAG_PICKS_MAX_HEIGHT_PX, TAG_PICKS_WIDTH_PX, tagPickEntries, type Choice } from './menu-entries'
-import { useTagStore } from '../../../stores/tag-store'
+import { settingEntry, type Choice } from './menu-entries'
 
 /**
  * A chart widget's tab-menu settings (D26 P8), listed first in its ⋯ menu:
@@ -56,29 +55,6 @@ function sortEntry(tab: Extract<ChartTab, { kind: 'breakdown' }>): MenuEntry {
   return entry.kind === 'item' ? { ...entry, note: sortWords(current, splitBy, show, columns) } : entry
 }
 
-/**
- * A Tag map's **Tags ›**: Every tag (its default, No tags too), then a
- * checkbox per tag — ticking one maps just the picked tags, in pick order;
- * untick the last and it maps none until Every tag is picked again.
- */
-function tagMapTagsEntry(tab: Extract<ChartTab, { kind: 'tagMap' }>): MenuEntry {
-  const tags = useTagStore.getState().tags
-  const picked = tab.config.tagIds
-  const write = (tagIds: number[] | undefined) => useWorkspaceStore.getState().patchTabConfig(tab.id, 'tagMap', { tagIds })
-  return {
-    kind: 'item',
-    label: 'Tags',
-    note: picked ? String(knownTagCount(picked, tags)) : 'Every tag',
-    childrenWidth: TAG_PICKS_WIDTH_PX,
-    childrenMaxHeight: TAG_PICKS_MAX_HEIGHT_PX,
-    children: [
-      { kind: 'item', label: 'Every tag', checkbox: true, checked: picked == null, keepOpen: true, onSelect: () => write(undefined) },
-      { kind: 'separator' },
-      ...tagPickEntries(tags, picked ?? [], (tagIds) => write(tagIds), picked != null),
-    ],
-  }
-}
-
 const SPLIT_CHOICES = BREAKDOWN_SPLITS.map((s) => ({ value: s, label: SPLIT_CHOICE_LABELS[s] }))
 
 /** A Breakdown's settings: Edit breakdown…, Split by, Style, Sort, its none row. */
@@ -111,11 +87,6 @@ export function chartSettingEntries(tab: ChartTab): MenuEntry[] {
         { kind: 'item', label: 'Edit pivot…', onSelect: () => openChartEditor(tab.id) },
         settingEntry('Rows', SPLIT_CHOICES, tab.config.rows, (rows) => ws().patchTabConfig(tab.id, 'pivot', { rows })),
         settingEntry('Columns', SPLIT_CHOICES, tab.config.cols, (cols) => ws().patchTabConfig(tab.id, 'pivot', { cols })),
-      ]
-    case 'tagMap':
-      return [
-        { kind: 'item', label: 'Edit tag map…', onSelect: () => openChartEditor(tab.id) },
-        tagMapTagsEntry(tab),
       ]
   }
 }

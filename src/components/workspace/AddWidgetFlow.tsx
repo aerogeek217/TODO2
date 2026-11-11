@@ -12,10 +12,10 @@ import { addKindAt, useAddWidget, useListOwnerLayoutId } from './widget-hooks'
 import styles from './AddWidgetFlow.module.css'
 
 /**
- * Adds a widget of `kind` at `target`. A list widget gets a new blank list
- * of the open layout and opens its Edit list at once (`createListThenEdit`)
- * — copying another list's setup is Edit list's Copy from…. Nothing for a
- * list before the workspace has opened a layout (`layoutId` undefined).
+ * Adds a widget of `kind` at `target`; no editor opens. A list widget gets
+ * a new blank list of the open layout (`createListAndTab`) — copying another
+ * list's setup is Edit list's Copy from…. Nothing for a list before the
+ * workspace has opened a layout (`layoutId` undefined).
  */
 function useAddKind(target: LayoutDropTarget): (kind: WidgetKind) => void {
   const add = useAddWidget()
@@ -23,7 +23,7 @@ function useAddKind(target: LayoutDropTarget): (kind: WidgetKind) => void {
   return (kind) => addKindAt(kind, target, add, layoutId)
 }
 
-/** Adds a Breakdown from a preset at `target` (D26 P8, `breakdownPreset`): its editor opens at once. */
+/** Adds a Breakdown from a preset at `target` (D26 P8, `breakdownPreset`); no editor opens. */
 function useAddBreakdown(target: LayoutDropTarget): (preset: BreakdownPreset) => void {
   const add = useAddWidget()
   return (preset) => {
@@ -108,12 +108,12 @@ interface AddWidgetButtonsProps {
 /**
  * One button per widget kind (an empty layout's tiles, an empty cell's row),
  * by group under its caption (Tasks, Insights): adds that widget at
- * `target` (`useAddKind` — a list opens its Edit list).
+ * `target` (`useAddKind`; no editor opens).
  */
 export function AddWidgetButtons({ target, buttonClassName, iconClassName, iconSize }: AddWidgetButtonsProps) {
   const addKindOnly = useAddKind(target)
   const addBreakdown = useAddBreakdown(target)
-  // A Breakdown's button adds a Custom one (its editor opens).
+  // A Breakdown's button adds a Custom one.
   const addKind = (kind: WidgetKind) => (kind === 'breakdown' ? addBreakdown('custom') : addKindOnly(kind))
   return (
     <>

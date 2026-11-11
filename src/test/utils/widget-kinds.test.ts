@@ -19,11 +19,11 @@ describe('widget kinds', () => {
     // Tasks (List, Calendar, Review, Notes), then Insights — the Neglect map last.
     expect(WIDGET_KINDS).toEqual([
       'lens', 'calendar', 'review', 'notes',
-      'number', 'breakdown', 'pivot', 'tagMap', 'trend', 'pulse', 'neglect',
+      'number', 'breakdown', 'pivot', 'trend', 'pulse', 'neglect',
     ])
     expect(WIDGET_KINDS.map(widgetKindLabel)).toEqual([
       'List', 'Calendar', 'Review', 'Notes',
-      'Number', 'Breakdown', 'Pivot', 'Tag map', 'Created vs completed', 'Project pulse', 'Neglect map',
+      'Number', 'Breakdown', 'Pivot', 'Created vs completed', 'Project pulse', 'Neglect map',
     ])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].group === 'tasks')).toEqual(['lens', 'calendar', 'review', 'notes'])
     expect(WIDGET_KINDS.filter((k) => WIDGET_KIND_SPECS[k].showsList)).toEqual(['lens'])

@@ -34,11 +34,9 @@ import type { PulseTabConfig } from './pulse-config'
 import {
   newBreakdownConfig,
   newPivotConfig,
-  newTagMapConfig,
   type BreakdownConfig,
   type BreakdownViewState,
   type PivotConfig,
-  type TagMapConfig,
 } from './chart-widgets'
 import { DEFAULT_REVIEW_BY, type ReviewBy, type ReviewSort } from './review'
 
@@ -51,8 +49,8 @@ import { DEFAULT_REVIEW_BY, type ReviewBy, type ReviewSort } from './review'
  * (D26 P4) retired Needs follow-up, Next 7 days, Stale tasks, Recently
  * completed, What changed and Today, and made the Eisenhower summary the
  * Eisenhower's small face; P8 made People, Tags and Status Breakdowns. The
- * Status flow chart (P8) was removed after v78 shipped: a saved one is
- * dropped by the layout repair (`data/layout-shape`). `review` (item 12) is
+ * Status flow chart (P8), the Tag map and the Eisenhower were removed after v78 shipped: a
+ * saved one is dropped by the layout repair (`data/layout-shape`). `review` (item 12) is
  * the review deck in a cell.
  */
 export type WidgetKind =
@@ -63,7 +61,7 @@ export type WidgetKind =
 export type GlanceWidgetKind = 'number' | ChartWidgetKind | 'trend' | 'pulse'
 
 /** The chart widgets (D26 P8): a filter, then what it is split by — each has a name, a filter and an editor. */
-export type ChartWidgetKind = 'breakdown' | 'pivot' | 'tagMap'
+export type ChartWidgetKind = 'breakdown' | 'pivot'
 
 export type CalendarView = 'week' | 'month'
 
@@ -254,10 +252,9 @@ export type PulseTab = TabOf<'pulse', PulseTabConfig, LensViewState>
 // ── D26 P8: the chart widgets ──
 export type BreakdownTab = TabOf<'breakdown', BreakdownConfig, BreakdownViewState>
 export type PivotTab = TabOf<'pivot', PivotConfig, LensViewState>
-export type TagMapTab = TabOf<'tagMap', TagMapConfig, LensViewState>
 
 /** A chart widget's tab (D26 P8). */
-export type ChartTab = BreakdownTab | PivotTab | TagMapTab
+export type ChartTab = BreakdownTab | PivotTab
 
 /** A glance widget's tab (D25 N). */
 export type GlanceTab = NumberTab | TrendTab | PulseTab | ChartTab
@@ -494,7 +491,6 @@ export const WIDGET_KIND_SPECS: { readonly [K in WidgetKind]: WidgetKindSpec<K> 
   // D26 P8: the chart widgets.
   breakdown: glanceSpec('Breakdown', (id, seed) => ({ id, kind: 'breakdown', config: newBreakdownConfig(emptyPredicate(), seed.breakdown) })),
   pivot: glanceSpec('Pivot', (id) => ({ id, kind: 'pivot', config: newPivotConfig(emptyPredicate()) })),
-  tagMap: glanceSpec('Tag map', (id) => ({ id, kind: 'tagMap', config: newTagMapConfig(emptyPredicate()) })),
   trend: glanceSpec('Created vs completed', (id) => ({ id, kind: 'trend', config: { range: DEFAULT_TREND_RANGE } })),
   pulse: glanceSpec('Project pulse', (id, seed) => ({ id, kind: 'pulse', config: { tagIds: [...(seed.tagIds ?? [])] } })),
   // In Insights, but a whole widget, not a glance one (no glance minimums).
@@ -535,7 +531,7 @@ export function isGlanceKind(kind: WidgetKind): kind is GlanceWidgetKind {
 
 /** A glance widget's tab. */
 /** The kinds with a lens switch of their own in their view state (G3; a list's is its list's). */
-export const LENS_SWITCH_KINDS = ['calendar', 'review', 'neglect', 'number', 'pulse', 'breakdown', 'pivot', 'tagMap'] as const
+export const LENS_SWITCH_KINDS = ['calendar', 'review', 'neglect', 'number', 'pulse', 'breakdown', 'pivot'] as const
 export type LensSwitchKind = (typeof LENS_SWITCH_KINDS)[number]
 export type LensSwitchTab = Extract<LayoutTab, { kind: LensSwitchKind }>
 
@@ -560,7 +556,7 @@ export function isGlanceTab(tab: LayoutTab): tab is GlanceTab {
 
 /** A chart widget's tab (D26 P8). */
 export function isChartTab(tab: LayoutTab): tab is ChartTab {
-  return tab.kind === 'breakdown' || tab.kind === 'pivot' || tab.kind === 'tagMap'
+  return tab.kind === 'breakdown' || tab.kind === 'pivot'
 }
 
 /**

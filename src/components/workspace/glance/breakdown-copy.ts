@@ -24,7 +24,7 @@ export const SPLIT_CHOICE_LABELS: Record<BreakdownSplit, string> = {
   age: 'Age',
 }
 
-/** The name column's heading and the filter row's label, per split. */
+/** The name column's heading, per split. */
 export const SPLIT_ROW_LABELS: Record<BreakdownSplit, string> = {
   people: 'Person',
   tags: 'Tag',
@@ -140,25 +140,4 @@ export function breakdownLines(
       ...columns.map((c) => ({ label: columnHeading(c), count: String(columnCount(r, c.id)) })),
     ]),
   ]
-}
-
-/**
- * The picks that still name a row: a pick whose row has gone (its last
- * task completed, the top bar narrowed) neither filters nor shows a chip,
- * so what is filtered is always what the chips say.
- */
-export function livePicks(rows: readonly BreakdownRow[], picks: readonly string[]): readonly string[] {
-  if (picks.length === 0) return picks
-  const keys = new Set(rows.map((r) => r.key))
-  const live = picks.filter((k) => keys.has(k))
-  return live.length === picks.length ? picks : live
-}
-
-/** The rows the filter row leaves: those whose name holds the typed text, else the picked ones (`livePicks`), else all. */
-export function filteredRows(rows: readonly BreakdownRow[], picks: readonly string[], text: string): readonly BreakdownRow[] {
-  const query = text.trim().toLowerCase()
-  if (query) return rows.filter((r) => r.label.toLowerCase().includes(query))
-  const live = livePicks(rows, picks)
-  if (live.length > 0) return rows.filter((r) => live.includes(r.key))
-  return rows
 }

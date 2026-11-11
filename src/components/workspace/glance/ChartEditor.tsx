@@ -260,7 +260,7 @@ function PivotFields({ config, patch }: { config: PivotConfig; patch: (p: Partia
 type ChartConfig = ChartTab['config']
 
 /** Each chart kind's noun, as its editor's title and close question name it. */
-const KIND_NOUNS: Record<ChartTab['kind'], string> = { breakdown: 'breakdown', pivot: 'pivot', tagMap: 'tag map' }
+const KIND_NOUNS: Record<ChartTab['kind'], string> = { breakdown: 'breakdown', pivot: 'pivot' }
 
 /**
  * What each chart kind's editor's filter is labelled and its own fields,
@@ -283,11 +283,6 @@ function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { f
         filterLabel: 'Split tasks where',
         fields: <PivotFields config={tab.config} patch={patch} />,
       }
-    case 'tagMap':
-      return {
-        filterLabel: 'Open tasks where',
-        fields: <span className={styles.hint}>Its ⋯ menu’s Tags picks the tags it maps; Every tag by default.</span>,
-      }
   }
 }
 
@@ -296,11 +291,10 @@ function kindParts(tab: ChartTab, patch: (p: Partial<ChartConfig>) => void): { f
  * name, the filter it splits — the Graphical / Expression filter Edit list
  * has, with Reads as — and its kind's own fields (a Breakdown's split,
  * style and what it shows). A popover under the chart's title, opened by
- * its ⋯ menu's Edit … and straight after Add widget. Its controls edit a
+ * its ⋯ menu's Edit …. Its controls edit a
  * copy of the config, which the chart draws live (`useEditorDraft`, Edit
  * list's pattern): Save writes the changes for good as one layout config
- * update — one undo step — and Discard drops them
- * (straight after Add widget, the new chart stays with its first config).
+ * update — one undo step — and Discard drops them.
  * Esc, × or a press elsewhere close it at once while nothing changed, else
  * ask Save / Discard / Keep editing.
  */

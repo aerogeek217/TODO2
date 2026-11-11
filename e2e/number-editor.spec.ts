@@ -28,6 +28,13 @@ const SEED: WorkspaceSeed = {
 const number = (page: Page) => page.locator('[data-glance="number"] [data-number]')
 const editor = (page: Page) => page.locator('[data-number-editor]')
 
+/** The Number's ⋯ › Edit number… (no editor opens on add, decision 8). */
+async function editNumber(page: Page): Promise<void> {
+  await page.locator('[data-ws-cell]').filter({ has: number(page) }).locator('[data-ws-tab]').click({ button: 'right' })
+  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit number…' }).click()
+  await expect(editor(page)).toBeVisible()
+}
+
 test('add a Number, type a filter, see its count and its tasks', async ({ page }) => {
   await seedWorkspace(page, SEED)
   await openCellLayoutMenu(page, 'k1')
@@ -35,9 +42,10 @@ test('add a Number, type a filter, see its count and its tasks', async ({ page }
   await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Insights' })
     .getByRole('button', { name: 'Number', exact: true }).click()
 
-  // A new Number: every open task, its editor open at once.
+  // A new Number: every open task, no editor open; Edit number… from its menu.
   await expect(number(page).getByTestId('number-count')).toHaveText('5')
-  await expect(editor(page)).toBeVisible()
+  await expect(editor(page)).toHaveCount(0)
+  await editNumber(page)
   await editor(page).getByRole('textbox', { name: 'Name' }).fill('Late on Atlas')
   await editor(page).getByRole('radiogroup', { name: 'Filter mode' }).getByRole('radio', { name: 'Expression' }).click()
   const field = editor(page).getByRole('textbox', { name: 'Filter expression' })
@@ -74,7 +82,7 @@ test('closing the editor with changes asks Save / Discard / Keep editing; a pres
   await pickSplit(page, 'Below')
   await page.getByRole('region', { name: 'Empty cell' }).getByRole('group', { name: 'Insights' })
     .getByRole('button', { name: 'Number', exact: true }).click()
-  await expect(editor(page)).toBeVisible()
+  await editNumber(page)
   const name = editor(page).getByRole('textbox', { name: 'Name' })
   const save = editor(page).getByRole('button', { name: 'Save', exact: true })
   await expect(save).toBeDisabled()
@@ -99,16 +107,14 @@ test('closing the editor with changes asks Save / Discard / Keep editing; a pres
   await page.getByRole('button', { name: 'Settings', exact: true }).click()
   await expect(ask).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Settings', exact: true })).toHaveCount(0)
-  // Discard: the new Number stays, as it was added.
+  // Discard: the Number stays, as it was added.
   await ask.getByRole('button', { name: 'Discard' }).click()
   await expect(editor(page)).toHaveCount(0)
   await expect(number(page)).toContainText('Open')
   await expect(number(page).getByTestId('number-count')).toHaveText('5')
 
   // × with changes, then the question's Save: written.
-  await page.locator('[data-ws-cell]').filter({ has: number(page) }).locator('[data-ws-tab]').click({ button: 'right' })
-  await page.getByRole('menu', { name: 'Cell options' }).getByRole('menuitem', { name: 'Edit number…' }).click()
-  await expect(editor(page)).toBeVisible()
+  await editNumber(page)
   await editor(page).getByRole('textbox', { name: 'Name' }).fill('Due')
   await editor(page).getByRole('button', { name: 'Close' }).click()
   await page.getByRole('dialog', { name: 'Save changes to number “Open”?' }).getByRole('button', { name: 'Save', exact: true }).click()
