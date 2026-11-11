@@ -143,15 +143,24 @@ async function setup(browser: Browser, size: Size, theme: Theme, text: string): 
 
 /** `TYPE_SHOTS_SWEEP=1`: also list each screen's form controls with their computed font size and their parent's. */
 const SWEEP = !!process.env.TYPE_SHOTS_SWEEP
-interface ControlSize { tag: string; cls: string; text: string; size: string; parent: string; w: number; h: number }
+interface ControlSize { tag: string; cls: string; text: string; size: string; parent: string; w: number; h: number; ownText: boolean }
 
 async function controlSizes(page: Page): Promise<ControlSize[]> {
   return page.evaluate(() => {
-    const out: Array<{ tag: string; cls: string; text: string; size: string; parent: string; w: number; h: number }> = []
+    const out: Array<{ tag: string; cls: string; text: string; size: string; parent: string; w: number; h: number; ownText: boolean }> = []
     for (const el of Array.from(document.querySelectorAll('button, input, select, textarea'))) {
       const r = el.getBoundingClientRect()
       if (r.width === 0 && r.height === 0) continue
       const parent = el.parentElement ? getComputedStyle(el.parentElement).fontSize : ''
+      const own = getComputedStyle(el).fontSize
+      // Is any of its text (or a 1em icon) drawn at the control's own size?
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT)
+      let ownText = false
+      for (let n = walker.nextNode(); n && !ownText; n = walker.nextNode()) {
+        if (n.nodeType === Node.TEXT_NODE) ownText = !!n.textContent?.trim() && getComputedStyle(n.parentElement!).fontSize === own
+        else if ((n as Element).tagName.toLowerCase() === 'svg') ownText = (n as Element).getAttribute('width') === '1em' && getComputedStyle(n as Element).fontSize === own
+      }
+      if ((el as HTMLInputElement).value && /^(text|search|date|number|)$/.test((el as HTMLInputElement).type ?? '')) ownText = true
       out.push({
         tag: el.tagName.toLowerCase() + ((el as HTMLInputElement).type ? `[${(el as HTMLInputElement).type}]` : ''),
         cls: (el.getAttribute('class') ?? '').slice(0, 120),
@@ -160,6 +169,7 @@ async function controlSizes(page: Page): Promise<ControlSize[]> {
         parent,
         w: Math.round(r.width),
         h: Math.round(r.height),
+        ownText,
       })
     }
     return out
