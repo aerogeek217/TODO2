@@ -59,11 +59,13 @@ export function Panel({ def, count, onCount, sub, extras, lens, titleData, style
   )
 }
 
-export function Empty({ title, hint }: { title: string; hint: string }) {
+/** A widget with nothing to show: a title and a hint, and an `action` under them (Project pulse's Add tag). */
+export function Empty({ title, hint, action }: { title: string; hint: string; action?: ReactNode }) {
   return (
     <div className={styles.empty}>
       <span className={styles.emptyTitle}>{title}</span>
       <span className={styles.emptyHint}>{hint}</span>
+      {action}
     </div>
   )
 }

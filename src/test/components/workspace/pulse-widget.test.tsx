@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { render, cleanup, fireEvent, within } from '@testing-library/react'
+import { act, render, cleanup, fireEvent, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import type { GlanceResult } from '../../../components/workspace/glance/glance-hooks'
@@ -15,7 +15,10 @@ import { useTodoStore } from '../../../stores/todo-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
 import type { WidgetFace } from '../../../utils/widget-face'
+import { useUndoStore } from '../../../stores/undo-store'
 import { clearFilterStore, makeTodo, resetEntityStores } from '../../helpers'
+import { single } from '../../helpers/layout-builders'
+import { layoutSteps } from '../../helpers/layout-steps'
 
 // The face is the cell's size, which JSDOM doesn't lay out: each test picks it.
 const faceState = vi.hoisted(() => ({ face: 'large' as WidgetFace }))
@@ -140,5 +143,73 @@ describe('Project pulse’s tab menu', () => {
     expect(patchTabConfig).toHaveBeenCalledWith('w', kind, { tagIds: [2, 1] })
     beta.onSelect!()
     expect(patchTabConfig).toHaveBeenLastCalledWith('w', kind, { tagIds: [] })
+  })
+})
+
+// Item 9: tags added with the + card and removed with a card's ×, each one undo step.
+describe('Project pulse: + and × on the widget', () => {
+  /** The tab in the open layout, rendered live, so its writes land there and show. */
+  function setupLive(tab: GlanceTab) {
+    const layout = { id: 1, sortOrder: 0, name: 'L', createdAt: new Date(), modifiedAt: new Date(), ...single({ id: 'c', tabs: [tab] }) }
+    useWorkspaceStore.setState({ working: layout, saved: layout, layouts: [layout] })
+    function Live() {
+      const live = useWorkspaceStore((s) => s.working!.cells[0]!.tabs[0]) as GlanceTab
+      return <GlanceWidget tab={live} />
+    }
+    return render(<DndContext><Live /></DndContext>)
+  }
+  const picked = () => (useWorkspaceStore.getState().working!.cells[0]!.tabs[0] as Extract<GlanceTab, { kind: 'pulse' }>).config.tagIds
+  const option = (name: string) => [...document.querySelectorAll<HTMLElement>('[role="option"]')].find((o) => o.textContent?.includes(name))!
+
+  it('a card’s × removes its tag: one undo step, named plainly; Undo brings it back', async () => {
+    setupLive(createTab('pulse', 'p', { tagIds: [2, 1] }))
+    const remove = root('pulse').querySelector<HTMLButtonElement>('[data-pulse-remove="1"]')!
+    expect(remove.getAttribute('aria-label')).toBe('Remove “Project: Atlas” from project pulse')
+    await act(async () => { fireEvent.click(remove) })
+    expect(picked()).toEqual([2])
+    expect(layoutSteps()).toEqual(['Removed “Project: Atlas” from project pulse'])
+    expect(root('pulse').querySelector('[data-pulse-card="1"]')).toBeNull()
+    await act(async () => { await useUndoStore.getState().undo() })
+    expect(picked()).toEqual([2, 1])
+  })
+
+  it('the + card after the last card opens the tag picker, the picked tags ticked; a pick adds its card at the end', async () => {
+    setupLive(createTab('pulse', 'p', { tagIds: [2] }))
+    const grid = root('pulse').querySelector('[data-pulse-add]')!.parentElement!
+    expect(grid.lastElementChild!.hasAttribute('data-pulse-add')).toBe(true)
+    const add = root('pulse').querySelector<HTMLButtonElement>('[data-pulse-add]')!
+    expect(add.getAttribute('aria-label')).toBe('Add a tag to project pulse')
+    await act(async () => { fireEvent.click(add) })
+    expect(add.getAttribute('aria-expanded')).toBe('true')
+    expect(option('Project: Beta').getAttribute('aria-selected')).toBe('true')
+    expect(option('Project: Atlas').getAttribute('aria-selected')).toBe('false')
+    // No Create row: it picks among the tags there are.
+    expect(document.body.textContent).not.toContain('Create "')
+    await act(async () => { fireEvent.click(option('Project: Atlas')) })
+    expect(picked()).toEqual([2, 1])
+    expect(layoutSteps()).toEqual(['Added “Project: Atlas” to project pulse'])
+    expect([...root('pulse').querySelectorAll<HTMLElement>('[data-pulse-card]')].map((c) => c.dataset.pulseCard)).toEqual(['2', '1'])
+    // Unticking in the picker removes it again.
+    await act(async () => { fireEvent.click(option('Project: Atlas')) })
+    expect(picked()).toEqual([2])
+    expect(layoutSteps().at(-1)).toBe('Removed “Project: Atlas” from project pulse')
+  })
+
+  it('with no tag picked, the empty state’s Add tag opens the same picker', async () => {
+    setupLive(createTab('pulse', 'p'))
+    expect(root('pulse').textContent).toContain('No tags picked')
+    const add = within(root('pulse')).getByRole('button', { name: '+ Add tag' })
+    await act(async () => { fireEvent.click(add) })
+    await act(async () => { fireEvent.click(option('Project: Beta')) })
+    expect(picked()).toEqual([2])
+    expect(layoutSteps()).toEqual(['Added “Project: Beta” to project pulse'])
+    expect(root('pulse').querySelector('[data-pulse-card="2"]')).not.toBeNull()
+  })
+
+  it('the faces without cards are unchanged: no + card, no ×', () => {
+    faceState.face = 'medium'
+    setupLive(createTab('pulse', 'p', { tagIds: [2, 1] }))
+    expect(root('pulse').querySelector('[data-pulse-add]')).toBeNull()
+    expect(root('pulse').querySelector('[data-pulse-remove]')).toBeNull()
   })
 })
