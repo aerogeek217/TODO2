@@ -319,6 +319,8 @@ test('a task’s notes convert to its subtasks at once, in the editor and the po
   const row = taskRowByTitle(page, 'Offsite')
   await row.locator('span[data-task-title="Offsite"]').dblclick()
   const dialog = editor(page)
+  // The task layout's notes toolbar shows while Notes has the focus (task layout A).
+  await dialog.locator('[data-task-notes] .cm-line').last().click()
   await dialog.getByRole('button', { name: /^Convert 2 bullet lines to subtasks/ }).click()
 
   await expect(dialog.locator('.cm-line')).toHaveText(['✓ Book the venue', '✓ Send invites', 'A thought'])

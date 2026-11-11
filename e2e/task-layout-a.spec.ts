@@ -208,6 +208,34 @@ for (const size of [{ width: 760, height: 640 }, { width: 760, height: 520 }]) {
   })
 }
 
+test.describe('the task editor in the light theme, 760 × 640', () => {
+  test.use({ viewport: { width: 1280, height: Math.round(640 / 0.82) } })
+
+  test('the same layout reads on the light ground: the dock’s ground, the fields’ boxes', async ({ page }) => {
+    await seedWorkspace(page, SEED)
+    await page.evaluate(async () => {
+      const mod = (await import(/* @vite-ignore */ '/src/stores/settings-store.ts' as string)) as {
+        useSettingsStore: { getState: () => { setThemeMode: (mode: 'dark' | 'light') => Promise<void> } }
+      }
+      await mod.useSettingsStore.getState().setThemeMode('light')
+    })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    for (const title of [HEAVY, EMPTY]) {
+      const dialog = await openEditor(page, title)
+      await expectLayoutA(page, dialog, { footer: dialog.locator('button', { hasText: 'Done' }).locator('..') })
+      const looks = await dialog.locator('[data-task-dock]').evaluate((dock) => ({
+        dock: getComputedStyle(dock).backgroundColor,
+        field: getComputedStyle(dock.querySelector('[data-fact-date-field] > div')!).boxShadow,
+      }))
+      expect(looks.dock).not.toBe('rgba(0, 0, 0, 0)')
+      expect(looks.field).not.toBe('none')
+      await shot(page, `editor-760x640-light-${title === EMPTY ? 'empty' : 'heavy'}`)
+      await page.keyboard.press('Escape')
+      await expect(dialog).toHaveCount(0)
+    }
+  })
+})
+
 test.describe('the task editor under 600px of body', () => {
   test.use({ viewport: { width: 1280, height: 900 } })
 
@@ -334,7 +362,7 @@ async function goTo(page: Page, scope: Locator, title: string) {
   await expect(scope.getByTestId('review-card-title')).toHaveText(title)
 }
 
-for (const size of [{ width: 1200, height: 800 }, { width: 900, height: 640 }]) {
+for (const size of [{ width: 1200, height: 800 }, { width: 1200, height: 760 }, { width: 900, height: 640 }]) {
   test.describe(`the review dialog at ${size.width} × ${size.height}`, () => {
     // The deck is 32px narrower and shorter than the window at most.
     test.use({ viewport: { width: size.width + 32, height: size.height + 32 } })
