@@ -1,4 +1,4 @@
-import { useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent, type ReactNode } from 'react'
 import type { PersistedTodoItem } from '../../models'
 import { AnchoredPicker } from '../shared/AnchoredPicker'
 import { ReviewRail } from './ReviewRail'
@@ -25,6 +25,20 @@ export function ReviewQueueButton({ todoById, followedUpToday, label, words, cla
 }) {
   const [open, setOpen] = useState(false)
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const popoverRef = useRef<HTMLDivElement>(null)
+  // Open, the focus goes to the current row (← / → step there; Esc is the popover's, not a layer's
+  // under it — the small face's popover, the deck); closed with it inside, back to the button.
+  useEffect(() => {
+    if (!open) return
+    const popover = popoverRef.current
+    const button = buttonRef.current
+    const row = popover?.querySelector<HTMLElement>('[aria-current="true"]') ?? popover?.querySelector<HTMLElement>('[data-review-row]')
+    row?.focus({ preventScroll: true })
+    return () => {
+      const active = document.activeElement
+      if (active == null || active === document.body || popover?.contains(active)) button?.focus({ preventScroll: true })
+    }
+  }, [open])
   // A row picked: the card it opens takes over.
   const onClick = (e: ReactMouseEvent) => {
     if (e.target instanceof Element && e.target.closest('[data-review-row]')) setOpen(false)
@@ -46,7 +60,7 @@ export function ReviewQueueButton({ todoById, followedUpToday, label, words, cla
       {open && (
         <AnchoredPicker anchorRef={buttonRef} onClose={() => setOpen(false)} closeOnEscape>
           {/* Not a menu: a list of rows to pick from, with its sort. */}
-          <div className={styles.queuePopover} onClick={onClick} data-review-queue-popover="">
+          <div ref={popoverRef} className={styles.queuePopover} onClick={onClick} data-review-queue-popover="">
             <ReviewRail todoById={todoById} followedUpToday={followedUpToday} className={styles.queuePopoverRail} label={label} />
           </div>
         </AnchoredPicker>
