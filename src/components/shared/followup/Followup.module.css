@@ -276,18 +276,22 @@
   opacity: 0.75;
 }
 
-/* ═══ The task layout's Follow-up rows (board BJ) ═══ */
+/* ═══ The task layout's follow-up rows (task layout A, `TaskFollowupRows`) ═══ */
 
-/* Under a Next / Last field, past its label (30px + the 8px gap): the help line, the quick intervals. */
-.factIndent {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+/* A row's help line, after its field and quick intervals: it takes the rest of the line (cut with
+ * an ellipsis), and wraps under the field when less than 96px is left. Gone while it says nothing. */
+.rowHelp {
+  display: block;
+  flex: 1 1 96px;
   min-width: 0;
-  padding-left: 38px;
+  overflow: hidden;
+  font-size: var(--font-size-meta);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.factIndent:empty {
+.rowHelp:empty {
   display: none;
 }
 

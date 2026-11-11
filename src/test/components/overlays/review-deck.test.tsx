@@ -75,7 +75,8 @@ describe('the review deck', () => {
     const [first] = ids as [number]
     await openDeck()
     fireEvent.change(updateField(), { target: { value: 'Legal has it, back Thursday' } })
-    expect(screen.getByTestId('review-hint')).toHaveTextContent(/^With the update · /)
+    // No hint over the footer (task layout A): the Next field it echoed is right above it.
+    expect(screen.queryByTestId('review-hint')).toBeNull()
     fireEvent.keyDown(updateField(), { key: 'Enter' })
     expect(cardTitle()).toBe(SECOND)
     expect(updateField()).toHaveFocus()
@@ -106,7 +107,8 @@ describe('the review deck', () => {
     const [first] = ids as [number]
     await openDeck()
     fireEvent.change(nextField(), { target: { value: '2w' } })
-    expect(screen.getByTestId('review-hint')).toHaveTextContent(/^Next /)
+    // What the field means, beside it (`aria-live`).
+    expect(document.getElementById(nextField().getAttribute('aria-describedby') ?? '')).toHaveTextContent(/^→ .* · ⏎ to set$/)
     fireEvent.click(markButton())
     await waitFor(() => expect(sameDay(todo(first)?.lastFollowupAt, startOfToday())).toBe(true))
     expect(sameDay(todo(first)?.nextFollowupAt, addDays(startOfToday(), 14))).toBe(true)
@@ -159,8 +161,55 @@ describe('the review deck', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Clear next follow-up' }))
     await waitFor(() => expect(todo(first)?.nextFollowupAt).toBeUndefined())
     expect(nextField()).toHaveValue('')
-    expect(screen.getByTestId('review-hint')).toHaveTextContent('No next follow-up')
     expect(todo(first)?.lastFollowupAt).toBeUndefined()
+  })
+
+  it('Last follow-up is a field in the dock under Next: a date and ⏎ write it (one undo step, after the notes); a future day is refused; Esc reverts', async () => {
+    const [first] = ids as [number]
+    await openDeck()
+    const card = document.querySelector('[data-review-card]') as HTMLElement
+    const dock = card.querySelector('[data-task-dock]') as HTMLElement
+    const last = within(dock).getByRole('textbox', { name: 'Last follow-up' })
+    // In the dock, after the update line and the Next field; nothing of it in the rail.
+    expect(updateField().compareDocumentPosition(nextField()) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(nextField().compareDocumentPosition(last) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(card.querySelector('[data-task-rail] input[aria-label$="follow-up"]')).toBeNull()
+    expect(screen.getByTestId('review-last-followup')).toHaveTextContent('Never')
+
+    // A future day: refused, nothing written.
+    act(() => last.focus())
+    fireEvent.change(last, { target: { value: 'tomorrow' } })
+    expect(last).toHaveAttribute('aria-invalid', 'true')
+    fireEvent.keyDown(last, { key: 'Enter' })
+    expect(last).toHaveFocus()
+    expect(todo(first)?.lastFollowupAt).toBeUndefined()
+    // Esc: back to the stored value, the deck still open.
+    fireEvent.keyDown(last, { key: 'Escape' })
+    expect(last).toHaveValue('')
+    expect(useReviewStore.getState().open).toBe(true)
+
+    // Yesterday, ⏎: written as one undo step; the focus back on the update line.
+    const yesterday = addDays(startOfToday(), -1)
+    fireEvent.change(last, { target: { value: 'yesterday' } })
+    fireEvent.keyDown(last, { key: 'Enter' })
+    await waitFor(() => expect(sameDay(todo(first)?.lastFollowupAt, yesterday)).toBe(true))
+    expect(updateField()).toHaveFocus()
+    await waitFor(() => expect(useUndoStore.getState().undoStack).toHaveLength(1))
+    // The blur that followed ⏎ wrote nothing more.
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+    expect(useUndoStore.getState().undoStack).toHaveLength(1)
+    await act(async () => { await useUndoStore.getState().undo() })
+    await waitFor(() => expect(todo(first)?.lastFollowupAt).toBeUndefined())
+
+    // Blur commits too, once.
+    act(() => last.focus())
+    fireEvent.change(last, { target: { value: 'yesterday' } })
+    act(() => updateField().focus())
+    await waitFor(() => expect(sameDay(todo(first)?.lastFollowupAt, yesterday)).toBe(true))
+    await waitFor(() => expect(useUndoStore.getState().undoStack).toHaveLength(1))
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 50)) })
+    expect(useUndoStore.getState().undoStack).toHaveLength(1)
+    expect(cardTitle()).toBe(FIRST)
   })
 
   it('the notes typed so far are written first, as their own undo step', async () => {
@@ -503,7 +552,7 @@ describe('the review deck', () => {
     expect(queue.compareDocumentPosition(rail) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(rail.compareDocumentPosition(writing) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(Array.from(rail.querySelectorAll('[data-fact]')).map((f) => f.getAttribute('data-fact')))
-      .toEqual(['priority', 'status', 'people', 'tags', 'due', 'followup'])
+      .toEqual(['priority', 'status', 'people', 'tags', 'due'])
     const parts = ['[data-task-notes]', '[data-subtasks]', '[data-status-updates]'].map((sel) => writing.querySelector(sel))
     parts.forEach((el) => expect(el).not.toBeNull())
     for (let i = 1; i < parts.length; i++) {
@@ -518,10 +567,12 @@ describe('the review deck', () => {
     expect(within(card).getByRole('button', { name: 'Urgent', pressed: false })).toBeInTheDocument()
     const updates = card.querySelector('[data-status-updates]') as HTMLElement
     expect(updates.querySelector('input:last-of-type')).toBe(updateField())
-    // The Last row: the date only — the deck's Mark followed up is its footer's, none in the rail.
+    // The follow-up rows are the dock's (Next, Last), under the update line; Mark followed up is the footer's.
+    const dock = card.querySelector('[data-task-dock]') as HTMLElement
+    expect(Array.from(dock.querySelectorAll('[data-followup-row]')).map((r) => r.getAttribute('data-followup-row'))).toEqual(['next', 'last'])
     expect(screen.getAllByRole('button', { name: 'Mark followed up' })).toHaveLength(1)
-    expect(within(rail).queryByRole('button', { name: 'Mark followed up' })).toBeNull()
-    expect(screen.getByTestId('review-last-followup')).toHaveTextContent('Never followed up')
+    expect(within(card).queryByRole('button', { name: 'Mark followed up' })).toBeNull()
+    expect(screen.getByTestId('review-last-followup')).toHaveTextContent('Never')
     expect(screen.queryByRole('button', { name: 'Open in editor' })).toBeNull()
   })
 

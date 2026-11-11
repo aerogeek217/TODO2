@@ -1,13 +1,14 @@
-// The one task layout (boards BJ, BL) in the task editor: the header (box,
-// title, ⋯, ×), then the body — the facts rail (Priority, Status, People,
-// Tags, Due, Follow-up last, each under its header: the standard section
-// label, no icon) beside the writing (Notes and Subtasks in what scrolls,
-// Status updates in the dock under it) —, then the footer (the dates and
+// The one task layout (boards BJ, BL; task layout A) in the task editor: the
+// header (box, title, ⋯, ×), then the body — the facts rail (Priority,
+// Status, People, Tags, Due, each under its header: the standard section
+// label, no icon; Created · Modified at its foot) beside the writing (Notes
+// and Subtasks in what scrolls, then the dock: Status updates and the
+// follow-up rows, Next and Last) —, then the footer (Mark followed up and
 // Done; Duplicate, Make subtask of… and Delete are the ⋯'s). The Notes box
 // and every heading are there while empty. Edit and create mode; a draft
 // has no Last row. Sizes, scrolling, the dock's place and the narrow
-// stacking are the real browser's (`e2e/task-layout.spec.ts`,
-// `e2e/reviewer-layout.spec.ts`).
+// stacking are the real browser's (`e2e/task-layout-a.spec.ts`,
+// `e2e/task-layout.spec.ts`, `e2e/reviewer-layout.spec.ts`).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { TaskEditPopup } from '../../components/task/TaskEditPopup'
@@ -32,8 +33,8 @@ afterEach(() => {
 
 const follows = (a: Element, b: Element) => (a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0
 
-const RAIL = ['priority', 'status', 'people', 'tags', 'due', 'followup']
-const HEADERS = ['Priority', 'Status', 'People', 'Tags', 'Due', 'Follow-up']
+const RAIL = ['priority', 'status', 'people', 'tags', 'due']
+const HEADERS = ['Priority', 'Status', 'People', 'Tags', 'Due']
 
 function expectLayout(root: HTMLElement, rail = RAIL) {
   const railEl = root.querySelector('[data-task-rail]') as HTMLElement
@@ -44,7 +45,7 @@ function expectLayout(root: HTMLElement, rail = RAIL) {
   expect(follows(railEl, writing)).toBe(true)
   const facts = Array.from(railEl.querySelectorAll('[data-fact]'))
   expect(facts.map((f) => f.getAttribute('data-fact'))).toEqual(rail)
-  // Each fact a region named by its header: its name alone, one class for all six, no icon (board BL).
+  // Each fact a region named by its header: its name alone, one class for all five, no icon (board BL).
   const headers = facts.map((f) => f.querySelector('[id]') as HTMLElement)
   for (const [i, fact] of facts.entries()) {
     const header = headers[i]!
@@ -55,7 +56,7 @@ function expectLayout(root: HTMLElement, rail = RAIL) {
   expect(new Set(headers.map((h) => h.className)).size).toBe(1)
   expect(headers.map((h) => h.textContent))
     .toEqual(HEADERS.filter((_, i) => rail.includes(RAIL[i] ?? '')))
-  // The writing: Notes and Subtasks in what scrolls, then the dock with Status updates.
+  // The writing: Notes and Subtasks in what scrolls, then the dock — Status updates, then the follow-up rows.
   const scroll = writing.querySelector('[data-task-writing-scroll]') as HTMLElement
   const dock = writing.querySelector('[data-task-dock]') as HTMLElement
   expect(follows(scroll, dock)).toBe(true)
@@ -64,10 +65,13 @@ function expectLayout(root: HTMLElement, rail = RAIL) {
   const updates = dock.querySelector('[data-status-updates]')!
   expect(follows(notes, subtasks)).toBe(true)
   expect(follows(subtasks, updates)).toBe(true)
-  expect(dock.children).toHaveLength(1)
+  const followup = dock.querySelector('[data-task-followup]') as HTMLElement
+  expect(Array.from(dock.children)).toEqual([updates, followup])
+  // The follow-up dates are the dock's, not the rail's (task layout A).
+  expect(railEl.querySelector('[data-task-followup], input[aria-label$="follow-up"]')).toBeNull()
   // No badges row and no framed fields block any more.
   expect(root.querySelector('[data-task-fields], [data-task-pair]')).toBeNull()
-  return { rail: railEl, writing, followup: railEl.querySelector('[data-task-followup]') as HTMLElement }
+  return { rail: railEl, writing, followup }
 }
 
 async function openStored(todo = makeTodo({ id: 7, title: 'Vendor contract renewal' })) {
@@ -80,17 +84,31 @@ async function openStored(todo = makeTodo({ id: 7, title: 'Vendor contract renew
 }
 
 describe('the task layout in the editor', () => {
-  it('edit mode: the facts rail in its order beside the writing; Follow-up last with Next, Last, Mark followed up', async () => {
+  it('edit mode: the facts rail in its order beside the writing; the dock’s follow-up rows (Next, Last); Mark followed up in the footer', async () => {
     useStatusStore.setState({ statuses: [{ id: 1, name: 'Waiting', color: '#f5c842', sortOrder: 0 }] })
     const dialog = await openStored()
-    const { followup } = expectLayout(dialog)
+    const { followup, rail } = expectLayout(dialog)
     const f = within(followup)
-    expect(f.getByRole('textbox', { name: 'Next follow-up' })).toBeInTheDocument()
-    expect(f.getByRole('textbox', { name: 'Last follow-up' })).toBeInTheDocument()
-    expect(f.getByRole('button', { name: 'Mark followed up' })).toBeInTheDocument()
-    // The quick intervals: 1w 2w 1m 3m.
+    // Two rows, Next then Last, each a label and a field (task layout A).
+    expect(Array.from(followup.querySelectorAll('[data-followup-row]')).map((r) => r.getAttribute('data-followup-row'))).toEqual(['next', 'last'])
+    expect(follows(f.getByRole('textbox', { name: 'Next follow-up' }), f.getByRole('textbox', { name: 'Last follow-up' }))).toBe(true)
+    expect(f.queryByRole('button', { name: 'Mark followed up' })).toBeNull()
+    // The quick intervals: 1w 2w 1m 3m, on Next's row.
     expect(within(f.getByRole('group', { name: 'Quick follow-up intervals' })).getAllByRole('button').map((b) => b.textContent))
       .toEqual(['1w', '2w', '1m', '3m'])
+    // The footer: Mark followed up, then Done; Created · Modified at the rail's foot.
+    const done = within(dialog).getByRole('button', { name: 'Done' })
+    const mark = within(dialog).getByRole('button', { name: 'Mark followed up' })
+    expect(mark.parentElement).toBe(done.parentElement)
+    expect(follows(mark, done)).toBe(true)
+    expect(rail.querySelector('[data-task-rail-foot]')).toHaveTextContent(/Created .* · Modified /)
+  })
+
+  it('the footer’s Mark followed up records a follow-up on the task', async () => {
+    const markFollowedUp = vi.spyOn(useTodoStore.getState(), 'markFollowedUp').mockResolvedValue(undefined)
+    const dialog = await openStored()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Mark followed up' }))
+    expect(markFollowedUp).toHaveBeenCalledWith([7])
   })
 
   it('without statuses the rail has no Status', async () => {
@@ -156,7 +174,7 @@ describe('the task layout in the editor', () => {
     const footerButtons = Array.from(dialog.querySelectorAll('button')).filter((b) => ['Duplicate', 'Delete', 'Make subtask of…'].includes(b.textContent ?? ''))
     expect(footerButtons).toEqual([])
     expect(within(dialog).getByRole('button', { name: 'Done' })).toBeInTheDocument()
-    expect(dialog.textContent).toMatch(/Created .* · Modified /)
+    expect(dialog.querySelector('[data-task-rail-foot]')?.textContent).toMatch(/Created .* · Modified /)
     fireEvent.click(within(dialog).getByRole('button', { name: 'More actions' }))
     const menu = screen.getByRole('menu', { name: 'Task actions' })
     expect(within(menu).getAllByRole('menuitem').map((m) => m.textContent)).toEqual(['Duplicate', 'Make subtask of…', 'Delete'])
@@ -166,7 +184,7 @@ describe('the task layout in the editor', () => {
     expect(useUIStore.getState().taskPicker).toMatchObject({ kind: 'make-subtask', todoId: 7 })
   })
 
-  it('create mode: the same layout, no ⋯; a draft has no Last row', () => {
+  it('create mode: the same layout, no ⋯, no Mark followed up; a draft has no Last row', () => {
     const base = {
       mode: 'create' as const,
       assignedPeople: [],
@@ -181,6 +199,8 @@ describe('the task layout in the editor', () => {
     const dialog = screen.getByRole('dialog', { name: 'New task' })
     expectLayout(dialog, RAIL.filter((f) => f !== 'status'))
     expect(screen.getByRole('textbox', { name: 'Last follow-up' })).toBeInTheDocument()
+    expect(within(dialog).queryByRole('button', { name: 'Mark followed up' })).toBeNull()
+    expect(dialog.querySelector('[data-task-rail-foot]')).toBeNull()
     expect(within(dialog).queryByRole('button', { name: 'More actions' })).toBeNull()
     expect(within(dialog).getByRole('button', { name: 'Create task' })).toBeInTheDocument()
     cleanup()

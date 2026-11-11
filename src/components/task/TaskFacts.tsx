@@ -10,8 +10,8 @@ import { StatusIcon } from '../shared/StatusIcon'
 import { useTooltip } from '../shared/use-tooltip'
 import styles from './TaskDetails.module.css'
 
-/** The facts rail's sections (boards BJ, BL), top to bottom. */
-export type FactKind = 'priority' | 'status' | 'people' | 'tags' | 'due' | 'followup'
+/** The facts rail's sections (task layout A), top to bottom: Due is the last (the follow-up dates are the dock's). */
+export type FactKind = 'priority' | 'status' | 'people' | 'tags' | 'due'
 
 const FACT_LABELS: Record<FactKind, string> = {
   priority: 'Priority',
@@ -19,45 +19,23 @@ const FACT_LABELS: Record<FactKind, string> = {
   people: 'People',
   tags: 'Tags',
   due: 'Due',
-  followup: 'Follow-up',
 }
 
 /**
- * A section of the task layout's facts rail (boards BJ, BL — the task
- * editor and the review card alike): its header — the fact's name as the
- * app's standard section label (the writing's `NOTES` / `SUBTASKS`: 11px
- * bold caps, muted; no colour, no icon — colour is the values') — then its
- * value. A hairline separates it from the section above. Follow-up, last,
- * keeps a faint yellow box around its header and rows.
+ * A section of the task layout's facts rail (boards BJ, BL, task layout A —
+ * the task editor and the review card alike): its header — the fact's name
+ * as the app's standard section label (the writing's `NOTES` / `SUBTASKS`:
+ * 11px bold caps, muted; no colour, no icon — colour is the values') — then
+ * its value. A hairline separates it from the section above.
  */
 export function FactSection({ fact, children }: { fact: FactKind; children: ReactNode }) {
   const id = useId()
-  const body = (
-    <>
-      <div className={styles.factHeading} id={id}>{FACT_LABELS[fact]}</div>
-      {children}
-    </>
-  )
   return (
     <section className={styles.fact} data-fact={fact} aria-labelledby={id}>
-      {fact === 'followup' ? <div className={styles.followupBox} data-task-followup="">{body}</div> : body}
+      <div className={styles.factHeading} id={id}>{FACT_LABELS[fact]}</div>
+      {children}
     </section>
   )
-}
-
-/** A labelled line inside a fact (Follow-up's Next and Last): a small label, then the value. */
-export function FactRow({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <div className={styles.factRow}>
-      <span className={styles.factRowLabel}>{label}</span>
-      {children}
-    </div>
-  )
-}
-
-/** Follow-up, last in the rail: the yellow box with the host's rows (Next, Last, Mark followed up). */
-export function FollowupFacts({ children }: { children: ReactNode }) {
-  return <FactSection fact="followup">{children}</FactSection>
 }
 
 /** How a date's words are coloured, as the row's date cells colour them. */
@@ -96,24 +74,27 @@ function useFactDateTitle(date: Date | null | undefined, kind: FactDateKind): st
 }
 
 /**
- * A typed date field (a follow-up's) in the one date look: at rest it shows
- * the date's words over the field (`FactDateWords`) — the field's own text
- * hidden under them —, and a click or the focus shows the field as today
- * (`Mon 16 Nov`, typed entry such as `2w` or `fri`). A field holding typed
- * text that isn't set (`showWords` false) shows its text.
+ * A typed date field (a follow-up's, in the dock's rows) in the one date
+ * look: at rest it shows the date's words over the field (`FactDateWords`)
+ * — the field's own text hidden under them, in its quiet box —, and a click
+ * or the focus shows the field as typed (`Mon 16 Nov`, typed entry such as
+ * `2w` or `fri`). A field holding typed text that isn't set (`showWords`
+ * false) shows its text.
  */
-export function FactDateField({ date, kind, tone, empty, showWords = true, children }: {
+export function FactDateField({ date, kind, tone, empty, showWords = true, testId, children }: {
   date: Date | null | undefined
   kind: FactDateKind
   tone?: FactDateTone
   empty: string
   showWords?: boolean
+  /** `data-testid` on the field (the review's `review-last-followup`). */
+  testId?: string
   /** The field: its input wrap (`Followup.module.css`'s `editorInputWrap`). */
   children: ReactNode
 }) {
   const title = useFactDateTitle(date, kind)
   return (
-    <div className={styles.dateField} data-words={showWords || undefined} title={title}>
+    <div className={styles.dateField} data-fact-date-field="" data-words={showWords || undefined} data-testid={testId} title={title}>
       {children}
       {showWords && (
         <span className={styles.dateFieldWords} aria-hidden="true">

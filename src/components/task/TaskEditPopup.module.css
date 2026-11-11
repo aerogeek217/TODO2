@@ -166,20 +166,24 @@
 
 /* ── Footer (Edit Mode) ── */
 
+/* Mark followed up, then Done, at the right (task layout A). */
 .footer {
   padding: 12px 20px 12px 28px;
   display: flex;
-  justify-content: space-between;
+  flex: none;
+  justify-content: flex-end;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   border-top: 1px solid var(--color-tint-4);
 }
 
-.timestamps {
-  min-width: 0;
-  font-size: 11px;
-  color: var(--color-text-muted);
-  letter-spacing: 0.01em;
+/* The one Mark followed up: the follow-up yellow, at Done's height. */
+.footer .footerFollowedUp {
+  height: 34px;
+  margin-left: 0;
+  padding: 0 16px;
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-sm);
 }
 
 /* ── Footer (Create Mode) ── */
