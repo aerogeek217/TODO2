@@ -5,7 +5,7 @@ const stripComments = (text: string) => text.replace(/\/\*[\s\S]*?\*\//g, (m) =>
 
 /**
  * Font sizes that must stay literal, `file: reason`. Empty on purpose: a size comes from the
- * scale in `tokens.css` (`--font-size-*`), or from a `--font-size-legacy-*` while it waits to be folded onto it.
+ * scale in `tokens.css` (`--font-size-*`): the scale itself, or a role token named for what it sizes.
  */
 const ALLOWED_LITERALS: string[] = []
 
@@ -30,6 +30,16 @@ describe('font sizes come from the scale', () => {
       for (const [line, value] of fontSizeDeclarations(css)) {
         if (!fromToken(value) && !ALLOWED_LITERALS.some((a) => a.startsWith(`${path}:`))) bad.push(`${path}:${line}  ${value}`)
       }
+    }
+    expect(bad).toEqual([])
+  })
+
+  it('no transitional --font-size-legacy-* token is defined or used', () => {
+    const bad: string[] = []
+    for (const [path, css] of sourceFiles(/\.css$/)) {
+      stripComments(css).split('\n').forEach((line, i) => {
+        if (/--font-size-legacy-/.test(line)) bad.push(`${path}:${i + 1}  ${line.trim()}`)
+      })
     }
     expect(bad).toEqual([])
   })

@@ -122,7 +122,7 @@
   background: transparent;
   color: var(--color-text-primary);
   border: none;
-  font-size: var(--font-size-legacy-17);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   font-family: inherit;
   outline: none;
@@ -290,7 +290,7 @@
   }
 
   .titleInput {
-    font-size: var(--font-size-legacy-15);
+    font-size: var(--font-size-input);
   }
 
   .footer {

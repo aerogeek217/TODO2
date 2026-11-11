@@ -125,6 +125,16 @@
   color: var(--color-text-secondary);
   cursor: pointer;
   flex-shrink: 0;
+  position: relative;
+}
+
+/* A 24px target round the 16px circle (UX cleanup 5A): 4px each way —
+ * inside the tab's 26px height, over its right padding and the gap before
+ * it, never over the label's text. */
+.close::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
 }
 
 .close:hover {
@@ -243,6 +253,11 @@
   :global([data-ws-cell]):not(:hover):not(:focus-within) .strip:not(:has(.touch)) .active .close,
   :global([data-ws-cell]):not(:hover):not(:focus-within) .strip:not(:has(.touch)) .add {
     opacity: 0;
+  }
+
+  /* Hidden, the × takes no more presses than its 16px circle did. */
+  :global([data-ws-cell]):not(:hover):not(:focus-within) .strip:not(:has(.touch)) .active .close::after {
+    pointer-events: none;
   }
 }
 /* Touch layout (mobile): taller tabs, and a swipe that starts on a tab still

@@ -76,7 +76,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: var(--font-size-legacy-15);
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
   line-height: 19px;
   color: var(--color-text-primary);
@@ -144,7 +144,7 @@
 
 .position {
   flex: none;
-  font-size: var(--font-size-legacy-12-5);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
   font-variant-numeric: tabular-nums;

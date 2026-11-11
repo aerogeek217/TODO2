@@ -218,7 +218,7 @@
   background: var(--color-surface-bright);
   color: var(--color-text-primary);
   font-family: inherit;
-  font-size: var(--font-size-legacy-12-5);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
   cursor: pointer;

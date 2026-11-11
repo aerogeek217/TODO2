@@ -136,7 +136,7 @@
   background: transparent;
   color: var(--color-text-muted);
   font-family: inherit;
-  font-size: var(--font-size-legacy-15);
+  font-size: var(--font-size-lg);
   line-height: 1;
   cursor: pointer;
 }
