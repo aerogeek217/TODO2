@@ -52,6 +52,12 @@ function openPulseEditor(tabId: string): void {
   useChartWidgetsStore.getState().openPulseEditor(tabId)
 }
 
+/** Opens Created vs completed's editor beside it (its tab shown first, as a chart's). */
+function openTrendEditor(tabId: string): void {
+  showTab(tabId)
+  useChartWidgetsStore.getState().openTrendEditor(tabId)
+}
+
 /** A glance tab's settings, as its tab menu lists them first (each its section's options, as Customize had them). */
 function settingEntries(tab: GlanceTab): MenuEntry[] {
   const ws = useWorkspaceStore.getState
@@ -66,8 +72,12 @@ function settingEntries(tab: GlanceTab): MenuEntry[] {
           'Shown under the count when the cell has room for the whole widget.')] : []),
       ]
     case 'trend':
-      return [settingEntry('Range', TREND_RANGES.map((r) => ({ value: r, label: trendRangeLabel(r).replace(/^Last /, '') })), tab.config.range,
-        (range) => ws().patchTabConfig(tab.id, 'trend', { range }))]
+      return [
+        // Its editor (`TrendEditorHost`): name, filter, Show as, range; its tab shown first as a chart's.
+        { kind: 'item', label: 'Edit chart…', onSelect: () => openTrendEditor(tab.id) },
+        settingEntry('Range', TREND_RANGES.map((r) => ({ value: r, label: trendRangeLabel(r).replace(/^Last /, '') })), tab.config.range,
+          (range) => ws().patchTabConfig(tab.id, 'trend', { range })),
+      ]
     case 'pulse':
       return [
         // G5: its rules' editor (`PulseEditorHost`), its tab shown first as a chart's.

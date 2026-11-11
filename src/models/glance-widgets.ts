@@ -289,8 +289,47 @@ export type SectionId = (typeof SECTION_IDS)[number]
 
 // ── The glance widget kinds' configs ────────────────────────────────────────
 
+/**
+ * How Created vs completed shows its range: per-bar created and completed
+ * (`bars`), the filter's open tasks at each day's end (`burndown`), or the
+ * running totals of created and completed (`cumulative`).
+ */
+export const TREND_SHOWS = ['bars', 'burndown', 'cumulative'] as const
+export type TrendShow = (typeof TREND_SHOWS)[number]
+
+export const DEFAULT_TREND_SHOW: TrendShow = 'bars'
+
+/** Created vs completed's name until it is given one. */
+export const DEFAULT_TREND_NAME = 'Created vs completed'
+
+/**
+ * Created vs completed's settings (layout config). `name`, `filter` and
+ * `show` came later with no schema step: absent, they read as the widget
+ * was before them — its default name, every task, Bars (`trendName`,
+ * `trendFilter`, `trendShow`).
+ */
 export interface TrendTabConfig {
   range: TrendRange
+  /** Its title (blank or absent: `DEFAULT_TREND_NAME`). */
+  name?: string
+  /** What it counts, among the tasks the top bar shows: a Graphical or expression filter (absent: every task). */
+  filter?: TodoPredicate
+  /** How it shows the range (absent: `bars`). */
+  show?: TrendShow
+}
+
+/** Created vs completed's title: its name, else the default. */
+export function trendName(config: Pick<TrendTabConfig, 'name'>): string {
+  return config.name?.trim() || DEFAULT_TREND_NAME
+}
+
+/** How Created vs completed shows its range. */
+export function trendShow(config: Pick<TrendTabConfig, 'show'>): TrendShow {
+  return config.show ?? DEFAULT_TREND_SHOW
+}
+
+export function isTrendShow(v: unknown): v is TrendShow {
+  return includes(TREND_SHOWS, v)
 }
 
 /**
@@ -317,10 +356,38 @@ function pickOne<V>(v: unknown, ok: (v: unknown) => v is V, fallback: V): { valu
   return ok(v) ? { value: v, fixed: false } : { value: fallback, fixed: true }
 }
 
-/** A Created vs completed's config: a known range, else 14 days (`fixed`). */
-export function pickTrendConfig(raw: Obj): PickedConfig<TrendTabConfig> {
-  const { value, fixed } = pickOne(raw.range, isTrendRange, DEFAULT_TREND_RANGE)
-  return { config: { range: value }, fixed }
+/**
+ * Where a stored Created vs completed config goes wrong (its scalar fields —
+ * the filter is the caller's: `data/predicate-shape`): the bad key, or `null`.
+ */
+export function trendConfigProblem(raw: Obj): string | null {
+  if (!isTrendRange(raw.range)) return 'range'
+  if (raw.name !== undefined && !isNumberName(raw.name)) return 'name'
+  if (raw.show !== undefined && !isTrendShow(raw.show)) return 'show'
+  if (raw.filter !== undefined && (raw.filter === null || typeof raw.filter !== 'object' || Array.isArray(raw.filter))) return 'filter'
+  return null
+}
+
+/**
+ * A Created vs completed's config read from untrusted input: a known range,
+ * else 14 days (`fixed`); its optional name, filter (read as a Number's,
+ * `readPredicate`) and Show as kept when they read, else dropped (`fixed`) —
+ * an absent one stays absent (the defaults, no fix).
+ */
+export function pickTrendConfig(raw: Obj, readPredicate: NumberPredicateRead): PickedConfig<TrendTabConfig> {
+  const range = pickOne(raw.range, isTrendRange, DEFAULT_TREND_RANGE)
+  let fixed = range.fixed
+  const config: TrendTabConfig = { range: range.value }
+  if (isNumberName(raw.name)) config.name = raw.name
+  else if (raw.name !== undefined) fixed = true
+  if (isTrendShow(raw.show)) config.show = raw.show
+  else if (raw.show !== undefined) fixed = true
+  if (raw.filter !== null && typeof raw.filter === 'object' && !Array.isArray(raw.filter)) {
+    const filter = readPredicate(raw.filter)
+    config.filter = filter.config
+    if (filter.fixed) fixed = true
+  } else if (raw.filter !== undefined) fixed = true
+  return { config, fixed }
 }
 
 /**
@@ -333,8 +400,3 @@ export function pickTagPicksConfig(raw: Obj): PickedConfig<TagPicksTabConfig> {
   const tagIds = [...new Set((v as unknown[]).filter(isTagId))]
   return { config: { tagIds }, fixed: !isTagIds(v) }
 }
-
-/** Each glance kind's one config field and whether a stored value is one it keeps (the layout check). */
-export const GLANCE_CONFIG_FIELDS = {
-  trend: { key: 'range', ok: isTrendRange },
-} as const satisfies Record<string, { key: string; ok: (v: unknown) => boolean }>

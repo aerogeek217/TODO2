@@ -54,13 +54,31 @@ export function historyEventsStart(today: Date, weekStartsOn: WeekStart): Date {
 }
 
 /**
- * What the history cache reads (`trend-events-store`): a trend range's
- * window, or `history` — a Number's 14 days.
+ * A trend range's window with every event a filter's history reads: a
+ * Created vs completed that counts by a filter (or under a narrowing screen
+ * filter) replays each task's fields, as a Number's line does.
  */
-export type EventsWindow = TrendRange | 'history'
+export type TrendFieldsWindow = `fields-${TrendRange}`
+
+/** The fields window of `range`. */
+export function trendFieldsWindow(range: TrendRange): TrendFieldsWindow {
+  return `fields-${range}`
+}
+
+/**
+ * What the history cache reads (`trend-events-store`): a trend range's
+ * window, the same with a filter's fields (`fields-14d`, …), or `history` —
+ * a Number's 14 days.
+ */
+export type EventsWindow = TrendRange | TrendFieldsWindow | 'history'
 
 /** The first day and the event types `window` reads. */
 export function eventsWindowRead(window: EventsWindow, today: Date, weekStartsOn: WeekStart): { start: Date; types: readonly TodoEventType[] } {
   if (window === 'history') return { start: historyEventsStart(today, weekStartsOn), types: FILTER_HISTORY_EVENT_TYPES }
-  return { start: trendWindow(window, today, weekStartsOn).start, types: TREND_EVENT_TYPES }
+  if (window.startsWith('fields-')) {
+    // From its first day's week start, as a Number's: a range from the week's start (`completed this week`) reaches back to it.
+    const range = window.slice('fields-'.length) as TrendRange
+    return { start: weekStartOf(trendWindow(range, today, weekStartsOn).start, weekStartsOn), types: FILTER_HISTORY_EVENT_TYPES }
+  }
+  return { start: trendWindow(window as TrendRange, today, weekStartsOn).start, types: TREND_EVENT_TYPES }
 }

@@ -1,5 +1,5 @@
 import type { Tag } from '../../../models'
-import type { NumberBreakdown } from '../../../models/glance-widgets'
+import { DEFAULT_TREND_NAME, type NumberBreakdown } from '../../../models/glance-widgets'
 import { formatFollowupDay } from '../../../utils/followup'
 import type { GlanceGlyphName } from '../../../utils/glance-glyphs'
 import { trendBucketLabel } from './glance-copy'
@@ -47,10 +47,18 @@ export function breakdownDrill(title: string, by: NumberBreakdownBy, entry: { ke
 
 // ── Sections ────────────────────────────────────────────────────────────────
 
+/**
+ * A Created vs completed drill's title: `what`, after the widget's name when
+ * it has one of its own (`Atlas · Completed`); its default name adds nothing.
+ */
+function trendTitle(what: string, name?: string): string {
+  return name && name !== DEFAULT_TREND_NAME ? `${name} · ${what}` : what
+}
+
 /** Created vs completed's totals: the tasks completed, or created, in the range (`rangeWords`: `the last 14 days`). */
-export function trendTotalDrill(which: 'completed' | 'created', rangeWords: string, ids: readonly number[]): GlanceDrill {
+export function trendTotalDrill(which: 'completed' | 'created', rangeWords: string, ids: readonly number[], name?: string): GlanceDrill {
   return {
-    title: which === 'completed' ? 'Completed' : 'Created',
+    title: trendTitle(which === 'completed' ? 'Completed' : 'Created', name),
     glyph: 'chart',
     description: `Tasks ${which} in ${rangeWords}.`,
     source: todos(ids),
@@ -63,11 +71,12 @@ export function trendBucketDrill(
   granularity: 'day' | 'week',
   today: Date,
   ids: { completed: readonly number[]; created: readonly number[] },
+  name?: string,
 ): GlanceDrill {
   const day = formatFollowupDay(start, today)
   const week = trendBucketLabel(start, 'week')
   return {
-    title: granularity === 'day' ? day : `Week of ${week}`,
+    title: trendTitle(granularity === 'day' ? day : `Week of ${week}`, name),
     glyph: 'chart',
     description: granularity === 'day' ? `Tasks completed or created on ${day}.` : `Tasks completed or created in the week of ${week}.`,
     source: {
@@ -75,6 +84,49 @@ export function trendBucketDrill(
       groups: [
         { key: 'completed', label: 'Completed', color: 'var(--color-accent)', todoIds: ids.completed },
         { key: 'created', label: 'Created', color: 'var(--color-chart-created)', todoIds: ids.created },
+      ],
+    },
+  }
+}
+
+/**
+ * A Burndown point: the tasks open at the end of `day` (today: now;
+ * `null`: when the range began — the day before its first).
+ */
+export function trendOpenDrill(day: Date | null, today: Date, ids: readonly number[], name?: string): GlanceDrill {
+  const isToday = day != null && day.getTime() === today.getTime()
+  const label = day == null ? '' : formatFollowupDay(day, today)
+  return {
+    title: trendTitle(day == null ? 'Open at the start' : isToday ? 'Open now' : `Open · ${label}`, name),
+    glyph: 'chart',
+    description: `Tasks open ${day == null ? 'when the range began' : isToday ? 'now' : `at the end of ${label}`}.`,
+    source: todos(ids),
+  }
+}
+
+/**
+ * A Cumulative point: what its two lines count through `day` — the tasks
+ * completed and created since the range began, and those open when it
+ * began (the created line starts on them).
+ */
+export function trendCumulativeDrill(
+  day: Date,
+  today: Date,
+  ids: { completed: readonly number[]; created: readonly number[]; openAtStart: readonly number[] },
+  name?: string,
+): GlanceDrill {
+  const isToday = day.getTime() === today.getTime()
+  const through = isToday ? 'today' : formatFollowupDay(day, today)
+  return {
+    title: trendTitle(`Through ${through}`, name),
+    glyph: 'chart',
+    description: `Tasks completed or created from the start of the range through ${through}, and the ones open when it began.`,
+    source: {
+      kind: 'groups',
+      groups: [
+        { key: 'completed', label: 'Completed', color: 'var(--color-accent)', todoIds: ids.completed },
+        { key: 'created', label: 'Created', color: 'var(--color-text-secondary)', todoIds: ids.created },
+        { key: 'start', label: 'Open at the start', color: 'var(--color-text-muted)', todoIds: ids.openAtStart },
       ],
     },
   }
