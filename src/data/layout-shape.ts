@@ -51,6 +51,8 @@ import {
 } from '../models/chart-widgets'
 // G5: Project pulse's config and its rules.
 import { pickPulseConfig, pulseConfigProblem, pulseRulePredicates } from '../models/pulse-config'
+// Item 8: a Pivot's view state — its rows' sort and its lens switch.
+import { pickPivotView, pivotViewProblem } from '../models/chart-widgets'
 import type { TodoPredicate } from '../models/filter-predicate'
 import { emptyPredicate } from '../models/filter-predicate'
 import { isRecord } from '../utils/is-record'
@@ -235,7 +237,10 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
     }
     case 'pivot': {
       const bad = pivotConfigProblem(config)
-      return bad ? `${path}.config.${bad}` : checkChartFilter(config.filter, path)
+      if (bad) return `${path}.config.${bad}`
+      const badView = view ? pivotViewProblem(view) : null
+      if (badView) return `${path}.viewState.${badView}`
+      return checkChartFilter(config.filter, path)
     }
     case 'notes':
       return true
@@ -645,8 +650,13 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
         if (viewState) breakdown.viewState = viewState
         return breakdown
       }
-      case 'pivot':
-        return withLensView<LensSwitchTab>({ id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) })
+      // Item 8: its view state is its rows' sort and its lens switch.
+      case 'pivot': {
+        const viewState = glance(pickPivotView(view))
+        const pivot: LayoutTab = { id, kind: 'pivot', config: glance(pickPivotConfig(config, chartFilterOf(config))) }
+        if (viewState) pivot.viewState = viewState
+        return pivot
+      }
     }
   }
 
