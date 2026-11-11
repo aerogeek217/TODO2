@@ -38,16 +38,14 @@
   box-shadow: inset 0 0 0 1px var(--color-border), var(--focus-ring);
 }
 
-/* Quiet (a desktop cell, following the lens; UX cleanup 2A): the glasses
- * alone, shown only while its cell is hovered or holds the focus. Hidden it
- * keeps its room (J12) and takes no press; no fade — an opacity transition
- * would make a stacking context that draws over its neighbours and takes
- * their presses while it runs. Keyboard focus reaches it (focus-within shows
- * it). Only where there is hover: a touch screen keeps it shown. */
-.quiet {
-  padding: 0 6px;
-}
-
+/* Quiet (a desktop cell, following the lens while it hides nothing there —
+ * `−0`; UX cleanup 2A): shown only while its cell is hovered or holds the
+ * focus. Hidden it keeps its room, `−0` and all (J12: the same width as a
+ * shown `−N`, so N crossing 0 moves nothing) and takes no press; no fade — an
+ * opacity transition would make a stacking context that draws over its
+ * neighbours and takes their presses while it runs. Keyboard focus reaches it
+ * (focus-within shows it). Only where there is hover: a touch screen keeps it
+ * shown. */
 @media (hover: hover) {
   :global([data-ws-cell]):not(:hover):not(:focus-within) .quiet {
     opacity: 0;
