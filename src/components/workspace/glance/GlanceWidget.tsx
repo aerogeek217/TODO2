@@ -4,7 +4,6 @@ import { useWidgetPreviewStore } from '../../../stores/widget-preview-store'
 import type { GlanceWidgetProps } from './glance-hooks'
 import { BreakdownWidget } from './BreakdownWidget'
 import { PivotWidget } from './PivotWidget'
-import { TagMapWidget } from './TagMapWidget'
 import { NumberWidget } from './NumberWidget'
 import { PulseWidget } from './PulseWidget'
 import { TrendWidget } from './TrendWidget'
@@ -24,6 +23,5 @@ export function GlanceWidget({ tab: stored, ...props }: GlanceWidgetProps<Glance
     // D26 P8: the chart widgets.
     case 'breakdown': return <BreakdownWidget tab={tab} {...props} />
     case 'pivot': return <PivotWidget tab={tab} {...props} />
-    case 'tagMap': return <TagMapWidget tab={tab} {...props} />
   }
 }

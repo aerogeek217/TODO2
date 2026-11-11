@@ -273,31 +273,16 @@ describe('closing a widget editor', () => {
   })
 })
 
-describe('straight after Add widget', () => {
-  it('a new Number’s editor opens; Discard keeps the Number with its first config', () => {
+describe('Add widget opens no editor (decision 8)', () => {
+  it.each(['number', 'breakdown', 'pivot', 'pulse'] as const)('a new %s is added with its first config and no editor', (kind) => {
     setup(numberTab('n', 'overdue'))
     let id: string | null = null
-    act(() => { id = add('number', { kind: 'cell', cellId: 'c' }) })
+    act(() => { id = add(kind, { kind: 'cell', cellId: 'c' }) })
     expect(id).not.toBeNull()
-    const first = stored(id!)
-    const editor = numberEditor()!
-    expect(editor.dataset.numberEditor).toBe(id)
-    rename(editor, 'Late')
-    fireEvent.click(within(editor).getByRole('button', { name: 'Discard' }))
+    expect(stored(id!).kind).toBe(kind)
     expect(numberEditor()).toBeNull()
-    expect(stored(id!)).toBe(first)
-  })
-
-  it('a new chart’s editor opens; closing with changes, Discard keeps the chart with its first config', async () => {
-    setup(numberTab('n', 'overdue'))
-    let id: string | null = null
-    act(() => { id = add('breakdown', { kind: 'cell', cellId: 'c' }) })
-    const first = stored(id!)
-    const editor = document.querySelector<HTMLElement>(`[data-chart-editor="${id!}"]`)!
-    fireEvent.change(within(editor).getByRole('textbox', { name: 'Name' }), { target: { value: 'Owners' } })
-    fireEvent.keyDown(within(editor).getByRole('textbox', { name: 'Name' }), { key: 'Escape' })
-    await answer(`Save changes to breakdown “${(first.config as { name: string }).name}”?`, 'Discard')
     expect(document.querySelector('[data-chart-editor]')).toBeNull()
-    expect(stored(id!)).toBe(first)
+    expect(useUIStore.getState().numberEditorTabId).toBeNull()
+    expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, pulseEditorTabId: null })
   })
 })

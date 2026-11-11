@@ -66,7 +66,6 @@ function KindBody({ tab, onResult }: WidgetBodyProps): ReactElement {
     case 'pulse':
     case 'breakdown':
     case 'pivot':
-    case 'tagMap':
       return (
         <GlanceWidget
           tab={tab}

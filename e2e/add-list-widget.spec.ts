@@ -3,9 +3,9 @@ import { openCellLayoutMenu, openCellMenu, pickSplit, pickWidgetKind, seedWorksp
 
 /**
  * Adding a List widget (the ⋯'s Add widget…, an empty cell's / layout's List) and
- * switching a tab to List make a new blank list of the layout: its tab
- * appears and Edit list opens beside it at once — no list picker in between
- * — editing the new list live.
+ * switching a tab to List make a new blank list of the layout, `New list`,
+ * showing every open task: its tab appears and nothing else opens — no list
+ * picker, no Edit list (decision 8). Edit list… is in its ⋯ menu.
  */
 
 /** The list picker the add flow had: gone. */
@@ -14,10 +14,17 @@ const noPicker = async (page: Page) => {
   await expect(page.getByRole('button', { name: /Create new list/ })).toHaveCount(0)
 }
 
+/** No editor opened on the add. */
+const noEditor = async (page: Page) => {
+  await expect(page.getByTestId('edit-list')).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+}
+
 const editListDialog = (page: Page, name: string) => page.getByRole('dialog', { name: `Edit list ${name}` })
 
-test('Add widget… (as a tab) › List: the tab appears with the new list\'s own editor, and Save leaves nothing open', async ({ page }) => {
+test('Add widget… (as a tab) › List: the tab appears showing every open task, no editor; Edit list… opens from its menu', async ({ page }) => {
   await seedWorkspace(page, {
+    tasks: [{ title: 'Open one' }, { title: 'Open two' }, { title: 'Done one', isCompleted: true }],
     listDefinitions: [{ name: 'Existing' }],
     layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
   })
@@ -26,21 +33,22 @@ test('Add widget… (as a tab) › List: the tab appears with the new list\'s ow
   await page.getByRole('menu', { name: 'Add widget' }).getByRole('menuitem', { name: 'List' }).click()
 
   await expect(wsCell(page, 'cell').getByRole('tab', { name: 'New list' })).toHaveAttribute('aria-selected', 'true')
+  await noPicker(page)
+  await noEditor(page)
+  await expect(wsCell(page, 'cell').locator('[data-todo-id]')).toHaveCount(2)
+
+  // Its editor is still in its menu.
+  await openCellMenu(page, 'cell')
+  await page.getByRole('menuitem', { name: 'Edit list…' }).click()
   const editor = editListDialog(page, 'New list')
   await expect(editor).toBeVisible()
-  await noPicker(page)
-
-  const name = editor.getByRole('textbox', { name: 'Name' })
-  await expect(name).toBeFocused()
-  await name.fill('Errands')
-  await expect(wsCell(page, 'cell').getByRole('tab', { name: 'Errands' })).toBeVisible()
-  await expect(editListDialog(page, 'Errands')).toBeVisible()
+  await editor.getByRole('textbox', { name: 'Name' }).fill('Errands')
   await editListDialog(page, 'Errands').getByRole('button', { name: 'Save', exact: true }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(wsCell(page, 'cell').getByRole('tab', { name: 'Errands' })).toBeVisible()
 })
 
-test('Change widget › List: the tab shows a new list and Edit list opens beside it', async ({ page }) => {
+test('Change widget › List: the tab shows a new list, no editor', async ({ page }) => {
   await seedWorkspace(page, {
     listDefinitions: [{ name: 'Existing' }],
     layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
@@ -50,11 +58,11 @@ test('Change widget › List: the tab shows a new list and Edit list opens besid
   await pickWidgetKind(page, 'Change widget', 'List')
 
   await expect(wsCell(page, 'cell').getByTestId('top-line-name')).toHaveText('New list')
-  await expect(editListDialog(page, 'New list')).toBeVisible()
   await noPicker(page)
+  await noEditor(page)
 })
 
-test('an empty cell’s List: a new list in the cell, its Edit list open', async ({ page }) => {
+test('an empty cell’s List: a new list in the cell, no editor', async ({ page }) => {
   await seedWorkspace(page, {
     layouts: [{ name: 'Main', columns: [{ id: 'col', rows: [wsRow({ id: 'cell', tabs: [{ id: 'notesTab', kind: 'notes' }] })] }] }],
   })
@@ -63,7 +71,7 @@ test('an empty cell’s List: a new list in the cell, its Edit list open', async
   await pickSplit(page, 'Right')
   const empty = page.locator('[data-ws-cell][data-empty]')
   await empty.getByRole('button', { name: 'List', exact: true }).click()
-  await expect(editListDialog(page, 'New list')).toBeVisible()
   await expect(page.getByTestId('top-line-name').filter({ hasText: 'New list' })).toBeVisible()
   await noPicker(page)
+  await noEditor(page)
 })

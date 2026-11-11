@@ -1,8 +1,8 @@
 import { describe, it, expect, afterEach } from 'vitest'
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react'
 import { AddWidgetRequestHost } from '../../../components/workspace/AddWidgetFlow'
-import { addWidgetFromPalette } from '../../../components/workspace/widget-hooks'
-import { createTab, type LayoutBody, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
+import { addWidgetAt, addWidgetFromPalette } from '../../../components/workspace/widget-hooks'
+import { createTab, WIDGET_KIND_SPECS, WIDGET_KINDS, type LayoutBody, type PersistedWorkspaceLayout } from '../../../models/workspace-layout'
 import { useChartWidgetsStore } from '../../../stores/chart-widgets-store'
 import { useUIStore } from '../../../stores/ui-store'
 import { useWorkspaceStore } from '../../../stores/workspace-store'
@@ -46,7 +46,7 @@ describe('addWidgetFromPalette', () => {
     expect(useUIStore.getState().addWidgetRequest).toMatchObject({ cellId: 'left', kind: 'notes' })
   })
 
-  it('in an empty layout: added at once as the tiles add it (a Breakdown a Custom one, its editor open)', () => {
+  it('in an empty layout: added at once as the tiles add it (a Breakdown a Custom one; no editor opens)', () => {
     open(emptyBody())
     addWidgetFromPalette('notes')
     expect(useUIStore.getState().addWidgetRequest).toBeNull()
@@ -55,7 +55,17 @@ describe('addWidgetFromPalette', () => {
     addWidgetFromPalette('breakdown')
     const added = ws().cells[0]?.tabs[0]
     expect(added?.kind).toBe('breakdown')
-    expect(useChartWidgetsStore.getState().editorTabId).toBe(added?.id)
+    expect(useChartWidgetsStore.getState().editorTabId).toBeNull()
+  })
+})
+
+describe('addWidgetAt: no editor opens on add (decision 8)', () => {
+  it.each(WIDGET_KINDS.filter((k) => !WIDGET_KIND_SPECS[k].showsList))('%s is added and opens no editor', (kind) => {
+    open(two())
+    const id = addWidgetAt(kind, { kind: 'cell', cellId: 'left' })
+    expect(ws().cells.flatMap((c) => c.tabs).find((t) => t.id === id)?.kind).toBe(kind)
+    expect(useUIStore.getState()).toMatchObject({ numberEditorTabId: null, listEditor: null })
+    expect(useChartWidgetsStore.getState()).toMatchObject({ editorTabId: null, pulseEditorTabId: null })
   })
 })
 

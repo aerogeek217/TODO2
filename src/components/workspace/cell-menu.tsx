@@ -35,7 +35,7 @@ import { useNeglectMenuEntries } from './neglect/neglect-menu'
 import { glanceMenu } from './glance/glance-menu'
 import { useListZoomMenuEntries } from './list/zoom-menu'
 import { useListReviewMenuEntries } from './list/review-menu'
-import { createListThenEdit, openEditList, useListOwnerLayoutId } from './widget-hooks'
+import { createListAndTab, openEditList, useListOwnerLayoutId } from './widget-hooks'
 
 /**
  * A cell's menus (D26 AA1, UX cleanup 4A). The ⋯ (**Cell options**) opens
@@ -245,16 +245,13 @@ export function useWidgetMenuContent(
   /**
    * Changes the tab's kind. Switched to List — an Eisenhower tab too: the
    * Eisenhower's own list is never a list tab's — it shows a new blank list
-   * of the layout, whose Edit list opens at once.
+   * of the layout (no editor opens).
    */
   const changeKind = (kind: WidgetKind) => {
     if (kind === tab.kind) return
     if (WIDGET_KIND_SPECS[kind].showsList) {
       if (layoutId == null) return
-      void createListThenEdit((id) => {
-        changeTabKind(tab.id, 'lens', { listDefinitionId: id })
-        return tab.id
-      }, layoutId)
+      void createListAndTab((id) => changeTabKind(tab.id, 'lens', { listDefinitionId: id }), layoutId)
       return
     }
     changeTabKind(tab.id, kind)

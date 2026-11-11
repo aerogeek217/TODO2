@@ -155,17 +155,20 @@ describe('a Pivot in a stored layout (D26 P8)', () => {
   })
 })
 
-describe('a Status flow saved before it was removed (v78)', () => {
-  const flow = { id: 'gone', kind: 'statusFlow', config: { name: 'Flow', filter: emptyPredicate(), weeks: 12 } }
+// Kinds removed while the schema stayed at v78: the Status flow, then the Tag map.
+describe.each([
+  ['a Status flow', { id: 'gone', kind: 'statusFlow', config: { name: 'Flow', filter: emptyPredicate(), weeks: 12 } }],
+  ['a Tag map', { id: 'gone', kind: 'tagMap', config: { name: 'Projects', filter: emptyPredicate(), tagIds: [1] } }],
+])('%s saved before it was removed (v78)', (_what, removed) => {
   const notes = { id: 'n', kind: 'notes', config: {} }
 
   it('is no widget kind any more', () => {
-    expect(isWidgetKind('statusFlow')).toBe(false)
+    expect(isWidgetKind(removed.kind)).toBe(false)
   })
 
   it('passes the check, so a v78 file holding one still imports; the repair drops it (a fix) and its emptied cell closes', () => {
     const row = { id: 1, name: 'Charts', sortOrder: 0, createdAt: DATE, modifiedAt: DATE,
-      ...grid([[cell('a', [flow as unknown as LayoutTab]), cell('b', [notes as LayoutTab])]]) }
+      ...grid([[cell('a', [removed as unknown as LayoutTab]), cell('b', [notes as LayoutTab])]]) }
     expect(validateRow('layouts', row)).toBe(true)
     expect(rowFixes('layouts', row)).toEqual(['tab dropped'])
     const picked = sanitizeRow('layouts', row) as WorkspaceLayout
@@ -175,31 +178,16 @@ describe('a Status flow saved before it was removed (v78)', () => {
   })
 
   it('beside another tab, only it goes', () => {
-    const row = layoutRow(flow)
-    const body = { ...row, cells: [{ ...(row.cells as WorkspaceLayout['cells'])[0]!, tabs: [notes, flow] }] }
+    const row = layoutRow(removed)
+    const body = { ...row, cells: [{ ...(row.cells as WorkspaceLayout['cells'])[0]!, tabs: [notes, removed] }] }
     expect(validateRow('layouts', body)).toBe(true)
     expect((sanitizeRow('layouts', body) as WorkspaceLayout).cells[0]!.tabs).toEqual([notes])
   })
 
   it('still needs a fresh id', () => {
-    const row = layoutRow(flow)
-    const body = { ...row, cells: [{ ...(row.cells as WorkspaceLayout['cells'])[0]!, tabs: [notes, { ...flow, id: 'n' }] }] }
+    const row = layoutRow(removed)
+    const body = { ...row, cells: [{ ...(row.cells as WorkspaceLayout['cells'])[0]!, tabs: [notes, { ...removed, id: 'n' }] }] }
     expect(checkLayoutBody(body)).toBe('cells[0].tabs[1].id')
-  })
-})
-
-describe('a Tag map in a stored layout (D26 P8)', () => {
-  it('round-trips with or without its picks; a repeat or a non-number in them is dropped (a fix)', () => {
-    for (const config of [{ name: 'Map', filter: emptyPredicate() }, { name: 'Map', filter: emptyPredicate(), tagIds: [3, 1] }]) {
-      const tab = { id: 't', kind: 'tagMap', config }
-      expect(validateRow('layouts', layoutRow(tab))).toBe(true)
-      expect(tabOf(layoutRow(tab))).toEqual(tab)
-    }
-    expect(createTab('tagMap', 'm').config).toEqual({ name: 'Tag map', filter: emptyPredicate() })
-    const bad = layoutRow({ id: 't', kind: 'tagMap', config: { name: 'Map', filter: emptyPredicate(), tagIds: [3, 3, 'x', 1] } })
-    expect(checkLayoutBody(bad)).toBe('cells[0].tabs[0].config.tagIds')
-    expect(rowFixes('layouts', bad)).toEqual(['tab or cell settings reset'])
-    expect((tabOf(bad)?.config as { tagIds: number[] }).tagIds).toEqual([3, 1])
   })
 })
 

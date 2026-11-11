@@ -66,7 +66,7 @@ describe('Eisenhower entry points', () => {
     expect(useUIStore.getState().listEditor).toMatchObject({ listDefinitionId: 8, tabId: 'eis' })
   })
 
-  it('switched to List: a new blank list of the layout (the Eisenhower’s own is never a list tab’s), its Edit list open — no picker', async () => {
+  it('switched to List: a new blank list of the layout (the Eisenhower’s own is never a list tab’s), no editor open — no picker', async () => {
     const kinds = openKinds(openTabMenu())
     fireEvent.click(within(kinds).getByRole('menuitemradio', { name: /^List/ }))
     expect(screen.queryByText('Show list')).toBeNull()
@@ -75,7 +75,7 @@ describe('Eisenhower entry points', () => {
     const listId = tab.kind === 'lens' ? tab.config.listDefinitionId : undefined
     expect(listId).not.toBe(8)
     expect(useListDefinitionStore.getState().listDefinitions.find((d) => d.id === listId)).toMatchObject({ name: 'New list', owner: { layoutId: 1 } })
-    expect(useUIStore.getState().listEditor).toEqual({ listDefinitionId: listId, tabId: 'eis' })
+    expect(useUIStore.getState().listEditor).toBeNull()
   })
 
   it('the cell menu’s Customize panes… opens Settings there too', () => {
