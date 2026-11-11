@@ -53,18 +53,15 @@ export const SETTING_KEYS = {
    */
   keyboardShortcuts: 'keyboardShortcuts',
   /**
-   * The Eisenhower panes (every Eisenhower tab, at every face):
-   * JSON object of the panes that differ from their defaults, by position —
-   * `{"delegate":{"name":"Hand off","filter":{…}}}` (`data/eisenhower-shape`).
-   * Absent = the four default quadrants.
+   * Retired with the Eisenhower: its panes (JSON). A database or file from
+   * before its removal may hold the row; it is carried as stored (import,
+   * export, backup, sync file) and read by nothing. Schema v79 deletes it.
    */
   eisenhowerPanes: 'eisenhowerPanes',
   /**
-   * Which tasks the Eisenhower considers: `list:<listDefinitionId>` — its
-   * own list (`owner: { eisenhower: true }`). The app makes and names it
-   * when it is missing or names another list (app startup, a data replace —
-   * `listDefinitionRepository.ensureEisenhowerList`); `all` (older data)
-   * reads as no list yet.
+   * Retired with the Eisenhower: its hidden list (`list:<id>`, or `all`).
+   * Carried as stored and read by nothing, as `eisenhowerPanes`; schema v79
+   * deletes it.
    */
   eisenhowerSource: 'eisenhowerSource',
   /** What a new blank list sorts by (a `TodoSortBy`). Absent = `manual`. */

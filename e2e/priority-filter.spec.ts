@@ -126,22 +126,15 @@ test.describe('desktop', () => {
     await expect.poll(() => sorted(page)).toEqual(['Both', 'Due tomorrow', 'Flagged urgent'])
   })
 
-  test('the Eisenhower\'s default panes sort as before; a lens holds the AND the top bar can\'t', async ({ page }) => {
+  test('a lens holds the AND the top bar can\'t', async ({ page }) => {
     await seedWorkspace(page, {
       ...SEED,
       lenses: [{ id: 'both', name: 'Both', predicate: { markers: [{ values: ['urgent'] }, { values: ['important'] }] } }],
       layouts: [{ name: 'Main', columns: [
         { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
-        { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] })] },
+        { id: 'c2', weight: 2, rows: [wsRow({ id: 'k2', tabs: [{ id: 'n', kind: 'notes' }] })] },
       ] }],
     })
-    const pane = (q: string) => page.locator('[data-eisenhower="eis"]').locator(`[data-eis-quadrant="${q}"]`).locator('[data-todo-id]')
-    await expect(pane('do')).toHaveCount(1)
-    await expect(pane('do')).toContainText('Both')
-    await expect(pane('schedule')).toContainText('Important only')
-    await expect(pane('delegate')).toHaveCount(2)
-    await expect(pane('drop')).toContainText('Plain')
-
     await page.locator('header').getByRole('button', { name: /^Lens:/ }).click()
     await page.getByRole('menu', { name: 'Lens' }).getByRole('menuitemradio', { name: /^Both/ }).click()
     await expect.poll(() => titles(page)).toEqual(['Both'])

@@ -1,5 +1,4 @@
 import {
-  findEisenhowerList,
   ownerLayoutId,
   type ListDefinition,
   type PersistedListDefinition,
@@ -11,20 +10,16 @@ export type CopySourceRef = Pick<PersistedListDefinition, 'id' | 'owner' | 'sort
 
 /** One heading of Copy from's chooser and the lists under it. */
 export interface CopySourceGroup<T extends CopySourceRef = PersistedListDefinition> {
-  /** `layout:<id>` or `eisenhower`. */
+  /** `layout:<id>`. */
   key: string
   heading: string
   lists: T[]
 }
 
-/** Copy from's heading for the Eisenhower's own list. */
-export const EISENHOWER_COPY_HEADING = 'Eisenhower'
-
 /**
  * The lists Copy from offers, by layout: the open layout's first
  * (`openLayoutId`, headed `<name> · this layout`), then every other layout
- * in `layouts`' order (the top bar's tabs), then the Eisenhower's own list
- * under `Eisenhower`. A layout with no list to offer is left out; so is
+ * in `layouts`' order (the top bar's tabs). A layout with no list to offer is left out; so is
  * `excludeId` (the list being edited) and a list whose layout isn't among
  * `layouts`. Lists within a layout in their order (`sortOrder`).
  */
@@ -32,13 +27,11 @@ export function copySourceGroups<T extends CopySourceRef>({
   lists,
   layouts,
   openLayoutId,
-  eisenhowerListId,
   excludeId,
 }: {
   lists: readonly T[]
   layouts: readonly { id: number; name: string }[]
   openLayoutId: number | undefined
-  eisenhowerListId: number | null | undefined
   excludeId?: number
 }): CopySourceGroup<T>[] {
   const offered = [...lists].filter((d) => d.id !== excludeId).sort(bySortOrder)
@@ -61,10 +54,6 @@ export function copySourceGroups<T extends CopySourceRef>({
       heading: layout === open ? `${layout.name} · this layout` : layout.name,
       lists: defs,
     })
-  }
-  const eisenhower = findEisenhowerList(lists, eisenhowerListId)
-  if (eisenhower && eisenhower.id !== excludeId) {
-    groups.push({ key: 'eisenhower', heading: EISENHOWER_COPY_HEADING, lists: [eisenhower] })
   }
   return groups
 }

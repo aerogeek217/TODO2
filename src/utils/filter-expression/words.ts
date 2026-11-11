@@ -11,7 +11,7 @@ import { normalizeExpression } from './tree'
 /**
  * A filter expression read back in words (D26 board BF) — what a list's
  * filter line shows for it, and the plain text every summary uses (a
- * lens's row and picker line, an Eisenhower pane's subtitle, a Number's
+ * lens's row and picker line, a Number's
  * description, Copy from's list hints, a list's empty state). The exact
  * text stays the expression's (`printExpression`), for its tooltip.
  *

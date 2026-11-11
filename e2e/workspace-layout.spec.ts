@@ -39,7 +39,7 @@ import { readStore } from './fixtures/db'
 const twoColumns: WsLayoutSeed = {
   name: 'Main',
   columns: [
-    { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'eisTab', kind: 'eisenhower' }] })] },
+    { id: 'colA', rows: [wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }, { id: 'mapTab', kind: 'neglect' }] })] },
     { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
   ],
 }
@@ -53,41 +53,41 @@ test.describe('tab drop targets', () => {
   test('cell middle joins the cell as a tab', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
     const to = await bodyPoint(page, 'b1', 0.5)
-    await dragTab(page, wsTab(page, 'eisTab'), to, async () => {
+    await dragTab(page, wsTab(page, 'mapTab'), to, async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Add as tab')
       await expect(wsCell(page, 'b1').getByTestId('ws-ghost-tab')).toBeVisible()
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'eisTab']]])
-    await expect(wsTab(page, 'eisTab')).toHaveAttribute('aria-selected', 'true')
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'mapTab']]])
+    await expect(wsTab(page, 'mapTab')).toHaveAttribute('aria-selected', 'true')
     await expectLayoutStep(page)
   })
 
   test('cell top / bottom edge splits it above / below; a vacated cell goes to the cells along a side that cover it', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.1), async () => {
+    await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'b1', 0.1), async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Split Calendar · above')
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['eisTab'], ['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['mapTab'], ['calTab']]])
 
     // a1's place: no one cell shares its whole right edge, but the two there cover it together: both grow across it.
     await dragTab(page, wsTab(page, 'notesTab'), await bodyPoint(page, 'b1', 0.92))
-    await expect.poll(() => wsShape(page)).toEqual([[['eisTab'], ['calTab'], ['notesTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['mapTab'], ['calTab'], ['notesTab']]])
     await expect(page.getByRole('region', { name: 'Empty cell' })).toHaveCount(0)
   })
 
   test('a cell’s side edge makes a new column beside it; the layout’s outer edge a new column there', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.5, 0.05), async () => {
+    await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'b1', 0.5, 0.05), async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Split Calendar · left')
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['eisTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['mapTab']], [['calTab']]])
 
     // The outer right edge, from the middle column (its only tab): its place goes to the column on its left.
     const area = await box(page.locator('[data-ws-area]'))
-    await dragTab(page, wsTab(page, 'eisTab'), { x: area.x + area.width - 10, y: area.y + area.height / 2 }, async () => {
+    await dragTab(page, wsTab(page, 'mapTab'), { x: area.x + area.width - 10, y: area.y + area.height / 2 }, async () => {
       await expect(page.getByTestId('ws-drop-label')).toHaveText('Insert column · full height')
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']], [['eisTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab']], [['mapTab']]])
   })
 
   test('tab strip inserts at the pointer position; own cell middle is a no-op', async ({ page }) => {
@@ -95,22 +95,22 @@ test.describe('tab drop targets', () => {
     const first = await wsTab(page, 'notesTab').boundingBox()
     if (!first) throw new Error('no tab')
     // Left half of the first tab, clear of the outer-edge new-column zone.
-    await dragTab(page, wsTab(page, 'eisTab'), { x: first.x + 20, y: first.y + first.height / 2 }, async () => {
+    await dragTab(page, wsTab(page, 'mapTab'), { x: first.x + 20, y: first.y + first.height / 2 }, async () => {
       await expect(wsCell(page, 'a1').getByTestId('ws-tab-insert-line')).toBeVisible()
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['eisTab', 'notesTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['mapTab', 'notesTab']], [['calTab']]])
 
     // Dropping a single-tab cell's tab on its own body changes nothing (and draws no ghost).
     const own = await bodyPoint(page, 'b1', 0.5)
     await dragTab(page, wsTab(page, 'calTab'), own, async () => {
       await expect(wsGhost(page)).toHaveCount(0)
     })
-    await expect.poll(() => wsShape(page)).toEqual([[['eisTab', 'notesTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['mapTab', 'notesTab']], [['calTab']]])
   })
 
   test('Escape cancels a tab drag', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    const tab = wsTab(page, 'eisTab')
+    const tab = wsTab(page, 'mapTab')
     const t = await box(tab)
     const to = await bodyPoint(page, 'b1', 0.5)
     await page.mouse.move(t.x + t.width / 2, t.y + t.height / 2)
@@ -119,7 +119,7 @@ test.describe('tab drop targets', () => {
     await page.mouse.move(to.x, to.y, { steps: 8 })
     await page.keyboard.press('Escape')
     await page.mouse.up()
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab']], [['calTab']]])
     await expectLayoutStored(page)
   })
 })
@@ -150,11 +150,11 @@ test.describe('resize and collapse', () => {
         name: 'Main',
         columns: [{ id: 'colA', rows: [
           wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }),
-          wsRow({ id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }),
+          wsRow({ id: 'a2', tabs: [{ id: 'mapTab', kind: 'neglect' }] }),
         ] }],
       }],
     })
-    const divider = page.getByRole('separator', { name: 'Resize Notes and Eisenhower' })
+    const divider = page.getByRole('separator', { name: 'Resize Notes and Neglect map' })
     const top = await box(wsCell(page, 'a1'))
     const d = await box(divider)
     await drag(page, { x: d.x + 200, y: d.y + d.height / 2 }, { x: d.x + 200, y: d.y + d.height / 2 - 100 })
@@ -230,11 +230,11 @@ test.describe('a pane that goes leaves no void', () => {
 
   test('a cell split off, whose last tab then joins another pane, gives its height back', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'a1', 0.92))
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['eisTab']], [['calTab']]])
+    await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'a1', 0.92))
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['mapTab']], [['calTab']]])
 
-    await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.5))
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'eisTab']]])
+    await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'b1', 0.5))
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'mapTab']]])
     await expect.poll(() => voidBelow(page, 'a1')).toBeLessThan(1)
   })
 
@@ -270,7 +270,7 @@ test.describe('a pane that goes leaves no void', () => {
           rows: [{ weight: 250, collapsed: true }, 250, 500],
           cells: [
             { id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] },
-            { id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] },
+            { id: 'a2', tabs: [{ id: 'mapTab', kind: 'neglect' }] },
             { id: 'a3', tabs: [{ id: 'dashTab', kind: 'notes' }] },
             { id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] },
           ],
@@ -279,7 +279,7 @@ test.describe('a pane that goes leaves no void', () => {
     })
     await expect.poll(async () => Math.round((await box(wsCell(page, 'a1'))).height)).toBe(32)
     await dragTab(page, wsTab(page, 'dashTab'), await bodyPoint(page, 'b1', 0.5))
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['eisTab']], [['calTab', 'dashTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab'], ['mapTab']], [['calTab', 'dashTab']]])
     await expect.poll(() => voidBelow(page, 'a2')).toBeLessThan(1)
   })
 
@@ -290,14 +290,14 @@ test.describe('a pane that goes leaves no void', () => {
         columns: [
           { id: 'colA', rows: [
             wsRow({ id: 'a1', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { collapsed: true }),
-            wsRow({ id: 'a2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }),
+            wsRow({ id: 'a2', tabs: [{ id: 'mapTab', kind: 'neglect' }] }),
           ] },
           { id: 'colB', rows: [wsRow({ id: 'b1', tabs: [{ id: 'calTab', kind: 'calendar' }] })] },
         ],
       }],
     })
-    await dragTab(page, wsTab(page, 'eisTab'), await bodyPoint(page, 'b1', 0.5))
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'eisTab']]])
+    await dragTab(page, wsTab(page, 'mapTab'), await bodyPoint(page, 'b1', 0.5))
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab']], [['calTab', 'mapTab']]])
     await expect(wsCell(page, 'a1').locator('[data-ws-cell-body]')).toBeVisible()
     await expect.poll(() => voidBelow(page, 'a1')).toBeLessThan(1)
   })
@@ -306,16 +306,16 @@ test.describe('a pane that goes leaves no void', () => {
 test.describe('saved layouts', () => {
   const second: WsLayoutSeed = {
     name: 'Second',
-    columns: [{ id: 'colZ', rows: [wsRow({ id: 'z1', tabs: [{ id: 'zTab', kind: 'eisenhower' }] })] }],
+    columns: [{ id: 'colZ', rows: [wsRow({ id: 'z1', tabs: [{ id: 'zTab', kind: 'neglect' }] })] }],
   }
 
   test('an edit is stored at once: no dot, switching layouts asks nothing, a reload keeps it', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns, second] })
     await expectOpenLayout(page, 'Main')
 
-    await wsTab(page, 'eisTab').click()
-    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
-    await expectLayoutStep(page, 'Closed tab “Eisenhower”')
+    await wsTab(page, 'mapTab').click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
+    await expectLayoutStep(page, 'Closed tab “Neglect map”')
     await expect(openLayoutTab(page).getByRole('img')).toHaveCount(0)
 
     await switchLayout(page, 'Second')
@@ -334,8 +334,8 @@ test.describe('saved layouts', () => {
     await page.setViewportSize({ width: 700, height: 800 })
     // A third layout, so the tabs fold even with the tray shrunk.
     await seedWorkspace(page, withSpareLayouts({ layouts: [twoColumns, second] }, 1))
-    await wsTab(page, 'eisTab').click()
-    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
+    await wsTab(page, 'mapTab').click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
     await expectLayoutStep(page)
     await page.getByTestId('layout-picker').click()
     await expect(page.getByRole('menuitemradio', { name: /Main/ })).not.toContainText('Edited')
@@ -366,8 +366,8 @@ test.describe('saved layouts', () => {
 
   test('New layout right after an edit asks nothing; Main keeps the edit', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await wsTab(page, 'eisTab').click()
-    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
+    await wsTab(page, 'mapTab').click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
     await page.getByRole('button', { name: 'New layout', exact: true }).click()
     await page.getByRole('dialog', { name: 'New layout' }).getByLabel('Name').fill('Planning')
     await page.getByRole('dialog', { name: 'New layout' }).getByRole('button', { name: 'Create layout' }).click()
@@ -379,24 +379,24 @@ test.describe('saved layouts', () => {
 
   test('Undo takes an edit back once its layout is open again', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns, second] })
-    await wsTab(page, 'eisTab').click()
-    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
+    await wsTab(page, 'mapTab').click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
     await expectLayoutStep(page)
     await switchLayout(page, 'Second')
     await expectOpenLayout(page, 'Second')
     await switchLayout(page, 'Main')
     await page.locator('[data-ws-area]').click({ position: { x: 5, y: 5 } })
     await page.keyboard.press('Control+z')
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab']], [['calTab']]])
     await expectLayoutStored(page)
     await page.reload()
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab']], [['calTab']]])
   })
 
   test('opening Settings after an edit shows no prompt; the edit stays', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await wsTab(page, 'eisTab').click()
-    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
+    await wsTab(page, 'mapTab').click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
     await expectLayoutStep(page)
 
     const settings = await openSettings(page)
@@ -410,8 +410,8 @@ test.describe('saved layouts', () => {
 
   test('leaving the workspace right after a layout edit asks nothing; the edit is kept', async ({ page }) => {
     await seedWorkspace(page, { layouts: [twoColumns] })
-    await wsTab(page, 'eisTab').click()
-    await wsTab(page, 'eisTab').getByRole('button', { name: 'Close Eisenhower' }).click()
+    await wsTab(page, 'mapTab').click()
+    await wsTab(page, 'mapTab').getByRole('button', { name: 'Close Neglect map' }).click()
     await expectLayoutStep(page)
 
     // Only the phone's Settings tab still navigates away from the workspace.
@@ -436,7 +436,7 @@ test.describe('saved layouts', () => {
     await nameDialog.getByLabel('Name').fill('Planning')
     await nameDialog.getByRole('button', { name: 'Duplicate' }).click()
     await expectOpenLayout(page, 'Planning')
-    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'eisTab']], [['calTab']]])
+    await expect.poll(() => wsShape(page)).toEqual([[['notesTab', 'mapTab']], [['calTab']]])
 
     await openLayoutAction(page, 'Edit…')
     const renameDialog = page.getByRole('dialog', { name: 'Edit layout' })

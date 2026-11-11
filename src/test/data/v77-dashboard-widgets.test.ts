@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { upgradeV77 } from '../../data/upgrades/v77-dashboard-widgets'
-import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow } from '../../data/schema-upgrades'
+import { SCHEMA_UPGRADES, upgradeDataSet, type DataRow, type DataSet } from '../../data/schema-upgrades'
 import { prepareImport } from '../../data/import-pipeline'
 import { readLayoutDraft } from '../../data/draft-storage'
 import { rowFixes } from '../../data/import-validation'
@@ -106,7 +106,8 @@ describe('v77 — the Dashboard as widgets', () => {
     ])
     // The layout still names the lists it showed.
     expect([...layoutListRefs(asV78(out) as unknown as LayoutBody)].sort()).toEqual([4, 7])
-    noFixes(out)
+    // The Eisenhower v78 makes of the summary is dropped by this build's repair (removed after v78).
+    expect(rowFixes('layouts', asV78(out))).toEqual(['tab dropped'])
   })
 
   it('a Dashboard sharing its cell: the cell keeps its other tabs, the new rows go below it, the kept row one share', () => {
@@ -288,11 +289,14 @@ describe('v77 — the Dashboard as widgets', () => {
     }
     const result = prepareImport(JSON.parse(JSON.stringify(file)))
     if (!result.ok) throw new Error(result.error)
-    expect(result.warnings).toEqual([])
-    // Through v77's rows to v78's table: the Number's fit row over the section's.
-    expect(picture(result.data.layouts[0]!)).toEqual(['d-c1', 'd-c2'])
-    // …and v78 makes the Eisenhower summary the Eisenhower (its small face).
-    expect(result.data.layouts[0]!.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'eisenhower'])
+    // Through v77's rows to v78's table: the Number's fit row over the section's; v78 makes the
+    // Eisenhower summary the Eisenhower (its small face) …
+    const v78 = upgradeDataSet(JSON.parse(JSON.stringify({ layouts: file.layouts })) as DataSet, 75, 78).layouts![0]! as unknown as LayoutBody
+    expect(picture(v78)).toEqual(['d-c1', 'd-c2'])
+    expect(v78.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number', 'eisenhower'])
+    // … which this build's repair drops (removed after v78), its cell closing.
+    expect(result.warnings).toEqual(['Fixed 1 layout: "Daily" (tab dropped)'])
+    expect(result.data.layouts[0]!.cells.map((c) => c.tabs[0]?.kind)).toEqual(['number'])
   })
 
   it('runs in the chain from the floor', () => {

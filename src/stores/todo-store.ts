@@ -96,7 +96,7 @@ interface TakenTasks {
 
 /**
  * Runs `fn` as one undo step named `description` — a group, unless one is
- * already open (a check-in reply, an Eisenhower drop: its group takes the
+ * already open (a check-in reply: its group takes the
  * writes; a second group would wait on it and never start) or an undo /
  * redo is running (nothing is pushed then).
  */
@@ -167,7 +167,7 @@ interface TodoState {
   /** Flags every task in `ids` important (`on`) or clears the flag. One undo step. */
   bulkSetImportant: (ids: number[], on: boolean) => Promise<void>
   /**
-   * Writes per-task Urgent / Important / Focus changes (e.g. an Eisenhower drop) as
+   * Writes per-task Urgent / Important / Focus changes (e.g. a Priority drop) as
    * one undo step with the undo snackbar (`description`).
    */
   setMarkerFlags: (changes: readonly MarkerFlagChange[], description: string) => Promise<void>

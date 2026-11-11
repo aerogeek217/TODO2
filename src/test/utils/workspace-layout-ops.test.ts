@@ -732,11 +732,12 @@ describe('view state, config and sizes', () => {
 
   it('counts the tabs showing a list', () => {
     const lens: LayoutTab = { id: 'l', kind: 'lens', config: { listDefinitionId: 7 } }
-    const eis: LayoutTab = { id: 'e', kind: 'eisenhower', config: {} }
-    const body = layout(grid([[spec('a', [lens, eis])]]))
-    expect(countListTabs(body, 7, null)).toBe(1)
-    expect(countListTabs(body, 7, 7)).toBe(2)
-    expect(countListTabs(body, 7, 7, new Set(['e']))).toBe(1)
+    const other: LayoutTab = { id: 'o', kind: 'lens', config: { listDefinitionId: 7 } }
+    const notes: LayoutTab = { id: 'n', kind: 'notes', config: {} }
+    const body = layout(grid([[spec('a', [lens, other, notes])]]))
+    expect(countListTabs(body, 7)).toBe(2)
+    expect(countListTabs(body, 8)).toBe(0)
+    expect(countListTabs(body, 7, new Set(['o']))).toBe(1)
   })
 })
 

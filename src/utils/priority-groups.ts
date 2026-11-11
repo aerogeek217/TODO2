@@ -1,5 +1,4 @@
 import { MARKER_KEYS, type MarkerKey } from '../models/filter-predicate'
-import { dropDescription } from './eisenhower'
 import { hasMarker, MARKER_COLOR, MARKER_LABELS, NO_PRIORITY_LABEL, type MarkerFields } from './markers'
 import { URGENT_BY_DATE_HINT, urgentByDateSentence, type UrgentDueWithinDays } from './urgency'
 
@@ -129,5 +128,14 @@ export function resolvePriorityDrop(
     if (v !== undefined && (todo[k] === true) !== v) flags[k] = v
   }
   if (Object.keys(flags).length === 0) return null
-  return { kind: 'write', flags, description: dropDescription([{ todoId: todo.id, ...flags }], () => todo.title) }
+  return { kind: 'write', flags, description: flagsDescription(flags, todo.title) }
+}
+
+/** The undo step's text: `Marked urgent · Send board update`, `Marked focus, not urgent · Send board update`. */
+function flagsDescription(flags: PriorityFlags, title: string): string {
+  const words: string[] = []
+  if (flags.urgent !== undefined) words.push(flags.urgent ? 'urgent' : 'not urgent')
+  if (flags.important !== undefined) words.push(flags.important ? 'important' : 'not important')
+  if (flags.focus !== undefined) words.push(flags.focus ? 'focus' : 'not focus')
+  return `Marked ${words.join(', ')} · ${title}`
 }

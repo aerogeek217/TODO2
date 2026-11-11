@@ -20,7 +20,6 @@ import type { WorkspaceLayout } from '../models/workspace-layout'
 import { LAYOUT_NAME_MAX } from '../models/workspace-layout'
 import { isLayoutHue } from '../utils/layout-hue'
 import { checkLayoutBody, pickLayoutBody } from './layout-shape'
-import { formatPanesSetting, parseEisenhowerSource, readPanesSetting } from './eisenhower-shape'
 import { formatCheckinFilterSetting, readCheckinFilterSetting } from './checkin-filter-shape'
 import { formatLensesSetting, isLensId, readLensesSetting } from './lens-shape'
 import { isValidEmail, normalizeEmail, normalizeInitials } from '../utils/person'
@@ -374,17 +373,14 @@ function checkSetting(v: unknown): CheckResult {
   // read and resets an over-long text unread (`settingFixes` names what it
   // drops, a few at most), so what is stored is short.
   if (v.key === SETTING_KEYS.keyboardShortcuts) return true
-  // The Eisenhower panes: any text, as the panes were layout data the
-  // layout repair fixed rather than failed — the picker keeps the panes it
-  // can read and resets the rest (an unreadable or over-long value reads as
-  // the defaults); `settingFixes` names what it drops. Names and filters
-  // have no length limit (the whole value has one: `PANES_SETTING_MAX_LEN`).
-  if (v.key === SETTING_KEYS.eisenhowerPanes) return true
+  // The removed Eisenhower's rows: any text, carried as stored and read by
+  // nothing (schema v79 deletes them).
+  if (v.key === SETTING_KEYS.eisenhowerPanes || v.key === SETTING_KEYS.eisenhowerSource) return true
   // The check-in filter: any text, read leniently as a list's filter is
   // (`readCheckinFilterSetting`; `settingFixes` names what it drops). Its id
   // lists have no limit of their own (the whole value has one).
   if (v.key === SETTING_KEYS.checkinTaskFilter) return true
-  // The lenses: any text, read leniently as the Eisenhower panes are
+  // The lenses: any text, read leniently as the check-in filter is
   // (`readLensesSetting`; `settingFixes` names what it drops). Their
   // filters' id lists have no limit of their own (the whole value has one).
   if (v.key === SETTING_KEYS.lenses) return true
@@ -475,11 +471,6 @@ function checkSetting(v: unknown): CheckResult {
   }
   if (v.key === SETTING_KEYS.newTaskFollowup) {
     return v.value === 'true' || v.value === 'false' ? true : 'value (newTaskFollowup must be true or false)'
-  }
-  if (v.key === SETTING_KEYS.eisenhowerSource) {
-    return parseEisenhowerSource(v.value as string) !== undefined
-      ? true
-      : 'value (eisenhowerSource must be all or list:<id>)'
   }
   return true
 }
@@ -598,10 +589,6 @@ function pickSetting(v: Raw): AllFields<SettingRow> {
     // Only the bindings that read, pass the rules and don't clash.
     return { key, value: formatShortcutOverrides(readShortcutOverrides(value).overrides) } satisfies AllFields<SettingRow>
   }
-  if (key === SETTING_KEYS.eisenhowerPanes) {
-    // Stored normalised: known panes and keys only, what equals the default left out.
-    return { key, value: formatPanesSetting(readPanesSetting(value).panes) } satisfies AllFields<SettingRow>
-  }
   if (key === SETTING_KEYS.checkinTaskFilter) {
     // Stored rebuilt: known filter parts only, no people, completed tasks off.
     return { key, value: formatCheckinFilterSetting(readCheckinFilterSetting(value).filter) } satisfies AllFields<SettingRow>
@@ -617,7 +604,6 @@ function pickSetting(v: Raw): AllFields<SettingRow> {
 function settingFixes(row: Raw): string[] {
   if (typeof row.value !== 'string') return []
   if (row.key === SETTING_KEYS.keyboardShortcuts) return readShortcutOverrides(row.value).dropped
-  if (row.key === SETTING_KEYS.eisenhowerPanes) return readPanesSetting(row.value).fixes
   if (row.key === SETTING_KEYS.checkinTaskFilter) return readCheckinFilterSetting(row.value).fixes
   if (row.key === SETTING_KEYS.lenses) return readLensesSetting(row.value).fixes
   return []
@@ -625,7 +611,6 @@ function settingFixes(row: Raw): string[] {
 
 /** How an import warning names a settings row `pickSetting` fixed. */
 function settingLabel(row: Raw): string {
-  if (row.key === SETTING_KEYS.eisenhowerPanes) return 'Eisenhower panes'
   if (row.key === SETTING_KEYS.checkinTaskFilter) return 'check-in filter'
   if (row.key === SETTING_KEYS.lenses) return 'lenses'
   return 'keyboard shortcuts'
@@ -735,9 +720,9 @@ function pickRuntimeFilter(v: unknown): RuntimeFilterSpec | undefined {
 
 /**
  * A list's owner rebuilt from its known keys: one layout (`layoutId`, a
- * positive whole number) or the Eisenhower (`eisenhower: true`), each its
- * only key; anything else is none (a list that belongs to no layout, which
- * the audit reports).
+ * positive whole number) or the removed Eisenhower (`eisenhower: true`,
+ * carried as stored — `RetiredEisenhowerOwner`), each its only key; anything
+ * else is none (a list that belongs to no layout, which the audit reports).
  */
 function pickListOwner(v: unknown): ListOwner | undefined {
   if (!isRecord(v) || Object.keys(v).length !== 1) return undefined

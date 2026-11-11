@@ -2,7 +2,6 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { db } from '../../data/database'
 import { rowFixes, sanitizeRow, validateImportData, validateRow } from '../../data/import-validation'
 import { layoutRepository } from '../../data/layout-repository'
-import { listDefinitionRepository } from '../../data/list-definition-repository'
 import { auditData, cleanupIssues } from '../../data/audit'
 import { readListDrafts, writeListDrafts } from '../../data/draft-storage'
 import { emptyPredicate } from '../../models/filter-predicate'
@@ -26,7 +25,7 @@ beforeEach(async () => {
 })
 
 describe('import: a list’s owner, its filter-line switch, the Priority grouping', () => {
-  it('keeps a layout’s or the Eisenhower’s owner, the hidden filter line and the Priority grouping', () => {
+  it('keeps a layout’s owner or the retired Eisenhower’s (carried as stored), the hidden filter line and the Priority grouping', () => {
     const rows = [
       list(1, { owner: { layoutId: 4 }, showFilterLine: false, grouping: 'priority' }),
       list(2, { owner: { eisenhower: true } }),
@@ -130,39 +129,8 @@ describe('layoutRepository: the layout order', () => {
   })
 })
 
-describe('listDefinitionRepository.ensureEisenhowerList', () => {
-  const sourceValue = async () => (await db.settings.get('eisenhowerSource'))?.value
-
-  it('makes the Eisenhower’s list when there is none (no filter, after the others) and names it in the setting', async () => {
-    await db.listDefinitions.add(list(1, { sortOrder: 4 }) as unknown as ListDefinition)
-    const id = await listDefinitionRepository.ensureEisenhowerList()
-    expect(await db.listDefinitions.get(id)).toEqual({
-      id, name: 'Eisenhower', sortOrder: 5, membership: { kind: 'custom', predicate: emptyPredicate() },
-      sort: 'manual', grouping: 'none', owner: { eisenhower: true },
-    })
-    expect(await sourceValue()).toBe(`list:${id}`)
-    // Again: the same list, nothing made.
-    expect(await listDefinitionRepository.ensureEisenhowerList()).toBe(id)
-    expect(await db.listDefinitions.count()).toBe(2)
-  })
-
-  it('a setting naming another list (or nothing) is pointed at the Eisenhower’s list that exists', async () => {
-    await db.listDefinitions.bulkAdd([list(1), list(2, { owner: { eisenhower: true } })] as unknown as ListDefinition[])
-    await db.settings.put({ key: 'eisenhowerSource', value: 'list:1' })
-    expect(await listDefinitionRepository.ensureEisenhowerList()).toBe(2)
-    expect(await sourceValue()).toBe('list:2')
-    expect(await db.listDefinitions.count()).toBe(2)
-  })
-
-  it('callers at the same time make one list', async () => {
-    const ids = await Promise.all([listDefinitionRepository.ensureEisenhowerList(), listDefinitionRepository.ensureEisenhowerList()])
-    expect(ids[0]).toBe(ids[1])
-    expect(await db.listDefinitions.count()).toBe(1)
-  })
-})
-
 describe('audit: lists that belong to no layout', () => {
-  it('reports them; cleanup gives each the first layout that shows it, the rest a new layout “Recovered lists” (never deletes one); a live layout’s and the Eisenhower’s are fine', async () => {
+  it('reports them; cleanup gives each the first layout that shows it, the rest a new layout “Recovered lists” (never deletes one); a live layout’s and the retired Eisenhower’s are fine', async () => {
     const shows4 = single({ id: 'k', tabs: [{ id: 't', kind: 'lens', config: { listDefinitionId: 4 } }] })
     await db.layouts.bulkAdd([layoutRow(1), layoutRow(2, { sortOrder: 1, ...shows4 }), layoutRow(3, { sortOrder: 2, ...shows4 })] as unknown as WorkspaceLayout[])
     await db.listDefinitions.bulkAdd([

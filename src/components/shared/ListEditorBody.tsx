@@ -470,7 +470,7 @@ function CopyFromButton({ groups, onPick }: {
   )
 }
 
-/** The phone sheet's Copy from list: a heading per layout (then the Eisenhower), a row per list. */
+/** The phone sheet's Copy from list: a heading per layout, a row per list. */
 function CopyFromSheetList({ groups, onPick }: {
   groups: readonly CopySourceGroup<CopySource>[]
   onPick: (source: CopySource) => void

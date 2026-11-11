@@ -809,7 +809,7 @@ function shallowPatch<T extends object>(base: T, patch: Partial<T>): T {
 
 /**
  * Layout config: shallow-patches a tab's `config` — only when the tab is of
- * `kind`. A key patched to `undefined` is removed (e.g. an Eisenhower tab
+ * `kind`. A key patched to `undefined` is removed (e.g. a tab
  * back on all tasks).
  */
 export function patchTabConfig<L extends LayoutBody, K extends WidgetKind>(

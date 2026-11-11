@@ -1,10 +1,7 @@
 import type { DragEndEvent } from '@dnd-kit/core'
 import type { PersistedTodoItem } from '../../models'
 import type { CalendarDateType, CalendarDateTypes } from '../../models/workspace-layout'
-import { isEisenhowerQuadrant } from '../../models/workspace-layout'
 import { dndLog } from '../debug-flags'
-import { resolvePaneDrop, type PaneChange, type PaneContext } from '../eisenhower'
-import type { EisenhowerPane } from '../eisenhower-panes'
 import { TASK_DROP_KIND } from './kinds'
 
 /** A list drag dropped on a day of a calendar showing both date types. */
@@ -34,34 +31,11 @@ export interface CalendarOps {
   chooseType?: (request: CalendarDropChoiceRequest) => Promise<CalendarDateType | null>
 }
 
-/**
- * Eisenhower side of {@link dispatchTaskDrop}: a task (or the selection it
- * belongs to) dropped on a pane gets what the pane's filter implies, unless
- * a task still wouldn't land in that pane — then nothing changes (see
- * `resolvePaneDrop`).
- */
-export interface EisenhowerOps {
-  /** The tasks the drag moves (current copies): the dragged task, or its selection. */
-  tasksFor: (activeData: Record<string, unknown>) => PersistedTodoItem[]
-  /**
-   * The panes of the Eisenhower tab `tabId` (the pane's drop target's
-   * `scope`) as the layout has them now; `null` when there is no such tab —
-   * the drop then writes nothing.
-   */
-  panes: (tabId: string) => readonly EisenhowerPane[] | null
-  /** What the pane filters are evaluated with, as it is now. */
-  context: () => PaneContext
-  /** Writes the changes as one undo step. */
-  apply: (changes: PaneChange[]) => Promise<void>
-}
-
 export interface TaskDropDispatchDeps {
   /** Optional — required by surfaces that host calendar day droppables (the
    * workspace). When omitted, calendar-day drops fall through to the
    * caller's own handler. */
   calendar?: CalendarOps
-  /** Optional — required by surfaces that host Eisenhower quadrants. */
-  eisenhower?: EisenhowerOps
 }
 
 function isDateType(v: unknown): v is CalendarDateType {
@@ -103,13 +77,12 @@ function dropPoint(event: DragEndEvent): { x: number; y: number } | null {
 /**
  * Shared drop dispatcher for task-shaped drags that land on a shared drop
  * target: a task dropped on a calendar day gets that day as its due date or
- * next follow-up (see {@link resolveCalendarDropType}); a task dropped on an
- * Eisenhower pane gets what the pane's filter implies ({@link EisenhowerOps}).
+ * next follow-up (see {@link resolveCalendarDropType}).
  *
  * Returns `true` when the drop was handled (the caller should stop
  * processing — also when the user cancelled the date-type choice or the
  * calendar shows no date type), `false`
- * when the drop is not one of these targets.
+ * when the drop is not on one.
  */
 export async function dispatchTaskDrop(
   event: DragEndEvent,
@@ -152,24 +125,6 @@ export async function dispatchTaskDrop(
       }
       dndLog('dispatch.calendar-day-reschedule', { todoId: activeTodo.id, date: date.toISOString(), type })
       await deps.calendar.reschedule(activeTodo.id, date, type)
-      return true
-    }
-  }
-
-  // ── Eisenhower pane drop → what the pane's filter implies ──
-  if (overData?.type === TASK_DROP_KIND.eisenhowerQuadrant && deps.eisenhower && activeData) {
-    const quadrant = overData.quadrant
-    if (isEisenhowerQuadrant(quadrant)) {
-      const ops = deps.eisenhower
-      const panes = typeof overData.scope === 'string' ? ops.panes(overData.scope) : null
-      if (!panes) {
-        dndLog('dispatch.eisenhower-no-tab', { todoId: activeTodo.id, quadrant, scope: overData.scope ?? null })
-        return true
-      }
-      const tasks = ops.tasksFor(activeData)
-      const result = resolvePaneDrop(tasks, quadrant, panes, ops.context())
-      dndLog('dispatch.eisenhower-drop', { todoIds: tasks.map((t) => t.id), quadrant, result: result.kind })
-      if (result.kind === 'apply') await ops.apply(result.changes)
       return true
     }
   }

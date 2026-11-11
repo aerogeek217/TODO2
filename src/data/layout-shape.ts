@@ -1,7 +1,5 @@
 import {
   clampCalendarOffset,
-  EISENHOWER_QUADRANTS,
-  isEisenhowerQuadrant,
   readListZoom,
   isWidgetKind,
   pickDetailsWidth,
@@ -24,7 +22,6 @@ import {
   // G3: the widgets' lens switch.
   LENS_SWITCH_KINDS,
   type CalendarTab,
-  type EisenhowerTab,
   type LensSwitchTab,
   type LensViewState,
   // Item 12: the Review widget.
@@ -148,7 +145,7 @@ export function pickNeglectConfig(config: Obj): { config: NeglectTabConfig; fixe
 }
 
 /** The kinds whose tabs show task rows: they keep a details width (`TaskRowsViewState`). */
-const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens', 'eisenhower'])
+const ROWS_KINDS: ReadonlySet<WidgetKind> = new Set<WidgetKind>(['lens'])
 
 /** A tab's config / view state for its kind (a case per kind: a new kind doesn't compile without one). */
 function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | string {
@@ -178,14 +175,6 @@ function checkTabSettings(tab: Obj, kind: WidgetKind, path: string): true | stri
       if (view?.view !== undefined && view.view !== 'week' && view.view !== 'month') return `${path}.viewState.view`
       if (view?.offset !== undefined && !isFiniteNum(view.offset)) return `${path}.viewState.offset`
       if (view?.titles !== undefined && typeof view.titles !== 'boolean') return `${path}.viewState.titles`
-      return true
-    }
-    case 'eisenhower': {
-      // No config of its own (its panes and source are settings): any key is dropped by the pick.
-      const collapsed = view?.collapsed
-      if (collapsed !== undefined && (!Array.isArray(collapsed) || !collapsed.every(isEisenhowerQuadrant))) {
-        return `${path}.viewState.collapsed`
-      }
       return true
     }
     case 'neglect':
@@ -365,13 +354,13 @@ function idTracker(): (id: string) => boolean {
 
 /**
  * Kinds removed while the schema stayed at v78 — the Status flow chart
- * (D26 P8, shipped in v78) and the Tag map —: a v78 file may hold one, and
- * no upgrade runs on it, so its tab passes the check (import, a restore and
- * the sync file take the file) and the repair drops it as an unknown kind
- * (a fix: `Fixed 1 layout`; a stored layout opens unsaved), its emptied
- * cell closing.
+ * (D26 P8, shipped in v78), the Tag map and the Eisenhower —: a v78 file
+ * may hold one, and no upgrade runs on it, so its tab passes the check
+ * (import, a restore and the sync file take the file) and the repair drops
+ * it as an unknown kind (a fix: `Fixed 1 layout`; a stored layout opens
+ * with the notice), its emptied cell closing. Schema v79 drops them for good.
  */
-const REMOVED_IN_V78: ReadonlySet<unknown> = new Set(['statusFlow', 'tagMap'])
+const REMOVED_IN_V78: ReadonlySet<unknown> = new Set(['statusFlow', 'tagMap', 'eisenhower'])
 
 /** `true` when every tab of a strip is valid, else the path of the first bad field. */
 function checkTabs(tabs: readonly unknown[], path: string, fresh: (id: string) => boolean): true | string {
@@ -454,7 +443,7 @@ export function checkLayoutBody(body: RawLayoutBody): true | string {
 }
 
 /** A part `pickLayoutBody` dropped or reset, counted. */
-type LayoutFix = 'grid' | 'rebuilt' | 'lines' | 'track' | 'cell' | 'tab' | 'size' | 'settings' | 'eisenhower'
+type LayoutFix = 'grid' | 'rebuilt' | 'lines' | 'track' | 'cell' | 'tab' | 'size' | 'settings'
   | 'trackLimit' | 'cellLimit' | 'tabLimit'
 
 const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
@@ -466,7 +455,6 @@ const FIX_WORDS: Record<LayoutFix, readonly [one: string, many: string]> = {
   tab: ['tab dropped', 'tabs dropped'],
   size: ['size reset', 'sizes reset'],
   settings: ['tab or cell settings reset', 'tab or cell settings reset'],
-  eisenhower: ['Eisenhower tab setting dropped', 'Eisenhower tab settings dropped'],
   trackLimit: ['track past the limit of 1,000 dropped', 'tracks past the limit of 1,000 dropped'],
   cellLimit: ['cell past the limit of 1,000 dropped', 'cells past the limit of 1,000 dropped'],
   tabLimit: ['tab past the limit of 1,000 dropped', 'tabs past the limit of 1,000 dropped'],
@@ -492,14 +480,13 @@ interface PickedCell {
 /**
  * Rebuilds a layout body (its table) with only the model's keys. For a body
  * that passes `checkLayoutBody` (all import ever picks) nothing is dropped
- * but a stale `activeTabId` (= first tab), duplicate collapsed quadrants, an
- * out-of-range calendar offset (clamped), and any key of an Eisenhower tab's
- * config (it has none — reported in `fixes`); a details width is rounded,
+ * but a stale `activeTabId` (= first tab) and an out-of-range calendar
+ * offset (clamped); a details width is rounded,
  * and the cells come in reading order. A tab of a retired kind — `dashboard`
  * (v77 converted every one), and `followup`, `next7`, `stale`, `recent`,
  * `changes`, `today` and `eisenhowerSummary` (v78 dropped or converted
  * every one) — is an unknown kind, dropped like one, and a cell it leaves
- * without tabs closes. A Status flow or Tag map tab (`REMOVED_IN_V78`)
+ * without tabs closes. A Status flow, Tag map or Eisenhower tab (`REMOVED_IN_V78`)
  * passes the check but is dropped the same way, reported in `fixes`.
  *
  * Past `LAYOUT_PART_LIMIT` tracks, cells or tabs in the layout, the rest are
@@ -602,20 +589,6 @@ export function pickLayoutBody(body: RawLayoutBody): PickedLayoutBody {
           if (Object.keys(viewState).length > 0) calendar.viewState = viewState
         }
         return withLensView(calendar)
-      }
-      case 'eisenhower': {
-        const raw = view?.collapsed
-        if (raw !== undefined && (!Array.isArray(raw) || !raw.every(isEisenhowerQuadrant))) fix('settings')
-        const collapsed = Array.isArray(raw) ? new Set<unknown>(raw) : null
-        // Its panes and source are app-wide settings: a key here (none in v66
-        // data) is dropped.
-        for (let i = 0; i < Object.keys(config).length; i++) fix('eisenhower')
-        const eisenhower: EisenhowerTab = { id, kind: 'eisenhower', config: {} }
-        // Known quadrants, once each, in display order.
-        const quadrants = collapsed ? EISENHOWER_QUADRANTS.filter((q) => collapsed.has(q)) : []
-        const eisenhowerView = { ...rowsView(), ...(quadrants.length > 0 ? { collapsed: quadrants } : {}) }
-        if (Object.keys(eisenhowerView).length > 0) eisenhower.viewState = eisenhowerView
-        return withLensView(eisenhower)
       }
       case 'neglect': {
         // No view state of its own but the lens switch: any other is dropped.

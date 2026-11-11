@@ -65,7 +65,7 @@ export interface ExpressionParseOptions {
   allowPeople?: boolean
   /** `false`: Completed dates are refused (the check-in filter: it takes open tasks only). */
   allowCompleted?: boolean
-  /** `false`: `done` is refused (a lens, an Eisenhower pane, the check-in: they never show completed tasks by it). */
+  /** `false`: `done` is refused (a lens, the check-in: they never show completed tasks by it). */
   allowDone?: boolean
 }
 

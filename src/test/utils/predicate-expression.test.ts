@@ -8,7 +8,6 @@ import { describeFilters, hasNarrowingFilters, predicateLineItems } from '../../
 import { predicatesEqual } from '../../utils/list-def-equal'
 import { checkinFilterOf, hasCompletedDateClause } from '../../utils/checkin-settings'
 import { filterReferences } from '../../utils/unused-entities'
-import { paneWrites } from '../../utils/eisenhower-panes'
 import { asExpression, asGraphical, topLevelPredicate, withExpression } from '../../utils/predicate-expression'
 import { pickPredicate } from '../../data/predicate-shape'
 import { applyRuntimeFilter, groupRestrictions } from '../../services/build-list'
@@ -174,10 +173,6 @@ describe('the readers of the top level', () => {
     const lens = predicateToCriteria(expr({ kind: 'and', items: [{ kind: 'person', id: 1 }, { kind: 'not', item: { kind: 'person', id: 3 } }, { kind: 'or', items: [{ kind: 'person', id: 2 }, { kind: 'person', id: 4 }] }] }))
     expect(groupRestrictions('personIds', undefined, { ...predicateToCriteria(emptyPredicate()), lens })).toEqual([[1], [2, 4]])
   })
-
-  it('write a pane drop from the top-level chips', () => {
-    expect(paneWrites(mixed, names)).toMatchObject({ statusId: 2, personId: 1, markers: { urgent: true } })
-  })
 })
 
 describe('an expression elsewhere', () => {
@@ -199,7 +194,7 @@ describe('an expression elsewhere', () => {
 
   it('names the people and tags it filters by', () => {
     const list = { id: 1, name: 'L', membership: { kind: 'custom', predicate: expr({ kind: 'or', items: [{ kind: 'person', id: 2 }, { kind: 'tag', id: 1 }] }) } } as unknown as ListDefinition
-    const refs = filterReferences({ lists: [list], panes: {}, checkinFilter: emptyPredicate() }, 'person')
+    const refs = filterReferences({ lists: [list], checkinFilter: emptyPredicate() }, 'person')
     expect([...refs.keys()]).toEqual([2])
   })
 

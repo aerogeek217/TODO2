@@ -14,7 +14,7 @@ import { makeTodo, testLookups } from '../helpers'
 import { useSettingsStore } from '../../stores/settings-store'
 
 // A list widget runs its definition through `buildList` with the predicate
-// evaluator; the calendar, Eisenhower and glance widgets filter with the
+// evaluator; the calendar and glance widgets filter with the
 // screen filter (`applyFilter` over `FilterCriteria`). The same definition
 // must give the same sections either way: `filterPathSections` runs it as a
 // screen filter, then through the one section builder.

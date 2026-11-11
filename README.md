@@ -43,7 +43,7 @@ Press `Ctrl` + `Space` anywhere and type. `@` adds a person, `#` a tag, `!` a st
 ### And also
 
 - A week and month **calendar** you can drag tasks onto
-- An **Eisenhower** matrix, a **Neglect map** of what is slipping, and free-form **notes** that turn into tasks
+- A **Neglect map** of what is slipping, and free-form **notes** that turn into tasks
 - **Lenses**: named filters you switch on from the top bar to narrow the whole screen
 - **Email check-ins**: draft a status request to each person from their open tasks, then paste the reply back in
 - A **command palette** (`Ctrl` + `K`) and editable keyboard shortcuts

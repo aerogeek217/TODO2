@@ -15,20 +15,18 @@ import { layoutTabs } from './workspace-layout-queries'
  */
 
 /**
- * How many tabs in `layout` show list `listDefinitionId` — its list tabs,
- * and its Eisenhower tabs when it is the Eisenhower's own list
- * (`eisenhowerListId`; `tabListId`) —, not counting the tabs in
- * `exceptTabIds` (e.g. the ones about to be closed).
+ * How many tabs in `layout` show list `listDefinitionId` — its list tabs
+ * (`tabListId`) —, not counting the tabs in `exceptTabIds` (e.g. the ones
+ * about to be closed).
  */
 export function countListTabs(
   layout: LayoutBody,
   listDefinitionId: number,
-  eisenhowerListId: number | null,
   exceptTabIds: ReadonlySet<string> = new Set(),
 ): number {
   let n = 0
   for (const tab of layoutTabs(layout)) {
-    if (tabListId(tab, eisenhowerListId) === listDefinitionId && !exceptTabIds.has(tab.id)) n++
+    if (tabListId(tab) === listDefinitionId && !exceptTabIds.has(tab.id)) n++
   }
   return n
 }
@@ -45,8 +43,7 @@ function namedListId(tab: LayoutTab): number | undefined {
 
 /**
  * The ids of the lists a layout itself names: its list tabs' lists and the
- * lists its Numbers follow (an Eisenhower tab's list is the Eisenhower's,
- * not the layout's).
+ * lists its Numbers follow.
  */
 export function layoutListRefs(layout: LayoutBody): Set<number> {
   const ids = new Set<number>()

@@ -11,7 +11,7 @@ import {
   type PersistedWorkspaceLayout,
   type WorkspaceLayout,
 } from '../models/workspace-layout'
-import { isEisenhowerOwner, ownerLayoutId, type ListDefinition, type PersistedListDefinition } from '../models/list-definition'
+import { isRetiredEisenhowerOwner, ownerLayoutId, type ListDefinition, type PersistedListDefinition } from '../models/list-definition'
 import type { PersistedListOrder } from '../models/list-order'
 import { repointLayoutLists } from '../utils/workspace-layout-lists'
 import { nextSortOrder } from './create-repository'
@@ -328,7 +328,7 @@ export const layoutRepository = {
 
   /**
    * Gives the lists of `ids` that belong to no stored layout (no owner, or
-   * a layout that is gone — never the Eisenhower's) a layout, in one
+   * a layout that is gone — never the retired Eisenhower's) a layout, in one
    * transaction: each the first layout (in the picker's order) whose stored
    * row names it; the rest go, as list tabs in their list order, into a new
    * layout `RECOVERED_LISTS_LAYOUT_NAME` after the others. Returns how many
@@ -340,7 +340,7 @@ export const layoutRepository = {
       const layoutIds = new Set(layouts.map((l) => l.id))
       const refs = layouts.map((l) => ({ id: l.id, names: storedListRefs(l) }))
       const rows = ((await db.listDefinitions.bulkGet([...ids])) as Array<PersistedListDefinition | undefined>)
-        .filter((d): d is PersistedListDefinition => d != null && !isEisenhowerOwner(d.owner) && !layoutIds.has(ownerLayoutId(d) ?? NaN))
+        .filter((d): d is PersistedListDefinition => d != null && !isRetiredEisenhowerOwner(d.owner) && !layoutIds.has(ownerLayoutId(d) ?? NaN))
       const rest: PersistedListDefinition[] = []
       for (const def of rows) {
         const layoutId = refs.find((r) => r.names.has(def.id))?.id

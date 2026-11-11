@@ -8,7 +8,7 @@ const MENU_WIDTH_PX = 300
 
 /**
  * The one Copy from chooser (`MenuPopover`): every layout's lists grouped by
- * layout, then the Eisenhower's list, under Edit list's Copy from….
+ * layout, under Edit list's Copy from….
  */
 export function CopyFromMenu({ anchorRef, label, groups, onPick, onClose }: {
   anchorRef: RefObject<HTMLElement | null>

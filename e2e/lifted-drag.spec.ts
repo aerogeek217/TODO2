@@ -8,8 +8,8 @@ import { box, type Point } from './fixtures/geometry'
  * the row's resting look to 1.02 scale — no tilt; on drop it settles —
  * shrinking back while it moves onto the row's new spot (a reorder) or back
  * to where it came from (a cancel) — and goes. Reduced motion: no scale,
- * gone at once. A drop the row follows later (another group, a calendar day,
- * an Eisenhower pane) settles and fades where it was let go. Where it would
+ * gone at once. A drop the row follows later (another group, a calendar
+ * day) settles and fades where it was let go. Where it would
  * land is a blank slot a row high, at every zoom and in a sorted list too.
  * Real-browser because computed transforms, CSS / Web Animations and pseudo-
  * element geometry are.

@@ -39,14 +39,14 @@ const twoColumns: WsLayoutSeed = {
   ],
 }
 
-/** [colA: row r1 (c1: notesTab | c2: eisTab), (a2: calTab)] [colB: (b1: notes2)] */
+/** [colA: row r1 (c1: notesTab | c2: mapTab), (a2: calTab)] [colB: (b1: notes2)] */
 const sideBySide: WsLayoutSeed = {
   name: 'Main',
   columns: [
     {
       id: 'colA',
       rows: [
-        { id: 'r1', cells: [{ id: 'c1', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { id: 'c2', tabs: [{ id: 'eisTab', kind: 'eisenhower' }] }] },
+        { id: 'r1', cells: [{ id: 'c1', tabs: [{ id: 'notesTab', kind: 'notes' }] }, { id: 'c2', tabs: [{ id: 'mapTab', kind: 'neglect' }] }] },
         wsRow({ id: 'a2', tabs: [{ id: 'calTab', kind: 'calendar' }] }),
       ],
     },

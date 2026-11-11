@@ -10,7 +10,7 @@ import { dndLog } from '../debug-flags'
  * A single rule in the per-context task-collision table. Each rule pairs a
  * "does this drag match?" predicate with an "accept these droppables?" filter.
  * The first matching rule wins; rules are evaluated top-to-bottom. Every
- * task drop target (calendar days, Eisenhower quadrants) must be under the
+ * task drop target (calendar days) must be under the
  * pointer, so the accepted droppables go through dnd-kit's `pointerWithin`.
  */
 export interface TaskCollisionRule {
@@ -51,7 +51,7 @@ type DetectArgs = Parameters<CollisionDetection>[0]
 
 /**
  * Keeps only the hits whose droppable shows at the pointer. dnd-kit measures
- * droppables unclipped, so a calendar day or an Eisenhower pane scrolled out
+ * droppables unclipped, so a calendar day scrolled out
  * of its scroller still has a rect — over whatever lies beyond the scroller
  * (the list a row is dragged in). A hit counts only where no ancestor that
  * clips its overflow cuts the point off (cr31 W1).

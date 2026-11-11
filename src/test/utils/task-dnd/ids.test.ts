@@ -1,7 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
   calendarDayDropId,
-  eisenhowerQuadrantDropId,
   taskDragId,
   type TaskSurfaceKey,
 } from '../../../utils/task-dnd'
@@ -39,10 +38,5 @@ describe('drop-zone id helpers', () => {
   it('two calendar widgets yield distinct ids for the same date', () => {
     const dateMs = 1700000000000
     expect(calendarDayDropId('ws-t1', dateMs)).not.toBe(calendarDayDropId('ws-t2', dateMs))
-  })
-
-  it('eisenhowerQuadrantDropId embeds the widget and the quadrant', () => {
-    expect(eisenhowerQuadrantDropId('t1', 'do')).toBe('eis-t1-do')
-    expect(eisenhowerQuadrantDropId('t1', 'do')).not.toBe(eisenhowerQuadrantDropId('t2', 'do'))
   })
 })

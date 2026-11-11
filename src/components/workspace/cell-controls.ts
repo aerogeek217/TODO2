@@ -42,8 +42,7 @@ export interface CellControlsValue {
    * A top line mounted (`holdsSlot`: holding the slot): the cell draws no
    * slot of its own while one holds it — a face without one gets the cell's,
    * floating at its top-right corner, which also stands for the tab while no
-   * top line does (a face with no line of its own: the Eisenhower's, the
-   * calendar's). Returns its unmount.
+   * top line does (a face with no line of its own: the calendar's). Returns its unmount.
    */
   claim: (holdsSlot: boolean) => () => void
 }

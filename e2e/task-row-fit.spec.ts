@@ -3,7 +3,7 @@ import { seedWorkspace, type WorkspaceSeed, type WsTabSeed, wsRow } from './fixt
 
 /**
  * Task rows fit their container at every width: a row is never wider than
- * the list widget, Eisenhower quadrant or glance row widget it sits in, and its
+ * the list widget or glance row widget it sits in, and its
  * cells and status stay inside it — the people / tags, the dates (to icons)
  * and the title give way instead. Layout-dependent, so a real browser is the
  * authoritative surface.
@@ -123,13 +123,6 @@ test.describe('task rows fit their container', () => {
       await expectDateParts(busiest, DATES_TIER[width]!)
     })
   }
-
-  test('Eisenhower quadrants', async ({ page }) => {
-    await seedWorkspace(page, seed({ kind: 'eisenhower' }, 600))
-    await expect(page.locator('[data-todo-id]')).toHaveCount(TASKS.length)
-    const { problems } = await rowOverflow(page)
-    expect(problems).toEqual([])
-  })
 })
 
 test('narrowing the details by the divider: people and tags shrink, the dates go to icons, then tags, then people go', async ({ page }) => {

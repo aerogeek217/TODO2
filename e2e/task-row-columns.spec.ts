@@ -230,43 +230,6 @@ test('a 280px column: a stored wide split gives way, the title keeping all the n
   expect(await storedTabView(page, 'tab')).toEqual({ detailsWidth: 4000 })
 })
 
-test('Eisenhower quadrants use their tab’s value', async ({ page }) => {
-  await seedWorkspace(page, {
-    people: PEOPLE,
-    tags: TAGS,
-    statuses: ['Waiting'],
-    tasks: TASKS,
-    layouts: [{
-      name: 'Main',
-      columns: [
-        // Wide enough that each pane's rows hold 160 beside the title's 140 (a half-width Eisenhower's panes clamp to the 84 minimum).
-        { id: 'a', weight: 3, rows: [wsRow({ id: 'k1', tabs: [{ id: 'eis', kind: 'eisenhower', detailsWidth: 160 }] })] },
-        { id: 'b', weight: 1, rows: [wsRow({ id: 'k2', tabs: [{ id: 'notes', kind: 'notes' }] })] },
-      ],
-    }],
-  })
-  const eis = page.locator('[data-eisenhower="eis"]')
-  await expect(eis.locator('[data-todo-id]')).toHaveCount(TASKS.length)
-  for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(160)
-  // Its rows have no ⋯ either.
-  await expect(page.getByRole('button', { name: 'Task actions' })).toHaveCount(0)
-
-  // One value for the tab: dragging one quadrant's divider moves every quadrant live, and is stored on release.
-  const doQuadrant = eis.locator('[data-eis-quadrant="do"]')
-  const from = await pointIn(divider(doQuadrant))
-  await page.mouse.move(from.x, from.y)
-  await page.mouse.down()
-  await page.mouse.move(from.x + 12, from.y, { steps: 3 })
-  // Mid-drag: the other quadrants' rows have moved too (148 leaves room for a people column, no tags).
-  expect(await laidOutDetails(row(eis.locator('[data-eis-quadrant="drop"]'), 'Bare task'))).toBe(148)
-  for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(148)
-  expect(await storedTabView(page, 'eis')).toEqual({ detailsWidth: 160 })
-  await page.mouse.up()
-  await expect.poll(() => storedTabView(page, 'eis')).toEqual({ detailsWidth: 148 })
-  for (const d of await eis.locator('[data-task-row-divider]').all()) expect(Number(await d.getAttribute('aria-valuenow'))).toBe(148)
-  for (const r of await eis.locator('[data-todo-id]').all()) expect(await laidOutDetails(r)).toBe(148)
-})
-
 test('a click on a cell opens its picker anchored to the cell', async ({ page }) => {
   await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 760))
   const r = row(wsListWidget(page, 'tab'), 'Draft the Q4 roadmap review deck')
@@ -374,28 +337,28 @@ test('the marker gutter opens the markers menu; on a task urgent by its due date
 })
 
 test('a drag can start on a cell; a click there without moving opens its picker; a double-click opens it once', async ({ page }) => {
-  await seedWorkspace(page, seed({ kind: 'eisenhower' }, 760, [{ title: 'Plain task' }, { title: 'Keep me', important: true }]))
-  const eis = page.locator('[data-eisenhower="tab"]')
-  const plain = row(eis, 'Plain task')
-  await expect(eis.locator('[data-eis-quadrant="drop"]').locator('[data-task-title="Plain task"]')).toBeVisible()
-  // Drag from the (empty) people cell into Schedule: the task becomes important.
-  await drag(page, await pointIn(plain.getByRole('button', { name: 'Assign people' })), await pointIn(eis.locator('[data-eis-quadrant="schedule"]'), 0.5, 0.7))
-  await expect(eis.locator('[data-eis-quadrant="schedule"]').locator('[data-task-title="Plain task"]')).toBeVisible()
+  await seedWorkspace(page, seed({ kind: 'lens', listDefIdx: 0 }, 760, [{ title: 'Plain task' }, { title: 'Keep me', important: true }]))
+  const list = wsListWidget(page, 'tab')
+  const plain = row(list, 'Plain task')
+  await expect(list.locator('[data-task-title]')).toHaveText(['Plain task', 'Keep me'])
+  // Drag from the (empty) people cell below the other row: the list's manual order changes.
+  await drag(page, await pointIn(plain.getByRole('button', { name: 'Assign people' })), await pointIn(row(list, 'Keep me'), 0.3, 0.9))
+  await expect(list.locator('[data-task-title]')).toHaveText(['Keep me', 'Plain task'])
   await expect(page.locator('[data-anchored-picker]')).toHaveCount(0)
 
   // A click without movement opens the cell's picker.
-  await row(eis, 'Plain task').getByRole('button', { name: 'Assign people' }).click()
+  await row(list, 'Plain task').getByRole('button', { name: 'Assign people' }).click()
   await expect(page.locator('[data-anchored-picker]')).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(page.locator('[data-anchored-picker]')).toHaveCount(0)
 
   // A double-click on a cell: its picker opens (once) and the editor doesn't.
-  await row(eis, 'Plain task').getByRole('button', { name: 'Set status' }).dblclick()
+  await row(list, 'Plain task').getByRole('button', { name: 'Set status' }).dblclick()
   await expect(page.locator('[data-anchored-picker]')).toBeVisible()
   await expect(page.getByRole('dialog', { name: 'Edit task' })).toHaveCount(0)
   await page.keyboard.press('Escape')
   // On the title's text it opens the editor (its middle may be past the text, on the hover-revealed Add subtasks mark).
-  await row(eis, 'Plain task').locator('[data-task-title]').dblclick({ position: { x: 8, y: 10 } })
+  await row(list, 'Plain task').locator('[data-task-title]').dblclick({ position: { x: 8, y: 10 } })
   await expect(page.getByRole('dialog', { name: 'Edit task' })).toBeVisible()
 })
 

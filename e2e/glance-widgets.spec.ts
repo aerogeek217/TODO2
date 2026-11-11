@@ -33,7 +33,7 @@ test('a Number and a Created vs completed cell come from the grouped add-widget 
   await openCellLayoutMenu(page, 'k1')
   await pickSplit(page, 'Below')
   const empty = page.getByRole('region', { name: 'Empty cell' })
-  // Tasks: List, Calendar, Eisenhower, Review, Notes; Insights: the numbers and charts, and the Neglect map.
+  // Tasks: List, Calendar, Review, Notes; Insights: the numbers and charts, and the Neglect map.
   await expect(empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Notes' })).toBeVisible()
   await expect(empty.getByRole('group', { name: 'Tasks' }).getByRole('button', { name: 'Calendar' })).toBeVisible()
   await expect(empty.getByRole('group', { name: 'Insights' }).getByRole('button', { name: 'Neglect map' })).toBeVisible()

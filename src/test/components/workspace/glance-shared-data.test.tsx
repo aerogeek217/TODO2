@@ -4,7 +4,6 @@ import { DndContext } from '@dnd-kit/core'
 import { GlanceWidget } from '../../../components/workspace/glance/GlanceWidget'
 import { NeglectMapWidget } from '../../../components/workspace/neglect/NeglectMapWidget'
 import { CalendarWidget } from '../../../components/workspace/calendar/CalendarWidget'
-import { useEisenhowerSource } from '../../../hooks/use-eisenhower-source'
 import { useScreenTasks } from '../../../hooks/use-glance-data'
 import { WidgetFaceContext } from '../../../hooks/use-widget-face'
 import { useTodoNameLookups } from '../../../hooks/use-todo-name-lookups'
@@ -160,12 +159,8 @@ describe('glance widgets share their data', () => {
     warn.mockRestore()
   })
 
-  it('the calendars (full and face) and the Eisenhower read the same base: still one screen-filter pass (A6)', () => {
+  it('the calendars (full and face) read the same base: still one screen-filter pass (A6)', () => {
     const calendar = createTab('calendar', 'cal') as CalendarTab
-    function Eisenhower() {
-      useEisenhowerSource()
-      return null
-    }
     render(
       <DndContext>
         <GlanceWidget tab={numberTab('n')} />
@@ -173,7 +168,6 @@ describe('glance widgets share their data', () => {
         <WidgetFaceContext.Provider value={{ forced: 'medium' }}>
           <CalendarWidget tab={{ ...calendar, id: 'cal2' }} />
         </WidgetFaceContext.Provider>
-        <Eisenhower />
       </DndContext>,
     )
     expect(document.querySelector('[data-calendar-widget="cal"]')).not.toBeNull()

@@ -276,18 +276,18 @@ async function expectRingRoom(trigger: Locator) {
 test.describe('the filter line does not clip an open or focused trigger’s ring', () => {
   const LINES: WorkspaceSeed = {
     people: ['Ann'],
-    listDefinitions: [{ name: 'Team', people: ['Ann'] }],
+    listDefinitions: [{ name: 'Team', people: ['Ann'] }, { name: 'All' }],
     tasks: [{ title: 'Ann one', people: ['Ann'], urgent: true, important: true }],
     layouts: [{
       name: 'Main',
       columns: [
         { id: 'c1', rows: [wsRow({ id: 'k1', tabs: [{ id: 't1', kind: 'lens', listDefIdx: 0 }] })] },
-        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 'eis', kind: 'eisenhower' }] })] },
+        { id: 'c2', rows: [wsRow({ id: 'k2', tabs: [{ id: 't2', kind: 'lens', listDefIdx: 1 }] })] },
       ],
     }],
   }
 
-  test('desktop: the list’s words and the Eisenhower’s `Every open task`, ringed whole when focused; the line 36px', async ({ page }) => {
+  test('desktop: a list’s words and an unfiltered list’s `Every open task`, ringed whole when focused; the line 36px', async ({ page }) => {
     await page.setViewportSize({ width: 1400, height: 900 })
     await seedWorkspace(page, LINES)
     const row = wsListWidget(page, 't1').getByTestId('list-filter-row')
@@ -297,9 +297,9 @@ test.describe('the filter line does not clip an open or focused trigger’s ring
     await words.focus()
     await expectRingRoom(words)
 
-    const eisLine = wsCell(page, 'k2').getByTestId('list-filter-row')
-    expect(Math.round((await box(eisLine)).height)).toBe(36)
-    const every = eisLine.getByRole('button', { name: 'Every open task' })
+    const allLine = wsCell(page, 'k2').getByTestId('list-filter-row')
+    expect(Math.round((await box(allLine)).height)).toBe(36)
+    const every = allLine.getByRole('button', { name: 'Every open task' })
     await every.focus()
     await expectRingRoom(every)
   })

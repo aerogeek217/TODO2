@@ -4,7 +4,7 @@ import type { MenuEntry } from './MenuPopover'
 
 /**
  * Copy from's entries: a heading per group (`useCopySources` — the layouts,
- * this one first, then the Eisenhower), each list under it with its filters
+ * this one first), each list under it with its filters
  * in words; a note when there is nothing to copy.
  */
 export function copyFromEntries(groups: readonly CopySourceGroup<CopySource>[], onPick: (source: CopySource) => void): MenuEntry[] {

@@ -18,7 +18,7 @@ export interface UnusedEntities {
 /**
  * The people and tags no task carries (with `ignoreCompleted`, also those
  * only completed tasks carry), each with where the filters name it — every
- * list (saved or as edited), the Eisenhower panes, the check-in filter.
+ * list (saved or as edited), the check-in filter.
  * Loads every task and its assignments, as the People / Tags editors do, and
  * follows them live (a task deleted or completed meanwhile, a removal).
  */
@@ -33,7 +33,6 @@ export function useUnusedEntities(ignoreCompleted: boolean): UnusedEntities {
   const assignedTagsMap = useTagStore((s) => s.assignedTagsMap)
   const lists = useListDefinitionStore((s) => s.listDefinitions)
   const listsLoaded = useListDefinitionStore((s) => s.loaded)
-  const panes = useSettingsStore((s) => s.eisenhowerPanes)
   const checkinFilter = useSettingsStore((s) => s.checkinTaskFilter)
 
   useEffect(() => {
@@ -48,7 +47,7 @@ export function useUnusedEntities(ignoreCompleted: boolean): UnusedEntities {
   const ready = todosLoaded && peopleLoaded && tagsLoaded && listsLoaded
     && todos.every((t) => assignedPeopleMap.has(t.id) && assignedTagsMap.has(t.id))
 
-  const sources = useMemo<FilterSources>(() => ({ lists, panes, checkinFilter }), [lists, panes, checkinFilter])
+  const sources = useMemo<FilterSources>(() => ({ lists, checkinFilter }), [lists, checkinFilter])
   const unusedPeople = useMemo(
     () => findUnused(people, entityTaskUse(todos, assignedPeopleMap), filterReferences(sources, 'person'), ignoreCompleted),
     [people, todos, assignedPeopleMap, sources, ignoreCompleted],

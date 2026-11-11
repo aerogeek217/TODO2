@@ -5,7 +5,6 @@ import { settleLayoutWrites, useWorkspaceStore } from '../../stores/workspace-st
 import { createTab, layoutBodyOf, type PersistedWorkspaceLayout, type WorkspaceLayout } from '../../models/workspace-layout'
 import { resetDb } from '../helpers'
 import { useListDefinitionStore } from '../../stores/list-definition-store'
-import { useSettingsStore } from '../../stores/settings-store'
 import { writeLayoutDraft } from '../../data/draft-storage'
 import { useUndoStore } from '../../stores/undo-store'
 import { useTagStore } from '../../stores/tag-store'
@@ -17,7 +16,7 @@ import { cell, emptyBody, grid, picture, type GridOptions } from '../helpers/lay
 const T0 = new Date('2026-09-01T09:00:00.000Z')
 
 const KA = cell('ka', [createTab('notes', 'a1'), createTab('calendar', 'a2')], { activeTabId: 'a1' })
-const KB = cell('kb', [createTab('eisenhower', 'b1')], { activeTabId: 'b1' })
+const KB = cell('kb', [createTab('lens', 'b1')], { activeTabId: 'b1' })
 
 /** ka (a1 a2) | kb (b1): column tracks A and B, one row R. */
 function twoColumns(name = 'Daily', extra: Partial<WorkspaceLayout> = {}, opts: GridOptions = {}): Omit<WorkspaceLayout, 'id'> {
@@ -200,7 +199,7 @@ describe('structural edits are saved at once, each an undo step', () => {
     ws().patchTabConfig('b1', 'notes', {}, 'Edited notes')
     expect(undoNames().at(-1)).not.toBe('Edited notes') // no change: no step
     await undo()
-    expect(cellOf(await stored(id!), 'kb')!.tabs[0]).toEqual(createTab('eisenhower', 'b1'))
+    expect(cellOf(await stored(id!), 'kb')!.tabs[0]).toEqual(createTab('lens', 'b1'))
     await undo()
     expect(cellOf(await stored(id!), 'ka')!.tabs[1]!.config).toEqual(createTab('calendar', 'a2').config)
   })
@@ -209,7 +208,7 @@ describe('structural edits are saved at once, each an undo step', () => {
     await seedAndInit(twoColumns())
     ws().changeTabKind('b1', 'trend')
     ws().patchTabConfig('b1', 'trend', { range: '4w' }, 'Edited trend')
-    expect(undoNames()).toEqual(['Changed “Eisenhower” to Created vs completed', 'Edited trend'])
+    expect(undoNames()).toEqual(['Changed “List” to Created vs completed', 'Edited trend'])
     await settleLayoutWrites()
   })
 
@@ -262,8 +261,8 @@ describe('undo of a structural edit', () => {
     ws().closeTab('b1')
     await ws().load(b!)
     await undo()
-    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Open layout “A” to undo: Closed tab “Eisenhower”.', notice: true })
-    expect(undoNames()).toEqual(['Closed tab “Eisenhower”'])
+    expect(useUndoStore.getState().snackbar).toMatchObject({ description: 'Open layout “A” to undo: Closed tab “List”.', notice: true })
+    expect(undoNames()).toEqual(['Closed tab “List”'])
     expect(tabsOf(await stored(a!), 'kb')).toBeUndefined()
     await ws().load(a!)
     await undo()
@@ -277,7 +276,7 @@ describe('undo of a structural edit', () => {
     await ws().load(b!)
     await ws().delete(a!)
     await undo()
-    expect(useUndoStore.getState().snackbar?.description).toBe('Can’t undo: Closed tab “Eisenhower” — its layout is gone.')
+    expect(useUndoStore.getState().snackbar?.description).toBe('Can’t undo: Closed tab “List” — its layout is gone.')
     expect(undoNames()).toEqual([])
   })
 
@@ -405,9 +404,9 @@ describe('view state', () => {
 
   it('a details-width write is view state: stored at once, no undo step; clearing removes it', async () => {
     const [id] = await seedAndInit(twoColumns())
-    await ws().patchTabViewState('b1', 'eisenhower', { detailsWidth: 310 })
+    await ws().patchTabViewState('b1', 'lens', { detailsWidth: 310 })
     expect(cellOf(await stored(id!), 'kb')!.tabs[0]!.viewState).toEqual({ detailsWidth: 310 })
-    await ws().patchTabViewState('b1', 'eisenhower', { detailsWidth: undefined })
+    await ws().patchTabViewState('b1', 'lens', { detailsWidth: undefined })
     expect(cellOf(await stored(id!), 'kb')!.tabs[0]!.viewState).toEqual({})
     expect(undoNames()).toEqual([])
   })
@@ -604,7 +603,7 @@ describe('layouts', () => {
     const row = await stored(id!)
     expect(row.name).toBe('Morning')
     expect(row.cells).toHaveLength(1)
-    expect(undoNames()).toEqual(['Closed tab “Eisenhower”'])
+    expect(undoNames()).toEqual(['Closed tab “List”'])
     expect(await ws().rename(id!, '')).toBe(false)
   })
 
@@ -750,19 +749,5 @@ describe('an unsaved layout change an older build kept in the browser', () => {
     expect(ws().activeLayoutId).toBe(a)
     expect(ws().layouts).toHaveLength(2)
     expect(localStorage.getItem('todo2-unsaved-layout')).toBeNull()
-  })
-
-  it('an Eisenhower tab holds no list (its source is a setting): a kept new layout with one is stored', async () => {
-    const listId = await db.listDefinitions.add({
-      name: 'Inbox', sortOrder: 0, sort: 'manual', grouping: 'none',
-      membership: { kind: 'custom', predicate: { showCompleted: false, searchText: '', dates: {} } },
-    } as never) as number
-    await seedAndInit(twoColumns('A'))
-    await useListDefinitionStore.getState().load()
-    useSettingsStore.setState({ eisenhowerListId: listId })
-    writeLayoutDraft({ kind: 'new', name: 'Matrix', body: grid([[cell('ke', [createTab('eisenhower', 'e1')])]]) })
-    await reload()
-    expect(ws().working).toMatchObject({ name: 'Matrix' })
-    expect(ws().working!.cells[0]!.tabs[0]).toMatchObject({ kind: 'eisenhower', config: {} })
   })
 })
