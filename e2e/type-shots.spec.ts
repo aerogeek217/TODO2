@@ -118,6 +118,8 @@ async function setup(browser: Browser, size: Size, theme: Theme, text: string): 
   const page = await context.newPage()
   page.setDefaultTimeout(10_000)
   await page.goto('/#/')
+  // A browser just launched can take a while to draw its first frame: wait for one.
+  await page.waitForFunction(() => new Promise((resolve) => requestAnimationFrame(() => resolve(true))), null, { timeout: 180_000 })
   // A fresh browser opens on an empty layout: wait for the shell.
   await page.waitForFunction(() => (document.querySelector('#root')?.childElementCount ?? 0) > 0, null, { timeout: 60_000 })
   await page.waitForLoadState('networkidle')
