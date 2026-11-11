@@ -60,7 +60,7 @@
 .yMark,
 .xMark {
   position: absolute;
-  font-size: 10.5px;
+  font-size: var(--font-size-legacy-10-5);
   line-height: 1;
   color: var(--color-text-muted);
   white-space: nowrap;
@@ -145,7 +145,7 @@
 
 .corner {
   position: absolute;
-  font-size: 10px;
+  font-size: var(--font-size-legacy-10);
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   line-height: 1;
@@ -234,7 +234,7 @@
 .forgottenLabel {
   position: absolute;
   top: 5px;
-  font-size: 10px;
+  font-size: var(--font-size-legacy-10);
   font-weight: var(--font-weight-bold);
   letter-spacing: 0.08em;
   line-height: 1;
@@ -307,7 +307,7 @@
   border-radius: var(--radius-pill);
   background: var(--color-deadline);
   color: var(--color-surface);
-  font-size: 9.5px;
+  font-size: var(--font-size-legacy-9-5);
   font-weight: var(--font-weight-bold);
   line-height: 1;
   font-variant-numeric: tabular-nums;
@@ -431,7 +431,7 @@
 }
 
 .slipMeta {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   font-variant-numeric: tabular-nums;
 }
@@ -581,7 +581,7 @@
 
 .smallCount {
   flex: none;
-  font-size: 22px;
+  font-size: var(--font-size-xl);
   font-weight: var(--font-weight-bold);
   line-height: 28px;
   font-variant-numeric: tabular-nums;

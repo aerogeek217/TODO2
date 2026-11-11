@@ -27,13 +27,13 @@
 }
 
 .target {
-  font-size: 15px;
+  font-size: var(--font-size-legacy-15);
   font-weight: var(--font-weight-semibold);
   font-variant-numeric: tabular-nums;
 }
 
 .large .target {
-  font-size: 20px;
+  font-size: var(--font-size-display-sm);
 }
 
 .state {
@@ -179,14 +179,14 @@ button.item:hover {
 }
 
 .itemCount {
-  font-size: 20px;
+  font-size: var(--font-size-display-sm);
   font-weight: var(--font-weight-bold);
   line-height: 24px;
   font-variant-numeric: tabular-nums;
 }
 
 .groupLarge .itemCount {
-  font-size: 28px;
+  font-size: var(--font-size-display-lg);
   line-height: 34px;
 }
 
@@ -206,6 +206,6 @@ button.item:hover {
 }
 
 .group.small .itemCount {
-  font-size: 17px;
+  font-size: var(--font-size-legacy-17);
   line-height: 22px;
 }

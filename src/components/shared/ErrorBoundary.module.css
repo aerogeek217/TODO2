@@ -13,7 +13,7 @@
 
 .title {
   margin: 0;
-  font-size: 18px;
+  font-size: var(--font-size-legacy-18);
   color: var(--color-text-primary);
 }
 
@@ -21,7 +21,7 @@
   margin: 0;
   max-width: 420px;
   color: var(--color-text-secondary);
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 
 .error {
@@ -30,7 +30,7 @@
   padding: 8px 16px;
   background: var(--color-surface-high);
   border-radius: 6px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   overflow-x: auto;
   word-break: break-word;
@@ -48,7 +48,7 @@
   color: var(--color-text-primary);
   border: 1px solid var(--color-border);
   border-radius: 6px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   cursor: pointer;
   transition: background 0.15s;
 }

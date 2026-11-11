@@ -24,7 +24,7 @@
 /* The entry count beside the label: plain, as the checklist's `2 of 4`. */
 .count {
   color: var(--color-text-muted);
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0;
   text-transform: none;
@@ -141,7 +141,7 @@
   height: 36px;
   padding: 0 12px;
   border-radius: 9px;
-  font-size: 13px;
+  font-size: var(--font-size-md);
 }
 
 .addLine > .textInput:focus,

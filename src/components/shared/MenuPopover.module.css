@@ -113,7 +113,7 @@
 }
 
 .description {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   line-height: 1.35;
   color: var(--color-text-muted);
   white-space: normal;
@@ -178,7 +178,7 @@
   background: var(--color-tint-8);
   color: var(--color-text-muted);
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   line-height: 14px;
 }

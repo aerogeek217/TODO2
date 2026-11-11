@@ -309,7 +309,7 @@
 }
 
 .expressionLockedTitle {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
   color: var(--color-text-primary);
 }

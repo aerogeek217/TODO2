@@ -14,7 +14,7 @@
   height: 100%;
   background: transparent;
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.7;
   color: var(--color-text-secondary);
   outline: none;
@@ -131,7 +131,7 @@
   background: var(--color-surface-high, rgba(255, 255, 255, 0.05));
   padding: 0 4px;
   border-radius: 3px;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
 }
 
 .host :global(.tok-link) {

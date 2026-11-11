@@ -65,7 +65,7 @@
 
 .label {
   padding: 0;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -132,7 +132,7 @@
 }
 
 .hint {
-  font-size: 11px;
+  font-size: var(--font-size-xs);
   line-height: 1.45;
   color: var(--color-text-muted);
 }

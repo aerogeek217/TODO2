@@ -83,7 +83,7 @@
   background: transparent;
   color: var(--color-text-primary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   text-align: left;
   cursor: pointer;
   min-width: 0;
@@ -152,7 +152,7 @@
   background: var(--color-surface);
   color: var(--color-text-primary);
   font-family: inherit;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);
 }
 

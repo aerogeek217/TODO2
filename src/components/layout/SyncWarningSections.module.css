@@ -61,13 +61,13 @@
 
 .title {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
 }
 
 .sheet .title {
-  font-size: 16px;
+  font-size: var(--font-size-lg);
 }
 
 .why,
@@ -78,33 +78,33 @@
 }
 
 .why {
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1.5;
   color: var(--color-text-primary);
 }
 
 .sheet .why {
-  font-size: 15px;
+  font-size: var(--font-size-legacy-15);
 }
 
 .flag {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   color: var(--color-danger-text);
 }
 
 .sheet .flag {
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 
 .body {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   line-height: 1.55;
   color: var(--color-text-secondary);
 }
 
 .sheet .body {
-  font-size: 14px;
+  font-size: var(--font-size-body);
 }
 
 .actions {
@@ -125,7 +125,7 @@
   border: none;
   border-radius: var(--radius-md);
   font-family: inherit;
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
   white-space: nowrap;
   cursor: pointer;
@@ -187,5 +187,5 @@
 .sheet .warningFill,
 .sheet .ghost {
   height: 44px;
-  font-size: 15px;
+  font-size: var(--font-size-legacy-15);
 }

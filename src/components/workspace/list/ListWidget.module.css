@@ -546,7 +546,7 @@
   background: var(--color-tint-8);
   color: var(--color-text-muted);
   font-family: inherit;
-  font-size: 11px;
+  font-size: var(--font-size-xs);
 }
 
 /* ── Add task: the list's last row ──────────────────────────────────────── */

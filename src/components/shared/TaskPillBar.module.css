@@ -90,7 +90,7 @@
   width: 14px;
   height: 14px;
   border-radius: var(--radius-pill);
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1;
   color: currentColor;
   opacity: 0;
@@ -138,7 +138,7 @@
 .statusButton {
   background: transparent;
   border: none;
-  font-size: 16px;
+  font-size: var(--font-size-lg);
   padding: 0 4px;
   cursor: pointer;
   line-height: 1;
@@ -165,7 +165,7 @@
 .statusReadOnly {
   display: inline-flex;
   align-items: center;
-  font-size: 14px;
+  font-size: var(--font-size-body);
   line-height: 1;
 }
 
@@ -224,7 +224,7 @@
 }
 
 .followupChip svg {
-  font-size: 12px;
+  font-size: var(--font-size-sm);
   flex-shrink: 0;
 }
 
@@ -261,7 +261,7 @@
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  font-size: 13px;
+  font-size: var(--font-size-md);
   line-height: 1;
   color: currentColor;
   opacity: 0.7;

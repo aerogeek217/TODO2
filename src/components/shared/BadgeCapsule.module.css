@@ -5,7 +5,7 @@
   height: 14px;
   border-radius: 7px;
   overflow: hidden;
-  font-size: 10.5px;
+  font-size: var(--font-size-legacy-10-5);
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
   line-height: 14px;
